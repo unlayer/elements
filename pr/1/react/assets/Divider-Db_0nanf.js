@@ -1,0 +1,1 @@
+import{c as o,C as t,m as i}from"./create-component-CvOey92g.js";const e={textAlign:"center",width:{autoWidth:!1,width:"100%"},border:{borderTopWidth:"1px",borderTopColor:"#BBBBBB",borderTopStyle:"solid"}},d=o({name:"Divider",defaultValues:e,propMapper:r=>i(r,e,"Divider"),displayName:"Divider",exporters:t});export{d as D};
