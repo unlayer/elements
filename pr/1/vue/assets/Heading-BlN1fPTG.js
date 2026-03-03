@@ -1,0 +1,1 @@
+import{c as p,p as i,m as r}from"./create-component-D1merdym.js";const n={headingType:"h1",color:"#000000",fontSize:"22px",fontWeight:400,lineHeight:"110%",textAlign:"left",text:"Heading"},g=p({name:"Heading",defaultValues:n,propMapper:a=>{const{level:t,...o}=a,e=r(o,n,"Heading");return t&&!e.headingType&&(e.headingType=t),e},exporters:i});export{g as H};
