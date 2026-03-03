@@ -1,0 +1,1 @@
+import{c as o,y as a,m as n}from"./create-component-DkDOQJwJ.js";const e={fontSize:"14px",lineHeight:"140%",textAlign:"left",color:"#000000",fontWeight:400,text:"Default text content"},r=o({name:"Text",defaultValues:e,propMapper:t=>n(t,e,"Text"),displayName:"Text",exporters:a});export{r as T};
