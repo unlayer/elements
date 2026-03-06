@@ -1,0 +1,1 @@
+import{c as o,m as p,f as r}from"./index-BdhjsKVo.js";const a={headingType:"h1",color:"#000000",fontSize:"22px",fontWeight:400,lineHeight:"110%",textAlign:"left",text:"Heading"},g=o({name:"Heading",defaultValues:a,propMapper:n=>{const{level:t,...i}=n,e=p(i,a,"Heading");return t&&!e.headingType&&(e.headingType=t),e},displayName:"Heading",exporters:r});export{g as H};
