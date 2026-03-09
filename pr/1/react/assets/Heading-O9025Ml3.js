@@ -1,0 +1,1 @@
+import{c as p,A as s,m as r,p as i}from"./index-xl_HwiZZ.js";const t={...s,color:"#000000",fontWeight:400,text:"Heading"},m=p({name:"Heading",defaultValues:t,propMapper:n=>{const{level:a,...o}=n,e=r(o,t,"Heading");return a&&!e.headingType&&(e.headingType=a),e},displayName:"Heading",exporters:i});export{m as H};
