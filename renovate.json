@@ -1,0 +1,19 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": ["config:recommended"],
+  "enabled": false,
+  "enabledManagers": ["npm"],
+  "packageRules": [
+    {
+      "description": "Upstream unlayer-dev packages — auto-create PRs on every new version",
+      "matchPackageNames": [
+        "@unlayer-dev/exporters"
+      ],
+      "enabled": true,
+      "groupName": "unlayer upstream",
+      "schedule": ["at any time"],
+      "automerge": false,
+      "rangeStrategy": "replace"
+    }
+  ]
+}

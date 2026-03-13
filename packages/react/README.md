@@ -1,65 +1,438 @@
-# @unlayer/react-elements
+# @unlayer-dev/react-elements
 
-React components for building emails, pages, and documents with Unlayer Elements.
-
-## Overview
-
-This package provides React components that enable developers to build emails, pages, and documents programmatically. Think of it as JSX elements - this is how you declare a `<Button>`, `<Row>`, `<Image>`, or `<Form>` in React.
+React components for building emails, pages, and documents with Unlayer Elements. Full SSR support — works with `renderToHtml`, `renderToString`, Next.js, Remix, and any server-side framework.
 
 ## Installation
 
 ```bash
-npm install @unlayer/react-elements
+npm install @unlayer-dev/react-elements
 # or
-yarn add @unlayer/react-elements
-# or
-pnpm add @unlayer/react-elements
+pnpm add @unlayer-dev/react-elements
 ```
 
-## Usage
+## Quick Start
 
-```jsx
-import { Button, Row, Column, Image, Text } from '@unlayer/react-elements';
+```tsx
+import { Email, Row, Column, ColumnLayouts, Heading, Paragraph, Button } from '@unlayer-dev/react-elements';
 
-function EmailTemplate() {
+function WelcomeEmail() {
   return (
-    <Row>
-      <Column>
-        <Image src="/logo.png" alt="Logo" />
-        <Text>Welcome to our newsletter!</Text>
-        <Button>Subscribe Now</Button>
-      </Column>
-    </Row>
+    <Email backgroundColor="#f0f0f0" contentWidth="600px">
+      <Row layout={ColumnLayouts.TwoEqual} backgroundColor="#ffffff" padding="20px">
+        <Column>
+          <Heading
+            text="Hello World"
+            fontSize="24px"
+            fontFamily={{ label: "Arial", value: "arial,helvetica,sans-serif" }}
+          />
+        </Column>
+        <Column>
+          <Paragraph text="Welcome to our newsletter!" fontSize="14px" />
+        </Column>
+      </Row>
+      <Row layout={ColumnLayouts.OneColumn} padding="10px">
+        <Column>
+          <Button
+            text="Click Me"
+            href="https://example.com"
+            backgroundColor="#0879A1"
+            color="#ffffff"
+          />
+        </Column>
+      </Row>
+    </Email>
   );
 }
 ```
 
+## Critical Rules
+
+These props have non-obvious shapes that **must** be followed exactly:
+
+- **fontFamily**: Must be `{ label: string, value: string }`, NOT a plain string.
+  ```tsx
+  fontFamily={{ label: "Arial", value: "arial, sans-serif" }}
+  ```
+- **fontWeight**: Must be a number (`400`, `700`), NOT a string (`"400"`).
+- **Wrapper component**: Use `<Email>`, `<Page>`, or `<Document>` as root — they set the rendering mode automatically.
+- **href**: Can be a plain string URL (auto-wrapped) or `{ name: "web", values: { href, target } }`.
+- **Image src**: Can be a plain string URL (auto-wrapped) or `{ url, width?, autoWidth?, maxWidth? }`.
+- **children**: Text components accept children as shorthand for `text` prop. `<Paragraph>Hello</Paragraph>` = `<Paragraph text="Hello" />`.
+
+## Structure: Email/Page/Document > Row > Column > Items
+
+```
+<Email>          ← root wrapper for email-safe HTML (tables)
+<Page>           ← root wrapper for responsive web (div + flexbox)
+<Document>       ← root wrapper for print/PDF
+
+  <Row>          ← layout container, use layout={ColumnLayouts.X} or cells={[1,1]}
+    <Column>     ← must match layout column count
+      <Button /> ← item components go inside columns
+      <Paragraph />
+    </Column>
+  </Row>
+</Email>
+```
+
 ## Components
 
-The following components are available (will be populated by automation):
+### Root Wrappers
 
-- **Layout**: `Row`, `Column`, `Container`, `Section`
-- **Content**: `Text`, `Image`, `Button`, `Link`
-- **Forms**: `Form`, `Input`, `Select`, `Checkbox`
-- **Media**: `Video`, `Audio`, `Gallery`
+| Component | Description |
+|-----------|-------------|
+| `<Email>` | Root wrapper for email-safe HTML (tables for Outlook, Gmail, Yahoo). |
+| `<Page>` | Root wrapper for responsive web display (div + flexbox). |
+| `<Document>` | Root wrapper for print-optimized / PDF rendering. |
+| `<Body>` | Low-level wrapper with explicit `mode` prop. Used internally by the above. |
+
+### Layout
+
+| Component | Description |
+|-----------|-------------|
+| `<Row>` | Layout container. Accepts `layout={ColumnLayouts.X}` or `cells={[1, 1]}`. |
+| `<Column>` | Column inside a Row. Number of Columns must match the layout. |
+
+### Content
+
+| Component | Description |
+|-----------|-------------|
+| `<Button>` | CTA button with hover states, links, and full styling |
+| `<Paragraph>` | Rich text with `text` (plain) or `html` (formatted) props |
+| `<Heading>` | Heading (h1-h4) with `level` shorthand |
+| `<Image>` | Responsive image with `src` / `alt` shorthands |
+| `<Divider>` | Horizontal rule / separator |
+| `<Social>` | Social media icons with `icons` shorthand array |
+| `<Menu>` | Navigation menu with `items` shorthand array |
+| `<Table>` | Data table with `headers` / `data` shorthands |
+| `<Video>` | Video embed with `videoUrl` shorthand |
+| `<Html>` | Custom HTML passthrough |
+
+## Component Reference
+
+### Email
+Root wrapper for email-safe HTML. Same props as Body (without `mode`).
+- `backgroundColor?: string` — `"#F7F8F9"`
+- `contentWidth?: string` — `"500px"`
+- `contentAlign?: string` — `"center"`
+- `fontFamily?: { label: string, value: string }` — `{ label: "Arial", value: "arial,helvetica,sans-serif" }`
+- `textColor?: string` — `"#000000"`
+- `linkStyle?: { linkColor, linkHoverColor, linkUnderline, linkHoverUnderline }`
+- `previewText?: string` — preview text shown in email client inboxes
+
+### Page
+Root wrapper for responsive web display. Same props as Email.
+
+### Document
+Root wrapper for print/PDF rendering. Same props as Email.
+
+### Body (advanced)
+Low-level root wrapper with explicit mode control. Prefer `<Email>`, `<Page>`, or `<Document>` instead.
+- All props from Email, plus:
+- `mode?: "web" | "email" | "document"`
+
+### Row
+Layout container. Must be child of Email/Page/Document/Body.
+- `layout?: ColumnLayout` — use `ColumnLayouts.X`
+- `cells?: number[]` — alternative to layout
+- `backgroundColor?: string`
+- `padding?: string` — `"0px"`
+- `noStackMobile?: boolean` — `false`
+
+### Column
+Must be child of Row. Count must match layout.
+- `padding?: string` — `"10px"`
+- `backgroundColor?: string`
+- `borderRadius?: string`
+
+### Button
+- `text?: string` — `"Button"` (or use children)
+- `href?: string | Href` — plain string auto-wrapped
+- `backgroundColor?: string` — `"#0879A1"`
+- `color?: string` — `"#FFFFFF"`
+- `hoverBackgroundColor?: string`
+- `hoverColor?: string`
+- `fontSize?: string` — `"14px"`
+- `fontWeight?: number` — `400`
+- `fontFamily?: { label: string, value: string }`
+- `padding?: string` — `"10px 20px"`
+- `borderRadius?: string` — `"4px"`
+- `textAlign?: "left" | "center" | "right"` — `"center"`
+- `containerPadding?: string`
+
+### Paragraph
+- `text?: string` — plain text (auto-converted to Lexical JSON internally)
+- `html?: string` — **rich HTML string** with inline formatting: `<b>`, `<i>`, `<u>`, `<s>`, `<a>`, `<code>`
+- `fontSize?: string` — `"14px"`
+- `color?: string` — `"#000000"`
+- `textAlign?: "left" | "center" | "right"` — `"left"`
+- `lineHeight?: string` — `"140%"`
+- `fontFamily?: { label: string, value: string }`
+- `containerPadding?: string`
+
+Priority: `html` > `text` > children. Use `html` for formatted text, `text` for plain text.
+
+```tsx
+<Paragraph text="Plain text paragraph" fontSize="14px" />
+<Paragraph html="Hello <b>bold</b> and <a href='#'>link</a>" fontSize="14px" />
+```
+
+### Heading
+- `text?: string` — `"Heading"` (or use children)
+- `headingType?: "h1" | "h2" | "h3" | "h4"` — `"h1"`
+- `level?: "h1" | "h2" | "h3" | "h4"` — shorthand for headingType
+- `fontSize?: string` — `"22px"`
+- `fontWeight?: number` — `400`
+- `fontFamily?: { label: string, value: string }`
+- `color?: string` — `"#000000"`
+- `textAlign?: "left" | "center" | "right"` — `"left"`
+- `lineHeight?: string` — `"110%"`
+- `containerPadding?: string`
+
+### Divider
+- `borderTopWidth?: string` — `"1px"`
+- `borderTopColor?: string` — `"#BBBBBB"`
+- `borderTopStyle?: string` — `"solid"`
+- `textAlign?: "left" | "center" | "right"` — `"center"`
+- `containerPadding?: string`
+
+### Image
+- `src?: string | { url, width?, autoWidth?, maxWidth? }` — string URLs auto-wrapped
+- `altText?: string` — alt text for accessibility
+- `textAlign?: "left" | "center" | "right"` — `"center"`
+- `action?: { name: "web", values: { href, target } }`
+- `containerPadding?: string`
+
+### Video
+- `videoUrl?: string` — YouTube/Vimeo URL, auto-parsed
+- `video?: { type: "youtube" | "vimeo", videoId, thumbnail }` — manual control
+- `containerPadding?: string`
+
+### Html
+- `html?: string` — `"<p>Custom HTML content</p>"`
+- `containerPadding?: string`
+
+### Table
+- `headers?: string[]` — shorthand for column headers
+- `data?: string[][]` — shorthand for row data
+- `columns?: number` — `3`
+- `rows?: number` — `3`
+- `enableHeader?: boolean` — `true`
+- `containerPadding?: string`
+
+### Social
+- `icons?: { name: string, url: string }[]` — shorthand
+- `iconType?: "circle" | "rounded" | "squared"` — `"circle"`
+- `iconSize?: number` — `32`
+- `spacing?: number` — `10`
+- `align?: "left" | "center" | "right"` — `"center"`
+- `containerPadding?: string`
+
+### Menu
+- `items?: { text: string, href: string, target?: string }[]` — shorthand
+- `layout?: "horizontal" | "vertical"` — `"horizontal"`
+- `separator?: string` — `"|"`
+- `align?: "left" | "center" | "right"` — `"center"`
+- `containerPadding?: string`
+
+## Column Layouts
+
+Pre-built layouts for common column configurations:
+
+```tsx
+import { Row, Column, ColumnLayouts } from '@unlayer-dev/react-elements';
+
+<Row layout={ColumnLayouts.OneColumn}>              {/* [1]       → 100% */}
+<Row layout={ColumnLayouts.TwoEqual}>               {/* [1,1]     → 50% + 50% */}
+<Row layout={ColumnLayouts.TwoWideNarrow}>          {/* [2,1]     → 67% + 33% */}
+<Row layout={ColumnLayouts.TwoNarrowWide}>          {/* [1,2]     → 33% + 67% */}
+<Row layout={ColumnLayouts.ThreeEqual}>             {/* [1,1,1]   → 33% each */}
+<Row layout={ColumnLayouts.ThreeNarrowWideNarrow}>  {/* [1,2,1]   → 25% + 50% + 25% */}
+<Row layout={ColumnLayouts.FourEqual}>              {/* [1,1,1,1] → 25% each */}
+<Row layout={ColumnLayouts.FiveEqual}>              {/* [1,1,1,1,1] → 20% each */}
+<Row cells={[3, 1]}>                                {/* Custom ratio */}
+```
+
+Number of `<Column>` children must match the layout.
+
+## Rendering Modes
+
+Use the semantic wrapper component that matches your target:
+
+```tsx
+<Email>...</Email>       // Email-client safe (tables for Outlook, Gmail, Yahoo)
+<Page>...</Page>         // Responsive web (div + flexbox)
+<Document>...</Document> // Print/PDF optimized
+```
+
+Each wrapper threads the correct mode to all children automatically.
+
+## renderToHtml
+
+Render any element tree to a clean HTML string — no React hydration markers, perfect for email sending and PDF generation:
+
+```tsx
+import { renderToHtml, Email, Row, Column, ColumnLayouts, Paragraph, Button } from '@unlayer-dev/react-elements';
+
+const html = renderToHtml(
+  <Email backgroundColor="#f4f4f4">
+    <Row layout={ColumnLayouts.OneColumn}>
+      <Column>
+        <Paragraph text="Hello World" fontSize="14px" />
+        <Button
+          text="Click me"
+          backgroundColor="#3b82f6"
+          color="#ffffff"
+        />
+      </Column>
+    </Row>
+  </Email>
+);
+```
+
+## UnlayerProvider
+
+Configure global settings like CDN base URL, merge tags, text direction, and rendering mode:
+
+```tsx
+import { UnlayerProvider, Email, Row, Column, Social, Menu } from '@unlayer-dev/react-elements';
+
+function App() {
+  return (
+    <UnlayerProvider config={{
+      cdnBaseUrl: "https://my-cdn.example.com",
+      mergeTagState: { firstName: "Jane", company: "Acme" },
+      textDirection: "ltr"
+    }}>
+      <Email>
+        <Row layout={ColumnLayouts.OneColumn}>
+          <Column>
+            <Social icons={[{ name: "Facebook", url: "https://facebook.com/acme" }]} />
+            <Menu items={[{ text: "Home", href: "/" }, { text: "About", href: "/about" }]} />
+          </Column>
+        </Row>
+      </Email>
+    </UnlayerProvider>
+  );
+}
+```
+
+**Important:** The root wrapper (`Email`/`Page`/`Document`) bridges the provider context to child components. Components inside `UnlayerProvider` but without a root wrapper won't receive the config.
 
 ## Types
 
-This package includes TypeScript definitions and integrates with `unlayer-types` for comprehensive type safety.
+All types are exported and sourced from `@unlayer-dev/editor-types`:
+
+```tsx
+import type {
+  ButtonValues, SocialValues, TableValues,
+  Href, Icons, TextAlign, LinkStyle,
+  SocialIcon, MenuItem,
+  ButtonProps, MenuProps, ImageProps,
+} from '@unlayer-dev/react-elements';
+```
+
+## Common Font Stacks
+
+fontFamily must always be an object. Here are ready-to-use stacks:
+
+```tsx
+const sansFont = { label: "Sans Serif", value: "system-ui, -apple-system, BlinkMacSystemFont, sans-serif" };
+const serifFont = { label: "Georgia", value: "Georgia, 'Times New Roman', Times, serif" };
+const monoFont = { label: "Monospace", value: "'SF Mono', 'Fira Code', 'Roboto Mono', monospace" };
+```
+
+## Common Design Patterns
+
+### Header with Logo
+
+```tsx
+<Row layout={ColumnLayouts.OneColumn} backgroundColor="#ffffff" padding="24px 40px">
+  <Column>
+    <Image src="https://example.com/logo.png" altText="Logo" textAlign="left" />
+  </Column>
+</Row>
+```
+
+### Accent Bar
+
+```tsx
+<Row layout={ColumnLayouts.OneColumn} backgroundColor="#4f46e5" padding="0">
+  <Column>
+    <Divider borderTopWidth="3px" borderTopColor="#4f46e5" borderTopStyle="solid" containerPadding="0" />
+  </Column>
+</Row>
+```
+
+### Feature Grid (2×2)
+
+```tsx
+<Row layout={ColumnLayouts.TwoEqual} backgroundColor="#ffffff" padding="24px 40px">
+  <Column>
+    <Heading text="Feature 1" headingType="h3" fontSize="16px" fontWeight={600} color="#1a1a1a" />
+    <Paragraph text="Description of the feature." fontSize="13px" color="#71717a" />
+  </Column>
+  <Column>
+    <Heading text="Feature 2" headingType="h3" fontSize="16px" fontWeight={600} color="#1a1a1a" />
+    <Paragraph text="Description of the feature." fontSize="13px" color="#71717a" />
+  </Column>
+</Row>
+```
+
+### Metric Cards (3-column)
+
+```tsx
+<Row layout={ColumnLayouts.ThreeEqual} backgroundColor="#ffffff" padding="0 40px">
+  <Column>
+    <Heading text="1.2M" headingType="h2" fontSize="28px" fontWeight={700} color="#0f172a" textAlign="center" />
+    <Paragraph text="API Calls" fontSize="12px" color="#94a3b8" textAlign="center" />
+  </Column>
+  {/* Repeat for each metric */}
+</Row>
+```
+
+### Product Card (image + details)
+
+```tsx
+<Row layout={ColumnLayouts.TwoNarrowWide} backgroundColor="#ffffff" padding="20px 40px">
+  <Column>
+    <Image src="https://example.com/product.jpg" altText="Product" />
+  </Column>
+  <Column>
+    <Heading text="Product Name" headingType="h3" fontSize="16px" fontWeight={600} color="#1a1a1a" />
+    <Paragraph text="Matte White · Medium" fontSize="13px" color="#a1a1aa" />
+    <Heading text="$89.00" headingType="h3" fontSize="16px" fontWeight={700} color="#1a1a1a" />
+  </Column>
+</Row>
+```
+
+### Footer
+
+```tsx
+<Row layout={ColumnLayouts.OneColumn} padding="20px 40px 40px 40px">
+  <Column>
+    <Paragraph text="Company Name · City, State" fontSize="12px" color="#a1a1aa" textAlign="center" />
+  </Column>
+</Row>
+```
+
+## Common Mistakes
+
+1. **fontFamily as string** — `fontFamily="Arial"` → Must be `fontFamily={{ label: "Arial", value: "arial, sans-serif" }}`
+2. **fontWeight as string** — `fontWeight="700"` → Must be `fontWeight={700}`
+3. **Column count mismatch** — `TwoEqual` layout requires exactly 2 `<Column>` children
+4. **Missing Column** — Items must be inside `<Column>`, never directly in `<Row>`
+5. **Missing Row** — Columns must be inside `<Row>`, never directly in `<Email>`/`<Page>`/`<Document>`
+6. **containerPadding vs padding** — `padding` is on Row/Column containers; `containerPadding` is per-item internal spacing
 
 ## Development
 
 ```bash
-# Build the package
-pnpm build
-
-# Run tests
-pnpm test
-
-# Run Storybook
-pnpm storybook
+pnpm build          # Build the package
+pnpm test           # Run tests
+pnpm storybook      # Launch Storybook
 ```
 
 ## License
 
-MIT License - see [LICENSE](../../LICENSE) file for details.
+MIT

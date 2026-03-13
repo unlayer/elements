@@ -1,0 +1,40 @@
+{
+  "name": "@unlayer-internal/shared-elements",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Shared framework-agnostic logic for Unlayer Elements packages",
+  "license": "MIT",
+  "sideEffects": false,
+  "type": "module",
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.js",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "require": "./dist/index.cjs"
+    }
+  },
+  "types": "./dist/index.d.ts",
+  "files": [
+    "dist"
+  ],
+  "dependencies": {
+    "@unlayer/types": "1.386.0",
+    "@lexical/headless": "^0.32.0",
+    "@lexical/html": "^0.32.0",
+    "@lexical/link": "^0.32.0",
+    "@lexical/list": "^0.32.0",
+    "@lexical/rich-text": "^0.32.0",
+    "@unlayer-dev/exporters": "0.0.0-defaults-test.1",
+    "lexical": "^0.32.0"
+  },
+  "scripts": {
+    "build": "tsup",
+    "test": "vitest"
+  },
+  "devDependencies": {
+    "tsup": "^8.0.1",
+    "vitest": "^3.2.4"
+  }
+}

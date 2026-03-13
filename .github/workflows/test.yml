@@ -24,7 +24,10 @@ jobs:
         uses: pnpm/action-setup@v4
         with:
           version: 9.7.0
-          
+
+      - name: Authenticate npm registry
+        run: echo "//registry.npmjs.org/:_authToken=${{ secrets.TEST_NPM_TOKEN }}" > ~/.npmrc
+
       - name: Get pnpm store directory
         shell: bash
         run: |
@@ -43,13 +46,47 @@ jobs:
         
       - name: Build packages
         run: pnpm build
-        
+
+      # ── Bundle size budget ──────────────────────────────────────
+      # Fail if the react-elements ESM bundle exceeds 60KB.
+      # Current size: ~49KB (14+ components). Budget gives room for
+      # growth but catches accidental dependency bundling.
+      - name: Check bundle size
+        run: |
+          BUNDLE="packages/react/dist/index.js"
+          SIZE=$(wc -c < "$BUNDLE" | tr -d ' ')
+          MAX_SIZE=60000
+          echo "Bundle: $BUNDLE"
+          echo "Size: $SIZE bytes (budget: $MAX_SIZE bytes)"
+          if [ "$SIZE" -gt "$MAX_SIZE" ]; then
+            echo "::error::Bundle size $SIZE exceeds budget of $MAX_SIZE bytes"
+            exit 1
+          fi
+          echo "✅ Bundle size within budget"
+
       - name: Run tests
         run: pnpm test
-        
+
       - name: Run test coverage
         run: pnpm test:coverage
-        
+
+      # ── Next.js integration test ────────────────────────────────
+      # Packs the built react-elements as a tarball and installs it
+      # in a real Next.js app — exactly like a consumer would.
+      # Catches SSR, bundling, and Server Component compatibility issues
+      # that unit tests can't detect.
+      - name: Pack react-elements
+        run: |
+          cd packages/react
+          npm pack --pack-destination /tmp
+          echo "TARBALL=$(ls /tmp/unlayer-dev-react-elements-*.tgz)" >> $GITHUB_ENV
+
+      - name: Next.js integration build
+        run: |
+          cd tests/nextjs-integration
+          npm install "$TARBALL"
+          npm run build
+
       - name: Upload coverage reports to Codecov
         uses: codecov/codecov-action@v4
         with:

@@ -16,10 +16,19 @@
     "postbuild-storybook": "./build-storybook-hub.sh",
     "storybook:hub": "pnpm run build-storybook && npx http-server storybook-static -p 6006 -o",
     "test": "pnpm -r --filter \"./packages/*\" run test",
-    "test:coverage": "pnpm -r --filter \"./packages/*\" run test:coverage"
+    "test:coverage": "pnpm -r --filter \"./packages/*\" run test:coverage",
+    "changeset": "changeset",
+    "version": "changeset version",
+    "publish": "pnpm build && changeset publish"
   },
   "devDependencies": {
+    "@changesets/cli": "^2.29.7",
+    "@types/jsdom": "^27.0.0",
     "tsup": "^8.0.1",
     "typescript": "^5.5.4"
+  },
+  "dependencies": {
+    "@unlayer/types": "1.386.0",
+    "@unlayer-dev/exporters": "0.0.0-defaults-test.1"
   }
 }

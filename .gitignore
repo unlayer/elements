@@ -3,6 +3,8 @@ dist/
 .turbo/
 .DS_Store
 .pnpm-store/
+.internal/
+.vscode/
 
 # Logs
 logs
@@ -84,6 +86,7 @@ web_modules/
 .env.test.local
 .env.production.local
 .env.local
+.npmrc
 
 # parcel-bundler cache (https://parceljs.org/)
 .cache

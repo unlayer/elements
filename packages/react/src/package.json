@@ -1,0 +1,27 @@
+{
+  "name": "unlayer-react-renderers",
+  "version": "1.0.0",
+  "description": "Unlayer react renderers with shared exporter bundle",
+  "main": "index.js",
+  "module": "index.js",
+  "types": "types.d.ts",
+  "files": [
+    "components/",
+    "exporters.bundle.mjs",
+    "index.ts",
+    "types.d.ts"
+  ],
+  "peerDependencies": {
+    "react": ">=16.8.0",
+    "react-dom": ">=16.8.0"
+  },
+  "keywords": [
+    "unlayer",
+    "email",
+    "renderer",
+    "react",
+    "shared-bundle"
+  ],
+  "author": "Unlayer",
+  "license": "MIT"
+}

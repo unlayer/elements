@@ -1,0 +1,377 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`Render Snapshots > Body + Row + Column + Items > full tree email 1`] = `
+"<div>
+
+  <!--[if IE]><div class="ie-container"><![endif]-->
+  <!--[if mso]><div class="mso-container"><![endif]-->
+  <table role="presentation" id="u_body_1" style="border-collapse: collapse;table-layout: fixed;border-spacing: 0;mso-table-lspace: 0pt;mso-table-rspace: 0pt;vertical-align: top;min-width: 320px;Margin: 0 auto;background-color: transparent;width:100%" cellpadding="0" cellspacing="0">
+  <tbody>
+  <tr style="vertical-align: top">
+    <td style="word-break: break-word;border-collapse: collapse !important;vertical-align: top">
+    <!--[if (mso)|(IE)]><table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"><tr><td align="center" style="background-color: transparent;"><![endif]-->
+    <div><style>
+@media only screen and (min-width: 620px) {
+  .u-row { width: 600px !important; }
+  .u-row .u-col { vertical-align: top; }
+  .u-row .u-col-100 { width: 600px !important; }
+}
+
+@media only screen and (max-width: 620px) {
+  .u-row-container { max-width: 100% !important; padding-left: 0px !important; padding-right: 0px !important; }
+  .u-row { width: 100% !important; }
+  .u-row .u-col { display: block !important; width: 100% !important; min-width: 320px !important; max-width: 100% !important; }
+  .u-row .u-col > div { margin: 0 auto; }
+  .no-stack .u-col { min-width: 0 !important; display: table-cell !important; }
+  .no-stack .u-col-100 { width: 100% !important; }
+}</style>
+  
+  
+<div id="u_row_1" class="u-row-container u_row v-row-padding--vertical v-row-background-image--outer v-row-background-color" style="background-color: transparent">
+  <div class="u-row v-row-columns-background-color-background-color" style="margin: 0 auto;min-width: 320px;max-width: 500px;overflow-wrap: break-word;word-wrap: break-word;word-break: break-word;background-color: transparent;">
+    <div class="v-row-background-image--inner" style="border-collapse: collapse;display: table;width: 100%;height: 100%;background-color: transparent;">
+      <!--[if (mso)|(IE)]><table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"><tr><td class="v-row-padding v-row-background-image--outer v-row-background-color" style="background-color: transparent;" align="center"><table role="presentation" cellpadding="0" cellspacing="0" border="0" style="width:500px;"><tr class="v-row-background-image--inner v-row-columns-background-color-background-color" style="background-color: transparent;"><![endif]-->
+      
+<!--[if (mso)|(IE)]><td align="center" width="500" class="v-col-padding v-col-background-color v-col-border v-col-border-radius" style="width: 500px;padding: 0px;border-top: 0px solid transparent;border-left: 0px solid transparent;border-right: 0px solid transparent;border-bottom: 0px solid transparent;" valign="top"><![endif]-->
+<div id="u_column_1" class="u-col u-col-100 u_column" style="max-width: 320px;min-width: 500px;display: table-cell;vertical-align: top;">
+  <div class="v-col-background-color v-col-border-radius" style="height: 100%;width: 100% !important;">
+  <!--[if (!mso)&(!IE)]><!--><div class="v-col-padding v-col-border v-col-border-radius" style="box-sizing: border-box; height: 100%; padding: 0px;border-top: 0px solid transparent;border-left: 0px solid transparent;border-right: 0px solid transparent;border-bottom: 0px solid transparent;"><!--<![endif]-->
+  <div id="u_content_paragraph_1" class="u_content_paragraph" style="padding: 0px;">
+  <div class="v-color v-line-height v-font-weight v-font-family v-font-size v-letter-spacing v-text-align" style="font-size: 14px; color: #000000; line-height: 1.4;  text-align: left; word-wrap: break-word;">
+    <p>Hello</p>
+  </div>
+</div><div id="u_content_button_2" class="u_content_button" style="padding: 0px;">
+  <!--[if mso]><style>.v-button {background: transparent !important;}</style><![endif]-->
+<div class="v-text-align" align="center">
+  <!--[if mso]><v:roundrect xmlns:v="urn:schemas-microsoft-com:vml" xmlns:w="urn:schemas-microsoft-com:office:word" href="" style="height:45px; v-text-anchor:middle; width:120px;" arcsize="9%"  stroke="f" fillcolor="#0879A1"><w:anchorlock/><center style="color:#FFFFFF;"><![endif]-->
+    <a href="" class="v-button v-size-width v-button-colors v-border v-border-radius v-font-family v-font-size v-font-weight v-letter-spacing" style="box-sizing: border-box;display: inline-block;text-decoration: none;-webkit-text-size-adjust: none;text-align: center;color: #FFFFFF; background-color: #0879A1; border-radius: 4px;-webkit-border-radius: 4px; -moz-border-radius: 4px; width:auto; max-width:100%; overflow-wrap: break-word; word-break: break-word; word-wrap:break-word; mso-border-alt: none;font-size: 14px;">
+      <span class="v-line-height v-padding" style="display:block;padding:10px 20px;line-height:120%;">Click</span>
+    </a>
+    <!--[if mso]></center></v:roundrect><![endif]-->
+</div>
+</div>
+  <!--[if (!mso)&(!IE)]><!--></div><!--<![endif]-->
+  </div>
+</div>
+<!--[if (mso)|(IE)]></td><![endif]-->
+      <!--[if (mso)|(IE)]></tr></table></td></tr></table><![endif]-->
+    </div>
+  </div>
+  </div>
+  
+
+</div>
+    <!--[if (mso)|(IE)]></td></tr></table><![endif]-->
+    </td>
+  </tr>
+  </tbody>
+  </table>
+  <!--[if mso]></div><![endif]-->
+  <!--[if IE]></div><![endif]-->
+
+</div>"
+`;
+
+exports[`Render Snapshots > Body + Row + Column + Items > full tree web 1`] = `
+"<div>
+  <div id="u_body_1" class="u_body" style="display: flex; flex-direction: column;">
+    <div><style>
+.u-row {
+  display: flex;
+  flex-wrap: nowrap;
+  margin-left: 0;
+  margin-right: 0;
+}
+.u-row .u-col {
+  position: relative;
+  width: 100%;
+  padding-right: 0;
+  padding-left: 0;
+}
+.u-row .u-col.u-col-100 { flex: 0 0 100%; max-width: 100%; }
+
+@media only screen and (max-width: 620px) {
+  .u-row { width: 100% !important; }
+  .u-row .u-col {
+    display: block !important;
+    width: 100% !important;
+    min-width: 320px !important;
+    max-width: 100% !important;
+  }
+  .u-row .u-col > div { margin: 0 auto; }
+  .no-stack .u-col {
+    min-width: 0 !important;
+    display: table-cell !important;
+  }
+  .no-stack .u-col-100 { width: 100% !important; }
+}</style>
+  <div id="u_row_1" class="u_row v-row-padding v-row-background-image--outer v-row-background-color" style="">
+    <div class="container v-row-background-image--inner v-row-columns-background-color-background-color" style="max-width: 500px;margin: 0 auto;">
+      <div class="u-row v-row-align-items">
+        
+<div id="u_column_1" class="u-col u-col-100 u_column v-row-align-items v-col-background-color v-col-border v-col-border-radius" style="display:flex;border-top: 0px solid transparent;border-left: 0px solid transparent;border-right: 0px solid transparent;border-bottom: 0px solid transparent;">
+  <div class="v-col-padding" style="width: 100%;padding:0px;">
+    <div id="u_content_paragraph_1" class="u_content_paragraph" style="padding: 0px;">
+  <div class="v-color v-line-height v-font-weight v-font-family v-font-size v-letter-spacing v-text-align" style="font-size: 14px; color: #000000; line-height: 1.4;  text-align: left; word-wrap: break-word;">
+    <p>Hello</p>
+  </div>
+</div><div id="u_content_button_2" class="u_content_button" style="padding: 0px;">
+<div class="v-text-align" style="text-align: center;">
+  <a href="" class="v-size-width v-line-height v-padding v-button-colors v-border v-border-radius v-font-family v-font-size v-font-weight v-letter-spacing" style="color:#FFFFFF;background-color:#0879A1;border-radius: 4px;line-height:120%;display:inline-block;text-decoration:none;text-align:center;padding:10px 20px;width:auto;max-width:100%;word-wrap:break-word;font-size: 14px;">
+    Click
+  </a>
+</div>
+</div>
+  </div>
+</div>
+
+      </div>
+    </div>
+  </div>
+</div>
+  </div>
+</div>"
+`;
+
+exports[`Render Snapshots > Body > document 1`] = `
+"<div>
+  
+    <div class="u_body content" style="">
+      
+      
+      
+        <div style="page-break-before: always;">
+      
+    </div>
+  
+</div></div>"
+`;
+
+exports[`Render Snapshots > Body > email 1`] = `
+"<div>
+
+  <!--[if IE]><div class="ie-container"><![endif]-->
+  <!--[if mso]><div class="mso-container"><![endif]-->
+  <table role="presentation" id="u_body_1" style="border-collapse: collapse;table-layout: fixed;border-spacing: 0;mso-table-lspace: 0pt;mso-table-rspace: 0pt;vertical-align: top;min-width: 320px;Margin: 0 auto;background-color: transparent;width:100%" cellpadding="0" cellspacing="0">
+  <tbody>
+  <tr style="vertical-align: top">
+    <td style="word-break: break-word;border-collapse: collapse !important;vertical-align: top">
+    <!--[if (mso)|(IE)]><table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"><tr><td align="center" style="background-color: transparent;"><![endif]-->
+    
+    <!--[if (mso)|(IE)]></td></tr></table><![endif]-->
+    </td>
+  </tr>
+  </tbody>
+  </table>
+  <!--[if mso]></div><![endif]-->
+  <!--[if IE]></div><![endif]-->
+
+</div>"
+`;
+
+exports[`Render Snapshots > Body > web 1`] = `
+"<div>
+  <div id="u_body_1" class="u_body" style="display: flex; flex-direction: column;">
+    
+  </div>
+</div>"
+`;
+
+exports[`Render Snapshots > Button > email 1`] = `
+"<div>
+  <!--[if mso]><style>.v-button {background: transparent !important;}</style><![endif]-->
+<div class="v-text-align" align="center">
+  <!--[if mso]><v:roundrect xmlns:v="urn:schemas-microsoft-com:vml" xmlns:w="urn:schemas-microsoft-com:office:word" href="" style="height:45px; v-text-anchor:middle; width:120px;" arcsize="9%"  stroke="f" fillcolor="#0879A1"><w:anchorlock/><center style="color:#FFFFFF;"><![endif]-->
+    <a href="" class="v-button v-size-width v-button-colors v-border v-border-radius v-font-family v-font-size v-font-weight v-letter-spacing" style="box-sizing: border-box;display: inline-block;text-decoration: none;-webkit-text-size-adjust: none;text-align: center;color: #FFFFFF; background-color: #0879A1; border-radius: 4px;-webkit-border-radius: 4px; -moz-border-radius: 4px; width:auto; max-width:100%; overflow-wrap: break-word; word-break: break-word; word-wrap:break-word; mso-border-alt: none;font-size: 14px;">
+      <span class="v-line-height v-padding" style="display:block;padding:10px 20px;line-height:120%;">Click me</span>
+    </a>
+    <!--[if mso]></center></v:roundrect><![endif]-->
+</div>
+</div>"
+`;
+
+exports[`Render Snapshots > Button > web 1`] = `
+"<div>
+<div class="v-text-align" style="text-align: center;">
+  <a href="" class="v-size-width v-line-height v-padding v-button-colors v-border v-border-radius v-font-family v-font-size v-font-weight v-letter-spacing" style="color:#FFFFFF;background-color:#0879A1;border-radius: 4px;line-height:120%;display:inline-block;text-decoration:none;text-align:center;padding:10px 20px;width:auto;max-width:100%;word-wrap:break-word;font-size: 14px;">
+    Click me
+  </a>
+</div>
+</div>"
+`;
+
+exports[`Render Snapshots > Divider > email 1`] = `
+"<div>
+  <table role="presentation" aria-label="divider" height="0px" align="center" border="0" cellpadding="0" cellspacing="0" width="100%" style="border-collapse: collapse;table-layout: fixed;border-spacing: 0;mso-table-lspace: 0pt;mso-table-rspace: 0pt;vertical-align: top;border-top: 1px solid #BBBBBB;-ms-text-size-adjust: 100%;-webkit-text-size-adjust: 100%">
+    <tbody>
+      <tr style="vertical-align: top">
+        <td style="word-break: break-word;border-collapse: collapse !important;vertical-align: top;font-size: 0px;line-height: 0px;mso-line-height-rule: exactly;-ms-text-size-adjust: 100%;-webkit-text-size-adjust: 100%">
+          <span>&nbsp;</span>
+        </td>
+      </tr>
+    </tbody>
+  </table>
+</div>"
+`;
+
+exports[`Render Snapshots > Divider > web 1`] = `"<div><div style="text-align:center;line-height:0" aria-label="divider"><div style="border-top-width:1px;border-top-style:solid;border-top-color:#BBBBBB;width:100%;display:inline-block;line-height:1px;height:0px;vertical-align:middle"> </div></div></div>"`;
+
+exports[`Render Snapshots > Heading > email 1`] = `
+"<div>
+  <!--[if mso]><table role="presentation" width="100%"><tr><td><![endif]-->
+    <h1 class="v-color v-text-align v-line-height v-font-size v-font-weight v-letter-spacing" style="margin: 0px; color: #000000; line-height: 140%; text-align: left; word-wrap: break-word; font-size: 22px; font-weight: 400;">Hello World</h1>
+  <!--[if mso]></td></tr></table><![endif]-->
+</div>"
+`;
+
+exports[`Render Snapshots > Heading > web 1`] = `
+"<div>
+  <h1 class="v-color v-text-align v-line-height v-font-size v-font-weight v-letter-spacing" style="margin: 0px; color: #000000; line-height: 140%; text-align: left; word-wrap: break-word; font-size: 22px; font-weight: 400;">Hello World</h1>
+</div>"
+`;
+
+exports[`Render Snapshots > Html > email 1`] = `
+"<div>
+  <div>
+    <strong>Hello, world!</strong>
+  </div>
+</div>"
+`;
+
+exports[`Render Snapshots > Html > web 1`] = `"<div><div><strong>Hello, world!</strong></div></div>"`;
+
+exports[`Render Snapshots > Image > email 1`] = `
+"<div>
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+  <tbody><tr>
+    <td class="v-text-align" style="padding-right: 0px;padding-left: 0px;" align="center">
+      
+      <img align="center" border="0" src="https://example.com/img.png" alt="" title="" style="outline: none;text-decoration: none;-ms-interpolation-mode: bicubic;clear: both;display: inline-block !important;border: none;height: auto;float: none;width: 100%;max-width: 500px;" width="500" class="v-src-width v-src-max-width">
+      
+    </td>
+  </tr>
+</tbody></table>
+</div>"
+`;
+
+exports[`Render Snapshots > Image > web 1`] = `
+"<div>
+<div class="v-text-align" style="position:relative;line-height:0px;text-align:center">
+  
+  <img alt="" class="v-src-width v-src-max-width" src="https://example.com/img.png" style="width: 100%;max-width: 500px;" title="">
+  
+</div>
+</div>"
+`;
+
+exports[`Render Snapshots > Menu > email 1`] = `
+"<div>
+<div aria-label="menu" class="menu" style="text-align:center;">
+<!--[if (mso)|(IE)]><table role="presentation" border="0" cellpadding="0" cellspacing="0" align="center" style=""><tr><![endif]-->
+
+<!--[if (mso)|(IE)]></tr></table><![endif]-->
+</div>
+</div>"
+`;
+
+exports[`Render Snapshots > Menu > web 1`] = `"<div></div>"`;
+
+exports[`Render Snapshots > Paragraph > email 1`] = `
+"<div>
+  <div class="v-color v-line-height v-font-weight v-font-family v-font-size v-letter-spacing v-text-align" style="font-size: 14px; color: #000000; line-height: 1.4;  text-align: left; word-wrap: break-word;">
+    
+  </div>
+</div>"
+`;
+
+exports[`Render Snapshots > Paragraph > web 1`] = `
+"<div>
+  <div class="v-color v-line-height v-font-weight v-font-family v-font-size v-letter-spacing v-text-align" style="font-size: 14px; color: #000000; line-height: 1.4;  text-align: left; word-wrap: break-word;">
+    
+  </div>
+</div>"
+`;
+
+exports[`Render Snapshots > Social > email 1`] = `
+"<div>
+<div align="center" style="direction: ltr;" aria-label="social">
+  <div style="display: table; max-width:-5px;">
+  <!--[if (mso)|(IE)]><table role="presentation" width="-5" cellpadding="0" cellspacing="0" border="0"><tr><td style="border-collapse:collapse;" align="center"><table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="border-collapse:collapse; mso-table-lspace: 0pt;mso-table-rspace: 0pt; width:-5px;"><tr><![endif]-->
+  
+    
+    
+    <!--[if (mso)|(IE)]></tr></table></td></tr></table><![endif]-->
+  </div>
+</div>
+</div>"
+`;
+
+exports[`Render Snapshots > Social > web 1`] = `"<div><div style="text-align:center;line-height:0px"><img src="https://cdn.tools.unlayer.com/social/icons/default.png" height="32" alt="social icon"></div></div>"`;
+
+exports[`Render Snapshots > Table > email 1`] = `
+"<div>
+  <table class="v-background-color v-border-border" style="width: 100%; border-collapse: collapse; table-layout: fixed; border-top-width: 1px; border-top-style: solid; border-top-color: #CCC; border-left-width: 1px; border-left-style: solid; border-left-color: #CCC; border-right-width: 1px; border-right-style: solid; border-right-color: #CCC; border-bottom-width: 1px; border-bottom-style: solid; border-bottom-color: #CCC;">
+    <colgroup>
+      
+    </colgroup>
+    
+    <thead>
+      
+    </thead>
+    
+    <tbody>
+      
+        
+      
+    </tbody>
+    
+  </table>
+</div>"
+`;
+
+exports[`Render Snapshots > Table > web 1`] = `
+"<div>
+  <table class="v-background-color v-border-border" style="width: 100%; border-collapse: collapse; table-layout: fixed; border-top-width: 1px; border-top-style: solid; border-top-color: #CCC; border-left-width: 1px; border-left-style: solid; border-left-color: #CCC; border-right-width: 1px; border-right-style: solid; border-right-color: #CCC; border-bottom-width: 1px; border-bottom-style: solid; border-bottom-color: #CCC;">
+    <colgroup>
+      
+    </colgroup>
+    
+    <thead>
+      
+    </thead>
+    
+    <tbody>
+      
+        
+      
+    </tbody>
+    
+  </table>
+</div>"
+`;
+
+exports[`Render Snapshots > Video > email 1`] = `
+"<div>
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+  <tbody><tr>
+    <td style="padding-right: 0px; padding-left: 0px;" align="center">
+      
+      <img align="center" border="0" src="https://cdn.tools.unlayer.com/video/placeholder.png" alt="Video" title="Video" style="outline: none;text-decoration: none;-ms-interpolation-mode: bicubic;clear: both;display: block !important;border: none;height: auto;float: none;width: 100%;max-width: 500px;" width="500" class="fullwidth" aria-label="video thumbnail">
+      
+    </td>
+  </tr>
+</tbody></table>
+</div>"
+`;
+
+exports[`Render Snapshots > Video > web 1`] = `
+"<div>
+<div style="position: relative; padding-bottom: 56.25%; height: 0; overflow: hidden; max-width: 100%;">
+  
+    <img aria-label="video placeholder" src="https://cdn.tools.unlayer.com/video/placeholder.png" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%;" width="500" height="281.25">
+    
+  
+  
+</div>
+</div>"
+`;

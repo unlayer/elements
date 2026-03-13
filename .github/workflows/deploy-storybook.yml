@@ -23,6 +23,9 @@ jobs:
         with:
           version: 9.7.0
 
+      - name: Authenticate npm registry
+        run: echo "//registry.npmjs.org/:_authToken=${{ secrets.TEST_NPM_TOKEN }}" > ~/.npmrc
+
       - name: Install dependencies
         run: pnpm install
 
@@ -32,9 +35,70 @@ jobs:
       - name: Build Storybook
         run: pnpm run build-storybook
 
-      - name: Deploy to GitHub Pages
+      # Get the GitHub Pages URL dynamically
+      - name: Get Pages URL
+        id: pages
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const { data } = await github.rest.repos.getPages({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+            });
+            core.setOutput('url', data.html_url);
+
+      # Main branch → deploy to root
+      - name: Deploy (main)
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         uses: peaceiris/actions-gh-pages@v3
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           publish_dir: ./storybook-static
           publish_branch: gh-pages
+
+      - name: Print deploy URL (main)
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        run: echo "::notice::Storybook deployed to ${{ steps.pages.outputs.url }}"
+
+      # PR → deploy to /pr/<number>/ subdirectory (doesn't touch main)
+      - name: Deploy (PR preview)
+        if: github.event_name == 'pull_request'
+        uses: peaceiris/actions-gh-pages@v3
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./storybook-static
+          publish_branch: gh-pages
+          destination_dir: pr/${{ github.event.pull_request.number }}
+          keep_files: true
+
+      - name: Print deploy URL (PR)
+        if: github.event_name == 'pull_request'
+        run: echo "::notice::Storybook preview deployed to ${{ steps.pages.outputs.url }}pr/${{ github.event.pull_request.number }}/"
+
+      - name: Add Storybook link to PR description
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const url = `${{ steps.pages.outputs.url }}pr/${{ github.event.pull_request.number }}/`;
+            const startMarker = '<!-- storybook-preview -->';
+            const endMarker = '<!-- /storybook-preview -->';
+            const link = `${startMarker}\n---\n📖 **Storybook Preview:** ${url}\n${endMarker}`;
+            const { data: pr } = await github.rest.pulls.get({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: context.issue.number,
+            });
+            const body = pr.body || '';
+            let newBody;
+            if (body.includes(startMarker)) {
+              newBody = body.replace(/<!-- storybook-preview -->[\s\S]*?<!-- \/storybook-preview -->/, link);
+            } else {
+              newBody = `${body}\n\n${link}`;
+            }
+            await github.rest.pulls.update({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: context.issue.number,
+              body: newBody,
+            });
