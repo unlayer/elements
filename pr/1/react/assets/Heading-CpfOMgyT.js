@@ -1,1 +1,0 @@
-import{c as p,m as o,p as r}from"./create-component-DFxexp61.js";const a={headingType:"h1",color:"#000000",fontSize:"22px",fontWeight:400,lineHeight:"110%",textAlign:"left",text:"Heading"},g=p({name:"Heading",defaultValues:a,propMapper:n=>{const{level:t,...i}=n,e=o(i,a,"Heading");return t&&!e.headingType&&(e.headingType=t),e},displayName:"Heading",exporters:r});export{g as H};

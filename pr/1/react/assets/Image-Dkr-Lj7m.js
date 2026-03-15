@@ -1,1 +1,0 @@
-import{c as i,W as s,m as c,a as p}from"./index-xl_HwiZZ.js";const r={...s,src:{...s.src,autoWidth:!0,maxWidth:"100%"}},d=i({name:"Image",defaultValues:r,propMapper:o=>{const{alt:t,src:a,...m}=o,e=c(m,r,"Image");return t!==void 0&&(e.altText=t),typeof a=="string"?e.src={url:a,autoWidth:!0,maxWidth:"100%"}:a!==void 0&&(e.src=a),e},displayName:"Image",exporters:p});export{d as I};

@@ -1,1 +1,0 @@
-import{c as o,m as t,N as i}from"./create-component-Cta9Y68f.js";const e={textAlign:"center",width:"100%",border:{borderTopWidth:"1px",borderTopColor:"#BBBBBB",borderTopStyle:"solid"}},d=o({name:"Divider",defaultValues:e,propMapper:r=>t(r,e,"Divider"),displayName:"Divider",exporters:i});export{d as D};

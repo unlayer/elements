@@ -1,1 +1,0 @@
-import{c as r,m as p,h as t}from"./create-component-DFxexp61.js";const a={fontSize:"14px",lineHeight:"140%",textAlign:"left",color:"#000000"},s=r({name:"Paragraph",defaultValues:a,propMapper:e=>p(e,a,"Paragraph"),displayName:"Paragraph",exporters:t});export{s as P};

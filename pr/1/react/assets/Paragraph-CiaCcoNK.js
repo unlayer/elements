@@ -1,1 +1,0 @@
-import{c as r,m as p,y as t}from"./index-BdhjsKVo.js";const a={fontSize:"14px",lineHeight:"140%",textAlign:"left",color:"#000000"},s=r({name:"Paragraph",defaultValues:a,propMapper:e=>p(e,a,"Paragraph"),displayName:"Paragraph",exporters:t});export{s as P};

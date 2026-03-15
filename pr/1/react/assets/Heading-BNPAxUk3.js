@@ -1,1 +1,0 @@
-import{c as o,b as p,m as r}from"./create-component-CvOey92g.js";const a={headingType:"h1",color:"#000000",fontSize:"22px",fontWeight:400,lineHeight:"110%",textAlign:"left",text:"Heading"},g=o({name:"Heading",defaultValues:a,propMapper:n=>{const{level:t,...i}=n,e=r(i,a,"Heading");return t&&!e.headingType&&(e.headingType=t),e},displayName:"Heading",exporters:p});export{g as H};

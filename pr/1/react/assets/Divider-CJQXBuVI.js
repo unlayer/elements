@@ -1,1 +1,0 @@
-import{c as o,j as t,m as i}from"./create-component-BRRZvuvv.js";const e={textAlign:"center",width:{autoWidth:!1,width:"100%"},border:{borderTopWidth:"1px",borderTopColor:"#BBBBBB",borderTopStyle:"solid"}},p=o({name:"Divider",defaultValues:e,propMapper:r=>i(r,e,"Divider"),displayName:"Divider",exporters:t});export{p as D};

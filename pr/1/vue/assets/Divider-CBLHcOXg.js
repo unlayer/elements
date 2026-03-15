@@ -1,1 +1,0 @@
-import{c as o,j as t,m as i}from"./create-component-D1merdym.js";const e={textAlign:"center",width:{autoWidth:!1,width:"100%"},border:{borderTopWidth:"1px",borderTopColor:"#BBBBBB",borderTopStyle:"solid"}},d=o({name:"Divider",defaultValues:e,propMapper:r=>i(r,e,"Divider"),exporters:t});export{d as D};

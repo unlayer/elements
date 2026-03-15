@@ -1,1 +1,0 @@
-import{c as p,p as o,m as r}from"./create-component-5DT4zA3W.js";const a={headingType:"h1",color:"#000000",fontSize:"22px",fontWeight:400,lineHeight:"110%",textAlign:"left",text:"Heading"},g=p({name:"Heading",defaultValues:a,propMapper:n=>{const{level:t,...i}=n,e=r(i,a,"Heading");return t&&!e.headingType&&(e.headingType=t),e},displayName:"Heading",exporters:o});export{g as H};

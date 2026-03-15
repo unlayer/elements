@@ -1,1 +1,0 @@
-import{c as r,h as p,m as t}from"./create-component-9B4R7L_G.js";const a={fontSize:"14px",lineHeight:"140%",textAlign:"left",color:"#000000"},s=r({name:"Paragraph",defaultValues:a,propMapper:e=>t(e,a,"Paragraph"),displayName:"Paragraph",exporters:p});export{s as P};
