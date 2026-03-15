@@ -69,7 +69,6 @@ jobs:
           publish_dir: ./storybook-static
           publish_branch: gh-pages
           destination_dir: pr/${{ github.event.pull_request.number }}
-          keep_files: true
 
       - name: Print deploy URL (PR)
         if: github.event_name == 'pull_request'
