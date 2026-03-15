@@ -32,7 +32,6 @@ export default function TeamInvite(): ReactElement {
             src={{ url: "https://placehold.co/36x36/18181b/ffffff?text=A", width: 36, height: 36 }}
             altText="Acme"
             textAlign="center"
-            containerPadding="0"
           />
         </Column>
       </Row>
@@ -48,40 +47,36 @@ export default function TeamInvite(): ReactElement {
             color="#18181b"
             textAlign="center"
             lineHeight="1.3"
-            containerPadding="0 0 12px 0"
             fontFamily={sansFont}
           />
           <Paragraph
-            text="Alex Chen (alex@acme.dev) has invited you to collaborate on the Rocket Team workspace."
+            html="Alex Chen (alex@acme.dev) has invited you to collaborate on the Rocket Team workspace."
             fontSize="14px"
             color="#71717a"
             textAlign="center"
             lineHeight="1.7"
-            containerPadding="0 0 28px 0"
             fontFamily={sansFont}
           />
         </Column>
       </Row>
 
       {/* Avatars */}
-      <Row layout={ColumnLayouts.OneColumn} backgroundColor="#ffffff" padding="0 40px">
+      <Row layout={ColumnLayouts.OneColumn} backgroundColor="#ffffff" padding="0px 40px">
         <Column>
           <Image
             src={{ url: "https://placehold.co/200x64/f4f4f5/71717a?text=AC+%E2%86%92+You", width: 200, height: 64 }}
             altText="Alex Chen invites You"
             textAlign="center"
-            containerPadding="0 0 28px 0"
           />
         </Column>
       </Row>
 
       {/* CTA */}
-      <Row layout={ColumnLayouts.OneColumn} backgroundColor="#ffffff" padding="0 40px 40px 40px">
+      <Row layout={ColumnLayouts.OneColumn} backgroundColor="#ffffff" padding="0px 40px 40px 40px">
         <Column>
           <Button
             text="Accept Invitation"
-            backgroundColor="#18181b"
-            color="#ffffff"
+            buttonColors={{ backgroundColor: "#18181b", color: "#ffffff" }}
             padding="14px 32px"
             borderRadius="8px"
             fontSize="14px"
@@ -90,12 +85,11 @@ export default function TeamInvite(): ReactElement {
             fontFamily={sansFont}
           />
           <Paragraph
-            text="This link expires in 7 days."
+            html="This link expires in 7 days."
             fontSize="12px"
             color="#a1a1aa"
             textAlign="center"
             lineHeight="1.5"
-            containerPadding="12px 0 0 0"
             fontFamily={sansFont}
           />
         </Column>
@@ -105,21 +99,19 @@ export default function TeamInvite(): ReactElement {
       <Row layout={ColumnLayouts.OneColumn} padding="20px 40px 40px 40px">
         <Column>
           <Paragraph
-            text="This invitation was sent to you@example.com."
+            html="This invitation was sent to you@example.com."
             fontSize="12px"
             color="#a1a1aa"
             textAlign="center"
             lineHeight="1.6"
-            containerPadding="0 0 4px 0"
             fontFamily={sansFont}
           />
           <Paragraph
-            text="If you didn't expect it, you can safely ignore this email."
+            html="If you didn't expect it, you can safely ignore this email."
             fontSize="12px"
             color="#a1a1aa"
             textAlign="center"
             lineHeight="1.6"
-            containerPadding="0"
             fontFamily={sansFont}
           />
         </Column>

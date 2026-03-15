@@ -36,15 +36,14 @@ export default function PasswordReset(): ReactElement {
             color="#18181b"
             textAlign="center"
             lineHeight="1"
-            letterSpacing="0.05em"
-            containerPadding="0"
+            letterSpacing="1px"
             fontFamily={sansFont}
           />
         </Column>
       </Row>
 
       {/* Card */}
-      <Row layout={ColumnLayouts.OneColumn} backgroundColor="#ffffff" padding="40px 40px 0 40px">
+      <Row layout={ColumnLayouts.OneColumn} backgroundColor="#ffffff" padding="40px 40px 0px 40px">
         <Column>
           <Heading
             text="Reset your password"
@@ -54,7 +53,6 @@ export default function PasswordReset(): ReactElement {
             color="#18181b"
             textAlign="center"
             lineHeight="1.3"
-            containerPadding="0 0 12px 0"
             fontFamily={sansFont}
           />
           <Paragraph
@@ -63,13 +61,11 @@ export default function PasswordReset(): ReactElement {
             color="#71717a"
             textAlign="center"
             lineHeight="1.7"
-            containerPadding="0 0 28px 0"
             fontFamily={sansFont}
           />
           <Button
             text="Reset Password"
-            backgroundColor="#18181b"
-            color="#ffffff"
+            buttonColors={{ backgroundColor: "#18181b", color: "#ffffff" }}
             padding="14px 32px"
             borderRadius="8px"
             fontSize="14px"
@@ -78,12 +74,11 @@ export default function PasswordReset(): ReactElement {
             fontFamily={sansFont}
           />
           <Paragraph
-            text="This link expires in 60 minutes."
+            html="This link expires in 60 minutes."
             fontSize="12px"
             color="#a1a1aa"
             textAlign="center"
             lineHeight="1.5"
-            containerPadding="12px 0 0 0"
             fontFamily={sansFont}
           />
         </Column>
@@ -96,15 +91,13 @@ export default function PasswordReset(): ReactElement {
             borderTopWidth="1px"
             borderTopColor="#e4e4e7"
             borderTopStyle="solid"
-            containerPadding="0 0 20px 0"
           />
           <Paragraph
-            text="If you didn't request this, you can safely ignore this email. Your password won't change unless you click the button above."
+            html="If you didn't request this, you can safely ignore this email. Your password won't change unless you click the button above."
             fontSize="13px"
             color="#a1a1aa"
             textAlign="center"
             lineHeight="1.6"
-            containerPadding="0"
             fontFamily={sansFont}
           />
         </Column>
@@ -114,12 +107,11 @@ export default function PasswordReset(): ReactElement {
       <Row layout={ColumnLayouts.OneColumn} padding="20px 40px 40px 40px">
         <Column>
           <Paragraph
-            text="Vault Inc · San Francisco, CA"
+            html="Vault Inc · San Francisco, CA"
             fontSize="12px"
             color="#a1a1aa"
             textAlign="center"
             lineHeight="1.5"
-            containerPadding="0"
             fontFamily={sansFont}
           />
         </Column>

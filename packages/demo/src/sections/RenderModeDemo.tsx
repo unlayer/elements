@@ -44,27 +44,25 @@ function ModePreviewTemplate({ mode }: { mode: Mode }) {
             color="#18181b"
             textAlign="left"
             lineHeight="1"
-            letterSpacing="0.1em"
-            containerPadding="0"
+            letterSpacing="2px"
             fontFamily={sansFont}
           />
         </Column>
       </Row>
 
       {/* Accent bar */}
-      <Row layout={ColumnLayouts.OneColumn} backgroundColor="#18181b" padding="0">
+      <Row layout={ColumnLayouts.OneColumn} backgroundColor="#18181b" padding="0px">
         <Column>
           <Divider
             borderTopWidth="3px"
             borderTopColor="#18181b"
             borderTopStyle="solid"
-            containerPadding="0"
           />
         </Column>
       </Row>
 
       {/* Hero */}
-      <Row layout={ColumnLayouts.OneColumn} backgroundColor="#ffffff" padding="36px 40px 0 40px">
+      <Row layout={ColumnLayouts.OneColumn} backgroundColor="#ffffff" padding="36px 40px 0px 40px">
         <Column>
           <Heading
             text="Your monthly report is ready"
@@ -74,29 +72,26 @@ function ModePreviewTemplate({ mode }: { mode: Mode }) {
             color="#18181b"
             textAlign="left"
             lineHeight="1.25"
-            containerPadding="0 0 10px 0"
             fontFamily={sansFont}
           />
           <Paragraph
-            text="Hi Alex, here's a summary of your workspace activity for February 2026."
+            html="Hi Alex, here's a summary of your workspace activity for February 2026."
             fontSize="14px"
             color="#71717a"
             textAlign="left"
             lineHeight="1.65"
-            containerPadding="0 0 28px 0"
             fontFamily={sansFont}
           />
         </Column>
       </Row>
 
       {/* Stats — two columns */}
-      <Row layout={ColumnLayouts.TwoEqual} backgroundColor="#ffffff" padding="0 40px">
+      <Row layout={ColumnLayouts.TwoEqual} backgroundColor="#ffffff" padding="0px 40px">
         <Column>
           <Divider
             borderTopWidth="1px"
             borderTopColor="#e4e4e7"
             borderTopStyle="solid"
-            containerPadding="0 0 16px 0"
           />
           <Heading
             text="DEPLOYMENTS"
@@ -106,7 +101,6 @@ function ModePreviewTemplate({ mode }: { mode: Mode }) {
             color="#a1a1aa"
             textAlign="left"
             lineHeight="1.4"
-            containerPadding="0 0 4px 0"
             fontFamily={sansFont}
           />
           <Heading
@@ -117,16 +111,14 @@ function ModePreviewTemplate({ mode }: { mode: Mode }) {
             color="#18181b"
             textAlign="left"
             lineHeight="1.2"
-            containerPadding="0 0 4px 0"
             fontFamily={sansFont}
           />
           <Paragraph
-            text="+18% from January"
+            html="+18% from January"
             fontSize="12px"
             color="#22c55e"
             textAlign="left"
             lineHeight="1.4"
-            containerPadding="0 0 20px 0"
             fontFamily={sansFont}
           />
         </Column>
@@ -135,7 +127,6 @@ function ModePreviewTemplate({ mode }: { mode: Mode }) {
             borderTopWidth="1px"
             borderTopColor="#e4e4e7"
             borderTopStyle="solid"
-            containerPadding="0 0 16px 0"
           />
           <Heading
             text="UPTIME"
@@ -145,7 +136,6 @@ function ModePreviewTemplate({ mode }: { mode: Mode }) {
             color="#a1a1aa"
             textAlign="left"
             lineHeight="1.4"
-            containerPadding="0 0 4px 0"
             fontFamily={sansFont}
           />
           <Heading
@@ -156,16 +146,14 @@ function ModePreviewTemplate({ mode }: { mode: Mode }) {
             color="#18181b"
             textAlign="left"
             lineHeight="1.2"
-            containerPadding="0 0 4px 0"
             fontFamily={sansFont}
           />
           <Paragraph
-            text="0 incidents this month"
+            html="0 incidents this month"
             fontSize="12px"
             color="#71717a"
             textAlign="left"
             lineHeight="1.4"
-            containerPadding="0 0 20px 0"
             fontFamily={sansFont}
           />
         </Column>
@@ -178,12 +166,10 @@ function ModePreviewTemplate({ mode }: { mode: Mode }) {
             borderTopWidth="1px"
             borderTopColor="#e4e4e7"
             borderTopStyle="solid"
-            containerPadding="0 0 24px 0"
           />
           <Button
             text="View Full Report"
-            backgroundColor="#18181b"
-            color="#ffffff"
+            buttonColors={{ backgroundColor: "#18181b", color: "#ffffff" }}
             padding="12px 24px"
             borderRadius="8px"
             fontSize="14px"
@@ -198,12 +184,11 @@ function ModePreviewTemplate({ mode }: { mode: Mode }) {
       <Row layout={ColumnLayouts.OneColumn} padding="16px 40px 24px 40px">
         <Column>
           <Paragraph
-            text="Acme Inc · San Francisco, CA"
+            html="Acme Inc · San Francisco, CA"
             fontSize="11px"
             color="#a1a1aa"
             textAlign="center"
             lineHeight="1.5"
-            containerPadding="0"
             fontFamily={sansFont}
           />
         </Column>

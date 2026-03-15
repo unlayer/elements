@@ -34,24 +34,22 @@ export default function UsageReport(): ReactElement {
             src={{ url: "https://placehold.co/100x24/6366f1/ffffff?text=PULSE", width: 100, height: 24 }}
             altText="Pulse"
             textAlign="left"
-            containerPadding="0"
           />
         </Column>
         <Column>
           <Paragraph
-            text="February 2026"
+            html="February 2026"
             fontSize="13px"
             color="#64748b"
             textAlign="right"
             lineHeight="1.5"
-            containerPadding="2px 0 0 0"
             fontFamily={sansFont}
           />
         </Column>
       </Row>
 
       {/* Title */}
-      <Row layout={ColumnLayouts.OneColumn} backgroundColor="#ffffff" padding="24px 40px 0 40px">
+      <Row layout={ColumnLayouts.OneColumn} backgroundColor="#ffffff" padding="24px 40px 0px 40px">
         <Column>
           <Heading
             text="Monthly Usage Report"
@@ -61,23 +59,21 @@ export default function UsageReport(): ReactElement {
             color="#0f172a"
             textAlign="left"
             lineHeight="1.2"
-            containerPadding="0 0 8px 0"
             fontFamily={sansFont}
           />
           <Paragraph
-            html="Here\u2019s your summary for <b>Acme Corp</b> \u2014 Pro Plan."
+            html={"Here\u2019s your summary for <b>Acme Corp</b> \u2014 Pro Plan."}
             fontSize="14px"
             color="#64748b"
             textAlign="left"
             lineHeight="1.6"
-            containerPadding="0 0 24px 0"
             fontFamily={sansFont}
           />
         </Column>
       </Row>
 
       {/* Key Metrics */}
-      <Row layout={ColumnLayouts.ThreeEqual} backgroundColor="#ffffff" padding="0 40px 8px 40px">
+      <Row layout={ColumnLayouts.ThreeEqual} backgroundColor="#ffffff" padding="0px 40px 8px 40px">
         <Column>
           <Heading
             text="1.2M"
@@ -87,25 +83,22 @@ export default function UsageReport(): ReactElement {
             color="#0f172a"
             textAlign="center"
             lineHeight="1.2"
-            containerPadding="20px 0 4px 0"
             fontFamily={sansFont}
           />
           <Paragraph
-            text="API Calls"
+            html="API Calls"
             fontSize="12px"
             color="#94a3b8"
             textAlign="center"
             lineHeight="1.5"
-            containerPadding="0 0 4px 0"
             fontFamily={sansFont}
           />
           <Paragraph
-            text="↑ 18% vs Jan"
+            html="↑ 18% vs Jan"
             fontSize="11px"
             color="#22c55e"
             textAlign="center"
             lineHeight="1.5"
-            containerPadding="0 0 16px 0"
             fontFamily={sansFont}
           />
         </Column>
@@ -118,25 +111,22 @@ export default function UsageReport(): ReactElement {
             color="#0f172a"
             textAlign="center"
             lineHeight="1.2"
-            containerPadding="20px 0 4px 0"
             fontFamily={sansFont}
           />
           <Paragraph
-            text="Uptime"
+            html="Uptime"
             fontSize="12px"
             color="#94a3b8"
             textAlign="center"
             lineHeight="1.5"
-            containerPadding="0 0 4px 0"
             fontFamily={sansFont}
           />
           <Paragraph
-            text="SLA: 99.9%"
+            html="SLA: 99.9%"
             fontSize="11px"
             color="#22c55e"
             textAlign="center"
             lineHeight="1.5"
-            containerPadding="0 0 16px 0"
             fontFamily={sansFont}
           />
         </Column>
@@ -149,38 +139,34 @@ export default function UsageReport(): ReactElement {
             color="#0f172a"
             textAlign="center"
             lineHeight="1.2"
-            containerPadding="20px 0 4px 0"
             fontFamily={sansFont}
           />
           <Paragraph
-            text="Avg Latency"
+            html="Avg Latency"
             fontSize="12px"
             color="#94a3b8"
             textAlign="center"
             lineHeight="1.5"
-            containerPadding="0 0 4px 0"
             fontFamily={sansFont}
           />
           <Paragraph
-            text="↓ 12ms vs Jan"
+            html="↓ 12ms vs Jan"
             fontSize="11px"
             color="#22c55e"
             textAlign="center"
             lineHeight="1.5"
-            containerPadding="0 0 16px 0"
             fontFamily={sansFont}
           />
         </Column>
       </Row>
 
       {/* Usage Breakdown */}
-      <Row layout={ColumnLayouts.OneColumn} backgroundColor="#ffffff" padding="16px 40px 0 40px">
+      <Row layout={ColumnLayouts.OneColumn} backgroundColor="#ffffff" padding="16px 40px 0px 40px">
         <Column>
           <Divider
             borderTopWidth="1px"
             borderTopColor="#e2e8f0"
             borderTopStyle="solid"
-            containerPadding="0 0 24px 0"
           />
           <Heading
             text="USAGE BY ENDPOINT"
@@ -190,8 +176,7 @@ export default function UsageReport(): ReactElement {
             color="#94a3b8"
             textAlign="left"
             lineHeight="1"
-            letterSpacing="0.08em"
-            containerPadding="0 0 16px 0"
+            letterSpacing="1px"
             fontFamily={sansFont}
           />
           <Table
@@ -202,19 +187,17 @@ export default function UsageReport(): ReactElement {
               ["/api/v2/products", "241,800", "38", "0.00%"],
               ["/api/v2/search", "118,900", "89", "0.12%"],
             ]}
-            containerPadding="0 0 24px 0"
           />
         </Column>
       </Row>
 
       {/* Billing Summary */}
-      <Row layout={ColumnLayouts.OneColumn} backgroundColor="#ffffff" padding="0 40px 0 40px">
+      <Row layout={ColumnLayouts.OneColumn} backgroundColor="#ffffff" padding="0px 40px 0px 40px">
         <Column>
           <Divider
             borderTopWidth="1px"
             borderTopColor="#e2e8f0"
             borderTopStyle="solid"
-            containerPadding="0 0 24px 0"
           />
           <Heading
             text="BILLING SUMMARY"
@@ -224,31 +207,28 @@ export default function UsageReport(): ReactElement {
             color="#94a3b8"
             textAlign="left"
             lineHeight="1"
-            letterSpacing="0.08em"
-            containerPadding="0 0 16px 0"
+            letterSpacing="1px"
             fontFamily={sansFont}
           />
         </Column>
       </Row>
 
-      <Row layout={ColumnLayouts.TwoEqual} backgroundColor="#ffffff" padding="0 40px">
+      <Row layout={ColumnLayouts.TwoEqual} backgroundColor="#ffffff" padding="0px 40px">
         <Column>
           <Paragraph
-            text="Pro Plan (base)"
+            html="Pro Plan (base)"
             fontSize="14px"
             color="#0f172a"
             textAlign="left"
             lineHeight="2"
-            containerPadding="0"
             fontFamily={sansFont}
           />
           <Paragraph
-            text="API overage (200K calls)"
+            html="API overage (200K calls)"
             fontSize="14px"
             color="#0f172a"
             textAlign="left"
             lineHeight="2"
-            containerPadding="0"
             fontFamily={sansFont}
           />
           <Paragraph
@@ -257,27 +237,24 @@ export default function UsageReport(): ReactElement {
             color="#0f172a"
             textAlign="left"
             lineHeight="2"
-            containerPadding="0"
             fontFamily={sansFont}
           />
         </Column>
         <Column>
           <Paragraph
-            text="$299.00"
+            html="$299.00"
             fontSize="14px"
             color="#0f172a"
             textAlign="right"
             lineHeight="2"
-            containerPadding="0"
             fontFamily={sansFont}
           />
           <Paragraph
-            text="$40.00"
+            html="$40.00"
             fontSize="14px"
             color="#0f172a"
             textAlign="right"
             lineHeight="2"
-            containerPadding="0"
             fontFamily={sansFont}
           />
           <Paragraph
@@ -286,7 +263,6 @@ export default function UsageReport(): ReactElement {
             color="#0f172a"
             textAlign="right"
             lineHeight="2"
-            containerPadding="0"
             fontFamily={sansFont}
           />
         </Column>
@@ -299,12 +275,10 @@ export default function UsageReport(): ReactElement {
             borderTopWidth="1px"
             borderTopColor="#e2e8f0"
             borderTopStyle="solid"
-            containerPadding="0 0 24px 0"
           />
           <Button
             text="View Full Dashboard"
-            backgroundColor="#6366f1"
-            color="#ffffff"
+            buttonColors={{ backgroundColor: "#6366f1", color: "#ffffff" }}
             padding="12px 28px"
             borderRadius="6px"
             fontSize="14px"
@@ -318,7 +292,6 @@ export default function UsageReport(): ReactElement {
             color="#64748b"
             textAlign="center"
             lineHeight="1.5"
-            containerPadding="12px 0 0 0"
             fontFamily={sansFont}
           />
         </Column>
@@ -328,12 +301,11 @@ export default function UsageReport(): ReactElement {
       <Row layout={ColumnLayouts.OneColumn} padding="20px 40px 40px 40px">
         <Column>
           <Paragraph
-            text="Pulse API · This report is generated automatically on the 1st of each month."
+            html="Pulse API · This report is generated automatically on the 1st of each month."
             fontSize="12px"
             color="#94a3b8"
             textAlign="center"
             lineHeight="1.6"
-            containerPadding="0"
             fontFamily={sansFont}
           />
         </Column>

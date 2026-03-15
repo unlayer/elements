@@ -33,7 +33,6 @@ export default function AbandonedCart(): ReactElement {
             src={{ url: "https://placehold.co/120x30/1a1a1a/ffffff?text=FORMA", width: 120, height: 30 }}
             altText="Forma"
             textAlign="center"
-            containerPadding="0"
           />
         </Column>
       </Row>
@@ -49,29 +48,26 @@ export default function AbandonedCart(): ReactElement {
             color="#1a1a1a"
             textAlign="center"
             lineHeight="1.2"
-            containerPadding="0 0 12px 0"
             fontFamily={sansFont}
           />
           <Paragraph
-            text="No rush — your cart is waiting. But these items are popular and stock is limited."
+            html="No rush — your cart is waiting. But these items are popular and stock is limited."
             fontSize="15px"
             color="#71717a"
             textAlign="center"
             lineHeight="1.6"
-            containerPadding="0 20px"
             fontFamily={sansFont}
           />
         </Column>
       </Row>
 
       {/* Product 1 */}
-      <Row layout={ColumnLayouts.TwoNarrowWide} backgroundColor="#ffffff" padding="32px 40px 0 40px">
+      <Row layout={ColumnLayouts.TwoNarrowWide} backgroundColor="#ffffff" padding="32px 40px 0px 40px">
         <Column>
           <Image
             src={{ url: "https://placehold.co/140x140/f5f5f4/a8a29e?text=Product", width: 140, height: 140 }}
             altText="Ceramic Desk Lamp"
             textAlign="center"
-            containerPadding="0"
           />
         </Column>
         <Column>
@@ -83,16 +79,14 @@ export default function AbandonedCart(): ReactElement {
             color="#1a1a1a"
             textAlign="left"
             lineHeight="1.3"
-            containerPadding="4px 0 4px 0"
             fontFamily={sansFont}
           />
           <Paragraph
-            text="Matte White · Medium"
+            html="Matte White · Medium"
             fontSize="13px"
             color="#a1a1aa"
             textAlign="left"
             lineHeight="1.5"
-            containerPadding="0 0 8px 0"
             fontFamily={sansFont}
           />
           <Heading
@@ -103,32 +97,29 @@ export default function AbandonedCart(): ReactElement {
             color="#1a1a1a"
             textAlign="left"
             lineHeight="1.3"
-            containerPadding="0"
             fontFamily={sansFont}
           />
         </Column>
       </Row>
 
       {/* Divider between products */}
-      <Row layout={ColumnLayouts.OneColumn} backgroundColor="#ffffff" padding="20px 40px 0 40px">
+      <Row layout={ColumnLayouts.OneColumn} backgroundColor="#ffffff" padding="20px 40px 0px 40px">
         <Column>
           <Divider
             borderTopWidth="1px"
             borderTopColor="#f4f4f5"
             borderTopStyle="solid"
-            containerPadding="0"
           />
         </Column>
       </Row>
 
       {/* Product 2 */}
-      <Row layout={ColumnLayouts.TwoNarrowWide} backgroundColor="#ffffff" padding="20px 40px 0 40px">
+      <Row layout={ColumnLayouts.TwoNarrowWide} backgroundColor="#ffffff" padding="20px 40px 0px 40px">
         <Column>
           <Image
             src={{ url: "https://placehold.co/140x140/f5f5f4/a8a29e?text=Product", width: 140, height: 140 }}
             altText="Linen Throw Pillow"
             textAlign="center"
-            containerPadding="0"
           />
         </Column>
         <Column>
@@ -140,16 +131,14 @@ export default function AbandonedCart(): ReactElement {
             color="#1a1a1a"
             textAlign="left"
             lineHeight="1.3"
-            containerPadding="4px 0 4px 0"
             fontFamily={sansFont}
           />
           <Paragraph
-            text="Oatmeal · 20″ × 20″"
+            html="Oatmeal · 20″ × 20″"
             fontSize="13px"
             color="#a1a1aa"
             textAlign="left"
             lineHeight="1.5"
-            containerPadding="0 0 8px 0"
             fontFamily={sansFont}
           />
           <Heading
@@ -160,20 +149,18 @@ export default function AbandonedCart(): ReactElement {
             color="#1a1a1a"
             textAlign="left"
             lineHeight="1.3"
-            containerPadding="0"
             fontFamily={sansFont}
           />
         </Column>
       </Row>
 
       {/* Total + CTA */}
-      <Row layout={ColumnLayouts.OneColumn} backgroundColor="#ffffff" padding="28px 40px 0 40px">
+      <Row layout={ColumnLayouts.OneColumn} backgroundColor="#ffffff" padding="28px 40px 0px 40px">
         <Column>
           <Divider
             borderTopWidth="1px"
             borderTopColor="#e4e4e7"
             borderTopStyle="solid"
-            containerPadding="0 0 16px 0"
           />
           <Heading
             text="Cart Total: $134.00"
@@ -183,22 +170,19 @@ export default function AbandonedCart(): ReactElement {
             color="#1a1a1a"
             textAlign="center"
             lineHeight="1.3"
-            containerPadding="0 0 4px 0"
             fontFamily={sansFont}
           />
           <Paragraph
-            text="Free shipping on orders over $100 ✔️"
+            html="Free shipping on orders over $100 ✔️"
             fontSize="13px"
             color="#16a34a"
             textAlign="center"
             lineHeight="1.5"
-            containerPadding="0 0 24px 0"
             fontFamily={sansFont}
           />
           <Button
             text="Complete Your Order"
-            backgroundColor="#1a1a1a"
-            color="#ffffff"
+            buttonColors={{ backgroundColor: "#1a1a1a", color: "#ffffff" }}
             padding="16px 40px"
             borderRadius="6px"
             fontSize="15px"
@@ -207,12 +191,11 @@ export default function AbandonedCart(): ReactElement {
             fontFamily={sansFont}
           />
           <Paragraph
-            text="Secure checkout · Free returns within 30 days"
+            html="Secure checkout · Free returns within 30 days"
             fontSize="12px"
             color="#a1a1aa"
             textAlign="center"
             lineHeight="1.5"
-            containerPadding="12px 0 0 0"
             fontFamily={sansFont}
           />
         </Column>
@@ -225,7 +208,6 @@ export default function AbandonedCart(): ReactElement {
             borderTopWidth="1px"
             borderTopColor="#f4f4f5"
             borderTopStyle="solid"
-            containerPadding="0 0 24px 0"
           />
           <Paragraph
             html="★★★★★ <b>4.9/5</b> from 2,400+ reviews"
@@ -233,7 +215,6 @@ export default function AbandonedCart(): ReactElement {
             color="#71717a"
             textAlign="center"
             lineHeight="1.5"
-            containerPadding="0 0 8px 0"
             fontFamily={sansFont}
           />
           <Paragraph
@@ -242,7 +223,6 @@ export default function AbandonedCart(): ReactElement {
             color="#a1a1aa"
             textAlign="center"
             lineHeight="1.6"
-            containerPadding="0"
             fontFamily={sansFont}
           />
         </Column>
@@ -252,12 +232,11 @@ export default function AbandonedCart(): ReactElement {
       <Row layout={ColumnLayouts.OneColumn} backgroundColor="#fafaf9" padding="24px 40px">
         <Column>
           <Paragraph
-            text="Forma Home · Brooklyn, NY"
+            html="Forma Home · Brooklyn, NY"
             fontSize="12px"
             color="#a1a1aa"
             textAlign="center"
             lineHeight="1.5"
-            containerPadding="0"
             fontFamily={sansFont}
           />
         </Column>

@@ -42,35 +42,32 @@ export default function NewsletterDigest(): ReactElement {
             color="#1a1a1a"
             textAlign="center"
             lineHeight="1.2"
-            containerPadding="0"
             fontFamily={sansFont}
           />
           <Paragraph
-            text="March 4, 2026 · Issue #47"
+            html="March 4, 2026 · Issue #47"
             fontSize="13px"
             color="#999999"
             textAlign="center"
             lineHeight="1.5"
-            containerPadding="8px 0 0 0"
             fontFamily={uiFont}
           />
         </Column>
       </Row>
 
       {/* Divider */}
-      <Row layout={ColumnLayouts.OneColumn} backgroundColor="#ffffff" padding="0 44px">
+      <Row layout={ColumnLayouts.OneColumn} backgroundColor="#ffffff" padding="0px 44px">
         <Column>
           <Divider
             borderTopWidth="2px"
             borderTopColor="#1a1a1a"
             borderTopStyle="solid"
-            containerPadding="0"
           />
         </Column>
       </Row>
 
       {/* Featured Article */}
-      <Row layout={ColumnLayouts.OneColumn} backgroundColor="#ffffff" padding="28px 44px 0 44px">
+      <Row layout={ColumnLayouts.OneColumn} backgroundColor="#ffffff" padding="28px 44px 0px 44px">
         <Column>
           <Heading
             text="FEATURED"
@@ -80,15 +77,13 @@ export default function NewsletterDigest(): ReactElement {
             color="#e85d04"
             textAlign="left"
             lineHeight="1"
-            letterSpacing="0.1em"
-            containerPadding="0 0 12px 0"
+            letterSpacing="1px"
             fontFamily={uiFont}
           />
           <Image
             src={{ url: "https://placehold.co/560x280/1a1a1a/ffffff?text=Design+Systems+at+Scale", width: 560, height: 280 }}
             altText="Design Systems at Scale"
             textAlign="center"
-            containerPadding="0 0 20px 0"
           />
           <Heading
             text="Design Systems at Scale: Lessons from the Trenches"
@@ -98,16 +93,14 @@ export default function NewsletterDigest(): ReactElement {
             color="#1a1a1a"
             textAlign="left"
             lineHeight="1.3"
-            containerPadding="0 0 10px 0"
             fontFamily={sansFont}
           />
           <Paragraph
-            text="After three years building a design system used by 200+ engineers, here's what actually matters — and what's just noise. Spoiler: tokens are table stakes, but governance is everything."
+            html="After three years building a design system used by 200+ engineers, here's what actually matters — and what's just noise. Spoiler: tokens are table stakes, but governance is everything."
             fontSize="16px"
             color="#555555"
             textAlign="left"
             lineHeight="1.7"
-            containerPadding="0 0 16px 0"
             fontFamily={sansFont}
           />
           <Paragraph
@@ -116,13 +109,11 @@ export default function NewsletterDigest(): ReactElement {
             color="#999999"
             textAlign="left"
             lineHeight="1.5"
-            containerPadding="0 0 24px 0"
             fontFamily={uiFont}
           />
           <Button
             text="Read Article →"
-            backgroundColor="#1a1a1a"
-            color="#ffffff"
+            buttonColors={{ backgroundColor: "#1a1a1a", color: "#ffffff" }}
             padding="12px 24px"
             borderRadius="4px"
             fontSize="13px"
@@ -134,19 +125,18 @@ export default function NewsletterDigest(): ReactElement {
       </Row>
 
       {/* Section Divider */}
-      <Row layout={ColumnLayouts.OneColumn} backgroundColor="#ffffff" padding="28px 44px 0 44px">
+      <Row layout={ColumnLayouts.OneColumn} backgroundColor="#ffffff" padding="28px 44px 0px 44px">
         <Column>
           <Divider
             borderTopWidth="1px"
             borderTopColor="#e5e5e0"
             borderTopStyle="solid"
-            containerPadding="0"
           />
         </Column>
       </Row>
 
       {/* Article List */}
-      <Row layout={ColumnLayouts.OneColumn} backgroundColor="#ffffff" padding="24px 44px 0 44px">
+      <Row layout={ColumnLayouts.OneColumn} backgroundColor="#ffffff" padding="24px 44px 0px 44px">
         <Column>
           <Heading
             text="MORE THIS WEEK"
@@ -156,21 +146,19 @@ export default function NewsletterDigest(): ReactElement {
             color="#999999"
             textAlign="left"
             lineHeight="1"
-            letterSpacing="0.1em"
-            containerPadding="0 0 20px 0"
+            letterSpacing="1px"
             fontFamily={uiFont}
           />
         </Column>
       </Row>
 
       {/* Article 1 */}
-      <Row layout={ColumnLayouts.TwoNarrowWide} backgroundColor="#ffffff" padding="0 44px 20px 44px">
+      <Row layout={ColumnLayouts.TwoNarrowWide} backgroundColor="#ffffff" padding="0px 44px 20px 44px">
         <Column>
           <Image
             src={{ url: "https://placehold.co/160x120/e85d04/ffffff?text=01", width: 160, height: 120 }}
             altText="Article thumbnail"
             textAlign="center"
-            containerPadding="0"
           />
         </Column>
         <Column>
@@ -182,29 +170,26 @@ export default function NewsletterDigest(): ReactElement {
             color="#1a1a1a"
             textAlign="left"
             lineHeight="1.3"
-            containerPadding="0 0 6px 0"
             fontFamily={sansFont}
           />
           <Paragraph
-            text="How React-based email systems are replacing template builders."
+            html="How React-based email systems are replacing template builders."
             fontSize="14px"
             color="#777777"
             textAlign="left"
             lineHeight="1.5"
-            containerPadding="0"
             fontFamily={sansFont}
           />
         </Column>
       </Row>
 
       {/* Article divider */}
-      <Row layout={ColumnLayouts.OneColumn} backgroundColor="#ffffff" padding="0 44px">
+      <Row layout={ColumnLayouts.OneColumn} backgroundColor="#ffffff" padding="0px 44px">
         <Column>
           <Divider
             borderTopWidth="1px"
             borderTopColor="#f0f0eb"
             borderTopStyle="solid"
-            containerPadding="0"
           />
         </Column>
       </Row>
@@ -216,7 +201,6 @@ export default function NewsletterDigest(): ReactElement {
             src={{ url: "https://placehold.co/160x120/1a1a1a/ffffff?text=02", width: 160, height: 120 }}
             altText="Article thumbnail"
             textAlign="center"
-            containerPadding="0"
           />
         </Column>
         <Column>
@@ -228,29 +212,26 @@ export default function NewsletterDigest(): ReactElement {
             color="#1a1a1a"
             textAlign="left"
             lineHeight="1.3"
-            containerPadding="0 0 6px 0"
             fontFamily={sansFont}
           />
           <Paragraph
-            text="The EU Accessibility Act takes effect in June. Here's what it means for your emails."
+            html="The EU Accessibility Act takes effect in June. Here's what it means for your emails."
             fontSize="14px"
             color="#777777"
             textAlign="left"
             lineHeight="1.5"
-            containerPadding="0"
             fontFamily={sansFont}
           />
         </Column>
       </Row>
 
       {/* Article divider */}
-      <Row layout={ColumnLayouts.OneColumn} backgroundColor="#ffffff" padding="0 44px">
+      <Row layout={ColumnLayouts.OneColumn} backgroundColor="#ffffff" padding="0px 44px">
         <Column>
           <Divider
             borderTopWidth="1px"
             borderTopColor="#f0f0eb"
             borderTopStyle="solid"
-            containerPadding="0"
           />
         </Column>
       </Row>
@@ -262,7 +243,6 @@ export default function NewsletterDigest(): ReactElement {
             src={{ url: "https://placehold.co/160x120/555555/ffffff?text=03", width: 160, height: 120 }}
             altText="Article thumbnail"
             textAlign="center"
-            containerPadding="0"
           />
         </Column>
         <Column>
@@ -274,16 +254,14 @@ export default function NewsletterDigest(): ReactElement {
             color="#1a1a1a"
             textAlign="left"
             lineHeight="1.3"
-            containerPadding="0 0 6px 0"
             fontFamily={sansFont}
           />
           <Paragraph
-            text="Our team's journey from visual tools to component-driven design."
+            html="Our team's journey from visual tools to component-driven design."
             fontSize="14px"
             color="#777777"
             textAlign="left"
             lineHeight="1.5"
-            containerPadding="0"
             fontFamily={sansFont}
           />
         </Column>
@@ -298,7 +276,6 @@ export default function NewsletterDigest(): ReactElement {
             color="#999999"
             textAlign="center"
             lineHeight="1.6"
-            containerPadding="0 0 8px 0"
             fontFamily={uiFont}
           />
           <Paragraph
@@ -307,7 +284,6 @@ export default function NewsletterDigest(): ReactElement {
             color="#999999"
             textAlign="center"
             lineHeight="1.6"
-            containerPadding="0"
             fontFamily={uiFont}
           />
         </Column>

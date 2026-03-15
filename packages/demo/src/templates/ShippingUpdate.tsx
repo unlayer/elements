@@ -33,7 +33,6 @@ export default function ShippingUpdate(): ReactElement {
             src={{ url: "https://placehold.co/100x24/ffffff/111827?text=PARCEL", width: 100, height: 24 }}
             altText="Parcel"
             textAlign="left"
-            containerPadding="0"
           />
         </Column>
       </Row>
@@ -49,22 +48,20 @@ export default function ShippingUpdate(): ReactElement {
             color="#ffffff"
             textAlign="center"
             lineHeight="1.3"
-            containerPadding="0"
             fontFamily={sansFont}
           />
         </Column>
       </Row>
 
       {/* Tracking Info */}
-      <Row layout={ColumnLayouts.OneColumn} backgroundColor="#ffffff" padding="32px 40px 0 40px">
+      <Row layout={ColumnLayouts.OneColumn} backgroundColor="#ffffff" padding="32px 40px 0px 40px">
         <Column>
           <Paragraph
-            text="Estimated delivery"
+            html="Estimated delivery"
             fontSize="12px"
             color="#6b7280"
             textAlign="center"
             lineHeight="1.5"
-            containerPadding="0 0 4px 0"
             fontFamily={sansFont}
           />
           <Heading
@@ -75,77 +72,70 @@ export default function ShippingUpdate(): ReactElement {
             color="#111827"
             textAlign="center"
             lineHeight="1.2"
-            containerPadding="0 0 4px 0"
             fontFamily={sansFont}
           />
           <Paragraph
-            text="by end of day"
+            html="by end of day"
             fontSize="13px"
             color="#9ca3af"
             textAlign="center"
             lineHeight="1.5"
-            containerPadding="0 0 24px 0"
             fontFamily={sansFont}
           />
         </Column>
       </Row>
 
       {/* Progress Bar Visual */}
-      <Row layout={ColumnLayouts.OneColumn} backgroundColor="#ffffff" padding="0 40px">
+      <Row layout={ColumnLayouts.OneColumn} backgroundColor="#ffffff" padding="0px 40px">
         <Column>
           <Image
             src={{ url: "https://placehold.co/460x8/059669/059669?text=+", width: 460, height: 8 }}
             altText="Shipping progress"
             textAlign="center"
-            containerPadding="0 0 8px 0"
           />
         </Column>
       </Row>
 
       {/* Progress Labels */}
-      <Row layout={ColumnLayouts.ThreeEqual} backgroundColor="#ffffff" padding="0 40px 28px 40px">
+      <Row layout={ColumnLayouts.ThreeEqual} backgroundColor="#ffffff" padding="0px 40px 28px 40px">
         <Column>
           <Paragraph
-            text="✓ Confirmed"
+            html="✓ Confirmed"
             fontSize="11px"
             color="#059669"
             textAlign="left"
             lineHeight="1.5"
-            containerPadding="0"
             fontFamily={sansFont}
           />
         </Column>
         <Column>
           <Paragraph
-            text="✓ Shipped"
+            html="✓ Shipped"
             fontSize="11px"
             color="#059669"
             textAlign="center"
             lineHeight="1.5"
-            containerPadding="0"
             fontFamily={sansFont}
           />
         </Column>
         <Column>
           <Paragraph
-            text="Delivered"
+            html="Delivered"
             fontSize="11px"
             color="#9ca3af"
             textAlign="right"
             lineHeight="1.5"
-            containerPadding="0"
             fontFamily={sansFont}
           />
         </Column>
       </Row>
 
       {/* Track Button */}
-      <Row layout={ColumnLayouts.OneColumn} backgroundColor="#ffffff" padding="0 40px 28px 40px">
+      <Row layout={ColumnLayouts.OneColumn} backgroundColor="#ffffff" padding="0px 40px 28px 40px">
         <Column>
           <Button
             text="Track Package"
-            backgroundColor="#111827"
-            color="#ffffff"
+            buttonColors={{ backgroundColor: "#111827", color: "#ffffff" }}
             padding="14px 32px"
             borderRadius="6px"
             fontSize="14px"
@@ -157,27 +147,25 @@ export default function ShippingUpdate(): ReactElement {
       </Row>
 
       {/* Divider */}
-      <Row layout={ColumnLayouts.OneColumn} backgroundColor="#ffffff" padding="0 40px">
+      <Row layout={ColumnLayouts.OneColumn} backgroundColor="#ffffff" padding="0px 40px">
         <Column>
           <Divider
             borderTopWidth="1px"
             borderTopColor="#e5e7eb"
             borderTopStyle="solid"
-            containerPadding="0"
           />
         </Column>
       </Row>
 
       {/* Shipping Details */}
-      <Row layout={ColumnLayouts.TwoEqual} backgroundColor="#ffffff" padding="24px 40px 0 40px">
+      <Row layout={ColumnLayouts.TwoEqual} backgroundColor="#ffffff" padding="24px 40px 0px 40px">
         <Column>
           <Paragraph
-            text="SHIPPING TO"
+            html="SHIPPING TO"
             fontSize="10px"
             color="#9ca3af"
             textAlign="left"
             lineHeight="1.5"
-            containerPadding="0 0 8px 0"
             fontFamily={sansFont}
           />
           <Paragraph
@@ -186,27 +174,24 @@ export default function ShippingUpdate(): ReactElement {
             color="#111827"
             textAlign="left"
             lineHeight="1.5"
-            containerPadding="0 0 2px 0"
             fontFamily={sansFont}
           />
           <Paragraph
-            text={"742 Evergreen Terrace\nSan Francisco, CA 94102"}
+            html={"742 Evergreen Terrace\nSan Francisco, CA 94102"}
             fontSize="13px"
             color="#6b7280"
             textAlign="left"
             lineHeight="1.5"
-            containerPadding="0"
             fontFamily={sansFont}
           />
         </Column>
         <Column>
           <Paragraph
-            text="TRACKING NUMBER"
+            html="TRACKING NUMBER"
             fontSize="10px"
             color="#9ca3af"
             textAlign="left"
             lineHeight="1.5"
-            containerPadding="0 0 8px 0"
             fontFamily={sansFont}
           />
           <Paragraph
@@ -215,49 +200,44 @@ export default function ShippingUpdate(): ReactElement {
             color="#111827"
             textAlign="left"
             lineHeight="1.5"
-            containerPadding="0 0 2px 0"
             fontFamily={sansFont}
           />
           <Paragraph
-            text="UPS Ground"
+            html="UPS Ground"
             fontSize="13px"
             color="#6b7280"
             textAlign="left"
             lineHeight="1.5"
-            containerPadding="0"
             fontFamily={sansFont}
           />
         </Column>
       </Row>
 
       {/* Order Item */}
-      <Row layout={ColumnLayouts.OneColumn} backgroundColor="#ffffff" padding="28px 40px 0 40px">
+      <Row layout={ColumnLayouts.OneColumn} backgroundColor="#ffffff" padding="28px 40px 0px 40px">
         <Column>
           <Divider
             borderTopWidth="1px"
             borderTopColor="#e5e7eb"
             borderTopStyle="solid"
-            containerPadding="0 0 20px 0"
           />
           <Paragraph
-            text="ORDER #PRC-8847"
+            html="ORDER #PRC-8847"
             fontSize="10px"
             color="#9ca3af"
             textAlign="left"
             lineHeight="1.5"
-            containerPadding="0 0 12px 0"
             fontFamily={sansFont}
           />
         </Column>
       </Row>
 
-      <Row layout={ColumnLayouts.TwoNarrowWide} backgroundColor="#ffffff" padding="0 40px 32px 40px">
+      <Row layout={ColumnLayouts.TwoNarrowWide} backgroundColor="#ffffff" padding="0px 40px 32px 40px">
         <Column>
           <Image
             src={{ url: "https://placehold.co/100x100/f3f4f6/6b7280?text=Item", width: 100, height: 100 }}
             altText="Wireless Headphones"
             textAlign="center"
-            containerPadding="0"
           />
         </Column>
         <Column>
@@ -267,16 +247,14 @@ export default function ShippingUpdate(): ReactElement {
             color="#111827"
             textAlign="left"
             lineHeight="1.5"
-            containerPadding="0 0 2px 0"
             fontFamily={sansFont}
           />
           <Paragraph
-            text="Midnight Black · Qty: 1"
+            html="Midnight Black · Qty: 1"
             fontSize="13px"
             color="#6b7280"
             textAlign="left"
             lineHeight="1.5"
-            containerPadding="0"
             fontFamily={sansFont}
           />
         </Column>
@@ -286,21 +264,19 @@ export default function ShippingUpdate(): ReactElement {
       <Row layout={ColumnLayouts.OneColumn} padding="24px 40px 40px 40px">
         <Column>
           <Paragraph
-            text="Questions about your order? Reply to this email or contact support."
+            html="Questions about your order? Reply to this email or contact support."
             fontSize="12px"
             color="#9ca3af"
             textAlign="center"
             lineHeight="1.6"
-            containerPadding="0 0 8px 0"
             fontFamily={sansFont}
           />
           <Paragraph
-            text="Parcel Co · Austin, TX"
+            html="Parcel Co · Austin, TX"
             fontSize="12px"
             color="#9ca3af"
             textAlign="center"
             lineHeight="1.5"
-            containerPadding="0"
             fontFamily={sansFont}
           />
         </Column>

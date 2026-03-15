@@ -33,25 +33,23 @@ export default function WelcomeEmail(): ReactElement {
             src={{ url: "https://placehold.co/100x26/18181b/ffffff?text=ACME", width: 100, height: 26 }}
             altText="Acme"
             textAlign="left"
-            containerPadding="0"
           />
         </Column>
       </Row>
 
       {/* Indigo accent bar */}
-      <Row layout={ColumnLayouts.OneColumn} backgroundColor="#4f46e5" padding="0">
+      <Row layout={ColumnLayouts.OneColumn} backgroundColor="#4f46e5" padding="0px">
         <Column>
           <Divider
             borderTopWidth="3px"
             borderTopColor="#4f46e5"
             borderTopStyle="solid"
-            containerPadding="0"
           />
         </Column>
       </Row>
 
       {/* Hero */}
-      <Row layout={ColumnLayouts.OneColumn} backgroundColor="#ffffff" padding="40px 44px 0 44px">
+      <Row layout={ColumnLayouts.OneColumn} backgroundColor="#ffffff" padding="40px 44px 0px 44px">
         <Column>
           <Heading
             text="Welcome to Acme"
@@ -61,7 +59,6 @@ export default function WelcomeEmail(): ReactElement {
             color="#18181b"
             textAlign="left"
             lineHeight="1.2"
-            containerPadding="0 0 12px 0"
             fontFamily={sansFont}
           />
           <Paragraph
@@ -70,13 +67,11 @@ export default function WelcomeEmail(): ReactElement {
             color="#52525b"
             textAlign="left"
             lineHeight="1.7"
-            containerPadding="0 0 28px 0"
             fontFamily={sansFont}
           />
           <Button
             text="Go to Dashboard"
-            backgroundColor="#4f46e5"
-            color="#ffffff"
+            buttonColors={{ backgroundColor: "#4f46e5", color: "#ffffff" }}
             padding="14px 28px"
             borderRadius="8px"
             fontSize="14px"
@@ -88,19 +83,18 @@ export default function WelcomeEmail(): ReactElement {
       </Row>
 
       {/* Divider */}
-      <Row layout={ColumnLayouts.OneColumn} backgroundColor="#ffffff" padding="32px 44px 0 44px">
+      <Row layout={ColumnLayouts.OneColumn} backgroundColor="#ffffff" padding="32px 44px 0px 44px">
         <Column>
           <Divider
             borderTopWidth="1px"
             borderTopColor="#e4e4e7"
             borderTopStyle="solid"
-            containerPadding="0"
           />
         </Column>
       </Row>
 
       {/* Features — two-column row 1 */}
-      <Row layout={ColumnLayouts.TwoEqual} backgroundColor="#ffffff" padding="28px 44px 0 44px">
+      <Row layout={ColumnLayouts.TwoEqual} backgroundColor="#ffffff" padding="28px 44px 0px 44px">
         <Column>
           <Heading
             text="DEPLOY"
@@ -110,7 +104,6 @@ export default function WelcomeEmail(): ReactElement {
             color="#a1a1aa"
             textAlign="left"
             lineHeight="1.4"
-            containerPadding="0 0 6px 0"
             fontFamily={sansFont}
           />
           <Heading
@@ -121,16 +114,14 @@ export default function WelcomeEmail(): ReactElement {
             color="#18181b"
             textAlign="left"
             lineHeight="1.3"
-            containerPadding="0 0 6px 0"
             fontFamily={sansFont}
           />
           <Paragraph
-            text="Push to ship. Global CDN and HTTPS out of the box."
+            html="Push to ship. Global CDN and HTTPS out of the box."
             fontSize="13px"
             color="#71717a"
             textAlign="left"
             lineHeight="1.5"
-            containerPadding="0 12px 0 0"
             fontFamily={sansFont}
           />
         </Column>
@@ -143,7 +134,6 @@ export default function WelcomeEmail(): ReactElement {
             color="#a1a1aa"
             textAlign="left"
             lineHeight="1.4"
-            containerPadding="0 0 6px 0"
             fontFamily={sansFont}
           />
           <Heading
@@ -154,23 +144,21 @@ export default function WelcomeEmail(): ReactElement {
             color="#18181b"
             textAlign="left"
             lineHeight="1.3"
-            containerPadding="0 0 6px 0"
             fontFamily={sansFont}
           />
           <Paragraph
-            text="Branch previews, inline comments, and review flows built in."
+            html="Branch previews, inline comments, and review flows built in."
             fontSize="13px"
             color="#71717a"
             textAlign="left"
             lineHeight="1.5"
-            containerPadding="0"
             fontFamily={sansFont}
           />
         </Column>
       </Row>
 
       {/* Features — two-column row 2 */}
-      <Row layout={ColumnLayouts.TwoEqual} backgroundColor="#ffffff" padding="24px 44px 0 44px">
+      <Row layout={ColumnLayouts.TwoEqual} backgroundColor="#ffffff" padding="24px 44px 0px 44px">
         <Column>
           <Heading
             text="OBSERVE"
@@ -180,7 +168,6 @@ export default function WelcomeEmail(): ReactElement {
             color="#a1a1aa"
             textAlign="left"
             lineHeight="1.4"
-            containerPadding="0 0 6px 0"
             fontFamily={sansFont}
           />
           <Heading
@@ -191,16 +178,14 @@ export default function WelcomeEmail(): ReactElement {
             color="#18181b"
             textAlign="left"
             lineHeight="1.3"
-            containerPadding="0 0 6px 0"
             fontFamily={sansFont}
           />
           <Paragraph
-            text="Performance, errors, and usage insights with zero config."
+            html="Performance, errors, and usage insights with zero config."
             fontSize="13px"
             color="#71717a"
             textAlign="left"
             lineHeight="1.5"
-            containerPadding="0 12px 0 0"
             fontFamily={sansFont}
           />
         </Column>
@@ -213,7 +198,6 @@ export default function WelcomeEmail(): ReactElement {
             color="#a1a1aa"
             textAlign="left"
             lineHeight="1.4"
-            containerPadding="0 0 6px 0"
             fontFamily={sansFont}
           />
           <Heading
@@ -224,16 +208,14 @@ export default function WelcomeEmail(): ReactElement {
             color="#18181b"
             textAlign="left"
             lineHeight="1.3"
-            containerPadding="0 0 6px 0"
             fontFamily={sansFont}
           />
           <Paragraph
-            text="SOC 2, SSO, audit logs, and role-based access from day one."
+            html="SOC 2, SSO, audit logs, and role-based access from day one."
             fontSize="13px"
             color="#71717a"
             textAlign="left"
             lineHeight="1.5"
-            containerPadding="0"
             fontFamily={sansFont}
           />
         </Column>
@@ -246,15 +228,13 @@ export default function WelcomeEmail(): ReactElement {
             borderTopWidth="1px"
             borderTopColor="#e4e4e7"
             borderTopStyle="solid"
-            containerPadding="0 0 24px 0"
           />
           <Paragraph
-            text="Questions? Just reply to this email — a real person will get back to you within the hour."
+            html="Questions? Just reply to this email — a real person will get back to you within the hour."
             fontSize="13px"
             color="#a1a1aa"
             textAlign="center"
             lineHeight="1.6"
-            containerPadding="0"
             fontFamily={sansFont}
           />
         </Column>
@@ -264,12 +244,11 @@ export default function WelcomeEmail(): ReactElement {
       <Row layout={ColumnLayouts.OneColumn} padding="20px 44px 40px 44px">
         <Column>
           <Paragraph
-            text="Acme Inc · San Francisco, CA"
+            html="Acme Inc · San Francisco, CA"
             fontSize="12px"
             color="#a1a1aa"
             textAlign="center"
             lineHeight="1.5"
-            containerPadding="0"
             fontFamily={sansFont}
           />
         </Column>

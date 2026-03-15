@@ -30,7 +30,7 @@ export default function VerificationCode(): ReactElement {
       previewText="Your verification code is 847 293. It expires in 10 minutes."
     >
       {/* Header */}
-      <Row layout={ColumnLayouts.OneColumn} padding="40px 40px 0 40px">
+      <Row layout={ColumnLayouts.OneColumn} padding="40px 40px 0px 40px">
         <Column>
           <Heading
             text="● nexus"
@@ -40,14 +40,13 @@ export default function VerificationCode(): ReactElement {
             color="#e6edf3"
             textAlign="center"
             lineHeight="1"
-            containerPadding="0"
             fontFamily={sansFont}
           />
         </Column>
       </Row>
 
       {/* Card */}
-      <Row layout={ColumnLayouts.OneColumn} backgroundColor="#161b22" padding="40px 40px 0 40px">
+      <Row layout={ColumnLayouts.OneColumn} backgroundColor="#161b22" padding="40px 40px 0px 40px">
         <Column>
           <Heading
             text="Verification code"
@@ -57,23 +56,21 @@ export default function VerificationCode(): ReactElement {
             color="#e6edf3"
             textAlign="center"
             lineHeight="1.3"
-            containerPadding="0 0 12px 0"
             fontFamily={sansFont}
           />
           <Paragraph
-            text="Enter this code to verify your identity and complete the sign-in process."
+            html="Enter this code to verify your identity and complete the sign-in process."
             fontSize="14px"
             color="#8b949e"
             textAlign="center"
             lineHeight="1.6"
-            containerPadding="0 0 28px 0"
             fontFamily={sansFont}
           />
         </Column>
       </Row>
 
       {/* Code Display */}
-      <Row layout={ColumnLayouts.OneColumn} backgroundColor="#161b22" padding="0 40px">
+      <Row layout={ColumnLayouts.OneColumn} backgroundColor="#161b22" padding="0px 40px">
         <Column>
           <Heading
             text="847 293"
@@ -83,36 +80,33 @@ export default function VerificationCode(): ReactElement {
             color="#58a6ff"
             textAlign="center"
             lineHeight="1"
-            letterSpacing="0.2em"
-            containerPadding="24px 0"
+            letterSpacing="8px"
             fontFamily={monoFont}
           />
         </Column>
       </Row>
 
       {/* Expiry Notice */}
-      <Row layout={ColumnLayouts.OneColumn} backgroundColor="#161b22" padding="0 40px 32px 40px">
+      <Row layout={ColumnLayouts.OneColumn} backgroundColor="#161b22" padding="0px 40px 32px 40px">
         <Column>
           <Paragraph
-            text="This code expires in 10 minutes."
+            html="This code expires in 10 minutes."
             fontSize="13px"
             color="#8b949e"
             textAlign="center"
             lineHeight="1.5"
-            containerPadding="0"
             fontFamily={sansFont}
           />
         </Column>
       </Row>
 
       {/* Security Info */}
-      <Row layout={ColumnLayouts.OneColumn} backgroundColor="#161b22" padding="0 40px 40px 40px">
+      <Row layout={ColumnLayouts.OneColumn} backgroundColor="#161b22" padding="0px 40px 40px 40px">
         <Column>
           <Divider
             borderTopWidth="1px"
             borderTopColor="#30363d"
             borderTopStyle="solid"
-            containerPadding="0 0 20px 0"
           />
           <Paragraph
             html="<b>Didn't request this?</b>"
@@ -120,37 +114,33 @@ export default function VerificationCode(): ReactElement {
             color="#e6edf3"
             textAlign="left"
             lineHeight="1.5"
-            containerPadding="0 0 6px 0"
             fontFamily={sansFont}
           />
           <Paragraph
-            text="Someone may be trying to access your account. We recommend changing your password immediately and enabling two-factor authentication."
+            html="Someone may be trying to access your account. We recommend changing your password immediately and enabling two-factor authentication."
             fontSize="13px"
             color="#8b949e"
             textAlign="left"
             lineHeight="1.6"
-            containerPadding="0"
             fontFamily={sansFont}
           />
         </Column>
       </Row>
 
       {/* Details */}
-      <Row layout={ColumnLayouts.OneColumn} backgroundColor="#161b22" padding="0 40px 32px 40px">
+      <Row layout={ColumnLayouts.OneColumn} backgroundColor="#161b22" padding="0px 40px 32px 40px">
         <Column>
           <Divider
             borderTopWidth="1px"
             borderTopColor="#30363d"
             borderTopStyle="solid"
-            containerPadding="0 0 16px 0"
           />
           <Paragraph
-            text="REQUEST DETAILS"
+            html="REQUEST DETAILS"
             fontSize="10px"
             color="#484f58"
             textAlign="left"
             lineHeight="1.5"
-            containerPadding="0 0 12px 0"
             fontFamily={sansFont}
           />
           <Paragraph
@@ -159,7 +149,6 @@ export default function VerificationCode(): ReactElement {
             color="#8b949e"
             textAlign="left"
             lineHeight="1.8"
-            containerPadding="0"
             fontFamily={monoFont}
           />
           <Paragraph
@@ -168,7 +157,6 @@ export default function VerificationCode(): ReactElement {
             color="#8b949e"
             textAlign="left"
             lineHeight="1.8"
-            containerPadding="0"
             fontFamily={monoFont}
           />
           <Paragraph
@@ -177,7 +165,6 @@ export default function VerificationCode(): ReactElement {
             color="#8b949e"
             textAlign="left"
             lineHeight="1.8"
-            containerPadding="0"
             fontFamily={monoFont}
           />
         </Column>
@@ -187,12 +174,11 @@ export default function VerificationCode(): ReactElement {
       <Row layout={ColumnLayouts.OneColumn} padding="24px 40px 40px 40px">
         <Column>
           <Paragraph
-            text="Nexus Security · This is an automated message"
+            html="Nexus Security · This is an automated message"
             fontSize="12px"
             color="#484f58"
             textAlign="center"
             lineHeight="1.5"
-            containerPadding="0"
             fontFamily={sansFont}
           />
         </Column>
