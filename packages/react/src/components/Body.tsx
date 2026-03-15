@@ -1,7 +1,8 @@
 import React from "react";
 import ReactDOMServer from "react-dom/server";
 import type { RenderMode, UnlayerConfig, BodyValues } from "@unlayer-internal/shared-elements";
-import { DEFAULT_CONFIG, renderBodyToHtml } from "@unlayer-internal/shared-elements";
+import { DEFAULT_CONFIG } from "@unlayer-internal/shared-elements";
+import { BodyExporters } from "@unlayer-dev/exporters";
 import { mapSemanticProps, type SemanticProps } from "../utils/semantic-props";
 import { BODY_DEFAULTS } from "../utils/container-defaults";
 
@@ -18,6 +19,67 @@ export interface BodyProps extends SemanticProps<BodyValues> {
 }
 
 const DEFAULT_VALUES = BODY_DEFAULTS;
+
+// ============================================
+// Preview text (inlined from shared/utils/preview.ts)
+// ============================================
+
+const MAX_PREVIEW_LENGTH = 150;
+
+const PADDING_CHARS = [
+  "\u00A0", "\u200C", "\u200B", "\u200D", "\u200E", "\u200F", "\uFEFF",
+];
+
+function generatePreviewHtml(text: string): string {
+  if (!text || text.trim().length === 0) return "";
+
+  const truncated = text.length > MAX_PREVIEW_LENGTH
+    ? text.slice(0, MAX_PREVIEW_LENGTH)
+    : text;
+
+  const paddingLength = Math.max(0, MAX_PREVIEW_LENGTH - truncated.length);
+  let padding = "";
+  for (let i = 0; i < paddingLength; i++) {
+    padding += PADDING_CHARS[i % PADDING_CHARS.length];
+  }
+
+  return (
+    `<div data-skip-in-text="true" style="display:none;font-size:1px;color:#ffffff;line-height:1px;max-height:0px;max-width:0px;opacity:0;overflow:hidden;">` +
+    truncated +
+    padding +
+    `</div>`
+  );
+}
+
+// ============================================
+// Body exporter wrapper (inlined from shared/utils/render-container-to-html.ts)
+// ============================================
+
+type ContainerExporterFunction = (innerHTML: string, values: Record<string, any>, bodyValues?: Record<string, any>, options?: Record<string, any>) => string;
+
+function renderBodyToHtml(innerHTML: string, values: any, mode: RenderMode, previewText?: string): string {
+  // Prepend preview text HTML in email mode
+  let finalInnerHtml = innerHTML;
+  if (mode === "email" && previewText) {
+    const previewHtml = generatePreviewHtml(previewText);
+    if (previewHtml) {
+      finalInnerHtml = previewHtml + innerHTML;
+    }
+  }
+
+  const bodyExporter = (BodyExporters[mode] || BodyExporters.web) as ContainerExporterFunction;
+  const raw = mode === "document"
+    ? bodyExporter(finalInnerHtml, values, { type: "" })
+    : bodyExporter(finalInnerHtml, values, values);
+
+  return raw
+    .replace('min-height: 100vh; ', '')
+    .replace('min-height: 100vh;', '');
+}
+
+// ============================================
+// Component
+// ============================================
 
 /**
  * Body - Universal Server/Client Component
@@ -88,7 +150,7 @@ const Body: React.FC<BodyProps> = (props) => {
   }
 
   try {
-    const html = renderBodyToHtml({ innerHTML, values: valuesWithMeta, mode, previewText });
+    const html = renderBodyToHtml(innerHTML, valuesWithMeta, mode, previewText);
 
     return (
       <div

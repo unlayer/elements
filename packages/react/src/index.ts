@@ -60,7 +60,6 @@ export type {
   Href,
   Icons,
   VideoSource,
-  TableData,
   TextAlign,
   LinkStyle,
   // Shorthand types

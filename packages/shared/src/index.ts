@@ -18,7 +18,6 @@ export type {
   Table_table,
   TextAlign,
   LinkStyle,
-  TableData,
   // Component value types
   ButtonValues,
   ImageValues,
@@ -63,40 +62,14 @@ export {
   textToTextJson,
   htmlToTextJson,
   generateHtmlFromTextJson,
-  EMPTY_TEXT_JSON,
 } from "./utils/lexical-helpers";
 
 // Utils - Value merging
 export { mergeValues } from "./utils/merge-values";
 
-// Utils - Meta injection
-export { ensureMeta } from "./utils/ensure-meta";
-
-// Utils - Validation
-export { validateRequiredPaths } from "./utils/validate-required-paths";
-
 // Utils - Semantic props
 export { mapSemanticProps } from "./utils/semantic-props";
 export type { SemanticProps } from "./utils/semantic-props";
 
-// Utils - Container rendering
-export {
-  renderBodyToHtml,
-  renderRowToHtml,
-  renderColumnToHtml,
-} from "./utils/render-container-to-html";
-export type {
-  RenderBodyConfig,
-  RenderRowConfig,
-  RenderColumnConfig,
-} from "./utils/render-container-to-html";
-
-// Utils - Preview text
-export { generatePreviewHtml } from "./utils/preview";
-
 // Utils - HTML to plain text
 export { htmlToPlainText } from "./utils/html-to-text";
-
-// Utils - Grid CSS
-export { generateGridCSS, getWidthPercentages } from "./utils/grid-css";
-export type { GridCSSOptions, WidthPercentage } from "./utils/grid-css";

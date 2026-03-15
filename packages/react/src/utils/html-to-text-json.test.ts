@@ -1,9 +1,11 @@
 import { describe, it, expect } from "vitest";
-import { htmlToTextJson, generateHtmlFromTextJson, EMPTY_TEXT_JSON } from "@unlayer-internal/shared-elements";
+import { htmlToTextJson, generateHtmlFromTextJson } from "@unlayer-internal/shared-elements";
 
 describe("htmlToTextJson", () => {
-  it("returns EMPTY_TEXT_JSON for empty input", () => {
-    expect(htmlToTextJson("")).toBe(EMPTY_TEXT_JSON);
+  it("returns empty Lexical JSON for empty input", () => {
+    const parsed = JSON.parse(htmlToTextJson(""));
+    expect(parsed.root.children).toHaveLength(1);
+    expect(parsed.root.children[0].type).toBe("extended-paragraph");
   });
 
   it("wraps HTML in passthrough JSON", () => {

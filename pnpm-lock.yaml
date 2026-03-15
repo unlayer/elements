@@ -4,16 +4,18 @@ settings:
   autoInstallPeers: true
   excludeLinksFromLockfile: false
 
+catalogs:
+  default:
+    '@unlayer-dev/exporters':
+      specifier: 1.386.3
+      version: 1.386.3
+    '@unlayer/types':
+      specifier: 1.386.0
+      version: 1.386.0
+
 importers:
 
   .:
-    dependencies:
-      '@unlayer-dev/exporters':
-        specifier: 0.0.0-defaults-test.1
-        version: 0.0.0-defaults-test.1
-      '@unlayer/types':
-        specifier: 1.386.0
-        version: 1.386.0
     devDependencies:
       '@changesets/cli':
         specifier: ^2.29.7
@@ -23,10 +25,10 @@ importers:
         version: 27.0.0
       tsup:
         specifier: ^8.0.1
-        version: 8.5.0(jiti@2.6.1)(postcss@8.5.6)(tsx@4.21.0)(typescript@5.8.3)
+        version: 8.5.0(jiti@2.6.1)(postcss@8.5.6)(tsx@4.21.0)(typescript@5.9.3)
       typescript:
-        specifier: ^5.5.4
-        version: 5.8.3
+        specifier: ^5.6.3
+        version: 5.9.3
 
   packages/demo:
     dependencies:
@@ -67,30 +69,12 @@ importers:
 
   packages/react:
     dependencies:
-      '@lexical/headless':
-        specifier: ^0.32.0
-        version: 0.32.1
-      '@lexical/html':
-        specifier: ^0.32.0
-        version: 0.32.1
-      '@lexical/link':
-        specifier: ^0.32.0
-        version: 0.32.1
-      '@lexical/list':
-        specifier: ^0.32.0
-        version: 0.32.1
-      '@lexical/rich-text':
-        specifier: ^0.32.0
-        version: 0.32.1
       '@unlayer-dev/exporters':
-        specifier: 1.386.3
+        specifier: 'catalog:'
         version: 1.386.3(@unlayer/types@1.386.0)
       '@unlayer/types':
-        specifier: 1.386.0
+        specifier: 'catalog:'
         version: 1.386.0
-      lexical:
-        specifier: ^0.32.0
-        version: 0.32.1
       react:
         specifier: '>=18'
         version: 18.3.1
@@ -146,30 +130,9 @@ importers:
 
   packages/shared:
     dependencies:
-      '@lexical/headless':
-        specifier: ^0.32.0
-        version: 0.32.1
-      '@lexical/html':
-        specifier: ^0.32.0
-        version: 0.32.1
-      '@lexical/link':
-        specifier: ^0.32.0
-        version: 0.32.1
-      '@lexical/list':
-        specifier: ^0.32.0
-        version: 0.32.1
-      '@lexical/rich-text':
-        specifier: ^0.32.0
-        version: 0.32.1
-      '@unlayer-dev/exporters':
-        specifier: 1.386.1
-        version: 1.386.1(@unlayer/types@1.386.0)
       '@unlayer/types':
-        specifier: 1.386.0
+        specifier: 'catalog:'
         version: 1.386.0
-      lexical:
-        specifier: ^0.32.0
-        version: 0.32.1
     devDependencies:
       tsup:
         specifier: ^8.0.1
@@ -729,9 +692,6 @@ packages:
   '@jridgewell/trace-mapping@0.3.31':
     resolution: {integrity: sha512-zzNR+SdQSDJzc8joaeP8QQoCQr8NuYx2dIIytl1QeBEZHJ9uW6hebsrYgbz8hJwUQao3TWCMtmfV8Nu1twOLAw==}
 
-  '@lexical/clipboard@0.32.1':
-    resolution: {integrity: sha512-oO7CuMVh3EFEqtE6+7Ccf7jMD5RNUmSdTnFm/X4kYNGqs9lgGt8j5PgSk7oP9OuAjxKNdBTbltSlh54CX3AUIg==}
-
   '@lexical/clipboard@0.41.0':
     resolution: {integrity: sha512-Ex5lPkb4NBBX1DCPzOAIeHBJFH1bJcmATjREaqpnTfxCbuOeQkt44wchezUA0oDl+iAxNZ3+pLLWiUju9icoSA==}
 
@@ -741,47 +701,23 @@ packages:
   '@lexical/extension@0.41.0':
     resolution: {integrity: sha512-sF4SPiP72yXvIGchmmIZ7Yg2XZTxNLOpFEIIzdqG7X/1fa1Ham9P/T7VbrblWpF6Ei5LJtK9JgNVB0hb4l3o1g==}
 
-  '@lexical/headless@0.32.1':
-    resolution: {integrity: sha512-YAb2d36s75p7RKfKz5WqDqgfa/y3oMmCJOCRmjwsN1WHn8BTij4azzx5x3nkp7U9TMaQDdR9uMr4ISZvjeA0Sw==}
-
   '@lexical/headless@0.41.0':
     resolution: {integrity: sha512-MH8oDuUKdM/Jq0c9vlEEkCL9pEQg4SwyrABBGIbFf+87VBJ5EWDdG9g1vJq7fKSDxfhFux7F5+i+zgUnxOQR/g==}
-
-  '@lexical/html@0.32.1':
-    resolution: {integrity: sha512-uctCdC9gVzx/Sw9CimT4C2IDfSbfEGYunyIrJBpsfcdqp0rroGNizjIoZNBH3xcgkk9UDboSADo+wimbzEoy8A==}
 
   '@lexical/html@0.41.0':
     resolution: {integrity: sha512-3RyZy+H/IDKz2D66rNN/NqYx87xVFrngfEbyu1OWtbY963RUFnopiVHCQvsge/8kT04QSZ7U/DzjVFqeNS6clg==}
 
-  '@lexical/link@0.32.1':
-    resolution: {integrity: sha512-atdwNpWjZ0U2/kgS0ATTkZ8lJLHiv3TsJgqJL33BuV9Gn7advJokd4faM79Y8XxkhiPi1lVTBSHgI8V4hs+c+Q==}
-
   '@lexical/link@0.41.0':
     resolution: {integrity: sha512-Rjtx5cGWAkKcnacncbVsZ1TqRnUB2Wm4eEVKpaAEG41+kHgqghzM2P+UGT15yROroxJu8KvAC9ISiYFiU4XE1w==}
-
-  '@lexical/list@0.32.1':
-    resolution: {integrity: sha512-3zShCfEdAvodR6mQ5CNN1gcEwfV341LXJzWCIkZzG1cPwaiBHUlT7TynQtKTPn1sATCEMmxoDG0/T+itsRNZgA==}
 
   '@lexical/list@0.41.0':
     resolution: {integrity: sha512-RXvB+xcbzVoQLGRDOBRCacztG7V+bI95tdoTwl8pz5xvgPtAaRnkZWMDP+yMNzMJZsqEChdtpxbf0NgtMkun6g==}
 
-  '@lexical/rich-text@0.32.1':
-    resolution: {integrity: sha512-SnmpZ7boTLxeYfNezNLvchDiJOAALA2nD0Uq/SpkIOJ6R01R7m1aPdLv55LGKoBT9UxCRdo0HWXytwiVZI+ehQ==}
-
   '@lexical/rich-text@0.41.0':
     resolution: {integrity: sha512-yUcr7ZaaVTZNi8bow4CK1M8jy2qyyls1Vr+5dVjwBclVShOL/F/nFyzBOSb6RtXXRbd3Ahuk9fEleppX/RNIdw==}
 
-  '@lexical/selection@0.32.1':
-    resolution: {integrity: sha512-X1aXJdq/5EOuSuMOqK3t+rEVmpqLf+vc2Kl5YuP8+gGWUbXuxR6iryrQuy1mAViZpF/5qw4HO/Sb+9JjubaZEg==}
-
   '@lexical/selection@0.41.0':
     resolution: {integrity: sha512-1s7/kNyRzcv5uaTwsUL28NpiisqTf5xZ1zNukLsCN1xY+TWbv9RE9OxIv+748wMm4pxNczQe/UbIBODkbeknLw==}
-
-  '@lexical/table@0.32.1':
-    resolution: {integrity: sha512-sGk2jUbQHj5hatpxRyl6IE2oWsjRnYhmaP94THzn95/uK69o8eSizcnd148WzYsX8Zz+L9PTLS1xjvCbfLTP+A==}
-
-  '@lexical/utils@0.32.1':
-    resolution: {integrity: sha512-ZaqZZksNIHJd+g8GXc11D1ESi8JzsdLVQZ+9odXVaNxtwDIaGIqMSccFyuZ9VSoJDde4JXZkgp/0PShbAZDkyw==}
 
   '@lexical/utils@0.41.0':
     resolution: {integrity: sha512-Wlsokr5NQCq83D+7kxZ9qs5yQ3dU3Qaf2M+uXxLRoPoDaXqW8xTWZq1+ZFoEzsHzx06QoPa4Vu/40BZR91uQPg==}
@@ -1262,16 +1198,6 @@ packages:
 
   '@types/ws@8.18.1':
     resolution: {integrity: sha512-ThVF6DCVhA8kUGy+aazFQ4kXQ7E1Ty7A3ypFOe0IcJV8O/M511G99AW24irKrW56Wt44yG9+ij8FaqoBGkuBXg==}
-
-  '@unlayer-dev/exporters@0.0.0-defaults-test.1':
-    resolution: {integrity: sha512-x8hjJJDXZcZyV4K8E2V65S3IrnNHbMqoHO+9grWA0lcOkH309FJo0S/g4N1I0BeG77SpfxeFAHxsd9+G2usgkA==}
-    engines: {node: '>=14.0.0'}
-
-  '@unlayer-dev/exporters@1.386.1':
-    resolution: {integrity: sha512-3SEVgkmmW2gohH0UADXiCbjm5QEXma8CRn5hW8DzhsHXqyUayRZr5hePQnqKR4aP7LHwkAPSRVga5PXkP5CNYA==}
-    engines: {node: '>=14.0.0'}
-    peerDependencies:
-      '@unlayer/types': '>=1.386.0'
 
   '@unlayer-dev/exporters@1.386.3':
     resolution: {integrity: sha512-Om3htAY6YhNfAaEVdgwbZOdnVHxQBOATr+vq3cdFpuUXNIGAdDaUrwSrIG9njVMd1dGPeWN6SgJAppCkuKqAgA==}
@@ -2041,9 +1967,6 @@ packages:
     resolution: {integrity: sha512-j1n1IuTX1VQjIy3tT7cyGbX7nvQOsFLoIqobZv4ttI5axP923gA44zUj6miiA6R5Aoms4sEGVIIcucXUbRI14g==}
     engines: {node: '>=14'}
     hasBin: true
-
-  lexical@0.32.1:
-    resolution: {integrity: sha512-Rvr9p00zUwzjXIqElIjMDyl/24QHw68yaqmXUWIT3lSdSAr8OpjSJK3iWBLZwVZwwpVhwShZRckomc+3vSb/zw==}
 
   lexical@0.41.0:
     resolution: {integrity: sha512-pNIm5+n+hVnJHB9gYPDYsIO5Y59dNaDU9rJmPPsfqQhP2ojKFnUoPbcRnrI9FJLXB14sSumcY8LUw7Sq70TZqA==}
@@ -3559,14 +3482,6 @@ snapshots:
       '@jridgewell/resolve-uri': 3.1.2
       '@jridgewell/sourcemap-codec': 1.5.5
 
-  '@lexical/clipboard@0.32.1':
-    dependencies:
-      '@lexical/html': 0.32.1
-      '@lexical/list': 0.32.1
-      '@lexical/selection': 0.32.1
-      '@lexical/utils': 0.32.1
-      lexical: 0.32.1
-
   '@lexical/clipboard@0.41.0':
     dependencies:
       '@lexical/html': 0.41.0
@@ -3586,10 +3501,6 @@ snapshots:
       '@preact/signals-core': 1.13.0
       lexical: 0.41.0
 
-  '@lexical/headless@0.32.1':
-    dependencies:
-      lexical: 0.32.1
-
   '@lexical/headless@0.41.0':
     dependencies:
       happy-dom: 20.8.3
@@ -3598,22 +3509,11 @@ snapshots:
       - bufferutil
       - utf-8-validate
 
-  '@lexical/html@0.32.1':
-    dependencies:
-      '@lexical/selection': 0.32.1
-      '@lexical/utils': 0.32.1
-      lexical: 0.32.1
-
   '@lexical/html@0.41.0':
     dependencies:
       '@lexical/selection': 0.41.0
       '@lexical/utils': 0.41.0
       lexical: 0.41.0
-
-  '@lexical/link@0.32.1':
-    dependencies:
-      '@lexical/utils': 0.32.1
-      lexical: 0.32.1
 
   '@lexical/link@0.41.0':
     dependencies:
@@ -3621,25 +3521,12 @@ snapshots:
       '@lexical/utils': 0.41.0
       lexical: 0.41.0
 
-  '@lexical/list@0.32.1':
-    dependencies:
-      '@lexical/selection': 0.32.1
-      '@lexical/utils': 0.32.1
-      lexical: 0.32.1
-
   '@lexical/list@0.41.0':
     dependencies:
       '@lexical/extension': 0.41.0
       '@lexical/selection': 0.41.0
       '@lexical/utils': 0.41.0
       lexical: 0.41.0
-
-  '@lexical/rich-text@0.32.1':
-    dependencies:
-      '@lexical/clipboard': 0.32.1
-      '@lexical/selection': 0.32.1
-      '@lexical/utils': 0.32.1
-      lexical: 0.32.1
 
   '@lexical/rich-text@0.41.0':
     dependencies:
@@ -3649,26 +3536,9 @@ snapshots:
       '@lexical/utils': 0.41.0
       lexical: 0.41.0
 
-  '@lexical/selection@0.32.1':
-    dependencies:
-      lexical: 0.32.1
-
   '@lexical/selection@0.41.0':
     dependencies:
       lexical: 0.41.0
-
-  '@lexical/table@0.32.1':
-    dependencies:
-      '@lexical/clipboard': 0.32.1
-      '@lexical/utils': 0.32.1
-      lexical: 0.32.1
-
-  '@lexical/utils@0.32.1':
-    dependencies:
-      '@lexical/list': 0.32.1
-      '@lexical/selection': 0.32.1
-      '@lexical/table': 0.32.1
-      lexical: 0.32.1
 
   '@lexical/utils@0.41.0':
     dependencies:
@@ -4111,37 +3981,6 @@ snapshots:
   '@types/ws@8.18.1':
     dependencies:
       '@types/node': 24.9.1
-
-  '@unlayer-dev/exporters@0.0.0-defaults-test.1':
-    dependencies:
-      '@lexical/headless': 0.41.0
-      '@lexical/html': 0.41.0
-      '@lexical/link': 0.41.0
-      '@lexical/list': 0.41.0
-      '@lexical/rich-text': 0.41.0
-      '@lexical/selection': 0.41.0
-      '@lexical/utils': 0.41.0
-      lexical: 0.41.0
-      lodash: 4.17.23
-    transitivePeerDependencies:
-      - bufferutil
-      - utf-8-validate
-
-  '@unlayer-dev/exporters@1.386.1(@unlayer/types@1.386.0)':
-    dependencies:
-      '@lexical/headless': 0.41.0
-      '@lexical/html': 0.41.0
-      '@lexical/link': 0.41.0
-      '@lexical/list': 0.41.0
-      '@lexical/rich-text': 0.41.0
-      '@lexical/selection': 0.41.0
-      '@lexical/utils': 0.41.0
-      '@unlayer/types': 1.386.0
-      lexical: 0.41.0
-      lodash: 4.17.23
-    transitivePeerDependencies:
-      - bufferutil
-      - utf-8-validate
 
   '@unlayer-dev/exporters@1.386.3(@unlayer/types@1.386.0)':
     dependencies:
@@ -5042,8 +4881,6 @@ snapshots:
       source-map: 0.6.1
     optional: true
 
-  lexical@0.32.1: {}
-
   lexical@0.41.0: {}
 
   lightningcss-android-arm64@1.31.1:
@@ -5744,34 +5581,6 @@ snapshots:
       strip-bom: 3.0.0
 
   tslib@2.8.1: {}
-
-  tsup@8.5.0(jiti@2.6.1)(postcss@8.5.6)(tsx@4.21.0)(typescript@5.8.3):
-    dependencies:
-      bundle-require: 5.1.0(esbuild@0.25.11)
-      cac: 6.7.14
-      chokidar: 4.0.3
-      consola: 3.4.2
-      debug: 4.4.3
-      esbuild: 0.25.11
-      fix-dts-default-cjs-exports: 1.0.1
-      joycon: 3.1.1
-      picocolors: 1.1.1
-      postcss-load-config: 6.0.1(jiti@2.6.1)(postcss@8.5.6)(tsx@4.21.0)
-      resolve-from: 5.0.0
-      rollup: 4.52.5
-      source-map: 0.8.0-beta.0
-      sucrase: 3.35.0
-      tinyexec: 0.3.2
-      tinyglobby: 0.2.15
-      tree-kill: 1.2.2
-    optionalDependencies:
-      postcss: 8.5.6
-      typescript: 5.8.3
-    transitivePeerDependencies:
-      - jiti
-      - supports-color
-      - tsx
-      - yaml
 
   tsup@8.5.0(jiti@2.6.1)(postcss@8.5.6)(tsx@4.21.0)(typescript@5.9.3):
     dependencies:

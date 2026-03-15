@@ -1,7 +1,7 @@
 import React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
-import type { UnlayerConfig } from "../context/unlayer-config";
-import { DEFAULT_CONFIG } from "../context/unlayer-config";
+import type { UnlayerConfig } from "@unlayer-internal/shared-elements";
+import { DEFAULT_CONFIG } from "@unlayer-internal/shared-elements";
 import { htmlToPlainText } from "@unlayer-internal/shared-elements";
 import type { RenderMode } from "@unlayer-internal/shared-elements";
 import { extractHeadFromTree } from "./extract-head";

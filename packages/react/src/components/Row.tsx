@@ -1,14 +1,15 @@
 import React from "react";
 import type { RenderMode, UnlayerConfig, RowValues } from "@unlayer-internal/shared-elements";
-import { renderRowToHtml, validateColumnLayout } from "@unlayer-internal/shared-elements";
+import { validateColumnLayout } from "@unlayer-internal/shared-elements";
 import type { ColumnLayout } from "@unlayer-internal/shared-elements";
+import { RowExporters } from "@unlayer-dev/exporters";
 import { mapSemanticProps, type SemanticProps } from "../utils/semantic-props";
 import { ROW_DEFAULTS, BODY_DEFAULTS } from "../utils/container-defaults";
 
 /**
  * Row - Container for columns in a layout
  *
- * Uses the Row exporter from @unlayer-dev/exporters (via shared).
+ * Uses the Row exporter from @unlayer-dev/exporters.
  * Column children call their own exporters.
  *
  * @example
@@ -38,9 +39,113 @@ export interface RowProps extends SemanticProps<RowValues> {
   _config?: UnlayerConfig;
 }
 
-/**
- * Process Column children and extract their HTML
- */
+// ============================================
+// Grid CSS (inlined from shared/utils/grid-css.ts)
+// ============================================
+
+interface WidthPercentage {
+  value: number;
+  className: string;
+}
+
+function getWidthPercentages(cells: number[]): WidthPercentage[] {
+  if (cells.length === 0) return [];
+  const total = cells.reduce((a, b) => a + b, 0);
+  if (total <= 0) return [];
+  return cells.map((span) => {
+    const value = Math.round((span / total) * 100 * 100) / 100;
+    const className = `${value}`.replace(/\./g, 'p');
+    return { value, className };
+  });
+}
+
+function generateGridCSS(cells: number[], mode: RenderMode, contentWidth: number = 600, mobileBreakpoint: number = 620): string {
+  const widths = getWidthPercentages(cells);
+
+  if (mode === 'email') {
+    const minQuery = `@media only screen and (min-width: ${contentWidth + 20}px)`;
+    const maxQuery = `@media only screen and (max-width: ${contentWidth + 20}px)`;
+
+    return `
+${minQuery} {
+  .u-row { width: ${contentWidth}px !important; }
+  .u-row .u-col { vertical-align: top; }
+${widths.map(({ value, className }) => `  .u-row .u-col-${className} { width: ${Math.round((contentWidth * value) / 100)}px !important; }`).join('\n')}
+}
+
+${maxQuery} {
+  .u-row-container { max-width: 100% !important; padding-left: 0px !important; padding-right: 0px !important; }
+  .u-row { width: 100% !important; }
+  .u-row .u-col { display: block !important; width: 100% !important; min-width: 320px !important; max-width: 100% !important; }
+  .u-row .u-col > div { margin: 0 auto; }
+  .no-stack .u-col { min-width: 0 !important; display: table-cell !important; }
+${widths.map(({ value, className }) => `  .no-stack .u-col-${className} { width: ${value}% !important; }`).join('\n')}
+}`;
+  }
+
+  // Web mode
+  const baseCSS = `
+.u-row {
+  display: flex;
+  flex-wrap: nowrap;
+  margin-left: 0;
+  margin-right: 0;
+}
+.u-row .u-col {
+  position: relative;
+  width: 100%;
+  padding-right: 0;
+  padding-left: 0;
+}`;
+
+  const columnCSS = widths
+    .map(
+      ({ value, className }) =>
+        `.u-row .u-col.u-col-${className} { flex: 0 0 ${value}%; max-width: ${value}%; }`,
+    )
+    .join('\n');
+
+  const responsiveCSS = `
+@media only screen and (max-width: ${mobileBreakpoint}px) {
+  .u-row { width: 100% !important; }
+  .u-row .u-col {
+    display: block !important;
+    width: 100% !important;
+    min-width: 320px !important;
+    max-width: 100% !important;
+  }
+  .u-row .u-col > div { margin: 0 auto; }
+  .no-stack .u-col {
+    min-width: 0 !important;
+    display: table-cell !important;
+  }
+${widths.map(({ value, className }) => `  .no-stack .u-col-${className} { width: ${value}% !important; }`).join('\n')}
+}`;
+
+  return baseCSS + '\n' + columnCSS + '\n' + responsiveCSS;
+}
+
+// ============================================
+// Row exporter wrapper (inlined from shared/utils/render-container-to-html.ts)
+// ============================================
+
+type ContainerExporterFunction = (innerHTML: string, values: Record<string, any>, bodyValues?: Record<string, any>, options?: Record<string, any>) => string;
+
+function renderRowToHtml(innerHTML: string, values: any, bodyValues: any, mode: RenderMode, cells: number[], collection: string = "rows"): string {
+  const rowExporter = (RowExporters[mode] || RowExporters.web) as ContainerExporterFunction;
+  const html = rowExporter(innerHTML, values, bodyValues, {
+    collection,
+    variant: mode,
+  });
+
+  const css = generateGridCSS(cells, mode);
+  return css ? `<style>${css}</style>${html}` : html;
+}
+
+// ============================================
+// Children processing
+// ============================================
+
 function processChildren(
   children: React.ReactNode,
   cells: number[],
@@ -94,6 +199,10 @@ function processChildren(
 
   return innerHTML;
 }
+
+// ============================================
+// Component
+// ============================================
 
 const Row: React.FC<RowProps> = (props) => {
   const {
@@ -151,14 +260,7 @@ const Row: React.FC<RowProps> = (props) => {
   );
 
   try {
-    const html = renderRowToHtml({
-      innerHTML,
-      values: valuesWithMeta,
-      bodyValues: safeBodyValues,
-      mode,
-      cells,
-      collection,
-    });
+    const html = renderRowToHtml(innerHTML, valuesWithMeta, safeBodyValues, mode, cells, collection);
 
     return (
       <div

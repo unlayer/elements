@@ -67,9 +67,6 @@ export interface LinkStyle {
   linkHoverUnderline?: boolean;
 }
 
-/** @deprecated Use Table_table instead */
-export type TableData = Table_table;
-
 // ============================================
 // COMPONENT VALUE TYPES (from @unlayer/types)
 // ============================================

@@ -12,8 +12,11 @@ import type { ExporterName } from "@unlayer/types";
 /** Exporter map keyed by display mode. Defined locally until added to @unlayer/types. */
 type ItemExporters = Partial<Record<ExporterName, (...args: any[]) => string>>;
 import type { RenderMode, UnlayerConfig } from "@unlayer-internal/shared-elements";
-import { mergeValues, ensureMeta } from "@unlayer-internal/shared-elements";
-import { renderComponent } from "./render-component";
+import {
+  mergeValues,
+  generateHtmlFromTextJson,
+  DEFAULT_CONFIG,
+} from "@unlayer-internal/shared-elements";
 
 
 /**
@@ -76,6 +79,127 @@ export interface ItemComponentConfig<TValues, TSemanticProps> {
  */
 export type ItemComponentProps<TSemanticProps> = BaseItemComponentProps &
   TSemanticProps;
+
+// ============================================
+// Internal: rendering helpers (merged from render-component.tsx)
+// ============================================
+
+interface ErrorFallbackProps {
+  type: string;
+  error: Error;
+  className?: string;
+  style?: React.CSSProperties;
+}
+
+/** Error fallback component shown when an exporter throws. */
+const ErrorFallback: React.FC<ErrorFallbackProps> = ({
+  type,
+  className,
+  style
+}) => (
+  <div className={className} style={style}>
+    <div
+      style={{
+        padding: "20px",
+        backgroundColor: "#fee",
+        border: "1px solid #fcc",
+        borderRadius: "4px",
+        color: "#c33",
+        textAlign: "center",
+        fontFamily: "system-ui, sans-serif"
+      }}
+    >
+      <strong>{type} failed to render.</strong>
+      <br />
+      <small>Check console for details.</small>
+    </div>
+  </div>
+);
+
+interface RenderConfig<T = any> {
+  type: string;
+  values: T;
+  mode: RenderMode;
+  className?: string;
+  style?: React.CSSProperties;
+  args?: any[];
+  innerHTML?: string;
+  _config?: UnlayerConfig;
+  exporter: Function;
+}
+
+/** Add _meta fields if not present. */
+function ensureMeta(values: any, type: string, index: number = 0): any {
+  return {
+    ...values,
+    _meta: {
+      htmlID: `u_content_${type.toLowerCase()}_${index + 1}`,
+      htmlClassNames: `u_content_${type.toLowerCase()}`,
+      ...(values._meta || {})
+    }
+  };
+}
+
+/**
+ * Render a component by calling its exporter and wrapping the HTML output.
+ * Handles error boundaries, exporterConfig construction, and container vs item calling conventions.
+ */
+function renderComponent<T = any>(config: RenderConfig<T>): JSX.Element {
+  const { type, values, mode, className, style, args = [], innerHTML, _config, exporter } = config;
+
+  try {
+    // Build exporterConfig from _config (falls back to defaults)
+    const cfg = _config ?? DEFAULT_CONFIG;
+    const exporterConfig = {
+      generateHtmlFromTextJson,
+      toSafeHtml: cfg.toSafeHtml,
+      textDirection: cfg.textDirection,
+      cdnBaseUrl: cfg.cdnBaseUrl,
+    };
+
+    // Call exporter with appropriate arguments
+    let html: string;
+    if (innerHTML !== undefined) {
+      // Container components (Row, Body) take innerHTML first
+      html = exporter(innerHTML, values, ...args);
+    } else {
+      // Content components take values first
+      // Item exporters signature: (values, index, colIndex, cells, bodyValues, rowValues, embeddedValues, meta)
+      // Args 2-7 are deprecated positional params; the 8th arg is a meta object with all context
+      const meta = {
+        exporterConfig,
+        mergeTagState: cfg.mergeTagState,
+      };
+      html = exporter(values, ...args, undefined, meta);
+    }
+
+    // Ensure string output
+    html = typeof html === "string" ? html : String(html);
+
+    // Return rendered component
+    return (
+      <div
+        className={className}
+        style={style}
+        dangerouslySetInnerHTML={{ __html: html }}
+      />
+    );
+  } catch (error) {
+    console.error(`${type} rendering failed:`, error);
+    return (
+      <ErrorFallback
+        type={type}
+        error={error as Error}
+        className={className}
+        style={style}
+      />
+    );
+  }
+}
+
+// ============================================
+// Public API
+// ============================================
 
 /**
  * Create an item component (Button, Heading, Paragraph, etc.)

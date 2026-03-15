@@ -16,14 +16,8 @@
     "react-dom": ">=18"
   },
   "dependencies": {
-    "@lexical/headless": "^0.32.0",
-    "@lexical/html": "^0.32.0",
-    "@lexical/link": "^0.32.0",
-    "@lexical/list": "^0.32.0",
-    "@lexical/rich-text": "^0.32.0",
-    "@unlayer-dev/exporters": "1.386.3",
-    "@unlayer/types": "1.386.0",
-    "lexical": "^0.32.0"
+    "@unlayer-dev/exporters": "catalog:",
+    "@unlayer/types": "catalog:"
   },
   "type": "module",
   "main": "./dist/index.cjs",

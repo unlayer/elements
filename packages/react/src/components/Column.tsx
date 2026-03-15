@@ -1,6 +1,6 @@
 import React from "react";
 import type { RenderMode, UnlayerConfig, ColumnValues } from "@unlayer-internal/shared-elements";
-import { renderColumnToHtml } from "@unlayer-internal/shared-elements";
+import { ColumnExporters } from "@unlayer-dev/exporters";
 import { UNLAYER_RENDER_KEY } from "../utils/create-component";
 import { mapSemanticProps, type SemanticProps } from "../utils/semantic-props";
 import { COLUMN_DEFAULTS } from "../utils/container-defaults";
@@ -8,10 +8,8 @@ import { COLUMN_DEFAULTS } from "../utils/container-defaults";
 /**
  * Column - Single column in a Row layout
  *
- * Calls the Column exporter from @unlayer/exporters (via shared).
+ * Calls the Column exporter from @unlayer-dev/exporters.
  * Must be used inside <Row> component.
- *
- * This follows the ORIGINAL pattern: just call the exported Column exporter.
  *
  * @example
  * ```tsx
@@ -27,6 +25,21 @@ import { COLUMN_DEFAULTS } from "../utils/container-defaults";
  */
 
 const DEFAULT_VALUES = COLUMN_DEFAULTS;
+
+// ============================================
+// Column exporter wrapper (inlined from shared/utils/render-container-to-html.ts)
+// ============================================
+
+type ColumnExporterFunction = (innerHTML: string, values: Record<string, any>, index: number, cells: number[], bodyValues?: Record<string, any>, rowValues?: Record<string, any>) => string;
+
+function renderColumnToHtml(innerHTML: string, values: any, index: number, cells: number[], bodyValues: any, rowValues: any, mode: RenderMode): string {
+  const columnExporter = (ColumnExporters[mode] || ColumnExporters.web) as ColumnExporterFunction;
+  return columnExporter(innerHTML, values, index, cells, bodyValues, rowValues);
+}
+
+// ============================================
+// Component
+// ============================================
 
 export interface ColumnProps extends SemanticProps<ColumnValues> {
   children?: React.ReactNode;
@@ -134,15 +147,7 @@ export const Column: React.FC<ColumnProps> = (props) => {
   }
 
   try {
-    const html = renderColumnToHtml({
-      innerHTML,
-      values: valuesWithMeta,
-      index,
-      cells,
-      bodyValues,
-      rowValues,
-      mode,
-    });
+    const html = renderColumnToHtml(innerHTML, valuesWithMeta, index, cells, bodyValues, rowValues, mode);
 
     return (
       <div

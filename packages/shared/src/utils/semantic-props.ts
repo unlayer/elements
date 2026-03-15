@@ -44,9 +44,16 @@ export type SemanticProps<T, TChildren = any> = FlattenObjectProps<T> & {
 
 /**
  * Runtime detection of nested object structures
- * Analyzes default values to identify which properties are nested objects
+ * Analyzes default values to identify which properties are nested objects.
+ * Results are cached per defaultValues object reference to avoid recomputing
+ * on every render.
  */
+const nestedStructureCache = new WeakMap<object, Map<string, Set<string>>>();
+
 function analyzeNestedStructure(defaultValues: any): Map<string, Set<string>> {
+  const cached = nestedStructureCache.get(defaultValues);
+  if (cached) return cached;
+
   const nestedGroups = new Map<string, Set<string>>();
 
   for (const [key, value] of Object.entries(defaultValues)) {
@@ -67,6 +74,7 @@ function analyzeNestedStructure(defaultValues: any): Map<string, Set<string>> {
     }
   }
 
+  nestedStructureCache.set(defaultValues, nestedGroups);
   return nestedGroups;
 }
 

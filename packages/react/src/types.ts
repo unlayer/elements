@@ -19,7 +19,6 @@ export type {
   Table_table,
   TextAlign,
   LinkStyle,
-  TableData,
   // Component value types
   ButtonValues,
   ImageValues,

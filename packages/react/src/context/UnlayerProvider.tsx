@@ -1,8 +1,8 @@
 "use client";
 
 import React, { createContext, useContext, useMemo } from "react";
-import type { UnlayerConfig } from "./unlayer-config";
-import { DEFAULT_CONFIG } from "./unlayer-config";
+import type { UnlayerConfig } from "@unlayer-internal/shared-elements";
+import { DEFAULT_CONFIG } from "@unlayer-internal/shared-elements";
 
 /**
  * @internal Flag added to context value when a provider is active.
@@ -10,17 +10,7 @@ import { DEFAULT_CONFIG } from "./unlayer-config";
  */
 export const PROVIDER_ACTIVE_KEY = "__unlayerProviderActive";
 
-// Lazy context — only created when UnlayerProvider or useUnlayerConfig is used.
-// This file is marked "use client" so the context creation only happens in
-// client component boundaries, never when server components import the barrel.
-let _unlayerContext: React.Context<UnlayerConfig> | null = null;
-
-function getUnlayerContext(): React.Context<UnlayerConfig> {
-  if (!_unlayerContext) {
-    _unlayerContext = createContext<UnlayerConfig>(DEFAULT_CONFIG);
-  }
-  return _unlayerContext;
-}
+const UnlayerContext = createContext<UnlayerConfig>(DEFAULT_CONFIG);
 
 export interface UnlayerProviderProps {
   config: Partial<UnlayerConfig>;
@@ -31,7 +21,6 @@ export const UnlayerProvider: React.FC<UnlayerProviderProps> = ({
   config,
   children,
 }) => {
-  const UnlayerContext = getUnlayerContext();
   const merged = useMemo(
     () => ({ ...DEFAULT_CONFIG, ...config, [PROVIDER_ACTIVE_KEY]: true }),
     [config]
@@ -47,5 +36,5 @@ export const UnlayerProvider: React.FC<UnlayerProviderProps> = ({
 UnlayerProvider.displayName = "UnlayerProvider";
 
 export function useUnlayerConfig(): UnlayerConfig {
-  return useContext(getUnlayerContext());
+  return useContext(UnlayerContext);
 }

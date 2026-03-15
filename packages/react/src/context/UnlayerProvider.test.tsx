@@ -1,9 +1,7 @@
 import { describe, it, expect } from "vitest";
 import React from "react";
 import { renderHook } from "@testing-library/react";
-import { UnlayerProvider, useUnlayerConfig } from "./UnlayerProvider";
-import { DEFAULT_CONFIG } from "./unlayer-config";
-import { PROVIDER_ACTIVE_KEY } from "./UnlayerProvider";
+import { UnlayerProvider, useUnlayerConfig, PROVIDER_ACTIVE_KEY } from "./UnlayerProvider";
 
 describe("UnlayerProvider", () => {
   it("returns default config when no provider", () => {
