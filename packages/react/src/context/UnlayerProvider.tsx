@@ -10,7 +10,16 @@ import { DEFAULT_CONFIG } from "@unlayer-internal/shared-elements";
  */
 export const PROVIDER_ACTIVE_KEY = "__unlayerProviderActive";
 
-const UnlayerContext = createContext<UnlayerConfig>(DEFAULT_CONFIG);
+// Lazy-init: createContext is not available in React Server Component modules.
+// Deferring the call ensures it only runs when UnlayerProvider or
+// useUnlayerConfig is actually invoked (always in a client context).
+let _UnlayerContext: React.Context<UnlayerConfig> | null = null;
+function getUnlayerContext(): React.Context<UnlayerConfig> {
+  if (!_UnlayerContext) {
+    _UnlayerContext = createContext<UnlayerConfig>(DEFAULT_CONFIG);
+  }
+  return _UnlayerContext;
+}
 
 export interface UnlayerProviderProps {
   config: Partial<UnlayerConfig>;
@@ -26,15 +35,16 @@ export const UnlayerProvider: React.FC<UnlayerProviderProps> = ({
     [config]
   );
 
+  const Context = getUnlayerContext();
   return (
-    <UnlayerContext.Provider value={merged}>
+    <Context.Provider value={merged}>
       {children}
-    </UnlayerContext.Provider>
+    </Context.Provider>
   );
 };
 
 UnlayerProvider.displayName = "UnlayerProvider";
 
 export function useUnlayerConfig(): UnlayerConfig {
-  return useContext(UnlayerContext);
+  return useContext(getUnlayerContext());
 }
