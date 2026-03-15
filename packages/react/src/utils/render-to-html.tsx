@@ -3,7 +3,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import type { UnlayerConfig } from "../context/unlayer-config";
 import { DEFAULT_CONFIG } from "../context/unlayer-config";
 import { htmlToPlainText } from "@unlayer-internal/shared-elements";
-import type { DisplayMode } from "@unlayer-internal/shared-elements";
+import type { RenderMode } from "@unlayer-internal/shared-elements";
 import { extractHeadFromTree } from "./extract-head";
 
 /**
@@ -126,7 +126,7 @@ export function renderToHtmlParts(
 
   // Resolve display mode from config or element props
   const mergedConfig = { ...DEFAULT_CONFIG, ...config };
-  const displayMode: DisplayMode =
+  const displayMode: RenderMode =
     (element.props as any).mode ?? mergedConfig.mode ?? "web";
 
   // Extract head CSS/JS/tags by walking the element tree

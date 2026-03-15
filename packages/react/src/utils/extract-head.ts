@@ -13,7 +13,7 @@ import {
   type ComponentHead,
 } from "@unlayer-dev/exporters";
 import { mergeValues, ensureMeta } from "@unlayer-internal/shared-elements";
-import type { DisplayMode, HeadConfig } from "@unlayer-internal/shared-elements";
+import type { RenderMode, HeadConfig } from "@unlayer-internal/shared-elements";
 import { mapSemanticProps } from "./semantic-props";
 import { UNLAYER_CONFIG_KEY } from "./create-component";
 import { BODY_DEFAULTS, ROW_DEFAULTS, COLUMN_DEFAULTS } from "./container-defaults";
@@ -34,7 +34,7 @@ export interface ExtractHeadResult {
 
 export interface ExtractHeadOptions {
   /** Display mode for rendering */
-  displayMode: DisplayMode;
+  displayMode: RenderMode;
   /** Optional head config for feature flags and initial values */
   headConfig?: HeadConfig;
 }
@@ -46,7 +46,7 @@ function callHead(
   head: ComponentHead | undefined,
   values: Record<string, any>,
   bodyValues: Record<string, any>,
-  displayMode: DisplayMode,
+  displayMode: RenderMode,
   headConfig: HeadConfig,
   styles: string[],
   scripts: string[],
@@ -83,7 +83,7 @@ function callHead(
 function walkItem(
   element: React.ReactElement,
   bodyValues: Record<string, any>,
-  displayMode: DisplayMode,
+  displayMode: RenderMode,
   headConfig: HeadConfig,
   counters: Record<string, number>,
   styles: string[],
@@ -116,7 +116,7 @@ function walkColumn(
   element: React.ReactElement,
   bodyValues: Record<string, any>,
   rowValues: Record<string, any>,
-  displayMode: DisplayMode,
+  displayMode: RenderMode,
   headConfig: HeadConfig,
   counters: Record<string, number>,
   styles: string[],
@@ -142,7 +142,7 @@ function walkColumn(
 function walkRow(
   element: React.ReactElement,
   bodyValues: Record<string, any>,
-  displayMode: DisplayMode,
+  displayMode: RenderMode,
   headConfig: HeadConfig,
   counters: Record<string, number>,
   styles: string[],

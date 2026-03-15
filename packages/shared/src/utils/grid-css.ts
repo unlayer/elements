@@ -17,13 +17,13 @@ export interface WidthPercentage {
   className: string;
 }
 
-export type GridDisplayMode = 'web' | 'email' | 'document';
+import type { RenderMode } from "../types";
 
 export interface GridCSSOptions {
   /** Column cells configuration (e.g., [1, 1] for two equal columns) */
   cells: number[];
   /** Display mode */
-  mode: GridDisplayMode;
+  mode: RenderMode;
   /** Content width in pixels (default: 600) */
   contentWidth?: number;
   /** Mobile breakpoint in pixels (default: 620) */

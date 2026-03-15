@@ -13,7 +13,7 @@
  */
 
 import React from "react";
-import type { DisplayMode } from "@unlayer-internal/shared-elements";
+import type { RenderMode } from "@unlayer-internal/shared-elements";
 import type { UnlayerConfig } from "@unlayer-internal/shared-elements";
 import {
   generateHtmlFromTextJson,
@@ -27,7 +27,7 @@ interface RenderConfig<T = any> {
   /** Component values (exporter format) */
   values: T;
   /** Render mode */
-  mode: DisplayMode;
+  mode: RenderMode;
   /** Optional className for wrapper */
   className?: string;
   /** Optional styles for wrapper */

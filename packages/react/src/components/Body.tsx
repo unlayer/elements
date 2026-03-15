@@ -1,13 +1,13 @@
 import React from "react";
 import ReactDOMServer from "react-dom/server";
-import type { DisplayMode, UnlayerConfig, BodyValues } from "@unlayer-internal/shared-elements";
+import type { RenderMode, UnlayerConfig, BodyValues } from "@unlayer-internal/shared-elements";
 import { DEFAULT_CONFIG, renderBodyToHtml } from "@unlayer-internal/shared-elements";
 import { mapSemanticProps, type SemanticProps } from "../utils/semantic-props";
 import { BODY_DEFAULTS } from "../utils/container-defaults";
 
 export interface BodyProps extends SemanticProps<BodyValues> {
   children?: React.ReactNode;
-  mode?: DisplayMode;
+  mode?: RenderMode;
   className?: string;
   style?: React.CSSProperties;
   index?: number;
@@ -47,7 +47,7 @@ const Body: React.FC<BodyProps> = (props) => {
   const resolvedConfig: UnlayerConfig = { ...DEFAULT_CONFIG, ...configProp };
 
   // Resolve mode: explicit prop > config > default
-  const mode: DisplayMode = modeProp ?? resolvedConfig.mode ?? "web";
+  const mode: RenderMode = modeProp ?? resolvedConfig.mode ?? "web";
 
   // Build _config to thread through children
   const _config: UnlayerConfig = { ...resolvedConfig, mode };

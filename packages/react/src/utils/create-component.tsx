@@ -11,7 +11,7 @@ import type { ExporterName } from "@unlayer/types";
 
 /** Exporter map keyed by display mode. Defined locally until added to @unlayer/types. */
 type ItemExporters = Partial<Record<ExporterName, (...args: any[]) => string>>;
-import type { DisplayMode, UnlayerConfig } from "@unlayer-internal/shared-elements";
+import type { RenderMode, UnlayerConfig } from "@unlayer-internal/shared-elements";
 import { mergeValues, ensureMeta } from "@unlayer-internal/shared-elements";
 import { renderComponent } from "./render-component";
 
@@ -36,7 +36,7 @@ export interface BaseItemComponentProps {
   children?: React.ReactNode;
   className?: string;
   style?: React.CSSProperties;
-  mode?: DisplayMode;
+  mode?: RenderMode;
 
   // Internal props (for advanced use)
   index?: number;
@@ -125,7 +125,7 @@ export function createItemComponent<
     } = props as ItemComponentProps<TSemanticProps>;
 
     // Resolve mode: explicit prop > _config > default
-    const mode: DisplayMode = modeProp ?? _config?.mode ?? "web";
+    const mode: RenderMode = modeProp ?? _config?.mode ?? "web";
 
     // 1. Map semantic props to values format (handles dual API)
     const mappedValues = config.propMapper({

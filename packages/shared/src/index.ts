@@ -58,16 +58,6 @@ export type {
   ValidColumnLayout,
 } from "./layouts";
 
-// Utils - Exporter resolver
-export {
-  resolveExporter,
-  resolveHead,
-} from "./utils/exporter-resolver";
-export type {
-  DisplayMode,
-  ExporterBundle,
-} from "./utils/exporter-resolver";
-
 // Utils - Lexical helpers
 export {
   textToTextJson,
@@ -89,10 +79,6 @@ export { validateRequiredPaths } from "./utils/validate-required-paths";
 export { mapSemanticProps } from "./utils/semantic-props";
 export type { SemanticProps } from "./utils/semantic-props";
 
-// Utils - Item rendering
-export { renderItemToHtml } from "./utils/render-item-to-html";
-export type { RenderItemConfig, RenderItemResult } from "./utils/render-item-to-html";
-
 // Utils - Container rendering
 export {
   renderBodyToHtml,
@@ -113,4 +99,4 @@ export { htmlToPlainText } from "./utils/html-to-text";
 
 // Utils - Grid CSS
 export { generateGridCSS, getWidthPercentages } from "./utils/grid-css";
-export type { GridCSSOptions, GridDisplayMode, WidthPercentage } from "./utils/grid-css";
+export type { GridCSSOptions, WidthPercentage } from "./utils/grid-css";

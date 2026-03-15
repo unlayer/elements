@@ -1,5 +1,5 @@
 import React from "react";
-import type { DisplayMode, UnlayerConfig, ColumnValues } from "@unlayer-internal/shared-elements";
+import type { RenderMode, UnlayerConfig, ColumnValues } from "@unlayer-internal/shared-elements";
 import { renderColumnToHtml } from "@unlayer-internal/shared-elements";
 import { UNLAYER_RENDER_KEY } from "../utils/create-component";
 import { mapSemanticProps, type SemanticProps } from "../utils/semantic-props";
@@ -35,7 +35,7 @@ export interface ColumnProps extends SemanticProps<ColumnValues> {
   cells?: number[];
   bodyValues?: any;
   rowValues?: any;
-  mode?: DisplayMode;
+  mode?: RenderMode;
   className?: string;
   style?: React.CSSProperties;
   /** @internal - Unlayer config threaded from UnlayerProvider via Body/Row */
@@ -57,7 +57,7 @@ export const Column: React.FC<ColumnProps> = (props) => {
   } = props;
 
   // Resolve mode: explicit prop > _config > default
-  const mode: DisplayMode = modeProp ?? _config?.mode ?? "web";
+  const mode: RenderMode = modeProp ?? _config?.mode ?? "web";
 
   // Map semantic props to values
   const values = mapSemanticProps<ColumnValues>(

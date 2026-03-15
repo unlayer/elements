@@ -6,7 +6,7 @@
  * call the appropriate exporter, and return an HTML string.
  */
 
-import type { DisplayMode } from "./exporter-resolver";
+import type { RenderMode } from "../types";
 import { BodyExporters, RowExporters, ColumnExporters } from "@unlayer-dev/exporters";
 import { generateGridCSS } from "./grid-css";
 
@@ -24,7 +24,7 @@ import { generatePreviewHtml } from "./preview";
 export interface RenderBodyConfig {
   innerHTML: string;
   values: any;
-  mode: DisplayMode;
+  mode: RenderMode;
   /** Preview text shown in email client inboxes (email mode only) */
   previewText?: string;
 }
@@ -63,7 +63,7 @@ export interface RenderRowConfig {
   innerHTML: string;
   values: any;
   bodyValues: any;
-  mode: DisplayMode;
+  mode: RenderMode;
   cells: number[];
   collection?: string;
 }
@@ -95,7 +95,7 @@ export interface RenderColumnConfig {
   cells: number[];
   bodyValues: any;
   rowValues: any;
-  mode: DisplayMode;
+  mode: RenderMode;
 }
 
 /**

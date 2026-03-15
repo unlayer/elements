@@ -1,4 +1,4 @@
-import type { DisplayMode } from "./utils/exporter-resolver";
+import type { RenderMode } from "./types";
 
 export interface HeadConfig {
   hasFeature?: (featureName: string) => boolean;
@@ -10,7 +10,7 @@ export interface UnlayerConfig {
   toSafeHtml?: (text: string, options?: any) => string;
   textDirection?: string;
   mergeTagState?: Record<string, any>;
-  mode?: DisplayMode;
+  mode?: RenderMode;
   headConfig?: HeadConfig;
 }
 

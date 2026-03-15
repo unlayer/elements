@@ -1,5 +1,5 @@
 import React from "react";
-import type { DisplayMode, UnlayerConfig, RowValues } from "@unlayer-internal/shared-elements";
+import type { RenderMode, UnlayerConfig, RowValues } from "@unlayer-internal/shared-elements";
 import { renderRowToHtml, validateColumnLayout } from "@unlayer-internal/shared-elements";
 import type { ColumnLayout } from "@unlayer-internal/shared-elements";
 import { mapSemanticProps, type SemanticProps } from "../utils/semantic-props";
@@ -28,7 +28,7 @@ export interface RowProps extends SemanticProps<RowValues> {
   children?: React.ReactNode;
   layout?: ColumnLayout;
   cells?: number[];
-  mode?: DisplayMode;
+  mode?: RenderMode;
   className?: string;
   style?: React.CSSProperties;
   index?: number;
@@ -46,7 +46,7 @@ function processChildren(
   cells: number[],
   bodyValues: any,
   rowValues: any,
-  mode: DisplayMode,
+  mode: RenderMode,
   _config?: UnlayerConfig
 ): string {
   if (!children) return "";
@@ -111,7 +111,7 @@ const Row: React.FC<RowProps> = (props) => {
   } = props;
 
   // Resolve mode: explicit prop > _config > default
-  const mode: DisplayMode = modeProp ?? _config?.mode ?? "web";
+  const mode: RenderMode = modeProp ?? _config?.mode ?? "web";
 
   // Determine cells from layout or props
   let cells = propsCells || [1];
