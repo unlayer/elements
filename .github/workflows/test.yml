@@ -78,7 +78,7 @@ jobs:
       - name: Pack react-elements
         run: |
           cd packages/react
-          npm pack --pack-destination /tmp
+          pnpm pack --pack-destination /tmp
           echo "TARBALL=$(ls /tmp/unlayer-dev-react-elements-*.tgz)" >> $GITHUB_ENV
 
       - name: Next.js integration build
