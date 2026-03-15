@@ -7,11 +7,14 @@
  */
 
 import type { DisplayMode } from "./exporter-resolver";
-import type {
-  ContainerExporterFunction,
-  ColumnExporterFunction,
-} from "@unlayer-dev/exporters";
-import { BodyExporters, RowExporters, ColumnExporters, generateGridCSS } from "@unlayer-dev/exporters";
+import { BodyExporters, RowExporters, ColumnExporters } from "@unlayer-dev/exporters";
+import { generateGridCSS } from "./grid-css";
+
+/** Container exporter signature. Defined locally until added to @unlayer/types. */
+type ContainerExporterFunction = (innerHTML: string, values: Record<string, any>, bodyValues?: Record<string, any>, options?: Record<string, any>) => string;
+
+/** Column exporter signature. Defined locally until added to @unlayer/types. */
+type ColumnExporterFunction = (innerHTML: string, values: Record<string, any>, index: number, cells: number[], bodyValues?: Record<string, any>, rowValues?: Record<string, any>) => string;
 import { generatePreviewHtml } from "./preview";
 
 // ============================================

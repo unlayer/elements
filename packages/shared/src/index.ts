@@ -110,3 +110,7 @@ export { generatePreviewHtml } from "./utils/preview";
 
 // Utils - HTML to plain text
 export { htmlToPlainText } from "./utils/html-to-text";
+
+// Utils - Grid CSS
+export { generateGridCSS, getWidthPercentages } from "./utils/grid-css";
+export type { GridCSSOptions, GridDisplayMode, WidthPercentage } from "./utils/grid-css";

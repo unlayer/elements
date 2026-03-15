@@ -20,13 +20,13 @@
     "dist"
   ],
   "dependencies": {
-    "@unlayer/types": "1.386.0",
     "@lexical/headless": "^0.32.0",
     "@lexical/html": "^0.32.0",
     "@lexical/link": "^0.32.0",
     "@lexical/list": "^0.32.0",
     "@lexical/rich-text": "^0.32.0",
-    "@unlayer-dev/exporters": "0.0.0-defaults-test.1",
+    "@unlayer-dev/exporters": "1.386.1",
+    "@unlayer/types": "1.386.0",
     "lexical": "^0.32.0"
   },
   "scripts": {

@@ -83,8 +83,8 @@ importers:
         specifier: ^0.32.0
         version: 0.32.1
       '@unlayer-dev/exporters':
-        specifier: 0.0.0-defaults-test.1
-        version: 0.0.0-defaults-test.1
+        specifier: 1.386.3
+        version: 1.386.3(@unlayer/types@1.386.0)
       '@unlayer/types':
         specifier: 1.386.0
         version: 1.386.0
@@ -162,8 +162,8 @@ importers:
         specifier: ^0.32.0
         version: 0.32.1
       '@unlayer-dev/exporters':
-        specifier: 0.0.0-defaults-test.1
-        version: 0.0.0-defaults-test.1
+        specifier: 1.386.1
+        version: 1.386.1(@unlayer/types@1.386.0)
       '@unlayer/types':
         specifier: 1.386.0
         version: 1.386.0
@@ -1266,6 +1266,18 @@ packages:
   '@unlayer-dev/exporters@0.0.0-defaults-test.1':
     resolution: {integrity: sha512-x8hjJJDXZcZyV4K8E2V65S3IrnNHbMqoHO+9grWA0lcOkH309FJo0S/g4N1I0BeG77SpfxeFAHxsd9+G2usgkA==}
     engines: {node: '>=14.0.0'}
+
+  '@unlayer-dev/exporters@1.386.1':
+    resolution: {integrity: sha512-3SEVgkmmW2gohH0UADXiCbjm5QEXma8CRn5hW8DzhsHXqyUayRZr5hePQnqKR4aP7LHwkAPSRVga5PXkP5CNYA==}
+    engines: {node: '>=14.0.0'}
+    peerDependencies:
+      '@unlayer/types': '>=1.386.0'
+
+  '@unlayer-dev/exporters@1.386.3':
+    resolution: {integrity: sha512-Om3htAY6YhNfAaEVdgwbZOdnVHxQBOATr+vq3cdFpuUXNIGAdDaUrwSrIG9njVMd1dGPeWN6SgJAppCkuKqAgA==}
+    engines: {node: '>=14.0.0'}
+    peerDependencies:
+      '@unlayer/types': '>=1.386.0'
 
   '@unlayer/types@1.386.0':
     resolution: {integrity: sha512-YcTl4q1ZeroiUrnFNr9D5z449PyN3o+ZCgnOFDg7+FeSXhBRhwYgyFubVZpLzKTRhhJuR+ziW9wIukN3O+NIeg==}
@@ -4109,6 +4121,38 @@ snapshots:
       '@lexical/rich-text': 0.41.0
       '@lexical/selection': 0.41.0
       '@lexical/utils': 0.41.0
+      lexical: 0.41.0
+      lodash: 4.17.23
+    transitivePeerDependencies:
+      - bufferutil
+      - utf-8-validate
+
+  '@unlayer-dev/exporters@1.386.1(@unlayer/types@1.386.0)':
+    dependencies:
+      '@lexical/headless': 0.41.0
+      '@lexical/html': 0.41.0
+      '@lexical/link': 0.41.0
+      '@lexical/list': 0.41.0
+      '@lexical/rich-text': 0.41.0
+      '@lexical/selection': 0.41.0
+      '@lexical/utils': 0.41.0
+      '@unlayer/types': 1.386.0
+      lexical: 0.41.0
+      lodash: 4.17.23
+    transitivePeerDependencies:
+      - bufferutil
+      - utf-8-validate
+
+  '@unlayer-dev/exporters@1.386.3(@unlayer/types@1.386.0)':
+    dependencies:
+      '@lexical/headless': 0.41.0
+      '@lexical/html': 0.41.0
+      '@lexical/link': 0.41.0
+      '@lexical/list': 0.41.0
+      '@lexical/rich-text': 0.41.0
+      '@lexical/selection': 0.41.0
+      '@lexical/utils': 0.41.0
+      '@unlayer/types': 1.386.0
       lexical: 0.41.0
       lodash: 4.17.23
     transitivePeerDependencies:

@@ -1,6 +1,6 @@
 {
   "name": "@unlayer-dev/react-elements",
-  "version": "0.0.0-types-test.3",
+  "version": "0.0.0-types-test.7",
   "description": "React components for building emails, pages, and documents with Unlayer Elements - PRIVATE TESTING (Server-side compatible)",
   "license": "MIT",
   "author": "Unlayer",
@@ -16,13 +16,13 @@
     "react-dom": ">=18"
   },
   "dependencies": {
-    "@unlayer/types": "1.386.0",
     "@lexical/headless": "^0.32.0",
     "@lexical/html": "^0.32.0",
     "@lexical/link": "^0.32.0",
     "@lexical/list": "^0.32.0",
     "@lexical/rich-text": "^0.32.0",
-    "@unlayer-dev/exporters": "0.0.0-defaults-test.1",
+    "@unlayer-dev/exporters": "1.386.3",
+    "@unlayer/types": "1.386.0",
     "lexical": "^0.32.0"
   },
   "type": "module",

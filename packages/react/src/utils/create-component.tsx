@@ -7,7 +7,10 @@
  */
 
 import React from "react";
-import type { ItemExporters } from "@unlayer-dev/exporters";
+import type { ExporterName } from "@unlayer/types";
+
+/** Exporter map keyed by display mode. Defined locally until added to @unlayer/types. */
+type ItemExporters = Partial<Record<ExporterName, (...args: any[]) => string>>;
 import type { DisplayMode, UnlayerConfig } from "@unlayer-internal/shared-elements";
 import { mergeValues, ensureMeta } from "@unlayer-internal/shared-elements";
 import { renderComponent } from "./render-component";
@@ -147,7 +150,7 @@ export function createItemComponent<
     };
 
     // 5. Resolve exporter for this mode (fallback to web)
-    const exporter = config.exporters[mode] || config.exporters.web;
+    const exporter = (config.exporters[mode] || config.exporters.web)!;
 
     // 6. Render using utility (handles all boilerplate)
     return renderComponent<TValues>({
