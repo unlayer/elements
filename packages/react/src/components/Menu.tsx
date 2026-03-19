@@ -1,4 +1,4 @@
-import { MenuExporters, MenuDefaults } from "@unlayer-dev/exporters";
+import { MenuExporters, MenuDefaults } from "@unlayer/exporters";
 import type { MenuValues, MenuItem } from "../types";
 import { createItemComponent, type ItemComponentProps } from "../utils/create-component";
 import { mapSemanticProps, type SemanticProps } from "../utils/semantic-props";

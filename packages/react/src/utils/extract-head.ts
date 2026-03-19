@@ -11,7 +11,7 @@ import React from "react";
 import {
   heads,
   type ComponentHead,
-} from "@unlayer-dev/exporters";
+} from "@unlayer/exporters";
 import { mergeValues } from "@unlayer-internal/shared-elements";
 import type { RenderMode, HeadConfig } from "@unlayer-internal/shared-elements";
 import { mapSemanticProps } from "./semantic-props";
@@ -249,7 +249,7 @@ function walkRow(
  * Extract head CSS/JS/tags from a React element tree.
  *
  * Walks the tree statically (same approach as renderToJson) and calls
- * each component's head function from @unlayer-dev/exporters.
+ * each component's head function from @unlayer/exporters.
  *
  * @param element - Root element (Body, Email, Page, or Document)
  * @param options - Display mode and optional head config

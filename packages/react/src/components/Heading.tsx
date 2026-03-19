@@ -1,4 +1,4 @@
-import { HeadingExporters, HeadingDefaults } from "@unlayer-dev/exporters";
+import { HeadingExporters, HeadingDefaults } from "@unlayer/exporters";
 import type { HeadingValues } from "../types";
 import {
   createItemComponent,

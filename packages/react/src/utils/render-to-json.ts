@@ -22,7 +22,7 @@ import { mergeValues } from "@unlayer-internal/shared-elements";
 // at the time the exporters were generated. This ensures renderToJson output is
 // recognized as current by the editor, skipping unnecessary migrations.
 // Falls back to 24 for older exporters packages that don't export this yet.
-import { schemaVersion as _schemaVersion } from "@unlayer-dev/exporters";
+import { schemaVersion as _schemaVersion } from "@unlayer/exporters";
 const schemaVersion: number = _schemaVersion ?? 24;
 import { mapSemanticProps } from "./semantic-props";
 import { UNLAYER_CONFIG_KEY } from "./create-component";

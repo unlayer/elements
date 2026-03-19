@@ -5,9 +5,10 @@
   "enabledManagers": ["npm"],
   "packageRules": [
     {
-      "description": "Upstream unlayer-dev packages — auto-create PRs on every new version",
+      "description": "Upstream unlayer packages — auto-create PRs on every new version",
       "matchPackageNames": [
-        "@unlayer-dev/exporters"
+        "@unlayer/exporters",
+        "@unlayer/types"
       ],
       "enabled": true,
       "groupName": "unlayer upstream",

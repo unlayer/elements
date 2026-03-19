@@ -1,6 +1,6 @@
 import React from "react";
 import type { RenderMode, UnlayerConfig, ColumnValues } from "@unlayer-internal/shared-elements";
-import { ColumnExporters } from "@unlayer-dev/exporters";
+import { ColumnExporters } from "@unlayer/exporters";
 import { UNLAYER_RENDER_KEY } from "../utils/create-component";
 import { mapSemanticProps, type SemanticProps } from "../utils/semantic-props";
 import { COLUMN_DEFAULTS } from "../utils/container-defaults";
@@ -8,7 +8,7 @@ import { COLUMN_DEFAULTS } from "../utils/container-defaults";
 /**
  * Column - Single column in a Row layout
  *
- * Calls the Column exporter from @unlayer-dev/exporters.
+ * Calls the Column exporter from @unlayer/exporters.
  * Must be used inside <Row> component.
  *
  * @example

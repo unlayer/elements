@@ -1,4 +1,4 @@
-import { ImageExporters, ImageDefaults } from "@unlayer-dev/exporters";
+import { ImageExporters, ImageDefaults } from "@unlayer/exporters";
 import type { ImageValues } from "../types";
 import { createItemComponent, type ItemComponentProps } from "../utils/create-component";
 import { mapSemanticProps, type SemanticProps } from "../utils/semantic-props";

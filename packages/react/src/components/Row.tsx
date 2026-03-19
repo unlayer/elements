@@ -2,14 +2,14 @@ import React from "react";
 import type { RenderMode, UnlayerConfig, RowValues } from "@unlayer-internal/shared-elements";
 import { validateColumnLayout } from "@unlayer-internal/shared-elements";
 import type { ColumnLayout } from "@unlayer-internal/shared-elements";
-import { RowExporters } from "@unlayer-dev/exporters";
+import { RowExporters } from "@unlayer/exporters";
 import { mapSemanticProps, type SemanticProps } from "../utils/semantic-props";
 import { ROW_DEFAULTS, BODY_DEFAULTS } from "../utils/container-defaults";
 
 /**
  * Row - Container for columns in a layout
  *
- * Uses the Row exporter from @unlayer-dev/exporters.
+ * Uses the Row exporter from @unlayer/exporters.
  * Column children call their own exporters.
  *
  * @example

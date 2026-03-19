@@ -1,4 +1,4 @@
-import { ButtonExporters, ButtonDefaults } from "@unlayer-dev/exporters";
+import { ButtonExporters, ButtonDefaults } from "@unlayer/exporters";
 import type { ButtonValues } from "../types";
 import { createItemComponent, type ItemComponentProps } from "../utils/create-component";
 import { mapSemanticProps, type SemanticProps } from "../utils/semantic-props";
