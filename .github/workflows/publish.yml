@@ -1,14 +1,22 @@
 name: Publish to npm
 
 on:
-  push:
-    branches: [main]
+  workflow_dispatch:
+    inputs:
+      bump:
+        description: 'Version bump type'
+        required: true
+        type: choice
+        options:
+          - patch
+          - minor
+          - major
+        default: patch
 
 jobs:
   publish:
     name: Build, Test & Publish
     runs-on: ubuntu-latest
-    environment: production
     permissions:
       contents: write
       id-token: write
@@ -42,9 +50,6 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-pnpm-store-
 
-      - name: Authenticate npm registry
-        run: echo "//registry.npmjs.org/:_authToken=${{ secrets.NPM_TOKEN }}" > ~/.npmrc
-
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
@@ -54,17 +59,29 @@ jobs:
       - name: Run tests
         run: pnpm test
 
-      - name: Bump version
+      - name: Pre-publish summary
         working-directory: packages/react
         run: |
-          npm version patch --no-git-tag-version
-          echo "VERSION=$(node -p "require('./package.json').version")" >> $GITHUB_ENV
+          CURRENT=$(node -p "require('./package.json').version")
+          NEXT=$(npm version ${{ inputs.bump }} --no-git-tag-version)
+          CATALOG=$(grep -A10 "catalog:" ../../pnpm-workspace.yaml | grep "@unlayer" | sed 's/^ *//' | tr '\n' ', ')
+          BUNDLE_SIZE=$(wc -c < dist/index.js | tr -d ' ')
+          FILE_COUNT=$(find dist -type f | wc -l | tr -d ' ')
+
+          echo "## Publish Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| | |" >> $GITHUB_STEP_SUMMARY
+          echo "|---|---|" >> $GITHUB_STEP_SUMMARY
+          echo "| **Package** | @unlayer/react-elements |" >> $GITHUB_STEP_SUMMARY
+          echo "| **Version** | ${CURRENT} → ${NEXT} (${{ inputs.bump }}) |" >> $GITHUB_STEP_SUMMARY
+          echo "| **Dependencies** | ${CATALOG} |" >> $GITHUB_STEP_SUMMARY
+          echo "| **ESM bundle** | ${BUNDLE_SIZE} bytes |" >> $GITHUB_STEP_SUMMARY
+          echo "| **Files in dist** | ${FILE_COUNT} |" >> $GITHUB_STEP_SUMMARY
+
+          echo "VERSION=${NEXT#v}" >> $GITHUB_ENV
 
       - name: Publish to npm
-        run: pnpm publish -r --filter "./packages/react" --no-git-checks --access restricted
-        env:
-          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: pnpm publish -r --filter "./packages/react" --no-git-checks --access public
 
       - name: Commit and tag version bump
         run: |
