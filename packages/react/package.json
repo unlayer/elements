@@ -1,6 +1,6 @@
 {
   "name": "@unlayer-dev/react-elements",
-  "version": "0.0.0-types-test.8",
+  "version": "0.1.0",
   "description": "React components for building emails, pages, and documents with Unlayer Elements - PRIVATE TESTING (Server-side compatible)",
   "license": "MIT",
   "author": "Unlayer",
