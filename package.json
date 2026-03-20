@@ -16,13 +16,9 @@
     "postbuild-storybook": "./build-storybook-hub.sh",
     "storybook:hub": "pnpm run build-storybook && npx http-server storybook-static -p 6006 -o",
     "test": "pnpm -r --filter \"./packages/*\" run test",
-    "test:coverage": "pnpm -r --filter \"./packages/*\" run test:coverage",
-    "changeset": "changeset",
-    "version": "changeset version",
-    "publish": "pnpm build && changeset publish"
+    "test:coverage": "pnpm -r --filter \"./packages/*\" run test:coverage"
   },
   "devDependencies": {
-    "@changesets/cli": "^2.29.7",
     "@types/jsdom": "^27.0.0",
     "tsup": "^8.0.1",
     "typescript": "^5.6.3"

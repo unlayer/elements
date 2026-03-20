@@ -1,26 +1,32 @@
-name: Release
+name: Publish to npm
 
 on:
-  push:
-    branches: [main]
-
-concurrency: ${{ github.workflow }}-${{ github.ref }}
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version bump type'
+        required: true
+        type: choice
+        options:
+          - patch
+          - minor
+          - major
+        default: patch
 
 jobs:
-  # Creates/updates a "Version Packages" PR when changesets exist.
-  # When that PR is merged (no changesets left), publishes to npm.
-  release:
-    name: Release
+  publish:
+    name: Build, Test & Publish
     runs-on: ubuntu-latest
     environment: production
     permissions:
       contents: write
-      pull-requests: write
       id-token: write
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Setup Node.js 20
         uses: actions/setup-node@v4
@@ -57,13 +63,23 @@ jobs:
       - name: Run tests
         run: pnpm test
 
-      - name: Create Release PR or Publish
-        uses: changesets/action@v1
-        with:
-          publish: pnpm publish -r --filter "./packages/react" --no-git-checks --access restricted
-          title: "Version Packages"
-          commit: "ci: version packages"
+      - name: Bump version
+        working-directory: packages/react
+        run: |
+          npm version ${{ inputs.version }} --no-git-tag-version
+          echo "VERSION=$(node -p "require('./package.json').version")" >> $GITHUB_ENV
+
+      - name: Publish to npm
+        run: pnpm publish -r --filter "./packages/react" --no-git-checks --access restricted
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      - name: Commit and tag version bump
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add packages/react/package.json
+          git commit -m "v${VERSION}"
+          git tag "v${VERSION}"
+          git push && git push --tags
