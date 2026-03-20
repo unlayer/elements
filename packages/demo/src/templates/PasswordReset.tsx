@@ -8,7 +8,7 @@ import {
   Button,
   Divider,
   ColumnLayouts,
-} from "@unlayer-dev/react-elements";
+} from "@unlayer/react-elements";
 
 const sansFont = {
   label: "Sans Serif",

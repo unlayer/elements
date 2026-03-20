@@ -1,5 +1,5 @@
 import { useMemo } from "react";
-import { renderToHtmlParts, renderToPlainText } from "@unlayer-dev/react-elements";
+import { renderToHtmlParts, renderToPlainText } from "@unlayer/react-elements";
 import { templateMap } from "../templates";
 
 interface RenderResult {

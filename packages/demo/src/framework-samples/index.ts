@@ -1,6 +1,6 @@
 export const reactSample = `import {
   Email, Row, Column, Paragraph, Heading, Button, ColumnLayouts
-} from "@unlayer-dev/react-elements";
+} from "@unlayer/react-elements";
 
 export default function WelcomeEmail() {
   return (
@@ -40,5 +40,5 @@ export interface FrameworkSample {
 }
 
 export const frameworks: FrameworkSample[] = [
-  { id: "react", name: "React", language: "tsx", code: reactSample, packageName: "@unlayer-dev/react-elements" },
+  { id: "react", name: "React", language: "tsx", code: reactSample, packageName: "@unlayer/react-elements" },
 ];

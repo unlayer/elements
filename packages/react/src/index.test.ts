@@ -8,7 +8,7 @@ import {
   renderToJson, htmlToTextJson,
 } from "./index";
 
-describe("@unlayer-dev/react-elements exports", () => {
+describe("@unlayer/react-elements exports", () => {
   it("exports all item components as functions with displayNames", () => {
     const items = { Button, Divider, Heading, Html, Image, Menu, Paragraph, Social, Table, Video };
     for (const [name, component] of Object.entries(items)) {

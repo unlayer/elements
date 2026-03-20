@@ -9,7 +9,7 @@ import {
   Divider,
   Image,
   ColumnLayouts,
-} from "@unlayer-dev/react-elements";
+} from "@unlayer/react-elements";
 
 const sansFont = {
   label: "Georgia",

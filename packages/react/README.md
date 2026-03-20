@@ -1,19 +1,19 @@
-# @unlayer-dev/react-elements
+# @unlayer/react-elements
 
 React components for building emails, pages, and documents with Unlayer Elements. Full SSR support — works with `renderToHtml`, `renderToString`, Next.js, Remix, and any server-side framework.
 
 ## Installation
 
 ```bash
-npm install @unlayer-dev/react-elements
+npm install @unlayer/react-elements
 # or
-pnpm add @unlayer-dev/react-elements
+pnpm add @unlayer/react-elements
 ```
 
 ## Quick Start
 
 ```tsx
-import { Email, Row, Column, ColumnLayouts, Heading, Paragraph, Button } from '@unlayer-dev/react-elements';
+import { Email, Row, Column, ColumnLayouts, Heading, Paragraph, Button } from '@unlayer/react-elements';
 
 function WelcomeEmail() {
   return (
@@ -240,7 +240,7 @@ Priority: `html` > `text` > children. Use `html` for formatted text, `text` for 
 Pre-built layouts for common column configurations:
 
 ```tsx
-import { Row, Column, ColumnLayouts } from '@unlayer-dev/react-elements';
+import { Row, Column, ColumnLayouts } from '@unlayer/react-elements';
 
 <Row layout={ColumnLayouts.OneColumn}>              {/* [1]       → 100% */}
 <Row layout={ColumnLayouts.TwoEqual}>               {/* [1,1]     → 50% + 50% */}
@@ -272,7 +272,7 @@ Each wrapper threads the correct mode to all children automatically.
 Render any element tree to a clean HTML string — no React hydration markers, perfect for email sending and PDF generation:
 
 ```tsx
-import { renderToHtml, Email, Row, Column, ColumnLayouts, Paragraph, Button } from '@unlayer-dev/react-elements';
+import { renderToHtml, Email, Row, Column, ColumnLayouts, Paragraph, Button } from '@unlayer/react-elements';
 
 const html = renderToHtml(
   <Email backgroundColor="#f4f4f4">
@@ -295,7 +295,7 @@ const html = renderToHtml(
 Configure global settings like CDN base URL, merge tags, text direction, and rendering mode:
 
 ```tsx
-import { UnlayerProvider, Email, Row, Column, Social, Menu } from '@unlayer-dev/react-elements';
+import { UnlayerProvider, Email, Row, Column, Social, Menu } from '@unlayer/react-elements';
 
 function App() {
   return (
@@ -321,7 +321,7 @@ function App() {
 
 ## Types
 
-All types are exported and sourced from `@unlayer-dev/editor-types`:
+All types are exported and sourced from `@unlayer/types`:
 
 ```tsx
 import type {
@@ -329,7 +329,7 @@ import type {
   Href, Icons, TextAlign, LinkStyle,
   SocialIcon, MenuItem,
   ButtonProps, MenuProps, ImageProps,
-} from '@unlayer-dev/react-elements';
+} from '@unlayer/react-elements';
 ```
 
 ## Common Font Stacks

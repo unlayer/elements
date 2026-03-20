@@ -79,7 +79,7 @@ jobs:
         run: |
           cd packages/react
           pnpm pack --pack-destination /tmp
-          echo "TARBALL=$(ls /tmp/unlayer-dev-react-elements-*.tgz)" >> $GITHUB_ENV
+          echo "TARBALL=$(ls /tmp/unlayer-react-elements-*.tgz)" >> $GITHUB_ENV
 
       - name: Next.js integration build
         run: |

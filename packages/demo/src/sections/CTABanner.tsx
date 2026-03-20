@@ -1,7 +1,7 @@
 import { useCopyToClipboard } from "../hooks/useCopyToClipboard";
 import { UnlayerLogoMark } from "../components/UnlayerLogo";
 
-const installCmd = "npm install @unlayer-dev/react-elements";
+const installCmd = "npm install @unlayer/react-elements";
 
 export default function CTABanner() {
   const { copied, copy } = useCopyToClipboard();

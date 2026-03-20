@@ -1,12 +1,12 @@
 // Server Component — no "use client" directive.
-// Exercises every @unlayer-dev/react-elements component in SSR.
+// Exercises every @unlayer/react-elements component in SSR.
 // If `next build` succeeds, the package works in a real Next.js app.
 
 import {
   Button, Heading, Image, Divider, Paragraph,
   Html, Social, Menu, Video, Table,
   Body, Row, Column, ColumnLayouts,
-} from "@unlayer-dev/react-elements";
+} from "@unlayer/react-elements";
 
 const { TwoEqual } = ColumnLayouts;
 

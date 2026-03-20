@@ -20,7 +20,7 @@ import { extractHeadFromTree } from "./extract-head";
  *
  * @example
  * ```tsx
- * import { renderToHtml, Body, Row, Column, Paragraph } from "@unlayer-dev/react-elements";
+ * import { renderToHtml, Body, Row, Column, Paragraph } from "@unlayer/react-elements";
  *
  * const html = renderToHtml(
  *   <Body><Row><Column><Paragraph>Hello</Paragraph></Column></Row></Body>,
@@ -62,7 +62,7 @@ export function renderToHtml(
  *
  * @example
  * ```tsx
- * import { renderToPlainText, Body, Row, Column, Paragraph } from "@unlayer-dev/react-elements";
+ * import { renderToPlainText, Body, Row, Column, Paragraph } from "@unlayer/react-elements";
  *
  * const text = renderToPlainText(
  *   <Body mode="email"><Row><Column><Paragraph>Hello World</Paragraph></Column></Row></Body>
@@ -105,7 +105,7 @@ export interface HtmlParts {
  *
  * @example
  * ```tsx
- * import { renderToHtmlParts, Email, Row, Column, Button } from "@unlayer-dev/react-elements";
+ * import { renderToHtmlParts, Email, Row, Column, Button } from "@unlayer/react-elements";
  *
  * const { head, body } = renderToHtmlParts(
  *   <Email>

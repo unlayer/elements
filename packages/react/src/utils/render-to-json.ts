@@ -348,7 +348,7 @@ function processBody(
  *
  * @example
  * ```tsx
- * import { renderToJson, Body, Row, Column, Paragraph } from "@unlayer-dev/react-elements";
+ * import { renderToJson, Body, Row, Column, Paragraph } from "@unlayer/react-elements";
  *
  * const design = renderToJson(
  *   <Body backgroundColor="#ffffff" contentWidth="600px">
@@ -373,7 +373,7 @@ function processBody(
  *
  * @example
  * ```tsx
- * import { renderRowToJson, Row, Column, Paragraph } from "@unlayer-dev/react-elements";
+ * import { renderRowToJson, Row, Column, Paragraph } from "@unlayer/react-elements";
  *
  * const row = renderRowToJson(
  *   <Row>

@@ -1,9 +1,8 @@
-# @unlayer-dev/react-elements
+# @unlayer/react-elements
 
-## 0.0.0
+## 0.1.0
 
-### Patch Changes
-
-- Updated dependencies to latest versions:
-  - @unlayer-dev/editor-types@0.0.0-1761658427540 (with TypeScript deduplication fix)
-  - @unlayer/exporters@0.0.0-1761658430478 (with increased bundle size limit)
+- Initial release
+- React components for building emails, pages, and documents
+- Server-side rendering support (Node.js, Next.js Server Components)
+- Dependencies: @unlayer/exporters, @unlayer/types

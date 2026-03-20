@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from "react";
-import { renderToJson } from "@unlayer-dev/react-elements";
+import { renderToJson } from "@unlayer/react-elements";
 import { templates } from "../templates";
 
 declare global {

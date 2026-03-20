@@ -11,7 +11,7 @@ import {
   Button,
   Divider,
   ColumnLayouts,
-} from "@unlayer-dev/react-elements";
+} from "@unlayer/react-elements";
 import SectionHeader from "../components/SectionHeader";
 import DeviceFrame from "../components/DeviceFrame";
 

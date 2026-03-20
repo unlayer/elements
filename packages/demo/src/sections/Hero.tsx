@@ -1,8 +1,8 @@
 import CodeBlock from "../components/CodeBlock";
 import { UnlayerLogoMark } from "../components/UnlayerLogo";
 
-const heroCode = `import { Email, Row, Column, Button, Heading } from "@unlayer-dev/react-elements";
-import { renderToHtml } from "@unlayer-dev/react-elements";
+const heroCode = `import { Email, Row, Column, Button, Heading } from "@unlayer/react-elements";
+import { renderToHtml } from "@unlayer/react-elements";
 
 function WelcomeEmail() {
   return (
