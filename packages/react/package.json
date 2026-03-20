@@ -1,6 +1,6 @@
 {
   "name": "@unlayer/react-elements",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "React components for building emails, pages, and documents with Unlayer Elements",
   "license": "MIT",
   "author": "Unlayer",
