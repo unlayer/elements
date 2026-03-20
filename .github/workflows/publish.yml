@@ -1,17 +1,8 @@
 name: Publish to npm
 
 on:
-  workflow_dispatch:
-    inputs:
-      version:
-        description: 'Version bump type'
-        required: true
-        type: choice
-        options:
-          - patch
-          - minor
-          - major
-        default: patch
+  push:
+    branches: [main]
 
 jobs:
   publish:
@@ -66,7 +57,7 @@ jobs:
       - name: Bump version
         working-directory: packages/react
         run: |
-          npm version ${{ inputs.version }} --no-git-tag-version
+          npm version patch --no-git-tag-version
           echo "VERSION=$(node -p "require('./package.json').version")" >> $GITHUB_ENV
 
       - name: Publish to npm
