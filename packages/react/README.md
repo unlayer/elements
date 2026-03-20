@@ -84,7 +84,6 @@ These props have non-obvious shapes that **must** be followed exactly:
 | `<Email>` | Root wrapper for email-safe HTML (tables for Outlook, Gmail, Yahoo). |
 | `<Page>` | Root wrapper for responsive web display (div + flexbox). |
 | `<Document>` | Root wrapper for print-optimized / PDF rendering. |
-| `<Body>` | Low-level wrapper with explicit `mode` prop. Used internally by the above. |
 
 ### Layout
 
@@ -125,11 +124,6 @@ Root wrapper for responsive web display. Same props as Email.
 
 ### Document
 Root wrapper for print/PDF rendering. Same props as Email.
-
-### Body (advanced)
-Low-level root wrapper with explicit mode control. Prefer `<Email>`, `<Page>`, or `<Document>` instead.
-- All props from Email, plus:
-- `mode?: "web" | "email" | "document"`
 
 ### Row
 Layout container. Must be child of Email/Page/Document/Body.
