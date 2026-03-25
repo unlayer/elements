@@ -76,7 +76,7 @@ jobs:
           git checkout -b "$BRANCH"
 
           # Update lockfile to match new catalog versions
-          pnpm install --no-frozen-lockfile
+          pnpm install --lockfile-only
 
           git add pnpm-workspace.yaml pnpm-lock.yaml
           git commit -m "deps: update @unlayer/exporters and @unlayer/types"
