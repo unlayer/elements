@@ -4,9 +4,9 @@
 #   1. Create a GitHub Release (tag: v0.2.0) → triggers this workflow
 #   2. Build & test run automatically
 #   3. A reviewer approves the publish in the Actions UI (environment gate)
-#   4. Package is published to npm
+#   4. Package is published to npm via trusted publishing (OIDC)
 #
-# Auth: Uses npm trusted publishing (OIDC) — no NPM_TOKEN needed for publish.
+# Auth: Uses npm trusted publishing (OIDC) — no NPM_TOKEN needed.
 # The `npm-publish` environment must be configured in repo Settings →
 # Environments with at least one required reviewer.
 #
@@ -14,7 +14,6 @@
 #   Package Settings → Publishing access → Add trusted publisher →
 #     Repository: unlayer/elements
 #     Workflow:   publish.yml
-#     Environment: npm-publish
 #
 # Manual fallback: workflow_dispatch with a version bump type.
 
@@ -54,9 +53,6 @@ jobs:
         with:
           version: 9.7.0
 
-      - name: Authenticate npm registry (for install only)
-        run: echo "//registry.npmjs.org/:_authToken=${{ secrets.NPM_TOKEN }}" > ~/.npmrc
-
       - name: Get pnpm store directory
         shell: bash
         run: echo "STORE_PATH=$(pnpm store path --silent)" >> $GITHUB_ENV
@@ -91,6 +87,7 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
         with:
+          ref: main
           token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Setup pnpm
@@ -98,7 +95,8 @@ jobs:
         with:
           version: 9.7.0
 
-      # setup-node with registry-url enables OIDC token exchange for npm publish
+      # setup-node with registry-url enables OIDC token exchange for npm publish.
+      # All @unlayer deps are public — no NPM_TOKEN needed.
       - name: Setup Node.js 20 (with npm registry for OIDC)
         uses: actions/setup-node@v4
         with:
@@ -107,9 +105,6 @@ jobs:
 
       - name: Update npm for trusted publishing
         run: npm install -g npm@latest
-
-      - name: Authenticate npm registry (for install only)
-        run: echo "//registry.npmjs.org/:_authToken=${{ secrets.NPM_TOKEN }}" > ~/.npmrc
 
       - name: Get pnpm store directory
         shell: bash
