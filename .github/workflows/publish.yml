@@ -20,6 +20,10 @@
 
 name: Release
 
+concurrency:
+  group: publish
+  cancel-in-progress: false
+
 on:
   push:
     branches: [main]
@@ -83,6 +87,7 @@ jobs:
     permissions:
       contents: write
       id-token: write
+      pull-requests: read
 
     steps:
       - name: Checkout code
@@ -128,8 +133,8 @@ jobs:
           if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
             echo "type=${{ inputs.bump }}" >> $GITHUB_OUTPUT
           else
-            # Check merged PR labels for release:minor or release:major
-            LABELS=$(gh pr list --state merged --limit 1 --base main --json labels --jq '.[0].labels[].name' 2>/dev/null || echo "")
+            # Check labels on the PR associated with this commit
+            LABELS=$(gh api "repos/${GITHUB_REPOSITORY}/commits/${GITHUB_SHA}/pulls" --jq '.[0].labels[].name' 2>/dev/null || echo "")
             if echo "$LABELS" | grep -q "release:major"; then
               echo "type=major" >> $GITHUB_OUTPUT
             elif echo "$LABELS" | grep -q "release:minor"; then
@@ -184,15 +189,26 @@ jobs:
 
       - name: Tag release
         run: |
+          TAG="v${{ steps.version.outputs.version }}"
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git tag "v${{ steps.version.outputs.version }}"
-          git push --tags
+          git fetch --tags origin || true
+          if git rev-parse "$TAG" >/dev/null 2>&1; then
+            echo "Tag $TAG already exists — skipping"
+          else
+            git tag "$TAG"
+            git push origin "$TAG"
+          fi
 
       - name: Create GitHub Release
         run: |
-          gh release create "v${{ steps.version.outputs.version }}" \
-            --title "v${{ steps.version.outputs.version }}" \
-            --generate-notes
+          TAG="v${{ steps.version.outputs.version }}"
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            echo "Release $TAG already exists — skipping"
+          else
+            gh release create "$TAG" \
+              --title "$TAG" \
+              --generate-notes
+          fi
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
