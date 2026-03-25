@@ -135,9 +135,9 @@ jobs:
           else
             # Check labels on the PR associated with this commit
             LABELS=$(gh api "repos/${GITHUB_REPOSITORY}/commits/${GITHUB_SHA}/pulls" --jq '.[0].labels[].name' 2>/dev/null || echo "")
-            if echo "$LABELS" | grep -q "release:major"; then
+            if echo "$LABELS" | grep -Fxq "release:major"; then
               echo "type=major" >> $GITHUB_OUTPUT
-            elif echo "$LABELS" | grep -q "release:minor"; then
+            elif echo "$LABELS" | grep -Fxq "release:minor"; then
               echo "type=minor" >> $GITHUB_OUTPUT
             else
               echo "type=patch" >> $GITHUB_OUTPUT
@@ -192,8 +192,7 @@ jobs:
           TAG="v${{ steps.version.outputs.version }}"
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git fetch --tags origin || true
-          if git rev-parse "$TAG" >/dev/null 2>&1; then
+          if git ls-remote --tags origin "$TAG" | grep -q "$TAG"; then
             echo "Tag $TAG already exists — skipping"
           else
             git tag "$TAG"
