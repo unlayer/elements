@@ -20,10 +20,6 @@
 
 name: Release
 
-concurrency:
-  group: publish
-  cancel-in-progress: false
-
 on:
   push:
     branches: [main]
@@ -83,6 +79,9 @@ jobs:
     name: Publish to npm
     needs: build-and-test
     runs-on: ubuntu-latest
+    concurrency:
+      group: publish
+      cancel-in-progress: false
     environment: npm-publish
     permissions:
       contents: write
@@ -92,6 +91,8 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+        with:
+          ref: main
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
