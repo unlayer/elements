@@ -83,11 +83,7 @@ jobs:
           git push -u origin "$BRANCH"
 
           PACKAGES=$(grep '@unlayer' pnpm-workspace.yaml | sed 's/^ */- /')
-
-          BODY="Automated update of upstream Unlayer dependencies to latest versions.
-
-Updated packages (pnpm catalog):
-$PACKAGES"
+          BODY="Automated update of upstream Unlayer dependencies to latest versions."$'\n\n'"Updated packages (pnpm catalog):"$'\n'"$PACKAGES"
 
           gh pr create \
             --title "deps: update @unlayer/exporters and @unlayer/types" \
