@@ -1,10 +1,13 @@
 # Release & Publish
 #
-# Stainless-style gated release flow:
-#   1. Create a GitHub Release (tag: v0.2.0) → triggers this workflow
-#   2. Build & test run automatically
-#   3. A reviewer approves the publish in the Actions UI (environment gate)
-#   4. Package is published to npm via trusted publishing (OIDC)
+# Gated publish flow:
+#   1. PR merged to main → triggers build & test
+#   2. A reviewer approves the publish in the Actions UI (environment gate)
+#   3. Package is published to npm via trusted publishing (OIDC)
+#
+# Version: reads the latest published version from npm and bumps from that.
+# Defaults to patch. Add a `release:minor` or `release:major` PR label to
+# override. Manual dispatch also supports bump selection.
 #
 # Auth: Uses npm trusted publishing (OIDC) — no NPM_TOKEN needed.
 # The `npm-publish` environment must be configured in repo Settings →
@@ -14,14 +17,12 @@
 #   Package Settings → Publishing access → Add trusted publisher →
 #     Repository: unlayer/elements
 #     Workflow:   publish.yml
-#
-# Manual fallback: workflow_dispatch with a version bump type.
 
 name: Release
 
 on:
-  release:
-    types: [published]
+  push:
+    branches: [main]
   workflow_dispatch:
     inputs:
       bump:
@@ -86,9 +87,6 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-        with:
-          ref: main
-          token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
@@ -124,24 +122,39 @@ jobs:
       - name: Build packages
         run: pnpm build
 
+      - name: Determine version bump
+        id: bump
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "type=${{ inputs.bump }}" >> $GITHUB_OUTPUT
+          else
+            # Check merged PR labels for release:minor or release:major
+            LABELS=$(gh pr list --state merged --limit 1 --base main --json labels --jq '.[0].labels[].name' 2>/dev/null || echo "")
+            if echo "$LABELS" | grep -q "release:major"; then
+              echo "type=major" >> $GITHUB_OUTPUT
+            elif echo "$LABELS" | grep -q "release:minor"; then
+              echo "type=minor" >> $GITHUB_OUTPUT
+            else
+              echo "type=patch" >> $GITHUB_OUTPUT
+            fi
+          fi
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
       - name: Determine version
         id: version
         working-directory: packages/react
         run: |
-          CURRENT=$(node -p "require('./package.json').version")
-
-          if [ "${{ github.event_name }}" = "release" ]; then
-            # Version from release tag (v0.2.0 → 0.2.0)
-            VERSION="${{ github.event.release.tag_name }}"
-            VERSION="${VERSION#v}"
-            npm version "$VERSION" --no-git-tag-version
-          else
-            # Manual dispatch: bump from current version
-            VERSION=$(npm version ${{ inputs.bump }} --no-git-tag-version)
-            VERSION="${VERSION#v}"
-          fi
-
+          # Read latest published version from npm (falls back to package.json for first publish)
+          CURRENT=$(npm view @unlayer/react-elements version 2>/dev/null || node -p "require('./package.json').version")
           echo "current=$CURRENT" >> $GITHUB_OUTPUT
+
+          # Write current version to package.json so npm version can bump from it
+          npm version "$CURRENT" --no-git-tag-version --allow-same-version
+
+          # Bump
+          VERSION=$(npm version ${{ steps.bump.outputs.type }} --no-git-tag-version)
+          VERSION="${VERSION#v}"
           echo "version=$VERSION" >> $GITHUB_OUTPUT
 
       - name: Pre-publish summary
@@ -156,7 +169,7 @@ jobs:
           echo "| | |" >> $GITHUB_STEP_SUMMARY
           echo "|---|---|" >> $GITHUB_STEP_SUMMARY
           echo "| **Package** | \`@unlayer/react-elements\` |" >> $GITHUB_STEP_SUMMARY
-          echo "| **Version** | ${{ steps.version.outputs.current }} → ${{ steps.version.outputs.version }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| **Version** | ${{ steps.version.outputs.current }} → ${{ steps.version.outputs.version }} (${{ steps.bump.outputs.type }}) |" >> $GITHUB_STEP_SUMMARY
           echo "| **Trigger** | ${{ github.event_name }} |" >> $GITHUB_STEP_SUMMARY
           echo "| **Auth** | Trusted publishing (OIDC) |" >> $GITHUB_STEP_SUMMARY
           echo "| **Dependencies** | ${CATALOG} |" >> $GITHUB_STEP_SUMMARY
@@ -169,17 +182,17 @@ jobs:
         working-directory: packages/react
         run: npm publish --access public
 
-      - name: Commit version bump
+      - name: Tag release
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add packages/react/package.json
-          git diff --cached --quiet && echo "No changes to commit" && exit 0
-          git commit -m "v${{ steps.version.outputs.version }}"
-          git push
-
-      - name: Create tag (manual dispatch only)
-        if: github.event_name == 'workflow_dispatch'
-        run: |
           git tag "v${{ steps.version.outputs.version }}"
           git push --tags
+
+      - name: Create GitHub Release
+        run: |
+          gh release create "v${{ steps.version.outputs.version }}" \
+            --title "v${{ steps.version.outputs.version }}" \
+            --generate-notes
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
