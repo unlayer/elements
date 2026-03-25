@@ -29,6 +29,11 @@ jobs:
         with:
           node-version: 20
 
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9.7.0
+
       - name: Check for new versions
         id: check
         run: |
@@ -69,19 +74,22 @@ jobs:
           fi
 
           git checkout -b "$BRANCH"
-          git add pnpm-workspace.yaml
+
+          # Update lockfile to match new catalog versions
+          pnpm install --no-frozen-lockfile
+
+          git add pnpm-workspace.yaml pnpm-lock.yaml
           git commit -m "deps: update @unlayer/exporters and @unlayer/types"
           git push -u origin "$BRANCH"
 
+          PACKAGES=$(grep '@unlayer' pnpm-workspace.yaml | sed 's/^ */- /')
+
           gh pr create \
             --title "deps: update @unlayer/exporters and @unlayer/types" \
-            --body "$(cat <<'EOF'
-          Automated update of upstream Unlayer dependencies to latest versions.
+            --body "Automated update of upstream Unlayer dependencies to latest versions.
 
           Updated packages (pnpm catalog):
-          $(grep '@unlayer' pnpm-workspace.yaml | sed 's/^ */- /')
-          EOF
-          )" \
+          $PACKAGES" \
             --base main \
             --head "$BRANCH"
         env:
