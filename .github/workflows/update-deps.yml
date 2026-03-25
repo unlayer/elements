@@ -1,0 +1,88 @@
+# Update Unlayer Dependencies
+#
+# Checks npm for new versions of @unlayer/exporters and @unlayer/types
+# and opens a PR to update the pnpm catalog if newer versions exist.
+#
+# Runs daily and on manual dispatch.
+
+name: Update Dependencies
+
+on:
+  schedule:
+    - cron: '0 9 * * *' # daily at 9am UTC
+  workflow_dispatch:
+
+jobs:
+  check-updates:
+    name: Check for updates
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Check for new versions
+        id: check
+        run: |
+          CATALOG="pnpm-workspace.yaml"
+          CHANGED=false
+
+          for PKG in "@unlayer/exporters" "@unlayer/types"; do
+            CURRENT=$(grep "\"$PKG\":" "$CATALOG" | sed 's/.*: *"\(.*\)"/\1/')
+            LATEST=$(npm view "$PKG" version 2>/dev/null || echo "")
+
+            if [ -z "$LATEST" ]; then
+              echo "⚠️ Could not fetch latest version for $PKG"
+              continue
+            fi
+
+            if [ "$CURRENT" != "$LATEST" ]; then
+              echo "📦 $PKG: $CURRENT → $LATEST"
+              sed -i "s|\"$PKG\": \"$CURRENT\"|\"$PKG\": \"$LATEST\"|" "$CATALOG"
+              CHANGED=true
+            else
+              echo "✅ $PKG: $CURRENT (up to date)"
+            fi
+          done
+
+          echo "changed=$CHANGED" >> $GITHUB_OUTPUT
+
+      - name: Create PR
+        if: steps.check.outputs.changed == 'true'
+        run: |
+          BRANCH="deps/update-unlayer-$(date +%Y%m%d)"
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          # Check if branch already exists
+          if git ls-remote --heads origin "$BRANCH" | grep -q "$BRANCH"; then
+            echo "Branch $BRANCH already exists — skipping"
+            exit 0
+          fi
+
+          git checkout -b "$BRANCH"
+          git add pnpm-workspace.yaml
+          git commit -m "deps: update @unlayer/exporters and @unlayer/types"
+          git push -u origin "$BRANCH"
+
+          gh pr create \
+            --title "deps: update @unlayer/exporters and @unlayer/types" \
+            --body "$(cat <<'EOF'
+          Automated update of upstream Unlayer dependencies to latest versions.
+
+          Updated packages (pnpm catalog):
+          $(grep '@unlayer' pnpm-workspace.yaml | sed 's/^ */- /')
+          EOF
+          )" \
+            --base main \
+            --head "$BRANCH"
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
