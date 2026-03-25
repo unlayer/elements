@@ -1,6 +1,28 @@
-name: Publish to npm
+# Release & Publish
+#
+# Stainless-style gated release flow:
+#   1. Create a GitHub Release (tag: v0.2.0) → triggers this workflow
+#   2. Build & test run automatically
+#   3. A reviewer approves the publish in the Actions UI (environment gate)
+#   4. Package is published to npm
+#
+# Auth: Uses npm trusted publishing (OIDC) — no NPM_TOKEN needed for publish.
+# The `npm-publish` environment must be configured in repo Settings →
+# Environments with at least one required reviewer.
+#
+# npm trusted publishing must also be configured on npmjs.com:
+#   Package Settings → Publishing access → Add trusted publisher →
+#     Repository: unlayer/elements
+#     Workflow:   publish.yml
+#     Environment: npm-publish
+#
+# Manual fallback: workflow_dispatch with a version bump type.
+
+name: Release
 
 on:
+  release:
+    types: [published]
   workflow_dispatch:
     inputs:
       bump:
@@ -14,29 +36,26 @@ on:
         default: patch
 
 jobs:
-  publish:
-    name: Build, Test & Publish
+  build-and-test:
+    name: Build & Test
     runs-on: ubuntu-latest
-    permissions:
-      contents: write
-      id-token: write
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-        with:
-          token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Setup Node.js 20
         uses: actions/setup-node@v4
         with:
           node-version: 20
-          registry-url: https://registry.npmjs.org
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
         with:
           version: 9.7.0
+
+      - name: Authenticate npm registry (for install only)
+        run: echo "//registry.npmjs.org/:_authToken=${{ secrets.NPM_TOKEN }}" > ~/.npmrc
 
       - name: Get pnpm store directory
         shell: bash
@@ -50,9 +69,6 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-pnpm-store-
 
-      - name: Authenticate npm registry
-        run: echo "//registry.npmjs.org/:_authToken=${{ secrets.NPM_TOKEN }}" > ~/.npmrc
-
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
@@ -62,11 +78,80 @@ jobs:
       - name: Run tests
         run: pnpm test
 
-      - name: Pre-publish summary
+  publish:
+    name: Publish to npm
+    needs: build-and-test
+    runs-on: ubuntu-latest
+    environment: npm-publish
+    permissions:
+      contents: write
+      id-token: write
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9.7.0
+
+      # setup-node with registry-url enables OIDC token exchange for npm publish
+      - name: Setup Node.js 20 (with npm registry for OIDC)
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          registry-url: https://registry.npmjs.org
+
+      - name: Update npm for trusted publishing
+        run: npm install -g npm@latest
+
+      - name: Authenticate npm registry (for install only)
+        run: echo "//registry.npmjs.org/:_authToken=${{ secrets.NPM_TOKEN }}" > ~/.npmrc
+
+      - name: Get pnpm store directory
+        shell: bash
+        run: echo "STORE_PATH=$(pnpm store path --silent)" >> $GITHUB_ENV
+
+      - name: Setup pnpm cache
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.STORE_PATH }}
+          key: ${{ runner.os }}-pnpm-store-${{ hashFiles('**/pnpm-lock.yaml') }}
+          restore-keys: |
+            ${{ runner.os }}-pnpm-store-
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build packages
+        run: pnpm build
+
+      - name: Determine version
+        id: version
         working-directory: packages/react
         run: |
           CURRENT=$(node -p "require('./package.json').version")
-          NEXT=$(npm version ${{ inputs.bump }} --no-git-tag-version)
+
+          if [ "${{ github.event_name }}" = "release" ]; then
+            # Version from release tag (v0.2.0 → 0.2.0)
+            VERSION="${{ github.event.release.tag_name }}"
+            VERSION="${VERSION#v}"
+            npm version "$VERSION" --no-git-tag-version
+          else
+            # Manual dispatch: bump from current version
+            VERSION=$(npm version ${{ inputs.bump }} --no-git-tag-version)
+            VERSION="${VERSION#v}"
+          fi
+
+          echo "current=$CURRENT" >> $GITHUB_OUTPUT
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+
+      - name: Pre-publish summary
+        working-directory: packages/react
+        run: |
           CATALOG=$(grep -A10 "catalog:" ../../pnpm-workspace.yaml | grep "@unlayer" | sed 's/^ *//' | tr '\n' ', ')
           BUNDLE_SIZE=$(wc -c < dist/index.js | tr -d ' ')
           FILE_COUNT=$(find dist -type f | wc -l | tr -d ' ')
@@ -75,22 +160,31 @@ jobs:
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "| | |" >> $GITHUB_STEP_SUMMARY
           echo "|---|---|" >> $GITHUB_STEP_SUMMARY
-          echo "| **Package** | @unlayer/react-elements |" >> $GITHUB_STEP_SUMMARY
-          echo "| **Version** | ${CURRENT} → ${NEXT} (${{ inputs.bump }}) |" >> $GITHUB_STEP_SUMMARY
+          echo "| **Package** | \`@unlayer/react-elements\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| **Version** | ${{ steps.version.outputs.current }} → ${{ steps.version.outputs.version }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| **Trigger** | ${{ github.event_name }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| **Auth** | Trusted publishing (OIDC) |" >> $GITHUB_STEP_SUMMARY
           echo "| **Dependencies** | ${CATALOG} |" >> $GITHUB_STEP_SUMMARY
           echo "| **ESM bundle** | ${BUNDLE_SIZE} bytes |" >> $GITHUB_STEP_SUMMARY
           echo "| **Files in dist** | ${FILE_COUNT} |" >> $GITHUB_STEP_SUMMARY
 
-          echo "VERSION=${NEXT#v}" >> $GITHUB_ENV
+      # Publish with npm directly (not pnpm) for OIDC compatibility.
+      # No --provenance flag — not supported for private source repos.
+      - name: Publish to npm (trusted publishing)
+        working-directory: packages/react
+        run: npm publish --access public
 
-      - name: Publish to npm
-        run: pnpm publish -r --filter "./packages/react" --no-git-checks --access public
-
-      - name: Commit and tag version bump
+      - name: Commit version bump
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add packages/react/package.json
-          git commit -m "v${VERSION}"
-          git tag "v${VERSION}"
-          git push && git push --tags
+          git diff --cached --quiet && echo "No changes to commit" && exit 0
+          git commit -m "v${{ steps.version.outputs.version }}"
+          git push
+
+      - name: Create tag (manual dispatch only)
+        if: github.event_name == 'workflow_dispatch'
+        run: |
+          git tag "v${{ steps.version.outputs.version }}"
+          git push --tags
