@@ -84,12 +84,14 @@ jobs:
 
           PACKAGES=$(grep '@unlayer' pnpm-workspace.yaml | sed 's/^ */- /')
 
+          BODY="Automated update of upstream Unlayer dependencies to latest versions.
+
+Updated packages (pnpm catalog):
+$PACKAGES"
+
           gh pr create \
             --title "deps: update @unlayer/exporters and @unlayer/types" \
-            --body "Automated update of upstream Unlayer dependencies to latest versions.
-
-          Updated packages (pnpm catalog):
-          $PACKAGES" \
+            --body "$BODY" \
             --base main \
             --head "$BRANCH"
         env:
