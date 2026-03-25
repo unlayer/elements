@@ -192,7 +192,7 @@ jobs:
           TAG="v${{ steps.version.outputs.version }}"
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          if git ls-remote --tags origin "$TAG" | grep -q "$TAG"; then
+          if git ls-remote --tags origin | awk '{print $2}' | grep -Fxq "refs/tags/$TAG"; then
             echo "Tag $TAG already exists — skipping"
           else
             git tag "$TAG"
