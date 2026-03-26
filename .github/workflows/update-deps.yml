@@ -68,7 +68,7 @@ jobs:
 
       - name: Install dependencies
         if: steps.check.outputs.changed == 'true'
-        run: pnpm install
+        run: pnpm install --no-frozen-lockfile
 
       - name: Build and test
         id: verify
