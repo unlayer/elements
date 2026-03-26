@@ -21,23 +21,25 @@ function WelcomeEmail() {
       <Row layout={ColumnLayouts.TwoEqual} backgroundColor="#ffffff" padding="20px">
         <Column>
           <Heading
-            text="Hello World"
             fontSize="24px"
             fontFamily={{ label: "Arial", value: "arial,helvetica,sans-serif" }}
-          />
+          >
+            Hello World
+          </Heading>
         </Column>
         <Column>
-          <Paragraph text="Welcome to our newsletter!" fontSize="14px" />
+          <Paragraph html="Welcome to our newsletter!" fontSize="14px" />
         </Column>
       </Row>
       <Row layout={ColumnLayouts.OneColumn} padding="10px">
         <Column>
           <Button
-            text="Click Me"
             href="https://example.com"
             backgroundColor="#0879A1"
             color="#ffffff"
-          />
+          >
+            Click Me
+          </Button>
         </Column>
       </Row>
     </Email>
@@ -57,7 +59,8 @@ These props have non-obvious shapes that **must** be followed exactly:
 - **Wrapper component**: Use `<Email>`, `<Page>`, or `<Document>` as root — they set the rendering mode automatically.
 - **href**: Can be a plain string URL (auto-wrapped) or `{ name: "web", values: { href, target } }`.
 - **Image src**: Can be a plain string URL (auto-wrapped) or `{ url, width?, autoWidth?, maxWidth? }`.
-- **children**: Text components accept children as shorthand for `text` prop. `<Paragraph>Hello</Paragraph>` = `<Paragraph text="Hello" />`.
+- **children**: Text components accept children as shorthand. `<Heading>Hello</Heading>` sets the heading text. `<Paragraph>` supports children for plain text.
+- **Paragraph text**: Use `html` prop for text content (supports inline formatting like `<b>`, `<a>`). Use children for plain text.
 
 ## Structure: Email/Page/Document > Row > Column > Items
 
@@ -97,9 +100,9 @@ These props have non-obvious shapes that **must** be followed exactly:
 | Component | Description |
 |-----------|-------------|
 | `<Button>` | CTA button with hover states, links, and full styling |
-| `<Paragraph>` | Rich text with `text` (plain) or `html` (formatted) props |
-| `<Heading>` | Heading (h1-h4) with `level` shorthand |
-| `<Image>` | Responsive image with `src` / `alt` shorthands |
+| `<Paragraph>` | Rich text with `html` (formatted) prop or children (plain text) |
+| `<Heading>` | Heading (h1-h4) with `headingType` prop |
+| `<Image>` | Responsive image with `src` / `altText` props |
 | `<Divider>` | Horizontal rule / separator |
 | `<Social>` | Social media icons with `icons` shorthand array |
 | `<Menu>` | Navigation menu with `items` shorthand array |
@@ -152,59 +155,51 @@ Must be child of Row. Count must match layout.
 - `padding?: string` — `"10px 20px"`
 - `borderRadius?: string` — `"4px"`
 - `textAlign?: "left" | "center" | "right"` — `"center"`
-- `containerPadding?: string`
 
 ### Paragraph
-- `text?: string` — plain text (auto-converted to Lexical JSON internally)
 - `html?: string` — **rich HTML string** with inline formatting: `<b>`, `<i>`, `<u>`, `<s>`, `<a>`, `<code>`
+- `children` — plain text shorthand (auto-converted internally)
 - `fontSize?: string` — `"14px"`
 - `color?: string` — `"#000000"`
 - `textAlign?: "left" | "center" | "right"` — `"left"`
 - `lineHeight?: string` — `"140%"`
 - `fontFamily?: { label: string, value: string }`
-- `containerPadding?: string`
 
-Priority: `html` > `text` > children. Use `html` for formatted text, `text` for plain text.
+Use `html` for formatted text, children for plain text.
 
 ```tsx
-<Paragraph text="Plain text paragraph" fontSize="14px" />
 <Paragraph html="Hello <b>bold</b> and <a href='#'>link</a>" fontSize="14px" />
+<Paragraph fontSize="14px">Plain text paragraph</Paragraph>
 ```
 
 ### Heading
 - `text?: string` — `"Heading"` (or use children)
 - `headingType?: "h1" | "h2" | "h3" | "h4"` — `"h1"`
-- `level?: "h1" | "h2" | "h3" | "h4"` — shorthand for headingType
 - `fontSize?: string` — `"22px"`
 - `fontWeight?: number` — `400`
 - `fontFamily?: { label: string, value: string }`
 - `color?: string` — `"#000000"`
 - `textAlign?: "left" | "center" | "right"` — `"left"`
 - `lineHeight?: string` — `"110%"`
-- `containerPadding?: string`
 
 ### Divider
 - `borderTopWidth?: string` — `"1px"`
 - `borderTopColor?: string` — `"#BBBBBB"`
 - `borderTopStyle?: string` — `"solid"`
 - `textAlign?: "left" | "center" | "right"` — `"center"`
-- `containerPadding?: string`
 
 ### Image
 - `src?: string | { url, width?, autoWidth?, maxWidth? }` — string URLs auto-wrapped
 - `altText?: string` — alt text for accessibility
 - `textAlign?: "left" | "center" | "right"` — `"center"`
 - `action?: { name: "web", values: { href, target } }`
-- `containerPadding?: string`
 
 ### Video
 - `videoUrl?: string` — YouTube/Vimeo URL, auto-parsed
 - `video?: { type: "youtube" | "vimeo", videoId, thumbnail }` — manual control
-- `containerPadding?: string`
 
 ### Html
 - `html?: string` — `"<p>Custom HTML content</p>"`
-- `containerPadding?: string`
 
 ### Table
 - `headers?: string[]` — shorthand for column headers
@@ -212,7 +207,6 @@ Priority: `html` > `text` > children. Use `html` for formatted text, `text` for 
 - `columns?: number` — `3`
 - `rows?: number` — `3`
 - `enableHeader?: boolean` — `true`
-- `containerPadding?: string`
 
 ### Social
 - `icons?: { name: string, url: string }[]` — shorthand
@@ -220,14 +214,12 @@ Priority: `html` > `text` > children. Use `html` for formatted text, `text` for 
 - `iconSize?: number` — `32`
 - `spacing?: number` — `10`
 - `align?: "left" | "center" | "right"` — `"center"`
-- `containerPadding?: string`
 
 ### Menu
 - `items?: { text: string, href: string, target?: string }[]` — shorthand
 - `layout?: "horizontal" | "vertical"` — `"horizontal"`
 - `separator?: string` — `"|"`
 - `align?: "left" | "center" | "right"` — `"center"`
-- `containerPadding?: string`
 
 ## Column Layouts
 
@@ -236,15 +228,15 @@ Pre-built layouts for common column configurations:
 ```tsx
 import { Row, Column, ColumnLayouts } from '@unlayer/react-elements';
 
-<Row layout={ColumnLayouts.OneColumn}>              {/* [1]       → 100% */}
-<Row layout={ColumnLayouts.TwoEqual}>               {/* [1,1]     → 50% + 50% */}
-<Row layout={ColumnLayouts.TwoWideNarrow}>          {/* [2,1]     → 67% + 33% */}
-<Row layout={ColumnLayouts.TwoNarrowWide}>          {/* [1,2]     → 33% + 67% */}
-<Row layout={ColumnLayouts.ThreeEqual}>             {/* [1,1,1]   → 33% each */}
-<Row layout={ColumnLayouts.ThreeNarrowWideNarrow}>  {/* [1,2,1]   → 25% + 50% + 25% */}
-<Row layout={ColumnLayouts.FourEqual}>              {/* [1,1,1,1] → 25% each */}
-<Row layout={ColumnLayouts.FiveEqual}>              {/* [1,1,1,1,1] → 20% each */}
-<Row cells={[3, 1]}>                                {/* Custom ratio */}
+<Row layout={ColumnLayouts.OneColumn} />              {/* [1]       → 100% */}
+<Row layout={ColumnLayouts.TwoEqual} />               {/* [1,1]     → 50% + 50% */}
+<Row layout={ColumnLayouts.TwoWideNarrow} />          {/* [2,1]     → 67% + 33% */}
+<Row layout={ColumnLayouts.TwoNarrowWide} />          {/* [1,2]     → 33% + 67% */}
+<Row layout={ColumnLayouts.ThreeEqual} />             {/* [1,1,1]   → 33% each */}
+<Row layout={ColumnLayouts.ThreeNarrowWideNarrow} />  {/* [1,2,1]   → 25% + 50% + 25% */}
+<Row layout={ColumnLayouts.FourEqual} />              {/* [1,1,1,1] → 25% each */}
+<Row layout={ColumnLayouts.FiveEqual} />              {/* [1,1,1,1,1] → 20% each */}
+<Row cells={[3, 1]} />                                {/* Custom ratio */}
 ```
 
 Number of `<Column>` children must match the layout.
@@ -272,12 +264,13 @@ const html = renderToHtml(
   <Email backgroundColor="#f4f4f4">
     <Row layout={ColumnLayouts.OneColumn}>
       <Column>
-        <Paragraph text="Hello World" fontSize="14px" />
+        <Paragraph html="Hello World" fontSize="14px" />
         <Button
-          text="Click me"
           backgroundColor="#3b82f6"
           color="#ffffff"
-        />
+        >
+          Click me
+        </Button>
       </Column>
     </Row>
   </Email>
@@ -351,9 +344,9 @@ const monoFont = { label: "Monospace", value: "'SF Mono', 'Fira Code', 'Roboto M
 ### Accent Bar
 
 ```tsx
-<Row layout={ColumnLayouts.OneColumn} backgroundColor="#4f46e5" padding="0">
+<Row layout={ColumnLayouts.OneColumn} backgroundColor="#4f46e5" padding="0px">
   <Column>
-    <Divider borderTopWidth="3px" borderTopColor="#4f46e5" borderTopStyle="solid" containerPadding="0" />
+    <Divider borderTopWidth="3px" borderTopColor="#4f46e5" borderTopStyle="solid" />
   </Column>
 </Row>
 ```
@@ -363,12 +356,12 @@ const monoFont = { label: "Monospace", value: "'SF Mono', 'Fira Code', 'Roboto M
 ```tsx
 <Row layout={ColumnLayouts.TwoEqual} backgroundColor="#ffffff" padding="24px 40px">
   <Column>
-    <Heading text="Feature 1" headingType="h3" fontSize="16px" fontWeight={600} color="#1a1a1a" />
-    <Paragraph text="Description of the feature." fontSize="13px" color="#71717a" />
+    <Heading headingType="h3" fontSize="16px" fontWeight={600} color="#1a1a1a">Feature 1</Heading>
+    <Paragraph html="Description of the feature." fontSize="13px" color="#71717a" />
   </Column>
   <Column>
-    <Heading text="Feature 2" headingType="h3" fontSize="16px" fontWeight={600} color="#1a1a1a" />
-    <Paragraph text="Description of the feature." fontSize="13px" color="#71717a" />
+    <Heading headingType="h3" fontSize="16px" fontWeight={600} color="#1a1a1a">Feature 2</Heading>
+    <Paragraph html="Description of the feature." fontSize="13px" color="#71717a" />
   </Column>
 </Row>
 ```
@@ -376,10 +369,10 @@ const monoFont = { label: "Monospace", value: "'SF Mono', 'Fira Code', 'Roboto M
 ### Metric Cards (3-column)
 
 ```tsx
-<Row layout={ColumnLayouts.ThreeEqual} backgroundColor="#ffffff" padding="0 40px">
+<Row layout={ColumnLayouts.ThreeEqual} backgroundColor="#ffffff" padding="0px 40px">
   <Column>
-    <Heading text="1.2M" headingType="h2" fontSize="28px" fontWeight={700} color="#0f172a" textAlign="center" />
-    <Paragraph text="API Calls" fontSize="12px" color="#94a3b8" textAlign="center" />
+    <Heading headingType="h2" fontSize="28px" fontWeight={700} color="#0f172a" textAlign="center">1.2M</Heading>
+    <Paragraph html="API Calls" fontSize="12px" color="#94a3b8" textAlign="center" />
   </Column>
   {/* Repeat for each metric */}
 </Row>
@@ -393,9 +386,9 @@ const monoFont = { label: "Monospace", value: "'SF Mono', 'Fira Code', 'Roboto M
     <Image src="https://example.com/product.jpg" altText="Product" />
   </Column>
   <Column>
-    <Heading text="Product Name" headingType="h3" fontSize="16px" fontWeight={600} color="#1a1a1a" />
-    <Paragraph text="Matte White · Medium" fontSize="13px" color="#a1a1aa" />
-    <Heading text="$89.00" headingType="h3" fontSize="16px" fontWeight={700} color="#1a1a1a" />
+    <Heading headingType="h3" fontSize="16px" fontWeight={600} color="#1a1a1a">Product Name</Heading>
+    <Paragraph html="Matte White · Medium" fontSize="13px" color="#a1a1aa" />
+    <Heading headingType="h3" fontSize="16px" fontWeight={700} color="#1a1a1a">$89.00</Heading>
   </Column>
 </Row>
 ```
@@ -405,7 +398,7 @@ const monoFont = { label: "Monospace", value: "'SF Mono', 'Fira Code', 'Roboto M
 ```tsx
 <Row layout={ColumnLayouts.OneColumn} padding="20px 40px 40px 40px">
   <Column>
-    <Paragraph text="Company Name · City, State" fontSize="12px" color="#a1a1aa" textAlign="center" />
+    <Paragraph html="Company Name · City, State" fontSize="12px" color="#a1a1aa" textAlign="center" />
   </Column>
 </Row>
 ```
@@ -417,7 +410,8 @@ const monoFont = { label: "Monospace", value: "'SF Mono', 'Fira Code', 'Roboto M
 3. **Column count mismatch** — `TwoEqual` layout requires exactly 2 `<Column>` children
 4. **Missing Column** — Items must be inside `<Column>`, never directly in `<Row>`
 5. **Missing Row** — Columns must be inside `<Row>`, never directly in `<Email>`/`<Page>`/`<Document>`
-6. **containerPadding vs padding** — `padding` is on Row/Column containers; `containerPadding` is per-item internal spacing
+6. **Paragraph text prop** — Use `html` prop or children, not `text` (which is not typed for Paragraph)
+7. **padding="0"** — Use `padding="0px"` — the type requires the `px` suffix
 
 ## Development
 

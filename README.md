@@ -41,17 +41,19 @@ function WelcomeEmail() {
       <Row layout={ColumnLayouts.OneColumn} backgroundColor="#ffffff" padding="20px">
         <Column>
           <Heading
-            text="Welcome!"
             fontSize="24px"
             fontFamily={{ label: "Arial", value: "arial,helvetica,sans-serif" }}
-          />
-          <Paragraph text="Thanks for signing up." fontSize="14px" />
+          >
+            Welcome!
+          </Heading>
+          <Paragraph html="Thanks for signing up." fontSize="14px" />
           <Button
-            text="Get Started"
             href="https://example.com"
             backgroundColor="#0879A1"
             color="#ffffff"
-          />
+          >
+            Get Started
+          </Button>
         </Column>
       </Row>
     </Email>
