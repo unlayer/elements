@@ -4,7 +4,7 @@ Thanks for your interest in contributing! This guide will help you get set up an
 
 ## Prerequisites
 
-- **Node.js** v22+ (see `.nvmrc`)
+- **Node.js** v20+ (CI runs Node 20; `.nvmrc` pins v22 for local dev)
 - **pnpm** v9.7+
 
 ## Getting Started

@@ -189,7 +189,8 @@ jobs:
       - name: Publish to npm (trusted publishing)
         working-directory: packages/react
         run: |
-          TARBALL=$(pnpm pack --pack-destination /tmp | tail -1)
+          pnpm pack --pack-destination /tmp
+          TARBALL=$(ls /tmp/unlayer-react-elements-*.tgz)
           npm publish "$TARBALL" --access public
 
       - name: Tag release

@@ -445,7 +445,7 @@ const monoFont = { label: "Monospace", value: "'SF Mono', 'Fira Code', 'Roboto M
 4. **Missing Column** — Items must be inside `<Column>`, never directly in `<Row>`
 5. **Missing Row** — Columns must be inside `<Row>`, never directly in `<Email>`/`<Page>`/`<Document>`
 6. **Paragraph text prop** — Use `html` prop or children, not `text` (which is not typed for Paragraph)
-7. **padding="0"** — Use `padding="0px"` — the type requires the `px` suffix
+7. **padding without units** — Use `padding="0px"` not `padding="0"` — the type requires the `px` suffix for consistency
 
 ## Development
 
