@@ -182,11 +182,13 @@ jobs:
           echo "| **ESM bundle** | ${BUNDLE_SIZE} bytes |" >> $GITHUB_STEP_SUMMARY
           echo "| **Files in dist** | ${FILE_COUNT} |" >> $GITHUB_STEP_SUMMARY
 
-      # Publish with npm directly (not pnpm) for OIDC compatibility.
+      # pnpm publish resolves catalog: protocol to real versions.
+      # npm publish does NOT understand catalog: and would publish broken deps.
+      # OIDC token is set via NODE_AUTH_TOKEN from setup-node's registry-url.
       # No --provenance flag — not supported for private source repos.
       - name: Publish to npm (trusted publishing)
         working-directory: packages/react
-        run: npm publish --access public
+        run: pnpm publish --access public --no-git-checks
 
       - name: Tag release
         run: |
