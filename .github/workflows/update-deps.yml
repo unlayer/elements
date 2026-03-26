@@ -75,8 +75,10 @@ jobs:
         if: steps.check.outputs.changed == 'true'
         continue-on-error: true
         run: |
-          pnpm build 2>&1 | tee /tmp/build-output.log
-          BUILD_EXIT=${PIPESTATUS[0]}
+          set +e
+
+          pnpm build 2>&1
+          BUILD_EXIT=$?
 
           if [ $BUILD_EXIT -ne 0 ]; then
             echo "status=failed" >> $GITHUB_OUTPUT
@@ -84,8 +86,8 @@ jobs:
             exit 0
           fi
 
-          pnpm test 2>&1 | tee /tmp/test-output.log
-          TEST_EXIT=${PIPESTATUS[0]}
+          pnpm test 2>&1
+          TEST_EXIT=$?
 
           if [ $TEST_EXIT -ne 0 ]; then
             echo "status=failed" >> $GITHUB_OUTPUT
@@ -131,10 +133,14 @@ jobs:
           PACKAGES=$(grep '@unlayer' pnpm-workspace.yaml | sed 's/^ */- /')
           STATUS="${{ steps.verify.outputs.status }}"
 
+          ERROR="${{ steps.verify.outputs.error }}"
+          if [ -z "$ERROR" ]; then
+            ERROR="Build or tests did not complete. See workflow logs for details."
+          fi
+
           if [ "$STATUS" = "passed" ]; then
             STATUS_LINE="✅ **Build & tests passed** — safe to merge."
           else
-            ERROR="${{ steps.verify.outputs.error }}"
             STATUS_LINE="❌ **$ERROR** — check the [workflow run](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}) for details."
           fi
 
