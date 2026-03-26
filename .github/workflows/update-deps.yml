@@ -65,6 +65,18 @@ jobs:
 
           echo "changed=$CHANGED" >> $GITHUB_OUTPUT
 
+      - name: Install dependencies
+        if: steps.check.outputs.changed == 'true'
+        run: pnpm install
+
+      - name: Build packages
+        if: steps.check.outputs.changed == 'true'
+        run: pnpm build
+
+      - name: Run tests
+        if: steps.check.outputs.changed == 'true'
+        run: pnpm test
+
       - name: Create or update PR
         if: steps.check.outputs.changed == 'true'
         run: |
@@ -72,9 +84,6 @@ jobs:
           BRANCH="deps/update-unlayer"
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-
-          # Update lockfile to match new catalog versions
-          pnpm install --lockfile-only
 
           # Check if an open PR already exists for this branch
           # Use // empty so jq returns nothing (not "null") when no PRs exist
