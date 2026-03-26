@@ -77,7 +77,8 @@ jobs:
           pnpm install --lockfile-only
 
           # Check if an open PR already exists for this branch
-          EXISTING_PR=$(gh pr list --head "$BRANCH" --state open --json number --jq '.[0].number')
+          # Use // empty so jq returns nothing (not "null") when no PRs exist
+          EXISTING_PR=$(gh pr list --head "$BRANCH" --state open --json number --jq '.[0].number // empty')
           if [ $? -ne 0 ]; then
             echo "Error: failed to query existing pull requests"
             exit 1
@@ -91,6 +92,11 @@ jobs:
             echo "Updating existing PR #$EXISTING_PR"
             git checkout -B "$BRANCH" "origin/$BRANCH" 2>/dev/null || git checkout -B "$BRANCH"
             git add pnpm-workspace.yaml pnpm-lock.yaml
+            # Skip if nothing changed (e.g., re-run with same versions already on branch)
+            if git diff --cached --quiet; then
+              echo "No changes to commit — branch already up to date"
+              exit 0
+            fi
             git commit -m "deps: update @unlayer/exporters and @unlayer/types"
             git push --force-with-lease origin "$BRANCH"
 
