@@ -64,7 +64,7 @@ const html = renderToHtml(<WelcomeEmail />);
 
 ## Features
 
-- **14 components** — Button, Heading, Paragraph, Image, Divider, Social, Menu, Table, Video, Html, plus layout primitives (Row, Column, Body)
+- **15 components** — Button, Heading, Paragraph, Image, Divider, Social, Menu, Table, Video, Html, and layout primitives (Email, Page, Document, Row, Column)
 - **3 render modes** — Email (tables), Web (flexbox), Document (print) from the same JSX
 - **Server Components** — works with Next.js App Router, Remix, and any SSR framework
 - **Clean HTML output** — `renderToHtml()` produces production-ready HTML with no framework artifacts
@@ -112,12 +112,12 @@ Components follow a strict hierarchy:
 ```tsx
 import { Row, Column, ColumnLayouts } from '@unlayer/react-elements';
 
-<Row layout={ColumnLayouts.OneColumn}>              {/* [1]         → 100% */}
-<Row layout={ColumnLayouts.TwoEqual}>               {/* [1,1]       → 50% + 50% */}
-<Row layout={ColumnLayouts.TwoWideNarrow}>          {/* [2,1]       → 67% + 33% */}
-<Row layout={ColumnLayouts.ThreeEqual}>             {/* [1,1,1]     → 33% each */}
-<Row layout={ColumnLayouts.FourEqual}>              {/* [1,1,1,1]   → 25% each */}
-<Row cells={[3, 1]}>                                {/* custom ratio */}
+<Row layout={ColumnLayouts.OneColumn} />              {/* [1]         → 100% */}
+<Row layout={ColumnLayouts.TwoEqual} />               {/* [1,1]       → 50% + 50% */}
+<Row layout={ColumnLayouts.TwoWideNarrow} />          {/* [2,1]       → 67% + 33% */}
+<Row layout={ColumnLayouts.ThreeEqual} />             {/* [1,1,1]     → 33% each */}
+<Row layout={ColumnLayouts.FourEqual} />              {/* [1,1,1,1]   → 25% each */}
+<Row cells={[3, 1]} />                                {/* custom ratio */}
 ```
 
 ## Documentation
