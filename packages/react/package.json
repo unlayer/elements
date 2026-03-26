@@ -10,6 +10,18 @@
     "directory": "packages/react"
   },
   "homepage": "https://github.com/unlayer/elements",
+  "keywords": [
+    "email",
+    "react-email",
+    "email-components",
+    "html-email",
+    "email-templates",
+    "react-components",
+    "email-builder",
+    "server-components",
+    "ssr",
+    "unlayer"
+  ],
   "sideEffects": false,
   "peerDependencies": {
     "react": ">=18",

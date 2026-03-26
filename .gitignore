@@ -146,3 +146,9 @@ dist
 
 *storybook.log
 storybook-static
+
+# tsup build cache
+tsup.config.bundled_*.mjs
+
+# Claude Code
+.claude/

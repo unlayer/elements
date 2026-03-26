@@ -1,21 +1,142 @@
-# Unlayer Elements
+<p align="center">
+  <img src="https://unlayer.com/logo.svg" alt="Unlayer Elements" width="200" />
+</p>
 
-Framework-native components for building emails, pages, and documents in code.
+<h1 align="center">Unlayer Elements</h1>
 
-## Overview
+<p align="center">
+  React components for building emails, pages, and documents in code.
+</p>
 
-Unlayer Elements provides framework-native components that developers can use to build emails, pages, and documents programmatically. Think of it as JSX elements - this is how you declare a `<Button>`, `<Row>`, `<Image>`, or `<Form>` in your preferred framework.
+<p align="center">
+  <a href="https://www.npmjs.com/package/@unlayer/react-elements"><img src="https://img.shields.io/npm/v/@unlayer/react-elements.svg" alt="npm version" /></a>
+  <a href="https://github.com/unlayer/elements/actions/workflows/test.yml"><img src="https://github.com/unlayer/elements/actions/workflows/test.yml/badge.svg" alt="CI" /></a>
+  <a href="https://github.com/unlayer/elements/blob/main/LICENSE"><img src="https://img.shields.io/npm/l/@unlayer/react-elements.svg" alt="license" /></a>
+  <a href="https://www.npmjs.com/package/@unlayer/react-elements"><img src="https://img.shields.io/npm/dm/@unlayer/react-elements.svg" alt="downloads" /></a>
+</p>
+
+---
+
+Write email templates, landing pages, and printable documents using familiar React components. Unlayer Elements renders to **three distinct outputs** from the same component tree:
+
+- **Email** — table-based HTML safe for Outlook, Gmail, Yahoo, and all major email clients
+- **Web** — responsive div + flexbox HTML for web pages
+- **Document** — print-optimized HTML for PDF generation
+
+## Quick Start
+
+```bash
+npm install @unlayer/react-elements
+```
+
+```tsx
+import {
+  Email, Row, Column, ColumnLayouts,
+  Heading, Paragraph, Button, renderToHtml
+} from '@unlayer/react-elements';
+
+function WelcomeEmail() {
+  return (
+    <Email backgroundColor="#f0f0f0" contentWidth="600px">
+      <Row layout={ColumnLayouts.OneColumn} backgroundColor="#ffffff" padding="20px">
+        <Column>
+          <Heading
+            text="Welcome!"
+            fontSize="24px"
+            fontFamily={{ label: "Arial", value: "arial,helvetica,sans-serif" }}
+          />
+          <Paragraph text="Thanks for signing up." fontSize="14px" />
+          <Button
+            text="Get Started"
+            href="https://example.com"
+            backgroundColor="#0879A1"
+            color="#ffffff"
+          />
+        </Column>
+      </Row>
+    </Email>
+  );
+}
+
+// Render to a clean HTML string — no React hydration markers
+const html = renderToHtml(<WelcomeEmail />);
+```
+
+## Features
+
+- **14 components** — Button, Heading, Paragraph, Image, Divider, Social, Menu, Table, Video, Html, plus layout primitives (Row, Column, Body)
+- **3 render modes** — Email (tables), Web (flexbox), Document (print) from the same JSX
+- **Server Components** — works with Next.js App Router, Remix, and any SSR framework
+- **Clean HTML output** — `renderToHtml()` produces production-ready HTML with no framework artifacts
+- **Design JSON** — `renderToJson()` exports Unlayer-compatible design JSON for round-tripping with the visual editor
+- **TypeScript-first** — full type definitions with autocomplete for every prop
+- **Tiny bundle** — under 50KB ESM, tree-shakeable, zero client-side JS required
+
+## Components
+
+| Component | Description |
+|-----------|-------------|
+| `<Email>` | Root wrapper — email-safe HTML (tables for Outlook/Gmail) |
+| `<Page>` | Root wrapper — responsive web (div + flexbox) |
+| `<Document>` | Root wrapper — print/PDF optimized |
+| `<Row>` | Layout container with column layout support |
+| `<Column>` | Column inside a Row |
+| `<Button>` | CTA button with hover states and links |
+| `<Heading>` | Heading (h1–h4) |
+| `<Paragraph>` | Rich text with plain text or HTML content |
+| `<Image>` | Responsive image with alt text |
+| `<Divider>` | Horizontal separator |
+| `<Social>` | Social media icon links |
+| `<Menu>` | Navigation menu |
+| `<Table>` | Data table |
+| `<Video>` | YouTube/Vimeo embed |
+| `<Html>` | Custom HTML passthrough |
 
 ## Structure
 
-This monorepo contains:
+Components follow a strict hierarchy:
 
-- **`packages/`** - Framework-specific element implementations (React, Vue, Svelte, etc.)
-- **`examples/`** - Example applications showing how to use the elements in different frameworks
+```
+<Email>              ← sets render mode
+  <Row layout={…}>   ← layout container
+    <Column>         ← must match layout column count
+      <Button />     ← content components
+      <Paragraph />
+    </Column>
+  </Row>
+</Email>
+```
 
-## Getting Started
+## Column Layouts
+
+```tsx
+import { Row, Column, ColumnLayouts } from '@unlayer/react-elements';
+
+<Row layout={ColumnLayouts.OneColumn}>              {/* [1]         → 100% */}
+<Row layout={ColumnLayouts.TwoEqual}>               {/* [1,1]       → 50% + 50% */}
+<Row layout={ColumnLayouts.TwoWideNarrow}>          {/* [2,1]       → 67% + 33% */}
+<Row layout={ColumnLayouts.ThreeEqual}>             {/* [1,1,1]     → 33% each */}
+<Row layout={ColumnLayouts.FourEqual}>              {/* [1,1,1,1]   → 25% each */}
+<Row cells={[3, 1]}>                                {/* custom ratio */}
+```
+
+## Documentation
+
+For the full API reference, component props, design patterns, and common mistakes, see the **[React package documentation](./packages/react/README.md)**.
+
+## Packages
+
+| Package | Description | Published |
+|---------|-------------|-----------|
+| [`@unlayer/react-elements`](./packages/react) | React components and renderers | [![npm](https://img.shields.io/npm/v/@unlayer/react-elements.svg)](https://www.npmjs.com/package/@unlayer/react-elements) |
+| [`@unlayer-internal/shared-elements`](./packages/shared) | Framework-agnostic shared logic | Internal |
+| [`@unlayer/elements-demo`](./packages/demo) | Demo application | — |
+
+## Development
 
 ```bash
+# Prerequisites: Node.js 22+, pnpm 9+
+
 # Install dependencies
 pnpm install
 
@@ -25,10 +146,17 @@ pnpm build
 # Run tests
 pnpm test
 
-# Build and serve Storybook
+# Run tests with coverage
+pnpm test:coverage
+
+# Launch Storybook
 pnpm storybook:hub
 ```
 
-## Development
+## Contributing
 
-Each package in the `packages/` directory contains framework-specific implementations of the same elements, ensuring developers can use familiar patterns in their preferred framework.
+See [CONTRIBUTING.md](./CONTRIBUTING.md) for setup instructions and guidelines.
+
+## License
+
+[MIT](./LICENSE) — Unlayer, Inc.
