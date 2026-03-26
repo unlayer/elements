@@ -98,7 +98,7 @@ jobs:
           fi
 
           git commit -m "deps: update @unlayer/exporters and @unlayer/types"
-          git push --force origin "$BRANCH"
+          git push --force-with-lease origin "$BRANCH"
 
           PACKAGES=$(grep '@unlayer' pnpm-workspace.yaml | sed 's/^ */- /')
           BODY="Automated update of upstream Unlayer dependencies to latest versions."$'\n\n'"Updated packages (pnpm catalog):"$'\n'"$PACKAGES"
