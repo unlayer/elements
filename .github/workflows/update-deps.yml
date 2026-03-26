@@ -12,6 +12,11 @@ on:
     - cron: '0 9 * * *' # daily at 9am UTC
   workflow_dispatch:
 
+# Prevent concurrent runs from racing on the same branch/PR
+concurrency:
+  group: update-unlayer-deps
+  cancel-in-progress: true
+
 jobs:
   check-updates:
     name: Check for updates
@@ -72,12 +77,19 @@ jobs:
           pnpm install --lockfile-only
 
           # Check if an open PR already exists for this branch
-          EXISTING_PR=$(gh pr list --head "$BRANCH" --state open --json number --jq '.[0].number' 2>/dev/null || echo "")
+          EXISTING_PR=$(gh pr list --head "$BRANCH" --state open --json number --jq '.[0].number')
+          if [ $? -ne 0 ]; then
+            echo "Error: failed to query existing pull requests"
+            exit 1
+          fi
+
+          # Fetch the remote branch if it exists (needed for --force-with-lease)
+          git fetch origin "$BRANCH" 2>/dev/null || true
 
           if [ -n "$EXISTING_PR" ]; then
             # PR exists — force-push updated versions to the same branch
             echo "Updating existing PR #$EXISTING_PR"
-            git checkout -B "$BRANCH"
+            git checkout -B "$BRANCH" "origin/$BRANCH" 2>/dev/null || git checkout -B "$BRANCH"
             git add pnpm-workspace.yaml pnpm-lock.yaml
             git commit -m "deps: update @unlayer/exporters and @unlayer/types"
             git push --force-with-lease origin "$BRANCH"
@@ -87,11 +99,11 @@ jobs:
             BODY="Automated update of upstream Unlayer dependencies to latest versions."$'\n\n'"Updated packages (pnpm catalog):"$'\n'"$PACKAGES"
             gh pr edit "$EXISTING_PR" --body "$BODY"
           else
-            # No open PR — create a new one
-            git checkout -b "$BRANCH"
+            # No open PR — create a new one (force push in case closed PR left the branch)
+            git checkout -b "$BRANCH" 2>/dev/null || git checkout -B "$BRANCH"
             git add pnpm-workspace.yaml pnpm-lock.yaml
             git commit -m "deps: update @unlayer/exporters and @unlayer/types"
-            git push --force-with-lease -u origin "$BRANCH"
+            git push --force origin "$BRANCH"
 
             PACKAGES=$(grep '@unlayer' pnpm-workspace.yaml | sed 's/^ */- /')
             BODY="Automated update of upstream Unlayer dependencies to latest versions."$'\n\n'"Updated packages (pnpm catalog):"$'\n'"$PACKAGES"
