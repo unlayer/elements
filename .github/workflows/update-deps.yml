@@ -60,35 +60,47 @@ jobs:
 
           echo "changed=$CHANGED" >> $GITHUB_OUTPUT
 
-      - name: Create PR
+      - name: Create or update PR
         if: steps.check.outputs.changed == 'true'
         run: |
-          BRANCH="deps/update-unlayer-$(date +%Y%m%d)"
+          # Use a fixed branch name so we always update the same PR
+          BRANCH="deps/update-unlayer"
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-
-          # Check if branch already exists
-          if git ls-remote --heads origin "$BRANCH" | grep -q "$BRANCH"; then
-            echo "Branch $BRANCH already exists — skipping"
-            exit 0
-          fi
-
-          git checkout -b "$BRANCH"
 
           # Update lockfile to match new catalog versions
           pnpm install --lockfile-only
 
-          git add pnpm-workspace.yaml pnpm-lock.yaml
-          git commit -m "deps: update @unlayer/exporters and @unlayer/types"
-          git push -u origin "$BRANCH"
+          # Check if an open PR already exists for this branch
+          EXISTING_PR=$(gh pr list --head "$BRANCH" --state open --json number --jq '.[0].number' 2>/dev/null || echo "")
 
-          PACKAGES=$(grep '@unlayer' pnpm-workspace.yaml | sed 's/^ */- /')
-          BODY="Automated update of upstream Unlayer dependencies to latest versions."$'\n\n'"Updated packages (pnpm catalog):"$'\n'"$PACKAGES"
+          if [ -n "$EXISTING_PR" ]; then
+            # PR exists — force-push updated versions to the same branch
+            echo "Updating existing PR #$EXISTING_PR"
+            git checkout -B "$BRANCH"
+            git add pnpm-workspace.yaml pnpm-lock.yaml
+            git commit -m "deps: update @unlayer/exporters and @unlayer/types"
+            git push --force-with-lease origin "$BRANCH"
 
-          gh pr create \
-            --title "deps: update @unlayer/exporters and @unlayer/types" \
-            --body "$BODY" \
-            --base main \
-            --head "$BRANCH"
+            # Update PR body with new versions
+            PACKAGES=$(grep '@unlayer' pnpm-workspace.yaml | sed 's/^ */- /')
+            BODY="Automated update of upstream Unlayer dependencies to latest versions."$'\n\n'"Updated packages (pnpm catalog):"$'\n'"$PACKAGES"
+            gh pr edit "$EXISTING_PR" --body "$BODY"
+          else
+            # No open PR — create a new one
+            git checkout -b "$BRANCH"
+            git add pnpm-workspace.yaml pnpm-lock.yaml
+            git commit -m "deps: update @unlayer/exporters and @unlayer/types"
+            git push --force-with-lease -u origin "$BRANCH"
+
+            PACKAGES=$(grep '@unlayer' pnpm-workspace.yaml | sed 's/^ */- /')
+            BODY="Automated update of upstream Unlayer dependencies to latest versions."$'\n\n'"Updated packages (pnpm catalog):"$'\n'"$PACKAGES"
+
+            gh pr create \
+              --title "deps: update @unlayer/exporters and @unlayer/types" \
+              --body "$BODY" \
+              --base main \
+              --head "$BRANCH"
+          fi
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
