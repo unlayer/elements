@@ -2,6 +2,7 @@
 #
 # Checks npm for new versions of @unlayer/exporters and @unlayer/types
 # and opens a PR to update the pnpm catalog if newer versions exist.
+# Runs build + tests first and includes the result in the PR body.
 #
 # Runs daily and on manual dispatch.
 
@@ -69,13 +70,30 @@ jobs:
         if: steps.check.outputs.changed == 'true'
         run: pnpm install
 
-      - name: Build packages
+      - name: Build and test
+        id: verify
         if: steps.check.outputs.changed == 'true'
-        run: pnpm build
+        continue-on-error: true
+        run: |
+          pnpm build 2>&1 | tee /tmp/build-output.log
+          BUILD_EXIT=${PIPESTATUS[0]}
 
-      - name: Run tests
-        if: steps.check.outputs.changed == 'true'
-        run: pnpm test
+          if [ $BUILD_EXIT -ne 0 ]; then
+            echo "status=failed" >> $GITHUB_OUTPUT
+            echo "error=Build failed" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+
+          pnpm test 2>&1 | tee /tmp/test-output.log
+          TEST_EXIT=${PIPESTATUS[0]}
+
+          if [ $TEST_EXIT -ne 0 ]; then
+            echo "status=failed" >> $GITHUB_OUTPUT
+            echo "error=Tests failed" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+
+          echo "status=passed" >> $GITHUB_OUTPUT
 
       - name: Create or update PR
         if: steps.check.outputs.changed == 'true'
@@ -109,8 +127,18 @@ jobs:
           git commit -m "deps: update @unlayer/exporters and @unlayer/types"
           git push --force-with-lease origin "$BRANCH"
 
+          # Build PR body with test status
           PACKAGES=$(grep '@unlayer' pnpm-workspace.yaml | sed 's/^ */- /')
-          BODY="Automated update of upstream Unlayer dependencies to latest versions."$'\n\n'"Updated packages (pnpm catalog):"$'\n'"$PACKAGES"
+          STATUS="${{ steps.verify.outputs.status }}"
+
+          if [ "$STATUS" = "passed" ]; then
+            STATUS_LINE="✅ **Build & tests passed** — safe to merge."
+          else
+            ERROR="${{ steps.verify.outputs.error }}"
+            STATUS_LINE="❌ **$ERROR** — check the [workflow run](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}) for details."
+          fi
+
+          BODY="${STATUS_LINE}"$'\n\n'"Updated packages (pnpm catalog):"$'\n'"${PACKAGES}"
 
           if [ -n "$EXISTING_PR" ]; then
             echo "Updating existing PR #$EXISTING_PR"
