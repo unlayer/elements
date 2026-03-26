@@ -182,13 +182,15 @@ jobs:
           echo "| **ESM bundle** | ${BUNDLE_SIZE} bytes |" >> $GITHUB_STEP_SUMMARY
           echo "| **Files in dist** | ${FILE_COUNT} |" >> $GITHUB_STEP_SUMMARY
 
-      # pnpm publish resolves catalog: protocol to real versions.
-      # npm publish does NOT understand catalog: and would publish broken deps.
-      # OIDC token is set via NODE_AUTH_TOKEN from setup-node's registry-url.
+      # Two-step publish: pnpm pack resolves catalog: protocol to real
+      # version numbers, then npm publish handles OIDC trusted publishing.
+      # npm publish alone does NOT understand catalog: and would ship broken deps.
       # No --provenance flag — not supported for private source repos.
       - name: Publish to npm (trusted publishing)
         working-directory: packages/react
-        run: pnpm publish --access public --no-git-checks
+        run: |
+          TARBALL=$(pnpm pack --pack-destination /tmp | tail -1)
+          npm publish "$TARBALL" --access public
 
       - name: Tag release
         run: |

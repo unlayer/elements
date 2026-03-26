@@ -114,12 +114,33 @@ Components follow a strict hierarchy:
 ```tsx
 import { Row, Column, ColumnLayouts } from '@unlayer/react-elements';
 
-<Row layout={ColumnLayouts.OneColumn} />              {/* [1]         → 100% */}
-<Row layout={ColumnLayouts.TwoEqual} />               {/* [1,1]       → 50% + 50% */}
-<Row layout={ColumnLayouts.TwoWideNarrow} />          {/* [2,1]       → 67% + 33% */}
-<Row layout={ColumnLayouts.ThreeEqual} />             {/* [1,1,1]     → 33% each */}
-<Row layout={ColumnLayouts.FourEqual} />              {/* [1,1,1,1]   → 25% each */}
-<Row cells={[3, 1]} />                                {/* custom ratio */}
+// Each Row must contain the matching number of <Column> children.
+<Row layout={ColumnLayouts.OneColumn}>                {/* [1]         → 100% */}
+  <Column>{/* content */}</Column>
+</Row>
+<Row layout={ColumnLayouts.TwoEqual}>                 {/* [1,1]       → 50% + 50% */}
+  <Column>{/* content */}</Column>
+  <Column>{/* content */}</Column>
+</Row>
+<Row layout={ColumnLayouts.TwoWideNarrow}>            {/* [2,1]       → 67% + 33% */}
+  <Column>{/* content */}</Column>
+  <Column>{/* content */}</Column>
+</Row>
+<Row layout={ColumnLayouts.ThreeEqual}>               {/* [1,1,1]     → 33% each */}
+  <Column>{/* content */}</Column>
+  <Column>{/* content */}</Column>
+  <Column>{/* content */}</Column>
+</Row>
+<Row layout={ColumnLayouts.FourEqual}>                {/* [1,1,1,1]   → 25% each */}
+  <Column>{/* content */}</Column>
+  <Column>{/* content */}</Column>
+  <Column>{/* content */}</Column>
+  <Column>{/* content */}</Column>
+</Row>
+<Row cells={[3, 1]}>                                  {/* custom ratio */}
+  <Column>{/* content */}</Column>
+  <Column>{/* content */}</Column>
+</Row>
 ```
 
 ## Documentation
@@ -137,7 +158,7 @@ For the full API reference, component props, design patterns, and common mistake
 ## Development
 
 ```bash
-# Prerequisites: Node.js 22+, pnpm 9+
+# Prerequisites: Node.js (see .nvmrc), pnpm 9+
 
 # Install dependencies
 pnpm install
