@@ -5,7 +5,7 @@
 <h1 align="center">Unlayer Elements</h1>
 
 <p align="center">
-  React components for building emails, pages, and documents in code.
+  Framework-native components for building emails, pages, and documents in code.
 </p>
 
 <p align="center">
@@ -17,13 +17,25 @@
 
 ---
 
-Write email templates, landing pages, and printable documents using familiar React components. Unlayer Elements renders to **three distinct outputs** from the same component tree:
+Build email templates, landing pages, and printable documents using native components in your framework of choice. Unlayer Elements renders to **three distinct outputs** from the same component tree:
 
 - **Email** — table-based HTML safe for Outlook, Gmail, Yahoo, and all major email clients
 - **Web** — responsive div + flexbox HTML for web pages
 - **Document** — print-optimized HTML for PDF generation
 
-## Quick Start
+## Frameworks
+
+React is available today. More frameworks are on the way — the shared rendering engine is framework-agnostic by design.
+
+| Framework | Package | Status |
+|-----------|---------|--------|
+| **React** | [`@unlayer/react-elements`](./packages/react) | [![npm](https://img.shields.io/npm/v/@unlayer/react-elements.svg)](https://www.npmjs.com/package/@unlayer/react-elements) |
+| Vue | `@unlayer/vue-elements` | Coming soon |
+| Angular | `@unlayer/angular-elements` | Coming soon |
+| Svelte | `@unlayer/svelte-elements` | Coming soon |
+| Web Components | `@unlayer/wc-elements` | Coming soon |
+
+## Quick Start (React)
 
 ```bash
 npm install @unlayer/react-elements
@@ -68,7 +80,7 @@ const html = renderToHtml(<WelcomeEmail />);
 
 - **15 components** — Button, Heading, Paragraph, Image, Divider, Social, Menu, Table, Video, Html, and layout primitives (Email, Page, Document, Row, Column)
 - **3 render modes** — Email (tables), Web (flexbox), Document (print) from the same JSX
-- **Server Components** — works with Next.js App Router, Remix, and any SSR framework
+- **Server Components** — React package works with Next.js App Router, Remix, and any SSR framework
 - **Clean HTML output** — `renderToHtml()` produces production-ready HTML with no framework artifacts
 - **Design JSON** — `renderToJson()` exports Unlayer-compatible design JSON for round-tripping with the visual editor
 - **TypeScript-first** — full type definitions with autocomplete for every prop
@@ -149,11 +161,14 @@ For the full API reference, component props, design patterns, and common mistake
 
 ## Packages
 
-| Package | Description | Published |
-|---------|-------------|-----------|
+| Package | Description | Status |
+|---------|-------------|--------|
 | [`@unlayer/react-elements`](./packages/react) | React components and renderers | [![npm](https://img.shields.io/npm/v/@unlayer/react-elements.svg)](https://www.npmjs.com/package/@unlayer/react-elements) |
+| `@unlayer/vue-elements` | Vue components | Coming soon |
+| `@unlayer/angular-elements` | Angular components | Coming soon |
+| `@unlayer/svelte-elements` | Svelte components | Coming soon |
+| `@unlayer/wc-elements` | Web Components | Coming soon |
 | [`@unlayer-internal/shared-elements`](./packages/shared) | Framework-agnostic shared logic | Internal |
-| [`@unlayer/elements-demo`](./packages/demo) | Demo application | — |
 
 ## Development
 
