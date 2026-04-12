@@ -7,11 +7,11 @@ settings:
 catalogs:
   default:
     '@unlayer/exporters':
-      specifier: 1.394.0
-      version: 1.394.0
+      specifier: 1.400.0
+      version: 1.400.0
     '@unlayer/types':
-      specifier: 1.394.0
-      version: 1.394.0
+      specifier: 1.400.0
+      version: 1.400.0
 
 importers:
 
@@ -68,10 +68,10 @@ importers:
     dependencies:
       '@unlayer/exporters':
         specifier: 'catalog:'
-        version: 1.394.0(@unlayer/types@1.394.0)
+        version: 1.400.0(@unlayer/types@1.400.0)
       '@unlayer/types':
         specifier: 'catalog:'
-        version: 1.394.0
+        version: 1.400.0
       react:
         specifier: '>=18'
         version: 18.3.1
@@ -129,7 +129,7 @@ importers:
     dependencies:
       '@unlayer/types':
         specifier: 'catalog:'
-        version: 1.394.0
+        version: 1.400.0
     devDependencies:
       tsup:
         specifier: ^8.0.1
@@ -1111,14 +1111,14 @@ packages:
   '@types/ws@8.18.1':
     resolution: {integrity: sha512-ThVF6DCVhA8kUGy+aazFQ4kXQ7E1Ty7A3ypFOe0IcJV8O/M511G99AW24irKrW56Wt44yG9+ij8FaqoBGkuBXg==}
 
-  '@unlayer/exporters@1.394.0':
-    resolution: {integrity: sha512-ET1ag3wN++KHUYWpLh3wrI0bgd+wUmud1gD2kN7vRV4ob9sYZuuCs2qlxF7Akxsi6/XF5JYtl6u3DJ3Fe9KJgw==}
+  '@unlayer/exporters@1.400.0':
+    resolution: {integrity: sha512-4SC/A7nT+NCF9y9SUTU8oicNf3kkYzhpiTFO6HRIkYkQtxT/CIUOrZY8C3nMOW8vDTpRwcLLVfPDwg509XN8bw==}
     engines: {node: '>=14.0.0'}
     peerDependencies:
-      '@unlayer/types': '>=1.394.0'
+      '@unlayer/types': '>=1.400.0'
 
-  '@unlayer/types@1.394.0':
-    resolution: {integrity: sha512-M88e2kEiOl6pFPLrzVqQgeTk/c/s0DB6DTFB2Oa+wJGqq+RQm6Ck0D0DkqoDbsDmetJXhpSPDKz56AAQ06oJwQ==}
+  '@unlayer/types@1.400.0':
+    resolution: {integrity: sha512-UMnI3h9OBSpwZw5IB/RPA4QAmKigKyipZ0ZmbtnzkuYQA/ZHQ20wbWMXH/wCeomHvTSbLBnzTPhx+nFMbI97kw==}
 
   '@vitejs/plugin-react@4.7.0':
     resolution: {integrity: sha512-gUu9hwfWvvEDBBmgtAowQCojwZmJ5mcLn3aufeCsitijs3+f2NsrPtlAWIR6OPiqljl96GVCUbLe0HyqIpVaoA==}
@@ -1867,9 +1867,6 @@ packages:
 
   lodash.sortby@4.7.0:
     resolution: {integrity: sha512-HDWXG8isMntAyRF5vZ7xKuEvOhT4AhlRt/3czTSjvGUxjYCBVRQY48ViDHyfYz9VIoBkW4TMGQNapx+l3RUwdA==}
-
-  lodash@4.17.23:
-    resolution: {integrity: sha512-LgVTMpQtIopCi79SJeDiP0TfWi5CNEc/L/aRdTh3yIvmZXTnheWpKjSZhnvMl8iXbC1tFg9gdHHDMLoV7CnG+w==}
 
   loose-envify@1.4.0:
     resolution: {integrity: sha512-lyuxPGr/Wfhrlem2CL/UcnUc1zcqKAImBDzukY7Y5F/yQiNdko6+fRLevlw1HgMySw7f611UIY408EtxRSoK3Q==}
@@ -3509,7 +3506,7 @@ snapshots:
     dependencies:
       '@types/node': 24.9.1
 
-  '@unlayer/exporters@1.394.0(@unlayer/types@1.394.0)':
+  '@unlayer/exporters@1.400.0(@unlayer/types@1.400.0)':
     dependencies:
       '@lexical/headless': 0.41.0
       '@lexical/html': 0.41.0
@@ -3518,14 +3515,13 @@ snapshots:
       '@lexical/rich-text': 0.41.0
       '@lexical/selection': 0.41.0
       '@lexical/utils': 0.41.0
-      '@unlayer/types': 1.394.0
+      '@unlayer/types': 1.400.0
       lexical: 0.41.0
-      lodash: 4.17.23
     transitivePeerDependencies:
       - bufferutil
       - utf-8-validate
 
-  '@unlayer/types@1.394.0': {}
+  '@unlayer/types@1.400.0': {}
 
   '@vitejs/plugin-react@4.7.0(vite@6.4.1(@types/node@25.3.5)(jiti@2.6.1)(less@4.4.2)(lightningcss@1.31.1)(sass@1.93.2)(terser@5.44.0)(tsx@4.21.0))':
     dependencies:
@@ -4368,8 +4364,6 @@ snapshots:
       p-locate: 6.0.0
 
   lodash.sortby@4.7.0: {}
-
-  lodash@4.17.23: {}
 
   loose-envify@1.4.0:
     dependencies:
