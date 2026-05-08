@@ -15,6 +15,7 @@ import type { RenderMode, UnlayerConfig } from "@unlayer-internal/shared-element
 import {
   mergeValues,
   generateHtmlFromTextJson,
+  normalizeValuesForExporter,
   DEFAULT_CONFIG,
 } from "@unlayer-internal/shared-elements";
 
@@ -273,13 +274,21 @@ export function createItemComponent<
       ...bodyValues
     };
 
-    // 5. Resolve exporter for this mode (fallback to web)
+    // 5. Resolve link/action fields to the exporter's render-value shape.
+    //    Skipped on the renderToJson path (which uses propMapper directly)
+    //    so JSON output preserves the schema's storage shape.
+    const valuesForExporter = normalizeValuesForExporter(
+      valuesWithMeta as Record<string, any>,
+      config.name
+    );
+
+    // 6. Resolve exporter for this mode (fallback to web)
     const exporter = (config.exporters[mode] || config.exporters.web)!;
 
-    // 6. Render using utility (handles all boilerplate)
+    // 7. Render using utility (handles all boilerplate)
     return renderComponent<TValues>({
       type: config.name,
-      values: valuesWithMeta,
+      values: valuesForExporter as TValues,
       mode,
       className,
       style,

@@ -66,4 +66,61 @@ describe("Button Component", () => {
   it("has correct displayName", () => {
     expect(Button.displayName).toBe("Button");
   });
+
+  // Regression: every accepted href shape must reach the rendered <a>.
+  // Previously they all rendered as href="" because the mapper handed the
+  // exporter the schema storage shape `{ name, values: { href, target } }`
+  // but the exporter reads `e.url`. See semantic-props normalizeLinkValue.
+  describe("href is rendered to the anchor (regression)", () => {
+    const URL = "https://example.com";
+
+    function getHref(container: HTMLElement): string | null {
+      return container.querySelector("a")?.getAttribute("href") ?? null;
+    }
+
+    it("renders href when passed as a string", () => {
+      const { container } = render(<Button href={URL}>Go</Button>);
+      expect(getHref(container)).toBe(URL);
+    });
+
+    it("renders href when passed as the storage shape {name, values}", () => {
+      const { container } = render(
+        <Button
+          href={
+            { name: "web", values: { href: URL, target: "_blank" } } as any
+          }
+        >
+          Go
+        </Button>
+      );
+      expect(getHref(container)).toBe(URL);
+    });
+
+    it("renders href when passed via the values escape hatch", () => {
+      const { container } = render(
+        <Button
+          values={
+            {
+              href: {
+                name: "web",
+                values: { href: URL, target: "_blank" },
+              },
+            } as any
+          }
+        >
+          Go
+        </Button>
+      );
+      expect(getHref(container)).toBe(URL);
+    });
+
+    it("renders href in email mode (table-based output)", () => {
+      const { container } = render(
+        <Button mode="email" href={URL}>
+          Go
+        </Button>
+      );
+      expect(getHref(container)).toBe(URL);
+    });
+  });
 });

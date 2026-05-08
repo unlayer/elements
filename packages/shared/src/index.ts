@@ -68,7 +68,11 @@ export {
 export { mergeValues } from "./utils/merge-values";
 
 // Utils - Semantic props
-export { mapSemanticProps } from "./utils/semantic-props";
+export {
+  mapSemanticProps,
+  normalizeLinkValue,
+  normalizeValuesForExporter,
+} from "./utils/semantic-props";
 export type { SemanticProps } from "./utils/semantic-props";
 
 // Utils - HTML to plain text

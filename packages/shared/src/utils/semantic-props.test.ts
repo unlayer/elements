@@ -1,5 +1,9 @@
 import { describe, it, expect } from "vitest";
-import { mapSemanticProps } from "./semantic-props";
+import {
+  mapSemanticProps,
+  normalizeLinkValue,
+  normalizeValuesForExporter,
+} from "./semantic-props";
 
 // Simulate Button defaults (has nested buttonColors, backgroundImage, border)
 const BUTTON_DEFAULTS = {
@@ -191,8 +195,12 @@ describe("mapSemanticProps", () => {
     });
   });
 
-  describe("href normalization", () => {
-    it("normalizes string href to link object", () => {
+  describe("href normalization (mapper preserves storage shape)", () => {
+    // The mapper deliberately keeps the schema's storage shape so renderToJson
+    // round-trips back into the editor unchanged. The exporter's render shape
+    // (`{ url, target }`) is produced later by `normalizeValuesForExporter`.
+
+    it("wraps string href into the storage shape {name, values}", () => {
       const result = mapSemanticProps(
         { href: "https://example.com" },
         BUTTON_DEFAULTS,
@@ -204,7 +212,7 @@ describe("mapSemanticProps", () => {
       });
     });
 
-    it("passes object href through", () => {
+    it("passes object href through unchanged", () => {
       const hrefObj = { name: "email", values: { href: "mailto:test@test.com" } };
       const result = mapSemanticProps(
         { href: hrefObj },
@@ -241,5 +249,107 @@ describe("mapSemanticProps", () => {
       expect(result._meta).toBeUndefined();
       expect(result.backgroundColor).toBe("#fff");
     });
+  });
+});
+
+describe("normalizeLinkValue", () => {
+  it("returns undefined for null/undefined", () => {
+    expect(normalizeLinkValue(null)).toBeUndefined();
+    expect(normalizeLinkValue(undefined)).toBeUndefined();
+  });
+
+  it("converts a string to {url, target: '_blank'}", () => {
+    expect(normalizeLinkValue("https://example.com")).toEqual({
+      url: "https://example.com",
+      target: "_blank",
+    });
+  });
+
+  it("passes a render-shape value ({url, ...}) through unchanged", () => {
+    const v = { url: "https://example.com", target: "_self" };
+    expect(normalizeLinkValue(v)).toEqual(v);
+  });
+
+  it("resolves storage shape ({name, values: {href, target}}) to render shape", () => {
+    expect(
+      normalizeLinkValue({
+        name: "web",
+        values: { href: "https://example.com", target: "_blank" },
+      })
+    ).toEqual({ url: "https://example.com", target: "_blank" });
+  });
+
+  it("defaults missing target to '_blank'", () => {
+    expect(
+      normalizeLinkValue({ name: "email", values: { href: "mailto:a@b.com" } })
+    ).toEqual({ url: "mailto:a@b.com", target: "_blank" });
+  });
+
+  it("returns undefined for unknown shapes (caller keeps original)", () => {
+    expect(normalizeLinkValue({ random: "thing" })).toBeUndefined();
+    expect(normalizeLinkValue(42)).toBeUndefined();
+  });
+});
+
+describe("normalizeValuesForExporter", () => {
+  const STORAGE_HREF = {
+    name: "web",
+    values: { href: "https://example.com", target: "_blank" },
+  };
+  const RENDER_HREF = { url: "https://example.com", target: "_blank" };
+
+  it("normalizes top-level href (Button/Video case)", () => {
+    const out = normalizeValuesForExporter(
+      { href: STORAGE_HREF, text: "Click" },
+      "Button"
+    );
+    expect(out.href).toEqual(RENDER_HREF);
+    expect(out.text).toBe("Click");
+  });
+
+  it("normalizes top-level action (Image/Timer case)", () => {
+    const out = normalizeValuesForExporter(
+      { action: STORAGE_HREF, altText: "alt" },
+      "Image"
+    );
+    expect(out.action).toEqual(RENDER_HREF);
+    expect(out.altText).toBe("alt");
+  });
+
+  it("walks menu.items[].link for Menu", () => {
+    const out = normalizeValuesForExporter(
+      {
+        menu: {
+          items: [
+            { key: "1", text: "Home", link: STORAGE_HREF },
+            { key: "2", text: "About", link: STORAGE_HREF },
+          ],
+        },
+      },
+      "Menu"
+    );
+    expect(out.menu.items[0].link).toEqual(RENDER_HREF);
+    expect(out.menu.items[1].link).toEqual(RENDER_HREF);
+  });
+
+  it("does not mutate the input values", () => {
+    const input = { href: STORAGE_HREF };
+    const out = normalizeValuesForExporter(input, "Button");
+    expect(input.href).toEqual(STORAGE_HREF); // unchanged
+    expect(out).not.toBe(input);
+  });
+
+  it("is a no-op when there are no link fields", () => {
+    const input = { fontSize: "14px", color: "#000" };
+    const out = normalizeValuesForExporter(input, "Heading");
+    expect(out).toEqual(input);
+  });
+
+  it("leaves render-shape values as-is", () => {
+    const out = normalizeValuesForExporter(
+      { href: RENDER_HREF },
+      "Button"
+    );
+    expect(out.href).toEqual(RENDER_HREF);
   });
 });

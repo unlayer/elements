@@ -61,4 +61,48 @@ describe("Image Component", () => {
   it("has correct displayName", () => {
     expect(Image.displayName).toBe("Image");
   });
+
+  // Regression: action shapes (string / storage / render) must all wrap the
+  // image in a working <a>. Previously the storage shape silently produced
+  // no anchor at all because the exporter read `e.url` on `{ name, values }`.
+  describe("action wraps the image in an anchor (regression)", () => {
+    const URL = "https://example.com";
+    const SRC = "https://example.com/photo.jpg";
+
+    function getAnchorHref(container: HTMLElement): string | null {
+      return container.querySelector("a")?.getAttribute("href") ?? null;
+    }
+
+    it("renders anchor href from string action", () => {
+      const { container } = render(
+        <Image src={SRC} action={URL as any} />
+      );
+      expect(getAnchorHref(container)).toBe(URL);
+    });
+
+    it("renders anchor href from storage-shape action", () => {
+      const { container } = render(
+        <Image
+          src={SRC}
+          action={
+            { name: "web", values: { href: URL, target: "_blank" } } as any
+          }
+        />
+      );
+      expect(getAnchorHref(container)).toBe(URL);
+    });
+
+    it("renders anchor href in email mode", () => {
+      const { container } = render(
+        <Image
+          mode="email"
+          src={SRC}
+          action={
+            { name: "web", values: { href: URL, target: "_blank" } } as any
+          }
+        />
+      );
+      expect(getAnchorHref(container)).toBe(URL);
+    });
+  });
 });

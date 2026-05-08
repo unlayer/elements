@@ -44,7 +44,7 @@ exports[`Render Snapshots > Body + Row + Column + Items > full tree email 1`] = 
   <!--[if mso]><style>.v-button {background: transparent !important;}</style><![endif]-->
 <div class="v-text-align" align="center">
   <!--[if mso]><v:roundrect xmlns:v="urn:schemas-microsoft-com:vml" xmlns:w="urn:schemas-microsoft-com:office:word" href="" style="height:45px; v-text-anchor:middle; width:120px;" arcsize="9%"  stroke="f" fillcolor="#0879A1"><w:anchorlock/><center style="color:#FFFFFF;"><![endif]-->
-    <a href="" class="v-button v-size-width v-button-colors v-border v-border-radius v-font-family v-font-size v-font-weight v-letter-spacing" style="box-sizing: border-box;display: inline-block;text-decoration: none;-webkit-text-size-adjust: none;text-align: center;color: #FFFFFF; background-color: #0879A1; border-radius: 4px;-webkit-border-radius: 4px; -moz-border-radius: 4px; width:auto; max-width:100%; overflow-wrap: break-word; word-break: break-word; word-wrap:break-word; mso-border-alt: none;font-size: 14px;">
+    <a href="" target="_blank" class="v-button v-size-width v-button-colors v-border v-border-radius v-font-family v-font-size v-font-weight v-letter-spacing" style="box-sizing: border-box;display: inline-block;text-decoration: none;-webkit-text-size-adjust: none;text-align: center;color: #FFFFFF; background-color: #0879A1; border-radius: 4px;-webkit-border-radius: 4px; -moz-border-radius: 4px; width:auto; max-width:100%; overflow-wrap: break-word; word-break: break-word; word-wrap:break-word; mso-border-alt: none;font-size: 14px;">
       <span class="v-line-height v-padding" style="display:block;padding:10px 20px;line-height:120%;">Click</span>
     </a>
     <!--[if mso]></center></v:roundrect><![endif]-->
@@ -117,7 +117,7 @@ exports[`Render Snapshots > Body + Row + Column + Items > full tree web 1`] = `
   </div>
 </div><div id="u_content_button_2" class="u_content_button" style="padding: 0px;">
 <div class="v-text-align" style="text-align: center;">
-  <a href="" class="v-size-width v-line-height v-padding v-button-colors v-border v-border-radius v-font-family v-font-size v-font-weight v-letter-spacing" style="color:#FFFFFF;background-color:#0879A1;border-radius: 4px;line-height:120%;display:inline-block;text-decoration:none;text-align:center;padding:10px 20px;width:auto;max-width:100%;word-wrap:break-word;font-size: 14px;">
+  <a href="" target="_blank" class="v-size-width v-line-height v-padding v-button-colors v-border v-border-radius v-font-family v-font-size v-font-weight v-letter-spacing" style="color:#FFFFFF;background-color:#0879A1;border-radius: 4px;line-height:120%;display:inline-block;text-decoration:none;text-align:center;padding:10px 20px;width:auto;max-width:100%;word-wrap:break-word;font-size: 14px;">
     Click
   </a>
 </div>
@@ -182,7 +182,7 @@ exports[`Render Snapshots > Button > email 1`] = `
   <!--[if mso]><style>.v-button {background: transparent !important;}</style><![endif]-->
 <div class="v-text-align" align="center">
   <!--[if mso]><v:roundrect xmlns:v="urn:schemas-microsoft-com:vml" xmlns:w="urn:schemas-microsoft-com:office:word" href="" style="height:45px; v-text-anchor:middle; width:120px;" arcsize="9%"  stroke="f" fillcolor="#0879A1"><w:anchorlock/><center style="color:#FFFFFF;"><![endif]-->
-    <a href="" class="v-button v-size-width v-button-colors v-border v-border-radius v-font-family v-font-size v-font-weight v-letter-spacing" style="box-sizing: border-box;display: inline-block;text-decoration: none;-webkit-text-size-adjust: none;text-align: center;color: #FFFFFF; background-color: #0879A1; border-radius: 4px;-webkit-border-radius: 4px; -moz-border-radius: 4px; width:auto; max-width:100%; overflow-wrap: break-word; word-break: break-word; word-wrap:break-word; mso-border-alt: none;font-size: 14px;">
+    <a href="" target="_blank" class="v-button v-size-width v-button-colors v-border v-border-radius v-font-family v-font-size v-font-weight v-letter-spacing" style="box-sizing: border-box;display: inline-block;text-decoration: none;-webkit-text-size-adjust: none;text-align: center;color: #FFFFFF; background-color: #0879A1; border-radius: 4px;-webkit-border-radius: 4px; -moz-border-radius: 4px; width:auto; max-width:100%; overflow-wrap: break-word; word-break: break-word; word-wrap:break-word; mso-border-alt: none;font-size: 14px;">
       <span class="v-line-height v-padding" style="display:block;padding:10px 20px;line-height:120%;">Click me</span>
     </a>
     <!--[if mso]></center></v:roundrect><![endif]-->
@@ -193,7 +193,7 @@ exports[`Render Snapshots > Button > email 1`] = `
 exports[`Render Snapshots > Button > web 1`] = `
 "<div>
 <div class="v-text-align" style="text-align: center;">
-  <a href="" class="v-size-width v-line-height v-padding v-button-colors v-border v-border-radius v-font-family v-font-size v-font-weight v-letter-spacing" style="color:#FFFFFF;background-color:#0879A1;border-radius: 4px;line-height:120%;display:inline-block;text-decoration:none;text-align:center;padding:10px 20px;width:auto;max-width:100%;word-wrap:break-word;font-size: 14px;">
+  <a href="" target="_blank" class="v-size-width v-line-height v-padding v-button-colors v-border v-border-radius v-font-family v-font-size v-font-weight v-letter-spacing" style="color:#FFFFFF;background-color:#0879A1;border-radius: 4px;line-height:120%;display:inline-block;text-decoration:none;text-align:center;padding:10px 20px;width:auto;max-width:100%;word-wrap:break-word;font-size: 14px;">
     Click me
   </a>
 </div>

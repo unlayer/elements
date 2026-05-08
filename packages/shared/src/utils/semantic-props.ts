@@ -136,16 +136,18 @@ export function mapSemanticProps<T extends Record<string, any>>(
     delete result.html;
   }
 
-  // Handle href normalization (special case for Button/Image components)
-  const href = userProps.href;
-  if (href !== undefined) {
-    if (typeof href === "string") {
-      userProps.href = {
+  // String shorthand for link/action fields (`href="https://..."` or
+  // `action="https://..."`) → wrap into the schema's storage shape so that
+  // the rest of the pipeline (mergeValues, renderToJson) sees a consistent
+  // type. The render-time exporter handoff later resolves this into the
+  // exporter's `{ url, target }` shape via `normalizeValuesForExporter`.
+  for (const key of ["href", "action"] as const) {
+    const v = userProps[key];
+    if (typeof v === "string") {
+      userProps[key] = {
         name: "web",
-        values: { href, target: "_blank" }
+        values: { href: v, target: "_blank" },
       };
-    } else {
-      userProps.href = href;
     }
   }
 
@@ -201,4 +203,93 @@ export function mapSemanticProps<T extends Record<string, any>>(
   }
 
   return final as T;
+}
+
+/**
+ * Convert any of the three link-shaped inputs into the render-value shape
+ * the exporter expects: `{ url, target, ...customAttrs }`.
+ *
+ * The schema stores links as `{ name, values: { href, target } }`, but
+ * exporters (consumed via @unlayer/exporters) expect the editor's render
+ * value shape `{ url, target, customAttrs?, class?, onClick? }`. The editor
+ * runs this conversion via the link property-editor's `renderValue()` —
+ * `normalizeValuesForExporter` (in render-time code) mirrors it so React
+ * rendered output matches.
+ *
+ * Accepted inputs:
+ * - `"https://..."` (string shorthand)
+ * - `{ url, target?, customAttrs?, class?, onClick? }` (already render shape)
+ * - `{ name, values: { href, target? }, attrs? }` (storage shape from schema)
+ *
+ * Returns `undefined` for shapes we don't recognize so the caller can fall
+ * back to the original value (avoids silently dropping data).
+ *
+ * IMPORTANT: this is render-time only. Do NOT apply during renderToJson —
+ * JSON output is for round-tripping into the editor, which expects the
+ * storage shape.
+ */
+export function normalizeLinkValue(value: unknown): Record<string, any> | undefined {
+  if (value == null) return undefined;
+  if (typeof value === "string") {
+    return { url: value, target: "_blank" };
+  }
+  if (typeof value !== "object") return undefined;
+  const v = value as Record<string, any>;
+  // Already render-shape (has url) — pass through.
+  if ("url" in v) return v;
+  // Storage shape from the schema: { name, values: { href, target } }.
+  if ("name" in v && v.values && typeof v.values === "object") {
+    const inner = v.values as Record<string, any>;
+    return {
+      url: inner.href ?? "",
+      target: inner.target ?? "_blank",
+      ...(v.attrs ?? {}),
+    };
+  }
+  return undefined;
+}
+
+/**
+ * Normalize all link/action fields on an item's values to the render-value
+ * shape the exporter reads. Returns a shallow clone — does not mutate.
+ *
+ * Knows about the link-bearing paths per component:
+ * - top-level `href` (Button, Video)
+ * - top-level `action` (Image, Timer)
+ * - `menu.items[].link` (Menu)
+ *
+ * Only the bridge between mapper and exporter should call this; renderToJson
+ * must NOT, because JSON output preserves storage shape.
+ */
+export function normalizeValuesForExporter<T extends Record<string, any>>(
+  values: T,
+  componentName: string
+): T {
+  if (values == null || typeof values !== "object") return values;
+
+  const out: Record<string, any> = { ...values };
+
+  // Top-level link fields used by Button (href), Image (action), Video (href),
+  // Timer (action). Cheap to check both keys for every component.
+  for (const key of ["href", "action"]) {
+    if (out[key] !== undefined) {
+      const normalized = normalizeLinkValue(out[key]);
+      if (normalized !== undefined) out[key] = normalized;
+    }
+  }
+
+  // Menu items each carry a `link` field.
+  if (componentName === "Menu" && out.menu && Array.isArray(out.menu.items)) {
+    out.menu = {
+      ...out.menu,
+      items: out.menu.items.map((item: any) => {
+        if (!item || item.link === undefined) return item;
+        const normalized = normalizeLinkValue(item.link);
+        if (normalized === undefined) return item;
+        return { ...item, link: normalized };
+      }),
+    };
+  }
+
+  return out as T;
 }

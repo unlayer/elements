@@ -89,27 +89,27 @@ exports[`Golden Template: Marketing Email > snapshot locks the full email HTML 1
 
   <!--[if (mso)|(IE)]><td style="padding:5px 15px"><![endif]-->
   
-  <span aria-label="Menu item - Shop" style="padding:5px 15px;display:inline-block;color:#444444;font-size:14px;" class="v-padding v-font-size v-layout-display v-font-weight v-letter-spacing">
-    Shop
-  </span>
+    <a aria-label="Menu item - Shop" href="/shop" target="_blank" style="padding:5px 15px;display:inline-block;color:#0068A5;font-size:14px;text-decoration:none"  class="v-padding v-font-size v-layout-display v-font-weight v-letter-spacing">
+      Shop
+    </a>
   
   <!--[if (mso)|(IE)]></td><![endif]-->
   
 
   <!--[if (mso)|(IE)]><td style="padding:5px 15px"><![endif]-->
   
-  <span aria-label="Menu item - About" style="padding:5px 15px;display:inline-block;color:#444444;font-size:14px;" class="v-padding v-font-size v-layout-display v-font-weight v-letter-spacing">
-    About
-  </span>
+    <a aria-label="Menu item - About" href="/about" target="_blank" style="padding:5px 15px;display:inline-block;color:#0068A5;font-size:14px;text-decoration:none"  class="v-padding v-font-size v-layout-display v-font-weight v-letter-spacing">
+      About
+    </a>
   
   <!--[if (mso)|(IE)]></td><![endif]-->
   
 
   <!--[if (mso)|(IE)]><td style="padding:5px 15px"><![endif]-->
   
-  <span aria-label="Menu item - Contact" style="padding:5px 15px;display:inline-block;color:#444444;font-size:14px;" class="v-padding v-font-size v-layout-display v-font-weight v-letter-spacing">
-    Contact
-  </span>
+    <a aria-label="Menu item - Contact" href="/contact" target="_blank" style="padding:5px 15px;display:inline-block;color:#0068A5;font-size:14px;text-decoration:none"  class="v-padding v-font-size v-layout-display v-font-weight v-letter-spacing">
+      Contact
+    </a>
   
   <!--[if (mso)|(IE)]></td><![endif]-->
   
@@ -175,7 +175,7 @@ exports[`Golden Template: Marketing Email > snapshot locks the full email HTML 1
   <!--[if mso]><style>.v-button {background: transparent !important;}</style><![endif]-->
 <div class="v-text-align" align="center">
   <!--[if mso]><v:roundrect xmlns:v="urn:schemas-microsoft-com:vml" xmlns:w="urn:schemas-microsoft-com:office:word" href="" style="height:45px; v-text-anchor:middle; width:120px;" arcsize="13.5%"  stroke="f" fillcolor="#e63946"><w:anchorlock/><center style="color:#ffffff;"><![endif]-->
-    <a href="" class="v-button v-size-width v-button-colors v-border v-border-radius v-font-family v-font-size v-font-weight v-letter-spacing" style="box-sizing: border-box;display: inline-block;text-decoration: none;-webkit-text-size-adjust: none;text-align: center;color: #ffffff; background-color: #e63946; border-radius: 6px;-webkit-border-radius: 6px; -moz-border-radius: 6px; width:auto; max-width:100%; overflow-wrap: break-word; word-break: break-word; word-wrap:break-word; mso-border-alt: none;font-size: 16px;">
+    <a href="" target="_blank" class="v-button v-size-width v-button-colors v-border v-border-radius v-font-family v-font-size v-font-weight v-letter-spacing" style="box-sizing: border-box;display: inline-block;text-decoration: none;-webkit-text-size-adjust: none;text-align: center;color: #ffffff; background-color: #e63946; border-radius: 6px;-webkit-border-radius: 6px; -moz-border-radius: 6px; width:auto; max-width:100%; overflow-wrap: break-word; word-break: break-word; word-wrap:break-word; mso-border-alt: none;font-size: 16px;">
       <span class="v-line-height v-padding" style="display:block;padding:10px 20px;line-height:120%;">Shop Now</span>
     </a>
     <!--[if mso]></center></v:roundrect><![endif]-->
@@ -284,7 +284,7 @@ exports[`Golden Template: Marketing Email > snapshot locks the full email HTML 1
   <!--[if mso]><style>.v-button {background: transparent !important;}</style><![endif]-->
 <div class="v-text-align" align="center">
   <!--[if mso]><v:roundrect xmlns:v="urn:schemas-microsoft-com:vml" xmlns:w="urn:schemas-microsoft-com:office:word" href="" style="height:45px; v-text-anchor:middle; width:120px;" arcsize="9%"  stroke="f" fillcolor="#1a1a2e"><w:anchorlock/><center style="color:#ffffff;"><![endif]-->
-    <a href="" class="v-button v-size-width v-button-colors v-border v-border-radius v-font-family v-font-size v-font-weight v-letter-spacing" style="box-sizing: border-box;display: inline-block;text-decoration: none;-webkit-text-size-adjust: none;text-align: center;color: #ffffff; background-color: #1a1a2e; border-radius: 4px;-webkit-border-radius: 4px; -moz-border-radius: 4px; width:auto; max-width:100%; overflow-wrap: break-word; word-break: break-word; word-wrap:break-word; mso-border-alt: none;font-size: 14px;">
+    <a href="" target="_blank" class="v-button v-size-width v-button-colors v-border v-border-radius v-font-family v-font-size v-font-weight v-letter-spacing" style="box-sizing: border-box;display: inline-block;text-decoration: none;-webkit-text-size-adjust: none;text-align: center;color: #ffffff; background-color: #1a1a2e; border-radius: 4px;-webkit-border-radius: 4px; -moz-border-radius: 4px; width:auto; max-width:100%; overflow-wrap: break-word; word-break: break-word; word-wrap:break-word; mso-border-alt: none;font-size: 14px;">
       <span class="v-line-height v-padding" style="display:block;padding:10px 20px;line-height:120%;">Buy</span>
     </a>
     <!--[if mso]></center></v:roundrect><![endif]-->
@@ -316,7 +316,7 @@ exports[`Golden Template: Marketing Email > snapshot locks the full email HTML 1
   <!--[if mso]><style>.v-button {background: transparent !important;}</style><![endif]-->
 <div class="v-text-align" align="center">
   <!--[if mso]><v:roundrect xmlns:v="urn:schemas-microsoft-com:vml" xmlns:w="urn:schemas-microsoft-com:office:word" href="" style="height:45px; v-text-anchor:middle; width:120px;" arcsize="9%"  stroke="f" fillcolor="#1a1a2e"><w:anchorlock/><center style="color:#ffffff;"><![endif]-->
-    <a href="" class="v-button v-size-width v-button-colors v-border v-border-radius v-font-family v-font-size v-font-weight v-letter-spacing" style="box-sizing: border-box;display: inline-block;text-decoration: none;-webkit-text-size-adjust: none;text-align: center;color: #ffffff; background-color: #1a1a2e; border-radius: 4px;-webkit-border-radius: 4px; -moz-border-radius: 4px; width:auto; max-width:100%; overflow-wrap: break-word; word-break: break-word; word-wrap:break-word; mso-border-alt: none;font-size: 14px;">
+    <a href="" target="_blank" class="v-button v-size-width v-button-colors v-border v-border-radius v-font-family v-font-size v-font-weight v-letter-spacing" style="box-sizing: border-box;display: inline-block;text-decoration: none;-webkit-text-size-adjust: none;text-align: center;color: #ffffff; background-color: #1a1a2e; border-radius: 4px;-webkit-border-radius: 4px; -moz-border-radius: 4px; width:auto; max-width:100%; overflow-wrap: break-word; word-break: break-word; word-wrap:break-word; mso-border-alt: none;font-size: 14px;">
       <span class="v-line-height v-padding" style="display:block;padding:10px 20px;line-height:120%;">Buy</span>
     </a>
     <!--[if mso]></center></v:roundrect><![endif]-->
