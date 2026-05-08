@@ -1,1 +1,0 @@
-import{c as e,m as o,w as n,e as p}from"./create-component-D1HwNzNo.js";const t={...n,text:"Button"},r=e({name:"Button",defaultValues:t,propMapper:a=>o(a,t,"Button"),displayName:"Button",exporters:p});export{r as B};
