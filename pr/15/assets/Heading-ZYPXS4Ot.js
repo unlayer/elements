@@ -1,0 +1,1 @@
+import{c as r,f as s,m as p,u as i}from"./create-component-CilbWBRF.js";const t={...s,color:"#000000",fontWeight:400,text:"Heading"},m=r({name:"Heading",defaultValues:t,propMapper:n=>{const{level:a,...o}=n,e=p(o,t,"Heading");return a&&!e.headingType&&(e.headingType=a),e},displayName:"Heading",exporters:i});export{m as H};
