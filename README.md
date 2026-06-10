@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="https://unlayer.com/logo.svg" alt="Unlayer Elements" width="200" />
+  <img src="https://unlayer.com/logo_square.png" alt="Unlayer Elements" width="50" />
 </p>
 
 <h1 align="center">Unlayer Elements</h1>
