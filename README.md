@@ -23,6 +23,15 @@ Write email templates, landing pages, and printable documents using familiar Rea
 - **Web** — responsive div + flexbox HTML for web pages
 - **Document** — print-optimized HTML for PDF generation
 
+
+### How It Works
+
+Write once in React. Render anywhere — email, web or PDF.
+
+<p align="center">
+  <img src="https://unlayer.com/images/unlayer-elements-dark.png" alt="Unlayer Elements: Architecture" width="1200" />
+</p>
+
 ## Quick Start
 
 ```bash
