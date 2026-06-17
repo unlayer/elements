@@ -5,7 +5,7 @@
 <h1 align="center">Unlayer Elements</h1>
 
 <p align="center">
-  React components for building emails, pages, and documents in code.
+  Write once in React. Render emails, web pages, and PDFs from the same component tree.
 </p>
 
 <p align="center">
@@ -17,20 +17,32 @@
 
 ---
 
-Write email templates, landing pages, and printable documents using familiar React components. Unlayer Elements renders to **three distinct outputs** from the same component tree:
+<p align="center">
+  <img src="./assets/elements-demo.gif" alt="Unlayer Elements: the same JSX rendered as email, web, and document output" width="800" />
+</p>
 
-- **Email** — table-based HTML safe for Outlook, Gmail, Yahoo, and all major email clients
-- **Web** — responsive div + flexbox HTML for web pages
-- **Document** — print-optimized HTML for PDF generation
+Unlayer Elements is an open-source React component library that lets you build content once and render it across three output modes:
 
-
-### How It Works
-
-Write once in React. Render anywhere — email, web or PDF.
+- **Email** → Outlook, Gmail, Yahoo, Apple Mail
+- **Web** → Responsive pages and embedded experiences
+- **Document** → Print-ready HTML for PDF generation
 
 <p align="center">
   <img src="https://unlayer.com/images/unlayer-elements-dark.png" alt="Unlayer Elements: Architecture" width="1200" />
 </p>
+
+Elements is built and maintained by the team behind [Unlayer](https://unlayer.com), the content creation platform used by thousands of companies to power email, page, and document experiences inside their products.
+
+## Why Elements?
+
+| Tool          | Email | Web | PDF |
+|---------------|:-----:|:---:|:---:|
+| React Email   |  ✅   | ❌  | ❌  |
+| MJML          |  ✅   | ❌  | ❌  |
+| PDF libraries |  ❌   | ❌  | ✅  |
+| **Elements**  |  ✅   | ✅  | ✅  |
+
+Elements is designed for teams that need to generate email, web, and document experiences from a single React codebase.
 
 ## Quick Start
 
@@ -75,13 +87,51 @@ const html = renderToHtml(<WelcomeEmail />);
 
 ## Features
 
-- **15 components** — Button, Heading, Paragraph, Image, Divider, Social, Menu, Table, Video, Html, and layout primitives (Email, Page, Document, Row, Column)
-- **3 render modes** — Email (tables), Web (flexbox), Document (print) from the same JSX
-- **Server Components** — works with Next.js App Router, Remix, and any SSR framework
-- **Clean HTML output** — `renderToHtml()` produces production-ready HTML with no framework artifacts
-- **Design JSON** — `renderToJson()` exports Unlayer-compatible design JSON for round-tripping with the visual editor
-- **TypeScript-first** — full type definitions with autocomplete for every prop
-- **Tiny bundle** — under 50KB ESM, tree-shakeable, zero client-side JS required
+### One Component Tree
+
+Build content once and render it as email, web, or document. Share components, styling, and content across all three output modes from the same React codebase.
+
+### React Developer Workflow
+
+Works with React, Next.js, Remix, and Server Components. Use familiar JSX patterns and existing frontend workflows without learning a new templating language.
+
+### Production Output
+
+Generates email-safe HTML, responsive web HTML, and print-ready HTML for PDF generation — optimized output for each destination without maintaining separate implementations.
+
+### Visual Builder Compatible
+
+Export Unlayer-compatible design JSON with `renderToJson()` for round-tripping between code and the visual editor. Ideal for teams that want the flexibility of code alongside visual editing workflows.
+
+### TypeScript First
+
+Built with TypeScript from the ground up — full type definitions, autocomplete for components and props, and safer development with better IDE support.
+
+### Clean HTML Output
+
+`renderToHtml()` generates production-ready HTML with no React hydration markers, no framework artifacts, and no client-side JavaScript required.
+
+### Lightweight & Tree-Shakeable
+
+~12KB gzipped (under 60KB ESM), tree-shakeable, with zero client-side JavaScript required. Designed for performance-sensitive applications and server-side rendering environments.
+
+## Real-World Use Cases
+
+### Transactional Emails
+
+Build and maintain order confirmations, password resets, and receipts from the same React codebase that powers your application.
+
+### PDF Generation
+
+Generate invoices, contracts, and reports server-side without maintaining a separate PDF system.
+
+### CMS-Driven Content
+
+Render content from a CMS, API, or database into emails, web pages, and documents using a shared component model.
+
+### Email + Web Parity
+
+Publish the same content as an email campaign, a web archive, and a public landing page from a single source of truth.
 
 ## Components
 
