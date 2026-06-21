@@ -131,6 +131,24 @@ ${widths.map(({ value, className }) => `  .no-stack .u-col-${className} { width:
 
 type ContainerExporterFunction = (innerHTML: string, values: Record<string, any>, bodyValues?: Record<string, any>, options?: Record<string, any>) => string;
 
+/**
+ * Resolve the row's content width (px number) from body values. contentWidth
+ * may be "600px" (string) or 600 (number); the grid CSS needs a number.
+ * In EMAIL mode this drives the per-column desktop widths and the stacking
+ * breakpoint — so without it, multi-column emails were pinned to 600px
+ * regardless of <Body contentWidth>. Web mode uses percentages, so this is
+ * a no-op there.
+ */
+function toContentWidthPx(bodyValues: any, fallback = 500): number {
+  const raw = bodyValues?.contentWidth;
+  if (typeof raw === "number" && Number.isFinite(raw)) return raw;
+  if (typeof raw === "string") {
+    const n = parseInt(raw, 10);
+    if (Number.isFinite(n)) return n;
+  }
+  return fallback;
+}
+
 function renderRowToHtml(innerHTML: string, values: any, bodyValues: any, mode: RenderMode, cells: number[], collection: string = "rows"): string {
   const rowExporter = (RowExporters[mode] || RowExporters.web) as ContainerExporterFunction;
   const html = rowExporter(innerHTML, values, bodyValues, {
@@ -138,7 +156,8 @@ function renderRowToHtml(innerHTML: string, values: any, bodyValues: any, mode: 
     variant: mode,
   });
 
-  const css = generateGridCSS(cells, mode);
+  const contentWidth = toContentWidthPx(bodyValues);
+  const css = generateGridCSS(cells, mode, contentWidth);
   return css ? `<style>${css}</style>${html}` : html;
 }
 

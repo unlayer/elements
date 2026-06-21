@@ -5,19 +5,19 @@ exports[`Render Snapshots > Body + Row + Column + Items > full tree email 1`] = 
 
   <!--[if IE]><div class="ie-container"><![endif]-->
   <!--[if mso]><div class="mso-container"><![endif]-->
-  <table role="presentation" id="u_body_1" style="border-collapse: collapse;table-layout: fixed;border-spacing: 0;mso-table-lspace: 0pt;mso-table-rspace: 0pt;vertical-align: top;min-width: 320px;Margin: 0 auto;background-color: transparent;width:100%" cellpadding="0" cellspacing="0">
+  <table role="presentation" id="u_body_1" style="border-collapse: collapse;table-layout: fixed;border-spacing: 0;mso-table-lspace: 0pt;mso-table-rspace: 0pt;vertical-align: top;min-width: 320px;Margin: 0 auto;background-color: #F7F8F9;width:100%" cellpadding="0" cellspacing="0">
   <tbody>
   <tr style="vertical-align: top">
     <td style="word-break: break-word;border-collapse: collapse !important;vertical-align: top">
-    <!--[if (mso)|(IE)]><table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"><tr><td align="center" style="background-color: transparent;"><table role="presentation" cellpadding="0" cellspacing="0" border="0" width="600" align="center" style="border-collapse: collapse;"><tr><td style="padding:0;"><![endif]-->
+    <!--[if (mso)|(IE)]><table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"><tr><td align="center" style="background-color: #F7F8F9;" bgcolor="#F7F8F9"><table role="presentation" cellpadding="0" cellspacing="0" border="0" width="500" align="center" style="border-collapse: collapse;"><tr><td style="padding:0;"><![endif]-->
     <div><style>
-@media only screen and (min-width: 620px) {
-  .u-row { width: 600px !important; }
+@media only screen and (min-width: 520px) {
+  .u-row { width: 500px !important; }
   .u-row .u-col { vertical-align: top; }
-  .u-row .u-col-100 { width: 600px !important; }
+  .u-row .u-col-100 { width: 500px !important; }
 }
 
-@media only screen and (max-width: 620px) {
+@media only screen and (max-width: 520px) {
   .u-row-container { max-width: 100% !important; padding-left: 0px !important; padding-right: 0px !important; }
   .u-row { width: 100% !important; }
   .u-row .u-col { display: block !important; width: 100% !important; min-width: 320px !important; max-width: 100% !important; }
@@ -180,11 +180,11 @@ exports[`Render Snapshots > Body > email 1`] = `
 
   <!--[if IE]><div class="ie-container"><![endif]-->
   <!--[if mso]><div class="mso-container"><![endif]-->
-  <table role="presentation" id="u_body_1" style="border-collapse: collapse;table-layout: fixed;border-spacing: 0;mso-table-lspace: 0pt;mso-table-rspace: 0pt;vertical-align: top;min-width: 320px;Margin: 0 auto;background-color: transparent;width:100%" cellpadding="0" cellspacing="0">
+  <table role="presentation" id="u_body_1" style="border-collapse: collapse;table-layout: fixed;border-spacing: 0;mso-table-lspace: 0pt;mso-table-rspace: 0pt;vertical-align: top;min-width: 320px;Margin: 0 auto;background-color: #F7F8F9;width:100%" cellpadding="0" cellspacing="0">
   <tbody>
   <tr style="vertical-align: top">
     <td style="word-break: break-word;border-collapse: collapse !important;vertical-align: top">
-    <!--[if (mso)|(IE)]><table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"><tr><td align="center" style="background-color: transparent;"><table role="presentation" cellpadding="0" cellspacing="0" border="0" width="600" align="center" style="border-collapse: collapse;"><tr><td style="padding:0;"><![endif]-->
+    <!--[if (mso)|(IE)]><table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"><tr><td align="center" style="background-color: #F7F8F9;" bgcolor="#F7F8F9"><table role="presentation" cellpadding="0" cellspacing="0" border="0" width="500" align="center" style="border-collapse: collapse;"><tr><td style="padding:0;"><![endif]-->
     
     <!--[if (mso)|(IE)]></td></tr></table></td></tr></table><![endif]-->
     </td>

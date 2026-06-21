@@ -42,8 +42,8 @@ function renderColumnToHtml(innerHTML: string, values: any, index: number, cells
 
 // Canonical content-container wrapper (the `u_content_*` block that carries
 // each item's containerPadding). Signature per mode: (innerHTML, values,
-// bodyValues, meta). Using the exporter keeps padding, classes, and the
-// per-mode div/table structure identical to the editor's own output.
+// bodyValues, meta). Delegating to the exporter keeps padding, classes, and the
+// per-mode div/table structure consistent with the canonical exporter output.
 type ContentExporterFunction = (innerHTML: string, values: Record<string, any>, bodyValues?: Record<string, any>, meta?: Record<string, any>) => string;
 
 function renderContentToHtml(innerHTML: string, values: any, bodyValues: any, mode: RenderMode): string {
@@ -155,8 +155,7 @@ export const Column: React.FC<ColumnProps> = (props) => {
                 childProps.values?.containerPadding ??
                 DEFAULT_CONTAINER_PADDING;
 
-              // Wrap via the canonical content-container exporter (matches the
-              // editor's output for this mode).
+              // Wrap via the canonical content-container exporter for this mode.
               const contentValues = {
                 containerPadding,
                 _meta: {

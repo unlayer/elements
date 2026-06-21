@@ -1,7 +1,7 @@
 import React from "react";
 import ReactDOMServer from "react-dom/server";
 import type { RenderMode, UnlayerConfig, BodyValues } from "@unlayer-internal/shared-elements";
-import { DEFAULT_CONFIG } from "@unlayer-internal/shared-elements";
+import { DEFAULT_CONFIG, mergeValues } from "@unlayer-internal/shared-elements";
 import { BodyExporters } from "@unlayer/exporters";
 import { mapSemanticProps, type SemanticProps } from "../utils/semantic-props";
 import { BODY_DEFAULTS } from "../utils/container-defaults";
@@ -68,9 +68,21 @@ function renderBodyToHtml(innerHTML: string, values: any, mode: RenderMode, prev
   }
 
   const bodyExporter = (BodyExporters[mode] || BodyExporters.web) as ContainerExporterFunction;
-  const raw = mode === "document"
-    ? bodyExporter(finalInnerHtml, values, { type: "" })
-    : bodyExporter(finalInnerHtml, values, values);
+  // The email body exporter reads body context (contentWidth, contentAlign)
+  // from `arg3.bodyValues` — it drives the Outlook (MSO) container table width.
+  // Passing `values` directly left `bodyValues` undefined, pinning the Outlook
+  // table to 600px regardless of contentWidth (modern clients were fine via the
+  // container max-width, so non-600px emails rendered narrow only in Outlook).
+  const raw =
+    mode === "document"
+      ? bodyExporter(finalInnerHtml, values, { type: "" })
+      : mode === "email"
+        ? // The email body exporter reads body context (contentWidth,
+          // contentAlign) from the `bodyValues` field of its 3rd argument.
+          // Passing `values` directly left it undefined, so the Outlook (MSO)
+          // table fell back to 600px regardless of contentWidth.
+          bodyExporter(finalInnerHtml, values, { bodyValues: values })
+        : bodyExporter(finalInnerHtml, values, values);
 
   return raw
     .replace('min-height: 100vh; ', '')
@@ -114,8 +126,16 @@ const Body: React.FC<BodyProps> = (props) => {
   // Build _config to thread through children
   const _config: UnlayerConfig = { ...resolvedConfig, mode };
 
-  // Map semantic props to values
-  const values = mapSemanticProps<BodyValues>(semanticProps, DEFAULT_VALUES, "Body");
+  // Map semantic props, then merge BODY_DEFAULTS on top so the body always
+  // carries its full default values (notably contentWidth "500px", textColor
+  // "#000000") before rendering — the same way item components merge their
+  // defaults. Without this the body exporter / grid CSS fall back to their own
+  // internal defaults (e.g. 600px) instead of the schema default, so the
+  // Outlook table, container, and grid CSS disagree. Mapped values win.
+  const values = mergeValues<BodyValues>(
+    DEFAULT_VALUES,
+    mapSemanticProps<BodyValues>(semanticProps, DEFAULT_VALUES, "Body")
+  );
 
   // Ensure _meta
   const valuesWithMeta = {
