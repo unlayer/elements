@@ -1,8 +1,7 @@
 import React from "react";
 import type { RenderMode, UnlayerConfig, ColumnValues } from "@unlayer-internal/shared-elements";
-import { mergeValues } from "@unlayer-internal/shared-elements";
 import { ColumnExporters, ContentExporters } from "@unlayer/exporters";
-import { UNLAYER_RENDER_KEY, UNLAYER_CONFIG_KEY } from "../utils/create-component";
+import { UNLAYER_RENDER_KEY } from "../utils/create-component";
 import { mapSemanticProps, type SemanticProps } from "../utils/semantic-props";
 import { COLUMN_DEFAULTS } from "../utils/container-defaults";
 
@@ -137,21 +136,23 @@ export const Column: React.FC<ColumnProps> = (props) => {
                 "component"
               ).toLowerCase();
 
-              // Resolve the block's OWN containerPadding through the item's
-              // prop pipeline (flat props, `values` escape hatch, and item
-              // defaults) — exactly as the item resolves it. Previously this
-              // read `child.props.values?.containerPadding`, which is undefined
-              // for the flat-prop API, so every block silently collapsed to the
-              // column's padding. Falls back to Unlayer's content default.
-              const itemConfig = componentType?.[UNLAYER_CONFIG_KEY];
-              const itemValues = itemConfig
-                ? mergeValues(
-                    itemConfig.defaultValues,
-                    itemConfig.propMapper(child.props)
-                  )
-                : {};
+              // Resolve the block's OWN containerPadding directly from props.
+              // `containerPadding` is a universal base-content prop: it passes
+              // straight through mapSemanticProps untouched and is not present in
+              // any item's defaultValues, so reading it from props (flat prop +
+              // `values` escape hatch) is equivalent to running the item's full
+              // value pipeline — without paying for a second propMapper call per
+              // child (for Paragraph that re-runs the Lexical textJson convert).
+              // Falls back to Unlayer's content default. (Previously this read
+              // `child.props.values?.containerPadding` only, which is undefined
+              // for the flat-prop API, so every block collapsed to 0px padding.)
+              const childProps = child.props as {
+                containerPadding?: string;
+                values?: { containerPadding?: string };
+              };
               const containerPadding =
-                (itemValues as { containerPadding?: string }).containerPadding ??
+                childProps.containerPadding ??
+                childProps.values?.containerPadding ??
                 DEFAULT_CONTAINER_PADDING;
 
               // Wrap via the canonical content-container exporter (matches the

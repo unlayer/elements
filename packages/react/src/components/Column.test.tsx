@@ -119,4 +119,18 @@ describe("Column Component", () => {
     expect(html).toContain("padding: 0px");
     expect(html).not.toContain("padding: 10px");
   });
+
+  it("honors containerPadding supplied via the `values` escape hatch", () => {
+    const html = renderToHtml(
+      <Body>
+        <Row>
+          <Column>
+            {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
+            <Heading values={{ containerPadding: "7px 9px" } as any}>Hi</Heading>
+          </Column>
+        </Row>
+      </Body>
+    );
+    expect(html).toContain("padding: 7px 9px");
+  });
 });
