@@ -1,0 +1,1 @@
+import{c as p,m as e,r as o,t as s}from"./create-component-Dyvf536Z.js";const a={...o,color:"#000000"},m=p({name:"Paragraph",defaultValues:a,propMapper:r=>e(r,a,"Paragraph"),displayName:"Paragraph",exporters:s});export{m as P};
