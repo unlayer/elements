@@ -69,6 +69,29 @@ describe("Body Component", () => {
     expect(container.innerHTML).toContain("v:roundrect");
   });
 
+  // Regression: <Body contentWidth> must drive the row container width.
+  // Previously Body cloned children with only `_config`, so Row fell back to
+  // BODY_DEFAULTS.contentWidth ("500px") and the prop was ignored for layout —
+  // which made multi-column web layouts compute the wrong column widths.
+  it("threads contentWidth to the row container (web)", () => {
+    const { container } = render(
+      <Body contentWidth="960px" mode="web">
+        <Row><Column><Paragraph>x</Paragraph></Column></Row>
+      </Body>
+    );
+    expect(container.innerHTML).toContain("max-width: 960px");
+    expect(container.innerHTML).not.toContain("max-width: 500px");
+  });
+
+  it("falls back to the default contentWidth when unset", () => {
+    const { container } = render(
+      <Body mode="web">
+        <Row><Column><Paragraph>x</Paragraph></Column></Row>
+      </Body>
+    );
+    expect(container.innerHTML).toContain("max-width: 500px");
+  });
+
   it("has correct displayName", () => {
     expect(Body.displayName).toBe("Body");
   });

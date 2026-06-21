@@ -127,12 +127,19 @@ const Body: React.FC<BodyProps> = (props) => {
     }
   };
 
-  // Clone children with _config prop so Row/Column/items receive it
+  // Clone children with _config AND the body's resolved values so Row/Column
+  // inherit body-level context — notably `contentWidth`, which determines the
+  // row container max-width (and therefore each column's width) in web mode.
+  // Without this, Row falls back to BODY_DEFAULTS.contentWidth ("500px") and
+  // <Body contentWidth="…"> is silently ignored for layout.
   let enrichedChildren = children;
   if (children) {
     enrichedChildren = React.Children.map(children, (child) => {
       if (React.isValidElement(child)) {
-        return React.cloneElement(child as React.ReactElement<any>, { _config });
+        return React.cloneElement(child as React.ReactElement<any>, {
+          _config,
+          bodyValues: values,
+        });
       }
       return child;
     });
