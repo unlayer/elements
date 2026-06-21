@@ -1003,7 +1003,8 @@ export const StatsBar: Story = {
         mode="web"
       >
         <Column padding="0 16px">
-          <Paragraph
+          <Heading
+            level="h3"
             text="2.4M"
             fontSize="44px"
             fontWeight={800}
@@ -1038,7 +1039,8 @@ export const StatsBar: Story = {
           />
         </Column>
         <Column padding="0 16px">
-          <Paragraph
+          <Heading
+            level="h3"
             text="68.4%"
             fontSize="44px"
             fontWeight={800}
@@ -1073,7 +1075,8 @@ export const StatsBar: Story = {
           />
         </Column>
         <Column padding="0 16px">
-          <Paragraph
+          <Heading
+            level="h3"
             text="14.2%"
             fontSize="44px"
             fontWeight={800}
@@ -1108,7 +1111,8 @@ export const StatsBar: Story = {
           />
         </Column>
         <Column padding="0 16px">
-          <Paragraph
+          <Heading
+            level="h3"
             text="0.02%"
             fontSize="44px"
             fontWeight={800}

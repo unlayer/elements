@@ -665,7 +665,8 @@ export const SaaSLanding: Story = {
         mode="web"
       >
         <Column padding="0 24px 0 0">
-          <Paragraph
+          <Heading
+            level="h3"
             text="140ms"
             fontSize="40px"
             fontWeight={800}
@@ -687,7 +688,8 @@ export const SaaSLanding: Story = {
           />
         </Column>
         <Column padding="0 12px">
-          <Paragraph
+          <Heading
+            level="h3"
             text="99.99%"
             fontSize="40px"
             fontWeight={800}
@@ -709,7 +711,8 @@ export const SaaSLanding: Story = {
           />
         </Column>
         <Column padding="0 0 0 24px">
-          <Paragraph
+          <Heading
+            level="h3"
             text="12,000+"
             fontSize="40px"
             fontWeight={800}
