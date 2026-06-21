@@ -138,7 +138,7 @@ export const ProductImage: Story = {
 export const ThumbnailImage: Story = {
   args: {
     src: {
-      url: "https://images.unsplash.com/photo-1486312338219-ce68e2c6b7d3?ixlib=rb-4.0.3&auto=format&fit=crop&w=300&h=200",
+      url: "https://images.unsplash.com/photo-1498050108023-c5249f4df085?ixlib=rb-4.0.3&auto=format&fit=crop&w=300&h=200",
       width: 300,
       height: 200
     },
@@ -316,7 +316,7 @@ export const ImageShowcase: Story = {
           />
           <Image
             src={{
-              url: "https://images.unsplash.com/photo-1494790108755-2616b612b742?w=100&h=100&fit=crop",
+              url: "https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=100&h=100&fit=crop",
               width: 100,
               height: 100
             }}
