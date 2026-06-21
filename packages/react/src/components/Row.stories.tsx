@@ -677,19 +677,24 @@ export const EditorialWithStats: Story = {
           </Button>
         </Column>
 
-        {/* Narrow -- Stats */}
-        <Column padding="8px 0 0 0">
-          <Paragraph
-            text="73%"
-            fontSize="52px"
+        {/* Narrow -- Stats. Big numbers use Heading (not Paragraph): a <p>'s
+            default 1em margin scales with font-size, so a 52px stat would carry
+            ~52px of phantom top/bottom margin and balloon this column. */}
+        <Column padding="4px 0 0 0">
+          <Heading
+            level="h3"
+            fontSize="50px"
             color="#38bdf8"
             fontWeight={800}
             textAlign="center"
             lineHeight="1"
-            containerPadding="0 0 10px 0"
+            letterSpacing="-0.02em"
+            containerPadding="0 0 8px 0"
             fontFamily={{ label: "Sans Serif", value: "system-ui, -apple-system, sans-serif" }}
             mode="web"
-          />
+          >
+            73%
+          </Heading>
           <Paragraph
             text="of users prefer fewer, well-crafted features"
             fontSize="13px"
@@ -697,21 +702,24 @@ export const EditorialWithStats: Story = {
             textAlign="center"
             lineHeight="1.5"
             fontWeight={400}
-            containerPadding="0 12px 44px 12px"
+            containerPadding="0 16px 30px 16px"
             fontFamily={{ label: "Sans Serif", value: "system-ui, -apple-system, sans-serif" }}
             mode="web"
           />
-          <Paragraph
-            text="2.4x"
-            fontSize="52px"
+          <Heading
+            level="h3"
+            fontSize="50px"
             color="#a78bfa"
             fontWeight={800}
             textAlign="center"
             lineHeight="1"
-            containerPadding="0 0 10px 0"
+            letterSpacing="-0.02em"
+            containerPadding="0 0 8px 0"
             fontFamily={{ label: "Sans Serif", value: "system-ui, -apple-system, sans-serif" }}
             mode="web"
-          />
+          >
+            2.4x
+          </Heading>
           <Paragraph
             text="higher retention for focused products"
             fontSize="13px"
@@ -719,21 +727,24 @@ export const EditorialWithStats: Story = {
             textAlign="center"
             lineHeight="1.5"
             fontWeight={400}
-            containerPadding="0 12px 44px 12px"
+            containerPadding="0 16px 30px 16px"
             fontFamily={{ label: "Sans Serif", value: "system-ui, -apple-system, sans-serif" }}
             mode="web"
           />
-          <Paragraph
-            text="18 mo."
-            fontSize="52px"
+          <Heading
+            level="h3"
+            fontSize="50px"
             color="#34d399"
             fontWeight={800}
             textAlign="center"
             lineHeight="1"
-            containerPadding="0 0 10px 0"
+            letterSpacing="-0.02em"
+            containerPadding="0 0 8px 0"
             fontFamily={{ label: "Sans Serif", value: "system-ui, -apple-system, sans-serif" }}
             mode="web"
-          />
+          >
+            18 mo.
+          </Heading>
           <Paragraph
             text="avg. time-to-payback for design investment"
             fontSize="13px"
@@ -741,7 +752,7 @@ export const EditorialWithStats: Story = {
             textAlign="center"
             lineHeight="1.5"
             fontWeight={400}
-            containerPadding="0 12px 0 12px"
+            containerPadding="0 16px 0 16px"
             fontFamily={{ label: "Sans Serif", value: "system-ui, -apple-system, sans-serif" }}
             mode="web"
           />
