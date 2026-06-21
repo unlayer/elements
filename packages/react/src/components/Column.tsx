@@ -1,9 +1,13 @@
 import React from "react";
 import type { RenderMode, UnlayerConfig, ColumnValues } from "@unlayer-internal/shared-elements";
-import { ColumnExporters } from "@unlayer/exporters";
-import { UNLAYER_RENDER_KEY } from "../utils/create-component";
+import { mergeValues } from "@unlayer-internal/shared-elements";
+import { ColumnExporters, ContentExporters } from "@unlayer/exporters";
+import { UNLAYER_RENDER_KEY, UNLAYER_CONFIG_KEY } from "../utils/create-component";
 import { mapSemanticProps, type SemanticProps } from "../utils/semantic-props";
 import { COLUMN_DEFAULTS } from "../utils/container-defaults";
+
+/** Unlayer's default content-block padding when a block sets none. */
+const DEFAULT_CONTAINER_PADDING = "10px";
 
 /**
  * Column - Single column in a Row layout
@@ -35,6 +39,17 @@ type ColumnExporterFunction = (innerHTML: string, values: Record<string, any>, i
 function renderColumnToHtml(innerHTML: string, values: any, index: number, cells: number[], bodyValues: any, rowValues: any, mode: RenderMode): string {
   const columnExporter = (ColumnExporters[mode] || ColumnExporters.web) as ColumnExporterFunction;
   return columnExporter(innerHTML, values, index, cells, bodyValues, rowValues);
+}
+
+// Canonical content-container wrapper (the `u_content_*` block that carries
+// each item's containerPadding). Signature per mode: (innerHTML, values,
+// bodyValues, meta). Using the exporter keeps padding, classes, and the
+// per-mode div/table structure identical to the editor's own output.
+type ContentExporterFunction = (innerHTML: string, values: Record<string, any>, bodyValues?: Record<string, any>, meta?: Record<string, any>) => string;
+
+function renderContentToHtml(innerHTML: string, values: any, bodyValues: any, mode: RenderMode): string {
+  const contentExporter = (ContentExporters[mode] || ContentExporters.web) as ContentExporterFunction;
+  return contentExporter(innerHTML, values, bodyValues, {});
 }
 
 // ============================================
@@ -116,20 +131,44 @@ export const Column: React.FC<ColumnProps> = (props) => {
               const componentHTML =
                 rendered.props.dangerouslySetInnerHTML.__html;
               const componentType = child.type as any;
-              const componentName =
+              const componentName = (
                 componentType?.displayName ||
                 componentType?.name ||
-                "component";
+                "component"
+              ).toLowerCase();
 
-              // Extract containerPadding from child values if available
-              const componentProps = child.props as {
-                values?: { containerPadding?: string };
-              };
+              // Resolve the block's OWN containerPadding through the item's
+              // prop pipeline (flat props, `values` escape hatch, and item
+              // defaults) — exactly as the item resolves it. Previously this
+              // read `child.props.values?.containerPadding`, which is undefined
+              // for the flat-prop API, so every block silently collapsed to the
+              // column's padding. Falls back to Unlayer's content default.
+              const itemConfig = componentType?.[UNLAYER_CONFIG_KEY];
+              const itemValues = itemConfig
+                ? mergeValues(
+                    itemConfig.defaultValues,
+                    itemConfig.propMapper(child.props)
+                  )
+                : {};
               const containerPadding =
-                componentProps.values?.containerPadding || DEFAULT_VALUES.padding || "10px";
+                (itemValues as { containerPadding?: string }).containerPadding ??
+                DEFAULT_CONTAINER_PADDING;
 
-              // Wrap in Content container (matches unlayer pattern)
-              innerHTML += `<div id="u_content_${componentName.toLowerCase()}_${childIndex + 1}" class="u_content_${componentName.toLowerCase()}" style="padding: ${containerPadding};">${componentHTML}</div>`;
+              // Wrap via the canonical content-container exporter (matches the
+              // editor's output for this mode).
+              const contentValues = {
+                containerPadding,
+                _meta: {
+                  htmlID: `u_content_${componentName}_${childIndex + 1}`,
+                  htmlClassNames: `u_content_${componentName}`,
+                },
+              };
+              innerHTML += renderContentToHtml(
+                componentHTML,
+                contentValues,
+                bodyValues,
+                mode
+              );
             } else if (rendered) {
               const name = (child.type as any)?.displayName || (child.type as any)?.name || "Unknown";
               console.warn(
