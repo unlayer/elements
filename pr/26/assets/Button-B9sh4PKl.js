@@ -1,0 +1,1 @@
+import{c as a,m as e,h as s,Q as n}from"./create-component-Crkrj-7h.js";const t={...s,text:"Button"},m=a({name:"Button",defaultValues:t,propMapper:o=>e(o,t,"Button"),displayName:"Button",exporters:n});export{m as B};
