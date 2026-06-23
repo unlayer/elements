@@ -56,7 +56,21 @@ const DEFAULT_VALUES = {
 const Button = createItemComponent<ButtonValues, SemanticProps<ButtonValues>>({
   name: "Button",
   defaultValues: DEFAULT_VALUES,
-  propMapper: (props) => mapSemanticProps(props, DEFAULT_VALUES, "Button"),
+  propMapper: (props) => {
+    const mapped = mapSemanticProps(props, DEFAULT_VALUES, "Button");
+    // An explicit width must pin the button width (size.autoWidth:false). With
+    // autoWidth:true the Builder auto-sizes the button to its content and drops
+    // the set width on selection — same round-trip issue as Image. Read the
+    // MAPPED size, which already includes the flat prop, the nested prop, AND
+    // the `values` escape hatch; mapSemanticProps does not inject the schema
+    // default, so a present size.width means the user set it. Honor an explicit
+    // autoWidth.
+    const size = (mapped as { size?: { width?: unknown; autoWidth?: unknown } }).size;
+    if (size && size.width !== undefined && size.autoWidth === undefined) {
+      (size as { autoWidth?: boolean }).autoWidth = false;
+    }
+    return mapped;
+  },
   displayName: "Button",
   exporters: ButtonExporters,
 });

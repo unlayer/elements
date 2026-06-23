@@ -2,6 +2,10 @@ import { describe, it, expect } from "vitest";
 import React from "react";
 import { render } from "@testing-library/react";
 import Button from "./Button";
+import Body from "./Body";
+import Row from "./Row";
+import { Column } from "./Column";
+import { renderToJson } from "../utils/render-to-json";
 
 describe("Button Component", () => {
   it("renders an anchor element with button text", () => {
@@ -121,6 +125,36 @@ describe("Button Component", () => {
         </Button>
       );
       expect(getHref(container)).toBe(URL);
+    });
+  });
+
+  // Regression (same class as Image): an explicit width must pin the
+  // button (size.autoWidth:false), else the Builder auto-sizes to content and
+  // drops the width on selection. No explicit width → stays auto.
+  describe("explicit width pins the button for Builder round-trip", () => {
+    function buttonSize(el: React.ReactElement): any {
+      const json = renderToJson(
+        <Body>
+          <Row>
+            <Column>{el}</Column>
+          </Row>
+        </Body>
+      );
+      return (json as any).body.rows[0].columns[0].contents[0].values.size;
+    }
+
+    it("explicit width → size.autoWidth:false", () => {
+      expect(buttonSize(<Button width="200px">x</Button>).autoWidth).toBe(false);
+    });
+
+    it("no explicit width → stays auto (size.autoWidth:true)", () => {
+      expect(buttonSize(<Button>x</Button>).autoWidth).toBe(true);
+    });
+
+    it("width via the values escape hatch also pins (size.autoWidth:false)", () => {
+      expect(
+        buttonSize(<Button values={{ size: { width: "200px" } } as any}>x</Button>).autoWidth
+      ).toBe(false);
     });
   });
 });
