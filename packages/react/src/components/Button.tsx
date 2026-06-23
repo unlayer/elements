@@ -65,8 +65,14 @@ const Button = createItemComponent<ButtonValues, SemanticProps<ButtonValues>>({
     // the `values` escape hatch; mapSemanticProps does not inject the schema
     // default, so a present size.width means the user set it. Honor an explicit
     // autoWidth.
-    const size = (mapped as { size?: { width?: unknown; autoWidth?: unknown } }).size;
-    if (size && size.width !== undefined && size.autoWidth === undefined) {
+    const size = (mapped as { size?: unknown }).size;
+    if (
+      size &&
+      typeof size === "object" &&
+      !Array.isArray(size) &&
+      (size as { width?: unknown }).width !== undefined &&
+      (size as { autoWidth?: unknown }).autoWidth === undefined
+    ) {
       (size as { autoWidth?: boolean }).autoWidth = false;
     }
     return mapped;

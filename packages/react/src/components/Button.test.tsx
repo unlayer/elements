@@ -156,5 +156,11 @@ describe("Button Component", () => {
         buttonSize(<Button values={{ size: { width: "200px" } } as any}>x</Button>).autoWidth
       ).toBe(false);
     });
+
+    it("tolerates a non-object values.size without throwing", () => {
+      expect(() =>
+        buttonSize(<Button values={{ size: "nonsense" } as any}>x</Button>)
+      ).not.toThrow();
+    });
   });
 });
