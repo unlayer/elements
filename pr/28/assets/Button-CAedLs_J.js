@@ -1,1 +1,0 @@
-import{c as s,h as n,m as p,Q as i}from"./create-component-XvZmf-2D.js";const e={...n,text:"Button"},m=s({name:"Button",defaultValues:e,propMapper:a=>{const o=p(a,e,"Button"),t=o.size;return t&&t.width!==void 0&&t.autoWidth===void 0&&(t.autoWidth=!1),o},displayName:"Button",exporters:i});export{m as B};
