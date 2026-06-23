@@ -2,6 +2,10 @@ import { describe, it, expect } from "vitest";
 import React from "react";
 import { render } from "@testing-library/react";
 import Image from "./Image";
+import Body from "./Body";
+import Row from "./Row";
+import { Column } from "./Column";
+import { renderToJson } from "../utils/render-to-json";
 
 describe("Image Component", () => {
   it("renders an img element", () => {
@@ -103,6 +107,37 @@ describe("Image Component", () => {
         />
       );
       expect(getAnchorHref(container)).toBe(URL);
+    });
+  });
+
+  // Regression (UNL-361): an explicit image width must pin the DISPLAY width so
+  // it survives the Builder round-trip. With autoWidth:true the Builder
+  // auto-sizes to the natural src.width and the intended width is dropped on
+  // selection. An explicit width must emit autoWidth:false + maxWidth:"<w>px";
+  // no explicit width stays responsive (autoWidth:true).
+  describe("explicit width pins display width for Builder round-trip", () => {
+    function imageSrc(el: React.ReactElement): any {
+      const json = renderToJson(
+        <Body>
+          <Row>
+            <Column>{el}</Column>
+          </Row>
+        </Body>
+      );
+      return (json as any).body.rows[0].columns[0].contents[0].values.src;
+    }
+
+    it("explicit width → autoWidth:false + maxWidth in px", () => {
+      const src = imageSrc(
+        <Image src={{ url: "https://x/p.jpg", width: 300, height: 200 } as any} />
+      );
+      expect(src.autoWidth).toBe(false);
+      expect(src.maxWidth).toBe("300px");
+    });
+
+    it("no explicit width → stays responsive (autoWidth:true)", () => {
+      expect(imageSrc(<Image src="https://x/p.jpg" />).autoWidth).toBe(true);
+      expect(imageSrc(<Image src={{ url: "https://x/p.jpg" } as any} />).autoWidth).toBe(true);
     });
   });
 });
