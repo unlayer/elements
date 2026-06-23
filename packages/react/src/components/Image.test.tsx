@@ -154,6 +154,17 @@ describe("Image Component", () => {
       expect(src.autoWidth).toBe(false);
     });
 
+    // width is the NATURAL size, maxWidth is the DISPLAY size. When both are
+    // given, the explicit maxWidth must win — a natural width must not clobber it.
+    it("explicit maxWidth wins over a natural width (not overwritten)", () => {
+      const src = imageSrc(
+        <Image src={{ url: "https://x/p.jpg", width: 1600, maxWidth: "50%" } as any} />
+      );
+      expect(src.autoWidth).toBe(false);
+      expect(src.maxWidth).toBe("50%");
+      expect(src.width).toBe(1600);
+    });
+
     it("honors an explicit autoWidth even with a width", () => {
       const src = imageSrc(
         <Image src={{ url: "https://x/p.jpg", width: 300, autoWidth: true } as any} />

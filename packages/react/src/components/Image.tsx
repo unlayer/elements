@@ -99,16 +99,18 @@ const Image = createItemComponent<ImageValues, ImageSemanticProps>({
       // An explicit width must pin the DISPLAY width. In Unlayer the display
       // width is governed by autoWidth + maxWidth — `src.width` is the *natural*
       // size. With autoWidth:true the Builder auto-sizes to the natural width
-      // and drops the intended width when the image is selected. So an explicit
-      // width (from any path) sets autoWidth:false + maxWidth:"<w>px"; an
-      // explicit maxWidth alone also implies a fixed width. No explicit sizing →
-      // stay responsive. An explicit autoWidth is honored.
+      // and drops the intended width when the image is selected. So pin
+      // autoWidth:false when the caller set a display size. An explicit maxWidth
+      // *is* the display width and takes precedence — only derive maxWidth from
+      // the numeric width when no maxWidth was given (else a natural width like
+      // 1600 would clobber a caller's maxWidth:"50%"). No explicit sizing → stay
+      // responsive. An explicit autoWidth is honored.
       if (userSrc.autoWidth === undefined) {
-        if (typeof userSrc.width === "number") {
+        if (userSrc.maxWidth !== undefined) {
+          merged.autoWidth = false;
+        } else if (typeof userSrc.width === "number") {
           merged.autoWidth = false;
           merged.maxWidth = `${userSrc.width}px`;
-        } else if (userSrc.maxWidth !== undefined) {
-          merged.autoWidth = false;
         }
       }
 
