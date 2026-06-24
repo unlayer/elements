@@ -97,6 +97,7 @@ const PX_SIZE_KEYS = [
   "padding",
   "containerPadding",
   "borderRadius",
+  "letterSpacing",
 ] as const;
 
 function normalizeCssProps(props: Record<string, any>): void {

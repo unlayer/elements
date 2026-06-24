@@ -101,6 +101,8 @@ export type TextStyleProps = {
   fontWeight?: FontWeightInput;
   fontSize?: SizeInput;
   lineHeight?: SizeInput;
+  /** Letter spacing — a CSS string ("0.5px", "-0.01em") or a number (px). */
+  letterSpacing?: SizeInput;
   color?: string;
 };
 

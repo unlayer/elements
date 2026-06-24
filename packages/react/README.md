@@ -156,6 +156,7 @@ Must be child of Row. Count must match layout.
 - `fontFamily?: { label: string, value: string }`
 - `padding?: string` — `"10px 20px"`
 - `borderRadius?: string` — `"4px"`
+- `width?: number | string` — display width; `width="100%"` makes the button full-width, `width="200px"` pins it
 - `textAlign?: "left" | "center" | "right"` — `"center"`
 
 ### Paragraph
