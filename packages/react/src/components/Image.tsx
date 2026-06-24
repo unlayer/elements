@@ -133,7 +133,9 @@ const Image = createItemComponent<ImageValues, ImageSemanticProps>({
 
       if (userSrc.autoWidth === undefined) {
         if (displayMaxWidth !== undefined) {
-          merged.autoWidth = false;
+          // "100%" means fill/responsive (the default image behavior); a smaller
+          // percent or a px display width is a fixed size that must be pinned.
+          merged.autoWidth = displayMaxWidth.trim() === "100%";
         } else if (widthNum !== undefined) {
           merged.autoWidth = false;
           merged.maxWidth = `${widthNum}px`;
