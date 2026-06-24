@@ -79,6 +79,52 @@ function analyzeNestedStructure(defaultValues: any): Map<string, Set<string>> {
 }
 
 /**
+ * Coerce CSS-idiom flat prop values to the shapes the exporters expect.
+ * Mutates the given props object in place. Each rule fixes a footgun where the
+ * natural/CSS form type-checks (flat props are loosely typed) but renders blank
+ * or invalid:
+ * - `fontFamily: "Arial"` → `{ label, value }` (a bare string is otherwise
+ *   char-spread when merged into the fontFamily group, dropping the font).
+ * - `fontWeight: "700"` → `700` (numeric string → number; keyword strings like
+ *   "bold"/"normal" are valid CSS and left as-is).
+ * - `fontSize: 28` → `"28px"` (a unitless number is invalid CSS the browser
+ *   ignores). Same for other bare-number size fields.
+ * - `lineHeight: 1.4` → `"1.4"` (the field is typed as a string; unitless
+ *   line-height is valid CSS).
+ */
+const PX_SIZE_KEYS = [
+  "fontSize",
+  "padding",
+  "containerPadding",
+  "borderRadius",
+] as const;
+
+function normalizeCssProps(props: Record<string, any>): void {
+  if (typeof props.fontFamily === "string") {
+    const v = props.fontFamily;
+    props.fontFamily = { label: v, value: v };
+  }
+  if (
+    typeof props.fontWeight === "string" &&
+    /^\d+$/.test(props.fontWeight.trim())
+  ) {
+    props.fontWeight = Number(props.fontWeight.trim());
+  }
+  if (typeof props.lineHeight === "number") {
+    props.lineHeight = String(props.lineHeight);
+  }
+  for (const key of PX_SIZE_KEYS) {
+    const v = props[key];
+    // bare number (28) or a unit-less numeric string ("0", "20") → "<n>px"
+    if (typeof v === "number") {
+      props[key] = `${v}px`;
+    } else if (typeof v === "string" && /^\d+$/.test(v.trim())) {
+      props[key] = `${v.trim()}px`;
+    }
+  }
+}
+
+/**
  * Universal semantic props mapper
  * Works for ANY component - no configuration needed!
  *
@@ -150,6 +196,14 @@ export function mapSemanticProps<T extends Record<string, any>>(
       };
     }
   }
+
+  // Normalize CSS-idiom prop values to the shapes the exporters expect. Authors
+  // (humans and AI) reach for CSS habits — a string `fontFamily`, a numeric
+  // `fontSize`, a string `fontWeight` — which type-check (flat props are loose)
+  // but otherwise render blank or invalid. Coercing the natural form here makes
+  // it render correctly. Applied to flat props only; the `values` escape hatch
+  // is the full-control path and is left untouched.
+  normalizeCssProps(userProps);
 
   // Analyze default values to detect nested object structure
   const nestedGroups = analyzeNestedStructure(defaultValues);
