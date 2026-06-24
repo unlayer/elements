@@ -7,10 +7,7 @@ import { mapSemanticProps, type SemanticProps } from "../utils/semantic-props";
 import type { SizeInput } from "../types";
 import { BODY_DEFAULTS } from "../utils/container-defaults";
 
-export type BodyProps = Omit<
-  SemanticProps<BodyValues>,
-  "padding" | "containerPadding"
-> & {
+export type BodyProps = Omit<SemanticProps<BodyValues>, "padding"> & {
   children?: React.ReactNode;
   mode?: RenderMode;
   className?: string;
@@ -22,7 +19,6 @@ export type BodyProps = Omit<
   previewText?: string;
   /** Padding — a CSS string ("0 48px", "20px") or a number (px). */
   padding?: SizeInput;
-  containerPadding?: SizeInput;
 };
 
 const DEFAULT_VALUES = BODY_DEFAULTS;

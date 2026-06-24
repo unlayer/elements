@@ -56,10 +56,7 @@ function renderContentToHtml(innerHTML: string, values: any, bodyValues: any, mo
 // Component
 // ============================================
 
-export type ColumnProps = Omit<
-  SemanticProps<ColumnValues>,
-  "padding" | "containerPadding"
-> & {
+export type ColumnProps = Omit<SemanticProps<ColumnValues>, "padding"> & {
   children?: React.ReactNode;
   // Internal props (provided by Row)
   index?: number;

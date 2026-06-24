@@ -26,10 +26,7 @@ const DEFAULT_VALUES = ROW_DEFAULTS;
 
 const DEFAULT_BODY_VALUES = BODY_DEFAULTS;
 
-export type RowProps = Omit<
-  SemanticProps<RowValues>,
-  "padding" | "containerPadding"
-> & {
+export type RowProps = Omit<SemanticProps<RowValues>, "padding"> & {
   children?: React.ReactNode;
   layout?: ColumnLayout;
   cells?: number[];

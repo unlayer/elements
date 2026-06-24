@@ -82,14 +82,18 @@ const Button = createItemComponent<ButtonValues, ButtonSemanticProps>({
     // default, so a present size.width means the user set it. Honor an explicit
     // autoWidth.
     const size = (mapped as { size?: unknown }).size;
-    if (
-      size &&
-      typeof size === "object" &&
-      !Array.isArray(size) &&
-      (size as { width?: unknown }).width !== undefined &&
-      (size as { autoWidth?: unknown }).autoWidth === undefined
-    ) {
-      (size as { autoWidth?: boolean }).autoWidth = false;
+    if (size && typeof size === "object" && !Array.isArray(size)) {
+      const s = size as { width?: unknown; autoWidth?: unknown };
+      // width accepts a number per SizeInput, but the exporter wants a CSS
+      // string — coerce a bare number / unit-less numeric string to px.
+      if (typeof s.width === "number") {
+        s.width = `${s.width}px`;
+      } else if (typeof s.width === "string" && /^\d+(?:\.\d+)?$/.test(s.width.trim())) {
+        s.width = `${s.width.trim()}px`;
+      }
+      if (s.width !== undefined && s.autoWidth === undefined) {
+        s.autoWidth = false;
+      }
     }
     return mapped;
   },

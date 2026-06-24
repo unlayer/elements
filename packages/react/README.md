@@ -56,7 +56,8 @@ These props have non-obvious shapes that **must** be followed exactly:
   fontFamily={{ label: "Arial", value: "arial, sans-serif" }}
   ```
 - **fontWeight**: Accepts a number (`700`), a numeric string (`"700"`), or a CSS keyword (`"bold"`).
-- **fontSize / lineHeight / padding**: Accept a CSS string (`"28px"`, `"1.4"`, `"20px 40px"`) or a bare number (treated as px: `fontSize={28}` → `28px`).
+- **fontSize / padding**: Accept a CSS string (`"28px"`, `"20px 40px"`) or a bare number (treated as px: `fontSize={28}` → `28px`).
+- **lineHeight**: Accepts a CSS string (`"1.4"`, `"140%"`) or a bare number (kept **unitless**: `lineHeight={1.4}` → `"1.4"`).
 - **Wrapper component**: Use `<Email>`, `<Page>`, or `<Document>` as root — they set the rendering mode automatically.
 - **href**: Can be a plain string URL (auto-wrapped) or `{ name: "web", values: { href, target } }`.
 - **Image src / width**: `src` is a plain URL string or `{ url, width?, maxWidth?, ... }`. Display width accepts px, a percent, or a bare number — `width="300px"`, `width={300}`, `width="50%"`, or `maxWidth="50%"`.
@@ -445,7 +446,7 @@ const monoFont = { label: "Monospace", value: "'SF Mono', 'Fira Code', 'Roboto M
 1. **Column count mismatch** — `TwoEqual` layout requires exactly 2 `<Column>` children
 2. **Missing Column** — Items must be inside `<Column>`, never directly in `<Row>`
 3. **Missing Row** — Columns must be inside `<Row>`, never directly in `<Email>`/`<Page>`/`<Document>`
-4. **JSX formatting in children** — `<Heading>Hi <b>x</b></Heading>` corrupts the text. Children must be a plain string; for inline formatting use `<Paragraph html="Hi <b>x</b>" />`.
+4. **JSX formatting in children** — `<Heading>Hi <b>x</b></Heading>` is flattened to plain text (the formatting is **not** preserved). For inline formatting use `<Paragraph html="Hi <b>x</b>" />`.
 
 > Note: the CSS-idiom forms that used to be mistakes now work — a string `fontFamily`, a string/number `fontWeight`, a numeric `fontSize`, `padding="0"`, `width="300px"`, and `<Paragraph text="..." />` are all accepted and normalized. The object/numeric forms above are still recommended for clarity.
 

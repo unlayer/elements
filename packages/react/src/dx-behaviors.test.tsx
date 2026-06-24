@@ -83,6 +83,24 @@ describe("DX: image sizing", () => {
   it("string src renders an <img>", () => {
     expect(html(<Image src="https://x/a.png" />)).toMatch(/<img[^>]*src="https:\/\/x\/a\.png"/);
   });
+
+  it("numeric maxWidth gets a px unit and pins", () => {
+    const src = itemValues(<Image src="u" maxWidth={300} />).src;
+    expect(src.autoWidth).toBe(false);
+    expect(src.maxWidth).toBe("300px");
+  });
+});
+
+describe("DX: button sizing", () => {
+  it("numeric width gets a px unit (200 → '200px') and pins", () => {
+    const size = itemValues(<Button width={200}>Go</Button>).size;
+    expect(size.width).toBe("200px");
+    expect(size.autoWidth).toBe(false);
+  });
+
+  it("width '100%' is honored as a string", () => {
+    expect(itemValues(<Button width="100%">Go</Button>).size.width).toBe("100%");
+  });
 });
 
 describe("DX: font / CSS-idiom normalization", () => {
@@ -134,7 +152,7 @@ describe("DX: text components", () => {
 
 describe("DX: shorthands and round-trip", () => {
   it("Table columns/rows renders a grid instead of crashing", () => {
-    const out = html(<Table columns={2 as any} rows={2 as any} />);
+    const out = html(<Table columns={2} rows={2} />);
     expect(out).not.toMatch(/failed to render/i);
     expect((out.match(/<t[hd][\s>]/g) || []).length).toBeGreaterThan(0);
   });

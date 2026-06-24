@@ -117,8 +117,16 @@ const Image = createItemComponent<ImageValues, ImageSemanticProps>({
       // maxWidth is the display width and wins; otherwise a numeric width derives
       // maxWidth:"<w>px". No explicit sizing → responsive. autoWidth is honored.
       let widthNum: number | undefined;
-      let displayMaxWidth: string | undefined =
-        typeof userSrc.maxWidth === "string" ? userSrc.maxWidth : undefined;
+      // maxWidth accepts a number per SizeInput; a bare number / unit-less
+      // numeric string becomes px, a percent/px string passes through.
+      let displayMaxWidth: string | undefined;
+      const rawMaxWidth = userSrc.maxWidth;
+      if (typeof rawMaxWidth === "number") {
+        displayMaxWidth = `${rawMaxWidth}px`;
+      } else if (typeof rawMaxWidth === "string") {
+        const t = rawMaxWidth.trim();
+        displayMaxWidth = /^\d+(?:\.\d+)?$/.test(t) ? `${t}px` : t;
+      }
       const rawWidth = userSrc.width;
       if (typeof rawWidth === "number") {
         widthNum = rawWidth;
