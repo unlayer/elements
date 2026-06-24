@@ -49,14 +49,34 @@ const Table = createItemComponent<TableValues, TableSemanticProps>({
   name: "Table",
   defaultValues: DEFAULT_VALUES,
   propMapper: (props) => {
-    const { headers, data, ...rest } = props;
+    // `columns`/`rows` are top-level COUNTS, but the table data lives under the
+    // nested `table` group whose keys also include `rows` — so routing the flat
+    // `rows` through the generic mapper collides with `table.rows` and makes the
+    // exporter iterate a number (crash). Pull them out and handle them here.
+    const { headers, data, columns, rows, ...rest } = props as typeof props & {
+      columns?: number;
+      rows?: number;
+    };
 
-    if (headers || data) {
+    if (
+      headers ||
+      data ||
+      typeof columns === "number" ||
+      typeof rows === "number"
+    ) {
       const base: Partial<TableValues> = mapSemanticProps(
         rest as SemanticProps<TableValues>,
         DEFAULT_VALUES,
         "Table"
       );
+
+      const colCount = headers
+        ? headers.length
+        : typeof columns === "number"
+          ? columns
+          : data?.[0]?.length ?? 0;
+      const blankCells = (n: number) =>
+        Array.from({ length: n }, () => ({ text: "", width: 0 }));
 
       const tableHeaders = headers
         ? [{ cells: headers.map((text: string) => ({ text, width: 0 })), height: 0 }]
@@ -67,16 +87,26 @@ const Table = createItemComponent<TableValues, TableSemanticProps>({
             cells: row.map((text: string) => ({ text, width: 0 })),
             height: 0,
           }))
-        : [];
+        : typeof rows === "number"
+          ? // No data: build an empty grid sized by `columns` × `rows`.
+            Array.from({ length: rows }, () => ({
+              cells: blankCells(colCount),
+              height: 0,
+            }))
+          : [];
 
       base.table = { headers: tableHeaders, rows: tableRows, footers: [] };
 
+      if (headers || typeof columns === "number") {
+        base.columns = colCount;
+      }
       if (headers) {
-        base.columns = headers.length;
         base.enableHeader = true;
       }
       if (data) {
         base.rows = data.length;
+      } else if (typeof rows === "number") {
+        base.rows = rows;
       }
 
       return base;
