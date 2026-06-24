@@ -125,6 +125,24 @@ function normalizeCssProps(props: Record<string, any>): void {
 }
 
 /**
+ * Flatten a JSX/ReactNode children tree to its plain text content.
+ * Text components store a string (or Lexical JSON derived from one); a raw React
+ * element passed as children would otherwise stringify to "[object Object]".
+ * Duck-types the element shape (`.props.children`) so this stays framework-free.
+ * Inline formatting is not preserved — use the `html` prop for rich text.
+ */
+function flattenChildrenText(node: any): string {
+  if (node == null || typeof node === "boolean") return "";
+  if (typeof node === "string") return node;
+  if (typeof node === "number") return String(node);
+  if (Array.isArray(node)) return node.map(flattenChildrenText).join("");
+  if (typeof node === "object" && "props" in node) {
+    return flattenChildrenText(node.props?.children);
+  }
+  return "";
+}
+
+/**
  * Universal semantic props mapper
  * Works for ANY component - no configuration needed!
  *
@@ -149,11 +167,12 @@ export function mapSemanticProps<T extends Record<string, any>>(
   // Note: editor-types codegen renamed text→textJson for Button/Heading but
   // the exporter still uses plain text at runtime via generateHtmlFromTextJson
   if (children !== undefined && !result.text && !result.textJson) {
+    const textContent =
+      typeof children === "string" ? children : flattenChildrenText(children);
     if (componentType === "Paragraph") {
-      const textContent = typeof children === "string" ? children : String(children);
       result.textJson = textToTextJson(textContent);
     } else {
-      result.text = children;
+      result.text = textContent;
     }
   }
 
@@ -253,6 +272,28 @@ export function mapSemanticProps<T extends Record<string, any>>(
         ...result[groupName],
         ...groupValues
       };
+    }
+  }
+
+  // Some components (e.g. Column) ship an empty `border: {}` default, so the
+  // nested-group detector can't see the border sub-keys and flat border-side
+  // props (borderTopWidth, …) would land loose and be dropped by the exporter.
+  // If the component declares a `border` field, gather them into it.
+  if (
+    defaultValues &&
+    typeof defaultValues === "object" &&
+    "border" in (defaultValues as object)
+  ) {
+    const borderSideRe = /^border(Top|Right|Bottom|Left)(Width|Style|Color)$/;
+    const collected: Record<string, any> = {};
+    for (const key of Object.keys(final)) {
+      if (borderSideRe.test(key)) {
+        collected[key] = final[key];
+        delete final[key];
+      }
+    }
+    if (Object.keys(collected).length > 0) {
+      final.border = { ...(final.border || {}), ...collected };
     }
   }
 

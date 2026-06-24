@@ -301,6 +301,14 @@ function processBody(
   const mapped = mapSemanticProps(semanticProps, BODY_DEFAULTS, "Body");
   const values = mergeValues(BODY_DEFAULTS, mapped);
 
+  // `previewText` is the React alias for the schema's `preheaderText`. It is
+  // excluded from the mapped values (it drives the email preview HTML at render
+  // time), so thread it into the JSON here so it round-trips to the editor.
+  const previewText = (element.props as { previewText?: string }).previewText;
+  if (previewText !== undefined) {
+    (values as Record<string, unknown>).preheaderText = previewText;
+  }
+
   // Add _meta
   const valuesWithMeta = {
     ...values,
