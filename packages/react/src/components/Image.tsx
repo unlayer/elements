@@ -1,16 +1,28 @@
 import { ImageExporters, ImageDefaults } from "@unlayer/exporters";
-import type { ImageValues } from "../types";
+import type { ImageValues, ImageSrcInput, SizeInput } from "../types";
 import { createItemComponent, type ItemComponentProps } from "../utils/create-component";
 import { mapSemanticProps, type SemanticProps } from "../utils/semantic-props";
 
-type ImageSemanticProps = SemanticProps<ImageValues> & {
+/**
+ * Image semantic props — agent-friendly `src` (plain URL string or value object)
+ * and CSS-style sizing (number/px pins, "50%" sets a percentage), replacing the
+ * loose `any` flat props.
+ */
+type ImageSemanticProps = Omit<
+  SemanticProps<ImageValues>,
+  "src" | "width" | "maxWidth"
+> & {
   /** Alt text (alias for altText) */
   alt?: string;
+  /** Image URL string, or the value object `{ url, width?, maxWidth?, ... }`. */
+  src?: ImageSrcInput;
+  /** Display width — number/px pins the image; "50%" sets a percentage width. */
+  width?: SizeInput;
+  /** Display width as a CSS value ("50%", "300px"). */
+  maxWidth?: SizeInput;
 };
 
-export interface ImageProps extends ItemComponentProps<SemanticProps<ImageValues>> {
-  alt?: string;
-}
+export interface ImageProps extends ItemComponentProps<ImageSemanticProps> {}
 
 // Defaults from the editor schema, plus React-specific overrides
 const DEFAULT_VALUES = {

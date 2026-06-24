@@ -1,13 +1,26 @@
 import { ParagraphExporters, ParagraphDefaults } from "@unlayer/exporters";
-import type { ParagraphValues } from "../types";
+import type { ParagraphValues, TextStyleProps } from "../types";
 import { createItemComponent, type ItemComponentProps } from "../utils/create-component";
 import { mapSemanticProps, type SemanticProps } from "../utils/semantic-props";
+
+/**
+ * Paragraph semantic props — agent-friendly text/style types (replacing the
+ * loose `any` flat props) plus the `text` shorthand (converted to textJson).
+ */
+type ParagraphSemanticProps = Omit<
+  SemanticProps<ParagraphValues>,
+  keyof TextStyleProps
+> &
+  TextStyleProps & {
+    /** Plain-text content (or use `html` for inline formatting, or children). */
+    text?: string;
+  };
 
 /**
  * Paragraph Component Props
  * Automatically provides autocomplete for ALL properties (flat and nested)
  */
-export interface ParagraphProps extends ItemComponentProps<SemanticProps<ParagraphValues>> {}
+export interface ParagraphProps extends ItemComponentProps<ParagraphSemanticProps> {}
 
 // Defaults from the editor schema, plus React-specific additions
 const DEFAULT_VALUES = {
@@ -35,10 +48,11 @@ const DEFAULT_VALUES = {
  * <Paragraph values={{ textJson: "...", color: "#555" }} />
  * ```
  */
-const Paragraph = createItemComponent<ParagraphValues, SemanticProps<ParagraphValues>>({
+const Paragraph = createItemComponent<ParagraphValues, ParagraphSemanticProps>({
   name: "Paragraph",
   defaultValues: DEFAULT_VALUES,
-  propMapper: (props) => mapSemanticProps(props, DEFAULT_VALUES, "Paragraph"),
+  propMapper: (props) =>
+    mapSemanticProps(props as SemanticProps<ParagraphValues>, DEFAULT_VALUES, "Paragraph"),
   displayName: "Paragraph",
   exporters: ParagraphExporters,
 });

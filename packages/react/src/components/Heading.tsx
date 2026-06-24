@@ -1,20 +1,33 @@
 import { HeadingExporters, HeadingDefaults } from "@unlayer/exporters";
-import type { HeadingValues } from "../types";
+import type { HeadingValues, TextStyleProps, HeadingLevel } from "../types";
 import {
   createItemComponent,
   type ItemComponentProps
 } from "../utils/create-component";
 import { mapSemanticProps, type SemanticProps } from "../utils/semantic-props";
 
+/**
+ * Heading semantic props — agent-friendly text/style types (replacing the loose
+ * `any` flat props) plus the `level` alias and h1–h6 levels.
+ */
+type HeadingSemanticProps = Omit<
+  SemanticProps<HeadingValues>,
+  keyof TextStyleProps | "headingType"
+> &
+  TextStyleProps & {
+    /** Heading level h1–h6. */
+    headingType?: HeadingLevel;
+    /** Alias for `headingType`. */
+    level?: HeadingLevel;
+    /** Heading text (or use children). */
+    text?: string;
+  };
 
 /**
  * Heading Component Props
  * Automatically provides autocomplete for ALL properties (flat and nested)
  */
-export interface HeadingProps
-  extends ItemComponentProps<SemanticProps<HeadingValues>> {
-  level?: "h1" | "h2" | "h3" | "h4";
-}
+export interface HeadingProps extends ItemComponentProps<HeadingSemanticProps> {}
 
 // Defaults from the editor schema, plus React-specific additions
 const DEFAULT_VALUES = {
@@ -44,10 +57,7 @@ const DEFAULT_VALUES = {
  * <Heading values={{ headingType: "h1", color: "#222" }}>Welcome</Heading>
  * ```
  */
-const Heading = createItemComponent<
-  HeadingValues,
-  SemanticProps<HeadingValues>
->({
+const Heading = createItemComponent<HeadingValues, HeadingSemanticProps>({
   name: "Heading",
   defaultValues: DEFAULT_VALUES,
   propMapper: (props) => {

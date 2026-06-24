@@ -1,14 +1,26 @@
 import { ButtonExporters, ButtonDefaults } from "@unlayer/exporters";
-import type { ButtonValues } from "../types";
+import type { ButtonValues, TextStyleProps, SizeInput } from "../types";
 import { createItemComponent, type ItemComponentProps } from "../utils/create-component";
 import { mapSemanticProps, type SemanticProps } from "../utils/semantic-props";
 
+/**
+ * Button semantic props — agent-friendly text/style types (replacing the loose
+ * `any` flat props) plus a CSS-style `width` (number/px pins; "100%" full-width).
+ */
+type ButtonSemanticProps = Omit<
+  SemanticProps<ButtonValues>,
+  keyof TextStyleProps | "width"
+> &
+  TextStyleProps & {
+    /** Display width — a number/px pins the button; "100%" makes it full-width. */
+    width?: SizeInput;
+  };
 
 /**
  * Button Component Props
  * Automatically provides autocomplete for ALL properties (flat and nested)
  */
-export interface ButtonProps extends ItemComponentProps<SemanticProps<ButtonValues>> {}
+export interface ButtonProps extends ItemComponentProps<ButtonSemanticProps> {}
 
 // Defaults from the editor schema, plus React-specific additions
 const DEFAULT_VALUES = {
@@ -53,11 +65,15 @@ const DEFAULT_VALUES = {
  * </Button>
  * ```
  */
-const Button = createItemComponent<ButtonValues, SemanticProps<ButtonValues>>({
+const Button = createItemComponent<ButtonValues, ButtonSemanticProps>({
   name: "Button",
   defaultValues: DEFAULT_VALUES,
   propMapper: (props) => {
-    const mapped = mapSemanticProps(props, DEFAULT_VALUES, "Button");
+    const mapped = mapSemanticProps(
+      props as SemanticProps<ButtonValues>,
+      DEFAULT_VALUES,
+      "Button"
+    );
     // An explicit width must pin the button width (size.autoWidth:false). With
     // autoWidth:true the Builder auto-sizes the button to its content and drops
     // the set width on selection — same round-trip issue as Image. Read the
