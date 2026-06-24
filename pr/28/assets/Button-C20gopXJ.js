@@ -1,1 +1,0 @@
-import{c as s,h as r,m as n,Q as p}from"./create-component-CBSQATyi.js";const e={...r,text:"Button"},m=s({name:"Button",defaultValues:e,propMapper:a=>{const o=n(a,e,"Button"),t=o.size;return t&&typeof t=="object"&&!Array.isArray(t)&&t.width!==void 0&&t.autoWidth===void 0&&(t.autoWidth=!1),o},displayName:"Button",exporters:p});export{m as B};
