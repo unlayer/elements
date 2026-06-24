@@ -4,6 +4,7 @@ import { validateColumnLayout } from "@unlayer-internal/shared-elements";
 import type { ColumnLayout } from "@unlayer-internal/shared-elements";
 import { RowExporters } from "@unlayer/exporters";
 import { mapSemanticProps, type SemanticProps } from "../utils/semantic-props";
+import type { SizeInput } from "../types";
 import { ROW_DEFAULTS, BODY_DEFAULTS } from "../utils/container-defaults";
 
 /**
@@ -25,7 +26,10 @@ const DEFAULT_VALUES = ROW_DEFAULTS;
 
 const DEFAULT_BODY_VALUES = BODY_DEFAULTS;
 
-export interface RowProps extends SemanticProps<RowValues> {
+export type RowProps = Omit<
+  SemanticProps<RowValues>,
+  "padding" | "containerPadding"
+> & {
   children?: React.ReactNode;
   layout?: ColumnLayout;
   cells?: number[];
@@ -35,9 +39,11 @@ export interface RowProps extends SemanticProps<RowValues> {
   index?: number;
   bodyValues?: any;
   collection?: string;
+  /** Padding — a CSS string ("0 48px", "20px 40px") or a number (px). */
+  padding?: SizeInput;
   /** @internal - Unlayer config threaded from UnlayerProvider via Body */
   _config?: UnlayerConfig;
-}
+};
 
 // ============================================
 // Grid CSS (inlined from shared/utils/grid-css.ts)
@@ -253,7 +259,7 @@ const Row: React.FC<RowProps> = (props) => {
 
   // Map semantic props to values
   const values = mapSemanticProps<RowValues>(
-    semanticProps,
+    semanticProps as SemanticProps<RowValues>,
     DEFAULT_VALUES,
     "Row"
   );

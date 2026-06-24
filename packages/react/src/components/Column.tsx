@@ -3,6 +3,7 @@ import type { RenderMode, UnlayerConfig, ColumnValues } from "@unlayer-internal/
 import { ColumnExporters, ContentExporters } from "@unlayer/exporters";
 import { UNLAYER_RENDER_KEY } from "../utils/create-component";
 import { mapSemanticProps, type SemanticProps } from "../utils/semantic-props";
+import type { SizeInput } from "../types";
 import { COLUMN_DEFAULTS } from "../utils/container-defaults";
 
 /** Unlayer's default content-block padding when a block sets none. */
@@ -55,7 +56,10 @@ function renderContentToHtml(innerHTML: string, values: any, bodyValues: any, mo
 // Component
 // ============================================
 
-export interface ColumnProps extends SemanticProps<ColumnValues> {
+export type ColumnProps = Omit<
+  SemanticProps<ColumnValues>,
+  "padding" | "containerPadding"
+> & {
   children?: React.ReactNode;
   // Internal props (provided by Row)
   index?: number;
@@ -65,9 +69,11 @@ export interface ColumnProps extends SemanticProps<ColumnValues> {
   mode?: RenderMode;
   className?: string;
   style?: React.CSSProperties;
+  /** Padding — a CSS string ("0 24px", "10px") or a number (px). */
+  padding?: SizeInput;
   /** @internal - Unlayer config threaded from UnlayerProvider via Body/Row */
   _config?: UnlayerConfig;
-}
+};
 
 export const Column: React.FC<ColumnProps> = (props) => {
   const {
@@ -88,7 +94,7 @@ export const Column: React.FC<ColumnProps> = (props) => {
 
   // Map semantic props to values
   const values = mapSemanticProps<ColumnValues>(
-    semanticProps,
+    semanticProps as SemanticProps<ColumnValues>,
     DEFAULT_VALUES,
     "Column"
   );

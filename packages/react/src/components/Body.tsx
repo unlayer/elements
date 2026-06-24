@@ -4,9 +4,13 @@ import type { RenderMode, UnlayerConfig, BodyValues } from "@unlayer-internal/sh
 import { DEFAULT_CONFIG, mergeValues } from "@unlayer-internal/shared-elements";
 import { BodyExporters } from "@unlayer/exporters";
 import { mapSemanticProps, type SemanticProps } from "../utils/semantic-props";
+import type { SizeInput } from "../types";
 import { BODY_DEFAULTS } from "../utils/container-defaults";
 
-export interface BodyProps extends SemanticProps<BodyValues> {
+export type BodyProps = Omit<
+  SemanticProps<BodyValues>,
+  "padding" | "containerPadding"
+> & {
   children?: React.ReactNode;
   mode?: RenderMode;
   className?: string;
@@ -16,7 +20,10 @@ export interface BodyProps extends SemanticProps<BodyValues> {
   config?: Partial<UnlayerConfig>;
   /** Preview text shown in email client inboxes (email mode only) */
   previewText?: string;
-}
+  /** Padding — a CSS string ("0 48px", "20px") or a number (px). */
+  padding?: SizeInput;
+  containerPadding?: SizeInput;
+};
 
 const DEFAULT_VALUES = BODY_DEFAULTS;
 
