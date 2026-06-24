@@ -1,0 +1,1 @@
+import{c as o,q as s,m as p,r as i}from"./create-component-DdgUlgLx.js";const t={...s,color:"#000000",fontWeight:400,text:"Heading"},d=o({name:"Heading",defaultValues:t,propMapper:n=>{const{level:a,...r}=n,e=p(r,t,"Heading");return a&&!e.headingType&&(e.headingType=a),e},displayName:"Heading",exporters:i});export{d as H};
