@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { Email, Row, Column, Image, Heading, Paragraph, Button } from "./index";
+import { renderToHtml, Email, Row, Column, Image, Heading, Paragraph, Button } from "./index";
 
 /**
  * DX contract: the forms an author (human or AI) naturally writes must
@@ -67,7 +67,9 @@ export function GarbageForms() {
 }
 
 describe("dx-contract", () => {
-  it("natural forms render without throwing", () => {
-    expect(typeof NaturalForms).toBe("function");
+  it("natural forms render to real HTML without the error fallback", () => {
+    const out = renderToHtml(<NaturalForms />);
+    expect(out.length).toBeGreaterThan(0);
+    expect(out).not.toMatch(/failed to render/i);
   });
 });
