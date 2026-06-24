@@ -8,14 +8,10 @@ import {
   Heading,
   Paragraph,
   Button,
-  Divider,
-  Table,
 } from "../index";
 
-// Reconstructed from the "fresh agent" Airbnb build — verbatim natural forms:
-// string image src + width="600px", fontFamily object, numeric fontWeight,
-// Table headers/data shorthand, Button width="100%".
-const RAUSCH = "#FF5A5F";
+// Airbnb brand: Rausch coral #FF385C, ink #222, muted #717171, hairline #EBEBEB.
+const RAUSCH = "#FF385C";
 const INK = "#222222";
 const MUTED = "#717171";
 const LINE = "#EBEBEB";
@@ -25,11 +21,31 @@ const sans = {
     "Circular, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif",
 };
 
+// One label/value line of the reservation summary, with a hairline divider.
+function detailRow(label: string, value: string, last = false) {
+  const cell = {
+    padding: "14px 0",
+    borderBottomWidth: last ? "0px" : "1px",
+    borderBottomStyle: "solid",
+    borderBottomColor: LINE,
+  } as const;
+  return (
+    <Row layout={ColumnLayouts.TwoEqual} backgroundColor="#FFFFFF" padding="0 40px">
+      <Column {...cell}>
+        <Paragraph html={label} fontSize="14px" color={MUTED} lineHeight="140%" />
+      </Column>
+      <Column {...cell}>
+        <Paragraph html={`<b>${value}</b>`} fontSize="14px" color={INK} textAlign="right" lineHeight="140%" />
+      </Column>
+    </Row>
+  );
+}
+
 export function AirbnbConfirmation() {
   return (
     <Email backgroundColor="#F7F7F7" contentWidth="600px" fontFamily={sans}>
       {/* Brand */}
-      <Row layout={ColumnLayouts.OneColumn} backgroundColor="#FFFFFF" padding="28px 40px 8px 40px">
+      <Row layout={ColumnLayouts.OneColumn} backgroundColor="#FFFFFF" padding="28px 40px 12px 40px">
         <Column>
           <Heading headingType="h2" fontSize="22px" fontWeight={700} color={RAUSCH} textAlign="left">
             airbnb
@@ -38,12 +54,12 @@ export function AirbnbConfirmation() {
       </Row>
 
       {/* Hero photo */}
-      <Row layout={ColumnLayouts.OneColumn} backgroundColor="#FFFFFF" padding="8px 40px 0 40px">
+      <Row layout={ColumnLayouts.OneColumn} backgroundColor="#FFFFFF" padding="4px 40px 0 40px">
         <Column>
           <Image
             src="https://images.unsplash.com/photo-1564013799919-ab600027ffc6?w=1200&q=80"
             alt="Oceanview Villa"
-            width="520px"
+            width="100%"
             textAlign="center"
           />
         </Column>
@@ -52,7 +68,7 @@ export function AirbnbConfirmation() {
       {/* Headline */}
       <Row layout={ColumnLayouts.OneColumn} backgroundColor="#FFFFFF" padding="28px 40px 4px 40px">
         <Column>
-          <Heading headingType="h1" fontSize="28px" fontWeight={700} color={INK} lineHeight="130%">
+          <Heading headingType="h1" fontSize="26px" fontWeight={700} color={INK} lineHeight="130%">
             You're confirmed, Maya 🎉
           </Heading>
           <Paragraph
@@ -64,24 +80,28 @@ export function AirbnbConfirmation() {
         </Column>
       </Row>
 
-      {/* Reservation summary */}
-      <Row layout={ColumnLayouts.OneColumn} backgroundColor="#FFFFFF" padding="12px 40px 8px 40px">
+      {/* Reservation summary — clean label/value, no spreadsheet borders */}
+      <Row layout={ColumnLayouts.OneColumn} backgroundColor="#FFFFFF" padding="16px 40px 2px 40px">
         <Column>
-          <Table
-            headers={["Reservation", "Details"]}
-            data={[
-              ["Property", "Oceanview Villa · Malibu, CA"],
-              ["Check-in", "Fri, Jul 18 · 3:00 PM"],
-              ["Check-out", "Mon, Jul 21 · 11:00 AM"],
-              ["Guests", "2 adults"],
-              ["Total", "$1,248.00"],
-            ]}
-          />
+          <Heading
+            headingType="h4"
+            fontSize="12px"
+            fontWeight={700}
+            color={MUTED}
+            letterSpacing="0.06em"
+          >
+            RESERVATION
+          </Heading>
         </Column>
       </Row>
+      {detailRow("Property", "Oceanview Villa · Malibu, CA")}
+      {detailRow("Check-in", "Fri, Jul 18 · 3:00 PM")}
+      {detailRow("Check-out", "Mon, Jul 21 · 11:00 AM")}
+      {detailRow("Guests", "2 adults")}
+      {detailRow("Total", "$1,248.00", true)}
 
       {/* CTA */}
-      <Row layout={ColumnLayouts.OneColumn} backgroundColor="#FFFFFF" padding="20px 40px 32px 40px">
+      <Row layout={ColumnLayouts.OneColumn} backgroundColor="#FFFFFF" padding="28px 40px 32px 40px">
         <Column>
           <Button
             href="https://airbnb.com/trips"
@@ -89,8 +109,8 @@ export function AirbnbConfirmation() {
             color="#FFFFFF"
             fontSize="16px"
             fontWeight={700}
-            padding="14px 28px"
-            borderRadius="8px"
+            padding="15px 28px"
+            borderRadius="10px"
             width="100%"
             textAlign="center"
           >
@@ -99,14 +119,8 @@ export function AirbnbConfirmation() {
         </Column>
       </Row>
 
-      <Row layout={ColumnLayouts.OneColumn} backgroundColor="#FFFFFF" padding="0 40px">
-        <Column>
-          <Divider borderTopWidth="1px" borderTopColor={LINE} borderTopStyle="solid" />
-        </Column>
-      </Row>
-
       {/* Footer */}
-      <Row layout={ColumnLayouts.OneColumn} backgroundColor="#FFFFFF" padding="20px 40px 40px 40px">
+      <Row layout={ColumnLayouts.OneColumn} backgroundColor="#FFFFFF" padding="8px 40px 40px 40px">
         <Column>
           <Paragraph
             html="Questions about your trip? <a href='https://airbnb.com/help'>Visit the Help Center</a>."

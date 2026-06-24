@@ -8,11 +8,11 @@ import {
   Paragraph,
   Button,
   Divider,
-  Table,
 } from "../index";
 
-// Reconstructed from the "fresh agent" Stripe build — verbatim natural forms:
-// Table headers/data, string fontWeight/numeric mix, minimal layout.
+// Stripe-style payment receipt — minimal, lots of whitespace, hairline dividers.
+// Line items are rendered as Row + Column (never <Table>) so they stay airy
+// instead of collapsing into a bordered spreadsheet.
 const INDIGO = "#635BFF";
 const INK = "#1A1F36";
 const MUTED = "#697386";
@@ -23,73 +23,159 @@ const sans = {
     "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif",
 };
 
+// One label/value line, separated from the next by a hairline drawn on the
+// Column's bottom border. Pass last=true to drop the divider on the final row.
+function lineRow(label: string, value: string, last = false) {
+  const cell = {
+    padding: "14px 0",
+    borderBottomWidth: last ? "0px" : "1px",
+    borderBottomStyle: "solid",
+    borderBottomColor: LINE,
+  } as const;
+  return (
+    <Row layout={ColumnLayouts.TwoEqual} backgroundColor="#FFFFFF" padding="0 48px">
+      <Column {...cell}>
+        <Paragraph html={label} fontSize="14px" color={MUTED} lineHeight="140%" />
+      </Column>
+      <Column {...cell}>
+        <Paragraph
+          html={`<b>${value}</b>`}
+          fontSize="14px"
+          color={INK}
+          textAlign="right"
+          lineHeight="140%"
+        />
+      </Column>
+    </Row>
+  );
+}
+
 export function StripeReceipt() {
   return (
-    <Email backgroundColor="#F6F9FC" contentWidth="600px" fontFamily={sans}>
-      {/* Brand wordmark */}
-      <Row layout={ColumnLayouts.OneColumn} backgroundColor="#FFFFFF" padding="36px 48px 4px 48px">
+    <Email
+      backgroundColor="#F6F9FC"
+      contentWidth="600px"
+      fontFamily={sans}
+      textColor={INK}
+      previewText="Your receipt from Acme — Receipt #2705, paid Jul 1, 2026."
+    >
+      {/* Wordmark */}
+      <Row layout={ColumnLayouts.OneColumn} backgroundColor="#FFFFFF" padding="44px 48px 0 48px">
         <Column>
-          <Heading headingType="h3" fontSize="20px" fontWeight={700} color={INDIGO} textAlign="left">
-            Acme, Inc.
+          <Heading
+            headingType="h4"
+            fontSize="20px"
+            fontWeight={700}
+            color={INDIGO}
+            textAlign="left"
+            lineHeight="100%"
+            letterSpacing="-0.01em"
+          >
+            Acme
           </Heading>
         </Column>
       </Row>
 
-      {/* Heading */}
+      {/* Eyebrow + heading + meta */}
+      <Row layout={ColumnLayouts.OneColumn} backgroundColor="#FFFFFF" padding="40px 48px 0 48px">
+        <Column>
+          <Paragraph
+            html="RECEIPT"
+            fontSize="12px"
+            fontWeight={700}
+            color={MUTED}
+            textAlign="left"
+            letterSpacing="0.06em"
+            lineHeight="100%"
+          />
+        </Column>
+      </Row>
       <Row layout={ColumnLayouts.OneColumn} backgroundColor="#FFFFFF" padding="12px 48px 0 48px">
         <Column>
-          <Heading headingType="h1" fontSize="28px" fontWeight={600} color={INK} lineHeight="130%">
+          <Heading
+            headingType="h1"
+            fontSize="28px"
+            fontWeight={600}
+            color={INK}
+            textAlign="left"
+            lineHeight="125%"
+            letterSpacing="-0.02em"
+          >
             Receipt from Acme
           </Heading>
+        </Column>
+      </Row>
+      <Row layout={ColumnLayouts.OneColumn} backgroundColor="#FFFFFF" padding="6px 48px 0 48px">
+        <Column>
           <Paragraph
-            html="Receipt #2705-0042 · Paid July 1, 2026"
+            html="Receipt #2705 · Paid Jul 1, 2026"
             fontSize="14px"
             color={MUTED}
+            textAlign="left"
+            lineHeight="150%"
           />
         </Column>
       </Row>
 
-      {/* Line items */}
-      <Row layout={ColumnLayouts.OneColumn} backgroundColor="#FFFFFF" padding="16px 48px 0 48px">
+      {/* Section divider before line items */}
+      <Row layout={ColumnLayouts.OneColumn} backgroundColor="#FFFFFF" padding="32px 48px 4px 48px">
         <Column>
-          <Table
-            headers={["Description", "Amount"]}
-            data={[
-              ["Pro Plan (monthly)", "$25.00"],
-              ["Additional seats × 3", "$36.00"],
-              ["Usage overage", "$4.50"],
-            ]}
-          />
+          <Divider borderTopWidth="1px" borderTopColor={LINE} borderTopStyle="solid" />
         </Column>
       </Row>
 
+      {/* Line items — Row + Column with hairline dividers (never <Table>) */}
+      {lineRow("Pro Plan (monthly)", "$25.00")}
+      {lineRow("Additional seats × 3", "$36.00")}
+      {lineRow("Usage overage", "$4.50", true)}
+
+      {/* Section divider before total */}
       <Row layout={ColumnLayouts.OneColumn} backgroundColor="#FFFFFF" padding="8px 48px 0 48px">
         <Column>
           <Divider borderTopWidth="1px" borderTopColor={LINE} borderTopStyle="solid" />
         </Column>
       </Row>
 
-      {/* Total */}
-      <Row layout={ColumnLayouts.TwoEqual} backgroundColor="#FFFFFF" padding="8px 48px 4px 48px">
+      {/* Total — emphasized, no divider */}
+      <Row layout={ColumnLayouts.TwoEqual} backgroundColor="#FFFFFF" padding="20px 48px 0 48px">
         <Column>
-          <Paragraph html="<b>Total paid</b>" fontSize="16px" color={INK} textAlign="left" />
+          <Heading
+            headingType="h3"
+            fontSize="18px"
+            fontWeight={600}
+            color={INK}
+            textAlign="left"
+            lineHeight="120%"
+          >
+            Total
+          </Heading>
         </Column>
         <Column>
-          <Paragraph html="<b>$65.50</b>" fontSize="16px" color={INK} textAlign="right" />
+          <Heading
+            headingType="h3"
+            fontSize="22px"
+            fontWeight={700}
+            color={INK}
+            textAlign="right"
+            lineHeight="120%"
+            letterSpacing="-0.01em"
+          >
+            $65.50
+          </Heading>
         </Column>
       </Row>
 
       {/* CTA */}
-      <Row layout={ColumnLayouts.OneColumn} backgroundColor="#FFFFFF" padding="20px 48px 36px 48px">
+      <Row layout={ColumnLayouts.OneColumn} backgroundColor="#FFFFFF" padding="36px 48px 0 48px">
         <Column>
           <Button
-            href="https://acme.com/invoices/2705-0042.pdf"
+            href="https://acme.com/invoices/2705.pdf"
             backgroundColor={INDIGO}
             color="#FFFFFF"
             fontSize="15px"
-            fontWeight={500}
-            padding="12px 22px"
-            borderRadius="6px"
+            fontWeight={600}
+            padding="13px 24px"
+            borderRadius="8px"
             textAlign="left"
           >
             Download invoice
@@ -98,14 +184,14 @@ export function StripeReceipt() {
       </Row>
 
       {/* Footer */}
-      <Row layout={ColumnLayouts.OneColumn} padding="20px 48px 40px 48px">
+      <Row layout={ColumnLayouts.OneColumn} backgroundColor="#FFFFFF" padding="44px 48px 48px 48px">
         <Column>
           <Paragraph
-            html="Questions? Contact <a href='mailto:support@acme.com'>support@acme.com</a>."
+            html="Questions about this receipt? Contact <a href='mailto:support@acme.com'>support@acme.com</a>."
             fontSize="12px"
             color={MUTED}
-            textAlign="center"
-            lineHeight="150%"
+            textAlign="left"
+            lineHeight="160%"
           />
         </Column>
       </Row>

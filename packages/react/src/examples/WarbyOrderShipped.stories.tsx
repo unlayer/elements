@@ -8,159 +8,199 @@ import {
   Paragraph,
   Button,
   Image,
-  Divider,
-  Table,
 } from "../index";
 
 // Warby-Parker-style "Your order has shipped" email.
-// Clean, modern, lots of whitespace. Natural CSS-idiom prop forms.
-const INK = "#0F1417";
-const MUTED = "#6B7280";
-const FAINT = "#9AA0A6";
-const LINE = "#E8EAED";
-const SOFT = "#F4F5F3";
-const ACCENT = "#1A1A1A";
+// Clean, modern, friendly — navy/blue palette, generous whitespace,
+// hairline dividers via the Column bottom border (no <Table> shorthand).
+const INK = "#2A2A2A"; // primary text
+const MUTED = "#767676"; // secondary text
+const NAVY = "#00263A"; // navy accent / wordmark
+const BLUE = "#3B5BDB"; // friendly CTA blue
+const LINE = "#EBEBEB"; // hairline divider
+const BG = "#F6F6F4"; // email background
+const CARD = "#FFFFFF"; // content rows
 
-const serif = {
-  label: "Serif",
-  value: "Georgia, 'Times New Roman', Times, serif",
-};
 const sans = {
   label: "Sans Serif",
   value:
     "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif",
 };
 
+/**
+ * One label/value (or product/price) line, separated by a hairline rule drawn
+ * on the Column's bottom border. Called inline as `{lineRow(...)}` — Email only
+ * recognizes <Row> children, so this must NOT be used as a <lineRow/> element.
+ */
+function lineRow(label: string, value: string, last = false) {
+  const cell = {
+    padding: "14px 0",
+    borderBottomWidth: last ? "0px" : "1px",
+    borderBottomStyle: "solid",
+    borderBottomColor: LINE,
+  } as const;
+  return (
+    <Row layout={ColumnLayouts.TwoEqual} backgroundColor={CARD} padding="0 40px">
+      <Column {...cell}>
+        <Paragraph html={label} fontSize="14px" color={MUTED} lineHeight="140%" />
+      </Column>
+      <Column {...cell}>
+        <Paragraph
+          html={`<b>${value}</b>`}
+          fontSize="14px"
+          color={INK}
+          textAlign="right"
+          lineHeight="140%"
+        />
+      </Column>
+    </Row>
+  );
+}
+
+/**
+ * A product line-item: name + variant on the left, bold price on the right,
+ * with a small muted sub-label under the name. Hairline via the Column border.
+ */
+function productRow(name: string, variant: string, price: string, last = false) {
+  const cell = {
+    padding: "16px 0",
+    borderBottomWidth: last ? "0px" : "1px",
+    borderBottomStyle: "solid",
+    borderBottomColor: LINE,
+  } as const;
+  return (
+    <Row layout={ColumnLayouts.TwoEqual} backgroundColor={CARD} padding="0 40px">
+      <Column {...cell}>
+        <Paragraph
+          html={`<b>${name}</b>`}
+          fontSize="15px"
+          color={INK}
+          lineHeight="150%"
+        />
+        <Paragraph html={variant} fontSize="13px" color={MUTED} lineHeight="150%" />
+      </Column>
+      <Column {...cell}>
+        <Paragraph
+          html={`<b>${price}</b>`}
+          fontSize="15px"
+          color={INK}
+          textAlign="right"
+          lineHeight="150%"
+        />
+      </Column>
+    </Row>
+  );
+}
+
 export function WarbyOrderShipped() {
   return (
     <Email
-      backgroundColor="#FBFBF9"
+      backgroundColor={BG}
       contentWidth="600px"
       fontFamily={sans}
       textColor={INK}
-      previewText="Good news — your order is on its way."
+      previewText="Good news, Alex — your order is on its way. 📦"
     >
       {/* Brand wordmark */}
-      <Row
-        layout={ColumnLayouts.OneColumn}
-        backgroundColor="#FFFFFF"
-        padding="40px 48px 24px 48px"
-      >
+      <Row layout={ColumnLayouts.OneColumn} backgroundColor={CARD} padding="36px 40px 28px 40px">
         <Column>
           <Heading
             headingType="h2"
-            fontSize="22px"
+            fontSize="20px"
             fontWeight={700}
-            color={INK}
-            fontFamily={serif}
+            color={NAVY}
+            letterSpacing="0.18em"
             textAlign="center"
+            lineHeight="100%"
           >
             WARBY PARKER
           </Heading>
         </Column>
       </Row>
 
-      {/* Thin rule under wordmark */}
-      <Row layout={ColumnLayouts.OneColumn} backgroundColor="#FFFFFF" padding="0 48px">
-        <Column>
-          <Divider borderTopWidth="1px" borderTopColor={LINE} borderTopStyle="solid" />
-        </Column>
-      </Row>
-
-      {/* Hero image */}
-      <Row layout={ColumnLayouts.OneColumn} backgroundColor="#FFFFFF" padding="0">
+      {/* Hero lifestyle photo */}
+      <Row layout={ColumnLayouts.OneColumn} backgroundColor={CARD} padding="0">
         <Column>
           <Image
             src="https://images.unsplash.com/photo-1574258495973-f010dfbb5371?auto=format&fit=crop&w=1200&q=80"
-            altText="A pair of glasses on a clean surface"
-            width="600px"
+            altText="A pair of eyeglasses resting on a clean surface"
+            width="100%"
           />
         </Column>
       </Row>
 
-      {/* Confirmation heading */}
-      <Row
-        layout={ColumnLayouts.OneColumn}
-        backgroundColor="#FFFFFF"
-        padding="40px 48px 8px 48px"
-      >
+      {/* Eyebrow + headline */}
+      <Row layout={ColumnLayouts.OneColumn} backgroundColor={CARD} padding="40px 40px 0 40px">
+        <Column>
+          <Paragraph
+            html="SHIPPED"
+            fontSize="12px"
+            fontWeight={700}
+            color={BLUE}
+            letterSpacing="0.06em"
+            textAlign="center"
+            lineHeight="100%"
+          />
+        </Column>
+      </Row>
+
+      <Row layout={ColumnLayouts.OneColumn} backgroundColor={CARD} padding="12px 40px 0 40px">
         <Column>
           <Heading
             headingType="h1"
-            fontSize="32px"
-            fontWeight={400}
-            color={INK}
-            fontFamily={serif}
-            lineHeight="120%"
+            fontSize="30px"
+            fontWeight={700}
+            color={NAVY}
+            lineHeight="124%"
             textAlign="center"
           >
-            Your order has shipped
+            Your order is on its way 📦
           </Heading>
         </Column>
       </Row>
 
-      <Row
-        layout={ColumnLayouts.OneColumn}
-        backgroundColor="#FFFFFF"
-        padding="0 64px 8px 64px"
-      >
+      <Row layout={ColumnLayouts.OneColumn} backgroundColor={CARD} padding="14px 56px 4px 56px">
         <Column>
           <Paragraph
-            html="It's on its way, Alex. We'll let you know the moment it arrives. In the meantime, you can follow along below."
+            html="Hi Alex — your new frames have left our lab and are headed your way. We'll email you again the moment they land on your doorstep."
             fontSize="15px"
             color={MUTED}
-            lineHeight="160%"
+            lineHeight="164%"
             textAlign="center"
           />
         </Column>
       </Row>
 
-      {/* Tracking card: number + carrier */}
-      <Row
-        layout={ColumnLayouts.OneColumn}
-        backgroundColor="#FFFFFF"
-        padding="20px 48px 0 48px"
-      >
-        <Column backgroundColor={SOFT} padding="24px" borderRadius="8px">
+      {/* Tracking summary — eyebrow */}
+      <Row layout={ColumnLayouts.OneColumn} backgroundColor={CARD} padding="32px 40px 4px 40px">
+        <Column>
           <Paragraph
-            html="TRACKING NUMBER"
-            fontSize="11px"
-            color={FAINT}
-            textAlign="center"
-          />
-          <Heading
-            headingType="h3"
-            fontSize="20px"
-            fontWeight={600}
-            color={INK}
-            textAlign="center"
-          >
-            1Z 999 AA1 01 2345 6784
-          </Heading>
-          <Paragraph
-            html="Carrier: <b>UPS Ground</b> &middot; Est. delivery Jun 27"
-            fontSize="13px"
+            html="TRACKING DETAILS"
+            fontSize="12px"
+            fontWeight={700}
             color={MUTED}
-            textAlign="center"
+            letterSpacing="0.06em"
+            lineHeight="100%"
           />
         </Column>
       </Row>
 
-      {/* Track package button */}
-      <Row
-        layout={ColumnLayouts.OneColumn}
-        backgroundColor="#FFFFFF"
-        padding="24px 48px 8px 48px"
-      >
+      {/* Tracking detail rows (label / value, hairline divider via Column border) */}
+      {lineRow("Carrier", "USPS Priority")}
+      {lineRow("Tracking number", "9400 1234 5678 9012 3456")}
+      {lineRow("Estimated delivery", "Mon, Jul 8", true)}
+
+      {/* Track package CTA */}
+      <Row layout={ColumnLayouts.OneColumn} backgroundColor={CARD} padding="28px 40px 4px 40px">
         <Column>
           <Button
-            href="https://www.ups.com/track?tracknum=1Z999AA1012345678"
-            backgroundColor={ACCENT}
+            href="https://tools.usps.com/go/TrackConfirmAction?tLabels=940012345678901234 56"
+            backgroundColor={NAVY}
             color="#FFFFFF"
             fontSize="15px"
-            fontWeight={600}
-            padding="16px 32px"
-            borderRadius="4px"
+            fontWeight={700}
+            padding="15px 28px"
+            borderRadius="8px"
             width="100%"
             textAlign="center"
           >
@@ -169,125 +209,45 @@ export function WarbyOrderShipped() {
         </Column>
       </Row>
 
-      {/* Order summary heading */}
-      <Row
-        layout={ColumnLayouts.OneColumn}
-        backgroundColor="#FFFFFF"
-        padding="32px 48px 4px 48px"
-      >
+      {/* In this order — eyebrow */}
+      <Row layout={ColumnLayouts.OneColumn} backgroundColor={CARD} padding="36px 40px 4px 40px">
         <Column>
-          <Heading
-            headingType="h3"
-            fontSize="13px"
+          <Paragraph
+            html="IN THIS ORDER"
+            fontSize="12px"
             fontWeight={700}
-            color={INK}
-            textAlign="left"
-          >
-            ORDER #WP-48213
-          </Heading>
-        </Column>
-      </Row>
-
-      {/* Itemized order table */}
-      <Row
-        layout={ColumnLayouts.OneColumn}
-        backgroundColor="#FFFFFF"
-        padding="8px 48px 0 48px"
-      >
-        <Column>
-          <Table
-            headers={["Item", "Qty", "Price"]}
-            data={[
-              ["Percey — Whiskey Tortoise", "1", "$145.00"],
-              ["Haskell — Crystal", "1", "$95.00"],
-              ["Anti-Fog Lens Spray", "2", "$30.00"],
-            ]}
-          />
-        </Column>
-      </Row>
-
-      {/* Totals */}
-      <Row
-        layout={ColumnLayouts.OneColumn}
-        backgroundColor="#FFFFFF"
-        padding="16px 48px 0 48px"
-      >
-        <Column>
-          <Divider borderTopWidth="1px" borderTopColor={LINE} borderTopStyle="solid" />
-        </Column>
-      </Row>
-
-      <Row
-        layout={ColumnLayouts.TwoEqual}
-        backgroundColor="#FFFFFF"
-        padding="12px 48px 0 48px"
-      >
-        <Column>
-          <Paragraph html="Subtotal" fontSize="14px" color={MUTED} textAlign="left" />
-        </Column>
-        <Column>
-          <Paragraph html="$270.00" fontSize="14px" color={INK} textAlign="right" />
-        </Column>
-      </Row>
-
-      <Row
-        layout={ColumnLayouts.TwoEqual}
-        backgroundColor="#FFFFFF"
-        padding="4px 48px 0 48px"
-      >
-        <Column>
-          <Paragraph html="Shipping" fontSize="14px" color={MUTED} textAlign="left" />
-        </Column>
-        <Column>
-          <Paragraph html="Free" fontSize="14px" color={INK} textAlign="right" />
-        </Column>
-      </Row>
-
-      <Row
-        layout={ColumnLayouts.TwoEqual}
-        backgroundColor="#FFFFFF"
-        padding="8px 48px 24px 48px"
-      >
-        <Column>
-          <Heading headingType="h4" fontSize="15px" fontWeight={700} color={INK} textAlign="left">
-            Total
-          </Heading>
-        </Column>
-        <Column>
-          <Heading headingType="h4" fontSize="15px" fontWeight={700} color={INK} textAlign="right">
-            $270.00
-          </Heading>
-        </Column>
-      </Row>
-
-      {/* Shipping address */}
-      <Row
-        layout={ColumnLayouts.OneColumn}
-        backgroundColor="#FFFFFF"
-        padding="0 48px 40px 48px"
-      >
-        <Column>
-          <Divider borderTopWidth="1px" borderTopColor={LINE} borderTopStyle="solid" />
-          <Paragraph
-            html="<b>Shipping to</b><br/>Alex Rivera<br/>211 Mott Street, Apt 4<br/>New York, NY 10012"
-            fontSize="13px"
             color={MUTED}
-            lineHeight="170%"
-            textAlign="left"
+            letterSpacing="0.06em"
+            lineHeight="100%"
           />
         </Column>
       </Row>
 
-      {/* Footer */}
-      <Row
-        layout={ColumnLayouts.OneColumn}
-        backgroundColor="#FBFBF9"
-        padding="32px 48px 8px 48px"
-      >
+      {/* Product line-items (name + variant / bold price, hairline divider) */}
+      {productRow("Percey", "Whiskey Tortoise", "$145")}
+      {productRow("Haskell", "Crystal", "$95", true)}
+
+      {/* Order total */}
+      {lineRow("Total", "$240", true)}
+
+      {/* Help / footer */}
+      <Row layout={ColumnLayouts.OneColumn} backgroundColor={CARD} padding="28px 40px 40px 40px">
         <Column>
           <Paragraph
-            html="Questions about your order? Visit our <a href='https://www.warbyparker.com/help'>Help Center</a> or reply to this email."
-            fontSize="13px"
+            html="Questions about your order? Our team is here to help — just reply to this email or visit the <a href='https://www.warbyparker.com/help' style='color:#3B5BDB;'>Help Center</a>."
+            fontSize="14px"
+            color={MUTED}
+            lineHeight="164%"
+            textAlign="center"
+          />
+        </Column>
+      </Row>
+
+      <Row layout={ColumnLayouts.OneColumn} backgroundColor={BG} padding="28px 40px 8px 40px">
+        <Column>
+          <Paragraph
+            html="Warby Parker · 233 Spring Street, New York, NY 10013"
+            fontSize="12px"
             color={MUTED}
             textAlign="center"
             lineHeight="160%"
@@ -295,23 +255,14 @@ export function WarbyOrderShipped() {
         </Column>
       </Row>
 
-      <Row
-        layout={ColumnLayouts.OneColumn}
-        backgroundColor="#FBFBF9"
-        padding="0 48px 40px 48px"
-      >
+      <Row layout={ColumnLayouts.OneColumn} backgroundColor={BG} padding="0 40px 36px 40px">
         <Column>
           <Paragraph
-            html="Warby Parker &middot; 233 Spring Street, New York, NY 10013"
+            html="<a href='#' style='color:#767676;'>Unsubscribe</a> &nbsp;·&nbsp; <a href='#' style='color:#767676;'>Privacy Policy</a>"
             fontSize="12px"
-            color={FAINT}
+            color={MUTED}
             textAlign="center"
-          />
-          <Paragraph
-            html="<a href='#'>Unsubscribe</a> &nbsp;·&nbsp; <a href='#'>Privacy Policy</a>"
-            fontSize="12px"
-            color={FAINT}
-            textAlign="center"
+            lineHeight="160%"
           />
         </Column>
       </Row>
