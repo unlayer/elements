@@ -110,12 +110,11 @@ describe("Image Component", () => {
     });
   });
 
-  // Regression: an explicit image width must pin the DISPLAY width so
-  // it survives the Builder round-trip. With autoWidth:true the Builder
-  // auto-sizes to the natural src.width and the intended width is dropped on
-  // selection. An explicit width must emit autoWidth:false + maxWidth:"<w>px";
-  // no explicit width stays responsive (autoWidth:true).
-  describe("explicit width pins display width for Builder round-trip", () => {
+  // Image sizing mirrors Unlayer's value model: src.width/height are the NATURAL
+  // size and never set the display width. The default is responsive
+  // (autoWidth:true); a fixed display size is autoWidth:false + maxWidth as a
+  // percent of the container.
+  describe("image sizing follows Unlayer's autoWidth/maxWidth model", () => {
     function imageSrc(el: React.ReactElement): any {
       const json = renderToJson(
         <Body>
@@ -127,36 +126,39 @@ describe("Image Component", () => {
       return (json as any).body.rows[0].columns[0].contents[0].values.src;
     }
 
-    it("explicit width → autoWidth:false + maxWidth in px", () => {
+    it("a natural width (object src) stays responsive — not pinned", () => {
       const src = imageSrc(
         <Image src={{ url: "https://x/p.jpg", width: 300, height: 200 } as any} />
       );
-      expect(src.autoWidth).toBe(false);
-      expect(src.maxWidth).toBe("300px");
+      expect(src.autoWidth).toBe(true);
+      expect(src.width).toBe(300);
+      expect(src.maxWidth).toBe("100%");
     });
 
-    it("no explicit width → stays responsive (autoWidth:true)", () => {
+    it("no width / string src stays responsive (autoWidth:true)", () => {
       expect(imageSrc(<Image src="https://x/p.jpg" />).autoWidth).toBe(true);
       expect(imageSrc(<Image src={{ url: "https://x/p.jpg" } as any} />).autoWidth).toBe(true);
     });
 
-    // The fix must apply regardless of how width is passed, and flat src props
-    // (width/maxWidth) must not be clobbered by the src mapping.
-    it("flat width prop also pins the width (string and object src)", () => {
-      expect(imageSrc(<Image src="https://x/p.jpg" width={300 as any} />).autoWidth).toBe(false);
-      expect(imageSrc(<Image src="https://x/p.jpg" width={300 as any} />).maxWidth).toBe("300px");
-      expect(imageSrc(<Image src={{ url: "https://x/p.jpg" } as any} width={300 as any} />).maxWidth).toBe("300px");
+    it("a flat px / number width is the natural size, still responsive", () => {
+      const src = imageSrc(<Image src="https://x/p.jpg" width={300 as any} />);
+      expect(src.autoWidth).toBe(true);
+      expect(src.width).toBe(300);
     });
 
-    it("flat maxWidth prop is preserved (not clobbered) and pins the size", () => {
+    it("a percent maxWidth is a fixed display size (autoWidth:false)", () => {
       const src = imageSrc(<Image src="https://x/p.jpg" maxWidth={"50%" as any} />);
       expect(src.maxWidth).toBe("50%");
       expect(src.autoWidth).toBe(false);
     });
 
-    // width is the NATURAL size, maxWidth is the DISPLAY size. When both are
-    // given, the explicit maxWidth must win — a natural width must not clobber it.
-    it("explicit maxWidth wins over a natural width (not overwritten)", () => {
+    it("a percent width also sets a fixed display size (autoWidth:false)", () => {
+      const src = imageSrc(<Image src="https://x/p.jpg" width={"50%" as any} />);
+      expect(src.maxWidth).toBe("50%");
+      expect(src.autoWidth).toBe(false);
+    });
+
+    it("a natural width plus a percent maxWidth keeps both", () => {
       const src = imageSrc(
         <Image src={{ url: "https://x/p.jpg", width: 1600, maxWidth: "50%" } as any} />
       );
@@ -165,19 +167,13 @@ describe("Image Component", () => {
       expect(src.width).toBe(1600);
     });
 
-    it("honors an explicit autoWidth even with a width", () => {
+    it("honors an explicit autoWidth", () => {
       const src = imageSrc(
-        <Image src={{ url: "https://x/p.jpg", width: 300, autoWidth: true } as any} />
-      );
-      expect(src.autoWidth).toBe(true);
-    });
-
-    it("width via the values escape hatch also pins the width", () => {
-      const src = imageSrc(
-        <Image values={{ src: { url: "https://x/p.jpg", width: 300 } } as any} />
+        <Image
+          src={{ url: "https://x/p.jpg", width: 300, autoWidth: false, maxWidth: "40%" } as any}
+        />
       );
       expect(src.autoWidth).toBe(false);
-      expect(src.maxWidth).toBe("300px");
     });
 
     it("tolerates a string values.src (no character-spread)", () => {
@@ -188,14 +184,14 @@ describe("Image Component", () => {
 
     // A string values.src combined with a flat src prop must NOT character-spread
     // the URL (mapSemanticProps merges flat props onto the src group by spreading).
-    it("keeps the url when a string values.src is mixed with a flat width", () => {
+    it("keeps the url when a string values.src is mixed with a flat prop", () => {
       const src = imageSrc(
-        <Image values={{ src: "https://x/p.jpg" } as any} width={300 as any} />
+        <Image values={{ src: "https://x/p.jpg" } as any} maxWidth={"50%" as any} />
       );
       expect(src.url).toBe("https://x/p.jpg");
       expect(src["0"]).toBeUndefined();
       expect(src.autoWidth).toBe(false);
-      expect(src.maxWidth).toBe("300px");
+      expect(src.maxWidth).toBe("50%");
     });
   });
 });

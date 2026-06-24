@@ -98,9 +98,9 @@ const Image = createItemComponent<ImageValues, ImageSemanticProps>({
     const userSrc = { ...fromValues, ...fromProp };
 
     if (src !== undefined || baseSrc !== undefined) {
-      // A string url (from the `src` prop or `values.src`) keeps no placeholder
-      // dimensions — the Builder detects the natural size on load; an object src
-      // starts from the schema defaults.
+      // A string url (from the `src` prop or `values.src`) carries no
+      // dimensions, so it starts responsive with no placeholder size; an object
+      // src starts from the schema defaults.
       const isStringUrl =
         typeof src === "string" || (src === undefined && typeof baseSrc === "string");
       const start = isStringUrl
@@ -108,45 +108,38 @@ const Image = createItemComponent<ImageValues, ImageSemanticProps>({
         : { ...DEFAULT_VALUES.src };
       const merged = { ...start, ...userSrc } as Record<string, any>;
 
-      // Resolve CSS-style sizing into Unlayer's model: `width` is the NATURAL
-      // size (a number); a px string ("300px") parses to that number; a percent
-      // string ("50%") is a DISPLAY width, so it routes to maxWidth. The display
-      // width is governed by autoWidth + maxWidth — with autoWidth:true the
-      // Builder auto-sizes to the natural width and drops the intended width on
-      // selection, so any explicit display size pins autoWidth:false. An explicit
-      // maxWidth is the display width and wins; otherwise a numeric width derives
-      // maxWidth:"<w>px". No explicit sizing → responsive. autoWidth is honored.
-      let widthNum: number | undefined;
-      // maxWidth accepts a number per SizeInput; a bare number / unit-less
-      // numeric string becomes px, a percent/px string passes through.
-      let displayMaxWidth: string | undefined;
-      const rawMaxWidth = userSrc.maxWidth;
-      if (typeof rawMaxWidth === "number") {
-        displayMaxWidth = `${rawMaxWidth}px`;
-      } else if (typeof rawMaxWidth === "string") {
-        const t = rawMaxWidth.trim();
-        displayMaxWidth = /^\d+(?:\.\d+)?$/.test(t) ? `${t}px` : t;
-      }
-      const rawWidth = userSrc.width;
-      if (typeof rawWidth === "number") {
-        widthNum = rawWidth;
-      } else if (typeof rawWidth === "string") {
-        const t = rawWidth.trim();
-        if (/^\d+(?:\.\d+)?(?:px)?$/.test(t)) widthNum = parseFloat(t);
-        else if (/^\d+(?:\.\d+)?%$/.test(t)) displayMaxWidth = displayMaxWidth ?? t;
-      }
-      if (widthNum !== undefined) merged.width = widthNum;
-      else if (typeof rawWidth === "string") delete merged.width; // e.g. "50%" is not a natural size
-      if (displayMaxWidth !== undefined) merged.maxWidth = displayMaxWidth;
+      // In Unlayer's value model, `src.width`/`height` are the NATURAL image
+      // size and never set the display width. Display size = autoWidth + maxWidth:
+      // the default (and "100%") is responsive (autoWidth:true, capped at the
+      // natural size); a fixed display size is autoWidth:false + `maxWidth` as a
+      // PERCENT of the container. An explicit autoWidth is honored.
+      const pctRe = /^\d+(?:\.\d+)?%$/;
 
+      // A `width` that is a percent is a DISPLAY width → route it to maxWidth.
+      // A px / bare-number `width` is the NATURAL size (a number); the natural
+      // cap then gives an "up to <w>px, responsive" display for free.
+      if (typeof merged.width === "string") {
+        const t = merged.width.trim();
+        if (pctRe.test(t)) {
+          if (userSrc.maxWidth === undefined) merged.maxWidth = t;
+          delete merged.width;
+        } else {
+          const px = /^(\d+(?:\.\d+)?)(?:px)?$/.exec(t);
+          if (px) merged.width = parseFloat(px[1]);
+        }
+      }
+
+      const displayPct =
+        typeof merged.maxWidth === "string" && pctRe.test(merged.maxWidth.trim())
+          ? merged.maxWidth.trim()
+          : undefined;
       if (userSrc.autoWidth === undefined) {
-        if (displayMaxWidth !== undefined) {
-          // "100%" means fill/responsive (the default image behavior); a smaller
-          // percent or a px display width is a fixed size that must be pinned.
-          merged.autoWidth = displayMaxWidth.trim() === "100%";
-        } else if (widthNum !== undefined) {
+        if (displayPct && displayPct !== "100%") {
           merged.autoWidth = false;
-          merged.maxWidth = `${widthNum}px`;
+          merged.maxWidth = displayPct;
+        } else {
+          merged.autoWidth = true;
+          merged.maxWidth = "100%";
         }
       }
 

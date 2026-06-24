@@ -128,10 +128,10 @@ describe("Button Component", () => {
     });
   });
 
-  // Regression (same class as Image): an explicit width must pin the
-  // button (size.autoWidth:false), else the Builder auto-sizes to content and
-  // drops the width on selection. No explicit width → stays auto.
-  describe("explicit width pins the button for Builder round-trip", () => {
+  // In Unlayer's model size.width is the button's display width, applied only
+  // when size.autoWidth is false; so an explicit width sets autoWidth:false, and
+  // no width stays auto (content-sized).
+  describe("explicit width sets the button display width (autoWidth:false)", () => {
     function buttonSize(el: React.ReactElement): any {
       const json = renderToJson(
         <Body>

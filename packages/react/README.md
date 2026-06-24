@@ -60,7 +60,7 @@ These props have non-obvious shapes that **must** be followed exactly:
 - **lineHeight**: Accepts a CSS string (`"1.4"`, `"140%"`) or a bare number (kept **unitless**: `lineHeight={1.4}` → `"1.4"`).
 - **Wrapper component**: Use `<Email>`, `<Page>`, or `<Document>` as root — they set the rendering mode automatically.
 - **href**: Can be a plain string URL (auto-wrapped) or `{ name: "web", values: { href, target } }`.
-- **Image src / width**: `src` is a plain URL string or `{ url, width?, maxWidth?, ... }`. Display width accepts px, a percent, or a bare number — `width="300px"`, `width={300}`, `width="50%"`, or `maxWidth="50%"`.
+- **Image sizing**: `src` is a plain URL string or `{ url, width?, height?, ... }`, where `width`/`height` are the image's **natural** size. By default an image is **responsive** — it fills its container, capped at its natural size. For a **fixed** display size, use a **percent**: `width="50%"` or `maxWidth="50%"`. A px/number `width` is treated as the natural size, so `width="300px"` shows the image at up to 300px (responsive).
 - **Heading level**: `headingType` (or its alias `level`) accepts `h1`–`h6`.
 - **children**: Text components accept children as shorthand. `<Heading>Hello</Heading>` sets the heading text. `<Paragraph>` supports children for plain text.
 - **Paragraph text**: Use `html` prop for text content (supports inline formatting like `<b>`, `<a>`). Use children for plain text.
@@ -448,7 +448,7 @@ const monoFont = { label: "Monospace", value: "'SF Mono', 'Fira Code', 'Roboto M
 3. **Missing Row** — Columns must be inside `<Row>`, never directly in `<Email>`/`<Page>`/`<Document>`
 4. **JSX formatting in children** — `<Heading>Hi <b>x</b></Heading>` is flattened to plain text (the formatting is **not** preserved). For inline formatting use `<Paragraph html="Hi <b>x</b>" />`.
 
-> Note: the CSS-idiom forms that used to be mistakes now work — a string `fontFamily`, a string/number `fontWeight`, a numeric `fontSize`, `padding="0"`, `width="300px"`, and `<Paragraph text="..." />` are all accepted and normalized. The object/numeric forms above are still recommended for clarity.
+> Note: the CSS-idiom forms that used to be mistakes now work — a string `fontFamily`, a string/number `fontWeight`, a numeric `fontSize`, `padding="0"`, and `<Paragraph text="..." />` are all accepted and normalized. The object/numeric forms above are still recommended for clarity.
 
 ## Development
 

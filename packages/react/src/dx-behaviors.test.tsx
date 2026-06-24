@@ -16,8 +16,8 @@ import {
 /**
  * Runtime regression coverage for the agent-friendly DX layer: every "natural"
  * authoring form must render to the right thing. These guard against silent
- * regressions in the CSS-idiom normalization, image sizing, and the
- * shorthand/round-trip fixes.
+ * regressions in the CSS-idiom normalization, image sizing, and the shorthand
+ * mappings.
  */
 
 const html = (el: React.ReactElement) =>
@@ -45,26 +45,26 @@ const columnValues = (el: React.ReactElement) =>
     </Body>
   ) as any).body.rows[0].columns[0].values;
 
-describe("DX: image sizing", () => {
-  it("explicit numeric width pins the display (autoWidth:false + maxWidth px)", () => {
+describe("DX: image sizing (Unlayer model — width is natural, display is a percent)", () => {
+  it("a numeric width is the natural size, stays responsive (autoWidth:true)", () => {
     const src = itemValues(<Image src="u" width={300 as any} />).src;
-    expect(src.autoWidth).toBe(false);
-    expect(src.maxWidth).toBe("300px");
+    expect(src.autoWidth).toBe(true);
+    expect(src.width).toBe(300);
   });
 
-  it("px-string width pins too (the silent footgun)", () => {
+  it("a px-string width is the natural size, stays responsive", () => {
     const src = itemValues(<Image src="u" width={"300px" as any} />).src;
-    expect(src.autoWidth).toBe(false);
-    expect(src.maxWidth).toBe("300px");
+    expect(src.autoWidth).toBe(true);
+    expect(src.width).toBe(300);
   });
 
-  it("percent width routes to the display maxWidth", () => {
+  it("a percent width is a fixed display size (autoWidth:false + maxWidth percent)", () => {
     const src = itemValues(<Image src="u" width={"50%" as any} />).src;
     expect(src.autoWidth).toBe(false);
     expect(src.maxWidth).toBe("50%");
   });
 
-  it("width '100%' is responsive (autoWidth:true), not pinned", () => {
+  it("width '100%' is responsive (autoWidth:true)", () => {
     expect(itemValues(<Image src="u" width={"100%" as any} />).src.autoWidth).toBe(true);
   });
 
@@ -72,10 +72,11 @@ describe("DX: image sizing", () => {
     expect(itemValues(<Image src="u" />).src.autoWidth).toBe(true);
   });
 
-  it("explicit maxWidth wins over a natural width", () => {
+  it("a percent maxWidth is a fixed display size, keeping the natural width", () => {
     const src = itemValues(
       <Image src={{ url: "u", width: 1600, maxWidth: "50%" } as any} />
     ).src;
+    expect(src.autoWidth).toBe(false);
     expect(src.maxWidth).toBe("50%");
     expect(src.width).toBe(1600);
   });
@@ -84,10 +85,8 @@ describe("DX: image sizing", () => {
     expect(html(<Image src="https://x/a.png" />)).toMatch(/<img[^>]*src="https:\/\/x\/a\.png"/);
   });
 
-  it("numeric maxWidth gets a px unit and pins", () => {
-    const src = itemValues(<Image src="u" maxWidth={300} />).src;
-    expect(src.autoWidth).toBe(false);
-    expect(src.maxWidth).toBe("300px");
+  it("a non-percent maxWidth does not pin (only a percent sets a fixed display)", () => {
+    expect(itemValues(<Image src="u" maxWidth={300} />).src.autoWidth).toBe(true);
   });
 });
 
@@ -150,7 +149,7 @@ describe("DX: text components", () => {
   });
 });
 
-describe("DX: shorthands and round-trip", () => {
+describe("DX: shorthands and JSON output", () => {
   it("Table columns/rows renders a grid instead of crashing", () => {
     const out = html(<Table columns={2} rows={2} />);
     expect(out).not.toMatch(/failed to render/i);

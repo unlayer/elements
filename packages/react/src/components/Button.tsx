@@ -74,13 +74,12 @@ const Button = createItemComponent<ButtonValues, ButtonSemanticProps>({
       DEFAULT_VALUES,
       "Button"
     );
-    // An explicit width must pin the button width (size.autoWidth:false). With
-    // autoWidth:true the Builder auto-sizes the button to its content and drops
-    // the set width on selection — same round-trip issue as Image. Read the
-    // MAPPED size, which already includes the flat prop, the nested prop, AND
-    // the `values` escape hatch; mapSemanticProps does not inject the schema
-    // default, so a present size.width means the user set it. Honor an explicit
-    // autoWidth.
+    // In Unlayer's model a button's display width is size.width, used only when
+    // size.autoWidth is false (otherwise the width is auto / content-sized). So a
+    // user-provided width sets autoWidth:false. Read the MAPPED size, which
+    // already includes the flat prop, the nested prop, AND the `values` escape
+    // hatch; mapSemanticProps does not inject the schema default, so a present
+    // size.width means the user set it. Honor an explicit autoWidth.
     const size = (mapped as { size?: unknown }).size;
     if (size && typeof size === "object" && !Array.isArray(size)) {
       const s = size as { width?: unknown; autoWidth?: unknown };
