@@ -88,6 +88,25 @@ describe("DX: image sizing (Unlayer model — width is natural, display is a per
   it("a non-percent maxWidth does not pin (only a percent sets a fixed display)", () => {
     expect(itemValues(<Image src="u" maxWidth={300} />).src.autoWidth).toBe(true);
   });
+
+  // Guards the column-overflow regression: a dimensioned image (object src.width
+  // = natural size) inside a multi-column row must stay responsive, never forced
+  // to its natural width — which would overflow the narrow column.
+  it("a dimensioned image stays responsive inside a multi-column row", () => {
+    const json: any = renderToJson(
+      <Body>
+        <Row cells={[1, 1, 1]}>
+          <Column><Image src={{ url: "u", width: 400, height: 260 } as any} /></Column>
+          <Column><Image src={{ url: "u", width: 400, height: 260 } as any} /></Column>
+          <Column><Image src={{ url: "u", width: 400, height: 260 } as any} /></Column>
+        </Row>
+      </Body>
+    );
+    const src = json.body.rows[0].columns[0].contents[0].values.src;
+    expect(src.autoWidth).toBe(true);
+    expect(src.maxWidth).toBe("100%");
+    expect(src.width).toBe(400);
+  });
 });
 
 describe("DX: button sizing", () => {
