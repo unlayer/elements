@@ -47,6 +47,16 @@ function WelcomeEmail() {
 }
 ```
 
+## Using with AI agents (Claude, Cursor, etc.)
+
+Assembling these templates in code is something AI coding agents do well. The official **`unlayer-elements`** skill teaches them the strict structure, the canonical prop shapes, the image-sizing model, and the patterns that make generated emails actually look good:
+
+```bash
+npx skills add unlayer/unlayer-skills
+```
+
+This installs the `unlayer-elements` skill (alongside the other Unlayer skills). Your agent then knows how to build emails, pages, and documents with these components and render them via `renderToHtml` / `renderToJson`. See [unlayer/unlayer-skills](https://github.com/unlayer/unlayer-skills).
+
 ## Critical Rules
 
 These props have non-obvious shapes that **must** be followed exactly:
