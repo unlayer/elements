@@ -53,6 +53,13 @@ export const _table_padding_num: TableProps["padding"] = 12;
 export const _table_border_factored: TableProps["border"] = HAIRLINE;
 export const _divider_border_factored: DividerProps["border"] = HAIRLINE;
 
+// Menu's text inputs are relaxed to match Heading/Paragraph (string fontFamily,
+// number/em sizes) — it has fontFamily/fontWeight/fontSize/letterSpacing.
+export const _menu_fontFamily_string: MenuProps["fontFamily"] = "Arial";
+export const _menu_fontSize_num: MenuProps["fontSize"] = 14;
+export const _menu_letterSpacing_em: MenuProps["letterSpacing"] = "0.08em";
+export const _menu_fontWeight_num: MenuProps["fontWeight"] = 700;
+
 // ── the rest of the natural DX surface (broader contract) ───────────────────
 export const _fontSize_number: HeadingProps["fontSize"] = 28;
 export const _fontSize_string: HeadingProps["fontSize"] = "28px";

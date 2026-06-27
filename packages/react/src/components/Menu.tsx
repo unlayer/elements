@@ -1,14 +1,22 @@
 import { MenuExporters, MenuDefaults } from "@unlayer/exporters";
-import type { MenuValues, MenuItem, SizeInput } from "../types";
+import type { MenuValues, MenuItem, SizeInput, TextStyleProps } from "../types";
 import { createItemComponent, type ItemComponentProps } from "../utils/create-component";
 import { mapSemanticProps, type SemanticProps } from "../utils/semantic-props";
 
-type MenuSemanticProps = Omit<SemanticProps<MenuValues>, "padding"> & {
-  /** Menu items shorthand */
-  items?: MenuItem[];
-  /** Inner padding — a number (→ px) or CSS string. */
-  padding?: SizeInput;
-};
+// Menu carries fontFamily/fontWeight/fontSize/letterSpacing (but not color or
+// lineHeight) — relax those to the same agent-friendly inputs Heading/Paragraph
+// use, so a string fontFamily or a number/em size type-checks (normalized at
+// render time). It has no `color` field (uses linkColor/textColor).
+type MenuSemanticProps = Omit<
+  SemanticProps<MenuValues>,
+  "padding" | "fontFamily" | "fontWeight" | "fontSize" | "letterSpacing"
+> &
+  Omit<TextStyleProps, "color" | "lineHeight"> & {
+    /** Menu items shorthand */
+    items?: MenuItem[];
+    /** Inner padding — a number (→ px) or CSS string. */
+    padding?: SizeInput;
+  };
 
 export interface MenuProps extends ItemComponentProps<MenuSemanticProps> {}
 
