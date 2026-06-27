@@ -8,15 +8,26 @@
  */
 
 import React from "react";
-import {
-  heads,
-  type ComponentHead,
-} from "@unlayer/exporters";
+import { heads } from "@unlayer/exporters";
 import { mergeValues } from "@unlayer-internal/shared-elements";
 import type { RenderMode, HeadConfig } from "@unlayer-internal/shared-elements";
 import { mapSemanticProps } from "./semantic-props";
 import { UNLAYER_CONFIG_KEY } from "./create-component";
 import { BODY_DEFAULTS, ROW_DEFAULTS, COLUMN_DEFAULTS } from "./container-defaults";
+
+/** Args every head builder receives: (values, bodyValues, meta). */
+type HeadArgs = [Record<string, any>, Record<string, any>, Record<string, any>];
+
+/**
+ * The head contributions a component can emit — optional css/js/tags builders.
+ * The exporters' `heads` registry is untyped (Record<string, any>), so describe
+ * the shape this file calls.
+ */
+type ComponentHead = {
+  css?: (...args: HeadArgs) => string | undefined;
+  js?: (...args: HeadArgs) => string | undefined;
+  tags?: (...args: HeadArgs) => string[] | undefined;
+};
 
 // ============================================
 // Inlined helpers
