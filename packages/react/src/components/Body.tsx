@@ -7,7 +7,7 @@ import { mapSemanticProps, type SemanticProps } from "../utils/semantic-props";
 import type { SizeInput } from "../types";
 import { BODY_DEFAULTS } from "../utils/container-defaults";
 
-export type BodyProps = Omit<SemanticProps<BodyValues>, "padding"> & {
+export type BodyProps = Omit<SemanticProps<BodyValues>, "padding" | "borderRadius"> & {
   children?: React.ReactNode;
   mode?: RenderMode;
   className?: string;
@@ -19,6 +19,8 @@ export type BodyProps = Omit<SemanticProps<BodyValues>, "padding"> & {
   previewText?: string;
   /** Padding — a CSS string ("0 48px", "20px") or a number (px). */
   padding?: SizeInput;
+  /** Corner radius — a number (→ px) or CSS string ("8px"). */
+  borderRadius?: SizeInput;
 };
 
 const DEFAULT_VALUES = BODY_DEFAULTS;
@@ -137,7 +139,7 @@ const Body: React.FC<BodyProps> = (props) => {
   // Outlook table, container, and grid CSS disagree. Mapped values win.
   const values = mergeValues<BodyValues>(
     DEFAULT_VALUES,
-    mapSemanticProps<BodyValues>(semanticProps, DEFAULT_VALUES, "Body")
+    mapSemanticProps<BodyValues>(semanticProps as SemanticProps<BodyValues>, DEFAULT_VALUES, "Body")
   );
 
   // Ensure _meta

@@ -1,5 +1,5 @@
 import { ButtonExporters, ButtonDefaults } from "@unlayer/exporters";
-import type { ButtonValues, TextStyleProps, SizeInput } from "../types";
+import type { ButtonValues, TextStyleProps, SizeInput, BorderInput } from "../types";
 import { createItemComponent, type ItemComponentProps } from "../utils/create-component";
 import { mapSemanticProps, type SemanticProps } from "../utils/semantic-props";
 
@@ -9,11 +9,17 @@ import { mapSemanticProps, type SemanticProps } from "../utils/semantic-props";
  */
 type ButtonSemanticProps = Omit<
   SemanticProps<ButtonValues>,
-  keyof TextStyleProps | "width"
+  keyof TextStyleProps | "width" | "padding" | "borderRadius" | "border"
 > &
   TextStyleProps & {
     /** Display width — a number/px pins the button; "100%" makes it full-width. */
     width?: SizeInput;
+    /** Inner padding — a number (→ px) or CSS string ("14px 28px"). */
+    padding?: SizeInput;
+    /** Corner radius — a number (→ px) or CSS string ("8px", "500px"). */
+    borderRadius?: SizeInput;
+    /** Per-side border object (width fields accept a number/px string). */
+    border?: BorderInput;
   };
 
 /**

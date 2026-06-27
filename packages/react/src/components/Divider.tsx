@@ -1,9 +1,14 @@
 import { DividerExporters, DividerDefaults } from "@unlayer/exporters";
-import type { DividerValues } from "../types";
+import type { DividerValues, BorderInput } from "../types";
 import { createItemComponent, type ItemComponentProps } from "../utils/create-component";
 import { mapSemanticProps, type SemanticProps } from "../utils/semantic-props";
 
-export interface DividerProps extends ItemComponentProps<SemanticProps<DividerValues>> {}
+type DividerSemanticProps = Omit<SemanticProps<DividerValues>, "border"> & {
+  /** Per-side border object (width fields accept a number/px string). */
+  border?: BorderInput;
+};
+
+export interface DividerProps extends ItemComponentProps<DividerSemanticProps> {}
 
 // Defaults from the editor schema
 const DEFAULT_VALUES = {
@@ -26,10 +31,10 @@ const DEFAULT_VALUES = {
  * }} />
  * ```
  */
-const Divider = createItemComponent<DividerValues, SemanticProps<DividerValues>>({
+const Divider = createItemComponent<DividerValues, DividerSemanticProps>({
   name: "Divider",
   defaultValues: DEFAULT_VALUES,
-  propMapper: (props) => mapSemanticProps(props, DEFAULT_VALUES, "Divider"),
+  propMapper: (props) => mapSemanticProps(props as SemanticProps<DividerValues>, DEFAULT_VALUES, "Divider"),
   displayName: "Divider",
   exporters: DividerExporters,
 });

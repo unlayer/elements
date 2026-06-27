@@ -136,11 +136,17 @@ export type ImageSrcInput =
 /** Button component props */
 export type ButtonProps = Omit<
   ItemProps<ButtonValues>,
-  keyof TextStyleProps | "width"
+  keyof TextStyleProps | "width" | "padding" | "borderRadius" | "border"
 > &
   TextStyleProps & {
     /** Display width — a number/px pins the button; "100%" makes it full-width. */
     width?: SizeInput;
+    /** Inner padding — a number (→ px) or CSS string ("14px 28px"). */
+    padding?: SizeInput;
+    /** Corner radius — a number (→ px) or CSS string ("8px", "500px"). */
+    borderRadius?: SizeInput;
+    /** Per-side border object (width fields accept a number/px string). */
+    border?: BorderInput;
   };
 /** Heading component props */
 export type HeadingProps = Omit<
@@ -156,7 +162,10 @@ export type HeadingProps = Omit<
     text?: string;
   };
 /** Divider component props */
-export type DividerProps = ItemProps<DividerValues>;
+export type DividerProps = Omit<ItemProps<DividerValues>, "border"> & {
+  /** Per-side border object (width fields accept a number/px string). */
+  border?: BorderInput;
+};
 /** HTML component props */
 export type HtmlProps = ItemProps<HtmlValues>;
 /** Paragraph component props */
@@ -190,17 +199,23 @@ export type SocialProps = ItemProps<SocialValues> & {
 };
 
 /** Menu component props — supports `items` shorthand array. */
-export type MenuProps = ItemProps<MenuValues> & {
+export type MenuProps = Omit<ItemProps<MenuValues>, "padding"> & {
   /** Menu items shorthand */
   items?: MenuItem[];
+  /** Inner padding — a number (→ px) or CSS string. */
+  padding?: SizeInput;
 };
 
 /** Table component props — supports `headers` + `data` shorthands. */
-export type TableProps = ItemProps<TableValues> & {
+export type TableProps = Omit<ItemProps<TableValues>, "padding" | "border"> & {
   /** Column headers */
   headers?: string[];
   /** Row data as 2D array */
   data?: string[][];
+  /** Inner padding — a number (→ px) or CSS string. */
+  padding?: SizeInput;
+  /** Per-side border object (width fields accept a number/px string). */
+  border?: BorderInput;
 };
 
 /** Video component props — supports `videoUrl` shorthand. */

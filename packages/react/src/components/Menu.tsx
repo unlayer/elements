@@ -1,16 +1,16 @@
 import { MenuExporters, MenuDefaults } from "@unlayer/exporters";
-import type { MenuValues, MenuItem } from "../types";
+import type { MenuValues, MenuItem, SizeInput } from "../types";
 import { createItemComponent, type ItemComponentProps } from "../utils/create-component";
 import { mapSemanticProps, type SemanticProps } from "../utils/semantic-props";
 
-type MenuSemanticProps = SemanticProps<MenuValues> & {
+type MenuSemanticProps = Omit<SemanticProps<MenuValues>, "padding"> & {
   /** Menu items shorthand */
   items?: MenuItem[];
+  /** Inner padding — a number (→ px) or CSS string. */
+  padding?: SizeInput;
 };
 
-export interface MenuProps extends ItemComponentProps<SemanticProps<MenuValues>> {
-  items?: MenuItem[];
-}
+export interface MenuProps extends ItemComponentProps<MenuSemanticProps> {}
 
 // Defaults from the editor schema
 const DEFAULT_MENU: NonNullable<MenuValues["menu"]> = MenuDefaults.menu ?? { items: [] };

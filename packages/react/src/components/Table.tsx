@@ -1,18 +1,27 @@
 import { TableExporters, TableDefaults } from "@unlayer/exporters";
-import type { TableValues } from "../types";
+import type { TableValues, SizeInput, BorderInput } from "../types";
 import { createItemComponent, type ItemComponentProps } from "../utils/create-component";
 import { mapSemanticProps, type SemanticProps } from "../utils/semantic-props";
 
-type TableSemanticProps = SemanticProps<TableValues> & {
+type TableSemanticProps = Omit<SemanticProps<TableValues>, "padding" | "border"> & {
   /** Column headers as string[] */
   headers?: string[];
   /** Row data as 2D string array */
   data?: string[][];
+  /** Inner padding — a number (→ px) or CSS string. */
+  padding?: SizeInput;
+  /** Per-side border object (width fields accept a number/px string). */
+  border?: BorderInput;
 };
 
-export interface TableProps extends Omit<ItemComponentProps<SemanticProps<TableValues>>, "headers" | "data"> {
+export interface TableProps
+  extends Omit<ItemComponentProps<Omit<SemanticProps<TableValues>, "padding" | "border">>, "headers" | "data"> {
   headers?: string[];
   data?: string[][];
+  /** Inner padding — a number (→ px) or CSS string. */
+  padding?: SizeInput;
+  /** Per-side border object (width fields accept a number/px string). */
+  border?: BorderInput;
 }
 
 // Defaults from the editor schema, plus table data structure
