@@ -1,1 +1,0 @@
-import{c as n,h as d,m as p,Q as u}from"./create-component-DB2Z4bDD.js";const a={...d,text:"Button"},r=n({name:"Button",defaultValues:a,propMapper:e=>{const o=p(e,a,"Button"),t=e,s=t.width!==void 0||t.size?.width!==void 0,i=t.autoWidth!==void 0||t.size?.autoWidth!==void 0;return s&&!i&&o.size&&(o.size.autoWidth=!1),o},displayName:"Button",exporters:u});export{r as B};
