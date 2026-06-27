@@ -29,17 +29,6 @@ import { htmlToTextJson } from "@unlayer-internal/shared-elements";
 
 // 🎯 Export clean public types (hiding internal implementation details)
 export type {
-  // Clean component prop types
-  ButtonProps,
-  DividerProps,
-  HeadingProps,
-  HtmlProps,
-  ImageProps,
-  MenuProps,
-  ParagraphProps,
-  SocialProps,
-  TableProps,
-  VideoProps,
   // Value types for configuration
   ButtonValues,
   DividerValues,
@@ -76,10 +65,18 @@ export type {
   DesignContent,
 } from "@unlayer-internal/shared-elements";
 
-// Export Row props separately since it has a custom interface
+// Component prop types — each lives with its component (single source of truth).
+export type { ButtonProps } from "./components/Button";
+export type { DividerProps } from "./components/Divider";
+export type { HeadingProps } from "./components/Heading";
+export type { HtmlProps } from "./components/Html";
+export type { ImageProps } from "./components/Image";
+export type { MenuProps } from "./components/Menu";
+export type { ParagraphProps } from "./components/Paragraph";
+export type { SocialProps } from "./components/Social";
+export type { TableProps } from "./components/Table";
+export type { VideoProps } from "./components/Video";
 export type { RowProps } from "./components/Row";
-
-// Export semantic wrapper prop types
 export type { EmailProps } from "./components/Email";
 export type { PageProps } from "./components/Page";
 export type { DocumentProps } from "./components/Document";

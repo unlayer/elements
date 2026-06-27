@@ -18,7 +18,10 @@ import type { ButtonProps } from "./components/Button";
 import type { MenuProps } from "./components/Menu";
 import type { TableProps } from "./components/Table";
 import type { DividerProps } from "./components/Divider";
-import type { BorderInput, HeadingProps, ParagraphProps, ImageProps } from "./types";
+import type { HeadingProps } from "./components/Heading";
+import type { ParagraphProps } from "./components/Paragraph";
+import type { ImageProps } from "./components/Image";
+import type { BorderInput } from "./types";
 
 // ── border: THE regression this guard exists for ────────────────────────────
 // A reusable hairline object factored into a `const` (no `as const`) must satisfy

@@ -1,14 +1,15 @@
 /**
  * Type Definitions
  *
- * Re-exports shared types from @unlayer-internal/shared-elements
- * and defines React-specific component prop types.
+ * Re-exports the canonical value types from @unlayer-internal/shared-elements
+ * and defines the agent-friendly input types components build their props from.
+ *
+ * Each component's prop type (ButtonProps, HeadingProps, …) lives next to its
+ * component — these are just the shared building blocks they share.
  */
 
-import type { SemanticProps } from "@unlayer-internal/shared-elements";
-
 // ============================================
-// RE-EXPORT ALL SHARED TYPES
+// RE-EXPORT SHARED VALUE TYPES
 // ============================================
 
 export type {
@@ -43,46 +44,20 @@ export type {
 } from "@unlayer-internal/shared-elements";
 
 // ============================================
-// COMPONENT PROP TYPES
+// AGENT-FRIENDLY INPUT TYPES
 // ============================================
-
-// Import value types for prop definitions
-import type {
-  ButtonValues,
-  ImageValues,
-  HeadingValues,
-  DividerValues,
-  HtmlValues,
-  MenuValues,
-  ParagraphValues,
-  SocialValues,
-  TableValues,
-  VideoValues,
-  ColumnValues,
-  SocialIcon,
-  MenuItem,
-} from "@unlayer-internal/shared-elements";
-
-/**
- * Public props for item components.
- * Includes semantic flat props, children, values escape hatch,
- * className, style, and mode. Excludes internal threading props.
- */
-type ItemProps<TValues> = SemanticProps<TValues, React.ReactNode> & {
-  className?: string;
-  style?: React.CSSProperties;
-  mode?: "web" | "email" | "document";
-};
-
-// ── Agent-friendly prop inputs ───────────────────────────────────────────────
 // The canonical value types are stricter than the forms authors (human and AI)
-// naturally write — and the flattened semantic props are typed `any`, so the
-// wrong form type-checks and renders broken. These widen the public surface to
-// the natural forms and replace the `any`; mapSemanticProps normalizes them at
-// runtime (see normalizeCssProps / Image propMapper).
+// naturally write. These widen the public surface to the natural forms; the
+// runtime normalizes them at render time. Components import these to build their
+// own prop types.
+
+// Imported locally (not just re-exported) so BorderInput can be derived from the
+// canonical border shape.
+import type { ColumnValues } from "@unlayer-internal/shared-elements";
 
 /** fontFamily accepts a ready stack object or a bare family-name string. */
 export type FontFamilyInput = { label: string; value: string } | string;
+
 /** fontWeight accepts a number, a numeric string, or a CSS keyword. */
 export type FontWeightInput =
   | number
@@ -91,26 +66,28 @@ export type FontWeightInput =
   | "bold"
   | "lighter"
   | "bolder";
+
 /** A CSS size: a number (treated as px) or a string ("24px", "50%", "1.5em"). */
 export type SizeInput = number | (string & {});
 
 /**
  * The `border` object, agent-friendly. The canonical type pins each per-side
  * `*Width` to `${number}px`, so a literal like "1px" type-checks inline but a
- * factored-out hairline object widens "1px" to `string` and stops compiling —
- * exactly the reusable-divider pattern authors reach for. Relax the `*Width`
- * fields to SizeInput (the runtime already accepts any CSS string). Derived
- * from the canonical shape so it tracks the schema instead of duplicating it.
+ * factored-out object widens "1px" to `string` and stops compiling — exactly the
+ * reusable-divider pattern authors reach for. Relax the `*Width` fields to
+ * SizeInput (the runtime accepts any CSS string), derived from the canonical
+ * shape so it tracks the schema instead of duplicating it.
  */
 export type BorderInput = {
   [K in keyof NonNullable<ColumnValues["border"]>]?: K extends `${string}Width`
     ? SizeInput
     : NonNullable<ColumnValues["border"]>[K];
 };
+
 /** Heading levels (h1–h6). */
 export type HeadingLevel = "h1" | "h2" | "h3" | "h4" | "h5" | "h6";
 
-/** Shared text/style props, agent-friendly (replace the loose `any` flat keys). */
+/** Shared text/style inputs, agent-friendly. */
 export type TextStyleProps = {
   fontFamily?: FontFamilyInput;
   fontWeight?: FontWeightInput;
@@ -132,95 +109,3 @@ export type ImageSrcInput =
       maxWidth?: SizeInput;
       [key: string]: unknown;
     };
-
-/** Button component props */
-export type ButtonProps = Omit<
-  ItemProps<ButtonValues>,
-  keyof TextStyleProps | "width" | "padding" | "borderRadius" | "border"
-> &
-  TextStyleProps & {
-    /** Display width — a number/px pins the button; "100%" makes it full-width. */
-    width?: SizeInput;
-    /** Inner padding — a number (→ px) or CSS string ("14px 28px"). */
-    padding?: SizeInput;
-    /** Corner radius — a number (→ px) or CSS string ("8px", "500px"). */
-    borderRadius?: SizeInput;
-    /** Per-side border object (width fields accept a number/px string). */
-    border?: BorderInput;
-  };
-/** Heading component props */
-export type HeadingProps = Omit<
-  ItemProps<HeadingValues>,
-  keyof TextStyleProps | "headingType"
-> &
-  TextStyleProps & {
-    /** Heading level h1–h6. */
-    headingType?: HeadingLevel;
-    /** Alias for `headingType`. */
-    level?: HeadingLevel;
-    /** Heading text (or use children). */
-    text?: string;
-  };
-/** Divider component props */
-export type DividerProps = Omit<ItemProps<DividerValues>, "border"> & {
-  /** Per-side border object (width fields accept a number/px string). */
-  border?: BorderInput;
-};
-/** HTML component props */
-export type HtmlProps = ItemProps<HtmlValues>;
-/** Paragraph component props */
-export type ParagraphProps = Omit<ItemProps<ParagraphValues>, keyof TextStyleProps> &
-  TextStyleProps & {
-    /** Plain-text content (or use `html` for inline formatting, or children). */
-    text?: string;
-  };
-
-/** Image component props — supports `alt` shorthand for `altText`. */
-export type ImageProps = Omit<
-  ItemProps<ImageValues>,
-  "src" | "width" | "maxWidth"
-> & {
-  /** Alt text (alias for altText) */
-  alt?: string;
-  /** Image URL string, or the value object `{ url, width?, maxWidth?, ... }`. */
-  src?: ImageSrcInput;
-  /** Display width — number/px pins the image; "50%" sets a percentage width. */
-  width?: SizeInput;
-  /** Display width as a CSS value ("50%", "300px"). */
-  maxWidth?: SizeInput;
-};
-
-/** Social component props — supports `icons` shorthand array. */
-export type SocialProps = ItemProps<SocialValues> & {
-  /** Social icons shorthand */
-  icons?: SocialIcon[];
-  /** Icon shape */
-  iconType?: "circle" | "rounded" | "squared";
-};
-
-/** Menu component props — supports `items` shorthand array. */
-export type MenuProps = Omit<ItemProps<MenuValues>, "padding"> & {
-  /** Menu items shorthand */
-  items?: MenuItem[];
-  /** Inner padding — a number (→ px) or CSS string. */
-  padding?: SizeInput;
-};
-
-/** Table component props — supports `headers` + `data` shorthands. */
-export type TableProps = Omit<ItemProps<TableValues>, "padding" | "border"> & {
-  /** Column headers */
-  headers?: string[];
-  /** Row data as 2D array */
-  data?: string[][];
-  /** Inner padding — a number (→ px) or CSS string. */
-  padding?: SizeInput;
-  /** Per-side border object (width fields accept a number/px string). */
-  border?: BorderInput;
-};
-
-/** Video component props — supports `videoUrl` shorthand. */
-export type VideoProps = ItemProps<VideoValues> & {
-  /** YouTube/Vimeo URL (auto-parsed) */
-  videoUrl?: string;
-};
-
