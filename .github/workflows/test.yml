@@ -47,6 +47,13 @@ jobs:
       - name: Build packages
         run: pnpm build
 
+      # ── DX type contract ────────────────────────────────────────
+      # tsc gate over the agent-friendly prop types (src/dx-types.test-d.tsx).
+      # The build only type-checks the index import graph, so this catches a
+      # relaxed input type being reverted (e.g. the Column `border` regression).
+      - name: Type contract
+        run: pnpm --filter @unlayer/react-elements typecheck
+
       # ── Bundle size budget ──────────────────────────────────────
       # Fail if the react-elements ESM bundle exceeds 60KB.
       # Current size: ~49KB (14+ components). Budget gives room for

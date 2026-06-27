@@ -1,0 +1,10 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "jsx": "react-jsx",
+    "lib": ["ES2020", "DOM"],
+    "types": ["react", "react-dom"],
+    "noEmit": true
+  },
+  "include": ["src/dx-types.test-d.tsx"]
+}
