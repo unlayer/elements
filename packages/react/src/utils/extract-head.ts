@@ -19,9 +19,8 @@ import { BODY_DEFAULTS, ROW_DEFAULTS, COLUMN_DEFAULTS } from "./container-defaul
 type HeadArgs = [Record<string, any>, Record<string, any>, Record<string, any>];
 
 /**
- * The head contributions a component can emit — optional css/js/tags builders.
- * The exporters' `heads` registry is untyped (Record<string, any>), so describe
- * the shape this file calls.
+ * Local type for a component's head contributions — the optional css/js/tags
+ * builders this file invokes to collect the <head> CSS/JS/tags.
  */
 type ComponentHead = {
   css?: (...args: HeadArgs) => string | undefined;
