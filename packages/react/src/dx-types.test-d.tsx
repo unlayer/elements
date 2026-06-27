@@ -11,14 +11,14 @@
  * directive becomes unused — i.e. the bad form started compiling). If a relaxed
  * input type is reverted, the matching assertion below stops compiling.
  */
+// Import the ACTUAL component prop types (what `<X>` accepts in JSX), not just
+// the exported aliases — these are the types that must stay agent-friendly.
 import type { ColumnProps } from "./components/Column";
-import type {
-  BorderInput,
-  HeadingProps,
-  ButtonProps,
-  ParagraphProps,
-  ImageProps,
-} from "./types";
+import type { ButtonProps } from "./components/Button";
+import type { MenuProps } from "./components/Menu";
+import type { TableProps } from "./components/Table";
+import type { DividerProps } from "./components/Divider";
+import type { BorderInput, HeadingProps, ParagraphProps, ImageProps } from "./types";
 
 // ── border: THE regression this guard exists for ────────────────────────────
 // A reusable hairline object factored into a `const` (no `as const`) must satisfy
@@ -38,6 +38,17 @@ export const _border_numeric_width: BorderInput = {
 };
 // @ts-expect-error a border is an object of per-side props, never a bare CSS string
 export const _border_reject_string: ColumnProps["border"] = "1px solid #ccc";
+
+// ── box-model dimensions: bare number (→ px) + factored border, across the
+//    ACTUAL component types (the canonical schema pins these to `${number}px`).
+export const _col_radius_num: ColumnProps["borderRadius"] = 8;
+export const _btn_radius_num: ButtonProps["borderRadius"] = 8;
+export const _btn_padding_num: ButtonProps["padding"] = 14;
+export const _btn_border_factored: ButtonProps["border"] = HAIRLINE;
+export const _menu_padding_num: MenuProps["padding"] = 10;
+export const _table_padding_num: TableProps["padding"] = 12;
+export const _table_border_factored: TableProps["border"] = HAIRLINE;
+export const _divider_border_factored: DividerProps["border"] = HAIRLINE;
 
 // ── the rest of the natural DX surface (broader contract) ───────────────────
 export const _fontSize_number: HeadingProps["fontSize"] = 28;
