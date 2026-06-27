@@ -3,7 +3,7 @@ import type { RenderMode, UnlayerConfig, ColumnValues } from "@unlayer-internal/
 import { ColumnExporters, ContentExporters } from "@unlayer/exporters";
 import { UNLAYER_RENDER_KEY } from "../utils/create-component";
 import { mapSemanticProps, type SemanticProps } from "../utils/semantic-props";
-import type { SizeInput } from "../types";
+import type { SizeInput, BorderInput } from "../types";
 import { COLUMN_DEFAULTS } from "../utils/container-defaults";
 
 /** Unlayer's default content-block padding when a block sets none. */
@@ -56,7 +56,7 @@ function renderContentToHtml(innerHTML: string, values: any, bodyValues: any, mo
 // Component
 // ============================================
 
-export type ColumnProps = Omit<SemanticProps<ColumnValues>, "padding"> & {
+export type ColumnProps = Omit<SemanticProps<ColumnValues>, "padding" | "border"> & {
   children?: React.ReactNode;
   // Internal props (provided by Row)
   index?: number;
@@ -68,6 +68,9 @@ export type ColumnProps = Omit<SemanticProps<ColumnValues>, "padding"> & {
   style?: React.CSSProperties;
   /** Padding — a CSS string ("0 24px", "10px") or a number (px). */
   padding?: SizeInput;
+  /** Per-side border object (great for hairline dividers). Width fields accept
+   *  a number/px string; reuse it as a factored-out const without `as const`. */
+  border?: BorderInput;
   /** @internal - Unlayer config threaded from UnlayerProvider via Body/Row */
   _config?: UnlayerConfig;
 };

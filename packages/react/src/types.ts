@@ -58,6 +58,7 @@ import type {
   SocialValues,
   TableValues,
   VideoValues,
+  ColumnValues,
   SocialIcon,
   MenuItem,
 } from "@unlayer-internal/shared-elements";
@@ -92,6 +93,20 @@ export type FontWeightInput =
   | "bolder";
 /** A CSS size: a number (treated as px) or a string ("24px", "50%", "1.5em"). */
 export type SizeInput = number | (string & {});
+
+/**
+ * The `border` object, agent-friendly. The canonical type pins each per-side
+ * `*Width` to `${number}px`, so a literal like "1px" type-checks inline but a
+ * factored-out hairline object widens "1px" to `string` and stops compiling —
+ * exactly the reusable-divider pattern authors reach for. Relax the `*Width`
+ * fields to SizeInput (the runtime already accepts any CSS string). Derived
+ * from the canonical shape so it tracks the schema instead of duplicating it.
+ */
+export type BorderInput = {
+  [K in keyof NonNullable<ColumnValues["border"]>]?: K extends `${string}Width`
+    ? SizeInput
+    : NonNullable<ColumnValues["border"]>[K];
+};
 /** Heading levels (h1–h6). */
 export type HeadingLevel = "h1" | "h2" | "h3" | "h4" | "h5" | "h6";
 
