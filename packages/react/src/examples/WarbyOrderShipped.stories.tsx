@@ -194,7 +194,7 @@ export function WarbyOrderShipped() {
       <Row layout={ColumnLayouts.OneColumn} backgroundColor={CARD} padding="28px 40px 4px 40px">
         <Column>
           <Button
-            href="https://tools.usps.com/go/TrackConfirmAction?tLabels=940012345678901234 56"
+            href="https://tools.usps.com/go/TrackConfirmAction?tLabels=94001234567890123456"
             backgroundColor={NAVY}
             color="#FFFFFF"
             fontSize="15px"
