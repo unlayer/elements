@@ -58,7 +58,21 @@ function unwrapRoot(element: React.ReactElement): React.ReactElement {
     const isPlainFunctionComponent =
       typeof type === "function" && !type.prototype?.isReactComponent;
     if (!isPlainFunctionComponent) break;
-    const produced = type({ ...(current.props as Record<string, unknown>) });
+    // Invoking the wrapper can throw (e.g. it uses React hooks, which aren't
+    // valid when called outside React's render). Turn that into an actionable
+    // message instead of a bare "Invalid hook call".
+    let produced: unknown;
+    try {
+      produced = type({ ...(current.props as Record<string, unknown>) });
+    } catch (cause) {
+      const detail = cause instanceof Error ? cause.message : String(cause);
+      throw new Error(
+        `[Unlayer] renderToJson: could not unwrap <${name || "wrapper"}>. A wrapper must ` +
+          `be a plain component that synchronously returns a root (<Email>, <Page>, ` +
+          `<Document>, or <Body>) and uses no React hooks. Pass the root element directly, ` +
+          `or call your component: renderToJson(MyEmail()). (${detail})`
+      );
+    }
     if (!React.isValidElement(produced)) break;
     current = produced;
   }

@@ -330,6 +330,13 @@ describe("renderToJson", () => {
     expect(() => renderToJson(<NotARoot />)).toThrow("Root element must be <Body>");
   });
 
+  it("rethrows an actionable error when a wrapper throws while unwrapping", () => {
+    const Boom = (): React.ReactElement => {
+      throw new Error("invalid hook call");
+    };
+    expect(() => renderToJson(<Boom />)).toThrow("could not unwrap");
+  });
+
   it("generates _meta at all levels", () => {
     const design = renderToJson(
       <Body>
