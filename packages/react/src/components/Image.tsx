@@ -55,13 +55,17 @@ const Image = createItemComponent<ImageValues, ImageSemanticProps>({
   name: "Image",
   defaultValues: DEFAULT_VALUES,
   propMapper: (props) => {
-    const { alt, src, ...rest } = props;
+    // `width`/`maxWidth` are DISPLAY intent — pull them out so mapSemanticProps
+    // can't fold them into the natural-size `src.width` field. They drive
+    // autoWidth + maxWidth below; the natural dimensions come only from an
+    // object `src` / the loaded image.
+    const { alt, src, width: widthProp, maxWidth: maxWidthProp, ...rest } = props;
 
     // Normalize a string `values.src` to { url } before mapping. mapSemanticProps
-    // merges flat src props (width=, …) onto the src group by spreading; if the
-    // escape-hatch src is a string, spreading it character-spreads the URL into
-    // numeric keys ({0:"h",1:"t",…}) and loses the url. Wrapping it first keeps
-    // the merge object-to-object.
+    // merges flat src props onto the src group by spreading; if the escape-hatch
+    // src is a string, spreading it character-spreads the URL into numeric keys
+    // ({0:"h",1:"t",…}) and loses the url. Wrapping it first keeps the merge
+    // object-to-object.
     const restValues = (rest as { values?: { src?: unknown } }).values;
     const normalizedRest =
       restValues && typeof restValues.src === "string"
@@ -81,11 +85,11 @@ const Image = createItemComponent<ImageValues, ImageSemanticProps>({
 
     // Build the src value. Note: ImageValues.src is typed as string (codegen
     // bug) but the exporter expects { url, autoWidth?, maxWidth?, width?, ... }.
-    // The user can provide src three ways — the `src` prop (string or object),
-    // flat semantic props (width=, maxWidth=, …), and the `values.src` escape
-    // hatch — the latter two land on `base.src` via mapSemanticProps. Combine
-    // all user-provided src fields (defensively, since base.src may be a string
-    // or non-object), then apply the width pin.
+    // Natural src fields come from the `src` prop (string or object) and the
+    // `values.src` escape hatch (which lands on `base.src` via mapSemanticProps);
+    // the display `width`/`maxWidth` props were pulled out above. Combine the
+    // natural fields (defensively, since base.src may be a string or non-object),
+    // then apply the display intent.
     const baseSrc = (base as Record<string, any>).src;
     const fromValues: Record<string, any> =
       baseSrc && typeof baseSrc === "object" && !Array.isArray(baseSrc)
@@ -108,35 +112,55 @@ const Image = createItemComponent<ImageValues, ImageSemanticProps>({
         : { ...DEFAULT_VALUES.src };
       const merged = { ...start, ...userSrc } as Record<string, any>;
 
-      // In Unlayer's value model, `src.width`/`height` are the NATURAL image
-      // size and never set the display width. Display size = autoWidth + maxWidth:
-      // the default (and "100%") is responsive (autoWidth:true, capped at the
-      // natural size); a fixed display size is autoWidth:false + `maxWidth` as a
-      // PERCENT of the container. An explicit autoWidth is honored.
+      // In Unlayer's value model, `src.width`/`height` are the NATURAL image size
+      // and never set the display size. Display size = autoWidth + maxWidth: the
+      // default (and "100%") is responsive (autoWidth:true); a fixed display size
+      // is autoWidth:false + `maxWidth` as a PERCENT of the column's content slot
+      // (see image-sizing.ts for why a percent, not the natural-size field). A
+      // px/number pin is kept here as a placeholder and converted to that percent
+      // by the width-aware pass in renderToHtml / renderToJson, where the column
+      // geometry is known. An explicit autoWidth is honored.
       const pctRe = /^\d+(?:\.\d+)?%$/;
+      const asPercent = (v: unknown): string | undefined =>
+        typeof v === "string" && pctRe.test(v.trim()) ? v.trim() : undefined;
+      const asPx = (v: unknown): number | undefined => {
+        if (typeof v === "number" && Number.isFinite(v)) return v;
+        if (typeof v === "string") {
+          const t = v.trim();
+          if (pctRe.test(t)) return undefined;
+          const m = /^(\d+(?:\.\d+)?)(?:px)?$/.exec(t);
+          if (m) return parseFloat(m[1]);
+        }
+        return undefined;
+      };
 
-      // A `width` that is a percent is a DISPLAY width → route it to maxWidth.
-      // A px / bare-number `width` is the NATURAL size (a number); the natural
-      // cap then gives an "up to <w>px, responsive" display for free.
-      if (typeof merged.width === "string") {
-        const t = merged.width.trim();
-        if (pctRe.test(t)) {
-          if (userSrc.maxWidth === undefined) merged.maxWidth = t;
-          delete merged.width;
-        } else {
-          const px = /^(\d+(?:\.\d+)?)(?:px)?$/.exec(t);
-          if (px) merged.width = parseFloat(px[1]);
+      // Resolve display intent in priority order: flat `width` → flat `maxWidth`
+      // → escape-hatch values.src.maxWidth.
+      let displayPct: string | undefined;
+      let displayPx: number | undefined;
+      for (const candidate of [widthProp, maxWidthProp, userSrc.maxWidth]) {
+        if (candidate === undefined) continue;
+        const pct = asPercent(candidate);
+        if (pct) {
+          displayPct = pct;
+          break;
+        }
+        const px = asPx(candidate);
+        if (px != null) {
+          displayPx = px;
+          break;
         }
       }
 
-      const displayPct =
-        typeof merged.maxWidth === "string" && pctRe.test(merged.maxWidth.trim())
-          ? merged.maxWidth.trim()
-          : undefined;
+      // An explicit escape-hatch `autoWidth` is honored as-is (its own maxWidth
+      // stays); otherwise the display intent decides.
       if (userSrc.autoWidth === undefined) {
         if (displayPct && displayPct !== "100%") {
           merged.autoWidth = false;
           merged.maxWidth = displayPct;
+        } else if (displayPx != null) {
+          merged.autoWidth = false;
+          merged.maxWidth = displayPx;
         } else {
           merged.autoWidth = true;
           merged.maxWidth = "100%";

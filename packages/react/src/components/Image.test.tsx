@@ -143,10 +143,13 @@ describe("Image Component", () => {
       expect(imageSrc(<Image src={{ url: "https://x/p.jpg" } as any} />).autoWidth).toBe(true);
     });
 
-    it("a flat px / number width is the natural size, still responsive", () => {
+    it("a flat px / number width pins to a percent of the content slot", () => {
+      // Display intent, not natural size: 300 / (500 default contentWidth − 20px
+      // container padding) = 62.5%, stored as autoWidth:false so it survives a
+      // Builder round-trip.
       const src = imageSrc(<Image src="https://x/p.jpg" width={300 as any} />);
-      expect(src.autoWidth).toBe(true);
-      expect(src.width).toBe(300);
+      expect(src.autoWidth).toBe(false);
+      expect(src.maxWidth).toBe("62.5%");
     });
 
     it("a percent maxWidth is a fixed display size (autoWidth:false)", () => {

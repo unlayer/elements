@@ -27,6 +27,14 @@ const schemaVersion: number = _schemaVersion ?? 24;
 import { mapSemanticProps } from "./semantic-props";
 import { UNLAYER_CONFIG_KEY } from "./create-component";
 import { BODY_DEFAULTS, ROW_DEFAULTS, COLUMN_DEFAULTS } from "./container-defaults";
+import { contentSlotWidth, pinImageSrc, type SlotContext } from "./image-sizing";
+
+/** Layout context threaded down the walk so an image can be sized against the
+ *  real column slot (contentWidth × column share, minus paddings/borders). */
+type LayoutContext = Pick<
+  SlotContext,
+  "bodyValues" | "rowValues" | "rowCells" | "columnIndex" | "columnValues"
+>;
 
 // ============================================
 // Tree helpers (inlined)
@@ -186,7 +194,8 @@ function extractTextFromTextJson(textJson: string): string {
 
 function processItem(
   element: React.ReactElement,
-  counters: Record<string, number>
+  counters: Record<string, number>,
+  layout: LayoutContext = {}
 ): DesignContent {
   const componentType = element.type as any;
   const config = componentType[UNLAYER_CONFIG_KEY];
@@ -232,12 +241,25 @@ function processItem(
     hideable: true,
   };
 
+  // Convert a fixed (px) image pin to a percent of the column slot using the
+  // threaded geometry, so the display width survives the JSON round-trip into an
+  // editor. Guarded on `src.autoWidth === false`, so only pinned images change.
+  const itemSrc = (values as Record<string, any>).src;
+  if (itemSrc && typeof itemSrc === "object" && itemSrc.autoWidth === false) {
+    const availableWidth = contentSlotWidth({
+      ...layout,
+      containerPadding: (values as Record<string, any>).containerPadding,
+    });
+    (values as Record<string, any>).src = pinImageSrc(itemSrc, availableWidth);
+  }
+
   return { type: contentType, values };
 }
 
 function processColumn(
   element: React.ReactElement,
-  counters: Record<string, number>
+  counters: Record<string, number>,
+  layout: Omit<LayoutContext, "columnValues"> = {}
 ): DesignColumn {
   const count = nextCounter(counters, "u_column");
   const id = makeId("u_column", count);
@@ -261,8 +283,9 @@ function processColumn(
   const contents: DesignContent[] = [];
   const children = collectChildren(element.props.children);
 
+  const itemLayout: LayoutContext = { ...layout, columnValues: valuesWithMeta };
   for (const child of children) {
-    contents.push(processItem(child, counters));
+    contents.push(processItem(child, counters, itemLayout));
   }
 
   return { contents, values: valuesWithMeta };
@@ -270,7 +293,8 @@ function processColumn(
 
 function processRow(
   element: React.ReactElement,
-  counters: Record<string, number>
+  counters: Record<string, number>,
+  parentLayout: Pick<LayoutContext, "bodyValues"> = {}
 ): DesignRow {
   const count = nextCounter(counters, "u_row");
   const id = makeId("u_row", count);
@@ -317,10 +341,19 @@ function processRow(
   const columns: DesignColumn[] = [];
   const children = collectChildren(element.props.children);
 
+  const columnLayout: Omit<LayoutContext, "columnValues"> = {
+    bodyValues: parentLayout.bodyValues,
+    rowValues: valuesWithMeta,
+    rowCells: cells,
+  };
+  let columnIndex = 0;
   for (const child of children) {
     const name = getDisplayName(child);
     if (name === "Column") {
-      columns.push(processColumn(child, counters));
+      columns.push(
+        processColumn(child, counters, { ...columnLayout, columnIndex })
+      );
+      columnIndex += 1;
     } else {
       console.warn(
         `[Unlayer] renderToJson: <${name}> is not a valid Row child. Only <Column> is allowed.`
@@ -367,7 +400,7 @@ function processBody(
   for (const child of children) {
     const name = getDisplayName(child);
     if (name === "Row") {
-      rows.push(processRow(child, counters));
+      rows.push(processRow(child, counters, { bodyValues: valuesWithMeta }));
     } else {
       console.warn(
         `[Unlayer] renderToJson: <${name}> is not a valid Body child. Only <Row> is allowed.`

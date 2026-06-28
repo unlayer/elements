@@ -45,17 +45,19 @@ const columnValues = (el: React.ReactElement) =>
     </Body>
   ) as any).body.rows[0].columns[0].values;
 
-describe("DX: image sizing (Unlayer model — width is natural, display is a percent)", () => {
-  it("a numeric width is the natural size, stays responsive (autoWidth:true)", () => {
+describe("DX: image sizing (a fixed width pins to the editor's canonical percent)", () => {
+  // Default Body contentWidth is 500px; minus the 10px×2 default container
+  // padding the content slot is 480px, so a 300px pin → 300/480 = 62.5%.
+  it("a numeric width pins (autoWidth:false + percent of the content slot)", () => {
     const src = itemValues(<Image src="u" width={300 as any} />).src;
-    expect(src.autoWidth).toBe(true);
-    expect(src.width).toBe(300);
+    expect(src.autoWidth).toBe(false);
+    expect(src.maxWidth).toBe("62.5%");
   });
 
-  it("a px-string width is the natural size, stays responsive", () => {
+  it("a px-string width pins identically to the numeric form", () => {
     const src = itemValues(<Image src="u" width={"300px" as any} />).src;
-    expect(src.autoWidth).toBe(true);
-    expect(src.width).toBe(300);
+    expect(src.autoWidth).toBe(false);
+    expect(src.maxWidth).toBe("62.5%");
   });
 
   it("a percent width is a fixed display size (autoWidth:false + maxWidth percent)", () => {
@@ -85,8 +87,10 @@ describe("DX: image sizing (Unlayer model — width is natural, display is a per
     expect(html(<Image src="https://x/a.png" />)).toMatch(/<img[^>]*src="https:\/\/x\/a\.png"/);
   });
 
-  it("a non-percent maxWidth does not pin (only a percent sets a fixed display)", () => {
-    expect(itemValues(<Image src="u" maxWidth={300} />).src.autoWidth).toBe(true);
+  it("a px maxWidth pins as a percent of the content slot", () => {
+    const src = itemValues(<Image src="u" maxWidth={300} />).src;
+    expect(src.autoWidth).toBe(false);
+    expect(src.maxWidth).toBe("62.5%");
   });
 
   // Guards the column-overflow regression: a dimensioned image (object src.width

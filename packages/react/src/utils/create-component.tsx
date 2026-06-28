@@ -13,6 +13,7 @@ import type { ExporterName } from "@unlayer/types";
 type ItemExporters = Partial<Record<ExporterName, (...args: any[]) => string>>;
 import type { RenderMode, UnlayerConfig } from "@unlayer-internal/shared-elements";
 import type { SizeInput } from "../types";
+import { contentSlotWidth, pinImageSrc } from "./image-sizing";
 import {
   mergeValues,
   generateHtmlFromTextJson,
@@ -308,6 +309,26 @@ export function createItemComponent<
       valuesWithMeta as Record<string, any>,
       config.name
     );
+
+    // 5b. Convert a fixed (px) image pin to the editor's canonical percent now
+    //     that the column geometry is known (Column threads columnValues/cells/
+    //     bodyValues). Guarded on `src.autoWidth === false`, so only pinned
+    //     images are touched; responsive images and non-image blocks pass through.
+    const exportSrc = (valuesForExporter as Record<string, any>).src;
+    if (exportSrc && typeof exportSrc === "object" && exportSrc.autoWidth === false) {
+      const availableWidth = contentSlotWidth({
+        bodyValues: safeBodyValues,
+        rowValues,
+        rowCells: cells,
+        columnIndex: colIndex,
+        columnValues,
+        containerPadding:
+          (props as { containerPadding?: unknown; values?: { containerPadding?: unknown } })
+            .containerPadding ??
+          (props as { values?: { containerPadding?: unknown } }).values?.containerPadding,
+      });
+      (valuesForExporter as Record<string, any>).src = pinImageSrc(exportSrc, availableWidth);
+    }
 
     // 6. Resolve exporter for this mode (fallback to web)
     const exporter = (config.exporters[mode] || config.exporters.web)!;
