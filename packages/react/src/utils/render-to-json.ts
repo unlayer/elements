@@ -69,8 +69,8 @@ function unwrapRoot(element: React.ReactElement): React.ReactElement {
       throw new Error(
         `[Unlayer] renderToJson: could not unwrap <${name || "wrapper"}>. A wrapper must ` +
           `be a plain component that synchronously returns a root (<Email>, <Page>, ` +
-          `<Document>, or <Body>) and uses no React hooks. Pass the root element directly, ` +
-          `or call your component: renderToJson(MyEmail()). (${detail})`
+          `<Document>, or <Body>) and uses no React hooks. Pass the root element directly — ` +
+          `e.g. renderToJson(<Email>…</Email>). (${detail})`
       );
     }
     if (!React.isValidElement(produced)) break;
