@@ -320,13 +320,19 @@ export function mapSemanticProps<T extends Record<string, any>>(
     // BorderInput type accepts a number, so normalize *Width fields (bare number
     // or unit-less numeric string → px), wherever the border came from.
     if (final.border && typeof final.border === "object") {
-      const b = final.border as Record<string, any>;
+      // Clone before rewriting: final.border may alias the caller's object (the
+      // `values` escape hatch is only a shallow clone, and a nested `border` prop
+      // passes through by reference), so mutating in place would be an impure side
+      // effect — e.g. a shared `const HAIRLINE = { borderTopWidth: 1 }` would get
+      // rewritten to "1px" in the caller.
+      const b: Record<string, any> = { ...(final.border as Record<string, any>) };
       for (const key of Object.keys(b)) {
         if (!/Width$/.test(key)) continue;
         const v = b[key];
         if (typeof v === "number") b[key] = `${v}px`;
         else if (typeof v === "string" && /^\d+(?:\.\d+)?$/.test(v.trim())) b[key] = `${v.trim()}px`;
       }
+      final.border = b;
     }
   }
 

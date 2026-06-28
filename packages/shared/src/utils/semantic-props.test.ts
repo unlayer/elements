@@ -435,4 +435,12 @@ describe("border width px normalization", () => {
     const r = mapSemanticProps({ border: { borderTopWidth: "3px" } }, COLUMN_DEFAULTS, "Column");
     expect((r.border as any).borderTopWidth).toBe("3px");
   });
+
+  it("does not mutate the caller's border object (stays pure)", () => {
+    // A reused `const HAIRLINE` must not be rewritten as a side effect.
+    const userBorder = { borderTopWidth: 1, borderTopStyle: "solid", borderTopColor: "#000" };
+    const r = mapSemanticProps({ border: userBorder }, COLUMN_DEFAULTS, "Column");
+    expect((r.border as any).borderTopWidth).toBe("1px"); // output normalized
+    expect(userBorder.borderTopWidth).toBe(1); // caller's object untouched
+  });
 });
