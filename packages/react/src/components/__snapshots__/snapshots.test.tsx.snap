@@ -274,7 +274,7 @@ exports[`Render Snapshots > Image > email 1`] = `
   <tbody><tr>
     <td class="v-text-align" style="padding-right: 0px;padding-left: 0px;" align="center">
       
-      <img align="center" border="0" src="https://example.com/img.png" alt="" title="" style="outline: none;text-decoration: none;-ms-interpolation-mode: bicubic;clear: both;display: inline-block !important;border: none;height: auto;float: none;width: 100%;max-width: 500px;" width="500" height="125" class="v-src-width v-src-max-width">
+      <img align="center" border="0" src="https://example.com/img.png" alt="" title="" style="outline: none;text-decoration: none;-ms-interpolation-mode: bicubic;clear: both;display: inline-block !important;border: none;height: auto;float: none;width: 100%;max-width: 500px;" width="500" class="v-src-width v-src-max-width">
       
     </td>
   </tr>

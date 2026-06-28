@@ -46,7 +46,7 @@ exports[`Golden Template: Marketing Email > snapshot locks the full email HTML 1
   <tr>
     <td class="v-text-align" style="padding-right: 0px;padding-left: 0px;" align="center">
       
-      <img align="center" border="0" src="https://example.com/logo.png" alt="Acme Co" title="Acme Co" style="outline: none;text-decoration: none;-ms-interpolation-mode: bicubic;clear: both;display: inline-block !important;border: none;height: auto;float: none;width: 100%;max-width: 560px;" width="560" height="140" class="v-src-width v-src-max-width"/>
+      <img align="center" border="0" src="https://example.com/logo.png" alt="Acme Co" title="Acme Co" style="outline: none;text-decoration: none;-ms-interpolation-mode: bicubic;clear: both;display: inline-block !important;border: none;height: auto;float: none;width: 100%;max-width: 560px;" width="560" class="v-src-width v-src-max-width"/>
       
     </td>
   </tr>
@@ -183,7 +183,7 @@ exports[`Golden Template: Marketing Email > snapshot locks the full email HTML 1
   <tr>
     <td class="v-text-align" style="padding-right: 0px;padding-left: 0px;" align="center">
       
-      <img align="center" border="0" src="https://example.com/hero.jpg" alt="Spring Collection" title="Spring Collection" style="outline: none;text-decoration: none;-ms-interpolation-mode: bicubic;clear: both;display: inline-block !important;border: none;height: auto;float: none;width: 100%;max-width: 600px;" width="600" height="150" class="v-src-width v-src-max-width"/>
+      <img align="center" border="0" src="https://example.com/hero.jpg" alt="Spring Collection" title="Spring Collection" style="outline: none;text-decoration: none;-ms-interpolation-mode: bicubic;clear: both;display: inline-block !important;border: none;height: auto;float: none;width: 100%;max-width: 600px;" width="600" class="v-src-width v-src-max-width"/>
       
     </td>
   </tr>
@@ -346,7 +346,7 @@ exports[`Golden Template: Marketing Email > snapshot locks the full email HTML 1
   <tr>
     <td class="v-text-align" style="padding-right: 0px;padding-left: 0px;" align="center">
       
-      <img align="center" border="0" src="https://example.com/product-a.jpg" alt="Product A" title="Product A" style="outline: none;text-decoration: none;-ms-interpolation-mode: bicubic;clear: both;display: inline-block !important;border: none;height: auto;float: none;width: 100%;max-width: 300px;" width="300" height="75" class="v-src-width v-src-max-width"/>
+      <img align="center" border="0" src="https://example.com/product-a.jpg" alt="Product A" title="Product A" style="outline: none;text-decoration: none;-ms-interpolation-mode: bicubic;clear: both;display: inline-block !important;border: none;height: auto;float: none;width: 100%;max-width: 300px;" width="300" class="v-src-width v-src-max-width"/>
       
     </td>
   </tr>
@@ -408,7 +408,7 @@ exports[`Golden Template: Marketing Email > snapshot locks the full email HTML 1
   <tr>
     <td class="v-text-align" style="padding-right: 0px;padding-left: 0px;" align="center">
       
-      <img align="center" border="0" src="https://example.com/product-b.jpg" alt="Product B" title="Product B" style="outline: none;text-decoration: none;-ms-interpolation-mode: bicubic;clear: both;display: inline-block !important;border: none;height: auto;float: none;width: 100%;max-width: 300px;" width="300" height="75" class="v-src-width v-src-max-width"/>
+      <img align="center" border="0" src="https://example.com/product-b.jpg" alt="Product B" title="Product B" style="outline: none;text-decoration: none;-ms-interpolation-mode: bicubic;clear: both;display: inline-block !important;border: none;height: auto;float: none;width: 100%;max-width: 300px;" width="300" class="v-src-width v-src-max-width"/>
       
     </td>
   </tr>

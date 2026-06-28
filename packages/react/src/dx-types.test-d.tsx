@@ -80,3 +80,23 @@ export const _image_percent: ImageProps["maxWidth"] = "50%";
 
 // @ts-expect-error fontWeight does not accept arbitrary words
 export const _fontWeight_reject: HeadingProps["fontWeight"] = "heavy";
+
+// ── input building blocks must stay exported from the public entry ───────────
+// Agents factor shared helpers and want to annotate them; these were referenced
+// by the public prop types but not exported (TS2459) until this guard.
+import type {
+  SizeInput,
+  BorderInput as PublicBorderInput,
+  TextStyleProps,
+  FontFamilyInput,
+  FontWeightInput,
+  HeadingLevel,
+  ImageSrcInput,
+} from "./index";
+export const _pub_size: SizeInput = "50%";
+export const _pub_border: PublicBorderInput = { borderBottomWidth: "1px" };
+export const _pub_textStyle: TextStyleProps = { fontSize: 16, color: "#222" };
+export const _pub_fontFamily: FontFamilyInput = "Georgia";
+export const _pub_fontWeight: FontWeightInput = 700;
+export const _pub_headingLevel: HeadingLevel = "h2";
+export const _pub_imageSrc: ImageSrcInput = "https://x/p.png";

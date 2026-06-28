@@ -333,13 +333,21 @@ export function normalizeLinkValue(value: unknown): Record<string, any> | undefi
   const v = value as Record<string, any>;
   // Already render-shape (has url) — pass through.
   if ("url" in v) return v;
-  // Storage shape from the schema: { name, values: { href, target } }.
-  if ("name" in v && v.values && typeof v.values === "object") {
-    const inner = v.values as Record<string, any>;
+  // Storage shape from the schema: { name, values: { href, target }, attrs? }.
+  // The canonical Href type also surfaces `attrs: { href, target }`, so authors
+  // reasonably put the link there — read href/target from `values` first, then
+  // fall back to `attrs`, and spread any remaining `attrs` as custom attributes.
+  // (Without this, `{ name, attrs: { href } }` type-checks but renders href="".)
+  if ("name" in v) {
+    const inner = v.values && typeof v.values === "object" ? (v.values as Record<string, any>) : {};
+    const attrs = v.attrs && typeof v.attrs === "object" ? (v.attrs as Record<string, any>) : {};
+    const { href: attrsHref, target: attrsTarget, ...customAttrs } = attrs;
+    // `||` not `??`: the schema default merges in `values: { href: "" }`, so an
+    // empty `values.href` must fall through to the `attrs` href, not win over it.
     return {
-      url: inner.href ?? "",
-      target: inner.target ?? "_blank",
-      ...(v.attrs ?? {}),
+      url: inner.href || attrsHref || "",
+      target: inner.target || attrsTarget || "_blank",
+      ...customAttrs,
     };
   }
   return undefined;

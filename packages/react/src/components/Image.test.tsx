@@ -129,13 +129,16 @@ describe("Image Component", () => {
       return (json as any).body.rows[0].columns[0].contents[0].values.src;
     }
 
-    it("a natural width (object src) stays responsive — not pinned", () => {
+    it("an object-src width pins as display intent (like the flat width prop)", () => {
+      // The documented full-control form `src={{ width }}` must pin and survive a
+      // round-trip, same as `width={…}` — not serialize autoWidth:true.
       const src = imageSrc(
         <Image src={{ url: "https://x/p.jpg", width: 300, height: 200 } as any} />
       );
-      expect(src.autoWidth).toBe(true);
-      expect(src.width).toBe(300);
-      expect(src.maxWidth).toBe("100%");
+      expect(src.autoWidth).toBe(false);
+      expect(src.maxWidth).toBe("62.5%"); // 300 / (500 default − 20px slot)
+      expect(src.width).toBe(300); // natural/aspect fields preserved
+      expect(src.height).toBe(200);
     });
 
     it("no width / string src stays responsive (autoWidth:true)", () => {

@@ -24,12 +24,18 @@ type ImageSemanticProps = Omit<
 
 export interface ImageProps extends ItemComponentProps<ImageSemanticProps> {}
 
-// Defaults from the editor schema, plus React-specific overrides
+// Defaults from the editor schema, plus React-specific overrides.
+// Drop the schema placeholder's `height` so an image with no explicit dimensions
+// doesn't inherit its 4:1 aspect ratio: the email exporter then omits the `height`
+// attribute (height:auto), letting the real image keep its own ratio instead of
+// being letterboxed (Outlook honors the height attribute). `width` is kept — it
+// drives the responsive display width attribute. Real dimensions, when provided
+// via an object `src`, override these.
+const { height: _placeholderHeight, ...defaultSrc } = ImageDefaults.src as Record<string, unknown>;
 const DEFAULT_VALUES = {
   ...ImageDefaults,
-  // Override src with autoWidth/maxWidth for responsive rendering
   src: {
-    ...ImageDefaults.src,
+    ...defaultSrc,
     autoWidth: true,
     maxWidth: "100%",
   },
@@ -112,14 +118,17 @@ const Image = createItemComponent<ImageValues, ImageSemanticProps>({
         : { ...DEFAULT_VALUES.src };
       const merged = { ...start, ...userSrc } as Record<string, any>;
 
-      // In Unlayer's value model, `src.width`/`height` are the NATURAL image size
-      // and never set the display size. Display size = autoWidth + maxWidth: the
-      // default (and "100%") is responsive (autoWidth:true); a fixed display size
-      // is autoWidth:false + `maxWidth` as a PERCENT of the column's content slot
-      // (see image-sizing.ts for why a percent, not the natural-size field). A
-      // px/number pin is kept here as a placeholder and converted to that percent
-      // by the width-aware pass in renderToHtml / renderToJson, where the column
-      // geometry is known. An explicit autoWidth is honored.
+      // Display size = autoWidth + maxWidth: the default is responsive
+      // (autoWidth:true); a fixed display size is autoWidth:false + `maxWidth` as a
+      // PERCENT of the column's content slot (see image-sizing.ts for why a
+      // percent, not a raw px). A px/number pin is kept here as a placeholder and
+      // converted to that percent by the width-aware pass in renderToHtml /
+      // renderToJson, where the column geometry is known.
+      //
+      // A `width` the author provides — the flat `width` prop OR `src.width`
+      // (the documented full-control form) — is treated as that display intent and
+      // pins. This is the canonical pinned shape the editor stores, so it survives
+      // the round-trip; an `autoWidth` set explicitly on `src` is honored as-is.
       const pctRe = /^\d+(?:\.\d+)?%$/;
       const asPercent = (v: unknown): string | undefined =>
         typeof v === "string" && pctRe.test(v.trim()) ? v.trim() : undefined;
@@ -135,10 +144,10 @@ const Image = createItemComponent<ImageValues, ImageSemanticProps>({
       };
 
       // Resolve display intent in priority order: flat `width` → flat `maxWidth`
-      // → escape-hatch values.src.maxWidth.
+      // → object src `maxWidth` → object src `width`.
       let displayPct: string | undefined;
       let displayPx: number | undefined;
-      for (const candidate of [widthProp, maxWidthProp, userSrc.maxWidth]) {
+      for (const candidate of [widthProp, maxWidthProp, userSrc.maxWidth, userSrc.width]) {
         if (candidate === undefined) continue;
         const pct = asPercent(candidate);
         if (pct) {

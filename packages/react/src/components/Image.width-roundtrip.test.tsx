@@ -280,3 +280,37 @@ describe("renderToJson row cells default to the Column count", () => {
     expect(src.maxWidth).toBe("42.86%");
   });
 });
+
+describe("object-src width pins identically to the flat width prop (round-trip parity)", () => {
+  const inOneCol = (img: React.ReactElement) => (
+    <Email contentWidth="600px">
+      <Row layout={ColumnLayouts.OneColumn}>
+        <Column>{img}</Column>
+      </Row>
+    </Email>
+  );
+
+  it("src={{ width }} pins (autoWidth:false + percent), not autoWidth:true", () => {
+    const src = imgSrc(inOneCol(<Image src={{ url: "https://x/p.png", width: 300 } as any} />));
+    expect(src.autoWidth).toBe(false);
+    expect(src.maxWidth).toBe("51.72%");
+  });
+
+  it("the documented values={{ src: { width } }} full-control form pins too", () => {
+    const src = imgSrc(inOneCol(<Image values={{ src: { url: "https://x/p.png", width: 300 } } as any} />));
+    expect(src.autoWidth).toBe(false);
+    expect(src.maxWidth).toBe("51.72%");
+  });
+
+  it("src width + height pins and keeps the height for aspect", () => {
+    const src = imgSrc(inOneCol(<Image src={{ url: "https://x/p.png", width: 300, height: 200 } as any} />));
+    expect(src.autoWidth).toBe(false);
+    expect(src.maxWidth).toBe("51.72%");
+    expect(src.height).toBe(200);
+  });
+
+  it("an explicit autoWidth on src is honored (escape hatch stays responsive)", () => {
+    const src = imgSrc(inOneCol(<Image src={{ url: "https://x/p.png", width: 300, autoWidth: true } as any} />));
+    expect(src.autoWidth).toBe(true);
+  });
+});

@@ -93,10 +93,10 @@ describe("DX: image sizing (a fixed width pins to the editor's canonical percent
     expect(src.maxWidth).toBe("62.5%");
   });
 
-  // Guards the column-overflow regression: a dimensioned image (object src.width
-  // = natural size) inside a multi-column row must stay responsive, never forced
-  // to its natural width — which would overflow the narrow column.
-  it("a dimensioned image stays responsive inside a multi-column row", () => {
+  // Guards the column-overflow regression: an object-src width inside a narrow
+  // multi-column row pins (display intent) but clamps to 100% — so it fills the
+  // column responsively via a percent, never a fixed px that overflows.
+  it("a dimensioned image in a multi-column row pins but clamps to 100% (no overflow)", () => {
     const json: any = renderToJson(
       <Body>
         <Row cells={[1, 1, 1]}>
@@ -107,7 +107,7 @@ describe("DX: image sizing (a fixed width pins to the editor's canonical percent
       </Body>
     );
     const src = json.body.rows[0].columns[0].contents[0].values.src;
-    expect(src.autoWidth).toBe(true);
+    expect(src.autoWidth).toBe(false);
     expect(src.maxWidth).toBe("100%");
     expect(src.width).toBe(400);
   });

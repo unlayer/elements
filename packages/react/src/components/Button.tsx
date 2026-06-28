@@ -44,7 +44,8 @@ const DEFAULT_VALUES = {
  *
  * @example Flat Props (Simple - most common)
  * ```tsx
- * <Button color="white" backgroundColor="#3b82f6" fontSize="16px">
+ * // `href` accepts a plain URL string (the ergonomic form).
+ * <Button href="https://example.com" color="white" backgroundColor="#3b82f6" fontSize="16px">
  *   Click me
  * </Button>
  * ```

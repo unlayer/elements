@@ -5,7 +5,7 @@
  * configurations that match exactly what the Unlayer editor supports.
  *
  * Usage:
- * import { ColumnLayouts } from '@unlayer-internal/shared-elements';
+ * import { ColumnLayouts } from '@unlayer/react-elements';
  * <Row layout={ColumnLayouts.TwoEqual}>
  *   <Column>...</Column>
  *   <Column>...</Column>

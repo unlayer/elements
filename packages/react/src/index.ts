@@ -54,6 +54,15 @@ export type {
   // Shorthand types
   SocialIcon,
   MenuItem,
+  // Agent-friendly input building blocks — exported so authors can annotate
+  // their own factored-out helpers/consts (e.g. a shared border or text style).
+  SizeInput,
+  BorderInput,
+  TextStyleProps,
+  FontFamilyInput,
+  FontWeightInput,
+  HeadingLevel,
+  ImageSrcInput,
 } from "./types";
 
 // Design JSON types (re-export from shared)
