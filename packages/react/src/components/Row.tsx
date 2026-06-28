@@ -243,11 +243,20 @@ const Row: React.FC<RowProps> = (props) => {
   // Resolve mode: explicit prop > _config > default
   const mode: RenderMode = modeProp ?? _config?.mode ?? "web";
 
-  // Determine cells from layout or props
-  let cells = propsCells || [1];
+  // Determine cells from layout or props. With neither, default to one equal
+  // cell PER <Column> child (mirroring renderToJson) — `[1]` regardless of column
+  // count left the 2nd/3rd column with no cell, rendering width="NaN".
+  let cells: number[];
   if (layout) {
     validateColumnLayout(layout, React.Children.count(children));
     cells = layout.cells;
+  } else if (propsCells) {
+    cells = propsCells;
+  } else {
+    const columnCount = React.Children.toArray(children).filter(
+      (c) => React.isValidElement(c) && /^Column$/.test((c.type as any)?.displayName || (c.type as any)?.name || "")
+    ).length;
+    cells = Array(Math.max(1, columnCount)).fill(1);
   }
 
   // Merge body values with defaults

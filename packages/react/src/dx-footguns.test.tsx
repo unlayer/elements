@@ -110,3 +110,53 @@ describe("attrs href round-trips into the editor (renderToJson stores values.hre
     expect(href.values.href).toBe("https://x.com/s");
   });
 });
+
+describe("multi-column Row without an explicit layout defaults to equal columns (no NaN)", () => {
+  const threeColNoLayout = (
+    <Email contentWidth="600px">
+      <Row>
+        <Column><Image src="u" /></Column>
+        <Column><Image src="u" /></Column>
+        <Column><Image src="u" /></Column>
+      </Row>
+    </Email>
+  );
+  it("renderToHtml emits no NaN width", () => {
+    expect(renderToHtml(threeColNoLayout)).not.toContain("NaN");
+  });
+  it("renderToJson defaults cells to the Column count", () => {
+    expect((renderToJson(threeColNoLayout) as any).body.rows[0].cells).toEqual([1, 1, 1]);
+  });
+  it("a layout mistakenly placed on <Column> still doesn't NaN (Row defaults)", () => {
+    const html = renderToHtml(
+      <Email contentWidth="600px"><Row>
+        <Column layout={ColumnLayouts.TwoEqual as any}><Image src="u" /></Column>
+        <Column><Image src="u" /></Column>
+      </Row></Email>
+    );
+    expect(html).not.toContain("NaN");
+  });
+});
+
+describe("border widths render with a px unit (number → Npx)", () => {
+  const borderTop = (border: any) => {
+    const html = renderToHtml(
+      <Email contentWidth="600px"><Row layout={ColumnLayouts.OneColumn}><Column border={border}><Image src="u" /></Column></Row></Email>
+    );
+    return (html.match(/border-top:[^;"]*/i) || [""])[0];
+  };
+  it("a number border width gets px (not unitless)", () => {
+    expect(borderTop({ borderTopWidth: 1, borderTopStyle: "solid", borderTopColor: "#000" })).toBe("border-top: 1px solid #000");
+  });
+  it("a px-string border width is unchanged", () => {
+    expect(borderTop({ borderTopWidth: "3px", borderTopStyle: "solid", borderTopColor: "#000" })).toBe("border-top: 3px solid #000");
+  });
+  it("flat border-side props (gathered) also get px", () => {
+    const html = renderToHtml(
+      <Email contentWidth="600px"><Row layout={ColumnLayouts.OneColumn}>
+        <Column borderBottomWidth={2 as any} borderBottomStyle={"solid" as any} borderBottomColor={"#abc" as any}><Image src="u" /></Column>
+      </Row></Email>
+    );
+    expect(html).toContain("border-bottom: 2px solid #abc");
+  });
+});

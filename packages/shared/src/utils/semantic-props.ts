@@ -314,6 +314,20 @@ export function mapSemanticProps<T extends Record<string, any>>(
     if (Object.keys(collected).length > 0) {
       final.border = { ...(final.border || {}), ...collected };
     }
+
+    // Border widths must carry a unit — `borderTopWidth: 1` would otherwise
+    // render `border-top: 1 solid` (invalid CSS the browser drops). The
+    // BorderInput type accepts a number, so normalize *Width fields (bare number
+    // or unit-less numeric string → px), wherever the border came from.
+    if (final.border && typeof final.border === "object") {
+      const b = final.border as Record<string, any>;
+      for (const key of Object.keys(b)) {
+        if (!/Width$/.test(key)) continue;
+        const v = b[key];
+        if (typeof v === "number") b[key] = `${v}px`;
+        else if (typeof v === "string" && /^\d+(?:\.\d+)?$/.test(v.trim())) b[key] = `${v.trim()}px`;
+      }
+    }
   }
 
   return final as T;

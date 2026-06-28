@@ -405,3 +405,34 @@ describe("normalizeValuesForExporter", () => {
     expect(out.href).toEqual(RENDER_HREF);
   });
 });
+
+describe("border width px normalization", () => {
+  // Normalization only runs for components that declare a `border` field (Column,
+  // Divider, Table, …); use a Column-like defaults with an empty border group.
+  const COLUMN_DEFAULTS = { border: {}, padding: "0px" } as any;
+
+  // The BorderInput type accepts a number, but a bare number renders
+  // `border-top: 1 solid` (invalid CSS); the mapper must add the px unit.
+  it("normalizes a number border width to px", () => {
+    const r = mapSemanticProps(
+      { border: { borderTopWidth: 1, borderTopStyle: "solid", borderTopColor: "#000" } },
+      COLUMN_DEFAULTS,
+      "Column"
+    );
+    expect((r.border as any).borderTopWidth).toBe("1px");
+  });
+
+  it("gathers flat border-side props and px-normalizes the width", () => {
+    const r = mapSemanticProps(
+      { borderBottomWidth: 2, borderBottomStyle: "solid", borderBottomColor: "#abc" },
+      COLUMN_DEFAULTS,
+      "Column"
+    );
+    expect((r.border as any).borderBottomWidth).toBe("2px");
+  });
+
+  it("leaves a px / non-numeric width string unchanged", () => {
+    const r = mapSemanticProps({ border: { borderTopWidth: "3px" } }, COLUMN_DEFAULTS, "Column");
+    expect((r.border as any).borderTopWidth).toBe("3px");
+  });
+});
