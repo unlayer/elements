@@ -25,7 +25,16 @@ function toPx(value: unknown): number | undefined {
   return m ? parseFloat(m[1]) : undefined;
 }
 
-/** Left/right edge sizes from a CSS box shorthand (padding/margin). */
+// NOTE: the geometry parsers below use parseFloat on each token, intentionally
+// mirroring the renderer's explodePaddingsOrMargins / explodeBorder (which the
+// image exporter subtracts from the available width). The renderer reads a token
+// like "10%" as its numeric value (10), so the slot math must too — switching to
+// strict px parsing here would make the pinned percent diverge from what the
+// editor actually renders. Strict px parsing is only for the display-pin value
+// (toPx, in pinImageSrc), never for the geometry.
+
+/** Left/right edge sizes from a CSS box shorthand (padding/margin), parsed the
+ *  same way the renderer's explodePaddingsOrMargins does (parseFloat per token). */
 function edges(value: unknown): { left: number; right: number } {
   if (value == null) return { left: 0, right: 0 };
   if (typeof value === "number") return { left: value, right: value };
@@ -40,13 +49,15 @@ function edges(value: unknown): { left: number; right: number } {
   return { left: parts[3] || 0, right: parts[1] || 0 };
 }
 
-/** Left/right border widths from a per-side border object. */
+/** Left/right border widths from a per-side border object, parsed the same way
+ *  the renderer's explodeBorder does (parseFloat per width). */
 function borderEdges(border: unknown): { left: number; right: number } {
   if (!border || typeof border !== "object") return { left: 0, right: 0 };
   const b = border as Record<string, unknown>;
+  const width = (v: unknown) => parseFloat(`${v ?? ""}`) || 0;
   return {
-    left: toPx(b.borderLeftWidth) || 0,
-    right: toPx(b.borderRightWidth) || 0,
+    left: width(b.borderLeftWidth),
+    right: width(b.borderRightWidth),
   };
 }
 
