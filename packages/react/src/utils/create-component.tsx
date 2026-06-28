@@ -48,6 +48,8 @@ export interface BaseItemComponentProps {
   cells?: any[];
   bodyValues?: any;
   rowValues?: any;
+  /** @internal - this column's values, threaded by Column for width-aware exporters */
+  columnValues?: any;
   /** @internal - Unlayer config threaded from UnlayerProvider */
   _config?: UnlayerConfig;
 }
@@ -124,6 +126,8 @@ interface RenderConfig<T = any> {
   className?: string;
   style?: React.CSSProperties;
   args?: any[];
+  /** Column/body context merged into the exporter `meta` (8th arg). */
+  metaContext?: Record<string, any>;
   innerHTML?: string;
   _config?: UnlayerConfig;
   exporter: Function;
@@ -146,7 +150,7 @@ function ensureMeta(values: any, type: string, index: number = 0): any {
  * Handles error boundaries, exporterConfig construction, and container vs item calling conventions.
  */
 function renderComponent<T = any>(config: RenderConfig<T>): JSX.Element {
-  const { type, values, mode, className, style, args = [], innerHTML, _config, exporter } = config;
+  const { type, values, mode, className, style, args = [], innerHTML, _config, exporter, metaContext } = config;
 
   try {
     // Build exporterConfig from _config (falls back to defaults)
@@ -170,6 +174,7 @@ function renderComponent<T = any>(config: RenderConfig<T>): JSX.Element {
       const meta = {
         exporterConfig,
         mergeTagState: cfg.mergeTagState,
+        ...(metaContext ?? {}),
       };
       html = exporter(values, ...args, undefined, meta);
     }
@@ -240,6 +245,7 @@ export function createItemComponent<
       cells = [],
       bodyValues = {},
       rowValues = {},
+      columnValues = {},
       _config,
 
       // Children
@@ -268,9 +274,11 @@ export function createItemComponent<
       index
     );
 
-    // 4. Ensure bodyValues has required fields
+    // 4. Ensure bodyValues has a contentWidth. Default to 500 to match the
+    //    schema default (BodyDefaults.contentWidth) and the exporter's image
+    //    fallback width, so a standalone item (no Body) sizes the same as the editor.
     const safeBodyValues = {
-      contentWidth: 600,
+      contentWidth: 500,
       ...bodyValues
     };
 
@@ -293,6 +301,15 @@ export function createItemComponent<
       className,
       style,
       args: [index, colIndex, cells, safeBodyValues, rowValues],
+      // The 8th arg the exporters actually read: column/body context for
+      // width-aware rendering (Image's available-width calc), mirroring the editor.
+      metaContext: {
+        columnIndex: colIndex,
+        columnValues,
+        rowCells: cells,
+        rowValues,
+        bodyValues: safeBodyValues,
+      },
       _config,
       exporter,
     });

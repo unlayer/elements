@@ -126,7 +126,19 @@ export const Column: React.FC<ColumnProps> = (props) => {
             const ComponentType = child.type as any;
             // Use __unlayerRender (hook-free) if available, otherwise call directly
             const renderFn: Function = ComponentType[UNLAYER_RENDER_KEY] || ComponentType;
-            const rendered = renderFn({ ...child.props, _config });
+            // Thread the column/body context so width-aware item exporters (Image)
+            // can size against the real available width (contentWidth × column
+            // fraction) instead of the fallback. Mirrors the editor, which passes
+            // this context to the content exporters.
+            const rendered = renderFn({
+              ...child.props,
+              _config,
+              colIndex: index,
+              cells,
+              bodyValues,
+              rowValues,
+              columnValues: valuesWithMeta,
+            });
 
             // Extract HTML from dangerouslySetInnerHTML
             if (

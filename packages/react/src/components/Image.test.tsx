@@ -3,9 +3,12 @@ import React from "react";
 import { render } from "@testing-library/react";
 import Image from "./Image";
 import Body from "./Body";
+import Email from "./Email";
 import Row from "./Row";
 import { Column } from "./Column";
+import { ColumnLayouts, type ColumnLayout } from "../layouts/ColumnLayouts";
 import { renderToJson } from "../utils/render-to-json";
+import { renderToHtml } from "../utils/render-to-html";
 
 describe("Image Component", () => {
   it("renders an img element", () => {
@@ -192,6 +195,41 @@ describe("Image Component", () => {
       expect(src["0"]).toBeUndefined();
       expect(src.autoWidth).toBe(false);
       expect(src.maxWidth).toBe("50%");
+    });
+  });
+
+  // Regression: an image must size against the real available width
+  // (contentWidth × column fraction), not a fixed fallback. The Column threads
+  // its body/column context to the exporter so this matches the editor.
+  describe("sizes against contentWidth × column width (threaded to the exporter)", () => {
+    const big = { url: "https://x/p.jpg", width: 1200, height: 600 };
+    const imgWidth = (html: string) => {
+      const m = html.match(/<img[^>]*\bwidth="(\d+)"/);
+      return m ? Number(m[1]) : null;
+    };
+    const renderImg = (contentWidth: string, layout: ColumnLayout, cols: number) => {
+      const columns = Array.from({ length: cols }, (_, i) => (
+        <Column key={i}>
+          <Image src={big} />
+        </Column>
+      ));
+      return renderToHtml(
+        <Email contentWidth={contentWidth}>
+          <Row layout={layout}>{columns}</Row>
+        </Email>
+      );
+    };
+
+    it("a full-width image fills the content width (not the 500 fallback)", () => {
+      expect(imgWidth(renderImg("600px", ColumnLayouts.OneColumn, 1))).toBe(600);
+    });
+
+    it("an image in a 3-column row sizes to its column (~1/3), staying responsive", () => {
+      expect(imgWidth(renderImg("600px", ColumnLayouts.ThreeEqual, 3))).toBe(200);
+    });
+
+    it("respects a wider contentWidth", () => {
+      expect(imgWidth(renderImg("900px", ColumnLayouts.OneColumn, 1))).toBe(900);
     });
   });
 });
