@@ -50,6 +50,36 @@ describe("Image fixed-width round-trip (renderToJson)", () => {
     expect(src.maxWidth).toBe("51.72%");
   });
 
+  it("a bare numeric-string contentWidth is treated as px, matching the renderer", () => {
+    const src = imgSrc(
+      <Email contentWidth={"600" as any}>
+        <Row layout={ColumnLayouts.OneColumn}>
+          <Column>
+            <Image src="https://x/p.png" width={300} />
+          </Column>
+        </Row>
+      </Email>
+    );
+    // "600" must size against 600 (not the 500 fallback) → same as "600px".
+    expect(src.autoWidth).toBe(false);
+    expect(src.maxWidth).toBe("51.72%");
+  });
+
+  it("a percent contentWidth falls back to the responsive base width (not the % value)", () => {
+    const src = imgSrc(
+      <Email contentWidth={"50%" as any}>
+        <Row layout={ColumnLayouts.OneColumn}>
+          <Column>
+            <Image src="https://x/p.png" width={300} />
+          </Column>
+        </Row>
+      </Email>
+    );
+    // % isn't a fixed px slot → base 500 → 300/(500−20) = 62.5%.
+    expect(src.autoWidth).toBe(false);
+    expect(src.maxWidth).toBe("62.5%");
+  });
+
   it("percent width stays a percent (already canonical)", () => {
     const src = imgSrc(
       <Email contentWidth="600px">

@@ -49,11 +49,18 @@ function borderEdges(border: unknown): { left: number; right: number } {
   };
 }
 
-/** A body `contentWidth` is "fixed" only when it is a px value (not %, "auto"). */
+/** A body `contentWidth` is "fixed" when it's a number or a numeric string with
+ *  an optional px unit (`600`, `"600px"`, or `"600"`) — never `"%"` or `"auto"`.
+ *  Mirrors the renderer's contentWidth→px handling (Row's `toContentWidthPx` /
+ *  the exporter's body-width math, which accept a bare numeric string) so the
+ *  slot geometry matches the width the image is actually rendered against. */
 function fixedContentWidth(contentWidth: unknown): number | undefined {
-  if (typeof contentWidth === "number") return contentWidth;
-  if (typeof contentWidth === "string" && contentWidth.trim().endsWith("px"))
-    return parseFloat(contentWidth);
+  if (typeof contentWidth === "number")
+    return Number.isFinite(contentWidth) ? contentWidth : undefined;
+  if (typeof contentWidth === "string") {
+    const m = /^(\d+(?:\.\d+)?)(?:px)?$/.exec(contentWidth.trim());
+    if (m) return parseFloat(m[1]);
+  }
   return undefined;
 }
 
