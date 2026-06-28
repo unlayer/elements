@@ -5,6 +5,7 @@ import type { ColumnLayout } from "@unlayer-internal/shared-elements";
 import { RowExporters } from "@unlayer/exporters";
 import { mapSemanticProps, type SemanticProps } from "../utils/semantic-props";
 import { nextHtmlId } from "../utils/create-component";
+import { bodyContentWidthPx } from "../utils/image-sizing";
 import type { SizeInput } from "../types";
 import { ROW_DEFAULTS, BODY_DEFAULTS } from "../utils/container-defaults";
 
@@ -137,20 +138,17 @@ type ContainerExporterFunction = (innerHTML: string, values: Record<string, any>
 
 /**
  * Resolve the row's content width (px number) from body values. contentWidth
- * may be "600px" (string) or 600 (number); the grid CSS needs a number.
- * In EMAIL mode this drives the per-column desktop widths and the stacking
- * breakpoint — so without it, multi-column emails were pinned to 600px
- * regardless of <Body contentWidth>. Web mode uses percentages, so this is
- * a no-op there.
+ * may be "600px" (string), 600 (number), or "600" (bare numeric string); the
+ * grid CSS needs a number. In EMAIL mode this drives the per-column desktop
+ * widths and the stacking breakpoint — so without it, multi-column emails were
+ * pinned to 600px regardless of <Body contentWidth>. Web mode uses percentages,
+ * so this is a no-op there.
+ *
+ * Uses the same strict px parse as the image slot geometry (a non-px value like
+ * "50%" → fallback, not a parseInt artifact like 50) so the two stay in sync.
  */
 function toContentWidthPx(bodyValues: any, fallback = 500): number {
-  const raw = bodyValues?.contentWidth;
-  if (typeof raw === "number" && Number.isFinite(raw)) return raw;
-  if (typeof raw === "string") {
-    const n = parseInt(raw, 10);
-    if (Number.isFinite(n)) return n;
-  }
-  return fallback;
+  return bodyContentWidthPx(bodyValues?.contentWidth, fallback);
 }
 
 function renderRowToHtml(innerHTML: string, values: any, bodyValues: any, mode: RenderMode, cells: number[], collection: string = "rows"): string {

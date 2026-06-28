@@ -307,10 +307,15 @@ function processRow(
   } else if (propsCells) {
     cells = propsCells;
   } else {
-    // Default: one cell per Column child
+    // Default: one equal cell per Column child. Count only <Column> children —
+    // any stray non-Column child is warned and skipped below, so including it
+    // would make `cells` longer than the column list and distort both the row
+    // layout and the column-share math used for image sizing.
     const columnCount = Math.max(
       1,
-      collectChildren(element.props.children).length
+      collectChildren(element.props.children).filter(
+        (child) => getDisplayName(child) === "Column"
+      ).length
     );
     cells = Array(columnCount).fill(1);
   }

@@ -50,13 +50,9 @@ function borderEdges(border: unknown): { left: number; right: number } {
   };
 }
 
-/** A body `contentWidth` is treated as fixed px when it's a number or a numeric
+/** A body `contentWidth` is "fixed px" only when it's a number or a numeric
  *  string with an optional px unit (`600`, `"600px"`, or `"600"`). Percentages
- *  and keywords like `"auto"` are NOT fixed — callers fall back to the responsive
- *  base width. This matches the exporter's body-width math, which reads a bare
- *  numeric string as px and falls back for %/auto, so the slot geometry lines up
- *  with the width the image is actually rendered against. (It deliberately does
- *  not copy Row's `toContentWidthPx`, whose parseInt would misread `"50%"` as 50.) */
+ *  and keywords like `"auto"` are NOT fixed → `undefined`. */
 function fixedContentWidth(contentWidth: unknown): number | undefined {
   if (typeof contentWidth === "number")
     return Number.isFinite(contentWidth) ? contentWidth : undefined;
@@ -71,6 +67,22 @@ function fixedContentWidth(contentWidth: unknown): number | undefined {
 const FALLBACK_BODY_CONTENT_WIDTH = 500;
 /** Unlayer's default content-block padding when a block sets none. */
 const DEFAULT_CONTAINER_PADDING = "10px";
+
+/**
+ * A body `contentWidth` resolved to px: the fixed px value, or `fallback`
+ * (500, Unlayer's base width) for non-px values like `"50%"` / `"auto"`.
+ *
+ * Shared with Row's grid CSS (`toContentWidthPx`) so the slot geometry here and
+ * the renderer's column math agree on what counts as a fixed width — and so a
+ * non-px `contentWidth` collapses to the same base everywhere instead of being
+ * `parseInt`-ed into a bogus px value (e.g. `"50%"` → 50).
+ */
+export function bodyContentWidthPx(
+  contentWidth: unknown,
+  fallback: number = FALLBACK_BODY_CONTENT_WIDTH
+): number {
+  return fixedContentWidth(contentWidth) ?? fallback;
+}
 
 export interface SlotContext {
   bodyValues?: { contentWidth?: number | string; padding?: unknown; border?: unknown };
@@ -92,7 +104,7 @@ export function contentSlotWidth(ctx: SlotContext): number {
   const rowCells = ctx.rowCells && ctx.rowCells.length ? ctx.rowCells : [1];
   const columnIndex = ctx.columnIndex ?? 0;
 
-  const bodyWidth = fixedContentWidth(bodyValues.contentWidth) ?? FALLBACK_BODY_CONTENT_WIDTH;
+  const bodyWidth = bodyContentWidthPx(bodyValues.contentWidth);
 
   const bp = edges(bodyValues.padding);
   const bb = borderEdges(bodyValues.border);

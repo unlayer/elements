@@ -8,6 +8,7 @@ import { Column } from "./Column";
 import { ColumnLayouts } from "../layouts/ColumnLayouts";
 import { renderToJson } from "../utils/render-to-json";
 import { renderToHtml } from "../utils/render-to-html";
+import { bodyContentWidthPx } from "../utils/image-sizing";
 
 // Regression guard for the design-JSON round-trip: a fixed image width must pin
 // as autoWidth:false + a PERCENT maxWidth (of the column's content slot) so an
@@ -233,5 +234,49 @@ describe("Image fixed-width rendering (renderToHtml)", () => {
     );
     expect(html).toMatch(/width:\s*100%/);
     expect(html).not.toMatch(/width:\s*300px/);
+  });
+});
+
+describe("bodyContentWidthPx (one px-parse shared by Row grid CSS + image geometry)", () => {
+  it("number / px-string / bare-numeric-string resolve to px", () => {
+    expect(bodyContentWidthPx(600)).toBe(600);
+    expect(bodyContentWidthPx("600px")).toBe(600);
+    expect(bodyContentWidthPx("600")).toBe(600);
+  });
+
+  it("percent / auto / missing fall back (never a parseInt artifact like 50)", () => {
+    expect(bodyContentWidthPx("50%")).toBe(500);
+    expect(bodyContentWidthPx("auto")).toBe(500);
+    expect(bodyContentWidthPx(undefined)).toBe(500);
+  });
+
+  it("honors a custom fallback", () => {
+    expect(bodyContentWidthPx("50%", 600)).toBe(600);
+  });
+});
+
+describe("renderToJson row cells default to the Column count", () => {
+  it("a stray non-Column child is not counted as a cell (correct column-share math)", () => {
+    const json = renderToJson(
+      <Email contentWidth="600px">
+        <Row>
+          <Column>
+            <Image src="https://x/p.png" width={120} />
+          </Column>
+          <Column>
+            <Image src="https://x/p.png" />
+          </Column>
+          {/* invalid: a stray non-Column child (warned + skipped) */}
+          <Image src="https://x/stray.png" />
+        </Row>
+      </Email>
+    );
+    const row = json.body.rows[0];
+    expect(row.cells).toEqual([1, 1]); // 2 Columns, not 3 children
+    // First column sized against the 2-col slot (600/2 − 20 = 280): 120/280 =
+    // 42.86%, not 66.67% (which a 3-cell miscount would produce).
+    const src = row.columns[0].contents[0].values.src as Record<string, any>;
+    expect(src.autoWidth).toBe(false);
+    expect(src.maxWidth).toBe("42.86%");
   });
 });
