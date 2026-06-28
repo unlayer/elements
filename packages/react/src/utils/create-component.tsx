@@ -292,11 +292,12 @@ export function createItemComponent<
       index
     );
 
-    // 4. Ensure bodyValues has a contentWidth. Default to 500 to match the
-    //    schema default (BodyDefaults.contentWidth) and the exporter's image
-    //    fallback width, so a standalone item (no Body) sizes the same as the editor.
+    // 4. Ensure bodyValues has a contentWidth. Default to the schema-shaped
+    //    "500px" (matches BodyDefaults.contentWidth and the exporter's image
+    //    fallback width), so a standalone item (no Body) sizes the same as the
+    //    editor and the value is a CSS string everywhere it might be consumed.
     const safeBodyValues = {
-      contentWidth: 500,
+      contentWidth: "500px",
       ...bodyValues
     };
 
