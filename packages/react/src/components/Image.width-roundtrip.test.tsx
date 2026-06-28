@@ -148,6 +148,24 @@ describe("Image fixed-width round-trip (renderToJson)", () => {
     expect(src.maxWidth).toBe("42.86%");
   });
 
+  it("leaves a non-px maxWidth on a pinned src untouched (no bogus percent)", () => {
+    const src = imgSrc(
+      <Email contentWidth="600px">
+        <Row layout={ColumnLayouts.OneColumn}>
+          <Column>
+            <Image
+              values={{ src: { url: "https://x/p.png", autoWidth: false, maxWidth: "1.5em" } } as any}
+            />
+          </Column>
+        </Row>
+      </Email>
+    );
+    // A non-px unit is not a px pin → the conversion pass must leave it alone,
+    // not parseFloat it into a tiny percent.
+    expect(src.autoWidth).toBe(false);
+    expect(src.maxWidth).toBe("1.5em");
+  });
+
   it("a px width does not pollute the natural src dimensions", () => {
     const src = imgSrc(
       <Email contentWidth="600px">

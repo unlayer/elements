@@ -14,14 +14,15 @@
  * paddings/borders), so the emitted value renders at the requested on-screen size.
  */
 
-/** Parse a CSS length to a number of px (bare number or "12px" / "12"). */
+/** Parse a CSS length to px, strictly: a number or a numeric string with an
+ *  optional px unit ("12" / "12px"). Non-px units ("1.5em", "calc(…)") return
+ *  undefined so the pinning pass leaves them untouched instead of misreading
+ *  them as px (SizeInput allows non-px CSS strings). */
 function toPx(value: unknown): number | undefined {
   if (typeof value === "number") return Number.isFinite(value) ? value : undefined;
-  if (typeof value === "string") {
-    const f = parseFloat(value);
-    return Number.isNaN(f) ? undefined : f;
-  }
-  return undefined;
+  if (typeof value !== "string") return undefined;
+  const m = /^(\d+(?:\.\d+)?)(?:px)?$/.exec(value.trim());
+  return m ? parseFloat(m[1]) : undefined;
 }
 
 /** Left/right edge sizes from a CSS box shorthand (padding/margin). */
@@ -49,11 +50,13 @@ function borderEdges(border: unknown): { left: number; right: number } {
   };
 }
 
-/** A body `contentWidth` is "fixed" when it's a number or a numeric string with
- *  an optional px unit (`600`, `"600px"`, or `"600"`) — never `"%"` or `"auto"`.
- *  Mirrors the renderer's contentWidth→px handling (Row's `toContentWidthPx` /
- *  the exporter's body-width math, which accept a bare numeric string) so the
- *  slot geometry matches the width the image is actually rendered against. */
+/** A body `contentWidth` is treated as fixed px when it's a number or a numeric
+ *  string with an optional px unit (`600`, `"600px"`, or `"600"`). Percentages
+ *  and keywords like `"auto"` are NOT fixed — callers fall back to the responsive
+ *  base width. This matches the exporter's body-width math, which reads a bare
+ *  numeric string as px and falls back for %/auto, so the slot geometry lines up
+ *  with the width the image is actually rendered against. (It deliberately does
+ *  not copy Row's `toContentWidthPx`, whose parseInt would misread `"50%"` as 50.) */
 function fixedContentWidth(contentWidth: unknown): number | undefined {
   if (typeof contentWidth === "number")
     return Number.isFinite(contentWidth) ? contentWidth : undefined;
