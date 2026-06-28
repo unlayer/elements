@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import React from "react";
-import { Email, Row, Column, ColumnLayouts, Button, Social, Image, Menu, renderToHtml } from "./index";
+import { Email, Row, Column, ColumnLayouts, Button, Social, Image, Menu, renderToHtml, renderToJson } from "./index";
 
 // Guards for "valid, type-checking input silently produced broken output" footguns.
 
@@ -85,5 +85,23 @@ describe("the attrs-href fix is consistent across all link-bearing components", 
     expect(allHrefs(menu)).toContain("https://x.com/m1");
     const img = wrap(<Image src="https://x/p.png" action={"https://x.com/is" as any} />);
     expect(allHrefs(img)).toContain("https://x.com/is");
+  });
+});
+
+describe("attrs href round-trips into the editor (renderToJson stores values.href)", () => {
+  const buttonHref = (el: React.ReactElement) =>
+    (renderToJson(
+      <Email contentWidth="600px"><Row layout={ColumnLayouts.OneColumn}><Column>{el}</Column></Row></Email>
+    ) as any).body.rows[0].columns[0].contents[0].values.href;
+
+  it("a Button attrs href is stored in values.href (where the Builder reads it)", () => {
+    const href = buttonHref(<Button href={{ name: "web", attrs: { href: "https://x.com/cta" } } as any}>Go</Button>);
+    expect(href.values.href).toBe("https://x.com/cta");
+    expect(href.attrs).toBeUndefined();
+  });
+
+  it("a string href is stored canonically too", () => {
+    const href = buttonHref(<Button href="https://x.com/s">Go</Button>);
+    expect(href.values.href).toBe("https://x.com/s");
   });
 });

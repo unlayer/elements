@@ -202,19 +202,37 @@ export function mapSemanticProps<T extends Record<string, any>>(
     delete result.html;
   }
 
-  // String shorthand for link/action fields (`href="https://..."` or
-  // `action="https://..."`) → wrap into the schema's storage shape so that
-  // the rest of the pipeline (mergeValues, renderToJson) sees a consistent
-  // type. The render-time exporter handoff later resolves this into the
-  // exporter's `{ url, target }` shape via `normalizeValuesForExporter`.
-  for (const key of ["href", "action"] as const) {
-    const v = userProps[key];
+  // Canonicalize link/action fields to the schema's storage shape so the rest of
+  // the pipeline (mergeValues, renderToJson, AND the editor) sees a consistent
+  // type:
+  //  - `"https://…"` string shorthand → `{ name:"web", values:{ href, target } }`.
+  //  - a link placed in `attrs` (the canonical Href type also surfaces
+  //    `attrs:{ href, target }`) is moved into `values.href`/`target`, where the
+  //    editor reads it — so the link round-trips into the Builder, not just into
+  //    renderToHtml. Genuine custom attrs (class, data-*, …) are preserved.
+  // Applied to both the flat prop and the `values` escape hatch. (Render-time
+  // `normalizeLinkValue` also reads `attrs` as a defensive fallback.)
+  const canonicalizeLink = (v: any): any => {
     if (typeof v === "string") {
-      userProps[key] = {
-        name: "web",
-        values: { href: v, target: "_blank" },
-      };
+      return { name: "web", values: { href: v, target: "_blank" } };
     }
+    if (v && typeof v === "object" && "name" in v && v.attrs && typeof v.attrs === "object") {
+      const { href: attrsHref, target: attrsTarget, ...customAttrs } = v.attrs;
+      if (attrsHref !== undefined || attrsTarget !== undefined) {
+        const linkValues = { ...(v.values as Record<string, any> | undefined) };
+        if (!linkValues.href && attrsHref !== undefined) linkValues.href = attrsHref;
+        if (!linkValues.target && attrsTarget !== undefined) linkValues.target = attrsTarget;
+        const next: Record<string, any> = { ...v, values: linkValues };
+        if (Object.keys(customAttrs).length) next.attrs = customAttrs;
+        else delete next.attrs;
+        return next;
+      }
+    }
+    return v;
+  };
+  for (const key of ["href", "action"] as const) {
+    if (userProps[key] !== undefined) userProps[key] = canonicalizeLink(userProps[key]);
+    if (result[key] !== undefined) result[key] = canonicalizeLink(result[key]);
   }
 
   // Normalize CSS-idiom prop values to the shapes the exporters expect. Authors

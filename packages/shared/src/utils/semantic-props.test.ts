@@ -212,7 +212,7 @@ describe("mapSemanticProps", () => {
       });
     });
 
-    it("passes object href through unchanged", () => {
+    it("passes a canonical object href ({name, values}) through unchanged", () => {
       const hrefObj = { name: "email", values: { href: "mailto:test@test.com" } };
       const result = mapSemanticProps(
         { href: hrefObj },
@@ -220,6 +220,32 @@ describe("mapSemanticProps", () => {
         "Button"
       );
       expect(result.href).toEqual(hrefObj);
+    });
+
+    it("canonicalizes an attrs href into values.href so the editor reads it", () => {
+      // The link must land in `values.href` (where the Builder reads it), not be
+      // left in `attrs` with an empty values.href — otherwise renderToJson →
+      // editor loses the link even though renderToHtml renders it.
+      const result = mapSemanticProps(
+        { href: { name: "web", attrs: { href: "https://x.com/cta", target: "_self" } } },
+        BUTTON_DEFAULTS,
+        "Button"
+      );
+      expect((result.href as any).values).toEqual({
+        href: "https://x.com/cta",
+        target: "_self",
+      });
+      expect((result.href as any).attrs).toBeUndefined();
+    });
+
+    it("keeps genuine custom attrs while lifting the href into values", () => {
+      const result = mapSemanticProps(
+        { href: { name: "web", values: { href: "https://x.com/v" }, attrs: { class: "cta" } } },
+        BUTTON_DEFAULTS,
+        "Button"
+      );
+      expect((result.href as any).values.href).toBe("https://x.com/v");
+      expect((result.href as any).attrs).toEqual({ class: "cta" });
     });
   });
 
