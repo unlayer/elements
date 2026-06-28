@@ -289,6 +289,26 @@ describe("normalizeLinkValue", () => {
     expect(normalizeLinkValue({ random: "thing" })).toBeUndefined();
     expect(normalizeLinkValue(42)).toBeUndefined();
   });
+
+  it("reads href/target from `attrs` (the alias the canonical Href type exposes)", () => {
+    expect(
+      normalizeLinkValue({ name: "web", attrs: { href: "https://x.com/a", target: "_self" } })
+    ).toEqual({ url: "https://x.com/a", target: "_self" });
+  });
+
+  it("an empty `values.href` (the schema default) falls through to `attrs.href`", () => {
+    // mergeValues merges the schema default `values: { href: "" }` in, so an empty
+    // values.href must NOT win over an attrs href — guards the `||` vs `??` fix.
+    expect(
+      normalizeLinkValue({ name: "web", values: { href: "" }, attrs: { href: "https://x.com/a" } })
+    ).toEqual({ url: "https://x.com/a", target: "_blank" });
+  });
+
+  it("keeps genuine custom attrs (non href/target) on the render value", () => {
+    expect(
+      normalizeLinkValue({ name: "web", values: { href: "https://x.com/v" }, attrs: { class: "cta", "data-id": "7" } })
+    ).toEqual({ url: "https://x.com/v", target: "_blank", class: "cta", "data-id": "7" });
+  });
 });
 
 describe("normalizeValuesForExporter", () => {

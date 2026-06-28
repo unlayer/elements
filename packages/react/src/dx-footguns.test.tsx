@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import React from "react";
-import { Email, Row, Column, ColumnLayouts, Button, Social, Image, renderToHtml } from "./index";
+import { Email, Row, Column, ColumnLayouts, Button, Social, Image, Menu, renderToHtml } from "./index";
 
 // Guards for "valid, type-checking input silently produced broken output" footguns.
 
@@ -65,5 +65,25 @@ describe("Image with no explicit dimensions does not force a wrong aspect", () =
     const html = wrap(<Image src={{ url: "https://x.com/p.png", width: 400, height: 400 } as any} />);
     const img = (html.match(/<img[^>]*>/i) || [""])[0];
     expect(img).toMatch(/height="\d+"/);
+  });
+});
+
+describe("the attrs-href fix is consistent across all link-bearing components", () => {
+  const allHrefs = (html: string) => [...html.matchAll(/<a\b[^>]*\bhref="([^"]*)"/gi)].map((m) => m[1]);
+
+  it("Image action { name, attrs: { href } } wraps the image in a working anchor", () => {
+    const html = wrap(
+      <Image src="https://x/p.png" action={{ name: "web", attrs: { href: "https://x.com/ia" } } as any} />
+    );
+    expect(allHrefs(html)).toContain("https://x.com/ia");
+  });
+
+  it("existing link forms still resolve (Menu items, Image action string) — no regression", () => {
+    const menu = wrap(
+      <Menu items={[{ text: "A", href: "https://x.com/m1" }] as any} layout="horizontal" />
+    );
+    expect(allHrefs(menu)).toContain("https://x.com/m1");
+    const img = wrap(<Image src="https://x/p.png" action={"https://x.com/is" as any} />);
+    expect(allHrefs(img)).toContain("https://x.com/is");
   });
 });
