@@ -88,7 +88,7 @@ export const StyledCard: Story = {
             font-weight: 600;
             cursor: pointer;
             transition: all 0.3s ease;
-          " onmouseover="this.style.background='rgba(255,255,255,0.3)'" onmouseout="this.style.background='rgba(255,255,255,0.2)'">
+          ">
             Learn More
           </button>
         </div>
@@ -172,8 +172,9 @@ export const CallToAction: Story = {
             left: 0;
             right: 0;
             bottom: 0;
-            background: url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><defs><pattern id="grain" width="100" height="100" patternUnits="userSpaceOnUse"><circle cx="25" cy="25" r="1" fill="%23374151" opacity="0.4"/><circle cx="75" cy="75" r="1" fill="%23374151" opacity="0.4"/><circle cx="50" cy="10" r="1" fill="%23374151" opacity="0.4"/><circle cx="10" cy="50" r="1" fill="%23374151" opacity="0.4"/><circle cx="90" cy="30" r="1" fill="%23374151" opacity="0.4"/></pattern></defs><rect width="100" height="100" fill="url(%23grain)"/></svg>');
-            opacity: 0.1;
+            background-image: radial-gradient(rgba(255, 255, 255, 0.18) 1px, transparent 1px);
+            background-size: 18px 18px;
+            opacity: 0.5;
           "></div>
 
           <div style="position: relative; z-index: 1;">
@@ -213,7 +214,7 @@ export const CallToAction: Story = {
                 cursor: pointer;
                 transition: transform 0.2s ease;
                 box-shadow: 0 4px 14px rgba(59, 130, 246, 0.4);
-              " onmouseover="this.style.transform='translateY(-2px)'" onmouseout="this.style.transform='translateY(0)'">
+              ">
                 Start Free Trial
               </button>
 
@@ -227,7 +228,7 @@ export const CallToAction: Story = {
                 font-size: 16px;
                 cursor: pointer;
                 transition: all 0.2s ease;
-              " onmouseover="this.style.borderColor='rgba(255,255,255,0.6)'; this.style.background='rgba(255,255,255,0.1)'" onmouseout="this.style.borderColor='rgba(255,255,255,0.3)'; this.style.background='transparent'">
+              ">
                 Learn More
               </button>
             </div>

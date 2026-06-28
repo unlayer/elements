@@ -13,6 +13,13 @@ const DEFAULT_VALUES = {
 /**
  * Html - Universal SSR/Client Component for custom HTML with Automatic Semantic Props
  *
+ * ⚠️ Renders the HTML verbatim — it is NOT sanitized by default. Only pass HTML
+ * you trust, and make sure it is valid: notably, an inline SVG inside a `url(...)`
+ * must be URL-encoded, because a raw `"` inside a double-quoted `style="…"`
+ * closes the attribute and the rest leaks out as text. To sanitize (matching the
+ * editor's HTML block, which strips scripts/event handlers), pass a `toSafeHtml`
+ * function via the `UnlayerProvider` config.
+ *
  * @example Flat Props
  * ```tsx
  * <Html html="<div>Custom HTML</div>" />
