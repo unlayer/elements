@@ -356,7 +356,10 @@ export function normalizeLinkValue(value: unknown): Record<string, any> | undefi
   // reasonably put the link there — read href/target from `values` first, then
   // fall back to `attrs`, and spread any remaining `attrs` as custom attributes.
   // (Without this, `{ name, attrs: { href } }` type-checks but renders href="".)
-  if ("name" in v) {
+  if (
+    "name" in v &&
+    ((v.values && typeof v.values === "object") || (v.attrs && typeof v.attrs === "object"))
+  ) {
     const inner = v.values && typeof v.values === "object" ? (v.values as Record<string, any>) : {};
     const attrs = v.attrs && typeof v.attrs === "object" ? (v.attrs as Record<string, any>) : {};
     const { href: attrsHref, target: attrsTarget, ...customAttrs } = attrs;

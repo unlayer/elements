@@ -52,6 +52,11 @@ describe("Social iconSize/spacing accept px strings without NaN", () => {
   it("a numeric iconSize still works", () => {
     expect(social({ iconSize: 40 })).not.toContain("NaN");
   });
+  it("a non-px iconSize (\"50%\") is dropped → falls back to the default, no NaN", () => {
+    const html = social({ iconSize: "50%" });
+    expect(html).not.toContain("NaN");
+    expect(html).toContain("32px"); // schema default, not a coerced 50
+  });
 });
 
 describe("Image with no explicit dimensions does not force a wrong aspect", () => {

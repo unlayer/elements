@@ -316,6 +316,12 @@ describe("normalizeLinkValue", () => {
     expect(normalizeLinkValue(42)).toBeUndefined();
   });
 
+  it("returns undefined for a bare {name} with no values/attrs (not a link)", () => {
+    // Honor the contract: only the actual storage variants (values or attrs)
+    // normalize; a name-only object falls through so the caller keeps it.
+    expect(normalizeLinkValue({ name: "web" })).toBeUndefined();
+  });
+
   it("reads href/target from `attrs` (the alias the canonical Href type exposes)", () => {
     expect(
       normalizeLinkValue({ name: "web", attrs: { href: "https://x.com/a", target: "_self" } })

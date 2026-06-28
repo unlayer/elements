@@ -62,8 +62,11 @@ const Social = createItemComponent<SocialValues, SocialSemanticProps>({
       for (const key of ["iconSize", "spacing"] as const) {
         const v = (base as Record<string, unknown>)[key];
         if (typeof v === "string") {
-          const n = parseFloat(v);
-          if (!Number.isNaN(n)) (base as Record<string, unknown>)[key] = n;
+          // px count only — a non-px unit ("50%", "1.5em") is invalid here, so
+          // drop it and let mergeValues fall back to the schema default.
+          const m = /^(\d+(?:\.\d+)?)(?:px)?$/.exec(v.trim());
+          if (m) (base as Record<string, unknown>)[key] = parseFloat(m[1]);
+          else delete (base as Record<string, unknown>)[key];
         }
       }
       return base;
