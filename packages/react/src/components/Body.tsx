@@ -4,6 +4,7 @@ import type { RenderMode, UnlayerConfig, BodyValues } from "@unlayer-internal/sh
 import { DEFAULT_CONFIG, mergeValues } from "@unlayer-internal/shared-elements";
 import { BodyExporters } from "@unlayer/exporters";
 import { mapSemanticProps, type SemanticProps } from "../utils/semantic-props";
+import { nextHtmlId } from "../utils/create-component";
 import type { SizeInput } from "../types";
 import { BODY_DEFAULTS } from "../utils/container-defaults";
 
@@ -128,8 +129,10 @@ const Body: React.FC<BodyProps> = (props) => {
   // Resolve mode: explicit prop > config > default
   const mode: RenderMode = modeProp ?? resolvedConfig.mode ?? "web";
 
-  // Build _config to thread through children
+  // Build _config to thread through children. Reset the per-render id counters so
+  // unique ids are allocated across the whole tree (shared by reference downward).
   const _config: UnlayerConfig = { ...resolvedConfig, mode };
+  (_config as { __ids?: Record<string, number> }).__ids = {};
 
   // Map semantic props, then merge BODY_DEFAULTS on top so the body always
   // carries its full default values (notably contentWidth "500px", textColor
@@ -146,7 +149,7 @@ const Body: React.FC<BodyProps> = (props) => {
   const valuesWithMeta = {
     ...values,
     _meta: {
-      htmlID: `u_body_${index + 1}`,
+      htmlID: nextHtmlId(_config, "u_body"),
       htmlClassNames: "u_body",
       ...(values._meta || {})
     }

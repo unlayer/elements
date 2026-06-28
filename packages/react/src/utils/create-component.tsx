@@ -137,6 +137,20 @@ interface RenderConfig<T = any> {
   exporter: Function;
 }
 
+/**
+ * Allocate the next unique HTML id for a prefix, scoped to one render.
+ * Counters live on the threaded `_config` (`__ids`), which Body resets per
+ * render — so renderToHtml produces unique ids (u_row_1, u_row_2, …) like the
+ * editor and like renderToJson, instead of resetting per row. Falls back to
+ * `${prefix}_1` when rendered standalone (no _config).
+ */
+export function nextHtmlId(config: any, prefix: string): string {
+  if (!config) return `${prefix}_1`;
+  const ids: Record<string, number> = (config.__ids ??= {});
+  ids[prefix] = (ids[prefix] || 0) + 1;
+  return `${prefix}_${ids[prefix]}`;
+}
+
 /** Add _meta fields if not present. */
 function ensureMeta(values: any, type: string, index: number = 0): any {
   return {

@@ -84,13 +84,13 @@ exports[`Golden Template: Marketing Email > snapshot locks the full email HTML 1
 }</style>
 
 
-<div id="u_row_1" class="u-row-container u_row v-row-padding--vertical v-row-background-image--outer v-row-background-color" style="background-color: #1a1a2e;">
+<div id="u_row_2" class="u-row-container u_row v-row-padding--vertical v-row-background-image--outer v-row-background-color" style="background-color: #1a1a2e;">
   <div class="u-row v-row-columns-background-color-background-color" style="margin: 0 auto;min-width: 320px;max-width: 600px;overflow-wrap: break-word;word-wrap: break-word;word-break: break-word;background-color: transparent;">
     <div class="v-row-background-image--inner" style="border-collapse: collapse;display: table;width: 100%;height: 100%;background-color: transparent;">
       <!--[if (mso)|(IE)]><table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"><tr><td class="v-row-padding v-row-background-image--outer v-row-background-color" style="background-color: #1a1a2e;"><table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%"><tr class="v-row-background-image--inner v-row-columns-background-color-background-color" style="background-color: transparent;"><![endif]-->
       
 <!--[if (mso)|(IE)]><td align="center" width="600" class="v-col-background-color v-col-border v-col-border-radius" style="width: 600px;border-top: 0px solid transparent;border-left: 0px solid transparent;border-right: 0px solid transparent;border-bottom: 0px solid transparent;" valign="top"><table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"><tr><td class="v-col-padding" style="padding: 0px;"><![endif]-->
-<div id="u_column_1" class="u-col u-col-100 u_column" style="max-width: 320px;min-width: 600px;display: table-cell;vertical-align: top;">
+<div id="u_column_2" class="u-col u-col-100 u_column" style="max-width: 320px;min-width: 600px;display: table-cell;vertical-align: top;">
   <div class="v-col-background-color v-col-border-radius" style="height: 100%;width: 100% !important;">
   <!--[if (!mso)&(!IE)]><!--><div class="v-col-padding v-col-border v-col-border-radius" style="box-sizing: border-box; height: 100%; padding: 0px;border-top: 0px solid transparent;border-left: 0px solid transparent;border-right: 0px solid transparent;border-bottom: 0px solid transparent;"><!--<![endif]-->
   
@@ -164,17 +164,17 @@ exports[`Golden Template: Marketing Email > snapshot locks the full email HTML 1
 }</style>
 
 
-<div id="u_row_1" class="u-row-container u_row v-row-padding--vertical v-row-background-image--outer v-row-background-color" style="background-color: transparent;">
+<div id="u_row_3" class="u-row-container u_row v-row-padding--vertical v-row-background-image--outer v-row-background-color" style="background-color: transparent;">
   <div class="u-row v-row-columns-background-color-background-color" style="margin: 0 auto;min-width: 320px;max-width: 600px;overflow-wrap: break-word;word-wrap: break-word;word-break: break-word;background-color: transparent;">
     <div class="v-row-background-image--inner" style="border-collapse: collapse;display: table;width: 100%;height: 100%;background-color: transparent;">
       <!--[if (mso)|(IE)]><table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"><tr><td class="v-row-padding v-row-background-image--outer v-row-background-color" style="background-color: transparent;"><table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%"><tr class="v-row-background-image--inner v-row-columns-background-color-background-color" style="background-color: transparent;"><![endif]-->
       
 <!--[if (mso)|(IE)]><td align="center" width="600" class="v-col-background-color v-col-border v-col-border-radius" style="width: 600px;border-top: 0px solid transparent;border-left: 0px solid transparent;border-right: 0px solid transparent;border-bottom: 0px solid transparent;" valign="top"><table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"><tr><td class="v-col-padding" style="padding: 0px;"><![endif]-->
-<div id="u_column_1" class="u-col u-col-100 u_column" style="max-width: 320px;min-width: 600px;display: table-cell;vertical-align: top;">
+<div id="u_column_3" class="u-col u-col-100 u_column" style="max-width: 320px;min-width: 600px;display: table-cell;vertical-align: top;">
   <div class="v-col-background-color v-col-border-radius" style="height: 100%;width: 100% !important;">
   <!--[if (!mso)&(!IE)]><!--><div class="v-col-padding v-col-border v-col-border-radius" style="box-sizing: border-box; height: 100%; padding: 0px;border-top: 0px solid transparent;border-left: 0px solid transparent;border-right: 0px solid transparent;border-bottom: 0px solid transparent;"><!--<![endif]-->
   
-<table id="u_content_image_1" class="u_content_image" style="font-family:arial,helvetica,sans-serif;" role="presentation" cellpadding="0" cellspacing="0" width="100%" border="0">
+<table id="u_content_image_2" class="u_content_image" style="font-family:arial,helvetica,sans-serif;" role="presentation" cellpadding="0" cellspacing="0" width="100%" border="0">
   <tbody>
     <tr>
       <td class="v-container-padding-padding" style="overflow-wrap:break-word;word-break:break-word;padding:10px;font-family:arial,helvetica,sans-serif;" align="left">
@@ -194,7 +194,7 @@ exports[`Golden Template: Marketing Email > snapshot locks the full email HTML 1
   </tbody>
 </table>
 
-<table id="u_content_heading_2" class="u_content_heading" style="font-family:arial,helvetica,sans-serif;" role="presentation" cellpadding="0" cellspacing="0" width="100%" border="0">
+<table id="u_content_heading_1" class="u_content_heading" style="font-family:arial,helvetica,sans-serif;" role="presentation" cellpadding="0" cellspacing="0" width="100%" border="0">
   <tbody>
     <tr>
       <td class="v-container-padding-padding" style="overflow-wrap:break-word;word-break:break-word;padding:10px;font-family:arial,helvetica,sans-serif;" align="left">
@@ -208,7 +208,7 @@ exports[`Golden Template: Marketing Email > snapshot locks the full email HTML 1
   </tbody>
 </table>
 
-<table id="u_content_paragraph_3" class="u_content_paragraph" style="font-family:arial,helvetica,sans-serif;" role="presentation" cellpadding="0" cellspacing="0" width="100%" border="0">
+<table id="u_content_paragraph_1" class="u_content_paragraph" style="font-family:arial,helvetica,sans-serif;" role="presentation" cellpadding="0" cellspacing="0" width="100%" border="0">
   <tbody>
     <tr>
       <td class="v-container-padding-padding" style="overflow-wrap:break-word;word-break:break-word;padding:10px;font-family:arial,helvetica,sans-serif;" align="left">
@@ -222,7 +222,7 @@ exports[`Golden Template: Marketing Email > snapshot locks the full email HTML 1
   </tbody>
 </table>
 
-<table id="u_content_button_4" class="u_content_button" style="font-family:arial,helvetica,sans-serif;" role="presentation" cellpadding="0" cellspacing="0" width="100%" border="0">
+<table id="u_content_button_1" class="u_content_button" style="font-family:arial,helvetica,sans-serif;" role="presentation" cellpadding="0" cellspacing="0" width="100%" border="0">
   <tbody>
     <tr>
       <td class="v-container-padding-padding" style="overflow-wrap:break-word;word-break:break-word;padding:10px;font-family:arial,helvetica,sans-serif;" align="left">
@@ -268,13 +268,13 @@ exports[`Golden Template: Marketing Email > snapshot locks the full email HTML 1
 }</style>
 
 
-<div id="u_row_1" class="u-row-container u_row v-row-padding--vertical v-row-background-image--outer v-row-background-color" style="background-color: transparent;">
+<div id="u_row_4" class="u-row-container u_row v-row-padding--vertical v-row-background-image--outer v-row-background-color" style="background-color: transparent;">
   <div class="u-row v-row-columns-background-color-background-color" style="margin: 0 auto;min-width: 320px;max-width: 600px;overflow-wrap: break-word;word-wrap: break-word;word-break: break-word;background-color: transparent;">
     <div class="v-row-background-image--inner" style="border-collapse: collapse;display: table;width: 100%;height: 100%;background-color: transparent;">
       <!--[if (mso)|(IE)]><table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"><tr><td class="v-row-padding v-row-background-image--outer v-row-background-color" style="background-color: transparent;"><table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%"><tr class="v-row-background-image--inner v-row-columns-background-color-background-color" style="background-color: transparent;"><![endif]-->
       
 <!--[if (mso)|(IE)]><td align="center" width="600" class="v-col-background-color v-col-border v-col-border-radius" style="width: 600px;border-top: 0px solid transparent;border-left: 0px solid transparent;border-right: 0px solid transparent;border-bottom: 0px solid transparent;" valign="top"><table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"><tr><td class="v-col-padding" style="padding: 0px;"><![endif]-->
-<div id="u_column_1" class="u-col u-col-100 u_column" style="max-width: 320px;min-width: 600px;display: table-cell;vertical-align: top;">
+<div id="u_column_4" class="u-col u-col-100 u_column" style="max-width: 320px;min-width: 600px;display: table-cell;vertical-align: top;">
   <div class="v-col-background-color v-col-border-radius" style="height: 100%;width: 100% !important;">
   <!--[if (!mso)&(!IE)]><!--><div class="v-col-padding v-col-border v-col-border-radius" style="box-sizing: border-box; height: 100%; padding: 0px;border-top: 0px solid transparent;border-left: 0px solid transparent;border-right: 0px solid transparent;border-bottom: 0px solid transparent;"><!--<![endif]-->
   
@@ -327,17 +327,17 @@ exports[`Golden Template: Marketing Email > snapshot locks the full email HTML 1
 }</style>
 
 
-<div id="u_row_1" class="u-row-container u_row v-row-padding--vertical v-row-background-image--outer v-row-background-color" style="background-color: transparent;">
+<div id="u_row_5" class="u-row-container u_row v-row-padding--vertical v-row-background-image--outer v-row-background-color" style="background-color: transparent;">
   <div class="u-row v-row-columns-background-color-background-color" style="margin: 0 auto;min-width: 320px;max-width: 600px;overflow-wrap: break-word;word-wrap: break-word;word-break: break-word;background-color: transparent;">
     <div class="v-row-background-image--inner" style="border-collapse: collapse;display: table;width: 100%;height: 100%;background-color: transparent;">
       <!--[if (mso)|(IE)]><table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"><tr><td class="v-row-padding v-row-background-image--outer v-row-background-color" style="background-color: transparent;"><table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%"><tr class="v-row-background-image--inner v-row-columns-background-color-background-color" style="background-color: transparent;"><![endif]-->
       
 <!--[if (mso)|(IE)]><td align="center" width="300" class="v-col-background-color v-col-border v-col-border-radius" style="width: 300px;border-top: 0px solid transparent;border-left: 0px solid transparent;border-right: 0px solid transparent;border-bottom: 0px solid transparent;" valign="top"><table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"><tr><td class="v-col-padding" style="padding: 0px;"><![endif]-->
-<div id="u_column_1" class="u-col u-col-50 u_column" style="max-width: 320px;min-width: 300px;display: table-cell;vertical-align: top;">
+<div id="u_column_5" class="u-col u-col-50 u_column" style="max-width: 320px;min-width: 300px;display: table-cell;vertical-align: top;">
   <div class="v-col-background-color v-col-border-radius" style="height: 100%;width: 100% !important;">
   <!--[if (!mso)&(!IE)]><!--><div class="v-col-padding v-col-border v-col-border-radius" style="box-sizing: border-box; height: 100%; padding: 0px;border-top: 0px solid transparent;border-left: 0px solid transparent;border-right: 0px solid transparent;border-bottom: 0px solid transparent;"><!--<![endif]-->
   
-<table id="u_content_image_1" class="u_content_image" style="font-family:arial,helvetica,sans-serif;" role="presentation" cellpadding="0" cellspacing="0" width="100%" border="0">
+<table id="u_content_image_3" class="u_content_image" style="font-family:arial,helvetica,sans-serif;" role="presentation" cellpadding="0" cellspacing="0" width="100%" border="0">
   <tbody>
     <tr>
       <td class="v-container-padding-padding" style="overflow-wrap:break-word;word-break:break-word;padding:10px;font-family:arial,helvetica,sans-serif;" align="left">
@@ -371,7 +371,7 @@ exports[`Golden Template: Marketing Email > snapshot locks the full email HTML 1
   </tbody>
 </table>
 
-<table id="u_content_button_3" class="u_content_button" style="font-family:arial,helvetica,sans-serif;" role="presentation" cellpadding="0" cellspacing="0" width="100%" border="0">
+<table id="u_content_button_2" class="u_content_button" style="font-family:arial,helvetica,sans-serif;" role="presentation" cellpadding="0" cellspacing="0" width="100%" border="0">
   <tbody>
     <tr>
       <td class="v-container-padding-padding" style="overflow-wrap:break-word;word-break:break-word;padding:10px;font-family:arial,helvetica,sans-serif;" align="left">
@@ -395,11 +395,11 @@ exports[`Golden Template: Marketing Email > snapshot locks the full email HTML 1
 </div>
 <!--[if (mso)|(IE)]></td></tr></table></td><![endif]-->
 <!--[if (mso)|(IE)]><td align="center" width="300" class="v-col-background-color v-col-border v-col-border-radius" style="width: 300px;border-top: 0px solid transparent;border-left: 0px solid transparent;border-right: 0px solid transparent;border-bottom: 0px solid transparent;" valign="top"><table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"><tr><td class="v-col-padding" style="padding: 0px;"><![endif]-->
-<div id="u_column_2" class="u-col u-col-50 u_column" style="max-width: 320px;min-width: 300px;display: table-cell;vertical-align: top;">
+<div id="u_column_6" class="u-col u-col-50 u_column" style="max-width: 320px;min-width: 300px;display: table-cell;vertical-align: top;">
   <div class="v-col-background-color v-col-border-radius" style="height: 100%;width: 100% !important;">
   <!--[if (!mso)&(!IE)]><!--><div class="v-col-padding v-col-border v-col-border-radius" style="box-sizing: border-box; height: 100%; padding: 0px;border-top: 0px solid transparent;border-left: 0px solid transparent;border-right: 0px solid transparent;border-bottom: 0px solid transparent;"><!--<![endif]-->
   
-<table id="u_content_image_1" class="u_content_image" style="font-family:arial,helvetica,sans-serif;" role="presentation" cellpadding="0" cellspacing="0" width="100%" border="0">
+<table id="u_content_image_4" class="u_content_image" style="font-family:arial,helvetica,sans-serif;" role="presentation" cellpadding="0" cellspacing="0" width="100%" border="0">
   <tbody>
     <tr>
       <td class="v-container-padding-padding" style="overflow-wrap:break-word;word-break:break-word;padding:10px;font-family:arial,helvetica,sans-serif;" align="left">
@@ -419,7 +419,7 @@ exports[`Golden Template: Marketing Email > snapshot locks the full email HTML 1
   </tbody>
 </table>
 
-<table id="u_content_paragraph_2" class="u_content_paragraph" style="font-family:arial,helvetica,sans-serif;" role="presentation" cellpadding="0" cellspacing="0" width="100%" border="0">
+<table id="u_content_paragraph_3" class="u_content_paragraph" style="font-family:arial,helvetica,sans-serif;" role="presentation" cellpadding="0" cellspacing="0" width="100%" border="0">
   <tbody>
     <tr>
       <td class="v-container-padding-padding" style="overflow-wrap:break-word;word-break:break-word;padding:10px;font-family:arial,helvetica,sans-serif;" align="left">
@@ -479,17 +479,17 @@ exports[`Golden Template: Marketing Email > snapshot locks the full email HTML 1
 }</style>
 
 
-<div id="u_row_1" class="u-row-container u_row v-row-padding--vertical v-row-background-image--outer v-row-background-color" style="background-color: transparent;">
+<div id="u_row_6" class="u-row-container u_row v-row-padding--vertical v-row-background-image--outer v-row-background-color" style="background-color: transparent;">
   <div class="u-row v-row-columns-background-color-background-color" style="margin: 0 auto;min-width: 320px;max-width: 600px;overflow-wrap: break-word;word-wrap: break-word;word-break: break-word;background-color: transparent;">
     <div class="v-row-background-image--inner" style="border-collapse: collapse;display: table;width: 100%;height: 100%;background-color: transparent;">
       <!--[if (mso)|(IE)]><table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"><tr><td class="v-row-padding v-row-background-image--outer v-row-background-color" style="background-color: transparent;"><table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%"><tr class="v-row-background-image--inner v-row-columns-background-color-background-color" style="background-color: transparent;"><![endif]-->
       
 <!--[if (mso)|(IE)]><td align="center" width="600" class="v-col-background-color v-col-border v-col-border-radius" style="width: 600px;border-top: 0px solid transparent;border-left: 0px solid transparent;border-right: 0px solid transparent;border-bottom: 0px solid transparent;" valign="top"><table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"><tr><td class="v-col-padding" style="padding: 0px;"><![endif]-->
-<div id="u_column_1" class="u-col u-col-100 u_column" style="max-width: 320px;min-width: 600px;display: table-cell;vertical-align: top;">
+<div id="u_column_7" class="u-col u-col-100 u_column" style="max-width: 320px;min-width: 600px;display: table-cell;vertical-align: top;">
   <div class="v-col-background-color v-col-border-radius" style="height: 100%;width: 100% !important;">
   <!--[if (!mso)&(!IE)]><!--><div class="v-col-padding v-col-border v-col-border-radius" style="box-sizing: border-box; height: 100%; padding: 0px;border-top: 0px solid transparent;border-left: 0px solid transparent;border-right: 0px solid transparent;border-bottom: 0px solid transparent;"><!--<![endif]-->
   
-<table id="u_content_divider_1" class="u_content_divider" style="font-family:arial,helvetica,sans-serif;" role="presentation" cellpadding="0" cellspacing="0" width="100%" border="0">
+<table id="u_content_divider_2" class="u_content_divider" style="font-family:arial,helvetica,sans-serif;" role="presentation" cellpadding="0" cellspacing="0" width="100%" border="0">
   <tbody>
     <tr>
       <td class="v-container-padding-padding" style="overflow-wrap:break-word;word-break:break-word;padding:10px;font-family:arial,helvetica,sans-serif;" align="left">
@@ -536,13 +536,13 @@ exports[`Golden Template: Marketing Email > snapshot locks the full email HTML 1
 }</style>
 
 
-<div id="u_row_1" class="u-row-container u_row v-row-padding--vertical v-row-background-image--outer v-row-background-color" style="background-color: transparent;">
+<div id="u_row_7" class="u-row-container u_row v-row-padding--vertical v-row-background-image--outer v-row-background-color" style="background-color: transparent;">
   <div class="u-row v-row-columns-background-color-background-color" style="margin: 0 auto;min-width: 320px;max-width: 600px;overflow-wrap: break-word;word-wrap: break-word;word-break: break-word;background-color: transparent;">
     <div class="v-row-background-image--inner" style="border-collapse: collapse;display: table;width: 100%;height: 100%;background-color: transparent;">
       <!--[if (mso)|(IE)]><table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"><tr><td class="v-row-padding v-row-background-image--outer v-row-background-color" style="background-color: transparent;"><table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%"><tr class="v-row-background-image--inner v-row-columns-background-color-background-color" style="background-color: transparent;"><![endif]-->
       
 <!--[if (mso)|(IE)]><td align="center" width="600" class="v-col-background-color v-col-border v-col-border-radius" style="width: 600px;border-top: 0px solid transparent;border-left: 0px solid transparent;border-right: 0px solid transparent;border-bottom: 0px solid transparent;" valign="top"><table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"><tr><td class="v-col-padding" style="padding: 0px;"><![endif]-->
-<div id="u_column_1" class="u-col u-col-100 u_column" style="max-width: 320px;min-width: 600px;display: table-cell;vertical-align: top;">
+<div id="u_column_8" class="u-col u-col-100 u_column" style="max-width: 320px;min-width: 600px;display: table-cell;vertical-align: top;">
   <div class="v-col-background-color v-col-border-radius" style="height: 100%;width: 100% !important;">
   <!--[if (!mso)&(!IE)]><!--><div class="v-col-padding v-col-border v-col-border-radius" style="box-sizing: border-box; height: 100%; padding: 0px;border-top: 0px solid transparent;border-left: 0px solid transparent;border-right: 0px solid transparent;border-bottom: 0px solid transparent;"><!--<![endif]-->
   
@@ -587,13 +587,13 @@ exports[`Golden Template: Marketing Email > snapshot locks the full email HTML 1
 }</style>
 
 
-<div id="u_row_1" class="u-row-container u_row v-row-padding--vertical v-row-background-image--outer v-row-background-color" style="background-color: #1a1a2e;">
+<div id="u_row_8" class="u-row-container u_row v-row-padding--vertical v-row-background-image--outer v-row-background-color" style="background-color: #1a1a2e;">
   <div class="u-row v-row-columns-background-color-background-color" style="margin: 0 auto;min-width: 320px;max-width: 600px;overflow-wrap: break-word;word-wrap: break-word;word-break: break-word;background-color: transparent;">
     <div class="v-row-background-image--inner" style="border-collapse: collapse;display: table;width: 100%;height: 100%;background-color: transparent;">
       <!--[if (mso)|(IE)]><table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"><tr><td class="v-row-padding v-row-background-image--outer v-row-background-color" style="background-color: #1a1a2e;"><table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%"><tr class="v-row-background-image--inner v-row-columns-background-color-background-color" style="background-color: transparent;"><![endif]-->
       
 <!--[if (mso)|(IE)]><td align="center" width="600" class="v-col-background-color v-col-border v-col-border-radius" style="width: 600px;border-top: 0px solid transparent;border-left: 0px solid transparent;border-right: 0px solid transparent;border-bottom: 0px solid transparent;" valign="top"><table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"><tr><td class="v-col-padding" style="padding: 0px;"><![endif]-->
-<div id="u_column_1" class="u-col u-col-100 u_column" style="max-width: 320px;min-width: 600px;display: table-cell;vertical-align: top;">
+<div id="u_column_9" class="u-col u-col-100 u_column" style="max-width: 320px;min-width: 600px;display: table-cell;vertical-align: top;">
   <div class="v-col-background-color v-col-border-radius" style="height: 100%;width: 100% !important;">
   <!--[if (!mso)&(!IE)]><!--><div class="v-col-padding v-col-border v-col-border-radius" style="box-sizing: border-box; height: 100%; padding: 0px;border-top: 0px solid transparent;border-left: 0px solid transparent;border-right: 0px solid transparent;border-bottom: 0px solid transparent;"><!--<![endif]-->
   
@@ -674,17 +674,17 @@ exports[`Golden Template: Marketing Email > snapshot locks the full email HTML 1
 }</style>
 
 
-<div id="u_row_1" class="u-row-container u_row v-row-padding--vertical v-row-background-image--outer v-row-background-color" style="background-color: transparent;">
+<div id="u_row_9" class="u-row-container u_row v-row-padding--vertical v-row-background-image--outer v-row-background-color" style="background-color: transparent;">
   <div class="u-row v-row-columns-background-color-background-color" style="margin: 0 auto;min-width: 320px;max-width: 600px;overflow-wrap: break-word;word-wrap: break-word;word-break: break-word;background-color: transparent;">
     <div class="v-row-background-image--inner" style="border-collapse: collapse;display: table;width: 100%;height: 100%;background-color: transparent;">
       <!--[if (mso)|(IE)]><table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"><tr><td class="v-row-padding v-row-background-image--outer v-row-background-color" style="background-color: transparent;"><table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%"><tr class="v-row-background-image--inner v-row-columns-background-color-background-color" style="background-color: transparent;"><![endif]-->
       
 <!--[if (mso)|(IE)]><td align="center" width="600" class="v-col-background-color v-col-border v-col-border-radius" style="width: 600px;border-top: 0px solid transparent;border-left: 0px solid transparent;border-right: 0px solid transparent;border-bottom: 0px solid transparent;" valign="top"><table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"><tr><td class="v-col-padding" style="padding: 0px;"><![endif]-->
-<div id="u_column_1" class="u-col u-col-100 u_column" style="max-width: 320px;min-width: 600px;display: table-cell;vertical-align: top;">
+<div id="u_column_10" class="u-col u-col-100 u_column" style="max-width: 320px;min-width: 600px;display: table-cell;vertical-align: top;">
   <div class="v-col-background-color v-col-border-radius" style="height: 100%;width: 100% !important;">
   <!--[if (!mso)&(!IE)]><!--><div class="v-col-padding v-col-border v-col-border-radius" style="box-sizing: border-box; height: 100%; padding: 0px;border-top: 0px solid transparent;border-left: 0px solid transparent;border-right: 0px solid transparent;border-bottom: 0px solid transparent;"><!--<![endif]-->
   
-<table id="u_content_paragraph_1" class="u_content_paragraph" style="font-family:arial,helvetica,sans-serif;" role="presentation" cellpadding="0" cellspacing="0" width="100%" border="0">
+<table id="u_content_paragraph_4" class="u_content_paragraph" style="font-family:arial,helvetica,sans-serif;" role="presentation" cellpadding="0" cellspacing="0" width="100%" border="0">
   <tbody>
     <tr>
       <td class="v-container-padding-padding" style="overflow-wrap:break-word;word-break:break-word;padding:10px;font-family:arial,helvetica,sans-serif;" align="left">
@@ -770,7 +770,7 @@ exports[`Golden Template: Web Page (3-column) > snapshot locks the full page HTM
 
   </div>
 
-  <div id="u_content_paragraph_2" class="u_content_paragraph v-container-padding-padding" style="overflow-wrap: break-word;padding: 10px;">
+  <div id="u_content_paragraph_1" class="u_content_paragraph v-container-padding-padding" style="overflow-wrap: break-word;padding: 10px;">
     
   <div class="v-color v-line-height v-font-weight v-font-family v-font-size v-letter-spacing v-text-align" style="font-size: 14px; color: #000000; line-height: 1.4;  text-align: left; word-wrap: break-word;">
     <p>Blazing fast performance.</p>
@@ -784,7 +784,7 @@ exports[`Golden Template: Web Page (3-column) > snapshot locks the full page HTM
 <div id="u_column_2" class="u-col u-col-33p33 u_column v-row-align-items v-col-background-color v-col-border v-col-border-radius" style="display:flex;border-top: 0px solid transparent;border-left: 0px solid transparent;border-right: 0px solid transparent;border-bottom: 0px solid transparent;">
   <div class="v-col-padding" style="width: 100%;padding:0px;">
     
-  <div id="u_content_heading_1" class="u_content_heading v-container-padding-padding" style="overflow-wrap: break-word;padding: 10px;">
+  <div id="u_content_heading_2" class="u_content_heading v-container-padding-padding" style="overflow-wrap: break-word;padding: 10px;">
     
   <h1 class="v-color v-text-align v-line-height v-font-size v-font-weight v-letter-spacing" style="margin: 0px; color: #000000; line-height: 140%; text-align: left; word-wrap: break-word; font-size: 18px; font-weight: 400;">Feature Two</h1>
 
@@ -804,13 +804,13 @@ exports[`Golden Template: Web Page (3-column) > snapshot locks the full page HTM
 <div id="u_column_3" class="u-col u-col-33p33 u_column v-row-align-items v-col-background-color v-col-border v-col-border-radius" style="display:flex;border-top: 0px solid transparent;border-left: 0px solid transparent;border-right: 0px solid transparent;border-bottom: 0px solid transparent;">
   <div class="v-col-padding" style="width: 100%;padding:0px;">
     
-  <div id="u_content_heading_1" class="u_content_heading v-container-padding-padding" style="overflow-wrap: break-word;padding: 10px;">
+  <div id="u_content_heading_3" class="u_content_heading v-container-padding-padding" style="overflow-wrap: break-word;padding: 10px;">
     
   <h1 class="v-color v-text-align v-line-height v-font-size v-font-weight v-letter-spacing" style="margin: 0px; color: #000000; line-height: 140%; text-align: left; word-wrap: break-word; font-size: 18px; font-weight: 400;">Feature Three</h1>
 
   </div>
 
-  <div id="u_content_paragraph_2" class="u_content_paragraph v-container-padding-padding" style="overflow-wrap: break-word;padding: 10px;">
+  <div id="u_content_paragraph_3" class="u_content_paragraph v-container-padding-padding" style="overflow-wrap: break-word;padding: 10px;">
     
   <div class="v-color v-line-height v-font-weight v-font-family v-font-size v-letter-spacing v-text-align" style="font-size: 14px; color: #000000; line-height: 1.4;  text-align: left; word-wrap: break-word;">
     <p>24/7 customer support.</p>

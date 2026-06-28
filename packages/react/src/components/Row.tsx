@@ -4,6 +4,7 @@ import { validateColumnLayout } from "@unlayer-internal/shared-elements";
 import type { ColumnLayout } from "@unlayer-internal/shared-elements";
 import { RowExporters } from "@unlayer/exporters";
 import { mapSemanticProps, type SemanticProps } from "../utils/semantic-props";
+import { nextHtmlId } from "../utils/create-component";
 import type { SizeInput } from "../types";
 import { ROW_DEFAULTS, BODY_DEFAULTS } from "../utils/container-defaults";
 
@@ -265,7 +266,7 @@ const Row: React.FC<RowProps> = (props) => {
     ...values,
     cells,
     _meta: {
-      htmlID: `u_row_${index + 1}`,
+      htmlID: nextHtmlId(_config, "u_row"),
       htmlClassNames: "u_row",
       ...(values._meta || {})
     }

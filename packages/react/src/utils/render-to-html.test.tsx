@@ -8,8 +8,32 @@ import Paragraph from "../components/Paragraph";
 import Button from "../components/Button";
 import Heading from "../components/Heading";
 import Image from "../components/Image";
+import Email from "../components/Email";
+import { ColumnLayouts } from "../layouts/ColumnLayouts";
 
 describe("renderToHtml", () => {
+  it("generates unique element ids across the whole tree (no duplicates)", () => {
+    const html = renderToHtml(
+      <Email contentWidth="600px">
+        <Row layout={ColumnLayouts.OneColumn}>
+          <Column>
+            <Heading>A</Heading>
+            <Image src="https://x/1.png" />
+          </Column>
+        </Row>
+        <Row layout={ColumnLayouts.OneColumn}>
+          <Column>
+            <Heading>B</Heading>
+            <Image src="https://x/2.png" />
+          </Column>
+        </Row>
+      </Email>
+    );
+    const ids = [...html.matchAll(/id="(u_[a-z0-9_]+)"/gi)].map((m) => m[1]);
+    expect(ids.length).toBeGreaterThan(6);
+    expect(new Set(ids).size).toBe(ids.length); // every id is unique
+  });
+
   it("renders a simple element to HTML string", () => {
     const html = renderToHtml(<Button>Click me</Button>);
     expect(typeof html).toBe("string");
