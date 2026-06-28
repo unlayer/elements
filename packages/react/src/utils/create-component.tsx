@@ -12,6 +12,7 @@ import type { ExporterName } from "@unlayer/types";
 /** Exporter map keyed by display mode. Defined locally until added to @unlayer/types. */
 type ItemExporters = Partial<Record<ExporterName, (...args: any[]) => string>>;
 import type { RenderMode, UnlayerConfig } from "@unlayer-internal/shared-elements";
+import type { SizeInput } from "../types";
 import {
   mergeValues,
   generateHtmlFromTextJson,
@@ -41,6 +42,9 @@ export interface BaseItemComponentProps {
   className?: string;
   style?: React.CSSProperties;
   mode?: RenderMode;
+  /** Padding of the content wrapper around this item — a number (→ px) or a CSS
+   *  string ("10px", "16px 24px"). Applied by the containing Column. */
+  containerPadding?: SizeInput;
 
   // Internal props (for advanced use)
   index?: number;

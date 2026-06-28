@@ -225,4 +225,22 @@ describe("DX: shorthands and JSON output", () => {
     expect(out).not.toMatch(/failed to render/i);
     expect(out).toMatch(/40px/);
   });
+
+  // containerPadding (the item's content-wrapper padding) is a typed input now,
+  // and a bare number is treated as px — same as the other size props.
+  describe("containerPadding", () => {
+    it("a numeric containerPadding renders as px on the content wrapper", () => {
+      expect(html(<Paragraph html="x" containerPadding={14} />)).toMatch(/padding:\s*14px/);
+    });
+
+    it("a string containerPadding passes through", () => {
+      expect(html(<Paragraph html="x" containerPadding="16px 24px" />)).toContain("16px 24px");
+    });
+
+    it("a numeric and the equivalent px-string render identically", () => {
+      const a = html(<Paragraph html="x" containerPadding={14} />);
+      const b = html(<Paragraph html="x" containerPadding="14px" />);
+      expect(a).toBe(b);
+    });
+  });
 });

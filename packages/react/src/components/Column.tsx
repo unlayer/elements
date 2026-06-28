@@ -167,13 +167,18 @@ export const Column: React.FC<ColumnProps> = (props) => {
               // `child.props.values?.containerPadding` only, which is undefined
               // for the flat-prop API, so every block collapsed to 0px padding.)
               const childProps = child.props as {
-                containerPadding?: string;
-                values?: { containerPadding?: string };
+                containerPadding?: string | number;
+                values?: { containerPadding?: string | number };
               };
-              const containerPadding =
+              const rawContainerPadding =
                 childProps.containerPadding ??
                 childProps.values?.containerPadding ??
                 DEFAULT_CONTAINER_PADDING;
+              // A bare number is treated as px (same idiom as other size props).
+              const containerPadding =
+                typeof rawContainerPadding === "number"
+                  ? `${rawContainerPadding}px`
+                  : rawContainerPadding;
 
               // Wrap via the canonical content-container exporter for this mode.
               const contentValues = {
