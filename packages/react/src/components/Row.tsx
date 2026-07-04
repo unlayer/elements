@@ -64,7 +64,7 @@ function getWidthPercentages(cells: number[]): WidthPercentage[] {
   });
 }
 
-function generateGridCSS(cells: number[], mode: RenderMode, contentWidth: number = 600, mobileBreakpoint: number = 620): string {
+function generateGridCSS(cells: number[], mode: RenderMode, contentWidth: number = 600, mobileBreakpoint: number = 480): string {
   const widths = getWidthPercentages(cells);
 
   if (mode === 'email') {
@@ -110,21 +110,18 @@ ${widths.map(({ value, className }) => `  .no-stack .u-col-${className} { width:
     )
     .join('\n');
 
-  const responsiveCSS = `
-@media only screen and (max-width: ${mobileBreakpoint}px) {
-  .u-row { width: 100% !important; }
-  .u-row .u-col {
-    display: block !important;
-    width: 100% !important;
-    min-width: 320px !important;
+  // Flex rows stack by wrapping: below the mobile breakpoint the row allows
+  // wrapping and each column's flex-basis grows to the full width. Block or
+  // width overrides can't stack flex items — flex-basis governs their size.
+  // `.no-stack` rows keep a single line; print/document output never stacks.
+  const responsiveCSS = mode === "document" ? "" : `
+@media (max-width: ${mobileBreakpoint}px) {
+  .container { max-width: 100% !important; }
+  .u-row:not(.no-stack) { flex-wrap: wrap; }
+  .u-row:not(.no-stack) .u-col {
+    flex: 0 0 100% !important;
     max-width: 100% !important;
   }
-  .u-row .u-col > div { margin: 0 auto; }
-  .no-stack .u-col {
-    min-width: 0 !important;
-    display: table-cell !important;
-  }
-${widths.map(({ value, className }) => `  .no-stack .u-col-${className} { width: ${value}% !important; }`).join('\n')}
 }`;
 
   return baseCSS + '\n' + columnCSS + '\n' + responsiveCSS;
