@@ -88,8 +88,9 @@ export interface ItemComponentConfig<TValues, TSemanticProps> {
   /** Custom tool name — emitted as the content's `slug` in design JSON. */
   slug?: string;
 
-  /** Base for `_meta.htmlID`/`htmlClassNames` (defaults to `u_content_<name>`).
-   *  Custom tools use `u_content_custom_<slug>`. */
+  /** Base name for `_meta.htmlID`/`htmlClassNames`, prefixed with
+   *  `u_content_` where used (defaults to the lowercased `name`). Custom
+   *  tools pass `custom_<slug>`, rendering as `u_content_custom_<slug>`. */
   metaName?: string;
 
   /** Head contributions (css/js/tags builders) carried by the component

@@ -26,6 +26,7 @@ import {
   type BaseItemComponentProps,
 } from "./create-component";
 import type { RenderMode } from "@unlayer-internal/shared-elements";
+import { normalizeLinkValue } from "@unlayer-internal/shared-elements";
 
 /** Exporter: `(values) => html`. Extra args mirror built-in exporters and can be ignored. */
 export type ToolExporter = (values: any, ...args: any[]) => string;
@@ -110,11 +111,45 @@ function initialValuesFromOptions(
  */
 function withSanitizer(exporter: ToolExporter): ToolExporter {
   return (values: any, ...args: any[]) => {
-    const html = exporter(values, ...args) ?? "";
+    // Coerce before sanitizing — exporters may return non-strings, and a
+    // configured sanitizer must always receive a string.
+    const html = String(exporter(values, ...args) ?? "");
     const meta = args[args.length - 1];
     const toSafeHtml = meta?.exporterConfig?.toSafeHtml;
     return typeof toSafeHtml === "function" ? toSafeHtml(html) : html;
   };
+}
+
+/**
+ * Exporters receive link-widget values in render shape (`{ url, target }`),
+ * exactly as they do in the editor — tools written for the editor read
+ * `values.<option>.url`. Options with `widget: "link"` are collected at
+ * registration and normalized from the storage shape before each render.
+ */
+function withLinkNormalization(
+  exporter: ToolExporter,
+  linkKeys: string[]
+): ToolExporter {
+  if (linkKeys.length === 0) return exporter;
+  return (values: any, ...args: any[]) => {
+    const out = { ...values };
+    for (const key of linkKeys) {
+      const normalized = normalizeLinkValue(out[key]);
+      if (normalized !== undefined) out[key] = normalized;
+    }
+    return exporter(out, ...args);
+  };
+}
+
+/** Option keys declared with the `link` widget across all groups. */
+function linkWidgetKeys(options: ElementsToolConfig["options"]): string[] {
+  const keys: string[] = [];
+  for (const group of Object.values(options ?? {})) {
+    for (const [key, option] of Object.entries(group?.options ?? {})) {
+      if (option && option.widget === "link") keys.push(key);
+    }
+  }
+  return keys;
 }
 
 /**
@@ -152,10 +187,13 @@ export function registerElementsTool(
     );
   }
 
+  const linkKeys = linkWidgetKeys(tool.options);
   const sanitized: Partial<Record<RenderMode, ToolExporter>> = {};
   for (const mode of ["web", "email", "document"] as RenderMode[]) {
     const exporter = exporters[mode];
-    if (exporter) sanitized[mode] = withSanitizer(exporter);
+    if (exporter) {
+      sanitized[mode] = withSanitizer(withLinkNormalization(exporter, linkKeys));
+    }
   }
   // Match the editor's fallback: modes without an exporter render via web,
   // and email-only tools use their email exporter everywhere.

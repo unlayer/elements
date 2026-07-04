@@ -66,9 +66,11 @@ const productTool = {
     Viewer: () => "editor-only",
     exporters: {
       web: (values: any) =>
-        `<div class="product-card"><img src="${values.productImage.url}"/><h3 style="color:${values.productTitleColor}">${values.productTitle}</h3><div>${values.productDescription}</div><a href="${values.productCTAAction.values.href}" target="${values.productCTAAction.values.target}">${values.productCTA} $${values.productPrice}</a></div>`,
+        // link-widget values arrive in render shape ({ url, target }) — the
+        // same access pattern editor custom tools use
+        `<div class="product-card"><img src="${values.productImage.url}"/><h3 style="color:${values.productTitleColor}">${values.productTitle}</h3><div>${values.productDescription}</div><a href="${values.productCTAAction.url}" target="${values.productCTAAction.target}">${values.productCTA} $${values.productPrice}</a></div>`,
       email: (values: any) =>
-        `<table class="product-card-email"><tr><td><a href="${values.productCTAAction.values.href}">${values.productCTA} $${values.productPrice}</a></td></tr></table>`,
+        `<table class="product-card-email"><tr><td><a href="${values.productCTAAction.url}">${values.productCTA} $${values.productPrice}</a></td></tr></table>`,
     },
     head: {
       css: () => undefined, // real tools often return nothing
@@ -262,6 +264,18 @@ describe("edge: failure modes", () => {
       renderer: { exporters: { email: () => 42 as unknown as string } },
     } as any);
     const html = renderToHtml(inEmail(<Numeric />));
+    expect(html).toContain("42");
+  });
+
+  it("a non-string exporter return is coerced BEFORE a configured sanitizer sees it", () => {
+    const Numeric = registerElementsTool({
+      name: "numeric_tool_sanitized",
+      values: {},
+      renderer: { exporters: { email: () => 42 as unknown as string } },
+    } as any);
+    // A realistic sanitizer calls string methods — it must never receive a number
+    const toSafeHtml = (html: string) => html.replace(/<script[\s\S]*?<\/script>/g, "");
+    const html = renderToHtml(inEmail(<Numeric />), { toSafeHtml });
     expect(html).toContain("42");
   });
 
