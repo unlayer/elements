@@ -130,6 +130,7 @@ const ProductCard = registerElementsTool(productTool as any);
 
 const meta: Meta = {
   title: "Custom Tools/Registered Tools",
+  tags: ["autodocs"],
   parameters: {
     layout: "padded",
     docs: {
@@ -159,6 +160,41 @@ type Story = StoryObj;
 
 /** The countdown tool with its option-widget defaults. */
 export const CountdownTool: Story = {
+  parameters: {
+    docs: {
+      source: {
+        language: "tsx",
+        code: `// The same definition you register in the editor (unlayer.registerTool)
+const countdownTool = {
+  name: "countdown",
+  options: { timer: { title: "Timer", options: {
+    headline: { label: "Headline", defaultValue: "Offer ends in", widget: "text" },
+    days:     { label: "Days",     defaultValue: "02", widget: "text" },
+    hours:    { label: "Hours",    defaultValue: "11", widget: "text" },
+    minutes:  { label: "Minutes",  defaultValue: "45", widget: "text" },
+    accent:   { label: "Accent",   defaultValue: "#e11d48", widget: "color_picker" },
+  }}},
+  values: {},
+  renderer: {
+    exporters: {
+      web:   (v) => \`<div>…\${v.headline} \${v.days}:\${v.hours}:\${v.minutes}…</div>\`,
+      email: (v) => \`<table role="presentation">…</table>\`,
+    },
+    head: { css: () => ".countdown-digits { font-variant-numeric: tabular-nums; }" },
+  },
+};
+
+const Countdown = registerElementsTool(countdownTool);
+
+// Option-widget defaults render without any props:
+<Email backgroundColor="#f8fafc" contentWidth="560px">
+  <Row backgroundColor="#ffffff"><Column>
+    <Countdown containerPadding="30px 20px" />
+  </Column></Row>
+</Email>`,
+      },
+    },
+  },
   render: () => (
     <Email backgroundColor="#f8fafc" contentWidth="560px">
       <Row backgroundColor="#ffffff" padding="10px 0px">
@@ -172,6 +208,24 @@ export const CountdownTool: Story = {
 
 /** Flat props override the tool's option defaults, like any component. */
 export const CountdownCustomized: Story = {
+  parameters: {
+    docs: {
+      source: {
+        language: "tsx",
+        code: `// Flat props override the tool's option defaults, like any component
+<Email backgroundColor="#0f172a" contentWidth="560px">
+  <Row><Column>
+    <Countdown
+      headline="Kickoff in"
+      days="00" hours="04" minutes="07"
+      accent="#f6d365"
+      containerPadding="34px 20px"
+    />
+  </Column></Row>
+</Email>`,
+      },
+    },
+  },
   render: () => (
     <Email backgroundColor="#0f172a" contentWidth="560px">
       <Row padding="10px 0px">
@@ -185,6 +239,38 @@ export const CountdownCustomized: Story = {
 
 /** A product card tool with nested object values (image, link action). */
 export const ProductCardTool: Story = {
+  parameters: {
+    docs: {
+      source: {
+        language: "tsx",
+        code: `// Nested object values (image, link action) work like the editor:
+// link-widget values reach exporters in render shape ({ url, target })
+const productTool = {
+  name: "product_card",
+  options: { product: { title: "Product", options: {
+    image:  { label: "Image",  defaultValue: { url: "https://…" }, widget: "image" },
+    title:  { label: "Title",  defaultValue: "Aurora Desk Lamp", widget: "text" },
+    price:  { label: "Price",  defaultValue: "89", widget: "text" },
+    cta:    { label: "Button", defaultValue: "Add to cart", widget: "text" },
+    action: { label: "Link",   defaultValue: { name: "web", values: { href: "https://…", target: "_blank" } }, widget: "link" },
+  }}},
+  values: {},
+  renderer: { exporters: {
+    web:   (v) => \`…<a href="\${v.action.url}" target="\${v.action.target}">\${v.cta}</a>…\`,
+    email: (v) => \`<table role="presentation">…</table>\`,
+  }},
+};
+
+const ProductCard = registerElementsTool(productTool);
+
+<Email backgroundColor="#f1f5f9" contentWidth="560px">
+  <Row><Column>
+    <ProductCard containerPadding="24px 20px" />
+  </Column></Row>
+</Email>`,
+      },
+    },
+  },
   render: () => (
     <Email backgroundColor="#f1f5f9" contentWidth="560px">
       <Row padding="14px 0px">
@@ -198,6 +284,25 @@ export const ProductCardTool: Story = {
 
 /** Custom tools compose with built-ins inside a full design. */
 export const InsideAFullDesign: Story = {
+  parameters: {
+    docs: {
+      source: {
+        language: "tsx",
+        code: `// Custom tools compose with built-ins; renderToJson emits
+// { type: "custom", slug, values } so this opens in the Builder
+<Email backgroundColor="#f8fafc" contentWidth="560px">
+  <Row backgroundColor="#ffffff"><Column>
+    <Heading textAlign="center" fontSize="24px" fontWeight={700}>Summer drop is live</Heading>
+    <Paragraph textAlign="center" color="#6b7280">
+      One design, two runtimes — this card and timer are custom tools.
+    </Paragraph>
+    <ProductCard price="79" cta="Get the launch price" containerPadding="14px 20px" />
+    <Countdown headline="Launch price ends in" containerPadding="18px 20px 34px" />
+  </Column></Row>
+</Email>`,
+      },
+    },
+  },
   render: () => (
     <Email backgroundColor="#f8fafc" contentWidth="560px">
       <Row backgroundColor="#ffffff" padding="8px 0px">
