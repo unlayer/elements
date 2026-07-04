@@ -98,8 +98,18 @@ async function fingerprint(page) {
       const hasUnlayerClass = [...el.classList].some((c) => c.startsWith("u-") || c.startsWith("u_") || c.startsWith("v-"));
       if (!MEANINGFUL.has(el.tagName) && !hasUnlayerClass) continue;
       const cs = getComputedStyle(el);
+      const normalize = (p, v) => {
+        if (p !== "fontFamily") return v;
+        // Elements with no explicit font inherit the UA default serif,
+        // whose reported name differs per OS (macOS "Times", Linux
+        // "Times New Roman"). Explicit stacks compute identically.
+        const unquoted = v.replace(/"/g, "");
+        return unquoted === "Times" || unquoted === "Times New Roman"
+          ? "ua-default-serif"
+          : unquoted;
+      };
       const styles = props
-        .map((p) => `${p}:${cs[p]}`)
+        .map((p) => `${p}:${normalize(p, cs[p])}`)
         .filter((s) => !s.endsWith(":none") && !s.endsWith(":normal") && !s.endsWith(":auto") && !s.endsWith(":0px") && !s.endsWith(":rgba(0, 0, 0, 0)"))
         .join(";");
       const classes = [...el.classList].filter((c) => c.startsWith("u") || c.startsWith("v-")).sort().join(".");
