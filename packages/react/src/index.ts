@@ -8,6 +8,7 @@ import Menu from "./components/Menu";
 import Paragraph from "./components/Paragraph";
 import Social from "./components/Social";
 import Table from "./components/Table";
+import Timer from "./components/Timer";
 import Video from "./components/Video";
 import Row from "./components/Row";
 import Column from "./components/Column";
@@ -39,6 +40,7 @@ export type {
   ParagraphValues,
   SocialValues,
   TableValues,
+  TimerValues,
   VideoValues,
   // Container value types
   BodyValues,
@@ -84,6 +86,7 @@ export type { MenuProps } from "./components/Menu";
 export type { ParagraphProps } from "./components/Paragraph";
 export type { SocialProps } from "./components/Social";
 export type { TableProps } from "./components/Table";
+export type { TimerProps } from "./components/Timer";
 export type { VideoProps } from "./components/Video";
 export type { RowProps } from "./components/Row";
 export type { EmailProps } from "./components/Email";
@@ -105,6 +108,7 @@ export {
   Paragraph,
   Social,
   Table,
+  Timer,
   Video,
   Row,
   Column,
