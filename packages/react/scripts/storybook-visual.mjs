@@ -100,10 +100,14 @@ async function fingerprint(page) {
       const cs = getComputedStyle(el);
       const normalize = (p, v) => {
         if (p !== "fontFamily") return v;
-        // Elements with no explicit font inherit the UA default serif,
-        // whose reported name differs per OS (macOS "Times", Linux
-        // "Times New Roman"). Explicit stacks compute identically.
-        const unquoted = v.replace(/"/g, "");
+        // Font-family computed values carry two OS-dependent spellings:
+        // the UA default serif name (macOS "Times", Linux "Times New
+        // Roman") and BlinkMacSystemFont (canonicalized to system-ui on
+        // macOS, kept literal on Linux). Explicit families otherwise
+        // compute identically.
+        const unquoted = v
+          .replace(/"/g, "")
+          .replace(/BlinkMacSystemFont/g, "system-ui");
         return unquoted === "Times" || unquoted === "Times New Roman"
           ? "ua-default-serif"
           : unquoted;
