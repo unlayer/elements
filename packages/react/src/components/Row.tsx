@@ -114,9 +114,11 @@ ${widths.map(({ value, className }) => `  .no-stack .u-col-${className} { width:
   // wrapping and each column's flex-basis grows to the full width. Block or
   // width overrides can't stack flex items — flex-basis governs their size.
   // `.no-stack` rows keep a single line; print/document output never stacks.
+  // .container is scoped under .u_row: Elements output embeds into host
+  // pages where bare .container (Bootstrap et al.) would collide.
   const responsiveCSS = mode === "document" ? "" : `
 @media (max-width: ${mobileBreakpoint}px) {
-  .container { max-width: 100% !important; }
+  .u_row .container { max-width: 100% !important; }
   .u-row:not(.no-stack) { flex-wrap: wrap; }
   .u-row:not(.no-stack) .u-col {
     flex: 0 0 100% !important;

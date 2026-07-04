@@ -940,7 +940,7 @@ exports[`Golden Template: Web Page (3-column) > snapshot locks the full page HTM
 .u-row .u-col.u-col-33p33 { flex: 0 0 33.33%; max-width: 33.33%; }
 
 @media (max-width: 480px) {
-  .container { max-width: 100% !important; }
+  .u_row .container { max-width: 100% !important; }
   .u-row:not(.no-stack) { flex-wrap: wrap; }
   .u-row:not(.no-stack) .u-col {
     flex: 0 0 100% !important;

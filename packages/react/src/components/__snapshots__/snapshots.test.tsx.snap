@@ -111,7 +111,7 @@ exports[`Render Snapshots > Body + Row + Column + Items > full tree web 1`] = `
 .u-row .u-col.u-col-100 { flex: 0 0 100%; max-width: 100%; }
 
 @media (max-width: 480px) {
-  .container { max-width: 100% !important; }
+  .u_row .container { max-width: 100% !important; }
   .u-row:not(.no-stack) { flex-wrap: wrap; }
   .u-row:not(.no-stack) .u-col {
     flex: 0 0 100% !important;
