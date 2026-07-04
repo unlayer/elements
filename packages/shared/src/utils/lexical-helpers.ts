@@ -17,7 +17,7 @@ export const EMPTY_TEXT_JSON =
  * Create Lexical JSON for plain text.
  *
  * Builds the JSON string directly to match the Unlayer editor's
- * ExtendedTextNode / ExtendedParagraphNode serialization format.
+ * rich-text serialization format.
  *
  * @param text - Plain text string
  * @returns Lexical JSON string
@@ -86,6 +86,82 @@ function textNodeToHtml(node: any): string {
   return html;
 }
 
+// Lexical serializes element-node alignment either as a string ("center")
+// or, in older payloads, as the in-memory numeric format code.
+const NUMERIC_ALIGN: Record<number, string> = {
+  1: "left",
+  2: "center",
+  3: "right",
+  4: "justify",
+};
+
+/**
+ * Resolve a paragraph node's text-align value from its `format` field.
+ */
+function paragraphAlign(format: unknown): string | undefined {
+  if (typeof format === "string") {
+    return ["left", "center", "right", "justify"].includes(format)
+      ? format
+      : undefined;
+  }
+  if (typeof format === "number") {
+    return NUMERIC_ALIGN[format];
+  }
+  return undefined;
+}
+
+/**
+ * Convert a Lexical paragraph node to HTML, matching the markup the
+ * Unlayer editor exports for paragraphs.
+ */
+function paragraphNodeToHtml(node: any, childrenHtml: string): string {
+  // Heading/Button textJson from editor round-trips marks its paragraphs as
+  // inline tools; those export as <span> with no block styling.
+  const isInlineTool = !!node.isInlineTool;
+  const tag = isInlineTool ? "span" : "p";
+
+  const dir = node.direction ? ` dir="${node.direction}"` : "";
+
+  const styleParts: string[] = [];
+
+  // Custom paragraph styles (e.g. background-color) come first so the
+  // resets below win if they overlap.
+  if (node.style) {
+    styleParts.push(String(node.style).replace(/;+\s*$/, ""));
+  }
+
+  if (!isInlineTool) {
+    // Reset the browser's default <p> margins so multiple paragraph lines
+    // don't gain extra vertical spacing in email clients that strip head
+    // resets. Zero both the physical shorthand and the logical block
+    // longhands so the reset wins regardless of how a client resolves the
+    // logical-vs-physical cascade.
+    styleParts.push(
+      "margin: 0px",
+      "margin-block-start: 0px",
+      "margin-block-end: 0px"
+    );
+  }
+
+  const indent = Number(node.indent) || 0;
+  if (indent > 0) {
+    styleParts.push(`padding-inline-start: ${indent * 40}px`);
+  }
+
+  const align = paragraphAlign(node.format);
+  if (align) {
+    styleParts.push(`text-align: ${align}`);
+  }
+
+  const style =
+    styleParts.length > 0
+      ? ` style="${escapeHtml(styleParts.join("; ") + ";")}"`
+      : "";
+
+  // Empty paragraphs get a <br> for consistency with the editor
+  return `<${tag}${dir}${style}>${childrenHtml || "<br>"}</${tag}>`;
+}
+
 /**
  * Convert a Lexical JSON node (and its children) to HTML.
  * Handles: root, paragraph, heading, text, link, list, listitem, linebreak.
@@ -113,11 +189,8 @@ function nodeToHtml(node: any): string {
       return childrenHtml;
 
     case "paragraph":
-    case "extended-paragraph": {
-      if (!childrenHtml) return "<p><br></p>";
-      const dir = node.direction ? ` dir="${node.direction}"` : "";
-      return `<p${dir}>${childrenHtml}</p>`;
-    }
+    case "extended-paragraph":
+      return paragraphNodeToHtml(node, childrenHtml);
 
     case "heading": {
       const tag = node.tag || "h1"; // h1-h6
