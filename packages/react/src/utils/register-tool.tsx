@@ -30,16 +30,36 @@ import type { RenderMode } from "@unlayer-internal/shared-elements";
 /** Exporter: `(values) => html`. Extra args mirror built-in exporters and can be ignored. */
 export type ToolExporter = (values: any, ...args: any[]) => string;
 
+/** One property in an options group — Elements reads only the default. */
+interface ToolOptionConfig {
+  defaultValue?: unknown;
+  /** Disabled options contribute no default */
+  enabled?: boolean;
+  [editorOnly: string]: unknown;
+}
+
+/** A property group: `options.<group>.options.<property>` */
+interface ToolOptionGroup {
+  options?: Record<string, ToolOptionConfig | undefined>;
+  [editorOnly: string]: unknown;
+}
+
 /**
  * The subset of the `unlayer.registerTool` config Elements reads. Extra
- * editor-only fields (label, icon, options, Viewer, validator, ...) are
- * accepted and ignored, so the same object can be passed to both APIs.
+ * editor-only fields (label, icon, Viewer, validator, transformer, ...)
+ * are accepted and ignored, so the same object can be passed to both APIs.
  */
 export interface ElementsToolConfig {
   /** Unique tool name — becomes the design JSON `slug` */
   name: string;
-  /** Initial values for the tool's properties */
+  /** Initial values for the tool's properties (win over option defaults) */
   values?: Record<string, any>;
+  /**
+   * Property groups. Real-world tools usually define their defaults here,
+   * as each property's `defaultValue` — those seed the initial values,
+   * with tool-level `values` taking precedence (the editor's order).
+   */
+  options?: Record<string, ToolOptionGroup | undefined>;
   renderer: {
     /** Per-mode HTML exporters. `document` falls back to `web`. */
     exporters: Partial<Record<RenderMode, ToolExporter>>;
@@ -61,6 +81,27 @@ export interface ElementsToolConfig {
 /** Props: the tool's values as flat props, plus a `values` escape hatch. */
 export type ElementsToolProps = BaseItemComponentProps &
   Record<string, any> & { values?: Record<string, any> };
+
+/**
+ * Fold each option group's property `defaultValue`s into initial values,
+ * skipping disabled properties — the same seeding the editor performs, so
+ * tools that keep `values: {}` and define defaults on their widgets (the
+ * common real-world shape) render with those defaults.
+ */
+function initialValuesFromOptions(
+  options: ElementsToolConfig["options"]
+): Record<string, unknown> {
+  const result: Record<string, unknown> = {};
+  for (const group of Object.values(options ?? {})) {
+    for (const [property, option] of Object.entries(group?.options ?? {})) {
+      if (!option || option.enabled === false) continue;
+      if (typeof option.defaultValue !== "undefined") {
+        result[property] = option.defaultValue;
+      }
+    }
+  }
+  return result;
+}
 
 /**
  * Wrap an exporter so its output is sanitized when the Unlayer config
@@ -123,7 +164,12 @@ export function registerElementsTool(
   return createItemComponent<Record<string, any>, Record<string, any>>({
     name: tool.name,
     displayName: tool.displayName ?? tool.name,
-    defaultValues: tool.values ?? {},
+    // Option-group widget defaults seed the values; tool-level `values`
+    // win — the editor's precedence.
+    defaultValues: {
+      ...initialValuesFromOptions(tool.options),
+      ...(tool.values ?? {}),
+    },
     // Flat props are the tool's values; `values` is the escape hatch.
     propMapper: ({ children: _children, values, ...rest }) => ({
       ...(values ?? {}),
