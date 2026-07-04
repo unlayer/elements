@@ -83,6 +83,7 @@ Example: `<Button fontSize="16px">` → `{ style: { fontSize: "16px" } }` in the
 | `packages/react/src/index.ts` | Main barrel export |
 | `packages/react/src/utils/create-component.tsx` | Component factory |
 | `packages/react/src/utils/render-to-html.tsx` | `renderToHtml()` implementation |
+| `packages/react/src/utils/document-layouts.ts` | Per-mode document shells (email/web/document), kept in parity with the editor's exported documents |
 | `packages/react/src/utils/render-to-json.ts` | `renderToJson()` implementation |
 | `packages/react/src/utils/semantic-props.ts` | Flat → nested prop mapper |
 | `packages/react/src/components/Body.tsx` | Core container component (handles all 3 modes) |
@@ -100,13 +101,15 @@ Example: `<Button fontSize="16px">` → `{ style: { fontSize: "16px" } }` in the
 - **Next.js integration**: `tests/nextjs-integration/` — real Next.js 15 app build with Server Components
 - **Storybook smoke test**: `packages/react/.storybook/test-runner.ts` — opens every story in headless Chromium and asserts each component paints visible content with no console / page errors. Runs against both the dev server (`pnpm test-storybook`) and the production static build (`pnpm test-storybook:ci`). Note: Storybook bundles from `src/` via Vite — the published `dist/` artifact is covered by the Next.js integration and the CSP gate.
 - **CSP safety gate**: `packages/react/scripts/csp-probe.mjs` (`pnpm test:csp`) — imports + renders the built `dist/` bundle under V8's `--disallow-code-generation-from-strings` (a Content-Security-Policy without `'unsafe-eval'`). **Hard gate**: fails if this package _or_ its pinned `@unlayer/exporters` evaluates a string (`eval` / `new Function`) at import or render. It stays red until the workspace catalog pins a precompiled / CSP-safe `@unlayer/exporters` release — a green check must mean the package is genuinely CSP-safe.
+- **Browser E2E gate**: `packages/react/scripts/browser-e2e.mjs` (`pnpm test:e2e`, needs `pnpm build` + `playwright install chromium` once) — renders full documents with the built `dist/` for all three modes and asserts in headless Chromium across eleven sections: (1) document contract — every `<p>` computes to 0px margins (the inline reset beats the UA default), exactly one `<body>`, title/styles/links applied, no console/page errors; (2) responsive — three columns side-by-side at desktop width, stacked full-width below the mobile breakpoint (480px web, contentWidth+20 email; document/print never stacks); (3) interaction — button `:hover` applies the configured hover colors; (4) RTL — `textDirection` reaches the computed direction; (5) style baseline — computed colors/fonts/radii/padding/column-widths diffed against the committed `scripts/browser-e2e-baseline.json` (regenerate intentional changes with `UPDATE_E2E_BASELINE=1 pnpm test:e2e`; computed values instead of pixel screenshots so the baseline is deterministic across macOS/Linux); (6) no horizontal overflow at mobile width; (7) preheader — `previewText` present but invisible/zero-size; (8) accessibility — img alt, link names, `role="presentation"` on layout tables; (9) image width pinning holds and stays inside its column; (10) every non-empty `<style>` parses into CSS rules; (11) document mode stays visible under print media emulation. Includes a negative control (a document with a bare `<p>`) that must fail the checks — a green run proves the gate can detect the regression it guards, not just that selectors matched nothing.
 
 ## CI Quality Gates
 
 - TypeScript strict compilation
 - All unit tests pass
-- Bundle size < 60KB (ESM)
+- Bundle size < 75KB (ESM)
 - Next.js integration build succeeds
+- Browser E2E gate passes (rendered documents verified in Chromium: 0px `<p>` margins, single `<body>`, no errors)
 - Storybook smoke test passes (every story renders, no console errors)
 - CSP safety gate passes (red until the pinned `@unlayer/exporters` is CSP-safe)
 
@@ -116,4 +119,4 @@ Example: `<Button fontSize="16px">` → `{ style: { fontSize: "16px" } }` in the
 - `fontWeight` must be a number (400, 700), NOT a string
 - Column count in a Row must match the layout (e.g., `TwoEqual` needs exactly 2 `<Column>` children)
 - The shared package is private and bundled into react via tsup's `noExternal` — it's never installed separately
-- `renderToHtml()` uses React's `renderToString` internally but strips hydration markers
+- `renderToHtml()` returns a complete HTML document (`<!DOCTYPE ...>` to `</html>`) with a per-mode shell matching the editor's export layouts; `renderToHtmlParts()` returns the embeddable `{ head, body }` chunks. Both use `renderToStaticMarkup` internally (no hydration markers)

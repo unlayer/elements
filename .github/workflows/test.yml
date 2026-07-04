@@ -55,15 +55,16 @@ jobs:
         run: pnpm --filter @unlayer/react-elements typecheck
 
       # ── Bundle size budget ──────────────────────────────────────
-      # Fail if the react-elements ESM bundle exceeds 68KB.
-      # Current size: ~63KB (14+ components + image width-pinning geometry).
+      # Fail if the react-elements ESM bundle exceeds 75KB.
+      # Current size: ~70KB (14+ components + image width-pinning geometry
+      # + per-mode full-document shells for renderToHtml).
       # The budget tracks the unminified ESM output as a proxy for code volume;
       # it still flags accidental dependency bundling (any real dep is 10KB+).
       - name: Check bundle size
         run: |
           BUNDLE="packages/react/dist/index.js"
           SIZE=$(wc -c < "$BUNDLE" | tr -d ' ')
-          MAX_SIZE=68000
+          MAX_SIZE=75000
           echo "Bundle: $BUNDLE"
           echo "Size: $SIZE bytes (budget: $MAX_SIZE bytes)"
           if [ "$SIZE" -gt "$MAX_SIZE" ]; then
@@ -93,6 +94,15 @@ jobs:
       # production static build (storybook build → http-server).
       - name: Install Playwright Chromium
         run: pnpm --filter @unlayer/react-elements exec playwright install --with-deps chromium
+
+      # ── Browser E2E gate (rendered documents) ───────────────────
+      # Renders full documents with the BUILT dist for all three modes and
+      # asserts in real Chromium: every <p> computes to 0px margins (the
+      # inline reset beats the UA default), exactly one <body> in the DOM,
+      # title/styles/links parsed, no console or page errors. Includes a
+      # negative control proving the gate detects the failures it guards.
+      - name: Browser E2E gate
+        run: pnpm --filter @unlayer/react-elements test:e2e
 
       - name: Storybook smoke test
         run: pnpm --filter @unlayer/react-elements test-storybook:ci
