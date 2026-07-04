@@ -23,7 +23,7 @@ import {
 } from "./layouts/ColumnLayouts";
 import { UnlayerProvider, useUnlayerConfig } from "./context";
 import { renderToHtml, renderToPlainText, renderToHtmlParts } from "./utils/render-to-html";
-export type { HtmlParts } from "./utils/render-to-html";
+export type { HtmlParts, RenderToHtmlOptions } from "./utils/render-to-html";
 import { renderToJson, renderRowToJson } from "./utils/render-to-json";
 import { htmlToTextJson } from "@unlayer-internal/shared-elements";
 

@@ -63,7 +63,7 @@ describe("renderToHtmlParts", () => {
     expect(head.length).toBeGreaterThan(50);
   });
 
-  it("body is identical to renderToHtml output", () => {
+  it("renderToHtml wraps the same body markup in a full document", () => {
     const element = (
       <Email>
         <Row>
@@ -74,10 +74,34 @@ describe("renderToHtmlParts", () => {
       </Email>
     );
 
-    const htmlOnly = renderToHtml(element);
+    const fullDocument = renderToHtml(element);
     const { body } = renderToHtmlParts(element);
 
-    expect(body).toBe(htmlOnly);
+    // parts.body is the embeddable fragment (wrapped in the Body renderer's
+    // <div>); the full document contains the same markup inside its shell.
+    const innerBody = body.replace(/^\s*<div[^>]*>/, "").replace(/<\/div>\s*$/, "");
+    expect(fullDocument).toContain(innerBody);
+    expect(fullDocument.startsWith("<!DOCTYPE HTML PUBLIC")).toBe(true);
+    expect(fullDocument.trimEnd().endsWith("</html>")).toBe(true);
+  });
+
+  it("parts stay embeddable fragments — no document shell leaks in", () => {
+    const { head, body } = renderToHtmlParts(
+      <Email>
+        <Row>
+          <Column>
+            <Heading text="Test" headingType="h1" />
+          </Column>
+        </Row>
+      </Email>
+    );
+    for (const chunk of [head, body]) {
+      expect(chunk).not.toContain("<!DOCTYPE");
+      expect(chunk).not.toContain("<!doctype");
+      expect(chunk).not.toContain("<html");
+      expect(chunk).not.toContain("</html>");
+      expect(chunk).not.toContain("<head>");
+    }
   });
 
   it("works with web mode (Page)", () => {

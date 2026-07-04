@@ -81,7 +81,8 @@ function WelcomeEmail() {
   );
 }
 
-// Render to a clean HTML string — no React hydration markers
+// Render to a complete HTML document (<!DOCTYPE ...> to </html>) —
+// email-client-safe shell included, no React hydration markers
 const html = renderToHtml(<WelcomeEmail />);
 ```
 
@@ -109,7 +110,7 @@ Built with TypeScript from the ground up — full type definitions, autocomplete
 
 ### Clean HTML Output
 
-`renderToHtml()` generates production-ready HTML with no React hydration markers, no framework artifacts, and no client-side JavaScript required.
+`renderToHtml()` generates a complete, production-ready HTML document with no React hydration markers, no framework artifacts, and no client-side JavaScript required. Need to compose the document yourself? `renderToHtmlParts()` returns `{ head, body }` chunks.
 
 ### Lightweight & Tree-Shakeable
 

@@ -303,7 +303,7 @@ Each wrapper threads the correct mode to all children automatically.
 
 ## renderToHtml
 
-Render any element tree to a clean HTML string — no React hydration markers, perfect for email sending and PDF generation:
+Render any element tree to a complete, ready-to-use HTML document — from `<!DOCTYPE ...>` to `</html>` — with no React hydration markers. Perfect for email sending and PDF generation:
 
 ```tsx
 import { renderToHtml, Email, Row, Column, ColumnLayouts, Paragraph, Button } from '@unlayer/react-elements';
@@ -321,9 +321,17 @@ const html = renderToHtml(
         </Button>
       </Column>
     </Row>
-  </Email>
+  </Email>,
+  { title: "Welcome" }
 );
 ```
+
+The document shell matches the mode: `<Email>` gets the XHTML transitional doctype plus the MSO conditional comments Outlook needs, `<Page>` gets a standard HTML5 shell, and `<Document>` gets a print/PDF-friendly XHTML shell. Options accept config overrides plus:
+
+- `title` — document `<title>`
+- `fonts` — web-font stylesheet URLs to load via `<link>` tags, e.g. `[{ url: "https://fonts.googleapis.com/css2?family=Inter" }]`
+
+If your app owns the document shell (an existing page template, an ESP template, an iframe `srcdoc`), use `renderToHtmlParts` instead — it returns `{ head, body }` chunks for you to place yourself.
 
 ## UnlayerProvider
 

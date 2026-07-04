@@ -1,7 +1,53 @@
 // Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
 
 exports[`Golden Template: Marketing Email > snapshot locks the full email HTML 1`] = `
-"<div>
+"<!DOCTYPE HTML PUBLIC "-//W3C//DTD XHTML 1.0 Transitional //EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:v="urn:schemas-microsoft-com:vml" xmlns:o="urn:schemas-microsoft-com:office:office">
+<head>
+<!--[if gte mso 9]>
+<xml>
+  <o:OfficeDocumentSettings>
+    <o:AllowPNG/>
+    <o:PixelsPerInch>96</o:PixelsPerInch>
+  </o:OfficeDocumentSettings>
+</xml>
+<![endif]-->
+  <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="x-apple-disable-message-reformatting">
+  <!--[if !mso]><!--><meta http-equiv="X-UA-Compatible" content="IE=edge"><!--<![endif]-->
+  <style type="text/css">
+
+  
+
+  
+
+  
+  table, td {
+    color: #000000;
+  }
+  
+  
+  #u_content_body_1 a {
+  
+    color: #0000ee;
+    text-decoration: underline;
+  }
+  
+  
+
+
+  
+
+
+  
+
+
+  
+
+</style>
+</head>
+
 <body class="clean-body u_body" style="margin: 0;padding: 0;-webkit-text-size-adjust: 100%;background-color: #f4f4f5;color: #000000">
   <!--[if IE]><div class="ie-container"><![endif]-->
   <!--[if mso]><div class="mso-container"><![endif]-->
@@ -214,7 +260,7 @@ exports[`Golden Template: Marketing Email > snapshot locks the full email HTML 1
       <td class="v-container-padding-padding" style="overflow-wrap:break-word;word-break:break-word;padding:10px;font-family:arial,helvetica,sans-serif;" align="left">
         
   <div class="v-color v-line-height v-font-weight v-font-family v-font-size v-letter-spacing v-text-align" style="font-size: 14px; color: #666666; line-height: 1.4;  text-align: center; word-wrap: break-word;">
-    <p>Fresh styles for the new season. Limited time only.</p>
+    <p style="margin: 0px; margin-block-start: 0px; margin-block-end: 0px;">Fresh styles for the new season. Limited time only.</p>
   </div>
 
       </td>
@@ -363,7 +409,7 @@ exports[`Golden Template: Marketing Email > snapshot locks the full email HTML 1
       <td class="v-container-padding-padding" style="overflow-wrap:break-word;word-break:break-word;padding:10px;font-family:arial,helvetica,sans-serif;" align="left">
         
   <div class="v-color v-line-height v-font-weight v-font-family v-font-size v-letter-spacing v-text-align" style="font-size: 16px; color: #333333; line-height: 1.4;  text-align: center; word-wrap: break-word;">
-    <p>Classic Tee — $29.99</p>
+    <p style="margin: 0px; margin-block-start: 0px; margin-block-end: 0px;">Classic Tee — $29.99</p>
   </div>
 
       </td>
@@ -425,7 +471,7 @@ exports[`Golden Template: Marketing Email > snapshot locks the full email HTML 1
       <td class="v-container-padding-padding" style="overflow-wrap:break-word;word-break:break-word;padding:10px;font-family:arial,helvetica,sans-serif;" align="left">
         
   <div class="v-color v-line-height v-font-weight v-font-family v-font-size v-letter-spacing v-text-align" style="font-size: 16px; color: #333333; line-height: 1.4;  text-align: center; word-wrap: break-word;">
-    <p>Slim Jeans — $49.99</p>
+    <p style="margin: 0px; margin-block-start: 0px; margin-block-end: 0px;">Slim Jeans — $49.99</p>
   </div>
 
       </td>
@@ -690,7 +736,7 @@ exports[`Golden Template: Marketing Email > snapshot locks the full email HTML 1
       <td class="v-container-padding-padding" style="overflow-wrap:break-word;word-break:break-word;padding:10px;font-family:arial,helvetica,sans-serif;" align="left">
         
   <div class="v-color v-line-height v-font-weight v-font-family v-font-size v-letter-spacing v-text-align" style="font-size: 11px; color: #999999; line-height: 1.4;  text-align: center; word-wrap: break-word;">
-    <p>Acme Co, 123 Main St, Springfield. Unsubscribe.</p>
+    <p style="margin: 0px; margin-block-start: 0px; margin-block-end: 0px;">Acme Co, 123 Main St, Springfield. Unsubscribe.</p>
   </div>
 
       </td>
@@ -717,11 +763,164 @@ exports[`Golden Template: Marketing Email > snapshot locks the full email HTML 1
   <!--[if mso]></div><![endif]-->
   <!--[if IE]></div><![endif]-->
 </body>
-</div>"
+
+</html>
+"
+`;
+
+exports[`Golden Template: Print Document > snapshot locks the full document HTML 1`] = `
+"<!DOCTYPE HTML PUBLIC "-//W3C//DTD XHTML 1.0 Transitional //EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+  <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+  <style type="text/css">
+
+  
+
+  
+    .content {
+      width: 100%;
+      font-family: arial,helvetica,sans-serif;
+      font-size: 15px;
+      color: #000000;
+      
+        background-color: #F7F8F9;
+      
+      -webkit-print-color-adjust: exact;
+    }
+
+    
+  
+
+  
+  
+  #u_content_body_1 a {
+  
+    color: #0000ee;
+    text-decoration: underline;
+  }
+  
+  #u_content_body_1 a:hover {
+    color: #0000ee;
+    text-decoration: underline;
+  }
+  
+  
+
+</style>
+</head>
+
+  <body id="u_body_1" class="u_body">
+    <div class="u_body content" style="">
+      <div><style>
+.u-row {
+  display: flex;
+  flex-wrap: nowrap;
+  margin-left: 0;
+  margin-right: 0;
+}
+.u-row .u-col {
+  position: relative;
+  width: 100%;
+  padding-right: 0;
+  padding-left: 0;
+}
+.u-row .u-col.u-col-100 { flex: 0 0 100%; max-width: 100%; }
+</style>
+  <div id="u_row_1" class="u_row v-row-padding v-row-background-image--outer v-row-background-color" style="">
+    <div class="container v-row-background-image--inner v-row-columns-background-color-background-color" style="max-width: 500px;margin: 0 auto;">
+      <div class="u-row v-row-align-items">
+        
+<div id="u_column_1" class="u-col u-col-100 u_column v-row-align-items v-col-background-color v-col-border v-col-border-radius" style="display:flex;border-top: 0px solid transparent;border-left: 0px solid transparent;border-right: 0px solid transparent;border-bottom: 0px solid transparent;">
+  <div class="v-col-padding" style="width: 100%;padding:0px;">
+    
+  <div id="u_content_heading_1" class="u_content_heading v-container-padding" style="overflow-wrap: break-word;padding: 10px;">
+    
+  <h1 class="v-color v-text-align v-line-height v-font-size v-font-weight v-letter-spacing" style="margin: 0px; color: #000000; line-height: 140%; text-align: left; word-wrap: break-word; font-size: 22px; font-weight: 400;">Quarterly Report</h1>
+
+  </div>
+
+  <div id="u_content_paragraph_1" class="u_content_paragraph v-container-padding" style="overflow-wrap: break-word;padding: 10px;">
+    
+  <div class="v-color v-line-height v-font-weight v-font-family v-font-size v-letter-spacing v-text-align" style="font-size: 14px; color: #000000; line-height: 1.4;  text-align: left; word-wrap: break-word;">
+    <p style="margin: 0px; margin-block-start: 0px; margin-block-end: 0px;">Revenue grew 14% quarter over quarter.</p>
+  </div>
+
+  </div>
+
+  <div id="u_content_divider_1" class="u_content_divider v-container-padding" style="overflow-wrap: break-word;padding: 10px;">
+    <div style="text-align:center;line-height:0" aria-label="divider"><div style="border-top-width:1px;border-top-style:solid;border-top-color:#BBBBBB;width:100%;display:inline-block;line-height:1px;height:0px;vertical-align:middle"> </div></div>
+  </div>
+
+  <div id="u_content_paragraph_2" class="u_content_paragraph v-container-padding" style="overflow-wrap: break-word;padding: 10px;">
+    
+  <div class="v-color v-line-height v-font-weight v-font-family v-font-size v-letter-spacing v-text-align" style="font-size: 14px; color: #000000; line-height: 1.4;  text-align: left; word-wrap: break-word;">
+    <p style="margin: 0px; margin-block-start: 0px; margin-block-end: 0px;">Operating costs remained flat.</p>
+  </div>
+
+  </div>
+
+  </div>
+</div>
+
+      </div>
+    </div>
+  </div>
+</div>
+      
+      
+        <div style="page-break-before: always;" />
+      
+    </div>
+  </body>
+
+</html>
+"
 `;
 
 exports[`Golden Template: Web Page (3-column) > snapshot locks the full page HTML 1`] = `
-"<div>
+"<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8">
+    <meta http-equiv="x-ua-compatible" content="ie=edge">
+    <meta name="description" content="">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <style type="text/css">
+
+  
+  body {
+    font-family: arial,helvetica,sans-serif;
+    font-size: 1rem;
+    line-height: 1.5;
+    color: #000000;
+    background-color: #ffffff;
+    
+    
+  }
+  
+
+  
+
+  
+  
+  #u_content_body_1 a {
+  
+    color: #0000ee;
+    text-decoration: underline;
+  }
+  
+  #u_content_body_1 a:hover {
+    color: #0000ee;
+    text-decoration: underline;
+  }
+  
+  
+
+</style>
+  </head>
+  <body>
+
   <div id="u_body_1" class="u_body" style="display: flex; flex-direction: column;">
     <div><style>
 .u-row {
@@ -740,22 +939,13 @@ exports[`Golden Template: Web Page (3-column) > snapshot locks the full page HTM
 .u-row .u-col.u-col-33p33 { flex: 0 0 33.33%; max-width: 33.33%; }
 .u-row .u-col.u-col-33p33 { flex: 0 0 33.33%; max-width: 33.33%; }
 
-@media only screen and (max-width: 620px) {
-  .u-row { width: 100% !important; }
-  .u-row .u-col {
-    display: block !important;
-    width: 100% !important;
-    min-width: 320px !important;
+@media (max-width: 480px) {
+  .container { max-width: 100% !important; }
+  .u-row:not(.no-stack) { flex-wrap: wrap; }
+  .u-row:not(.no-stack) .u-col {
+    flex: 0 0 100% !important;
     max-width: 100% !important;
   }
-  .u-row .u-col > div { margin: 0 auto; }
-  .no-stack .u-col {
-    min-width: 0 !important;
-    display: table-cell !important;
-  }
-  .no-stack .u-col-33p33 { width: 33.33% !important; }
-  .no-stack .u-col-33p33 { width: 33.33% !important; }
-  .no-stack .u-col-33p33 { width: 33.33% !important; }
 }</style>
   <div id="u_row_1" class="u_row v-row-padding v-row-background-image--outer v-row-background-color" style="">
     <div class="container v-row-background-image--inner v-row-columns-background-color-background-color" style="max-width: 960px;margin: 0 auto;">
@@ -773,7 +963,7 @@ exports[`Golden Template: Web Page (3-column) > snapshot locks the full page HTM
   <div id="u_content_paragraph_1" class="u_content_paragraph v-container-padding-padding" style="overflow-wrap: break-word;padding: 10px;">
     
   <div class="v-color v-line-height v-font-weight v-font-family v-font-size v-letter-spacing v-text-align" style="font-size: 14px; color: #000000; line-height: 1.4;  text-align: left; word-wrap: break-word;">
-    <p>Blazing fast performance.</p>
+    <p style="margin: 0px; margin-block-start: 0px; margin-block-end: 0px;">Blazing fast performance.</p>
   </div>
 
   </div>
@@ -793,7 +983,7 @@ exports[`Golden Template: Web Page (3-column) > snapshot locks the full page HTM
   <div id="u_content_paragraph_2" class="u_content_paragraph v-container-padding-padding" style="overflow-wrap: break-word;padding: 10px;">
     
   <div class="v-color v-line-height v-font-weight v-font-family v-font-size v-letter-spacing v-text-align" style="font-size: 14px; color: #000000; line-height: 1.4;  text-align: left; word-wrap: break-word;">
-    <p>Enterprise-grade security.</p>
+    <p style="margin: 0px; margin-block-start: 0px; margin-block-end: 0px;">Enterprise-grade security.</p>
   </div>
 
   </div>
@@ -813,7 +1003,7 @@ exports[`Golden Template: Web Page (3-column) > snapshot locks the full page HTM
   <div id="u_content_paragraph_3" class="u_content_paragraph v-container-padding-padding" style="overflow-wrap: break-word;padding: 10px;">
     
   <div class="v-color v-line-height v-font-weight v-font-family v-font-size v-letter-spacing v-text-align" style="font-size: 14px; color: #000000; line-height: 1.4;  text-align: left; word-wrap: break-word;">
-    <p>24/7 customer support.</p>
+    <p style="margin: 0px; margin-block-start: 0px; margin-block-end: 0px;">24/7 customer support.</p>
   </div>
 
   </div>
@@ -826,5 +1016,8 @@ exports[`Golden Template: Web Page (3-column) > snapshot locks the full page HTM
   </div>
 </div>
   </div>
-</div>"
+
+  </body>
+</html>
+"
 `;

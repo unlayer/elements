@@ -14,6 +14,7 @@ import {
   renderToJson,
   Email,
   Page,
+  Document,
   Row,
   Column,
   Button,
@@ -295,6 +296,33 @@ describe("Golden Template: Web Page (3-column)", () => {
 
   it("snapshot locks the full page HTML", () => {
     const html = renderToHtml(GoldenPage);
+    expect(html).toMatchSnapshot();
+  });
+});
+
+describe("Golden Template: Print Document", () => {
+  const GoldenDocument = (
+    <Document>
+      <Row>
+        <Column>
+          <Heading headingType="h1">Quarterly Report</Heading>
+          <Paragraph>Revenue grew 14% quarter over quarter.</Paragraph>
+          <Divider />
+          <Paragraph>Operating costs remained flat.</Paragraph>
+        </Column>
+      </Row>
+    </Document>
+  );
+
+  it("renderToHtml produces a print-ready document with all content", () => {
+    const html = renderToHtml(GoldenDocument, { title: "Q3 Report" });
+    expect(html).toContain("Quarterly Report");
+    expect(html).toContain("Revenue grew 14%");
+    expect(html).toContain("<title>Q3 Report</title>");
+  });
+
+  it("snapshot locks the full document HTML", () => {
+    const html = renderToHtml(GoldenDocument);
     expect(html).toMatchSnapshot();
   });
 });

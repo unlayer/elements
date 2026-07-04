@@ -162,7 +162,13 @@ describe("DX: text components", () => {
   });
 
   it("Paragraph text shorthand renders", () => {
-    expect(html(<Paragraph text={"Hi" as any} />)).toMatch(/<p>Hi<\/p>/);
+    expect(html(<Paragraph text={"Hi" as any} />)).toMatch(/<p[^>]*>Hi<\/p>/);
+  });
+
+  it("Paragraph <p> carries the editor's inline margin reset", () => {
+    expect(html(<Paragraph>Hi</Paragraph>)).toMatch(
+      /<p style="margin: 0px; margin-block-start: 0px; margin-block-end: 0px;">Hi<\/p>/
+    );
   });
 
   it("JSX children flatten to text instead of [object Object]", () => {

@@ -43,7 +43,7 @@ exports[`Render Snapshots > Body + Row + Column + Items > full tree email 1`] = 
       <td class="v-container-padding-padding" style="overflow-wrap:break-word;word-break:break-word;padding:10px;font-family:arial,helvetica,sans-serif;" align="left">
         
   <div class="v-color v-line-height v-font-weight v-font-family v-font-size v-letter-spacing v-text-align" style="font-size: 14px; color: #000000; line-height: 1.4;  text-align: left; word-wrap: break-word;">
-    <p>Hello</p>
+    <p style="margin: 0px; margin-block-start: 0px; margin-block-end: 0px;">Hello</p>
   </div>
 
       </td>
@@ -110,20 +110,13 @@ exports[`Render Snapshots > Body + Row + Column + Items > full tree web 1`] = `
 }
 .u-row .u-col.u-col-100 { flex: 0 0 100%; max-width: 100%; }
 
-@media only screen and (max-width: 620px) {
-  .u-row { width: 100% !important; }
-  .u-row .u-col {
-    display: block !important;
-    width: 100% !important;
-    min-width: 320px !important;
+@media (max-width: 480px) {
+  .container { max-width: 100% !important; }
+  .u-row:not(.no-stack) { flex-wrap: wrap; }
+  .u-row:not(.no-stack) .u-col {
+    flex: 0 0 100% !important;
     max-width: 100% !important;
   }
-  .u-row .u-col > div { margin: 0 auto; }
-  .no-stack .u-col {
-    min-width: 0 !important;
-    display: table-cell !important;
-  }
-  .no-stack .u-col-100 { width: 100% !important; }
 }</style>
   <div id="u_row_1" class="u_row v-row-padding v-row-background-image--outer v-row-background-color" style="">
     <div class="container v-row-background-image--inner v-row-columns-background-color-background-color" style="max-width: 500px;margin: 0 auto;">
@@ -135,7 +128,7 @@ exports[`Render Snapshots > Body + Row + Column + Items > full tree web 1`] = `
   <div id="u_content_paragraph_1" class="u_content_paragraph v-container-padding-padding" style="overflow-wrap: break-word;padding: 10px;">
     
   <div class="v-color v-line-height v-font-weight v-font-family v-font-size v-letter-spacing v-text-align" style="font-size: 14px; color: #000000; line-height: 1.4;  text-align: left; word-wrap: break-word;">
-    <p>Hello</p>
+    <p style="margin: 0px; margin-block-start: 0px; margin-block-end: 0px;">Hello</p>
   </div>
 
   </div>

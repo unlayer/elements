@@ -5,30 +5,49 @@ import { DEFAULT_CONFIG } from "@unlayer-internal/shared-elements";
 import { htmlToPlainText } from "@unlayer-internal/shared-elements";
 import type { RenderMode } from "@unlayer-internal/shared-elements";
 import { extractHeadFromTree } from "./extract-head";
+import {
+  emailLayout,
+  webLayout,
+  documentLayout,
+  type DocumentLayoutArgs,
+} from "./document-layouts";
+
+// Email/Page/Document lock their render mode internally (they render
+// <Body mode="...">), so the top-level element's own props never carry it.
+// Map wrapper displayName → mode so head extraction and the document layout
+// always match what the body actually rendered as.
+const MODE_BY_WRAPPER: Record<string, RenderMode> = {
+  Email: "email",
+  Page: "web",
+  Document: "document",
+};
 
 /**
- * Renders an Unlayer element tree to an HTML string.
- *
- * - Passes merged config via the `config` prop (no React context — works in Server Components)
- * - Uses `renderToStaticMarkup` — no React hydration markers, clean HTML for email/PDF
- * - Synchronous
- *
- * @param element - A React element tree (e.g. `<Body><Row>...</Row></Body>`)
- * @param config  - Optional config overrides (mode, cdnBaseUrl, etc.)
- * @returns Clean HTML string
- * @throws {Error} If rendering fails, with a helpful message
- *
- * @example
- * ```tsx
- * import { renderToHtml, Body, Row, Column, Paragraph } from "@unlayer/react-elements";
- *
- * const html = renderToHtml(
- *   <Body><Row><Column><Paragraph>Hello</Paragraph></Column></Row></Body>,
- *   { mode: "email", cdnBaseUrl: "https://my-cdn.com" }
- * );
- * ```
+ * Resolve the display mode for a tree: wrapper component type first
+ * (Email/Page/Document), then an explicit `mode` prop (Body), then config.
  */
-export function renderToHtml(
+function resolveDisplayMode(
+  element: React.ReactElement,
+  mergedConfig: Partial<UnlayerConfig>
+): RenderMode {
+  const displayName = (element.type as { displayName?: string })?.displayName;
+  const wrapperMode = displayName ? MODE_BY_WRAPPER[displayName] : undefined;
+  return (
+    wrapperMode ??
+    (element.props as { mode?: RenderMode }).mode ??
+    mergedConfig.mode ??
+    "web"
+  );
+}
+
+/**
+ * Render the element tree to body markup (no document shell).
+ *
+ * - Passes merged config via the `config` prop (no React context — works in
+ *   Server Components)
+ * - Uses `renderToStaticMarkup` — no React hydration markers
+ */
+function renderBody(
   element: React.ReactElement,
   config?: Partial<UnlayerConfig>
 ): string {
@@ -50,9 +69,110 @@ export function renderToHtml(
 }
 
 /**
+ * Strip the outer `<div>` wrapper that Body's renderer adds around the
+ * exporter output, leaving the raw body markup for document assembly.
+ */
+function stripOuterDiv(html: string): string {
+  const match = html.match(/^\s*<div[^>]*>([\s\S]*)<\/div>\s*$/);
+  return match ? match[1] : html;
+}
+
+/** Minimal escaping for text interpolated into HTML (title, font URLs). */
+function escapeForHtml(text: string): string {
+  return text
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
+
+/**
+ * Options for renderToHtml — config overrides plus document-level extras.
+ */
+export interface RenderToHtmlOptions extends Partial<UnlayerConfig> {
+  /** Document `<title>` */
+  title?: string;
+  /**
+   * Web-font stylesheets to load via `<link rel="stylesheet">` tags.
+   * Elements has no font registry, so pass the URLs for any non-system
+   * fonts your design uses (e.g. Google Fonts CSS URLs).
+   */
+  fonts?: Array<{ url: string }>;
+}
+
+/**
+ * Renders an Unlayer element tree to a complete HTML document — from
+ * `<!DOCTYPE ...>` to `</html>` — matching the editor's exportHtml layouts.
+ *
+ * Per-mode document shells (mirroring the editor's layout templates):
+ * - `email`: XHTML transitional doctype, VML/Office namespaces, and the MSO
+ *   conditional comments Outlook needs
+ * - `web`: HTML5 doctype with standard viewport/charset meta tags
+ * - `document`: XHTML transitional doctype for print/PDF pipelines
+ *
+ * Use {@link renderToHtmlParts} instead when your app owns the document
+ * shell and only needs the head/body chunks.
+ *
+ * @param element - A React element tree (e.g. `<Email><Row>...</Row></Email>`)
+ * @param options - Config overrides (mode, cdnBaseUrl, etc.) plus `title` and `fonts`
+ * @returns Complete HTML document string
+ * @throws {Error} If rendering fails, with a helpful message
+ *
+ * @example
+ * ```tsx
+ * import { renderToHtml, Email, Row, Column, Paragraph } from "@unlayer/react-elements";
+ *
+ * const html = renderToHtml(
+ *   <Email><Row><Column><Paragraph>Hello</Paragraph></Column></Row></Email>,
+ *   { title: "Welcome" }
+ * );
+ * // "<!DOCTYPE HTML PUBLIC ...><html ...>...</html>"
+ * ```
+ */
+export function renderToHtml(
+  element: React.ReactElement,
+  options?: RenderToHtmlOptions
+): string {
+  const { title, fonts = [], ...config } = options ?? {};
+
+  const mergedConfig = { ...DEFAULT_CONFIG, ...config };
+  const displayMode = resolveDisplayMode(element, mergedConfig);
+
+  const body = stripOuterDiv(renderBody(element, config));
+  const { css, js, tags } = extractHeadFromTree(element, {
+    displayMode,
+    headConfig: mergedConfig.headConfig,
+  });
+
+  const layoutArgs: DocumentLayoutArgs = {
+    dir: mergedConfig.textDirection
+      ? ` dir="${escapeForHtml(String(mergedConfig.textDirection))}"`
+      : "",
+    titleTag: title ? `<title>${escapeForHtml(title.trim())}</title>` : "",
+    styleTag: css ? `<style type="text/css">\n${css}\n</style>` : "",
+    scriptTag: js
+      ? `<script type="application/javascript">\n${js}\n</script>`
+      : "",
+    tagLines: tags.join("\n"),
+    fontLinks: fonts
+      .filter((font) => font?.url)
+      .map(
+        (font) =>
+          `<link href="${escapeForHtml(font.url)}" rel="stylesheet" type="text/css">`
+      )
+      .join(""),
+    body,
+  };
+
+  if (displayMode === "email") return emailLayout(layoutArgs);
+  if (displayMode === "document") return documentLayout(layoutArgs);
+  return webLayout(layoutArgs);
+}
+
+/**
  * Renders an Unlayer element tree to a plain text string.
  *
- * Internally calls `renderToHtml` then converts to plain text using
+ * Renders the body markup then converts to plain text using
  * `htmlToPlainText`. Useful for generating the text/plain MIME part
  * of multipart emails (critical for deliverability).
  *
@@ -74,7 +194,7 @@ export function renderToPlainText(
   element: React.ReactElement,
   config?: Partial<UnlayerConfig>
 ): string {
-  const html = renderToHtml(element, config);
+  const html = renderBody(element, config);
   return htmlToPlainText(html);
 }
 
@@ -84,20 +204,22 @@ export function renderToPlainText(
 export interface HtmlParts {
   /** `<head>` content: `<style>` blocks with component CSS, optional `<script>` tags */
   head: string;
-  /** `<body>` content: the rendered HTML (same output as `renderToHtml`) */
+  /** `<body>` content: the rendered body markup (no document shell) */
   body: string;
 }
 
 /**
  * Renders an Unlayer element tree to separate head and body HTML strings.
  *
- * This is the recommended API for sending emails, because email clients need
- * the `<style>` block in `<head>` for hover effects, responsive breakpoints,
- * and font declarations that cannot be expressed as inline styles.
+ * Use this when your app owns the document shell — an existing page
+ * template, an ESP template with its own meta tags, an iframe srcdoc —
+ * and you want to place the `<style>` block and body markup yourself.
+ * For a complete ready-to-send document in one call, use
+ * {@link renderToHtml}.
  *
  * - `head` contains `<style>` tags with CSS generated by each component's
  *   head function (button hover colors, body fonts, link styles, etc.)
- * - `body` is identical to what `renderToHtml()` returns
+ * - `body` is the rendered body markup without any document shell
  *
  * @param element - A React element tree (e.g. `<Email><Row>...</Row></Email>`)
  * @param config  - Optional config overrides (mode, cdnBaseUrl, etc.)
@@ -121,13 +243,12 @@ export function renderToHtmlParts(
   element: React.ReactElement,
   config?: Partial<UnlayerConfig>
 ): HtmlParts {
-  // Render body HTML (same as renderToHtml)
-  const body = renderToHtml(element, config);
+  // Render body markup
+  const body = renderBody(element, config);
 
-  // Resolve display mode from config or element props
+  // Resolve display mode from the wrapper component, element props, or config
   const mergedConfig = { ...DEFAULT_CONFIG, ...config };
-  const displayMode: RenderMode =
-    (element.props as any).mode ?? mergedConfig.mode ?? "web";
+  const displayMode = resolveDisplayMode(element, mergedConfig);
 
   // Extract head CSS/JS/tags by walking the element tree
   const { css, js, tags } = extractHeadFromTree(element, {
