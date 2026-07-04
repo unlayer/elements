@@ -49,6 +49,10 @@ export interface BaseItemComponentProps {
 
   // Internal props (for advanced use)
   index?: number;
+  /** @internal — content id allocated by the containing Column; keeps the
+   *  value-level _meta.htmlID unique per instance and aligned with the
+   *  wrapper id and head/json numbering. */
+  _metaHtmlId?: string;
   colIndex?: number;
   cells?: any[];
   bodyValues?: any;
@@ -276,6 +280,7 @@ export function createItemComponent<
 
       // Internal props
       index = 0,
+      _metaHtmlId,
       colIndex = 0,
       cells = [],
       bodyValues = {},
@@ -302,12 +307,17 @@ export function createItemComponent<
     // 2. Merge with defaults
     const finalValues = mergeValues(config.defaultValues, mappedValues);
 
-    // 3. Ensure _meta is present
-    const valuesWithMeta = ensureMeta(
-      finalValues,
-      config.metaName ?? config.name.toLowerCase(),
-      index
-    );
+    // 3. Ensure _meta is present. The Column-allocated id wins so every
+    //    instance is unique; the index fallback covers standalone renders.
+    const metaName = config.metaName ?? config.name.toLowerCase();
+    const valuesWithMeta = {
+      ...finalValues,
+      _meta: {
+        htmlID: _metaHtmlId ?? `u_content_${metaName}_${index + 1}`,
+        htmlClassNames: `u_content_${metaName}`,
+        ...((finalValues as Record<string, any>)._meta || {}),
+      },
+    };
 
     // 4. Ensure bodyValues has a contentWidth. Default to the schema-shaped
     //    "500px" (matches BodyDefaults.contentWidth and the exporter's image

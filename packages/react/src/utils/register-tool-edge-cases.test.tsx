@@ -208,6 +208,31 @@ describe("edge: head contributions", () => {
     expect(head).toContain("#u_content_custom_head_tool_2 {");
   });
 
+  it("body markup and head css agree on per-instance ids (multi-instance)", () => {
+    const Scoped = registerElementsTool({
+      name: "scoped_tool",
+      options: { g: { title: "G", options: {
+        bg: { label: "Bg", defaultValue: "#fafafa", widget: "color_picker" },
+      }}},
+      values: {},
+      renderer: {
+        exporters: {
+          email: (v: any) => `<div id="${v._meta.htmlID}-x">scoped</div>`,
+          web: (v: any) => `<div id="${v._meta.htmlID}-x">scoped</div>`,
+        },
+        head: { css: (v: any) => `#${v._meta.htmlID}-x { background: ${v.bg}; }` },
+      },
+    } as any);
+    const { head, body } = renderToHtmlParts(
+      inEmail(<Scoped />, <Scoped bg="#111827" />)
+    );
+    // every head rule targets an id that actually exists in the body
+    expect(body).toContain('id="u_content_custom_scoped_tool_1-x"');
+    expect(body).toContain('id="u_content_custom_scoped_tool_2-x"');
+    expect(head).toContain("#u_content_custom_scoped_tool_1-x { background: #fafafa; }");
+    expect(head).toContain("#u_content_custom_scoped_tool_2-x { background: #111827; }");
+  });
+
   it("head js lands in the document script tag", () => {
     const html = renderToHtml(inEmail(<HeadTool />));
     expect(html).toContain("console.info('head tool ready');");
