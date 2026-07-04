@@ -16,9 +16,10 @@
 //      <title> parsed, head <style> applied, links render, no console or
 //      page errors.
 //   2. Responsive — a three-column row lays out side-by-side at desktop
-//      width and stacks to full-width columns below the 620px breakpoint,
-//      in both web and email modes (email stacking is driven entirely by
-//      the head media queries, so this also proves head/body integration).
+//      width and stacks to full-width columns below the mobile breakpoint
+//      (web: 480px device breakpoint; email: contentWidth + 20px), in both
+//      modes. Email stacking is driven entirely by the head media queries,
+//      so this also proves head/body integration.
 //   3. Interaction — hovering the button applies the configured hover
 //      background and text colors (head :hover CSS reaches the DOM).
 //   4. RTL — textDirection config propagates to a computed rtl direction.
