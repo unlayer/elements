@@ -206,6 +206,188 @@ const tabTool = {
   },
 };
 
+
+// ---------------------------------------------------------------------------
+// Product library card — the gallery's flagship tool: nested image/link
+// values, per-part colors, rich-text description, split price/CTA footer.
+// ---------------------------------------------------------------------------
+const productLibraryTool = {
+  name: "product_library",
+  label: "Product",
+  icon: "fa-shopping-cart",
+  options: {
+    productContent: {
+      title: "Product Content",
+      options: {
+        productImage: {
+          label: "Product Image",
+          defaultValue: { url: "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' width='600' height='340'><defs><linearGradient id='p' x1='0' y1='0' x2='1' y2='1'><stop offset='0' stop-color='%230ea5e9'/><stop offset='1' stop-color='%236366f1'/></linearGradient></defs><rect width='600' height='340' fill='url(%23p)'/><rect x='210' y='90' width='180' height='160' rx='14' fill='white' opacity='.92'/><rect x='240' y='120' width='120' height='14' rx='7' fill='%236366f1' opacity='.7'/><rect x='240' y='150' width='90' height='10' rx='5' fill='%2394a3b8'/><rect x='240' y='170' width='104' height='10' rx='5' fill='%2394a3b8'/><rect x='240' y='200' width='70' height='22' rx='11' fill='%230ea5e9'/></svg>" },
+          widget: "image",
+        },
+        productTitle: { label: "Product Title", defaultValue: "Studio Headphones X2", widget: "text" },
+        productTitleColor: { label: "Product Title Color", defaultValue: "#111827", widget: "color_picker" },
+        productDescription: {
+          label: "Product Description",
+          defaultValue: "Closed-back studio headphones with a detachable cable, memory-foam pads, and a case that survives checked luggage.",
+          widget: "rich_text",
+        },
+        productPrice: { label: "Product Price", defaultValue: "149.00", widget: "text" },
+        productPriceColor: { label: "Price Color", defaultValue: "#111827", widget: "color_picker" },
+        productPriceBackgroundColor: { label: "Price Background", defaultValue: "#f8fafc", widget: "color_picker" },
+        productCTA: { label: "Button Name", defaultValue: "Buy Now", widget: "text" },
+        productCTAColor: { label: "Button Color", defaultValue: "#0ea5e9", widget: "color_picker" },
+        productCTATextColor: { label: "Button Text Color", defaultValue: "#ffffff", widget: "color_picker" },
+        productCTAAction: {
+          label: "Action Type",
+          defaultValue: { name: "web", values: { href: "https://example.com/headphones", target: "_blank" } },
+          widget: "link",
+        },
+      },
+    },
+  },
+  values: {},
+  renderer: {
+    exporters: {
+      web: (v: any) =>
+        `<div style="position:relative;display:table;min-width:0;word-wrap:break-word;background-color:#fff;background-clip:border-box;border:1px solid rgba(0,0,0,.125);border-radius:6px;margin:auto;text-align:center;max-width:360px;overflow:hidden;">
+          <img src="${v.productImage.url}" alt="${v.productTitle}" style="width:100%;object-fit:contain;display:block;"/>
+          <div style="padding:0 16px 16px;text-align:left;">
+            <h3 style="margin:12px 0;color:${v.productTitleColor};">${v.productTitle}</h3>
+            <div style="color:#6b7280;font-size:14px;line-height:1.5;">${v.productDescription}</div>
+          </div>
+          <div style="display:flex;border-top:1px solid rgba(0,0,0,.125);align-items:center;font-weight:bold;background-color:${v.productPriceBackgroundColor};">
+            <div style="width:50%;padding:12px;font-size:16px;line-height:1.5;color:${v.productPriceColor};">$${v.productPrice}</div>
+            <a href="${v.productCTAAction.url}" target="${v.productCTAAction.target}" style="width:50%;text-decoration:none;background-color:${v.productCTAColor};color:${v.productCTATextColor};display:inline-block;font-weight:400;text-align:center;vertical-align:middle;padding:12px;font-size:16px;line-height:1.5;cursor:pointer;">${v.productCTA}</a>
+          </div>
+        </div>`,
+      email: (v: any) =>
+        `<table cellspacing="0" cellpadding="0" role="presentation" style="min-width:0;word-wrap:break-word;background-color:#fff;border:1px solid rgba(0,0,0,.125);border-radius:6px;margin:auto;text-align:center;max-width:360px;">
+          <tbody>
+            <tr><td width="100%"><img src="${v.productImage.url}" alt="${v.productTitle}" style="width:100%;object-fit:contain;border-top-left-radius:6px;border-top-right-radius:6px;"/></td></tr>
+            <tr><td width="100%"><h3 style="text-align:left;margin:8px 0 12px 0;padding:0 16px;color:${v.productTitleColor};">${v.productTitle}</h3></td></tr>
+            <tr><td width="100%"><div style="text-align:left;padding:0 16px;margin:0 0 12px 0;color:#6b7280;font-size:14px;line-height:1.5;">${v.productDescription}</div></td></tr>
+            <tr><td width="100%">
+              <table width="100%" cellspacing="0" cellpadding="0" role="presentation" style="border-top:1px solid rgba(0,0,0,.125);font-weight:bold;background-color:${v.productPriceBackgroundColor};">
+                <tbody><tr>
+                  <td width="50%" style="text-align:center;padding:12px;font-size:16px;line-height:1.5;"><div style="color:${v.productPriceColor};">$${v.productPrice}</div></td>
+                  <td width="50%" style="background-color:${v.productCTAColor};text-align:center;vertical-align:middle;padding:12px 0;font-size:16px;line-height:1.5;"><a href="${v.productCTAAction.url}" target="${v.productCTAAction.target}" style="width:100%;color:${v.productCTATextColor};text-decoration:none;">${v.productCTA}</a></td>
+                </tr></tbody>
+              </table>
+            </td></tr>
+          </tbody>
+        </table>`,
+    },
+  },
+};
+
+// ---------------------------------------------------------------------------
+// QR code — in the Builder a property-editor widget generates the data URL
+// client-side; from code any generator works (here a hosted generator URL).
+// ---------------------------------------------------------------------------
+const qrTool = {
+  name: "qr_tool",
+  label: "QR Code",
+  icon: "fa-qrcode",
+  options: {
+    qr: {
+      title: "QR Content",
+      options: {
+        qr: {
+          label: "QR URL",
+          defaultValue: {
+            srcUrl: "https://unlayer.com",
+            qrCode: "https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=https%3A%2F%2Funlayer.com",
+          },
+          widget: "qr_generator", // custom property editor — editor-only
+        },
+        width: { label: "Width", defaultValue: "50", widget: "counter" },
+        alignment: { label: "Alignment", defaultValue: "center", widget: "alignment" },
+      },
+    },
+  },
+  values: {},
+  renderer: {
+    exporters: {
+      web: (v: any) =>
+        `<div class="qr-tool" style="margin:auto;text-align:${v.alignment};">${
+          v.qr?.qrCode
+            ? `<img src="${v.qr.qrCode}" alt="QR code for ${v.qr.srcUrl}" style="width:${v.width}%;"/>`
+            : `<h3>Enter url and QR Code will be generated here</h3>`
+        }</div>`,
+      // QR in email is a prime use case (tickets, menus) — same markup works
+      email: (v: any) =>
+        `<div style="margin:auto;text-align:${v.alignment};">${
+          v.qr?.qrCode
+            ? `<img src="${v.qr.qrCode}" alt="QR code for ${v.qr.srcUrl}" width="${Math.round(3 * Number(v.width))}" style="width:${v.width}%;"/>`
+            : ""
+        }</div>`,
+    },
+  },
+};
+
+// ---------------------------------------------------------------------------
+// Map — the gallery original builds a Google Static Maps URL (with an API
+// key). This port stays keyless: the exporter computes OpenStreetMap tile
+// coordinates from lat/lon/zoom — real exporter logic, deterministic output.
+// ---------------------------------------------------------------------------
+const mapTool = {
+  name: "map_tool",
+  label: "Map",
+  icon: "fa-map",
+  options: {
+    location: {
+      title: "Location",
+      options: {
+        latitude: { label: "Latitude", widget: "text", defaultValue: "37.785343" },
+        longitude: { label: "Longitude", widget: "text", defaultValue: "-122.3978088" },
+        caption: { label: "Caption", widget: "text", defaultValue: "Mission St, San Francisco" },
+      },
+    },
+    zoom: {
+      title: "Zoom level",
+      options: { zoom: { label: "Zoom Level", widget: "counter", defaultValue: "15" } },
+    },
+  },
+  values: {},
+  renderer: {
+    exporters: {
+      // A table of OSM tiles works in web AND email (remote images), so one
+      // template serves both; the marker overlay is web-only (absolute css).
+      web: (v: any) => mapMarkup(v, true),
+      email: (v: any) => mapMarkup(v, false),
+    },
+  },
+};
+
+/** Slippy-map tile math: 3x2 tile grid around the point, plus marker. */
+function mapMarkup(v: any, withMarker: boolean): string {
+  const lat = parseFloat(v.latitude);
+  const lon = parseFloat(v.longitude);
+  const z = parseInt(v.zoom, 10);
+  const n = 2 ** z;
+  const x = ((lon + 180) / 360) * n;
+  const latR = (lat * Math.PI) / 180;
+  const y = ((1 - Math.log(Math.tan(latR) + 1 / Math.cos(latR)) / Math.PI) / 2) * n;
+  const x0 = Math.floor(x) - 1;
+  const y0 = Math.floor(y) - (y % 1 < 0.5 ? 1 : 0);
+  const rows = [0, 1].map((dy) =>
+    `<tr>${[0, 1, 2].map((dx) =>
+      `<td style="padding:0;line-height:0;"><img src="https://tile.openstreetmap.org/${z}/${x0 + dx}/${y0 + dy}.png" width="200" height="200" alt="" style="display:block;width:100%;"/></td>`).join("")}</tr>`).join("");
+  const markerLeft = (((x - x0) / 3) * 100).toFixed(2);
+  const markerTop = (((y - y0) / 2) * 100).toFixed(2);
+  const marker = withMarker
+    ? `<div style="position:absolute;left:${markerLeft}%;top:${markerTop}%;transform:translate(-50%,-100%);font-size:30px;line-height:1;">&#128205;</div>`
+    : "";
+  return `<div style="max-width:600px;margin:auto;${withMarker ? "position:relative;" : ""}border-radius:8px;overflow:hidden;border:1px solid #e5e7eb;">
+    <table role="presentation" cellpadding="0" cellspacing="0" width="100%">${rows}</table>${marker}
+  </div>
+  <div style="text-align:center;font-family:Arial,sans-serif;font-size:12px;color:#6b7280;padding-top:8px;">${v.caption} &middot; &copy; OpenStreetMap contributors</div>`;
+}
+
+const ProductLibrary = registerElementsTool(productLibraryTool as any);
+const QrCode = registerElementsTool(qrTool as any);
+const OsmMap = registerElementsTool(mapTool as any);
+
 const Accordion = registerElementsTool(accordionTool as any);
 const Tabs = registerElementsTool(tabTool as any);
 
@@ -412,6 +594,133 @@ renderToHtml(
             </Column>
           </Row>
         </Email>
+      }
+    />
+  ),
+};
+
+/** The gallery's product card: image, rich description, price/CTA footer. */
+export const ProductLibraryTool: Story = {
+  parameters: sourceFor(`const productLibraryTool = {
+  name: "product_library",
+  options: { productContent: { title: "Product Content", options: {
+    productImage:      { defaultValue: { url: "https://…" }, widget: "image" },
+    productTitle:      { defaultValue: "Studio Headphones X2", widget: "text" },
+    productTitleColor: { defaultValue: "#111827", widget: "color_picker" },
+    productDescription:{ defaultValue: "…", widget: "rich_text" },
+    productPrice:      { defaultValue: "149.00", widget: "text" },
+    productPriceBackgroundColor: { defaultValue: "#f8fafc", widget: "color_picker" },
+    productCTA:        { defaultValue: "Buy Now", widget: "text" },
+    productCTAColor:   { defaultValue: "#0ea5e9", widget: "color_picker" },
+    productCTAAction:  { defaultValue: { name: "web", values: { href: "…", target: "_blank" } }, widget: "link" },
+  }}},
+  values: {},
+  renderer: { exporters: {
+    web:   (v) => { /* card div: image, title, description, split price/CTA footer;
+                       the link arrives in render shape: v.productCTAAction.url */ },
+    email: (v) => { /* the same card as nested tables */ },
+  }},
+};
+
+const ProductLibrary = registerElementsTool(productLibraryTool);
+
+<Email><Row><Column>
+  <ProductLibrary productPrice="129.00" productCTA="Preorder" />
+</Column></Row></Email>`),
+  render: () => (
+    <LiveParts
+      tree={
+        <Email backgroundColor="#f1f5f9" contentWidth="600px">
+          <Row padding="14px 0px">
+            <Column>
+              <ProductLibrary containerPadding="24px 20px" />
+            </Column>
+          </Row>
+        </Email>
+      }
+    />
+  ),
+};
+
+/** QR code — the Builder generates the code via a property-editor widget. */
+export const QrCodeTool: Story = {
+  parameters: sourceFor(`const qrTool = {
+  name: "qr_tool",
+  options: { qr: { title: "QR Content", options: {
+    // In the Builder, a custom property editor generates qr.qrCode
+    // client-side as the user types; from code, any generator works.
+    qr:        { defaultValue: { srcUrl: "https://unlayer.com", qrCode: "…" }, widget: "qr_generator" },
+    width:     { defaultValue: "50", widget: "counter" },
+    alignment: { defaultValue: "center", widget: "alignment" },
+  }}},
+  values: {},
+  renderer: { exporters: {
+    web:   (v) => { /* <img src={v.qr.qrCode} style=width:{v.width}% /> */ },
+    email: (v) => { /* same — QR in email is the prime use case (tickets, menus) */ },
+  }},
+};
+
+const QrCode = registerElementsTool(qrTool);
+
+<Email><Row><Column><QrCode width="35" /></Column></Row></Email>`),
+  render: () => (
+    <LiveParts
+      tree={
+        <Email backgroundColor="#ffffff" contentWidth="600px">
+          <Row>
+            <Column>
+              <Heading fontSize="18px" fontWeight={700} textAlign="center" containerPadding="26px 20px 2px">
+                Scan for your ticket
+              </Heading>
+              <QrCode width="35" containerPadding="8px 20px 30px" />
+            </Column>
+          </Row>
+        </Email>
+      }
+    />
+  ),
+};
+
+/** Map — keyless OpenStreetMap tiles computed from lat/lon/zoom in the exporter. */
+export const MapTool: Story = {
+  parameters: sourceFor(`// The gallery original builds a Google Static Maps URL (needs an API
+// key). This port computes OpenStreetMap tile coordinates instead —
+// keyless, and the same table-of-tiles markup works in web AND email.
+const mapTool = {
+  name: "map_tool",
+  options: {
+    location: { title: "Location", options: {
+      latitude:  { defaultValue: "37.785343",    widget: "text" },
+      longitude: { defaultValue: "-122.3978088", widget: "text" },
+      caption:   { defaultValue: "Mission St, San Francisco", widget: "text" },
+    }},
+    zoom: { title: "Zoom level", options: { zoom: { defaultValue: "15", widget: "counter" } } },
+  },
+  values: {},
+  renderer: { exporters: {
+    web:   (v) => mapMarkup(v, true),   // + marker overlay
+    email: (v) => mapMarkup(v, false),  // tiles table renders in email too
+  }},
+};
+
+// slippy-map math in the exporter: lat/lon/zoom -> tile grid + marker offset
+// x = ((lon + 180) / 360) * 2^z
+// y = ((1 - ln(tan(latR) + sec(latR)) / PI) / 2) * 2^z
+
+<Page><Row><Column><OsmMap zoom="15" /></Column></Row></Page>`),
+  render: () => (
+    <LiveParts
+      tree={
+        <Page backgroundColor="#f8fafc" contentWidth="640px">
+          <Row backgroundColor="#ffffff" padding="10px 0px">
+            <Column>
+              <Heading fontSize="20px" fontWeight={700} containerPadding="24px 20px 4px">
+                Find us here
+              </Heading>
+              <OsmMap containerPadding="12px 20px 28px" />
+            </Column>
+          </Row>
+        </Page>
       }
     />
   ),
