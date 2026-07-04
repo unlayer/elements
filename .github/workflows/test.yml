@@ -107,6 +107,15 @@ jobs:
       - name: Storybook smoke test
         run: pnpm --filter @unlayer/react-elements test-storybook:ci
 
+      # ── Storybook visual-drift gate ─────────────────────────────
+      # Fingerprints the computed styles of every story at desktop and
+      # mobile widths (reusing the static build from the smoke test) and
+      # diffs against the committed baseline. Fails naming the exact
+      # stories and properties that changed — answers "did any story
+      # change visually?" without paging through them by hand.
+      - name: Storybook visual-drift gate
+        run: pnpm --filter @unlayer/react-elements test:visual
+
       # ── Next.js integration test ────────────────────────────────
       # Packs the built react-elements as a tarball and installs it
       # in a real Next.js app — exactly like a consumer would.

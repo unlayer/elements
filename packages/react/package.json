@@ -60,6 +60,7 @@
     "test:coverage": "vitest --coverage",
     "test:csp": "node --disallow-code-generation-from-strings scripts/csp-probe.mjs",
     "test:e2e": "node scripts/browser-e2e.mjs",
+    "test:visual": "node scripts/storybook-visual.mjs",
     "test-storybook": "test-storybook",
     "test-storybook:ci": "concurrently -k -s first -n \"SB,TEST\" -c \"magenta,blue\" \"pnpm build-storybook --quiet && http-server storybook-static --port 6006 --silent\" \"wait-on tcp:127.0.0.1:6006 && pnpm test-storybook\""
   },
