@@ -203,6 +203,13 @@ describe("renderToHtml: full document shell", () => {
     expect(html.match(/<body[\s>]/g)).toHaveLength(1);
   });
 
+  it("keeps a bare item root's own wrapper div (only Unlayer wrappers get stripped)", () => {
+    const html = renderToHtml(<Button className="cta-wrapper">Click</Button>);
+    // The Button's host <div class="cta-wrapper"> is the element's own
+    // markup, not a Body wrapper — it must survive into the document.
+    expect(html).toContain('class="cta-wrapper"');
+  });
+
   it("strips the Body renderer's wrapper even when the root has className/style", () => {
     const html = renderToHtml(
       <Email className="my-email" style={{ outline: "1px solid red" }}>

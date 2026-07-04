@@ -138,7 +138,14 @@ export function renderToHtml(
   const mergedConfig = { ...DEFAULT_CONFIG, ...config };
   const displayMode = resolveDisplayMode(element, mergedConfig);
 
-  const body = stripOuterDiv(renderBody(element, config));
+  // Only Unlayer wrappers (Body/Email/Page/Document) get their renderer's
+  // host <div> stripped — for any other root (a bare item, a custom
+  // component) the outer div is the element's own markup and must stay.
+  const wrapperName = (element.type as { displayName?: string })?.displayName;
+  const isUnlayerWrapper =
+    wrapperName === "Body" || (wrapperName ? wrapperName in MODE_BY_WRAPPER : false);
+  const rawBody = renderBody(element, config);
+  const body = isUnlayerWrapper ? stripOuterDiv(rawBody) : rawBody;
   const { css, js, tags } = extractHeadFromTree(element, {
     displayMode,
     headConfig: mergedConfig.headConfig,
@@ -204,7 +211,12 @@ export function renderToPlainText(
 export interface HtmlParts {
   /** `<head>` content: `<style>` blocks with component CSS, optional `<script>` tags */
   head: string;
-  /** `<body>` content: the rendered body markup (no document shell) */
+  /**
+   * The rendered body markup, wrapped in the renderer's host `<div>`. In
+   * email/document mode it contains the `<body>` tag itself; web mode has
+   * none. No doctype/html/head shell — embeddable as-is, or extract the
+   * `<body>` tag when composing a full document.
+   */
   body: string;
 }
 
