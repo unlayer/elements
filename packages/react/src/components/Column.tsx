@@ -1,7 +1,7 @@
 import React from "react";
 import type { RenderMode, UnlayerConfig, ColumnValues } from "@unlayer-internal/shared-elements";
 import { ColumnExporters, ContentExporters } from "@unlayer/exporters";
-import { UNLAYER_RENDER_KEY, nextHtmlId } from "../utils/create-component";
+import { UNLAYER_RENDER_KEY, UNLAYER_CONFIG_KEY, nextHtmlId } from "../utils/create-component";
 import { mapSemanticProps, type SemanticProps } from "../utils/semantic-props";
 import type { SizeInput, BorderInput } from "../types";
 import { COLUMN_DEFAULTS } from "../utils/container-defaults";
@@ -150,11 +150,15 @@ export const Column: React.FC<ColumnProps> = (props) => {
               const componentHTML =
                 rendered.props.dangerouslySetInnerHTML.__html;
               const componentType = child.type as any;
-              const componentName = (
-                componentType?.displayName ||
-                componentType?.name ||
-                "component"
-              ).toLowerCase();
+              // Custom tools carry an explicit meta base (custom_<slug>);
+              // built-ins derive it from the component name.
+              const componentName =
+                componentType?.[UNLAYER_CONFIG_KEY]?.metaName ??
+                (
+                  componentType?.displayName ||
+                  componentType?.name ||
+                  "component"
+                ).toLowerCase();
 
               // Resolve the block's OWN containerPadding directly from props.
               // `containerPadding` is a universal base-content prop: it passes

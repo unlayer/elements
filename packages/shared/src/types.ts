@@ -125,6 +125,8 @@ export type RenderMode = "web" | "email" | "document";
 
 export interface DesignContent {
   type: string;
+  /** Custom tool name — present when `type` is "custom" */
+  slug?: string;
   values: Record<string, any>;
 }
 

@@ -208,10 +208,12 @@ function processItem(
     );
   }
 
-  const { name, defaultValues, propMapper } = config;
-  const contentType = toContentType(name);
-  const count = nextCounter(counters, `u_content_${contentType}`);
-  const id = makeId(`u_content_${contentType}`, count);
+  const { name, defaultValues, propMapper, slug } = config;
+  const contentType = config.contentType ?? toContentType(name);
+  // Custom tools use u_content_custom_<slug> as their id/class base
+  const metaBase = `u_content_${config.metaName ?? contentType}`;
+  const count = nextCounter(counters, metaBase);
+  const id = makeId(metaBase, count);
 
   // Map props through the item's own propMapper, then merge with defaults
   const { children, ...restProps } = element.props;
@@ -231,7 +233,7 @@ function processItem(
     ...finalValues,
     _meta: {
       htmlID: id,
-      htmlClassNames: `u_content_${contentType}`,
+      htmlClassNames: metaBase,
       ...(finalValues._meta || {}),
     },
     selectable: true,
@@ -253,7 +255,7 @@ function processItem(
     (values as Record<string, any>).src = pinImageSrc(itemSrc, availableWidth);
   }
 
-  return { type: contentType, values };
+  return slug ? { type: contentType, slug, values } : { type: contentType, values };
 }
 
 function processColumn(

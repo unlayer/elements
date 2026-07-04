@@ -185,12 +185,14 @@ function walkItem(
   const finalValues = mergeValues(defaultValues, mappedValues);
 
   // Track component index (same counter pattern as render-to-json.ts)
-  const contentType = name.toLowerCase();
+  const contentType = config.metaName ?? name.toLowerCase();
   const count = nextCounter(counters, `u_content_${contentType}`);
   const valuesWithMeta = ensureMeta(finalValues, contentType, count - 1);
 
-  // Look up head by component name
-  const head = (heads as Record<string, ComponentHead | undefined>)[name];
+  // The component's own head (custom tools) wins over the registry lookup
+  const head =
+    (config.head as ComponentHead | undefined) ??
+    (heads as Record<string, ComponentHead | undefined>)[name];
   callHead(head, valuesWithMeta, bodyValues, displayMode, headConfig, styles, scripts, tags);
 
 }

@@ -80,6 +80,21 @@ export interface ItemComponentConfig<TValues, TSemanticProps> {
   /** Per-component exporters map — enables tree-shaking.
    *  Keys are display modes ('web', 'email', 'document'), values are exporter functions. */
   exporters: ItemExporters;
+
+  /** Design-JSON content type override (defaults to the lowercased name).
+   *  Custom tools use "custom". */
+  contentType?: string;
+
+  /** Custom tool name — emitted as the content's `slug` in design JSON. */
+  slug?: string;
+
+  /** Base for `_meta.htmlID`/`htmlClassNames` (defaults to `u_content_<name>`).
+   *  Custom tools use `u_content_custom_<slug>`. */
+  metaName?: string;
+
+  /** Head contributions (css/js/tags builders) carried by the component
+   *  itself instead of looked up in the exporters registry. */
+  head?: Record<string, any>;
 }
 
 /**
@@ -289,7 +304,7 @@ export function createItemComponent<
     // 3. Ensure _meta is present
     const valuesWithMeta = ensureMeta(
       finalValues,
-      config.name.toLowerCase(),
+      config.metaName ?? config.name.toLowerCase(),
       index
     );
 
@@ -373,6 +388,10 @@ export function createItemComponent<
     name: config.name,
     defaultValues: config.defaultValues,
     propMapper: config.propMapper,
+    contentType: config.contentType,
+    slug: config.slug,
+    metaName: config.metaName,
+    head: config.head,
   };
 
   return ItemComponent;

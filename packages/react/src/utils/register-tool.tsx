@@ -1,0 +1,138 @@
+/**
+ * registerElementsTool — render the editor's custom tools from code.
+ *
+ * Accepts the same tool definition object embedders already write for
+ * `unlayer.registerTool` (see docs.unlayer.com › Custom Tools) and returns a
+ * React component. One definition powers both runtimes:
+ *
+ * - The Builder uses `label`/`icon`/`options`/`renderer.Viewer`/`validator`
+ *   for its panel, canvas, and audit — Elements ignores those.
+ * - Elements calls `renderer.exporters[mode](values)` to produce HTML and
+ *   collects `renderer.head` css/js like any built-in component, so code
+ *   output matches editor exports by construction — it is the same function.
+ * - `renderToJson` emits `{ type: "custom", slug: <name>, values }`, the
+ *   shape the editor stores, so designs round-trip into the Builder where
+ *   the same tool is registered.
+ *
+ * Sanitization: like editor exports, the tool's HTML output is passed
+ * through `toSafeHtml` when one is configured. The default config has NO
+ * sanitizer — with untrusted values, configure `toSafeHtml` (same caveat
+ * as the `<Html>` component).
+ */
+
+import React from "react";
+import {
+  createItemComponent,
+  type BaseItemComponentProps,
+} from "./create-component";
+import type { RenderMode } from "@unlayer-internal/shared-elements";
+
+/** Exporter: `(values) => html`. Extra args mirror built-in exporters and can be ignored. */
+export type ToolExporter = (values: any, ...args: any[]) => string;
+
+/**
+ * The subset of the `unlayer.registerTool` config Elements reads. Extra
+ * editor-only fields (label, icon, options, Viewer, validator, ...) are
+ * accepted and ignored, so the same object can be passed to both APIs.
+ */
+export interface ElementsToolConfig {
+  /** Unique tool name — becomes the design JSON `slug` */
+  name: string;
+  /** Initial values for the tool's properties */
+  values?: Record<string, any>;
+  renderer: {
+    /** Per-mode HTML exporters. `document` falls back to `web`. */
+    exporters: Partial<Record<RenderMode, ToolExporter>>;
+    /** Optional head contributions collected into the document `<head>` */
+    head?: {
+      css?: (values: any, ...args: any[]) => string | undefined;
+      js?: (values: any, ...args: any[]) => string | undefined;
+      tags?: (values: any, ...args: any[]) => string[] | undefined;
+    };
+    /** Editor-only canvas renderer — ignored by Elements */
+    Viewer?: unknown;
+  };
+  /** React DevTools name (defaults to the tool name) */
+  displayName?: string;
+  /** Editor-only fields (label, icon, options, validator, ...) — ignored */
+  [editorOnly: string]: unknown;
+}
+
+/** Props: the tool's values as flat props, plus a `values` escape hatch. */
+export type ElementsToolProps = BaseItemComponentProps &
+  Record<string, any> & { values?: Record<string, any> };
+
+/**
+ * Wrap an exporter so its output is sanitized when the Unlayer config
+ * provides a `toSafeHtml` — mirroring how editor exports treat custom tool
+ * HTML. The exporter meta (last argument) carries the exporterConfig.
+ */
+function withSanitizer(exporter: ToolExporter): ToolExporter {
+  return (values: any, ...args: any[]) => {
+    const html = exporter(values, ...args) ?? "";
+    const meta = args[args.length - 1];
+    const toSafeHtml = meta?.exporterConfig?.toSafeHtml;
+    return typeof toSafeHtml === "function" ? toSafeHtml(html) : html;
+  };
+}
+
+/**
+ * Create a React component from a custom tool definition.
+ *
+ * @example
+ * ```tsx
+ * const Countdown = registerElementsTool({
+ *   name: "countdown",
+ *   values: { endTime: "", digitColor: "#404040" },
+ *   renderer: {
+ *     exporters: {
+ *       web:   (values) => `<div style="color:${values.digitColor}">…</div>`,
+ *       email: (values) => `<table role="presentation">…</table>`,
+ *     },
+ *   },
+ * });
+ *
+ * <Email><Row><Column>
+ *   <Countdown endTime="2026-08-01T00:00:00Z" digitColor="#e11d48" />
+ * </Column></Row></Email>
+ * ```
+ */
+export function registerElementsTool(
+  tool: ElementsToolConfig
+): React.FC<ElementsToolProps> {
+  if (!tool?.name || typeof tool.name !== "string") {
+    throw new Error("[Unlayer] registerElementsTool: `name` is required");
+  }
+  const exporters = tool.renderer?.exporters;
+  if (!exporters || (!exporters.web && !exporters.email)) {
+    throw new Error(
+      `[Unlayer] registerElementsTool("${tool.name}"): ` +
+        "`renderer.exporters` needs at least a `web` or `email` exporter"
+    );
+  }
+
+  const sanitized: Partial<Record<RenderMode, ToolExporter>> = {};
+  for (const mode of ["web", "email", "document"] as RenderMode[]) {
+    const exporter = exporters[mode];
+    if (exporter) sanitized[mode] = withSanitizer(exporter);
+  }
+  // Match the editor's fallback: modes without an exporter render via web,
+  // and email-only tools use their email exporter everywhere.
+  if (!sanitized.web && sanitized.email) sanitized.web = sanitized.email;
+
+  return createItemComponent<Record<string, any>, Record<string, any>>({
+    name: tool.name,
+    displayName: tool.displayName ?? tool.name,
+    defaultValues: tool.values ?? {},
+    // Flat props are the tool's values; `values` is the escape hatch.
+    propMapper: ({ children: _children, values, ...rest }) => ({
+      ...(values ?? {}),
+      ...rest,
+    }),
+    exporters: sanitized,
+    contentType: "custom",
+    slug: tool.name,
+    metaName: `custom_${tool.name}`,
+    head: tool.renderer.head,
+  });
+}
