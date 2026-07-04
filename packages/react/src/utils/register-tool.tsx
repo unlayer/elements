@@ -1,5 +1,5 @@
 /**
- * registerElementsTool — render the editor's custom tools from code.
+ * registerTool — render the editor's custom tools from code.
  *
  * Accepts the same tool definition object embedders already write for
  * `unlayer.registerTool` (see docs.unlayer.com › Custom Tools) and returns a
@@ -153,11 +153,13 @@ function linkWidgetKeys(options: ElementsToolConfig["options"]): string[] {
 }
 
 /**
- * Create a React component from a custom tool definition.
+ * Create a React component from a custom tool definition — a custom tool
+ * is the custom component you create: the same term (and the same config)
+ * as the editor's `unlayer.registerTool`, so one definition serves both.
  *
  * @example
  * ```tsx
- * const Countdown = registerElementsTool({
+ * const Countdown = registerTool({
  *   name: "countdown",
  *   values: { endTime: "", digitColor: "#404040" },
  *   renderer: {
@@ -173,16 +175,16 @@ function linkWidgetKeys(options: ElementsToolConfig["options"]): string[] {
  * </Column></Row></Email>
  * ```
  */
-export function registerElementsTool(
+export function registerTool(
   tool: ElementsToolConfig
 ): React.FC<ElementsToolProps> {
   if (!tool?.name || typeof tool.name !== "string") {
-    throw new Error("[Unlayer] registerElementsTool: `name` is required");
+    throw new Error("[Unlayer] registerTool: `name` is required");
   }
   const exporters = tool.renderer?.exporters;
   if (!exporters || (!exporters.web && !exporters.email)) {
     throw new Error(
-      `[Unlayer] registerElementsTool("${tool.name}"): ` +
+      `[Unlayer] registerTool("${tool.name}"): ` +
         "`renderer.exporters` needs at least a `web` or `email` exporter"
     );
   }
@@ -220,3 +222,6 @@ export function registerElementsTool(
     head: tool.renderer.head,
   });
 }
+
+/** Alias of {@link registerTool}. */
+export const registerElementsTool = registerTool;

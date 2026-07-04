@@ -25,7 +25,7 @@ import { UnlayerProvider, useUnlayerConfig } from "./context";
 import { renderToHtml, renderToPlainText, renderToHtmlParts } from "./utils/render-to-html";
 export type { HtmlParts, RenderToHtmlOptions } from "./utils/render-to-html";
 import { renderToJson, renderRowToJson } from "./utils/render-to-json";
-import { registerElementsTool } from "./utils/register-tool";
+import { registerTool, registerElementsTool } from "./utils/register-tool";
 export type { ElementsToolConfig, ElementsToolProps, ToolExporter } from "./utils/register-tool";
 import { htmlToTextJson } from "@unlayer-internal/shared-elements";
 
@@ -123,6 +123,7 @@ export {
   renderToHtmlParts,
   renderToJson,
   renderRowToJson,
+  registerTool,
   registerElementsTool,
   htmlToTextJson,
   type ColumnLayout,

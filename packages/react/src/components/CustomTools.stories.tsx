@@ -1,6 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react";
 import React from "react";
-import { registerElementsTool } from "../utils/register-tool";
+import { registerTool } from "../utils/register-tool";
 import Email from "./Email";
 import Row from "./Row";
 import Column from "./Column";
@@ -125,8 +125,8 @@ const productTool = {
   },
 };
 
-const Countdown = registerElementsTool(countdownTool as any);
-const ProductCard = registerElementsTool(productTool as any);
+const Countdown = registerTool(countdownTool as any);
+const ProductCard = registerTool(productTool as any);
 
 const meta: Meta = {
   title: "Custom Tools/Registered Tools",
@@ -144,7 +144,7 @@ property panel half. \`renderToJson\` emits \`{ type: "custom", slug, values }\`
 so these designs open in the Builder as the real tool.
 
 \`\`\`tsx
-const Countdown = registerElementsTool(countdownTool);
+const Countdown = registerTool(countdownTool);
 
 <Email><Row><Column>
   <Countdown headline="Offer ends in" days="02" accent="#e11d48" />
@@ -184,7 +184,7 @@ const countdownTool = {
   },
 };
 
-const Countdown = registerElementsTool(countdownTool);
+const Countdown = registerTool(countdownTool);
 
 // Option-widget defaults render without any props:
 <Email backgroundColor="#f8fafc" contentWidth="560px">
@@ -261,7 +261,7 @@ const productTool = {
   }},
 };
 
-const ProductCard = registerElementsTool(productTool);
+const ProductCard = registerTool(productTool);
 
 <Email backgroundColor="#f1f5f9" contentWidth="560px">
   <Row><Column>

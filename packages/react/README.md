@@ -335,13 +335,13 @@ If your app owns the document shell (an existing page template, an ESP template,
 
 ## Custom Tools
 
-If you use the editor's [Custom Tools](https://docs.unlayer.com/builder/tools/custom), the same tool definition you pass to `unlayer.registerTool` can render from code. Elements uses the `renderer.exporters` and `renderer.head` halves of the definition; the editor-only parts (`label`, `icon`, `options`, `Viewer`, `validator`) are accepted and ignored:
+**A custom tool is the custom component you create.** We keep the editor's term — Custom Tools — because it's the same API across the Builder and Elements, and that shared vocabulary is where the power is: the same definition you pass to the editor's [`unlayer.registerTool`](https://docs.unlayer.com/builder/tools/custom) renders from code too. Elements uses the `renderer.exporters` and `renderer.head` halves of the definition; the editor-only parts (`label`, `icon`, `options`, `Viewer`, `validator`) are accepted and ignored:
 
 ```tsx
-import { registerElementsTool, Email, Row, Column, renderToHtml, renderToJson } from '@unlayer/react-elements';
+import { registerTool, Email, Row, Column, renderToHtml, renderToJson } from '@unlayer/react-elements';
 import { countdownTool } from './countdown-tool'; // the same object you register in the editor
 
-const Countdown = registerElementsTool(countdownTool);
+const Countdown = registerTool(countdownTool); // same term, same config as the editor
 
 const tree = (
   <Email>

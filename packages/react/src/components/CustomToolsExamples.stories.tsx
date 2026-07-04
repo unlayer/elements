@@ -1,6 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react";
 import React from "react";
-import { registerElementsTool } from "../utils/register-tool";
+import { registerTool } from "../utils/register-tool";
 import { renderToHtmlParts } from "../utils/render-to-html";
 import Email from "./Email";
 import Page from "./Page";
@@ -384,12 +384,12 @@ function mapMarkup(v: any, withMarker: boolean): string {
   <div style="text-align:center;font-family:Arial,sans-serif;font-size:12px;color:#6b7280;padding-top:8px;">${v.caption} &middot; &copy; OpenStreetMap contributors</div>`;
 }
 
-const ProductLibrary = registerElementsTool(productLibraryTool as any);
-const QrCode = registerElementsTool(qrTool as any);
-const OsmMap = registerElementsTool(mapTool as any);
+const ProductLibrary = registerTool(productLibraryTool as any);
+const QrCode = registerTool(qrTool as any);
+const OsmMap = registerTool(mapTool as any);
 
-const Accordion = registerElementsTool(accordionTool as any);
-const Tabs = registerElementsTool(tabTool as any);
+const Accordion = registerTool(accordionTool as any);
+const Tabs = registerTool(tabTool as any);
 
 /**
  * Head-dependent tools need their head css/js to display properly, and
@@ -473,7 +473,7 @@ export const AccordionTool: Story = {
   },
 };
 
-const Accordion = registerElementsTool(accordionTool);
+const Accordion = registerTool(accordionTool);
 
 <Page><Row><Column><Accordion /></Column></Row></Page>`),
   render: () => (
@@ -517,7 +517,7 @@ export const TabsTool: Story = {
   },
 };
 
-const Tabs = registerElementsTool(tabTool);
+const Tabs = registerTool(tabTool);
 
 <Page><Row><Column><Tabs /></Column></Row></Page>`),
   render: () => (
@@ -622,7 +622,7 @@ export const ProductLibraryTool: Story = {
   }},
 };
 
-const ProductLibrary = registerElementsTool(productLibraryTool);
+const ProductLibrary = registerTool(productLibraryTool);
 
 <Email><Row><Column>
   <ProductLibrary productPrice="129.00" productCTA="Preorder" />
@@ -660,7 +660,7 @@ export const QrCodeTool: Story = {
   }},
 };
 
-const QrCode = registerElementsTool(qrTool);
+const QrCode = registerTool(qrTool);
 
 <Email><Row><Column><QrCode width="35" /></Column></Row></Email>`),
   render: () => (
