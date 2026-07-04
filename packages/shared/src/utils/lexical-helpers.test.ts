@@ -139,4 +139,44 @@ describe("generateHtmlFromTextJson", () => {
     const html = "<p>user supplied</p>";
     expect(generateHtmlFromTextJson(htmlToTextJson(html))).toBe(html);
   });
+
+  it("drops non-whitelisted paragraph direction values (attribute injection guard)", () => {
+    const json = JSON.stringify({
+      root: {
+        children: [
+          {
+            children: [{ text: "Hi", type: "text", format: 0 }],
+            type: "extended-paragraph",
+            direction: '" onmouseover="alert(1)',
+          },
+        ],
+        type: "root",
+      },
+    });
+    const html = generateHtmlFromTextJson(json);
+    expect(html).not.toContain("onmouseover");
+    expect(html).toBe(`<p style="${P_MARGIN_RESET}">Hi</p>`);
+  });
+
+  it("whitelists heading dir and tag (attribute/tag injection guard)", () => {
+    const mk = (heading: Record<string, unknown>) =>
+      JSON.stringify({
+        root: {
+          children: [
+            { children: [{ text: "Hi", type: "text", format: 0 }], type: "heading", ...heading },
+          ],
+          type: "root",
+        },
+      });
+
+    expect(generateHtmlFromTextJson(mk({ tag: "h2", direction: "rtl" }))).toBe(
+      '<h2 dir="rtl">Hi</h2>'
+    );
+    expect(generateHtmlFromTextJson(mk({ tag: "h2", direction: 'x" onload="1' }))).toBe(
+      "<h2>Hi</h2>"
+    );
+    expect(generateHtmlFromTextJson(mk({ tag: 'h1 onclick="alert(1)"' }))).toBe(
+      "<h1>Hi</h1>"
+    );
+  });
 });

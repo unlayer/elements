@@ -96,6 +96,17 @@ const NUMERIC_ALIGN: Record<number, string> = {
 };
 
 /**
+ * Build a ` dir="..."` attribute chunk from a node's direction. Only "ltr"
+ * and "rtl" are valid — the editor ignores anything else, and whitelisting
+ * also keeps untrusted Lexical JSON from injecting attribute markup.
+ */
+function dirAttribute(direction: unknown): string {
+  return direction === "ltr" || direction === "rtl"
+    ? ` dir="${direction}"`
+    : "";
+}
+
+/**
  * Resolve a paragraph node's text-align value from its `format` field.
  */
 function paragraphAlign(format: unknown): string | undefined {
@@ -120,7 +131,7 @@ function paragraphNodeToHtml(node: any, childrenHtml: string): string {
   const isInlineTool = !!node.isInlineTool;
   const tag = isInlineTool ? "span" : "p";
 
-  const dir = node.direction ? ` dir="${node.direction}"` : "";
+  const dir = dirAttribute(node.direction);
 
   const styleParts: string[] = [];
 
@@ -193,8 +204,9 @@ function nodeToHtml(node: any): string {
       return paragraphNodeToHtml(node, childrenHtml);
 
     case "heading": {
-      const tag = node.tag || "h1"; // h1-h6
-      const dir = node.direction ? ` dir="${node.direction}"` : "";
+      // Whitelist the tag — it's interpolated into markup
+      const tag = /^h[1-6]$/.test(node.tag) ? node.tag : "h1";
+      const dir = dirAttribute(node.direction);
       return `<${tag}${dir}>${childrenHtml}</${tag}>`;
     }
 
