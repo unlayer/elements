@@ -331,7 +331,7 @@ The document shell matches the mode: `<Email>` gets the XHTML transitional docty
 - `title` — document `<title>`
 - `fonts` — web-font stylesheet URLs to load via `<link>` tags, e.g. `[{ url: "https://fonts.googleapis.com/css2?family=Inter" }]`
 
-If your app owns the document shell (an existing page template, an ESP template, an iframe `srcdoc`), use `renderToHtmlParts` instead — it returns `{ head, body }` plus the granular pieces (`css`, `js`, `tags`) for pipelines that need them separately, e.g. CSS inlining:
+If your app owns the document shell (an existing page template, an ESP template, an iframe `srcdoc`), use `renderToHtmlParts` instead — it returns `{ head, body }` plus the granular pieces (`css`, `js`, `tags`) for pipelines that need them separately, e.g. CSS inlining. This mirrors the editor's [chunk parameters](https://docs.unlayer.com/builder/latest/export-html#chunk-parameters) with two deliberate differences: `tags` is extra (components can contribute head tags, and reassembling from `css` + `js` alone would drop them), and there is no `fonts` chunk (Elements has no font registry — pass font stylesheet URLs via `renderToHtml`'s `fonts` option instead).
 
 ```tsx
 const { head, body, css, js, tags } = renderToHtmlParts(<Email>...</Email>);

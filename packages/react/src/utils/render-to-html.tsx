@@ -226,7 +226,16 @@ export interface HtmlParts {
   css: string;
   /** Raw component JS (no `<script>` wrapper); empty for most email designs */
   js: string;
-  /** Individual head tags (`<meta>`, `<link>`, ...) contributed by components */
+  /**
+   * Individual head tags (`<meta>`, `<link>`, ...) contributed by components.
+   * Not part of the editor's documented chunk parameters, but exposed here
+   * because `head` can contain them — without this field, reassembling the
+   * head from `css` + `js` would silently drop them. Usually empty.
+   *
+   * There is deliberately no `fonts` chunk: Elements has no font registry to
+   * resolve font URLs from — pass stylesheet URLs via renderToHtml's `fonts`
+   * option instead.
+   */
   tags: string[];
 }
 
