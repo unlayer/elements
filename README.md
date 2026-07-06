@@ -11,6 +11,7 @@
 <p align="center">
   <a href="https://www.npmjs.com/package/@unlayer/react-elements"><img src="https://img.shields.io/npm/v/@unlayer/react-elements.svg" alt="npm version" /></a>
   <a href="https://github.com/unlayer/elements/actions/workflows/test.yml"><img src="https://github.com/unlayer/elements/actions/workflows/test.yml/badge.svg" alt="CI" /></a>
+  <a href="https://codecov.io/gh/unlayer/elements"><img src="https://codecov.io/gh/unlayer/elements/branch/main/graph/badge.svg" alt="codecov" /></a>
   <a href="https://github.com/unlayer/elements/blob/main/LICENSE"><img src="https://img.shields.io/npm/l/@unlayer/react-elements.svg" alt="license" /></a>
   <a href="https://www.npmjs.com/package/@unlayer/react-elements"><img src="https://img.shields.io/npm/dm/@unlayer/react-elements.svg" alt="downloads" /></a>
 </p>
