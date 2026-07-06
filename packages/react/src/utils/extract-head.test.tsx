@@ -85,6 +85,32 @@ describe("renderToHtmlParts", () => {
     expect(fullDocument.trimEnd().endsWith("</html>")).toBe(true);
   });
 
+  it("exposes granular css/js/tags alongside the assembled head", () => {
+    const parts = renderToHtmlParts(
+      <Email>
+        <Row>
+          <Column>
+            <Heading text="Test" headingType="h1" />
+          </Column>
+        </Row>
+      </Email>
+    );
+    // granular css is the raw stylesheet — no <style> wrapper
+    expect(parts.css.length).toBeGreaterThan(0);
+    expect(parts.css).not.toContain("<style>");
+    expect(Array.isArray(parts.tags)).toBe(true);
+    expect(typeof parts.js).toBe("string");
+    // the assembled head is exactly the granular pieces composed
+    const composed = [
+      parts.css && `<style>${parts.css}</style>`,
+      parts.js && `<script>${parts.js}</script>`,
+      ...parts.tags,
+    ]
+      .filter(Boolean)
+      .join("\n");
+    expect(parts.head).toBe(composed);
+  });
+
   it("parts stay embeddable fragments — no document shell leaks in", () => {
     const { head, body } = renderToHtmlParts(
       <Email>

@@ -209,7 +209,11 @@ export function renderToPlainText(
  * Result of renderToHtmlParts — head and body as separate strings.
  */
 export interface HtmlParts {
-  /** `<head>` content: `<style>` blocks with component CSS, optional `<script>` tags */
+  /**
+   * Pre-assembled `<head>` content: the css in a `<style>` tag, the js in a
+   * `<script>` tag, and the tags — joined and ready to drop into a document.
+   * Equivalent to composing the granular fields below yourself.
+   */
   head: string;
   /**
    * The rendered body markup, wrapped in the renderer's host `<div>`. In
@@ -218,6 +222,21 @@ export interface HtmlParts {
    * `<body>` tag when composing a full document.
    */
   body: string;
+  /** Raw component CSS (no `<style>` wrapper) — e.g. for inlining pipelines */
+  css: string;
+  /** Raw component JS (no `<script>` wrapper); empty for most email designs */
+  js: string;
+  /**
+   * Individual head tags (`<meta>`, `<link>`, ...) contributed by components.
+   * Not part of the editor's documented chunk parameters, but exposed here
+   * because `head` can contain them — without this field, reassembling the
+   * head from `css` + `js` would silently drop them. Usually empty.
+   *
+   * There is deliberately no `fonts` chunk: Elements has no font registry to
+   * resolve font URLs from — pass stylesheet URLs via renderToHtml's `fonts`
+   * option instead.
+   */
+  tags: string[];
 }
 
 /**
@@ -286,5 +305,8 @@ export function renderToHtmlParts(
   return {
     head: headParts.join("\n"),
     body,
+    css,
+    js,
+    tags,
   };
 }

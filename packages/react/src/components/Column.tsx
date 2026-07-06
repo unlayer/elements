@@ -1,7 +1,7 @@
 import React from "react";
 import type { RenderMode, UnlayerConfig, ColumnValues } from "@unlayer-internal/shared-elements";
 import { ColumnExporters, ContentExporters } from "@unlayer/exporters";
-import { UNLAYER_RENDER_KEY, nextHtmlId } from "../utils/create-component";
+import { UNLAYER_RENDER_KEY, UNLAYER_CONFIG_KEY, nextHtmlId } from "../utils/create-component";
 import { mapSemanticProps, type SemanticProps } from "../utils/semantic-props";
 import type { SizeInput, BorderInput } from "../types";
 import { COLUMN_DEFAULTS } from "../utils/container-defaults";
@@ -126,6 +126,20 @@ export const Column: React.FC<ColumnProps> = (props) => {
             const ComponentType = child.type as any;
             // Use __unlayerRender (hook-free) if available, otherwise call directly
             const renderFn: Function = ComponentType[UNLAYER_RENDER_KEY] || ComponentType;
+            // Allocate the content id BEFORE rendering and thread it in, so
+            // the value-level _meta.htmlID exporters see (custom tool head
+            // css scopes on it) is unique per instance and matches both the
+            // wrapper id and the head-extraction/json numbering. Custom
+            // tools carry an explicit meta base (custom_<slug>); built-ins
+            // derive it from the component name.
+            const componentName =
+              ComponentType?.[UNLAYER_CONFIG_KEY]?.metaName ??
+              (
+                ComponentType?.displayName ||
+                ComponentType?.name ||
+                "component"
+              ).toLowerCase();
+            const contentHtmlId = nextHtmlId(_config, `u_content_${componentName}`);
             // Thread the column/body context so width-aware item exporters (Image)
             // can size against the real available width (contentWidth × column
             // fraction) instead of the fallback. Mirrors the editor, which passes
@@ -133,6 +147,7 @@ export const Column: React.FC<ColumnProps> = (props) => {
             const rendered = renderFn({
               ...child.props,
               _config,
+              _metaHtmlId: contentHtmlId,
               colIndex: index,
               cells,
               bodyValues,
@@ -149,12 +164,6 @@ export const Column: React.FC<ColumnProps> = (props) => {
             ) {
               const componentHTML =
                 rendered.props.dangerouslySetInnerHTML.__html;
-              const componentType = child.type as any;
-              const componentName = (
-                componentType?.displayName ||
-                componentType?.name ||
-                "component"
-              ).toLowerCase();
 
               // Resolve the block's OWN containerPadding directly from props.
               // `containerPadding` is a universal base-content prop: it passes
@@ -184,7 +193,7 @@ export const Column: React.FC<ColumnProps> = (props) => {
               const contentValues = {
                 containerPadding,
                 _meta: {
-                  htmlID: nextHtmlId(_config, `u_content_${componentName}`),
+                  htmlID: contentHtmlId,
                   htmlClassNames: `u_content_${componentName}`,
                 },
               };

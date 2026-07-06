@@ -49,6 +49,10 @@ export interface BaseItemComponentProps {
 
   // Internal props (for advanced use)
   index?: number;
+  /** @internal — content id allocated by the containing Column; keeps the
+   *  value-level _meta.htmlID unique per instance and aligned with the
+   *  wrapper id and head/json numbering. */
+  _metaHtmlId?: string;
   colIndex?: number;
   cells?: any[];
   bodyValues?: any;
@@ -80,6 +84,22 @@ export interface ItemComponentConfig<TValues, TSemanticProps> {
   /** Per-component exporters map — enables tree-shaking.
    *  Keys are display modes ('web', 'email', 'document'), values are exporter functions. */
   exporters: ItemExporters;
+
+  /** Design-JSON content type override (defaults to the lowercased name).
+   *  Custom tools use "custom". */
+  contentType?: string;
+
+  /** Custom tool name — emitted as the content's `slug` in design JSON. */
+  slug?: string;
+
+  /** Base name for `_meta.htmlID`/`htmlClassNames`, prefixed with
+   *  `u_content_` where used (defaults to the lowercased `name`). Custom
+   *  tools pass `custom_<slug>`, rendering as `u_content_custom_<slug>`. */
+  metaName?: string;
+
+  /** Head contributions (css/js/tags builders) carried by the component
+   *  itself instead of looked up in the exporters registry. */
+  head?: Record<string, any>;
 }
 
 /**
@@ -260,6 +280,7 @@ export function createItemComponent<
 
       // Internal props
       index = 0,
+      _metaHtmlId,
       colIndex = 0,
       cells = [],
       bodyValues = {},
@@ -286,12 +307,17 @@ export function createItemComponent<
     // 2. Merge with defaults
     const finalValues = mergeValues(config.defaultValues, mappedValues);
 
-    // 3. Ensure _meta is present
-    const valuesWithMeta = ensureMeta(
-      finalValues,
-      config.name.toLowerCase(),
-      index
-    );
+    // 3. Ensure _meta is present. The Column-allocated id wins so every
+    //    instance is unique; the index fallback covers standalone renders.
+    const metaName = config.metaName ?? config.name.toLowerCase();
+    const valuesWithMeta = {
+      ...finalValues,
+      _meta: {
+        htmlID: _metaHtmlId ?? `u_content_${metaName}_${index + 1}`,
+        htmlClassNames: `u_content_${metaName}`,
+        ...((finalValues as Record<string, any>)._meta || {}),
+      },
+    };
 
     // 4. Ensure bodyValues has a contentWidth. Default to the schema-shaped
     //    "500px" (matches BodyDefaults.contentWidth and the exporter's image
@@ -373,6 +399,10 @@ export function createItemComponent<
     name: config.name,
     defaultValues: config.defaultValues,
     propMapper: config.propMapper,
+    contentType: config.contentType,
+    slug: config.slug,
+    metaName: config.metaName,
+    head: config.head,
   };
 
   return ItemComponent;
