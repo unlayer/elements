@@ -70,10 +70,28 @@ These props have non-obvious shapes that **must** be followed exactly:
 - **lineHeight**: Accepts a CSS string (`"1.4"`, `"140%"`) or a bare number (kept **unitless**: `lineHeight={1.4}` → `"1.4"`).
 - **Wrapper component**: Use `<Email>`, `<Page>`, or `<Document>` as root — they set the rendering mode automatically.
 - **href**: Can be a plain string URL (auto-wrapped) or `{ name: "web", values: { href, target } }`.
-- **Image sizing**: `src` is a plain URL string or `{ url, width?, height?, ... }`, where `width`/`height` are the image's **natural** size. By default an image is **responsive** — it fills its container, capped at its natural size. For a **fixed** display size, use a **percent**: `width="50%"` or `maxWidth="50%"`. A px/number `width` is treated as the natural size, so `width="300px"` shows the image at up to 300px (responsive).
-- **Heading level**: `headingType` (or its alias `level`) accepts `h1`–`h6`.
+- **Image sizing**: `src` is a plain URL string or `{ url, width?, height?, ... }`. With no width an image is **responsive** — it fills its container. A px/number `width` (flat prop or `src.width`) **pins** the display width: `width="300px"` renders the image at 300px (converted to the editor's percent-of-column form under the hood). A **percent** (`width="50%"` or `maxWidth="50%"`) sizes it relative to its column and stays responsive.
+- **Heading level**: `headingType` (or its alias `level`) accepts `h1`–`h6` for rendering. The editor schema stores only `h1`–`h4` — stick to those if the design must round-trip into the Builder via `renderToJson`.
 - **children**: Text components accept children as shorthand. `<Heading>Hello</Heading>` sets the heading text. `<Paragraph>` supports children for plain text.
 - **Paragraph text**: Use `html` prop for text content (supports inline formatting like `<b>`, `<a>`). Use children for plain text.
+
+## Plain Text vs Raw HTML
+
+Elements keeps React's text semantics: **what you pass as text renders as text**.
+
+- **Escaped (plain text)**: component children, the flat `text` prop, `previewText`, and shorthand arrays (`Menu items`, `Table headers`/`data`, string children of `Row`/`Column`). `"Tom & Jerry <3"` renders literally.
+- **URLs**: string `href`/`url` values are attribute-escaped, and script-executing schemes (`javascript:` etc.) are stripped with a console warning.
+- **Raw HTML (opt-in)**: the `<Html>` component, the `html` prop, and the `values` escape hatch (e.g. `values={{ text: ... }}`) render verbatim. Only pass trusted markup, or configure a sanitizer via `toSafeHtml` in the config (matches the editor's export behavior).
+
+## Error Handling
+
+`renderToHtml`, `renderToHtmlParts`, and `renderToPlainText` **throw** when a block fails to render — a server pipeline should fail loudly rather than send an email with missing content. To degrade gracefully instead (log + skip the failing block, keep its siblings), pass `onError: "render-fallback"`:
+
+```tsx
+const html = renderToHtml(email, { onError: "render-fallback" });
+```
+
+Components rendered directly in an app (e.g. Storybook, previews) keep the graceful fallback by default.
 
 ## Structure: Email/Page/Document > Row > Column > Items
 
@@ -114,7 +132,7 @@ These props have non-obvious shapes that **must** be followed exactly:
 |-----------|-------------|
 | `<Button>` | CTA button with hover states, links, and full styling |
 | `<Paragraph>` | Rich text with `html` (formatted) prop or children (plain text) |
-| `<Heading>` | Heading (h1-h4) with `headingType` prop |
+| `<Heading>` | Heading (h1–h6; the editor round-trips h1–h4) with `headingType` prop |
 | `<Image>` | Responsive image with `src` / `altText` props |
 | `<Divider>` | Horizontal rule / separator |
 | `<Social>` | Social media icons with `icons` shorthand array |
@@ -188,7 +206,7 @@ Use `html` for formatted text, children for plain text.
 
 ### Heading
 - `text?: string` — `"Heading"` (or use children)
-- `headingType?: "h1" | "h2" | "h3" | "h4"` — `"h1"`
+- `headingType?: "h1" | ... | "h6"` — `"h1"` (editor round-trip supports `h1`–`h4`)
 - `fontSize?: string` — `"22px"`
 - `fontWeight?: number` — `400`
 - `fontFamily?: { label: string, value: string }`
@@ -391,7 +409,9 @@ function App() {
 }
 ```
 
-**Important:** The root wrapper (`Email`/`Page`/`Document`) bridges the provider context to child components. Components inside `UnlayerProvider` but without a root wrapper won't receive the config.
+**Precedence:** an explicit `config` prop on `Email`/`Page`/`Document`/`Body` (and options passed to `renderToHtml`) win over the provider; the provider wins over defaults.
+
+**Server Components:** React context is unavailable in RSC trees, so there the provider is inert — pass `config` as a prop (or via `renderToHtml` options) instead. In regular server-side rendering (`renderToHtml`) and client rendering the provider works as shown.
 
 ## Types
 
@@ -408,7 +428,7 @@ import type {
 
 ## Common Font Stacks
 
-fontFamily must always be an object. Here are ready-to-use stacks:
+fontFamily accepts a plain family-name string (normalized for you) or a `{ label, value }` object for a full stack. Ready-to-use stacks:
 
 ```tsx
 const sansFont = { label: "Sans Serif", value: "system-ui, -apple-system, BlinkMacSystemFont, sans-serif" };

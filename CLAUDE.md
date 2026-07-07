@@ -108,7 +108,7 @@ Example: `<Button fontSize="16px">` → `{ style: { fontSize: "16px" } }` in the
 
 - TypeScript strict compilation
 - All unit tests pass
-- Bundle size < 75KB (ESM)
+- Bundle size < 100KB (unminified ESM)
 - Next.js integration build succeeds
 - Browser E2E gate passes (rendered documents verified in Chromium: 0px `<p>` margins, single `<body>`, no errors)
 - Storybook smoke test passes (every story renders, no console errors)
@@ -117,8 +117,10 @@ Example: `<Button fontSize="16px">` → `{ style: { fontSize: "16px" } }` in the
 
 ## Common Gotchas
 
-- `fontFamily` must be `{ label: string, value: string }`, NOT a plain string
-- `fontWeight` must be a number (400, 700), NOT a string
+- `fontFamily` accepts a plain family-name string (normalized at render) or `{ label: string, value: string }` for a full stack
+- `fontWeight` accepts a number (400, 700), a numeric string, or a CSS keyword (normalized at render)
+- Plain-text surfaces (children, `text` prop, shorthand arrays, `previewText`) are HTML-escaped; raw HTML goes through `<Html>`, the `html` prop, or the `values` escape hatch
+- `renderToHtml`/`renderToHtmlParts`/`renderToPlainText` throw on render errors by default; pass `onError: "render-fallback"` to degrade gracefully
 - Column count in a Row must match the layout (e.g., `TwoEqual` needs exactly 2 `<Column>` children)
 - The shared package is private and bundled into react via tsup's `noExternal` — it's never installed separately
 - `renderToHtml()` returns a complete HTML document (`<!DOCTYPE ...>` to `</html>`) with a per-mode shell matching the editor's export layouts; `renderToHtmlParts()` returns the embeddable `{ head, body }` chunks. Both use `renderToStaticMarkup` internally (no hydration markers)
