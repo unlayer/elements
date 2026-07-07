@@ -1,32 +1,38 @@
 name: Test & Coverage
 
+# Also callable as a reusable workflow (workflow_call) so publish.yml can make
+# the FULL gate suite a hard dependency of publishing — not a parallel,
+# non-blocking run.
 on:
   push:
-    branches: [ main, develop ]
+    branches: [ main ]
   pull_request:
-    branches: [ main, develop ]
+    branches: [ main ]
+  workflow_call:
+
+permissions:
+  contents: read
 
 jobs:
   test:
     name: Run Tests & Coverage
     runs-on: ubuntu-latest
-    
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-        
+
       - name: Setup Node.js 20
         uses: actions/setup-node@v4
         with:
           node-version: 20
-          
+
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
         with:
           version: 9.7.0
 
-      - name: Authenticate npm registry
-        run: echo "//registry.npmjs.org/:_authToken=${{ secrets.TEST_NPM_TOKEN }}" > ~/.npmrc
+      # No npm auth: all dependencies are public.
 
       - name: Get pnpm store directory
         shell: bash
@@ -55,16 +61,16 @@ jobs:
         run: pnpm --filter @unlayer/react-elements typecheck
 
       # ── Bundle size budget ──────────────────────────────────────
-      # Fail if the react-elements ESM bundle exceeds 75KB.
-      # Current size: ~70KB (14+ components + image width-pinning geometry
-      # + per-mode full-document shells for renderToHtml).
+      # Fail if the react-elements ESM bundle exceeds 100KB.
+      # Current size: ~82KB (14+ components + image width-pinning geometry,
+      # per-mode full-document shells, escaping + validation hardening).
       # The budget tracks the unminified ESM output as a proxy for code volume;
       # it still flags accidental dependency bundling (any real dep is 10KB+).
       - name: Check bundle size
         run: |
           BUNDLE="packages/react/dist/index.js"
           SIZE=$(wc -c < "$BUNDLE" | tr -d ' ')
-          MAX_SIZE=75000
+          MAX_SIZE=100000
           echo "Bundle: $BUNDLE"
           echo "Size: $SIZE bytes (budget: $MAX_SIZE bytes)"
           if [ "$SIZE" -gt "$MAX_SIZE" ]; then

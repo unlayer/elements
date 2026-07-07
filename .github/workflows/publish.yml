@@ -1,9 +1,12 @@
 # Release & Publish
 #
 # Gated publish flow:
-#   1. PR merged to main → triggers build & test
+#   1. PR merged to main → the FULL quality-gate suite runs (reusable
+#      test.yml: typecheck, bundle budget, tests, CSP, browser E2E,
+#      Storybook smoke/visual, Next.js integration)
 #   2. A reviewer approves the publish in the Actions UI (environment gate)
-#   3. Package is published to npm via trusted publishing (OIDC)
+#   3. Package is published to npm via trusted publishing (OIDC) with
+#      provenance, from the exact SHA the gates ran against
 #
 # Version: reads the latest published version from npm and bumps from that.
 # Defaults to patch. Add a `release:minor` or `release:major` PR label to
@@ -36,48 +39,18 @@ on:
         default: patch
 
 jobs:
-  build-and-test:
-    name: Build & Test
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Setup Node.js 20
-        uses: actions/setup-node@v4
-        with:
-          node-version: 20
-
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v4
-        with:
-          version: 9.7.0
-
-      - name: Get pnpm store directory
-        shell: bash
-        run: echo "STORE_PATH=$(pnpm store path --silent)" >> $GITHUB_ENV
-
-      - name: Setup pnpm cache
-        uses: actions/cache@v4
-        with:
-          path: ${{ env.STORE_PATH }}
-          key: ${{ runner.os }}-pnpm-store-${{ hashFiles('**/pnpm-lock.yaml') }}
-          restore-keys: |
-            ${{ runner.os }}-pnpm-store-
-
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
-
-      - name: Build packages
-        run: pnpm build
-
-      - name: Run tests
-        run: pnpm test
+  # The FULL quality-gate suite (typecheck, bundle budget, unit tests, CSP
+  # gate, browser E2E, Storybook smoke + visual drift, Next.js integration)
+  # is a hard dependency of publishing — a publish cannot be approved while
+  # any advertised gate is red.
+  gates:
+    name: Quality gates
+    uses: ./.github/workflows/test.yml
+    secrets: inherit
 
   publish:
     name: Publish to npm
-    needs: build-and-test
+    needs: gates
     runs-on: ubuntu-latest
     concurrency:
       group: publish
@@ -89,10 +62,12 @@ jobs:
       pull-requests: read
 
     steps:
+      # Check out the SHA the gates ran against — main may have advanced
+      # between the test run and the environment approval.
       - name: Checkout code
         uses: actions/checkout@v4
         with:
-          ref: main
+          ref: ${{ github.sha }}
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
@@ -107,8 +82,10 @@ jobs:
           node-version: 20
           registry-url: https://registry.npmjs.org
 
+      # Pinned major — the publish path must not drift with whatever npm
+      # ships the day of a release.
       - name: Update npm for trusted publishing
-        run: npm install -g npm@latest
+        run: npm install -g npm@11
 
       - name: Get pnpm store directory
         shell: bash
@@ -185,13 +162,14 @@ jobs:
       # Two-step publish: pnpm pack resolves catalog: protocol to real
       # version numbers, then npm publish handles OIDC trusted publishing.
       # npm publish alone does NOT understand catalog: and would ship broken deps.
-      # No --provenance flag — not supported for private source repos.
+      # --provenance: the repo is public, so consumers get a verifiable
+      # supply-chain attestation linking the tarball to this workflow run.
       - name: Publish to npm (trusted publishing)
         working-directory: packages/react
         run: |
           pnpm pack --pack-destination /tmp
           TARBALL=$(ls /tmp/unlayer-react-elements-*.tgz)
-          npm publish "$TARBALL" --access public
+          npm publish "$TARBALL" --access public --provenance
 
       - name: Tag release
         run: |

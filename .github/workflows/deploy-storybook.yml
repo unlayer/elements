@@ -5,10 +5,22 @@ on:
     branches: [ main ]
   pull_request:
     branches: [ main ]
+    types: [opened, synchronize, reopened, closed]
+
+permissions:
+  contents: write
+  pull-requests: write
 
 jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
+    # PR previews publish unreviewed HTML to the live Pages origin, so they
+    # are limited to same-repo branches (fork PRs also have a read-only
+    # GITHUB_TOKEN and could never deploy — this skips the red-noise run).
+    if: >-
+      github.event.action != 'closed' &&
+      (github.event_name == 'push' ||
+       github.event.pull_request.head.repo.full_name == github.repository)
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -23,8 +35,7 @@ jobs:
         with:
           version: 9.7.0
 
-      - name: Authenticate npm registry
-        run: echo "//registry.npmjs.org/:_authToken=${{ secrets.TEST_NPM_TOKEN }}" > ~/.npmrc
+      # No npm auth: all dependencies are public.
 
       - name: Get pnpm store directory
         shell: bash
@@ -63,7 +74,7 @@ jobs:
       # Main branch → deploy to root
       - name: Deploy (main)
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-        uses: peaceiris/actions-gh-pages@v3
+        uses: peaceiris/actions-gh-pages@373f7f263a76c20808c831209c920827a82a2847 # v3.9.3
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           publish_dir: ./packages/react/storybook-static
@@ -76,7 +87,7 @@ jobs:
       # PR → deploy to /pr/<number>/ subdirectory (doesn't touch main)
       - name: Deploy (PR preview)
         if: github.event_name == 'pull_request'
-        uses: peaceiris/actions-gh-pages@v3
+        uses: peaceiris/actions-gh-pages@373f7f263a76c20808c831209c920827a82a2847 # v3.9.3
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           publish_dir: ./packages/react/storybook-static
@@ -114,3 +125,30 @@ jobs:
               pull_number: context.issue.number,
               body: newBody,
             });
+
+  # Remove the pr/<number>/ preview from gh-pages when the PR closes so the
+  # live origin doesn't accumulate stale unreviewed HTML.
+  cleanup-preview:
+    runs-on: ubuntu-latest
+    if: >-
+      github.event_name == 'pull_request' &&
+      github.event.action == 'closed' &&
+      github.event.pull_request.head.repo.full_name == github.repository
+    steps:
+      - name: Checkout gh-pages
+        uses: actions/checkout@v4
+        with:
+          ref: gh-pages
+
+      - name: Remove preview directory
+        run: |
+          PR_DIR="pr/${{ github.event.pull_request.number }}"
+          if [ -d "$PR_DIR" ]; then
+            git config user.name "github-actions[bot]"
+            git config user.email "github-actions[bot]@users.noreply.github.com"
+            git rm -r --quiet "$PR_DIR"
+            git commit -m "chore: remove Storybook preview for closed PR #${{ github.event.pull_request.number }}"
+            git push origin gh-pages
+          else
+            echo "No preview directory $PR_DIR — nothing to clean up"
+          fi
