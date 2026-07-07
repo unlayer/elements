@@ -144,13 +144,16 @@ describe("mapSemanticProps", () => {
   });
 
   describe("children → text/textJson conversion", () => {
-    it("converts children to text for Button", () => {
+    it("converts children to inline textJson for Button (exporter decodes legacy text)", () => {
       const result = mapSemanticProps(
         { children: "Click me" },
         BUTTON_DEFAULTS,
         "Button"
       );
-      expect(result.text).toBe("Click me");
+      expect(result.text).toBeUndefined();
+      const parsed = JSON.parse((result as { textJson?: string }).textJson!);
+      expect(parsed.root.children[0].isInlineTool).toBe(true);
+      expect(parsed.root.children[0].children[0].text).toBe("Click me");
     });
 
     it("converts children to textJson for Paragraph", () => {

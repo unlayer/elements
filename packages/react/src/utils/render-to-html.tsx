@@ -22,6 +22,43 @@ const MODE_BY_WRAPPER: Record<string, RenderMode> = {
   Document: "document",
 };
 
+/** displayName of a React element's component type. */
+function elementDisplayName(element: React.ReactElement): string | undefined {
+  return (element.type as { displayName?: string })?.displayName;
+}
+
+function isUnlayerWrapperElement(element: React.ReactElement): boolean {
+  const name = elementDisplayName(element);
+  return name === "Body" || (name ? name in MODE_BY_WRAPPER : false);
+}
+
+/**
+ * See through an <UnlayerProvider> root (or a chain of them) to the wrapper
+ * element it hosts, collecting the provider configs along the way. Mode
+ * resolution, head extraction, and the outer-div strip must all operate on
+ * the wrapper, not the provider.
+ */
+function unwrapProviderRoot(element: React.ReactElement): {
+  element: React.ReactElement;
+  providerConfig?: Partial<UnlayerConfig>;
+} {
+  let current = element;
+  let providerConfig: Partial<UnlayerConfig> | undefined;
+  while (elementDisplayName(current) === "UnlayerProvider") {
+    const props = current.props as {
+      config?: Partial<UnlayerConfig>;
+      children?: React.ReactNode;
+    };
+    const elementChildren = React.Children.toArray(props.children).filter(
+      React.isValidElement
+    ) as React.ReactElement[];
+    if (elementChildren.length !== 1) break;
+    providerConfig = { ...providerConfig, ...props.config };
+    current = elementChildren[0];
+  }
+  return { element: current, providerConfig };
+}
+
 /**
  * Resolve the display mode for a tree: wrapper component type first
  * (Email/Page/Document), then an explicit `mode` prop (Body), then config.
@@ -30,33 +67,68 @@ function resolveDisplayMode(
   element: React.ReactElement,
   mergedConfig: Partial<UnlayerConfig>
 ): RenderMode {
-  const displayName = (element.type as { displayName?: string })?.displayName;
+  const displayName = elementDisplayName(element);
   const wrapperMode = displayName ? MODE_BY_WRAPPER[displayName] : undefined;
+  const props = element.props as {
+    mode?: RenderMode;
+    config?: Partial<UnlayerConfig>;
+  };
   return (
     wrapperMode ??
-    (element.props as { mode?: RenderMode }).mode ??
+    props.mode ??
+    // A <Body config={{ mode }}> prop participates the same way it does in
+    // Body's own resolution, so the document shell matches the body markup.
+    props.config?.mode ??
     mergedConfig.mode ??
     "web"
   );
 }
 
 /**
+ * Inject the caller's config options into the tree's Body/Email/Page/Document
+ * root, reaching through <UnlayerProvider> roots. Only the raw options are
+ * injected (not defaults) so Body's own resolution keeps the intended
+ * precedence: explicit options > provider context > defaults.
+ */
+function injectConfig(
+  element: React.ReactElement,
+  config: Partial<UnlayerConfig>
+): React.ReactElement {
+  if (elementDisplayName(element) === "UnlayerProvider") {
+    const children = React.Children.toArray(
+      (element.props as { children?: React.ReactNode }).children
+    );
+    const elementChildren = children.filter(React.isValidElement) as React.ReactElement[];
+    if (children.length === 1 && elementChildren.length === 1) {
+      return React.cloneElement(
+        element,
+        undefined,
+        injectConfig(elementChildren[0], config)
+      );
+    }
+    return element;
+  }
+  if (isUnlayerWrapperElement(element)) {
+    const existing = (element.props as { config?: Partial<UnlayerConfig> }).config;
+    return React.cloneElement(element, { config: { ...existing, ...config } });
+  }
+  return element;
+}
+
+/**
  * Render the element tree to body markup (no document shell).
  *
- * - Passes merged config via the `config` prop (no React context — works in
- *   Server Components)
+ * - Passes config via the `config` prop (no React context — works in
+ *   Server Components); an UnlayerProvider in the tree still applies because
+ *   only the caller's explicit options are injected.
  * - Uses `renderToStaticMarkup` — no React hydration markers
  */
 function renderBody(
   element: React.ReactElement,
   config?: Partial<UnlayerConfig>
 ): string {
-  const mergedConfig = { ...DEFAULT_CONFIG, ...config };
-
   try {
-    // Pass config via prop (not context) so this works in React Server Components.
-    // Body reads `config` prop and threads it as `_config` to children via cloneElement.
-    const enriched = React.cloneElement(element, { config: mergedConfig });
+    const enriched = injectConfig(element, config ?? {});
     return renderToStaticMarkup(enriched);
   } catch (error) {
     const message =
@@ -135,18 +207,23 @@ export function renderToHtml(
 ): string {
   const { title, fonts = [], ...config } = options ?? {};
 
-  const mergedConfig = { ...DEFAULT_CONFIG, ...config };
-  const displayMode = resolveDisplayMode(element, mergedConfig);
+  // Server pipelines must fail loudly: a render error raises instead of
+  // shipping a document with missing blocks. Pass onError: "render-fallback"
+  // to opt back into placeholder rendering.
+  const effectiveConfig: Partial<UnlayerConfig> = { onError: "throw", ...config };
+
+  // See through an UnlayerProvider root: mode, head extraction, and the
+  // outer-div strip are all decided by the wrapper element it hosts.
+  const { element: wrapperElement, providerConfig } = unwrapProviderRoot(element);
+  const mergedConfig = { ...DEFAULT_CONFIG, ...providerConfig, ...config };
+  const displayMode = resolveDisplayMode(wrapperElement, mergedConfig);
 
   // Only Unlayer wrappers (Body/Email/Page/Document) get their renderer's
   // host <div> stripped — for any other root (a bare item, a custom
   // component) the outer div is the element's own markup and must stay.
-  const wrapperName = (element.type as { displayName?: string })?.displayName;
-  const isUnlayerWrapper =
-    wrapperName === "Body" || (wrapperName ? wrapperName in MODE_BY_WRAPPER : false);
-  const rawBody = renderBody(element, config);
-  const body = isUnlayerWrapper ? stripOuterDiv(rawBody) : rawBody;
-  const { css, js, tags } = extractHeadFromTree(element, {
+  const rawBody = renderBody(element, effectiveConfig);
+  const body = isUnlayerWrapperElement(wrapperElement) ? stripOuterDiv(rawBody) : rawBody;
+  const { css, js, tags } = extractHeadFromTree(wrapperElement, {
     displayMode,
     headConfig: mergedConfig.headConfig,
   });
@@ -201,7 +278,7 @@ export function renderToPlainText(
   element: React.ReactElement,
   config?: Partial<UnlayerConfig>
 ): string {
-  const html = renderBody(element, config);
+  const html = renderBody(element, { onError: "throw", ...config });
   return htmlToPlainText(html);
 }
 
@@ -274,15 +351,17 @@ export function renderToHtmlParts(
   element: React.ReactElement,
   config?: Partial<UnlayerConfig>
 ): HtmlParts {
-  // Render body markup
-  const body = renderBody(element, config);
+  // Render body markup (failing loudly by default, like renderToHtml)
+  const body = renderBody(element, { onError: "throw", ...config });
 
-  // Resolve display mode from the wrapper component, element props, or config
-  const mergedConfig = { ...DEFAULT_CONFIG, ...config };
-  const displayMode = resolveDisplayMode(element, mergedConfig);
+  // Resolve display mode from the wrapper component (seeing through an
+  // UnlayerProvider root), element props, or config
+  const { element: wrapperElement, providerConfig } = unwrapProviderRoot(element);
+  const mergedConfig = { ...DEFAULT_CONFIG, ...providerConfig, ...config };
+  const displayMode = resolveDisplayMode(wrapperElement, mergedConfig);
 
   // Extract head CSS/JS/tags by walking the element tree
-  const { css, js, tags } = extractHeadFromTree(element, {
+  const { css, js, tags } = extractHeadFromTree(wrapperElement, {
     displayMode,
     headConfig: mergedConfig.headConfig,
   });

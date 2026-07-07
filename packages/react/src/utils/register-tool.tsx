@@ -181,6 +181,16 @@ export function registerTool(
   if (!tool?.name || typeof tool.name !== "string") {
     throw new Error("[Unlayer] registerTool: `name` is required");
   }
+  // The name becomes the design-JSON slug and part of HTML ids
+  // (u_content_custom_<name>_1) that head CSS selectors target — spaces or
+  // uppercase would produce invalid ids and selectors that never match.
+  if (!/^[a-z0-9_-]+$/.test(tool.name)) {
+    throw new Error(
+      `[Unlayer] registerTool("${tool.name}"): \`name\` must match ` +
+        "/^[a-z0-9_-]+$/ (lowercase letters, digits, underscores, hyphens) — " +
+        "it is used as the design-JSON slug and inside HTML ids."
+    );
+  }
   const exporters = tool.renderer?.exporters;
   if (!exporters || (!exporters.web && !exporters.email)) {
     throw new Error(
@@ -222,6 +232,3 @@ export function registerTool(
     head: tool.renderer.head,
   });
 }
-
-/** Alias of {@link registerTool}. */
-export const registerElementsTool = registerTool;

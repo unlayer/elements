@@ -5,8 +5,9 @@ import type { UnlayerConfig } from "@unlayer-internal/shared-elements";
 import { DEFAULT_CONFIG } from "@unlayer-internal/shared-elements";
 
 /**
- * @internal Flag added to context value when a provider is active.
- * Used by item components to detect provider-without-Body usage.
+ * @internal Flag added to the context value while a provider is mounted.
+ * Body uses it to distinguish "provider config" from the context default —
+ * only a real provider's config participates in Body's config resolution.
  */
 export const PROVIDER_ACTIVE_KEY = "__unlayerProviderActive";
 
@@ -45,6 +46,30 @@ export const UnlayerProvider: React.FC<UnlayerProviderProps> = ({
 
 UnlayerProvider.displayName = "UnlayerProvider";
 
+/** Strip the internal provider-active flag from a context value. */
+function withoutProviderFlag(ctx: Record<string, any>): UnlayerConfig {
+  const { [PROVIDER_ACTIVE_KEY]: _active, ...config } = ctx;
+  return config as UnlayerConfig;
+}
+
 export function useUnlayerConfig(): UnlayerConfig {
-  return useContext(getUnlayerContext());
+  return withoutProviderFlag(useContext(getUnlayerContext()) as Record<string, any>);
+}
+
+/**
+ * @internal Read the mounted provider's config from inside a component render.
+ *
+ * Returns undefined when no provider is mounted, and — via the try/catch —
+ * in React Server Components, where context is unavailable. That fallback is
+ * what lets Body consult the provider in client/SSR renders while staying
+ * usable as a Server Component (where config must arrive via the prop).
+ */
+export function readProviderConfig(): Partial<UnlayerConfig> | undefined {
+  try {
+    const ctx = useContext(getUnlayerContext()) as Record<string, any>;
+    if (!ctx || ctx[PROVIDER_ACTIVE_KEY] !== true) return undefined;
+    return withoutProviderFlag(ctx);
+  } catch {
+    return undefined;
+  }
 }

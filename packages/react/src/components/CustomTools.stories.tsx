@@ -136,7 +136,7 @@ const meta: Meta = {
     docs: {
       description: {
         component: `
-Custom tools created with \`registerElementsTool\` — the same tool definition
+Custom tools created with \`registerTool\` — the same tool definition
 object embedders write for the editor's \`unlayer.registerTool\` ([Custom Tools
 docs](https://docs.unlayer.com/builder/tools/custom)). Elements uses the
 \`renderer.exporters\`/\`renderer.head\` half; the editor uses the Viewer and

@@ -25,7 +25,7 @@ import { UnlayerProvider, useUnlayerConfig } from "./context";
 import { renderToHtml, renderToPlainText, renderToHtmlParts } from "./utils/render-to-html";
 export type { HtmlParts, RenderToHtmlOptions } from "./utils/render-to-html";
 import { renderToJson, renderRowToJson } from "./utils/render-to-json";
-import { registerTool, registerElementsTool } from "./utils/register-tool";
+import { registerTool } from "./utils/register-tool";
 export type { ElementsToolConfig, ElementsToolProps, ToolExporter } from "./utils/register-tool";
 import { htmlToTextJson } from "@unlayer-internal/shared-elements";
 
@@ -76,6 +76,10 @@ export type {
   DesignContent,
 } from "@unlayer-internal/shared-elements";
 
+// Utility types users need to type their own wrappers/config.
+export type { RenderMode } from "@unlayer-internal/shared-elements";
+export type { HeadConfig } from "@unlayer-internal/shared-elements";
+
 // Component prop types — each lives with its component (single source of truth).
 export type { ButtonProps } from "./components/Button";
 export type { DividerProps } from "./components/Divider";
@@ -88,6 +92,8 @@ export type { SocialProps } from "./components/Social";
 export type { TableProps } from "./components/Table";
 export type { VideoProps } from "./components/Video";
 export type { RowProps } from "./components/Row";
+export type { ColumnProps } from "./components/Column";
+export type { BodyProps } from "./components/Body";
 export type { EmailProps } from "./components/Email";
 export type { PageProps } from "./components/Page";
 export type { DocumentProps } from "./components/Document";
@@ -124,7 +130,6 @@ export {
   renderToJson,
   renderRowToJson,
   registerTool,
-  registerElementsTool,
   htmlToTextJson,
   type ColumnLayout,
   type ValidColumnLayout

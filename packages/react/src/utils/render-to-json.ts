@@ -87,13 +87,19 @@ function unwrapRoot(element: React.ReactElement): React.ReactElement {
   return current;
 }
 
-/** Collect valid React element children from a node. */
+/** Collect valid React element children from a node, flattening Fragments —
+ *  a <>…</> around Rows/Columns must not hide them from the walkers. */
 function collectChildren(node: React.ReactNode): React.ReactElement[] {
   const result: React.ReactElement[] = [];
   React.Children.forEach(node, (child) => {
-    if (React.isValidElement(child)) {
-      result.push(child);
+    if (!React.isValidElement(child)) return;
+    if (child.type === React.Fragment) {
+      result.push(
+        ...collectChildren((child.props as { children?: React.ReactNode }).children)
+      );
+      return;
     }
+    result.push(child);
   });
   return result;
 }

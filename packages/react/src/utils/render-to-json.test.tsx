@@ -151,7 +151,8 @@ describe("renderToJson", () => {
 
     const itemValues = design.body.rows[0].columns[0].contents[0].values;
     expect(itemValues.fontSize).toBe("20px");
-    expect(itemValues.text).toBe("Click me");
+    // Children travel as textJson (the editor's modern storage for Button)
+    expect(itemValues.textJson).toContain("Click me");
   });
 
   it("generates unique IDs via _meta.htmlID", () => {
@@ -390,8 +391,8 @@ describe("renderToJson", () => {
     // Default value preserved
     expect(buttonValues.borderRadius).toBe("4px");
     expect(buttonValues.textAlign).toBe("center");
-    // Children mapped to text
-    expect(buttonValues.text).toBe("Big Button");
+    // Children mapped to textJson (the editor's modern storage for Button)
+    expect(buttonValues.textJson).toContain("Big Button");
   });
 
   it("handles multiple items in a single column", () => {

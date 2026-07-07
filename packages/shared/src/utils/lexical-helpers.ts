@@ -34,6 +34,25 @@ export function textToTextJson(text: string): string {
   return `{"root":{"children":[{"children":[{"detail":0,"format":0,"mode":"normal","style":"","text":${escaped},"type":"extended-text","version":1}],"format":"","indent":0,"type":"extended-paragraph","version":1,"textFormat":0,"textStyle":""}],"format":"","indent":0,"type":"root","version":1}}`;
 }
 
+/**
+ * Create Lexical JSON for plain text in an INLINE tool (Button, Heading).
+ *
+ * Same as {@link textToTextJson} but the paragraph node carries
+ * `isInlineTool: true`, matching how the editor serializes button/heading
+ * text — it exports as a bare `<span>` instead of a block `<p>`.
+ *
+ * This is also the safe path for these components: their exporters
+ * entity-decode the legacy plain `text` field (lodash `unescape`), so
+ * pre-escaped text would be undone there; the textJson path renders through
+ * `generateHtmlFromTextJson`, which escapes text nodes.
+ */
+export function textToInlineTextJson(text: string): string {
+  if (!text) return EMPTY_TEXT_JSON;
+
+  const escaped = JSON.stringify(text);
+  return `{"root":{"children":[{"children":[{"detail":0,"format":0,"mode":"normal","style":"","text":${escaped},"type":"extended-text","version":1}],"format":"","indent":0,"type":"extended-paragraph","version":1,"textFormat":0,"textStyle":"","isInlineTool":true}],"format":"","indent":0,"type":"root","version":1}}`;
+}
+
 // ── Lexical format bitmask → HTML tag mapping ────────────────────────────────
 // Lexical encodes inline formatting in a numeric `format` bitmask on text nodes.
 const FORMAT_TAGS: Array<[number, string, string]> = [

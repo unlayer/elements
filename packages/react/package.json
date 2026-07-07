@@ -23,6 +23,9 @@
     "unlayer"
   ],
   "sideEffects": false,
+  "engines": {
+    "node": ">=18"
+  },
   "peerDependencies": {
     "react": ">=18",
     "react-dom": ">=18"
@@ -36,9 +39,14 @@
   "module": "./dist/index.js",
   "exports": {
     ".": {
-      "types": "./dist/index.d.ts",
-      "import": "./dist/index.js",
-      "require": "./dist/index.cjs"
+      "import": {
+        "types": "./dist/index.d.ts",
+        "default": "./dist/index.js"
+      },
+      "require": {
+        "types": "./dist/index.d.cts",
+        "default": "./dist/index.cjs"
+      }
     },
     "./package.json": "./package.json"
   },

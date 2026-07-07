@@ -1,6 +1,7 @@
 import Body, { type BodyProps } from "./Body";
 
-export type PageProps = Omit<BodyProps, "mode">;
+// previewText is email-only — accepting it here would be a silent no-op.
+export type PageProps = Omit<BodyProps, "mode" | "previewText">;
 
 /**
  * Page - Renders with div/flexbox for responsive web display.

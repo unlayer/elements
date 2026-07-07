@@ -60,7 +60,7 @@ exports[`Render Snapshots > Body + Row + Column + Items > full tree email 1`] = 
 <div class="v-text-align" align="center">
   <!--[if mso]><v:roundrect xmlns:v="urn:schemas-microsoft-com:vml" xmlns:w="urn:schemas-microsoft-com:office:word" href="" style="height:45px; v-text-anchor:middle; width:120px;" arcsize="9%"  stroke="f" fillcolor="#0879A1"><w:anchorlock/><center style="color:#FFFFFF;"><![endif]-->
     <a href="" target="_blank" class="v-button v-size-width v-button-colors v-border v-border-radius v-font-family v-font-size v-font-weight v-letter-spacing" style="box-sizing: border-box;display: inline-block;text-decoration: none;-webkit-text-size-adjust: none;text-align: center;color: #FFFFFF; background-color: #0879A1; border-radius: 4px;-webkit-border-radius: 4px; -moz-border-radius: 4px; width:auto; max-width:100%; overflow-wrap: break-word; word-break: break-word; word-wrap:break-word; mso-border-alt: none;font-size: 14px;">
-      <span class="v-line-height v-padding" style="display:block;padding:10px 20px;line-height:120%;">Click</span>
+      <span class="v-line-height v-padding" style="display:block;padding:10px 20px;line-height:120%;"><span>Click</span></span>
     </a>
     <!--[if mso]></center></v:roundrect><![endif]-->
 </div>
@@ -137,7 +137,7 @@ exports[`Render Snapshots > Body + Row + Column + Items > full tree web 1`] = `
     
 <div class="v-text-align" style="text-align: center;">
   <a href="" target="_blank" class="v-size-width v-line-height v-padding v-button-colors v-border v-border-radius v-font-family v-font-size v-font-weight v-letter-spacing" style="color:#FFFFFF;background-color:#0879A1;border-radius: 4px;line-height:120%;display:inline-block;text-decoration:none;text-align:center;padding:10px 20px;width:auto;max-width:100%;word-wrap:break-word;font-size: 14px;">
-    Click
+    <span>Click</span>
   </a>
 </div>
 
@@ -204,7 +204,7 @@ exports[`Render Snapshots > Button > email 1`] = `
 <div class="v-text-align" align="center">
   <!--[if mso]><v:roundrect xmlns:v="urn:schemas-microsoft-com:vml" xmlns:w="urn:schemas-microsoft-com:office:word" href="" style="height:45px; v-text-anchor:middle; width:120px;" arcsize="9%"  stroke="f" fillcolor="#0879A1"><w:anchorlock/><center style="color:#FFFFFF;"><![endif]-->
     <a href="" target="_blank" class="v-button v-size-width v-button-colors v-border v-border-radius v-font-family v-font-size v-font-weight v-letter-spacing" style="box-sizing: border-box;display: inline-block;text-decoration: none;-webkit-text-size-adjust: none;text-align: center;color: #FFFFFF; background-color: #0879A1; border-radius: 4px;-webkit-border-radius: 4px; -moz-border-radius: 4px; width:auto; max-width:100%; overflow-wrap: break-word; word-break: break-word; word-wrap:break-word; mso-border-alt: none;font-size: 14px;">
-      <span class="v-line-height v-padding" style="display:block;padding:10px 20px;line-height:120%;">Click me</span>
+      <span class="v-line-height v-padding" style="display:block;padding:10px 20px;line-height:120%;"><span>Click me</span></span>
     </a>
     <!--[if mso]></center></v:roundrect><![endif]-->
 </div>
@@ -215,7 +215,7 @@ exports[`Render Snapshots > Button > web 1`] = `
 "<div>
 <div class="v-text-align" style="text-align: center;">
   <a href="" target="_blank" class="v-size-width v-line-height v-padding v-button-colors v-border v-border-radius v-font-family v-font-size v-font-weight v-letter-spacing" style="color:#FFFFFF;background-color:#0879A1;border-radius: 4px;line-height:120%;display:inline-block;text-decoration:none;text-align:center;padding:10px 20px;width:auto;max-width:100%;word-wrap:break-word;font-size: 14px;">
-    Click me
+    <span>Click me</span>
   </a>
 </div>
 </div>"
@@ -240,26 +240,26 @@ exports[`Render Snapshots > Divider > web 1`] = `"<div><div style="text-align:ce
 exports[`Render Snapshots > Heading > email 1`] = `
 "<div>
   <!--[if mso]><table role="presentation" width="100%"><tr><td><![endif]-->
-    <h1 class="v-color v-text-align v-line-height v-font-size v-font-weight v-letter-spacing" style="margin: 0px; color: #000000; line-height: 140%; text-align: left; word-wrap: break-word; font-size: 22px; font-weight: 400;">Hello World</h1>
+    <h1 class="v-color v-text-align v-line-height v-font-size v-font-weight v-letter-spacing" style="margin: 0px; color: #000000; line-height: 140%; text-align: left; word-wrap: break-word; font-size: 22px; font-weight: 400;"><span>Hello World</span></h1>
   <!--[if mso]></td></tr></table><![endif]-->
 </div>"
 `;
 
 exports[`Render Snapshots > Heading > web 1`] = `
 "<div>
-  <h1 class="v-color v-text-align v-line-height v-font-size v-font-weight v-letter-spacing" style="margin: 0px; color: #000000; line-height: 140%; text-align: left; word-wrap: break-word; font-size: 22px; font-weight: 400;">Hello World</h1>
+  <h1 class="v-color v-text-align v-line-height v-font-size v-font-weight v-letter-spacing" style="margin: 0px; color: #000000; line-height: 140%; text-align: left; word-wrap: break-word; font-size: 22px; font-weight: 400;"><span>Hello World</span></h1>
 </div>"
 `;
 
 exports[`Render Snapshots > Html > email 1`] = `
 "<div>
   <div>
-    <strong>Hello, world!</strong>
+    <p>Custom HTML</p>
   </div>
 </div>"
 `;
 
-exports[`Render Snapshots > Html > web 1`] = `"<div><div><strong>Hello, world!</strong></div></div>"`;
+exports[`Render Snapshots > Html > web 1`] = `"<div><div><p>Custom HTML</p></div></div>"`;
 
 exports[`Render Snapshots > Image > email 1`] = `
 "<div>

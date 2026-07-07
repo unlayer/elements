@@ -1,10 +1,12 @@
 import React from "react";
 import ReactDOMServer from "react-dom/server";
 import type { RenderMode, UnlayerConfig, BodyValues } from "@unlayer-internal/shared-elements";
-import { DEFAULT_CONFIG, mergeValues } from "@unlayer-internal/shared-elements";
+import { DEFAULT_CONFIG, mergeValues, escapeHtml } from "@unlayer-internal/shared-elements";
 import { BodyExporters } from "@unlayer/exporters";
 import { mapSemanticProps, type SemanticProps } from "../utils/semantic-props";
 import { nextHtmlId } from "../utils/create-component";
+import { flattenChildren } from "../utils/children";
+import { readProviderConfig } from "../context/UnlayerProvider";
 import type { SizeInput } from "../types";
 import { BODY_DEFAULTS } from "../utils/container-defaults";
 
@@ -49,9 +51,11 @@ function generatePreviewHtml(text: string): string {
     padding += PADDING_CHARS[i % PADDING_CHARS.length];
   }
 
+  // previewText is plain text — escape it (like the parallel `title` field)
+  // so inbox copy with < & " renders literally instead of becoming markup.
   return (
     `<div data-skip-in-text="true" style="display:none;font-size:1px;color:#ffffff;line-height:1px;max-height:0px;max-width:0px;opacity:0;overflow:hidden;">` +
-    truncated +
+    escapeHtml(truncated) +
     padding +
     `</div>`
   );
@@ -123,8 +127,15 @@ function renderBodyToHtml(innerHTML: string, values: any, mode: RenderMode, prev
 const Body: React.FC<BodyProps> = (props) => {
   const { children, mode: modeProp, className, style, index = 0, config: configProp, previewText, ...semanticProps } = props;
 
-  // Resolve config: explicit prop > default (no hooks, Server Component safe)
-  const resolvedConfig: UnlayerConfig = { ...DEFAULT_CONFIG, ...configProp };
+  // Resolve config: explicit prop > UnlayerProvider context > default.
+  // readProviderConfig degrades to undefined in Server Components (context is
+  // unavailable there) — pass config via the prop in RSC trees.
+  const providerConfig = readProviderConfig();
+  const resolvedConfig: UnlayerConfig = {
+    ...DEFAULT_CONFIG,
+    ...providerConfig,
+    ...configProp,
+  };
 
   // Resolve mode: explicit prop > config > default
   const mode: RenderMode = modeProp ?? resolvedConfig.mode ?? "web";
@@ -160,9 +171,12 @@ const Body: React.FC<BodyProps> = (props) => {
   // row container max-width (and therefore each column's width) in web mode.
   // Without this, Row falls back to BODY_DEFAULTS.contentWidth ("500px") and
   // <Body contentWidth="…"> is silently ignored for layout.
-  let enrichedChildren = children;
+  // flattenChildren unwraps Fragments first: cloneElement cannot thread props
+  // through a <>…</>, so a Fragment-wrapped Row would otherwise lose _config
+  // and silently render in the default (web) mode with default contentWidth.
+  let enrichedChildren: React.ReactNode = children;
   if (children) {
-    enrichedChildren = React.Children.map(children, (child) => {
+    enrichedChildren = flattenChildren(children).map((child) => {
       if (React.isValidElement(child)) {
         return React.cloneElement(child as React.ReactElement<any>, {
           _config,
@@ -179,6 +193,7 @@ const Body: React.FC<BodyProps> = (props) => {
     try {
       innerHTML = ReactDOMServer.renderToString(enrichedChildren as React.ReactElement);
     } catch (error) {
+      if (_config.onError === "throw") throw error;
       console.error("Body: Failed to render children:", error);
       innerHTML = "";
     }
@@ -195,6 +210,7 @@ const Body: React.FC<BodyProps> = (props) => {
       />
     );
   } catch (error) {
+    if (_config.onError === "throw") throw error;
     console.error("Body rendering failed:", error);
     return (
       <div className={className} style={style}>

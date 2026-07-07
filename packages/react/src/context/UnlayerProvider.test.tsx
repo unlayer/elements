@@ -21,12 +21,12 @@ describe("UnlayerProvider", () => {
     expect(result.current.mode).toBe("web"); // default preserved
   });
 
-  it("sets provider active flag", () => {
+  it("does not leak the internal provider-active flag to consumers", () => {
     const wrapper = ({ children }: { children: React.ReactNode }) => (
       <UnlayerProvider config={{}}>{children}</UnlayerProvider>
     );
     const { result } = renderHook(() => useUnlayerConfig(), { wrapper });
-    expect((result.current as any)[PROVIDER_ACTIVE_KEY]).toBe(true);
+    expect((result.current as any)[PROVIDER_ACTIVE_KEY]).toBeUndefined();
   });
 
   it("does not set provider active flag without provider", () => {

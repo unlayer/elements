@@ -47,15 +47,19 @@ export interface BaseItemComponentProps {
    *  string ("10px", "16px 24px"). Applied by the containing Column. */
   containerPadding?: SizeInput;
 
-  // Internal props (for advanced use)
+  /** @internal - block index within its column, threaded by Column */
   index?: number;
   /** @internal — content id allocated by the containing Column; keeps the
    *  value-level _meta.htmlID unique per instance and aligned with the
    *  wrapper id and head/json numbering. */
   _metaHtmlId?: string;
+  /** @internal - column index within the row, threaded by Column */
   colIndex?: number;
+  /** @internal - row cell spans, threaded by Column */
   cells?: any[];
+  /** @internal - resolved body values, threaded by Body/Row/Column */
   bodyValues?: any;
+  /** @internal - resolved row values, threaded by Column */
   rowValues?: any;
   /** @internal - this column's values, threaded by Column for width-aware exporters */
   columnValues?: any;
@@ -230,6 +234,9 @@ function renderComponent<T = any>(config: RenderConfig<T>): JSX.Element {
       />
     );
   } catch (error) {
+    // Strict pipelines (renderToHtml defaults to onError: "throw") must fail
+    // loudly — a red error card must never ship in a sent email.
+    if (_config?.onError === "throw") throw error;
     console.error(`${type} rendering failed:`, error);
     return (
       <ErrorFallback
