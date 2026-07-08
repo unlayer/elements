@@ -1,1 +1,0 @@
-import{c as r,G as s,m as p,H as i}from"./create-component-C_i99gso.js";const t={...s,color:"#000000",fontWeight:400,text:"Heading"},d=r({name:"Heading",defaultValues:t,propMapper:n=>{const{level:a,...o}=n,e=p(o,t,"Heading");return a&&!e.headingType&&(e.headingType=a),e},displayName:"Heading",exporters:i});export{d as H};
