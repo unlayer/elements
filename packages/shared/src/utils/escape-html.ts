@@ -24,19 +24,27 @@ export function escapeHtml(text: string): string {
 
 /**
  * Reject URL schemes that execute script when used as a link target.
- * Returns the URL unchanged when safe, or "" (with a console warning) for
- * `javascript:`, `vbscript:`, and `data:` URLs.
+ * Returns the URL (with tab/newline stripped) when safe, or "" (with a console
+ * warning) for `javascript:`, `vbscript:`, and `data:` URLs.
+ *
+ * Browsers strip ASCII tab and newline characters (`\t \n \r`) from anywhere in
+ * a URL before parsing its scheme, so `java\tscript:alert(1)` executes as
+ * `javascript:alert(1)` on click. We strip the same three characters BEFORE the
+ * scheme regex runs, otherwise one embedded in the scheme slips a dangerous URL
+ * past the check (a classic filter-bypass). Leading/trailing whitespace is
+ * tolerated by the regex.
  */
 export function sanitizeUrl(url: string): string {
-  const scheme = /^\s*([a-z][a-z0-9+.-]*):/i.exec(url)?.[1]?.toLowerCase();
+  const normalized = url.replace(/[\t\n\r]/g, "");
+  const scheme = /^\s*([a-z][a-z0-9+.-]*):/i.exec(normalized)?.[1]?.toLowerCase();
   if (scheme === "javascript" || scheme === "vbscript" || scheme === "data") {
     console.warn(
       `[Unlayer] Blocked link with unsafe "${scheme}:" URL scheme. ` +
-        "Only http(s), mailto, tel and relative URLs are rendered."
+        "javascript:, vbscript: and data: URLs are not rendered."
     );
     return "";
   }
-  return url;
+  return normalized;
 }
 
 /**

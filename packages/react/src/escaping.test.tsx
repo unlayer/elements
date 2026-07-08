@@ -116,6 +116,49 @@ describe("escaping: URLs", () => {
     warn.mockRestore();
   });
 
+  // Regression: browsers strip tab/newline/CR from a URL before parsing its
+  // scheme, so a control character embedded in the scheme must not slip past
+  // the blocklist (a classic filter-bypass).
+  it("javascript: URLs with an embedded tab are blocked", () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const html = inEmail(<Button href={"java\tscript:alert(1)"}>Click</Button>);
+    expect(html).not.toContain("alert(1)");
+    expect(warn).toHaveBeenCalledWith(expect.stringContaining("unsafe"));
+    warn.mockRestore();
+  });
+
+  it("javascript: URLs with an embedded newline are blocked", () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const html = inEmail(<Button href={"java\nscript:alert(1)"}>Click</Button>);
+    expect(html).not.toContain("alert(1)");
+    expect(warn).toHaveBeenCalledWith(expect.stringContaining("unsafe"));
+    warn.mockRestore();
+  });
+
+  it("javascript: URLs with an embedded carriage return are blocked", () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const html = inEmail(<Button href={"java\rscript:alert(1)"}>Click</Button>);
+    expect(html).not.toContain("alert(1)");
+    expect(warn).toHaveBeenCalledWith(expect.stringContaining("unsafe"));
+    warn.mockRestore();
+  });
+
+  it("javascript: URLs are blocked regardless of case", () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const html = inEmail(<Button href={"JavaScript:alert(1)"}>Click</Button>);
+    expect(html).not.toContain("JavaScript:alert(1)");
+    expect(warn).toHaveBeenCalledWith(expect.stringContaining("unsafe"));
+    warn.mockRestore();
+  });
+
+  it("data: URLs with an embedded tab are blocked", () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const html = inEmail(<Button href={"da\tta:text/html,alert(1)"}>Click</Button>);
+    expect(html).not.toContain("alert(1)");
+    expect(warn).toHaveBeenCalledWith(expect.stringContaining("unsafe"));
+    warn.mockRestore();
+  });
+
   it("Menu item href cannot break out of the attribute", () => {
     const html = inEmail(
       <Menu items={[{ text: "Home", href: 'https://x.com" onmouseover="alert(1)' }]} />
