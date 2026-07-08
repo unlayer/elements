@@ -55,6 +55,10 @@ type Story = StoryObj<typeof meta>;
 // Default story with schema-driven defaults
 export const Default: Story = {
   args: {
+    html: `<div style="padding: 24px; border: 1px solid #e5e7eb; border-radius: 8px; font-family: Arial, sans-serif; color: #1f2937; max-width: 400px; margin: 0 auto; text-align: center;">
+        <h2 style="margin: 0 0 8px 0; font-size: 20px; font-weight: 700;">Custom HTML</h2>
+        <p style="margin: 0; color: #6b7280;">Render any raw HTML with the <code>html</code> prop.</p>
+      </div>`,
     mode: "web"
   }
 };
