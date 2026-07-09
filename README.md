@@ -241,7 +241,7 @@ pnpm storybook:hub
 
 ### What makes Elements production ready?
 
-Elements generates its HTML with the same battle-tested engine that powers exports in the [Unlayer editor](https://unlayer.com), an engine used in production by thousands of companies for years. The engine version is pinned per release, and every component's output is locked down by snapshot tests, a golden-template test, and browser-level gates (see below), so upgrades cannot silently change the HTML you ship.
+Elements generates its HTML with the same battle-tested engine that powers exports in the [Unlayer editor](https://unlayer.com), an engine used in production by thousands of companies for years. The engine version is pinned per release, and every component's output is locked down by snapshot tests, a golden-template test, and browser-level gates (see below), so upgrades cannot silently change the HTML you ship. Releases follow semantic versioning and each one is published with [release notes](https://github.com/unlayer/elements/releases), so any change to the API or output is visible before you upgrade.
 
 ### How is the email output actually tested?
 
@@ -257,7 +257,7 @@ The email mode emits the same table-based, Outlook-safe HTML patterns as Unlayer
 
 ### Is the PDF output a real PDF engine?
 
-Yes, you can generate PDF files in two ways: use Unlayer's [PDF export service](https://docs.unlayer.com/builder/export-pdf) to get a finished PDF with a single API call, or pass the print-optimized HTML from `<Document>` to any HTML-to-PDF library.
+Yes, you can generate PDF files in two ways: use Unlayer's [PDF export service](https://docs.unlayer.com/builder/export-pdf) to get a finished PDF with a single API call, or pass the print-optimized HTML from `<Document>` to any HTML-to-PDF library. Pagination (page breaks, margins, and headers and footers) is controlled with standard CSS print rules plus your renderer's options.
 
 ### Can I use Elements without the Unlayer platform?
 
