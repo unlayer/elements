@@ -237,6 +237,40 @@ pnpm test:coverage
 pnpm storybook:hub
 ```
 
+## FAQ
+
+### What makes Elements production ready?
+
+Elements generates its HTML with the same battle-tested engine that powers exports in the [Unlayer editor](https://unlayer.com), an engine used in production by thousands of companies for years. The engine version is pinned per release, and every component's output is locked down by snapshot tests, a golden-template test, and browser-level gates (see below), so upgrades cannot silently change the HTML you ship.
+
+### How is the email output actually tested?
+
+Every release must pass, in CI:
+
+- **Golden template test:** a full, realistic email rendered through all render pipelines and compared against committed output.
+- **Snapshot tests:** every component rendered in both email and web modes.
+- **Browser E2E gate:** complete documents rendered from the built package and verified in headless Chromium: responsive columns stack at the mobile breakpoint, paragraphs compute to true zero margins, RTL text direction propagates, button hover states apply, the preheader stays invisible, no horizontal overflow on mobile, and accessibility basics hold (image alt text, link names, `role="presentation"` on layout tables). The suite includes a negative control that must fail, proving the gate can catch regressions rather than just pass vacuously.
+- **Visual-drift gate:** the computed styles of every Storybook story are fingerprinted at desktop and mobile widths and diffed against a committed baseline, so unintended style changes fail the build with property-level diffs.
+- **Next.js integration test:** a real Next.js 15 app with Server Components builds against the published package artifact.
+
+The email mode emits the same table-based, Outlook-safe HTML patterns as Unlayer's editor exports, which land in real inboxes every day. Our templates are tested on Litmus and Email on Acid across major email clients, including Outlook, Gmail, Yahoo, and Apple Mail.
+
+### Is the PDF output a real PDF engine?
+
+Yes, you can generate PDF files in two ways: use Unlayer's [PDF export service](https://docs.unlayer.com/builder/export-pdf) to get a finished PDF with a single API call, or pass the print-optimized HTML from `<Document>` to any HTML-to-PDF library.
+
+### Can I use Elements without the Unlayer platform?
+
+Yes. The package is MIT-licensed, makes no network calls, requires no API key or account, and has no runtime dependency on Unlayer's platform. `renderToHtml()` runs entirely in your own process, and the output is plain, static HTML that you own outright. The platform integrations (design-JSON round-tripping via `renderToJson()` and Custom Tools shared with the visual editor) are strictly opt-in: valuable if you also use the Unlayer builder, ignorable if you don't.
+
+### Is there a visual editor for Elements?
+
+Yes. Elements is fully compatible with the [Unlayer editor](https://unlayer.com), the drag-and-drop builder for emails, pages, and documents that you can embed in your own product. `renderToJson()` exports your component tree as Unlayer design JSON that loads directly into the editor, so developers can build templates in code and hand them off to non-technical teammates for visual editing. Custom Tools bridge the two as well: the same tool definition renders in the editor and in code.
+
+### Can I create custom components?
+
+Yes. `registerElementsTool()` turns a custom tool definition into a first-class React component with typed props and full control over its output in each render mode (email, web, and document). See the [Custom Tools documentation](./packages/react/README.md#custom-tools) for a complete example.
+
 ## Contributing
 
 See [CONTRIBUTING.md](./CONTRIBUTING.md) for setup instructions and guidelines.
