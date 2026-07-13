@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { templates } from "../templates";
+import { templates, type TemplateEntry } from "../templates";
 import { useRenderTemplate } from "../hooks/useRenderTemplate";
 import SectionHeader from "../components/SectionHeader";
 import TabBar from "../components/TabBar";
@@ -22,6 +22,13 @@ const categoryLabels: Record<string, string> = {
   transactional: "Transactional",
   notification: "Notification",
   security: "Security",
+  document: "Document",
+};
+
+const modeLabels: Record<NonNullable<TemplateEntry["mode"]>, string> = {
+  email: "Email",
+  web: "Web",
+  document: "Document",
 };
 
 export default function TemplateShowcase() {
@@ -215,7 +222,7 @@ export default function TemplateShowcase() {
                   <span className="hidden sm:inline text-text-tertiary">&mdash;</span>
                   <span className="hidden sm:inline truncate">{selected.description}</span>
                   <span className="ml-auto text-[11px] text-text-tertiary hidden md:inline flex-shrink-0">
-                    Rendering as <span className="text-accent font-medium">Email</span> mode
+                    Rendering as <span className="text-accent font-medium">{modeLabels[selected.mode ?? "email"]}</span> mode
                   </span>
                 </div>
               </div>

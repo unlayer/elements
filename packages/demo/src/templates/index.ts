@@ -12,6 +12,7 @@ import ShippingUpdate from "./ShippingUpdate";
 import ProductLaunch from "./ProductLaunch";
 import VerificationCode from "./VerificationCode";
 import UsageReport from "./UsageReport";
+import InvoiceReceipt from "./InvoiceReceipt";
 
 // Source code via Vite ?raw imports
 import welcomeSource from "./WelcomeEmail.tsx?raw";
@@ -25,16 +26,18 @@ import shippingSource from "./ShippingUpdate.tsx?raw";
 import productLaunchSource from "./ProductLaunch.tsx?raw";
 import verificationSource from "./VerificationCode.tsx?raw";
 import usageReportSource from "./UsageReport.tsx?raw";
+import invoiceSource from "./InvoiceReceipt.tsx?raw";
 
 export interface TemplateEntry {
   id: string;
   name: string;
   description: string;
-  category: "onboarding" | "transactional" | "notification" | "security" | "marketing" | "ecommerce" | "newsletter" | "saas";
+  category: "onboarding" | "transactional" | "notification" | "security" | "marketing" | "ecommerce" | "newsletter" | "saas" | "document";
   inspiration: string;
   colorAccent: string;
   component: () => ReactElement;
   sourceCode: string;
+  mode?: "email" | "web" | "document";
 }
 
 export const templates: TemplateEntry[] = [
@@ -147,6 +150,17 @@ export const templates: TemplateEntry[] = [
     colorAccent: "#6366f1",
     component: UsageReport,
     sourceCode: usageReportSource,
+  },
+  {
+    id: "invoice-receipt",
+    name: "Invoice / Receipt",
+    description: "Stripe-inspired print-ready invoice for PDF generation",
+    category: "document",
+    inspiration: "Stripe Invoicing",
+    colorAccent: "#635bff",
+    component: InvoiceReceipt,
+    sourceCode: invoiceSource,
+    mode: "document",
   },
 ];
 
