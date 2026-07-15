@@ -1,1 +1,0 @@
-import{c as p,m as e,E as o,F as s}from"./create-component-DZVYq3MR.js";const a={...o,color:"#000000"},m=p({name:"Paragraph",defaultValues:a,propMapper:r=>e(r,a,"Paragraph"),displayName:"Paragraph",exporters:s});export{m as P};
