@@ -2,6 +2,7 @@ import { TableExporters, TableDefaults } from "@unlayer/exporters";
 import type { TableValues, SizeInput, BorderInput } from "../types";
 import { createItemComponent, type ItemComponentProps } from "../utils/create-component";
 import { mapSemanticProps, type SemanticProps } from "../utils/semantic-props";
+import { escapeHtml } from "@unlayer-internal/shared-elements";
 
 type TableSemanticProps = Omit<SemanticProps<TableValues>, "padding" | "border"> & {
   /** Column headers as string[] */
@@ -79,21 +80,29 @@ const Table = createItemComponent<TableValues, TableSemanticProps>({
         "Table"
       );
 
-      const colCount = headers
-        ? headers.length
+      // An empty headers array must not enable an empty header row.
+      const hasHeaders = !!headers?.length;
+
+      const colCount = hasHeaders
+        ? headers!.length
         : typeof columns === "number"
           ? columns
           : data?.[0]?.length ?? 0;
       const blankCells = (n: number) =>
         Array.from({ length: n }, () => ({ text: "", width: 0 }));
 
-      const tableHeaders = headers
-        ? [{ cells: headers.map((text: string) => ({ text, width: 0 })), height: 0 }]
+      // Shorthand headers/data are plain text — escape (cells are emitted as
+      // innerHTML by the exporter). The `values` escape hatch stays raw.
+      const cellText = (text: string) =>
+        typeof text === "string" ? escapeHtml(text) : text;
+
+      const tableHeaders = hasHeaders
+        ? [{ cells: headers!.map((text: string) => ({ text: cellText(text), width: 0 })), height: 0 }]
         : [];
 
       const tableRows = data
         ? data.map((row: string[]) => ({
-            cells: row.map((text: string) => ({ text, width: 0 })),
+            cells: row.map((text: string) => ({ text: cellText(text), width: 0 })),
             height: 0,
           }))
         : typeof rows === "number"
@@ -106,10 +115,10 @@ const Table = createItemComponent<TableValues, TableSemanticProps>({
 
       base.table = { headers: tableHeaders, rows: tableRows, footers: [] };
 
-      if (headers || typeof columns === "number") {
+      if (hasHeaders || typeof columns === "number") {
         base.columns = colCount;
       }
-      if (headers) {
+      if (hasHeaders) {
         base.enableHeader = true;
       }
       if (data) {

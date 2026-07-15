@@ -1,10 +1,11 @@
 import React from "react";
 import type { RenderMode, UnlayerConfig, RowValues } from "@unlayer-internal/shared-elements";
-import { validateColumnLayout } from "@unlayer-internal/shared-elements";
+import { validateColumnLayout, escapeHtml } from "@unlayer-internal/shared-elements";
 import type { ColumnLayout } from "@unlayer-internal/shared-elements";
 import { RowExporters } from "@unlayer/exporters";
 import { mapSemanticProps, type SemanticProps } from "../utils/semantic-props";
 import { nextHtmlId } from "../utils/create-component";
+import { flattenChildren } from "../utils/children";
 import { bodyContentWidthPx } from "../utils/image-sizing";
 import type { SizeInput } from "../types";
 import { ROW_DEFAULTS, BODY_DEFAULTS } from "../utils/container-defaults";
@@ -35,8 +36,11 @@ export type RowProps = Omit<SemanticProps<RowValues>, "padding"> & {
   mode?: RenderMode;
   className?: string;
   style?: React.CSSProperties;
+  /** @internal - row index, threaded by Body */
   index?: number;
+  /** @internal - resolved body values, threaded by Body */
   bodyValues?: any;
+  /** @internal - exporter collection name (defaults to "rows") */
   collection?: string;
   /** Padding — a CSS string ("0 48px", "20px 40px") or a number (px). */
   padding?: SizeInput;
@@ -177,12 +181,13 @@ function processChildren(
   if (!children) return "";
 
   let innerHTML = "";
-  const childrenArray = React.Children.toArray(children);
+  const childrenArray = flattenChildren(children);
 
   childrenArray.forEach((child, index) => {
     if (!React.isValidElement(child)) {
       if (typeof child === "string" || typeof child === "number") {
-        innerHTML += String(child);
+        // Plain-text contract: string children are text, not markup.
+        innerHTML += escapeHtml(String(child));
       }
       return;
     }
@@ -245,16 +250,33 @@ const Row: React.FC<RowProps> = (props) => {
   // Determine cells from layout or props. With neither, default to one equal
   // cell PER <Column> child (mirroring renderToJson) — `[1]` regardless of column
   // count left the 2nd/3rd column with no cell, rendering width="NaN".
+  const columnCount = flattenChildren(children).filter(
+    (c) => React.isValidElement(c) && /^Column$/.test((c.type as any)?.displayName || (c.type as any)?.name || "")
+  ).length;
+
   let cells: number[];
   if (layout) {
-    validateColumnLayout(layout, React.Children.count(children));
+    validateColumnLayout(layout, columnCount);
     cells = layout.cells;
   } else if (propsCells) {
+    // An explicit `cells` must line up with the columns and carry positive
+    // spans — a mismatch makes the exporter divide by a missing/zero span and
+    // emit width="NaN" into the sent HTML.
+    if (columnCount > 0 && propsCells.length !== columnCount) {
+      throw new Error(
+        `<Row cells={[${propsCells.join(", ")}]}> declares ${propsCells.length} ` +
+          `cell${propsCells.length === 1 ? "" : "s"} but has ${columnCount} <Column> ` +
+          `children. Provide one cell span per column, e.g. cells={[${Array(columnCount).fill(1).join(", ")}]}.`
+      );
+    }
+    if (propsCells.some((c) => typeof c !== "number" || !(c > 0))) {
+      throw new Error(
+        `<Row cells={[${propsCells.join(", ")}]}> — every cell span must be a ` +
+          "positive number (spans are relative widths, e.g. cells={[2, 1]})."
+      );
+    }
     cells = propsCells;
   } else {
-    const columnCount = React.Children.toArray(children).filter(
-      (c) => React.isValidElement(c) && /^Column$/.test((c.type as any)?.displayName || (c.type as any)?.name || "")
-    ).length;
     cells = Array(Math.max(1, columnCount)).fill(1);
   }
 
@@ -299,6 +321,7 @@ const Row: React.FC<RowProps> = (props) => {
       />
     );
   } catch (error) {
+    if (_config?.onError === "throw") throw error;
     console.error("Row rendering failed:", error);
     return (
       <div className={className} style={style}>

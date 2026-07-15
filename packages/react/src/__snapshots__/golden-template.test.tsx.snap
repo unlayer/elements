@@ -246,7 +246,7 @@ exports[`Golden Template: Marketing Email > snapshot locks the full email HTML 1
       <td class="v-container-padding-padding" style="overflow-wrap:break-word;word-break:break-word;padding:10px;font-family:arial,helvetica,sans-serif;" align="left">
         
   <!--[if mso]><table role="presentation" width="100%"><tr><td><![endif]-->
-    <h1 class="v-color v-text-align v-line-height v-font-size v-font-weight v-letter-spacing" style="margin: 0px; color: #1a1a2e; line-height: 140%; text-align: center; word-wrap: break-word; font-size: 28px; font-weight: 400;">Spring Sale — 30% Off</h1>
+    <h1 class="v-color v-text-align v-line-height v-font-size v-font-weight v-letter-spacing" style="margin: 0px; color: #1a1a2e; line-height: 140%; text-align: center; word-wrap: break-word; font-size: 28px; font-weight: 400;"><span>Spring Sale — 30% Off</span></h1>
   <!--[if mso]></td></tr></table><![endif]-->
 
       </td>
@@ -277,7 +277,7 @@ exports[`Golden Template: Marketing Email > snapshot locks the full email HTML 1
 <div class="v-text-align" align="center">
   <!--[if mso]><v:roundrect xmlns:v="urn:schemas-microsoft-com:vml" xmlns:w="urn:schemas-microsoft-com:office:word" href="" style="height:45px; v-text-anchor:middle; width:120px;" arcsize="13.5%"  stroke="f" fillcolor="#e63946"><w:anchorlock/><center style="color:#ffffff;"><![endif]-->
     <a href="" target="_blank" class="v-button v-size-width v-button-colors v-border v-border-radius v-font-family v-font-size v-font-weight v-letter-spacing" style="box-sizing: border-box;display: inline-block;text-decoration: none;-webkit-text-size-adjust: none;text-align: center;color: #ffffff; background-color: #e63946; border-radius: 6px;-webkit-border-radius: 6px; -moz-border-radius: 6px; width:auto; max-width:100%; overflow-wrap: break-word; word-break: break-word; word-wrap:break-word; mso-border-alt: none;font-size: 16px;">
-      <span class="v-line-height v-padding" style="display:block;padding:10px 20px;line-height:120%;">Shop Now</span>
+      <span class="v-line-height v-padding" style="display:block;padding:10px 20px;line-height:120%;"><span>Shop Now</span></span>
     </a>
     <!--[if mso]></center></v:roundrect><![endif]-->
 </div>
@@ -426,7 +426,7 @@ exports[`Golden Template: Marketing Email > snapshot locks the full email HTML 1
 <div class="v-text-align" align="center">
   <!--[if mso]><v:roundrect xmlns:v="urn:schemas-microsoft-com:vml" xmlns:w="urn:schemas-microsoft-com:office:word" href="" style="height:45px; v-text-anchor:middle; width:120px;" arcsize="9%"  stroke="f" fillcolor="#1a1a2e"><w:anchorlock/><center style="color:#ffffff;"><![endif]-->
     <a href="" target="_blank" class="v-button v-size-width v-button-colors v-border v-border-radius v-font-family v-font-size v-font-weight v-letter-spacing" style="box-sizing: border-box;display: inline-block;text-decoration: none;-webkit-text-size-adjust: none;text-align: center;color: #ffffff; background-color: #1a1a2e; border-radius: 4px;-webkit-border-radius: 4px; -moz-border-radius: 4px; width:auto; max-width:100%; overflow-wrap: break-word; word-break: break-word; word-wrap:break-word; mso-border-alt: none;font-size: 14px;">
-      <span class="v-line-height v-padding" style="display:block;padding:10px 20px;line-height:120%;">Buy</span>
+      <span class="v-line-height v-padding" style="display:block;padding:10px 20px;line-height:120%;"><span>Buy</span></span>
     </a>
     <!--[if mso]></center></v:roundrect><![endif]-->
 </div>
@@ -488,7 +488,7 @@ exports[`Golden Template: Marketing Email > snapshot locks the full email HTML 1
 <div class="v-text-align" align="center">
   <!--[if mso]><v:roundrect xmlns:v="urn:schemas-microsoft-com:vml" xmlns:w="urn:schemas-microsoft-com:office:word" href="" style="height:45px; v-text-anchor:middle; width:120px;" arcsize="9%"  stroke="f" fillcolor="#1a1a2e"><w:anchorlock/><center style="color:#ffffff;"><![endif]-->
     <a href="" target="_blank" class="v-button v-size-width v-button-colors v-border v-border-radius v-font-family v-font-size v-font-weight v-letter-spacing" style="box-sizing: border-box;display: inline-block;text-decoration: none;-webkit-text-size-adjust: none;text-align: center;color: #ffffff; background-color: #1a1a2e; border-radius: 4px;-webkit-border-radius: 4px; -moz-border-radius: 4px; width:auto; max-width:100%; overflow-wrap: break-word; word-break: break-word; word-wrap:break-word; mso-border-alt: none;font-size: 14px;">
-      <span class="v-line-height v-padding" style="display:block;padding:10px 20px;line-height:120%;">Buy</span>
+      <span class="v-line-height v-padding" style="display:block;padding:10px 20px;line-height:120%;"><span>Buy</span></span>
     </a>
     <!--[if mso]></center></v:roundrect><![endif]-->
 </div>
@@ -836,7 +836,7 @@ exports[`Golden Template: Print Document > snapshot locks the full document HTML
     
   <div id="u_content_heading_1" class="u_content_heading v-container-padding" style="overflow-wrap: break-word;padding: 10px;">
     
-  <h1 class="v-color v-text-align v-line-height v-font-size v-font-weight v-letter-spacing" style="margin: 0px; color: #000000; line-height: 140%; text-align: left; word-wrap: break-word; font-size: 22px; font-weight: 400;">Quarterly Report</h1>
+  <h1 class="v-color v-text-align v-line-height v-font-size v-font-weight v-letter-spacing" style="margin: 0px; color: #000000; line-height: 140%; text-align: left; word-wrap: break-word; font-size: 22px; font-weight: 400;"><span>Quarterly Report</span></h1>
 
   </div>
 
@@ -956,7 +956,7 @@ exports[`Golden Template: Web Page (3-column) > snapshot locks the full page HTM
     
   <div id="u_content_heading_1" class="u_content_heading v-container-padding-padding" style="overflow-wrap: break-word;padding: 10px;">
     
-  <h1 class="v-color v-text-align v-line-height v-font-size v-font-weight v-letter-spacing" style="margin: 0px; color: #000000; line-height: 140%; text-align: left; word-wrap: break-word; font-size: 18px; font-weight: 400;">Feature One</h1>
+  <h1 class="v-color v-text-align v-line-height v-font-size v-font-weight v-letter-spacing" style="margin: 0px; color: #000000; line-height: 140%; text-align: left; word-wrap: break-word; font-size: 18px; font-weight: 400;"><span>Feature One</span></h1>
 
   </div>
 
@@ -976,7 +976,7 @@ exports[`Golden Template: Web Page (3-column) > snapshot locks the full page HTM
     
   <div id="u_content_heading_2" class="u_content_heading v-container-padding-padding" style="overflow-wrap: break-word;padding: 10px;">
     
-  <h1 class="v-color v-text-align v-line-height v-font-size v-font-weight v-letter-spacing" style="margin: 0px; color: #000000; line-height: 140%; text-align: left; word-wrap: break-word; font-size: 18px; font-weight: 400;">Feature Two</h1>
+  <h1 class="v-color v-text-align v-line-height v-font-size v-font-weight v-letter-spacing" style="margin: 0px; color: #000000; line-height: 140%; text-align: left; word-wrap: break-word; font-size: 18px; font-weight: 400;"><span>Feature Two</span></h1>
 
   </div>
 
@@ -996,7 +996,7 @@ exports[`Golden Template: Web Page (3-column) > snapshot locks the full page HTM
     
   <div id="u_content_heading_3" class="u_content_heading v-container-padding-padding" style="overflow-wrap: break-word;padding: 10px;">
     
-  <h1 class="v-color v-text-align v-line-height v-font-size v-font-weight v-letter-spacing" style="margin: 0px; color: #000000; line-height: 140%; text-align: left; word-wrap: break-word; font-size: 18px; font-weight: 400;">Feature Three</h1>
+  <h1 class="v-color v-text-align v-line-height v-font-size v-font-weight v-letter-spacing" style="margin: 0px; color: #000000; line-height: 140%; text-align: left; word-wrap: break-word; font-size: 18px; font-weight: 400;"><span>Feature Three</span></h1>
 
   </div>
 

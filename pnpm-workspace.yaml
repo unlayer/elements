@@ -1,6 +1,5 @@
 packages:
   - 'packages/*'
-  - 'examples/*'
 
 catalog:
   "@unlayer/exporters": "1.455.0"

@@ -64,10 +64,14 @@ describe("Render Snapshots", () => {
 
   describe("Html", () => {
     it("web", () => {
-      expect(renderHtml(<Html mode="web"><p>Custom HTML</p></Html>)).toMatchSnapshot();
+      const html = renderHtml(<Html mode="web">{"<p>Custom HTML</p>"}</Html>);
+      expect(html).toContain("<p>Custom HTML</p>");
+      expect(html).toMatchSnapshot();
     });
     it("email", () => {
-      expect(renderHtml(<Html mode="email"><p>Custom HTML</p></Html>)).toMatchSnapshot();
+      const html = renderHtml(<Html mode="email">{"<p>Custom HTML</p>"}</Html>);
+      expect(html).toContain("<p>Custom HTML</p>");
+      expect(html).toMatchSnapshot();
     });
   });
 

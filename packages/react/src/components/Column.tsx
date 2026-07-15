@@ -2,6 +2,8 @@ import React from "react";
 import type { RenderMode, UnlayerConfig, ColumnValues } from "@unlayer-internal/shared-elements";
 import { ColumnExporters, ContentExporters } from "@unlayer/exporters";
 import { UNLAYER_RENDER_KEY, UNLAYER_CONFIG_KEY, nextHtmlId } from "../utils/create-component";
+import { escapeHtml } from "@unlayer-internal/shared-elements";
+import { flattenChildren, unwrapComponentType } from "../utils/children";
 import { mapSemanticProps, type SemanticProps } from "../utils/semantic-props";
 import type { SizeInput, BorderInput } from "../types";
 import { COLUMN_DEFAULTS } from "../utils/container-defaults";
@@ -58,10 +60,13 @@ function renderContentToHtml(innerHTML: string, values: any, bodyValues: any, mo
 
 export type ColumnProps = Omit<SemanticProps<ColumnValues>, "padding" | "border" | "borderRadius"> & {
   children?: React.ReactNode;
-  // Internal props (provided by Row)
+  /** @internal - column index, threaded by Row */
   index?: number;
+  /** @internal - row cell spans, threaded by Row */
   cells?: number[];
+  /** @internal - resolved body values, threaded by Row */
   bodyValues?: any;
+  /** @internal - resolved row values, threaded by Row */
   rowValues?: any;
   mode?: RenderMode;
   className?: string;
@@ -114,16 +119,22 @@ export const Column: React.FC<ColumnProps> = (props) => {
   // Render children to HTML - extract from dangerouslySetInnerHTML
   let innerHTML = "";
   if (children) {
-    try {
-      const childrenArray = React.Children.toArray(children);
+    // Fragments are flattened so items behind a <>…</> still render; each
+    // child gets its own try/catch so one failing block cannot wipe out the
+    // HTML already accumulated for its siblings.
+    const childrenArray = flattenChildren(children);
 
-      childrenArray.forEach((child, childIndex) => {
+    childrenArray.forEach((child) => {
+      try {
         if (typeof child === "string" || typeof child === "number") {
-          innerHTML += String(child);
+          // Plain-text contract: string children are text, not markup.
+          innerHTML += escapeHtml(String(child));
         } else if (React.isValidElement(child)) {
-          // Call component function to get rendered result
-          if (typeof child.type === "function") {
-            const ComponentType = child.type as any;
+          // Unwrap React.memo/forwardRef so wrapped Unlayer components render
+          // instead of being dropped (their statics live on the inner type).
+          const resolvedChildType = unwrapComponentType(child.type);
+          if (typeof resolvedChildType === "function") {
+            const ComponentType = resolvedChildType as any;
             // Use __unlayerRender (hook-free) if available, otherwise call directly
             const renderFn: Function = ComponentType[UNLAYER_RENDER_KEY] || ComponentType;
             // Allocate the content id BEFORE rendering and thread it in, so
@@ -210,13 +221,27 @@ export const Column: React.FC<ColumnProps> = (props) => {
                 `Ensure it is an Unlayer component (Button, Text, Image, etc.).`
               );
             }
+          } else {
+            // Host elements (<div>), class components, and other unsupported
+            // child types would silently vanish — say so.
+            const name =
+              typeof child.type === "string"
+                ? `<${child.type}>`
+                : `<${(child.type as any)?.displayName || (child.type as any)?.name || "Unknown"}>`;
+            console.warn(
+              `Column: ${name} is not an Unlayer component and was skipped. ` +
+                `Only Unlayer components (Button, Paragraph, Image, …) render ` +
+                `inside <Column>; for raw markup use <Html>.`
+            );
           }
         }
-      });
-    } catch (error) {
-      console.error("Column: Failed to render children:", error);
-      innerHTML = "";
-    }
+      } catch (error) {
+        // Propagate in strict pipelines (renderToHtml defaults to "throw");
+        // otherwise skip only this child and keep its siblings' HTML.
+        if (_config?.onError === "throw") throw error;
+        console.error("Column: Failed to render child:", error);
+      }
+    });
   }
 
   try {
@@ -230,6 +255,7 @@ export const Column: React.FC<ColumnProps> = (props) => {
       />
     );
   } catch (error) {
+    if (_config?.onError === "throw") throw error;
     console.error("Column rendering failed:", error);
     return (
       <div className={className} style={style}>

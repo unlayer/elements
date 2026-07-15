@@ -60,6 +60,7 @@ export type {
 // Utils - Lexical helpers
 export {
   textToTextJson,
+  textToInlineTextJson,
   htmlToTextJson,
   generateHtmlFromTextJson,
 } from "./utils/lexical-helpers";
@@ -77,3 +78,6 @@ export type { SemanticProps } from "./utils/semantic-props";
 
 // Utils - HTML to plain text
 export { htmlToPlainText } from "./utils/html-to-text";
+
+// Utils - HTML escaping
+export { escapeHtml, sanitizeUrl, escapeUrlAttribute } from "./utils/escape-html";

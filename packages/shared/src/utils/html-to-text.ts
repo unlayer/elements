@@ -37,12 +37,13 @@ function decodeEntities(text: string): string {
   // Named entities
   let result = text.replace(/&\w+;/g, (match) => HTML_ENTITIES[match] ?? match);
 
-  // Numeric entities: &#123; and &#x1A;
+  // Numeric entities: &#123; and &#x1A;. fromCodePoint (not fromCharCode)
+  // so astral codepoints like &#128512; (emoji) decode correctly.
   result = result.replace(/&#(\d+);/g, (_, code) =>
-    String.fromCharCode(parseInt(code, 10))
+    String.fromCodePoint(parseInt(code, 10))
   );
   result = result.replace(/&#x([0-9a-fA-F]+);/g, (_, code) =>
-    String.fromCharCode(parseInt(code, 16))
+    String.fromCodePoint(parseInt(code, 16))
   );
 
   return result;

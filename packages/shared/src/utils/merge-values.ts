@@ -12,6 +12,10 @@ export function mergeValues<T extends Record<string, any>>(
   const result: any = { ...defaults };
 
   for (const key of Object.keys(userValues)) {
+    // Prototype-pollution guard for values that originated from JSON.parse.
+    if (key === "__proto__" || key === "constructor" || key === "prototype") {
+      continue;
+    }
     const userVal = (userValues as any)[key];
     const defaultVal = (defaults as any)[key];
 

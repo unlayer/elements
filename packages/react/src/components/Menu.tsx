@@ -2,6 +2,7 @@ import { MenuExporters, MenuDefaults } from "@unlayer/exporters";
 import type { MenuValues, MenuItem, SizeInput, TextStyleProps } from "../types";
 import { createItemComponent, type ItemComponentProps } from "../utils/create-component";
 import { mapSemanticProps, type SemanticProps } from "../utils/semantic-props";
+import { escapeHtml } from "@unlayer-internal/shared-elements";
 
 // Menu carries fontFamily/fontWeight/fontSize/letterSpacing (but not color or
 // lineHeight) — relax those to the same agent-friendly inputs Heading/Paragraph
@@ -21,8 +22,6 @@ type MenuSemanticProps = Omit<
 export interface MenuProps extends ItemComponentProps<MenuSemanticProps> {}
 
 // Defaults from the editor schema
-const DEFAULT_MENU: NonNullable<MenuValues["menu"]> = MenuDefaults.menu ?? { items: [] };
-
 const DEFAULT_VALUES = {
   ...MenuDefaults,
 } as unknown as MenuValues;
@@ -53,9 +52,11 @@ const Menu = createItemComponent<MenuValues, MenuSemanticProps>({
     const { items, ...rest } = props;
 
     if (Array.isArray(items)) {
+      // Shorthand items are plain text — escape (the exporter emits `text` as
+      // innerHTML and inside aria-label). The `values` escape hatch stays raw.
       const mapped = items.map((item: MenuItem, i: number) => ({
         key: String(i + 1),
-        text: item.text,
+        text: typeof item.text === "string" ? escapeHtml(item.text) : item.text,
         link: {
           name: "web",
           values: { href: item.href, target: item.target ?? "_blank" },

@@ -115,7 +115,7 @@ Built with TypeScript from the ground up — full type definitions, autocomplete
 
 ### Lightweight & Tree-Shakeable
 
-~12KB gzipped (under 60KB ESM), tree-shakeable, with zero client-side JavaScript required. Designed for performance-sensitive applications and server-side rendering environments.
+~20KB gzipped, tree-shakeable, with zero client-side JavaScript required. Designed for performance-sensitive applications and server-side rendering environments.
 
 ## Real-World Use Cases
 

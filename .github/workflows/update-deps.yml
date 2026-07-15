@@ -2,9 +2,17 @@
 #
 # Checks npm for new versions of @unlayer/exporters and @unlayer/types
 # and opens a PR to update the pnpm catalog if newer versions exist.
-# Runs build + tests first and includes the result in the PR body.
+# Runs build + tests first and includes the result in the PR body; a failed
+# verification also fails this workflow run so the bump is visibly red.
 #
 # Runs daily and on manual dispatch.
+#
+# KNOWN LIMITATION: the PR is created with GITHUB_TOKEN, and GitHub does not
+# trigger `pull_request` workflows for events created by GITHUB_TOKEN — so
+# test.yml does NOT run on these PRs automatically. Until PR creation moves
+# to a GitHub App / fine-grained PAT token, protect against silent merges by
+# requiring the "Run Tests & Coverage" check in branch protection (a re-run
+# can be triggered by closing/reopening the PR or pushing to the branch).
 
 name: Update Dependencies
 
@@ -28,15 +36,15 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
 
       - name: Setup Node.js 20
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: 20
 
       - name: Setup pnpm
-        uses: pnpm/action-setup@v4
+        uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4.4.0
         with:
           version: 9.7.0
 
@@ -70,10 +78,11 @@ jobs:
         if: steps.check.outputs.changed == 'true'
         run: pnpm install --no-frozen-lockfile
 
+      # The script always exits 0 here so the PR (with the failure status in
+      # its body) is still created; the final step fails the run afterwards.
       - name: Build and test
         id: verify
         if: steps.check.outputs.changed == 'true'
-        continue-on-error: true
         run: |
           set +e
 
@@ -158,3 +167,11 @@ jobs:
           fi
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      # Surface a failed verification as a red workflow run — the PR body
+      # already carries the ❌, but the run itself must not look green.
+      - name: Fail the run if verification failed
+        if: steps.check.outputs.changed == 'true' && steps.verify.outputs.status != 'passed'
+        run: |
+          echo "::error::Dependency bump failed build/tests — see the PR body and logs above"
+          exit 1

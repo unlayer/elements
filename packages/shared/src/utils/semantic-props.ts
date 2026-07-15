@@ -10,7 +10,17 @@
  * - TypeScript provides autocomplete for ALL properties (flat and nested)
  */
 
-import { textToTextJson, htmlToTextJson } from "./lexical-helpers";
+import { textToTextJson, textToInlineTextJson, htmlToTextJson } from "./lexical-helpers";
+import { escapeHtml, escapeUrlAttribute } from "./escape-html";
+
+/**
+ * Components whose exporters render `textJson` via generateHtmlFromTextJson
+ * (which escapes text nodes). Their legacy plain `text` field is
+ * entity-DECODED by the exporters (lodash unescape), so plain text must
+ * travel as textJson to keep its text semantics. Button/Heading use the
+ * inline-tool variant (exports as <span>, matching the editor).
+ */
+const INLINE_TEXT_JSON_COMPONENTS = new Set(["Button", "Heading"]);
 
 /**
  * Type utility: Extracts all properties from nested objects
@@ -18,16 +28,23 @@ import { textToTextJson, htmlToTextJson } from "./lexical-helpers";
  */
 type FlattenObjectProps<T> = T extends object
   ? {
-      [K in keyof T]?: T[K] extends object
+      // Drop index signatures (e.g. RowValues' `[x: string]: unknown`) so a
+      // typo like `backgroundColour` is a compile error instead of a silent
+      // no-op prop.
+      [K in keyof T as string extends K ? never : K]?: T[K] extends object
         ? T[K] | FlattenObjectProps<T[K]>  // Accept nested OR its flattened props
         : T[K];
     } & {
-      // Also accept all nested object properties as flat props
-      [K in keyof T as T[K] extends object
-        ? keyof T[K] extends string
-          ? keyof T[K]
-          : never
-        : never]?: any;
+      // Also accept all nested object properties as flat props. Typed as the
+      // union of value primitives (not `any`) so `textAlign={42}` and other
+      // wrong-typed values are caught while every real value shape still fits.
+      [K in keyof T as string extends K
+        ? never
+        : T[K] extends object
+          ? keyof T[K] extends string
+            ? keyof T[K]
+            : never
+          : never]?: string | number | boolean | Record<string, unknown> | readonly unknown[];
     }
   : T;
 
@@ -172,8 +189,16 @@ export function mapSemanticProps<T extends Record<string, any>>(
       typeof children === "string" ? children : flattenChildrenText(children);
     if (componentType === "Paragraph") {
       result.textJson = textToTextJson(textContent);
+    } else if (INLINE_TEXT_JSON_COMPONENTS.has(componentType)) {
+      // Plain-text contract via the Lexical path (escapes at render time);
+      // the legacy `text` field would be entity-decoded by the exporter.
+      // Raw HTML remains available through the `values` escape hatch.
+      result.textJson = textToInlineTextJson(textContent);
     } else {
-      result.text = textContent;
+      // Children are plain text (see flattenChildrenText) and the exporter
+      // emits `text` as innerHTML — escape so "a < b" copy renders literally
+      // and user data can't inject markup.
+      result.text = escapeHtml(textContent);
     }
   }
 
@@ -200,6 +225,21 @@ export function mapSemanticProps<T extends Record<string, any>>(
     result.textJson = htmlToTextJson(String(htmlProp));
     delete userProps.html;
     delete result.html;
+  }
+
+  // The flat `text` prop carries the same plain-text contract as children
+  // (Paragraph's was consumed above and escapes via the Lexical path). Only
+  // `values.text` — the full-control escape hatch — keeps the exporter's
+  // legacy semantics.
+  if (componentType !== "Paragraph" && typeof userProps.text === "string") {
+    if (INLINE_TEXT_JSON_COMPONENTS.has(componentType)) {
+      if (!result.textJson) {
+        result.textJson = textToInlineTextJson(userProps.text);
+      }
+      delete userProps.text;
+    } else {
+      userProps.text = escapeHtml(userProps.text);
+    }
   }
 
   // Canonicalize link/action fields to the schema's storage shape so the rest of
@@ -362,15 +402,38 @@ export function mapSemanticProps<T extends Record<string, any>>(
  * JSON output is for round-tripping into the editor, which expects the
  * storage shape.
  */
+// Tags link objects whose url/target have already been sanitized + escaped, so
+// a value that flows through normalizeLinkValue twice (e.g. a custom tool link
+// option normalized by both normalizeValuesForExporter and the tool's link-
+// widget wrapper) isn't double-escaped. The pipeline passes the link object by
+// reference between those passes, so the tag rides along.
+const LINK_ESCAPED = Symbol.for("unlayer.linkEscaped");
+
+/** Escape url/target on a render-shape link and tag it as processed. */
+function escapeLinkRenderShape(link: Record<string, any>): Record<string, any> {
+  const out: Record<string, any> = {
+    ...link,
+    url: typeof link.url === "string" ? escapeUrlAttribute(link.url) : link.url,
+    target:
+      typeof link.target === "string" ? escapeHtml(link.target) : link.target,
+  };
+  // Non-enumerable: invisible to consumers (spread/toEqual/JSON) — the
+  // double-pass guard only needs the by-reference tag described above.
+  Object.defineProperty(out, LINK_ESCAPED, { value: true, enumerable: false });
+  return out;
+}
+
 export function normalizeLinkValue(value: unknown): Record<string, any> | undefined {
   if (value == null) return undefined;
   if (typeof value === "string") {
-    return { url: value, target: "_blank" };
+    return escapeLinkRenderShape({ url: value, target: "_blank" });
   }
   if (typeof value !== "object") return undefined;
   const v = value as Record<string, any>;
-  // Already render-shape (has url) — pass through.
-  if ("url" in v) return v;
+  // Already render-shape (has url) — escape url/target unless already done.
+  if ("url" in v) {
+    return (v as any)[LINK_ESCAPED] ? v : escapeLinkRenderShape(v);
+  }
   // Storage shape from the schema: { name, values: { href, target }, attrs? }.
   // The canonical Href type also surfaces `attrs: { href, target }`, so authors
   // reasonably put the link there — read href/target from `values` first, then
@@ -385,11 +448,11 @@ export function normalizeLinkValue(value: unknown): Record<string, any> | undefi
     const { href: attrsHref, target: attrsTarget, ...customAttrs } = attrs;
     // `||` not `??`: the schema default merges in `values: { href: "" }`, so an
     // empty `values.href` must fall through to the `attrs` href, not win over it.
-    return {
+    return escapeLinkRenderShape({
       url: inner.href || attrsHref || "",
       target: inner.target || attrsTarget || "_blank",
       ...customAttrs,
-    };
+    });
   }
   return undefined;
 }
@@ -421,6 +484,18 @@ export function normalizeValuesForExporter<T extends Record<string, any>>(
       const normalized = normalizeLinkValue(out[key]);
       if (normalized !== undefined) out[key] = normalized;
     }
+  }
+
+  // Social icons carry a raw `url` the exporter interpolates into href="…".
+  if (componentName === "Social" && out.icons && Array.isArray(out.icons.icons)) {
+    out.icons = {
+      ...out.icons,
+      icons: out.icons.icons.map((icon: any) =>
+        icon && typeof icon.url === "string"
+          ? { ...icon, url: escapeUrlAttribute(icon.url) }
+          : icon
+      ),
+    };
   }
 
   // Menu items each carry a `link` field.

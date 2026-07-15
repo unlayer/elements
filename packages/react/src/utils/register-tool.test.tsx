@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import React from "react";
-import { registerElementsTool } from "./register-tool";
+import { registerTool } from "./register-tool";
 import { renderToHtml, renderToHtmlParts } from "./render-to-html";
 import { renderToJson } from "./render-to-json";
 import Email from "../components/Email";
@@ -31,7 +31,7 @@ const countdownTool = {
   validator: () => [], // editor-only, must be ignored
 };
 
-const Countdown = registerElementsTool(countdownTool);
+const Countdown = registerTool(countdownTool);
 
 const inEmail = (child: React.ReactElement) => (
   <Email>
@@ -41,7 +41,7 @@ const inEmail = (child: React.ReactElement) => (
   </Email>
 );
 
-describe("registerElementsTool: rendering", () => {
+describe("registerTool: rendering", () => {
   it("renders via the email exporter in email mode", () => {
     const html = renderToHtml(inEmail(<Countdown endTime="2026-08-01" />));
     expect(html).toContain('class="cd-email"');
@@ -80,7 +80,7 @@ describe("registerElementsTool: rendering", () => {
   });
 
   it("an email-only tool renders everywhere via its email exporter", () => {
-    const EmailOnly = registerElementsTool({
+    const EmailOnly = registerTool({
       name: "email_only",
       values: {},
       renderer: { exporters: { email: () => '<span class="eo">x</span>' } },
@@ -105,7 +105,7 @@ describe("registerElementsTool: rendering", () => {
   });
 });
 
-describe("registerElementsTool: head + document integration", () => {
+describe("registerTool: head + document integration", () => {
   it("collects the tool's head css into renderToHtmlParts", () => {
     const { head } = renderToHtmlParts(inEmail(<Countdown />));
     expect(head).toContain("font-variant-numeric: tabular-nums");
@@ -117,9 +117,9 @@ describe("registerElementsTool: head + document integration", () => {
   });
 });
 
-describe("registerElementsTool: sanitization", () => {
+describe("registerTool: sanitization", () => {
   it("applies configured toSafeHtml to the tool's output", () => {
-    const Sketchy = registerElementsTool({
+    const Sketchy = registerTool({
       name: "sketchy",
       values: {},
       renderer: {
@@ -139,7 +139,7 @@ describe("registerElementsTool: sanitization", () => {
   });
 });
 
-describe("registerElementsTool: design JSON", () => {
+describe("registerTool: design JSON", () => {
   it("emits the editor's custom content shape", () => {
     const json = renderToJson(
       inEmail(<Countdown endTime="2026-08-01" digitColor="#e11d48" />)
@@ -179,15 +179,15 @@ describe("registerElementsTool: design JSON", () => {
   });
 });
 
-describe("registerElementsTool: validation", () => {
+describe("registerTool: validation", () => {
   it("throws without a name", () => {
-    expect(() => registerElementsTool({ renderer: { exporters: { web: () => "" } } } as any)).toThrow(
+    expect(() => registerTool({ renderer: { exporters: { web: () => "" } } } as any)).toThrow(
       /name/
     );
   });
 
   it("throws without exporters", () => {
-    expect(() => registerElementsTool({ name: "x", renderer: { exporters: {} } } as any)).toThrow(
+    expect(() => registerTool({ name: "x", renderer: { exporters: {} } } as any)).toThrow(
       /exporter/
     );
   });

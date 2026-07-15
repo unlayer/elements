@@ -1,11 +1,11 @@
 /**
- * Edge cases for registerElementsTool, modeled on real-world custom tool
+ * Edge cases for registerTool, modeled on real-world custom tool
  * shapes (a product card with option-group defaults and nested values, and
  * a head-heavy tool whose css keys off values._meta.htmlID).
  */
 import { describe, it, expect, vi } from "vitest";
 import React from "react";
-import { registerElementsTool } from "./register-tool";
+import { registerTool } from "./register-tool";
 import { renderToHtml, renderToHtmlParts, renderToPlainText } from "./render-to-html";
 import { renderToJson } from "./render-to-json";
 import Email from "../components/Email";
@@ -80,7 +80,7 @@ const productTool = {
 };
 
 describe("edge: option-group defaults (the common real-world shape)", () => {
-  const Product = registerElementsTool(productTool as any);
+  const Product = registerTool(productTool as any);
 
   it("seeds values from widget defaultValues when values is {}", () => {
     const html = renderToHtml(inEmail(<Product />));
@@ -116,7 +116,7 @@ describe("edge: option-group defaults (the common real-world shape)", () => {
   });
 
   it("tool-level values win over option defaults (editor precedence)", () => {
-    const Tool = registerElementsTool({
+    const Tool = registerTool({
       ...productTool,
       name: "product_tool_valued",
       values: { productPrice: "0.99" },
@@ -180,7 +180,7 @@ const headTool = {
 };
 
 describe("edge: head contributions", () => {
-  const HeadTool = registerElementsTool(headTool as any);
+  const HeadTool = registerTool(headTool as any);
 
   it("head css sees _meta.htmlID and option-default values", () => {
     const { head } = renderToHtmlParts(inEmail(<HeadTool />));
@@ -209,7 +209,7 @@ describe("edge: head contributions", () => {
   });
 
   it("body markup and head css agree on per-instance ids (multi-instance)", () => {
-    const Scoped = registerElementsTool({
+    const Scoped = registerTool({
       name: "scoped_tool",
       options: { g: { title: "G", options: {
         bg: { label: "Bg", defaultValue: "#fafafa", widget: "color_picker" },
@@ -239,13 +239,13 @@ describe("edge: head contributions", () => {
   });
 
   it("heads returning undefined emit nothing (no 'undefined' in output)", () => {
-    const Product = registerElementsTool({ ...productTool, name: "product_tool_h" } as any);
+    const Product = registerTool({ ...productTool, name: "product_tool_h" } as any);
     const { head } = renderToHtmlParts(inEmail(<Product />));
     expect(head).not.toContain("undefined");
   });
 
   it("head tags are collected and deduplicated", () => {
-    const TagTool = registerElementsTool({
+    const TagTool = registerTool({
       name: "tag_tool",
       values: {},
       renderer: {
@@ -262,15 +262,26 @@ describe("edge: head contributions", () => {
 // Failure modes and hostile input
 // ---------------------------------------------------------------------------
 describe("edge: failure modes", () => {
-  it("a throwing exporter drops only its own block — siblings render, error logged", () => {
-    const consoleError = vi.spyOn(console, "error").mockImplementation(() => {});
-    const consoleWarn = vi.spyOn(console, "warn").mockImplementation(() => {});
-    const Broken = registerElementsTool({
+  it("a throwing exporter fails the render loudly by default (onError: throw)", () => {
+    const Broken = registerTool({
       name: "broken_tool",
       values: {},
       renderer: { exporters: { email: () => { throw new Error("boom"); } } },
     } as any);
-    const html = renderToHtml(inEmail(<Broken />, <HeadToolSafe />));
+    expect(() => renderToHtml(inEmail(<Broken />, <HeadToolSafe />))).toThrow(/boom/);
+  });
+
+  it("with onError: render-fallback, a throwing exporter drops only its own block — siblings render, error logged", () => {
+    const consoleError = vi.spyOn(console, "error").mockImplementation(() => {});
+    const consoleWarn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const Broken = registerTool({
+      name: "broken_tool",
+      values: {},
+      renderer: { exporters: { email: () => { throw new Error("boom"); } } },
+    } as any);
+    const html = renderToHtml(inEmail(<Broken />, <HeadToolSafe />), {
+      onError: "render-fallback",
+    });
     // The broken block is omitted (no error card in sendable output)...
     expect(html).not.toContain("broken_tool");
     // ...siblings and the document survive intact
@@ -283,7 +294,7 @@ describe("edge: failure modes", () => {
   });
 
   it("a non-string exporter return is coerced, not crashed on", () => {
-    const Numeric = registerElementsTool({
+    const Numeric = registerTool({
       name: "numeric_tool",
       values: {},
       renderer: { exporters: { email: () => 42 as unknown as string } },
@@ -293,7 +304,7 @@ describe("edge: failure modes", () => {
   });
 
   it("a non-string exporter return is coerced BEFORE a configured sanitizer sees it", () => {
-    const Numeric = registerElementsTool({
+    const Numeric = registerTool({
       name: "numeric_tool_sanitized",
       values: {},
       renderer: { exporters: { email: () => 42 as unknown as string } },
@@ -305,7 +316,7 @@ describe("edge: failure modes", () => {
   });
 
   it("special characters in values pass through raw (tool owns its markup)", () => {
-    const Echo = registerElementsTool({
+    const Echo = registerTool({
       name: "echo_tool",
       values: { text: "" },
       renderer: { exporters: { email: (v: any) => `<div>${v.text}</div>` } },
@@ -316,7 +327,7 @@ describe("edge: failure modes", () => {
 
   it("a configured sanitizer sees each mode's output", () => {
     const seen: string[] = [];
-    const Tool = registerElementsTool({
+    const Tool = registerTool({
       name: "san_tool",
       values: {},
       renderer: {
@@ -346,7 +357,7 @@ describe("edge: failure modes", () => {
   });
 });
 
-const HeadToolSafe = registerElementsTool({
+const HeadToolSafe = registerTool({
   name: "safe_tool",
   values: {},
   renderer: { exporters: { email: () => "<div>safe tool</div>" } },
@@ -356,12 +367,12 @@ const HeadToolSafe = registerElementsTool({
 // Composition: multiple tools, base props, plaintext
 // ---------------------------------------------------------------------------
 describe("edge: composition", () => {
-  const A = registerElementsTool({
+  const A = registerTool({
     name: "tool_a",
     values: { n: "a" },
     renderer: { exporters: { email: (v: any) => `<p>tool ${v.n}</p>` } },
   } as any);
-  const B = registerElementsTool({
+  const B = registerTool({
     name: "tool_b",
     values: { n: "b" },
     renderer: { exporters: { email: (v: any) => `<p>tool ${v.n}</p>` } },
@@ -382,7 +393,7 @@ describe("edge: composition", () => {
   });
 
   it("base props (className/style/mode) do not leak into tool values", () => {
-    const Probe = registerElementsTool({
+    const Probe = registerTool({
       name: "probe_tool",
       values: {},
       renderer: {
