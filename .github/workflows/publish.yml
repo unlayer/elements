@@ -44,10 +44,10 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Setup Node.js 20
+      - name: Setup Node.js 24
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 24
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
@@ -101,14 +101,14 @@ jobs:
 
       # setup-node with registry-url enables OIDC token exchange for npm publish.
       # All @unlayer deps are public — no NPM_TOKEN needed.
-      - name: Setup Node.js 20 (with npm registry for OIDC)
+      - name: Setup Node.js 24 (with npm registry for OIDC)
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 24
           registry-url: https://registry.npmjs.org
 
       - name: Update npm for trusted publishing
-        run: npm install -g npm@latest
+        run: npm install -g npm@12
 
       - name: Get pnpm store directory
         shell: bash
