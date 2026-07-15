@@ -7,11 +7,11 @@ settings:
 catalogs:
   default:
     '@unlayer/exporters':
-      specifier: 1.415.0
-      version: 1.415.0
+      specifier: 1.455.0
+      version: 1.455.0
     '@unlayer/types':
-      specifier: 1.415.0
-      version: 1.415.0
+      specifier: 1.455.0
+      version: 1.455.0
 
 importers:
 
@@ -68,10 +68,10 @@ importers:
     dependencies:
       '@unlayer/exporters':
         specifier: 'catalog:'
-        version: 1.415.0(@unlayer/types@1.415.0)
+        version: 1.455.0(@unlayer/types@1.455.0)
       '@unlayer/types':
         specifier: 'catalog:'
-        version: 1.415.0
+        version: 1.455.0
       react:
         specifier: '>=18'
         version: 18.3.1
@@ -144,7 +144,7 @@ importers:
     dependencies:
       '@unlayer/types':
         specifier: 'catalog:'
-        version: 1.415.0
+        version: 1.455.0
     devDependencies:
       tsup:
         specifier: ^8.0.1
@@ -1484,14 +1484,14 @@ packages:
   '@types/yargs@17.0.35':
     resolution: {integrity: sha512-qUHkeCyQFxMXg79wQfTtfndEC+N9ZZg76HJftDJp+qH2tV7Gj4OJi7l+PiWwJ+pWtW8GwSmqsDj/oymhrTWXjg==}
 
-  '@unlayer/exporters@1.415.0':
-    resolution: {integrity: sha512-5FKhAfDTMMlBivda8qOaLkIKt7JzyKSBgUlKNDAMWaIibgBmcxKWvtP6Uv0eqwta2w85nTU8a8pzztNPsoIR5Q==}
+  '@unlayer/exporters@1.455.0':
+    resolution: {integrity: sha512-IJUQmrGlBig6OyRURkTeXm3sSD/leYD86kwzhJB4EgodUTty67yxjkS+Nyu6C+SRU4EwdfdiFswxNxtw4ttuMw==}
     engines: {node: '>=14.0.0'}
     peerDependencies:
-      '@unlayer/types': '>=1.415.0'
+      '@unlayer/types': '>=1.455.0'
 
-  '@unlayer/types@1.415.0':
-    resolution: {integrity: sha512-qcN8OuNZOMDHvydeBQmb7namzgd9c58eVlKaw05eSYj05BQ8hSsMYRoEMnUDY0FKc11S8O0mouJcPOf53e5LZA==}
+  '@unlayer/types@1.455.0':
+    resolution: {integrity: sha512-WHRNCpErzixSENMVqy8oyXA9l091iu3WJpl/sGlQfV64r86b/WNjBgc7vG2uT3/XOWS0AynGT0Kn+aJjsdAR6g==}
 
   '@vitejs/plugin-react@4.7.0':
     resolution: {integrity: sha512-gUu9hwfWvvEDBBmgtAowQCojwZmJ5mcLn3aufeCsitijs3+f2NsrPtlAWIR6OPiqljl96GVCUbLe0HyqIpVaoA==}
@@ -5374,7 +5374,7 @@ snapshots:
     dependencies:
       '@types/yargs-parser': 21.0.3
 
-  '@unlayer/exporters@1.415.0(@unlayer/types@1.415.0)':
+  '@unlayer/exporters@1.455.0(@unlayer/types@1.455.0)':
     dependencies:
       '@lexical/headless': 0.41.0
       '@lexical/html': 0.41.0
@@ -5383,13 +5383,13 @@ snapshots:
       '@lexical/rich-text': 0.41.0
       '@lexical/selection': 0.41.0
       '@lexical/utils': 0.41.0
-      '@unlayer/types': 1.415.0
+      '@unlayer/types': 1.455.0
       lexical: 0.41.0
     transitivePeerDependencies:
       - bufferutil
       - utf-8-validate
 
-  '@unlayer/types@1.415.0': {}
+  '@unlayer/types@1.455.0': {}
 
   '@vitejs/plugin-react@4.7.0(vite@6.4.1(@types/node@25.3.5)(jiti@2.6.1)(less@4.4.2)(lightningcss@1.31.1)(sass@1.93.2)(terser@5.44.0)(tsx@4.21.0))':
     dependencies:

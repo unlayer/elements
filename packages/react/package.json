@@ -58,6 +58,7 @@
     "build-storybook": "storybook build",
     "test": "vitest",
     "test:coverage": "vitest --coverage",
+    "test:browser-runtime": "node scripts/browser-runtime-probe.mjs",
     "test:csp": "node --disallow-code-generation-from-strings scripts/csp-probe.mjs",
     "test:e2e": "node scripts/browser-e2e.mjs",
     "test:visual": "node scripts/storybook-visual.mjs",

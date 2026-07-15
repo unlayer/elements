@@ -95,6 +95,14 @@ jobs:
       - name: Install Playwright Chromium
         run: pnpm --filter @unlayer/react-elements exec playwright install --with-deps chromium
 
+      # ── Browser import/runtime safety gate ──────────────────────
+      # Bundles the shipped package entry as a browser consumer would, then
+      # imports and renders inside Chromium without a Node `process` global.
+      # Includes a negative control that reproduces the original
+      # `process.env.IS_OFFLINE` crash so a green result proves the gate works.
+      - name: Browser runtime safety gate
+        run: pnpm --filter @unlayer/react-elements test:browser-runtime
+
       # ── Browser E2E gate (rendered documents) ───────────────────
       # Renders full documents with the BUILT dist for all three modes and
       # asserts in real Chromium: every <p> computes to 0px margins (the

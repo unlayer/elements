@@ -3,5 +3,5 @@ packages:
   - 'examples/*'
 
 catalog:
-  "@unlayer/exporters": "1.415.0"
-  "@unlayer/types": "1.415.0"
+  "@unlayer/exporters": "1.455.0"
+  "@unlayer/types": "1.455.0"
