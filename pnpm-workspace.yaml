@@ -1,6 +1,7 @@
 packages:
   - 'packages/*'
   - 'examples/*'
+  - '!examples/nextjs-app-router'
 
 catalog:
   "@unlayer/exporters": "1.455.0"
