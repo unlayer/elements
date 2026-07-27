@@ -7,6 +7,7 @@ import OrderConfirmation from "./OrderConfirmation";
 import ReviewRequest from "./ReviewRequest";
 import PasswordReset from "./PasswordReset";
 import NewsletterDigest from "./NewsletterDigest";
+import NewsletterWebArchive from "./NewsletterWebArchive";
 import AbandonedCart from "./AbandonedCart";
 import ShippingUpdate from "./ShippingUpdate";
 import ProductLaunch from "./ProductLaunch";
@@ -21,6 +22,7 @@ import orderSource from "./OrderConfirmation.tsx?raw";
 import reviewSource from "./ReviewRequest.tsx?raw";
 import passwordSource from "./PasswordReset.tsx?raw";
 import newsletterSource from "./NewsletterDigest.tsx?raw";
+import newsletterArchiveSource from "./NewsletterWebArchive.tsx?raw";
 import abandonedCartSource from "./AbandonedCart.tsx?raw";
 import shippingSource from "./ShippingUpdate.tsx?raw";
 import productLaunchSource from "./ProductLaunch.tsx?raw";
@@ -100,6 +102,17 @@ export const templates: TemplateEntry[] = [
     colorAccent: "#e85d04",
     component: NewsletterDigest,
     sourceCode: newsletterSource,
+  },
+  {
+    id: "newsletter-web-archive",
+    name: "Newsletter Web Archive",
+    description: "The same newsletter tree rendered with <Page> as a browser archive page",
+    category: "newsletter",
+    inspiration: "Substack",
+    colorAccent: "#e85d04",
+    component: NewsletterWebArchive,
+    sourceCode: newsletterArchiveSource,
+    mode: "web",
   },
   {
     id: "abandoned-cart",

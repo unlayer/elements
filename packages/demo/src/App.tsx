@@ -3,6 +3,7 @@ import Hero from "./sections/Hero";
 import QuickStart from "./sections/QuickStart";
 import TemplateShowcase from "./sections/TemplateShowcase";
 import RenderModeDemo from "./sections/RenderModeDemo";
+import NewsletterArchiveDemo from "./sections/NewsletterArchiveDemo";
 import FeatureComparison from "./sections/FeatureComparison";
 import ComponentGallery from "./sections/ComponentGallery";
 import CTABanner from "./sections/CTABanner";
@@ -43,6 +44,7 @@ export default function App() {
       <div className="fade-in-up"><QuickStart /></div>
       <div className="fade-in-up"><TemplateShowcase /></div>
       <div className="fade-in-up"><RenderModeDemo /></div>
+      <div className="fade-in-up"><NewsletterArchiveDemo /></div>
       <div className="fade-in-up"><FeatureComparison /></div>
       <div className="fade-in-up"><ComponentGallery /></div>
       <div className="fade-in-up"><CTABanner /></div>

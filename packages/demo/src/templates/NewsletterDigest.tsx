@@ -1,6 +1,7 @@
 import type { ReactElement } from "react";
 import {
   Email,
+  Page,
   Row,
   Column,
   Paragraph,
@@ -21,9 +22,24 @@ const uiFont = {
   value: "system-ui, -apple-system, BlinkMacSystemFont, sans-serif",
 };
 
-export default function NewsletterDigest(): ReactElement {
+/** Which output this newsletter is being rendered for. */
+export type NewsletterOutput = "email" | "web";
+
+/**
+ * The newsletter, wrapper-agnostic.
+ *
+ * Everything inside the wrapper is identical for both outputs — only the root
+ * component changes:
+ *   <Email> → table-based HTML for inboxes
+ *   <Page>  → div/flexbox HTML for the browser ("view in browser" archive)
+ *
+ * See NewsletterWebArchive.tsx for the web variant.
+ */
+export function newsletterTemplate(output: NewsletterOutput): ReactElement {
+  const Wrapper = output === "web" ? Page : Email;
+
   return (
-    <Email
+    <Wrapper
       backgroundColor="#f9f9f4"
       textColor="#1a1a1a"
       contentAlign="center"
@@ -278,8 +294,14 @@ export default function NewsletterDigest(): ReactElement {
             lineHeight="1.6"
             fontFamily={uiFont}
           />
+          {/* The only content that differs between the two outputs: the inbox
+              copy links out to the archive, the archive links back to signup. */}
           <Paragraph
-            html='<a href="#">Unsubscribe</a> · <a href="#">View in browser</a> · <a href="#">Update preferences</a>'
+            html={
+              output === "web"
+                ? '<a href="#">Subscribe</a> · <a href="#">Browse the archive</a> · <a href="#">RSS</a>'
+                : '<a href="#">Unsubscribe</a> · <a href="#">View in browser</a> · <a href="#">Update preferences</a>'
+            }
             fontSize="12px"
             color="#999999"
             textAlign="center"
@@ -288,6 +310,11 @@ export default function NewsletterDigest(): ReactElement {
           />
         </Column>
       </Row>
-    </Email>
+    </Wrapper>
   );
+}
+
+/** The newsletter as an email — table-based HTML for inboxes. */
+export default function NewsletterDigest(): ReactElement {
+  return newsletterTemplate("email");
 }

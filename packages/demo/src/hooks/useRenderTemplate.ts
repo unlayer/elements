@@ -23,7 +23,7 @@ export function useRenderTemplate(templateId: string): RenderResult {
     let plainText = "";
 
     try {
-      const parts = renderToHtmlParts(element, { mode: "email" });
+      const parts = renderToHtmlParts(element, { mode: entry.mode ?? "email" });
       head = parts.head;
       html = parts.body;
     } catch (e) {
