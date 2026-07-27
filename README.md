@@ -216,6 +216,14 @@ For the full API reference, component props, design patterns, and common mistake
 | [`@unlayer-internal/shared-elements`](./packages/shared) | Framework-agnostic shared logic | Internal |
 | [`@unlayer/elements-demo`](./packages/demo) | Demo application | — |
 
+## Examples
+
+Runnable projects you can clone and experiment with:
+
+| Example | Description |
+|---------|-------------|
+| [`examples/nextjs-app-router`](./examples/nextjs-app-router) | Next.js 15 App Router — renders an email with `renderToHtml()` in a Server Component, previews it at `/email-preview`, and serves the raw HTML from a Route Handler |
+
 ## Development
 
 ```bash

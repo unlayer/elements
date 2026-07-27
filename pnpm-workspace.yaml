@@ -1,6 +1,12 @@
 packages:
   - 'packages/*'
   - 'examples/*'
+  # Examples install @unlayer/react-elements from npm, exactly as a consumer
+  # would. Keeping them out of the workspace stops pnpm symlinking the local
+  # copy — Next.js resolves that symlink outside node_modules and compiles the
+  # package into the RSC graph, which rejects its react-dom/server import.
+  # The local build is covered by tests/nextjs-integration instead.
+  - '!examples/nextjs-app-router'
 
 catalog:
   "@unlayer/exporters": "1.455.0"
