@@ -6,9 +6,10 @@ export default function Home() {
       <h1 style={{ fontSize: 28, margin: "0 0 12px" }}>Elements + Next.js App Router</h1>
       <p style={{ color: "#52525b", lineHeight: 1.7, margin: "0 0 28px" }}>
         A Server Component builds an Unlayer Elements tree and calls{" "}
-        <code>renderToHtml()</code> on the server. No client JavaScript, no{" "}
-        <code>&quot;use client&quot;</code> — the HTML is produced during the
-        render and sent down with the page.
+        <code>renderToHtml()</code> on the server, so the email is produced
+        during the render and shipped as a plain HTML string. Email
+        construction and rendering are server-only; the interactive preview
+        dashboard is the only part that runs client JavaScript.
       </p>
 
       <ul style={{ listStyle: "none", padding: 0, margin: 0, lineHeight: 2 }}>

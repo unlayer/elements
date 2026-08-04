@@ -8,6 +8,7 @@ import {
   Divider,
   ColumnLayouts,
 } from "@unlayer/react-elements";
+import { escapeHtml, requireSafeUrl } from "@/utils/safe";
 
 const font = {
   label: "Sans Serif",
@@ -30,8 +31,16 @@ export interface WelcomeEmailProps {
  * data (a DB row, a webhook payload, a CMS). Nothing here is Next-specific;
  * the same tree can be handed to renderToHtml() from a route handler, a
  * background job, or a test.
+ *
+ * Because those props are untrusted, dynamic values are escaped before being
+ * interpolated into raw HTML and link targets are validated as http(s).
  */
 export default function WelcomeEmail({ name, plan, dashboardUrl }: WelcomeEmailProps) {
+  // Props may come from a DB, webhook, or CMS: escape anything interpolated
+  // into the raw `html` prop and reject non-http(s) link targets.
+  const safePlan = escapeHtml(plan);
+  const safeDashboardUrl = requireSafeUrl(dashboardUrl);
+
   return (
     <Email
       backgroundColor="#f4f4f5"
@@ -72,7 +81,7 @@ export default function WelcomeEmail({ name, plan, dashboardUrl }: WelcomeEmailP
             fontFamily={font}
           />
           <Paragraph
-            html={`Your <b>${plan}</b> workspace is ready. Invite your team, connect a repository, and ship your first deploy in under five minutes.`}
+            html={`Your <b>${safePlan}</b> workspace is ready. Invite your team, connect a repository, and ship your first deploy in under five minutes.`}
             fontSize="15px"
             color="#52525b"
             textAlign="left"
@@ -81,7 +90,7 @@ export default function WelcomeEmail({ name, plan, dashboardUrl }: WelcomeEmailP
           />
           <Button
             text="Open your dashboard"
-            href={dashboardUrl}
+            href={safeDashboardUrl}
             buttonColors={{ backgroundColor: "#18181b", color: "#ffffff" }}
             padding="13px 26px"
             borderRadius="8px"

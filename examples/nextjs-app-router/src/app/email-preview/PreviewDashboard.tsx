@@ -252,6 +252,7 @@ export default function PreviewDashboard({
           >
             <iframe
               srcDoc={initialHtml}
+              sandbox=""
               title="Email HTML Preview"
               style={{
                 width: viewport === "mobile" ? 375 : "100%",
