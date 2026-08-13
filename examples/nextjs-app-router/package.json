@@ -1,0 +1,30 @@
+{
+  "name": "@unlayer/example-nextjs-app-router",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Next.js App Router example rendering an Elements email with renderToHtml()",
+  "packageManager": "pnpm@9.7.0",
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start"
+  },
+  "dependencies": {
+    "@unlayer/react-elements": "^0.1.20",
+    "next": "15.5.22",
+    "react": "19.1.0",
+    "react-dom": "19.1.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "typescript": "^5"
+  },
+  "pnpm": {
+    "overrides": {
+      "postcss": ">=8.5.18",
+      "sharp": ">=0.35.0"
+    }
+  }
+}
