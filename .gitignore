@@ -152,3 +152,5 @@ tsup.config.bundled_*.mjs
 
 # Claude Code
 .claude/
+
+__snapshots__/

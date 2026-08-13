@@ -1,0 +1,4 @@
+# Marks this example as its own pnpm root, so `pnpm install` here installs the
+# example alone instead of walking up and installing the whole monorepo.
+# It depends on @unlayer/react-elements from npm, exactly as your app would.
+packages: []
