@@ -8,9 +8,18 @@
  */
 
 /**
- * Common HTML entity map for decoding.
+ * Common HTML named entity map for decoding.
+ *
+ * Covers the entities that actually appear in email/marketing content —
+ * currency, typographic punctuation, common symbols, and the Latin-1 accented
+ * letters used in European names and words. Kept as a curated map (rather than
+ * the full HTML5 named-reference set, which is ~2000 entries) so the bundle
+ * stays within its size budget. Numeric entities (`&#123;`, `&#x1a;`) are
+ * handled separately below, so anything missing here still decodes if written
+ * numerically.
  */
 const HTML_ENTITIES: Record<string, string> = {
+  // Core markup + whitespace
   "&amp;": "&",
   "&lt;": "<",
   "&gt;": ">",
@@ -18,16 +27,67 @@ const HTML_ENTITIES: Record<string, string> = {
   "&#39;": "'",
   "&apos;": "'",
   "&nbsp;": " ",
+  // Dashes, quotes, and typographic punctuation
   "&mdash;": "—",
   "&ndash;": "–",
   "&laquo;": "«",
   "&raquo;": "»",
+  "&lsquo;": "‘",
+  "&rsquo;": "’",
+  "&ldquo;": "“",
+  "&rdquo;": "”",
   "&bull;": "•",
   "&middot;": "·",
   "&hellip;": "…",
+  // Currency
+  "&cent;": "¢",
+  "&pound;": "£",
+  "&yen;": "¥",
+  "&euro;": "€",
+  // Legal / trademark
   "&copy;": "©",
   "&reg;": "®",
   "&trade;": "™",
+  "&sect;": "§",
+  "&para;": "¶",
+  // Math and misc symbols
+  "&deg;": "°",
+  "&plusmn;": "±",
+  "&times;": "×",
+  "&divide;": "÷",
+  "&micro;": "µ",
+  "&frac14;": "¼",
+  "&frac12;": "½",
+  "&frac34;": "¾",
+  // Latin-1 accented letters (common in European names/words)
+  "&szlig;": "ß",
+  "&agrave;": "à",
+  "&aacute;": "á",
+  "&acirc;": "â",
+  "&atilde;": "ã",
+  "&auml;": "ä",
+  "&aring;": "å",
+  "&aelig;": "æ",
+  "&ccedil;": "ç",
+  "&egrave;": "è",
+  "&eacute;": "é",
+  "&ecirc;": "ê",
+  "&euml;": "ë",
+  "&igrave;": "ì",
+  "&iacute;": "í",
+  "&icirc;": "î",
+  "&iuml;": "ï",
+  "&ntilde;": "ñ",
+  "&ograve;": "ò",
+  "&oacute;": "ó",
+  "&ocirc;": "ô",
+  "&otilde;": "õ",
+  "&ouml;": "ö",
+  "&oslash;": "ø",
+  "&ugrave;": "ù",
+  "&uacute;": "ú",
+  "&ucirc;": "û",
+  "&uuml;": "ü",
 };
 
 /**
