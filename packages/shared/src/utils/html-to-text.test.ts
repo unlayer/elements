@@ -77,6 +77,39 @@ describe("htmlToPlainText", () => {
     expect(htmlToPlainText("&#x00A9;")).toBe("\u00A9"); // ©
   });
 
+  it("decodes common currency and symbol named entities", () => {
+    expect(htmlToPlainText("Price &pound;5, &euro;9, &yen;100, &cent;50")).toBe(
+      "Price £5, €9, ¥100, ¢50"
+    ); // pound euro yen cent
+    expect(htmlToPlainText("5&deg; &times; &frac12; &divide; &plusmn;")).toBe(
+      "5° × ½ ÷ ±"
+    ); // deg times frac12 divide plusmn
+    expect(htmlToPlainText("&sect;2 &para;3 &micro;g")).toBe(
+      "§2 ¶3 µg"
+    ); // sect para micro
+  });
+
+  it("decodes typographic quote named entities", () => {
+    expect(htmlToPlainText("&ldquo;Hi&rdquo; &lsquo;yo&rsquo;")).toBe(
+      "“Hi” ‘yo’"
+    );
+  });
+
+  it("decodes Latin-1 accented named entities", () => {
+    // Cafe resume naive Zoe Francois Munoz Strasse (with accents)
+    expect(
+      htmlToPlainText(
+        "Caf&eacute; r&eacute;sum&eacute; na&iuml;ve Zo&euml; Fran&ccedil;ois Mu&ntilde;oz Stra&szlig;e"
+      )
+    ).toBe(
+      "Café résumé naïve Zoë François Muñoz Straße"
+    );
+  });
+
+  it("leaves unknown named entities untouched", () => {
+    expect(htmlToPlainText("&notanentity; x")).toBe("&notanentity; x");
+  });
+
   // Skip elements
   it("skips elements with data-skip-in-text attribute", () => {
     const html = '<div data-skip-in-text="true">hidden preview</div><p>Visible content</p>';
