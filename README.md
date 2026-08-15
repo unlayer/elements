@@ -87,6 +87,56 @@ function WelcomeEmail() {
 const html = renderToHtml(<WelcomeEmail />);
 ```
 
+## Email Client Compatibility Notes
+
+### Targeted Clients
+
+Email mode is designed for the major clients listed throughout this repo:
+
+- Outlook
+- Gmail
+- Yahoo
+- Apple Mail
+
+### Why Email Mode Uses Table-Based HTML
+
+Email clients do not share a modern browser CSS baseline. To keep layout behavior stable across major inboxes (especially Outlook's Word-based renderer), `<Email>` renders with table-oriented HTML and MSO-specific patterns instead of web-style div/flex layouts.
+
+Repository evidence:
+
+- `<Email>` is documented and tested as table-based output for email clients: [packages/react/README.md](./packages/react/README.md)
+- The email document shell includes MSO conditionals and Office namespaces: [packages/react/src/utils/document-layouts.ts](./packages/react/src/utils/document-layouts.ts)
+- Golden output asserts table markup and Outlook-specific conditionals (`[if mso]`): [packages/react/src/golden-template.test.tsx](./packages/react/src/golden-template.test.tsx)
+
+### Known Compatibility Caveats (Current Repo Scope)
+
+- Validation in this repo is renderer-focused and browser-based (snapshots + Chromium E2E). It is not a client-emulator matrix checked into this repository.
+- Email responsive stacking depends on head CSS/media queries; this is explicitly exercised by the E2E gate in Chromium, not by an inbox simulator.
+
+Validation references:
+
+- Snapshot coverage (components in email + web modes): [packages/react/src/components/snapshots.test.tsx](./packages/react/src/components/snapshots.test.tsx)
+- Golden end-to-end template coverage: [packages/react/src/golden-template.test.tsx](./packages/react/src/golden-template.test.tsx)
+- Browser E2E gate and exact assertions: [packages/react/scripts/browser-e2e.mjs](./packages/react/scripts/browser-e2e.mjs)
+
+### CSP Safety Validation
+
+Elements includes a strict CSP gate that runs the built package under:
+
+- `node --disallow-code-generation-from-strings`
+
+The gate's purpose is to fail if import/render paths evaluate strings (`eval` / `new Function`), including behavior coming from pinned dependencies.
+
+- CSP probe implementation: [packages/react/scripts/csp-probe.mjs](./packages/react/scripts/csp-probe.mjs)
+- Package script (`test:csp`): [packages/react/package.json](./packages/react/package.json)
+- Pinned exporter dependency source: [pnpm-workspace.yaml](./pnpm-workspace.yaml)
+
+Interpretation guidance:
+
+- A passing `test:csp` run is evidence that the exercised import/render paths are compatible with CSP configurations that disallow `'unsafe-eval'`.
+- This probe is not a universal guarantee for every browser/runtime configuration.
+- If `test:csp` is failing in CI or your local environment, treat strict CSP compatibility as unresolved for that run and investigate the reported failure.
+
 ## Features
 
 ### One Component Tree
@@ -262,7 +312,7 @@ Every release must pass, in CI:
 - **Visual-drift gate:** the computed styles of every Storybook story are fingerprinted at desktop and mobile widths and diffed against a committed baseline, so unintended style changes fail the build with property-level diffs.
 - **Next.js integration test:** a real Next.js 15 app with Server Components builds against the published package artifact.
 
-The email mode emits the same table-based, Outlook-safe HTML patterns as Unlayer's editor exports, which land in real inboxes every day. Our templates are tested on Litmus and Email on Acid across major email clients, including Outlook, Gmail, Yahoo, and Apple Mail.
+The email mode emits the same table-based, Outlook-safe HTML patterns as Unlayer's editor exports, which land in real inboxes every day. Our templates are tested on Litmus and Email on Acid across major email clients, including Outlook, Gmail, Yahoo, and Apple Mail. For repository-scoped compatibility evidence and caveats, see [Email Client Compatibility Notes](#email-client-compatibility-notes).
 
 ### Is the PDF output a real PDF engine?
 
