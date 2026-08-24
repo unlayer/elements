@@ -28,6 +28,7 @@ export type {
   ParagraphValues,
   SocialValues,
   TableValues,
+  TimerValues,
   VideoValues,
   // Container value types
   RowValues,

@@ -23,6 +23,7 @@ import Menu from "./Menu";
 import Paragraph from "./Paragraph";
 import Social from "./Social";
 import Table from "./Table";
+import Timer from "./Timer";
 
 import Video from "./Video";
 import Body from "./Body";
@@ -113,6 +114,19 @@ describe("Render Snapshots", () => {
     });
     it("email", () => {
       expect(renderHtml(<Table mode="email" />)).toMatchSnapshot();
+    });
+  });
+
+  describe("Timer", () => {
+    it("web", () => {
+      expect(
+        renderHtml(<Timer mode="web" endTime="2026-12-31 23:59:59" timezone="UTC" />)
+      ).toMatchSnapshot();
+    });
+    it("email", () => {
+      expect(
+        renderHtml(<Timer mode="email" endTime="2026-12-31 23:59:59" timezone="UTC" />)
+      ).toMatchSnapshot();
     });
   });
 

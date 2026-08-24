@@ -371,6 +371,30 @@ exports[`Render Snapshots > Table > web 1`] = `
 </div>"
 `;
 
+exports[`Render Snapshots > Timer > email 1`] = `
+"<div>
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+  <tbody><tr>
+    <td style="padding-right: 0px;padding-left: 0px;" align="center">
+      
+      <img align="center" border="0" src="https://cdn.tools.unlayer.com/countdown/countdown.gif" alt="Countdown" title="Countdown" style="outline: none;text-decoration: none;-ms-interpolation-mode: bicubic;clear: both;display: block !important;border: none;height: auto;float: none;width: 100%;max-width: 500px;" width="500" class="v-width v-width-max-width">
+      
+    </td>
+  </tr>
+</tbody></table>
+</div>"
+`;
+
+exports[`Render Snapshots > Timer > web 1`] = `
+"<div>
+<div style="position:relative;line-height:0px;text-align:center">
+  
+  <img alt="Countdown" class="v-width v-width-max-width" src="https://cdn.tools.unlayer.com/countdown/countdown.gif" style="width: 100%;max-width: 500px;" title="Countdown">
+  
+</div>
+</div>"
+`;
+
 exports[`Render Snapshots > Video > email 1`] = `
 "<div>
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
