@@ -156,19 +156,93 @@ Must be child of Row. Count must match layout.
 - `borderRadius?: string`
 
 ### Button
-- `text?: string` — `"Button"` (or use children)
-- `href?: string | Href` — plain string auto-wrapped
-- `backgroundColor?: string` — `"#0879A1"`
-- `color?: string` — `"#FFFFFF"`
-- `hoverBackgroundColor?: string`
-- `hoverColor?: string`
-- `fontSize?: string` — `"14px"`
-- `fontWeight?: number` — `400`
-- `fontFamily?: { label: string, value: string }`
-- `padding?: string` — `"10px 20px"`
-- `borderRadius?: string` — `"4px"`
-- `width?: number | string` — display width; `width="100%"` makes the button full-width, `width="200px"` pins it
-- `textAlign?: "left" | "center" | "right"` — `"center"`
+
+CTA button component with automatic semantic prop mapping, email/web/document rendering support, and flexible styling options.
+
+#### Props Table
+
+| Prop | Type | Default | Description |
+|------|------|---------|-------------|
+| `children` | `ReactNode` | — | Text content for the button (React shorthand for `text`). |
+| `text` | `string` | `"Button"` | Plain text content. |
+| `href` | `string \| Href` | — | Link URL string (e.g. `"https://example.com"`) or structured link object shape `{ name: "web", values: { href, target } }`. |
+| `backgroundColor` | `string` | `"#0879A1"` | Primary background color. |
+| `color` | `string` | `"#FFFFFF"` | Primary text color. |
+| `hoverBackgroundColor` | `string` | — | Background color on mouse hover. |
+| `hoverColor` | `string` | — | Text color on mouse hover. |
+| `fontSize` | `string \| number` | `"14px"` | Font size as CSS string (e.g. `"16px"`) or bare number in pixels (`16` → `"16px"`). |
+| `fontWeight` | `number \| string` | `400` | Font weight value (e.g. `400`, `600`, `700`). Bare numbers or numeric strings are normalized. |
+| `fontFamily` | `{ label: string, value: string } \| string` | `{ label: "Arial", value: "arial,helvetica,sans-serif" }` | Font family stack object (recommended `{ label: "Arial", value: "arial, sans-serif" }`) or plain family string (`"Georgia"`). |
+| `padding` | `string \| number` | `"10px 20px"` | Internal button padding (e.g. `"14px 28px"` or bare number in px). |
+| `borderRadius` | `string \| number` | `"4px"` | Corner rounding (e.g. `"8px"`, `"500px"` or bare number in px). |
+| `width` | `string \| number` | — | Display width. A number/px string pins fixed width (`width="200px"`), while `"100%"` makes the button full-width. |
+| `textAlign` | `"left" \| "center" \| "right"` | `"center"` | Alignment of the button within its container. |
+
+#### ⚠️ Important Type Notes
+
+> [!NOTE]
+> - **`fontFamily`**: Canonical shape is an object `{ label: string, value: string }` (e.g. `{ label: "Arial", value: "arial, sans-serif" }`). Plain strings are automatically normalized to `{ label, value }`.
+> - **`fontWeight`**: Must be a number (e.g. `600`, `700`) or a numeric string (e.g. `"600"`).
+> - **`href`**: Accepts a plain URL string like `"https://example.com"` (auto-converted to `{ name: "web", values: { href, target: "_blank" } }`) or specific link configs for emails (`mailto:`) and phones (`tel:`).
+> - **`width`**: Passing `width="100%"` creates a full-width button (sets `autoWidth: false` internally).
+
+#### Nested Escape Hatches
+
+For advanced customization, flat props are automatically mapped into nested schema groups, or you can pass nested object structures directly:
+
+| Group Prop | Type | Description |
+|------------|------|-------------|
+| `buttonColors` | `{ backgroundColor?: string, color?: string, hoverBackgroundColor?: string, hoverColor?: string }` | Grouped colors and hover states. |
+| `border` | `{ borderTopWidth?, borderTopStyle?, borderTopColor?, borderRightWidth?, ... }` | Per-side border properties. Bare numbers for width fields are normalized to `px`. |
+| `values` | `ButtonValues` | Escape hatch to pass full un-mapped exporter values directly. |
+
+#### Usage Examples
+
+**Basic CTA Button**
+```tsx
+<Button
+  href="https://example.com"
+  backgroundColor="#000000"
+  color="#ffffff"
+  borderRadius="8px"
+>
+  Get Started
+</Button>
+```
+
+**Full-Width Mobile Button with Hover State**
+```tsx
+<Button
+  href="https://example.com/signup"
+  backgroundColor="#2563eb"
+  color="#ffffff"
+  hoverBackgroundColor="#1d4ed8"
+  fontSize="16px"
+  fontWeight={600}
+  padding="14px 28px"
+  borderRadius="8px"
+  width="100%"
+>
+  Create Free Account →
+</Button>
+```
+
+**Advanced Styling with Per-Side Borders & Nested Escape Hatch**
+```tsx
+<Button
+  buttonColors={{ backgroundColor: "#f8fafc", color: "#0f172a", hoverBackgroundColor: "#f1f5f9" }}
+  border={{
+    borderTopWidth: "2px",
+    borderTopStyle: "solid",
+    borderTopColor: "#3b82f6"
+  }}
+  borderRadius="4px"
+  padding="12px 24px"
+>
+  Custom Border Button
+</Button>
+```
+
 
 ### Paragraph
 - `html?: string` — **rich HTML string** with inline formatting: `<b>`, `<i>`, `<u>`, `<s>`, `<a>`, `<code>`
