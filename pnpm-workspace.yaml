@@ -4,5 +4,5 @@ packages:
   - '!examples/nextjs-app-router'
 
 catalog:
-  "@unlayer/exporters": "1.455.0"
-  "@unlayer/types": "1.455.0"
+  "@unlayer/exporters": "1.482.0"
+  "@unlayer/types": "1.482.0"
