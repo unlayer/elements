@@ -100,6 +100,10 @@ export interface ItemComponentConfig<TValues, TSemanticProps> {
   /** Head contributions (css/js/tags builders) carried by the component
    *  itself instead of looked up in the exporters registry. */
   head?: Record<string, any>;
+
+  /** Skip the content-container wrapper when this component's exporter returns
+   *  an empty string for an unsupported mode. */
+  omitEmptyOutput?: boolean;
 }
 
 /**
@@ -403,6 +407,7 @@ export function createItemComponent<
     slug: config.slug,
     metaName: config.metaName,
     head: config.head,
+    omitEmptyOutput: config.omitEmptyOutput,
   };
 
   return ItemComponent;

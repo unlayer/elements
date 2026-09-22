@@ -78,6 +78,7 @@ export type { DividerValues } from "@unlayer/types/tools/divider";
 export type { HtmlValues } from "@unlayer/types/tools/html";
 export type { MenuValues } from "@unlayer/types/tools/menu";
 export type { ParagraphValues } from "@unlayer/types/tools/paragraph";
+export type { PageBreakValues } from "@unlayer/types/tools/page-break";
 export type { SocialValues } from "@unlayer/types/tools/social";
 export type { TableValues } from "@unlayer/types/tools/table";
 export type { VideoValues } from "@unlayer/types/tools/video";

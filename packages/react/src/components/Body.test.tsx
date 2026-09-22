@@ -152,7 +152,7 @@ describe("Integration: Body > Row > Column > Items", () => {
     expect(container.querySelector('[id^="u_content_button"]')).not.toBeNull();
   });
 
-  it("renders document mode with page-break", () => {
+  it("renders document mode without a synthetic trailing page break", () => {
     const { container } = render(
       <Body mode="document">
         <Row>
@@ -163,6 +163,6 @@ describe("Integration: Body > Row > Column > Items", () => {
       </Body>
     );
     expect(container.textContent).toContain("Document content");
-    expect(container.innerHTML).toContain("page-break");
+    expect(container.innerHTML).not.toContain("page-break-before");
   });
 });

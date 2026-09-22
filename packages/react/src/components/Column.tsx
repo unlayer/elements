@@ -165,6 +165,13 @@ export const Column: React.FC<ColumnProps> = (props) => {
               const componentHTML =
                 rendered.props.dangerouslySetInnerHTML.__html;
 
+              // Some components intentionally produce no output in unsupported
+              // modes. Do not turn that into a padded content wrapper.
+              if (
+                !componentHTML &&
+                ComponentType?.[UNLAYER_CONFIG_KEY]?.omitEmptyOutput
+              ) return;
+
               // Resolve the block's OWN containerPadding directly from props.
               // `containerPadding` is a universal base-content prop: it passes
               // straight through mapSemanticProps untouched and is not present in

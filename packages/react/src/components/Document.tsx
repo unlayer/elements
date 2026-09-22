@@ -1,6 +1,22 @@
 import Body, { type BodyProps } from "./Body";
 
-export type DocumentProps = Omit<BodyProps, "mode">;
+export type DocumentPageSize =
+  | "A3"
+  | "A4"
+  | "A5"
+  | "Legal"
+  | "Letter"
+  | "Tabloid";
+
+export type DocumentOrientation = "portrait" | "landscape";
+
+export type DocumentProps = Omit<
+  BodyProps,
+  "mode" | "documentSize" | "documentOrientation" | "documentMargin"
+> & {
+  documentSize?: DocumentPageSize;
+  documentOrientation?: DocumentOrientation;
+};
 
 /**
  * Document - Print-optimized rendering for PDF generation.
@@ -9,7 +25,12 @@ export type DocumentProps = Omit<BodyProps, "mode">;
  *
  * @example
  * ```tsx
- * <Document backgroundColor="#ffffff" contentWidth="700px">
+ * <Document
+ *   backgroundColor="#ffffff"
+ *   contentWidth="700px"
+ *   documentSize="A4"
+ *   documentOrientation="portrait"
+ * >
  *   <Row><Column><Paragraph text="Hello" /></Column></Row>
  * </Document>
  * ```
