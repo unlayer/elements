@@ -62,7 +62,7 @@ describe("renderToJson parity with editor", () => {
 
   describe("top-level structure", () => {
     it("has schemaVersion", () => {
-      expect(design.schemaVersion).toBe(24);
+      expect(design.schemaVersion).toBe(27);
     });
     it("has counters", () => {
       expect(design.counters).toBeDefined();

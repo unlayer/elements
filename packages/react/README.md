@@ -120,6 +120,7 @@ These props have non-obvious shapes that **must** be followed exactly:
 | `<Social>` | Social media icons with `icons` shorthand array |
 | `<Menu>` | Navigation menu with `items` shorthand array |
 | `<Table>` | Data table with `headers` / `data` shorthands |
+| `<PageBreak>` | Force subsequent document content onto a new PDF page |
 | `<Video>` | Video embed with `videoUrl` shorthand |
 | `<Html>` | Custom HTML passthrough |
 
@@ -139,7 +140,9 @@ Root wrapper for email-safe HTML. Same props as Body (without `mode`).
 Root wrapper for responsive web display. Same props as Email.
 
 ### Document
-Root wrapper for print/PDF rendering. Same props as Email.
+Root wrapper for print/PDF rendering. It accepts the shared Body props plus:
+- `documentSize?: "A3" | "A4" | "A5" | "Legal" | "Letter" | "Tabloid"` — `"A4"`
+- `documentOrientation?: "portrait" | "landscape"` — `"portrait"`
 
 ### Row
 Layout container. Must be child of Email/Page/Document/Body.
@@ -221,6 +224,24 @@ Use `html` for formatted text, children for plain text.
 - `columns?: number` — `3`
 - `rows?: number` — `3`
 - `enableHeader?: boolean` — `true`
+- `repeatHeaderOnEachPage?: boolean` — `true`
+- `enableFooter?: boolean` — `false`
+- `repeatFooterOnEachPage?: boolean` — `true`
+
+### PageBreak
+Forces the next block onto a new page in document output. It is inert in email and web output.
+
+```tsx
+<Document>
+  <Row>
+    <Column>
+      <Paragraph>Page one</Paragraph>
+      <PageBreak />
+      <Paragraph>Page two</Paragraph>
+    </Column>
+  </Row>
+</Document>
+```
 
 ### Social
 - `icons?: { name: string, url: string }[]` — shorthand

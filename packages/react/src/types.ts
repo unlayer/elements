@@ -28,6 +28,7 @@ export type {
   HtmlValues,
   MenuValues,
   ParagraphValues,
+  PageBreakValues,
   SocialValues,
   TableValues,
   VideoValues,

@@ -26,7 +26,7 @@ describe("renderToJson", () => {
       </Body>
     );
 
-    expect(design).toHaveProperty("schemaVersion", 24);
+    expect(design).toHaveProperty("schemaVersion", 27);
     expect(design).toHaveProperty("counters");
     expect(design).toHaveProperty("body");
     expect(design.body).toHaveProperty("rows");
@@ -255,7 +255,7 @@ describe("renderToJson", () => {
       </Email>
     );
 
-    expect(design.schemaVersion).toBe(24);
+    expect(design.schemaVersion).toBe(27);
     expect(design.body.rows).toHaveLength(1);
   });
 
@@ -270,7 +270,7 @@ describe("renderToJson", () => {
       </Page>
     );
 
-    expect(design.schemaVersion).toBe(24);
+    expect(design.schemaVersion).toBe(27);
     expect(design.body.rows).toHaveLength(1);
   });
 
@@ -285,7 +285,7 @@ describe("renderToJson", () => {
       </Document>
     );
 
-    expect(design.schemaVersion).toBe(24);
+    expect(design.schemaVersion).toBe(27);
     expect(design.body.rows).toHaveLength(1);
   });
 

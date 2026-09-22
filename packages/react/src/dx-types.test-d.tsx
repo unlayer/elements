@@ -21,6 +21,8 @@ import type { DividerProps } from "./components/Divider";
 import type { HeadingProps } from "./components/Heading";
 import type { ParagraphProps } from "./components/Paragraph";
 import type { ImageProps } from "./components/Image";
+import type { PageBreakProps } from "./components/PageBreak";
+import type { DocumentProps } from "./components/Document";
 import type { BorderInput } from "./types";
 
 // ── border: THE regression this guard exists for ────────────────────────────
@@ -77,7 +79,14 @@ export const _lineHeight_number: ParagraphProps["lineHeight"] = 1.4;
 export const _button_full_width: ButtonProps["width"] = "100%";
 export const _button_px: ButtonProps["width"] = 200;
 export const _image_percent: ImageProps["maxWidth"] = "50%";
+export const _document_size: DocumentProps["documentSize"] = "Letter";
+export const _document_orientation: DocumentProps["documentOrientation"] = "landscape";
+export const _page_break_color: PageBreakProps["color"] = "#6b7280";
 
+// @ts-expect-error Document Builder supports only its published paper-size presets
+export const _document_size_reject: DocumentProps["documentSize"] = "A6";
+// @ts-expect-error document margins are internal page-size presets, not public controls
+export const _document_margin_reject: DocumentProps["documentMargin"] = "20px";
 // @ts-expect-error fontWeight does not accept arbitrary words
 export const _fontWeight_reject: HeadingProps["fontWeight"] = "heavy";
 

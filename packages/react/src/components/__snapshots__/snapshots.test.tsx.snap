@@ -159,13 +159,9 @@ exports[`Render Snapshots > Body > document 1`] = `
   
     <div class="u_body content" style="">
       
-      
-      
-        <div style="page-break-before: always;">
-      
     </div>
   
-</div></div>"
+</div>"
 `;
 
 exports[`Render Snapshots > Body > email 1`] = `
@@ -336,15 +332,19 @@ exports[`Render Snapshots > Table > email 1`] = `
       
     </colgroup>
     
+    
     <thead>
       
     </thead>
     
     <tbody>
       
+      
         
       
+      
     </tbody>
+    
     
   </table>
 </div>"
@@ -357,15 +357,19 @@ exports[`Render Snapshots > Table > web 1`] = `
       
     </colgroup>
     
+    
     <thead>
       
     </thead>
     
     <tbody>
       
+      
         
       
+      
     </tbody>
+    
     
   </table>
 </div>"

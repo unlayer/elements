@@ -55,6 +55,69 @@ describe("Table Component", () => {
     expect(cells.length).toBeGreaterThan(0);
   });
 
+  it("repeats headers and footers by default in document mode", () => {
+    const { container } = render(
+      <Table
+        mode="document"
+        values={{
+          table: {
+            headers: [{ cells: [{ text: "Header", width: 100 }], height: 40 }],
+            rows: [{ cells: [{ text: "Body", width: 100 }], height: 40 }],
+            footers: [{ cells: [{ text: "Footer", width: 100 }], height: 40 }],
+          },
+          enableHeader: true,
+          enableFooter: true,
+        } as any}
+      />
+    );
+
+    expect(container.querySelector("thead")?.textContent).toContain("Header");
+    expect(container.querySelector("tfoot")?.textContent).toContain("Footer");
+    expect(container.querySelector("tbody .u-table-header")).toBeNull();
+    expect(container.querySelector("tbody .u-table-footer")).toBeNull();
+  });
+
+  it("honors the flat repeat-header prop", () => {
+    const { container } = render(
+      <Table
+        mode="document"
+        headers={["Header"]}
+        data={[["Body"]]}
+        repeatHeaderOnEachPage={false}
+      />
+    );
+
+    expect(container.querySelector("tbody .u-table-header")?.textContent).toContain(
+      "Header"
+    );
+  });
+
+  it("keeps non-repeating headers and footers in the document table body", () => {
+    const { container } = render(
+      <Table
+        mode="document"
+        values={{
+          table: {
+            headers: [{ cells: [{ text: "Header", width: 100 }], height: 40 }],
+            rows: [{ cells: [{ text: "Body", width: 100 }], height: 40 }],
+            footers: [{ cells: [{ text: "Footer", width: 100 }], height: 40 }],
+          },
+          enableHeader: true,
+          repeatHeaderOnEachPage: false,
+          enableFooter: true,
+          repeatFooterOnEachPage: false,
+        } as any}
+      />
+    );
+
+    expect(container.querySelector("tbody .u-table-header")?.textContent).toContain(
+      "Header"
+    );
+    expect(container.querySelector("tbody .u-table-footer")?.textContent).toContain(
+      "Footer"
+    );
+  });
+
   it("has correct displayName", () => {
     expect(Table.displayName).toBe("Table");
   });

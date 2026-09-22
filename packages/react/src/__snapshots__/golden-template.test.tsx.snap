@@ -778,6 +778,17 @@ exports[`Golden Template: Print Document > snapshot locks the full document HTML
   
 
   
+    
+      
+      body {
+        
+          background-color: #F7F8F9;
+        
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
+      }
+    
+
     .content {
       width: 100%;
       font-family: arial,helvetica,sans-serif;
@@ -834,13 +845,13 @@ exports[`Golden Template: Print Document > snapshot locks the full document HTML
 <div id="u_column_1" class="u-col u-col-100 u_column v-row-align-items v-col-background-color v-col-border v-col-border-radius" style="display:flex;border-top: 0px solid transparent;border-left: 0px solid transparent;border-right: 0px solid transparent;border-bottom: 0px solid transparent;">
   <div class="v-col-padding" style="width: 100%;padding:0px;">
     
-  <div id="u_content_heading_1" class="u_content_heading v-container-padding" style="overflow-wrap: break-word;padding: 10px;">
+  <div id="u_content_heading_1" data-page-row="u_content_heading_1" class="u_content_heading v-container-padding" style="overflow-wrap: break-word;padding: 10px;font-family: arial,helvetica,sans-serif;">
     
   <h1 class="v-color v-text-align v-line-height v-font-size v-font-weight v-letter-spacing" style="margin: 0px; color: #000000; line-height: 140%; text-align: left; word-wrap: break-word; font-size: 22px; font-weight: 400;">Quarterly Report</h1>
 
   </div>
 
-  <div id="u_content_paragraph_1" class="u_content_paragraph v-container-padding" style="overflow-wrap: break-word;padding: 10px;">
+  <div id="u_content_paragraph_1" data-page-row="u_content_paragraph_1" class="u_content_paragraph v-container-padding" style="overflow-wrap: break-word;padding: 10px;font-family: arial,helvetica,sans-serif;">
     
   <div class="v-color v-line-height v-font-weight v-font-family v-font-size v-letter-spacing v-text-align" style="font-size: 14px; color: #000000; line-height: 1.4;  text-align: left; word-wrap: break-word;">
     <p style="margin: 0px; margin-block-start: 0px; margin-block-end: 0px;">Revenue grew 14% quarter over quarter.</p>
@@ -848,11 +859,11 @@ exports[`Golden Template: Print Document > snapshot locks the full document HTML
 
   </div>
 
-  <div id="u_content_divider_1" class="u_content_divider v-container-padding" style="overflow-wrap: break-word;padding: 10px;">
+  <div id="u_content_divider_1" data-page-row="u_content_divider_1" class="u_content_divider v-container-padding" style="overflow-wrap: break-word;padding: 10px;font-family: arial,helvetica,sans-serif;">
     <div style="text-align:center;line-height:0" aria-label="divider"><div style="border-top-width:1px;border-top-style:solid;border-top-color:#BBBBBB;width:100%;display:inline-block;line-height:1px;height:0px;vertical-align:middle"> </div></div>
   </div>
 
-  <div id="u_content_paragraph_2" class="u_content_paragraph v-container-padding" style="overflow-wrap: break-word;padding: 10px;">
+  <div id="u_content_paragraph_2" data-page-row="u_content_paragraph_2" class="u_content_paragraph v-container-padding" style="overflow-wrap: break-word;padding: 10px;font-family: arial,helvetica,sans-serif;">
     
   <div class="v-color v-line-height v-font-weight v-font-family v-font-size v-letter-spacing v-text-align" style="font-size: 14px; color: #000000; line-height: 1.4;  text-align: left; word-wrap: break-word;">
     <p style="margin: 0px; margin-block-start: 0px; margin-block-end: 0px;">Operating costs remained flat.</p>
@@ -867,10 +878,6 @@ exports[`Golden Template: Print Document > snapshot locks the full document HTML
     </div>
   </div>
 </div>
-      
-      
-        <div style="page-break-before: always;" />
-      
     </div>
   </body>
 

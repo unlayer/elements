@@ -201,7 +201,8 @@ Publish the same content as an email campaign, a web archive, and a public landi
 | `<Divider>` | Horizontal separator |
 | `<Social>` | Social media icon links |
 | `<Menu>` | Navigation menu |
-| `<Table>` | Data table |
+| `<Table>` | Data table with repeating document headers and footers |
+| `<PageBreak>` | Force subsequent document content onto a new PDF page |
 | `<Video>` | YouTube/Vimeo embed |
 | `<Html>` | Custom HTML passthrough |
 

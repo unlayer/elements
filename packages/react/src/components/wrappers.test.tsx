@@ -8,6 +8,7 @@ import Row from "./Row";
 import { Column } from "./Column";
 import Paragraph from "./Paragraph";
 import Button from "./Button";
+import { renderToJson } from "../utils/render-to-json";
 
 describe("Email (mode=email wrapper)", () => {
   it("renders table-based layout (email mode)", () => {
@@ -76,7 +77,7 @@ describe("Page (mode=web wrapper)", () => {
 });
 
 describe("Document (mode=document wrapper)", () => {
-  it("renders with page-break style", () => {
+  it("does not append a synthetic trailing page break", () => {
     const { container } = render(
       <Document>
         <Row>
@@ -84,7 +85,22 @@ describe("Document (mode=document wrapper)", () => {
         </Row>
       </Document>
     );
-    expect(container.innerHTML).toContain("page-break");
+    expect(container.innerHTML).not.toContain("page-break-before");
+  });
+
+  it("preserves page format in Design JSON", () => {
+    const design = renderToJson(
+      <Document documentSize="Letter" documentOrientation="landscape">
+        <Row>
+          <Column><Paragraph>Print content</Paragraph></Column>
+        </Row>
+      </Document>
+    );
+
+    expect(design.body.values).toMatchObject({
+      documentSize: "Letter",
+      documentOrientation: "landscape",
+    });
   });
 
   it("renders content", () => {

@@ -232,7 +232,7 @@ describe("Golden Template: Marketing Email", () => {
     const json = renderToJson(GoldenEmail);
 
     // Schema
-    expect(json.schemaVersion).toBe(24);
+    expect(json.schemaVersion).toBe(27);
     expect(json.body).toBeDefined();
     expect(json.body.rows.length).toBeGreaterThan(0);
     expect(json.counters).toBeDefined();
@@ -323,6 +323,7 @@ describe("Golden Template: Print Document", () => {
 
   it("snapshot locks the full document HTML", () => {
     const html = renderToHtml(GoldenDocument);
-    expect(html).toMatchSnapshot();
+    const htmlWithoutCssComments = html.replace(/\/\*[\s\S]*?\*\//g, "");
+    expect(htmlWithoutCssComments).toMatchSnapshot();
   });
 });

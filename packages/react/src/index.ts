@@ -6,6 +6,7 @@ import Html from "./components/Html";
 import Image from "./components/Image";
 import Menu from "./components/Menu";
 import Paragraph from "./components/Paragraph";
+import PageBreak from "./components/PageBreak";
 import Social from "./components/Social";
 import Table from "./components/Table";
 import Video from "./components/Video";
@@ -39,6 +40,7 @@ export type {
   ImageValues,
   MenuValues,
   ParagraphValues,
+  PageBreakValues,
   SocialValues,
   TableValues,
   VideoValues,
@@ -84,13 +86,18 @@ export type { HtmlProps } from "./components/Html";
 export type { ImageProps } from "./components/Image";
 export type { MenuProps } from "./components/Menu";
 export type { ParagraphProps } from "./components/Paragraph";
+export type { PageBreakProps } from "./components/PageBreak";
 export type { SocialProps } from "./components/Social";
 export type { TableProps } from "./components/Table";
 export type { VideoProps } from "./components/Video";
 export type { RowProps } from "./components/Row";
 export type { EmailProps } from "./components/Email";
 export type { PageProps } from "./components/Page";
-export type { DocumentProps } from "./components/Document";
+export type {
+  DocumentProps,
+  DocumentPageSize,
+  DocumentOrientation,
+} from "./components/Document";
 
 // Export context (UnlayerProvider, useUnlayerConfig, UnlayerConfig type)
 export type { UnlayerConfig, UnlayerProviderProps } from "./context";
@@ -105,6 +112,7 @@ export {
   Image,
   Menu,
   Paragraph,
+  PageBreak,
   Social,
   Table,
   Video,

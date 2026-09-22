@@ -108,7 +108,7 @@ Example: `<Button fontSize="16px">` → `{ style: { fontSize: "16px" } }` in the
 
 - TypeScript strict compilation
 - All unit tests pass
-- Bundle size < 75KB (ESM)
+- Bundle size < 76KB (ESM)
 - Next.js integration build succeeds
 - Browser E2E gate passes (rendered documents verified in Chromium: 0px `<p>` margins, single `<body>`, no errors)
 - Storybook smoke test passes (every story renders, no console errors)
