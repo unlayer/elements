@@ -1,4 +1,4 @@
-import type { Meta, StoryObj } from "@storybook/react";
+import type { Meta, StoryObj } from "@storybook/react-vite";
 import React from "react";
 import { UnlayerProvider } from "./UnlayerProvider";
 import Body from "../components/Body";
