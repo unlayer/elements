@@ -153,7 +153,7 @@ Generates email-safe HTML, responsive web HTML, and print-ready HTML for PDF gen
 
 ### Visual Builder Compatible
 
-Export Unlayer-compatible design JSON with `renderToJson()` for round-tripping between code and the visual editor. Ideal for teams that want the flexibility of code alongside visual editing workflows.
+Export Unlayer-compatible design JSON with `renderToJson()` to hand code-authored templates to the visual editor. Persist edited designs as JSON and export their HTML from the editor; edited JSON does not regenerate React source. See the [code-to-visual-editing workflow](./packages/react/docs/visual-editing.md).
 
 ### TypeScript First
 
@@ -273,6 +273,7 @@ Runnable projects you can clone and experiment with:
 
 | Example | Description |
 |---------|-------------|
+| [`examples/content-workflows`](./examples/content-workflows) | One React invoice → email + web + real PDF, five email providers, and editable design JSON |
 | [`examples/nextjs-app-router`](./examples/nextjs-app-router) | Next.js 15 App Router — renders an email with `renderToHtml()` in a Server Component, previews it at `/email-preview`, and serves the raw HTML from a Route Handler |
 
 ## Development
@@ -317,7 +318,7 @@ The email mode emits the same table-based, Outlook-safe HTML patterns as Unlayer
 
 ### Is the PDF output a real PDF engine?
 
-Yes, you can generate PDF files in two ways: use Unlayer's [PDF export service](https://docs.unlayer.com/builder/export-pdf) to get a finished PDF with a single API call, or pass the print-optimized HTML from `<Document>` to any HTML-to-PDF library. Pagination (page breaks, margins, and headers and footers) is controlled with standard CSS print rules plus your renderer's options.
+Elements itself produces print-ready HTML, not PDF bytes. The [Playwright guide](./packages/react/docs/react-to-pdf.md) shows a complete local PDF pipeline. You can generate PDF files in two ways: use Unlayer's [PDF export service](https://docs.unlayer.com/builder/export-pdf) to get a finished PDF with a single API call, or pass the print-optimized HTML from `<Document>` to any HTML-to-PDF library. Pagination (page breaks, margins, and headers and footers) is controlled with standard CSS print rules plus your renderer's options.
 
 ### Can I use Elements without the Unlayer platform?
 
@@ -330,6 +331,18 @@ Yes. Elements is fully compatible with the [Unlayer editor](https://unlayer.com)
 ### Can I create custom components?
 
 Yes. `registerElementsTool()` turns a custom tool definition into a first-class React component with typed props and full control over its output in each render mode (email, web, and document). See the [Custom Tools documentation](./packages/react/README.md#custom-tools) for a complete example.
+
+## Task Guides
+
+Start with [when to use Elements](./packages/react/docs/README.md), or go directly to a runnable workflow:
+
+- [Build transactional emails in React](./packages/react/docs/transactional-email.md) — HTML and plain-text receipts, order confirmations, and password reset patterns.
+- [Send with Resend, AWS SES, Postmark, SendGrid, or Nodemailer](./packages/react/docs/email-providers.md) — provider setup and complete server-side integrations.
+- [One React invoice to email, web, and PDF](./packages/react/docs/one-template-email-web-pdf.md) — share content across all three output modes.
+- [Generate a real PDF with Playwright](./packages/react/docs/react-to-pdf.md) — print document HTML with Chromium.
+- [Make code and AI-generated templates visually editable](./packages/react/docs/visual-editing.md) — `renderToJson()` → Unlayer `loadDesign()` → edited JSON and HTML.
+
+The [content workflows example](./examples/content-workflows) contains the executable source behind these guides.
 
 ## Contributing
 
