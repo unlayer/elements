@@ -17,6 +17,6 @@ export default defineConfig({
   splitting: false,
   sourcemap: true,
   clean: true,
-  noExternal: ["@unlayer/convert-core"],
+  noExternal: ["entities", "parse5", "@unlayer/convert-core"],
   external: ["react", "react-dom", /^@react-email\//, "@unlayer/react-elements", "typescript", "prettier"],
 });

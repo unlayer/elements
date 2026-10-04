@@ -146,6 +146,9 @@ importers:
 
   packages/from-react-email:
     dependencies:
+      parse5:
+        specifier: ^7.3.0
+        version: 7.3.0
       prettier:
         specifier: ^3.3.3
         version: 3.6.2

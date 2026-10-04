@@ -11,6 +11,8 @@
  * tests keeps its sample value.
  */
 
+import { decodeHtmlEntities } from "@unlayer/convert-core";
+import { parseFragment, type DefaultTreeAdapterMap } from "parse5";
 
 const OPEN = "\uE000";
 const CLOSE = "\uE001";
@@ -61,7 +63,7 @@ function withMarkers(props: Record<string, unknown>, probes: TextProp[], chosen:
 export async function mergeTagged<T>(
   props: Record<string, unknown>,
   base: T,
-  render: (props: Record<string, unknown>) => T | Promise<T>
+  render: (props: Record<string, unknown>) => T | Promise<T>,
 ): Promise<{ result?: T; used: string[]; kept: string[] }> {
   const probes = textProps(props);
   if (!probes.length) return { used: [], kept: [] };
@@ -91,52 +93,126 @@ export async function mergeTagged<T>(
   return {
     result,
     // Tagged somewhere (image sources keep the sample value).
-    used: [...markersIn(marked)].sort((a, b) => a - b).map((i) => probes[i]).filter((p) => text.includes(tag(p))).map((p) => p.path),
-    kept: probes.filter((p, i) => !chosen.includes(i) && shown(p)).map((p) => p.path),
+    used: [...markersIn(marked)]
+      .sort((a, b) => a - b)
+      .map((i) => probes[i])
+      .filter((p) => text.includes(tag(p)))
+      .map((p) => p.path),
+    kept: probes
+      .filter((p) => !text.includes(tag(p)) && shown(p))
+      .map((p) => p.path),
   };
 }
 
-/**
- * The output with every marker replaced: `tag(prop)` where a merge tag can
- * go, the sample value in image sources (the editor shows the image).
- */
-export function replaceMarkers<T>(output: T, probes: TextProp[], tag: (prop: TextProp) => string): T {
-  const swap = (text: string, inSource: boolean) => {
-    const protectedRanges: Array<{ from: number; to: number }> = [];
-    // HTML fallbacks and inline paragraph HTML also contain image sources.
-    // Protect only source attributes and CSS URLs, leaving text and links taggable.
-    for (const element of text.matchAll(/<[a-z][\w:-]*\b(?:"[^"]*"|'[^']*'|[^'">])*>/gi)) {
-      for (const attr of element[0].matchAll(/\s(src|srcset|background|style)\s*=\s*("([^"]*)"|'([^']*)'|([^\s>]+))/gi)) {
-        const value = attr[3] ?? attr[4] ?? attr[5];
-        const from = element.index! + attr.index! + attr[0].indexOf(attr[2]) + (attr[3] !== undefined || attr[4] !== undefined ? 1 : 0);
-        if (attr[1].toLowerCase() === "style") {
-          for (const url of value.matchAll(/url\([\s\S]*?\)/gi)) protectedRanges.push({ from: from + url.index!, to: from + url.index! + url[0].length });
-        } else protectedRanges.push({ from, to: from + value.length });
-      }
-    }
-    return text.replace(MARKER, (_, i: string, offset: number) => {
-      const prop = probes[Number(i)];
-      if (inSource) return prop.value;
-      if (protectedRanges.some(({ from, to }) => offset >= from && offset < to)) return escapeAttribute(prop.value);
-      return tag(prop);
+/** Replace markers only in text and links; styles and image sources keep samples. */
+export function replaceMarkers<T>(
+  output: T,
+  probes: TextProp[],
+  tag: (prop: TextProp) => string,
+): T {
+  type Context = "sample" | "text" | "html" | "richText";
+  const escape = (value: string) =>
+    value
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;")
+      .replace(/'/g, "&#39;");
+  const swap = (text: string, allowed: boolean, html = false) =>
+    text.replace(MARKER, (_, i: string) => {
+      const p = probes[Number(i)];
+      const value = allowed ? tag(p) : p.value;
+      return html ? escape(value) : value;
     });
+  const html = (source: string) => {
+    // Source ranges preserve the markup verbatim while the parser identifies
+    // text and attributes, including quoted '>' and embedded styles/images.
+    const allowed: Array<{ start: number; end: number }> = [];
+    const visit = (
+      node: DefaultTreeAdapterMap["node"],
+      hidden = false,
+    ): void => {
+      const blocked =
+        hidden || node.nodeName === "style" || node.nodeName === "script";
+      if (node.nodeName === "#text" && !blocked && node.sourceCodeLocation) {
+        allowed.push({
+          start: node.sourceCodeLocation.startOffset,
+          end: node.sourceCodeLocation.endOffset,
+        });
+      }
+      if ("tagName" in node) {
+        for (const [name, location] of Object.entries(
+          node.sourceCodeLocation?.attrs ?? {},
+        )) {
+          if (
+            (node.tagName === "a" && name === "href") ||
+            (node.tagName === "img" && name === "alt")
+          ) {
+            allowed.push({
+              start: location.startOffset,
+              end: location.endOffset,
+            });
+          }
+        }
+        if ("content" in node) visit(node.content, blocked);
+      }
+      if ("childNodes" in node)
+        for (const child of node.childNodes) visit(child, blocked);
+    };
+    visit(parseFragment(source, { sourceCodeLocationInfo: true }));
+    return source.replace(MARKER, (marker, i: string, offset: number) =>
+      swap(
+        marker,
+        allowed.some(
+          (r) => offset >= r.start && offset + marker.length <= r.end,
+        ),
+        true,
+      ),
+    );
   };
-  const walk = (value: unknown, inSource: boolean): unknown => {
-    if (typeof value === "string") return swap(value, inSource);
-    if (Array.isArray(value)) return value.map((item) => walk(item, inSource));
+  const walk = (value: unknown, context: Context = "sample"): unknown => {
+    if (typeof value === "string") {
+      if (context === "html") return html(value);
+      if (context === "richText") {
+        try {
+          return JSON.stringify(walk(JSON.parse(value), "richText"));
+        } catch {
+          return swap(value, false);
+        }
+      }
+      return swap(value, context === "text");
+    }
+    if (Array.isArray(value)) return value.map((item) => walk(item, context));
     if (value && typeof value === "object") {
       const node = value as Record<string, unknown>;
       const out: Record<string, unknown> = {};
       for (const [key, inner] of Object.entries(node)) {
-        // An image's src (and a background image's url) stays a real address.
-        const source = inSource || (node.type === "Image" && key === "props") || key === "src" || key === "backgroundImage";
-        out[key] = walk(inner, source && key !== "action" && key !== "alt");
+        const field: Context =
+          key === "html" || (key === "text" && context !== "richText")
+            ? "html"
+            : key === "textJson"
+              ? "richText"
+              : ["children", "previewText", "preheaderText", "alt", "altText", "href"].includes(
+                    key,
+                  ) ||
+                  (context === "richText" && key === "text")
+                ? "text"
+                : // Design actions contain their link in values.href; other URLs
+                  // (fonts, backgroundImage, src.url) must stay usable sample values.
+                  key === "url" && context === "text"
+                  ? "text"
+                  : key === "action"
+                    ? "text"
+                    : context === "richText"
+                      ? "richText"
+                      : "sample";
+        out[key] = walk(inner, field);
       }
       return out;
     }
     return value;
   };
-  return walk(output, false) as T;
+  return walk(output) as T;
 }
 
 function escapeAttribute(value: string): string {
@@ -158,7 +234,9 @@ function hasBrokenMarkers(output: unknown): boolean {
 /** Two outputs the same, reading HTML entities as the characters they stand for. */
 function sameOutput(a: unknown, b: unknown): boolean {
   const text = (output: unknown) =>
-    JSON.stringify(output).replace(/&(amp|lt|gt|quot|#x27|#39|apos);/g, (_, e: string) => ({ amp: "&", lt: "<", gt: ">", quot: '"', "#x27": "'", "#39": "'", apos: "'" })[e] ?? _);
+    JSON.stringify(output, (_, value: unknown) =>
+      typeof value === "string" ? decodeHtmlEntities(value) : value,
+    );
   return text(a) === text(b);
 }
 

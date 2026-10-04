@@ -324,9 +324,10 @@ function substitute(usage: ts.JsxElement | ts.JsxSelfClosingElement, component: 
     else if (ts.isJsxExpression(init) && init.expression) values.set(name, { code: init.expression.getText(), node: init.expression });
     else return undefined;
   }
+  const children = ts.isJsxElement(usage) ? usage.children : undefined;
+  if (!evaluationKept(usage, component, values, children)) return undefined;
   const key = values.get("key");
   values.delete("key");
-  const children = ts.isJsxElement(usage) ? usage.children : undefined;
   const childrenText = children && children.length ? children.map((c) => c.getFullText()).join("") : undefined;
 
   const parts: ts.Node[] = [...component.consts.map((c) => c.init), component.returned];
@@ -441,6 +442,203 @@ function substitute(usage: ts.JsxElement | ts.JsxSelfClosingElement, component: 
 
 class Unsafe extends Error {}
 
+/**
+ * Whether filling `usage`'s arguments into the component keeps what its
+ * render evaluates. React requires rendering to be pure (components may run
+ * in any order, any number of times), so substitution may reorder render-time
+ * calls, or drop one nothing reads. It mustn't repeat a call, defer it into a
+ * branch or callback, or move code that writes state. A template that breaks
+ * React's rule anyway shows up in the content check against the original.
+ */
+function evaluationKept(
+  usage: ts.JsxElement | ts.JsxSelfClosingElement,
+  component: Component,
+  values: Map<string, { code: string; node?: ts.Expression }>,
+  children: ts.NodeArray<ts.JsxChild> | undefined,
+): boolean {
+  const there = mutableNames(usage.getSourceFile());
+  const here = mutableNames(component.declaration.getSourceFile());
+  const locals = new Set([
+    ...[...(component.props?.values() ?? [])].map((p) => p.local),
+    ...component.consts.map((c) => c.name),
+    ...(component.propsObject ? [component.propsObject] : []),
+  ]);
+  if (effects(component.returned, here, locals) === 3) return false;
+  const given = (prop: string) => {
+    const value = values.get(prop);
+    const node = value?.node && unwrap(value.node);
+    return value && !(node && ts.isIdentifier(node) && node.text === "undefined") ? value : undefined;
+  };
+
+  // Each value that gets substituted: what evaluating it may do, and what reads it.
+  const sources: Array<{ effect: 1 | 2 | 3; read: (n: ts.Node) => boolean }> = [];
+  // Locals defined from other code (consts, used defaults), in evaluation order.
+  const defined: Array<{ name: string; init: ts.Expression }> = [];
+  const isLocal = (name: string) => (n: ts.Node) =>
+    ts.isIdentifier(n) && n.text === name && isValueReference(n) && !ts.isJsxClosingElement(n.parent);
+  const isProp = (prop: string) => (n: ts.Node) =>
+    ts.isPropertyAccessExpression(n) && ts.isIdentifier(n.expression) &&
+    n.expression.text === component.propsObject && n.name.text === prop;
+  const read = (prop: string): ((n: ts.Node) => boolean) | undefined => {
+    if (component.propsObject) return isProp(prop);
+    const local = component.props?.get(prop)?.local;
+    return local === undefined ? undefined : isLocal(local);
+  };
+
+  for (const [prop, value] of values) {
+    const effect = value.node ? effects(value.node, there) : 1;
+    if (effect === 3) return false;
+    const reads = prop === "key" ? undefined : read(prop);
+    if (reads && given(prop)) sources.push({ effect, read: reads });
+  }
+  const passed = Boolean(children?.length);
+  if (children && passed && !values.has("children")) {
+    const effect = Math.max(1, ...children.map((c) => effects(c, there))) as 1 | 2 | 3;
+    if (effect === 3) return false;
+    const reads = read("children");
+    if (reads) sources.push({ effect, read: reads });
+  }
+  for (const [prop, { local, fallback }] of component.props ?? []) {
+    if (fallback && !given(prop) && !(prop === "children" && passed)) defined.push({ name: local, init: fallback });
+  }
+  defined.push(...component.consts);
+  for (const { name, init } of defined) {
+    const effect = effects(init, here, locals);
+    if (effect === 3) return false;
+    sources.push({ effect, read: isLocal(name) });
+  }
+
+  // How often the output evaluates a read: in the JSX, and through every
+  // local whose substituted text contains it.
+  const through = new Map<string, Reads>();
+  const total = (isRead: (n: ts.Node) => boolean, after = 0): Reads => {
+    let sum = reads(component.returned, isRead);
+    for (const [i, { name, init }] of defined.entries()) {
+      const inInit = reads(init, isRead);
+      if (!inInit.count) continue;
+      // A local read before it's defined (inside a closure): not followed here.
+      if (i < after) return { count: Infinity, deferred: true };
+      sum = plus(sum, times(inInit, through.get(name)!));
+    }
+    return sum;
+  };
+  for (let i = defined.length - 1; i >= 0; i--) through.set(defined[i].name, total(isLocal(defined[i].name), i + 1));
+  return sources.every(({ effect, read: isRead }) => {
+    if (effect === 1) return true;
+    const { count, deferred } = total(isRead);
+    return count === 0 || (count === 1 && !deferred);
+  });
+}
+
+interface Reads {
+  count: number;
+  /** Some read is in a callback or a branch: evaluated later, or not at all. */
+  deferred: boolean;
+}
+
+function plus(a: Reads, b: Reads): Reads {
+  return { count: a.count + b.count, deferred: a.deferred || b.deferred };
+}
+
+function times(a: Reads, b: Reads): Reads {
+  const count = a.count * b.count;
+  return { count, deferred: count > 0 && (a.deferred || b.deferred) };
+}
+
+/** How many times evaluating `node` evaluates the reads `isRead` picks. */
+function reads(node: ts.Node, isRead: (n: ts.Node) => boolean): Reads {
+  const out: Reads = { count: 0, deferred: false };
+  const visit = (n: ts.Node, deferred: boolean): void => {
+    if (ts.isTypeNode(n)) return;
+    if (isRead(n)) {
+      out.count++;
+      out.deferred ||= deferred;
+      return;
+    }
+    ts.forEachChild(n, (child) => visit(child, deferred || defers(n, child)));
+  };
+  visit(node, false);
+  return out;
+}
+
+/** Whether `parent` evaluates `child` later, conditionally or not at all. */
+function defers(parent: ts.Node, child: ts.Node): boolean {
+  if (ts.isFunctionLike(parent)) return !invokedNow(parent);
+  if (ts.isConditionalExpression(parent)) return child !== parent.condition;
+  if (ts.isBinaryExpression(parent)) {
+    const kind = parent.operatorToken.kind;
+    const shortCircuit = kind === ts.SyntaxKind.AmpersandAmpersandToken || kind === ts.SyntaxKind.BarBarToken || kind === ts.SyntaxKind.QuestionQuestionToken;
+    return shortCircuit && child === parent.right;
+  }
+  return ts.isOptionalChain(parent) && child !== parent.expression;
+}
+
+/** `(() => …)()`: a function body that runs where it's written. */
+function invokedNow(fn: ts.Node): boolean {
+  if (!ts.isArrowFunction(fn) && !ts.isFunctionExpression(fn)) return false;
+  let node: ts.Node = fn;
+  while (ts.isParenthesizedExpression(node.parent)) node = node.parent;
+  return ts.isCallExpression(node.parent) && node.parent.expression === node;
+}
+
+/**
+ * What evaluating `node` may do: 1, nothing observable (literals, reads of
+ * bindings nothing writes, creating closures), so it can be repeated or
+ * dropped; 2, run user code (calls) or read a binding something writes, so
+ * it must be evaluated exactly as often; 3, write state or call a hook, so it
+ * stays where it is. `locals` are the component's own names, accounted for
+ * through what they're bound to.
+ */
+function effects(node: ts.Node, mutable: Set<string>, locals: Set<string> = new Set()): 1 | 2 | 3 {
+  let effect: 1 | 2 | 3 = 1;
+  const visit = (n: ts.Node): void => {
+    if (effect === 3 || ts.isTypeNode(n)) return;
+    // Creating a function is pure; what it does happens when it's called.
+    if (ts.isFunctionLike(n) && !invokedNow(n)) return;
+    if (ts.isBinaryExpression(n) && n.operatorToken.kind >= ts.SyntaxKind.FirstAssignment && n.operatorToken.kind <= ts.SyntaxKind.LastAssignment) effect = 3;
+    else if ((ts.isPrefixUnaryExpression(n) || ts.isPostfixUnaryExpression(n)) && (n.operator === ts.SyntaxKind.PlusPlusToken || n.operator === ts.SyntaxKind.MinusMinusToken)) effect = 3;
+    else if (ts.isDeleteExpression(n) || ts.isAwaitExpression(n) || ts.isYieldExpression(n) || n.kind === ts.SyntaxKind.ThisKeyword) effect = 3;
+    else if (ts.isIdentifier(n) && n.text === "arguments" && isValueReference(n)) effect = 3;
+    else if (ts.isCallExpression(n) && isHookCall(n)) effect = 3;
+    else if (ts.isCallExpression(n) || ts.isNewExpression(n) || ts.isTaggedTemplateExpression(n) || ts.isSpreadElement(n) || ts.isSpreadAssignment(n) || ts.isJsxSpreadAttribute(n)) effect = 2;
+    else if (ts.isIdentifier(n) && isValueReference(n) && mutable.has(n.text) && !locals.has(n.text)) effect = 2;
+    ts.forEachChild(n, visit);
+  };
+  visit(node);
+  return effect;
+}
+
+const mutableCache = new WeakMap<ts.SourceFile, Set<string>>();
+
+/**
+ * Names a file binds with `let`/`var` or writes to (`x = …`, `x++`,
+ * `x.y = …`, `delete x.y`): reading one twice, or later, can give another value.
+ */
+function mutableNames(file: ts.SourceFile): Set<string> {
+  const cached = mutableCache.get(file);
+  if (cached) return cached;
+  const names = new Set<string>();
+  const root = (n: ts.Node): void => {
+    n = ts.isExpression(n) ? unwrap(n) : n;
+    if (ts.isIdentifier(n)) names.add(n.text);
+    else if (ts.isPropertyAccessExpression(n) || ts.isElementAccessExpression(n)) root(n.expression);
+    else if (ts.isObjectLiteralExpression(n) || ts.isArrayLiteralExpression(n) || ts.isObjectBindingPattern(n) || ts.isArrayBindingPattern(n)) ts.forEachChild(n, root);
+    else if (ts.isPropertyAssignment(n) || ts.isBindingElement(n)) root(ts.isPropertyAssignment(n) ? n.initializer : n.name);
+    else if (ts.isShorthandPropertyAssignment(n)) names.add(n.name.text);
+    else if (ts.isSpreadElement(n) || ts.isSpreadAssignment(n)) root(n.expression);
+  };
+  const visit = (n: ts.Node): void => {
+    if (ts.isVariableDeclarationList(n) && !(n.flags & ts.NodeFlags.Const)) for (const d of n.declarations) root(d.name);
+    if (ts.isBinaryExpression(n) && n.operatorToken.kind >= ts.SyntaxKind.FirstAssignment && n.operatorToken.kind <= ts.SyntaxKind.LastAssignment) root(n.left);
+    if ((ts.isPrefixUnaryExpression(n) || ts.isPostfixUnaryExpression(n)) && (n.operator === ts.SyntaxKind.PlusPlusToken || n.operator === ts.SyntaxKind.MinusMinusToken)) root(n.operand);
+    if (ts.isDeleteExpression(n)) root(n.expression);
+    ts.forEachChild(n, visit);
+  };
+  visit(file);
+  mutableCache.set(file, names);
+  return names;
+}
+
 /** Declarations of the inlined components that nothing uses any more. */
 function removeUnused(source: string, fileName: string, names: Set<string>): string {
   const file = ts.createSourceFile(fileName, source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
@@ -542,14 +740,16 @@ function componentBody(fn: ts.FunctionLikeDeclaration): { returned: ts.Expressio
 function callsHook(node: ts.Node): boolean {
   let found = false;
   const visit = (n: ts.Node) => {
-    if (ts.isCallExpression(n)) {
-      const callee = ts.isPropertyAccessExpression(n.expression) ? n.expression.name : n.expression;
-      if (ts.isIdentifier(callee) && /^use[A-Z]/.test(callee.text)) found = true;
-    }
+    if (ts.isCallExpression(n) && isHookCall(n)) found = true;
     if (!found) ts.forEachChild(n, visit);
   };
   visit(node);
   return found;
+}
+
+function isHookCall(call: ts.CallExpression): boolean {
+  const callee = ts.isPropertyAccessExpression(call.expression) ? call.expression.name : call.expression;
+  return ts.isIdentifier(callee) && /^use[A-Z]/.test(callee.text);
 }
 
 function defaultExportName(file: ts.SourceFile): string | undefined {

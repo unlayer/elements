@@ -10,6 +10,7 @@
 
 import ts from "typescript";
 import {
+  decodeHtmlEntities,
   el,
   expr,
   fallbackHtml,
@@ -129,7 +130,12 @@ class Converter {
     this.checker = ts.createProgram([file.fileName], options, host).getTypeChecker();
   }
 
-  async run(prepared: { components: string[]; constants: string[]; variants: number; copied: string[] }): Promise<CodemodResult> {
+  async run(prepared: {
+    components: string[];
+    constants: string[];
+    variants: number;
+    copied: string[];
+  }): Promise<CodemodResult> {
     this.copied = prepared.copied;
     for (const name of prepared.components) this.report.info("local component inlined where it's used", name);
     for (const name of prepared.constants) this.report.info("local JSX constant inlined where it's used", name);
@@ -138,12 +144,22 @@ class Converter {
     const component = this.findComponent();
     if (!component) throw new Error("No default-exported component found");
     const returned = this.returnedJsx(component);
-    if (!returned) throw new Error("Couldn't find the JSX the component returns");
+    if (!returned.length)
+      throw new Error("Couldn't find the JSX the component returns");
 
     this.tailwind = await this.resolveClasses(this.file);
-    const tree = this.root(returned);
-    const report = this.report.finish(tree);
-    const code = await this.emit(returned, tree);
+    const conversions = returned.map((expression) => ({
+      expression,
+      tree: this.root(expression),
+    }));
+    const report = this.report.finish(
+      el(
+        "Email",
+        {},
+        conversions.map((c) => c.tree),
+      ),
+    );
+    const code = await this.emit(conversions);
     return { code, report };
   }
 
@@ -196,12 +212,32 @@ class Converter {
     return undefined;
   }
 
-  private returnedJsx(fn: ts.FunctionLikeDeclaration): ts.Expression | undefined {
-    if (!fn.body) return undefined;
-    if (!ts.isBlock(fn.body)) return unwrap(fn.body);
-    const returns = fn.body.statements.filter(ts.isReturnStatement);
-    const last = returns[returns.length - 1];
-    return last?.expression ? unwrap(last.expression) : undefined;
+  private returnedJsx(fn: ts.FunctionLikeDeclaration): ts.Expression[] {
+    if (!fn.body) return [];
+    const returns: ts.Expression[] = [];
+    const add = (expression: ts.Expression): void => {
+      const value = unwrap(expression);
+      if (ts.isConditionalExpression(value)) {
+        add(value.whenTrue);
+        add(value.whenFalse);
+      } else if (!rendersNothing(value)) returns.push(value);
+      // `return null` (an early exit) renders nothing: it stays as written.
+    };
+    if (!ts.isBlock(fn.body)) {
+      add(fn.body);
+      return returns;
+    }
+    const visit = (node: ts.Node): void => {
+      // A callback/helper has its own returns, converted only where used.
+      if (ts.isFunctionLike(node)) return;
+      if (ts.isReturnStatement(node)) {
+        if (node.expression) add(node.expression);
+        return;
+      }
+      ts.forEachChild(node, visit);
+    };
+    visit(fn.body);
+    return returns;
   }
 
   private async resolveClasses(fn: ts.Node): Promise<ResolvedClasses> {
@@ -410,6 +446,15 @@ class Converter {
   }
 
   private root(returned: ts.Expression): ElementNode {
+    if (
+      !ts.isJsxElement(returned) &&
+      !ts.isJsxSelfClosingElement(returned) &&
+      !ts.isJsxFragment(returned)
+    ) {
+      throw new Error(
+        "A template return must be JSX; use separate JSX returns for conditional roots",
+      );
+    }
     let previewText: unknown;
     let fontStack: string | undefined;
     const fonts: FontSpec[] = [];
@@ -662,7 +707,13 @@ class Converter {
   private stacksOnPhones(col: Jsx): boolean {
     const className = col.attrs.get("className");
     const value = className ? this.evaluate(className) : undefined;
-    return typeof value === "string" && stacksOnPhones(this.tailwind.leftover.get(value) ?? [], this.tailwind.phone);
+    return (
+      typeof value === "string" &&
+      stacksOnPhones(
+        this.tailwind.leftover.get(value) ?? [],
+        this.tailwind.phone,
+      )
+    );
   }
 
   /** A Column's style, with its `align` attribute as text-align. */
@@ -797,7 +848,10 @@ class Converter {
   private holdsTextBoxes(expression: ts.Expression): boolean {
     return this.outermostJsx(expression).some((jsx) => {
       const read = this.read(jsx);
-      return ["Text", "Heading"].includes(read.name ?? hostAlias(read.tag)) && needsTextBox(read.style);
+      return (
+        ["Text", "Heading"].includes(read.name ?? hostAlias(read.tag)) &&
+        needsTextBox(read.style)
+      );
     });
   }
 
@@ -811,7 +865,13 @@ class Converter {
 
   /** A plain HTML element around React Email components. */
   private isWrapper(jsx: Jsx): boolean {
-    return !jsx.name && /^[a-z]/.test(jsx.tag) && !HOST_CONTENT.has(jsx.tag) && !INLINE_TAGS.has(jsx.tag) && this.hasComponents(jsx);
+    return (
+      !jsx.name &&
+      /^[a-z]/.test(jsx.tag) &&
+      !HOST_CONTENT.has(jsx.tag) &&
+      !INLINE_TAGS.has(jsx.tag) &&
+      this.hasComponents(jsx)
+    );
   }
 
   private outermostJsx(node: ts.Node): Array<ts.JsxElement | ts.JsxSelfClosingElement> {
@@ -980,7 +1040,10 @@ class Converter {
 
   /** An image link, or an image set inline (`display: inline-block`): it sits on a line with its neighbours. */
   private isInlineImage(jsx: Jsx): boolean {
-    return this.isImageLink(jsx) || ((jsx.name === "Img" || jsx.tag === "img") && inlineDisplay(jsx.style));
+    return (
+      this.isImageLink(jsx) ||
+      ((jsx.name === "Img" || jsx.tag === "img") && inlineDisplay(jsx.style))
+    );
   }
 
   /** Whether code only makes inline images: every JSX element it returns is one. */
@@ -992,13 +1055,27 @@ class Converter {
       else roots.push(node as never);
     };
     visit(expression);
-    return roots.length > 0 && roots.every((node) => (ts.isJsxElement(node) || ts.isJsxSelfClosingElement(node)) && this.isInlineImage(this.read(node)));
+    return (
+      roots.length > 0 &&
+      roots.every(
+        (node) =>
+          (ts.isJsxElement(node) || ts.isJsxSelfClosingElement(node)) &&
+          this.isInlineImage(this.read(node)),
+      )
+    );
   }
 
   private isImageLink(jsx: Jsx): boolean {
     if (jsx.name !== "Link" && jsx.tag !== "a") return false;
     const kids = this.flatten(jsx.children);
-    return kids.length === 1 && (ts.isJsxElement(kids[0]) || ts.isJsxSelfClosingElement(kids[0])) && ["Img", "img"].includes(this.read(kids[0] as ts.JsxElement).name ?? this.read(kids[0] as ts.JsxElement).tag);
+    return (
+      kids.length === 1 &&
+      (ts.isJsxElement(kids[0]) || ts.isJsxSelfClosingElement(kids[0])) &&
+      ["Img", "img"].includes(
+        this.read(kids[0] as ts.JsxElement).name ??
+          this.read(kids[0] as ts.JsxElement).tag,
+      )
+    );
   }
 
   private hasComponents(jsx: Jsx): boolean {
@@ -1264,9 +1341,12 @@ class Converter {
   }
 
   /** React Email imports referenced outside `returned`, or by fallbacks copied from inside it. */
-  private reactEmailNamesUsedOutside(returned: ts.Expression): Set<string> {
+  private reactEmailNamesUsedOutside(returned: ts.Expression[]): Set<string> {
     const names = new Set<string>();
-    const inside = (node: ts.Node) => node.getStart() >= returned.getStart() && node.getEnd() <= returned.getEnd();
+    const inside = (node: ts.Node) =>
+      returned.some(
+        (r) => node.getStart() >= r.getStart() && node.getEnd() <= r.getEnd(),
+      );
     const kept = (node: ts.Node) => this.fallbackRanges.some((r) => node.getStart() >= r.from && node.getEnd() <= r.to);
     const visit = (node: ts.Node) => {
       if (ts.isImportDeclaration(node)) return;
@@ -1277,16 +1357,23 @@ class Converter {
     return names;
   }
 
-  private async emit(returned: ts.Expression, tree: ElementNode): Promise<string> {
+  private async emit(
+    conversions: Array<{ expression: ts.Expression; tree: ElementNode }>,
+  ): Promise<string> {
     // React Email names still used outside the converted JSX (helper
     // components, fallbacks) keep their import; Elements names that clash
     // with them get an alias.
+    const returned = conversions.map((c) => c.expression);
     const stillUsed = this.reactEmailNamesUsedOutside(returned);
     const rename: Record<string, string> = {};
     // Names the file already uses for something else (React Email imports it
     // keeps, its own components) get an alias on the Elements import.
     for (const name of [...stillUsed, ...this.localNames()]) rename[name] = `Unlayer${name}`;
-    const { jsx, used } = printJsx(tree, rename);
+    const printed = conversions.map((c) => ({
+      ...c,
+      ...printJsx(c.tree, rename),
+    }));
+    const used = new Set(printed.flatMap((c) => [...c.used]));
 
     const source = this.file.getFullText();
     const imports = this.file.statements.filter(
@@ -1295,9 +1382,22 @@ class Converter {
     );
     const elementNames = [...used].sort().map((name) => (rename[name] ? `${name} as ${rename[name]}` : name));
     const newImports = [
-      ...(stillUsed.size ? [`import { ${[...stillUsed].sort().map((local) => (this.components.get(local) === local ? local : `${this.components.get(local)} as ${local}`)).join(", ")} } from "@react-email/components";`] : []),
+      ...(stillUsed.size
+        ? [
+            `import { ${[...stillUsed]
+              .sort()
+              .map((local) =>
+                this.components.get(local) === local
+                  ? local
+                  : `${this.components.get(local)} as ${local}`,
+              )
+              .join(", ")} } from "@react-email/components";`,
+          ]
+        : []),
       `import { ${elementNames.join(", ")} } from "@unlayer/react-elements";`,
-      ...(this.needsStaticMarkup ? ['import { renderToStaticMarkup } from "react-dom/server";'] : []),
+      ...(this.needsStaticMarkup
+        ? ['import { renderToStaticMarkup } from "react-dom/server";']
+        : []),
     ].join("\n");
 
     // Rebuild the file: imports out, the converted JSX in.
@@ -1306,10 +1406,16 @@ class Converter {
       to: imp.getEnd(),
       text: i === 0 ? newImports : "",
     }));
-    edits.push({ from: returned.getStart(), to: returned.getEnd(), text: `(${jsx})` });
+    for (const { expression, jsx } of printed)
+      edits.push({
+        from: expression.getStart(),
+        to: expression.getEnd(),
+        text: `(${jsx})`,
+      });
     // JSX left outside the converted part (same-file components kept as HTML,
     // JSX constants) no longer renders inside <Tailwind>: its classes become styles.
-    const inside = (e: { from: number }) => e.from >= returned.getStart() && e.from < returned.getEnd();
+    const inside = (e: { from: number }) =>
+      returned.some((r) => e.from >= r.getStart() && e.from < r.getEnd());
     edits.push(...this.classesToStyles(this.file).filter((e) => !inside(e)));
     edits.sort((a, b) => b.from - a.from);
     let body = source;
@@ -1367,7 +1473,16 @@ function unwrap(node: ts.Expression): ts.Expression {
 }
 
 function hasModifier(node: ts.Node, kind: ts.SyntaxKind): boolean {
-  return (ts.canHaveModifiers(node) ? ts.getModifiers(node) ?? [] : []).some((m) => m.kind === kind);
+  return (ts.canHaveModifiers(node) ? (ts.getModifiers(node) ?? []) : []).some(
+    (m) => m.kind === kind,
+  );
+}
+
+/** null, undefined, false or "": a return or branch that renders nothing. */
+function rendersNothing(value: ts.Expression): boolean {
+  if (value.kind === ts.SyntaxKind.NullKeyword || value.kind === ts.SyntaxKind.FalseKeyword) return true;
+  if (ts.isIdentifier(value) && value.text === "undefined") return true;
+  return (ts.isStringLiteral(value) || ts.isNoSubstitutionTemplateLiteral(value)) && value.text === "";
 }
 
 /** JSX (converted) or an empty value: what a branch of a hole may render. */
@@ -1376,52 +1491,56 @@ function rendersSafely(node: ts.Expression): boolean {
   if (containsJsx(value)) return true;
   if (value.kind === ts.SyntaxKind.NullKeyword || value.kind === ts.SyntaxKind.FalseKeyword) return true;
   if (ts.isIdentifier(value) && value.text === "undefined") return true;
-  return (ts.isStringLiteral(value) || ts.isNoSubstitutionTemplateLiteral(value)) && value.text === "";
+  return (
+    (ts.isStringLiteral(value) || ts.isNoSubstitutionTemplateLiteral(value)) &&
+    value.text === ""
+  );
 }
 
 function containsJsx(node: ts.Node): boolean {
   if (ts.isJsxElement(node) || ts.isJsxSelfClosingElement(node) || ts.isJsxFragment(node)) return true;
-  return ts.forEachChild(node, (child) => (containsJsx(child) ? true : undefined)) ?? false;
-}
-
-const ENTITIES: Record<string, string> = {
-  amp: "&",
-  lt: "<",
-  gt: ">",
-  quot: '"',
-  apos: "'",
-  nbsp: "\u00a0",
-  mdash: "\u2014",
-  ndash: "\u2013",
-  hellip: "\u2026",
-  copy: "\u00a9",
-  reg: "\u00ae",
-  trade: "\u2122",
-  rsquo: "\u2019",
-  lsquo: "\u2018",
-  rdquo: "\u201d",
-  ldquo: "\u201c",
-  middot: "\u00b7",
-  bull: "\u2022",
-  rarr: "\u2192",
-  larr: "\u2190",
-};
-
-/** JSX text decodes HTML entities (`&apos;` is `'`), like React does. */
-function decodeEntities(text: string): string {
-  return text.replace(/&(#x[0-9a-f]+|#\d+|[a-z]+);/gi, (match, body: string) => {
-    if (body[0] === "#") {
-      const code = body[1] === "x" || body[1] === "X" ? Number.parseInt(body.slice(2), 16) : Number(body.slice(1));
-      return Number.isFinite(code) ? String.fromCodePoint(code) : match;
-    }
-    return ENTITIES[body.toLowerCase()] ?? match;
-  });
+  return (
+    ts.forEachChild(node, (child) => (containsJsx(child) ? true : undefined)) ??
+    false
+  );
 }
 
 /** JSX text the way React sees it: lines trimmed and joined by spaces, entities decoded. */
 function jsxText(text: string): string {
-  return decodeEntities(jsxLines(text));
+  return jsxLines(text).replace(
+    /&(#x[0-9a-f]+|#\d+|[a-z][a-z0-9]+);/gi,
+    (reference, name: string) => {
+      if (name.startsWith("#")) return decodeHtmlEntities(reference);
+      let decoded = JSX_ENTITIES.get(name);
+      if (decoded === undefined) {
+        // JSX uses the React/TypeScript entity set, not every HTML5 name.
+        // Ask our parser rather than maintaining a second, incomplete table.
+        const emitted = ts.transpileModule(
+          `const text = <span>${reference}</span>;`,
+          { compilerOptions: { jsx: ts.JsxEmit.React } },
+        ).outputText;
+        const file = ts.createSourceFile(
+          "entity.js",
+          emitted,
+          ts.ScriptTarget.Latest,
+          true,
+          ts.ScriptKind.JS,
+        );
+        const statement = file.statements[0];
+        const init = ts.isVariableStatement(statement)
+          ? statement.declarationList.declarations[0].initializer
+          : undefined;
+        const child =
+          init && ts.isCallExpression(init) ? init.arguments[2] : undefined;
+        decoded = child && ts.isStringLiteral(child) ? child.text : reference;
+        JSX_ENTITIES.set(name, decoded);
+      }
+      return decoded;
+    },
+  );
 }
+
+const JSX_ENTITIES = new Map<string, string>();
 
 function jsxLines(text: string): string {
   const lines = text.split(/\r\n|\n|\r/);

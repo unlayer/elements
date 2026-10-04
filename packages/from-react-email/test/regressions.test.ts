@@ -8,7 +8,13 @@ import { describe, expect, it } from "vitest";
 import fs from "node:fs";
 import path from "node:path";
 import { renderToJson } from "@unlayer/react-elements";
-import { compareText, convertReactEmail, convertSource, verifyConversion } from "../src/index";
+import {
+  compareText,
+  convertReactEmail,
+  convertSource,
+  mergeTagDesign,
+  verifyConversion,
+} from "../src/index";
 
 const IMPORTS = `import { Body, Button, Column, Container, Html, Img, Preview, Row, Section, Text } from "@react-email/components";\n`;
 
@@ -26,6 +32,8 @@ async function convertBoth(source: string, name: string) {
     const { default: Migrated } = await import(migratedFile);
     const check = await verifyConversion(Original, Migrated);
     return {
+      Original,
+      Migrated,
       runtime,
       runtimeDesign: runtime.design(),
       codemod,
@@ -354,6 +362,43 @@ describe("merge tags (runtime mode)", () => {
   });
 });
 
+describe("returns that render nothing", () => {
+  it("converts a template with an early `return null` or a `cond ? <Html> : null` root, leaving the empty return as written", async () => {
+    const early = `${IMPORTS}
+      export default function T({ name }: { name?: string }) {
+        if (!name) return null;
+        return <Html><Body><Container><Text>Hi {name}</Text></Container></Body></Html>;
+      }
+      T.PreviewProps = { name: "Alex" };`;
+    const ternary = `${IMPORTS}
+      export default function T({ name }: { name?: string }) {
+        return name ? <Html><Body><Container><Text>Hi {name}</Text></Container></Body></Html> : null;
+      }
+      T.PreviewProps = { name: "Alex" };`;
+    for (const [source, name] of [[early, "early-null"], [ternary, "ternary-null"]] as const) {
+      const { codemod, check } = await convertBoth(source, name);
+      expect(codemod.code).toContain("null");
+      expect(codemod.code).toContain('from "@unlayer/react-elements"');
+      expect(check.missing).toEqual([]);
+    }
+  });
+});
+
+describe("merge tags in a migrated template's design JSON", () => {
+  it("tags the preview text (preheaderText) as well as the body", async () => {
+    const { Email, Row, Column, Paragraph } = await import("@unlayer/react-elements");
+    const React = (await import("react")).default;
+    const h = React.createElement;
+    const Migrated = ({ name }: { name: string }) =>
+      h(Email, { previewText: `Welcome, ${name}` }, h(Row, null, h(Column, null, h(Paragraph, null, `Hi ${name}`))));
+    const props = { name: "Alex" };
+    const { design } = await mergeTagDesign(Migrated, props, renderToJson(Migrated(props)) as unknown as Record<string, unknown>);
+    const text = JSON.stringify(design);
+    expect(text).toContain('"preheaderText":"Welcome, {{name}}"');
+    expect(text).toContain("Hi {{name}}");
+  });
+});
+
 describe("compareText", () => {
   it("finds words a conversion dropped", () => {
     expect(compareText("<p>Hello there</p><p>Second block</p>", "<p>Hello there</p>").missing).toEqual(["second", "block"]);
@@ -368,5 +413,224 @@ describe("compareText", () => {
     // React's <!-- --> separators and inline tags don't split words; block tags do.
     expect(compareText("<p>Alex<!-- -->&#x27;s <b>re</b>view</p>", "<td>Alex's review</td>").missing).toEqual([]);
     expect(compareText("<head><title>Hidden</title></head><p>Shown</p>", "<p>Shown</p>").missing).toEqual([]);
+  });
+});
+
+describe("migration review regressions", () => {
+  it("evaluates a helper's initializer and prop arguments once", async () => {
+    const source = `${IMPORTS}
+      function Label({ next }: { next: () => string }) {
+        const first = next();
+        return <Text>{first}:{first}</Text>;
+      }
+      function Pair({ value }: { value: string }) { return <Text>{value}:{value}</Text>; }
+      export default function T({ sequence = ["A", "A"] }: { sequence?: string[] }) {
+        const ids = [...sequence];
+        const next = () => ids.shift() ?? "";
+        return <Html><Body><Label next={next}/><Pair value={next()}/></Body></Html>;
+      }
+      T.PreviewProps = { sequence: ["A", "A"] };`;
+    const { Original, Migrated, codemod } = await convertBoth(
+      source,
+      "evaluate-once",
+    );
+    expect(codemod.code).toContain("const first = next()");
+    expect(codemod.code.match(/next\(\)/g)).toHaveLength(2);
+    const same = await verifyConversion(Original, Migrated, { props: { sequence: ["A", "A", "A"] } });
+    expect(same.missing).toEqual([]);
+    expect(same.designWarnings).toEqual([]);
+    // Label's render consumes the template's sequence, which React's purity
+    // rule forbids: the kept components render in another order, and the
+    // values that changed places fail the check.
+    const distinct = await verifyConversion(Original, Migrated, { props: { sequence: ["A", "B", "C"] } });
+    expect(distinct.missing).not.toEqual([]);
+  });
+
+  it("converts early returns, including nested switch branches, but leaves helper returns alone", async () => {
+    const source = `${IMPORTS}
+      function label() { return "Special"; }
+      export default function T({ special = false, other = false }) {
+        if (special) { switch (other) { case true: return <Html><Body><Text>Other offer</Text></Body></Html>;
+          default: return <Html><Body><Text>{label()} offer</Text></Body></Html>; } }
+        return <Html><Body><Text>Normal offer</Text></Body></Html>;
+      }
+      T.PreviewProps = { special: false, other: false };`;
+    const { check, Original, Migrated, codemod } = await convertBoth(
+      source,
+      "early-returns",
+    );
+    expect(check.variants).toEqual([]);
+    expect(codemod.code).not.toContain("<Body>");
+    for (const props of [
+      { special: true, other: false },
+      { special: true, other: true },
+    ]) {
+      const variant = await verifyConversion(Original, Migrated, { props });
+      expect(variant.missing).toEqual([]);
+      expect(variant.designWarnings).toEqual([]);
+      expect(JSON.stringify(variant.design)).toContain("offer");
+    }
+  });
+
+  it("checks the design exporter on boolean variants even when their HTML agrees", async () => {
+    const source = `${IMPORTS}
+      export default function T({ special = false }) { return <Html><Body><Text>{special ? "Special" : "Normal"} offer</Text></Body></Html>; }
+      T.PreviewProps = { special: false };`;
+    const { Original, Migrated } = await convertBoth(source, "variant-design");
+    const wrong = (props: any) =>
+      props.special ? Original(props) : Migrated(props);
+    const check = await verifyConversion(Original, wrong);
+    expect(check.variants).toEqual([
+      expect.objectContaining({
+        change: "special: true",
+        error: expect.any(String),
+      }),
+    ]);
+  });
+
+  it("keeps complete named entities as characters in codemod output", async () => {
+    const source = `${IMPORTS}
+      export default function T() { return <Html><Body><Text>Total: 10 &euro; &frac12; &NotEqualTilde;</Text></Body></Html>; }`;
+    const { check } = await convertBoth(source, "complete-entities");
+    expect(check.missing).toEqual([]);
+    expect(check.convertedHtml).toContain("10 € ½ &amp;NotEqualTilde;");
+    expect(check.convertedHtml).not.toContain("&amp;euro;");
+  });
+
+  it("tags text and links, retaining CSS and inline image sources in both output modes", async () => {
+    const source = `${IMPORTS}
+      export default function T({ name, color, image, url }: { name: string; color: string; image: string; url: string }) {
+        return <Html><Body><Text style={{ color }}>Hello {name}</Text>
+          <Text><Img src={image} style={{ display: "inline-block" }} alt={name}/><Img src={image} style={{ display: "inline-block" }} alt="Logo"/></Text>
+          <Button href={url}>Open</Button></Body></Html>;
+      }
+      T.PreviewProps = { name: "Alex", color: "#ff0000", image: "https://example.com/logo.png", url: "https://example.com/open?a=1&b=2" };`;
+    const { runtime, Migrated, check } = await convertBoth(
+      source,
+      "tag-contexts",
+    );
+    const tagged = await mergeTagDesign(
+      Migrated,
+      Migrated.PreviewProps,
+      check.design,
+    );
+    for (const text of [runtime.html(), JSON.stringify(tagged.design)]) {
+      expect(text).toContain("{{name}}");
+      expect(text).toContain("{{url}}");
+      expect(text).not.toContain("{{color}}");
+      expect(text).not.toContain("{{image}}");
+      expect(text).toContain("https://example.com/logo.png");
+    }
+    expect(runtime.html()).toMatch(/color:\s*#ff0000/);
+  });
+});
+
+describe("evaluation order and conditional roots", () => {
+  it("may reorder render-time calls, and the check catches a template that depends on their order", async () => {
+    // Mutating module state while rendering breaks React's purity rule, so
+    // inlining is free to move these calls; the content check refuses the file.
+    const source = `${IMPORTS}
+      let n = 0;
+      const next = () => String(++n);
+      function Pair({ a, b }) { return <Text>{b}:{a}</Text>; }
+      function Later({ value }) { return <Text>{n}:{value}</Text>; }
+      export default function T() { n = 0; return <Html><Body><Pair a={next()} b={next()}/><Later value={next()}/></Body></Html>; }`;
+    const { codemod, check } = await convertBoth(source, "argument-order");
+    expect(codemod.code).not.toContain("<Pair");
+    expect(codemod.code.match(/next\(\)/g)).toHaveLength(3);
+    expect(check.missing).toEqual(expect.arrayContaining(["2:1", "3:3"]));
+  });
+
+  it("inlines a layout whose arguments and body call functions, each evaluated once", async () => {
+    const source = `${IMPORTS}
+      const LANGUAGES = [{ key: "ar", dir: "rtl" }];
+      const t = (key: string) => key.toUpperCase();
+      const Layout = ({ preview, language, children }) => (
+        <Html lang={language} dir={LANGUAGES.find(({ key }) => key === language)?.dir ?? "ltr"}>
+          <Preview>{preview}</Preview>
+          <Body>{children}</Body>
+        </Html>
+      );
+      function Footer() { const year = new Date().getFullYear(); return <Text>© {year} Acme</Text>; }
+      export default function T(props: { language: string }) {
+        return <Layout preview={t("preview")} language={props.language}><Text>{t("body")}</Text><Footer /></Layout>;
+      }
+      T.PreviewProps = { language: "en" };`;
+    const { codemod, check } = await convertBoth(source, "layout-calls");
+    expect(codemod.code).not.toMatch(/<Layout|<Footer/);
+    expect(codemod.code.match(/t\("preview"\)/g)).toHaveLength(1);
+    expect(codemod.code.match(/new Date\(\)/g)).toHaveLength(1);
+    expect(check.missing).toEqual([]);
+  });
+
+  it("keeps a component whose argument would run twice, in a callback, or behind a condition", async () => {
+    const cases = {
+      twice: `function C({ v }) { return <Text>{v}{v}</Text>; }`,
+      callback: `function C({ v }) { return <Text>{[1].map(() => v)}</Text>; }`,
+      condition: `function C({ v, on = false }) { return <Text>{on && v}</Text>; }`,
+      constTwice: `function C({ v }) { const w = v; return <Text>{w}{w}</Text>; }`,
+    };
+    for (const [name, helper] of Object.entries(cases)) {
+      const source = `${IMPORTS}
+        const make = () => "x";
+        ${helper}
+        export default function T() { return <Html><Body><C v={make()} /></Body></Html>; }`;
+      const codemod = await convertSource(source, { fileName: `${name}.tsx` });
+      expect(codemod.code, name).toMatch(/<C\b/);
+    }
+  });
+
+  it("keeps a component whose argument or body writes state", async () => {
+    for (const [name, body] of Object.entries({
+      argument: [`function C({ v }) { return <Text>{v}</Text>; }`, `<C v={(count += 1)} />`],
+      body: [`function C({ v }) { return <Text>{(count = 2)}{v}</Text>; }`, `<C v="a" />`],
+      iife: [`function C({ v }) { return <Text>{v}</Text>; }`, `<C v={(() => { count++; return "a"; })()} />`],
+    })) {
+      const source = `${IMPORTS}
+        let count = 0;
+        ${body[0]}
+        export default function T() { return <Html><Body>${body[1]}</Body></Html>; }`;
+      const codemod = await convertSource(source, { fileName: `${name}.tsx` });
+      expect(codemod.code, name).toMatch(/<C\b/);
+    }
+  });
+
+  it("keeps captured identifier values when a helper's JSX mutates their source binding", async () => {
+    const source = `${IMPORTS}
+      function Label({ value, next }) { const saved = value; return <Text>{next()}:{saved}:{saved}</Text>; }
+      export default function T() { let n = 0; const next = () => String(++n); return <Html><Body><Label value={n} next={next}/></Body></Html>; }`;
+    const { check } = await convertBoth(source, "captured-identifier");
+    expect(check.missing).toEqual([]);
+    expect(check.convertedHtml).toContain("1:0:0");
+  });
+
+  it("converts both branches of a conditional root", async () => {
+    const source = `${IMPORTS}
+      const T = ({ special = false }) => special ? <Html><Body><Text>Special offer</Text></Body></Html> : <Html><Body><Text>Normal offer</Text></Body></Html>;
+      T.PreviewProps = { special: false };
+      export default T;`;
+    const { check, codemod } = await convertBoth(source, "conditional-root");
+    expect(check.missing).toEqual([]);
+    expect(check.variants).toEqual([]);
+    expect(codemod.code).not.toContain("<Html>");
+  });
+
+  it("allows escaped text samples to become tags without changing embedded styles", async () => {
+    const source = `${IMPORTS}
+      export default function T({ name, color }) { return <Html><Body><Text><strong>{name}</strong><span style={{ color }}> welcome</span></Text></Body></Html>; }
+      T.PreviewProps = { name: '<Alex> & "Co"', color: "#ff0000" };`;
+    const { runtime, check, Migrated } = await convertBoth(
+      source,
+      "escaped-tags",
+    );
+    expect(runtime.html()).toContain("<strong>{{name}}</strong>");
+    expect(runtime.html()).not.toContain("{{color}}");
+    const tagged = await mergeTagDesign(
+      Migrated,
+      Migrated.PreviewProps,
+      check.design,
+    );
+    expect(JSON.stringify(tagged.design)).toContain("{{name}}");
+    expect(JSON.stringify(tagged.design)).not.toContain("{{color}}");
   });
 });

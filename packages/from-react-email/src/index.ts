@@ -105,7 +105,7 @@ export interface Verification extends TextCheck {
 export async function verifyConversion(
   Original: Template,
   Converted: (props: any) => React.ReactElement,
-  options: { props?: Record<string, unknown> } = {}
+  options: { props?: Record<string, unknown> } = {},
 ): Promise<Verification> {
   const props = options.props ?? Original.PreviewProps ?? {};
   const originalHtml = await render(React.createElement(Original, props));
@@ -134,6 +134,24 @@ export async function verifyConversion(
     }
     try {
       const check = compareText(original, renderToHtml(Converted(flipped)));
+      const warnings: string[] = [];
+      const previousWarn = console.warn;
+      console.warn = (...args: unknown[]) =>
+        void warnings.push(args.map(String).join(" "));
+      try {
+        renderToJson(Converted(flipped));
+      } finally {
+        console.warn = previousWarn;
+      }
+      if (warnings.length) {
+        variants.push({
+          change,
+          missing: check.missing,
+          missingAttributes: check.missingAttributes,
+          error: warnings.join("; "),
+        });
+        continue;
+      }
       if (check.missing.length || check.missingAttributes.length) variants.push({ change, missing: check.missing, missingAttributes: check.missingAttributes });
     } catch (error) {
       variants.push({ change, missing: [], missingAttributes: [], error: (error as Error).message.split("\n")[0] });

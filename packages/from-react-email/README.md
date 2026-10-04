@@ -8,7 +8,7 @@ npm install @unlayer/from-react-email @unlayer/react-elements
 
 ## Two ways to convert
 
-**Codemod: migrate the source.** Rewrites the template's import and JSX into Elements. Props, `.map()` loops (with keys), conditions, helper functions, types and `PreviewProps` stay. Use it to move templates to Elements.
+**Codemod: migrate the source.** Rewrites the template's import and JSX into Elements, including early returns and conditional roots. Props, `.map()` loops (with keys), conditions, helper functions, types and `PreviewProps` stay. Use it to move templates to Elements.
 
 ```ts
 import { convertSource } from "@unlayer/from-react-email";
@@ -31,9 +31,7 @@ await conversion.tsx(); // Elements TSX
 conversion.report.missingText; // [] when nothing was lost
 ```
 
-Text props the template shows as given become merge tags (`{{user.name}}`), which the editor keeps and email services fill in. Props the template changes or tests (a formatted date, `name.toUpperCase()`) keep their sample value, and `report.info` says which. Pass `{ mergeTags: false }` to keep every sample value. `mergeTagDesign(Migrated, props, design)` does the same for a migrated template's design JSON.
-
-Image sources and background URLs keep their sample values so the editor can display them, including images inside HTML fallbacks and inline paragraph HTML. Text and link destinations can still become merge tags.
+Text props the template shows as given become merge tags (`{{user.name}}`), which the editor keeps and email services fill in. Props the template changes or tests (a formatted date, `name.toUpperCase()`) keep their sample value, and `report.info` says which. CSS, font URLs, backgrounds and image sources (including images kept in HTML) keep sample values; text, image alt text and links can receive tags. Pass `{ mergeTags: false }` to keep every sample value. `mergeTagDesign(Migrated, props, design)` does the same for a migrated template's design JSON.
 
 Both modes share one mapping and one layout engine, so they convert styles the same way.
 
@@ -52,7 +50,7 @@ check.designWarnings; // blocks the visual editor wouldn't get
 check.design; // the design JSON
 ```
 
-`compareText(originalHtml, convertedHtml)` runs the same comparison on two HTML documents. It counts repeated links and images and checks that destinations stay associated with their link labels and image alt text; Outlook-only duplicate markup is excluded. Code paths the props don't reach (a loop over an empty preview array, a condition on a non-boolean prop) aren't verified: extend `PreviewProps` to cover them.
+`compareText(originalHtml, convertedHtml)` runs the same comparison on two HTML documents, preserving numeric separators, signs, currency symbols and percentages. Words must also stay in order: values that changed places count as missing. It counts repeated links and images and keeps destinations associated with link labels and image alt text; Outlook-only duplicates are excluded. Boolean variants are checked through both the HTML and design exporters. Code paths the props don't reach (a loop over an empty preview array, a condition on a non-boolean prop) aren't verified: extend `PreviewProps` to cover them.
 
 ## The report
 
@@ -82,7 +80,7 @@ check.design; // the design JSON
 
 Components defined in the same file (or, with `loadModule`, in other files) are inlined where they're used when their body returns JSX. A `className` chosen by a condition becomes one element per class list. JSX kept in local constants goes where it's used.
 
-A component with a defaulted prop stays as HTML when a supplied argument could evaluate to `undefined`, preserving its JavaScript defaults and evaluation. A literal `undefined` uses the default; `null` remains `null`.
+Inlining relies on React's rule that rendering is pure: calls in a component's arguments, constants and body may run in a different order, but never more often, later, or only on some paths. A component stays as HTML when inlining it would repeat a call or move one into a branch or callback, or when it writes state or calls a hook. A template that breaks the rule anyway (one that counts calls in module state, say) fails the check against the original. A component with a defaulted prop stays as HTML when a supplied argument could evaluate to `undefined`, preserving its JavaScript defaults and evaluation. A literal `undefined` uses the default; `null` remains `null`.
 
 ## Not expressible in Elements
 
