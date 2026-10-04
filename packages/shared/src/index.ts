@@ -67,6 +67,7 @@ export {
 
 // Utils - Value merging
 export { mergeValues } from "./utils/merge-values";
+export { normalizeColor, normalizeCssValues, normalizeFontStack } from "./utils/css-values";
 
 // Utils - Semantic props
 export {

@@ -10,6 +10,7 @@
  * - TypeScript provides autocomplete for ALL properties (flat and nested)
  */
 
+import { normalizeCssValues } from "./css-values";
 import { textToTextJson, htmlToTextJson } from "./lexical-helpers";
 
 /**
@@ -336,7 +337,8 @@ export function mapSemanticProps<T extends Record<string, any>>(
     }
   }
 
-  return final as T;
+  // Colors and font stacks in forms the exporters write correctly.
+  return normalizeCssValues(final) as T;
 }
 
 /**
