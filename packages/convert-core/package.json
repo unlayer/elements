@@ -12,7 +12,8 @@
     "test": "vitest"
   },
   "dependencies": {
-    "prettier": "^3.3.3"
+    "prettier": "^3.3.3",
+    "entities": "^7.0.1"
   },
   "peerDependencies": {
     "@unlayer/react-elements": "workspace:*",

@@ -55,3 +55,48 @@ describe("outputs and css", () => {
     expect(boxSides({ padding: "8px 16px", paddingTop: "4px" }, "padding")).toEqual({ top: 4, right: 16, bottom: 8, left: 16 });
   });
 });
+
+describe("meaningful text", () => {
+  it.each([
+    ["$1.00", "$100"],
+    ["1,000", "1000"],
+    ["-10", "10"],
+    ["10%", "10"],
+    ["€10", "$10"],
+    ["10 %", "10"],
+    ["1/2", "12"],
+    ["07:30", "0730"],
+    ["1'000", "1000"],
+  ])("detects %s changed to %s", async (original, converted) => {
+    const { compareText } = await import("../src/index");
+    expect(
+      compareText(
+        `<p>Pay ${original} today.</p>`,
+        `<p>Pay ${converted} today!</p>`,
+      ).missing.length,
+    ).toBeGreaterThan(0);
+  });
+
+  it("decodes the full entity set while tolerating sentence punctuation", async () => {
+    const { compareText, decodeHtmlEntities } = await import("../src/index");
+    expect(
+      compareText(
+        "<p>Total: 10 &euro;, &frac12; &NotEqualTilde;</p>",
+        "<p>Total 10 €, ½ ≂̸</p>",
+      ).missing,
+    ).toEqual([]);
+    expect(decodeHtmlEntities("&#x110000;")).toBe("�");
+  });
+
+  it("counts words that changed places as missing", async () => {
+    const { compareText } = await import("../src/index");
+    const check = compareText(
+      "<p>Subtotal 10</p><p>Shipping free</p><p>Total 12</p>",
+      "<p>Subtotal 12</p><p>Shipping free</p><p>Total 10</p>",
+    );
+    expect(check.missing.sort()).toEqual(["10", "12"]);
+    expect(
+      compareText("<p>Hello <b>there</b></p><p>Bye</p>", "<div><p>Hello there</p></div><p>Bye</p>").missing,
+    ).toEqual([]);
+  });
+});
