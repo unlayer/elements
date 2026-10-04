@@ -160,6 +160,23 @@ describe("renderToHtml: full document shell", () => {
     expect(html).toContain("<!--[if !mso]><!--><link");
   });
 
+  it("links the root's own fonts prop, with the option's, each once", () => {
+    const inter = { url: "https://fonts.googleapis.com/css2?family=Inter" };
+    const serif = { url: "https://fonts.googleapis.com/css2?family=Instrument+Serif" };
+    const html = renderToHtml(
+      <Email fonts={[inter, serif]}>
+        <Row>
+          <Column>
+            <Paragraph>Hello</Paragraph>
+          </Column>
+        </Row>
+      </Email>,
+      { fonts: [inter] }
+    );
+    expect(html.match(/family=Inter"/g)).toHaveLength(1);
+    expect(html).toContain('href="https://fonts.googleapis.com/css2?family=Instrument+Serif"');
+  });
+
   it("applies textDirection as the html dir attribute", () => {
     const html = renderToHtml(emailTree, { textDirection: "rtl" });
     expect(html).toContain('<html dir="rtl" xmlns=');

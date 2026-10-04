@@ -119,6 +119,7 @@ function extractSemanticProps(
     "_config",
     "config",
     "previewText",
+    "fonts",
     "layout",
     "collection",
     ...extraKeys,

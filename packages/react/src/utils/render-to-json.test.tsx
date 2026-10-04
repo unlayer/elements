@@ -597,3 +597,18 @@ describe("renderRowToJson", () => {
     expect(row.columns[1].contents[0].type).toBe("button");
   });
 });
+
+describe("renderToJson fonts prop", () => {
+  it("keeps the root's fonts out of the design (renderToHtml links them)", () => {
+    const design = renderToJson(
+      <Email fonts={[{ url: "https://fonts.googleapis.com/css2?family=Inter" }]}>
+        <Row>
+          <Column>
+            <Paragraph>Hello</Paragraph>
+          </Column>
+        </Row>
+      </Email>
+    );
+    expect(JSON.stringify(design)).not.toContain("fonts.googleapis.com");
+  });
+});

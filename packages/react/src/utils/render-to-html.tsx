@@ -133,7 +133,10 @@ export function renderToHtml(
   element: React.ReactElement,
   options?: RenderToHtmlOptions
 ): string {
-  const { title, fonts = [], ...config } = options ?? {};
+  const { title, fonts: optionFonts = [], ...config } = options ?? {};
+  // The root's own `fonts` prop, then the option's, each URL once.
+  const rootFonts = (element.props as { fonts?: Array<{ url: string }> } | null)?.fonts ?? [];
+  const fonts = [...rootFonts, ...optionFonts].filter((font, i, all) => font?.url && all.findIndex((f) => f?.url === font.url) === i);
 
   const mergedConfig = { ...DEFAULT_CONFIG, ...config };
   const displayMode = resolveDisplayMode(element, mergedConfig);

@@ -18,6 +18,11 @@ export type BodyProps = Omit<SemanticProps<BodyValues>, "padding" | "borderRadiu
   config?: Partial<UnlayerConfig>;
   /** Preview text shown in email client inboxes (email mode only) */
   previewText?: string;
+  /**
+   * Web font stylesheets the content uses (e.g. a Google Fonts CSS URL).
+   * renderToHtml links them in the document head, with any `fonts` option.
+   */
+  fonts?: Array<{ url: string }>;
   /** Padding — a CSS string ("0 48px", "20px") or a number (px). */
   padding?: SizeInput;
   /** Corner radius — a number (→ px) or CSS string ("8px"). */
@@ -131,7 +136,7 @@ function renderBodyToHtml(innerHTML: string, values: any, mode: RenderMode, prev
  * ```
  */
 const Body: React.FC<BodyProps> = (props) => {
-  const { children, mode: modeProp, className, style, index = 0, config: configProp, previewText, ...semanticProps } = props;
+  const { children, mode: modeProp, className, style, index = 0, config: configProp, previewText, fonts: _fonts, ...semanticProps } = props;
 
   // Resolve config: explicit prop > default (no hooks, Server Component safe)
   const resolvedConfig: UnlayerConfig = { ...DEFAULT_CONFIG, ...configProp };
