@@ -1,4 +1,4 @@
-import type { Meta, StoryObj } from "@storybook/react";
+import type { Meta, StoryObj } from "@storybook/react-vite";
 import type { BodyProps } from "./Body";
 import Body from "./Body";
 import Row from "./Row";
