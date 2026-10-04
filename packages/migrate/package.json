@@ -1,0 +1,43 @@
+{
+  "name": "@unlayer/migrate",
+  "version": "0.1.0",
+  "description": "Migrate React Email templates to Unlayer Elements: TSX that keeps your props and logic, checked against the originals, editable in the Unlayer visual editor.",
+  "license": "MIT",
+  "type": "module",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/unlayer/elements.git",
+    "directory": "packages/migrate"
+  },
+  "bin": {
+    "unlayer-migrate": "./dist/bin.js"
+  },
+  "files": [
+    "dist"
+  ],
+  "engines": {
+    "node": ">=20.6"
+  },
+  "scripts": {
+    "build": "tsup",
+    "test": "vitest",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@react-email/components": "^1.0.12",
+    "@unlayer/react-elements": "workspace:^",
+    "prettier": "^3.3.3",
+    "react": "^18.3.1 || ^19.0.0",
+    "react-dom": "^18.3.1 || ^19.0.0",
+    "tsx": "^4.20.5",
+    "typescript": "^5.6.3"
+  },
+  "devDependencies": {
+    "@types/node": "^24.9.1",
+    "@types/react": "^18.3.3",
+    "@unlayer/convert-core": "workspace:*",
+    "@unlayer/from-react-email": "workspace:*",
+    "tsup": "^8.0.1",
+    "vitest": "^3.2.4"
+  }
+}

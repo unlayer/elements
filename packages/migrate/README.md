@@ -1,0 +1,77 @@
+# @unlayer/migrate
+
+Migrate React Email templates to [Unlayer Elements](https://github.com/unlayer/elements). Your templates keep their props, loops and conditions; they become Elements components that render email-safe HTML, web pages and print documents, and open in the Unlayer visual editor.
+
+```bash
+npx @unlayer/migrate emails --write
+```
+
+Run it from your project folder. Each template is:
+
+1. **Converted.** React Email components become Elements components (`Text` → `Paragraph`, `Section`/`Row`/`Column` → `Row`/`Column`, `Button` → `Button`, …). Tailwind classes become props. Components the template uses from the same file or from your other files (a shared `Layout`, a `Footer`) are inlined. Anything with no Elements equivalent is kept as an `Html` block that renders exactly as before.
+2. **Checked.** The original and the migrated template are rendered with the template's `PreviewProps`, then again with each boolean prop flipped, and compared. Every word, link, image and image `alt` text the original renders must be in the migrated output, and any block the visual editor can't represent fails the check. A template that fails isn't written unless you pass `--force`. Code paths these props don't reach (a loop over an empty preview array, a condition on a non-boolean prop) are converted but not verified: extend `PreviewProps` to cover them.
+3. **Reported.** How much is editable in the visual editor, what was kept as HTML, and every visual difference (a dropped hover style, a `mobile:` class, a radius).
+
+```text
+✓ emails/welcome.tsx: 100% editable, 1 kind of difference
+✓ emails/receipt.tsx: 96% editable, 2 kinds of difference
+- emails/components/layout.tsx: skipped (no default-exported component)
+
+2 templates: 2 migrated and checked. 2 written.
+```
+
+## Options
+
+| Option | |
+|---|---|
+| `--write` | Replace each template with its migrated version. |
+| `--out <dir>` | Write migrated templates to `<dir>` instead, keeping the folder layout. Relative imports are rewritten so they still resolve. |
+| `--design` | Also write `<name>.design.json` next to each migrated template: the design the Unlayer editor opens with `loadDesign()`. Text props the template shows as given become merge tags (`{{name}}`); props it changes first (a formatted date, an uppercased word) keep their `PreviewProps` value. |
+| `--no-merge-tags` | Keep the `PreviewProps` values in the design JSON instead of merge tags. |
+| `--report <file>` | Write the migration report as Markdown (`.md`) or JSON (`.json`). |
+| `--force` | Write templates even when the check finds a problem. |
+| `--from react-email` | The source format (the only one today). |
+
+Without `--write` or `--out`, nothing is written: the command converts and checks, and prints what it would do.
+
+Exit codes: `0` when every template converted and passed the check, `1` for a usage error or when no templates were found, `2` when a template failed to convert or the check found a problem. Use it in CI to keep migrated templates honest.
+
+## Check a template you migrated yourself
+
+```bash
+npx @unlayer/migrate compare emails/welcome.tsx emails/welcome.elements.tsx
+```
+
+Renders both with the original's `PreviewProps`, then with each true/false prop flipped, and checks that every word, link, image and `alt` text is still there and that the visual editor gets every block. Exit code `0` when it passes, `2` with what's missing when it doesn't.
+
+## After migrating
+
+```bash
+npm install @unlayer/react-elements
+```
+
+```ts
+import { renderToHtml, renderToJson } from "@unlayer/react-elements";
+import Welcome from "./emails/welcome";
+
+const html = renderToHtml(Welcome({ name: "Alex" })); // send with any provider
+const design = renderToJson(Welcome({ name: "Alex" })); // open in the visual editor
+```
+
+`@react-email/components` can be removed once no template imports it. Templates with blocks kept as HTML still import React Email components for those blocks; the report lists them.
+
+## What changes
+
+The report lists every difference for each template. The common ones:
+
+- **Phones**: columns stay side by side, as React Email's tables do, unless the template stacks them (`mobile:!block`). Side by side, they keep their share of the row, so fixed widths and images scale down with it.
+- **Responsive classes** other than stacking (`mobile:px-6`, `sm:`) and hover styles have no Elements equivalent.
+- **Shadows, gradients, transforms** and column vertical alignment (email columns sit at the top).
+- **A box that shrinks to fit its content** (`w-fit` around text) is as wide as its parent.
+- Text without a font family uses Elements' default font rather than the browser's.
+
+## How it works
+
+The conversion runs in your project, with your project's React, React Email and TypeScript paths (`tsconfig` aliases work). It reads your templates and executes them to check the result. Run it only on code you trust. It makes no network requests: rendering produces HTML, and nothing is fetched.
+
+For programmatic use (an agent, a build step, the editor), see [`@unlayer/from-react-email`](../from-react-email).
