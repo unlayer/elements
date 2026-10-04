@@ -491,7 +491,9 @@ async function importFile(path: string, cwd: string): Promise<Record<string, any
     JSON.stringify({
       ...(base ? { extends: base } : {}),
       compilerOptions: { jsx: "react-jsx", jsxImportSource: "react" },
-      include: [join(dirname(path), "**/*").split(sep).join("/")],
+      // Imports outside the template folder need the same JSX runtime too.
+      include: [...new Set([cwd, dirname(path), ...(base ? [dirname(base)] : [])])]
+        .map((root) => join(root, "**/*").split(sep).join("/")),
     })
   );
   try {

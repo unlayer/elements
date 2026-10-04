@@ -70,6 +70,27 @@ function io(cwd: string): Io & { out: string; err: string } {
 }
 
 describe("unlayer-migrate", () => {
+  it("loads JSX helpers outside the input folder with the project's automatic JSX runtime", async () => {
+    const template = `import { Html, Body, Text } from "@react-email/components";
+import { CTA } from "../shared/cta";
+export default function Template({ href }: { href?: string }) { return <Html><Body><Text>Invoice ready</Text><CTA href={href}/></Body></Html>; }
+Template.PreviewProps = { href: undefined };`;
+    const dir = project({
+      "tsconfig.json": JSON.stringify({ compilerOptions: { jsx: "react-jsx", module: "ESNext", moduleResolution: "bundler" } }),
+      "emails/invoice.tsx": template,
+      "shared/cta.tsx": `import { Button } from "@react-email/components";
+export function CTA({ href = "https://example.com/pay" }: { href?: string }) { return <Button href={href}>Pay invoice</Button>; }`,
+    });
+    const out = io(dir);
+    expect(await main(["emails", "--out", "migrated", "--design"], out, lib), out.out + out.err).toBe(0);
+    const compare = io(dir);
+    expect(await main(["compare", "emails/invoice.tsx", "migrated/invoice.tsx"], compare, lib), compare.out + compare.err).toBe(0);
+    expect(fs.readFileSync(path.join(dir, "emails/invoice.tsx"), "utf8")).toBe(template);
+    const design = fs.readFileSync(path.join(dir, "migrated/invoice.design.json"), "utf8");
+    expect(design).toContain("Pay invoice");
+    expect(design).toContain("https://example.com/pay");
+  });
+
   it("rejects an empty output path without replacing the original template", async () => {
     const source = `import { Html, Body, Text } from "@react-email/components";
 export default function Template() { return <Html><Body><Text>Keep the original</Text></Body></Html>; }`;

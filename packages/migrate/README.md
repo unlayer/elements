@@ -74,6 +74,6 @@ The report lists every difference for each template. The common ones:
 
 ## How it works
 
-The conversion runs in your project, with your project's React, React Email and TypeScript paths (`tsconfig` aliases work). It reads your templates and executes them to check the result. Run it only on code you trust. It makes no network requests: rendering produces HTML, and nothing is fetched.
+The conversion runs in your project, with your project's React, React Email and TypeScript paths (`tsconfig` aliases work). The automatic JSX runtime applies to templates and imported helpers, including helpers outside the input folder. It reads your templates and executes them to check the result. Run it only on code you trust. It makes no network requests: rendering produces HTML, and nothing is fetched.
 
 For programmatic use (an agent, a build step, the editor), see [`@unlayer/from-react-email`](../from-react-email).
