@@ -36,6 +36,16 @@ const PADDING_CHARS = [
   "\u00A0", "\u200C", "\u200B", "\u200D", "\u200E", "\u200F", "\uFEFF",
 ];
 
+/**
+ * previewText is text, as React treats text (it often carries user data, like
+ * a name), so it's escaped: markup like `</div>` would end the hidden preview
+ * and show whatever follows. The preview is padded with invisible characters
+ * below, so it needs no entities.
+ */
+function escapePreviewText(text: string): string {
+  return text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+}
+
 function generatePreviewHtml(text: string): string {
   if (!text || text.trim().length === 0) return "";
 
@@ -51,7 +61,7 @@ function generatePreviewHtml(text: string): string {
 
   return (
     `<div data-skip-in-text="true" style="display:none;font-size:1px;color:#ffffff;line-height:1px;max-height:0px;max-width:0px;opacity:0;overflow:hidden;">` +
-    truncated +
+    escapePreviewText(truncated) +
     padding +
     `</div>`
   );
