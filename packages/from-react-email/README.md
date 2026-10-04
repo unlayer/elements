@@ -1,9 +1,11 @@
-# @unlayer/from-react-email
+Internal React Email converter, published as `@unlayer/migrate/react-email`.
+
+# @unlayer/migrate/react-email
 
 Convert React Email (`@react-email/components`) templates to [Unlayer Elements](https://github.com/unlayer/elements). The [`@unlayer/migrate`](../migrate) CLI is built on it; use the library directly from an agent, a build step or a server.
 
 ```bash
-npm install @unlayer/from-react-email @unlayer/react-elements
+npm install @unlayer/migrate @unlayer/react-elements
 ```
 
 ## Two ways to convert
@@ -11,7 +13,7 @@ npm install @unlayer/from-react-email @unlayer/react-elements
 **Codemod: migrate the source.** Rewrites the template's import and JSX into Elements, including early returns and conditional roots. Props, `.map()` loops (with keys), conditions, helper functions, types and `PreviewProps` stay. Use it to move templates to Elements.
 
 ```ts
-import { convertSource } from "@unlayer/from-react-email";
+import { convertSource } from "@unlayer/migrate/react-email";
 
 const { code, report } = await convertSource(source, { fileName: "emails/welcome.tsx" });
 ```
@@ -21,7 +23,7 @@ Module constants are evaluated only where their original binding is used; parame
 **Runtime: convert what a template renders.** Renders the template with props (its `PreviewProps` by default) and converts the result. Loops and conditions become the content they produced. Use it to open a template in the visual editor.
 
 ```ts
-import { convertReactEmail } from "@unlayer/from-react-email";
+import { convertReactEmail } from "@unlayer/migrate/react-email";
 import Welcome from "./emails/welcome";
 
 const conversion = await convertReactEmail(Welcome);
@@ -38,7 +40,7 @@ Both modes share one mapping and one layout engine, so they convert styles the s
 ## Check a conversion
 
 ```ts
-import { verifyConversion } from "@unlayer/from-react-email";
+import { verifyConversion } from "@unlayer/migrate/react-email";
 import Original from "./emails/welcome";
 import Migrated from "./emails/welcome.migrated";
 

@@ -1,5 +1,6 @@
 {
   "name": "@unlayer/from-react-email",
+  "private": true,
   "version": "0.1.0",
   "description": "Convert React Email (@react-email/components) templates to Unlayer Elements: a codemod that keeps your props and logic, a runtime converter for the visual editor, and a check against the original.",
   "license": "MIT",
@@ -45,19 +46,6 @@
     "type": "git",
     "url": "git+https://github.com/unlayer/elements.git",
     "directory": "packages/from-react-email"
-  },
-  "publishConfig": {
-    "exports": {
-      ".": {
-        "types": "./dist/index.d.ts",
-        "import": "./dist/index.js",
-        "require": "./dist/index.cjs"
-      }
-    },
-    "main": "./dist/index.cjs",
-    "module": "./dist/index.js",
-    "types": "./dist/index.d.ts",
-    "access": "public"
   },
   "files": [
     "dist",

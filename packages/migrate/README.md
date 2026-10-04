@@ -64,6 +64,24 @@ const design = renderToJson(Welcome({ name: "Alex" })); // open in the visual ed
 
 `@react-email/components` can be removed once no template imports it. Templates with blocks kept as HTML still import React Email components for those blocks; the report lists them.
 
+## Programmatic use
+
+Install `@unlayer/migrate` to use the React Email converter from an agent, a build step or a server. The subpath supports ESM and CommonJS.
+
+```bash
+npm install @unlayer/migrate
+```
+
+```ts
+import { convertReactEmail } from "@unlayer/migrate/react-email";
+import Welcome from "./emails/welcome";
+
+const conversion = await convertReactEmail(Welcome);
+const design = conversion.design(); // open in the visual editor with loadDesign()
+const html = conversion.html();
+const tsx = await conversion.tsx();
+```
+
 ## What changes
 
 The report lists every difference for each template. The common ones:
@@ -78,4 +96,4 @@ The report lists every difference for each template. The common ones:
 
 The conversion runs in your project, with your project's React, React Email and TypeScript paths (`tsconfig` aliases work). The automatic JSX runtime applies to templates and imported helpers in ESM and CommonJS projects, including helpers outside the input folder. It reads your templates and executes them to check the result. Run it only on code you trust. It makes no network requests: rendering produces HTML, and nothing is fetched.
 
-For programmatic use (an agent, a build step, the editor), see [`@unlayer/from-react-email`](../from-react-email).
+For the full `@unlayer/migrate/react-email` API, see the [React Email converter documentation](../from-react-email).

@@ -36,6 +36,7 @@
   "devDependencies": {
     "@types/node": "^24.9.1",
     "@types/react": "^18.3.3",
+    "@types/react-dom": "^18.3.0",
     "@unlayer/convert-core": "workspace:*",
     "@unlayer/from-react-email": "workspace:*",
     "tsup": "^8.0.1",
@@ -43,5 +44,22 @@
   },
   "publishConfig": {
     "access": "public"
+  },
+  "exports": {
+    "./react-email": {
+      "types": {
+        "import": "./dist/react-email.d.ts",
+        "require": "./dist/react-email.d.cts"
+      },
+      "import": "./dist/react-email.js",
+      "require": "./dist/react-email.cjs"
+    },
+    "./package.json": "./package.json"
+  },
+  "peerDependencies": {
+    "@react-email/components": ">=0.0.30",
+    "@unlayer/react-elements": "workspace:^",
+    "react": ">=18",
+    "react-dom": ">=18"
   }
 }

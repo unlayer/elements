@@ -232,6 +232,9 @@ importers:
       '@types/react':
         specifier: ^18.3.3
         version: 18.3.26
+      '@types/react-dom':
+        specifier: ^18.3.0
+        version: 18.3.7(@types/react@18.3.26)
       '@unlayer/convert-core':
         specifier: workspace:*
         version: link:../convert-core

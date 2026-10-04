@@ -50,4 +50,4 @@ renderToJson(element); // open in the visual editor with loadDesign()
 - After converting any template by hand, run the same `compare` before reporting it done.
 - React Email → Elements, when writing by hand: `Text` → `Paragraph`; `Section`/`Row`/`Column` → `Row` > `Column`; `Container` width → `Email` `contentWidth`; `Img` → `Image`; `Hr` → `Divider`; `Preview` → `Email` `previewText`; Tailwind classes → props.
 
-For programmatic conversion (from an agent, a build step or a server), see [`@unlayer/from-react-email`](../../from-react-email).
+For programmatic conversion (from an agent, a build step or a server), see [`@unlayer/migrate/react-email`](../../migrate#programmatic-use).
