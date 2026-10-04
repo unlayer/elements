@@ -13,8 +13,8 @@ Run it from your project folder (it uses your project's React, React Email and `
 
 Before a template is written, the original and the migrated version are rendered with the template's `PreviewProps`, then again with each boolean prop flipped, and compared:
 
-- every word, link, image and image `alt` text the original renders must be in the migrated template;
-- any block the visual editor can't represent (`renderToJson`) fails the check.
+- every word, numeric value (including separators, signs, currencies and percentages), link, image and image `alt` text the original renders must be in the migrated template, with the words in the same order;
+- any block the visual editor can't represent (`renderToJson`) fails the check, including on each boolean variant.
 
 A template that fails isn't written (unless `--force`), and the command exits with code `2`. Code paths these props don't reach (a loop over an empty preview array, a condition on a non-boolean prop) are converted but not verified: extend `PreviewProps` to cover them. Without `--write` or `--out <dir>`, nothing is written: run it first to see the report.
 
@@ -38,7 +38,9 @@ renderToPlainText(element); // the text part
 renderToJson(element); // open in the visual editor with loadDesign()
 ```
 
-`--design` also writes each template's design JSON next to it, ready for `loadDesign()`. Text props become merge tags (`{{name}}`) where the template shows them as given; `--no-merge-tags` keeps the `PreviewProps` values.
+`--out` refuses symlinked destinations and directories inside the output folder, and cannot replace input templates. Use `--write` to replace originals.
+
+`--design` also writes each template's design JSON next to it, ready for `loadDesign()`. Text props become merge tags (`{{name}}`) where the template shows them as given; `--no-merge-tags` keeps the `PreviewProps` values. CSS, font URLs, backgrounds and all image sources retain sample values even when merge tags are enabled.
 
 ## Agent rules
 

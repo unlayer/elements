@@ -174,7 +174,7 @@ Template.PreviewProps = { code: "VIP", name: "Alex" };`;
     const out = io(dir);
     const code = await main(["emails", "--out", "migrated", "--design", "--report", "migration.md"], out, lib);
     expect(out.err).toBe("");
-    expect(code).toBe(0);
+    expect(code, out.out + out.err).toBe(0);
     expect(out.out).toMatch(/✓ emails\/welcome\.tsx: 100% editable/);
     expect(out.out).toMatch(/- emails\/components\/button\.tsx: skipped \(no default-exported component/);
 
@@ -232,7 +232,9 @@ Order.PreviewProps = { id: "A-100" };
 `;
     const dir = project({ "emails/order.tsx": order, "emails/components/layout.tsx": layout, "lib/brand.ts": `export const brand = "Acme";\n` });
     const out = io(dir);
-    expect(await main(["emails", "--write"], out, lib)).toBe(0);
+    expect(await main(["emails", "--write"], out, lib), out.out + out.err).toBe(
+      0,
+    );
     expect(out.out).toMatch(/✓ emails\/order\.tsx: 100% editable/);
     const migrated = fs.readFileSync(path.join(dir, "emails/order.tsx"), "utf8");
     expect(migrated).not.toContain("./components/layout");
@@ -248,7 +250,10 @@ Order.PreviewProps = { id: "A-100" };
   it("checks without writing by default, and replaces templates with --write", async () => {
     const dir = project({ "emails/welcome.tsx": WELCOME, "lib/format.ts": FORMAT });
     const dry = io(dir);
-    expect(await main(["emails/welcome.tsx"], dry, lib)).toBe(0);
+    expect(
+      await main(["emails/welcome.tsx"], dry, lib),
+      dry.out + dry.err,
+    ).toBe(0);
     expect(dry.out).toContain("Nothing written");
     expect(fs.readFileSync(path.join(dir, "emails/welcome.tsx"), "utf8")).toBe(WELCOME);
 
@@ -318,5 +323,110 @@ export default function Hi({ name }: { name: string }) {
     const help = io(dir);
     expect(await main(["--help"], help, lib)).toBe(0);
     expect(help.out).toContain("npx @unlayer/migrate");
+  });
+});
+
+describe("destination safety and content checks", () => {
+  const source = `import { Html, Body, Text } from "@react-email/components";
+export default function T() { return <Html><Body><Text>Pay $1.00 today</Text></Body></Html>; }`;
+
+  it.each(["template", "design", "directory"])(
+    "rejects a %s symlink before executing templates",
+    async (kind) => {
+      const original = source + '\nthrow new Error("must not execute");';
+      const dir = project({
+        "emails/nested/t.tsx": original,
+        "elsewhere/t.tsx": "untouched",
+        "elsewhere/t.design.json": "untouched",
+      });
+      fs.mkdirSync(path.join(dir, "migrated"));
+      if (kind === "directory")
+        fs.symlinkSync(
+          path.join(dir, "elsewhere"),
+          path.join(dir, "migrated/nested"),
+          "dir",
+        );
+      else {
+        fs.mkdirSync(path.join(dir, "migrated/nested"));
+        fs.symlinkSync(
+          path.join(
+            dir,
+            kind === "template"
+              ? "emails/nested/t.tsx"
+              : "elsewhere/t.design.json",
+          ),
+          path.join(
+            dir,
+            kind === "template"
+              ? "migrated/nested/t.tsx"
+              : "migrated/nested/t.design.json",
+          ),
+        );
+      }
+      const out = io(dir);
+      expect(
+        await main(
+          ["emails", "--out", "migrated", "--design", "--force"],
+          out,
+          lib,
+        ),
+      ).toBe(1);
+      expect(out.err).toContain("Refusing symlink output");
+      expect(out.out).toBe("");
+      expect(
+        fs.readFileSync(path.join(dir, "emails/nested/t.tsx"), "utf8"),
+      ).toBe(original);
+      expect(fs.readFileSync(path.join(dir, "elsewhere/t.tsx"), "utf8")).toBe(
+        "untouched",
+      );
+      expect(
+        fs.readFileSync(path.join(dir, "elsewhere/t.design.json"), "utf8"),
+      ).toBe("untouched");
+    },
+  );
+
+  it("rejects --out overlapping an original, without executing it", async () => {
+    const original = source + '\nthrow new Error("must not execute");';
+    const dir = project({ "emails/t.tsx": original });
+    const out = io(dir);
+    expect(await main(["emails", "--out", "emails"], out, lib)).toBe(1);
+    expect(out.err).toContain("source input");
+    expect(fs.readFileSync(path.join(dir, "emails/t.tsx"), "utf8")).toBe(
+      original,
+    );
+  });
+
+  it("rejects a changed price in compare", async () => {
+    const migrated = `import { Email, Row, Column, Paragraph } from "@unlayer/react-elements";
+export default function T() { return <Email><Row><Column><Paragraph>Pay $100 today</Paragraph></Column></Row></Email>; }`;
+    const dir = project({ "emails/t.tsx": source, "wrong.tsx": migrated });
+    const out = io(dir);
+    expect(await main(["compare", "emails/t.tsx", "wrong.tsx"], out, lib)).toBe(
+      2,
+    );
+    expect(out.out).toContain("$1.00");
+  });
+});
+
+describe("failed verification writes", () => {
+  it("leaves originals and outputs untouched unless --force is requested, and cleans probes", async () => {
+    const source = `import { Html, Body, Text } from "@react-email/components";
+export default function T() {
+  const text = import.meta.url.includes(".unlayer-migrate-") ? "Changed" : "Keep this content";
+  return <Html><Body><Text>{text}</Text></Body></Html>;
+}`;
+    const dir = project({ "emails/t.tsx": source });
+    for (const flags of [["--write"], ["--out", "migrated", "--design"]]) {
+      const out = io(dir);
+      expect(await main(["emails", ...flags], out, lib), out.out + out.err).toBe(2);
+      expect(out.out).toContain("lost text");
+      expect(fs.readFileSync(path.join(dir, "emails/t.tsx"), "utf8")).toBe(source);
+      expect(fs.existsSync(path.join(dir, "migrated"))).toBe(false);
+      expect(fs.readdirSync(path.join(dir, "emails"))).toEqual(["t.tsx"]);
+    }
+    const forced = io(dir);
+    expect(await main(["emails", "--out", "forced", "--design", "--force"], forced, lib), forced.out + forced.err).toBe(2);
+    expect(fs.readdirSync(path.join(dir, "forced"))).toEqual(["t.design.json", "t.tsx"]);
+    expect(fs.readdirSync(path.join(dir, "emails"))).toEqual(["t.tsx"]);
   });
 });

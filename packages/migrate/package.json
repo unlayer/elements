@@ -13,7 +13,8 @@
     "unlayer-migrate": "./dist/bin.js"
   },
   "files": [
-    "dist"
+    "dist",
+    "THIRD_PARTY_NOTICES.md"
   ],
   "engines": {
     "node": ">=20.6"
@@ -39,5 +40,8 @@
     "@unlayer/from-react-email": "workspace:*",
     "tsup": "^8.0.1",
     "vitest": "^3.2.4"
+  },
+  "publishConfig": {
+    "access": "public"
   }
 }

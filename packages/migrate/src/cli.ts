@@ -8,7 +8,7 @@
  */
 
 import { existsSync } from "node:fs";
-import { lstat, mkdir, open, readFile, readdir, realpath, rename, rm, rmdir, stat, writeFile } from "node:fs/promises";
+import { lstat, mkdir, open, readFile, readdir, realpath, rename, rm, rmdir, stat } from "node:fs/promises";
 import { randomUUID } from "node:crypto";
 import Module, { createRequire } from "node:module";
 import { tmpdir } from "node:os";
@@ -212,7 +212,16 @@ async function safeDestination(path: string, root?: string): Promise<string> {
   if (info && !info.isFile()) throw new Error(`Output isn't a regular file: ${path}`);
   const canonical = await canonicalPath(path);
   if (root) {
-    const offset = relative(root, canonical);
+    // The chosen folder and its nested directories must remain real directories.
+    // Ancestors above it may be platform links (for example macOS /tmp).
+    for (let directory = dirname(path); ; directory = dirname(directory)) {
+      if ((await fileInfo(directory))?.isSymbolicLink()) {
+        throw new Error(`Refusing symlink output in output folder: ${directory}`);
+      }
+      if (directory === root) break;
+      if (dirname(directory) === directory) throw new Error(`Output escapes the output folder: ${path}`);
+    }
+    const offset = relative(await canonicalPath(root), canonical);
     if (offset === ".." || offset.startsWith(`..${sep}`) || isAbsolute(offset)) {
       throw new Error(`Output escapes the output folder: ${path}`);
     }
@@ -224,7 +233,7 @@ async function reserveDestinations(inputs: Input[], candidates: Input[], options
   const sources = new Set(await Promise.all(inputs.map((input) => canonicalPath(input.path))));
   const destinations: Destinations = new Map();
   const owners = new Map<string, string>();
-  const root = options.out !== undefined ? await canonicalPath(resolve(cwd, options.out)) : undefined;
+  const root = options.out !== undefined ? resolve(cwd, options.out) : undefined;
   const reserve = async (path: string, owner: string, outputRoot?: string, ownSource = false) => {
     const canonical = await safeDestination(path, outputRoot);
     if (sources.has(canonical) && !ownSource) throw new Error(`Output would overwrite a source input: ${relative(cwd, path)}. Use --write to replace a template itself.`);
@@ -292,101 +301,106 @@ async function migrateFile(input: Input, options: Options, lib: Library, io: Io,
   const name = relative(io.cwd, file) || basename(file);
   const source = await readFile(file, "utf8");
 
-  let Original: any;
+  const release: Array<() => void> = [];
   try {
-    Original = defaultExport(await importFile(file, io.cwd));
-  } catch (error) {
-    return { file: name, status: "failed", reason: `couldn't load it: ${message(error)}` };
-  }
-  if (typeof Original !== "function") {
-    return { file: name, status: "skipped", reason: "no default-exported component (a shared component or helper file)" };
-  }
-  const props = Original.PreviewProps ?? {};
-
-  let tailwindConfig: Record<string, unknown> | undefined;
-  try {
-    tailwindConfig = await lib.templateTailwindConfig(Original, props);
-  } catch {
-    // The config written in the source is used instead.
-  }
-
-  let converted: Awaited<ReturnType<Library["convertSource"]>>;
-  try {
-    converted = await lib.convertSource(source, { fileName: file, tailwindConfig, loadModule: await moduleLoader(file) });
-  } catch (error) {
-    return { file: name, status: "failed", reason: `couldn't convert it: ${message(error)}` };
-  }
-
-  // Verify the final rebased source in its destination directory before writing
-  // the target. This also checks file-relative resources and module resolution.
-  const writing = options.write || options.out !== undefined;
-  const target = writing ? outputPath(input, options, io.cwd) : file;
-  const code = target === file ? converted.code : lib.rebaseImports(converted.code, file, target);
-  const extension = extname(file);
-  const probe = join(dirname(target), `.${basename(file, extension)}.unlayer-migrate-${randomUUID()}${extension}`);
-  let probeCreated = false;
-  let firstCreated: string | undefined;
-  let verification: Awaited<ReturnType<Library["verifyConversion"]>>;
-  let design: unknown;
-  let mergeTags: { used: string[]; kept: string[] } | undefined;
-  try {
-    if (writing) await checkDestination(target, destinations);
-    firstCreated = await mkdir(dirname(probe), { recursive: true });
-    if (writing) await checkDestination(target, destinations);
-    await writeExclusive(probe, code);
-    probeCreated = true;
-    const Migrated = defaultExport(await importFile(probe, io.cwd));
-    if (typeof Migrated !== "function") throw new Error("the migrated file has no default export");
-    verification = await lib.verifyConversion(Original, Migrated as (props: unknown) => ReturnType<typeof Original>, { props });
-    design = verification.design;
-    if (options.design && options.mergeTags) {
-      const tagged = await lib.mergeTagDesign(Migrated as (props: unknown) => ReturnType<typeof Original>, props, verification.design);
-      design = tagged.design;
-      mergeTags = tagged;
-    }
-  } catch (error) {
-    return { file: name, status: "failed", reason: `the migrated template doesn't render: ${message(error)}` };
-  } finally {
-    if (probeCreated) await rm(probe, { force: true });
-    await cleanProbeDirectories(dirname(probe), firstCreated);
-  }
-
-  const report = converted.report;
-  const result: FileResult = {
-    file: name,
-    status:
-      verification.missing.length || verification.missingAttributes.length || verification.designWarnings.length || verification.variants.length
-        ? "check-failed"
-        : "migrated",
-    editable: report.nativeRatio,
-    kept: report.fallbacks,
-    differences: group(report.notes),
-    changes: group([
-      ...(report.info ?? []),
-      ...(mergeTags?.used.length ? [{ reason: "text props became merge tags in the design JSON", detail: mergeTags.used.join(", ") }] : []),
-      ...(mergeTags?.kept ?? []).map((path) => ({ reason: "text prop kept as its sample value in the design JSON (the template changes or tests it)", detail: path })),
-    ]),
-    missingText: verification.missing,
-    missingAttributes: verification.missingAttributes,
-    variants: verification.variants,
-    designWarnings: verification.designWarnings,
-  };
-
-  if (writing && (result.status === "migrated" || options.force)) {
+    let Original: any;
     try {
-      await writeDestination(target, code, destinations);
-      result.output = relative(io.cwd, target);
-      if (options.design) {
-        const designFile = designPath(target);
-        await writeDestination(designFile, `${JSON.stringify(design, null, 2)}\n`, destinations);
-        result.design = relative(io.cwd, designFile);
+      Original = defaultExport(await importFile(file, io.cwd, release));
+    } catch (error) {
+      return { file: name, status: "failed", reason: `couldn't load it: ${message(error)}` };
+    }
+    if (typeof Original !== "function") {
+      return { file: name, status: "skipped", reason: "no default-exported component (a shared component or helper file)" };
+    }
+    const props = Original.PreviewProps ?? {};
+
+    let tailwindConfig: Record<string, unknown> | undefined;
+    try {
+      tailwindConfig = await lib.templateTailwindConfig(Original, props);
+    } catch {
+      // The config written in the source is used instead.
+    }
+
+    let converted: Awaited<ReturnType<Library["convertSource"]>>;
+    try {
+      converted = await lib.convertSource(source, { fileName: file, tailwindConfig, loadModule: await moduleLoader(file) });
+    } catch (error) {
+      return { file: name, status: "failed", reason: `couldn't convert it: ${message(error)}` };
+    }
+
+    // Verify the final rebased source in its destination directory before writing
+    // the target. This also checks file-relative resources and module resolution.
+    const writing = options.write || options.out !== undefined;
+    const target = writing ? outputPath(input, options, io.cwd) : file;
+    const code = target === file ? converted.code : lib.rebaseImports(converted.code, file, target);
+    const extension = extname(file);
+    const probe = join(dirname(target), `.${basename(file, extension)}.unlayer-migrate-${randomUUID()}${extension}`);
+    let probeCreated = false;
+    let firstCreated: string | undefined;
+    let verification: Awaited<ReturnType<Library["verifyConversion"]>>;
+    let design: unknown;
+    let mergeTags: { used: string[]; kept: string[] } | undefined;
+    try {
+      if (writing) await checkDestination(target, destinations);
+      firstCreated = await mkdir(dirname(probe), { recursive: true });
+      if (writing) await checkDestination(target, destinations);
+      await writeExclusive(probe, code);
+      probeCreated = true;
+      const Migrated = defaultExport(await importFile(probe, io.cwd, release));
+      if (typeof Migrated !== "function") throw new Error("the migrated file has no default export");
+      verification = await lib.verifyConversion(Original, Migrated as (props: unknown) => ReturnType<typeof Original>, { props });
+      design = verification.design;
+      if (options.design && options.mergeTags) {
+        const tagged = await lib.mergeTagDesign(Migrated as (props: unknown) => ReturnType<typeof Original>, props, verification.design);
+        design = tagged.design;
+        mergeTags = tagged;
       }
     } catch (error) {
-      result.status = "failed";
-      result.reason = `couldn't write output: ${message(error)}`;
+      return { file: name, status: "failed", reason: `the migrated template doesn't render: ${message(error)}` };
+    } finally {
+      if (probeCreated) await rm(probe, { force: true });
+      await cleanProbeDirectories(dirname(probe), firstCreated);
     }
+
+    const report = converted.report;
+    const result: FileResult = {
+      file: name,
+      status:
+        verification.missing.length || verification.missingAttributes.length || verification.designWarnings.length || verification.variants.length
+          ? "check-failed"
+          : "migrated",
+      editable: report.nativeRatio,
+      kept: report.fallbacks,
+      differences: group(report.notes),
+      changes: group([
+        ...(report.info ?? []),
+        ...(mergeTags?.used.length ? [{ reason: "text props became merge tags in the design JSON", detail: mergeTags.used.join(", ") }] : []),
+        ...(mergeTags?.kept ?? []).map((path) => ({ reason: "text prop kept as its sample value in the design JSON (the template changes or tests it)", detail: path })),
+      ]),
+      missingText: verification.missing,
+      missingAttributes: verification.missingAttributes,
+      variants: verification.variants,
+      designWarnings: verification.designWarnings,
+    };
+
+    if (writing && (result.status === "migrated" || options.force)) {
+      try {
+        await writeDestination(target, code, destinations);
+        result.output = relative(io.cwd, target);
+        if (options.design) {
+          const designFile = designPath(target);
+          await writeDestination(designFile, `${JSON.stringify(design, null, 2)}\n`, destinations);
+          result.design = relative(io.cwd, designFile);
+        }
+      } catch (error) {
+        result.status = "failed";
+        result.reason = `couldn't write output: ${message(error)}`;
+      }
+    }
+    return result;
+  } finally {
+    for (const unregister of release.reverse()) unregister();
   }
-  return result;
 }
 
 // ============================================
@@ -406,40 +420,45 @@ async function compare(paths: string[], args: Args, io: Io, library?: Library): 
     }
   }
   const lib = library ?? ((await import("@unlayer/from-react-email")) as Library);
-  let Original: any;
-  let Migrated: any;
+  const release: Array<() => void> = [];
   try {
-    Original = defaultExport(await importFile(originalPath, io.cwd));
-    Migrated = defaultExport(await importFile(migratedPath, io.cwd));
-  } catch (error) {
-    io.stderr(`Couldn't load the templates: ${message(error)}\n`);
+    let Original: any;
+    let Migrated: any;
+    try {
+      Original = defaultExport(await importFile(originalPath, io.cwd, release));
+      Migrated = defaultExport(await importFile(migratedPath, io.cwd, release));
+    } catch (error) {
+      io.stderr(`Couldn't load the templates: ${message(error)}\n`);
+      return 2;
+    }
+    if (typeof Original !== "function" || typeof Migrated !== "function") {
+      io.stderr("Both files need a default-exported template component.\n");
+      return 1;
+    }
+    let check: Awaited<ReturnType<Library["verifyConversion"]>>;
+    try {
+      check = await lib.verifyConversion(Original, Migrated, { props: Original.PreviewProps ?? {} });
+    } catch (error) {
+      io.stderr(`The migrated template doesn't render: ${message(error)}\n`);
+      return 2;
+    }
+    const problems = [
+      ...(check.missing.length ? [`lost text: ${quote(check.missing)}`] : []),
+      ...(check.missingAttributes.length ? [`lost links/images: ${quote(check.missingAttributes)}`] : []),
+      ...(check.designWarnings.length ? check.designWarnings.map((w) => `the editor wouldn't get: ${w}`) : []),
+      ...check.variants.map((v) => `with ${v.change}: ${v.error ? `fails (${v.error})` : `lost ${quote([...v.missing, ...v.missingAttributes])}`}`),
+    ];
+    const name = `${relative(io.cwd, migratedPath)} against ${relative(io.cwd, originalPath)}`;
+    if (!problems.length) {
+      const flipped = Object.values(Original.PreviewProps ?? {}).filter((v) => typeof v === "boolean").length;
+      io.stdout(`✓ ${name}: same words, links and images${flipped ? ` (also with each of ${flipped} true/false props flipped)` : ""}; the editor gets every block.\n`);
+      return 0;
+    }
+    io.stdout(`✗ ${name}:\n${problems.map((p) => `  - ${p}`).join("\n")}\n`);
     return 2;
+  } finally {
+    for (const unregister of release.reverse()) unregister();
   }
-  if (typeof Original !== "function" || typeof Migrated !== "function") {
-    io.stderr("Both files need a default-exported template component.\n");
-    return 1;
-  }
-  let check: Awaited<ReturnType<Library["verifyConversion"]>>;
-  try {
-    check = await lib.verifyConversion(Original, Migrated, { props: Original.PreviewProps ?? {} });
-  } catch (error) {
-    io.stderr(`The migrated template doesn't render: ${message(error)}\n`);
-    return 2;
-  }
-  const problems = [
-    ...(check.missing.length ? [`lost text: ${quote(check.missing)}`] : []),
-    ...(check.missingAttributes.length ? [`lost links/images: ${quote(check.missingAttributes)}`] : []),
-    ...(check.designWarnings.length ? check.designWarnings.map((w) => `the editor wouldn't get: ${w}`) : []),
-    ...check.variants.map((v) => `with ${v.change}: ${v.error ? `fails (${v.error})` : `lost ${quote([...v.missing, ...v.missingAttributes])}`}`),
-  ];
-  const name = `${relative(io.cwd, migratedPath)} against ${relative(io.cwd, originalPath)}`;
-  if (!problems.length) {
-    const flipped = Object.values(Original.PreviewProps ?? {}).filter((v) => typeof v === "boolean").length;
-    io.stdout(`✓ ${name}: same words, links and images${flipped ? ` (also with each of ${flipped} true/false props flipped)` : ""}; the editor gets every block.\n`);
-    return 0;
-  }
-  io.stdout(`✗ ${name}:\n${problems.map((p) => `  - ${p}`).join("\n")}\n`);
-  return 2;
 }
 
 function group(notes: Array<{ reason: string; detail?: string }>): Array<{ reason: string; count: number; examples: string[] }> {
@@ -612,53 +631,92 @@ function sharedCjsPackages(cwd: string): () => void {
 }
 
 /** Import a .tsx/.ts file with React's automatic JSX runtime, honoring the project's tsconfig paths. */
-async function importFile(path: string, cwd: string): Promise<Record<string, any>> {
+async function importFile(
+  path: string,
+  cwd: string,
+  release: Array<() => void>,
+): Promise<Record<string, any>> {
+  release.push(sharedCjsPackages(cwd));
   const url = pathToFileURL(path).href;
   if (/\.(mjs|cjs|js)$/.test(path)) return import(`${url}?t=${Date.now()}`);
-  const { register: registerEsm } = await import("tsx/esm/api");
-  const { register: registerCjs } = await import("tsx/cjs/api");
-  const namespace = randomUUID();
-  const tsconfig = join(tmpdir(), `unlayer-migrate-tsconfig-${namespace}.json`);
-  const base = findUp("tsconfig.json", dirname(path));
-  await writeFile(
-    tsconfig,
-    JSON.stringify({
-      ...(base ? { extends: base } : {}),
-      compilerOptions: { jsx: "react-jsx", jsxImportSource: "react" },
-      // Imports outside the template folder need the same JSX runtime too.
-      include: [...new Set([cwd, dirname(path), ...(base ? [dirname(base)] : [])])]
-        .map((root) => join(root, "**/*").split(sep).join("/")),
-    })
+  const { tsImport } = await import("tsx/esm/api");
+  const tsconfig = join(
+    tmpdir(),
+    `unlayer-migrate-tsconfig-${randomUUID()}.json`,
   );
-  const previousConfig = process.env.TSX_TSCONFIG_PATH;
-  let unregisterCjs: (() => void) | undefined;
-  let unregisterScopedCjs: (() => void) | undefined;
-  let unregisterPackages: (() => void) | undefined;
-  let esm: ReturnType<typeof registerEsm> | undefined;
+  const base = findUp("tsconfig.json", dirname(path));
+  const ts = (await import("typescript")).default;
+  const compiler = base
+    ? ts.parseJsonConfigFileContent(
+        ts.readConfigFile(base, ts.sys.readFile).config ?? {},
+        ts.sys,
+        dirname(base),
+      ).options
+    : {};
+  const paths = { ...compiler.paths };
+  const pathBase =
+    compiler.baseUrl ??
+    (compiler as { pathsBasePath?: string }).pathsBasePath ??
+    (base ? dirname(base) : cwd);
+  for (const [alias, entries] of Object.entries(paths))
+    paths[alias] = entries.map((entry) => resolve(pathBase, entry));
+  // CJS imports bypass ESM hooks. Only supply Elements from the CLI when
+  // the project doesn't have it, and retain the project's resolved aliases.
   try {
-    // Node loads .tsx files in CommonJS projects through its CJS loader.
-    // tsImport's scoped loader alone doesn't handle Node's export preparse;
-    // register that loader with the same automatic JSX and paths config.
-    process.env.TSX_TSCONFIG_PATH = tsconfig;
+    createRequire(join(cwd, "noop.js")).resolve("@unlayer/react-elements");
+  } catch {
+    paths["@unlayer/react-elements"] = [
+      createRequire(import.meta.url).resolve("@unlayer/react-elements"),
+    ];
+  }
+  let created = false;
+  try {
+    const handle = await open(tsconfig, "wx");
+    created = true;
     try {
-      unregisterCjs = registerCjs();
-      unregisterScopedCjs = registerCjs({ namespace });
+      await handle.writeFile(
+        JSON.stringify({
+          ...(base ? { extends: base } : {}),
+          compilerOptions: {
+            jsx: "react-jsx",
+            jsxImportSource: "react",
+            ...(Object.keys(paths).length ? { paths } : {}),
+          },
+          // Imports outside the template folder need the same JSX runtime too.
+          include: [
+            ...new Set([cwd, dirname(path), ...(base ? [dirname(base)] : [])]),
+          ].map((root) => join(root, "**/*").split(sep).join("/")),
+        }),
+      );
     } finally {
-      // Loader workers inherit the environment: restore it before creating
-      // the ESM worker so no later import refers to a deleted config.
-      if (previousConfig === undefined) delete process.env.TSX_TSCONFIG_PATH;
-      else process.env.TSX_TSCONFIG_PATH = previousConfig;
+      await handle.close();
     }
-    const loader = registerEsm({ namespace, tsconfig });
-    esm = loader;
-    unregisterPackages = sharedCjsPackages(cwd);
-    return await loader.import(`${url}?t=${namespace}`, pathToFileURL(join(cwd, "noop.js")).href);
+    const packageFile = findUp("package.json", dirname(path));
+    const commonjs =
+      path.endsWith(".cts") ||
+      (!path.endsWith(".mts") &&
+        (!packageFile ||
+          JSON.parse(await readFile(packageFile, "utf8")).type !== "module"));
+    if (!commonjs)
+      return await tsImport(url, { parentURL: pathToFileURL(join(cwd, "noop.js")).href, tsconfig });
+    // tsImport's ESM-to-CJS bridge can hand untransformed TSX to Node.
+    // Scoped require takes the CJS transform directly. Its config is read
+    // synchronously from TSX_TSCONFIG_PATH when registering the scope.
+    const { register } = await import("tsx/cjs/api");
+    const previous = process.env.TSX_TSCONFIG_PATH;
+    const scope = (() => {
+      try {
+        process.env.TSX_TSCONFIG_PATH = tsconfig;
+        return register({ namespace: randomUUID() });
+      } finally {
+        if (previous === undefined) delete process.env.TSX_TSCONFIG_PATH;
+        else process.env.TSX_TSCONFIG_PATH = previous;
+      }
+    })();
+    release.push(scope);
+    return scope.require(path, pathToFileURL(join(cwd, "noop.js")));
   } finally {
-    await esm?.();
-    unregisterPackages?.();
-    unregisterScopedCjs?.();
-    unregisterCjs?.();
-    await rm(tsconfig, { force: true });
+    if (created) await rm(tsconfig, { force: true });
   }
 }
 

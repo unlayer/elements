@@ -9,7 +9,7 @@ npx @unlayer/migrate emails --write
 Run it from your project folder. Each template is:
 
 1. **Converted.** React Email components become Elements components (`Text` → `Paragraph`, `Section`/`Row`/`Column` → `Row`/`Column`, `Button` → `Button`, …). Tailwind classes become props. Components the template uses from the same file or from your other files (a shared `Layout`, a `Footer`) are inlined. Anything with no Elements equivalent is kept as an `Html` block that renders exactly as before.
-2. **Checked.** The original and the migrated template are rendered with the template's `PreviewProps`, then again with each boolean prop flipped, and compared. Every word, link, image and image `alt` text the original renders must be in the migrated output, and any block the visual editor can't represent fails the check. A template that fails isn't written unless you pass `--force`. Code paths these props don't reach (a loop over an empty preview array, a condition on a non-boolean prop) are converted but not verified: extend `PreviewProps` to cover them.
+2. **Checked.** The original and the migrated template are rendered with the template's `PreviewProps`, then again with each boolean prop flipped, and compared. Every word (including numeric separators, signs, currency symbols and percentages), link, image and image `alt` text the original renders must be in the migrated output, words in the same order, and any block the visual editor can't represent fails the check. A template that fails isn't written unless you pass `--force`. Code paths these props don't reach (a loop over an empty preview array, a condition on a non-boolean prop) are converted but not verified: extend `PreviewProps` to cover them.
 3. **Reported.** How much is editable in the visual editor, what was kept as HTML, and every visual difference (a dropped hover style, a `mobile:` class, a radius).
 
 ```text
@@ -26,7 +26,7 @@ Run it from your project folder. Each template is:
 |---|---|
 | `--write` | Replace each template with its migrated version. |
 | `--out <dir>` | Write migrated templates to `<dir>` instead, keeping the folder layout. Relative imports and resources loaded with `new URL(path, import.meta.url)` keep resolving from their original location. The rewritten source is checked in its destination folder. |
-| `--design` | Also write `<name>.design.json` next to each migrated template: the design the Unlayer editor opens with `loadDesign()`. Text props the template shows as given become merge tags (`{{name}}`); props it changes first (a formatted date, an uppercased word) keep their `PreviewProps` value. |
+| `--design` | Also write `<name>.design.json` next to each migrated template: the design the Unlayer editor opens with `loadDesign()`. Text props the template shows as given become merge tags (`{{name}}`); props it changes first (a formatted date, an uppercased word) keep their `PreviewProps` value. CSS, font URLs, backgrounds and image sources (including inline images in HTML) keep sample values. |
 | `--no-merge-tags` | Keep the `PreviewProps` values in the design JSON instead of merge tags. |
 | `--report <file>` | Write the migration report as Markdown (`.md`) or JSON (`.json`). |
 | `--force` | Write templates even when the check finds a problem. |
@@ -34,7 +34,7 @@ Run it from your project folder. Each template is:
 
 Without `--write` or `--out`, nothing is written: the command converts and checks, and prints what it would do.
 
-`--out` requires a non-empty path. Before loading templates, the command checks all template, design and report destinations. It rejects collisions, destinations that would replace a source input (except that template's explicit `--write`), symlink output files, and symlinked subfolders that lead outside the output folder. These checks also apply with `--force`. Pass the inputs' common parent folder to preserve its subfolders, or migrate each input root to a separate output folder.
+`--out` requires a non-empty path. Before loading templates, the command checks all template, design and report destinations. It rejects collisions, destinations that would replace a source input (except that template's explicit `--write`), symlink output files, and symlinked directories within the output folder. These checks also apply with `--force`. Pass the inputs' common parent folder to preserve its subfolders, or migrate each input root to a separate output folder.
 
 Verification uses a temporary file in the destination folder. The command removes it after the check and removes any empty folders it created for that check. A failed check leaves the target template and design untouched unless `--force` was requested. Writes replace files atomically, preserving other files that happen to share a hard link with an output.
 
@@ -46,7 +46,7 @@ Exit codes: `0` when every template converted and passed the check, `1` for a us
 npx @unlayer/migrate compare emails/welcome.tsx emails/welcome.elements.tsx
 ```
 
-Renders both with the original's `PreviewProps`, then with each true/false prop flipped, and checks that every word, link, image and `alt` text is still there and that the visual editor gets every block. Exit code `0` when it passes, `2` with what's missing when it doesn't.
+Renders both with the original's `PreviewProps`, then with each true/false prop flipped, and checks both the HTML and design JSON that every word, link, image and `alt` text is still there and that the visual editor gets every block. Exit code `0` when it passes, `2` with what's missing when it doesn't.
 
 ## After migrating
 
