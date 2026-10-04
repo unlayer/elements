@@ -28,6 +28,9 @@ cd packages/react && pnpm storybook         # Storybook dev server
 | `@unlayer/react-elements` | `packages/react` | Yes (npm) | React components, renderers, context |
 | `@unlayer-internal/shared-elements` | `packages/shared` | No (private, bundled into react) | Framework-agnostic types, config, utils |
 | `@unlayer/elements-demo` | `packages/demo` | No | Demo/showcase app |
+| `@unlayer/from-react-email` | `packages/from-react-email` | Yes (npm) | React Email → Elements converter (codemod, runtime with merge tags, check against the original); fidelity benchmark in `bench/`, results in `FIDELITY.md` |
+| `@unlayer/migrate` | `packages/migrate` | Yes (npm) | `npx @unlayer/migrate` CLI: migrate React Email templates, check them, write a report; `compare` for templates migrated by hand |
+| `@unlayer/convert-core` | `packages/convert-core` | No (private, bundled into the converters) | Elements tree, conversion report, TSX printer and content check that converters share |
 
 ### Component Hierarchy (strict)
 
