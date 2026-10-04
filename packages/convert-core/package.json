@@ -1,0 +1,29 @@
+{
+  "name": "@unlayer/convert-core",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Shared model for converters into Unlayer Elements: the Elements tree, conversion report, and TSX / design JSON / HTML outputs.",
+  "license": "MIT",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "test": "vitest"
+  },
+  "dependencies": {
+    "prettier": "^3.3.3"
+  },
+  "peerDependencies": {
+    "@unlayer/react-elements": "workspace:*",
+    "react": ">=18"
+  },
+  "devDependencies": {
+    "@unlayer/react-elements": "workspace:*",
+    "@types/react": "^18.3.3",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "typescript": "^5.6.3",
+    "vitest": "^3.2.4"
+  }
+}
