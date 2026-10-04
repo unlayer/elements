@@ -1,6 +1,6 @@
 # @unlayer/react-elements
 
-React components for building emails, pages, and documents with Unlayer Elements. Full SSR support — works with `renderToHtml`, `renderToString`, Next.js, Remix, and any server-side framework.
+React component library for transactional emails, email templates, landing pages, invoices, reports, documents, and PDFs. Render email-safe HTML, responsive web HTML, and print-ready HTML for PDF from the same React components. Full SSR support — works with `renderToHtml`, `renderToString`, Next.js, Remix, and any server-side framework.
 
 ## Installation
 

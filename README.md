@@ -22,7 +22,7 @@
   <img src="./assets/elements-demo.gif" alt="Unlayer Elements: the same JSX rendered as email, web, and document output" width="800" />
 </p>
 
-Unlayer Elements is an open-source React component library that lets you build content once and render it across three output modes:
+Unlayer Elements is an open-source React component library for transactional emails, email templates, landing pages, invoices, reports, documents, and PDFs. Build content once and render it across three output modes:
 
 - **Email** → Outlook, Gmail, Yahoo, Apple Mail
 - **Web** → Responsive pages and embedded experiences

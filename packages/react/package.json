@@ -1,7 +1,7 @@
 {
   "name": "@unlayer/react-elements",
   "version": "0.1.1",
-  "description": "React components for building emails, pages, and documents with Unlayer Elements",
+  "description": "React components for transactional emails, landing pages, invoices and PDFs: email-safe HTML, responsive web HTML, and print-ready PDF HTML from one component tree.",
   "license": "MIT",
   "author": "Unlayer",
   "repository": {
@@ -20,7 +20,12 @@
     "email-builder",
     "server-components",
     "ssr",
-    "unlayer"
+    "unlayer",
+    "transactional-email",
+    "invoice",
+    "pdf",
+    "landing-page",
+    "nextjs"
   ],
   "sideEffects": false,
   "peerDependencies": {
