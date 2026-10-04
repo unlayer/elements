@@ -29,6 +29,7 @@ export type {
   PageBreakValues,
   SocialValues,
   TableValues,
+  TimerValues,
   VideoValues,
   // Container value types
   RowValues,
