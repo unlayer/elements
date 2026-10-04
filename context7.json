@@ -1,0 +1,16 @@
+{
+  "$schema": "https://context7.com/schema/context7.json",
+  "url": "https://context7.com/unlayer/elements",
+  "public_key": "pk_GRHFX0dq2BRyO29TL79nG",
+  "projectTitle": "Unlayer Elements",
+  "description": "React components for email, page and document templates in code. Renders email-safe HTML, web pages, print-ready HTML for PDF, and design JSON that opens in the Unlayer visual editor.",
+  "excludeFolders": [".github", "tests", "packages/demo", "packages/shared"],
+  "excludeFiles": ["CHANGELOG.md", "CONTRIBUTING.md", "CLAUDE.md"],
+  "rules": [
+    "Install @unlayer/react-elements. The root must be <Email>, <Page> or <Document> (use Document for print/PDF).",
+    "Structure is Root > Row > Column > content (Button, Paragraph, Heading, Image, Divider, Menu, Social, Html, Table, Video). Content components do not nest.",
+    "A Row's layout must match its number of Column children, e.g. ColumnLayouts.TwoEqual needs exactly 2 Columns.",
+    "renderToHtml() returns a complete HTML document; renderToJson() returns Unlayer design JSON that the Unlayer editor opens with loadDesign(). Both are synchronous.",
+    "There is no Text component: use Paragraph for body text and Heading for headings."
+  ]
+}
