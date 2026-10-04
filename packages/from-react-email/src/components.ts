@@ -314,7 +314,7 @@ function componentFrom(name: string, declaration: ts.Node, fn: ts.FunctionLikeDe
 /** The component's JSX with this usage's props filled in, or undefined when that isn't safe. */
 function substitute(usage: ts.JsxElement | ts.JsxSelfClosingElement, component: Component): string | undefined {
   const opening = ts.isJsxElement(usage) ? usage.openingElement : usage;
-  const values = new Map<string, { code: string; node?: ts.Node }>();
+  const values = new Map<string, { code: string; node?: ts.Expression }>();
   for (const attr of opening.attributes.properties) {
     if (ts.isJsxSpreadAttribute(attr)) return undefined;
     const name = attr.name.getText();
@@ -350,9 +350,22 @@ function substitute(usage: ts.JsxElement | ts.JsxSelfClosingElement, component: 
   // What each local becomes: props from the usage (or their defaults), consts from their initializers.
   const local = new Map<string, () => string>();
   const valueOf = (prop: string, fallback?: ts.Expression) => {
-    if (prop === "children") return childrenText !== undefined ? `<>${childrenText}</>` : values.get("children")?.code ?? "undefined";
+    if (prop === "children" && childrenText !== undefined) return `<>${childrenText}</>`;
     const given = values.get(prop);
-    return given ? given.code : fallback ? rewrite(fallback) : "undefined";
+    if (!given) return fallback ? rewrite(fallback) : "undefined";
+    if (!fallback || !given.node) return given.code;
+    const value = unwrap(given.node);
+    if (ts.isIdentifier(value) && value.text === "undefined" && !shadowedAt(usage, ["undefined"])) return rewrite(fallback);
+    // Destructuring defaults also apply to supplied values that evaluate to
+    // undefined. Keep the component for dynamic arguments: substituting them
+    // would drop the default or change when the argument/default is evaluated.
+    if (
+      ts.isStringLiteral(value) || ts.isNoSubstitutionTemplateLiteral(value) ||
+      ts.isNumericLiteral(value) || ts.isBigIntLiteral(value) ||
+      ts.isObjectLiteralExpression(value) || ts.isArrayLiteralExpression(value) ||
+      value.kind === ts.SyntaxKind.NullKeyword || value.kind === ts.SyntaxKind.TrueKeyword || value.kind === ts.SyntaxKind.FalseKeyword
+    ) return given.code;
+    throw new Unsafe();
   };
   if (component.props) {
     for (const [prop, { local: name, fallback }] of component.props) local.set(name, () => valueOf(prop, fallback));

@@ -118,7 +118,7 @@ export async function main(argv: string[], io: Io, library?: Library): Promise<n
     mergeTags: !args.flag("no-merge-tags"),
     force: args.flag("force"),
   };
-  if (options.write && options.out) {
+  if (options.write && options.out !== undefined) {
     io.stderr("Use --write or --out, not both.\n");
     return 1;
   }
@@ -132,6 +132,23 @@ export async function main(argv: string[], io: Io, library?: Library): Promise<n
   if (!candidates.length) {
     io.stderr("No React Email templates found (files that import @react-email/*).\n");
     return 1;
+  }
+
+  // Reserve destinations before executing templates or making any writes.
+  // Different input roots (or .tsx/.jsx siblings with --design) may collide.
+  if (options.write || options.out !== undefined) {
+    const destinations = new Map<string, string>();
+    for (const input of candidates) {
+      const target = outputPath(input, options, io.cwd);
+      for (const destination of [target, ...(options.design ? [designPath(target)] : [])]) {
+        const previous = destinations.get(destination);
+        if (previous !== undefined) {
+          io.stderr(`Inputs ${relative(io.cwd, previous)} and ${relative(io.cwd, input.path)} have the same output: ${relative(io.cwd, destination)}. Pass their common parent folder or use separate output folders.\n`);
+          return 1;
+        }
+        destinations.set(destination, input.path);
+      }
+    }
   }
 
   const lib = library ?? ((await import("@unlayer/from-react-email")) as Library);
@@ -162,6 +179,14 @@ interface Input {
   /** The folder the output layout is relative to. */
   base: string;
   reactEmail: boolean;
+}
+
+function outputPath(input: Input, options: Options, cwd: string): string {
+  return options.out !== undefined ? join(resolve(cwd, options.out), relative(input.base, input.path)) : input.path;
+}
+
+function designPath(target: string): string {
+  return join(dirname(target), `${basename(target, extname(target))}.design.json`);
 }
 
 async function migrateFile(input: Input, options: Options, lib: Library, io: Io): Promise<FileResult> {
@@ -240,13 +265,13 @@ async function migrateFile(input: Input, options: Options, lib: Library, io: Io)
 
   const writing = options.write || options.out !== undefined;
   if (writing && (result.status === "migrated" || options.force)) {
-    const target = options.out ? join(resolve(io.cwd, options.out), relative(input.base, file)) : file;
+    const target = outputPath(input, options, io.cwd);
     const code = target === file ? converted.code : lib.rebaseImports(converted.code, file, target);
     await mkdir(dirname(target), { recursive: true });
     await writeFile(target, code);
     result.output = relative(io.cwd, target);
     if (options.design) {
-      const designFile = join(dirname(target), `${basename(target, extname(target))}.design.json`);
+      const designFile = designPath(target);
       await writeFile(designFile, `${JSON.stringify(design, null, 2)}\n`);
       result.design = relative(io.cwd, designFile);
     }
@@ -353,7 +378,7 @@ function summary(results: FileResult[], options: Options): string {
     ...(count("skipped") ? [`${count("skipped")} skipped`] : []),
   ];
   const written = results.filter((r) => r.output).length;
-  const next = options.write || options.out ? `${written} written.` : "Nothing written: pass --write or --out <dir> to write the migrated templates.";
+  const next = options.write || options.out !== undefined ? `${written} written.` : "Nothing written: pass --write or --out <dir> to write the migrated templates.";
   return `${results.length} template${results.length > 1 ? "s" : ""}: ${parts.join(", ")}. ${next}`;
 }
 
@@ -533,6 +558,7 @@ function parseArgs(argv: string[]): Args {
     if (VALUE_OPTIONS.has(name)) {
       const value = inline ?? argv[++i];
       if (value === undefined) throw new Error(`--${name} needs a value.`);
+      if (!value.trim()) throw new Error(`--${name} needs a non-empty value.`);
       values.set(name, value);
     } else if (FLAGS.has(name)) {
       flags.add(name);

@@ -14,7 +14,9 @@
 
 const OPEN = "\uE000";
 const CLOSE = "\uE001";
-const MARKER = /\uE000(\d+)\uE001/g;
+// Mixed case makes upper/lowercasing change the marker, even when the sample
+// already has that case. Such a prop must keep its transformed sample value.
+const MARKER = /\uE000uNlAyEr(\d+)\uE001/g;
 
 /** A text prop: its path (`user.name`) and sample value. */
 export interface TextProp {
@@ -44,7 +46,7 @@ function withMarkers(props: Record<string, unknown>, probes: TextProp[], chosen:
       target[key] = { ...(target[key] as Record<string, unknown>) };
       target = target[key] as Record<string, unknown>;
     }
-    target[keys[keys.length - 1]] = `${OPEN}${i}${CLOSE}`;
+    target[keys[keys.length - 1]] = `${OPEN}uNlAyEr${i}${CLOSE}`;
   }
   return copy;
 }

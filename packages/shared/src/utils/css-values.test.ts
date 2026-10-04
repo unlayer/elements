@@ -28,6 +28,18 @@ describe("normalizeFontStack", () => {
 });
 
 describe("normalizeCssValues", () => {
+  it("preserves exact color literals in content, links and metadata", () => {
+    const input = {
+      text: "rgb(1, 2, 3)",
+      html: "rgba(1, 2, 3, 1)",
+      altText: "rgb(1 2 3)",
+      href: { values: { href: "rgb(1, 2, 3)" } },
+      textJson: { root: { children: [{ text: "rgb(1, 2, 3)" }] } },
+      _meta: { htmlID: "rgb(1, 2, 3)" },
+    };
+    expect(normalizeCssValues(input)).toEqual(input);
+  });
+
   it("normalizes colors and font stacks at any depth, without touching the input", () => {
     const input = {
       color: "rgb(1, 2, 3)",

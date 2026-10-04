@@ -70,6 +70,84 @@ function io(cwd: string): Io & { out: string; err: string } {
 }
 
 describe("unlayer-migrate", () => {
+  it("rejects an empty output path without replacing the original template", async () => {
+    const source = `import { Html, Body, Text } from "@react-email/components";
+export default function Template() { return <Html><Body><Text>Keep the original</Text></Body></Html>; }`;
+    const dir = project({ "emails/welcome.tsx": source });
+    for (const argv of [["emails", "--out", ""], ["emails", "--out="], ["emails", "--out", "   "]]) {
+      const out = io(dir);
+      expect(await main(argv, out, lib)).toBe(1);
+      expect(out.err).toContain("--out needs a non-empty value");
+      expect(out.out).toBe("");
+      expect(fs.readFileSync(path.join(dir, "emails/welcome.tsx"), "utf8")).toBe(source);
+    }
+  });
+
+  it("rejects colliding output paths before loading or writing any template, even with --force", async () => {
+    const source = `import { Html } from "@react-email/components"; throw new Error("must not load");`;
+    const dir = project({ "a/welcome.tsx": source, "b/welcome.tsx": source });
+    for (const force of [[], ["--force"]]) {
+      const out = io(dir);
+      expect(await main(["a", "b", "--out", "migrated", ...force], out, lib)).toBe(1);
+      expect(out.err).toMatch(/same output.*welcome\.tsx/);
+      expect(out.out).toBe("");
+      expect(fs.existsSync(path.join(dir, "migrated"))).toBe(false);
+    }
+  });
+
+  it("rejects colliding design names even when the template extensions differ", async () => {
+    const source = `import { Html } from "@react-email/components"; throw new Error("must not load");`;
+    const dir = project({ "emails/welcome.tsx": source, "emails/welcome.jsx": source });
+    const out = io(dir);
+    expect(await main(["emails", "--out", "migrated", "--design"], out, lib)).toBe(1);
+    expect(out.err).toContain("welcome.design.json");
+    expect(fs.existsSync(path.join(dir, "migrated"))).toBe(false);
+  });
+
+  it("preserves separate template paths under a common input folder", async () => {
+    const template = (text: string) => `import { Html, Body, Text } from "@react-email/components";
+export default function Template() { return <Html><Body><Text>${text}</Text></Body></Html>; }`;
+    const dir = project({ "emails/a/welcome.tsx": template("Marketing welcome"), "emails/b/welcome.tsx": template("Purchase receipt") });
+    const out = io(dir);
+    expect(await main(["emails", "--out", "migrated", "--design"], out, lib)).toBe(0);
+    expect(fs.readFileSync(path.join(dir, "migrated/a/welcome.tsx"), "utf8")).toContain("Marketing welcome");
+    expect(fs.readFileSync(path.join(dir, "migrated/b/welcome.tsx"), "utf8")).toContain("Purchase receipt");
+  });
+
+  it("preserves a default CTA URL even when another link would mask its loss", async () => {
+    const source = `import { Html, Body, Button } from "@react-email/components";
+function CTA({ href = "https://example.com/pay" }: { href?: string }) { return <Button href={href}>Pay invoice</Button>; }
+export default function Template({ href }: { href?: string }) { return <Html><Body><CTA href={href}/><Button href="https://example.com/pay">Help</Button></Body></Html>; }
+Template.PreviewProps = { href: undefined };`;
+    const dir = project({ "emails/default.tsx": source });
+    const out = io(dir);
+    expect(await main(["emails", "--out", "migrated"], out, lib)).toBe(0);
+    const compare = io(dir);
+    expect(await main(["compare", "emails/default.tsx", "migrated/default.tsx"], compare, lib)).toBe(0);
+    // Check the actual output: the verifier's set of URLs alone can mask a lost CTA.
+    const { tsImport } = await import("tsx/esm/api");
+    const mod = await tsImport(path.join(dir, "migrated/default.tsx"), { parentURL: import.meta.url });
+    const Template = mod.default.default ?? mod.default;
+    const { renderToHtml } = await import("@unlayer/react-elements");
+    const html = renderToHtml(Template({ href: undefined })).replace(/<!--[\s\S]*?-->/g, "");
+    const links = [...html.matchAll(/<a\b([^>]*)>([\s\S]*?)<\/a>/g)];
+    const cta = links.find(([, , text]) => text.replace(/<[^>]*>/g, "").trim() === "Pay invoice");
+    expect(cta?.[1]).toContain('href="https://example.com/pay"');
+  });
+
+  it("keeps a transformed URL as its sample value in --design", async () => {
+    const source = `import { Html, Body, Button, Text } from "@react-email/components";
+export default function Template({ code, name }: { code: string; name: string }) { return <Html><Body><Text>Hello {name}</Text><Button href={"https://example.com/coupon/" + code.toUpperCase()}>Redeem</Button></Body></Html>; }
+Template.PreviewProps = { code: "VIP", name: "Alex" };`;
+    const dir = project({ "emails/coupon.tsx": source });
+    const out = io(dir);
+    expect(await main(["emails", "--out", "migrated", "--design"], out, lib)).toBe(0);
+    const design = fs.readFileSync(path.join(dir, "migrated/coupon.design.json"), "utf8");
+    expect(design).toContain("https://example.com/coupon/VIP");
+    expect(design).not.toContain("{{code}}");
+    expect(design).toContain("{{name}}");
+  });
+
   it("migrates, checks and writes templates to --out, with design JSON and a report", async () => {
     const dir = project({ "emails/welcome.tsx": WELCOME, "emails/components/button.tsx": SHARED, "lib/format.ts": FORMAT });
     const out = io(dir);

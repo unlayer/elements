@@ -8,6 +8,11 @@ export default defineConfig({
   dts: {
     // convert-core is a private workspace package: its types go in ours.
     resolve: ["@unlayer/convert-core"],
+    compilerOptions: {
+      // Resolve the workspace source as part of this declaration build, so
+      // its relative imports are bundled too.
+      paths: { "@unlayer/convert-core": ["../convert-core/src/index.ts"] },
+    },
   },
   splitting: false,
   sourcemap: true,

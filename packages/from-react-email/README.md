@@ -78,6 +78,8 @@ check.design; // the design JSON
 
 Components defined in the same file (or, with `loadModule`, in other files) are inlined where they're used when their body returns JSX. A `className` chosen by a condition becomes one element per class list. JSX kept in local constants goes where it's used.
 
+A component with a defaulted prop stays as HTML when a supplied argument could evaluate to `undefined`, preserving its JavaScript defaults and evaluation. A literal `undefined` uses the default; `null` remains `null`.
+
 ## Not expressible in Elements
 
 Reported as notes, never silently dropped:

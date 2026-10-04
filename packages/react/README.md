@@ -144,7 +144,7 @@ Root wrapper for email-safe HTML. Same props as Body (without `mode`).
 - `fontFamily?: { label: string, value: string }` — `{ label: "Arial", value: "arial,helvetica,sans-serif" }`
 - `textColor?: string` — `"#000000"`
 - `linkStyle?: { linkColor, linkHoverColor, linkUnderline, linkHoverUnderline }`
-- `previewText?: string` — preview text shown in email client inboxes
+- `previewText?: string` — plain text shown in email client inboxes, escaped for HTML. Pass `"Fish & chips"`, not `"Fish &amp; chips"`; entities supplied in the string display literally.
 
 ### Page
 Root wrapper for responsive web display. Same props as Email.

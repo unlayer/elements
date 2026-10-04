@@ -32,11 +32,11 @@ export function normalizeFontStack(value: string): string {
 }
 
 /**
- * Normalize colors and font stacks anywhere in a component's values. Returns
+ * Normalize color fields and font stacks in a component's values. Returns
  * new objects (values can alias the caller's, e.g. a shared style constant).
  */
 export function normalizeCssValues<T>(value: T, key?: string): T {
-  if (typeof value === "string") return (key === "fontFamily" ? normalizeFontStack(value) : normalizeColor(value)) as T;
+  if (typeof value === "string") return (key === "fontFamily" ? normalizeFontStack(value) : key === "color" || key?.endsWith("Color") ? normalizeColor(value) : value) as T;
   if (Array.isArray(value)) return value.map((item) => normalizeCssValues(item)) as T;
   if (!isPlainObject(value)) return value;
   const out: Record<string, unknown> = {};

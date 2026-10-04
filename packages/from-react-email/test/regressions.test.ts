@@ -46,6 +46,28 @@ function columnsText(design: any): string[][] {
   );
 }
 
+describe("component prop defaults", () => {
+  it("preserves defaults for undefined and omitted props, and keeps supplied URLs", async () => {
+    const source = `${IMPORTS}
+      function CTA({ href = "https://example.com/pay" }: { href?: string }) { return <Button href={href}>Pay invoice</Button>; }
+      export default function T({ href }: { href?: string }) {
+        return <Html><Body><Container>
+          <CTA href={href}/><CTA href={undefined}/><CTA/><CTA href="https://example.com/custom"/>
+          <Button href="https://example.com/pay">Help</Button>
+        </Container></Body></Html>;
+      }
+      T.PreviewProps = { href: undefined };`;
+    const { check } = await convertBoth(source, "prop-defaults");
+    expect(check.missing).toEqual([]);
+    expect(check.missingAttributes).toEqual([]);
+    expect(check.designWarnings).toEqual([]);
+    const links = [...check.convertedHtml.replace(/<!--[\s\S]*?-->/g, "").matchAll(/<a\b([^>]*)>([\s\S]*?)<\/a>/g)]
+      .filter(([, , text]) => text.replace(/<[^>]*>/g, "").trim() === "Pay invoice")
+      .map(([, attrs]) => /href="([^"]*)"/.exec(attrs)?.[1]);
+    expect(links).toEqual(["https://example.com/pay", "https://example.com/pay", "https://example.com/pay", "https://example.com/custom"]);
+  });
+});
+
 describe("content placed directly in a Row (not in a Column)", () => {
   const source = `${IMPORTS}
     export default function T() {
@@ -280,6 +302,20 @@ describe("buttons, nested one-column rows and imported fonts", () => {
 });
 
 describe("merge tags (runtime mode)", () => {
+  it.each(["toUpperCase", "toLowerCase"])("detects %s even when the sample already has that case", async (method) => {
+    const sample = method === "toUpperCase" ? "VIP" : "vip";
+    const source = `${IMPORTS}
+      export default function T({ code, name }: { code: string; name: string }) {
+        return <Html><Body><Container><Text>Hello {name}</Text><Button href={"https://example.com/coupon/" + code.${method}()}>Redeem</Button></Container></Body></Html>;
+      }
+      T.PreviewProps = { code: "${sample}", name: "Alex" };`;
+    const { runtime } = await convertBoth(source, `merge-${method}`);
+    expect(runtime.html()).toContain(`https://example.com/coupon/${sample}`);
+    expect(runtime.html()).not.toContain("{{code}}");
+    expect(runtime.html()).toContain("{{name}}");
+    expect(runtime.report.info).toContainEqual({ reason: "text prop kept as its sample value (the template changes or tests it)", detail: "code" });
+  });
+
   const source = `${IMPORTS}
     export default function T({ name, plan, logo, url }: { name: string; plan: string; logo: string; url: string }) {
       return (

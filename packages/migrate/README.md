@@ -34,6 +34,8 @@ Run it from your project folder. Each template is:
 
 Without `--write` or `--out`, nothing is written: the command converts and checks, and prints what it would do.
 
+`--out` requires a non-empty path. If inputs would write to the same template or design file, the command stops before loading templates or writing outputs, including with `--force`. Pass their common parent folder to preserve its subfolders, or migrate each input root to a separate output folder.
+
 Exit codes: `0` when every template converted and passed the check, `1` for a usage error or when no templates were found, `2` when a template failed to convert or the check found a problem. Use it in CI to keep migrated templates honest.
 
 ## Check a template you migrated yourself
