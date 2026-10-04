@@ -57,6 +57,16 @@ npx skills add unlayer/unlayer-skills
 
 This installs the `unlayer-elements` skill (alongside the other Unlayer skills). Your agent then knows how to build emails, pages, and documents with these components and render them via `renderToHtml` / `renderToJson`. See [unlayer/unlayer-skills](https://github.com/unlayer/unlayer-skills).
 
+## Task guides and runnable examples
+
+- [Transactional email in React](https://github.com/unlayer/elements/blob/main/packages/react/docs/transactional-email.md): render HTML and plain text, then send a receipt.
+- [Resend, AWS SES, Postmark, SendGrid, and Nodemailer](https://github.com/unlayer/elements/blob/main/packages/react/docs/email-providers.md): complete provider integrations.
+- [One React template to email, web, and PDF](https://github.com/unlayer/elements/blob/main/packages/react/docs/one-template-email-web-pdf.md): shared invoice content with output-specific roots.
+- [React invoice PDF with Playwright](https://github.com/unlayer/elements/blob/main/packages/react/docs/react-to-pdf.md): generate actual PDF bytes from document HTML.
+- [React to Unlayer visual editing](https://github.com/unlayer/elements/blob/main/packages/react/docs/visual-editing.md): `renderToJson()`, editor loading, export, and supported tree constraints.
+
+See [when to choose Elements](https://github.com/unlayer/elements/blob/main/packages/react/docs/README.md) and the [runnable example](https://github.com/unlayer/elements/tree/main/examples/content-workflows).
+
 ## Critical Rules
 
 These props have non-obvious shapes that **must** be followed exactly:

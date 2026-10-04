@@ -95,6 +95,11 @@ jobs:
       - name: Install Playwright Chromium
         run: pnpm --filter @unlayer/react-elements exec playwright install --with-deps chromium
 
+      - name: Content workflow examples (HTML, JSON, and real PDF; no email delivery)
+        run: |
+          pnpm --filter @unlayer/content-workflows-example typecheck
+          pnpm --filter @unlayer/content-workflows-example test
+
       # ── Browser import/runtime safety gate ──────────────────────
       # Bundles the shipped package entry as a browser consumer would, then
       # imports and renders inside Chromium without a Node `process` global.

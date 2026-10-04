@@ -1,0 +1,38 @@
+{
+  "name": "@unlayer/content-workflows-example",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "render:email": "tsx src/render-email.ts",
+    "render:all": "tsx src/render-all.ts",
+    "typecheck": "tsc --noEmit",
+    "test": "tsx --test src/workflows.test.ts",
+    "preview": "http-server . -a 127.0.0.1 -p 3001 -c-1",
+    "send:resend": "tsx src/providers/resend.ts",
+    "send:ses": "tsx src/providers/ses.ts",
+    "send:postmark": "tsx src/providers/postmark.ts",
+    "send:sendgrid": "tsx src/providers/sendgrid.ts",
+    "send:nodemailer": "tsx src/providers/nodemailer.ts"
+  },
+  "dependencies": {
+    "@unlayer/react-elements": "workspace:*",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "playwright": "1.60.0",
+    "resend": "^6.0.0",
+    "@aws-sdk/client-sesv2": "^3.0.0",
+    "postmark": "^4.0.0",
+    "@sendgrid/mail": "^8.1.0",
+    "nodemailer": "^7.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^24.9.1",
+    "@types/react": "^18.3.3",
+    "@types/react-dom": "^18.3.0",
+    "@types/nodemailer": "^7.0.0",
+    "tsx": "^4.20.5",
+    "typescript": "^5.6.3",
+    "http-server": "14.1.1"
+  }
+}

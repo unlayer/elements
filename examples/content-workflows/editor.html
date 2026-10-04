@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Edit an Elements invoice</title>
+</head>
+<body>
+  <button id="save" disabled>Download edited design and HTML</button>
+  <p id="status" role="status">Loading editor…</p>
+  <div id="editor" style="height: 80vh"></div>
+  <script src="https://editor.unlayer.com/embed.js"></script>
+  <script>
+    const status = document.getElementById("status");
+    const save = document.getElementById("save");
+    const editor = unlayer.createEditor({
+      id: "editor",
+      displayMode: "email",
+      // Add your projectId and allowed domain for your deployed integration.
+    });
+    editor.addEventListener("design:loaded", () => {
+      save.disabled = false;
+      status.textContent = "Design loaded. Edit it, then download your changes.";
+    });
+    editor.addEventListener("editor:ready", async () => {
+      try {
+        const response = await fetch("./output/invoice.design.json");
+        if (!response.ok) throw new Error(`Design request failed: ${response.status}`);
+        editor.loadDesign(await response.json());
+      } catch (error) {
+        status.textContent = error.message;
+      }
+    });
+    function download(name, contents, type) {
+      const url = URL.createObjectURL(new Blob([contents], { type }));
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = name;
+      link.click();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+    }
+    save.addEventListener("click", () => {
+      editor.exportHtml(({ design, html }) => {
+        download("edited.design.json", JSON.stringify(design, null, 2), "application/json");
+        download("edited.html", html, "text/html");
+        status.textContent = "Exported design JSON and HTML. Allow multiple downloads if prompted.";
+      });
+    });
+  </script>
+</body>
+</html>
