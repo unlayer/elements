@@ -25,7 +25,7 @@ Run it from your project folder. Each template is:
 | Option | |
 |---|---|
 | `--write` | Replace each template with its migrated version. |
-| `--out <dir>` | Write migrated templates to `<dir>` instead, keeping the folder layout. Relative imports are rewritten so they still resolve. |
+| `--out <dir>` | Write migrated templates to `<dir>` instead, keeping the folder layout. Relative imports and resources loaded with `new URL(path, import.meta.url)` keep resolving from their original location. The rewritten source is checked in its destination folder. |
 | `--design` | Also write `<name>.design.json` next to each migrated template: the design the Unlayer editor opens with `loadDesign()`. Text props the template shows as given become merge tags (`{{name}}`); props it changes first (a formatted date, an uppercased word) keep their `PreviewProps` value. |
 | `--no-merge-tags` | Keep the `PreviewProps` values in the design JSON instead of merge tags. |
 | `--report <file>` | Write the migration report as Markdown (`.md`) or JSON (`.json`). |
@@ -34,7 +34,9 @@ Run it from your project folder. Each template is:
 
 Without `--write` or `--out`, nothing is written: the command converts and checks, and prints what it would do.
 
-`--out` requires a non-empty path. If inputs would write to the same template or design file, the command stops before loading templates or writing outputs, including with `--force`. Pass their common parent folder to preserve its subfolders, or migrate each input root to a separate output folder.
+`--out` requires a non-empty path. Before loading templates, the command checks all template, design and report destinations. It rejects collisions, destinations that would replace a source input (except that template's explicit `--write`), symlink output files, and symlinked subfolders that lead outside the output folder. These checks also apply with `--force`. Pass the inputs' common parent folder to preserve its subfolders, or migrate each input root to a separate output folder.
+
+Verification uses a temporary file in the destination folder. The command removes it after the check and removes any empty folders it created for that check. A failed check leaves the target template and design untouched unless `--force` was requested. Writes replace files atomically, preserving other files that happen to share a hard link with an output.
 
 Exit codes: `0` when every template converted and passed the check, `1` for a usage error or when no templates were found, `2` when a template failed to convert or the check found a problem. Use it in CI to keep migrated templates honest.
 
@@ -74,6 +76,6 @@ The report lists every difference for each template. The common ones:
 
 ## How it works
 
-The conversion runs in your project, with your project's React, React Email and TypeScript paths (`tsconfig` aliases work). The automatic JSX runtime applies to templates and imported helpers, including helpers outside the input folder. It reads your templates and executes them to check the result. Run it only on code you trust. It makes no network requests: rendering produces HTML, and nothing is fetched.
+The conversion runs in your project, with your project's React, React Email and TypeScript paths (`tsconfig` aliases work). The automatic JSX runtime applies to templates and imported helpers in ESM and CommonJS projects, including helpers outside the input folder. It reads your templates and executes them to check the result. Run it only on code you trust. It makes no network requests: rendering produces HTML, and nothing is fetched.
 
 For programmatic use (an agent, a build step, the editor), see [`@unlayer/from-react-email`](../from-react-email).

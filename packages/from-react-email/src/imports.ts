@@ -31,6 +31,18 @@ export function rebaseImports(code: string, fromFile: string, toFile: string): s
       rebase(node.arguments[0]);
     } else if (ts.isImportTypeNode(node) && ts.isLiteralTypeNode(node.argument) && ts.isStringLiteral(node.argument.literal)) {
       rebase(node.argument.literal);
+    } else if (
+      ts.isNewExpression(node) && ts.isIdentifier(node.expression) && node.expression.text === "URL" &&
+      node.arguments?.length === 2 && ts.isPropertyAccessExpression(node.arguments[1]) &&
+      ts.isMetaProperty(node.arguments[1].expression) && node.arguments[1].expression.keywordToken === ts.SyntaxKind.ImportKeyword &&
+      node.arguments[1].expression.name.text === "meta" && node.arguments[1].name.text === "url"
+    ) {
+      // Keep the original base for both literal and computed resource names.
+      // A relative URL keeps the generated source portable with the project.
+      let source = path.relative(toDir, path.resolve(fromFile)).split(path.sep).map(encodeURIComponent).join("/");
+      if (!source.startsWith(".")) source = `./${source}`;
+      const base = node.arguments[1];
+      edits.push({ from: base.getStart(), to: base.getEnd(), text: `new URL(${JSON.stringify(source)}, import.meta.url).href` });
     }
     ts.forEachChild(node, visit);
   };

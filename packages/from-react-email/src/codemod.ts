@@ -68,6 +68,8 @@ interface Jsx {
   attrs: Map<string, ts.Expression | undefined>;
   style: Style;
   children: ts.JsxChild[];
+  /** Props that must be preserved by rendering the original JSX. */
+  opaqueProps: boolean;
 }
 
 const SKIP = new Set(["Head", "Font", "Preview", "head", "style", "meta", "title", "link", "script"]);
@@ -104,6 +106,7 @@ class Converter {
   private readonly report = new ReportBuilder();
   private readonly components = new Map<string, string>();
   private readonly constants = new Map<string, ts.Expression>();
+  private readonly checker: ts.TypeChecker;
   private tailwind: ResolvedClasses = NO_CLASSES;
   private needsEscape = false;
   private needsHtmlText = false;
@@ -117,7 +120,14 @@ class Converter {
   constructor(
     private readonly file: ts.SourceFile,
     private readonly tailwindConfig?: Record<string, unknown>
-  ) {}
+  ) {
+    // Bind this source without resolving dependencies. The checker still
+    // distinguishes module constants from parameters, locals and loop bindings.
+    const options: ts.CompilerOptions = { noLib: true, noResolve: true };
+    const host = ts.createCompilerHost(options);
+    host.getSourceFile = () => file;
+    this.checker = ts.createProgram([file.fileName], options, host).getTypeChecker();
+  }
 
   async run(prepared: { components: string[]; constants: string[]; variants: number; copied: string[] }): Promise<CodemodResult> {
     this.copied = prepared.copied;
@@ -256,7 +266,12 @@ class Converter {
     }
     if (ts.isIdentifier(node)) {
       const value = this.constants.get(node.text);
-      return value ? this.evaluate(value, depth + 1) : undefined;
+      const binding = ts.isShorthandPropertyAssignment(node.parent)
+        ? this.checker.getShorthandAssignmentValueSymbol(node.parent)
+        : this.checker.getSymbolAtLocation(node);
+      return value && binding?.declarations?.some((decl) => ts.isVariableDeclaration(decl) && decl.initializer === value)
+        ? this.evaluate(value, depth + 1)
+        : undefined;
     }
     if (ts.isArrayLiteralExpression(node)) {
       const items = node.elements.map((item) => this.evaluate(item, depth + 1));
@@ -307,13 +322,46 @@ class Converter {
   // JSX
   // ============================================
 
+  /** Expand literal spreads without evaluating their dynamic values. */
+  private spreadAttrs(expression: ts.Expression, depth = 0): Map<string, ts.Expression> | undefined {
+    if (depth > 20) return undefined;
+    const node = unwrap(expression);
+    const attrs = new Map<string, ts.Expression>();
+    if (ts.isObjectLiteralExpression(node)) {
+      for (const prop of node.properties) {
+        if (ts.isSpreadAssignment(prop)) {
+          const spread = this.spreadAttrs(prop.expression, depth + 1);
+          if (!spread) return undefined;
+          for (const [key, value] of spread) attrs.set(key, value);
+        } else if (ts.isPropertyAssignment(prop) && (ts.isIdentifier(prop.name) || ts.isStringLiteral(prop.name))) {
+          attrs.set(prop.name.text, prop.initializer);
+        } else if (ts.isShorthandPropertyAssignment(prop) && !prop.objectAssignmentInitializer) {
+          attrs.set(prop.name.text, prop.name);
+        } else return undefined;
+      }
+      return attrs;
+    }
+    // Module objects can be expanded only when every value is static. Moving
+    // an unevaluated module expression here could capture a shadowing local.
+    const value = this.evaluate(node);
+    if (!value || typeof value !== "object" || Array.isArray(value)) return undefined;
+    for (const [key, inner] of Object.entries(value)) {
+      const literal = ts.createSourceFile("prop.ts", `const value = ${JSON.stringify(inner)};`, ts.ScriptTarget.Latest, true);
+      attrs.set(key, (literal.statements[0] as ts.VariableStatement).declarationList.declarations[0].initializer!);
+    }
+    return attrs;
+  }
+
   private read(node: ts.JsxElement | ts.JsxSelfClosingElement): Jsx {
     const opening = ts.isJsxElement(node) ? node.openingElement : node;
     const tag = opening.tagName.getText();
     const attrs = new Map<string, ts.Expression | undefined>();
+    let opaqueProps = false;
     for (const prop of opening.attributes.properties) {
       if (ts.isJsxSpreadAttribute(prop)) {
-        this.report.note("spread props not converted", prop.expression.getText().slice(0, 40));
+        const spread = this.spreadAttrs(prop.expression);
+        if (spread) for (const [key, value] of spread) attrs.set(key, value);
+        else opaqueProps = true;
         continue;
       }
       const init = prop.initializer;
@@ -333,13 +381,19 @@ class Converter {
       if (value && typeof value === "object") style = { ...style, ...(value as Style) };
       else this.report.note("dynamic style not converted", attrs.get("style")?.getText().slice(0, 60));
     }
+    opaqueProps ||= attrs.has("children") || attrs.has("dangerouslySetInnerHTML");
+    const name = this.components.get(tag);
+    if (opaqueProps && ["Html", "Body", "Tailwind", "Head", "Preview", "Font"].includes(name ?? "")) {
+      throw new Error(`Can't safely convert ${tag} with dynamic spread or content props`);
+    }
     return {
       node,
       tag,
-      name: this.components.get(tag),
+      name,
       attrs,
       style,
       children: ts.isJsxElement(node) ? [...node.children] : [],
+      opaqueProps,
     };
   }
 
@@ -472,6 +526,11 @@ class Converter {
       }
       const jsx = this.read(child);
       if (SKIP.has(jsx.name ?? jsx.tag)) continue;
+      if (jsx.opaqueProps) {
+        flush();
+        out.push({ kind: "content", block: { node: this.fallback(jsx, ctx, "dynamic spread or content props"), margin: ZERO, padding: ZERO } });
+        continue;
+      }
       if (jsx.name && BOXES.has(jsx.name)) {
         flush();
         out.push(this.boxNode(jsx, ctx));
@@ -522,6 +581,16 @@ class Converter {
    * goes. One column is a box (it can hold more rows); several make a row.
    */
   private rowFlow(jsx: Jsx, ctx: Ctx, kids = this.flatten(jsx.children).filter((kid) => !this.isBlank(kid))): Flow[] {
+    let opaqueColumn = false;
+    const scan = (node: ts.Node) => {
+      if (ts.isJsxElement(node) || ts.isJsxSelfClosingElement(node)) {
+        const child = this.read(node);
+        if ((child.name === "Column" || child.tag === "td") && child.opaqueProps) opaqueColumn = true;
+      }
+      ts.forEachChild(node, scan);
+    };
+    for (const kid of kids) scan(kid);
+    if (jsx.opaqueProps || opaqueColumn) return [{ kind: "content", block: { node: this.fallback(jsx, ctx, "dynamic spread or content props"), margin: ZERO, padding: ZERO } }];
     const style = jsx.name === "Row" ? jsx.style : {};
     const kinds = kids.map((kid) => this.cellKind(kid));
     // Can't tell what goes in the row's cells (custom components, code
@@ -822,6 +891,7 @@ class Converter {
   }
 
   private block(jsx: Jsx, ctx: Ctx): Block[] {
+    if (jsx.opaqueProps) return [{ node: this.fallback(jsx, ctx, "dynamic spread or content props"), margin: ZERO, padding: ZERO }];
     const style = jsx.style;
     const kind = jsx.name ?? hostAlias(jsx.tag);
     switch (kind) {
@@ -855,6 +925,7 @@ class Converter {
         const kids = this.flatten(jsx.children);
         const only = kids.length === 1 && (ts.isJsxElement(kids[0]) || ts.isJsxSelfClosingElement(kids[0])) ? this.read(kids[0] as ts.JsxElement) : undefined;
         if (only && (only.name === "Img" || only.tag === "img")) {
+          if (only.opaqueProps) return [{ node: this.fallback(jsx, ctx, "dynamic spread or content props"), margin: ZERO, padding: ZERO }];
           if (!hasWidth(this.attr(only, "width"), only.style)) return [{ node: this.fallback(jsx, ctx, "image without a width (its natural size isn't known)"), margin: ZERO, padding: ZERO }];
           return [imageBlock({ src: this.attr(only, "src"), alt: this.attr(only, "alt"), width: this.attr(only, "width"), height: this.attr(only, "height"), href: this.attr(jsx, "href") }, only.style, ctx)];
         }
@@ -1067,7 +1138,7 @@ class Converter {
             : (jsx.name === "Text" || jsx.tag === "p") && inlineDisplay(jsx.style) ? "span"
             : jsx.name ? undefined
             : jsx.tag;
-          if (!tag) {
+          if (!tag || jsx.opaqueProps) {
             this.fallbackRanges.push({ from: child.getStart(), to: child.getEnd() });
             parts.push(this.staticMarkup(this.keptText(child)));
             continue;

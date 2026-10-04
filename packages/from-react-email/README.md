@@ -16,6 +16,8 @@ import { convertSource } from "@unlayer/from-react-email";
 const { code, report } = await convertSource(source, { fileName: "emails/welcome.tsx" });
 ```
 
+Module constants are evaluated only where their original binding is used; parameters, local variables and loop bindings that share a name stay dynamic. Literal object spreads preserve their values and override order. Opaque spread props and content props are kept as rendered HTML. Dynamic spreads on document components (`Html`, `Body`, `Head`, `Tailwind`, `Preview`, `Font`) fail conversion because their document settings cannot be preserved in an HTML content block.
+
 **Runtime: convert what a template renders.** Renders the template with props (its `PreviewProps` by default) and converts the result. Loops and conditions become the content they produced. Use it to open a template in the visual editor.
 
 ```ts
@@ -30,6 +32,8 @@ conversion.report.missingText; // [] when nothing was lost
 ```
 
 Text props the template shows as given become merge tags (`{{user.name}}`), which the editor keeps and email services fill in. Props the template changes or tests (a formatted date, `name.toUpperCase()`) keep their sample value, and `report.info` says which. Pass `{ mergeTags: false }` to keep every sample value. `mergeTagDesign(Migrated, props, design)` does the same for a migrated template's design JSON.
+
+Image sources and background URLs keep their sample values so the editor can display them, including images inside HTML fallbacks and inline paragraph HTML. Text and link destinations can still become merge tags.
 
 Both modes share one mapping and one layout engine, so they convert styles the same way.
 
@@ -48,7 +52,7 @@ check.designWarnings; // blocks the visual editor wouldn't get
 check.design; // the design JSON
 ```
 
-`compareText(originalHtml, convertedHtml)` runs the same comparison on two HTML documents. Code paths the props don't reach (a loop over an empty preview array, a condition on a non-boolean prop) aren't verified: extend `PreviewProps` to cover them.
+`compareText(originalHtml, convertedHtml)` runs the same comparison on two HTML documents. It counts repeated links and images and checks that destinations stay associated with their link labels and image alt text; Outlook-only duplicate markup is excluded. Code paths the props don't reach (a loop over an empty preview array, a condition on a non-boolean prop) aren't verified: extend `PreviewProps` to cover them.
 
 ## The report
 

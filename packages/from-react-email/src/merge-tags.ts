@@ -101,7 +101,26 @@ export async function mergeTagged<T>(
  * go, the sample value in image sources (the editor shows the image).
  */
 export function replaceMarkers<T>(output: T, probes: TextProp[], tag: (prop: TextProp) => string): T {
-  const swap = (text: string, inSource: boolean) => text.replace(MARKER, (_, i: string) => (inSource ? probes[Number(i)].value : tag(probes[Number(i)])));
+  const swap = (text: string, inSource: boolean) => {
+    const protectedRanges: Array<{ from: number; to: number }> = [];
+    // HTML fallbacks and inline paragraph HTML also contain image sources.
+    // Protect only source attributes and CSS URLs, leaving text and links taggable.
+    for (const element of text.matchAll(/<[a-z][\w:-]*\b(?:"[^"]*"|'[^']*'|[^'">])*>/gi)) {
+      for (const attr of element[0].matchAll(/\s(src|srcset|background|style)\s*=\s*("([^"]*)"|'([^']*)'|([^\s>]+))/gi)) {
+        const value = attr[3] ?? attr[4] ?? attr[5];
+        const from = element.index! + attr.index! + attr[0].indexOf(attr[2]) + (attr[3] !== undefined || attr[4] !== undefined ? 1 : 0);
+        if (attr[1].toLowerCase() === "style") {
+          for (const url of value.matchAll(/url\([\s\S]*?\)/gi)) protectedRanges.push({ from: from + url.index!, to: from + url.index! + url[0].length });
+        } else protectedRanges.push({ from, to: from + value.length });
+      }
+    }
+    return text.replace(MARKER, (_, i: string, offset: number) => {
+      const prop = probes[Number(i)];
+      if (inSource) return prop.value;
+      if (protectedRanges.some(({ from, to }) => offset >= from && offset < to)) return escapeAttribute(prop.value);
+      return tag(prop);
+    });
+  };
   const walk = (value: unknown, inSource: boolean): unknown => {
     if (typeof value === "string") return swap(value, inSource);
     if (Array.isArray(value)) return value.map((item) => walk(item, inSource));
@@ -118,6 +137,10 @@ export function replaceMarkers<T>(output: T, probes: TextProp[], tag: (prop: Tex
     return value;
   };
   return walk(output, false) as T;
+}
+
+function escapeAttribute(value: string): string {
+  return value.replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/'/g, "&#x27;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 }
 
 /** Which markers appear in `output`. */

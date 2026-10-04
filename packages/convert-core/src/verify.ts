@@ -73,23 +73,15 @@ export function htmlWords(html: string): string[] {
  * entities decoded. Hidden elements and MSO-only markup aren't counted.
  */
 export function htmlAttributes(html: string): string[] {
-  const visible = html
-    .replace(/<head\b[\s\S]*?<\/head>/gi, " ")
-    .replace(/<!--[\s\S]*?-->/g, "")
-    .replace(HIDDEN, (match) => (/data-skip-in-text/.test(match.slice(0, match.indexOf(">"))) ? match : " "));
+  const visible = visibleHtml(html);
   const out: string[] = [];
-  for (const [, tag, attrs] of visible.matchAll(/<(a|img)\b([^>]*)>/gi)) {
-    const value = (name: string) => new RegExp(`\\s${name}\\s*=\\s*("([^"]*)"|'([^']*)')`, "i").exec(attrs);
-    const pick = (name: string) => {
-      const m = value(name);
-      return m ? decodeEntities(m[2] ?? m[3] ?? "").trim() : undefined;
-    };
+  for (const [, tag, attrs] of visible.matchAll(/<(a|img)\b((?:"[^"]*"|'[^']*'|[^'">])*)>/gi)) {
     if (tag.toLowerCase() === "a") {
-      const href = pick("href");
+      const href = attribute(attrs, "href");
       if (href) out.push(`href ${href}`);
     } else {
-      const src = pick("src");
-      const alt = pick("alt");
+      const src = attribute(attrs, "src");
+      const alt = attribute(attrs, "alt");
       if (src) out.push(`src ${src}`);
       if (alt) out.push(`alt ${alt}`);
     }
@@ -108,11 +100,53 @@ export function compareText(originalHtml: string, convertedHtml: string): TextCh
     else missing.push(word);
   }
   const added = [...counts].flatMap(([word, n]) => Array<string>(n).fill(word));
-  // Links and images: each the original has must be there (as a set: Elements
-  // may repeat one, e.g. a button's link for Outlook).
-  const have = new Set(htmlAttributes(convertedHtml));
-  const missingAttributes = [...new Set(htmlAttributes(originalHtml))].filter((a) => !have.has(a));
+  // Count visible occurrences; Outlook-only duplicates are already excluded.
+  const missingAttributes = lostOccurrences(htmlAttributes(originalHtml), htmlAttributes(convertedHtml));
+  // A destination must also stay on the same link/image, even if every URL
+  // still appears elsewhere in the document.
+  for (const item of lostOccurrences(attributePairs(originalHtml), attributePairs(convertedHtml))) {
+    const [kind, value, label] = JSON.parse(item) as [string, string, string];
+    if (!missingAttributes.includes(`${kind} ${value}`)) missingAttributes.push(`${kind} ${value} (${label})`);
+  }
   return { missing, added, missingAttributes };
+}
+
+function visibleHtml(html: string): string {
+  return html.replace(/<head\b[\s\S]*?<\/head>/gi, " ")
+    .replace(/<!--[\s\S]*?-->/g, "")
+    .replace(HIDDEN, (match) => (/data-skip-in-text/.test(match.slice(0, match.indexOf(">"))) ? match : " "));
+}
+
+function attribute(attrs: string, name: string): string | undefined {
+  const match = new RegExp(`\\s${name}\\s*=\\s*(?:"([^"]*)"|'([^']*)'|([^\\s>]+))`, "i").exec(attrs);
+  return match ? decodeEntities(match[1] ?? match[2] ?? match[3]).trim() : undefined;
+}
+
+function attributePairs(html: string): string[] {
+  const visible = visibleHtml(html);
+  const pairs: string[] = [];
+  for (const [, attrs, inner] of visible.matchAll(/<a\b((?:"[^"]*"|'[^']*'|[^'">])*)>([\s\S]*?)<\/a\s*>/gi)) {
+    const href = attribute(attrs, "href");
+    const label = htmlWords(inner).join(" ") || htmlAttributes(inner).join(", ");
+    if (href) pairs.push(JSON.stringify(["href", href, label]));
+  }
+  for (const [, attrs] of visible.matchAll(/<img\b((?:"[^"]*"|'[^']*'|[^'">])*)>/gi)) {
+    const src = attribute(attrs, "src");
+    const alt = attribute(attrs, "alt");
+    if (src) pairs.push(JSON.stringify(["src", src, alt ?? ""]));
+  }
+  return pairs;
+}
+
+function lostOccurrences(original: string[], converted: string[]): string[] {
+  const counts = new Map<string, number>();
+  for (const value of converted) counts.set(value, (counts.get(value) ?? 0) + 1);
+  return original.filter((value) => {
+    const count = counts.get(value) ?? 0;
+    if (!count) return true;
+    counts.set(value, count - 1);
+    return false;
+  });
 }
 
 function decodeEntities(text: string): string {

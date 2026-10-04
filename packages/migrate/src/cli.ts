@@ -8,9 +8,11 @@
  */
 
 import { existsSync } from "node:fs";
-import { mkdir, readFile, readdir, rm, stat, writeFile } from "node:fs/promises";
+import { lstat, mkdir, open, readFile, readdir, realpath, rename, rm, rmdir, stat, writeFile } from "node:fs/promises";
+import { randomUUID } from "node:crypto";
+import Module, { createRequire } from "node:module";
 import { tmpdir } from "node:os";
-import { basename, dirname, extname, join, relative, resolve, sep } from "node:path";
+import { basename, dirname, extname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import { pathToFileURL } from "node:url";
 
 export interface Io {
@@ -134,37 +136,32 @@ export async function main(argv: string[], io: Io, library?: Library): Promise<n
     return 1;
   }
 
-  // Reserve destinations before executing templates or making any writes.
-  // Different input roots (or .tsx/.jsx siblings with --design) may collide.
-  if (options.write || options.out !== undefined) {
-    const destinations = new Map<string, string>();
-    for (const input of candidates) {
-      const target = outputPath(input, options, io.cwd);
-      for (const destination of [target, ...(options.design ? [designPath(target)] : [])]) {
-        const previous = destinations.get(destination);
-        if (previous !== undefined) {
-          io.stderr(`Inputs ${relative(io.cwd, previous)} and ${relative(io.cwd, input.path)} have the same output: ${relative(io.cwd, destination)}. Pass their common parent folder or use separate output folders.\n`);
-          return 1;
-        }
-        destinations.set(destination, input.path);
-      }
-    }
+  const reportFile = args.option("report");
+  let destinations: Destinations;
+  try {
+    destinations = await reserveDestinations(inputs.files, candidates, options, reportFile, io.cwd);
+  } catch (error) {
+    io.stderr(`${message(error)}\n`);
+    return 1;
   }
 
   const lib = library ?? ((await import("@unlayer/from-react-email")) as Library);
   const results: FileResult[] = [];
   for (const input of candidates) {
-    const result = await migrateFile(input, options, lib, io);
+    const result = await migrateFile(input, options, lib, io, destinations);
     results.push(result);
     io.stdout(`${line(result)}\n`);
   }
 
   io.stdout(`\n${summary(results, options)}\n`);
-  const reportFile = args.option("report");
   if (reportFile) {
     const target = resolve(io.cwd, reportFile);
-    await mkdir(dirname(target), { recursive: true });
-    await writeFile(target, reportFile.endsWith(".json") ? `${JSON.stringify(results, null, 2)}\n` : markdownReport(results));
+    try {
+      await writeDestination(target, reportFile.endsWith(".json") ? `${JSON.stringify(results, null, 2)}\n` : markdownReport(results), destinations);
+    } catch (error) {
+      io.stderr(`Couldn't write report: ${message(error)}\n`);
+      return 2;
+    }
     io.stdout(`Report: ${relative(io.cwd, target)}\n`);
   }
   return results.some((r) => r.status === "failed" || r.status === "check-failed") ? 2 : 0;
@@ -189,7 +186,108 @@ function designPath(target: string): string {
   return join(dirname(target), `${basename(target, extname(target))}.design.json`);
 }
 
-async function migrateFile(input: Input, options: Options, lib: Library, io: Io): Promise<FileResult> {
+type Destinations = Map<string, { canonical: string; root?: string }>;
+
+/** Resolve existing ancestors too, including symlinked directories. */
+async function canonicalPath(path: string): Promise<string> {
+  try {
+    return await realpath(path);
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== "ENOENT" || dirname(path) === path) throw error;
+    return join(await canonicalPath(dirname(path)), basename(path));
+  }
+}
+
+async function fileInfo(path: string) {
+  try { return await lstat(path); }
+  catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
+    return undefined;
+  }
+}
+
+async function safeDestination(path: string, root?: string): Promise<string> {
+  const info = await fileInfo(path);
+  if (info?.isSymbolicLink()) throw new Error(`Refusing symlink output: ${path}`);
+  if (info && !info.isFile()) throw new Error(`Output isn't a regular file: ${path}`);
+  const canonical = await canonicalPath(path);
+  if (root) {
+    const offset = relative(root, canonical);
+    if (offset === ".." || offset.startsWith(`..${sep}`) || isAbsolute(offset)) {
+      throw new Error(`Output escapes the output folder: ${path}`);
+    }
+  }
+  return canonical;
+}
+
+async function reserveDestinations(inputs: Input[], candidates: Input[], options: Options, report: string | undefined, cwd: string): Promise<Destinations> {
+  const sources = new Set(await Promise.all(inputs.map((input) => canonicalPath(input.path))));
+  const destinations: Destinations = new Map();
+  const owners = new Map<string, string>();
+  const root = options.out !== undefined ? await canonicalPath(resolve(cwd, options.out)) : undefined;
+  const reserve = async (path: string, owner: string, outputRoot?: string, ownSource = false) => {
+    const canonical = await safeDestination(path, outputRoot);
+    if (sources.has(canonical) && !ownSource) throw new Error(`Output would overwrite a source input: ${relative(cwd, path)}. Use --write to replace a template itself.`);
+    const previous = owners.get(canonical);
+    if (previous !== undefined) throw new Error(`${previous} and ${owner} have the same output: ${relative(cwd, path)}. Use separate destinations.`);
+    owners.set(canonical, owner);
+    destinations.set(path, { canonical, root: outputRoot });
+  };
+  if (options.write || options.out !== undefined) {
+    for (const input of candidates) {
+      const target = outputPath(input, options, cwd);
+      await reserve(target, relative(cwd, input.path), root, options.write && target === input.path);
+      if (options.design) await reserve(designPath(target), relative(cwd, input.path), root);
+    }
+  }
+  if (report) await reserve(resolve(cwd, report), "--report");
+  return destinations;
+}
+
+async function checkDestination(path: string, destinations: Destinations): Promise<void> {
+  const expected = destinations.get(path);
+  if (!expected || await safeDestination(path, expected.root) !== expected.canonical) throw new Error(`Output destination changed: ${path}`);
+}
+
+async function writeExclusive(path: string, text: string, mode?: number): Promise<void> {
+  const handle = await open(path, "wx", mode);
+  try {
+    try { await handle.writeFile(text); }
+    finally { await handle.close(); }
+  } catch (error) {
+    await rm(path, { force: true });
+    throw error;
+  }
+}
+
+/** Replace the directory entry, rather than truncating a symlink/hard-link target. */
+async function writeDestination(path: string, text: string, destinations: Destinations): Promise<void> {
+  await checkDestination(path, destinations);
+  await mkdir(dirname(path), { recursive: true });
+  await checkDestination(path, destinations);
+  const temporary = join(dirname(path), `.${basename(path)}.unlayer-write-${randomUUID()}`);
+  let created = false;
+  try {
+    const mode = (await fileInfo(path))?.mode;
+    await writeExclusive(temporary, text, mode);
+    created = true;
+    await checkDestination(path, destinations);
+    await rename(temporary, path);
+  } finally {
+    if (created) await rm(temporary, { force: true });
+  }
+}
+
+async function cleanProbeDirectories(directory: string, firstCreated: string | undefined): Promise<void> {
+  if (!firstCreated) return;
+  while (true) {
+    try { await rmdir(directory); } catch { return; } // Never remove a directory that acquired content.
+    if (directory === firstCreated) return;
+    directory = dirname(directory);
+  }
+}
+
+async function migrateFile(input: Input, options: Options, lib: Library, io: Io, destinations: Destinations): Promise<FileResult> {
   const file = input.path;
   const name = relative(io.cwd, file) || basename(file);
   const source = await readFile(file, "utf8");
@@ -219,14 +317,24 @@ async function migrateFile(input: Input, options: Options, lib: Library, io: Io)
     return { file: name, status: "failed", reason: `couldn't convert it: ${message(error)}` };
   }
 
-  // Check it from a file next to the original, so its relative imports resolve.
+  // Verify the final rebased source in its destination directory before writing
+  // the target. This also checks file-relative resources and module resolution.
+  const writing = options.write || options.out !== undefined;
+  const target = writing ? outputPath(input, options, io.cwd) : file;
+  const code = target === file ? converted.code : lib.rebaseImports(converted.code, file, target);
   const extension = extname(file);
-  const probe = join(dirname(file), `.${basename(file, extension)}.unlayer-migrate-${process.pid}-${Date.now()}${extension}`);
+  const probe = join(dirname(target), `.${basename(file, extension)}.unlayer-migrate-${randomUUID()}${extension}`);
+  let probeCreated = false;
+  let firstCreated: string | undefined;
   let verification: Awaited<ReturnType<Library["verifyConversion"]>>;
   let design: unknown;
   let mergeTags: { used: string[]; kept: string[] } | undefined;
   try {
-    await writeFile(probe, converted.code);
+    if (writing) await checkDestination(target, destinations);
+    firstCreated = await mkdir(dirname(probe), { recursive: true });
+    if (writing) await checkDestination(target, destinations);
+    await writeExclusive(probe, code);
+    probeCreated = true;
     const Migrated = defaultExport(await importFile(probe, io.cwd));
     if (typeof Migrated !== "function") throw new Error("the migrated file has no default export");
     verification = await lib.verifyConversion(Original, Migrated as (props: unknown) => ReturnType<typeof Original>, { props });
@@ -239,7 +347,8 @@ async function migrateFile(input: Input, options: Options, lib: Library, io: Io)
   } catch (error) {
     return { file: name, status: "failed", reason: `the migrated template doesn't render: ${message(error)}` };
   } finally {
-    await rm(probe, { force: true });
+    if (probeCreated) await rm(probe, { force: true });
+    await cleanProbeDirectories(dirname(probe), firstCreated);
   }
 
   const report = converted.report;
@@ -263,17 +372,18 @@ async function migrateFile(input: Input, options: Options, lib: Library, io: Io)
     designWarnings: verification.designWarnings,
   };
 
-  const writing = options.write || options.out !== undefined;
   if (writing && (result.status === "migrated" || options.force)) {
-    const target = outputPath(input, options, io.cwd);
-    const code = target === file ? converted.code : lib.rebaseImports(converted.code, file, target);
-    await mkdir(dirname(target), { recursive: true });
-    await writeFile(target, code);
-    result.output = relative(io.cwd, target);
-    if (options.design) {
-      const designFile = designPath(target);
-      await writeFile(designFile, `${JSON.stringify(design, null, 2)}\n`);
-      result.design = relative(io.cwd, designFile);
+    try {
+      await writeDestination(target, code, destinations);
+      result.output = relative(io.cwd, target);
+      if (options.design) {
+        const designFile = designPath(target);
+        await writeDestination(designFile, `${JSON.stringify(design, null, 2)}\n`, destinations);
+        result.design = relative(io.cwd, designFile);
+      }
+    } catch (error) {
+      result.status = "failed";
+      result.reason = `couldn't write output: ${message(error)}`;
     }
   }
   return result;
@@ -479,12 +589,36 @@ function defaultExport(mod: Record<string, any>): unknown {
   return value;
 }
 
+/** CommonJS requires need the same project-first package resolution as hooks.ts. */
+function sharedCjsPackages(cwd: string): () => void {
+  type Resolve = (request: string, parent: NodeJS.Module | undefined, isMain?: boolean, options?: unknown) => string;
+  const api = Module as typeof Module & { _resolveFilename: Resolve };
+  const previous = api._resolveFilename;
+  const project = createRequire(pathToFileURL(join(cwd, "noop.js")));
+  const self = createRequire(import.meta.url);
+  let resolving = false;
+  const resolvePackage: Resolve = (request, parent, isMain, options) => {
+    if (resolving || !/^(react|react-dom|@react-email\/[^/]+|react-email|@unlayer\/react-elements)(\/.*)?$/.test(request)) {
+      return previous(request, parent, isMain, options);
+    }
+    resolving = true;
+    try {
+      try { return project.resolve(request); } catch { /* Try the importing module next. */ }
+      try { return previous(request, parent, isMain, options); } catch { return self.resolve(request); }
+    } finally { resolving = false; }
+  };
+  api._resolveFilename = resolvePackage;
+  return () => { if (api._resolveFilename === resolvePackage) api._resolveFilename = previous; };
+}
+
 /** Import a .tsx/.ts file with React's automatic JSX runtime, honoring the project's tsconfig paths. */
 async function importFile(path: string, cwd: string): Promise<Record<string, any>> {
   const url = pathToFileURL(path).href;
   if (/\.(mjs|cjs|js)$/.test(path)) return import(`${url}?t=${Date.now()}`);
-  const { tsImport } = (await import("tsx/esm/api")) as { tsImport: (specifier: string, options: { parentURL: string; tsconfig?: string }) => Promise<any> };
-  const tsconfig = join(tmpdir(), `unlayer-migrate-tsconfig-${process.pid}-${Date.now()}.json`);
+  const { register: registerEsm } = await import("tsx/esm/api");
+  const { register: registerCjs } = await import("tsx/cjs/api");
+  const namespace = randomUUID();
+  const tsconfig = join(tmpdir(), `unlayer-migrate-tsconfig-${namespace}.json`);
   const base = findUp("tsconfig.json", dirname(path));
   await writeFile(
     tsconfig,
@@ -496,9 +630,34 @@ async function importFile(path: string, cwd: string): Promise<Record<string, any
         .map((root) => join(root, "**/*").split(sep).join("/")),
     })
   );
+  const previousConfig = process.env.TSX_TSCONFIG_PATH;
+  let unregisterCjs: (() => void) | undefined;
+  let unregisterScopedCjs: (() => void) | undefined;
+  let unregisterPackages: (() => void) | undefined;
+  let esm: ReturnType<typeof registerEsm> | undefined;
   try {
-    return await tsImport(url, { parentURL: pathToFileURL(join(cwd, "noop.js")).href, tsconfig });
+    // Node loads .tsx files in CommonJS projects through its CJS loader.
+    // tsImport's scoped loader alone doesn't handle Node's export preparse;
+    // register that loader with the same automatic JSX and paths config.
+    process.env.TSX_TSCONFIG_PATH = tsconfig;
+    try {
+      unregisterCjs = registerCjs();
+      unregisterScopedCjs = registerCjs({ namespace });
+    } finally {
+      // Loader workers inherit the environment: restore it before creating
+      // the ESM worker so no later import refers to a deleted config.
+      if (previousConfig === undefined) delete process.env.TSX_TSCONFIG_PATH;
+      else process.env.TSX_TSCONFIG_PATH = previousConfig;
+    }
+    const loader = registerEsm({ namespace, tsconfig });
+    esm = loader;
+    unregisterPackages = sharedCjsPackages(cwd);
+    return await loader.import(`${url}?t=${namespace}`, pathToFileURL(join(cwd, "noop.js")).href);
   } finally {
+    await esm?.();
+    unregisterPackages?.();
+    unregisterScopedCjs?.();
+    unregisterCjs?.();
     await rm(tsconfig, { force: true });
   }
 }
