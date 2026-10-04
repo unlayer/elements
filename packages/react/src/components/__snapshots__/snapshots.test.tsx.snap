@@ -22,8 +22,8 @@ exports[`Render Snapshots > Body + Row + Column + Items > full tree email 1`] = 
   .u-row { width: 100% !important; }
   .u-row .u-col { display: block !important; width: 100% !important; min-width: 320px !important; max-width: 100% !important; }
   .u-row .u-col > div { margin: 0 auto; }
-  .no-stack .u-col { min-width: 0 !important; display: table-cell !important; }
-  .no-stack .u-col-100 { width: 100% !important; }
+  .u-row.no-stack .u-col { min-width: 0 !important; display: table-cell !important; }
+  .u-row.no-stack .u-col-100 { width: 100% !important; }
 }</style>
 
 

@@ -70,6 +70,9 @@ function generateGridCSS(cells: number[], mode: RenderMode, contentWidth: number
   if (mode === 'email') {
     const minQuery = `@media only screen and (min-width: ${contentWidth + 20}px)`;
     const maxQuery = `@media only screen and (max-width: ${contentWidth + 20}px)`;
+    // Every Row writes this block, so a later row's `.u-row .u-col` rules
+    // would override an earlier row's `.no-stack` ones of equal specificity:
+    // `.u-row.no-stack` outranks them wherever it comes.
 
     return `
 ${minQuery} {
@@ -83,8 +86,8 @@ ${maxQuery} {
   .u-row { width: 100% !important; }
   .u-row .u-col { display: block !important; width: 100% !important; min-width: 320px !important; max-width: 100% !important; }
   .u-row .u-col > div { margin: 0 auto; }
-  .no-stack .u-col { min-width: 0 !important; display: table-cell !important; }
-${widths.map(({ value, className }) => `  .no-stack .u-col-${className} { width: ${value}% !important; }`).join('\n')}
+  .u-row.no-stack .u-col { min-width: 0 !important; display: table-cell !important; }
+${widths.map(({ value, className }) => `  .u-row.no-stack .u-col-${className} { width: ${value}% !important; }`).join('\n')}
 }`;
   }
 

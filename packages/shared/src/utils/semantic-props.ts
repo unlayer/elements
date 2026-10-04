@@ -337,6 +337,13 @@ export function mapSemanticProps<T extends Record<string, any>>(
     }
   }
 
+  // "Do not stack on mobile" is a mobile override, as the editor saves it:
+  // the exporters read it only there.
+  if (componentType === "Row" && final.noStackMobile === true) {
+    final._override = { ...final._override, mobile: { ...final._override?.mobile, noStackMobile: true } };
+    final.noStackMobile = false;
+  }
+
   // Colors and font stacks in forms the exporters write correctly.
   return normalizeCssValues(final) as T;
 }

@@ -205,6 +205,41 @@ async function measureColumns(page) {
   });
 }
 
+/**
+ * Section 2b: a `noStackMobile` row keeps its columns side by side on phones,
+ * in proportion, even when a stacking row follows it (every row writes its
+ * own grid CSS, so a later row's rules must not override the earlier one's).
+ */
+async function checkNoStack(page) {
+  for (const { name, Root } of DOCUMENTS.filter((d) => d.name !== "document")) {
+    const html = renderToHtml(
+      h(Root, { contentWidth: "600px" },
+        h(Row, { cells: [1, 3], noStackMobile: true },
+          h(Column, null, h(Paragraph, null, "Quarter")),
+          h(Column, null, h(Paragraph, null, "Three quarters"))
+        ),
+        h(Row, { layout: ColumnLayouts.TwoEqual },
+          h(Column, null, h(Paragraph, null, "Stacks")),
+          h(Column, null, h(Paragraph, null, "Below"))
+        )
+      )
+    );
+    await page.setViewportSize(MOBILE);
+    await page.setContent(html, { waitUntil: "load" });
+    const cols = await measureColumns(page);
+    const problems = [];
+    if (cols.length !== 2) problems.push(`found ${cols.length} columns in the no-stack row, expected 2`);
+    else {
+      if (Math.abs(cols[0].top - cols[1].top) > 1) problems.push(`columns stacked (tops ${cols[0].top}, ${cols[1].top})`);
+      const share = cols[0].width / (cols[0].width + cols[1].width);
+      if (Math.abs(share - 0.25) > 0.03) problems.push(`first column is ${Math.round(share * 100)}% of the row, expected 25%`);
+    }
+    await page.setViewportSize(DESKTOP);
+    if (problems.length) fail(`no-stack:${name}`, problems);
+    else pass(`no-stack:${name}`, `a noStackMobile row stays 25% / 75% at ${MOBILE.width}px`);
+  }
+}
+
 /** Section 2: responsive stacking in web and email modes. */
 async function checkResponsive(page) {
   for (const { name, html } of DOCUMENTS.filter((d) => d.name !== "document")) {
@@ -528,6 +563,7 @@ try {
   const page = await browser.newPage({ viewport: DESKTOP });
   await checkDocuments(page);
   await checkResponsive(page);
+  await checkNoStack(page);
   await checkHover(page);
   await checkRtl(page);
   await checkStyleBaseline(page);

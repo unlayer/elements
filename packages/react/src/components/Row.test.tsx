@@ -67,6 +67,20 @@ describe("Row Component", () => {
     expect(container.querySelector('table[role="presentation"]')).not.toBeNull();
   });
 
+  it("keeps columns side by side on phones with noStackMobile, in both modes", () => {
+    for (const mode of ["email", "web"] as const) {
+      const { container } = render(
+        <Body mode={mode}>
+          <Row cells={[1, 1]} noStackMobile>
+            <Column><Paragraph>A</Paragraph></Column>
+            <Column><Paragraph>B</Paragraph></Column>
+          </Row>
+        </Body>
+      );
+      expect(container.querySelector(".u-row.no-stack")).not.toBeNull();
+    }
+  });
+
   it("has correct displayName", () => {
     expect(Row.displayName).toBe("Row");
   });
