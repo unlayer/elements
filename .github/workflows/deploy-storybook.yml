@@ -48,6 +48,11 @@ jobs:
       - name: Build Storybook
         run: pnpm --filter @unlayer/react-elements run build-storybook
 
+      # Stamp the artifact so the verify step can prove THIS build is the
+      # one being served — not a stale previous deploy.
+      - name: Stamp build id
+        run: echo "${{ github.run_id }}" > packages/react/storybook-static/build-id.txt
+
       # Get the GitHub Pages URL dynamically
       - name: Get Pages URL
         id: pages
@@ -86,6 +91,29 @@ jobs:
       - name: Print deploy URL (PR)
         if: github.event_name == 'pull_request'
         run: echo "::notice::Storybook preview deployed to ${{ steps.pages.outputs.url }}pr/${{ github.event.pull_request.number }}/"
+
+      # The green check must mean "this exact build is being served" — the
+      # push to gh-pages can succeed while GitHub's own Pages publish fails
+      # transiently (and it does not auto-retry), silently serving a stale
+      # preview. Poll the deployed build stamp until it matches this run.
+      - name: Verify deployment is live
+        run: |
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            TARGET="${{ steps.pages.outputs.url }}pr/${{ github.event.pull_request.number }}/build-id.txt"
+          else
+            TARGET="${{ steps.pages.outputs.url }}build-id.txt"
+          fi
+          echo "Verifying $TARGET serves build ${{ github.run_id }}"
+          for i in $(seq 1 40); do
+            LIVE=$(curl -fs -H 'Cache-Control: no-cache' "$TARGET?cb=${{ github.run_id }}-$i" || true)
+            if [ "$LIVE" = "${{ github.run_id }}" ]; then
+              echo "Live after ~$((i * 15))s"
+              exit 0
+            fi
+            sleep 15
+          done
+          echo "::error::Pages never served this build (currently serving: '${LIVE:-nothing}'). GitHub's Pages publish likely failed — re-run this workflow, or trigger a rebuild with: gh api -X POST repos/${{ github.repository }}/pages/builds"
+          exit 1
 
       - name: Add Storybook link to PR description
         if: github.event_name == 'pull_request'
