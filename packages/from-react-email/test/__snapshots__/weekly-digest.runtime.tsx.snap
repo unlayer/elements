@@ -1,0 +1,298 @@
+/** @jsxRuntime automatic */
+// Converted from a React Email template by @unlayer/from-react-email (runtime mode).
+import { Column, Divider, Email, Heading, Image, Paragraph, Row } from "@unlayer/react-elements";
+
+export default function Template() {
+  return (
+    <Email
+      backgroundColor="#f5f5f5"
+      contentWidth="600px"
+      fontFamily={{
+        label: "ui-sans-serif",
+        value:
+          "ui-sans-serif,system-ui,sans-serif,'Apple Color Emoji','Segoe UI Emoji','Segoe UI Symbol','Noto Color Emoji'",
+      }}
+      previewText="4 stories worth your time this week: How small teams ship faster with async-first habits"
+    >
+      <Row>
+        <Column padding="24px 0px 0px 0px" />
+      </Row>
+      <Row columnsBackgroundColor="#171717">
+        <Column padding="28px 32px 28px 32px">
+          <Paragraph
+            color="#a1a1a1"
+            fontSize="12px"
+            lineHeight="24px"
+            fontWeight={600}
+            letterSpacing="2px"
+            html={`<span style="text-transform:uppercase">The Weekly Dispatch</span>`}
+            containerPadding="0px 0px 0px 0px"
+          />
+          <Heading
+            headingType="h1"
+            color="#ffffff"
+            fontSize="26px"
+            lineHeight="32px"
+            fontWeight={700}
+            containerPadding="6px 0px 0px 0px"
+          >
+            Your week in review
+          </Heading>
+          <Paragraph
+            color="#a1a1a1"
+            fontSize="14px"
+            lineHeight="24px"
+            html="Week of {{weekOf}}"
+            containerPadding="6px 0px 0px 0px"
+          />
+        </Column>
+      </Row>
+      <Row columnsBackgroundColor="#ffffff">
+        <Column padding="28px 32px 0px 32px">
+          <Paragraph
+            color="#404040"
+            fontSize="15px"
+            lineHeight="24px"
+            html="Hi {{subscriberName}}, here are the 4 stories our editors picked for you this week."
+            containerPadding="0px 0px 0px 0px"
+          />
+        </Column>
+      </Row>
+      <Row cells={[164, 436]} noStackMobile={true} columnsBackgroundColor="#ffffff">
+        <Column padding="24px 0px 0px 32px">
+          <Image
+            src={{ url: "https://picsum.photos/seed/async/224/224", width: 112, height: 112 }}
+            width="112px"
+            alt="How small teams ship faster with async-first habits"
+            textAlign="left"
+            containerPadding="0px 0px 0px 0px"
+          />
+        </Column>
+        <Column padding="24px 32px 0px 0px">
+          <Paragraph
+            color="#4f39f6"
+            fontSize="11px"
+            lineHeight="24px"
+            fontWeight={600}
+            letterSpacing="1px"
+            html={`<span style="text-transform:uppercase">Maya Chen · 6 min read</span>`}
+            containerPadding="0px 0px 0px 0px"
+          />
+          <Paragraph
+            color="#000000"
+            fontSize="14px"
+            lineHeight="24px"
+            html={`<a href="https://dispatch.example.com/posts/async-first" style="color:rgb(23,23,23);text-decoration-line:none;margin-top:4px;display:block;font-size:18px;font-weight:700;line-height:24px" target="_blank">How small teams ship faster with async-first habits</a>`}
+            containerPadding="0px 0px 0px 0px"
+          />
+          <Paragraph
+            color="#525252"
+            fontSize="14px"
+            lineHeight="21px"
+            html="Three teams share the rituals that replaced their daily standups and what they measured along the way."
+            containerPadding="6px 0px 0px 0px"
+          />
+          <Paragraph
+            color="#000000"
+            fontSize="14px"
+            lineHeight="24px"
+            html={`<a href="https://dispatch.example.com/posts/async-first" style="color:rgb(79,57,246);text-decoration-line:underline;margin-top:8px;display:block;font-size:14px;font-weight:600" target="_blank">Read more</a>`}
+            containerPadding="0px 0px 0px 0px"
+          />
+        </Column>
+      </Row>
+      <Row columnsBackgroundColor="#ffffff">
+        <Column padding="24px 32px 0px 32px">
+          <Divider
+            borderTopWidth="1px"
+            borderTopStyle="solid"
+            borderTopColor="#e5e5e5"
+            width="100%"
+            containerPadding="0px 0px 0px 0px"
+          />
+        </Column>
+      </Row>
+      <Row cells={[164, 436]} noStackMobile={true} columnsBackgroundColor="#ffffff">
+        <Column padding="24px 0px 0px 32px">
+          <Image
+            src={{ url: "https://picsum.photos/seed/plaintext/224/224", width: 112, height: 112 }}
+            width="112px"
+            alt="The quiet comeback of plain-text email"
+            textAlign="left"
+            containerPadding="0px 0px 0px 0px"
+          />
+        </Column>
+        <Column padding="24px 32px 0px 0px">
+          <Paragraph
+            color="#4f39f6"
+            fontSize="11px"
+            lineHeight="24px"
+            fontWeight={600}
+            letterSpacing="1px"
+            html={`<span style="text-transform:uppercase">Luis Ortega · 4 min read</span>`}
+            containerPadding="0px 0px 0px 0px"
+          />
+          <Paragraph
+            color="#000000"
+            fontSize="14px"
+            lineHeight="24px"
+            html={`<a href="https://dispatch.example.com/posts/plain-text-email" style="color:rgb(23,23,23);text-decoration-line:none;margin-top:4px;display:block;font-size:18px;font-weight:700;line-height:24px" target="_blank">The quiet comeback of plain-text email</a>`}
+            containerPadding="0px 0px 0px 0px"
+          />
+          <Paragraph
+            color="#525252"
+            fontSize="14px"
+            lineHeight="21px"
+            html="Designers are rediscovering the value of lightweight, accessible messages. Here is what the data says about engagement."
+            containerPadding="6px 0px 0px 0px"
+          />
+          <Paragraph
+            color="#000000"
+            fontSize="14px"
+            lineHeight="24px"
+            html={`<a href="https://dispatch.example.com/posts/plain-text-email" style="color:rgb(79,57,246);text-decoration-line:underline;margin-top:8px;display:block;font-size:14px;font-weight:600" target="_blank">Read more</a>`}
+            containerPadding="0px 0px 0px 0px"
+          />
+        </Column>
+      </Row>
+      <Row columnsBackgroundColor="#ffffff">
+        <Column padding="24px 32px 0px 32px">
+          <Divider
+            borderTopWidth="1px"
+            borderTopStyle="solid"
+            borderTopColor="#e5e5e5"
+            width="100%"
+            containerPadding="0px 0px 0px 0px"
+          />
+        </Column>
+      </Row>
+      <Row cells={[164, 436]} noStackMobile={true} columnsBackgroundColor="#ffffff">
+        <Column padding="24px 0px 0px 32px">
+          <Image
+            src={{ url: "https://picsum.photos/seed/migrations/224/224", width: 112, height: 112 }}
+            width="112px"
+            alt="A practical guide to database migrations without downtime"
+            textAlign="left"
+            containerPadding="0px 0px 0px 0px"
+          />
+        </Column>
+        <Column padding="24px 32px 0px 0px">
+          <Paragraph
+            color="#4f39f6"
+            fontSize="11px"
+            lineHeight="24px"
+            fontWeight={600}
+            letterSpacing="1px"
+            html={`<span style="text-transform:uppercase">Anika Rao · 9 min read</span>`}
+            containerPadding="0px 0px 0px 0px"
+          />
+          <Paragraph
+            color="#000000"
+            fontSize="14px"
+            lineHeight="24px"
+            html={`<a href="https://dispatch.example.com/posts/zero-downtime-migrations" style="color:rgb(23,23,23);text-decoration-line:none;margin-top:4px;display:block;font-size:18px;font-weight:700;line-height:24px" target="_blank">A practical guide to database migrations without downtime</a>`}
+            containerPadding="0px 0px 0px 0px"
+          />
+          <Paragraph
+            color="#525252"
+            fontSize="14px"
+            lineHeight="21px"
+            html="Expand, migrate, contract: a step-by-step walkthrough with real-world pitfalls and how to avoid them."
+            containerPadding="6px 0px 0px 0px"
+          />
+          <Paragraph
+            color="#000000"
+            fontSize="14px"
+            lineHeight="24px"
+            html={`<a href="https://dispatch.example.com/posts/zero-downtime-migrations" style="color:rgb(79,57,246);text-decoration-line:underline;margin-top:8px;display:block;font-size:14px;font-weight:600" target="_blank">Read more</a>`}
+            containerPadding="0px 0px 0px 0px"
+          />
+        </Column>
+      </Row>
+      <Row columnsBackgroundColor="#ffffff">
+        <Column padding="24px 32px 0px 32px">
+          <Divider
+            borderTopWidth="1px"
+            borderTopStyle="solid"
+            borderTopColor="#e5e5e5"
+            width="100%"
+            containerPadding="0px 0px 0px 0px"
+          />
+        </Column>
+      </Row>
+      <Row cells={[164, 436]} noStackMobile={true} columnsBackgroundColor="#ffffff">
+        <Column padding="24px 0px 0px 32px">
+          <Image
+            src={{
+              url: "https://picsum.photos/seed/designsystem/224/224",
+              width: 112,
+              height: 112,
+            }}
+            width="112px"
+            alt="Interview: building a design system that people actually use"
+            textAlign="left"
+            containerPadding="0px 0px 0px 0px"
+          />
+        </Column>
+        <Column padding="24px 32px 0px 0px">
+          <Paragraph
+            color="#4f39f6"
+            fontSize="11px"
+            lineHeight="24px"
+            fontWeight={600}
+            letterSpacing="1px"
+            html={`<span style="text-transform:uppercase">Tom Becker · 12 min read</span>`}
+            containerPadding="0px 0px 0px 0px"
+          />
+          <Paragraph
+            color="#000000"
+            fontSize="14px"
+            lineHeight="24px"
+            html={`<a href="https://dispatch.example.com/posts/design-system-interview" style="color:rgb(23,23,23);text-decoration-line:none;margin-top:4px;display:block;font-size:18px;font-weight:700;line-height:24px" target="_blank">Interview: building a design system that people actually use</a>`}
+            containerPadding="0px 0px 0px 0px"
+          />
+          <Paragraph
+            color="#525252"
+            fontSize="14px"
+            lineHeight="21px"
+            html="The lead of a 40-person design org on governance, documentation, and saying no to one-off components."
+            containerPadding="6px 0px 0px 0px"
+          />
+          <Paragraph
+            color="#000000"
+            fontSize="14px"
+            lineHeight="24px"
+            html={`<a href="https://dispatch.example.com/posts/design-system-interview" style="color:rgb(79,57,246);text-decoration-line:underline;margin-top:8px;display:block;font-size:14px;font-weight:600" target="_blank">Read more</a>`}
+            containerPadding="0px 0px 0px 0px"
+          />
+        </Column>
+      </Row>
+      <Row columnsBackgroundColor="#ffffff">
+        <Column padding="32px 0px 0px 0px" />
+      </Row>
+      <Row columnsBackgroundColor="#fafafa">
+        <Column padding="24px 32px 24px 32px">
+          <Paragraph
+            color="#737373"
+            fontSize="12px"
+            lineHeight="20px"
+            textAlign="center"
+            html={"You&#x27;re receiving this because you subscribed to The Weekly Dispatch."}
+            containerPadding="0px 0px 0px 0px"
+          />
+          <Paragraph
+            color="#737373"
+            fontSize="12px"
+            lineHeight="20px"
+            textAlign="center"
+            html={`<a href="{{preferencesUrl}}" style="color:rgb(115,115,115);text-decoration-line:underline" target="_blank">Email preferences</a> · <a href="{{unsubscribeUrl}}" style="color:rgb(115,115,115);text-decoration-line:underline" target="_blank">Unsubscribe</a>`}
+            containerPadding="8px 0px 0px 0px"
+          />
+        </Column>
+      </Row>
+      <Row>
+        <Column padding="24px 0px 0px 0px" />
+      </Row>
+    </Email>
+  );
+}

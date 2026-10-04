@@ -1,0 +1,101 @@
+import { describe, expect, it } from "vitest";
+import fs from "node:fs";
+import path from "node:path";
+import React from "react";
+import { renderToJson } from "@unlayer/react-elements";
+import { Column, Row, Section, Tailwind, Text } from "@react-email/components";
+import { convertReactEmail, convertSource, expand } from "../src/index";
+import { color } from "../src/styles";
+
+const fixtures = path.join(import.meta.dirname, "fixtures");
+const TEMPLATES = ["welcome", "receipt", "weekly-digest"];
+
+describe.each(TEMPLATES)("%s", (name) => {
+  it("runtime mode: TSX and design JSON", async () => {
+    const { default: Template } = await import(path.join(fixtures, `${name}.tsx`));
+    const conversion = await convertReactEmail(Template);
+    expect(conversion.report.nativeRatio).toBe(1);
+    await expect(await conversion.tsx()).toMatchFileSnapshot(`__snapshots__/${name}.runtime.tsx.snap`);
+    await expect(JSON.stringify(conversion.design(), null, 2)).toMatchFileSnapshot(`__snapshots__/${name}.runtime.design.json.snap`);
+  });
+
+  it("codemod mode: TSX that renders with the template's own props", async () => {
+    const result = await convertSource(fs.readFileSync(path.join(fixtures, `${name}.tsx`), "utf8"), { fileName: `${name}.tsx` });
+    expect(result.report.nativeRatio).toBe(1);
+    expect(result.code).toContain('from "@unlayer/react-elements"');
+    expect(result.code).not.toContain("@react-email/components");
+    await expect(result.code).toMatchFileSnapshot(`__snapshots__/${name}.codemod.tsx.snap`);
+
+    // The migrated component still takes the template's props.
+    const dir = fs.mkdtempSync(path.join(import.meta.dirname, ".tmp-"));
+    try {
+      const file = path.join(dir, `${name}.tsx`);
+      fs.writeFileSync(file, result.code);
+      const { default: Migrated } = await import(file);
+      const design = renderToJson(Migrated(Migrated.PreviewProps));
+      expect(design.body.rows.length).toBeGreaterThan(1);
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
+  });
+});
+
+describe("codemod keeps logic", () => {
+  it("converts JSX inside loops and conditions, keeping keys", async () => {
+    const result = await convertSource(fs.readFileSync(path.join(fixtures, "receipt.tsx"), "utf8"));
+    expect(result.code).toContain("{items.map((item) => (");
+    expect(result.code).toContain("<Row key={item.name}");
+    expect(result.code).toMatch(/\{item\.description \? \(\s*<Paragraph/);
+    expect(result.code).toContain("ReceiptEmail.PreviewProps");
+  });
+
+  it("inlines same-file components, and keeps what it can't map as HTML, reported", async () => {
+    const source = `
+      import { Html, Body, Container, Text } from "@react-email/components";
+      import { useMemo } from "react";
+      const Badge = ({ label }: { label: string }) => <span>{label}</span>;
+      const Stamp = ({ label }: { label: string }) => {
+        const upper = useMemo(() => label.toUpperCase(), [label]);
+        return <div style={{ border: "1px solid red" }}>{upper}</div>;
+      };
+      export default function T({ name }: { name: string }) {
+        return (
+          <Html><Body><Container>
+            <Text>Hi {name} <Badge label="new" /></Text>
+            <Stamp label="paid" />
+          </Container></Body></Html>
+        );
+      }`;
+    const result = await convertSource(source);
+    // Badge returns plain JSX: inlined. Stamp uses a hook: kept, rendered to HTML.
+    expect(result.report.info).toContainEqual({ reason: "local component inlined where it's used", detail: "Badge" });
+    expect(result.report.fallbacks).toEqual([{ reason: "custom component", detail: "Stamp" }]);
+    expect(result.code).toContain('renderToStaticMarkup(<Stamp label="paid" />)');
+    expect(result.code).toMatch(/<span>\$\{escapeHtml\(String\("new"\)\)\}<\/span>|<span>new<\/span>/);
+    expect(result.code).not.toContain("const Badge");
+  });
+});
+
+describe("runtime details", () => {
+  it("keeps Sections, Rows and Columns through <Tailwind>", async () => {
+    const nodes = await expand(
+      React.createElement(
+        Tailwind,
+        null,
+        React.createElement(Section, { className: "bg-white" }, React.createElement(Row, null, React.createElement(Column, { className: "w-1/2" }, React.createElement(Text, { className: "text-red-500" }, "x"))))
+      )
+    );
+    const section = nodes[0] as any;
+    expect(section.name).toBe("Section");
+    expect(section.props.style.backgroundColor).toMatch(/255/);
+    expect(section.children[0].name).toBe("Row");
+    expect(section.children[0].children[0].name).toBe("Column");
+  });
+
+  it("writes colors as hex (the exporters mangle rgb())", () => {
+    expect(color("rgb(255,255,255)")).toBe("#ffffff");
+    expect(color("rgb(54 65 83)")).toBe("#364153");
+    expect(color("rgba(0, 0, 0, 0.5)")).toBe("rgba(0, 0, 0, 0.5)");
+    expect(color("#abc")).toBe("#abc");
+  });
+});

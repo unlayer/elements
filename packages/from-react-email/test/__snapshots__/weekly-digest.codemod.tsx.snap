@@ -1,0 +1,239 @@
+/** @jsxRuntime automatic */
+// Migrated from React Email by @unlayer/from-react-email (codemod mode).
+import { Column, Divider, Email, Heading, Image, Paragraph, Row } from "@unlayer/react-elements";
+import { renderToStaticMarkup } from "react-dom/server";
+import * as React from "react";
+
+interface Article {
+  title: string;
+  excerpt: string;
+  url: string;
+  thumbnailUrl: string;
+  author: string;
+  readTime: string;
+}
+
+interface WeeklyDigestEmailProps {
+  subscriberName: string;
+  weekOf: string;
+  articles: Article[];
+  unsubscribeUrl: string;
+  preferencesUrl: string;
+}
+
+export const WeeklyDigestEmail = ({
+  subscriberName,
+  weekOf,
+  articles,
+  unsubscribeUrl,
+  preferencesUrl,
+}: WeeklyDigestEmailProps) => {
+  return (
+    <Email
+      backgroundColor="#f5f5f5"
+      contentWidth="600px"
+      fontFamily={{
+        label: "ui-sans-serif",
+        value:
+          "ui-sans-serif,system-ui,sans-serif,'Apple Color Emoji','Segoe UI Emoji','Segoe UI Symbol','Noto Color Emoji'",
+      }}
+      previewText={`${articles.length} stories worth your time this week: ${articles[0]?.title ?? ""}`}
+    >
+      <Row>
+        <Column padding="24px 0px 0px 0px" />
+      </Row>
+      <Row columnsBackgroundColor="#171717">
+        <Column padding="28px 32px 28px 32px">
+          <Paragraph
+            color="#a1a1a1"
+            fontSize="12px"
+            lineHeight="24px"
+            fontWeight={600}
+            letterSpacing="2px"
+            html={`<span style="text-transform:uppercase">The Weekly Dispatch</span>`}
+            containerPadding="0px 0px 0px 0px"
+          />
+          <Heading
+            headingType="h1"
+            color="#ffffff"
+            fontSize="26px"
+            lineHeight="32px"
+            fontWeight={700}
+            containerPadding="6px 0px 0px 0px"
+          >
+            Your week in review
+          </Heading>
+          <Paragraph
+            color="#a1a1a1"
+            fontSize="14px"
+            lineHeight="24px"
+            containerPadding="6px 0px 0px 0px"
+          >
+            Week of {weekOf}
+          </Paragraph>
+        </Column>
+      </Row>
+      <Row columnsBackgroundColor="#ffffff">
+        <Column padding="28px 32px 0px 32px">
+          <Paragraph
+            color="#404040"
+            fontSize="15px"
+            lineHeight="24px"
+            containerPadding="0px 0px 0px 0px"
+          >
+            Hi {subscriberName}, here are the {articles.length} stories our editors picked for you
+            this week.
+          </Paragraph>
+        </Column>
+      </Row>
+      {articles.map((article, index) => [
+        <Row key={0} cells={[164, 436]} noStackMobile={true} columnsBackgroundColor="#ffffff">
+          <Column padding="24px 0px 0px 32px">
+            <Image
+              src={article.thumbnailUrl}
+              width="112px"
+              alt={article.title}
+              textAlign="left"
+              containerPadding="0px 0px 0px 0px"
+            />
+          </Column>
+          <Column padding="24px 32px 0px 0px">
+            <Paragraph
+              color="#4f39f6"
+              fontSize="11px"
+              lineHeight="24px"
+              fontWeight={600}
+              letterSpacing="1px"
+              html={`<span style="text-transform:uppercase">${`${htmlText(article.author)} · ${htmlText(article.readTime)}`}</span>`}
+              containerPadding="0px 0px 0px 0px"
+            />
+            <Paragraph
+              color="#000000"
+              fontSize="14px"
+              lineHeight="24px"
+              html={`<a href="${escapeHtml(String(article.url))}" style="color:rgb(23,23,23);text-decoration-line:none;margin-top:4px;display:block;font-size:18px;font-weight:700;line-height:24px" target="_blank">${htmlText(article.title)}</a>`}
+              containerPadding="0px 0px 0px 0px"
+            />
+            <Paragraph
+              color="#525252"
+              fontSize="14px"
+              lineHeight="21px"
+              containerPadding="6px 0px 0px 0px"
+            >
+              {article.excerpt}
+            </Paragraph>
+            <Paragraph
+              color="#000000"
+              fontSize="14px"
+              lineHeight="24px"
+              html={`<a href="${escapeHtml(String(article.url))}" style="color:rgb(79,57,246);text-decoration-line:underline;margin-top:8px;display:block;font-size:14px;font-weight:600" target="_blank">Read more</a>`}
+              containerPadding="0px 0px 0px 0px"
+            />
+          </Column>
+        </Row>,
+        <Row key={1} columnsBackgroundColor="#ffffff">
+          <Column padding="0px 32px 0px 32px">
+            {index < articles.length - 1 ? (
+              <Divider
+                borderTopWidth="1px"
+                borderTopStyle="solid"
+                borderTopColor="#e5e5e5"
+                width="100%"
+                containerPadding="24px 0px 0px 0px"
+              />
+            ) : null}
+          </Column>
+        </Row>,
+      ])}
+      <Row columnsBackgroundColor="#ffffff">
+        <Column padding="32px 0px 0px 0px" />
+      </Row>
+      <Row columnsBackgroundColor="#fafafa">
+        <Column padding="24px 32px 24px 32px">
+          <Paragraph
+            color="#737373"
+            fontSize="12px"
+            lineHeight="20px"
+            textAlign="center"
+            containerPadding="0px 0px 0px 0px"
+          >
+            You're receiving this because you subscribed to The Weekly Dispatch.
+          </Paragraph>
+          <Paragraph
+            color="#737373"
+            fontSize="12px"
+            lineHeight="20px"
+            textAlign="center"
+            html={`<a href="${escapeHtml(String(preferencesUrl))}" style="color:rgb(115,115,115);text-decoration-line:underline" target="_blank">Email preferences</a> · <a href="${escapeHtml(String(unsubscribeUrl))}" style="color:rgb(115,115,115);text-decoration-line:underline" target="_blank">Unsubscribe</a>`}
+            containerPadding="8px 0px 0px 0px"
+          />
+        </Column>
+      </Row>
+      <Row>
+        <Column padding="24px 0px 0px 0px" />
+      </Row>
+    </Email>
+  );
+};
+
+WeeklyDigestEmail.PreviewProps = {
+  subscriberName: "Sam",
+  weekOf: "September 28, 2026",
+  articles: [
+    {
+      title: "How small teams ship faster with async-first habits",
+      excerpt:
+        "Three teams share the rituals that replaced their daily standups and what they measured along the way.",
+      url: "https://dispatch.example.com/posts/async-first",
+      thumbnailUrl: "https://picsum.photos/seed/async/224/224",
+      author: "Maya Chen",
+      readTime: "6 min read",
+    },
+    {
+      title: "The quiet comeback of plain-text email",
+      excerpt:
+        "Designers are rediscovering the value of lightweight, accessible messages. Here is what the data says about engagement.",
+      url: "https://dispatch.example.com/posts/plain-text-email",
+      thumbnailUrl: "https://picsum.photos/seed/plaintext/224/224",
+      author: "Luis Ortega",
+      readTime: "4 min read",
+    },
+    {
+      title: "A practical guide to database migrations without downtime",
+      excerpt:
+        "Expand, migrate, contract: a step-by-step walkthrough with real-world pitfalls and how to avoid them.",
+      url: "https://dispatch.example.com/posts/zero-downtime-migrations",
+      thumbnailUrl: "https://picsum.photos/seed/migrations/224/224",
+      author: "Anika Rao",
+      readTime: "9 min read",
+    },
+    {
+      title: "Interview: building a design system that people actually use",
+      excerpt:
+        "The lead of a 40-person design org on governance, documentation, and saying no to one-off components.",
+      url: "https://dispatch.example.com/posts/design-system-interview",
+      thumbnailUrl: "https://picsum.photos/seed/designsystem/224/224",
+      author: "Tom Becker",
+      readTime: "12 min read",
+    },
+  ],
+  unsubscribeUrl: "https://dispatch.example.com/unsubscribe?u=abc123",
+  preferencesUrl: "https://dispatch.example.com/preferences?u=abc123",
+} as WeeklyDigestEmailProps;
+
+export default WeeklyDigestEmail;
+
+function escapeHtml(text: string): string {
+  return text
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
+
+/** A value inside text, as HTML: what React would render for it. */
+function htmlText(value: unknown): string {
+  if (value === null || value === undefined || typeof value === "boolean") return "";
+  if (typeof value === "string" || typeof value === "number") return escapeHtml(String(value));
+  return renderToStaticMarkup(<>{value as Parameters<typeof renderToStaticMarkup>[0]}</>);
+}
