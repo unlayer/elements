@@ -84,6 +84,7 @@ function extractSemanticProps(
     "config",
     "previewText",
     "fonts",
+    "lang",
     "layout",
     "collection",
     ...extraKeys,

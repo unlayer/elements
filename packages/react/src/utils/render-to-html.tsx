@@ -22,6 +22,13 @@ const MODE_BY_WRAPPER: Record<string, RenderMode> = {
   Document: "document",
 };
 
+/** A template's direction follows its root props; explicit renderer options still win. */
+function resolveConfig(element: React.ReactElement, config?: Partial<UnlayerConfig>): UnlayerConfig {
+  const props = element.props as { textDirection?: string; values?: { textDirection?: string } };
+  const textDirection = props.textDirection ?? props.values?.textDirection;
+  return { ...DEFAULT_CONFIG, ...(textDirection !== undefined ? { textDirection } : {}), ...config };
+}
+
 /**
  * Resolve the display mode for a tree: wrapper component type first
  * (Email/Page/Document), then an explicit `mode` prop (Body), then config.
@@ -51,7 +58,7 @@ function renderBody(
   element: React.ReactElement,
   config?: Partial<UnlayerConfig>
 ): string {
-  const mergedConfig = { ...DEFAULT_CONFIG, ...config };
+  const mergedConfig = resolveConfig(element, config);
 
   try {
     // Pass config via prop (not context) so this works in React Server Components.
@@ -90,6 +97,8 @@ function escapeForHtml(text: string): string {
  * Options for renderToHtml — config overrides plus document-level extras.
  */
 export interface RenderToHtmlOptions extends Partial<UnlayerConfig> {
+  /** Document language; overrides the root's `lang` prop. */
+  lang?: string;
   /** Document `<title>` */
   title?: string;
   /**
@@ -133,12 +142,13 @@ export function renderToHtml(
   element: React.ReactElement,
   options?: RenderToHtmlOptions
 ): string {
-  const { title, fonts: optionFonts = [], ...config } = options ?? {};
+  const { title, lang: optionLang, fonts: optionFonts = [], ...config } = options ?? {};
   // The root's own `fonts` prop, then the option's, each URL once.
   const rootFonts = (element.props as { fonts?: Array<{ url: string }> } | null)?.fonts ?? [];
   const fonts = [...rootFonts, ...optionFonts].filter((font, i, all) => font?.url && all.findIndex((f) => f?.url === font.url) === i);
 
-  const mergedConfig = { ...DEFAULT_CONFIG, ...config };
+  const lang = optionLang ?? (element.props as { lang?: string }).lang;
+  const mergedConfig = resolveConfig(element, config);
   const displayMode = resolveDisplayMode(element, mergedConfig);
 
   // Only Unlayer wrappers (Body/Email/Page/Document) get their renderer's
@@ -155,6 +165,7 @@ export function renderToHtml(
   });
 
   const layoutArgs: DocumentLayoutArgs = {
+    lang: lang ? ` lang="${escapeForHtml(String(lang))}"` : "",
     dir: mergedConfig.textDirection
       ? ` dir="${escapeForHtml(String(mergedConfig.textDirection))}"`
       : "",
@@ -281,7 +292,7 @@ export function renderToHtmlParts(
   const body = renderBody(element, config);
 
   // Resolve display mode from the wrapper component, element props, or config
-  const mergedConfig = { ...DEFAULT_CONFIG, ...config };
+  const mergedConfig = resolveConfig(element, config);
   const displayMode = resolveDisplayMode(element, mergedConfig);
 
   // Extract head CSS/JS/tags by walking the element tree

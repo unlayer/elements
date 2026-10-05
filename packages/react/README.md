@@ -145,6 +145,8 @@ Root wrapper for email-safe HTML. Same props as Body (without `mode`).
 - `textColor?: string` — `"#000000"`
 - `linkStyle?: { linkColor, linkHoverColor, linkUnderline, linkHoverUnderline }`
 - `previewText?: string` — plain text shown in email client inboxes, escaped for HTML. Pass `"Fish & chips"`, not `"Fish &amp; chips"`; entities supplied in the string display literally.
+- `textDirection?: string` — document direction (`"ltr"` or `"rtl"`), kept in design JSON. When opening the design in the editor, also set its direction with `unlayer.setTextDirection(...)`.
+- `lang?: string` — document language, such as `"ar"`; emitted on `<html>` by `renderToHtml`. Language is document metadata and is not stored in design JSON. Renderer options override both props.
 
 ### Page
 Root wrapper for responsive web display. Same props as Email.

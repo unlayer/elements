@@ -9,6 +9,8 @@ import Button from "../components/Button";
 import Heading from "../components/Heading";
 import Image from "../components/Image";
 import Email from "../components/Email";
+import Page from "../components/Page";
+import Document from "../components/Document";
 import { ColumnLayouts } from "../layouts/ColumnLayouts";
 
 describe("renderToHtml", () => {
@@ -294,5 +296,22 @@ describe("renderToPlainText: unaffected by the document shell", () => {
     expect(text).not.toContain("DOCTYPE");
     expect(text).not.toContain("margin");
     expect(text).not.toContain("{");
+  });
+});
+
+describe("document direction and language", () => {
+  it.each([Email, Page, Document])("uses root metadata without requiring renderer options", (Root) => {
+    const html = renderToHtml(<Root textDirection="rtl" lang="ar"><Row><Column><Paragraph>مرحبا</Paragraph></Column></Row></Root>);
+    expect(html).toMatch(/<html[^>]*dir="rtl"[^>]*lang="ar"/);
+  });
+
+  it("allows renderer options to override root metadata and escapes language", () => {
+    const html = renderToHtml(<Email textDirection="rtl" lang="ar"><Row><Column /></Row></Email>, { textDirection: "ltr", lang: 'en" data-injected="yes' });
+    expect(html).toContain('dir="ltr" lang="en&quot; data-injected=&quot;yes"');
+  });
+
+  it("reads direction from design body values", () => {
+    const html = renderToHtml(<Email values={{ textDirection: "rtl" } as any}><Row><Column /></Row></Email>);
+    expect(html).toMatch(/<html[^>]*dir="rtl"/);
   });
 });
