@@ -558,12 +558,64 @@ async function checkNegativeControl(page) {
   }
 }
 
+/** Phone settings must affect computed layout at 375px and preserve desktop. */
+async function checkDeviceOverrides(page) {
+  const phone = { width: 375, height: 800 };
+  for (const { name, Root } of DOCUMENTS.filter((d) => d.name !== "document")) {
+    const make = (overrides) => renderToHtml(h(Root, { contentWidth: "600px" },
+      h(Row, null, h(Column, { padding: "20px", ...(overrides ? { mobile: { padding: "8px 12px" } } : {}) },
+        h(Image, { src: { ...IMAGE_SRC, width: 800 }, width: 120, containerPadding: 0, ...(overrides ? { mobile: { autoWidth: true } } : {}) }),
+        h(Paragraph, { containerPadding: 0, hideOnMobile: overrides }, "Desktop only"),
+        h(Paragraph, { containerPadding: 0, hideOnDesktop: overrides }, "Phone only")
+      )),
+      h(Row, { hideOnMobile: overrides }, h(Column, null, h(Paragraph, null, "Hidden row")))
+    ));
+    const read = () => page.evaluate(() => {
+      const column = document.querySelector("#u_column_1 .v-col-padding");
+      const image = document.querySelector("img");
+      const css = getComputedStyle(column);
+      return {
+        padding: [css.paddingTop, css.paddingRight, css.paddingBottom, css.paddingLeft],
+        slot: column.getBoundingClientRect().width - parseFloat(css.paddingLeft) - parseFloat(css.paddingRight),
+        image: image.getBoundingClientRect().width,
+        mobileHidden: getComputedStyle(document.querySelector("#u_content_paragraph_1")).display === "none",
+        desktopHidden: getComputedStyle(document.querySelector("#u_content_paragraph_2")).display === "none",
+        rowHidden: getComputedStyle(document.querySelector("#u_row_2")).display === "none",
+      };
+    });
+    const phoneProblems = (facts) => [
+      facts.padding.join(" ") !== "8px 12px 8px 12px" && `padding ${facts.padding.join(" ")}`,
+      Math.abs(facts.image - facts.slot) > 1 && `image ${facts.image}px, column slot ${facts.slot}px`,
+      !facts.mobileHidden && "phone-hidden content still displays",
+      facts.desktopHidden && "desktop-hidden content did not restore on phones",
+      !facts.rowHidden && "phone-hidden row still displays",
+    ].filter(Boolean);
+    await page.setViewportSize(DESKTOP);
+    await page.setContent(make(true));
+    const desktop = await read();
+    const problems = [];
+    if (desktop.padding.some((p) => p !== "20px")) problems.push(`desktop padding changed: ${desktop.padding}`);
+    if (Math.abs(desktop.image - 120) > 1) problems.push(`desktop image changed: ${desktop.image}px`);
+    if (desktop.mobileHidden || !desktop.desktopHidden || desktop.rowHidden) problems.push("desktop visibility is wrong");
+    await page.setViewportSize(phone);
+    problems.push(...phoneProblems(await read()));
+    if (problems.length) fail(`phone-settings:${name}`, problems);
+    else pass(`phone-settings:${name}`, "375px padding, full-width image and visibility; desktop unchanged");
+    await page.setContent(make(false));
+    const negative = phoneProblems(await read());
+    if (negative.length < 3) fail(`phone-negative-control:${name}`, ["ignoring phone settings did not fail padding, image and visibility checks"]);
+    else pass(`phone-negative-control:${name}`, "the old behavior fails padding, image and visibility checks");
+  }
+  await page.setViewportSize(DESKTOP);
+}
+
 const browser = await chromium.launch();
 try {
   const page = await browser.newPage({ viewport: DESKTOP });
   await checkDocuments(page);
   await checkResponsive(page);
   await checkNoStack(page);
+  await checkDeviceOverrides(page);
   await checkHover(page);
   await checkRtl(page);
   await checkStyleBaseline(page);

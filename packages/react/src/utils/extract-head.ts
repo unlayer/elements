@@ -8,6 +8,7 @@
  */
 
 import React from "react";
+import { collectDeviceStyles, deviceStylesCss, deviceVisibilityCss } from "./device-overrides";
 import { heads } from "@unlayer/exporters";
 import { mergeValues } from "@unlayer-internal/shared-elements";
 import type { RenderMode, HeadConfig } from "@unlayer-internal/shared-elements";
@@ -37,7 +38,7 @@ function ensureMeta(values: any, type: string, index: number = 0): any {
   return {
     ...values,
     _meta: {
-      htmlID: `u_content_${type.toLowerCase()}_${index + 1}`,
+      htmlID: `${["row", "column"].includes(type) ? "u" : "u_content"}_${type.toLowerCase()}_${index + 1}`,
       htmlClassNames: `u_content_${type.toLowerCase()}`,
       ...(values._meta || {})
     }
@@ -172,7 +173,8 @@ function walkItem(
   counters: Record<string, number>,
   styles: string[],
   scripts: string[],
-  tags: string[]
+  tags: string[],
+  deviceStyles: Record<string, string[]>
 ): void {
   const componentType = element.type as any;
   const config = componentType[UNLAYER_CONFIG_KEY];
@@ -189,6 +191,8 @@ function walkItem(
   const contentType = config.metaName ?? name.toLowerCase();
   const count = nextCounter(counters, `u_content_${contentType}`);
   const valuesWithMeta = ensureMeta(finalValues, contentType, count - 1);
+
+  collectDeviceStyles(valuesWithMeta, "contents", name, displayMode, deviceStyles);
 
   // The component's own head (custom tools) wins over the registry lookup
   const head =
@@ -207,7 +211,8 @@ function walkColumn(
   counters: Record<string, number>,
   styles: string[],
   scripts: string[],
-  tags: string[]
+  tags: string[],
+  deviceStyles: Record<string, string[]>
 ): void {
   // Column head
   const semanticProps = extractSemanticProps(element.props);
@@ -215,13 +220,15 @@ function walkColumn(
   const count = nextCounter(counters, "u_column");
   const columnValues = ensureMeta(mergeValues(COLUMN_DEFAULTS, mapped), "column", count - 1);
 
+  collectDeviceStyles(columnValues, "columns", "Column", displayMode, deviceStyles);
+
   const columnHead = (heads as Record<string, ComponentHead | undefined>)["Column"];
   callHead(columnHead, columnValues, bodyValues, displayMode, headConfig, styles, scripts, tags);
 
   // Walk item children
   const children = collectChildren(element.props.children);
   for (const child of children) {
-    walkItem(child, bodyValues, displayMode, headConfig, counters, styles, scripts, tags);
+    walkItem(child, bodyValues, displayMode, headConfig, counters, styles, scripts, tags, deviceStyles);
   }
 }
 
@@ -233,13 +240,16 @@ function walkRow(
   counters: Record<string, number>,
   styles: string[],
   scripts: string[],
-  tags: string[]
+  tags: string[],
+  deviceStyles: Record<string, string[]>
 ): void {
   // Row head
   const semanticProps = extractSemanticProps(element.props, ["layout"]);
   const mapped = mapSemanticProps(semanticProps, ROW_DEFAULTS, "Row");
   const count = nextCounter(counters, "u_row");
   const rowValues = ensureMeta(mergeValues(ROW_DEFAULTS, mapped), "row", count - 1);
+
+  collectDeviceStyles(rowValues, "rows", "Row", displayMode, deviceStyles);
 
   const rowHead = (heads as Record<string, ComponentHead | undefined>)["Row"];
   callHead(rowHead, rowValues, bodyValues, displayMode, headConfig, styles, scripts, tags);
@@ -249,7 +259,7 @@ function walkRow(
   for (const child of children) {
     const name = getDisplayName(child);
     if (name === "Column") {
-      walkColumn(child, bodyValues, rowValues, displayMode, headConfig, counters, styles, scripts, tags);
+      walkColumn(child, bodyValues, rowValues, displayMode, headConfig, counters, styles, scripts, tags, deviceStyles);
     }
   }
 }
@@ -282,6 +292,7 @@ export function extractHeadFromTree(
   const scripts: string[] = [];
   const tags: string[] = [];
   const counters: Record<string, number> = {};
+  const deviceStyles: Record<string, string[]> = {};
 
   // Extract body values
   const semanticProps = extractSemanticProps(element.props);
@@ -297,9 +308,13 @@ export function extractHeadFromTree(
   for (const child of children) {
     const name = getDisplayName(child);
     if (name === "Row") {
-      walkRow(child, bodyValues, displayMode, headConfig, counters, styles, scripts, tags);
+      walkRow(child, bodyValues, displayMode, headConfig, counters, styles, scripts, tags, deviceStyles);
     }
   }
+
+  styles.unshift(deviceVisibilityCss(displayMode));
+  const overrides = deviceStylesCss(deviceStyles, displayMode);
+  if (overrides) styles.push(overrides);
 
   // Deduplicate tags
   const uniqueTags = [...new Set(tags.filter(Boolean))];

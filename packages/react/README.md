@@ -541,3 +541,20 @@ pnpm storybook      # Launch Storybook
 ## License
 
 MIT
+
+### Phone settings
+
+Rows, columns and content items accept `mobile` settings with the same flat CSS inputs as desktop props. For example:
+
+```tsx
+<Column padding="24px 40px" mobile={{ padding: "16px 20px" }}>
+  <Heading fontSize={32} mobile={{ fontSize: 24, lineHeight: "120%", textAlign: "center" }}>Welcome</Heading>
+  <Image src={{ url: "https://example.com/photo.png", width: 800 }} width="50%" mobile={{ autoWidth: true }} />
+  <Paragraph hideOnMobile>Desktop detail</Paragraph>
+  <Paragraph hideOnDesktop>Phone detail</Paragraph>
+</Column>
+```
+
+Supported settings are padding, content `containerPadding`, font size, line height, text alignment and image/button width (`width`, `maxWidth`, `autoWidth`), where the component supports them. Numeric padding and font sizes use pixels; numeric line height is a multiplier. Phone CSS applies at 480px and below, matching the editor. `noStackMobile` still controls column stacking separately.
+
+`hideOnMobile` and `hideOnDesktop` work on rows, columns and content. `renderToJson` stores these settings in `_override.mobile` and `_override.desktop`, so designs retain them when opened in the visual editor. Document output keeps its desktop settings.

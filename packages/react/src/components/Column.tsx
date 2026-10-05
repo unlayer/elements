@@ -3,7 +3,7 @@ import type { RenderMode, UnlayerConfig, ColumnValues } from "@unlayer-internal/
 import { ColumnExporters, ContentExporters } from "@unlayer/exporters";
 import { UNLAYER_RENDER_KEY, UNLAYER_CONFIG_KEY, nextHtmlId } from "../utils/create-component";
 import { mapSemanticProps, type SemanticProps } from "../utils/semantic-props";
-import type { SizeInput, BorderInput } from "../types";
+import type { DeviceProps, SizeInput, BorderInput } from "../types";
 import { COLUMN_DEFAULTS } from "../utils/container-defaults";
 
 /** Unlayer's default content-block padding when a block sets none. */
@@ -38,7 +38,9 @@ type ColumnExporterFunction = (innerHTML: string, values: Record<string, any>, i
 
 function renderColumnToHtml(innerHTML: string, values: any, index: number, cells: number[], bodyValues: any, rowValues: any, mode: RenderMode): string {
   const columnExporter = (ColumnExporters[mode] || ColumnExporters.web) as ColumnExporterFunction;
-  return columnExporter(innerHTML, values, index, cells, bodyValues, rowValues);
+  const html = columnExporter(innerHTML, values, index, cells, bodyValues, rowValues);
+  const classes = [values._override?.mobile?.hideMobile && "hide-mobile", values._override?.desktop?.hideDesktop && "hide-desktop"].filter(Boolean).join(" ");
+  return classes && mode !== "document" ? html.replace(/(<div id="[^"]*" class=")/, `$1${classes} `) : html;
 }
 
 // Canonical content-container wrapper (the `u_content_*` block that carries
@@ -56,7 +58,7 @@ function renderContentToHtml(innerHTML: string, values: any, bodyValues: any, mo
 // Component
 // ============================================
 
-export type ColumnProps = Omit<SemanticProps<ColumnValues>, "padding" | "border" | "borderRadius"> & {
+export type ColumnProps = Omit<SemanticProps<ColumnValues>, "padding" | "border" | "borderRadius" | keyof DeviceProps> & DeviceProps & {
   children?: React.ReactNode;
   // Internal props (provided by Row)
   index?: number;
@@ -184,7 +186,10 @@ export const Column: React.FC<ColumnProps> = (props) => {
               // for the flat-prop API, so every block collapsed to 0px padding.)
               const childProps = child.props as {
                 containerPadding?: string | number;
-                values?: { containerPadding?: string | number };
+                mobile?: { containerPadding?: string | number };
+                hideOnMobile?: boolean;
+                hideOnDesktop?: boolean;
+                values?: { containerPadding?: string | number; _override?: Record<string, any>; _meta?: Record<string, any> };
               };
               const rawContainerPadding =
                 childProps.containerPadding ??
@@ -199,9 +204,19 @@ export const Column: React.FC<ColumnProps> = (props) => {
               // Wrap via the canonical content-container exporter for this mode.
               const contentValues = {
                 containerPadding,
+                _override: {
+                  ...childProps.values?._override,
+                  mobile: { ...childProps.values?._override?.mobile,
+                    ...(childProps.hideOnMobile !== undefined ? { hideMobile: childProps.hideOnMobile } : {}),
+                  },
+                  desktop: { ...childProps.values?._override?.desktop,
+                    ...(childProps.hideOnDesktop !== undefined ? { hideDesktop: childProps.hideOnDesktop } : {}),
+                  },
+                },
                 _meta: {
                   htmlID: contentHtmlId,
                   htmlClassNames: `u_content_${componentName}`,
+                  ...(childProps.values?._meta?.htmlID ? { htmlID: childProps.values._meta.htmlID } : {}),
                 },
               };
               innerHTML += renderContentToHtml(

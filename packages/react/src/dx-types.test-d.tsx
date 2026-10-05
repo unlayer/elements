@@ -109,3 +109,17 @@ export const _pub_fontFamily: FontFamilyInput = "Georgia";
 export const _pub_fontWeight: FontWeightInput = 700;
 export const _pub_headingLevel: HeadingLevel = "h2";
 export const _pub_imageSrc: ImageSrcInput = "https://x/p.png";
+
+import type { RowProps, MobileProps, DeviceProps } from "./index";
+export const _phone_props: MobileProps = { padding: 12, containerPadding: "4px 8px", fontSize: 18, lineHeight: 1.5, textAlign: "center", width: "100%", autoWidth: true };
+export const _row_phone: RowProps = { mobile: { padding: "8px 16px" }, hideOnMobile: true };
+export const _column_phone: ColumnProps = { mobile: { padding: 16 }, hideOnDesktop: true };
+export const _image_phone: ImageProps = { mobile: { autoWidth: true, width: "100%" }, hideOnMobile: false };
+export const _paragraph_phone: ParagraphProps = { mobile: { fontSize: 16, lineHeight: 1.4, textAlign: "center" } };
+export const _device_props: DeviceProps = { hideOnDesktop: false };
+// @ts-expect-error phone alignment must be a supported CSS alignment
+export const _phone_reject_align: MobileProps = { textAlign: "sideways" };
+// @ts-expect-error phone font size cannot be boolean
+export const _phone_reject_size: MobileProps = { fontSize: true };
+// @ts-expect-error device visibility must be boolean
+export const _phone_reject_visibility: RowProps = { hideOnMobile: "yes" };

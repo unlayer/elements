@@ -17,6 +17,9 @@ exports[`Golden Template: Marketing Email > snapshot locks the full email HTML 1
   <meta name="x-apple-disable-message-reformatting">
   <!--[if !mso]><!--><meta http-equiv="X-UA-Compatible" content="IE=edge"><!--<![endif]-->
   <style type="text/css">
+@media (min-width: 0px) { .hide-default__display-block { display: block !important; mso-hide: unset !important; } .hide-default__display-table { display: table !important; mso-hide: unset !important; } }
+@media (max-width: 480px) { .hide-mobile { max-height: 0px; overflow: hidden; display: none !important; } }
+@media (min-width: 481px) { .hide-desktop { max-height: 0px; overflow: hidden; display: none !important; } }
 
   
 
@@ -894,6 +897,8 @@ exports[`Golden Template: Web Page (3-column) > snapshot locks the full page HTM
     <meta name="description" content="">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <style type="text/css">
+@media (max-width: 480px) { .hide-mobile { display: none !important; } }
+@media (min-width: 481px) { .hide-desktop { display: none !important; } }
 
   
   body {

@@ -40,6 +40,8 @@ export type {
   MenuItem,
   // Utility types
   RenderMode,
+  MobileProps,
+  DeviceProps,
   // Design JSON types
   DesignContent,
   DesignColumn,

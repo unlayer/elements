@@ -1092,10 +1092,43 @@
   "div.u-col.u-col-33p33.u_column.v-col-background-color.v-col-border.v-col-border-radius.v-row-align-items|display:flex;position:relative;flexWrap:nowrap;flexDirection:row;flexBasis:100%;color:rgb(0, 0, 0);fontSize:16px;fontWeight:400;fontFamily:ua-default-serif;textAlign:start;direction:ltr;borderTopStyle:solid;borderLeftStyle:solid;borderRadius:12px;maxWidth:100%;verticalAlign:baseline",
   "div.v-row-background-image--inner.v-row-columns-background-color-background-color|display:block;position:static;flexWrap:nowrap;flexDirection:row;color:rgb(0, 0, 0);backgroundColor:rgb(0, 0, 0);backgroundImage:url(\"https://cdn.templates.unlayer.com/assets/1595700502634-1.png\");fontSize:16px;fontWeight:400;fontFamily:ua-default-serif;textAlign:start;direction:ltr;borderTopColor:rgb(0, 0, 0);borderLeftColor:rgb(0, 0, 0);maxWidth:100%;verticalAlign:baseline",
   "div.v-row-background-image--inner.v-row-columns-background-color-background-color|display:block;position:static;flexWrap:nowrap;flexDirection:row;color:rgb(0, 0, 0);backgroundColor:rgb(0, 0, 0);backgroundImage:url(\"https://cdn.templates.unlayer.com/assets/1595703291142-11.png\");fontSize:16px;fontWeight:400;fontFamily:ua-default-serif;textAlign:start;direction:ltr;borderTopColor:rgb(0, 0, 0);borderLeftColor:rgb(0, 0, 0);maxWidth:100%;verticalAlign:baseline",
-  "div.v-row-background-image--inner.v-row-columns-background-color-background-color|display:block;position:static;flexWrap:nowrap;flexDirection:row;color:rgb(0, 0, 0);backgroundColor:rgb(0, 0, 0);fontSize:16px;fontWeight:400;fontFamily:ua-default-serif;textAlign:start;direction:ltr;borderTopColor:rgb(0, 0, 0);borderLeftColor:rgb(0, 0, 0);maxWidth:100%;verticalAlign:baseline"
+  "div.v-row-background-image--inner.v-row-columns-background-color-background-color|display:block;position:static;flexWrap:nowrap;flexDirection:row;color:rgb(0, 0, 0);backgroundColor:rgb(0, 0, 0);fontSize:16px;fontWeight:400;fontFamily:ua-default-serif;textAlign:start;direction:ltr;borderTopColor:rgb(0, 0, 0);borderLeftColor:rgb(0, 0, 0);maxWidth:100%;verticalAlign:baseline",
+  "div.u-row.v-row-columns-background-color-background-color|display:block;position:static;flexWrap:nowrap;flexDirection:row;color:rgb(0, 0, 0);backgroundColor:rgb(255, 255, 255);fontSize:16px;fontWeight:400;fontFamily:ua-default-serif;textAlign:start;direction:ltr;borderTopColor:rgb(0, 0, 0);borderLeftColor:rgb(0, 0, 0);maxWidth:600px;verticalAlign:baseline;overflowWrap:break-word",
+  "div.v-col-border.v-col-border-radius.v-col-padding|display:block;position:static;flexWrap:nowrap;flexDirection:row;color:rgb(0, 0, 0);fontSize:16px;fontWeight:400;fontFamily:ua-default-serif;textAlign:start;direction:ltr;paddingTop:36px;paddingRight:40px;paddingBottom:36px;paddingLeft:40px;borderTopStyle:solid;borderLeftStyle:solid;verticalAlign:baseline;overflowWrap:break-word",
+  "table.u_content_paragraph|display:table;position:static;flexWrap:nowrap;flexDirection:row;color:rgb(0, 0, 0);fontSize:16px;fontWeight:400;fontFamily:Arial;textAlign:start;direction:ltr;borderTopColor:rgb(128, 128, 128);borderLeftColor:rgb(128, 128, 128);verticalAlign:baseline;overflowWrap:break-word",
+  "td.v-container-padding-padding|display:table-cell;position:static;flexWrap:nowrap;flexDirection:row;color:rgb(0, 0, 0);fontSize:16px;fontWeight:400;fontFamily:Arial;textAlign:-webkit-left;direction:ltr;borderTopColor:rgb(0, 0, 0);borderLeftColor:rgb(0, 0, 0);verticalAlign:middle;overflowWrap:break-word",
+  "div.v-color.v-font-family.v-font-size.v-font-weight.v-letter-spacing.v-line-height.v-text-align|display:block;position:static;flexWrap:nowrap;flexDirection:row;color:rgb(53, 91, 72);fontSize:12px;fontWeight:400;fontFamily:Arial;lineHeight:16.8px;textAlign:left;letterSpacing:2px;direction:ltr;borderTopColor:rgb(53, 91, 72);borderLeftColor:rgb(53, 91, 72);verticalAlign:baseline;overflowWrap:break-word",
+  "p|display:block;position:static;flexWrap:nowrap;flexDirection:row;color:rgb(53, 91, 72);fontSize:12px;fontWeight:400;fontFamily:Arial;lineHeight:16.8px;textAlign:left;letterSpacing:2px;direction:ltr;borderTopColor:rgb(53, 91, 72);borderLeftColor:rgb(53, 91, 72);verticalAlign:baseline;overflowWrap:break-word",
+  "table.u_content_heading|display:table;position:static;flexWrap:nowrap;flexDirection:row;color:rgb(0, 0, 0);fontSize:16px;fontWeight:400;fontFamily:Arial;textAlign:start;direction:ltr;borderTopColor:rgb(128, 128, 128);borderLeftColor:rgb(128, 128, 128);verticalAlign:baseline;overflowWrap:break-word",
+  "td.v-container-padding-padding|display:table-cell;position:static;flexWrap:nowrap;flexDirection:row;color:rgb(0, 0, 0);fontSize:16px;fontWeight:400;fontFamily:Arial;textAlign:-webkit-left;direction:ltr;paddingTop:16px;paddingBottom:16px;borderTopColor:rgb(0, 0, 0);borderLeftColor:rgb(0, 0, 0);verticalAlign:middle;overflowWrap:break-word",
+  "h1.v-color.v-font-size.v-font-weight.v-letter-spacing.v-line-height.v-text-align|display:block;position:static;flexWrap:nowrap;flexDirection:row;color:rgb(32, 55, 42);fontSize:38px;fontWeight:400;fontFamily:Arial;lineHeight:43.7px;textAlign:left;direction:ltr;borderTopColor:rgb(32, 55, 42);borderLeftColor:rgb(32, 55, 42);verticalAlign:baseline;overflowWrap:break-word",
+  "table.u_content_image|display:table;position:static;flexWrap:nowrap;flexDirection:row;color:rgb(0, 0, 0);fontSize:16px;fontWeight:400;fontFamily:Arial;textAlign:start;direction:ltr;borderTopColor:rgb(128, 128, 128);borderLeftColor:rgb(128, 128, 128);verticalAlign:baseline;overflowWrap:break-word",
+  "td.v-container-padding-padding|display:table-cell;position:static;flexWrap:nowrap;flexDirection:row;color:rgb(0, 0, 0);fontSize:16px;fontWeight:400;fontFamily:Arial;textAlign:-webkit-left;direction:ltr;paddingTop:8px;paddingBottom:20px;borderTopColor:rgb(0, 0, 0);borderLeftColor:rgb(0, 0, 0);verticalAlign:middle;overflowWrap:break-word",
+  "td.v-text-align|display:table-cell;position:static;flexWrap:nowrap;flexDirection:row;color:rgb(0, 0, 0);fontSize:16px;fontWeight:400;fontFamily:Arial;textAlign:-webkit-center;direction:ltr;borderTopColor:rgb(0, 0, 0);borderLeftColor:rgb(0, 0, 0);verticalAlign:middle;overflowWrap:break-word",
+  "img.v-src-max-width.v-src-width|display:inline-block;position:static;flexWrap:nowrap;flexDirection:row;color:rgb(0, 0, 0);fontSize:16px;fontWeight:400;fontFamily:Arial;textAlign:-webkit-center;direction:ltr;borderTopColor:rgb(0, 0, 0);borderLeftColor:rgb(0, 0, 0);maxWidth:390px;verticalAlign:middle;overflowWrap:break-word",
+  "td.v-container-padding-padding|display:table-cell;position:static;flexWrap:nowrap;flexDirection:row;color:rgb(0, 0, 0);fontSize:16px;fontWeight:400;fontFamily:Arial;textAlign:-webkit-left;direction:ltr;paddingBottom:24px;borderTopColor:rgb(0, 0, 0);borderLeftColor:rgb(0, 0, 0);verticalAlign:middle;overflowWrap:break-word",
+  "div.v-color.v-font-family.v-font-size.v-font-weight.v-letter-spacing.v-line-height.v-text-align|display:block;position:static;flexWrap:nowrap;flexDirection:row;color:rgb(82, 99, 88);fontSize:16px;fontWeight:400;fontFamily:Arial;lineHeight:25.6px;textAlign:left;direction:ltr;borderTopColor:rgb(82, 99, 88);borderLeftColor:rgb(82, 99, 88);verticalAlign:baseline;overflowWrap:break-word",
+  "p|display:block;position:static;flexWrap:nowrap;flexDirection:row;color:rgb(82, 99, 88);fontSize:16px;fontWeight:400;fontFamily:Arial;lineHeight:25.6px;textAlign:left;direction:ltr;borderTopColor:rgb(82, 99, 88);borderLeftColor:rgb(82, 99, 88);verticalAlign:baseline;overflowWrap:break-word",
+  "table.u_content_button|display:table;position:static;flexWrap:nowrap;flexDirection:row;color:rgb(0, 0, 0);fontSize:16px;fontWeight:400;fontFamily:Arial;textAlign:start;direction:ltr;borderTopColor:rgb(128, 128, 128);borderLeftColor:rgb(128, 128, 128);verticalAlign:baseline;overflowWrap:break-word",
+  "div.v-text-align|display:block;position:static;flexWrap:nowrap;flexDirection:row;color:rgb(0, 0, 0);fontSize:16px;fontWeight:400;fontFamily:Arial;textAlign:-webkit-center;direction:ltr;borderTopColor:rgb(0, 0, 0);borderLeftColor:rgb(0, 0, 0);verticalAlign:baseline;overflowWrap:break-word",
+  "a.v-border.v-border-radius.v-button.v-button-colors.v-font-family.v-font-size.v-font-weight.v-letter-spacing.v-size-width|display:inline-block;position:static;flexWrap:nowrap;flexDirection:row;color:rgb(255, 255, 255);backgroundColor:rgb(53, 91, 72);fontSize:14px;fontWeight:400;fontFamily:Arial;textAlign:center;direction:ltr;borderTopColor:rgb(255, 255, 255);borderLeftColor:rgb(255, 255, 255);borderRadius:6px;maxWidth:100%;verticalAlign:baseline;overflowWrap:break-word",
+  "span.v-line-height.v-padding|display:block;position:static;flexWrap:nowrap;flexDirection:row;color:rgb(255, 255, 255);fontSize:14px;fontWeight:400;fontFamily:Arial;lineHeight:16.8px;textAlign:center;direction:ltr;paddingTop:14px;paddingRight:24px;paddingBottom:14px;paddingLeft:24px;borderTopColor:rgb(255, 255, 255);borderLeftColor:rgb(255, 255, 255);verticalAlign:baseline;overflowWrap:break-word",
+  "td.v-container-padding-padding|display:table-cell;position:static;flexWrap:nowrap;flexDirection:row;color:rgb(0, 0, 0);fontSize:16px;fontWeight:400;fontFamily:Arial;textAlign:-webkit-left;direction:ltr;paddingTop:24px;borderTopColor:rgb(0, 0, 0);borderLeftColor:rgb(0, 0, 0);verticalAlign:middle;overflowWrap:break-word",
+  "div.v-color.v-font-family.v-font-size.v-font-weight.v-letter-spacing.v-line-height.v-text-align|display:block;position:static;flexWrap:nowrap;flexDirection:row;color:rgb(109, 124, 113);fontSize:12px;fontWeight:400;fontFamily:Arial;lineHeight:16.8px;textAlign:left;direction:ltr;borderTopColor:rgb(109, 124, 113);borderLeftColor:rgb(109, 124, 113);verticalAlign:baseline;overflowWrap:break-word",
+  "p|display:block;position:static;flexWrap:nowrap;flexDirection:row;color:rgb(109, 124, 113);fontSize:12px;fontWeight:400;fontFamily:Arial;lineHeight:16.8px;textAlign:left;direction:ltr;borderTopColor:rgb(109, 124, 113);borderLeftColor:rgb(109, 124, 113);verticalAlign:baseline;overflowWrap:break-word",
+  "table.u_content_paragraph|position:static;flexWrap:nowrap;flexDirection:row;color:rgb(0, 0, 0);fontSize:16px;fontWeight:400;fontFamily:Arial;textAlign:start;direction:ltr;borderTopColor:rgb(128, 128, 128);borderLeftColor:rgb(128, 128, 128);verticalAlign:baseline;overflowWrap:break-word",
+  "td.v-container-padding-padding|display:table-cell;position:static;flexWrap:nowrap;flexDirection:row;color:rgb(0, 0, 0);fontSize:16px;fontWeight:400;fontFamily:Arial;textAlign:-webkit-left;direction:ltr;paddingTop:20px;borderTopColor:rgb(0, 0, 0);borderLeftColor:rgb(0, 0, 0);verticalAlign:middle;overflowWrap:break-word",
+  "div.v-color.v-font-family.v-font-size.v-font-weight.v-letter-spacing.v-line-height.v-text-align|display:block;position:static;flexWrap:nowrap;flexDirection:row;color:rgb(109, 124, 113);fontSize:12px;fontWeight:400;fontFamily:Arial;lineHeight:16.8px;textAlign:center;direction:ltr;borderTopColor:rgb(109, 124, 113);borderLeftColor:rgb(109, 124, 113);verticalAlign:baseline;overflowWrap:break-word",
+  "p|display:block;position:static;flexWrap:nowrap;flexDirection:row;color:rgb(109, 124, 113);fontSize:12px;fontWeight:400;fontFamily:Arial;lineHeight:16.8px;textAlign:center;direction:ltr;borderTopColor:rgb(109, 124, 113);borderLeftColor:rgb(109, 124, 113);verticalAlign:baseline;overflowWrap:break-word",
+  "div.v-col-border.v-col-border-radius.v-col-padding|display:block;position:static;flexWrap:nowrap;flexDirection:row;color:rgb(0, 0, 0);fontSize:16px;fontWeight:400;fontFamily:ua-default-serif;textAlign:start;direction:ltr;paddingTop:24px;paddingRight:20px;paddingBottom:24px;paddingLeft:20px;borderTopStyle:solid;borderLeftStyle:solid;verticalAlign:baseline;overflowWrap:break-word",
+  "h1.v-color.v-font-size.v-font-weight.v-letter-spacing.v-line-height.v-text-align|display:block;position:static;flexWrap:nowrap;flexDirection:row;color:rgb(32, 55, 42);fontSize:30px;fontWeight:400;fontFamily:Arial;lineHeight:34.5px;textAlign:center;direction:ltr;borderTopColor:rgb(32, 55, 42);borderLeftColor:rgb(32, 55, 42);verticalAlign:baseline;overflowWrap:break-word",
+  "td.v-container-padding-padding|display:table-cell;position:static;flexWrap:nowrap;flexDirection:row;color:rgb(0, 0, 0);fontSize:16px;fontWeight:400;fontFamily:Arial;textAlign:-webkit-left;direction:ltr;paddingTop:4px;paddingBottom:16px;borderTopColor:rgb(0, 0, 0);borderLeftColor:rgb(0, 0, 0);verticalAlign:middle;overflowWrap:break-word",
+  "img.v-src-max-width.v-src-width|display:inline-block;position:static;flexWrap:nowrap;flexDirection:row;color:rgb(0, 0, 0);fontSize:16px;fontWeight:400;fontFamily:Arial;textAlign:-webkit-center;direction:ltr;borderTopColor:rgb(0, 0, 0);borderLeftColor:rgb(0, 0, 0);maxWidth:900px;verticalAlign:middle;overflowWrap:break-word",
+  "div.v-color.v-font-family.v-font-size.v-font-weight.v-letter-spacing.v-line-height.v-text-align|display:block;position:static;flexWrap:nowrap;flexDirection:row;color:rgb(82, 99, 88);fontSize:15px;fontWeight:400;fontFamily:Arial;lineHeight:23.25px;textAlign:left;direction:ltr;borderTopColor:rgb(82, 99, 88);borderLeftColor:rgb(82, 99, 88);verticalAlign:baseline;overflowWrap:break-word",
+  "p|display:block;position:static;flexWrap:nowrap;flexDirection:row;color:rgb(82, 99, 88);fontSize:15px;fontWeight:400;fontFamily:Arial;lineHeight:23.25px;textAlign:left;direction:ltr;borderTopColor:rgb(82, 99, 88);borderLeftColor:rgb(82, 99, 88);verticalAlign:baseline;overflowWrap:break-word"
  ],
  "stories": {
-  "agent-examples-airbnb-·-reservation-confirmation--airbnb-confirmation@desktop": [
+  "agent-examples-airbnb-\u00b7-reservation-confirmation--airbnb-confirmation@desktop": [
    0,
    1,
    2,
@@ -1234,7 +1267,7 @@
    31,
    32
   ],
-  "agent-examples-airbnb-·-reservation-confirmation--default@desktop": [
+  "agent-examples-airbnb-\u00b7-reservation-confirmation--default@desktop": [
    0,
    1,
    2,
@@ -1373,7 +1406,7 @@
    31,
    32
   ],
-  "agent-examples-linear-·-product-digest--default@desktop": [
+  "agent-examples-linear-\u00b7-product-digest--default@desktop": [
    0,
    33,
    2,
@@ -1462,7 +1495,7 @@
    35,
    54
   ],
-  "agent-examples-linear-·-product-digest--product-digest@desktop": [
+  "agent-examples-linear-\u00b7-product-digest--product-digest@desktop": [
    0,
    33,
    2,
@@ -1551,7 +1584,7 @@
    35,
    54
   ],
-  "agent-examples-luma-·-event-invite--default@desktop": [
+  "agent-examples-luma-\u00b7-event-invite--default@desktop": [
    0,
    55,
    2,
@@ -1675,7 +1708,7 @@
    87,
    88
   ],
-  "agent-examples-luma-·-event-invite--luma-event-invite@desktop": [
+  "agent-examples-luma-\u00b7-event-invite--luma-event-invite@desktop": [
    0,
    55,
    2,
@@ -1799,7 +1832,7 @@
    87,
    88
   ],
-  "agent-examples-mercury-·-transaction-receipt--default@desktop": [
+  "agent-examples-mercury-\u00b7-transaction-receipt--default@desktop": [
    0,
    89,
    90,
@@ -1937,7 +1970,7 @@
    114,
    115
   ],
-  "agent-examples-mercury-·-transaction-receipt--mercury-receipt@desktop": [
+  "agent-examples-mercury-\u00b7-transaction-receipt--mercury-receipt@desktop": [
    0,
    89,
    90,
@@ -2075,7 +2108,7 @@
    114,
    115
   ],
-  "agent-examples-morning-brew-·-daily-digest--default@desktop": [
+  "agent-examples-morning-brew-\u00b7-daily-digest--default@desktop": [
    0,
    116,
    2,
@@ -2249,7 +2282,7 @@
    118,
    146
   ],
-  "agent-examples-morning-brew-·-daily-digest--morning-brew-digest@desktop": [
+  "agent-examples-morning-brew-\u00b7-daily-digest--morning-brew-digest@desktop": [
    0,
    116,
    2,
@@ -2423,7 +2456,7 @@
    118,
    146
   ],
-  "agent-examples-nike-·-sneaker-drop--default@desktop": [
+  "agent-examples-nike-\u00b7-sneaker-drop--default@desktop": [
    0,
    147,
    2,
@@ -2485,7 +2518,7 @@
    167,
    168
   ],
-  "agent-examples-nike-·-sneaker-drop--nike-drop@desktop": [
+  "agent-examples-nike-\u00b7-sneaker-drop--nike-drop@desktop": [
    0,
    147,
    2,
@@ -2547,7 +2580,7 @@
    167,
    168
   ],
-  "agent-examples-notion-·-welcome--default@desktop": [
+  "agent-examples-notion-\u00b7-welcome--default@desktop": [
    0,
    169,
    2,
@@ -2670,7 +2703,7 @@
    191,
    192
   ],
-  "agent-examples-notion-·-welcome--notion-welcome@desktop": [
+  "agent-examples-notion-\u00b7-welcome--notion-welcome@desktop": [
    0,
    169,
    2,
@@ -2793,7 +2826,7 @@
    191,
    192
   ],
-  "agent-examples-stripe-·-payment-receipt--default@desktop": [
+  "agent-examples-stripe-\u00b7-payment-receipt--default@desktop": [
    0,
    89,
    2,
@@ -2931,7 +2964,7 @@
    208,
    209
   ],
-  "agent-examples-stripe-·-payment-receipt--stripe-receipt@desktop": [
+  "agent-examples-stripe-\u00b7-payment-receipt--stripe-receipt@desktop": [
    0,
    89,
    2,
@@ -3069,7 +3102,7 @@
    208,
    209
   ],
-  "agent-examples-warby-parker-·-order-shipped--default@desktop": [
+  "agent-examples-warby-parker-\u00b7-order-shipped--default@desktop": [
    0,
    210,
    2,
@@ -3272,7 +3305,7 @@
    234,
    236
   ],
-  "agent-examples-warby-parker-·-order-shipped--warby-order-shipped@desktop": [
+  "agent-examples-warby-parker-\u00b7-order-shipped--warby-order-shipped@desktop": [
    0,
    210,
    2,
@@ -5981,7 +6014,7 @@
    988,
    294
   ],
-  "agent-examples-airbnb-·-reservation-confirmation--airbnb-confirmation@mobile": [
+  "agent-examples-airbnb-\u00b7-reservation-confirmation--airbnb-confirmation@mobile": [
    0,
    989,
    2,
@@ -6120,7 +6153,7 @@
    31,
    32
   ],
-  "agent-examples-airbnb-·-reservation-confirmation--default@mobile": [
+  "agent-examples-airbnb-\u00b7-reservation-confirmation--default@mobile": [
    0,
    989,
    2,
@@ -6259,7 +6292,7 @@
    31,
    32
   ],
-  "agent-examples-linear-·-product-digest--default@mobile": [
+  "agent-examples-linear-\u00b7-product-digest--default@mobile": [
    0,
    998,
    2,
@@ -6348,7 +6381,7 @@
    35,
    54
   ],
-  "agent-examples-linear-·-product-digest--product-digest@mobile": [
+  "agent-examples-linear-\u00b7-product-digest--product-digest@mobile": [
    0,
    998,
    2,
@@ -6437,7 +6470,7 @@
    35,
    54
   ],
-  "agent-examples-luma-·-event-invite--default@mobile": [
+  "agent-examples-luma-\u00b7-event-invite--default@mobile": [
    0,
    1004,
    2,
@@ -6561,7 +6594,7 @@
    87,
    88
   ],
-  "agent-examples-luma-·-event-invite--luma-event-invite@mobile": [
+  "agent-examples-luma-\u00b7-event-invite--luma-event-invite@mobile": [
    0,
    1004,
    2,
@@ -6685,7 +6718,7 @@
    87,
    88
   ],
-  "agent-examples-mercury-·-transaction-receipt--default@mobile": [
+  "agent-examples-mercury-\u00b7-transaction-receipt--default@mobile": [
    0,
    1012,
    90,
@@ -6823,7 +6856,7 @@
    114,
    115
   ],
-  "agent-examples-mercury-·-transaction-receipt--mercury-receipt@mobile": [
+  "agent-examples-mercury-\u00b7-transaction-receipt--mercury-receipt@mobile": [
    0,
    1012,
    90,
@@ -6961,7 +6994,7 @@
    114,
    115
   ],
-  "agent-examples-morning-brew-·-daily-digest--default@mobile": [
+  "agent-examples-morning-brew-\u00b7-daily-digest--default@mobile": [
    0,
    1018,
    2,
@@ -7135,7 +7168,7 @@
    118,
    146
   ],
-  "agent-examples-morning-brew-·-daily-digest--morning-brew-digest@mobile": [
+  "agent-examples-morning-brew-\u00b7-daily-digest--morning-brew-digest@mobile": [
    0,
    1018,
    2,
@@ -7309,7 +7342,7 @@
    118,
    146
   ],
-  "agent-examples-nike-·-sneaker-drop--default@mobile": [
+  "agent-examples-nike-\u00b7-sneaker-drop--default@mobile": [
    0,
    1026,
    2,
@@ -7371,7 +7404,7 @@
    167,
    168
   ],
-  "agent-examples-nike-·-sneaker-drop--nike-drop@mobile": [
+  "agent-examples-nike-\u00b7-sneaker-drop--nike-drop@mobile": [
    0,
    1026,
    2,
@@ -7433,7 +7466,7 @@
    167,
    168
   ],
-  "agent-examples-notion-·-welcome--default@mobile": [
+  "agent-examples-notion-\u00b7-welcome--default@mobile": [
    0,
    1031,
    2,
@@ -7556,7 +7589,7 @@
    191,
    192
   ],
-  "agent-examples-notion-·-welcome--notion-welcome@mobile": [
+  "agent-examples-notion-\u00b7-welcome--notion-welcome@mobile": [
    0,
    1031,
    2,
@@ -7679,7 +7712,7 @@
    191,
    192
   ],
-  "agent-examples-stripe-·-payment-receipt--default@mobile": [
+  "agent-examples-stripe-\u00b7-payment-receipt--default@mobile": [
    0,
    1012,
    2,
@@ -7817,7 +7850,7 @@
    208,
    209
   ],
-  "agent-examples-stripe-·-payment-receipt--stripe-receipt@mobile": [
+  "agent-examples-stripe-\u00b7-payment-receipt--stripe-receipt@mobile": [
    0,
    1012,
    2,
@@ -7955,7 +7988,7 @@
    208,
    209
   ],
-  "agent-examples-warby-parker-·-order-shipped--default@mobile": [
+  "agent-examples-warby-parker-\u00b7-order-shipped--default@mobile": [
    0,
    1040,
    2,
@@ -8158,7 +8191,7 @@
    234,
    236
   ],
-  "agent-examples-warby-parker-·-order-shipped--warby-order-shipped@mobile": [
+  "agent-examples-warby-parker-\u00b7-order-shipped--warby-order-shipped@mobile": [
    0,
    1040,
    2,
@@ -10866,6 +10899,80 @@
    294,
    988,
    294
+  ],
+  "examples-phone-overrides--default@desktop": [
+   0,
+   517,
+   1093,
+   3,
+   4,
+   5,
+   1094,
+   1095,
+   1096,
+   1097,
+   1098,
+   1099,
+   1100,
+   1101,
+   1102,
+   1103,
+   1104,
+   1105,
+   1095,
+   1106,
+   1107,
+   1108,
+   1109,
+   1096,
+   1110,
+   1111,
+   1112,
+   1095,
+   1113,
+   1114,
+   1115,
+   1116,
+   1117,
+   1118,
+   1119
+  ],
+  "examples-phone-overrides--default@mobile": [
+   0,
+   1054,
+   1093,
+   3,
+   990,
+   5,
+   1120,
+   1095,
+   1096,
+   1097,
+   1098,
+   1099,
+   1100,
+   1121,
+   1102,
+   1122,
+   1104,
+   1123,
+   1095,
+   1106,
+   1124,
+   1125,
+   1109,
+   1096,
+   1110,
+   1111,
+   1112,
+   1116,
+   1113,
+   1114,
+   1115,
+   1095,
+   1117,
+   1118,
+   1119
   ]
  }
 }

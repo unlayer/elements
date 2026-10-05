@@ -10,6 +10,7 @@
  * - TypeScript provides autocomplete for ALL properties (flat and nested)
  */
 
+import type { DeviceProps } from "../types";
 import { normalizeCssValues } from "./css-values";
 import { textToTextJson, htmlToTextJson } from "./lexical-helpers";
 
@@ -36,7 +37,7 @@ type FlattenObjectProps<T> = T extends object
  * Semantic props type for any component.
  * Generic TChildren parameter allows each framework to supply its own child type.
  */
-export type SemanticProps<T, TChildren = any> = FlattenObjectProps<T> & {
+export type SemanticProps<T, TChildren = any> = Omit<FlattenObjectProps<T>, keyof DeviceProps> & DeviceProps & {
   children?: TChildren;
   values?: T; // Escape hatch for full control
   /** HTML string with inline formatting for Paragraph (e.g. `'Hello <b>bold</b>'`) */
@@ -158,7 +159,7 @@ export function mapSemanticProps<T extends Record<string, any>>(
   defaultValues: T,
   componentType: string
 ): T {
-  const { children, values, ...restProps } = props;
+  const { children, values, mobile, hideOnMobile, hideOnDesktop, ...restProps } = props;
   const userProps: any = { ...restProps };
 
   // Start with escape hatch if provided
@@ -335,6 +336,27 @@ export function mapSemanticProps<T extends Record<string, any>>(
       }
       final.border = b;
     }
+  }
+
+  if (mobile || hideOnMobile !== undefined || hideOnDesktop !== undefined) {
+    const overrides = { ...final._override };
+    if (mobile || hideOnMobile !== undefined) {
+      const { width, maxWidth, autoWidth, ...phone } = mobile || {};
+      const mapped = mapSemanticProps(phone as SemanticProps<T>, defaultValues, componentType) as Record<string, any>;
+      if (componentType === "Image" && (width !== undefined || maxWidth !== undefined || autoWidth !== undefined)) {
+        mapped.src = {
+          ...(overrides.mobile?.src || {}),
+          ...(autoWidth !== undefined ? { autoWidth } : { autoWidth: false }),
+          ...(width !== undefined || maxWidth !== undefined ? { maxWidth: width ?? maxWidth } : {}),
+        };
+      } else if (width !== undefined || autoWidth !== undefined) {
+        const key = componentType === "Button" ? "size" : "width";
+        mapped[key] = { autoWidth: autoWidth ?? false, ...(width !== undefined ? { width: typeof width === "number" ? `${width}px` : width } : {}) };
+      }
+      overrides.mobile = { ...overrides.mobile, ...mapped, ...(hideOnMobile !== undefined ? { hideMobile: hideOnMobile } : {}) };
+    }
+    if (hideOnDesktop !== undefined) overrides.desktop = { ...overrides.desktop, hideDesktop: hideOnDesktop };
+    final._override = overrides;
   }
 
   // "Do not stack on mobile" is a mobile override, as the editor saves it:

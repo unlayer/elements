@@ -12,7 +12,7 @@ import type { ExporterName } from "@unlayer/types";
 /** Exporter map keyed by display mode. Defined locally until added to @unlayer/types. */
 type ItemExporters = Partial<Record<ExporterName, (...args: any[]) => string>>;
 import type { RenderMode, UnlayerConfig } from "@unlayer-internal/shared-elements";
-import type { SizeInput } from "../types";
+import type { DeviceProps, SizeInput } from "../types";
 import { contentSlotWidth, pinImageSrc } from "./image-sizing";
 import {
   mergeValues,
@@ -38,7 +38,7 @@ export const UNLAYER_CONFIG_KEY = "__unlayerItemConfig";
 /**
  * Base props that all item components support
  */
-export interface BaseItemComponentProps {
+export interface BaseItemComponentProps extends DeviceProps {
   children?: React.ReactNode;
   className?: string;
   style?: React.CSSProperties;
@@ -110,7 +110,7 @@ export interface ItemComponentConfig<TValues, TSemanticProps> {
  * Props type that combines base props with semantic props
  */
 export type ItemComponentProps<TSemanticProps> = BaseItemComponentProps &
-  TSemanticProps;
+  Omit<TSemanticProps, keyof DeviceProps>;
 
 // ============================================
 // Internal: rendering helpers (merged from render-component.tsx)

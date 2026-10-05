@@ -6,7 +6,7 @@ import { RowExporters } from "@unlayer/exporters";
 import { mapSemanticProps, type SemanticProps } from "../utils/semantic-props";
 import { nextHtmlId } from "../utils/create-component";
 import { bodyContentWidthPx } from "../utils/image-sizing";
-import type { SizeInput } from "../types";
+import type { DeviceProps, SizeInput } from "../types";
 import { ROW_DEFAULTS, BODY_DEFAULTS } from "../utils/container-defaults";
 
 /**
@@ -28,7 +28,7 @@ const DEFAULT_VALUES = ROW_DEFAULTS;
 
 const DEFAULT_BODY_VALUES = BODY_DEFAULTS;
 
-export type RowProps = Omit<SemanticProps<RowValues>, "padding"> & {
+export type RowProps = Omit<SemanticProps<RowValues>, "padding" | keyof DeviceProps> & DeviceProps & {
   children?: React.ReactNode;
   layout?: ColumnLayout;
   cells?: number[];
