@@ -82,6 +82,7 @@ export const ReceiptEmail = ({
             alt="Northwind"
             textAlign="left"
             containerPadding="0px 0px 0px 0px"
+            mobile={{ width: "140px" }}
           />
         </Column>
       </Row>

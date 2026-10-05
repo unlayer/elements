@@ -89,6 +89,14 @@
                       "target": "_blank"
                     }
                   },
+                  "_override": {
+                    "mobile": {
+                      "src": {
+                        "autoWidth": false,
+                        "maxWidth": "140px"
+                      }
+                    }
+                  },
                   "_meta": {
                     "htmlID": "u_content_image_1",
                     "htmlClassNames": "u_content_image"

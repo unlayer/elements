@@ -244,7 +244,37 @@ class Engine {
     this.settle(root);
     const rows = this.merge(this.out);
     this.pinPhoneInsets(rows);
+    this.pinPhoneImages(rows);
     return rows;
+  }
+
+  /**
+   * Images with a fixed px width keep it on phones when it fits there, as the original's do:
+   * Elements sizes an image as a share of its column, which shrinks with the screen.
+   */
+  private pinPhoneImages(rows: ElementNode[]): void {
+    for (const row of rows) {
+      if (row.type === "#expr") { for (const slot of row.slots ?? []) this.pinPhoneImages(slot as ElementNode[]); continue; }
+      const columns = (row.children ?? []) as ElementNode[];
+      const shares = columnShares(row.props ?? {}, columns.length);
+      if (!shares) continue;
+      const stacks = this.info.get(row)?.stacks;
+      columns.forEach((column, i) => {
+        if (column.type !== "Column") return;
+        const mobile = (column.props?.mobile ?? {}) as { padding?: unknown; border?: Record<string, unknown> };
+        const padding = phoneSides(mobile.padding ?? column.props?.padding);
+        if (!padding) return;
+        const border = (side: string) => parseFloat(String(mobile.border?.[`border${side}Width`] ?? 0)) || 0;
+        const room = (stacks ? PHONE_WIDTH : PHONE_WIDTH * shares[i]) - padding.left - padding.right - border("Left") - border("Right");
+        for (const item of (column.children ?? []) as ElementNode[]) {
+          if (item.type !== "Image" || item.props?.mobile) continue;
+          const width = parseFloat(String(item.props?.width ?? ""));
+          const inner = phoneSides(item.props?.containerPadding);
+          if (!Number.isFinite(width) || !inner || width > room - inner.left - inner.right - 0.5) continue;
+          item.props = { ...item.props, mobile: { width: px(width) } };
+        }
+      });
+    }
   }
 
   /** Keep padding represented by card spacers in px as the row shrinks. */
@@ -428,10 +458,16 @@ class Engine {
     if (kind === "narrow" && columnFrames(parent).some((f) => f.kind === "card")) {
       keep = style.align === "center" ? ZERO_INSET : style.align === "right" ? { left: 0, right: ctx.inset.right } : { left: ctx.inset.left, right: 0 };
     }
-    // A narrow box that takes the phone's full width keeps all the space around it as padding on
-    // its columns, with a phone value: the editor can't hide spacer columns on phones.
-    const collapses = kind === "narrow" && (wanted ?? width) >= PHONE_WIDTH - total.left - total.right;
-    if (collapses) keep = { left: outer.left, right: outer.right };
+    // A narrow box keeps all the space around it as padding on its columns, with a phone value:
+    // the editor can't hide or resize spacer columns on phones. On a phone the box keeps its own
+    // width when it fits (as the original's max-width does), else takes the width there is.
+    const phoneRoom = PHONE_WIDTH - total.left - total.right - Math.max(0, phoneMargin.left) - Math.max(0, phoneMargin.right);
+    const collapses = kind === "narrow" && (wanted ?? width) >= phoneRoom;
+    // Columns side by side inside it (icons, cells) keep spacers: padding on their edge columns would skew them.
+    const padded = kind === "narrow" && (collapses || !hasColumns(children));
+    if (padded) keep = { left: outer.left, right: outer.right };
+    const phoneSlack = padded && !collapses ? Math.max(0, phoneRoom - (wanted ?? width)) : 0;
+    const phoneBefore = style.align === "center" ? phoneSlack / 2 : style.align === "right" ? phoneSlack : 0;
     const frame: Frame = {
       parent,
       kind,
@@ -441,7 +477,7 @@ class Engine {
       radius: decorated && kind !== "band" ? style.radius : undefined,
       outer: columnFrame ? { left: outer.left - keep.left, right: outer.right - keep.right } : { left: 0, right: 0 },
       collapsesOnMobile: collapses,
-      mobileOuter: collapses ? { left: 0, right: 0 } : columnFrame ? { left: (keep.left ? 0 : inheritedInset.left) + Math.max(0, phoneMargin.left), right: (keep.right ? 0 : inheritedInset.right) + Math.max(0, phoneMargin.right) } : undefined,
+      mobileOuter: padded ? { left: 0, right: 0 } : columnFrame ? { left: (keep.left ? 0 : inheritedInset.left) + Math.max(0, phoneMargin.left), right: (keep.right ? 0 : inheritedInset.right) + Math.max(0, phoneMargin.right) } : undefined,
       // Inside its border: the columns at its edges add the border's width to their cells.
       width: columnFrame ? width + keep.left + keep.right - (kind === "card" && decorated ? edgeWidth(style.border?.left) + edgeWidth(style.border?.right) : 0) : parent.width,
       rows: [],
@@ -451,8 +487,11 @@ class Engine {
     if (kind === "card" && style.image) this.report.note("background image dropped on an inset box", String(style.image.url ?? ""));
     // A band or fill keeps the space around it as padding on the columns.
     const inset = columnFrame ? { left: padding.left + keep.left, right: padding.right + keep.right } : sameInset;
-    const mobileInset = collapses
-      ? { left: phonePadding.left + inheritedInset.left + Math.max(0, phoneMargin.left), right: phonePadding.right + inheritedInset.right + Math.max(0, phoneMargin.right) }
+    const mobileInset = padded
+      ? {
+          left: phonePadding.left + inheritedInset.left + Math.max(0, phoneMargin.left) + phoneBefore,
+          right: phonePadding.right + inheritedInset.right + Math.max(0, phoneMargin.right) + phoneSlack - phoneBefore,
+        }
       : phoneChanged ? columnFrame ? { left: phonePadding.left + (keep.left ? inheritedInset.left : 0), right: phonePadding.right + (keep.right ? inheritedInset.right : 0) } : samePhoneInset : undefined;
     return { inner: { frame, inset, inContainer, mobileInset, phoneTotalInset, hideOnMobile }, opened: frame };
   }
@@ -908,6 +947,38 @@ function column(node: ColumnNode, background: string | undefined, inset: { left:
 // ============================================
 // Helpers
 // ============================================
+
+/** Each column's share of the row, from its `cells` or named layout; undefined when code decides. */
+function columnShares(props: Record<string, unknown>, count: number): number[] | undefined {
+  const named = Object.entries(LAYOUTS).find(([, name]) => name === props.layout)?.[0];
+  const cells = Array.isArray(props.cells) ? (props.cells as unknown[]) : named ? named.split(",").map(Number) : count === 1 ? [1] : undefined;
+  if (!cells || cells.length !== count || !cells.every((c) => typeof c === "number")) return undefined;
+  const sum = (cells as number[]).reduce((a, b) => a + b, 0);
+  return (cells as number[]).map((c) => c / sum);
+}
+
+/** CSS sides in px at the benchmark's phone width (`calc(40px - 3.75vw)` included); undefined if unknown. */
+function phoneSides(value: unknown): BoxSides | undefined {
+  if (value === undefined || value === null || value === "") return { ...ZERO };
+  const parts = String(value).trim().match(/calc\([^)]*\)|\S+/g) ?? [];
+  const one = (part: string): number | undefined => {
+    const fluid = /^calc\((-?[\d.]+)px - ([\d.]+)vw\)$/.exec(part);
+    if (fluid) return Number(fluid[1]) - (Number(fluid[2]) * PHONE_WIDTH) / 100;
+    const n = /^(-?[\d.]+)(px)?$/.exec(part);
+    return n ? Number(n[1]) : undefined;
+  };
+  const v = parts.map(one);
+  if (!v.length || v.some((x) => x === undefined)) return undefined;
+  const [top, right = top, bottom = top, left = right] = v as number[];
+  return { top, right, bottom, left };
+}
+
+/** Whether `flow` holds a row of several columns, or columns from code. */
+function hasColumns(flow: Flow[]): boolean {
+  return flow.some((item) =>
+    item.kind === "row" ? item.columns.length > 1 || item.columns.some((c) => c.kind === "columns") : item.kind === "box" ? hasColumns(item.children) : false,
+  );
+}
 
 /** The width the fixed-width columns and images in `flow` need side by side (px). */
 function minContent(flow: Flow[]): number {

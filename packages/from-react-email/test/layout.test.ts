@@ -72,10 +72,11 @@ describe("boxes", () => {
     expect(shape[1].columns[0].text).toBe("Narrow | Narrow");
   });
 
-  it("centers a narrow box with spacer columns", async () => {
+  it("centers a narrow box with padding that keeps its width on phones", async () => {
     const { shape } = await rows(h(Container, null, h(Section, { style: { width: "240px", margin: "0 auto" } }, h(Text, { style: { margin: 0 } }, "Narrow"))));
-    expect(shape[0].cells).toEqual([180, 240, 180]);
-    expect(shape[0].columns.map((c: any) => c.text)).toEqual(["", "Narrow", ""]);
+    expect(shape[0].cells).toBeUndefined();
+    // 180 + 240 + 180 on desktop; on a 375px phone, (375 - 240) / 2 on each side.
+    expect(shape[0].columns[0]).toMatchObject({ text: "Narrow", padding: "0px 180px 0px 180px", mobile: { padding: "0px 67.5px 0px 67.5px" } });
   });
 });
 

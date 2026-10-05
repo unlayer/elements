@@ -58,6 +58,7 @@ export const WelcomeEmail = ({
             alt={productName}
             textAlign="center"
             containerPadding="0px 0px 0px 0px"
+            mobile={{ width: "120px" }}
           />
         </Column>
       </Row>
