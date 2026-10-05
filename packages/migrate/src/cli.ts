@@ -29,7 +29,7 @@ Usage:
 
 Each template is converted (its props, loops and conditions stay), then
 checked: the original and the migrated template are rendered with the
-template's PreviewProps, every word the original shows must still be there,
+template's PreviewProps, every word must be preserved without extra words,
 and the visual editor must get every block. Nothing is written unless you ask:
 
   --write          Replace each template with its migrated version.
@@ -73,12 +73,14 @@ export interface FileResult {
   changes?: Array<{ reason: string; count: number; examples: string[] }>;
   /** Words the original shows that the migrated template doesn't. */
   missingText?: string[];
+  /** Words the migrated template shows that the original doesn't. */
+  addedText?: string[];
   /** Links, image sources and image text the original has that the migrated template doesn't. */
   missingAttributes?: string[];
   /** Blocks the visual editor wouldn't get. */
   designWarnings?: string[];
   /** Problems with a boolean prop flipped (branches the preview props don't take). */
-  variants?: Array<{ change: string; missing: string[]; missingAttributes: string[]; error?: string }>;
+  variants?: Array<{ change: string; missing: string[]; added: string[]; missingAttributes: string[]; error?: string }>;
 }
 
 interface Options {
@@ -391,7 +393,7 @@ async function migrateFile(input: Input, options: Options, lib: Library, io: Io,
     const result: FileResult = {
       file: name,
       status:
-        verification.missing.length || verification.missingAttributes.length || verification.designWarnings.length || verification.variants.length
+        verification.missing.length || verification.added.length || verification.missingAttributes.length || verification.designWarnings.length || verification.variants.length
           ? "check-failed"
           : "migrated",
       editable: report.nativeRatio,
@@ -403,6 +405,7 @@ async function migrateFile(input: Input, options: Options, lib: Library, io: Io,
         ...(mergeTags?.kept ?? []).map((path) => ({ reason: "text prop kept as its sample value in the design JSON (the template changes or tests it)", detail: path })),
       ]),
       missingText: verification.missing,
+      addedText: verification.added,
       missingAttributes: verification.missingAttributes,
       variants: verification.variants,
       designWarnings: verification.designWarnings,
@@ -464,9 +467,10 @@ async function compare(paths: string[], args: Args, io: Io, library?: Library): 
     }
     const problems = [
       ...(check.missing.length ? [`lost text: ${quote(check.missing)}`] : []),
+      ...(check.added.length ? [`extra text: ${quote(check.added)}`] : []),
       ...(check.missingAttributes.length ? [`lost links/images: ${quote(check.missingAttributes)}`] : []),
       ...(check.designWarnings.length ? check.designWarnings.map((w) => `the editor wouldn't get: ${w}`) : []),
-      ...check.variants.map((v) => `with ${v.change}: ${v.error ? `fails (${v.error})` : `lost ${quote([...v.missing, ...v.missingAttributes])}`}`),
+      ...check.variants.map((v) => `with ${v.change}: ${variantProblems(v)}`),
     ];
     const name = `${relative(io.cwd, migratedPath)} against ${relative(io.cwd, originalPath)}`;
     if (!problems.length) {
@@ -509,9 +513,10 @@ function line(result: FileResult): string {
       if (result.status === "migrated") return `✓ ${result.file}: ${editable}${differences}${written}`;
       const problems = [
         ...(result.missingText?.length ? [`lost text: ${quote(result.missingText)}`] : []),
+        ...(result.addedText?.length ? [`extra text: ${quote(result.addedText)}`] : []),
         ...(result.missingAttributes?.length ? [`lost links/images: ${quote(result.missingAttributes)}`] : []),
         ...(result.designWarnings?.length ? [`${result.designWarnings.length} block(s) the editor wouldn't get`] : []),
-        ...(result.variants ?? []).map((v) => `with ${v.change}: ${v.error ? `fails (${v.error})` : `lost ${quote([...v.missing, ...v.missingAttributes])}`}`),
+        ...(result.variants ?? []).map((v) => `with ${v.change}: ${variantProblems(v)}`),
       ];
       return `✗ ${result.file}: check failed (${problems.join("; ")})${written}`;
     }
@@ -545,10 +550,11 @@ function markdownReport(results: FileResult[]): string {
     if (r.reason) lines.push(r.reason, "");
     if (r.output) lines.push(`Written to \`${r.output}\`${r.design ? ` (design JSON: \`${r.design}\`)` : ""}.`, "");
     if (r.missingText?.length) lines.push(`**Lost text:** ${quote(r.missingText)}`, "");
+    if (r.addedText?.length) lines.push(`**Extra text:** ${quote(r.addedText)}`, "");
     if (r.missingAttributes?.length) lines.push(`**Lost links or images:** ${quote(r.missingAttributes)}`, "");
     if (r.designWarnings?.length) lines.push("**The editor wouldn't get:**", ...r.designWarnings.map((w) => `- ${w}`), "");
     if (r.variants?.length) {
-      lines.push("**With a prop flipped:**", ...r.variants.map((v) => `- \`${v.change}\`: ${v.error ? `fails: ${v.error}` : `lost ${quote([...v.missing, ...v.missingAttributes])}`}`), "");
+      lines.push("**With a prop flipped:**", ...r.variants.map((v) => `- \`${v.change}\`: ${variantProblems(v)}`), "");
     }
     if (r.kept?.length) {
       lines.push("**Kept as HTML** (renders the same, not editable in the visual editor):");
@@ -567,6 +573,15 @@ function markdownReport(results: FileResult[]): string {
     }
   }
   return `${lines.join("\n")}\n`;
+}
+
+function variantProblems(variant: NonNullable<FileResult["variants"]>[number]): string {
+  return [
+    ...(variant.error ? [`fails (${variant.error})`] : []),
+    ...(variant.missing.length ? [`lost text: ${quote(variant.missing)}`] : []),
+    ...(variant.added.length ? [`extra text: ${quote(variant.added)}`] : []),
+    ...(variant.missingAttributes.length ? [`lost links/images: ${quote(variant.missingAttributes)}`] : []),
+  ].join("; ");
 }
 
 function quote(words: string[]): string {

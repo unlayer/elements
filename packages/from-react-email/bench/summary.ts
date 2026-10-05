@@ -27,7 +27,7 @@ function stats(rows: any[]) {
     templates: rows.length,
     converts: rows.filter((r) => r.converted).length,
     typechecks: rows.filter((r) => r.typechecks).length,
-    lost: ok.filter((r) => r.missingText?.length || r.missingAttributes?.length).length,
+    contentProblems: ok.filter((r) => r.missingText?.length || r.addedText?.length || r.missingAttributes?.length).length,
     variants: ok.filter((r) => r.variants?.length).length,
     editor: ok.filter((r) => r.jsonWarnings).length,
     nativeAvg: avg(ok.map((r) => r.nativeRatio)),
@@ -44,7 +44,7 @@ function stats(rows: any[]) {
 }
 
 console.log(`# Benchmark summary (looks-the-same threshold ${pct(threshold)} at 700px)\n`);
-console.log("| Mode | Group | Templates | Converts | Type-checks | Lost content | Flipped-prop problems | Editor skips | Native avg | Fully native | Words moved 700 (median / mean / >25%) | Words moved 375 (median / >25%, of originals that fit) | Looks the same @700 |");
+console.log("| Mode | Group | Templates | Converts | Type-checks | Missing or extra content | Flipped-prop problems | Editor skips | Native avg | Fully native | Words moved 700 (median / mean / >25%) | Words moved 375 (median / >25%, of originals that fit) | Looks the same @700 |");
 console.log("|---|---|---|---|---|---|---|---|---|---|---|---|---|");
 for (const mode of ["codemod", "runtime"]) {
   for (const group of ["all", "official", "community", "agent"]) {
@@ -52,7 +52,7 @@ for (const mode of ["codemod", "runtime"]) {
     if (!rows.length) continue;
     const s = stats(rows);
     console.log(
-      `| ${mode} | ${group} | ${s.templates} | ${s.converts} | ${s.typechecks} | ${s.lost} | ${s.variants} | ${s.editor} | ${pct(s.nativeAvg)} | ${s.fullyNative} | ${pct(s.moved700Median)} / ${pct(s.moved700Mean)} / ${s.moved700Over25} | ${pct(s.moved375Median)} / ${s.moved375Over25} (of ${s.fits}) | ${s.looksSame700} |`
+      `| ${mode} | ${group} | ${s.templates} | ${s.converts} | ${s.typechecks} | ${s.contentProblems} | ${s.variants} | ${s.editor} | ${pct(s.nativeAvg)} | ${s.fullyNative} | ${pct(s.moved700Median)} / ${pct(s.moved700Mean)} / ${s.moved700Over25} | ${pct(s.moved375Median)} / ${s.moved375Over25} (of ${s.fits}) | ${s.looksSame700} |`
     );
   }
 }

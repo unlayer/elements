@@ -32,6 +32,8 @@ export interface ConversionReport {
    * was checked against the original's HTML. Empty means nothing was lost.
    */
   missingText?: string[];
+  /** Words the conversion shows that the original doesn't. */
+  addedText?: string[];
   /** Links, image sources and image text the original has and the conversion doesn't. */
   missingAttributes?: string[];
 }

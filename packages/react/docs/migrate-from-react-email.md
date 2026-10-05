@@ -16,6 +16,7 @@ JavaScript templates keep JavaScript helpers. The document's `dir` and `lang` be
 Before a template is written, the original and the migrated version are rendered with the template's `PreviewProps`, then again with each boolean prop flipped, and compared:
 
 - every word, numeric value (including separators, signs, currencies and percentages), link, image and image `alt` text the original renders must be in the migrated template, with the words in the same order;
+- no new words may appear in the migrated template;
 - any block the visual editor can't represent (`renderToJson`) fails the check, including on each boolean variant.
 
 A template that fails isn't written (unless `--force`), and the command exits with code `2`. Code paths these props don't reach (a loop over an empty preview array, a condition on a non-boolean prop) are converted but not verified: extend `PreviewProps` to cover them. Without `--write` or `--out <dir>`, nothing is written: run it first to see the report.
@@ -50,7 +51,7 @@ For a right-to-left design, call `unlayer.setTextDirection("rtl")` when loading 
 
 - To move React Email templates to Elements, run `npx @unlayer/migrate <folder> --report migration.md` first, read the report, then run it again with `--write`. Don't rewrite templates by hand when the command can do it: it keeps their logic and checks the result.
 - Exit code `2` means a template failed to convert or lost content: report that to the user with the file and the reason from the report. Don't pass `--force` to hide it.
-- Blocks marked `TODO(convert)` in a migrated template are kept as HTML. Converting one by hand: replace it with Elements components (`Row` > `Column` > content), then check it with `npx @unlayer/migrate compare <original> <migrated>`. Exit code `2` lists what's missing.
+- Blocks marked `TODO(convert)` in a migrated template are kept as HTML. Converting one by hand: replace it with Elements components (`Row` > `Column` > content), then check it with `npx @unlayer/migrate compare <original> <migrated>`. Exit code `2` lists missing or extra content.
 - After converting any template by hand, run the same `compare` before reporting it done.
 - React Email → Elements, when writing by hand: `Text` → `Paragraph`; `Section`/`Row`/`Column` → `Row` > `Column`; `Container` width → `Email` `contentWidth`; `Img` → `Image`; `Hr` → `Divider`; `Preview` → `Email` `previewText`; Tailwind classes → props.
 

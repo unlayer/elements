@@ -5,7 +5,7 @@
  *
  * For each template: original HTML (React Email render) vs converted HTML
  * (Elements renderToHtml), compared three ways:
- *   - text: every word the original shows must be in the conversion;
+ *   - text: words must be preserved without missing or extra words;
  *   - layout (Chromium, at 700px and 375px): where each word lands, and
  *     whether the reading order holds;
  *   - pixels: screenshots side by side, plus a pixel-diff score.
@@ -57,10 +57,13 @@ interface Result {
   looks?: Record<number, number>;
   /** Words the original shows that the conversion doesn't. */
   missingText?: string[];
+  /** Words added by the conversion, and their count. */
+  addedText?: string[];
+  addedWords?: number;
   /** Links, image sources and alt text the original has and the conversion doesn't. */
   missingAttributes?: string[];
   /** Codemod: problems with a boolean prop flipped. */
-  variants?: Array<{ change: string; missing: string[]; missingAttributes: string[]; error?: string }>;
+  variants?: Array<{ change: string; missing: string[]; added: string[]; missingAttributes: string[]; error?: string }>;
   layout?: Record<number, Layout>;
 }
 
@@ -120,6 +123,9 @@ async function main() {
   save();
   fs.writeFileSync(path.join(out, "results.md"), summarize(results));
   console.log(`\n${summarize(results)}`);
+  const failed = results.filter((r) => !r.converted || r.error || r.missingText?.length || r.addedWords || r.missingAttributes?.length || r.variants?.length || r.jsonWarnings);
+  console.log(`${failed.length} conversions failed the content check.`);
+  if (failed.length) process.exitCode = 2;
 }
 
 async function measure(context: BrowserContext, file: string): Promise<Result[]> {
@@ -149,6 +155,8 @@ async function measure(context: BrowserContext, file: string): Promise<Result[]>
       Object.assign(result, JSON.parse(fs.readFileSync(path.join(dir, `${mode}.report.json`), "utf8")));
       const check = compareText(original, html);
       result.missingText = check.missing;
+      result.addedText = check.added;
+      result.addedWords = check.added.length;
       result.missingAttributes = check.missingAttributes;
       const scores = await compare(context, original, html, path.join(dir, mode));
       result.diff = scores.diff;
@@ -159,7 +167,7 @@ async function measure(context: BrowserContext, file: string): Promise<Result[]>
     }
     results.push(result);
     const l = result.layout?.[700];
-    const score = l ? `lost ${result.missingText?.length ?? 0}/${result.missingAttributes?.length ?? 0} jumps ${l.jumps} moved ${pct(l.moved)}` : "-";
+    const score = l ? `lost ${result.missingText?.length ?? 0}/${result.missingAttributes?.length ?? 0} extra ${result.addedWords ?? 0} jumps ${l.jumps} moved ${pct(l.moved)}` : "-";
     console.log(`${mode.padEnd(8)} ${name.padEnd(60)} ${result.converted ? "ok " : "ERR"} native ${pct(result.nativeRatio)} ${score} ${result.error ?? ""}`);
   }
   await reviewSheet(dir);
@@ -477,13 +485,13 @@ function pct(value: number | undefined): string {
 
 function summarize(results: Result[]): string {
   const lines = [
-    "| Template | Mode | Converts | Type-checks | Native | Words lost | Order breaks 700 / 375 | Words moved 700 / 375 | Looks 700 / 375 |",
-    "|---|---|---|---|---|---|---|---|---|",
+    "| Template | Mode | Converts | Type-checks | Native | Words lost | Words added | Order breaks 700 / 375 | Words moved 700 / 375 | Looks 700 / 375 |",
+    "|---|---|---|---|---|---|---|---|---|---|",
   ];
   const both = (r: Result, f: (w: number) => string) => (r.layout ? WIDTHS.map(f).join(" / ") : "-");
   for (const r of results) {
     lines.push(
-      `| ${r.template} | ${r.mode} | ${r.converted ? "yes" : `no (${r.error ?? ""})`} | ${r.typechecks === undefined ? "-" : r.typechecks ? "yes" : "no"} | ${pct(r.nativeRatio)} | ${r.missingText?.length ?? "-"} | ${both(r, (w) => String(r.layout![w].jumps))} | ${both(r, (w) => (r.layout![w].overflows ? "(original overflows)" : pct(r.layout![w].moved).trim()))} | ${both(r, (w) => `${(r.looks![w] * 100).toFixed(1)}%`)} |`
+      `| ${r.template} | ${r.mode} | ${r.converted ? "yes" : `no (${r.error ?? ""})`} | ${r.typechecks === undefined ? "-" : r.typechecks ? "yes" : "no"} | ${pct(r.nativeRatio)} | ${r.missingText?.length ?? "-"} | ${r.addedWords ?? "-"} | ${both(r, (w) => String(r.layout![w].jumps))} | ${both(r, (w) => (r.layout![w].overflows ? "(original overflows)" : pct(r.layout![w].moved).trim()))} | ${both(r, (w) => `${(r.looks![w] * 100).toFixed(1)}%`)} |`
     );
   }
   return lines.join("\n") + "\n";

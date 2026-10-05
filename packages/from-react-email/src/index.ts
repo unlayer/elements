@@ -58,6 +58,7 @@ export async function convertReactEmail(Template: Template, options: RuntimeOpti
   // Checked with the sample values: merge tags stand in for them only where that changes nothing else.
   const check = compareText(await render(element), treeToHtml(converted.tree, { fonts }));
   report.missingText = check.missing;
+  report.addedText = check.added;
   report.missingAttributes = check.missingAttributes;
   let tree = converted.tree;
   if (options.mergeTags !== false) {
@@ -89,10 +90,10 @@ export interface Verification extends TextCheck {
   design: Record<string, unknown>;
   /**
    * The same check with each boolean prop flipped, to reach branches the
-   * preview props don't take. Only variants that lost something, or where
+   * preview props don't take. Only variants with missing or extra content, or where
    * the migrated template fails and the original doesn't, are listed.
    */
-  variants: Array<{ change: string; missing: string[]; missingAttributes: string[]; error?: string }>;
+  variants: Array<{ change: string; missing: string[]; added: string[]; missingAttributes: string[]; error?: string }>;
 }
 
 /**
@@ -147,14 +148,15 @@ export async function verifyConversion(
         variants.push({
           change,
           missing: check.missing,
+          added: check.added,
           missingAttributes: check.missingAttributes,
           error: warnings.join("; "),
         });
         continue;
       }
-      if (check.missing.length || check.missingAttributes.length) variants.push({ change, missing: check.missing, missingAttributes: check.missingAttributes });
+      if (check.missing.length || check.added.length || check.missingAttributes.length) variants.push({ change, missing: check.missing, added: check.added, missingAttributes: check.missingAttributes });
     } catch (error) {
-      variants.push({ change, missing: [], missingAttributes: [], error: (error as Error).message.split("\n")[0] });
+      variants.push({ change, missing: [], added: [], missingAttributes: [], error: (error as Error).message.split("\n")[0] });
     }
   }
   return { ...compareText(originalHtml, convertedHtml), originalHtml, convertedHtml, designWarnings, design, variants };

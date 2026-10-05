@@ -308,3 +308,43 @@ export default Wrapped;`;
     expect(out.out).not.toContain("skipped");
   });
 });
+
+
+describe("extra text", () => {
+  const extra = good.replace('</Body>', '<Text>{import.meta.url.includes(".unlayer-migrate-") ? "Unexpected" : null}</Text></Body>');
+
+  it.each(["md", "json"])("fails without writing the template and includes added words in the %s report", async (extension) => {
+    const dir = project({ "welcome.tsx": extra });
+    const out = io(dir);
+    expect(await main(["welcome.tsx", "--out", "converted", "--design", "--report", `report.${extension}`], out, lib), out.out + out.err).toBe(2);
+    expect(out.out).toContain('extra text: "unexpected"');
+    expect(fs.existsSync(path.join(dir, "converted/welcome.tsx"))).toBe(false);
+    expect(fs.existsSync(path.join(dir, "converted/welcome.design.json"))).toBe(false);
+    expect(fs.readFileSync(path.join(dir, "welcome.tsx"), "utf8")).toBe(extra);
+    const report = fs.readFileSync(path.join(dir, `report.${extension}`), "utf8");
+    if (extension === "json") expect(JSON.parse(report)[0]).toMatchObject({status:"check-failed",addedText:["unexpected"],missingText:[]});
+    else expect(report).toContain('**Extra text:** "unexpected"');
+  });
+
+  it("fails when only a flipped boolean prop adds text", async () => {
+    const source = extra.replace('import.meta.url.includes', 'trial && import.meta.url.includes').replace('function T()', 'function T({trial})') + '\nT.PreviewProps = {trial:false};';
+    const dir = project({ "welcome.tsx": source });
+    const out = io(dir);
+    expect(await main(["welcome.tsx", "--out", "converted", "--report", "report.json"], out, lib), out.out + out.err).toBe(2);
+    expect(out.out).toContain('with trial: true: extra text: "unexpected"');
+    const report = JSON.parse(fs.readFileSync(path.join(dir, "report.json"), "utf8"));
+    expect(report[0]).toMatchObject({status:"check-failed",addedText:[],variants:[{change:"trial: true",added:["unexpected"],missing:[]}]});
+    expect(fs.existsSync(path.join(dir, "converted/welcome.tsx"))).toBe(false);
+  });
+
+  it("compare lists extra words in the sample and flipped props", async () => {
+    const original = good.replace('function T()', 'function T({trial})') + '\nT.PreviewProps = {trial:false};';
+    const migrated = `import { Email, Row, Column, Paragraph } from "@unlayer/react-elements";
+export default function T({trial}) { return <Email><Row><Column><Paragraph>Keep the original Unexpected{trial ? " Variant" : ""}</Paragraph></Column></Row></Email>; }`;
+    const dir = project({ "original.tsx": original, "converted.tsx": migrated });
+    const out = io(dir);
+    expect(await main(["compare", "original.tsx", "converted.tsx"], out, lib), out.out + out.err).toBe(2);
+    expect(out.out).toContain('extra text: "unexpected"');
+    expect(out.out).toContain('with trial: true: extra text: "unexpected", "variant"');
+  });
+});

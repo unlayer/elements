@@ -31,6 +31,7 @@ conversion.design(); // design JSON for the editor's loadDesign(), text props as
 conversion.html(); // HTML (renderToHtml)
 await conversion.tsx(); // Elements TSX
 conversion.report.missingText; // [] when nothing was lost
+conversion.report.addedText; // [] when no words were added
 ```
 
 Text props the template shows as given become merge tags (`{{user.name}}`), which the editor keeps and email services fill in. Props the template changes or tests (a formatted date, `name.toUpperCase()`) keep their sample value, and `report.info` says which. CSS, font URLs, backgrounds and image sources (including images kept in HTML) keep sample values; text, image alt text and links can receive tags. Pass `{ mergeTags: false }` to keep every sample value. `mergeTagDesign(Migrated, props, design)` does the same for a migrated template's design JSON.
@@ -46,13 +47,14 @@ import Migrated from "./emails/welcome.migrated";
 
 const check = await verifyConversion(Original, Migrated); // renders both with PreviewProps
 check.missing; // words the original shows and the migrated template doesn't
+check.added; // words the migrated template shows and the original doesn't
 check.missingAttributes; // links (href), images (src) and alt text it lost
 check.variants; // problems with a boolean prop flipped (branches the preview doesn't take)
 check.designWarnings; // blocks the visual editor wouldn't get
 check.design; // the design JSON
 ```
 
-`compareText(originalHtml, convertedHtml)` runs the same comparison on two HTML documents, preserving numeric separators, signs, currency symbols and percentages. Words must also stay in order: values that changed places count as missing. It counts repeated links and images and keeps destinations associated with link labels and image alt text; Outlook-only duplicates are excluded. Boolean variants are checked through both the HTML and design exporters. Code paths the props don't reach (a loop over an empty preview array, a condition on a non-boolean prop) aren't verified: extend `PreviewProps` to cover them.
+`compareText(originalHtml, convertedHtml)` runs the same comparison on two HTML documents, preserving numeric separators, signs, currency symbols and percentages. No new words may appear. Words must also stay in order: values that changed places count as missing. It counts repeated links and images and keeps destinations associated with link labels and image alt text; Outlook-only duplicates are excluded. Boolean variants are checked through both the HTML and design exporters. Code paths the props don't reach (a loop over an empty preview array, a condition on a non-boolean prop) aren't verified: extend `PreviewProps` to cover them.
 
 ## The report
 

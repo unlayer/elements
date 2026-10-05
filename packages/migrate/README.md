@@ -9,7 +9,7 @@ npx @unlayer/migrate emails --write
 Run it from your project folder. Each template is:
 
 1. **Converted.** React Email components become Elements components (`Text` → `Paragraph`, `Section`/`Row`/`Column` → `Row`/`Column`, `Button` → `Button`, …). Tailwind classes become props. Components the template uses from the same file or from your other files (a shared `Layout`, a `Footer`) are inlined. Anything with no Elements equivalent is kept as an `Html` block that renders exactly as before.
-2. **Checked.** The original and the migrated template are rendered with the template's `PreviewProps`, then again with each boolean prop flipped, and compared. Every word (including numeric separators, signs, currency symbols and percentages), link, image and image `alt` text the original renders must be in the migrated output, words in the same order, and any block the visual editor can't represent fails the check. A template that fails isn't written unless you pass `--force`. Code paths these props don't reach (a loop over an empty preview array, a condition on a non-boolean prop) are converted but not verified: extend `PreviewProps` to cover them.
+2. **Checked.** The original and the migrated template are rendered with the template's `PreviewProps`, then again with each boolean prop flipped, and compared. Every word (including numeric separators, signs, currency symbols and percentages), link, image and image `alt` text the original renders must be in the migrated output, words in the same order, no new words may appear, and any block the visual editor can't represent fails the check. A template that fails isn't written unless you pass `--force`. Code paths these props don't reach (a loop over an empty preview array, a condition on a non-boolean prop) are converted but not verified: extend `PreviewProps` to cover them.
 3. **Reported.** How much is editable in the visual editor, what was kept as HTML, and every visual difference (a dropped hover style, a `mobile:` class, a radius).
 
 ```text
@@ -50,7 +50,7 @@ Exit codes: `0` when every template converted and passed the check, `1` for a us
 npx @unlayer/migrate compare emails/welcome.tsx emails/welcome.elements.tsx
 ```
 
-Renders both with the original's `PreviewProps`, then with each true/false prop flipped, and checks both the HTML and design JSON that every word, link, image and `alt` text is still there and that the visual editor gets every block. Exit code `0` when it passes, `2` with what's missing when it doesn't.
+Renders both with the original's `PreviewProps`, then with each true/false prop flipped, and checks both the HTML and design JSON that every word, link, image and `alt` text is still there and that the visual editor gets every block. No new words may appear. Exit code `0` when it passes, `2` with missing or extra content when it doesn't.
 
 ## After migrating
 

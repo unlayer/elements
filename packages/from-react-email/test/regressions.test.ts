@@ -93,6 +93,7 @@ describe("content placed directly in a Row (not in a Column)", () => {
   it("stacks it, as browsers do, in both modes", async () => {
     const { runtime, runtimeDesign, check, codemodDesign } = await convertBoth(source, "row-content");
     expect(runtime.report.missingText).toEqual([]);
+    expect(runtime.report.addedText).toEqual([]);
     expect(check.missing).toEqual([]);
     for (const design of [runtimeDesign, codemodDesign]) {
       const rows = columnsText(design);
@@ -147,6 +148,7 @@ describe("JSX kept in local constants and combined in fragments", () => {
   it("runtime: two rows of two columns", async () => {
     const { runtime, runtimeDesign } = await convertBoth(source, "local-jsx-runtime");
     expect(runtime.report.missingText).toEqual([]);
+    expect(runtime.report.addedText).toEqual([]);
     expect(columnsText(runtimeDesign)).toEqual([
       ["", "Serum description"],
       ["Cream description", ""],
@@ -217,12 +219,24 @@ describe("Preview inside Body", () => {
       }`;
     const { runtime, check, codemod } = await convertBoth(source, "preview");
     expect(runtime.report.missingText).toEqual([]);
+    expect(runtime.report.addedText).toEqual([]);
     expect(check.missing).toEqual([]);
     expect(codemod.code).toContain('previewText="Your order shipped"');
   });
 });
 
 describe("verifyConversion", () => {
+  it("includes added words when only a flipped prop exposes them", async () => {
+    const { Body, Html, Text } = await import("@react-email/components");
+    const { Email, Row, Column, Paragraph } = await import("@unlayer/react-elements");
+    const { createElement: h } = await import("react");
+    const Original = Object.assign(() => h(Html, null, h(Body, null, h(Text, null, "Welcome"))), {PreviewProps:{trial:false}});
+    const Broken = ({trial}: {trial:boolean}) => h(Email, null, h(Row, null, h(Column, null, h(Paragraph, null, `Welcome${trial ? " Unexpected" : ""}`))));
+    const check = await verifyConversion(Original, Broken);
+    expect(check.added).toEqual([]);
+    expect(check.variants).toEqual([{change:"trial: true",missing:[],added:["unexpected"],missingAttributes:[]}]);
+  });
+
   it("flips boolean props to reach branches the preview props don't take", async () => {
     const { Body, Container, Html, Text } = await import("@react-email/components");
     const { Email, Row, Column, Paragraph } = await import("@unlayer/react-elements");
@@ -236,7 +250,7 @@ describe("verifyConversion", () => {
     const Broken = () => h(Email, null, h(Row, null, h(Column, null, h(Paragraph, null, "Welcome"))));
     const check = await verifyConversion(Original, Broken);
     expect(check.missing).toEqual([]);
-    expect(check.variants).toEqual([{ change: "trial: true", missing: ["your", "trial", "ends", "soon"], missingAttributes: [] }]);
+    expect(check.variants).toEqual([{ change: "trial: true", missing: ["your", "trial", "ends", "soon"], added: [], missingAttributes: [] }]);
   });
 });
 
