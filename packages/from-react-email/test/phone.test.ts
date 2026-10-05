@@ -106,6 +106,25 @@ describe("phone styles", () => {
     }
   });
 
+  it("keeps phone classes in a className chosen by a condition, per branch", async () => {
+    // The layout swaps columns with one condition; the classNames pick their phone spacing with
+    // the same condition under another name (`const isLeft = …`). Each branch gets its own classes.
+    const source = `${imports}
+      const items = [{ side: "left", title: "First" }, { side: "right", title: "Second" }];
+      export default function T() { return <Tailwind><Html><Head/><Body><Container>
+        {items.map((item) => {
+          const isLeft = item.side === "left";
+          const img = <Column key="img" className={\`max-sm:!block max-sm:!w-full w-[200px] align-top\${isLeft ? "" : " max-sm:pt-8"}\`}><Img width={200} src="https://example.com/a.png" alt="A"/></Column>;
+          const txt = <Column key="txt" className={\`max-sm:!block max-sm:!w-full align-top\${isLeft ? " max-sm:pt-8" : ""}\`}><Text className="m-0">{item.title}</Text></Column>;
+          return <Row key={item.title}>{item.side === "left" ? <>{img}{txt}</> : <>{txt}{img}</>}</Row>;
+        })}
+      </Container></Body></Html></Tailwind>; }`;
+    const { codemod } = await convertBoth(source);
+    // Both columns stack on phones (\`max-sm:!block\` survives), and the one stacked second gets 32px above.
+    expect(codemod.code).not.toContain("noStackMobile");
+    expect(codemod.code.match(/mobile=\{\{ padding: "32px/g)?.length).toBe(2);
+  });
+
   it("both modes carry phone-only row padding and hiding through nested sections", async () => {
     const source = `${imports}
       export default function T() { return <Tailwind><Html><Head/><Body><Container>

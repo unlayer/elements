@@ -97,18 +97,63 @@ function isVariant(token: string): boolean {
   return head.includes(":");
 }
 
+function variantClasses(classes: string): string[] {
+  return classes.split(/\s+/).filter((t) => t && isVariant(t));
+}
+
+/**
+ * true/false when `node` sits in the true/false branch of `condition` (same code, same function).
+ * A condition named by a `const` (`const isLeft = side === "left"`) also matches its value.
+ */
+function branchOf(node: ts.Node, condition: string): boolean | undefined {
+  const norm = (a: string) => a.replace(/\s+/g, "").replace(/"/g, "'");
+  const names = new Set([norm(condition)]);
+  const alias = /^[A-Za-z_$][\w$]*$/.test(condition.trim()) ? constValue(node, condition.trim()) : undefined;
+  if (alias) names.add(norm(alias));
+  const same = (a: string) => names.has(norm(a));
+  for (let n: ts.Node = node; n.parent && !ts.isSourceFile(n.parent); n = n.parent) {
+    const p = n.parent;
+    if (ts.isConditionalExpression(p) && same(p.condition.getText())) {
+      if (n === p.whenTrue) return true;
+      if (n === p.whenFalse) return false;
+    }
+    if (ts.isFunctionLike(p)) return undefined;
+  }
+  return undefined;
+}
+
+/** The initializer of `const name = …` declared in a block around `node`. */
+function constValue(node: ts.Node, name: string): string | undefined {
+  for (let n: ts.Node | undefined = node.parent; n; n = n.parent) {
+    if (!ts.isBlock(n) && !ts.isSourceFile(n)) continue;
+    for (const statement of n.statements) {
+      if (!ts.isVariableStatement(statement) || !(statement.declarationList.flags & ts.NodeFlags.Const)) continue;
+      for (const decl of statement.declarationList.declarations) {
+        if (ts.isIdentifier(decl.name) && decl.name.text === name && decl.initializer) return decl.initializer.getText();
+      }
+    }
+  }
+  return undefined;
+}
+
 function inlinable(classes: string): string[] {
   return classes.split(/\s+/).filter((t) => t && !isVariant(t)).sort();
 }
 
 function rewrite(file: ts.SourceFile, node: ts.JsxElement | ts.JsxSelfClosingElement, variants: Variants): string {
   const source = file.getFullText();
-  // Branches that differ only in variant classes give the same styles: one static class list.
+  const attribute = variants.attribute;
+  const replaceWith = (classes: string) => source.slice(0, attribute.getStart()) + `className=${JSON.stringify(classes)}` + source.slice(attribute.getEnd());
+  // Already inside a branch of the same condition (`c ? <>{a}{b}</> : <>{b}{a}</>`): that branch's classes.
+  const known = branchOf(node, variants.condition);
+  if (known !== undefined) return replaceWith(known ? variants.whenTrue : variants.whenFalse);
+  // Branches that differ only in variant classes give the same styles: one static class list,
+  // keeping the variant classes (`mobile:!block`) both branches share.
   const a = inlinable(variants.whenTrue);
   const b = inlinable(variants.whenFalse);
   if (a.length === b.length && a.every((t, i) => t === b[i])) {
-    const attr = variants.attribute;
-    return source.slice(0, attr.getStart()) + `className=${JSON.stringify(a.join(" "))}` + source.slice(attr.getEnd());
+    const shared = variantClasses(variants.whenTrue).filter((t) => variantClasses(variants.whenFalse).includes(t));
+    return replaceWith([...shared, ...a].join(" "));
   }
   // The only child of a Column: copy the Column.
   const parent = node.parent;
