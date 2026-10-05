@@ -6,7 +6,7 @@ How closely converted templates match their React Email originals, measured on 1
 
 | Mode | Templates | Convert | Type-check | Lose content | Flipped-prop problems | Editor skips | Native (avg) | Fully native | Words moved, desktop (median / mean / >25%) | Words moved, phone (median / >25%) |
 |---|---|---|---|---|---|---|---|---|---|---|
-| Codemod | 106 | 106 | 106 | 0 | 0 | 0 | 98.4% | 96 | 0% / 0.9% / 1 | 4.6% / 10 of 85 |
+| Codemod | 106 | 106 | 106 | 0 | 0 | 0 | 98.4% | 96 | 0% / 0.9% / 1 | 4.1% / 8 of 85 |
 | Runtime | 106 | 106 | 106 | 0 | 0 | 0 | 98.4% | 97 | 0% / 1.1% / 2 | 3.8% / 9 of 85 |
 
 - **Lose content**: a word, link (`href`), image (`src`) or image `alt` the original renders and the conversion doesn't.
@@ -17,7 +17,7 @@ How closely converted templates match their React Email originals, measured on 1
 
 Desktop is the faithful view: in 105 of 106 templates, at most a quarter of the words sit somewhere else, and the median is none. The one outlier sets no font, so the browser shows serif while Elements uses its sans-serif default.
 
-Phone medians improved from 16.5% to 4.6% (codemod) and from 13.9% to 3.8% (runtime). No template has a higher phone moved-word score than the saved baseline, including the originals that overflow. Every word in all 212 desktop conversions has the same coordinates as before.
+Phone medians improved from 16.5% to 4.1% (codemod) and from 13.9% to 3.8% (runtime). No template has a higher phone moved-word score than the saved baseline, including the originals that overflow. Every word in all 212 desktop conversions has the same coordinates as before.
 
 Phone padding, margins, text size, line height, alignment, full-width images and hiding now become device overrides, using only settings the editor supports: rows and content can be hidden on phones, columns can't, so a column hidden on phones hides its content instead. Every stacked column keeps its box's phone side padding. A narrow box that takes the phone's full width keeps the space around it as padding on its column, with a phone value, instead of spacer columns. The report still lists unsupported classes and dropped styles.
 
