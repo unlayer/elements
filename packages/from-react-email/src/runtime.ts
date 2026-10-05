@@ -27,6 +27,7 @@ import {
   importedStylesheets,
   inheritedStyle,
   paragraphBlock,
+  INHERITED,
   type Block,
   type FontSpec,
   type MapCtx,
@@ -269,7 +270,7 @@ function blocksFrom(nodes: Node[], ctx: Ctx): Array<{ block: Block; style?: Styl
   let inlineRun: Node[] = [];
   const flushInline = () => {
     const html = inlineRun.map(htmlOf).join("").trim();
-    if (html) out.push({ block: paragraphBlock(html, {}, ctx, ZERO) });
+    if (html) out.push({ block: paragraphBlock(html, {}, ctx, ZERO, undefined, INHERITED) });
     inlineRun = [];
   };
 

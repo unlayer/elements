@@ -113,13 +113,17 @@ export function withInlineStyles(html: Content, style: Style): Content {
   return isExpr(html) ? expr(`\`${open}\${${html.$expr}}</span>\``) : `${open}${html}</span>`;
 }
 
+/** React Email Text's own size; text outside a Text (`<Section>🌟</Section>`) inherits instead. */
+export const TEXT_DEFAULTS = { fontSize: "14px", lineHeight: "24px" };
+export const INHERITED: { fontSize?: string; lineHeight?: string } = {};
+
 /**
  * React Email Text (or <p>): 14px/24px with 16px top and bottom margins.
  * Plain text with code (`parts`) stays as children: Elements escapes it.
  */
-export function paragraphBlock(html: Content, style: Style, ctx: MapCtx, margin: BoxSides, parts?: Parts): Block {
+export function paragraphBlock(html: Content, style: Style, ctx: MapCtx, margin: BoxSides, parts?: Parts, defaults: { fontSize?: string; lineHeight?: string } = TEXT_DEFAULTS): Block {
   noteUnconverted(style, ctx, "text");
-  const props = textProps(style, ctx, { fontSize: "14px", lineHeight: "24px" });
+  const props = textProps(style, ctx, defaults);
   const asChildren = parts !== undefined && !needsSpan(style);
   return {
     node: asChildren ? el("Paragraph", props, parts) : el("Paragraph", { ...props, html: withInlineStyles(html, style) }),

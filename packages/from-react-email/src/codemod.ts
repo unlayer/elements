@@ -37,6 +37,7 @@ import {
   hasWidth,
   inheritedStyle,
   paragraphBlock,
+  INHERITED,
   type Block,
   type FontSpec,
   type Content,
@@ -908,7 +909,7 @@ class Converter {
     const flushInline = () => {
       if (inline.length) {
         const parts = this.plainParts(inline);
-        out.push({ block: paragraphBlock(parts ? "" : this.inlineContent(inline), {}, ctx, ZERO, parts) });
+        out.push({ block: paragraphBlock(parts ? "" : this.inlineContent(inline), {}, ctx, ZERO, parts, INHERITED) });
       }
       inline = [];
     };

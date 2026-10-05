@@ -144,6 +144,15 @@ describe("phones: more", () => {
   });
 });
 
+describe("text outside a Text", () => {
+  it("inherits its box's font size instead of taking Text's 14px", async () => {
+    const { tree } = await convertElement(h(Html, null, h(Body, null, h(Container, null, h(Section, { style: { fontSize: "36px" } }, "🌟")))));
+    const paragraph = JSON.stringify(tree);
+    expect(paragraph).toContain('"fontSize":"36px"');
+    expect(paragraph).not.toContain('"fontSize":"14px"');
+  });
+});
+
 describe("the report", () => {
   it("names styles Elements can't express, and column vertical alignment", async () => {
     const box = { boxShadow: "0 1px 2px #000", backgroundImage: "linear-gradient(#fff, #000)" };
