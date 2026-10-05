@@ -568,7 +568,9 @@ async function checkDeviceOverrides(page) {
         h(Paragraph, { containerPadding: 0, hideOnMobile: overrides }, "Desktop only"),
         h(Paragraph, { containerPadding: 0, hideOnDesktop: overrides }, "Phone only")
       )),
-      h(Row, { hideOnMobile: overrides }, h(Column, null, h(Paragraph, null, "Hidden row")))
+      h(Row, { hideOnMobile: overrides }, h(Column, null, h(Paragraph, null, "Hidden row"))),
+      h(Row, { cells: [1, 1], noStackMobile: true }, h(Column, { hideOnMobile: overrides, padding: 24 }), h(Column, null, h(Paragraph, null, "Visible neighbour"))),
+      h(Row, { cells: [1, 1] }, h(Column, { hideOnMobile: overrides, padding: 24 }), h(Column, null, h(Paragraph, null, "Stacked neighbour")))
     ));
     const read = () => page.evaluate(() => {
       const column = document.querySelector("#u_column_1 .v-col-padding");
@@ -581,6 +583,7 @@ async function checkDeviceOverrides(page) {
         mobileHidden: getComputedStyle(document.querySelector("#u_content_paragraph_1")).display === "none",
         desktopHidden: getComputedStyle(document.querySelector("#u_content_paragraph_2")).display === "none",
         rowHidden: getComputedStyle(document.querySelector("#u_row_2")).display === "none",
+        hiddenColumns: [3, 5].every(n => getComputedStyle(document.querySelector(`#u_column_${n}`)).display === "none"),
       };
     });
     const phoneProblems = (facts) => [
@@ -589,6 +592,7 @@ async function checkDeviceOverrides(page) {
       !facts.mobileHidden && "phone-hidden content still displays",
       facts.desktopHidden && "desktop-hidden content did not restore on phones",
       !facts.rowHidden && "phone-hidden row still displays",
+      !facts.hiddenColumns && "hidden empty columns still display",
     ].filter(Boolean);
     await page.setViewportSize(DESKTOP);
     await page.setContent(make(true));
@@ -596,7 +600,7 @@ async function checkDeviceOverrides(page) {
     const problems = [];
     if (desktop.padding.some((p) => p !== "20px")) problems.push(`desktop padding changed: ${desktop.padding}`);
     if (Math.abs(desktop.image - 120) > 1) problems.push(`desktop image changed: ${desktop.image}px`);
-    if (desktop.mobileHidden || !desktop.desktopHidden || desktop.rowHidden) problems.push("desktop visibility is wrong");
+    if (desktop.mobileHidden || !desktop.desktopHidden || desktop.rowHidden || desktop.hiddenColumns) problems.push("desktop visibility is wrong");
     await page.setViewportSize(phone);
     problems.push(...phoneProblems(await read()));
     if (problems.length) fail(`phone-settings:${name}`, problems);
