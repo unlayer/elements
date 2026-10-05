@@ -37,7 +37,9 @@ export const WeeklyDigestEmail = ({
         value:
           "ui-sans-serif,system-ui,sans-serif,'Apple Color Emoji','Segoe UI Emoji','Segoe UI Symbol','Noto Color Emoji'",
       }}
-      previewText={`${articles.length} stories worth your time this week: ${articles[0]?.title ?? ""}`}
+      previewText={plainText(
+        `${articles.length} stories worth your time this week: ${articles[0]?.title ?? ""}`,
+      )}
     >
       <Row>
         <Column padding="24px 0px 0px 0px" />
@@ -236,4 +238,8 @@ function htmlText(value: unknown): string {
   if (value === null || value === undefined || typeof value === "boolean") return "";
   if (typeof value === "string" || typeof value === "number") return escapeHtml(String(value));
   return renderToStaticMarkup(<>{value as Parameters<typeof renderToStaticMarkup>[0]}</>);
+}
+
+function plainText(value: unknown): string {
+  return value === null || value === undefined || typeof value === "boolean" ? "" : String(value);
 }

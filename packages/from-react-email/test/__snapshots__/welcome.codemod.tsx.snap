@@ -37,7 +37,7 @@ export const WelcomeEmail = ({
         value:
           "ui-sans-serif,system-ui,sans-serif,'Apple Color Emoji','Segoe UI Emoji','Segoe UI Symbol','Noto Color Emoji'",
       }}
-      previewText={`Welcome to ${productName}, ${firstName}! Let's get you set up.`}
+      previewText={`Welcome to ${plainText(productName)}, ${plainText(firstName)}! Let's get you set up.`}
     >
       <Row>
         <Column padding="40px 0px 0px 0px" />
@@ -199,4 +199,8 @@ function htmlText(value: unknown): string {
   if (value === null || value === undefined || typeof value === "boolean") return "";
   if (typeof value === "string" || typeof value === "number") return escapeHtml(String(value));
   return renderToStaticMarkup(<>{value as Parameters<typeof renderToStaticMarkup>[0]}</>);
+}
+
+function plainText(value: unknown): string {
+  return value === null || value === undefined || typeof value === "boolean" ? "" : String(value);
 }

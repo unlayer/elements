@@ -61,7 +61,7 @@ export const ReceiptEmail = ({
         value:
           "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Ubuntu, sans-serif",
       }}
-      previewText={`Your receipt for order #${orderNumber} - ${formatMoney(total, currency)}`}
+      previewText={`Your receipt for order #${plainText(orderNumber)} - ${plainText(formatMoney(total, currency))}`}
     >
       <Row>
         <Column padding="40px 0px 0px 0px" />
@@ -632,4 +632,8 @@ function htmlText(value: unknown): string {
   if (value === null || value === undefined || typeof value === "boolean") return "";
   if (typeof value === "string" || typeof value === "number") return escapeHtml(String(value));
   return renderToStaticMarkup(<>{value as Parameters<typeof renderToStaticMarkup>[0]}</>);
+}
+
+function plainText(value: unknown): string {
+  return value === null || value === undefined || typeof value === "boolean" ? "" : String(value);
 }

@@ -239,7 +239,7 @@ Order.PreviewProps = { id: "A-100" };
     const migrated = fs.readFileSync(path.join(dir, "emails/order.tsx"), "utf8");
     expect(migrated).not.toContain("./components/layout");
     expect(migrated).toContain('from "../lib/brand"');
-    expect(migrated).toContain("previewText={`Order ${id} shipped`}");
+    expect(migrated).toContain("previewText={plainText(`Order ${id} shipped`)}");
     expect(migrated).toContain("Sent by {brand}");
     // footerNote's value was written into the text: its copied declaration went.
     expect(migrated).not.toContain("footerNote");

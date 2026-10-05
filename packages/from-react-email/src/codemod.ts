@@ -113,6 +113,8 @@ class Converter {
   private tailwind: ResolvedClasses = NO_CLASSES;
   private needsEscape = false;
   private needsHtmlText = false;
+  private needsPlainText = false;
+  private plainTextName = "plainText";
   private needsStaticMarkup = false;
   /** Module constants copied in with imported components: dropped if the output doesn't use them. */
   private copied: string[] = [];
@@ -125,6 +127,8 @@ class Converter {
     private readonly tailwindConfig?: Record<string, unknown>,
     private readonly javascript = false
   ) {
+    const names = new Set(file.getFullText().match(/\b[A-Za-z_$][\w$]*/g));
+    while (names.has(this.plainTextName)) this.plainTextName = `_${this.plainTextName}`;
     // Bind this source without resolving dependencies. The checker still
     // distinguishes module constants from parameters, locals and loop bindings.
     const options: ts.CompilerOptions = { noLib: true, noResolve: true };
@@ -1204,11 +1208,9 @@ class Converter {
     const parts = this.plainParts(children);
     if (!parts) return undefined;
     if (parts.every((p) => typeof p === "string")) return parts.join("");
-    // One string expression (`{`Order ${id}`}`): as it is.
-    if (parts.length === 1 && isExpr(parts[0]) && /^`[\s\S]*`$|^"[\s\S]*"$|^'[\s\S]*'$/.test(parts[0].$expr.replace(/^\(([\s\S]*)\)$/, "$1"))) {
-      return expr(parts[0].$expr.replace(/^\(([\s\S]*)\)$/, "$1"));
-    }
-    return expr(`\`${parts.map((p) => (typeof p === "string" ? escapeTemplate(p) : `\${${p.$expr}}`)).join("")}\``);
+    this.needsPlainText = true;
+    if (parts.length === 1 && isExpr(parts[0])) return expr(`${this.plainTextName}(${parts[0].$expr})`);
+    return expr(`\`${parts.map((p) => (typeof p === "string" ? escapeTemplate(p) : `\${${this.plainTextName}(${p.$expr})}`)).join("")}\``);
   }
 
   /** Inline content (text, expressions, links, bold, …) as HTML. */
@@ -1459,6 +1461,12 @@ class Converter {
         `  if (value === null || value === undefined || typeof value === "boolean") return "";\n` +
         `  if (typeof value === "string" || typeof value === "number") return escapeHtml(String(value));\n` +
         `  return renderToStaticMarkup(<>{value${javascript ? "" : " as Parameters<typeof renderToStaticMarkup>[0]"}}</>);\n` +
+        `}\n`;
+    }
+    if (this.needsPlainText) {
+      helpers +=
+        `\nfunction ${this.plainTextName}(value${javascript ? "" : ": unknown"})${javascript ? "" : ": string"} {\n` +
+        `  return value === null || value === undefined || typeof value === "boolean" ? "" : String(value);\n` +
         `}\n`;
     }
     const header = [
