@@ -251,3 +251,60 @@ T.PreviewProps = {name:"Jordan"};`,
     expect(compare.stdout).toContain("same words, links and images");
   });
 });
+
+
+describe("wrapped templates", () => {
+  it.each([
+    ['import { memo } from "react";', 'memo(Welcome)'],
+    ['import { forwardRef } from "react";', 'forwardRef(Welcome)'],
+    ['import { memo as remember, forwardRef as reference } from "react";', 'remember(reference(Welcome))'],
+    ['import * as React from "react";', 'React.memo(React.forwardRef(Welcome))'],
+  ])("migrates and compares %s %s with inner preview props", async (imports, wrapper) => {
+    const source = `${imports}
+import { Html, Body, Text } from "@react-email/components";
+function Welcome({name}, ref) { return <Html><Body><Text>Hello {name}</Text></Body></Html>; }
+Welcome.PreviewProps = {name:"Guest"};
+export default ${wrapper};`;
+    const dir = project({ "welcome.tsx": source });
+    const out = io(dir);
+    expect(await main(["welcome.tsx", "--out", "converted"], out, lib), out.out + out.err).toBe(0);
+    expect(out.out).toContain("1 migrated and checked");
+    const written = fs.readFileSync(path.join(dir, "converted/welcome.tsx"), "utf8");
+    expect(written).toContain("@unlayer/react-elements");
+    const comparison = io(dir);
+    expect(await main(["compare", "welcome.tsx", "converted/welcome.tsx"], comparison, lib), comparison.out + comparison.err).toBe(0);
+    // Check the wrapper as React renders it, as well as the unwrapped check.
+    const { default: Wrapped } = await import(path.join(dir, "converted/welcome.tsx"));
+    const { default: React } = await import("react");
+    const { render } = await import("@react-email/components");
+    expect(await render(React.createElement(Wrapped, {name:"Guest"}))).toContain("Hello Guest");
+  });
+
+  it("prefers outer preview props, including for compare", async () => {
+    const source = `import { memo, forwardRef } from "react";
+import { Html, Body, Text } from "@react-email/components";
+function Welcome({name}, ref) { if (name !== "Outer") throw new Error("wrong preview props"); return <Html><Body><Text>Hello {name}</Text></Body></Html>; }
+Welcome.PreviewProps = {name:"Inner"};
+const Wrapped = memo(forwardRef(Welcome));
+Wrapped.PreviewProps = {name:"Outer"};
+export default Wrapped;`;
+    const dir = project({ "welcome.tsx": source });
+    const out = io(dir);
+    expect(await main(["welcome.tsx", "--out", "converted"], out, lib), out.out + out.err).toBe(0);
+    expect(await main(["compare", "welcome.tsx", "converted/welcome.tsx"], out, lib), out.out + out.err).toBe(0);
+  });
+
+  it("skips config objects but fails unsupported React exports", async () => {
+    const dir = project({
+      "config.tsx": 'import { Html } from "@react-email/components"; export default {color:"white"};',
+      "unsupported.tsx": 'import { Html } from "@react-email/components"; export default {$$typeof:Symbol.for("react.lazy"),_payload:{}};',
+    });
+    const config = io(dir);
+    expect(await main(["config.tsx", "--write"], config, lib)).toBe(0);
+    expect(config.out).toContain("skipped");
+    const out = io(dir);
+    expect(await main(["unsupported.tsx", "--write"], out, lib)).toBe(2);
+    expect(out.out).toContain("unsupported React template wrapper");
+    expect(out.out).not.toContain("skipped");
+  });
+});

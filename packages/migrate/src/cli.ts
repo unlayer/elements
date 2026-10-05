@@ -329,15 +329,15 @@ async function migrateFile(input: Input, options: Options, lib: Library, io: Io,
   const release: Array<() => void> = [];
   try {
     let Original: any;
+    let props: Record<string, unknown>;
     try {
-      Original = defaultExport(await importFile(file, io.cwd, release));
+      const template = templateComponent(defaultExport(await importFile(file, io.cwd, release)));
+      if (!template) return { file: name, status: "skipped", reason: "no default-exported component (a shared component or helper file)" };
+      Original = template.component;
+      props = template.props;
     } catch (error) {
       return { file: name, status: "failed", reason: `couldn't load it: ${message(error)}` };
     }
-    if (typeof Original !== "function") {
-      return { file: name, status: "skipped", reason: "no default-exported component (a shared component or helper file)" };
-    }
-    const props = Original.PreviewProps ?? {};
 
     let tailwindConfig: Record<string, unknown> | undefined;
     try {
@@ -371,8 +371,8 @@ async function migrateFile(input: Input, options: Options, lib: Library, io: Io,
       if (writing) await checkDestination(target, destinations);
       await writeExclusive(probe, code);
       probeCreated = true;
-      const Migrated = defaultExport(await importFile(probe, io.cwd, release));
-      if (typeof Migrated !== "function") throw new Error("the migrated file has no default export");
+      const Migrated = templateComponent(defaultExport(await importFile(probe, io.cwd, release)))?.component;
+      if (!Migrated) throw new Error("the migrated file has no default export");
       verification = await lib.verifyConversion(Original, Migrated as (props: unknown) => ReturnType<typeof Original>, { props });
       design = verification.design;
       if (options.design && options.mergeTags) {
@@ -440,20 +440,24 @@ async function compare(paths: string[], args: Args, io: Io, library?: Library): 
   try {
     let Original: any;
     let Migrated: any;
+    let props: Record<string, unknown>;
     try {
-      Original = defaultExport(await importFile(originalPath, io.cwd, release));
-      Migrated = defaultExport(await importFile(migratedPath, io.cwd, release));
+      const original = templateComponent(defaultExport(await importFile(originalPath, io.cwd, release)));
+      const migrated = templateComponent(defaultExport(await importFile(migratedPath, io.cwd, release)));
+      if (!original || !migrated) {
+        io.stderr("Both files need a default-exported template component.\n");
+        return 1;
+      }
+      Original = original.component;
+      Migrated = migrated.component;
+      props = original.props;
     } catch (error) {
       io.stderr(`Couldn't load the templates: ${message(error)}\n`);
       return 2;
     }
-    if (typeof Original !== "function" || typeof Migrated !== "function") {
-      io.stderr("Both files need a default-exported template component.\n");
-      return 1;
-    }
     let check: Awaited<ReturnType<Library["verifyConversion"]>>;
     try {
-      check = await lib.verifyConversion(Original, Migrated, { props: Original.PreviewProps ?? {} });
+      check = await lib.verifyConversion(Original, Migrated, { props });
     } catch (error) {
       io.stderr(`The migrated template doesn't render: ${message(error)}\n`);
       return 2;
@@ -466,7 +470,7 @@ async function compare(paths: string[], args: Args, io: Io, library?: Library): 
     ];
     const name = `${relative(io.cwd, migratedPath)} against ${relative(io.cwd, originalPath)}`;
     if (!problems.length) {
-      const flipped = Object.values(Original.PreviewProps ?? {}).filter((v) => typeof v === "boolean").length;
+      const flipped = Object.values(props).filter((v) => typeof v === "boolean").length;
       io.stdout(`✓ ${name}: same words, links and images${flipped ? ` (also with each of ${flipped} true/false props flipped)` : ""}; the editor gets every block.\n`);
       return 0;
     }
@@ -622,6 +626,24 @@ function defaultExport(mod: Record<string, any>): unknown {
   let value = mod.default;
   if (value && typeof value === "object" && !("$$typeof" in value) && "default" in value) value = value.default;
   return value;
+}
+
+function templateComponent(value: any): { component: any; props: Record<string, unknown> } | undefined {
+  let props: Record<string, unknown> | undefined;
+  let wrapped = false;
+  const seen = new Set<unknown>();
+  while (value && !seen.has(value)) {
+    seen.add(value);
+    props ??= value.PreviewProps;
+    if (typeof value === "function") return { component: value, props: props ?? {} };
+    if (value.$$typeof === Symbol.for("react.memo")) { value = value.type; wrapped = true; }
+    else if (value.$$typeof === Symbol.for("react.forward_ref")) { value = value.render; wrapped = true; }
+    else if ("$$typeof" in Object(value)) throw new Error("unsupported React template wrapper");
+    else if (wrapped) throw new Error("the React template wrapper has no renderable component");
+    else return undefined;
+  }
+  if (wrapped) throw new Error("the React template wrapper has no renderable component");
+  return undefined;
 }
 
 /** CommonJS requires need the same project-first package resolution as hooks.ts. */

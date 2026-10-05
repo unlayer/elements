@@ -195,26 +195,41 @@ class Converter {
   }
 
   private findComponent(): ts.FunctionLikeDeclaration | undefined {
-    let name: string | undefined;
+    const wrappers = new Set<string>();
+    const namespaces = new Set<string>();
     for (const statement of this.file.statements) {
-      if (ts.isFunctionDeclaration(statement) && hasModifier(statement, ts.SyntaxKind.DefaultKeyword)) return statement;
-      if (ts.isExportAssignment(statement)) {
-        const value = unwrap(statement.expression);
-        if (ts.isArrowFunction(value) || ts.isFunctionExpression(value)) return value;
-        if (ts.isIdentifier(value)) name = value.text;
-      }
-    }
-    if (!name) return undefined;
-    for (const statement of this.file.statements) {
-      if (ts.isFunctionDeclaration(statement) && statement.name?.text === name) return statement;
-      if (ts.isVariableStatement(statement)) {
-        for (const decl of statement.declarationList.declarations) {
-          if (ts.isIdentifier(decl.name) && decl.name.text === name && decl.initializer) {
-            const value = unwrap(decl.initializer);
-            if (ts.isArrowFunction(value) || ts.isFunctionExpression(value)) return value;
-          }
+      if (!ts.isImportDeclaration(statement) || !ts.isStringLiteral(statement.moduleSpecifier) || statement.moduleSpecifier.text !== "react") continue;
+      const clause = statement.importClause;
+      if (clause?.name) namespaces.add(clause.name.text);
+      const bindings = clause?.namedBindings;
+      if (bindings && ts.isNamespaceImport(bindings)) namespaces.add(bindings.name.text);
+      if (bindings && ts.isNamedImports(bindings)) {
+        for (const spec of bindings.elements) {
+          if (["memo", "forwardRef"].includes((spec.propertyName ?? spec.name).text)) wrappers.add(spec.name.text);
         }
       }
+    }
+    const seen = new Set<string>();
+    const resolve = (expression: ts.Expression): ts.FunctionLikeDeclaration | undefined => {
+      const value = unwrap(expression);
+      if (ts.isArrowFunction(value) || ts.isFunctionExpression(value)) return value;
+      if (ts.isCallExpression(value) && value.arguments.length) {
+        const callee = unwrap(value.expression);
+        const wrapper = ts.isIdentifier(callee) ? wrappers.has(callee.text)
+          : ts.isPropertyAccessExpression(callee) && ts.isIdentifier(callee.expression) && namespaces.has(callee.expression.text) && ["memo", "forwardRef"].includes(callee.name.text);
+        if (wrapper) return resolve(value.arguments[0]);
+      }
+      if (!ts.isIdentifier(value) || seen.has(value.text)) return undefined;
+      seen.add(value.text);
+      for (const statement of this.file.statements) {
+        if (ts.isFunctionDeclaration(statement) && statement.name?.text === value.text) return statement;
+      }
+      const initializer = this.constants.get(value.text);
+      return initializer ? resolve(initializer) : undefined;
+    };
+    for (const statement of this.file.statements) {
+      if (ts.isFunctionDeclaration(statement) && hasModifier(statement, ts.SyntaxKind.DefaultKeyword)) return statement;
+      if (ts.isExportAssignment(statement) && !statement.isExportEquals) return resolve(statement.expression);
     }
     return undefined;
   }
