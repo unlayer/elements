@@ -32,7 +32,8 @@
 import { el, expr, hole, type BoxSides, type ElementNode, type Expr, type ReportBuilder } from "@unlayer/convert-core";
 import { borderProp } from "./boxes";
 import { cellsFrom, collapse, fill, LAYOUTS, type Block } from "./map";
-import { px, sidesToCss, ZERO } from "./styles";
+import { px, sidesToCss, toPx, ZERO } from "./styles";
+import { htmlText, unbreakableWords, wordWidth } from "./text-width";
 
 // ============================================
 // The tree front ends build
@@ -246,21 +247,27 @@ class Engine {
     this.settle(root);
     const rows = this.merge(this.out);
     this.pinPhoneInsets(rows);
-    this.pinPhoneImages(rows);
+    this.pinPhoneSizes(rows);
     return rows;
   }
 
   /**
    * Images with a fixed px width keep it on phones when it fits there, as the original's do:
    * Elements sizes an image as a share of its column, which shrinks with the screen.
+   * Text in columns side by side gets a phone size its longest word fits (see `fitPhoneWords`).
    */
-  private pinPhoneImages(rows: ElementNode[]): void {
+  private pinPhoneSizes(rows: ElementNode[]): void {
     for (const row of rows) {
-      if (row.type === "#expr") { for (const slot of row.slots ?? []) this.pinPhoneImages(slot as ElementNode[]); continue; }
+      if (row.type === "#expr") { for (const slot of row.slots ?? []) this.pinPhoneSizes(slot as ElementNode[]); continue; }
       const columns = (row.children ?? []) as ElementNode[];
       const shares = columnShares(row.props ?? {}, columns.length);
       if (!shares) continue;
       const stacks = this.info.get(row)?.stacks;
+      const sideBySide = !stacks && columns.filter((c) => c.type === "Column" && c.children?.length).length > 1;
+      const texts: ElementNode[] = [];
+      const fitted = new Map<string, number>();
+      const position = new Map<ElementNode, number>();
+      const style = (item: ElementNode) => `${position.get(item)}|${item.type}|${item.props?.fontSize}|${item.props?.fontWeight}`;
       columns.forEach((column, i) => {
         if (column.type !== "Column") return;
         const mobile = (column.props?.mobile ?? {}) as { padding?: unknown; border?: Record<string, unknown> };
@@ -268,7 +275,13 @@ class Engine {
         if (!padding) return;
         const border = (side: string) => parseFloat(String(mobile.border?.[`border${side}Width`] ?? 0)) || 0;
         const room = (stacks ? PHONE_WIDTH : PHONE_WIDTH * shares[i]) - padding.left - padding.right - border("Left") - border("Right");
-        for (const item of (column.children ?? []) as ElementNode[]) {
+        for (const [index, item] of ((column.children ?? []) as ElementNode[]).entries()) {
+          if (sideBySide && (item.type === "Paragraph" || item.type === "Heading")) {
+            texts.push(item);
+            position.set(item, index);
+            const size = fitPhoneWords(item, room, PHONE_WIDTH / this.options.contentWidth);
+            if (size) fitted.set(style(item), Math.min(size, fitted.get(style(item)) ?? size));
+          }
           if (item.type !== "Image" || item.props?.mobile) continue;
           const width = parseFloat(String(item.props?.width ?? ""));
           const inner = phoneSides(item.props?.containerPadding);
@@ -276,6 +289,12 @@ class Engine {
           item.props = { ...item.props, mobile: { width: px(width) } };
         }
       });
+      // The same block in the other columns (a row of stat labels) takes the same phone size.
+      for (const item of texts) {
+        const size = fitted.get(style(item));
+        const mobile = (item.props?.mobile ?? {}) as Record<string, unknown>;
+        if (size && (mobile.fontSize === undefined || (toPx(mobile.fontSize) ?? 0) > size)) item.props = { ...item.props, mobile: { ...mobile, fontSize: px(size) } };
+      }
     }
   }
 
@@ -1022,6 +1041,32 @@ function phoneSides(value: unknown): BoxSides | undefined {
   if (!v.length || v.some((x) => x === undefined)) return undefined;
   const [top, right = top, bottom = top, left = right] = v as number[];
   return { top, right, bottom, left };
+}
+
+/**
+ * Columns side by side shrink with the screen, and a word wider than its column then breaks
+ * mid-word (the editor's CSS breaks long words). The block's side padding first shrinks with
+ * the row, as the original's would; if the longest word still doesn't fit, it gets a phone text
+ * size it fits (10px at the least).
+ */
+function fitPhoneWords(item: ElementNode, room: number, scale: number): number | undefined {
+  const props = item.props ?? {};
+  const mobile = (props.mobile ?? {}) as Record<string, unknown>;
+  const size = toPx(mobile.fontSize ?? props.fontSize ?? (item.type === "Heading" ? "22px" : "14px"));
+  const inner = phoneSides(mobile.containerPadding ?? props.containerPadding);
+  if (scale >= 1 || !size || !inner) return;
+  const html = item.type === "Heading" ? props.text : props.html;
+  const text = typeof html === "string" ? htmlText(html) : (item.children ?? []).map((c) => (typeof c === "string" ? c : " ")).join("");
+  const options = { bold: Number(props.fontWeight) >= 600, letterSpacing: toPx(props.letterSpacing, size) };
+  const widest = Math.max(0, ...unbreakableWords(text).map((word) => wordWidth(word, size, options)));
+  if (widest <= room - inner.left - inner.right) return undefined;
+  const scaled = mobile.containerPadding || !(inner.left + inner.right) ? undefined : { ...inner, left: Math.round(inner.left * scale), right: Math.round(inner.right * scale) };
+  const fit = (room - (scaled ?? inner).left - (scaled ?? inner).right) / widest;
+  // Far too narrow (a badge column that is mostly padding) is the layout, not a long word.
+  if (fit < 0.6) return undefined;
+  const fontSize = fit < 1 ? Math.max(Math.min(size, 10), Math.floor(size * fit)) : undefined;
+  item.props = { ...props, mobile: { ...mobile, ...(scaled ? { containerPadding: sidesToCss(scaled) } : {}), ...(fontSize ? { fontSize: px(fontSize) } : {}) } };
+  return fontSize;
 }
 
 /** Whether `flow` holds a row of several columns, or columns from code. */

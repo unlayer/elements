@@ -91,7 +91,7 @@ The report lists unsupported classes and dropped styles. Remaining model differe
 
 - State variants (`hover:`, `last:`), larger-screen variants, unresolved utilities and unsupported phone declarations such as font weight and letter spacing. Partially supported classes keep a note for the remaining declarations.
 - Source breakpoints: supported phone settings use the editor's 480px breakpoint, even when the original query uses 600px. Narrow-box decisions use a 375px phone width.
-- On phones, columns side by side keep their share of the row, so fixed widths, images and gaps scale down with it (React Email keeps them in px).
+- On phones, columns side by side keep their share of the row, so fixed widths, images and gaps scale down with it (React Email keeps them in px). Text whose longest word wouldn't fit there gets a smaller phone size (estimated from Arial's widths, so a narrow font can shrink a little more than it needs to).
 - Column vertical alignment: email columns sit at the top (a React Email `Column` is a `<td>`, centered by default).
 - Shadows, opacity, transforms, filters, outlines, gradients and absolute positioning.
 - Background images on inset boxes; borders on boxes outside the `Container` (full-width bands).

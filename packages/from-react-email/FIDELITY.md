@@ -46,7 +46,7 @@ Codemod report counts and remaining model differences.
 
 Phone device settings use the editor's 480px breakpoint. A source query such as `max-width: 600px` therefore differs between 481px and 600px; arbitrary breakpoints, phone font weight and letter spacing, and other unsupported declarations are not carried over. Narrow-box decisions use the benchmark's 375px phone width.
 
-On phones, fixed-width images and narrow text boxes keep their px width when it fits there (a phone image width; column padding with a phone value), as React Email's do. Columns side by side keep their share of the row, and a narrow box holding columns side by side keeps its spacers, so icon gaps still scale with the screen.
+On phones, fixed-width images and narrow text boxes keep their px width when it fits there (a phone image width; column padding with a phone value), as React Email's do. Columns side by side keep their share of the row, and a narrow box holding columns side by side keeps its spacers, so icon gaps still scale with the screen. A React Email cell widens to fit its longest word; an Elements column can't, and the editor's CSS breaks the word instead. So text whose longest word wouldn't fit its column on a phone (a total, a stat label) gets a smaller phone size, and the same block in the other columns gets the same size. Words inside `Html` blocks can still break.
 
 ## Corpus
 

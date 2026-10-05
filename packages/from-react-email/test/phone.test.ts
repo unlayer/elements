@@ -5,6 +5,7 @@ import { renderToJson, renderToHtml } from "@unlayer/react-elements";
 import { convertReactEmail, convertSource, verifyConversion } from "../src/index";
 import { phoneStyles } from "../src/tailwind";
 import { handledPhoneClass, phoneSides, withPhoneStyles } from "../src/phone-styles";
+import { htmlText, unbreakableWords } from "../src/text-width";
 
 async function convertBoth(source: string) {
   const dir = fs.mkdtempSync(path.join(import.meta.dirname, ".tmp-phone-"));
@@ -146,6 +147,46 @@ describe("phone styles", () => {
     const paddings = [...codemod.code.matchAll(/mobile=\{\{\s*padding: "([^"]+)"/g)].map((m) => m[1].split(" ")[2]);
     expect(paddings).toContain("32px");
     expect(paddings.filter((p) => p === "32px")).toHaveLength(1);
+  });
+
+  it("shrinks text on phones when its longest word can't fit a column side by side", async () => {
+    // A receipt total: on a 375px phone the 90px column is 51px wide, too narrow for "$14.99"
+    // at 16px with 20px of padding, so the word would break in the middle.
+    const source = `${imports}
+      export default function T() { return <Html><Head/><Body><Container style={{ width: 660, maxWidth: 660 }}>
+        <Section><Row>
+          <Column style={{ width: 285 }}><Text style={{ margin: 0, fontSize: 10 }}>TOTAL</Text></Column>
+          <Column style={{ width: 285 }}><Text style={{ margin: 0, fontSize: 16 }}>Paid</Text></Column>
+          <Column style={{ width: 90 }}><Text style={{ margin: 0, fontSize: 16, fontWeight: 600, paddingRight: 20 }}>$14.99</Text></Column>
+        </Row></Section>
+      </Container></Body></Html>; }`;
+    const { codemod, designs } = await convertBoth(source);
+    // Padding shrinks with the row (20px × 375 / 660), then the text size makes up the rest.
+    expect(codemod.code).toMatch(/mobile=\{\{ containerPadding: "0px 11px 0px 0px", fontSize: "1[0-3]px" \}\}/);
+    expect(codemod.code.match(/fontSize: "/g)).toHaveLength(1);
+    for (const design of designs) {
+      const items = JSON.stringify(design);
+      expect(items.match(/"mobile":\{[^}]*"fontSize"/g)).toHaveLength(1);
+    }
+  });
+
+  it("reads the words a browser can't wrap inside", () => {
+    expect(unbreakableWords(htmlText("Ana&#x27;s <a href=\"x\">well-known</a>&nbsp;demo, see https://example.com"))).toEqual(["Ana's", "well-", "known\u00a0demo,", "see"]);
+    expect(htmlText('<span style="text-transform:uppercase">Total</span>')).toBe("TOTAL");
+  });
+
+  it("gives matching labels in the other columns the same phone size", async () => {
+    const source = `${imports}
+      export default function T() { return <Html><Head/><Body><Container style={{ width: 600, maxWidth: 600 }}>
+        <Section><Row>
+          {["documents", "links", "views"].map((label) => <Column key={label} style={{ width: 200, padding: "0 16px" }}><Text style={{ margin: 0, fontSize: 24 }}>{label}</Text></Column>)}
+        </Row></Section>
+      </Container></Body></Html>; }`;
+    const { runtime } = await convertBoth(source);
+    const sizes = [...JSON.stringify(runtime.design()).matchAll(/"mobile":\{[^}]*"fontSize":"(\d+)px"/g)].map((m) => Number(m[1]));
+    expect(sizes).toHaveLength(3);
+    expect(new Set(sizes).size).toBe(1);
+    expect(sizes[0]).toBeLessThan(24);
   });
 
   it("both modes carry phone-only row padding and hiding through nested sections", async () => {
