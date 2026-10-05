@@ -113,7 +113,9 @@ export const _pub_imageSrc: ImageSrcInput = "https://x/p.png";
 import type { RowProps, MobileProps, DeviceProps } from "./index";
 export const _phone_props: MobileProps = { padding: 12, containerPadding: "4px 8px", fontSize: 18, lineHeight: 1.5, textAlign: "center", width: "100%", autoWidth: true };
 export const _row_phone: RowProps = { mobile: { padding: "8px 16px" }, hideOnMobile: true };
-export const _column_phone: ColumnProps = { mobile: { padding: 16 }, hideOnDesktop: true };
+export const _column_phone: ColumnProps = { mobile: { padding: 16 } };
+// @ts-expect-error the editor can't hide a column on a device (hide its row or content instead)
+export const _column_reject_hide: ColumnProps = { hideOnMobile: true };
 export const _image_phone: ImageProps = { mobile: { autoWidth: true, width: "100%" }, hideOnMobile: false };
 export const _paragraph_phone: ParagraphProps = { mobile: { fontSize: 16, lineHeight: 1.4, textAlign: "center" } };
 export const _device_props: DeviceProps = { hideOnDesktop: false };

@@ -27,14 +27,14 @@ describe("printing", () => {
   });
 
   it("prints phone props and preserves them in the editor design", async () => {
-    const tree = el("Email", {}, [el("Row", {}, [el("Column", { mobile: { padding: "8px 16px" }, hideOnMobile: true }, [el("Image", { src: { url: "https://example.com/image.png", width: 640 }, width: "120px", mobile: { autoWidth: true } })])])]);
+    const tree = el("Email", {}, [el("Row", {}, [el("Column", { mobile: { padding: "8px 16px" } }, [el("Image", { src: { url: "https://example.com/image.png", width: 640 }, width: "120px", mobile: { autoWidth: true }, hideOnMobile: true })])])]);
     const code = await treeToTsx(tree);
     expect(code).toContain('padding: "8px 16px"');
     expect(code).toContain("autoWidth: true");
     expect(code).toContain("hideOnMobile={true}");
     const column = treeToDesign(tree).body.rows[0].columns[0];
-    expect(column.values._override.mobile).toMatchObject({ padding: "8px 16px", hideMobile: true });
-    expect(column.contents[0].values._override.mobile.src).toMatchObject({ autoWidth: true });
+    expect(column.values._override.mobile).toMatchObject({ padding: "8px 16px" });
+    expect(column.contents[0].values._override.mobile).toMatchObject({ hideMobile: true, src: { autoWidth: true } });
   });
 
   it("renames components that clash with other imports", () => {

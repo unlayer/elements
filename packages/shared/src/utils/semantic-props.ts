@@ -159,7 +159,10 @@ export function mapSemanticProps<T extends Record<string, any>>(
   defaultValues: T,
   componentType: string
 ): T {
-  const { children, values, mobile, hideOnMobile, hideOnDesktop, ...restProps } = props;
+  const { children, values, mobile, hideOnMobile: hideMobileProp, hideOnDesktop: hideDesktopProp, ...restProps } = props;
+  // The editor hides rows and content on a device, never a column.
+  const hideOnMobile = componentType === "Column" ? undefined : hideMobileProp;
+  const hideOnDesktop = componentType === "Column" ? undefined : hideDesktopProp;
   const userProps: any = { ...restProps };
 
   // Start with escape hatch if provided

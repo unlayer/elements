@@ -69,10 +69,10 @@ exports[`Golden Template: Marketing Email > snapshot locks the full email HTML 1
 @media only screen and (max-width: 620px) {
   .u-row-container { max-width: 100% !important; padding-left: 0px !important; padding-right: 0px !important; }
   .u-row { width: 100% !important; }
-  .u-row .u-col:not([class~="hide-mobile"]) { display: block !important; width: 100% !important; min-width: 320px !important; max-width: 100% !important; }
+  .u-row .u-col { display: block !important; width: 100% !important; min-width: 320px !important; max-width: 100% !important; }
   .u-row .u-col > div { margin: 0 auto; }
-  .u-row.no-stack .u-col:not([class~="hide-mobile"]) { min-width: 0 !important; display: table-cell !important; }
-  .u-row.no-stack .u-col-100:not([class~="hide-mobile"]) { width: 100% !important; }
+  .u-row.no-stack .u-col { min-width: 0 !important; display: table-cell !important; }
+  .u-row.no-stack .u-col-100 { width: 100% !important; }
 }</style>
 
 
@@ -126,10 +126,10 @@ exports[`Golden Template: Marketing Email > snapshot locks the full email HTML 1
 @media only screen and (max-width: 620px) {
   .u-row-container { max-width: 100% !important; padding-left: 0px !important; padding-right: 0px !important; }
   .u-row { width: 100% !important; }
-  .u-row .u-col:not([class~="hide-mobile"]) { display: block !important; width: 100% !important; min-width: 320px !important; max-width: 100% !important; }
+  .u-row .u-col { display: block !important; width: 100% !important; min-width: 320px !important; max-width: 100% !important; }
   .u-row .u-col > div { margin: 0 auto; }
-  .u-row.no-stack .u-col:not([class~="hide-mobile"]) { min-width: 0 !important; display: table-cell !important; }
-  .u-row.no-stack .u-col-100:not([class~="hide-mobile"]) { width: 100% !important; }
+  .u-row.no-stack .u-col { min-width: 0 !important; display: table-cell !important; }
+  .u-row.no-stack .u-col-100 { width: 100% !important; }
 }</style>
 
 
@@ -206,10 +206,10 @@ exports[`Golden Template: Marketing Email > snapshot locks the full email HTML 1
 @media only screen and (max-width: 620px) {
   .u-row-container { max-width: 100% !important; padding-left: 0px !important; padding-right: 0px !important; }
   .u-row { width: 100% !important; }
-  .u-row .u-col:not([class~="hide-mobile"]) { display: block !important; width: 100% !important; min-width: 320px !important; max-width: 100% !important; }
+  .u-row .u-col { display: block !important; width: 100% !important; min-width: 320px !important; max-width: 100% !important; }
   .u-row .u-col > div { margin: 0 auto; }
-  .u-row.no-stack .u-col:not([class~="hide-mobile"]) { min-width: 0 !important; display: table-cell !important; }
-  .u-row.no-stack .u-col-100:not([class~="hide-mobile"]) { width: 100% !important; }
+  .u-row.no-stack .u-col { min-width: 0 !important; display: table-cell !important; }
+  .u-row.no-stack .u-col-100 { width: 100% !important; }
 }</style>
 
 
@@ -310,10 +310,10 @@ exports[`Golden Template: Marketing Email > snapshot locks the full email HTML 1
 @media only screen and (max-width: 620px) {
   .u-row-container { max-width: 100% !important; padding-left: 0px !important; padding-right: 0px !important; }
   .u-row { width: 100% !important; }
-  .u-row .u-col:not([class~="hide-mobile"]) { display: block !important; width: 100% !important; min-width: 320px !important; max-width: 100% !important; }
+  .u-row .u-col { display: block !important; width: 100% !important; min-width: 320px !important; max-width: 100% !important; }
   .u-row .u-col > div { margin: 0 auto; }
-  .u-row.no-stack .u-col:not([class~="hide-mobile"]) { min-width: 0 !important; display: table-cell !important; }
-  .u-row.no-stack .u-col-100:not([class~="hide-mobile"]) { width: 100% !important; }
+  .u-row.no-stack .u-col { min-width: 0 !important; display: table-cell !important; }
+  .u-row.no-stack .u-col-100 { width: 100% !important; }
 }</style>
 
 
@@ -368,11 +368,11 @@ exports[`Golden Template: Marketing Email > snapshot locks the full email HTML 1
 @media only screen and (max-width: 620px) {
   .u-row-container { max-width: 100% !important; padding-left: 0px !important; padding-right: 0px !important; }
   .u-row { width: 100% !important; }
-  .u-row .u-col:not([class~="hide-mobile"]) { display: block !important; width: 100% !important; min-width: 320px !important; max-width: 100% !important; }
+  .u-row .u-col { display: block !important; width: 100% !important; min-width: 320px !important; max-width: 100% !important; }
   .u-row .u-col > div { margin: 0 auto; }
-  .u-row.no-stack .u-col:not([class~="hide-mobile"]) { min-width: 0 !important; display: table-cell !important; }
-  .u-row.no-stack .u-col-50:not([class~="hide-mobile"]) { width: 50% !important; }
-  .u-row.no-stack .u-col-50:not([class~="hide-mobile"]) { width: 50% !important; }
+  .u-row.no-stack .u-col { min-width: 0 !important; display: table-cell !important; }
+  .u-row.no-stack .u-col-50 { width: 50% !important; }
+  .u-row.no-stack .u-col-50 { width: 50% !important; }
 }</style>
 
 
@@ -521,10 +521,10 @@ exports[`Golden Template: Marketing Email > snapshot locks the full email HTML 1
 @media only screen and (max-width: 620px) {
   .u-row-container { max-width: 100% !important; padding-left: 0px !important; padding-right: 0px !important; }
   .u-row { width: 100% !important; }
-  .u-row .u-col:not([class~="hide-mobile"]) { display: block !important; width: 100% !important; min-width: 320px !important; max-width: 100% !important; }
+  .u-row .u-col { display: block !important; width: 100% !important; min-width: 320px !important; max-width: 100% !important; }
   .u-row .u-col > div { margin: 0 auto; }
-  .u-row.no-stack .u-col:not([class~="hide-mobile"]) { min-width: 0 !important; display: table-cell !important; }
-  .u-row.no-stack .u-col-100:not([class~="hide-mobile"]) { width: 100% !important; }
+  .u-row.no-stack .u-col { min-width: 0 !important; display: table-cell !important; }
+  .u-row.no-stack .u-col-100 { width: 100% !important; }
 }</style>
 
 
@@ -578,10 +578,10 @@ exports[`Golden Template: Marketing Email > snapshot locks the full email HTML 1
 @media only screen and (max-width: 620px) {
   .u-row-container { max-width: 100% !important; padding-left: 0px !important; padding-right: 0px !important; }
   .u-row { width: 100% !important; }
-  .u-row .u-col:not([class~="hide-mobile"]) { display: block !important; width: 100% !important; min-width: 320px !important; max-width: 100% !important; }
+  .u-row .u-col { display: block !important; width: 100% !important; min-width: 320px !important; max-width: 100% !important; }
   .u-row .u-col > div { margin: 0 auto; }
-  .u-row.no-stack .u-col:not([class~="hide-mobile"]) { min-width: 0 !important; display: table-cell !important; }
-  .u-row.no-stack .u-col-100:not([class~="hide-mobile"]) { width: 100% !important; }
+  .u-row.no-stack .u-col { min-width: 0 !important; display: table-cell !important; }
+  .u-row.no-stack .u-col-100 { width: 100% !important; }
 }</style>
 
 
@@ -629,10 +629,10 @@ exports[`Golden Template: Marketing Email > snapshot locks the full email HTML 1
 @media only screen and (max-width: 620px) {
   .u-row-container { max-width: 100% !important; padding-left: 0px !important; padding-right: 0px !important; }
   .u-row { width: 100% !important; }
-  .u-row .u-col:not([class~="hide-mobile"]) { display: block !important; width: 100% !important; min-width: 320px !important; max-width: 100% !important; }
+  .u-row .u-col { display: block !important; width: 100% !important; min-width: 320px !important; max-width: 100% !important; }
   .u-row .u-col > div { margin: 0 auto; }
-  .u-row.no-stack .u-col:not([class~="hide-mobile"]) { min-width: 0 !important; display: table-cell !important; }
-  .u-row.no-stack .u-col-100:not([class~="hide-mobile"]) { width: 100% !important; }
+  .u-row.no-stack .u-col { min-width: 0 !important; display: table-cell !important; }
+  .u-row.no-stack .u-col-100 { width: 100% !important; }
 }</style>
 
 
@@ -716,10 +716,10 @@ exports[`Golden Template: Marketing Email > snapshot locks the full email HTML 1
 @media only screen and (max-width: 620px) {
   .u-row-container { max-width: 100% !important; padding-left: 0px !important; padding-right: 0px !important; }
   .u-row { width: 100% !important; }
-  .u-row .u-col:not([class~="hide-mobile"]) { display: block !important; width: 100% !important; min-width: 320px !important; max-width: 100% !important; }
+  .u-row .u-col { display: block !important; width: 100% !important; min-width: 320px !important; max-width: 100% !important; }
   .u-row .u-col > div { margin: 0 auto; }
-  .u-row.no-stack .u-col:not([class~="hide-mobile"]) { min-width: 0 !important; display: table-cell !important; }
-  .u-row.no-stack .u-col-100:not([class~="hide-mobile"]) { width: 100% !important; }
+  .u-row.no-stack .u-col { min-width: 0 !important; display: table-cell !important; }
+  .u-row.no-stack .u-col-100 { width: 100% !important; }
 }</style>
 
 

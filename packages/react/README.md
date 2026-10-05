@@ -545,7 +545,7 @@ Rows, columns and content items accept `mobile` settings with the same flat CSS 
 
 Supported settings are padding, content `containerPadding`, font size, line height, text alignment and image/button width (`width`, `maxWidth`, `autoWidth`), where the component supports them. Numeric padding and font sizes use pixels; numeric line height is a multiplier. Phone CSS applies at 480px and below, matching the editor. `noStackMobile` still controls column stacking separately.
 
-`hideOnMobile` and `hideOnDesktop` work on rows, columns and content. `renderToJson` stores these settings in `_override.mobile` and `_override.desktop`, so designs retain them when opened in the visual editor. The editor currently preserves column hide flags without applying them in its preview/export; Elements applies them. Image `autoWidth` follows the editor's natural-size cap. Document output keeps its desktop settings.
+`hideOnMobile` and `hideOnDesktop` work on rows and content, as in the editor; a column can't be hidden on its own (hide its content or its row). `renderToJson` stores these settings in `_override.mobile` and `_override.desktop`, so designs keep them when opened in the visual editor. Image `autoWidth` follows the editor's natural-size cap. Document output keeps its desktop settings.
 
 ## Development
 

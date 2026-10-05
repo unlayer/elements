@@ -65,8 +65,10 @@ describe("boxes", () => {
   it("centers a narrower Section as React Email's table does (align=\"center\"), unless told otherwise", async () => {
     const narrow = (props: Record<string, unknown>) => h(Section, { ...props, style: { maxWidth: "400px", ...(props.style as object) } }, h(Text, { style: { margin: 0 } }, "Narrow"));
     const { shape } = await rows(h(Container, null, narrow({}), narrow({ align: "left" }), narrow({ style: { margin: 0 } })));
-    // The two left-aligned boxes sit alike: one row holds both.
-    expect(shape.map((r: any) => r.cells)).toEqual([[100, 400, 100], [400, 200]]);
+    // The space around each box is padding on its column (the box takes the phone's full width,
+    // and padding has a phone value). The two left-aligned boxes sit alike: one row holds both.
+    expect(shape.map((r: any) => r.columns.map((c: any) => c.padding))).toEqual([["0px 100px 0px 100px"], ["0px 200px 0px 0px"]]);
+    expect(shape.map((r: any) => r.columns[0].mobile?.padding)).toEqual(["0px 0px 0px 0px", "0px 0px 0px 0px"]);
     expect(shape[1].columns[0].text).toBe("Narrow | Narrow");
   });
 
@@ -88,9 +90,10 @@ describe("phones", () => {
 
   it("keeps a padded box's inset as padding around a narrow text, so it stays on phones", async () => {
     const { shape } = await rows(h(Container, { style: { padding: "0 40px" } }, h(Text, { style: { maxWidth: "310px", margin: 0 } }, "Narrow")));
-    expect(shape[0].cells).toEqual([390, 210]);
+    expect(shape[0].cells).toBeUndefined();
     expect(shape[0].noStackMobile).toBeUndefined();
-    expect(shape[0].columns[0]).toMatchObject({ padding: "0px 40px 0px 40px", text: "Narrow" });
+    // 40 inset + 310 text + 250 to the right; on phones only the box's 40px inset stays.
+    expect(shape[0].columns[0]).toMatchObject({ padding: "0px 250px 0px 40px", mobile: { padding: "0px 40px 0px 40px" }, text: "Narrow" });
   });
 
   it("keeps a card's spacers on phones", async () => {
@@ -129,8 +132,9 @@ describe("phones: more", () => {
     const card = { border: "1px solid #dddddd", backgroundColor: "#ffffff" };
     const { shape } = await rows(h(Container, { style: { padding: "0 16px" } }, h(Section, { style: card }, h(Section, { style: { padding: "0 40px" } }, h(Text, { style: { maxWidth: "479px", margin: 0 } }, "Text")))));
     const row = shape.find((r: any) => r.columns.some((c: any) => c.text === "Text"));
-    // 16 spacer | 1 border + 40 padding + 479 text | the rest, 1 border | 16 spacer
-    expect(row.cells[1]).toBe(520);
+    // 16 spacer | 1 border + 40 padding + 479 text + 47 padding + 1 border | 16 spacer
+    expect(row.cells).toEqual([16, 568, 16]);
+    expect(row.columns[1].padding).toBe("0px 47px 0px 40px");
   });
 
   it("grows a narrow box to fit the fixed widths inside it, as a table does", async () => {
@@ -160,7 +164,8 @@ describe("text with a box of its own", () => {
 
   it("narrows a text with a max-width, so it wraps where the original does", async () => {
     const { shape } = await rows(h(Container, null, h(Text, { style: { maxWidth: "380px", margin: "0 auto" } }, "Narrow text")));
-    expect(shape[0].cells).toEqual([110, 380, 110]);
+    expect(shape[0].cells).toBeUndefined();
+    expect(shape[0].columns[0]).toMatchObject({ padding: "0px 110px 0px 110px", mobile: { padding: "0px 0px 0px 0px" } });
   });
 });
 

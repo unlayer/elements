@@ -428,6 +428,10 @@ class Engine {
     if (kind === "narrow" && columnFrames(parent).some((f) => f.kind === "card")) {
       keep = style.align === "center" ? ZERO_INSET : style.align === "right" ? { left: 0, right: ctx.inset.right } : { left: ctx.inset.left, right: 0 };
     }
+    // A narrow box that takes the phone's full width keeps all the space around it as padding on
+    // its columns, with a phone value: the editor can't hide spacer columns on phones.
+    const collapses = kind === "narrow" && (wanted ?? width) >= PHONE_WIDTH - total.left - total.right;
+    if (collapses) keep = { left: outer.left, right: outer.right };
     const frame: Frame = {
       parent,
       kind,
@@ -436,8 +440,8 @@ class Engine {
       border: decorated && kind !== "band" ? style.border : undefined,
       radius: decorated && kind !== "band" ? style.radius : undefined,
       outer: columnFrame ? { left: outer.left - keep.left, right: outer.right - keep.right } : { left: 0, right: 0 },
-      collapsesOnMobile: kind === "narrow" && (wanted ?? width) >= PHONE_WIDTH - total.left - total.right,
-      mobileOuter: columnFrame ? { left: (keep.left ? 0 : inheritedInset.left) + Math.max(0, phoneMargin.left), right: (keep.right ? 0 : inheritedInset.right) + Math.max(0, phoneMargin.right) } : undefined,
+      collapsesOnMobile: collapses,
+      mobileOuter: collapses ? { left: 0, right: 0 } : columnFrame ? { left: (keep.left ? 0 : inheritedInset.left) + Math.max(0, phoneMargin.left), right: (keep.right ? 0 : inheritedInset.right) + Math.max(0, phoneMargin.right) } : undefined,
       // Inside its border: the columns at its edges add the border's width to their cells.
       width: columnFrame ? width + keep.left + keep.right - (kind === "card" && decorated ? edgeWidth(style.border?.left) + edgeWidth(style.border?.right) : 0) : parent.width,
       rows: [],
@@ -447,7 +451,9 @@ class Engine {
     if (kind === "card" && style.image) this.report.note("background image dropped on an inset box", String(style.image.url ?? ""));
     // A band or fill keeps the space around it as padding on the columns.
     const inset = columnFrame ? { left: padding.left + keep.left, right: padding.right + keep.right } : sameInset;
-    const mobileInset = phoneChanged ? columnFrame ? { left: phonePadding.left + (keep.left ? inheritedInset.left : 0), right: phonePadding.right + (keep.right ? inheritedInset.right : 0) } : samePhoneInset : undefined;
+    const mobileInset = collapses
+      ? { left: phonePadding.left + inheritedInset.left + Math.max(0, phoneMargin.left), right: phonePadding.right + inheritedInset.right + Math.max(0, phoneMargin.right) }
+      : phoneChanged ? columnFrame ? { left: phonePadding.left + (keep.left ? inheritedInset.left : 0), right: phonePadding.right + (keep.right ? inheritedInset.right : 0) } : samePhoneInset : undefined;
     return { inner: { frame, inset, inContainer, mobileInset, phoneTotalInset, hideOnMobile }, opened: frame };
   }
 
@@ -622,7 +628,9 @@ class Engine {
       const own = spec?.kind === "column" ? spec.node.style : undefined;
       const padding = sidesOf(column.props?.padding);
       const wide = padding.left + padding.right >= 0.5 * cells[i] * phone;
-      if (!own || own.background || own.border || own.radius || !wide || padding.left + padding.right >= cells[i]) {
+      // A column with a phone padding of its own needs no folding: that value applies on phones.
+      const phonePadding = (column.props?.mobile as { padding?: unknown } | undefined)?.padding !== undefined;
+      if (!own || own.background || own.border || own.radius || !wide || phonePadding || padding.left + padding.right >= cells[i]) {
         outCells.push(cells[i]);
         outColumns.push(column);
         outDepths.push(depths[i]);
@@ -669,12 +677,12 @@ class Engine {
 
     // Spacers: one per column frame on each side. Columns from code can't
     // take the inset as padding, so it becomes spacers too.
-    const left: Array<{ width: number; depth: number; hideOnMobile?: boolean }> = [];
-    const right: Array<{ width: number; depth: number; hideOnMobile?: boolean }> = [];
+    const left: Array<{ width: number; depth: number }> = [];
+    const right: Array<{ width: number; depth: number }> = [];
     if (counted) {
       frames.forEach((f, i) => {
-        if (f.outer.left > 0.5) left.push({ width: f.outer.left, depth: i, hideOnMobile: f.collapsesOnMobile });
-        if (f.outer.right > 0.5) right.unshift({ width: f.outer.right, depth: i, hideOnMobile: f.collapsesOnMobile });
+        if (f.outer.left > 0.5) left.push({ width: f.outer.left, depth: i });
+        if (f.outer.right > 0.5) right.unshift({ width: f.outer.right, depth: i });
       });
       if (holes && ctx.inset.left > 0.5) left.push({ width: ctx.inset.left, depth });
       if (holes && ctx.inset.right > 0.5) right.unshift({ width: ctx.inset.right, depth });
@@ -688,7 +696,7 @@ class Engine {
       columns.push(node);
       depths.push(d);
     };
-    for (const s of left) add(el("Column", { backgroundColor: paintAt(frames, s.depth), ...(s.hideOnMobile ? { hideOnMobile: true } : {}) }), s.depth);
+    for (const s of left) add(el("Column", { backgroundColor: paintAt(frames, s.depth) }), s.depth);
     const widths: Array<number | undefined> = [];
     specs.forEach((spec, i) => {
       if (spec.kind === "hole") {
@@ -703,7 +711,7 @@ class Engine {
       add(column(spec.node, paintAt(frames, depth), inset, phoneInset), depth);
       widths.push(widthOf(spec.node.width, available));
     });
-    for (const s of right) add(el("Column", { backgroundColor: paintAt(frames, s.depth), ...(s.hideOnMobile ? { hideOnMobile: true } : {}) }), s.depth);
+    for (const s of right) add(el("Column", { backgroundColor: paintAt(frames, s.depth) }), s.depth);
 
     // Cells in px: spacers, then the columns (with the inset inside the first and last).
     const laidOut = (contentWidths: Array<number | undefined>) => {
@@ -757,10 +765,12 @@ class Engine {
     const stacks = multiple && (marked || (!several && !frames.some(loadBearing)));
     const noStackMobile = multiple && !stacks;
     // Side by side on phones, a max-width box inside a card keeps its share of the row there.
-    if (noStackMobile && !several && frames.some((f) => f.kind === "narrow") && frames.some(loadBearing)) {
+    if (noStackMobile && !several && frames.some((f) => f.kind === "narrow" && !f.collapsesOnMobile) && frames.some(loadBearing)) {
       this.report.note("narrow box inside a card keeps its share of the width on phones (wraps more there)", ctx.frame.label);
     }
-    const collapsedNarrow = !several && frames.some(f => f.collapsesOnMobile);
+    // Spacers that only narrow the content give their width back on phones only when the row
+    // stacks: the editor can't hide a column, so side-by-side spacers keep their share.
+    const collapsedNarrow = stacks && !several && frames.some(f => f.collapsesOnMobile);
     if ((stacks && (marked || ctx.mobileInset)) || collapsedNarrow) {
       const inset = { ...(ctx.mobileInset ?? ctx.inset) };
       for (const frame of frames) {
@@ -777,6 +787,8 @@ class Engine {
             node.props = { ...node.props, mobile: { ...(node.props?.mobile as object), padding: sidesToCss({ ...own, left: own.left + inset.left, right: own.right + inset.right }) } };
           }
         } else {
+          // A column hidden on phones keeps no padding there (see column()).
+          if (spec.node.style.mobile?.hideOnMobile) return;
           const target = columns[left.length + i];
           const own = spec.node.style.mobile?.padding ?? spec.node.style.padding;
           if (inset.left || inset.right || spec.node.style.mobile?.padding) target.props = { ...target.props, mobile: { ...(target.props?.mobile as object), padding: sidesToCss({ ...own, left: own.left + inset.left, right: own.right + inset.right }) } };
@@ -784,9 +796,11 @@ class Engine {
       });
     }
     if (noStackMobile && pxCells) layoutProps = this.foldPadding(columns, depths, specs, pxCells, left.length);
+    // Every column hidden on phones: the row hides there (the editor hides rows, not columns).
+    const allHidden = specs.length > 0 && specs.every((s) => s.kind === "column" && s.node.style.mobile?.hideOnMobile);
     const row = el(
       "Row",
-      { ...(options.key ? { key: options.key } : {}), ...(ctx.hideOnMobile ? { hideOnMobile: true } : {}), ...layoutProps, ...(noStackMobile ? { noStackMobile: true } : {}), ...rowPaint(ctx.frame) },
+      { ...(options.key ? { key: options.key } : {}), ...(ctx.hideOnMobile || allHidden ? { hideOnMobile: true } : {}), ...layoutProps, ...(noStackMobile ? { noStackMobile: true } : {}), ...rowPaint(ctx.frame) },
       columns
     );
     this.info.set(row, { frame: ctx.frame, depths, holes, stacks });
@@ -863,18 +877,20 @@ function emptyColumn(height: number): ColumnSpec {
 function column(node: ColumnNode, background: string | undefined, inset: { left: number; right: number }, mobileInset?: { left: number; right: number }): ElementNode {
   const style = node.style;
   const padding = { ...style.padding, left: style.padding.left + inset.left, right: style.padding.right + inset.right };
+  // The editor can't hide a column on phones: its content hides there, and its padding goes.
+  const hidden = style.mobile?.hideOnMobile;
+  const blocks = hidden ? node.blocks.map((b) => ({ ...b, node: { ...b.node, props: { ...b.node.props, hideOnMobile: true } } })) : node.blocks;
   return el(
     "Column",
     {
       ...(node.key ? { key: node.key } : {}),
-      ...(style.mobile?.hideOnMobile ? { hideOnMobile: true } : {}),
-      ...(style.mobile?.padding || mobileInset ? { mobile: { padding: sidesToCss({ ...(style.mobile?.padding ?? style.padding), left: (style.mobile?.padding ?? style.padding).left + (mobileInset ?? inset).left, right: (style.mobile?.padding ?? style.padding).right + (mobileInset ?? inset).right }) } } : {}),
+      ...(hidden ? (hasSides(padding) ? { mobile: { padding: "0px" } } : {}) : style.mobile?.padding || mobileInset ? { mobile: { padding: sidesToCss({ ...(style.mobile?.padding ?? style.padding), left: (style.mobile?.padding ?? style.padding).left + (mobileInset ?? inset).left, right: (style.mobile?.padding ?? style.padding).right + (mobileInset ?? inset).right }) } } : {}),
       backgroundColor: style.background ?? background,
       padding: hasSides(padding) ? sidesToCss(padding) : undefined,
       border: borderProp(style.border),
       borderRadius: style.radius,
     },
-    collapse(node.blocks)
+    collapse(blocks)
   );
 }
 

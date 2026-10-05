@@ -38,9 +38,7 @@ type ColumnExporterFunction = (innerHTML: string, values: Record<string, any>, i
 
 function renderColumnToHtml(innerHTML: string, values: any, index: number, cells: number[], bodyValues: any, rowValues: any, mode: RenderMode): string {
   const columnExporter = (ColumnExporters[mode] || ColumnExporters.web) as ColumnExporterFunction;
-  const html = columnExporter(innerHTML, values, index, cells, bodyValues, rowValues);
-  const classes = [values._override?.mobile?.hideMobile && "hide-mobile", values._override?.desktop?.hideDesktop && "hide-desktop"].filter(Boolean).join(" ");
-  return classes && mode !== "document" ? html.replace(/(<div id="[^"]*" class=")/, `$1${classes} `) : html;
+  return columnExporter(innerHTML, values, index, cells, bodyValues, rowValues);
 }
 
 // Canonical content-container wrapper (the `u_content_*` block that carries
@@ -58,7 +56,8 @@ function renderContentToHtml(innerHTML: string, values: any, bodyValues: any, mo
 // Component
 // ============================================
 
-export type ColumnProps = Omit<SemanticProps<ColumnValues>, "padding" | "border" | "borderRadius" | keyof DeviceProps> & DeviceProps & {
+// The editor hides rows and content on a device, never a column: no hideOnMobile/hideOnDesktop here.
+export type ColumnProps = Omit<SemanticProps<ColumnValues>, "padding" | "border" | "borderRadius" | keyof DeviceProps> & Omit<DeviceProps, "hideOnMobile" | "hideOnDesktop"> & {
   children?: React.ReactNode;
   // Internal props (provided by Row)
   index?: number;

@@ -84,10 +84,10 @@ ${widths.map(({ value, className }) => `  .u-row .u-col-${className} { width: ${
 ${maxQuery} {
   .u-row-container { max-width: 100% !important; padding-left: 0px !important; padding-right: 0px !important; }
   .u-row { width: 100% !important; }
-  .u-row .u-col:not([class~="hide-mobile"]) { display: block !important; width: 100% !important; min-width: 320px !important; max-width: 100% !important; }
+  .u-row .u-col { display: block !important; width: 100% !important; min-width: 320px !important; max-width: 100% !important; }
   .u-row .u-col > div { margin: 0 auto; }
-  .u-row.no-stack .u-col:not([class~="hide-mobile"]) { min-width: 0 !important; display: table-cell !important; }
-${widths.map(({ value, className }) => `  .u-row.no-stack .u-col-${className}:not([class~="hide-mobile"]) { width: ${value}% !important; }`).join('\n')}
+  .u-row.no-stack .u-col { min-width: 0 !important; display: table-cell !important; }
+${widths.map(({ value, className }) => `  .u-row.no-stack .u-col-${className} { width: ${value}% !important; }`).join('\n')}
 }`;
   }
 

@@ -69,7 +69,7 @@ check.design; // the design JSON
 | `Section` | Rows. A full-width background is the row's content box (`columnsBackgroundColor`). An inset, bordered or rounded box (a card) gets spacer columns for the space around it, with its background, border and radius on the column inside. Outside the Container, its background spans the full width (`backgroundColor`). |
 | `Row` / `Column` | `Row` / `Column`. Widths → `layout` or `cells`. A narrower or centered row (`w-fit`, `width` + `margin: auto`) gets spacer columns. A Column holding one styled Section takes its look. |
 | Phones | React Email's rows are tables and never stack, so columns stay side by side (`noStackMobile`), as do a card's spacer columns. Columns stack only where the template makes them full width on small screens (`mobile:!block`, `max-sm:w-full`). Rows that only a max-width or centered box narrows stack, so the content takes the phone's width. |
-| Phone classes | Phone padding and margins → `mobile.padding` / `mobile.containerPadding` or spacer padding; text size, line height and alignment → `mobile`; full-width images → phone `autoWidth`; hidden blocks and empty spacer columns → `hideOnMobile`. Supported settings are kept in TSX and design JSON. Every stacked column keeps the box's phone side padding. |
+| Phone classes | Phone padding and margins → `mobile.padding` / `mobile.containerPadding` or spacer padding; text size, line height and alignment → `mobile`; full-width images → phone `autoWidth`; hidden rows and blocks → `hideOnMobile` (a hidden column hides its content: the editor can't hide a column). Supported settings are kept in TSX and design JSON. Every stacked column keeps the box's phone side padding. |
 | Content directly in a `Row` | Stacked above the row, as browsers render it |
 | `Text` | `Paragraph`: plain text and `{expressions}` as children, inline markup (`Link`, `strong`, `br`) as `html`. A text with its own background, border or max-width gets a box of its own. |
 | `Heading` (`as` h1–h6) | `Heading` with `headingType`, browser defaults made explicit |
@@ -91,7 +91,6 @@ The report lists unsupported classes and dropped styles. Remaining model differe
 
 - State variants (`hover:`, `last:`), larger-screen variants, unresolved utilities and unsupported phone declarations such as font weight and letter spacing. Partially supported classes keep a note for the remaining declarations.
 - Source breakpoints: supported phone settings use the editor's 480px breakpoint, even when the original query uses 600px. Narrow-box decisions use a 375px phone width.
-- Column visibility in the editor: its preview/export ignores column hide flags, although `saveDesign` retains them. Elements applies them, including empty spacers.
 - On phones, columns side by side keep their share of the row, so fixed widths, images and gaps scale down with it (React Email keeps them in px).
 - Column vertical alignment: email columns sit at the top (a React Email `Column` is a `<td>`, centered by default).
 - Shadows, opacity, transforms, filters, outlines, gradients and absolute positioning.

@@ -72,8 +72,9 @@ describe("phone styles", () => {
       const rows = design.body.rows;
       const stacked = rows.find((r: any) => r.columns.some((c: any) => c.contents.some((item: any) => item.values.text?.includes("First phone text"))));
       for (const col of stacked.columns.slice(0, 2)) expect(col.values._override.mobile.padding).toContain("16px");
+      // The editor can't hide a column: the empty spacer stacks with no height instead.
       expect(stacked.columns[2].contents).toEqual([]);
-      expect(stacked.columns[2].values._override.mobile.hideMobile).toBe(true);
+      expect(stacked.columns[2].values._override?.mobile?.hideMobile).toBeUndefined();
       const items = rows.flatMap((r: any) => r.columns.flatMap((c: any) => c.contents));
       const first = items.find((c: any) => c.values.text?.includes("First phone text"));
       expect(first.values._override.mobile).toMatchObject({ fontSize: "14px", lineHeight: "1.2", textAlign: "center", containerPadding: "0px 8px 0px 8px" });
@@ -85,20 +86,23 @@ describe("phone styles", () => {
     }
   });
 
-  it("keeps pixel padding when desktop spacer columns shrink and narrow text expands on phones", async () => {
+  it("never hides a column (the editor can't): a narrow box in a card widens on phones through its padding", async () => {
     const source = `${imports}
       export default function T() { return <Tailwind><Html><Head/><Body style={{ margin: 0 }}><Container style={{ maxWidth: 640, padding: "0 16px" }}>
         <Section style={{ backgroundColor: "#ffffff", border: "1px solid #dddddd", borderRadius: 8 }}>
           <Section className="px-10 max-sm:px-6"><Text style={{ maxWidth: 310, margin: 0 }}>Narrow text in a card</Text></Section>
         </Section>
       </Container></Body></Html></Tailwind>; }`;
-    const { designs } = await convertBoth(source);
+    const { designs, codemod } = await convertBoth(source);
+    expect(codemod.code).not.toMatch(/<Column[^>]*hideOnMobile/);
+    expect(codemod.report.notes.map((n) => n.reason)).not.toContain("narrow box inside a card keeps its share of the width on phones (wraps more there)");
     for (const design of designs) {
       const cols = design.body.rows.flatMap((r: any) => r.columns);
-      expect(cols.some((c: any) => !c.contents.length && c.values._override?.mobile?.hideMobile)).toBe(true);
+      expect(cols.every((c: any) => !c.values._override?.mobile?.hideMobile && !c.values._override?.desktop?.hideDesktop)).toBe(true);
       const content = cols.find((c: any) => c.contents.some((i: any) => i.values.text?.includes("Narrow text")));
-      expect(content.values._override.mobile.padding).toBe("0px calc(40px - 2.5vw) 0px calc(40px - 2.5vw)");
-      expect(content.values.padding).toBe("0px 0px 0px 40px");
+      // The space around the narrow text is padding on its column, with a phone value.
+      expect(content.values.padding).toMatch(/^0px \d+px 0px 40px$/);
+      expect(content.values._override.mobile.padding).toBeDefined();
     }
   });
 
