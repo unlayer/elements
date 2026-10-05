@@ -45,7 +45,7 @@ function inlineOne(file: ts.SourceFile): { source: string; name: string } | unde
         const usable = refs.every(
           (ref) => ref.getStart() > node.getEnd() && isJsxChild(ref) && !shadowed(ref, block, free)
         );
-        if (refs.length && usable) {
+        if (refs.length && usable && !changesBetween(block, free, node.getEnd(), Math.max(...refs.map((ref) => ref.getStart())))) {
           const text = init.getText();
           const edits = [
             { from: node.getFullStart(), to: node.getEnd(), text: "" },
@@ -118,6 +118,35 @@ function identifiers(node: ts.Node): Set<string> {
   };
   visit(node);
   return names;
+}
+
+/** Moving JSX must not move its reads past a possible change to those values. */
+function changesBetween(scope: ts.Node, names: Set<string>, start: number, end: number): boolean {
+  const rooted = (node: ts.Expression): boolean => {
+    node = unwrap(node);
+    if (ts.isNonNullExpression(node)) return rooted(node.expression);
+    if (ts.isPropertyAccessExpression(node) || ts.isElementAccessExpression(node)) return rooted(node.expression);
+    if (ts.isIdentifier(node)) return names.has(node.text);
+    if (ts.isArrayLiteralExpression(node)) return node.elements.some((n) => !ts.isOmittedExpression(n) && rooted(ts.isSpreadElement(n) ? n.expression : n));
+    if (ts.isObjectLiteralExpression(node)) return node.properties.some((n) =>
+      ts.isShorthandPropertyAssignment(n) ? names.has(n.name.text)
+        : ts.isPropertyAssignment(n) ? rooted(n.initializer)
+        : ts.isSpreadAssignment(n) && rooted(n.expression));
+    return false;
+  };
+  let changed = false;
+  const visit = (node: ts.Node) => {
+    if (changed || node.getEnd() <= start || node.getStart() >= end) return;
+    if (node.getStart() >= start) {
+      if (ts.isBinaryExpression(node) && node.operatorToken.kind >= ts.SyntaxKind.FirstAssignment && node.operatorToken.kind <= ts.SyntaxKind.LastAssignment) changed = rooted(node.left);
+      else if (ts.isPrefixUnaryExpression(node) || ts.isPostfixUnaryExpression(node)) changed = [ts.SyntaxKind.PlusPlusToken, ts.SyntaxKind.MinusMinusToken].includes(node.operator) && rooted(node.operand);
+      else if (ts.isDeleteExpression(node)) changed = rooted(node.expression);
+      else if (ts.isCallExpression(node) && (ts.isPropertyAccessExpression(node.expression) || ts.isElementAccessExpression(node.expression))) changed = rooted(node.expression);
+    }
+    if (!changed) ts.forEachChild(node, visit);
+  };
+  visit(scope);
+  return changed;
 }
 
 /** Whether a function or block between `ref` and `scope` declares one of `names`. */
