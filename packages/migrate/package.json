@@ -39,6 +39,8 @@
     "@types/react-dom": "^18.3.0",
     "@unlayer/convert-core": "workspace:*",
     "@unlayer/from-react-email": "workspace:*",
+    "react-dom19": "npm:react-dom@19.1.0",
+    "react19": "npm:react@19.1.0",
     "tsup": "^8.0.1",
     "vitest": "^3.2.4"
   },

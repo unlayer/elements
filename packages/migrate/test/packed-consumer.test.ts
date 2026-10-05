@@ -85,3 +85,48 @@ main().catch((error) => { console.error(error); process.exitCode = 1; });
     }
   });
 });
+
+it.each(["module", "commonjs"])("runs the installed CLI with its React 19 dependencies against a React 18 %s project", (type) => {
+  const root = path.resolve(import.meta.dirname, "..");
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), "unlayer-migrate-react-versions-"));
+  const tool = path.join(directory, "tool");
+  const project = path.join(directory, "project");
+  try {
+    fs.mkdirSync(tool, { recursive: true });
+    fs.mkdirSync(project, { recursive: true });
+    const packed = spawnSync("pnpm", ["pack", "--pack-destination", tool], { cwd: root, encoding: "utf8" });
+    expect(packed.status, packed.stderr + packed.stdout).toBe(0);
+    const target = path.join(tool, "node_modules/@unlayer/migrate");
+    fs.mkdirSync(target, { recursive: true });
+    const tarball = fs.readdirSync(tool).find((name) => name.endsWith(".tgz"))!;
+    const unpacked = spawnSync("tar", ["-xzf", path.join(tool, tarball), "--strip-components=1", "-C", target], { encoding: "utf8" });
+    expect(unpacked.status, unpacked.stderr).toBe(0);
+    for (const [name, installed] of [["react", "react19"], ["react-dom", "react-dom19"]]) {
+      // Copy real packages: symlinks would resolve React DOM's imports back into the workspace.
+      fs.cpSync(fs.realpathSync(path.join(root, "node_modules", installed)), path.join(tool, "node_modules", name), { recursive: true });
+      fs.cpSync(fs.realpathSync(path.join(root, "node_modules", name)), path.join(project, "node_modules", name), { recursive: true });
+    }
+    for (const name of ["@react-email/components", "@unlayer/react-elements", "typescript", "prettier", "tsx"]) {
+      const link = path.join(tool, "node_modules", name);
+      fs.mkdirSync(path.dirname(link), { recursive: true });
+      fs.symlinkSync(path.join(root, "node_modules", name), link, "dir");
+    }
+    const email = path.join(project, "node_modules/@react-email/components");
+    fs.mkdirSync(path.dirname(email), { recursive: true });
+    fs.symlinkSync(path.join(root, "node_modules/@react-email/components"), email, "dir");
+    fs.writeFileSync(path.join(project, "package.json"), JSON.stringify({ type }));
+    expect(JSON.parse(fs.readFileSync(path.join(tool, "node_modules/react/package.json"), "utf8")).version).toBe("19.1.0");
+    expect(JSON.parse(fs.readFileSync(path.join(project, "node_modules/react/package.json"), "utf8")).version).toBe("18.3.1");
+    fs.writeFileSync(path.join(project, "template.jsx"), `import {Html, Body, Text} from "@react-email/components";
+export default function T({name = "Alex"}) { return <Html><Body><Text>Hello <b>{name}</b></Text></Body></Html>; }`);
+    const run = (args: string[]) => spawnSync(process.execPath, [path.join(target, "dist/bin.js"), ...args], { cwd: project, encoding: "utf8" });
+    const migrated = run(["template.jsx", "--out", "converted", "--design"]);
+    expect(migrated.status, migrated.stderr + migrated.stdout).toBe(0);
+    expect(fs.readFileSync(path.join(project, "converted/template.jsx"), "utf8")).toContain("function htmlText(value)");
+    const compared = run(["compare", "template.jsx", "converted/template.jsx"]);
+    expect(compared.status, compared.stderr + compared.stdout).toBe(0);
+    expect(fs.readdirSync(project).filter((name) => name.includes("unlayer-migrate"))).toEqual([]);
+  } finally {
+    fs.rmSync(directory, { recursive: true, force: true });
+  }
+});

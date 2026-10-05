@@ -32,7 +32,7 @@ import {
   type FontSpec,
   type MapCtx,
 } from "./map";
-import { addSides, backgroundColor, boxSides, color, fontFamilyProp, inherit, margins, px, toPx, ZERO, type Style } from "./styles";
+import { addSides, backgroundColor, boxSides, color, fontFamilyProp, inherit, isHidden, margins, px, toPx, ZERO, type Style } from "./styles";
 import type { BoxSides } from "@unlayer/convert-core";
 import { phoneSides, withPhoneStyles } from "./phone-styles";
 import { phoneStyles, stacksOnPhones } from "./tailwind";
@@ -98,6 +98,7 @@ export async function convertElement(element: React.ReactElement): Promise<Runti
   });
 
   const body = find(nodes, (n) => n.kind === "component" && n.name === "Body") as Element | undefined;
+  const document = find(nodes, (n) => n.kind === "component" && n.name === "Html") as Element | undefined;
   const bodyStyle: Style = (body?.kind === "component" && body.props.style) || {};
   const container = find(body ? children(body) : nodes, (n) => n.kind === "component" && n.name === "Container");
   const containerStyle: Style = (container?.kind === "component" && container.props.style) || {};
@@ -116,6 +117,8 @@ export async function convertElement(element: React.ReactElement): Promise<Runti
     textColor: color(bodyStyle.color),
     previewText: previews.join(" ").trim() || undefined,
     fonts: fonts.length ? fonts : undefined,
+    textDirection: document?.props.dir,
+    lang: document?.props.lang,
   };
   const tree = el("Email", rootProps, rows.length ? rows : [el("Row", {}, [el("Column")])]);
   return { tree, fonts, report: report.finish(tree) };
@@ -140,6 +143,11 @@ function flowFrom(nodes: Node[], ctx: Ctx): Flow[] {
     }
     const name = nameOf(node);
     if (SKIP.has(name)) continue;
+    if (isHidden(node.props.style ?? {})) {
+      flush();
+      out.push({ kind: "content", block: { node: fallbackHtml(kept(renderToStaticMarkup(node.element), ctx), "hidden element"), margin: ZERO, padding: ZERO } });
+      continue;
+    }
     if (node.kind === "component" && BOXES.has(name)) {
       flush();
       out.push(boxFrom(node, ctx, name));
@@ -191,6 +199,9 @@ function rowFlow(node: Element, ctx: Ctx): Flow[] {
   if (!kids.length) return [];
   const rowCtx: Ctx = { ...ctx, inherited: inherit(ctx.inherited, style) };
   const columns = kids as Element[];
+  if (columns.some((column) => isHidden(column.props.style ?? {}))) {
+    return [{ kind: "content", block: { node: fallbackHtml(kept(renderToStaticMarkup(node.element), ctx), "hidden element"), margin: ZERO, padding: ZERO } }];
+  }
   if (columns.length === 1) {
     const colStyle = columnStyle(columns[0]);
     return [
@@ -282,6 +293,11 @@ function blocksFrom(nodes: Node[], ctx: Ctx): Array<{ block: Block; style?: Styl
     }
     const name = nameOf(node);
     if (SKIP.has(name)) continue;
+    if (isHidden(node.props.style ?? {})) {
+      flushInline();
+      out.push({ block: { node: fallbackHtml(kept(renderToStaticMarkup(node.element), ctx), "hidden element"), margin: ZERO, padding: ZERO } });
+      continue;
+    }
     // Image links and inline images side by side (icon rows, rating stars) flow inline together.
     const at = significant.indexOf(node);
     const imageish = (n: Node | undefined) => !!n && n.kind !== "text" && (isImageLink(n) || isInlineImage(n));
@@ -531,5 +547,4 @@ function innerText(node: Exclude<Node, { kind: "text" }>): string {
 function escapeHtml(text: string): string {
   return text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 }
-
 

@@ -24,11 +24,9 @@ type Resolve = (specifier: string, context: Context) => Promise<{ url: string }>
 const SHARED = /^(react|react-dom|@react-email\/[^/]+|react-email|@unlayer\/react-elements)(\/.*)?$/;
 
 let data: Data | undefined;
-let packageRoot = "";
 
 export async function initialize(value: Data): Promise<void> {
   data = value;
-  packageRoot = new URL("..", value.self).href;
 }
 
 export async function resolve(specifier: string, context: Context, nextResolve: Resolve): Promise<{ url: string }> {
@@ -36,8 +34,7 @@ export async function resolve(specifier: string, context: Context, nextResolve: 
   // nextResolve merges the context it's given into the shared one: keep the
   // importer and hand each attempt its own copy.
   const importer = context.parentURL;
-  const fromConverter = importer?.startsWith(packageRoot) && !importer.includes("/node_modules/");
-  const parents = fromConverter ? [data.project, importer] : [importer, data.project, data.self];
+  const parents = [data.project, importer, data.self];
   const attempts: Context[] = parents.map((parentURL) => ({ ...context, parentURL }));
   let failure: unknown;
   for (const attempt of attempts) {

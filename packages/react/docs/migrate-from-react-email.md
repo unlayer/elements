@@ -9,6 +9,8 @@ npm install @unlayer/react-elements
 
 Run it from your project folder (it uses your project's React, React Email and `tsconfig` paths). Each template keeps its props, loops and conditions. Components it uses from the same file or other files of yours (a shared `Layout`, a `Footer`) are inlined, so their markup converts too.
 
+JavaScript templates keep JavaScript helpers. The document's `dir` and `lang` become `Email`'s `textDirection` and `lang` props. Content with `display: none` stays hidden in an HTML block and is listed in the report.
+
 ## What the check guarantees
 
 Before a template is written, the original and the migrated version are rendered with the template's `PreviewProps`, then again with each boolean prop flipped, and compared:
@@ -41,6 +43,8 @@ renderToJson(element); // open in the visual editor with loadDesign()
 `--out` refuses symlinked destinations and directories inside the output folder, and cannot replace input templates. Use `--write` to replace originals.
 
 `--design` also writes each template's design JSON next to it, ready for `loadDesign()`. Text props become merge tags (`{{name}}`) where the template shows them as given; `--no-merge-tags` keeps the `PreviewProps` values. CSS, font URLs, backgrounds and all image sources retain sample values even when merge tags are enabled.
+
+For a right-to-left design, call `unlayer.setTextDirection("rtl")` when loading it. The design keeps `body.values.textDirection`; `lang` belongs to the rendered document and is not stored in the editor's design JSON.
 
 ## Agent rules
 

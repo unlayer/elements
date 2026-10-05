@@ -44,7 +44,7 @@ import {
   type MapCtx,
   type Parts,
 } from "./map";
-import { addSides, backgroundColor, boxSides, color, fontFamilyProp, inherit, margins, px, toPx, ZERO, type Style } from "./styles";
+import { addSides, backgroundColor, boxSides, color, fontFamilyProp, inherit, isHidden, margins, px, toPx, ZERO, type Style } from "./styles";
 import { inlineLocalComponents, type ModuleLoader } from "./components";
 import { inlineLocalJsx } from "./inline";
 import { splitConditionalClasses } from "./variants";
@@ -101,7 +101,7 @@ export async function convertSource(source: string, options: CodemodOptions = {}
   const constants = inlineLocalJsx(components.source, fileName);
   const variants = splitConditionalClasses(constants.source, fileName);
   const file = ts.createSourceFile(fileName, variants.source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
-  const converter = new Converter(file, options.tailwindConfig);
+  const converter = new Converter(file, options.tailwindConfig, /\.(?:jsx?|mjs|cjs)$/i.test(fileName));
   return converter.run({ components: components.inlined, constants: constants.inlined, variants: variants.split, copied: components.copied });
 }
 
@@ -122,7 +122,8 @@ class Converter {
 
   constructor(
     private readonly file: ts.SourceFile,
-    private readonly tailwindConfig?: Record<string, unknown>
+    private readonly tailwindConfig?: Record<string, unknown>,
+    private readonly javascript = false
   ) {
     // Bind this source without resolving dependencies. The checker still
     // distinguishes module constants from parameters, locals and loop bindings.
@@ -466,10 +467,12 @@ class Converter {
     const fonts: FontSpec[] = [];
     const linked: string[] = [];
     let body: Jsx | undefined;
+    let document: Jsx | undefined;
     const seek = (children: ts.JsxChild[]) => {
       for (const child of this.flatten(children)) {
         if (!(ts.isJsxElement(child) || ts.isJsxSelfClosingElement(child))) continue;
         const jsx = this.read(child);
+        if (jsx.name === "Html" && !document) document = jsx;
         if (jsx.name === "Preview") previewText = this.plainContent(jsx.children);
         if (jsx.name === "Font") {
           const family = this.attr(jsx, "fontFamily");
@@ -536,6 +539,8 @@ class Converter {
         textColor: color(bodyStyle.color),
         previewText: previewText === "" ? undefined : previewText,
         fonts: fonts.length || linked.length ? fontStylesheets(fonts, linked) : undefined,
+        textDirection: document && this.attr(document, "dir"),
+        lang: document && this.attr(document, "lang"),
       },
       rows.length ? rows : [el("Row", {}, [el("Column")])]
     );
@@ -577,6 +582,11 @@ class Converter {
       }
       const jsx = this.read(child);
       if (SKIP.has(jsx.name ?? jsx.tag)) continue;
+      if (isHidden(jsx.style)) {
+        flush();
+        out.push({ kind: "content", block: { node: this.fallback(jsx, ctx, "hidden element"), margin: ZERO, padding: ZERO } });
+        continue;
+      }
       if (jsx.opaqueProps) {
         flush();
         out.push({ kind: "content", block: { node: this.fallback(jsx, ctx, "dynamic spread or content props"), margin: ZERO, padding: ZERO } });
@@ -633,14 +643,19 @@ class Converter {
    */
   private rowFlow(jsx: Jsx, ctx: Ctx, kids = this.flatten(jsx.children).filter((kid) => !this.isBlank(kid))): Flow[] {
     let opaqueColumn = false;
+    let hiddenColumn = false;
     const scan = (node: ts.Node) => {
       if (ts.isJsxElement(node) || ts.isJsxSelfClosingElement(node)) {
         const child = this.read(node);
-        if ((child.name === "Column" || child.tag === "td") && child.opaqueProps) opaqueColumn = true;
+        if (child.name === "Column" || child.tag === "td") {
+          opaqueColumn ||= child.opaqueProps;
+          hiddenColumn ||= isHidden(child.style);
+        }
       }
       ts.forEachChild(node, scan);
     };
     for (const kid of kids) scan(kid);
+    if (hiddenColumn) return [{ kind: "content", block: { node: this.fallback(jsx, ctx, "hidden element"), margin: ZERO, padding: ZERO } }];
     if (jsx.opaqueProps || opaqueColumn) return [{ kind: "content", block: { node: this.fallback(jsx, ctx, "dynamic spread or content props"), margin: ZERO, padding: ZERO } }];
     const style = jsx.name === "Row" ? jsx.style : {};
     const kinds = kids.map((kid) => this.cellKind(kid));
@@ -943,6 +958,11 @@ class Converter {
       if (!(ts.isJsxElement(child) || ts.isJsxSelfClosingElement(child))) continue;
       const jsx = this.read(child);
       if (SKIP.has(jsx.name ?? jsx.tag)) continue;
+      if (isHidden(jsx.style)) {
+        flushInline();
+        out.push({ block: { node: this.fallback(jsx, ctx, "hidden element"), margin: ZERO, padding: ZERO } });
+        continue;
+      }
       if (this.isInline(jsx)) {
         inline.push(child);
         continue;
@@ -1428,16 +1448,17 @@ class Converter {
     for (const edit of edits) body = body.slice(0, edit.from) + edit.text + body.slice(edit.to);
     if (imports.length === 0) body = `${newImports}\n${body}`;
 
+    const javascript = this.javascript;
     let helpers = this.needsEscape
-      ? `\n\nfunction escapeHtml(text: string): string {\n  return text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");\n}\n`
+      ? `\n\nfunction escapeHtml(text${javascript ? "" : ": string"})${javascript ? "" : ": string"} {\n  return text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");\n}\n`
       : "";
     if (this.needsHtmlText) {
       helpers +=
         `\n/** A value inside text, as HTML: what React would render for it. */\n` +
-        `function htmlText(value: unknown): string {\n` +
+        `function htmlText(value${javascript ? "" : ": unknown"})${javascript ? "" : ": string"} {\n` +
         `  if (value === null || value === undefined || typeof value === "boolean") return "";\n` +
         `  if (typeof value === "string" || typeof value === "number") return escapeHtml(String(value));\n` +
-        `  return renderToStaticMarkup(<>{value as Parameters<typeof renderToStaticMarkup>[0]}</>);\n` +
+        `  return renderToStaticMarkup(<>{value${javascript ? "" : " as Parameters<typeof renderToStaticMarkup>[0]"}}</>);\n` +
         `}\n`;
     }
     const header = [

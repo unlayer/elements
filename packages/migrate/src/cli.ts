@@ -630,7 +630,7 @@ function sharedCjsPackages(cwd: string): () => void {
   return () => { if (api._resolveFilename === resolvePackage) api._resolveFilename = previous; };
 }
 
-/** Import a .tsx/.ts file with React's automatic JSX runtime, honoring the project's tsconfig paths. */
+/** Import JSX and TypeScript with React's automatic JSX runtime, honoring the project's tsconfig paths. */
 async function importFile(
   path: string,
   cwd: string,
@@ -678,6 +678,7 @@ async function importFile(
         JSON.stringify({
           ...(base ? { extends: base } : {}),
           compilerOptions: {
+            allowJs: true,
             jsx: "react-jsx",
             jsxImportSource: "react",
             ...(Object.keys(paths).length ? { paths } : {}),

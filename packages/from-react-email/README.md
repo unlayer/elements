@@ -62,7 +62,7 @@ check.design; // the design JSON
 
 | React Email | Elements |
 |---|---|
-| `Html`, `Head`, `Body` | `Email`: Body background → `backgroundColor`, font → `fontFamily`, color → `textColor` |
+| `Html`, `Head`, `Body` | `Email`: Body background → `backgroundColor`, font → `fontFamily`, color → `textColor`; Html `dir` → `textDirection`, `lang` → `lang` |
 | `Preview` | `Email` `previewText` |
 | `Font`, a head `<style>` `@import` or `<link rel="stylesheet">` | `Email` `fonts`: a Google-hosted font file links its Google Fonts stylesheet; other files get an `@font-face` stylesheet of their own |
 | `Container` | `Email` `contentWidth` (from its max-width; `37.5em` = 600px). Its background, padding, border and radius go on the rows inside it. |
@@ -80,6 +80,7 @@ check.design; // the design JSON
 | `Markdown` | `Paragraph` with the rendered HTML |
 | `Tailwind` | Classes resolved with React Email's own Tailwind and the template's config, then mapped like `style` |
 | `CodeBlock`, unknown elements | `Html` block, reported |
+| Elements with `display: none` (including Tailwind `hidden`) | Original hidden HTML, reported. A hidden column keeps its whole row as HTML so its table structure survives. |
 
 Components defined in the same file (or, with `loadModule`, in other files) are inlined where they're used when their body returns JSX. A `className` chosen by a condition becomes one element per class list. JSX kept in local constants goes where it's used.
 

@@ -6,6 +6,11 @@ import { boxSides, toPx, type BoxSides } from "@unlayer/convert-core";
 
 export type Style = Record<string, any>;
 
+/** Desktop hiding must survive conversion as original HTML, including Tailwind's `hidden`. */
+export function isHidden(style: Style): boolean {
+  return /^none\s*(?:!important)?$/i.test(String(style.display ?? "").trim());
+}
+
 /** CSS properties that pass from a container to the text inside it. */
 export interface Inherited {
   color?: string;

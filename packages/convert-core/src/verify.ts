@@ -97,7 +97,7 @@ export function compareText(originalHtml: string, convertedHtml: string): TextCh
   const added = [...counts].flatMap(([word, n]) => Array<string>(n).fill(word));
   // Every word there, but not in order: two values swapped places (a total
   // and a subtotal, say). The words out of place count as missing.
-  if (!missing.length && !added.length) {
+  if (!missing.length) {
     const moved = outOfOrder(originalWords, convertedWords);
     missing.push(...moved);
     added.push(...moved);
