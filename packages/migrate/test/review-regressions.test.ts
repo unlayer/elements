@@ -159,6 +159,73 @@ T.PreviewProps = { avatar: "https://example.com/avatar.png", name: "Alex" };`;
   });
 });
 
+describe("shared source files", () => {
+  const footer = `import { Section, Text } from "@react-email/components";
+export default function Footer() { return <Section style={{ maxWidth: "400px", color: "#ffffff" }}><Text>Footer copy</Text></Section>; }`;
+  const welcome = `import { Html, Body, Container, Text } from "@react-email/components";
+import Footer from "./components";
+export default function Welcome() { return <Html><Body style={{ backgroundColor: "#101010" }}><Container style={{ maxWidth: "400px" }}><Text>Hello</Text><Footer/></Container></Body></Html>; }`;
+
+  it.each(["relative", "alias"])("preserves imported components resolved by %s paths", async (kind) => {
+    const dir = project({
+      "tsconfig.json": JSON.stringify({ compilerOptions: { baseUrl: ".", paths: { "@shared/*": ["emails/components/*"] } } }),
+      "emails/components/footer.tsx": footer,
+      "emails/components/index.ts": 'export { default } from "./footer";',
+      "emails/welcome.tsx": kind === "relative" ? welcome : welcome.replace('"./components"', '"@shared/footer"'),
+    });
+    const out = io(dir);
+    expect(await main(["emails", "--write", "--design"], out, lib), out.out + out.err).toBe(0);
+    expect(fs.readFileSync(path.join(dir, "emails/components/footer.tsx"), "utf8")).toBe(footer);
+    expect(out.out).toContain("imported by");
+    const migrated = fs.readFileSync(path.join(dir, "emails/welcome.tsx"), "utf8");
+    expect(migrated).toContain("@unlayer/react-elements");
+    expect(migrated).toContain('contentWidth="400px"');
+    const { default: Welcome } = await import(path.join(dir, "emails/welcome.tsx"));
+    const { renderToHtml } = await import("@unlayer/react-elements");
+    expect(renderToHtml(Welcome({}))).toMatch(/color:\s*#ffffff/);
+    expect(fs.existsSync(path.join(dir, "emails/components/footer.design.json"))).toBe(false);
+  });
+
+  it("leaves the shared component usable by a template that fails conversion", async () => {
+    const failed = `import { Html, Body } from "@react-email/components";
+import Footer from "./components/footer";
+export default function Failed() { const settings = {}; return <Html><Body {...settings}><Footer/></Body></Html>; }`;
+    const dir = project({ "emails/components/footer.tsx": footer, "emails/welcome.tsx": welcome.replace('"./components"', '"./components/footer"'), "emails/failed.tsx": failed });
+    const out = io(dir);
+    expect(await main(["emails", "--write"], out, lib)).toBe(2);
+    expect(fs.readFileSync(path.join(dir, "emails/components/footer.tsx"), "utf8")).toBe(footer);
+    expect(fs.readFileSync(path.join(dir, "emails/failed.tsx"), "utf8")).toBe(failed);
+    expect(fs.readFileSync(path.join(dir, "emails/welcome.tsx"), "utf8")).toContain("@unlayer/react-elements");
+    const { default: Failed } = await import(path.join(dir, "emails/failed.tsx"));
+    const { render } = await import("@react-email/components");
+    const { default: React } = await import("react");
+    expect(await render(React.createElement(Failed))).toContain("Footer copy");
+  });
+
+  it("writes separate copies with --out without changing shared sources", async () => {
+    const dir = project({ "emails/components/footer.tsx": footer, "emails/welcome.tsx": welcome.replace('"./components"', '"./components/footer"') });
+    const out = io(dir);
+    expect(await main(["emails", "--out", "converted"], out, lib), out.out + out.err).toBe(0);
+    expect(fs.readFileSync(path.join(dir, "emails/components/footer.tsx"), "utf8")).toBe(footer);
+    expect(fs.readFileSync(path.join(dir, "converted/components/footer.tsx"), "utf8")).toContain("@unlayer/react-elements");
+    expect(fs.readFileSync(path.join(dir, "converted/welcome.tsx"), "utf8")).toContain('color="#ffffff"');
+  });
+
+  it.each(["--write", "--out"])("finishes all checks before %s writes", async (mode) => {
+    const dir = project({ "emails/a.tsx": good, "emails/b.tsx": good });
+    let checks = 0;
+    const checking = { ...lib, verifyConversion: async (...args: Parameters<typeof lib.verifyConversion>) => {
+      checks++;
+      expect(fs.readFileSync(path.join(dir, "emails/a.tsx"), "utf8")).toBe(good);
+      expect(fs.existsSync(path.join(dir, "converted/a.tsx"))).toBe(false);
+      return lib.verifyConversion(...args);
+    } };
+    const out = io(dir);
+    expect(await main(["emails", mode, ...(mode === "--out" ? ["converted"] : [])], out, checking), out.out + out.err).toBe(0);
+    expect(checks).toBe(2);
+  });
+});
+
 describe("bundled CLI in a CommonJS project", () => {
   it("loads TSX templates and aliased helpers with automatic JSX, then compares the written output", async () => {
     const dir = project({

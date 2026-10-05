@@ -146,13 +146,32 @@ export async function main(argv: string[], io: Io, library?: Library): Promise<n
   }
 
   const lib = library ?? ((await import("@unlayer/from-react-email")) as Library);
+  const dependencies = options.write ? await importedInputs(inputs.files) : new Map<string, string>();
   const results: FileResult[] = [];
+  const pending: Array<{ result: FileResult; writes: PendingWrite[] }> = [];
   for (const input of candidates) {
-    const result = await migrateFile(input, options, lib, io, destinations);
+    const importer = dependencies.get(input.path);
+    if (importer) {
+      results.push({ file: relative(io.cwd, input.path), status: "skipped", reason: `imported by ${relative(io.cwd, importer)}: its markup is inlined into the templates that use it` });
+      continue;
+    }
+    const { writes = [], ...result } = await migrateFile(input, options, lib, io, destinations);
     results.push(result);
-    io.stdout(`${line(result)}\n`);
+    pending.push({ result, writes });
   }
 
+  for (const { result, writes } of pending) {
+    try {
+      for (const write of writes) {
+        await writeDestination(write.path, write.text, destinations);
+        result[write.kind] = relative(io.cwd, write.path);
+      }
+    } catch (error) {
+      result.status = "failed";
+      result.reason = `couldn't write output: ${message(error)}`;
+    }
+  }
+  for (const result of results) io.stdout(`${line(result)}\n`);
   io.stdout(`\n${summary(results, options)}\n`);
   if (reportFile) {
     const target = resolve(io.cwd, reportFile);
@@ -296,7 +315,13 @@ async function cleanProbeDirectories(directory: string, firstCreated: string | u
   }
 }
 
-async function migrateFile(input: Input, options: Options, lib: Library, io: Io, destinations: Destinations): Promise<FileResult> {
+interface PendingWrite {
+  path: string;
+  text: string;
+  kind: "output" | "design";
+}
+
+async function migrateFile(input: Input, options: Options, lib: Library, io: Io, destinations: Destinations): Promise<FileResult & { writes?: PendingWrite[] }> {
   const file = input.path;
   const name = relative(io.cwd, file) || basename(file);
   const source = await readFile(file, "utf8");
@@ -383,21 +408,12 @@ async function migrateFile(input: Input, options: Options, lib: Library, io: Io,
       designWarnings: verification.designWarnings,
     };
 
+    const writes: PendingWrite[] = [];
     if (writing && (result.status === "migrated" || options.force)) {
-      try {
-        await writeDestination(target, code, destinations);
-        result.output = relative(io.cwd, target);
-        if (options.design) {
-          const designFile = designPath(target);
-          await writeDestination(designFile, `${JSON.stringify(design, null, 2)}\n`, destinations);
-          result.design = relative(io.cwd, designFile);
-        }
-      } catch (error) {
-        result.status = "failed";
-        result.reason = `couldn't write output: ${message(error)}`;
-      }
+      writes.push({ path: target, text: code, kind: "output" });
+      if (options.design) writes.push({ path: designPath(target), text: `${JSON.stringify(design, null, 2)}\n`, kind: "design" });
     }
-    return result;
+    return { ...result, writes };
   } finally {
     for (const unregister of release.reverse()) unregister();
   }
@@ -739,6 +755,38 @@ async function moduleLoader(file: string): Promise<(specifier: string, fromFile:
     const text = ts.sys.readFile(target);
     return text === undefined ? undefined : { fileName: target, source: text };
   };
+}
+
+/** Keep shared source files available to importers that aren't migrated. */
+async function importedInputs(inputs: Input[]): Promise<Map<string, string>> {
+  const ts = (await import("typescript")).default;
+  const scanned = new Map(await Promise.all(inputs.map(async (input) => [await canonicalPath(input.path), input.path] as const)));
+  const dependencies = new Map<string, string>();
+  for (const input of inputs) {
+    const load = await moduleLoader(input.path);
+    const file = ts.createSourceFile(input.path, await readFile(input.path, "utf8"), ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
+    const specifiers = new Set<string>();
+    const visit = (node: import("typescript").Node) => {
+      if ((ts.isImportDeclaration(node) && !node.importClause?.isTypeOnly) || (ts.isExportDeclaration(node) && !node.isTypeOnly)) {
+        if (node.moduleSpecifier && ts.isStringLiteral(node.moduleSpecifier)) specifiers.add(node.moduleSpecifier.text);
+      } else if (ts.isImportEqualsDeclaration(node) && !node.isTypeOnly && ts.isExternalModuleReference(node.moduleReference)) {
+        const value = node.moduleReference.expression;
+        if (value && ts.isStringLiteral(value)) specifiers.add(value.text);
+      } else if (ts.isCallExpression(node) && (node.expression.kind === ts.SyntaxKind.ImportKeyword || (ts.isIdentifier(node.expression) && node.expression.text === "require"))) {
+        const value = node.arguments[0];
+        if (value && ts.isStringLiteral(value)) specifiers.add(value.text);
+      }
+      ts.forEachChild(node, visit);
+    };
+    visit(file);
+    for (const specifier of specifiers) {
+      const loaded = load(specifier, input.path);
+      if (!loaded) continue;
+      const dependency = scanned.get(await canonicalPath(loaded.fileName));
+      if (dependency && dependency !== input.path) dependencies.set(dependency, input.path);
+    }
+  }
+  return dependencies;
 }
 
 function findUp(name: string, from: string): string | undefined {
