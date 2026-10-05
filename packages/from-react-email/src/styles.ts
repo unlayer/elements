@@ -118,8 +118,28 @@ export function backgroundImage(style: Style | undefined, fullWidth: boolean): R
     fullWidth,
     repeat: repeat === "no-repeat" ? "no-repeat" : repeat,
     size: size === "cover" || size === "contain" ? size : "custom",
-    position: String(style?.backgroundPosition ?? "top center").replace(/^top$/, "top center"),
+    ...backgroundPosition(String(style?.backgroundPosition ?? "")),
   };
+}
+
+/**
+ * CSS background-position → the editor's `position` ("top-center", "center", …), or
+ * `custom` with `customPosition` for lengths. CSS's default is the top left.
+ */
+function backgroundPosition(css: string): { position: string; customPosition?: [string, string] } {
+  const parts = css.trim().toLowerCase().split(/\s+/).filter(Boolean);
+  if (!parts.length) return { position: "top-left" };
+  const keywords = ["top", "bottom", "left", "right", "center"];
+  if (parts.length > 2 || !parts.every((p) => keywords.includes(p))) {
+    const [x = "auto", y = "auto"] = parts;
+    return { position: "custom", customPosition: [x, y] };
+  }
+  let vertical = parts.find((p) => p === "top" || p === "bottom") ?? "center";
+  let horizontal = parts.find((p) => p === "left" || p === "right") ?? "center";
+  // One keyword: the other axis is centered (`top` is "top center").
+  if (parts.length === 1 && parts[0] === "center") vertical = horizontal = "center";
+  if (vertical === "center" && horizontal === "center") return { position: "center" };
+  return { position: vertical === "center" ? `center-${horizontal}` : `${vertical}-${horizontal}` };
 }
 
 /**

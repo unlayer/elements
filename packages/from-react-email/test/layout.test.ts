@@ -145,6 +145,31 @@ describe("phones: more", () => {
   });
 });
 
+describe("background images", () => {
+  it("puts a full-width card's image on its row, in the editor's position terms, as one row", async () => {
+    const hero = {
+      backgroundColor: "#431d26",
+      backgroundImage: "url('https://example.com/hero.png')",
+      backgroundSize: "cover",
+      backgroundPosition: "top",
+      backgroundRepeat: "no-repeat",
+      borderBottom: "1px solid #3d151d",
+    };
+    const { shape, report } = await rows(
+      h(Container, null, h(Section, { style: hero }, h(Row, null, h(Column, { style: { padding: "48px 32px 240px" } }, h(Text, { style: { margin: 0 } }, "Use code"), h(Section, { style: { marginTop: "12px", paddingTop: "16px" } }, h(Text, { style: { margin: 0 } }, "Use promo")))))),
+    );
+    const painted = shape.filter((r: any) => r.backgroundImage);
+    // One row: the image doesn't restart part-way down the box.
+    expect(painted).toHaveLength(1);
+    expect(painted[0]).toMatchObject({ columnsBackgroundColor: "#431d26", backgroundImage: { url: "https://example.com/hero.png", size: "cover", position: "top-center", fullWidth: false } });
+    // Its column is left unpainted so the image shows; the bottom border closes it.
+    expect(painted[0].columns[0].backgroundColor).toBeUndefined();
+    expect(painted[0].columns[0].border).toMatchObject({ borderBottomWidth: "1px" });
+    expect(report.notes.map((n: any) => n.reason)).toContain("background cover not applied in email (the image shows at its natural size)");
+    expect(report.notes.map((n: any) => n.reason)).not.toContain("background image dropped on an inset box");
+  });
+});
+
 describe("text outside a Text", () => {
   it("inherits its box's font size instead of taking Text's 14px", async () => {
     const { tree } = await convertElement(h(Html, null, h(Body, null, h(Container, null, h(Section, { style: { fontSize: "36px" } }, "🌟")))));

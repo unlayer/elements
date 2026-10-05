@@ -145,6 +145,8 @@ export function layout(flow: Flow[], options: LayoutOptions): ElementNode[] {
 
 interface Frame {
   parent?: Frame;
+  /** A card as wide as the content with a background image: its paint goes on its rows. */
+  rowImage?: boolean;
   /**
    * band: full-width background; fill: the content box's background;
    * card: painted on the columns, inset by spacer columns; narrow: unpainted,
@@ -484,7 +486,17 @@ class Engine {
       output: this.out,
       label,
     };
-    if (kind === "card" && style.image) this.report.note("background image dropped on an inset box", String(style.image.url ?? ""));
+    // Columns can't take a background image; a card as wide as the content can put it (and its
+    // color) on its rows' content box, its columns left unpainted. Rounded corners would show square.
+    if (kind === "card" && style.image) {
+      if (outer.left < 0.5 && outer.right < 0.5 && !style.radius) frame.rowImage = true;
+      else this.report.note("background image dropped on an inset box", String(style.image.url ?? ""));
+    }
+    // The editor's email export leaves out background-size (clients disagree on it), as Elements does.
+    const sized = style.image && (style.image.size === "cover" || style.image.size === "contain");
+    if (sized && (kind === "band" || kind === "fill" || frame.rowImage)) {
+      this.report.note(`background ${style.image?.size} not applied in email (the image shows at its natural size)`, String(style.image?.url ?? ""));
+    }
     // A band or fill keeps the space around it as padding on the columns.
     const inset = columnFrame ? { left: padding.left + keep.left, right: padding.right + keep.right } : sameInset;
     const mobileInset = padded
@@ -881,34 +893,73 @@ function mergeRows(a: ElementNode, b: ElementNode, info: WeakMap<ElementNode, Ro
   const ca = colsA[at];
   const cb = colsB[at];
   if (ca.type !== "Column" || cb.type !== "Column") return undefined;
-  const { padding: padA, ...restA } = ca.props ?? {};
-  const { padding: padB, ...restB } = cb.props ?? {};
-  if (restA.border || restA.borderRadius || restB.border || restB.borderRadius || JSON.stringify(restA) !== JSON.stringify(restB)) return undefined;
+  const { padding: padA, mobile: mobA, border: borderA, ...restA } = ca.props ?? {};
+  const { padding: padB, mobile: mobB, border: borderB, ...restB } = cb.props ?? {};
+  if (restA.borderRadius || restB.borderRadius || JSON.stringify(restA) !== JSON.stringify(restB)) return undefined;
+  // A border can only close the merged column: a top border on the first part, a bottom one on the last.
+  const border = closingBorder(borderA, borderB);
+  if (border === false) return undefined;
   const pa = sidesOf(padA);
   const pb = sidesOf(padB);
   if (pa.left !== pb.left || pa.right !== pb.right) return undefined;
+  // Phone padding merges like the desktop one; its gap goes on the next block as a phone value.
+  const samePhone = JSON.stringify(mobA ?? null) === JSON.stringify(mobB ?? null);
+  const { padding: phoneA, ...phoneRestA } = (mobA ?? {}) as Record<string, unknown>;
+  const { padding: phoneB, ...phoneRestB } = (mobB ?? {}) as Record<string, unknown>;
+  const ma = samePhone ? undefined : pxSides(phoneA ?? padA);
+  const mb = samePhone ? undefined : pxSides(phoneB ?? padB);
+  if (!samePhone && (!ma || !mb || ma.left !== mb.left || ma.right !== mb.right || JSON.stringify(phoneRestA) !== JSON.stringify(phoneRestB))) return undefined;
   const blocksA = (ca.children ?? []) as ElementNode[];
   const blocksB = (cb.children ?? []) as ElementNode[];
   let top = pa.top;
   let bottom = pb.bottom;
-  if (!blocksA.length) top = pa.top + pa.bottom + pb.top;
-  else if (!blocksB.length) bottom = pa.bottom + pb.top + pb.bottom;
-  else {
+  let phoneTop = ma?.top ?? 0;
+  let phoneBottom = mb?.bottom ?? 0;
+  if (!blocksA.length) {
+    top = pa.top + pa.bottom + pb.top;
+    if (ma && mb) phoneTop = ma.top + ma.bottom + mb.top;
+  } else if (!blocksB.length) {
+    bottom = pa.bottom + pb.top + pb.bottom;
+    if (ma && mb) phoneBottom = ma.bottom + mb.top + mb.bottom;
+  } else {
     const gap = pa.bottom + pb.top;
-    if (gap) {
+    const phoneGap = ma && mb ? ma.bottom + mb.top : gap;
+    if (gap || phoneGap !== gap) {
       const first = blocksB[0];
       const last = blocksA[blocksA.length - 1];
-      if (first.type !== "#expr") first.props = { ...first.props, containerPadding: addTo(first.props?.containerPadding, { top: gap }) };
-      else if (last.type !== "#expr") last.props = { ...last.props, containerPadding: addTo(last.props?.containerPadding, { bottom: gap }) };
-      else return undefined;
+      const target = first.type !== "#expr" ? first : last.type !== "#expr" ? last : undefined;
+      if (!target) return undefined;
+      const side = target === first ? "top" : "bottom";
+      const own = target.props?.containerPadding;
+      const ownPhone = (target.props?.mobile as { containerPadding?: unknown } | undefined)?.containerPadding ?? own;
+      target.props = { ...target.props, containerPadding: addTo(own, { [side]: gap }) };
+      if (phoneGap !== gap || (target.props?.mobile as { containerPadding?: unknown } | undefined)?.containerPadding !== undefined) {
+        target.props = { ...target.props, mobile: { ...(target.props?.mobile as object), containerPadding: addTo(ownPhone, { [side]: phoneGap }) } };
+      }
     }
   }
   const padding = { top, right: pa.right, bottom, left: pa.left };
-  const column = el("Column", { ...restA, padding: hasSides(padding) ? sidesToCss(padding) : undefined }, [...blocksA, ...blocksB]);
+  const phone = ma && mb ? { ...phoneRestA, padding: sidesToCss({ top: phoneTop, right: ma.right, bottom: phoneBottom, left: ma.left }) } : mobA;
+  const column = el("Column", { ...(phone ? { mobile: phone } : {}), ...restA, padding: hasSides(padding) ? sidesToCss(padding) : undefined, ...(border ? { border } : {}) }, [...blocksA, ...blocksB]);
   const columns = colsA.map((c, i) => (i === at ? column : c));
   const row = el("Row", { ...(keyA !== undefined ? { key: keyA } : {}), ...propsA }, columns);
   info.set(row, ia);
   return row;
+}
+
+/** A column border both parts can share when merged: none, a top on the first, a bottom on the last; false otherwise. */
+function closingBorder(a: unknown, b: unknown): Record<string, unknown> | undefined | false {
+  const only = (border: unknown, side: string) => !border || Object.keys(border as object).every((k) => k.startsWith(`border${side}`));
+  if (!a && !b) return undefined;
+  if (only(a, "Top") && only(b, "Bottom")) return { ...(a as object), ...(b as object) };
+  return false;
+}
+
+/** CSS sides in px, or undefined when a side isn't a plain length (`calc()`). */
+function pxSides(css: unknown): BoxSides | undefined {
+  if (css === undefined || css === null || css === "") return { ...ZERO };
+  if (/calc\(|%|vw|em/.test(String(css))) return undefined;
+  return sidesOf(css);
 }
 
 function addTo(css: unknown, add: Partial<BoxSides>): string {
@@ -1012,7 +1063,10 @@ function columnFrames(frame: Frame): Frame[] {
 
 /** The background a column `depth` frames deep shows: the innermost painted card around it. */
 function paintAt(frames: Frame[], depth: number): string | undefined {
-  for (let i = depth - 1; i >= 0; i--) if (frames[i].kind === "card" && frames[i].background) return frames[i].background;
+  for (let i = depth - 1; i >= 0; i--) {
+    if (frames[i].rowImage) return undefined;
+    if (frames[i].kind === "card" && frames[i].background) return frames[i].background;
+  }
   return undefined;
 }
 
@@ -1044,7 +1098,7 @@ function rowPaint(frame: Frame): Record<string, unknown> {
   let fill: Frame | undefined;
   for (let f: Frame | undefined = frame; f; f = f.parent) {
     if (f.kind === "band" && !band) band = f;
-    if (f.kind === "fill" && !fill && !band) fill = f;
+    if ((f.kind === "fill" || f.rowImage) && !fill && !band) fill = f;
   }
   const image = fill?.image ? { ...fill.image, fullWidth: false } : band?.image ? { ...band.image, fullWidth: true } : undefined;
   return {
