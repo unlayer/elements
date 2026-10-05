@@ -771,7 +771,11 @@ class Engine {
     // Spacers that only narrow the content give their width back on phones only when the row
     // stacks: the editor can't hide a column, so side-by-side spacers keep their share.
     const collapsedNarrow = stacks && !several && frames.some(f => f.collapsesOnMobile);
-    if ((stacks && (marked || ctx.mobileInset)) || collapsedNarrow) {
+    // Inside a card, columns that stack run edge to edge on phones, while the card's other rows
+    // keep their spacers there. A phone border in the spacers' color, as wide as a spacer at
+    // phone width, keeps the card's edge: the editor can't pad a row's sides in email or hide a column.
+    const edge = stacks && !holes ? cardEdge(frames, left, right, this.options.contentWidth, rowPaint(ctx.frame).columnsBackgroundColor as string | undefined) : undefined;
+    if ((stacks && (marked || ctx.mobileInset)) || collapsedNarrow || edge) {
       const inset = { ...(ctx.mobileInset ?? ctx.inset) };
       for (const frame of frames) {
         if (stacks || (frame.collapsesOnMobile)) {
@@ -790,8 +794,15 @@ class Engine {
           // A column hidden on phones keeps no padding there (see column()).
           if (spec.node.style.mobile?.hideOnMobile) return;
           const target = columns[left.length + i];
-          const own = spec.node.style.mobile?.padding ?? spec.node.style.padding;
-          if (inset.left || inset.right || spec.node.style.mobile?.padding) target.props = { ...target.props, mobile: { ...(target.props?.mobile as object), padding: sidesToCss({ ...own, left: own.left + inset.left, right: own.right + inset.right }) } };
+          // A column made a block on phones (`mobile:!block`) takes its margins there, as space.
+          const margin = spec.node.stacks ? spec.node.style.mobile?.margin : undefined;
+          const base = spec.node.style.mobile?.padding ?? spec.node.style.padding;
+          const own = margin ? { ...base, top: base.top + Math.max(0, margin.top), bottom: base.bottom + Math.max(0, margin.bottom) } : base;
+          // The border takes its width out of the padding: the text stays where it was.
+          const border = edge && !spec.node.style.border ? edge : undefined;
+          const padding = { ...own, left: Math.max(0, own.left + inset.left - (border?.left ?? 0)), right: Math.max(0, own.right + inset.right - (border?.right ?? 0)) };
+          if (inset.left || inset.right || spec.node.style.mobile?.padding || border || (margin && (margin.top > 0 || margin.bottom > 0))) target.props = { ...target.props, mobile: { ...(target.props?.mobile as object), padding: sidesToCss(padding) } };
+          if (border) target.props = { ...target.props, mobile: { ...(target.props?.mobile as object), border: border.border } };
         }
       });
     }
@@ -932,6 +943,28 @@ function columnFrames(frame: Frame): Frame[] {
 function paintAt(frames: Frame[], depth: number): string | undefined {
   for (let i = depth - 1; i >= 0; i--) if (frames[i].kind === "card" && frames[i].background) return frames[i].background;
   return undefined;
+}
+
+/**
+ * The phone border that stands in for a card's spacers on a row that stacks: when the
+ * stacked columns are painted, and every spacer shows one color (its own, else the row's).
+ */
+function cardEdge(
+  frames: Frame[],
+  left: Array<{ width: number; depth: number }>,
+  right: Array<{ width: number; depth: number }>,
+  contentWidth: number,
+  rowColor: string | undefined,
+): { border: Record<string, string>; left: number; right: number } | undefined {
+  if (!left.length && !right.length) return undefined;
+  if (!paintAt(frames, frames.length) || frames.some((f) => f.border)) return undefined;
+  const colors = new Set([...left, ...right].map((s) => paintAt(frames, s.depth) ?? rowColor));
+  const [color] = colors;
+  if (colors.size !== 1 || !color) return undefined;
+  // Spacers are a share of the row: at the benchmark's phone width, this many px.
+  const phone = (spacers: Array<{ width: number }>) => Math.round((spacers.reduce((a, s) => a + s.width, 0) / contentWidth) * PHONE_WIDTH);
+  const side = (name: string, width: number) => (width ? { [`border${name}Width`]: `${width}px`, [`border${name}Style`]: "solid", [`border${name}Color`]: color } : {});
+  return { border: { ...side("Left", phone(left)), ...side("Right", phone(right)) }, left: phone(left), right: phone(right) };
 }
 
 /** Row-level paint: the full-width band, and the content box's background and image. */

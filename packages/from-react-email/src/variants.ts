@@ -97,6 +97,19 @@ function isVariant(token: string): boolean {
   return head.includes(":");
 }
 
+/** A condition that's a literal once props are filled in (`(true)`, `(undefined)`): its truth. */
+function literalCondition(condition: string): boolean | undefined {
+  const text = condition.trim().replace(/^\((.*)\)$/s, "$1").trim();
+  if (text === "true") return true;
+  if (["false", "undefined", "null", "0", '""', "''"].includes(text)) return false;
+  return undefined;
+}
+
+/** A margin or padding class behind a screen variant (`mobile:mb-8`), not a state like `hover:`. */
+function isSpacing(token: string): boolean {
+  return /^(?!(hover|focus|active|visited|disabled|group|peer|dark|first|last|odd|even)\b)[\w-]+:!?-?[mp][trblxy]?-/.test(token);
+}
+
 function variantClasses(classes: string): string[] {
   return classes.split(/\s+/).filter((t) => t && isVariant(t));
 }
@@ -145,15 +158,23 @@ function rewrite(file: ts.SourceFile, node: ts.JsxElement | ts.JsxSelfClosingEle
   const attribute = variants.attribute;
   const replaceWith = (classes: string) => source.slice(0, attribute.getStart()) + `className=${JSON.stringify(classes)}` + source.slice(attribute.getEnd());
   // Already inside a branch of the same condition (`c ? <>{a}{b}</> : <>{b}{a}</>`): that branch's classes.
-  const known = branchOf(node, variants.condition);
+  const known = literalCondition(variants.condition) ?? branchOf(node, variants.condition);
   if (known !== undefined) return replaceWith(known ? variants.whenTrue : variants.whenFalse);
   // Branches that differ only in variant classes give the same styles: one static class list,
   // keeping the variant classes (`mobile:!block`) both branches share.
   const a = inlinable(variants.whenTrue);
   const b = inlinable(variants.whenFalse);
   if (a.length === b.length && a.every((t, i) => t === b[i])) {
-    const shared = variantClasses(variants.whenTrue).filter((t) => variantClasses(variants.whenFalse).includes(t));
-    return replaceWith([...shared, ...a].join(" "));
+    const inTrue = variantClasses(variants.whenTrue);
+    const inFalse = variantClasses(variants.whenFalse);
+    const shared = inTrue.filter((t) => inFalse.includes(t));
+    // Spacing only one branch has (`isLast ? "" : " mobile:mb-8"`): kept, since a gap too many
+    // reads closer to the original than every gap missing. Not when the other branch sets it too.
+    const key = (t: string) => t.replace(/-[^-]*$/, "");
+    const oneSided = [...inTrue.filter((t) => !inFalse.includes(t)), ...inFalse.filter((t) => !inTrue.includes(t))].filter(
+      (t) => isSpacing(t) && ![...inTrue, ...inFalse].some((o) => o !== t && key(o) === key(t)),
+    );
+    return replaceWith([...shared, ...oneSided, ...a].join(" "));
   }
   // The only child of a Column: copy the Column.
   const parent = node.parent;

@@ -163,6 +163,8 @@ export interface MobileProps {
   width?: number | string;
   maxWidth?: number | string;
   autoWidth?: boolean;
+  /** Column border on this device (per side, as the desktop `border`). */
+  border?: Partial<Record<`border${"Top" | "Right" | "Bottom" | "Left"}${"Width" | "Style" | "Color"}`, number | string>>;
 }
 
 export interface DeviceProps {

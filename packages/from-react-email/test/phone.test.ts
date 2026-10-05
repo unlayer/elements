@@ -125,6 +125,29 @@ describe("phone styles", () => {
     expect(codemod.code.match(/mobile=\{\{ padding: "32px/g)?.length).toBe(2);
   });
 
+  it("keeps a card's edge on rows that stack, and the gaps a column's phone margin makes", async () => {
+    // Inside a gray card on a white box, the side-by-side rows keep white spacers on phones;
+    // the stacking row gets a white phone border instead (the editor can't pad a row's sides
+    // in email). Each item but the last has a phone margin below it (\`isLast ? "" : …\`).
+    const source = `${imports}
+      function Item({ isLast, label }: { isLast?: boolean; label: string }) {
+        return <Column className={\`max-sm:!block max-sm:!w-full w-1/2 align-top\${isLast ? "" : " max-sm:mb-8"}\`}><Text className="m-0">{label}</Text></Column>;
+      }
+      export default function T() { return <Tailwind><Html><Head/><Body><Container style={{ backgroundColor: "#ffffff", padding: "0 24px", maxWidth: 640 }}>
+        <Section style={{ backgroundColor: "#f3f4f6", padding: "24px" }}>
+          <Text className="m-0">Intro</Text>
+          <Row><Item label="One"/><Item isLast label="Two"/></Row>
+        </Section>
+      </Container></Body></Html></Tailwind>; }`;
+    const { codemod } = await convertBoth(source);
+    expect(codemod.code).toContain('borderLeftColor: "#ffffff"');
+    expect(codemod.code.match(/borderLeftWidth: "\d+px"/g)?.length).toBe(2);
+    // 32px below the first item only.
+    const paddings = [...codemod.code.matchAll(/mobile=\{\{\s*padding: "([^"]+)"/g)].map((m) => m[1].split(" ")[2]);
+    expect(paddings).toContain("32px");
+    expect(paddings.filter((p) => p === "32px")).toHaveLength(1);
+  });
+
   it("both modes carry phone-only row padding and hiding through nested sections", async () => {
     const source = `${imports}
       export default function T() { return <Tailwind><Html><Head/><Body><Container>

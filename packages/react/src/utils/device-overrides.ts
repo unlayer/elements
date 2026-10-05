@@ -24,7 +24,7 @@ function size(value: unknown): string | undefined {
 export function collectDeviceStyles(values: Record<string, any>, collection: Collection, name: string, mode: RenderMode, styles: DeviceStyles): void {
   const id = values._meta?.htmlID;
   if (!id) return;
-  const options = collection === "contents" ? ["containerPadding", ...(contentOptions[name] || [])] : ["padding"];
+  const options = collection === "contents" ? ["containerPadding", ...(contentOptions[name] || [])] : collection === "columns" ? ["padding", "border"] : ["padding"];
   for (const device of mode === "document" ? ["desktop"] : ["desktop", "mobile"]) {
     const overrides = values._override?.[device];
     if (!overrides) continue;
@@ -44,6 +44,9 @@ export function collectDeviceStyles(values: Record<string, any>, collection: Col
           const parts = String(value).trim().split(/\s+/);
           push(`${target}--vertical { padding-top: ${size(parts[0])} !important; padding-bottom: ${size(parts[2] || parts[0])} !important; }`);
         }
+      } else if (option === "border") {
+        // As the editor's borderToStyle: transparent unless a side has a width.
+        if (value) push(`${selector("border")} { ${["Top", "Left", "Right", "Bottom"].map((d) => { const w = value[`border${d}Width`] || "0px"; return `border-${d.toLowerCase()}: ${w} ${value[`border${d}Style`] || "solid"} ${(parseInt(w) > 0 && value[`border${d}Color`]) || "transparent"} !important;`; }).join("")} }`);
       } else if (option === "src") {
         if (!value) continue;
         const merged = { ...values.src, ...value };

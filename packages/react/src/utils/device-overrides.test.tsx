@@ -61,6 +61,16 @@ describe("device settings", () => {
     expect(styles.mobile).toEqual(["#sample .v-font-size { font-size: 20px !important; }", "#sample .v-line-height { line-height: 0 !important; }"]);
   });
 
+  it("renders a column's phone border as the editor does, and keeps it in the design", () => {
+    const border = { borderLeftWidth: 14, borderLeftStyle: "solid", borderLeftColor: "#ffffff", borderRightWidth: "14px", borderRightColor: "#ffffff" };
+    const tree = <Email><Row><Column mobile={{ border }}><Paragraph>Card</Paragraph></Column></Row></Email>;
+    const column = renderToJson(tree).body.rows[0].columns[0].values;
+    expect(column._override.mobile.border).toMatchObject({ borderLeftWidth: "14px", borderRightWidth: "14px", borderLeftColor: "#ffffff" });
+    expect(renderToHtml(tree)).toContain(
+      "#u_column_1 .v-col-border { border-top: 0px solid transparent !important;border-left: 14px solid #ffffff !important;border-right: 14px solid #ffffff !important;border-bottom: 0px solid transparent !important; }",
+    );
+  });
+
   it("passes content visibility through to the canonical wrapper", () => {
     const html = renderToHtml(<Email><Row><Column><Paragraph hideOnMobile>Desktop</Paragraph><Paragraph hideOnDesktop>Phone</Paragraph></Column></Row></Email>);
     const doc = new DOMParser().parseFromString(html, "text/html");
