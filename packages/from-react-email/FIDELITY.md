@@ -6,8 +6,8 @@ How closely converted templates match their React Email originals, measured on 1
 
 | Mode | Templates | Convert | Type-check | Lose content | Flipped-prop problems | Editor skips | Native (avg) | Fully native | Words moved, desktop (median / mean / >25%) | Words moved, phone (median / >25%) |
 |---|---|---|---|---|---|---|---|---|---|---|
-| Codemod | 106 | 106 | 106 | 0 | 0 | 0 | 98.4% | 96 | 0% / 0.9% / 1 | 16.5% / 27 of 85 |
-| Runtime | 106 | 106 | 106 | 0 | 0 | 0 | 98.4% | 97 | 0% / 1.1% / 2 | 13.9% / 27 of 85 |
+| Codemod | 106 | 106 | 106 | 0 | 0 | 0 | 98.4% | 96 | 0% / 0.9% / 1 | 6.2% / 11 of 85 |
+| Runtime | 106 | 106 | 106 | 0 | 0 | 0 | 98.4% | 97 | 0% / 1.1% / 2 | 4.7% / 10 of 85 |
 
 - **Lose content**: a word, link (`href`), image (`src`) or image `alt` the original renders and the conversion doesn't.
 - **Flipped-prop problems**: the same check with each boolean prop flipped (branches `PreviewProps` doesn't take).
@@ -17,27 +17,34 @@ How closely converted templates match their React Email originals, measured on 1
 
 Desktop is the faithful view: in 105 of 106 templates, at most a quarter of the words sit somewhere else, and the median is none. The one outlier sets no font, so the browser shows serif while Elements uses its sans-serif default.
 
-Phones differ more, for reasons the Elements model sets (below). Every one of them is in the report.
+Phone medians improved from 16.5% to 6.2% (codemod) and from 13.9% to 4.7% (runtime). No template has a higher phone moved-word score than the saved baseline, including the originals that overflow. Every word in all 212 desktop conversions has the same coordinates as before.
+
+Phone padding, margins, text size, line height, alignment, full-width images and hiding now become device overrides. Every stacked column keeps its box's phone side padding. The report still lists unsupported classes and dropped styles.
 
 ### In the visual editor
 
 Five converted designs (a receipt with a bordered card, a newsletter with stacking columns, inline rating stars, a fixed-width button, a card with columns that stay side by side on phones) were loaded into the Unlayer editor, saved and exported. Every row, column setting, border and button width came back unchanged, and the editor's export has every word, link and image of the original.
 
+Two more converted designs were loaded into the editor, previewed at 375px and saved. The preview applied phone typography and padding, including the padding used around narrow cards; all 63 phone override entries survived `saveDesign`. The device CSS also matches four small editor exports in email, web and document modes (12 fixture comparisons).
+
+Column visibility is an Elements extension: the editor saves column hide flags but its preview/export currently ignores them. Row and content visibility use the editor's rules. The CSS fixtures were generated with a local editor build (1.477.0); the in-scope CSS functions were also checked against the current source.
+
 ## Known differences
 
-Ranked by templates affected (codemod mode).
+Codemod report counts and remaining model differences.
 
 | Difference | Templates | Why |
 |---|---|---|
 | Column vertical alignment | 58 | A React Email `Column` is a `<td>`, centered vertically by default; Elements email columns sit at the top. Only visible next to a taller column. |
-| Responsive and hover classes (`mobile:px-6`, `hover:`) | 45 | No per-device styles in Elements. Classes that stack columns on phones are carried out. |
+| Unsupported classes and phone declarations | 24 | State variants, unresolved utilities, phone font weight/letter spacing, and full-width text declarations can remain unconverted. Supported phone properties are mapped even when another declaration in the same class is unsupported. |
 | Image border radius | 18 | Elements images have no radius. |
-| Max-width text inside a card, on phones | 17 | Columns side by side keep their share of the row on phones (`noStackMobile`), so the text wraps more than the original, where max-width stops mattering. |
+| Small max-width boxes inside cards, on phones | Case dependent | A box smaller than the available phone width can still keep a proportional width. Wider text boxes now collapse their desktop spacers; phone padding preserves the surrounding inset. |
 | Shadows, gradients, transforms, opacity | 13 | No Elements equivalent. |
 | Max-width text in a column of several | 7 | A block can't be narrower than its column. |
-| Side padding of stacked columns, on phones | 7 | Columns that stack keep their desktop padding: only the outer ones have the box's side padding. |
 | Box outline around stacking columns, on phones | 4 | Each stacked column takes a piece of the border. Desktop is exact. |
 | Kept as `Html` | 10 | Unknown elements (`div` with layout, raw `table`), Rows nested in a column of several, images with no width. They render as before. |
+
+Phone device settings use the editor's 480px breakpoint. A source query such as `max-width: 600px` therefore differs between 481px and 600px; arbitrary breakpoints, phone font weight and letter spacing, and other unsupported declarations are not carried over. Narrow-box decisions use the benchmark's 375px phone width.
 
 On phones, fixed widths (images, icon gaps) scale with the screen: side by side, Elements columns keep their share of the row, and image widths are a share of their column. React Email keeps them in px.
 

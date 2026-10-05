@@ -530,19 +530,7 @@ const monoFont = { label: "Monospace", value: "'SF Mono', 'Fira Code', 'Roboto M
 
 > Note: the CSS-idiom forms that used to be mistakes now work — a string `fontFamily`, a string/number `fontWeight`, a numeric `fontSize`, `padding="0"`, and `<Paragraph text="..." />` are all accepted and normalized. The object/numeric forms above are still recommended for clarity.
 
-## Development
-
-```bash
-pnpm build          # Build the package
-pnpm test           # Run tests
-pnpm storybook      # Launch Storybook
-```
-
-## License
-
-MIT
-
-### Phone settings
+## Phone settings
 
 Rows, columns and content items accept `mobile` settings with the same flat CSS inputs as desktop props. For example:
 
@@ -557,4 +545,16 @@ Rows, columns and content items accept `mobile` settings with the same flat CSS 
 
 Supported settings are padding, content `containerPadding`, font size, line height, text alignment and image/button width (`width`, `maxWidth`, `autoWidth`), where the component supports them. Numeric padding and font sizes use pixels; numeric line height is a multiplier. Phone CSS applies at 480px and below, matching the editor. `noStackMobile` still controls column stacking separately.
 
-`hideOnMobile` and `hideOnDesktop` work on rows, columns and content. `renderToJson` stores these settings in `_override.mobile` and `_override.desktop`, so designs retain them when opened in the visual editor. Document output keeps its desktop settings.
+`hideOnMobile` and `hideOnDesktop` work on rows, columns and content. `renderToJson` stores these settings in `_override.mobile` and `_override.desktop`, so designs retain them when opened in the visual editor. The editor currently preserves column hide flags without applying them in its preview/export; Elements applies them. Image `autoWidth` follows the editor's natural-size cap. Document output keeps its desktop settings.
+
+## Development
+
+```bash
+pnpm build          # Build the package
+pnpm test           # Run tests
+pnpm storybook      # Launch Storybook
+```
+
+## License
+
+MIT
