@@ -20,11 +20,16 @@ export interface Inherited {
    * images and buttons directly inside it. Not inherited further.
    */
   blockAlign?: string;
+  mobile?: { fontSize?: string; lineHeight?: string; textAlign?: string };
 }
 
 export function inherit(parent: Inherited, style: Style | undefined): Inherited {
   if (!style) return parent;
-  const next: Inherited = { ...parent, blockAlign: undefined };
+  const next: Inherited = { ...parent, blockAlign: undefined, mobile: { ...parent.mobile } };
+  for (const key of ["fontSize", "lineHeight", "textAlign"] as const) {
+    if (style[key] !== undefined) delete next.mobile![key];
+    if (style._phone?.[key] !== undefined) next.mobile![key] = String(style._phone[key]);
+  }
   for (const key of ["color", "fontFamily", "fontSize", "fontWeight", "textAlign", "letterSpacing", "lineHeight"] as const) {
     if (style[key] !== undefined && style[key] !== "") next[key] = String(style[key]);
   }

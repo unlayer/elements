@@ -32,7 +32,7 @@
 import { el, expr, hole, type BoxSides, type ElementNode, type Expr, type ReportBuilder } from "@unlayer/convert-core";
 import { borderProp } from "./boxes";
 import { cellsFrom, collapse, fill, LAYOUTS, type Block } from "./map";
-import { sidesToCss, ZERO } from "./styles";
+import { px, sidesToCss, ZERO } from "./styles";
 
 // ============================================
 // The tree front ends build
@@ -60,6 +60,7 @@ export interface BoxStyle {
   radius?: string;
   padding: BoxSides;
   margin: BoxSides;
+  mobile?: { padding?: BoxSides; margin?: BoxSides; hideOnMobile?: boolean };
   /** A width in px. Narrower than the space it's in, the box is placed by `align`. */
   width?: number;
   align?: "left" | "center" | "right";
@@ -156,6 +157,9 @@ interface Frame {
   radius?: string;
   /** Spacer widths around this frame, inside its parent (card / narrow). */
   outer: { left: number; right: number };
+  /** Phone padding/margins represented by spacers; restored when those collapse. */
+  mobileOuter?: { left: number; right: number };
+  collapsesOnMobile?: boolean;
   /** Width available inside the frame. */
   width: number;
   /** Rows inside the frame, holes' rows included, for its border and corners. */
@@ -172,6 +176,10 @@ interface Ctx {
   /** Padding inside the frame, on the first and last columns. */
   inset: { left: number; right: number };
   inContainer: boolean;
+  mobileInset?: { left: number; right: number };
+  /** All CSS side padding above the box, including padding represented by spacers. */
+  phoneTotalInset?: { left: number; right: number };
+  hideOnMobile?: boolean;
 }
 
 /** What the engine knows about a Row it made. */
@@ -217,7 +225,7 @@ class Engine {
   private readonly report: ReportBuilder;
   private readonly info = new WeakMap<ElementNode, RowInfo>();
   private out: ElementNode[] = [];
-  private pending: Array<{ height: number; frame: Frame }> = [];
+  private pending: Array<{ height: number; mobileHeight?: number; frame: Frame }> = [];
 
   constructor(private readonly options: LayoutOptions) {
     this.report = options.report;
@@ -234,7 +242,38 @@ class Engine {
     };
     this.flow(flow, { frame: root, inset: { left: 0, right: 0 }, inContainer: false });
     this.settle(root);
-    return this.merge(this.out);
+    const rows = this.merge(this.out);
+    this.pinPhoneInsets(rows);
+    return rows;
+  }
+
+  /** Keep padding represented by card spacers in px as the row shrinks. */
+  private pinPhoneInsets(rows: ElementNode[]): void {
+    for (const row of rows) {
+      if (row.type === "#expr") { for (const slot of row.slots ?? []) this.pinPhoneInsets(slot as ElementNode[]); continue; }
+      const info = this.info.get(row);
+      if (!info || info.stacks) continue;
+      const frames = columnFrames(info.frame);
+      const content = (row.children as ElementNode[]).filter((c, i) => c.type === "Column" && info.depths[i] === frames.length);
+      if (content.length !== 1) continue;
+      const column = content[0];
+      const mobile = column.props?.mobile as { padding?: string } | undefined;
+      if (!mobile?.padding) continue;
+      const wanted = { left: 0, right: 0 }, scaled = { left: 0, right: 0 };
+      for (const frame of frames) {
+        if (frame.kind !== "card") continue;
+        for (const side of ["left", "right"] as const) {
+          // Centering a fixed-width card also needs its spacer; only pin actual padding.
+          if (frame.outer[side] > (frame.mobileOuter?.[side] ?? 0) + 0.5 && !frame.mobileOuter?.[side]) continue;
+          wanted[side] += frame.mobileOuter?.[side] ?? 0;
+          scaled[side] += frame.outer[side];
+        }
+      }
+      if (!scaled.left && !scaled.right) continue;
+      const padding = sidesOf(mobile.padding);
+      const side = (name: "left" | "right") => scaled[name] ? `calc(${padding[name] + wanted[name]}px - ${Number((100 * scaled[name] / this.options.contentWidth).toFixed(6))}vw)` : px(padding[name]);
+      column.props = { ...column.props, mobile: { ...mobile, padding: `${px(padding.top)} ${side("right")} ${px(padding.bottom)} ${side("left")}` } };
+    }
   }
 
   /**
@@ -261,6 +300,7 @@ class Engine {
 
   private flow(items: Flow[], ctx: Ctx): void {
     let below = 0; // bottom margin of the previous sibling
+    let belowPhone = 0;
     let run: Block[] = [];
     const flushRun = () => {
       if (!run.length) return;
@@ -269,11 +309,16 @@ class Engine {
       // The run's outer margins collapse with its siblings'.
       const top = blocks[0].margin.top;
       const bottom = blocks[blocks.length - 1].margin.bottom;
+      const phoneTop = blocks[0].mobileMargin?.top ?? top;
+      const phoneBottom = blocks[blocks.length - 1].mobileMargin?.bottom ?? bottom;
+      if (blocks[0].mobileMargin) blocks[0].mobileMargin = { ...blocks[0].mobileMargin, top: 0 };
+      if (blocks[blocks.length - 1].mobileMargin) blocks[blocks.length - 1].mobileMargin = { ...blocks[blocks.length - 1].mobileMargin!, bottom: 0 };
       blocks[0].margin.top = 0;
       blocks[blocks.length - 1].margin.bottom = 0;
-      this.space(Math.max(below, top), ctx.frame);
+      this.space(Math.max(below, top), ctx.frame, Math.max(belowPhone, phoneTop));
       this.emit(ctx, [{ kind: "column", node: { kind: "column", style: NO_STYLE, blocks } }]);
       below = bottom;
+      belowPhone = phoneBottom;
     };
     for (const item of items) {
       if (item.kind === "content") {
@@ -282,28 +327,30 @@ class Engine {
       }
       flushRun();
       if (item.kind === "rows") {
-        this.space(below, ctx.frame);
+        this.space(below, ctx.frame, belowPhone);
         below = 0;
+        belowPhone = 0;
         this.rowsHole(item, ctx);
         continue;
       }
       const margin = item.style.margin;
-      this.space(Math.max(below, Math.max(0, margin.top)), ctx.frame);
+      this.space(Math.max(below, Math.max(0, margin.top)), ctx.frame, Math.max(belowPhone, Math.max(0, item.style.mobile?.margin?.top ?? margin.top)));
       if (item.kind === "box") this.box(item, ctx);
       else this.row(item, ctx);
       below = Math.max(0, margin.bottom);
+      belowPhone = Math.max(0, item.style.mobile?.margin?.bottom ?? margin.bottom);
     }
     flushRun();
-    this.space(below, ctx.frame);
+    this.space(below, ctx.frame, belowPhone);
   }
 
   private box(node: BoxNode, ctx: Ctx): void {
     const label = node.label ?? (node.container ? "Container" : "Section");
     this.noteDropped(node.style, label);
     const { inner, opened } = this.enter(node.style, ctx, label, node.children, node.container);
-    this.space(node.style.padding.top, inner.frame);
+    this.space(node.style.padding.top, inner.frame, node.style.mobile?.padding?.top);
     this.flow(node.children, inner);
-    this.space(node.style.padding.bottom, inner.frame);
+    this.space(node.style.padding.bottom, inner.frame, node.style.mobile?.padding?.bottom);
     if (opened) this.close(opened);
   }
 
@@ -312,16 +359,16 @@ class Engine {
     const style = node.style;
     this.noteDropped(style, "Row");
     const specs = specsOf(node.columns);
-    const styled = style.background || style.image || style.border || style.radius || style.width !== undefined || hasSides(style.padding);
+    const styled = style.background || style.image || style.border || style.radius || style.width !== undefined || hasSides(style.padding) || style.mobile;
     if (!styled) {
       this.emit(ctx, specs, { branches: node.branches, key: node.key });
       return;
     }
     const plain: RowNode = { ...node, style: NO_STYLE };
     const { inner, opened } = this.enter({ ...style, margin: ZERO }, ctx, "Row", [plain]);
-    this.space(style.padding.top, inner.frame);
+    this.space(style.padding.top, inner.frame, style.mobile?.padding?.top);
     this.emit(inner, specs, { branches: node.branches, key: node.key });
-    this.space(style.padding.bottom, inner.frame);
+    this.space(style.padding.bottom, inner.frame, style.mobile?.padding?.bottom);
     if (opened) this.close(opened);
   }
 
@@ -361,7 +408,15 @@ class Engine {
     else if (spaced && width < available - 0.5) kind = "narrow";
 
     const sameInset = { left: ctx.inset.left + margin.left + padding.left, right: ctx.inset.right + margin.right + padding.right };
-    if (!kind) return { inner: { frame: parent, inset: sameInset, inContainer } };
+    const phonePadding = style.mobile?.padding ?? style.padding;
+    const phoneMargin = style.mobile?.margin ?? style.margin;
+    const inheritedInset = ctx.mobileInset ?? ctx.inset;
+    const phoneChanged = ctx.mobileInset || style.mobile?.padding || style.mobile?.margin;
+    const samePhoneInset = phoneChanged ? { left: inheritedInset.left + Math.max(0, phoneMargin.left) + phonePadding.left, right: inheritedInset.right + Math.max(0, phoneMargin.right) + phonePadding.right } : undefined;
+    const hideOnMobile = ctx.hideOnMobile || style.mobile?.hideOnMobile;
+    const total = ctx.phoneTotalInset ?? ctx.inset;
+    const phoneTotalInset = { left: total.left + Math.max(0, phoneMargin.left) + phonePadding.left, right: total.right + Math.max(0, phoneMargin.right) + phonePadding.right };
+    if (!kind) return { inner: { ...ctx, frame: parent, inset: sameInset, inContainer, mobileInset: samePhoneInset, phoneTotalInset, hideOnMobile } };
 
     const columnFrame = kind === "card" || kind === "narrow";
     // A narrow box keeps the parent's padding around it as padding on its
@@ -381,6 +436,8 @@ class Engine {
       border: decorated && kind !== "band" ? style.border : undefined,
       radius: decorated && kind !== "band" ? style.radius : undefined,
       outer: columnFrame ? { left: outer.left - keep.left, right: outer.right - keep.right } : { left: 0, right: 0 },
+      collapsesOnMobile: kind === "narrow" && (wanted ?? width) >= PHONE_WIDTH - total.left - total.right,
+      mobileOuter: columnFrame ? { left: (keep.left ? 0 : inheritedInset.left) + Math.max(0, phoneMargin.left), right: (keep.right ? 0 : inheritedInset.right) + Math.max(0, phoneMargin.right) } : undefined,
       // Inside its border: the columns at its edges add the border's width to their cells.
       width: columnFrame ? width + keep.left + keep.right - (kind === "card" && decorated ? edgeWidth(style.border?.left) + edgeWidth(style.border?.right) : 0) : parent.width,
       rows: [],
@@ -390,7 +447,8 @@ class Engine {
     if (kind === "card" && style.image) this.report.note("background image dropped on an inset box", String(style.image.url ?? ""));
     // A band or fill keeps the space around it as padding on the columns.
     const inset = columnFrame ? { left: padding.left + keep.left, right: padding.right + keep.right } : sameInset;
-    return { inner: { frame, inset, inContainer }, opened: frame };
+    const mobileInset = phoneChanged ? columnFrame ? { left: phonePadding.left + (keep.left ? inheritedInset.left : 0), right: phonePadding.right + (keep.right ? inheritedInset.right : 0) } : samePhoneInset : undefined;
+    return { inner: { frame, inset, inContainer, mobileInset, phoneTotalInset, hideOnMobile }, opened: frame };
   }
 
   /** Close a frame: settle its space, then draw its border and corners. */
@@ -461,8 +519,8 @@ class Engine {
   // Vertical space
   // ------------------------------------------
 
-  private space(height: number, frame: Frame): void {
-    if (height > 0.5) this.pending.push({ height, frame });
+  private space(height: number, frame: Frame, mobileHeight = height): void {
+    if (height > 0.5 || mobileHeight > 0.5 || mobileHeight !== height) this.pending.push({ height, frame, ...(mobileHeight !== height ? { mobileHeight } : {}) });
   }
 
   /**
@@ -470,15 +528,16 @@ class Engine {
    * frame goes on the row's columns (returned); the rest gets spacer rows
    * painted like the box it belongs to.
    */
-  private takeSpace(frame: Frame): number {
+  private takeSpace(frame: Frame): { desktop: number; mobile: number } {
     let top = 0;
+    let mobile = 0;
     const pending = this.pending;
     this.pending = [];
     for (const p of pending) {
-      if (p.frame === frame) top += p.height;
-      else this.spacer(p.height, p.frame);
+      if (p.frame === frame) { top += p.height; mobile += p.mobileHeight ?? p.height; }
+      else this.spacer(p.height, p.frame, p.mobileHeight);
     }
-    return top;
+    return { desktop: top, mobile };
   }
 
   /** Space left inside `frame` as it ends: below its last row, or a spacer row. */
@@ -489,13 +548,15 @@ class Engine {
     for (const p of mine) {
       const last = this.out[this.out.length - 1];
       const info = last && this.info.get(last);
-      if (last && info && info.frame === p.frame && !info.holes && !info.stacks) padColumns(last, info, { ...ZERO, bottom: p.height });
-      else this.spacer(p.height, p.frame);
+      if (last && info && info.frame === p.frame && !info.holes && !info.stacks) padColumns(last, info, { ...ZERO, bottom: p.height }, { ...ZERO, bottom: p.mobileHeight ?? p.height });
+      else this.spacer(p.height, p.frame, p.mobileHeight);
     }
   }
 
-  private spacer(height: number, frame: Frame): void {
-    this.push(this.build({ frame, inset: { left: 0, right: 0 }, inContainer: true }, [emptyColumn(height)]), frame);
+  private spacer(height: number, frame: Frame, mobileHeight = height): void {
+    const row = this.build({ frame, inset: { left: 0, right: 0 }, inContainer: true }, [emptyColumn(height)]);
+    if (mobileHeight !== height) padColumns(row, this.info.get(row)!, { ...ZERO }, { ...ZERO, top: mobileHeight - height });
+    this.push(row, frame);
   }
 
   // ------------------------------------------
@@ -507,8 +568,8 @@ class Engine {
     const row = this.build(ctx, specs, options);
     const info = this.info.get(row) as RowInfo;
     // Space can't go on columns from code, or on columns that stack on phones (each would repeat it).
-    if (top && (info.holes || info.stacks)) this.spacer(top, ctx.frame);
-    else if (top) padColumns(row, info, { ...ZERO, top });
+    if ((top.desktop || top.mobile) && (info.holes || info.stacks)) this.spacer(top.desktop, ctx.frame, top.mobile);
+    else if (top.desktop || top.mobile || top.desktop !== top.mobile) padColumns(row, info, { ...ZERO, top: top.desktop }, { ...ZERO, top: top.mobile });
     this.push(row, ctx.frame);
   }
 
@@ -527,7 +588,7 @@ class Engine {
   private rowsHole(node: RowsHole, ctx: Ctx): void {
     // Space can't go inside code: it gets rows of its own.
     const top = this.takeSpace(ctx.frame);
-    if (top) this.spacer(top, ctx.frame);
+    if (top.desktop || top.mobile) this.spacer(top.desktop, ctx.frame, top.mobile);
     const outer = this.out;
     const slots = node.slots.map((slot) => {
       this.out = [];
@@ -608,12 +669,12 @@ class Engine {
 
     // Spacers: one per column frame on each side. Columns from code can't
     // take the inset as padding, so it becomes spacers too.
-    const left: Array<{ width: number; depth: number }> = [];
-    const right: Array<{ width: number; depth: number }> = [];
+    const left: Array<{ width: number; depth: number; hideOnMobile?: boolean }> = [];
+    const right: Array<{ width: number; depth: number; hideOnMobile?: boolean }> = [];
     if (counted) {
       frames.forEach((f, i) => {
-        if (f.outer.left > 0.5) left.push({ width: f.outer.left, depth: i });
-        if (f.outer.right > 0.5) right.unshift({ width: f.outer.right, depth: i });
+        if (f.outer.left > 0.5) left.push({ width: f.outer.left, depth: i, hideOnMobile: f.collapsesOnMobile });
+        if (f.outer.right > 0.5) right.unshift({ width: f.outer.right, depth: i, hideOnMobile: f.collapsesOnMobile });
       });
       if (holes && ctx.inset.left > 0.5) left.push({ width: ctx.inset.left, depth });
       if (holes && ctx.inset.right > 0.5) right.unshift({ width: ctx.inset.right, depth });
@@ -627,7 +688,7 @@ class Engine {
       columns.push(node);
       depths.push(d);
     };
-    for (const s of left) add(el("Column", { backgroundColor: paintAt(frames, s.depth) }), s.depth);
+    for (const s of left) add(el("Column", { backgroundColor: paintAt(frames, s.depth), ...(s.hideOnMobile ? { hideOnMobile: true } : {}) }), s.depth);
     const widths: Array<number | undefined> = [];
     specs.forEach((spec, i) => {
       if (spec.kind === "hole") {
@@ -638,10 +699,11 @@ class Engine {
       }
       const inset = holes ? ZERO_INSET : { left: i === 0 ? ctx.inset.left : 0, right: i === specs.length - 1 ? ctx.inset.right : 0 };
       this.noteDropped(spec.node.style, "Column");
-      add(column(spec.node, paintAt(frames, depth), inset), depth);
+      const phoneInset = ctx.mobileInset ? { left: i === 0 ? ctx.mobileInset.left : 0, right: i === specs.length - 1 ? ctx.mobileInset.right : 0 } : undefined;
+      add(column(spec.node, paintAt(frames, depth), inset, phoneInset), depth);
       widths.push(widthOf(spec.node.width, available));
     });
-    for (const s of right) add(el("Column", { backgroundColor: paintAt(frames, s.depth) }), s.depth);
+    for (const s of right) add(el("Column", { backgroundColor: paintAt(frames, s.depth), ...(s.hideOnMobile ? { hideOnMobile: true } : {}) }), s.depth);
 
     // Cells in px: spacers, then the columns (with the inset inside the first and last).
     const laidOut = (contentWidths: Array<number | undefined>) => {
@@ -698,14 +760,33 @@ class Engine {
     if (noStackMobile && !several && frames.some((f) => f.kind === "narrow") && frames.some(loadBearing)) {
       this.report.note("narrow box inside a card keeps its share of the width on phones (wraps more there)", ctx.frame.label);
     }
-    // Stacked, every column is full width; the box's side padding is only on the outer ones.
-    if (stacks && marked && specs.length > 1 && (ctx.inset.left > 0.5 || ctx.inset.right > 0.5)) {
-      this.report.note("side padding on phones only around the outer columns (they stack)", `${Math.round(ctx.inset.left)}px`);
+    const collapsedNarrow = !several && frames.some(f => f.collapsesOnMobile);
+    if ((stacks && (marked || ctx.mobileInset)) || collapsedNarrow) {
+      const inset = { ...(ctx.mobileInset ?? ctx.inset) };
+      for (const frame of frames) {
+        if (stacks || (frame.collapsesOnMobile)) {
+          inset.left += frame.mobileOuter?.left ?? 0;
+          inset.right += frame.mobileOuter?.right ?? 0;
+        }
+      }
+      specs.forEach((spec, i) => {
+        if (spec.kind === "hole") {
+          for (const slot of columns[left.length + i].slots ?? []) for (const node of slot) {
+            if (typeof node === "string" || node.type !== "Column") continue;
+            const own = sidesOf((node.props?.mobile as any)?.padding ?? node.props?.padding);
+            node.props = { ...node.props, mobile: { ...(node.props?.mobile as object), padding: sidesToCss({ ...own, left: own.left + inset.left, right: own.right + inset.right }) } };
+          }
+        } else {
+          const target = columns[left.length + i];
+          const own = spec.node.style.mobile?.padding ?? spec.node.style.padding;
+          if (inset.left || inset.right || spec.node.style.mobile?.padding) target.props = { ...target.props, mobile: { ...(target.props?.mobile as object), padding: sidesToCss({ ...own, left: own.left + inset.left, right: own.right + inset.right }) } };
+        }
+      });
     }
     if (noStackMobile && pxCells) layoutProps = this.foldPadding(columns, depths, specs, pxCells, left.length);
     const row = el(
       "Row",
-      { ...(options.key ? { key: options.key } : {}), ...layoutProps, ...(noStackMobile ? { noStackMobile: true } : {}), ...rowPaint(ctx.frame) },
+      { ...(options.key ? { key: options.key } : {}), ...(ctx.hideOnMobile ? { hideOnMobile: true } : {}), ...layoutProps, ...(noStackMobile ? { noStackMobile: true } : {}), ...rowPaint(ctx.frame) },
       columns
     );
     this.info.set(row, { frame: ctx.frame, depths, holes, stacks });
@@ -779,13 +860,15 @@ function emptyColumn(height: number): ColumnSpec {
   return { kind: "column", node: { kind: "column", style: { ...NO_STYLE, padding: { ...ZERO, top: height } }, blocks: [] } };
 }
 
-function column(node: ColumnNode, background: string | undefined, inset: { left: number; right: number }): ElementNode {
+function column(node: ColumnNode, background: string | undefined, inset: { left: number; right: number }, mobileInset?: { left: number; right: number }): ElementNode {
   const style = node.style;
   const padding = { ...style.padding, left: style.padding.left + inset.left, right: style.padding.right + inset.right };
   return el(
     "Column",
     {
       ...(node.key ? { key: node.key } : {}),
+      ...(style.mobile?.hideOnMobile ? { hideOnMobile: true } : {}),
+      ...(style.mobile?.padding || mobileInset ? { mobile: { padding: sidesToCss({ ...(style.mobile?.padding ?? style.padding), left: (style.mobile?.padding ?? style.padding).left + (mobileInset ?? inset).left, right: (style.mobile?.padding ?? style.padding).right + (mobileInset ?? inset).right }) } } : {}),
       backgroundColor: style.background ?? background,
       padding: hasSides(padding) ? sidesToCss(padding) : undefined,
       border: borderProp(style.border),
@@ -858,13 +941,17 @@ function within(frame: Frame, ancestor: Frame): boolean {
 }
 
 /** Add padding to the columns of a row that sit in its own frame (not its spacers). */
-function padColumns(row: ElementNode, info: RowInfo, add: BoxSides): void {
+function padColumns(row: ElementNode, info: RowInfo, add: BoxSides, phoneAdd = add): void {
   const depth = columnFrames(info.frame).length;
   (row.children as ElementNode[]).forEach((column, i) => {
     if (info.depths[i] !== depth || column.type !== "Column") return;
     const own = sidesOf(column.props?.padding);
+    const mobile = (column.props?.mobile as Record<string, any> | undefined);
+    const phone = sidesOf(mobile?.padding ?? column.props?.padding);
+    const changed = mobile?.padding !== undefined || JSON.stringify(add) !== JSON.stringify(phoneAdd);
     column.props = {
       ...column.props,
+      ...(changed ? { mobile: { ...mobile, padding: sidesToCss({ top: phone.top + phoneAdd.top, right: phone.right + phoneAdd.right, bottom: phone.bottom + phoneAdd.bottom, left: phone.left + phoneAdd.left }) } } : {}),
       padding: sidesToCss({ top: own.top + add.top, right: own.right + add.right, bottom: own.bottom + add.bottom, left: own.left + add.left }),
     };
   });

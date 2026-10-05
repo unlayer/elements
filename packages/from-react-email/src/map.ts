@@ -5,6 +5,7 @@
  */
 
 import { el, isExpr, expr, type BoxSides, type ElementNode, type Expr, type ReportBuilder } from "@unlayer/convert-core";
+import { phoneSides } from "./phone-styles";
 import { alignOf, borderProp, borders } from "./boxes";
 import {
   addSides,
@@ -35,6 +36,8 @@ export interface Block {
   node: ElementNode;
   margin: BoxSides;
   padding: BoxSides;
+  mobilePadding?: BoxSides;
+  mobileMargin?: BoxSides;
 }
 
 export type Content = string | Expr;
@@ -77,7 +80,14 @@ export function textProps(
 ) {
   const font = style.fontFamily ?? ctx.inherited.fontFamily;
   const weight = style.fontWeight ?? ctx.inherited.fontWeight ?? defaults.fontWeight;
+  const mobile: Record<string, unknown> = {};
+  for (const key of ["fontSize", "lineHeight", "textAlign"] as const) {
+    const value = style._phone?.[key] ?? (style[key] === undefined ? ctx.inherited.mobile?.[key] : undefined);
+    if (value !== undefined) mobile[key] = key === "fontSize" ? cssLength(value) : String(value);
+  }
   return {
+    ...(Object.keys(mobile).length ? { mobile } : {}),
+    ...(style._phone?.display === "none" ? { hideOnMobile: true } : {}),
     color: color(style.color ?? ctx.inherited.color) ?? "#000000",
     fontSize: cssLength(style.fontSize ?? defaults.fontSize ?? ctx.inherited.fontSize),
     lineHeight: lineHeightValue(style.lineHeight ?? defaults.lineHeight ?? ctx.inherited.lineHeight),
@@ -115,6 +125,8 @@ export function paragraphBlock(html: Content, style: Style, ctx: MapCtx, margin:
     node: asChildren ? el("Paragraph", props, parts) : el("Paragraph", { ...props, html: withInlineStyles(html, style) }),
     margin,
     padding: boxSides(style, "padding"),
+    mobilePadding: phoneSides(style, "padding", boxSides(style, "padding")),
+    mobileMargin: phoneSides(style, "margin", margin),
   };
 }
 
@@ -148,6 +160,8 @@ export function headingBlock(
     ),
     margin,
     padding: boxSides(style, "padding"),
+    mobilePadding: phoneSides(style, "padding", boxSides(style, "padding")),
+    mobileMargin: phoneSides(style, "margin", margin),
   };
 }
 
@@ -252,6 +266,7 @@ export function buttonBlock(href: unknown, label: Content | Parts, style: Style,
         textAlign: (block ? alignOf(style) ?? "left" : ctx.inherited.blockAlign ?? ctx.inherited.textAlign ?? "left") as string,
         color: color(style.color) ?? "#0000ee",
         padding: sidesToCss(padding),
+        ...(style._phone ? { mobile: { ...textProps(style, ctx, {}).mobile, ...(phoneSides(style, "padding", padding) ? { padding: sidesToCss(phoneSides(style, "padding", padding)!) } : {}) } } : {}),
         borderRadius: style.borderRadius !== undefined ? cssLength(style.borderRadius) : "0px",
         // Every side, from the shorthand or longhands (Tailwind writes border-width/-style/-color).
         border: borderProp(borders(style)),
@@ -260,6 +275,7 @@ export function buttonBlock(href: unknown, label: Content | Parts, style: Style,
       Array.isArray(label) ? label : [label]
     ),
     margin: boxSides(style, "margin"),
+    mobileMargin: phoneSides(style, "margin", boxSides(style, "margin")),
     padding: ZERO,
   };
 }
@@ -284,12 +300,16 @@ export function imageBlock(
   return {
     node: el("Image", {
       src,
+      ...(style._phone ? { mobile: { ...(style._phone.width === "100%" || style._phone.maxWidth === "100%" ? { autoWidth: true } : {}), ...(style._phone.textAlign ? { textAlign: style._phone.textAlign } : {}) }, ...(style._phone.display === "none" ? { hideOnMobile: true } : {}) } : {}),
+      ...(style._phone?.width === "100%" || style._phone?.maxWidth === "100%" ? { values: { _override: { mobile: { src: { width: 0 } } } } } : {}),
       ...(width ? { width: `${width}px` } : {}),
       alt: attrs.alt,
       textAlign: align,
       action: attrs.href,
     }),
     margin: { ...margin, left: centered ? 0 : margin.left, right: centered ? 0 : margin.right },
+    mobileMargin: phoneSides(style, "margin", margin),
+    mobilePadding: phoneSides(style, "padding", boxSides(style, "padding")),
     padding: ZERO,
   };
 }
@@ -301,11 +321,14 @@ export function dividerBlock(style: Style, ctx: MapCtx): Block {
   const base = toPx(ctx.inherited.fontSize) ?? 16;
   return {
     node: el("Divider", {
+      ...(style._phone?.display === "none" ? { hideOnMobile: true } : {}),
       borderTopWidth: style.borderTopWidth !== undefined ? cssLength(style.borderTopWidth) : top.width ?? "1px",
       borderTopStyle: style.borderTopStyle ?? top.style ?? "solid",
       borderTopColor: color(style.borderTopColor ?? style.borderColor ?? top.color) ?? "#eaeaea",
       width: style.width !== undefined ? String(style.width) : "100%",
     }),
+    mobileMargin: phoneSides(style, "margin", margins(style, { top: base / 2, bottom: base / 2 })),
+    mobilePadding: phoneSides(style, "padding", boxSides(style, "padding")),
     margin: margins(style, { top: base / 2, bottom: base / 2 }),
     padding: ZERO,
   };
@@ -318,7 +341,13 @@ export function collapse(blocks: Block[]): ElementNode[] {
     const top = previous ? Math.max(0, block.margin.top - previous.margin.bottom) : block.margin.top;
     const sides = addSides({ ...block.margin, top }, block.padding);
     if (block.node.type !== "#expr") {
-      block.node.props = { ...block.node.props, containerPadding: sidesToCss(sides) };
+      const phoneMargin = block.mobileMargin ?? block.margin;
+      const priorPhone = previous?.mobileMargin ?? previous?.margin;
+      const phoneTop = priorPhone ? Math.max(0, phoneMargin.top - priorPhone.bottom) : phoneMargin.top;
+      const phone = addSides({ ...phoneMargin, top: phoneTop }, block.mobilePadding ?? block.padding);
+      block.node.props = { ...block.node.props, containerPadding: sidesToCss(sides),
+        ...(block.mobileMargin || block.mobilePadding ? { mobile: { ...(block.node.props?.mobile as object), containerPadding: sidesToCss(phone) } } : {}),
+      };
     }
     return block.node;
   });

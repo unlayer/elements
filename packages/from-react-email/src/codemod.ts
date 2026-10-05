@@ -47,7 +47,8 @@ import { addSides, backgroundColor, boxSides, color, fontFamilyProp, inherit, ma
 import { inlineLocalComponents, type ModuleLoader } from "./components";
 import { inlineLocalJsx } from "./inline";
 import { splitConditionalClasses } from "./variants";
-import { NO_CLASSES, resolveTailwind, stacksOnly, stacksOnPhones, type ResolvedClasses } from "./tailwind";
+import { phoneSides, withPhoneStyles, handledPhoneClass } from "./phone-styles";
+import { NO_CLASSES, resolveTailwind, stacksOnPhones, type ResolvedClasses } from "./tailwind";
 
 export interface CodemodResult {
   code: string;
@@ -242,8 +243,8 @@ class Converter {
 
   private async resolveClasses(fn: ts.Node): Promise<ResolvedClasses> {
     const classes: string[] = [];
-    // Class lists on Columns: a column's phone-only full width is carried out by stacking it.
-    const onColumns = new Set<string>();
+    // A shared class list may appear on components with different phone props.
+    const classOwners = new Map<string, Set<string>>();
     let config: Record<string, unknown> | undefined;
     let usesTailwind = false;
     const visit = (node: ts.Node) => {
@@ -252,7 +253,11 @@ class Converter {
         const owner = node.parent.parent;
         if (typeof value === "string") {
           classes.push(value);
-          if ((ts.isJsxOpeningElement(owner) || ts.isJsxSelfClosingElement(owner)) && this.components.get(owner.tagName.getText()) === "Column") onColumns.add(value);
+          if (ts.isJsxOpeningElement(owner) || ts.isJsxSelfClosingElement(owner)) {
+            const names = classOwners.get(value) ?? new Set<string>();
+            names.add(this.components.get(owner.tagName.getText()) ?? owner.tagName.getText());
+            classOwners.set(value, names);
+          }
         } else if (node.initializer) this.report.note("dynamic className", node.initializer.getText().slice(0, 60));
       }
       if ((ts.isJsxOpeningElement(node) || ts.isJsxSelfClosingElement(node)) && this.components.get(node.tagName.getText()) === "Tailwind") {
@@ -269,7 +274,7 @@ class Converter {
     if (!usesTailwind) return NO_CLASSES;
     const resolved = await resolveTailwind(classes, this.tailwindConfig ?? config);
     for (const [list, rest] of resolved.leftover) {
-      for (const cls of rest) if (!(onColumns.has(list) && stacksOnly(cls, resolved.phone))) this.report.note("tailwind class not inlined", cls);
+      for (const cls of rest) if (![...(classOwners.get(list) ?? [""])].every(name => handledPhoneClass(cls, resolved.phone, name))) this.report.note("tailwind class not inlined", cls);
     }
     return resolved;
   }
@@ -410,7 +415,7 @@ class Converter {
     const className = attrs.get("className");
     if (className) {
       const value = this.evaluate(className);
-      if (typeof value === "string") style = { ...(this.tailwind.styles.get(value) ?? {}) };
+      if (typeof value === "string") style = withPhoneStyles({ ...(this.tailwind.styles.get(value) ?? {}) }, this.tailwind.leftover.get(value) ?? [], this.tailwind.phone);
     }
     if (attrs.has("style")) {
       const value = this.evaluate(attrs.get("style"));
@@ -1001,7 +1006,7 @@ class Converter {
         const look = { ...style, ...column.style };
         if (backgroundColor(look)) this.report.note("nested section background dropped", backgroundColor(look));
         const inside = this.blocks(column.children, { ...ctx, inherited: inherit(inherit(ctx.inherited, style), column.style) }).map((entry) => entry.block);
-        return wrapPadding(inside, addSides(boxSides(style, "padding"), boxSides(column.style, "padding")), ctx);
+        return wrapPadding(inside, addSides(boxSides(style, "padding"), boxSides(column.style, "padding")), ctx, style._phone || column.style._phone ? addSides(phoneSides(style, "padding", boxSides(style, "padding")) ?? boxSides(style, "padding"), phoneSides(column.style, "padding", boxSides(column.style, "padding")) ?? boxSides(column.style, "padding")) : undefined, style._phone?.display === "none" || column.style._phone?.display === "none");
       }
       case "Section":
       case "Container": {
@@ -1011,13 +1016,13 @@ class Converter {
         if (this.hasColumns(this.flatten(jsx.children))) return [{ node: this.fallback(jsx, ctx), margin: ZERO, padding: ZERO }];
         if (backgroundColor(style)) this.report.note("nested section background dropped", backgroundColor(style));
         const inside = this.blocks(jsx.children, { ...ctx, inherited: inherit(ctx.inherited, style) }).map((entry) => entry.block);
-        return wrapPadding(inside, boxSides(style, "padding"), ctx);
+        return wrapPadding(inside, boxSides(style, "padding"), ctx, phoneSides(style, "padding", boxSides(style, "padding")), style._phone?.display === "none");
       }
       default:
         if (this.isWrapper(jsx)) {
           this.report.note("wrapper element flattened", jsx.tag);
           const inside = this.blocks(jsx.children, { ...ctx, inherited: inherit(ctx.inherited, style) }).map((entry) => entry.block);
-          return wrapPadding(inside, boxSides(style, "padding"), ctx);
+          return wrapPadding(inside, boxSides(style, "padding"), ctx, phoneSides(style, "padding", boxSides(style, "padding")), style._phone?.display === "none");
         }
         return [{ node: this.fallback(jsx, ctx), margin: ZERO, padding: ZERO }];
     }

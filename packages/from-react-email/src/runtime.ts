@@ -33,6 +33,7 @@ import {
 } from "./map";
 import { addSides, backgroundColor, boxSides, color, fontFamilyProp, inherit, margins, px, toPx, ZERO, type Style } from "./styles";
 import type { BoxSides } from "@unlayer/convert-core";
+import { phoneSides, withPhoneStyles } from "./phone-styles";
 import { phoneStyles, stacksOnPhones } from "./tailwind";
 
 export interface RuntimeResult {
@@ -88,6 +89,11 @@ export async function convertElement(element: React.ReactElement): Promise<Runti
     linked.push(...importedStylesheets(css));
     for (const [cls, style] of phoneStyles(css)) phone.set(cls, { ...phone.get(cls), ...style });
     if (css.replace(/@font-face\s*{[^}]*}/g, "").replace(/@import[^;]*;/g, "").replace(/\*\s*{[^}]*}/g, "").trim()) report.note("head styles dropped", "media queries / <style> rules");
+  });
+
+  walk(nodes, (node) => {
+    if (node.kind === "text") return;
+    node.props = { ...node.props, style: withPhoneStyles(node.props.style ?? {}, String(node.props.className ?? "").split(/\s+/), phone) };
   });
 
   const body = find(nodes, (n) => n.kind === "component" && n.name === "Body") as Element | undefined;
@@ -329,7 +335,7 @@ function blockFrom(node: Element, ctx: Ctx): Block[] {
       }
       if (backgroundColor(style)) ctx.report.note("nested section background dropped", backgroundColor(style));
       const inside = blocksFrom(kids, { ...ctx, inherited: inherit(ctx.inherited, style) }).map((entry) => entry.block);
-      return wrapPadding(inside, boxSides(style, "padding"), ctx);
+      return wrapPadding(inside, boxSides(style, "padding"), ctx, phoneSides(style, "padding", boxSides(style, "padding")), style._phone?.display === "none");
     }
     case "Row": {
       // Inside a column of several, a Row of one Column is a box: its content goes in this column.
@@ -339,13 +345,13 @@ function blockFrom(node: Element, ctx: Ctx): Block[] {
       const colStyle: Style = column.props.style ?? {};
       if (backgroundColor({ ...style, ...colStyle })) ctx.report.note("nested section background dropped", backgroundColor({ ...style, ...colStyle }));
       const inside = blocksFrom(children(column), { ...ctx, inherited: inherit(inherit(ctx.inherited, style), colStyle) }).map((entry) => entry.block);
-      return wrapPadding(inside, addSides(boxSides(style, "padding"), boxSides(colStyle, "padding")), ctx);
+      return wrapPadding(inside, addSides(boxSides(style, "padding"), boxSides(colStyle, "padding")), ctx, style._phone || colStyle._phone ? addSides(phoneSides(style, "padding", boxSides(style, "padding")) ?? boxSides(style, "padding"), phoneSides(colStyle, "padding", boxSides(colStyle, "padding")) ?? boxSides(colStyle, "padding")) : undefined, style._phone?.display === "none" || colStyle._phone?.display === "none");
     }
     default: {
       if (node.kind === "host" && hasComponents(node)) {
         ctx.report.note("wrapper element flattened", name);
         const inside = blocksFrom(children(node), { ...ctx, inherited: inherit(ctx.inherited, style) }).map((entry) => entry.block);
-        return wrapPadding(inside, boxSides(style, "padding"), ctx);
+        return wrapPadding(inside, boxSides(style, "padding"), ctx, phoneSides(style, "padding", boxSides(style, "padding")), style._phone?.display === "none");
       }
       return [{ node: fallbackHtml(kept(renderToStaticMarkup(node.element), ctx), `unsupported element: ${name}`), margin: ZERO, padding: ZERO }];
     }

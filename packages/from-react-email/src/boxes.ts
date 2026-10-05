@@ -2,6 +2,7 @@
  * CSS → the layout engine's box styles, shared by both front ends.
  */
 
+import { phoneSides } from "./phone-styles";
 import type { BoxStyle, BorderSide, Borders, Flow } from "./layout";
 import { NO_STYLE } from "./layout";
 import type { Block, MapCtx } from "./map";
@@ -24,6 +25,11 @@ export function boxStyle(style: Style | undefined, options: { fitWidth?: () => n
     image,
     border: borders(style),
     radius: radius ? (typeof style.borderRadius === "string" && /\s/.test(style.borderRadius.trim()) ? style.borderRadius : px(radius)) : undefined,
+    mobile: style._phone ? {
+      padding: phoneSides(style, "padding", positive(boxSides(style, "padding"))),
+      margin: phoneSides(style, "margin", boxSides(style, "margin")),
+      hideOnMobile: style._phone.display === "none" || undefined,
+    } : undefined,
     padding: positive(boxSides(style, "padding")),
     margin: boxSides(style, "margin"),
     width: widthOf(style, options.fitWidth),
@@ -115,11 +121,12 @@ export function textBox(block: Block, style: Style): Flow {
       border: look.border,
       radius: look.radius,
       padding: block.padding,
+      mobile: block.mobilePadding || block.mobileMargin ? { padding: block.mobilePadding, margin: block.mobileMargin ? { ...ZERO, top: block.mobileMargin.top, bottom: block.mobileMargin.bottom } : undefined } : undefined,
       width: maxWidth,
       align: maxWidth ? alignOf(style) ?? "left" : undefined,
       margin: { ...ZERO, top, bottom },
     },
-    children: [{ kind: "content", block: { ...block, margin: { ...block.margin, top: 0, bottom: 0 }, padding: { ...ZERO } } }],
+    children: [{ kind: "content", block: { ...block, margin: { ...block.margin, top: 0, bottom: 0 }, padding: { ...ZERO }, mobilePadding: undefined, mobileMargin: block.mobileMargin ? { ...block.mobileMargin, top: 0, bottom: 0 } : undefined } }],
   };
 }
 
@@ -154,6 +161,11 @@ export function mergeRowAndColumn(row: BoxStyle, column: BoxStyle): BoxStyle {
     border: column.border ?? row.border,
     radius: column.radius ?? row.radius,
     padding: addSides(row.padding, column.padding),
+    mobile: row.mobile || column.mobile ? {
+      padding: addSides(row.mobile?.padding ?? row.padding, column.mobile?.padding ?? column.padding),
+      margin: row.mobile?.margin,
+      hideOnMobile: row.mobile?.hideOnMobile || column.mobile?.hideOnMobile,
+    } : undefined,
     margin: row.margin,
     width: row.width,
     align: row.align,
@@ -170,6 +182,11 @@ export function mergeColumnAndBox(column: BoxStyle, box: BoxStyle): BoxStyle {
     border: box.border ?? column.border,
     radius: box.radius ?? column.radius,
     padding: addSides(column.padding, box.padding),
+    mobile: column.mobile || box.mobile ? {
+      padding: addSides(column.mobile?.padding ?? column.padding, box.mobile?.padding ?? box.padding),
+      margin: column.mobile?.margin,
+      hideOnMobile: column.mobile?.hideOnMobile || box.mobile?.hideOnMobile,
+    } : undefined,
     ...droppedOf(column, box),
   };
 }
@@ -180,11 +197,13 @@ function droppedOf(a: BoxStyle, b: BoxStyle): Pick<BoxStyle, "dropped"> {
 }
 
 /** A flattened box's padding, added around the blocks it held. */
-export function wrapPadding(blocks: Block[], padding: BoxSides, ctx: MapCtx): Block[] {
-  if (!blocks.length || !(padding.top || padding.right || padding.bottom || padding.left)) return blocks;
+export function wrapPadding(blocks: Block[], padding: BoxSides, ctx: MapCtx, mobile?: BoxSides, hideOnMobile?: boolean): Block[] {
+  if (!blocks.length || (!(padding.top || padding.right || padding.bottom || padding.left) && !mobile && !hideOnMobile)) return blocks;
   ctx.report.info("nested section padding moved onto its blocks");
   return blocks.map((block, i) => ({
     ...block,
+    ...(hideOnMobile ? { node: { ...block.node, props: { ...block.node.props, hideOnMobile: true } } } : {}),
+    mobilePadding: mobile || block.mobilePadding ? addSides(block.mobilePadding ?? block.padding, { top: i === 0 ? (mobile ?? padding).top : 0, right: (mobile ?? padding).right, bottom: i === blocks.length - 1 ? (mobile ?? padding).bottom : 0, left: (mobile ?? padding).left }) : undefined,
     padding: addSides(block.padding, {
       top: i === 0 ? padding.top : 0,
       right: padding.right,
