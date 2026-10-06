@@ -1,6 +1,6 @@
 {
   "name": "@unlayer/react-elements",
-  "version": "0.1.1",
+  "version": "0.2.0",
   "description": "React components for transactional emails, landing pages, invoices and PDFs: email-safe HTML, responsive web HTML, and print-ready PDF HTML from one component tree.",
   "license": "MIT",
   "author": "Unlayer",
