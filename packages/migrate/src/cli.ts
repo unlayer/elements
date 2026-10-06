@@ -7,7 +7,7 @@
  * visual editor would open. Only checked templates are written.
  */
 
-import { existsSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { lstat, mkdir, open, readFile, readdir, realpath, rename, rm, rmdir, stat } from "node:fs/promises";
 import { randomUUID } from "node:crypto";
 import Module, { createRequire } from "node:module";
@@ -147,6 +147,7 @@ export async function main(argv: string[], io: Io, library?: Library): Promise<n
     return 1;
   }
 
+  if (!supportedElements(io)) return 1;
   const lib = library ?? ((await import("@unlayer/from-react-email")) as Library);
   const dependencies = options.write ? await importedInputs(inputs.files) : new Map<string, string>();
   const results: FileResult[] = [];
@@ -438,6 +439,7 @@ async function compare(paths: string[], args: Args, io: Io, library?: Library): 
       return 1;
     }
   }
+  if (!supportedElements(io)) return 1;
   const lib = library ?? ((await import("@unlayer/from-react-email")) as Library);
   const release: Array<() => void> = [];
   try {
@@ -824,6 +826,44 @@ async function importedInputs(inputs: Input[]): Promise<Map<string, string>> {
     }
   }
   return dependencies;
+}
+
+/**
+ * Migrations render with the project's Elements, else this package's. An older
+ * one ignores settings the converter writes (phone layout, root props), and the
+ * check, which compares words, can't tell: stop before converting.
+ */
+function supportedElements(io: Io): boolean {
+  const { error, warning } = elementsMismatch(io.cwd);
+  if (warning) io.stderr(`${warning}\n`);
+  if (error) io.stderr(`${error}\n`);
+  return !error;
+}
+
+export function elementsMismatch(cwd: string, range = ownPackage().peerDependencies?.["@unlayer/react-elements"]): { error?: string; warning?: string } {
+  const minimum = /^\^(\d+)\.(\d+)\.(\d+)$/.exec(range ?? ""); // a workspace link in development: nothing to check
+  if (!minimum) return {};
+  for (const [from, where] of [[join(cwd, "noop.js"), "this project has"], [import.meta.url, "@unlayer/migrate came with"]] as const) {
+    let version: string;
+    try {
+      version = JSON.parse(readFileSync(createRequire(from).resolve("@unlayer/react-elements/package.json"), "utf8")).version;
+    } catch {
+      continue; // not installed there
+    }
+    const found = /^(\d+)\.(\d+)\.(\d+)/.exec(version);
+    if (!found) return {};
+    const [want, have] = [minimum.slice(1).map(Number), found.slice(1).map(Number)];
+    const older = (have[0] - want[0] || have[1] - want[1] || have[2] - want[2]) < 0;
+    const sameLine = have[0] === want[0] && (want[0] > 0 || have[1] === want[1]);
+    if (older) return { error: `@unlayer/migrate needs @unlayer/react-elements ${range}, but ${where} ${version}. Install a supported version: npm install @unlayer/react-elements@"${range}"` };
+    if (!sameLine) return { warning: `@unlayer/migrate supports @unlayer/react-elements ${range}; ${where} ${version}. Check the converted templates, or update @unlayer/migrate.` };
+    return {};
+  }
+  return {};
+}
+
+function ownPackage(): { peerDependencies?: Record<string, string> } {
+  return createRequire(import.meta.url)("../package.json");
 }
 
 function findUp(name: string, from: string): string | undefined {

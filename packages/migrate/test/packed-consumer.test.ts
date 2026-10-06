@@ -130,3 +130,38 @@ export default function T({name = "Alex"}) { return <Html><Body><Text>Hello <b>{
     fs.rmSync(directory, { recursive: true, force: true });
   }
 });
+
+it("stops the installed CLI when the project's Elements is older than it supports", () => {
+  const root = path.resolve(import.meta.dirname, "..");
+  const range = `^${JSON.parse(fs.readFileSync(path.join(root, "../react/package.json"), "utf8")).version}`;
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), "unlayer-migrate-old-elements-"));
+  const tool = path.join(directory, "tool");
+  const project = path.join(directory, "project");
+  try {
+    fs.mkdirSync(tool, { recursive: true });
+    const packed = spawnSync("pnpm", ["pack", "--pack-destination", tool], { cwd: root, encoding: "utf8" });
+    expect(packed.status, packed.stderr + packed.stdout).toBe(0);
+    const target = path.join(tool, "node_modules/@unlayer/migrate");
+    fs.mkdirSync(target, { recursive: true });
+    const tarball = fs.readdirSync(tool).find((name) => name.endsWith(".tgz"))!;
+    expect(spawnSync("tar", ["-xzf", path.join(tool, tarball), "--strip-components=1", "-C", target]).status).toBe(0);
+    expect(JSON.parse(fs.readFileSync(path.join(target, "package.json"), "utf8")).peerDependencies["@unlayer/react-elements"]).toBe(range);
+    for (const name of ["react", "react-dom", "@react-email/components", "@unlayer/react-elements", "typescript", "prettier", "tsx"]) {
+      const link = path.join(tool, "node_modules", name);
+      fs.mkdirSync(path.dirname(link), { recursive: true });
+      fs.symlinkSync(path.join(root, "node_modules", name), link, "dir");
+    }
+    // The project installed an Elements release from before this one.
+    const old = path.join(project, "node_modules/@unlayer/react-elements");
+    fs.mkdirSync(old, { recursive: true });
+    fs.writeFileSync(path.join(old, "package.json"), JSON.stringify({ name: "@unlayer/react-elements", version: "0.1.22", exports: { "./package.json": "./package.json" } }));
+    fs.writeFileSync(path.join(project, "package.json"), "{}");
+    fs.writeFileSync(path.join(project, "welcome.tsx"), `import { Html, Body, Text } from "@react-email/components";\nexport default function T() { return <Html><Body><Text>Hi</Text></Body></Html>; }\n`);
+    const run = spawnSync(process.execPath, [path.join(target, "dist/bin.js"), "welcome.tsx", "--out", "converted"], { cwd: project, encoding: "utf8" });
+    expect(run.status, run.stderr + run.stdout).toBe(1);
+    expect(run.stderr).toContain(`needs @unlayer/react-elements ${range}, but this project has 0.1.22`);
+    expect(fs.existsSync(path.join(project, "converted"))).toBe(false);
+  } finally {
+    fs.rmSync(directory, { recursive: true, force: true });
+  }
+});

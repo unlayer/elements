@@ -58,6 +58,8 @@ Renders both with the original's `PreviewProps`, then with each true/false prop 
 npm install @unlayer/react-elements
 ```
 
+Migrations render with your project's `@unlayer/react-elements` when it has one, so it must be a version this package supports (its peer dependency range). An older one would ignore settings the converter writes, such as phone layout, so the command stops with exit code `1` and the install command to run.
+
 ```ts
 import { renderToHtml, renderToJson } from "@unlayer/react-elements";
 import Welcome from "./emails/welcome";
