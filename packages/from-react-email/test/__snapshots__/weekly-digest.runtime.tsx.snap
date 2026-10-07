@@ -14,10 +14,7 @@ export default function Template() {
       }}
       previewText="4 stories worth your time this week: How small teams ship faster with async-first habits"
     >
-      <Row>
-        <Column padding="24px 0px 0px 0px" />
-      </Row>
-      <Row columnsBackgroundColor="#171717">
+      <Row columnsBackgroundColor="#171717" padding="24px 0px 0px 0px">
         <Column padding="28px 32px 28px 32px">
           <Paragraph
             color="#a1a1a1"
@@ -221,7 +218,7 @@ export default function Template() {
         </Column>
       </Row>
       <Row cells={[164, 436]} noStackMobile={true} columnsBackgroundColor="#ffffff">
-        <Column padding="24px 0px 0px 32px">
+        <Column padding="24px 0px 32px 32px">
           <Image
             src={{
               url: "https://picsum.photos/seed/designsystem/224/224",
@@ -234,7 +231,7 @@ export default function Template() {
             containerPadding="0px 0px 0px 0px"
           />
         </Column>
-        <Column padding="24px 32px 0px 0px">
+        <Column padding="24px 32px 32px 0px">
           <Paragraph
             color="#4f39f6"
             fontSize="11px"
@@ -267,10 +264,7 @@ export default function Template() {
           />
         </Column>
       </Row>
-      <Row columnsBackgroundColor="#ffffff">
-        <Column padding="32px 0px 0px 0px" />
-      </Row>
-      <Row columnsBackgroundColor="#fafafa">
+      <Row columnsBackgroundColor="#fafafa" padding="0px 0px 24px 0px">
         <Column padding="24px 32px 24px 32px">
           <Paragraph
             color="#737373"
@@ -289,9 +283,6 @@ export default function Template() {
             containerPadding="8px 0px 0px 0px"
           />
         </Column>
-      </Row>
-      <Row>
-        <Column padding="24px 0px 0px 0px" />
       </Row>
     </Email>
   );

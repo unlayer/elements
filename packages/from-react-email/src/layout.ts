@@ -245,7 +245,8 @@ class Engine {
     };
     this.flow(flow, { frame: root, inset: { left: 0, right: 0 }, inContainer: false });
     this.settle(root);
-    const rows = this.merge(this.out);
+    // Folding a spacer can make neighbours mergeable, and merging can expose another spacer.
+    const rows = this.merge(this.foldSpacers(this.merge(this.foldSpacers(this.merge(this.out)))));
     this.pinPhoneInsets(rows);
     this.pinPhoneSizes(rows);
     return rows;
@@ -343,6 +344,52 @@ class Engine {
       else out.push(row);
     }
     return out;
+  }
+
+  /**
+   * A spacer row (an empty row standing for vertical space) shows as an empty placeholder in
+   * the visual editor. Each folds into a neighbour that looks the same where they meet: the
+   * space becomes that row's column padding, or its row padding when the spacer shows only
+   * the band behind the content. Rows from code, background images, rounded corners and a
+   * border on the touching edge keep the spacer.
+   */
+  private foldSpacers(rows: ElementNode[]): ElementNode[] {
+    for (const row of rows) if (row.type === "#expr") row.slots = row.slots?.map((slot) => this.foldSpacers(slot as ElementNode[]));
+    const out = [...rows];
+    for (let i = 0; i < out.length; i++) {
+      const height = spacerHeight(out[i], this.info.get(out[i]));
+      if (!height) continue;
+      if (this.foldInto(out[i], out[i - 1], "bottom", height) || this.foldInto(out[i], out[i + 1], "top", height)) out.splice(i--, 1);
+    }
+    return out;
+  }
+
+  private foldInto(spacer: ElementNode, row: ElementNode | undefined, side: "top" | "bottom", height: { desktop: number; phone: number }): boolean {
+    if (!row || row.type !== "Row" || spacerHeight(row, this.info.get(row))) return false;
+    const columns = (row.children ?? []) as ElementNode[];
+    if (!columns.length || columns.some((c) => c.type !== "Column")) return false;
+    const a = spacer.props ?? {};
+    const b = row.props ?? {};
+    if (b.key !== undefined || a.backgroundImage || b.backgroundImage || (a.backgroundColor ?? "") !== (b.backgroundColor ?? "")) return false;
+    // The space must still show wherever the spacer did.
+    if ((height.desktop && b.hideOnDesktop) || (height.phone && b.hideOnMobile)) return false;
+    const stacks = Boolean(this.info.get(row)?.stacks);
+    if (samePaint(spacer, row, side, stacks)) {
+      padForSpacer(columns, side, height, stacks);
+      return true;
+    }
+    if (transparent(spacer)) {
+      const own = sidesOf(b.padding);
+      const mobile = b.mobile as { padding?: unknown } | undefined;
+      const phone = sidesOf(mobile?.padding ?? b.padding);
+      row.props = {
+        ...b,
+        padding: sidesToCss({ ...own, [side]: own[side] + height.desktop }),
+        ...(mobile?.padding !== undefined || height.phone !== height.desktop ? { mobile: { ...mobile, padding: sidesToCss({ ...phone, [side]: phone[side] + height.phone }) } } : {}),
+      };
+      return true;
+    }
+    return false;
   }
 
   // ------------------------------------------
@@ -964,6 +1011,105 @@ function mergeRows(a: ElementNode, b: ElementNode, info: WeakMap<ElementNode, Ro
   const row = el("Row", { ...(keyA !== undefined ? { key: keyA } : {}), ...propsA }, columns);
   info.set(row, ia);
   return row;
+}
+
+/** The space an empty row stands for, on desktop and phones; undefined for any other row. */
+function spacerHeight(row: ElementNode | undefined, info: RowInfo | undefined): { desktop: number; phone: number } | undefined {
+  if (!row || row.type !== "Row" || row.props?.key !== undefined || row.props?.backgroundImage) return undefined;
+  const columns = (row.children ?? []) as ElementNode[];
+  if (!columns.length || columns.some((c) => c.type !== "Column" || c.children?.length || radiusOf(c) || edgeBorder(c, "top") || edgeBorder(c, "bottom"))) return undefined;
+  const vertical = (css: unknown) => {
+    const sides = pxSides(css);
+    return sides ? sides.top + sides.bottom : undefined;
+  };
+  const desktop = columns.map((c) => vertical(c.props?.padding));
+  const phone = columns.map((c) => vertical((c.props?.mobile as { padding?: unknown } | undefined)?.padding ?? c.props?.padding));
+  if (desktop.some((h) => h === undefined) || phone.some((h) => h === undefined)) return undefined;
+  const d = row.props?.hideOnDesktop ? 0 : Math.max(...(desktop as number[]));
+  // Stacked on phones, the empty columns sit one above the other.
+  const p = row.props?.hideOnMobile ? 0 : info?.stacks ? (phone as number[]).reduce((x, y) => x + y, 0) : Math.max(...(phone as number[]));
+  return { desktop: d, phone: p };
+}
+
+/** Whether a column has rounded corners: any, or only those on its top or bottom edge. */
+function radiusOf(column: ElementNode, edge?: "top" | "bottom"): boolean {
+  const radius = column.props?.borderRadius;
+  if (!radius) return false;
+  const [tl, tr, br, bl] = corners(String(radius));
+  const round = (c: string) => (Number.parseFloat(c) || 0) > 0;
+  return edge === "top" ? round(tl) || round(tr) : edge === "bottom" ? round(br) || round(bl) : [tl, tr, br, bl].some(round);
+}
+
+function edgeBorder(column: ElementNode, side: "top" | "bottom" | "left" | "right"): boolean {
+  const border = (column.props?.border ?? {}) as Record<string, unknown>;
+  const name = side[0].toUpperCase() + side.slice(1);
+  return (Number.parseFloat(String(border[`border${name}Width`] ?? 0)) || 0) > 0;
+}
+
+/** Whether the spacer shows nothing but the band behind the content. */
+function transparent(row: ElementNode): boolean {
+  return !row.props?.columnsBackgroundColor && (row.children as ElementNode[]).every((c) => !c.props?.backgroundColor && !edgeBorder(c, "left") && !edgeBorder(c, "right"));
+}
+
+/**
+ * Whether `row`, grown into the spacer's space, would look like the spacer: the same paint at
+ * every point across, the same side borders, no corners. A row that stacks on phones takes the
+ * space on one column there, so that column must show the spacer's single paint.
+ */
+function samePaint(spacer: ElementNode, row: ElementNode, side: "top" | "bottom", stacks: boolean): boolean {
+  const columns = row.children as ElementNode[];
+  const spacers = spacer.children as ElementNode[];
+  if (columns.some((c) => radiusOf(c, side) || edgeBorder(c, side))) return false;
+  const paint = (r: ElementNode, c: ElementNode) => String(c.props?.backgroundColor ?? r.props?.columnsBackgroundColor ?? "");
+  const sideBorders = (c: ElementNode) => JSON.stringify(Object.entries((c.props?.border ?? {}) as Record<string, unknown>).filter(([k]) => /Left|Right/.test(k)));
+  const bordered = [...columns, ...spacers].some((c) => edgeBorder(c, "left") || edgeBorder(c, "right"));
+  if (bordered) {
+    // Side borders line up only on the same columns.
+    if (JSON.stringify(columnShares(spacer.props ?? {}, spacers.length)) !== JSON.stringify(columnShares(row.props ?? {}, columns.length))) return false;
+    if (columns.some((c, i) => paint(row, c) !== paint(spacer, spacers[i]) || sideBorders(c) !== sideBorders(spacers[i]))) return false;
+  } else {
+    const a = columnShares(spacer.props ?? {}, spacers.length);
+    const b = columnShares(row.props ?? {}, columns.length);
+    if (!a || !b) return false;
+    const edges = (shares: number[]) => shares.map((_, i) => shares.slice(0, i + 1).reduce((x, y) => x + y, 0));
+    const ea = edges(a);
+    const eb = edges(b);
+    const at = (e: number[], x: number) => e.findIndex((end) => x < end - 1e-9);
+    const cuts = [...new Set([0, ...ea, ...eb].map((x) => Math.round(x * 1e6) / 1e6))].sort((x, y) => x - y);
+    for (let i = 0; i < cuts.length - 1; i++) {
+      const mid = (cuts[i] + cuts[i + 1]) / 2;
+      const ia = at(ea, mid);
+      const ib = at(eb, mid);
+      if (ia < 0 || ib < 0 || paint(spacer, spacers[ia]) !== paint(row, columns[ib])) return false;
+    }
+  }
+  if (!stacks) return true;
+  const target = phoneTarget(columns, side);
+  const paints = new Set(spacers.map((c) => paint(spacer, c)));
+  return target >= 0 && paints.size === 1 && paints.has(paint(row, columns[target]));
+}
+
+/** On phones, the column of a stacking row that takes space above (first) or below (last) it. */
+function phoneTarget(columns: ElementNode[], side: "top" | "bottom"): number {
+  const filled = columns.map((c, i) => (c.children?.length ? i : -1)).filter((i) => i >= 0);
+  return side === "top" ? filled[0] ?? -1 : filled[filled.length - 1] ?? -1;
+}
+
+/** Grow a row's columns into a spacer's space; on phones a stacking row grows on one column only. */
+function padForSpacer(columns: ElementNode[], side: "top" | "bottom", height: { desktop: number; phone: number }, stacks: boolean): void {
+  const target = stacks ? phoneTarget(columns, side) : -1;
+  columns.forEach((column, i) => {
+    const own = sidesOf(column.props?.padding);
+    const mobile = column.props?.mobile as Record<string, unknown> | undefined;
+    const phone = sidesOf(mobile?.padding ?? column.props?.padding);
+    const phoneAdd = !stacks || i === target ? height.phone : 0;
+    const changed = mobile?.padding !== undefined || phoneAdd !== height.desktop;
+    column.props = {
+      ...column.props,
+      ...(changed ? { mobile: { ...mobile, padding: sidesToCss({ ...phone, [side]: phone[side] + phoneAdd }) } } : {}),
+      padding: sidesToCss({ ...own, [side]: own[side] + height.desktop }),
+    };
+  });
 }
 
 /** A column border both parts can share when merged: none, a top on the first, a bottom on the last; false otherwise. */

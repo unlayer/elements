@@ -113,13 +113,16 @@ describe("phones: more", () => {
     expect(shape[0].columns.some((c: any) => c.border?.borderTopWidth === "1px")).toBe(true);
   });
 
-  it("puts the space above a row that stacks on phones in a row of its own (each column would repeat it)", async () => {
+  it("puts the space above a row that stacks on phones on its columns, and on phones on the first only (no empty row)", async () => {
     const two = h(Row, null, h(Column, { className: "max-sm:block" }, h(Text, null, "A")), h(Column, { className: "max-sm:block" }, h(Text, null, "B")));
     const { tree } = await convertElement(h(Tailwind, null, h(Html, null, h(Head), h(Body, null, h(Section, { style: { marginTop: "40px" } }, two)))));
-    const [spacer, row] = tree.children as any[];
-    expect(spacer.children).toHaveLength(1);
-    expect(spacer.children[0].props.padding).toBe("40px 0px 0px 0px");
-    expect(row.children.every((c: any) => !String(c.props?.padding ?? "").startsWith("40px"))).toBe(true);
+    expect(tree.children).toHaveLength(1);
+    const [first, second] = (tree.children as any[])[0].children;
+    expect(first.props.padding).toMatch(/^40px /);
+    expect(second.props.padding).toMatch(/^40px /);
+    // Stacked, the second column would repeat the space: it keeps none on phones.
+    expect(first.props.mobile?.padding ?? first.props.padding).toMatch(/^40px /);
+    expect(second.props.mobile.padding).toMatch(/^0px /);
   });
 
   it("moves an icon's gap into spacer columns when it would leave the icon no room on a phone", async () => {

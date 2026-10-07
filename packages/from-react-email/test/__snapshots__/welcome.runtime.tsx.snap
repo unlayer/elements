@@ -23,10 +23,7 @@ export default function Template() {
       }}
       previewText="Welcome to {{productName}}, {{firstName}}! Let's get you set up."
     >
-      <Row>
-        <Column padding="40px 0px 0px 0px" />
-      </Row>
-      <Row>
+      <Row padding="40px 0px 0px 0px">
         <Column
           backgroundColor="#ffffff"
           padding="40px 32px 0px 32px"
@@ -110,7 +107,7 @@ export default function Template() {
           </Button>
         </Column>
       </Row>
-      <Row>
+      <Row padding="0px 0px 40px 0px">
         <Column
           backgroundColor="#ffffff"
           padding="28px 32px 48px 32px"
@@ -145,9 +142,6 @@ export default function Template() {
             containerPadding="0px 0px 0px 0px"
           />
         </Column>
-      </Row>
-      <Row>
-        <Column padding="40px 0px 0px 0px" />
       </Row>
     </Email>
   );

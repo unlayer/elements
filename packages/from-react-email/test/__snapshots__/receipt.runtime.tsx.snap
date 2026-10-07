@@ -24,10 +24,7 @@ export default function Template() {
       }}
       previewText="Your receipt for order #{{orderNumber}} - $122.88"
     >
-      <Row>
-        <Column padding="40px 0px 0px 0px" />
-      </Row>
-      <Row>
+      <Row padding="40px 0px 0px 0px">
         <Column
           backgroundColor="#111827"
           padding="24px 32px 24px 32px"
@@ -128,14 +125,11 @@ export default function Template() {
         </Column>
         <Column backgroundColor="#ffffff" />
       </Row>
-      <Row>
-        <Column backgroundColor="#ffffff" padding="24px 0px 0px 0px" />
-      </Row>
       <Row cells={[32, 80, 356, 100, 32]} noStackMobile={true}>
-        <Column backgroundColor="#ffffff" />
+        <Column backgroundColor="#ffffff" padding="24px 0px 0px 0px" />
         <Column
           backgroundColor="#ffffff"
-          padding="12px 0px 12px 0px"
+          padding="36px 0px 12px 0px"
           border={{
             borderBottomWidth: "1px",
             borderBottomStyle: "solid",
@@ -152,7 +146,7 @@ export default function Template() {
         </Column>
         <Column
           backgroundColor="#ffffff"
-          padding="12px 0px 12px 8px"
+          padding="36px 0px 12px 8px"
           border={{
             borderBottomWidth: "1px",
             borderBottomStyle: "solid",
@@ -184,7 +178,7 @@ export default function Template() {
         </Column>
         <Column
           backgroundColor="#ffffff"
-          padding="12px 0px 12px 0px"
+          padding="36px 0px 12px 0px"
           border={{
             borderBottomWidth: "1px",
             borderBottomStyle: "solid",
@@ -201,7 +195,7 @@ export default function Template() {
             containerPadding="0px 0px 0px 0px"
           />
         </Column>
-        <Column backgroundColor="#ffffff" />
+        <Column backgroundColor="#ffffff" padding="24px 0px 0px 0px" />
       </Row>
       <Row cells={[32, 80, 356, 100, 32]} noStackMobile={true}>
         <Column backgroundColor="#ffffff" />
@@ -473,7 +467,7 @@ export default function Template() {
           </Button>
         </Column>
       </Row>
-      <Row>
+      <Row padding="0px 0px 40px 0px">
         <Column
           backgroundColor="#ffffff"
           padding="20px 0px 38px 0px"
@@ -503,9 +497,6 @@ export default function Template() {
             containerPadding="0px 32px 0px 32px"
           />
         </Column>
-      </Row>
-      <Row>
-        <Column padding="40px 0px 0px 0px" />
       </Row>
     </Email>
   );

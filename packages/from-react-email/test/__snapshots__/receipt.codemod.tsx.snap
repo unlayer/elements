@@ -63,10 +63,7 @@ export const ReceiptEmail = ({
       }}
       previewText={`Your receipt for order #${plainText(orderNumber)} - ${plainText(formatMoney(total, currency))}`}
     >
-      <Row>
-        <Column padding="40px 0px 0px 0px" />
-      </Row>
-      <Row>
+      <Row padding="40px 0px 0px 0px">
         <Column
           backgroundColor="#111827"
           padding="24px 32px 24px 32px"
@@ -387,7 +384,7 @@ export const ReceiptEmail = ({
           </Button>
         </Column>
       </Row>
-      <Row>
+      <Row padding="0px 0px 40px 0px">
         <Column
           backgroundColor="#ffffff"
           padding="20px 0px 38px 0px"
@@ -418,9 +415,6 @@ export const ReceiptEmail = ({
             Northwind Traders · 500 Harbor Way · Seattle, WA 98101
           </Paragraph>
         </Column>
-      </Row>
-      <Row>
-        <Column padding="40px 0px 0px 0px" />
       </Row>
     </Email>
   );

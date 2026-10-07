@@ -39,10 +39,7 @@ export const WelcomeEmail = ({
       }}
       previewText={`Welcome to ${plainText(productName)}, ${plainText(firstName)}! Let's get you set up.`}
     >
-      <Row>
-        <Column padding="40px 0px 0px 0px" />
-      </Row>
-      <Row>
+      <Row padding="40px 0px 0px 0px">
         <Column
           backgroundColor="#ffffff"
           padding="40px 32px 0px 32px"
@@ -132,7 +129,7 @@ export const WelcomeEmail = ({
           </Button>
         </Column>
       </Row>
-      <Row>
+      <Row padding="0px 0px 40px 0px">
         <Column
           backgroundColor="#ffffff"
           padding="28px 32px 48px 32px"
@@ -168,9 +165,6 @@ export const WelcomeEmail = ({
             Acme, Inc. · 123 Market Street · San Francisco, CA 94105
           </Paragraph>
         </Column>
-      </Row>
-      <Row>
-        <Column padding="40px 0px 0px 0px" />
       </Row>
     </Email>
   );

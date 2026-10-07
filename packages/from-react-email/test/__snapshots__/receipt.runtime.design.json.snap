@@ -1,7 +1,7 @@
 {
   "counters": {
-    "u_row": 17,
-    "u_column": 37,
+    "u_row": 14,
+    "u_column": 34,
     "u_content_image": 4,
     "u_content_heading": 1,
     "u_content_text": 29,
@@ -10,58 +10,6 @@
   },
   "body": {
     "rows": [
-      {
-        "cells": [
-          1
-        ],
-        "columns": [
-          {
-            "contents": [],
-            "values": {
-              "backgroundColor": "",
-              "padding": "40px 0px 0px 0px",
-              "border": {},
-              "borderRadius": "0px",
-              "_meta": {
-                "htmlID": "u_column_1",
-                "htmlClassNames": "u_column"
-              },
-              "deletable": true,
-              "locked": false
-            }
-          }
-        ],
-        "values": {
-          "displayCondition": null,
-          "columns": false,
-          "_styleGuide": null,
-          "backgroundColor": "",
-          "columnsBackgroundColor": "",
-          "backgroundImage": {
-            "url": "",
-            "fullWidth": true,
-            "repeat": "no-repeat",
-            "size": "custom",
-            "position": "center"
-          },
-          "padding": "0px",
-          "anchor": "",
-          "noStackMobile": false,
-          "_meta": {
-            "htmlID": "u_row_1",
-            "htmlClassNames": "u_row"
-          },
-          "selectable": true,
-          "draggable": true,
-          "duplicatable": true,
-          "deletable": true,
-          "hideable": true,
-          "locked": false,
-          "cells": [
-            1
-          ]
-        }
-      },
       {
         "cells": [
           1
@@ -115,7 +63,7 @@
               "border": {},
               "borderRadius": "8px 8px 0px 0px",
               "_meta": {
-                "htmlID": "u_column_2",
+                "htmlID": "u_column_1",
                 "htmlClassNames": "u_column"
               },
               "deletable": true,
@@ -136,11 +84,11 @@
             "size": "custom",
             "position": "center"
           },
-          "padding": "0px",
+          "padding": "40px 0px 0px 0px",
           "anchor": "",
           "noStackMobile": false,
           "_meta": {
-            "htmlID": "u_row_2",
+            "htmlID": "u_row_1",
             "htmlClassNames": "u_row"
           },
           "selectable": true,
@@ -224,7 +172,7 @@
               "border": {},
               "borderRadius": "0px",
               "_meta": {
-                "htmlID": "u_column_3",
+                "htmlID": "u_column_2",
                 "htmlClassNames": "u_column"
               },
               "deletable": true,
@@ -249,7 +197,7 @@
           "anchor": "",
           "noStackMobile": false,
           "_meta": {
-            "htmlID": "u_row_3",
+            "htmlID": "u_row_2",
             "htmlClassNames": "u_row"
           },
           "selectable": true,
@@ -280,7 +228,7 @@
               "border": {},
               "borderRadius": "0px",
               "_meta": {
-                "htmlID": "u_column_4",
+                "htmlID": "u_column_3",
                 "htmlClassNames": "u_column"
               },
               "deletable": true,
@@ -352,7 +300,7 @@
               "border": {},
               "borderRadius": "6px 0px 0px 6px",
               "_meta": {
-                "htmlID": "u_column_5",
+                "htmlID": "u_column_4",
                 "htmlClassNames": "u_column"
               },
               "deletable": true,
@@ -424,7 +372,7 @@
               "border": {},
               "borderRadius": "0px",
               "_meta": {
-                "htmlID": "u_column_6",
+                "htmlID": "u_column_5",
                 "htmlClassNames": "u_column"
               },
               "deletable": true,
@@ -496,7 +444,7 @@
               "border": {},
               "borderRadius": "0px 6px 6px 0px",
               "_meta": {
-                "htmlID": "u_column_7",
+                "htmlID": "u_column_6",
                 "htmlClassNames": "u_column"
               },
               "deletable": true,
@@ -511,7 +459,7 @@
               "border": {},
               "borderRadius": "0px",
               "_meta": {
-                "htmlID": "u_column_8",
+                "htmlID": "u_column_7",
                 "htmlClassNames": "u_column"
               },
               "deletable": true,
@@ -536,7 +484,7 @@
           "anchor": "",
           "noStackMobile": false,
           "_meta": {
-            "htmlID": "u_row_4",
+            "htmlID": "u_row_3",
             "htmlClassNames": "u_row"
           },
           "selectable": true,
@@ -561,58 +509,6 @@
       },
       {
         "cells": [
-          1
-        ],
-        "columns": [
-          {
-            "contents": [],
-            "values": {
-              "backgroundColor": "#ffffff",
-              "padding": "24px 0px 0px 0px",
-              "border": {},
-              "borderRadius": "0px",
-              "_meta": {
-                "htmlID": "u_column_9",
-                "htmlClassNames": "u_column"
-              },
-              "deletable": true,
-              "locked": false
-            }
-          }
-        ],
-        "values": {
-          "displayCondition": null,
-          "columns": false,
-          "_styleGuide": null,
-          "backgroundColor": "",
-          "columnsBackgroundColor": "",
-          "backgroundImage": {
-            "url": "",
-            "fullWidth": true,
-            "repeat": "no-repeat",
-            "size": "custom",
-            "position": "center"
-          },
-          "padding": "0px",
-          "anchor": "",
-          "noStackMobile": false,
-          "_meta": {
-            "htmlID": "u_row_5",
-            "htmlClassNames": "u_row"
-          },
-          "selectable": true,
-          "draggable": true,
-          "duplicatable": true,
-          "deletable": true,
-          "hideable": true,
-          "locked": false,
-          "cells": [
-            1
-          ]
-        }
-      },
-      {
-        "cells": [
           32,
           80,
           356,
@@ -624,11 +520,11 @@
             "contents": [],
             "values": {
               "backgroundColor": "#ffffff",
-              "padding": "0px",
+              "padding": "24px 0px 0px 0px",
               "border": {},
               "borderRadius": "0px",
               "_meta": {
-                "htmlID": "u_column_10",
+                "htmlID": "u_column_8",
                 "htmlClassNames": "u_column"
               },
               "deletable": true,
@@ -671,7 +567,7 @@
             ],
             "values": {
               "backgroundColor": "#ffffff",
-              "padding": "12px 0px 12px 0px",
+              "padding": "36px 0px 12px 0px",
               "border": {
                 "borderBottomWidth": "1px",
                 "borderBottomStyle": "solid",
@@ -679,7 +575,7 @@
               },
               "borderRadius": "0px",
               "_meta": {
-                "htmlID": "u_column_11",
+                "htmlID": "u_column_9",
                 "htmlClassNames": "u_column"
               },
               "deletable": true,
@@ -773,7 +669,7 @@
             ],
             "values": {
               "backgroundColor": "#ffffff",
-              "padding": "12px 0px 12px 8px",
+              "padding": "36px 0px 12px 8px",
               "border": {
                 "borderBottomWidth": "1px",
                 "borderBottomStyle": "solid",
@@ -781,7 +677,7 @@
               },
               "borderRadius": "0px",
               "_meta": {
-                "htmlID": "u_column_12",
+                "htmlID": "u_column_10",
                 "htmlClassNames": "u_column"
               },
               "deletable": true,
@@ -821,7 +717,7 @@
             ],
             "values": {
               "backgroundColor": "#ffffff",
-              "padding": "12px 0px 12px 0px",
+              "padding": "36px 0px 12px 0px",
               "border": {
                 "borderBottomWidth": "1px",
                 "borderBottomStyle": "solid",
@@ -829,7 +725,7 @@
               },
               "borderRadius": "0px",
               "_meta": {
-                "htmlID": "u_column_13",
+                "htmlID": "u_column_11",
                 "htmlClassNames": "u_column"
               },
               "deletable": true,
@@ -840,11 +736,11 @@
             "contents": [],
             "values": {
               "backgroundColor": "#ffffff",
-              "padding": "0px",
+              "padding": "24px 0px 0px 0px",
               "border": {},
               "borderRadius": "0px",
               "_meta": {
-                "htmlID": "u_column_14",
+                "htmlID": "u_column_12",
                 "htmlClassNames": "u_column"
               },
               "deletable": true,
@@ -869,7 +765,7 @@
           "anchor": "",
           "noStackMobile": false,
           "_meta": {
-            "htmlID": "u_row_6",
+            "htmlID": "u_row_4",
             "htmlClassNames": "u_row"
           },
           "selectable": true,
@@ -909,7 +805,7 @@
               "border": {},
               "borderRadius": "0px",
               "_meta": {
-                "htmlID": "u_column_15",
+                "htmlID": "u_column_13",
                 "htmlClassNames": "u_column"
               },
               "deletable": true,
@@ -960,7 +856,7 @@
               },
               "borderRadius": "0px",
               "_meta": {
-                "htmlID": "u_column_16",
+                "htmlID": "u_column_14",
                 "htmlClassNames": "u_column"
               },
               "deletable": true,
@@ -1062,7 +958,7 @@
               },
               "borderRadius": "0px",
               "_meta": {
-                "htmlID": "u_column_17",
+                "htmlID": "u_column_15",
                 "htmlClassNames": "u_column"
               },
               "deletable": true,
@@ -1110,7 +1006,7 @@
               },
               "borderRadius": "0px",
               "_meta": {
-                "htmlID": "u_column_18",
+                "htmlID": "u_column_16",
                 "htmlClassNames": "u_column"
               },
               "deletable": true,
@@ -1125,7 +1021,7 @@
               "border": {},
               "borderRadius": "0px",
               "_meta": {
-                "htmlID": "u_column_19",
+                "htmlID": "u_column_17",
                 "htmlClassNames": "u_column"
               },
               "deletable": true,
@@ -1150,7 +1046,7 @@
           "anchor": "",
           "noStackMobile": false,
           "_meta": {
-            "htmlID": "u_row_7",
+            "htmlID": "u_row_5",
             "htmlClassNames": "u_row"
           },
           "selectable": true,
@@ -1190,7 +1086,7 @@
               "border": {},
               "borderRadius": "0px",
               "_meta": {
-                "htmlID": "u_column_20",
+                "htmlID": "u_column_18",
                 "htmlClassNames": "u_column"
               },
               "deletable": true,
@@ -1241,7 +1137,7 @@
               },
               "borderRadius": "0px",
               "_meta": {
-                "htmlID": "u_column_21",
+                "htmlID": "u_column_19",
                 "htmlClassNames": "u_column"
               },
               "deletable": true,
@@ -1343,7 +1239,7 @@
               },
               "borderRadius": "0px",
               "_meta": {
-                "htmlID": "u_column_22",
+                "htmlID": "u_column_20",
                 "htmlClassNames": "u_column"
               },
               "deletable": true,
@@ -1391,7 +1287,7 @@
               },
               "borderRadius": "0px",
               "_meta": {
-                "htmlID": "u_column_23",
+                "htmlID": "u_column_21",
                 "htmlClassNames": "u_column"
               },
               "deletable": true,
@@ -1406,7 +1302,7 @@
               "border": {},
               "borderRadius": "0px",
               "_meta": {
-                "htmlID": "u_column_24",
+                "htmlID": "u_column_22",
                 "htmlClassNames": "u_column"
               },
               "deletable": true,
@@ -1431,7 +1327,7 @@
           "anchor": "",
           "noStackMobile": false,
           "_meta": {
-            "htmlID": "u_row_8",
+            "htmlID": "u_row_6",
             "htmlClassNames": "u_row"
           },
           "selectable": true,
@@ -1490,7 +1386,7 @@
               "border": {},
               "borderRadius": "0px",
               "_meta": {
-                "htmlID": "u_column_25",
+                "htmlID": "u_column_23",
                 "htmlClassNames": "u_column"
               },
               "deletable": true,
@@ -1515,7 +1411,7 @@
           "anchor": "",
           "noStackMobile": false,
           "_meta": {
-            "htmlID": "u_row_9",
+            "htmlID": "u_row_7",
             "htmlClassNames": "u_row"
           },
           "selectable": true,
@@ -1571,7 +1467,7 @@
               "border": {},
               "borderRadius": "0px",
               "_meta": {
-                "htmlID": "u_column_26",
+                "htmlID": "u_column_24",
                 "htmlClassNames": "u_column"
               },
               "deletable": true,
@@ -1614,7 +1510,7 @@
               "border": {},
               "borderRadius": "0px",
               "_meta": {
-                "htmlID": "u_column_27",
+                "htmlID": "u_column_25",
                 "htmlClassNames": "u_column"
               },
               "deletable": true,
@@ -1639,7 +1535,7 @@
           "anchor": "",
           "noStackMobile": false,
           "_meta": {
-            "htmlID": "u_row_10",
+            "htmlID": "u_row_8",
             "htmlClassNames": "u_row"
           },
           "selectable": true,
@@ -1701,7 +1597,7 @@
               "border": {},
               "borderRadius": "0px",
               "_meta": {
-                "htmlID": "u_column_28",
+                "htmlID": "u_column_26",
                 "htmlClassNames": "u_column"
               },
               "deletable": true,
@@ -1744,7 +1640,7 @@
               "border": {},
               "borderRadius": "0px",
               "_meta": {
-                "htmlID": "u_column_29",
+                "htmlID": "u_column_27",
                 "htmlClassNames": "u_column"
               },
               "deletable": true,
@@ -1769,7 +1665,7 @@
           "anchor": "",
           "noStackMobile": false,
           "_meta": {
-            "htmlID": "u_row_11",
+            "htmlID": "u_row_9",
             "htmlClassNames": "u_row"
           },
           "selectable": true,
@@ -1831,7 +1727,7 @@
               "border": {},
               "borderRadius": "0px",
               "_meta": {
-                "htmlID": "u_column_30",
+                "htmlID": "u_column_28",
                 "htmlClassNames": "u_column"
               },
               "deletable": true,
@@ -1874,7 +1770,7 @@
               "border": {},
               "borderRadius": "0px",
               "_meta": {
-                "htmlID": "u_column_31",
+                "htmlID": "u_column_29",
                 "htmlClassNames": "u_column"
               },
               "deletable": true,
@@ -1899,7 +1795,7 @@
           "anchor": "",
           "noStackMobile": false,
           "_meta": {
-            "htmlID": "u_row_12",
+            "htmlID": "u_row_10",
             "htmlClassNames": "u_row"
           },
           "selectable": true,
@@ -1955,7 +1851,7 @@
               "border": {},
               "borderRadius": "0px",
               "_meta": {
-                "htmlID": "u_column_32",
+                "htmlID": "u_column_30",
                 "htmlClassNames": "u_column"
               },
               "deletable": true,
@@ -1980,7 +1876,7 @@
           "anchor": "",
           "noStackMobile": false,
           "_meta": {
-            "htmlID": "u_row_13",
+            "htmlID": "u_row_11",
             "htmlClassNames": "u_row"
           },
           "selectable": true,
@@ -2037,7 +1933,7 @@
               "border": {},
               "borderRadius": "0px",
               "_meta": {
-                "htmlID": "u_column_33",
+                "htmlID": "u_column_31",
                 "htmlClassNames": "u_column"
               },
               "deletable": true,
@@ -2081,7 +1977,7 @@
               "border": {},
               "borderRadius": "0px",
               "_meta": {
-                "htmlID": "u_column_34",
+                "htmlID": "u_column_32",
                 "htmlClassNames": "u_column"
               },
               "deletable": true,
@@ -2106,7 +2002,7 @@
           "anchor": "",
           "noStackMobile": false,
           "_meta": {
-            "htmlID": "u_row_14",
+            "htmlID": "u_row_12",
             "htmlClassNames": "u_row"
           },
           "selectable": true,
@@ -2180,7 +2076,7 @@
               "border": {},
               "borderRadius": "0px",
               "_meta": {
-                "htmlID": "u_column_35",
+                "htmlID": "u_column_33",
                 "htmlClassNames": "u_column"
               },
               "deletable": true,
@@ -2205,7 +2101,7 @@
           "anchor": "",
           "noStackMobile": false,
           "_meta": {
-            "htmlID": "u_row_15",
+            "htmlID": "u_row_13",
             "htmlClassNames": "u_row"
           },
           "selectable": true,
@@ -2309,7 +2205,7 @@
               "border": {},
               "borderRadius": "0px 0px 8px 8px",
               "_meta": {
-                "htmlID": "u_column_36",
+                "htmlID": "u_column_34",
                 "htmlClassNames": "u_column"
               },
               "deletable": true,
@@ -2330,63 +2226,11 @@
             "size": "custom",
             "position": "center"
           },
-          "padding": "0px",
+          "padding": "0px 0px 40px 0px",
           "anchor": "",
           "noStackMobile": false,
           "_meta": {
-            "htmlID": "u_row_16",
-            "htmlClassNames": "u_row"
-          },
-          "selectable": true,
-          "draggable": true,
-          "duplicatable": true,
-          "deletable": true,
-          "hideable": true,
-          "locked": false,
-          "cells": [
-            1
-          ]
-        }
-      },
-      {
-        "cells": [
-          1
-        ],
-        "columns": [
-          {
-            "contents": [],
-            "values": {
-              "backgroundColor": "",
-              "padding": "40px 0px 0px 0px",
-              "border": {},
-              "borderRadius": "0px",
-              "_meta": {
-                "htmlID": "u_column_37",
-                "htmlClassNames": "u_column"
-              },
-              "deletable": true,
-              "locked": false
-            }
-          }
-        ],
-        "values": {
-          "displayCondition": null,
-          "columns": false,
-          "_styleGuide": null,
-          "backgroundColor": "",
-          "columnsBackgroundColor": "",
-          "backgroundImage": {
-            "url": "",
-            "fullWidth": true,
-            "repeat": "no-repeat",
-            "size": "custom",
-            "position": "center"
-          },
-          "padding": "0px",
-          "anchor": "",
-          "noStackMobile": false,
-          "_meta": {
-            "htmlID": "u_row_17",
+            "htmlID": "u_row_14",
             "htmlClassNames": "u_row"
           },
           "selectable": true,

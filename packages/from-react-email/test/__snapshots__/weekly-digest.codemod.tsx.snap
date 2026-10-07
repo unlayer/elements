@@ -41,10 +41,7 @@ export const WeeklyDigestEmail = ({
         `${articles.length} stories worth your time this week: ${articles[0]?.title ?? ""}`,
       )}
     >
-      <Row>
-        <Column padding="24px 0px 0px 0px" />
-      </Row>
-      <Row columnsBackgroundColor="#171717">
+      <Row columnsBackgroundColor="#171717" padding="24px 0px 0px 0px">
         <Column padding="28px 32px 28px 32px">
           <Paragraph
             color="#a1a1a1"
@@ -150,7 +147,7 @@ export const WeeklyDigestEmail = ({
       <Row columnsBackgroundColor="#ffffff">
         <Column padding="32px 0px 0px 0px" />
       </Row>
-      <Row columnsBackgroundColor="#fafafa">
+      <Row columnsBackgroundColor="#fafafa" padding="0px 0px 24px 0px">
         <Column padding="24px 32px 24px 32px">
           <Paragraph
             color="#737373"
@@ -170,9 +167,6 @@ export const WeeklyDigestEmail = ({
             containerPadding="8px 0px 0px 0px"
           />
         </Column>
-      </Row>
-      <Row>
-        <Column padding="24px 0px 0px 0px" />
       </Row>
     </Email>
   );

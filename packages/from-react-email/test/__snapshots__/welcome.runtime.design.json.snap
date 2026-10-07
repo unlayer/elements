@@ -1,7 +1,7 @@
 {
   "counters": {
-    "u_row": 5,
-    "u_column": 5,
+    "u_row": 3,
+    "u_column": 3,
     "u_content_image": 1,
     "u_content_heading": 1,
     "u_content_text": 8,
@@ -10,58 +10,6 @@
   },
   "body": {
     "rows": [
-      {
-        "cells": [
-          1
-        ],
-        "columns": [
-          {
-            "contents": [],
-            "values": {
-              "backgroundColor": "",
-              "padding": "40px 0px 0px 0px",
-              "border": {},
-              "borderRadius": "0px",
-              "_meta": {
-                "htmlID": "u_column_1",
-                "htmlClassNames": "u_column"
-              },
-              "deletable": true,
-              "locked": false
-            }
-          }
-        ],
-        "values": {
-          "displayCondition": null,
-          "columns": false,
-          "_styleGuide": null,
-          "backgroundColor": "",
-          "columnsBackgroundColor": "",
-          "backgroundImage": {
-            "url": "",
-            "fullWidth": true,
-            "repeat": "no-repeat",
-            "size": "custom",
-            "position": "center"
-          },
-          "padding": "0px",
-          "anchor": "",
-          "noStackMobile": false,
-          "_meta": {
-            "htmlID": "u_row_1",
-            "htmlClassNames": "u_row"
-          },
-          "selectable": true,
-          "draggable": true,
-          "duplicatable": true,
-          "deletable": true,
-          "hideable": true,
-          "locked": false,
-          "cells": [
-            1
-          ]
-        }
-      },
       {
         "cells": [
           1
@@ -115,7 +63,7 @@
               "border": {},
               "borderRadius": "8px 8px 0px 0px",
               "_meta": {
-                "htmlID": "u_column_2",
+                "htmlID": "u_column_1",
                 "htmlClassNames": "u_column"
               },
               "deletable": true,
@@ -136,11 +84,11 @@
             "size": "custom",
             "position": "center"
           },
-          "padding": "0px",
+          "padding": "40px 0px 0px 0px",
           "anchor": "",
           "noStackMobile": false,
           "_meta": {
-            "htmlID": "u_row_2",
+            "htmlID": "u_row_1",
             "htmlClassNames": "u_row"
           },
           "selectable": true,
@@ -372,7 +320,7 @@
               "border": {},
               "borderRadius": "0px",
               "_meta": {
-                "htmlID": "u_column_3",
+                "htmlID": "u_column_2",
                 "htmlClassNames": "u_column"
               },
               "deletable": true,
@@ -397,7 +345,7 @@
           "anchor": "",
           "noStackMobile": false,
           "_meta": {
-            "htmlID": "u_row_3",
+            "htmlID": "u_row_2",
             "htmlClassNames": "u_row"
           },
           "selectable": true,
@@ -528,7 +476,7 @@
               "border": {},
               "borderRadius": "0px 0px 8px 8px",
               "_meta": {
-                "htmlID": "u_column_4",
+                "htmlID": "u_column_3",
                 "htmlClassNames": "u_column"
               },
               "deletable": true,
@@ -549,63 +497,11 @@
             "size": "custom",
             "position": "center"
           },
-          "padding": "0px",
+          "padding": "0px 0px 40px 0px",
           "anchor": "",
           "noStackMobile": false,
           "_meta": {
-            "htmlID": "u_row_4",
-            "htmlClassNames": "u_row"
-          },
-          "selectable": true,
-          "draggable": true,
-          "duplicatable": true,
-          "deletable": true,
-          "hideable": true,
-          "locked": false,
-          "cells": [
-            1
-          ]
-        }
-      },
-      {
-        "cells": [
-          1
-        ],
-        "columns": [
-          {
-            "contents": [],
-            "values": {
-              "backgroundColor": "",
-              "padding": "40px 0px 0px 0px",
-              "border": {},
-              "borderRadius": "0px",
-              "_meta": {
-                "htmlID": "u_column_5",
-                "htmlClassNames": "u_column"
-              },
-              "deletable": true,
-              "locked": false
-            }
-          }
-        ],
-        "values": {
-          "displayCondition": null,
-          "columns": false,
-          "_styleGuide": null,
-          "backgroundColor": "",
-          "columnsBackgroundColor": "",
-          "backgroundImage": {
-            "url": "",
-            "fullWidth": true,
-            "repeat": "no-repeat",
-            "size": "custom",
-            "position": "center"
-          },
-          "padding": "0px",
-          "anchor": "",
-          "noStackMobile": false,
-          "_meta": {
-            "htmlID": "u_row_5",
+            "htmlID": "u_row_3",
             "htmlClassNames": "u_row"
           },
           "selectable": true,
