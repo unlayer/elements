@@ -1,0 +1,24 @@
+{
+  "name": "@unlayer/react-email-in-editor-example",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "migrate": "unlayer-migrate emails --out output --design --report output/report.json",
+    "preview": "http-server . -a 127.0.0.1 -p 3002 -c-1",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@react-email/components": "^1.0.12",
+    "@unlayer/migrate": "workspace:*",
+    "@unlayer/react-elements": "workspace:*",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1"
+  },
+  "devDependencies": {
+    "@types/react": "^18.3.3",
+    "@types/react-dom": "^18.3.0",
+    "http-server": "14.1.1",
+    "typescript": "^5.6.3"
+  }
+}

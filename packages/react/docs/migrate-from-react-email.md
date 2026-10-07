@@ -45,6 +45,20 @@ renderToJson(element); // open in the visual editor with loadDesign()
 
 `--design` also writes each template's design JSON next to it, ready for `loadDesign()`. Text props become merge tags (`{{name}}`) where the template shows them as given; `--no-merge-tags` keeps the `PreviewProps` values. CSS, font URLs, backgrounds and all image sources retain sample values even when merge tags are enabled.
 
+## Open React Email templates in the Unlayer editor
+
+`--design` makes any React Email template editable in Unlayer's visual editor:
+
+```bash
+npx @unlayer/migrate emails --out unlayer --design --report unlayer/report.json
+```
+
+```js
+editor.loadDesign(await fetch("/unlayer/welcome.design.json").then((r) => r.json()));
+```
+
+The [react-email-in-editor example](../../../examples/react-email-in-editor) runs this end to end: it migrates two templates and opens them in the hosted editor, with a picker for every template that passed the check. Spacing between sections becomes padding; a card with space around it in a different color keeps a narrow empty column on each side, which the editor shows as a placeholder while editing.
+
 For a right-to-left design, call `unlayer.setTextDirection("rtl")` when loading it. The design keeps `body.values.textDirection`; `lang` belongs to the rendered document and is not stored in the editor's design JSON.
 
 ## Agent rules

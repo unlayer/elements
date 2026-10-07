@@ -16,6 +16,7 @@ npm install @unlayer/react-elements react react-dom
 | Generate an invoice PDF using Playwright | [React to PDF with Playwright](./react-to-pdf.md) | A PDF file created by headless Chromium |
 | Make AI-generated React content visually editable | [React to Unlayer design JSON](./visual-editing.md) | `renderToJson()` → `loadDesign()` → edited JSON and HTML |
 | Move React Email templates to Elements | [Migrate from React Email](./migrate-from-react-email.md) | `npx @unlayer/migrate`: converted templates, checked against the originals |
+| Open React Email templates in the Unlayer editor | [React Email in the editor](../../../examples/react-email-in-editor) | `npx @unlayer/migrate --design` → `loadDesign()` |
 
 ## When to use Elements
 

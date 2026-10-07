@@ -1,6 +1,6 @@
 # Make React and AI-generated email templates visually editable with renderToJson
 
-Use `@unlayer/react-elements` when a developer or AI agent writes a template in React and another person needs to edit its content in Unlayer's visual editor. `renderToJson()` creates design data; `loadDesign()` opens it; the editor's `exportHtml()` callback returns the updated design and HTML.
+Use `@unlayer/react-elements` when a developer or AI agent writes a template in React and another person needs to edit its content in Unlayer's visual editor. Templates already written with React Email open the same way: see [Open React Email templates in the Unlayer editor](./migrate-from-react-email.md#open-react-email-templates-in-the-unlayer-editor). `renderToJson()` creates design data; `loadDesign()` opens it; the editor's `exportHtml()` callback returns the updated design and HTML.
 
 ## Generate Unlayer design JSON from React
 
