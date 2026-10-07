@@ -180,7 +180,8 @@ export function inheritedStyle(ctx: MapCtx): Record<string, string> | undefined 
   const out: Record<string, string> = {};
   if (i.textAlign && i.textAlign !== "left" && i.textAlign !== "start") out.textAlign = i.textAlign;
   if (i.color) out.color = color(i.color) as string;
-  if (i.fontSize && cssLength(i.fontSize) !== "16px") out.fontSize = cssLength(i.fontSize) as string;
+  // Even the browser's 16px: the editor's canvas shows HTML blocks at its own 14px otherwise.
+  if (i.fontSize) out.fontSize = cssLength(i.fontSize) as string;
   if (i.lineHeight) out.lineHeight = lineHeightValue(i.lineHeight) as string;
   if (i.fontWeight !== undefined) out.fontWeight = String(i.fontWeight);
   if (i.letterSpacing) out.letterSpacing = cssLength(i.letterSpacing) as string;
