@@ -49,7 +49,7 @@ To convert on a server instead, use the library: `(await convertReactEmail(Welco
 ## What to expect
 
 - Text the template shows from its props becomes merge tags (`{{name}}`, `{{orderId}}`) that your email service fills in. Pass `--no-merge-tags` to keep the sample values.
-- Spacing between sections becomes row and column padding. A card with space around it in a different color keeps a narrow empty column on each side, as the editor builds that layout; the editor shows its placeholder there while editing, and the sent email is unaffected.
+- Spacing between sections becomes row and column padding. Where the layout needs a column that only holds space (around a card, beside an image), it holds an invisible divider, so the editor shows the design as it looks instead of "No content here" placeholders. You can select and delete it like any block.
 - What Elements can't express (column vertical centering, image corner radius, shadows) is listed in `report.json` with each template's differences.
 - Editing the design doesn't change the React source. Keep the migrated `.tsx` for code, and the edited design for the editor.
 

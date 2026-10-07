@@ -5,7 +5,7 @@
     "u_content_image": 4,
     "u_content_heading": 1,
     "u_content_text": 29,
-    "u_content_divider": 3,
+    "u_content_divider": 11,
     "u_content_button": 1
   },
   "body": {
@@ -221,7 +221,30 @@
         ],
         "columns": [
           {
-            "contents": [],
+            "contents": [
+              {
+                "type": "divider",
+                "values": {
+                  "containerPadding": "0px",
+                  "width": "100%",
+                  "border": {
+                    "borderTopWidth": "0px",
+                    "borderTopStyle": "solid",
+                    "borderTopColor": "#BBBBBB"
+                  },
+                  "textAlign": "center",
+                  "_meta": {
+                    "htmlID": "u_content_divider_1",
+                    "htmlClassNames": "u_content_divider"
+                  },
+                  "selectable": true,
+                  "draggable": true,
+                  "duplicatable": true,
+                  "deletable": true,
+                  "hideable": true
+                }
+              }
+            ],
             "values": {
               "backgroundColor": "#ffffff",
               "padding": "0px",
@@ -452,7 +475,30 @@
             }
           },
           {
-            "contents": [],
+            "contents": [
+              {
+                "type": "divider",
+                "values": {
+                  "containerPadding": "0px",
+                  "width": "100%",
+                  "border": {
+                    "borderTopWidth": "0px",
+                    "borderTopStyle": "solid",
+                    "borderTopColor": "#BBBBBB"
+                  },
+                  "textAlign": "center",
+                  "_meta": {
+                    "htmlID": "u_content_divider_2",
+                    "htmlClassNames": "u_content_divider"
+                  },
+                  "selectable": true,
+                  "draggable": true,
+                  "duplicatable": true,
+                  "deletable": true,
+                  "hideable": true
+                }
+              }
+            ],
             "values": {
               "backgroundColor": "#ffffff",
               "padding": "0px",
@@ -517,7 +563,30 @@
         ],
         "columns": [
           {
-            "contents": [],
+            "contents": [
+              {
+                "type": "divider",
+                "values": {
+                  "containerPadding": "0px",
+                  "width": "100%",
+                  "border": {
+                    "borderTopWidth": "0px",
+                    "borderTopStyle": "solid",
+                    "borderTopColor": "#BBBBBB"
+                  },
+                  "textAlign": "center",
+                  "_meta": {
+                    "htmlID": "u_content_divider_3",
+                    "htmlClassNames": "u_content_divider"
+                  },
+                  "selectable": true,
+                  "draggable": true,
+                  "duplicatable": true,
+                  "deletable": true,
+                  "hideable": true
+                }
+              }
+            ],
             "values": {
               "backgroundColor": "#ffffff",
               "padding": "24px 0px 0px 0px",
@@ -733,7 +802,30 @@
             }
           },
           {
-            "contents": [],
+            "contents": [
+              {
+                "type": "divider",
+                "values": {
+                  "containerPadding": "0px",
+                  "width": "100%",
+                  "border": {
+                    "borderTopWidth": "0px",
+                    "borderTopStyle": "solid",
+                    "borderTopColor": "#BBBBBB"
+                  },
+                  "textAlign": "center",
+                  "_meta": {
+                    "htmlID": "u_content_divider_4",
+                    "htmlClassNames": "u_content_divider"
+                  },
+                  "selectable": true,
+                  "draggable": true,
+                  "duplicatable": true,
+                  "deletable": true,
+                  "hideable": true
+                }
+              }
+            ],
             "values": {
               "backgroundColor": "#ffffff",
               "padding": "24px 0px 0px 0px",
@@ -798,7 +890,30 @@
         ],
         "columns": [
           {
-            "contents": [],
+            "contents": [
+              {
+                "type": "divider",
+                "values": {
+                  "containerPadding": "0px",
+                  "width": "100%",
+                  "border": {
+                    "borderTopWidth": "0px",
+                    "borderTopStyle": "solid",
+                    "borderTopColor": "#BBBBBB"
+                  },
+                  "textAlign": "center",
+                  "_meta": {
+                    "htmlID": "u_content_divider_5",
+                    "htmlClassNames": "u_content_divider"
+                  },
+                  "selectable": true,
+                  "draggable": true,
+                  "duplicatable": true,
+                  "deletable": true,
+                  "hideable": true
+                }
+              }
+            ],
             "values": {
               "backgroundColor": "#ffffff",
               "padding": "0px",
@@ -1014,7 +1129,30 @@
             }
           },
           {
-            "contents": [],
+            "contents": [
+              {
+                "type": "divider",
+                "values": {
+                  "containerPadding": "0px",
+                  "width": "100%",
+                  "border": {
+                    "borderTopWidth": "0px",
+                    "borderTopStyle": "solid",
+                    "borderTopColor": "#BBBBBB"
+                  },
+                  "textAlign": "center",
+                  "_meta": {
+                    "htmlID": "u_content_divider_6",
+                    "htmlClassNames": "u_content_divider"
+                  },
+                  "selectable": true,
+                  "draggable": true,
+                  "duplicatable": true,
+                  "deletable": true,
+                  "hideable": true
+                }
+              }
+            ],
             "values": {
               "backgroundColor": "#ffffff",
               "padding": "0px",
@@ -1079,7 +1217,30 @@
         ],
         "columns": [
           {
-            "contents": [],
+            "contents": [
+              {
+                "type": "divider",
+                "values": {
+                  "containerPadding": "0px",
+                  "width": "100%",
+                  "border": {
+                    "borderTopWidth": "0px",
+                    "borderTopStyle": "solid",
+                    "borderTopColor": "#BBBBBB"
+                  },
+                  "textAlign": "center",
+                  "_meta": {
+                    "htmlID": "u_content_divider_7",
+                    "htmlClassNames": "u_content_divider"
+                  },
+                  "selectable": true,
+                  "draggable": true,
+                  "duplicatable": true,
+                  "deletable": true,
+                  "hideable": true
+                }
+              }
+            ],
             "values": {
               "backgroundColor": "#ffffff",
               "padding": "0px",
@@ -1295,7 +1456,30 @@
             }
           },
           {
-            "contents": [],
+            "contents": [
+              {
+                "type": "divider",
+                "values": {
+                  "containerPadding": "0px",
+                  "width": "100%",
+                  "border": {
+                    "borderTopWidth": "0px",
+                    "borderTopStyle": "solid",
+                    "borderTopColor": "#BBBBBB"
+                  },
+                  "textAlign": "center",
+                  "_meta": {
+                    "htmlID": "u_content_divider_8",
+                    "htmlClassNames": "u_content_divider"
+                  },
+                  "selectable": true,
+                  "draggable": true,
+                  "duplicatable": true,
+                  "deletable": true,
+                  "hideable": true
+                }
+              }
+            ],
             "values": {
               "backgroundColor": "#ffffff",
               "padding": "0px",
@@ -1369,7 +1553,7 @@
                   },
                   "textAlign": "center",
                   "_meta": {
-                    "htmlID": "u_content_divider_1",
+                    "htmlID": "u_content_divider_9",
                     "htmlClassNames": "u_content_divider"
                   },
                   "selectable": true,
@@ -1834,7 +2018,7 @@
                   },
                   "textAlign": "center",
                   "_meta": {
-                    "htmlID": "u_content_divider_2",
+                    "htmlID": "u_content_divider_10",
                     "htmlClassNames": "u_content_divider"
                   },
                   "selectable": true,
@@ -2134,7 +2318,7 @@
                   },
                   "textAlign": "center",
                   "_meta": {
-                    "htmlID": "u_content_divider_3",
+                    "htmlID": "u_content_divider_11",
                     "htmlClassNames": "u_content_divider"
                   },
                   "selectable": true,

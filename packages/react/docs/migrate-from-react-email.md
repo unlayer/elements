@@ -57,7 +57,7 @@ npx @unlayer/migrate emails --out unlayer --design --report unlayer/report.json
 editor.loadDesign(await fetch("/unlayer/welcome.design.json").then((r) => r.json()));
 ```
 
-The [react-email-in-editor example](../../../examples/react-email-in-editor) runs this end to end: it migrates two templates and opens them in the hosted editor, with a picker for every template that passed the check. Spacing between sections becomes padding; a card with space around it in a different color keeps a narrow empty column on each side, which the editor shows as a placeholder while editing.
+The [react-email-in-editor example](../../../examples/react-email-in-editor) runs this end to end: it migrates two templates and opens them in the hosted editor, with a picker for every template that passed the check. Spacing between sections becomes padding, and a column that only holds space (around a card, beside an image) holds an invisible divider, so the editor shows the design as it looks rather than empty-column placeholders.
 
 For a right-to-left design, call `unlayer.setTextDirection("rtl")` when loading it. The design keeps `body.values.textDirection`; `lang` belongs to the rendered document and is not stored in the editor's design JSON.
 

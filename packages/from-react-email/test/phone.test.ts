@@ -73,8 +73,10 @@ describe("phone styles", () => {
       const rows = design.body.rows;
       const stacked = rows.find((r: any) => r.columns.some((c: any) => c.contents.some((item: any) => item.values.text?.includes("First phone text"))));
       for (const col of stacked.columns.slice(0, 2)) expect(col.values._override.mobile.padding).toContain("16px");
-      // The editor can't hide a column: the empty spacer stacks with no height instead.
-      expect(stacked.columns[2].contents).toEqual([]);
+      // The editor can't hide a column: the spacer stacks with no height instead. It holds
+      // only an invisible divider, so the editor doesn't draw an empty-column placeholder.
+      expect(stacked.columns[2].contents).toHaveLength(1);
+      expect(stacked.columns[2].contents[0]).toMatchObject({ type: "divider", values: { border: { borderTopWidth: "0px" } } });
       expect(stacked.columns[2].values._override?.mobile?.hideMobile).toBeUndefined();
       const items = rows.flatMap((r: any) => r.columns.flatMap((c: any) => c.contents));
       const first = items.find((c: any) => c.values.text?.includes("First phone text"));

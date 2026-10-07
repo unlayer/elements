@@ -40,6 +40,11 @@ export interface ElementNode {
    * why. Counts as a fallback in the report and prints as a TODO comment.
    */
   fallback?: string;
+  /**
+   * An invisible Divider standing for space in an otherwise empty Column (the visual editor
+   * shows an empty column as a placeholder that changes the layout). Not counted as content.
+   */
+  spacer?: boolean;
 }
 
 export const ROOT_TYPES = ["Email", "Page", "Document"] as const;
@@ -87,7 +92,7 @@ export function contentNodes(tree: ElementNode): ElementNode[] {
   const out: ElementNode[] = [];
   const visit = (node: ElementNode | string | Expr) => {
     if (typeof node === "string" || isExpr(node)) return;
-    if ((CONTENT_TYPES as readonly string[]).includes(node.type)) out.push(node);
+    if ((CONTENT_TYPES as readonly string[]).includes(node.type) && !node.spacer) out.push(node);
     node.children?.forEach(visit);
     node.slots?.forEach((slot) => slot.forEach(visit));
   };
