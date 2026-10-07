@@ -21,7 +21,7 @@ Open <http://127.0.0.1:3002/editor.html> and pick a template. Every block is edi
 |------|------------|
 | `welcome.design.json`, `order-receipt.design.json` | Unlayer designs, ready for `loadDesign()` |
 | `welcome.tsx`, `order-receipt.tsx` | The same templates as Elements components |
-| `report.json` | Each template's check result and differences; `editor.html` lists the templates from it |
+| `report.json` | Each template's check result, differences and web fonts; `editor.html` lists the templates and registers their fonts from it |
 
 ## Your own templates
 
@@ -33,18 +33,20 @@ In your own project, the same command is:
 npx @unlayer/migrate ./emails --out ./unlayer --design --report ./unlayer/report.json
 ```
 
-Then load a design in the editor:
+Then load a design in the editor, registering the templates' web fonts when you create it (the editor only loads and exports fonts it was created with):
 
 ```js
-const editor = unlayer.createEditor({ id: "editor", displayMode: "email" });
+const report = await fetch("/unlayer/report.json").then((r) => r.json());
+const customFonts = report.flatMap((result) => result.fonts ?? []);
+const editor = unlayer.createEditor({ id: "editor", displayMode: "email", fonts: { showDefaultFonts: true, customFonts } });
 editor.addEventListener("editor:ready", async () => {
   editor.loadDesign(await fetch("/unlayer/welcome.design.json").then((r) => r.json()));
 });
 ```
 
-With React, pass it to `react-email-editor` the same way: `<EmailEditor onReady={(unlayer) => unlayer.loadDesign(design)} />`.
+With React, pass them to `react-email-editor` the same way: `<EmailEditor options={{ fonts: { showDefaultFonts: true, customFonts } }} onReady={(unlayer) => unlayer.loadDesign(design)} />`.
 
-To convert on a server instead, use the library: `(await convertReactEmail(Welcome)).design()` from `@unlayer/migrate/react-email` returns the same design JSON.
+To convert on a server instead, use the library: `(await convertReactEmail(Welcome)).design()` from `@unlayer/migrate/react-email` returns the same design JSON, and `.editorFonts()` its fonts.
 
 ## What to expect
 

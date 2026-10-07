@@ -57,6 +57,16 @@ npx @unlayer/migrate emails --out unlayer --design --report unlayer/report.json
 editor.loadDesign(await fetch("/unlayer/welcome.design.json").then((r) => r.json()));
 ```
 
+A template's web fonts (Google Fonts, `<Font>`) aren't part of the design JSON: the editor loads and exports a web font only when it's registered when the editor is created. The report lists each template's fonts in that shape, so pass them on:
+
+```js
+const report = await fetch("/unlayer/report.json").then((r) => r.json());
+const customFonts = report.flatMap((result) => result.fonts ?? []);
+const editor = unlayer.createEditor({ id: "editor", displayMode: "email", fonts: { showDefaultFonts: true, customFonts } });
+```
+
+From the library, `verifyConversion(...).editorFonts` and `convertReactEmail(...).editorFonts()` return the same list.
+
 The [react-email-in-editor example](../../../examples/react-email-in-editor) runs this end to end: it migrates two templates and opens them in the hosted editor, with a picker for every template that passed the check. Spacing between sections becomes padding, and a column that only holds space (around a card, beside an image) holds an invisible divider, so the editor shows the design as it looks rather than empty-column placeholders.
 
 For a right-to-left design, call `unlayer.setTextDirection("rtl")` when loading it. The design keeps `body.values.textDirection`; `lang` belongs to the rendered document and is not stored in the editor's design JSON.

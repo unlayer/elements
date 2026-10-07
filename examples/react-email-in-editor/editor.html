@@ -22,12 +22,6 @@
     const status = document.getElementById("status");
     const save = document.getElementById("save");
     const select = document.getElementById("template");
-    const editor = unlayer.createEditor({
-      id: "editor",
-      displayMode: "email",
-      // Add your projectId and allowed domain for your deployed integration.
-    });
-
     // `pnpm migrate` writes one design JSON per React Email template and a report listing them.
     async function templates() {
       const response = await fetch("./output/report.json");
@@ -35,6 +29,7 @@
       return (await response.json()).filter((result) => result.design);
     }
 
+    let editor;
     async function open(path) {
       save.disabled = true;
       status.textContent = `Loading ${path}…`;
@@ -43,14 +38,24 @@
       editor.loadDesign(await response.json());
     }
 
-    editor.addEventListener("design:loaded", () => {
-      save.disabled = false;
-      status.textContent = "Loaded. Edit it here, then download your changes.";
-    });
-    editor.addEventListener("editor:ready", async () => {
-      try {
-        const results = await templates();
-        if (!results.length) throw new Error("No template passed the migration check: see output/report.json.");
+    templates().then((results) => {
+      if (!results.length) throw new Error("No template passed the migration check: see output/report.json.");
+      // The editor loads and exports web fonts it was created with: register the templates' fonts.
+      const customFonts = [];
+      for (const font of results.flatMap((result) => result.fonts ?? [])) {
+        if (!customFonts.some((f) => f.value === font.value)) customFonts.push(font);
+      }
+      editor = unlayer.createEditor({
+        id: "editor",
+        displayMode: "email",
+        fonts: { showDefaultFonts: true, customFonts },
+        // Add your projectId and allowed domain for your deployed integration.
+      });
+      editor.addEventListener("design:loaded", () => {
+        save.disabled = false;
+        status.textContent = "Loaded. Edit it here, then download your changes.";
+      });
+      editor.addEventListener("editor:ready", () => {
         for (const result of results) {
           const option = document.createElement("option");
           option.value = result.design;
@@ -58,11 +63,9 @@
           select.append(option);
         }
         select.disabled = false;
-        await open(select.value);
-      } catch (error) {
-        status.textContent = error.message;
-      }
-    });
+        open(select.value).catch((error) => { status.textContent = error.message; });
+      });
+    }).catch((error) => { status.textContent = error.message; });
     select.addEventListener("change", () => open(select.value).catch((error) => { status.textContent = error.message; }));
 
     function download(name, contents, type) {

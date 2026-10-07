@@ -63,6 +63,11 @@ export interface FileResult {
   /** Where the migrated template was written. */
   output?: string;
   design?: string;
+  /**
+   * Web fonts the design uses. Register them when you create the editor
+   * (`fonts: { customFonts }`): it then shows them and links them in its export.
+   */
+  fonts?: Array<{ label: string; value: string; url: string }>;
   /** Share of content blocks that are editable Elements blocks (the rest are kept as HTML). */
   editable?: number;
   /** Blocks kept as HTML, with why. */
@@ -163,6 +168,9 @@ export async function main(argv: string[], io: Io, library?: Library): Promise<n
     pending.push({ result, writes });
   }
 
+  // An editor registers each font family once: give every template the stylesheet that loads what all of them use.
+  const withFonts = results.filter((r) => r.fonts);
+  lib.shareEditorFonts(withFonts.map((r) => r.fonts!)).forEach((fonts, i) => (withFonts[i].fonts = fonts));
   for (const { result, writes } of pending) {
     try {
       for (const write of writes) {
@@ -374,12 +382,15 @@ async function migrateFile(input: Input, options: Options, lib: Library, io: Io,
       if (writing) await checkDestination(target, destinations);
       await writeExclusive(probe, code);
       probeCreated = true;
-      const Migrated = templateComponent(defaultExport(await importFile(probe, io.cwd, release)))?.component;
+      const migrated = templateComponent(defaultExport(await importFile(probe, io.cwd, release)));
+      const Migrated = migrated?.component;
       if (!Migrated) throw new Error("the migrated file has no default export");
-      verification = await lib.verifyConversion(Original, Migrated as (props: unknown) => ReturnType<typeof Original>, { props });
+      // The migrated preview props are the original's with their JSX converted (classes become styles): the design uses them.
+      const designProps = Object.keys(migrated.props).length ? migrated.props : props;
+      verification = await lib.verifyConversion(Original, Migrated as (props: unknown) => ReturnType<typeof Original>, { props, designProps });
       design = verification.design;
       if (options.design && options.mergeTags) {
-        const tagged = await lib.mergeTagDesign(Migrated as (props: unknown) => ReturnType<typeof Original>, props, verification.design);
+        const tagged = await lib.mergeTagDesign(Migrated as (props: unknown) => ReturnType<typeof Original>, designProps, verification.design);
         design = tagged.design;
         mergeTags = tagged;
       }
@@ -410,6 +421,7 @@ async function migrateFile(input: Input, options: Options, lib: Library, io: Io,
       missingAttributes: verification.missingAttributes,
       variants: verification.variants,
       designWarnings: verification.designWarnings,
+      ...(options.design && verification.editorFonts.length ? { fonts: verification.editorFonts } : {}),
     };
 
     const writes: PendingWrite[] = [];
@@ -551,6 +563,7 @@ function markdownReport(results: FileResult[]): string {
     lines.push("", `## ${r.file}`, "");
     if (r.reason) lines.push(r.reason, "");
     if (r.output) lines.push(`Written to \`${r.output}\`${r.design ? ` (design JSON: \`${r.design}\`)` : ""}.`, "");
+    if (r.fonts?.length) lines.push(`**Web fonts to register with the editor** (\`fonts.customFonts\`): ${r.fonts.map((f) => f.label).join(", ")}`, "");
     if (r.missingText?.length) lines.push(`**Lost text:** ${quote(r.missingText)}`, "");
     if (r.addedText?.length) lines.push(`**Extra text:** ${quote(r.addedText)}`, "");
     if (r.missingAttributes?.length) lines.push(`**Lost links or images:** ${quote(r.missingAttributes)}`, "");

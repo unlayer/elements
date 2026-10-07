@@ -28,6 +28,7 @@ import Welcome from "./emails/welcome";
 
 const conversion = await convertReactEmail(Welcome);
 conversion.design(); // design JSON for the editor's loadDesign(), text props as merge tags ({{name}})
+conversion.editorFonts(); // its web fonts, for the editor's fonts.customFonts
 conversion.html(); // HTML (renderToHtml)
 await conversion.tsx(); // Elements TSX
 conversion.report.missingText; // [] when nothing was lost
@@ -52,7 +53,10 @@ check.missingAttributes; // links (href), images (src) and alt text it lost
 check.variants; // problems with a boolean prop flipped (branches the preview doesn't take)
 check.designWarnings; // blocks the visual editor wouldn't get
 check.design; // the design JSON
+check.editorFonts; // its web fonts, for the editor's fonts.customFonts
 ```
+
+The editor loads and exports a web font only when it's registered when the editor is created: `unlayer.createEditor({ ..., fonts: { showDefaultFonts: true, customFonts: check.editorFonts } })`. Google Fonts and `<Font>` files are matched to the families the design uses; another stylesheet can't be without fetching it, so it isn't listed. Pass `{ designProps: Migrated.PreviewProps }` to build the design from the migrated template's preview props (the CLI does), where JSX passed as a prop has styles instead of Tailwind classes.
 
 `compareText(originalHtml, convertedHtml)` runs the same comparison on two HTML documents, preserving numeric separators, signs, currency symbols and percentages. No new words may appear. Words must also stay in order: values that changed places count as missing. It counts repeated links and images and keeps destinations associated with link labels and image alt text; Outlook-only duplicates are excluded. Boolean variants are checked through both the HTML and design exporters. Code paths the props don't reach (a loop over an empty preview array, a condition on a non-boolean prop) aren't verified: extend `PreviewProps` to cover them.
 

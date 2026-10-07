@@ -7,10 +7,12 @@ import { render } from "@react-email/components";
 import { renderToHtml, renderToJson } from "@unlayer/react-elements";
 import {
   compareText,
+  editorFonts,
   treeToDesign,
   treeToHtml,
   treeToTsx,
   type ConversionReport,
+  type EditorFont,
   type ElementNode,
   type TextCheck,
 } from "@unlayer/convert-core";
@@ -39,6 +41,8 @@ export interface Conversion {
   report: ConversionReport;
   tsx(): Promise<string>;
   design(): Record<string, any>;
+  /** The web fonts the design uses, to register with the editor (`fonts.customFonts`) so it shows and exports them. */
+  editorFonts(): EditorFont[];
   html(): string;
 }
 
@@ -77,6 +81,7 @@ export async function convertReactEmail(Template: Template, options: RuntimeOpti
         header: ["Converted from a React Email template by @unlayer/from-react-email (runtime mode)."],
       }),
     design: () => treeToDesign(tree),
+    editorFonts: () => editorFonts(treeToDesign(tree), fonts),
     html: () => treeToHtml(tree, { fonts }),
   };
 }
@@ -88,6 +93,8 @@ export interface Verification extends TextCheck {
   designWarnings: string[];
   /** The design JSON the visual editor opens (`loadDesign`), rendered with the same props. */
   design: Record<string, unknown>;
+  /** The web fonts the design uses, to register with the editor (`fonts.customFonts`) so it shows and exports them. */
+  editorFonts: EditorFont[];
   /**
    * The same check with each boolean prop flipped, to reach branches the
    * preview props don't take. Only variants with missing or extra content, or where
@@ -106,18 +113,27 @@ export interface Verification extends TextCheck {
 export async function verifyConversion(
   Original: Template,
   Converted: (props: any) => React.ReactElement,
-  options: { props?: Record<string, unknown> } = {},
+  options: {
+    props?: Record<string, unknown>;
+    /**
+     * Props for the design JSON, if not `props`: the migrated template's own
+     * `PreviewProps`, where the codemod converted the JSX the original's hold.
+     */
+    designProps?: Record<string, unknown>;
+  } = {},
 ): Promise<Verification> {
   const props = options.props ?? Original.PreviewProps ?? {};
   const originalHtml = await render(React.createElement(Original, props));
   // renderToHtml reads the root (Email) element, so call the component.
-  const convertedHtml = renderToHtml(Converted(props));
+  const root = Converted(props);
+  const convertedHtml = renderToHtml(root);
+  const designRoot = options.designProps ? Converted(options.designProps) : root;
   const designWarnings: string[] = [];
   const warn = console.warn;
   console.warn = (...args: unknown[]) => void designWarnings.push(args.map(String).join(" "));
   let design: Record<string, unknown>;
   try {
-    design = renderToJson(Converted(props)) as unknown as Record<string, unknown>;
+    design = renderToJson(designRoot) as unknown as Record<string, unknown>;
   } finally {
     console.warn = warn;
   }
@@ -159,7 +175,8 @@ export async function verifyConversion(
       variants.push({ change, missing: [], added: [], missingAttributes: [], error: (error as Error).message.split("\n")[0] });
     }
   }
-  return { ...compareText(originalHtml, convertedHtml), originalHtml, convertedHtml, designWarnings, design, variants };
+  const stylesheets = (designRoot.props as { fonts?: Array<{ url: string }> } | null)?.fonts;
+  return { ...compareText(originalHtml, convertedHtml), originalHtml, convertedHtml, designWarnings, design, editorFonts: editorFonts(design, stylesheets), variants };
 }
 
 /**
@@ -189,7 +206,7 @@ export async function templateTailwindConfig(Original: Template, props?: Record<
 
 export { rebaseImports } from "./imports";
 export { mergeTagged, textProps, type TextProp } from "./merge-tags";
-export { compareText, htmlWords, type TextCheck } from "@unlayer/convert-core";
+export { compareText, htmlWords, shareEditorFonts, type EditorFont, type TextCheck } from "@unlayer/convert-core";
 export { convertElement } from "./runtime";
 export { expand, findTailwindConfig, REACT_EMAIL_COMPONENTS } from "./expand";
 export { convertSource, type CodemodOptions, type CodemodResult } from "./codemod";

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { el, expr, fallbackHtml, hole, printJsx, ReportBuilder, treeToDesign, treeToTsx, boxSides, toPx } from "../src/index";
+import { el, editorFonts, shareEditorFonts, expr, fallbackHtml, hole, printJsx, ReportBuilder, treeToDesign, treeToTsx, boxSides, toPx } from "../src/index";
 
 const tree = el("Email", { contentWidth: "600px" }, [
   el("Row", { layout: "TwoEqual" }, [
@@ -109,5 +109,57 @@ describe("meaningful text", () => {
     expect(
       compareText("<p>Hello <b>there</b></p><p>Bye</p>", "<div><p>Hello there</p></div><p>Bye</p>").missing,
     ).toEqual([]);
+  });
+});
+
+describe("editor fonts", () => {
+  const design = {
+    body: {
+      values: { fontFamily: { label: "Inter", value: "Inter,Arial,sans-serif" } },
+      rows: [{ values: {}, columns: [{ contents: [
+        { type: "heading", values: { fontFamily: { label: "Instrument Serif", value: "'Instrument Serif',Georgia,serif" } } },
+        { type: "text", values: { text: '<p style="font-family: Brand, sans-serif">x</p>' } },
+      ] }] }],
+    },
+  };
+
+  it("registers each family the design uses once, with all its weights", () => {
+    const fonts = editorFonts(design, [
+      { url: "https://fonts.googleapis.com/css2?family=Instrument+Serif:ital,wght@1,400&display=swap" },
+      { url: "https://fonts.googleapis.com/css2?family=Inter:wght@600&display=swap" },
+      { url: "https://fonts.googleapis.com/css2?family=Inter:wght@400&display=swap" },
+      { url: "https://fonts.googleapis.com/css2?family=Instrument+Serif:wght@400&display=swap" },
+      { url: "https://fonts.googleapis.com/css2?family=Unused:wght@400&display=swap" },
+    ]);
+    expect(fonts).toEqual([
+      { label: "Instrument Serif", value: "'Instrument Serif',Georgia,serif", url: "https://fonts.googleapis.com/css2?family=Instrument+Serif:ital,wght@0,400;1,400&display=swap" },
+      { label: "Inter", value: "Inter,Arial,sans-serif", url: "https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap" },
+    ]);
+  });
+
+  it("matches @font-face stylesheets and fonts named only in text", () => {
+    const face = (weight: number) => `data:text/css,${encodeURIComponent(`@font-face{font-family:'Brand';src:url('https://cdn.example.com/brand-${weight}.woff2');font-weight:${weight}}`)}`;
+    const [font] = editorFonts(design, [{ url: face(400) }, { url: face(700) }]);
+    expect(font.label).toBe("Brand");
+    expect(font.value).toBe("'Brand'");
+    expect(decodeURIComponent(font.url)).toContain("brand-400.woff2");
+    expect(decodeURIComponent(font.url)).toContain("brand-700.woff2");
+  });
+
+  it("keeps stylesheets it can't merge, and skips ones it can't match", () => {
+    expect(editorFonts(design, [{ url: "https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,400" }, { url: "https://cdn.example.com/inter.css" }])).toEqual([
+      { label: "Inter", value: "Inter,Arial,sans-serif", url: "https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,400&display=swap" },
+    ]);
+  });
+});
+
+describe("shared editor fonts", () => {
+  it("gives every list one stylesheet per family with all the styles any list uses", () => {
+    const inter = (weights: string) => ({ label: "Inter", value: "Inter,Arial,sans-serif", url: `https://fonts.googleapis.com/css2?family=Inter:wght@${weights}&display=swap` });
+    const serif = { label: "Serif", value: "'Instrument Serif',serif", url: "https://fonts.googleapis.com/css2?family=Instrument+Serif:wght@400&display=swap" };
+    const [a, b] = shareEditorFonts([[inter("400;600"), serif], [inter("300;400")]]);
+    const all = "https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600&display=swap";
+    expect(a).toEqual([{ ...inter("400;600"), url: all }, serif]);
+    expect(b).toEqual([{ ...inter("300;400"), url: all }]);
   });
 });

@@ -26,7 +26,7 @@ Run it from your project folder. Each template is:
 |---|---|
 | `--write` | Replace each template with its migrated version. |
 | `--out <dir>` | Write migrated templates to `<dir>` instead, keeping the folder layout. Relative imports and resources loaded with `new URL(path, import.meta.url)` keep resolving from their original location. The rewritten source is checked in its destination folder. |
-| `--design` | Also write `<name>.design.json` next to each migrated template: the design the Unlayer editor opens with `loadDesign()`. Text props the template shows as given become merge tags (`{{name}}`); props it changes first (a formatted date, an uppercased word) keep their `PreviewProps` value. CSS, font URLs, backgrounds and image sources (including inline images in HTML) keep sample values. |
+| `--design` | Also write `<name>.design.json` next to each migrated template: the design the Unlayer editor opens with `loadDesign()`. Text props the template shows as given become merge tags (`{{name}}`); props it changes first (a formatted date, an uppercased word) keep their `PreviewProps` value. CSS, font URLs, backgrounds and image sources (including inline images in HTML) keep sample values. The design is built from the migrated template's `PreviewProps`, where JSX passed as a prop has styles instead of Tailwind classes. The JSON report lists each template's web fonts (`fonts`): register them when you create the editor (`fonts: { showDefaultFonts: true, customFonts }`), since it loads and exports only fonts it was created with. |
 | `--no-merge-tags` | Keep the `PreviewProps` values in the design JSON instead of merge tags. |
 | `--report <file>` | Write the migration report as Markdown (`.md`) or JSON (`.json`). |
 | `--force` | Write templates even when the check finds a problem. |
@@ -84,6 +84,7 @@ import Welcome from "./emails/welcome";
 
 const conversion = await convertReactEmail(Welcome);
 const design = conversion.design(); // open in the visual editor with loadDesign()
+const customFonts = conversion.editorFonts(); // register when creating the editor: fonts: { customFonts }
 const html = conversion.html();
 const tsx = await conversion.tsx();
 ```

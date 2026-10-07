@@ -169,6 +169,40 @@ Template.PreviewProps = { code: "VIP", name: "Alex" };`;
     expect(design).toContain("{{name}}");
   });
 
+  it("lists the web fonts the design uses in the report, for the editor's customFonts", async () => {
+    const source = `import { Html, Head, Font, Body, Heading, Text } from "@react-email/components";
+export default function Template() {
+  return (
+    <Html>
+      <Head>
+        <Font fontFamily="Inter" fallbackFontFamily="Arial" webFont={{ url: "https://fonts.gstatic.com/s/inter/v13/inter-400.woff2", format: "woff2" }} fontWeight={400} />
+        <Font fontFamily="Inter" fallbackFontFamily="Arial" webFont={{ url: "https://fonts.gstatic.com/s/inter/v13/inter-600.woff2", format: "woff2" }} fontWeight={600} />
+      </Head>
+      <Body style={{ fontFamily: "Inter, Arial, sans-serif" }}><Heading>Your receipt</Heading><Text>Thanks for your order.</Text></Body>
+    </Html>
+  );
+}`;
+    const dir = project({ "emails/receipt.tsx": source });
+    const out = io(dir);
+    expect(await main(["emails", "--out", "migrated", "--design", "--report", "report.json"], out, lib), out.out + out.err).toBe(0);
+    const [result] = JSON.parse(fs.readFileSync(path.join(dir, "report.json"), "utf8"));
+    expect(result.fonts).toEqual([{ label: "Inter", value: "Inter, Arial, sans-serif", url: "https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap" }]);
+  });
+
+  it("builds the design from the migrated preview props, whose JSX has styles instead of classes", async () => {
+    const source = `import { Html, Body, Tailwind, Text } from "@react-email/components";
+export default function Template({ note }: { note: React.ReactNode }) {
+  return <Html><Tailwind><Body><Text>Hello</Text>{note}</Body></Tailwind></Html>;
+}
+Template.PreviewProps = { note: <p className="mb-5">Read the docs</p> };`;
+    const dir = project({ "emails/note.tsx": source });
+    const out = io(dir);
+    expect(await main(["emails", "--out", "migrated", "--design", "--no-merge-tags"], out, lib), out.out + out.err).toBe(0);
+    const design = fs.readFileSync(path.join(dir, "migrated/note.design.json"), "utf8");
+    expect(design).toContain("Read the docs");
+    expect(design).not.toContain("mb-5");
+  });
+
   it("migrates, checks and writes templates to --out, with design JSON and a report", async () => {
     const dir = project({ "emails/welcome.tsx": WELCOME, "emails/components/button.tsx": SHARED, "lib/format.ts": FORMAT });
     const out = io(dir);
