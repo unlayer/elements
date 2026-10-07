@@ -1129,10 +1129,13 @@ function fillEmptyColumns(rows: Array<ElementNode | string>): void {
     }
   }
   function fill(column: ElementNode): void {
-    if (column.type !== "Column" || column.children?.length) return;
+    if (column.type !== "Column") return;
+    // Content that code decides (a condition, a loop) can render nothing: keep the spacer after it.
+    const fromCode = (column.children ?? []).every((c) => typeof c !== "string" && (c as ElementNode).type === "#expr");
+    if (!fromCode) return;
     const divider = el("Divider", { borderTopWidth: "0px", containerPadding: "0px" });
     divider.spacer = true;
-    column.children = [divider];
+    column.children = [...((column.children ?? []) as ElementNode[]), divider];
   }
 }
 
