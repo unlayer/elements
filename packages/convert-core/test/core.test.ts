@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { el, editorFonts, shareEditorFonts, expr, fallbackHtml, hole, printJsx, ReportBuilder, treeToDesign, treeToTsx, boxSides, toPx } from "../src/index";
+import { el, editorFonts, pinImageWidths, shareEditorFonts, expr, fallbackHtml, hole, printJsx, ReportBuilder, treeToDesign, treeToTsx, boxSides, toPx } from "../src/index";
 
 const tree = el("Email", { contentWidth: "600px" }, [
   el("Row", { layout: "TwoEqual" }, [
@@ -161,5 +161,17 @@ describe("shared editor fonts", () => {
     const all = "https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600&display=swap";
     expect(a).toEqual([{ ...inter("400;600"), url: all }, serif]);
     expect(b).toEqual([{ ...inter("300;400"), url: all }]);
+  });
+});
+
+describe("pinned image widths", () => {
+  it("adds an image's width attribute to its style in text and HTML blocks", () => {
+    const design = { rows: [{ contents: [
+      { values: { text: '<a><img alt="X" src="x.png" style="display:block" width="18"/></a><img src="y.png" width="50%">' } },
+      { values: { html: '<img src="z.png" width="24" style="width:30px">', src: { url: "a.png", width: 18 } } },
+    ] }] };
+    const [text, html] = pinImageWidths(design).rows[0].contents;
+    expect(text.values.text).toBe('<a><img alt="X" src="x.png" style="display:block;width:18px" width="18"/></a><img style="width:50%" src="y.png" width="50%">');
+    expect(html.values).toEqual(design.rows[0].contents[1].values);
   });
 });
