@@ -234,7 +234,7 @@ describe("verifyConversion", () => {
     const Broken = ({trial}: {trial:boolean}) => h(Email, null, h(Row, null, h(Column, null, h(Paragraph, null, `Welcome${trial ? " Unexpected" : ""}`))));
     const check = await verifyConversion(Original, Broken);
     expect(check.added).toEqual([]);
-    expect(check.variants).toEqual([{change:"trial: true",missing:[],added:["unexpected"],missingAttributes:[]}]);
+    expect(check.variants).toEqual([{change:"trial: true",missing:[],added:["Unexpected"],missingAttributes:[]}]);
   });
 
   it("flips boolean props to reach branches the preview props don't take", async () => {
@@ -250,7 +250,7 @@ describe("verifyConversion", () => {
     const Broken = () => h(Email, null, h(Row, null, h(Column, null, h(Paragraph, null, "Welcome"))));
     const check = await verifyConversion(Original, Broken);
     expect(check.missing).toEqual([]);
-    expect(check.variants).toEqual([{ change: "trial: true", missing: ["your", "trial", "ends", "soon"], added: [], missingAttributes: [] }]);
+    expect(check.variants).toEqual([{ change: "trial: true", missing: ["Your", "trial", "ends", "soon"], added: [], missingAttributes: [] }]);
   });
 });
 
@@ -415,7 +415,7 @@ describe("merge tags in a migrated template's design JSON", () => {
 
 describe("compareText", () => {
   it("finds words a conversion dropped", () => {
-    expect(compareText("<p>Hello there</p><p>Second block</p>", "<p>Hello there</p>").missing).toEqual(["second", "block"]);
+    expect(compareText("<p>Hello there</p><p>Second block</p>", "<p>Hello there</p>").missing).toEqual(["Second", "block"]);
   });
 
   it("finds links and images a conversion dropped", () => {

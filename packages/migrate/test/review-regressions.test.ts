@@ -317,13 +317,13 @@ describe("extra text", () => {
     const dir = project({ "welcome.tsx": extra });
     const out = io(dir);
     expect(await main(["welcome.tsx", "--out", "converted", "--design", "--report", `report.${extension}`], out, lib), out.out + out.err).toBe(2);
-    expect(out.out).toContain('extra text: "unexpected"');
+    expect(out.out).toContain('extra text: "Unexpected"');
     expect(fs.existsSync(path.join(dir, "converted/welcome.tsx"))).toBe(false);
     expect(fs.existsSync(path.join(dir, "converted/welcome.design.json"))).toBe(false);
     expect(fs.readFileSync(path.join(dir, "welcome.tsx"), "utf8")).toBe(extra);
     const report = fs.readFileSync(path.join(dir, `report.${extension}`), "utf8");
-    if (extension === "json") expect(JSON.parse(report)[0]).toMatchObject({status:"check-failed",addedText:["unexpected"],missingText:[]});
-    else expect(report).toContain('**Extra text:** "unexpected"');
+    if (extension === "json") expect(JSON.parse(report)[0]).toMatchObject({status:"check-failed",addedText:["Unexpected"],missingText:[]});
+    else expect(report).toContain('**Extra text:** "Unexpected"');
   });
 
   it("fails when only a flipped boolean prop adds text", async () => {
@@ -331,9 +331,9 @@ describe("extra text", () => {
     const dir = project({ "welcome.tsx": source });
     const out = io(dir);
     expect(await main(["welcome.tsx", "--out", "converted", "--report", "report.json"], out, lib), out.out + out.err).toBe(2);
-    expect(out.out).toContain('with trial: true: extra text: "unexpected"');
+    expect(out.out).toContain('with trial: true: extra text: "Unexpected"');
     const report = JSON.parse(fs.readFileSync(path.join(dir, "report.json"), "utf8"));
-    expect(report[0]).toMatchObject({status:"check-failed",addedText:[],variants:[{change:"trial: true",added:["unexpected"],missing:[]}]});
+    expect(report[0]).toMatchObject({status:"check-failed",addedText:[],variants:[{change:"trial: true",added:["Unexpected"],missing:[]}]});
     expect(fs.existsSync(path.join(dir, "converted/welcome.tsx"))).toBe(false);
   });
 
@@ -344,7 +344,7 @@ export default function T({trial}) { return <Email><Row><Column><Paragraph>Keep 
     const dir = project({ "original.tsx": original, "converted.tsx": migrated });
     const out = io(dir);
     expect(await main(["compare", "original.tsx", "converted.tsx"], out, lib), out.out + out.err).toBe(2);
-    expect(out.out).toContain('extra text: "unexpected"');
-    expect(out.out).toContain('with trial: true: extra text: "unexpected", "variant"');
+    expect(out.out).toContain('extra text: "Unexpected"');
+    expect(out.out).toContain('with trial: true: extra text: "Unexpected", "Variant"');
   });
 });

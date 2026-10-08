@@ -82,6 +82,8 @@ export interface FileResult {
   addedText?: string[];
   /** Links, image sources and image text the original has that the migrated template doesn't. */
   missingAttributes?: string[];
+  /** Links, image sources and image text the migrated template has that the original doesn't. */
+  addedAttributes?: string[];
   /** Style values computed from props that the migrated template drops: they change how it looks. */
   lostStyles?: string[];
   /** Blocks the visual editor wouldn't get. */
@@ -411,7 +413,7 @@ async function migrateFile(input: Input, options: Options, lib: Library, io: Io,
     const result: FileResult = {
       file: name,
       status:
-        verification.missing.length || verification.added.length || verification.missingAttributes.length || verification.designWarnings.length || verification.variants.length || report.lostStyles?.length
+        verification.missing.length || verification.added.length || verification.missingAttributes.length || verification.addedAttributes.length || verification.designWarnings.length || verification.variants.length || report.lostStyles?.length
           ? "check-failed"
           : "migrated",
       editable: report.nativeRatio,
@@ -425,6 +427,7 @@ async function migrateFile(input: Input, options: Options, lib: Library, io: Io,
       missingText: verification.missing,
       addedText: verification.added,
       missingAttributes: verification.missingAttributes,
+      addedAttributes: verification.addedAttributes,
       ...(report.lostStyles?.length ? { lostStyles: report.lostStyles } : {}),
       variants: verification.variants,
       designWarnings: verification.designWarnings,
@@ -490,6 +493,7 @@ async function compare(paths: string[], args: Args, io: Io, library?: Library): 
       ...(check.missing.length ? [`lost text: ${quote(check.missing)}`] : []),
       ...(check.added.length ? [`extra text: ${quote(check.added)}`] : []),
       ...(check.missingAttributes.length ? [`lost links/images: ${quote(check.missingAttributes)}`] : []),
+      ...(check.addedAttributes.length ? [`extra links/images: ${quote(check.addedAttributes)}`] : []),
       ...(check.designWarnings.length ? check.designWarnings.map((w) => `the editor wouldn't get: ${w}`) : []),
       ...check.variants.map((v) => `with ${v.change}: ${variantProblems(v)}`),
     ];
@@ -536,6 +540,7 @@ function line(result: FileResult): string {
         ...(result.missingText?.length ? [`lost text: ${quote(result.missingText)}`] : []),
         ...(result.addedText?.length ? [`extra text: ${quote(result.addedText)}`] : []),
         ...(result.missingAttributes?.length ? [`lost links/images: ${quote(result.missingAttributes)}`] : []),
+        ...(result.addedAttributes?.length ? [`extra links/images: ${quote(result.addedAttributes)}`] : []),
         ...(result.lostStyles?.length ? [`lost styles: ${result.lostStyles.join("; ")}`] : []),
         ...(result.designWarnings?.length ? [`${result.designWarnings.length} block(s) the editor wouldn't get`] : []),
         ...(result.variants ?? []).map((v) => `with ${v.change}: ${variantProblems(v)}`),
@@ -575,6 +580,7 @@ function markdownReport(results: FileResult[]): string {
     if (r.missingText?.length) lines.push(`**Lost text:** ${quote(r.missingText)}`, "");
     if (r.addedText?.length) lines.push(`**Extra text:** ${quote(r.addedText)}`, "");
     if (r.missingAttributes?.length) lines.push(`**Lost links or images:** ${quote(r.missingAttributes)}`, "");
+    if (r.addedAttributes?.length) lines.push(`**Extra links or images:** ${quote(r.addedAttributes)}`, "");
     if (r.lostStyles?.length) lines.push("**Lost styles** (change how it looks):", ...r.lostStyles.map((s) => `- ${s}`), "");
     if (r.designWarnings?.length) lines.push("**The editor wouldn't get:**", ...r.designWarnings.map((w) => `- ${w}`), "");
     if (r.variants?.length) {

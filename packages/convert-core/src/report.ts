@@ -36,6 +36,8 @@ export interface ConversionReport {
   addedText?: string[];
   /** Links, image sources and image text the original has and the conversion doesn't. */
   missingAttributes?: string[];
+  /** Links, image sources and image text only the conversion has. */
+  addedAttributes?: string[];
   /**
    * Style values computed from props or state that the conversion can't keep,
    * with where they were. They change how the email looks: the check fails on them.

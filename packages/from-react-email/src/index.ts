@@ -75,6 +75,7 @@ export async function convertReactEmail(Template: Template, options: RuntimeOpti
   report.missingText = check.missing;
   report.addedText = check.added;
   report.missingAttributes = check.missingAttributes;
+  report.addedAttributes = check.addedAttributes;
   let tree = converted.tree;
   if (options.mergeTags !== false) {
     const tagged = await mergeTagged(props, converted.tree, async (p) => (await convertElement(React.createElement(Template, p))).tree);
@@ -181,7 +182,7 @@ export async function verifyConversion(
         });
         continue;
       }
-      if (check.missing.length || check.added.length || check.missingAttributes.length) variants.push({ change, missing: check.missing, added: check.added, missingAttributes: check.missingAttributes });
+      if (check.missing.length || check.added.length || check.missingAttributes.length || check.addedAttributes.length) variants.push({ change, missing: check.missing, added: [...check.added, ...check.addedAttributes], missingAttributes: check.missingAttributes });
     } catch (error) {
       variants.push({ change, missing: [], added: [], missingAttributes: [], error: (error as Error).message.split("\n")[0] });
     }

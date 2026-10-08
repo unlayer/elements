@@ -14,12 +14,14 @@ export interface TextCheck {
   added: string[];
   /** Links (href), images (src) and image text (alt) the original has and the conversion doesn't. */
   missingAttributes: string[];
+  /** Links, images and image text only the conversion has. */
+  addedAttributes: string[];
 }
 
 const HIDDEN = /<(span|div|p|code|td)\b[^>]*style="[^"]*display:\s*none[^"]*"[^>]*>[\s\S]*?<\/\1>/gi;
 const INLINE = /<\/?(?:a|span|strong|b|em|i|u|s|small|code|sup|sub|font|mark|abbr)\b[^>]*>/gi;
 
-/** The words a reader sees in `html`: lower-cased, with meaningful numeric punctuation preserved, in order. */
+/** The words a reader sees in `html`, as written, with meaningful numeric punctuation and lone signs preserved, in order. */
 export function htmlWords(html: string): string[] {
   const text = html
     .replace(/<head\b[\s\S]*?<\/head>/gi, " ")
@@ -45,17 +47,21 @@ export function htmlWords(html: string): string[] {
     )
     .replace(/<[^>]+>/g, " ");
   return decodeHtmlEntities(text)
+    .normalize("NFC")
+    // Zero-width characters (preview text padding) aren't read.
+    .replace(/[\u200b-\u200d\u2060\ufeff]/g, "")
+    // One minus, however it was written (-, −, &minus;).
+    .replace(/[-−－﹣]/g, "−")
     .split(/\s+/)
     .map((word) => {
       // Punctuation around prose is cosmetic. Numeric separators, signs,
-      // currency symbols and percentages change what the reader is told.
+      // currency symbols and percentages change what the reader is told,
+      // and so does a sign on its own ("Balance − 100").
       if (/\p{N}/u.test(word)) {
-        return word
-          .toLowerCase()
-          .replace(/[^\p{L}\p{N}\p{Sc}.,/:'’+\-−%‰]/gu, "")
-          .replace(/[.,]+$/g, "");
+        return word.replace(/[^\p{L}\p{N}\p{Sc}.,/:'’+−%‰]/gu, "").replace(/[.,]+$/g, "");
       }
-      return word.toLowerCase().replace(/[^\p{L}\p{Sc}%‰]/gu, "");
+      if (/^[+−±]$/.test(word)) return word;
+      return word.replace(/[^\p{L}\p{Sc}%‰]/gu, "");
     })
     .filter(Boolean);
 }
@@ -104,13 +110,16 @@ export function compareText(originalHtml: string, convertedHtml: string): TextCh
   }
   // Count visible occurrences; Outlook-only duplicates are already excluded.
   const missingAttributes = lostOccurrences(htmlAttributes(originalHtml), htmlAttributes(convertedHtml));
+  // Added ones as a set: a renderer may repeat a link (a button's fallback), but a new destination is new.
+  const originalAttributes = new Set(htmlAttributes(originalHtml));
+  const addedAttributes = [...new Set(htmlAttributes(convertedHtml))].filter((item) => !originalAttributes.has(item));
   // A destination must also stay on the same link/image, even if every URL
   // still appears elsewhere in the document.
   for (const item of lostOccurrences(attributePairs(originalHtml), attributePairs(convertedHtml))) {
     const [kind, value, label] = JSON.parse(item) as [string, string, string];
     if (!missingAttributes.includes(`${kind} ${value}`)) missingAttributes.push(`${kind} ${value} (${label})`);
   }
-  return { missing, added, missingAttributes };
+  return { missing, added, missingAttributes, addedAttributes };
 }
 
 function visibleHtml(html: string): string {

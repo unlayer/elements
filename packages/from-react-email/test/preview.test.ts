@@ -37,7 +37,7 @@ T.PreviewProps = ${JSON.stringify(props)};`;
         }
         // React Email joins preview arrays, including boolean values. The
         // converted preview follows React's empty rendering of booleans.
-        if (name === "mixed") expect(check.missing).toEqual(["guestfalse"]);
+        if (name === "mixed") expect(check.missing).toEqual(["Guestfalse"]);
         expect(check.convertedHtml).not.toMatch(/undefined|null|>true|>false/);
         if (name === "absent") expect(converted.code).toContain("previewText={_plainText(preview)}");
         if (name === "array") expect(check.convertedHtml).toContain("42");
