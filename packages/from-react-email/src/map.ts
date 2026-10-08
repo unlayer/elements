@@ -376,19 +376,46 @@ export function dividerBlock(style: Style, ctx: MapCtx): Block {
 export function collapse(blocks: Block[]): ElementNode[] {
   return blocks.map((block, i) => {
     const previous = blocks[i - 1];
+    const next = blocks[i + 1];
+    // A loop below starts with its items' top margin dropped (see loopMargins):
+    // it collapses with this block's bottom margin here.
+    const above = (bottom: number) => (next?.node.type === "#expr" ? Math.max(0, next.margin.top - Math.max(0, bottom)) : 0);
     const top = previous ? Math.max(0, block.margin.top - previous.margin.bottom) : block.margin.top;
-    const sides = addSides({ ...block.margin, top }, block.padding);
+    const sides = addSides({ ...block.margin, top, bottom: block.margin.bottom + above(block.margin.bottom) }, block.padding);
     if (block.node.type !== "#expr") {
       const phoneMargin = block.mobileMargin ?? block.margin;
       const priorPhone = previous?.mobileMargin ?? previous?.margin;
       const phoneTop = priorPhone ? Math.max(0, phoneMargin.top - priorPhone.bottom) : phoneMargin.top;
-      const phone = addSides({ ...phoneMargin, top: phoneTop }, block.mobilePadding ?? block.padding);
+      const phone = addSides({ ...phoneMargin, top: phoneTop, bottom: phoneMargin.bottom + above(phoneMargin.bottom) }, block.mobilePadding ?? block.padding);
       block.node.props = { ...block.node.props, containerPadding: sidesToCss(sides),
         ...(block.mobileMargin || block.mobilePadding ? { mobile: { ...(block.node.props?.mobile as object), containerPadding: sidesToCss(phone) } } : {}),
       };
     }
     return block.node;
   });
+}
+
+/**
+ * The margins a loop's items share, when the top one is no larger than the
+ * bottom one (a `<Text>`'s 16px each). Each item then keeps only its bottom
+ * margin, which is what CSS shows between two items; the loop takes both, so
+ * the blocks around it collapse with its first and last item (`collapse`,
+ * and the run and column around it in layout.ts). Undefined when the items
+ * differ, or have phone margins: they keep their own margins.
+ */
+export function loopMargins(items: Block[][]): BoxSides | undefined {
+  let shared: BoxSides | undefined;
+  for (const blocks of items) {
+    if (!blocks.length) continue;
+    const first = blocks[0];
+    const last = blocks[blocks.length - 1];
+    if (first.node.type === "#expr" || last.node.type === "#expr" || first.mobileMargin || last.mobileMargin) return undefined;
+    const top = first.margin.top;
+    const bottom = last.margin.bottom;
+    if (top < 0 || top > bottom || (shared && (shared.top !== top || shared.bottom !== bottom))) return undefined;
+    shared = { ...ZERO, top, bottom };
+  }
+  return shared && shared.bottom > 0 ? shared : undefined;
 }
 
 // ============================================

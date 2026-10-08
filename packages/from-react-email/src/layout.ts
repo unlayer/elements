@@ -407,7 +407,8 @@ class Engine {
       run = [];
       // The run's outer margins collapse with its siblings'.
       const top = blocks[0].margin.top;
-      const bottom = blocks[blocks.length - 1].margin.bottom;
+      // A loop's items keep their bottom margin themselves (see loopMargins).
+      const bottom = blocks[blocks.length - 1].node.type === "#expr" ? 0 : blocks[blocks.length - 1].margin.bottom;
       const phoneTop = blocks[0].mobileMargin?.top ?? top;
       const phoneBottom = blocks[blocks.length - 1].mobileMargin?.bottom ?? bottom;
       if (blocks[0].mobileMargin) blocks[0].mobileMargin = { ...blocks[0].mobileMargin, top: 0 };
@@ -1169,7 +1170,9 @@ function emptyColumn(height: number): ColumnSpec {
 
 function column(node: ColumnNode, background: string | undefined, inset: { left: number; right: number }, mobileInset?: { left: number; right: number }): ElementNode {
   const style = node.style;
-  const padding = { ...style.padding, left: style.padding.left + inset.left, right: style.padding.right + inset.right };
+  // A loop first in the column: its items' top margin (see loopMargins) goes on the column.
+  const lead = node.blocks[0]?.node.type === "#expr" ? Math.max(0, node.blocks[0].margin.top) : 0;
+  const padding = { ...style.padding, top: style.padding.top + lead, left: style.padding.left + inset.left, right: style.padding.right + inset.right };
   // The editor can't hide a column on phones: its content hides there, and its padding goes.
   const hidden = style.mobile?.hideOnMobile;
   const blocks = hidden ? node.blocks.map((b) => ({ ...b, node: { ...b.node, props: { ...b.node.props, hideOnMobile: true } } })) : node.blocks;
@@ -1177,7 +1180,7 @@ function column(node: ColumnNode, background: string | undefined, inset: { left:
     "Column",
     {
       ...(node.key ? { key: node.key } : {}),
-      ...(hidden ? (hasSides(padding) ? { mobile: { padding: "0px" } } : {}) : style.mobile?.padding || mobileInset ? { mobile: { padding: sidesToCss({ ...(style.mobile?.padding ?? style.padding), left: (style.mobile?.padding ?? style.padding).left + (mobileInset ?? inset).left, right: (style.mobile?.padding ?? style.padding).right + (mobileInset ?? inset).right }) } } : {}),
+      ...(hidden ? (hasSides(padding) ? { mobile: { padding: "0px" } } : {}) : style.mobile?.padding || mobileInset ? { mobile: { padding: sidesToCss({ ...(style.mobile?.padding ?? style.padding), top: (style.mobile?.padding ?? style.padding).top + lead, left: (style.mobile?.padding ?? style.padding).left + (mobileInset ?? inset).left, right: (style.mobile?.padding ?? style.padding).right + (mobileInset ?? inset).right }) } } : {}),
       backgroundColor: style.background ?? background,
       padding: hasSides(padding) ? sidesToCss(padding) : undefined,
       border: borderProp(style.border),

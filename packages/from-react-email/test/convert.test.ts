@@ -360,3 +360,67 @@ console.log(started);`;
     }
   });
 });
+
+describe("loops", () => {
+  // The gaps between content blocks, top to bottom, in a migrated template's design.
+  const gaps = async (source: string) => {
+    const dir = fs.mkdtempSync(path.join(import.meta.dirname, ".tmp-"));
+    try {
+      const file = path.join(dir, "template.tsx");
+      fs.writeFileSync(file, (await convertSource(source, { fileName: file })).code);
+      const { default: Migrated } = await import(file);
+      const design = renderToJson(Migrated({}));
+      const blocks = design.body.rows.flatMap((row: any) => row.columns.flatMap((column: any) => [
+        { padding: column.values.padding ?? "0px" },
+        ...column.contents.map((content: any) => ({ padding: content.values.containerPadding ?? "0px", text: content.values.text })),
+      ]));
+      const px = (css: string, side: number) => { const v = css.split(/\s+/).map((x) => parseFloat(x) || 0); return [v[0], v[1] ?? v[0], v[2] ?? v[0], v[3] ?? v[1] ?? v[0]][side]; };
+      const out: number[] = [];
+      let space = 0;
+      for (const block of blocks) {
+        if (block.text === undefined) { space += px(block.padding, 0); continue; }
+        out.push(space + px(block.padding, 0));
+        space = px(block.padding, 2);
+      }
+      return [...out, space];
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
+  };
+  const template = (items: string) => `import { Html, Body, Container, Heading, Text } from "@react-email/components";
+const items = ["One", "Two", "Three"];
+export default function Template() {
+  return (<Html><Body><Container>
+    <Heading as="h2" style={{ margin: "0" }}>Title</Heading>
+    ${items}
+    <Text>After</Text>
+  </Container></Body></Html>);
+}`;
+
+  it.each([
+    ["margins like <Text>'s", `style={{ margin: "16px 0" }}`],
+    ["a larger bottom margin", `style={{ marginBottom: "40px" }}`],
+  ])("spaces items like the same blocks written out (%s)", async (_, style) => {
+    const loop = await gaps(template(`{items.map((item) => <Text key={item} ${style}>{item}</Text>)}`));
+    const written = await gaps(template(`<Text ${style}>One</Text><Text ${style}>Two</Text><Text ${style}>Three</Text>`));
+    expect(loop).toEqual(written);
+  });
+
+  it("spaces a loop first in its section like the blocks written out", async () => {
+    const first = (items: string) => template(items).replace(`<Heading as="h2" style={{ margin: "0" }}>Title</Heading>`, "");
+    const loop = await gaps(first(`{items.map((item) => <Text key={item} style={{ marginBottom: "40px" }}>{item}</Text>)}`));
+    const written = await gaps(first(`<Text style={{ marginBottom: "40px" }}>One</Text><Text style={{ marginBottom: "40px" }}>Two</Text><Text style={{ marginBottom: "40px" }}>Three</Text>`));
+    expect(loop).toEqual(written);
+  });
+
+  it("spaces a loop first in a column like the blocks written out", async () => {
+    const inColumn = (items: string) =>
+      template(items)
+        .replace(`<Heading as="h2" style={{ margin: "0" }}>Title</Heading>`, "")
+        .replace("Html, Body, Container,", "Html, Body, Container, Row, Column,")
+        .replace(`    ${items}\n`, `    <Row><Column>${items}</Column><Column><Text>Side</Text></Column></Row>\n`);
+    const loop = await gaps(inColumn(`{items.map((item) => <Text key={item}>{item}</Text>)}`));
+    const written = await gaps(inColumn(`<Text>One</Text><Text>Two</Text><Text>Three</Text>`));
+    expect(loop).toEqual(written);
+  });
+});

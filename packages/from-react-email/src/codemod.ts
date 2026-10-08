@@ -38,6 +38,7 @@ import {
   inheritedStyle,
   paragraphBlock,
   INHERITED,
+  loopMargins,
   type Block,
   type FontSpec,
   type Content,
@@ -1075,12 +1076,19 @@ class Converter {
       if (ts.isJsxExpression(child) && child.expression) {
         flushInline();
         const expression = child.expression;
+        const items: Block[][] = [];
         const parts = this.holeParts(expression, (jsx, key) => {
-          const nodes = collapse(this.blocks([jsx], ctx).map((entry) => entry.block));
+          const blocks = this.blocks([jsx], ctx).map((entry) => entry.block);
+          items.push(blocks);
+          const nodes = blocks.map((block) => block.node);
           if (key && nodes.length === 1 && nodes[0].type !== "#expr") nodes[0].props = { key, ...nodes[0].props };
           return nodes;
         });
-        out.push({ block: { node: parts ? hole(parts.code, parts.slots) : this.codeFallback(expression, false, ctx), margin: ZERO, padding: ZERO } });
+        // A loop's items stack like CSS blocks: their margins collapse
+        // between them and with the blocks around the loop.
+        const shared = parts && isLoop(expression) ? loopMargins(items) : undefined;
+        for (const blocks of items) collapse(shared && blocks.length ? [{ ...blocks[0], margin: { ...blocks[0].margin, top: 0 } }, ...blocks.slice(1)] : blocks);
+        out.push({ block: { node: parts ? hole(parts.code, parts.slots) : this.codeFallback(expression, false, ctx), margin: shared ?? ZERO, padding: ZERO } });
         continue;
       }
       if (!(ts.isJsxElement(child) || ts.isJsxSelfClosingElement(child))) continue;
@@ -1770,6 +1778,13 @@ function hasModifier(node: ts.Node, kind: ts.SyntaxKind): boolean {
   return (ts.canHaveModifiers(node) ? (ts.getModifiers(node) ?? []) : []).some(
     (m) => m.kind === kind,
   );
+}
+
+/** Code that renders a list: `items.map(…)` (not a map inside the JSX it renders). */
+function isLoop(node: ts.Node): boolean {
+  if (ts.isJsxElement(node) || ts.isJsxSelfClosingElement(node) || ts.isJsxFragment(node)) return false;
+  if (ts.isCallExpression(node) && ts.isPropertyAccessExpression(node.expression) && ["map", "flatMap"].includes(node.expression.name.text)) return true;
+  return ts.forEachChild(node, (child) => (isLoop(child) ? true : undefined)) ?? false;
 }
 
 /** null, undefined, false or "": a return or branch that renders nothing. */
