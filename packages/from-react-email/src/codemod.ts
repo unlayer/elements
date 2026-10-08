@@ -104,7 +104,7 @@ export async function convertSource(source: string, options: CodemodOptions = {}
   const variants = splitConditionalClasses(constants.source, fileName);
   const file = ts.createSourceFile(fileName, variants.source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
   const converter = new Converter(file, options.tailwindConfig, /\.(?:jsx?|mjs|cjs)$/i.test(fileName), options.tailwind);
-  return converter.run({ components: components.inlined, constants: constants.inlined, variants: variants.split, copied: components.copied });
+  return converter.run({ components: components.inlined, constants: constants.inlined, variants: variants.split, copied: components.copied, original: source });
 }
 
 /** `undefined` or `null`, which a spread adds nothing from (an optional prop left out, once inlined). */
@@ -133,6 +133,7 @@ class Converter {
   private needsStaticMarkup = false;
   /** Module constants copied in with imported components: dropped if the output doesn't use them. */
   private copied: string[] = [];
+  private original?: string;
   /** Source ranges copied into the output as-is (fallbacks). */
   private readonly fallbackRanges: Array<{ from: number; to: number }> = [];
   /** Rules on a single class from the head's <style>: desktop, and phone media queries. */
@@ -165,8 +166,11 @@ class Converter {
     constants: string[];
     variants: number;
     copied: string[];
+    /** The template as written, before its components were inlined. */
+    original?: string;
   }): Promise<CodemodResult> {
     this.copied = prepared.copied;
+    this.original = prepared.original;
     for (const name of prepared.components) this.report.info("local component inlined where it's used", name);
     for (const name of prepared.constants) this.report.info("local JSX constant inlined where it's used", name);
     if (prepared.variants) this.report.info("conditional className split into one element per class list", String(prepared.variants));
@@ -1618,7 +1622,14 @@ class Converter {
       );
       if (statement && (body.match(new RegExp(`\\b${name}\\b`, "g")) ?? []).length === 1) body = body.replace(statement.getText(), "");
     }
-    const raw = `${header}\n${body}${helpers}`;
+    const generated = new Set([
+      ...(this.needsEscape ? ["escapeHtml"] : []),
+      ...(this.needsStaticMarkup ? ["renderToStaticMarkup", "reactStaticMarkup"] : []),
+      ...(this.needsHtmlText ? ["htmlText"] : []),
+      ...(this.needsPlainText ? [this.plainTextName] : []),
+    ]);
+    const original = this.original === undefined ? this.file : ts.createSourceFile(this.file.fileName, this.original, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
+    const raw = dropUnused(`${header}\n${body}${helpers}`, original, javascript, generated, new Set(this.copied));
     try {
       return await formatTsx(raw);
     } catch (error) {
@@ -1630,6 +1641,117 @@ class Converter {
 // ============================================
 // Helpers
 // ============================================
+
+/**
+ * Constants, functions and imports the template read but the migrated file no
+ * longer does (their values were written into the props, components inlined),
+ * and what this codemod added but didn't use (its helpers, constants copied
+ * with imported components): removed, so a build with `noUnusedLocals` passes.
+ * Only declarations with no side effects, so removing one can't change what
+ * the file does.
+ */
+function dropUnused(code: string, original: ts.SourceFile, javascript: boolean, helpers: Set<string>, copied: Set<string>): string {
+  const usedBefore = references(original, new Set());
+  for (;;) {
+    const file = ts.createSourceFile("migrated.tsx", code, ts.ScriptTarget.Latest, true, javascript ? ts.ScriptKind.JSX : ts.ScriptKind.TSX);
+    const uses = references(file, helpers);
+    // Read before (or added here), declared once and not read now.
+    const unused = (name: ts.Identifier) => ((usedBefore.get(name.text) ?? 0) > 1 || helpers.has(name.text) || copied.has(name.text)) && uses.get(name.text) === 1;
+    const cuts: Array<{ from: number; to: number; text: string }> = [];
+    // A statement's comments go with it; the file's first (the header) stays.
+    const cut = (statement: ts.Statement) =>
+      cuts.push({ from: statement === file.statements[0] ? statement.getStart() : statement.getFullStart(), to: statement.getEnd(), text: "" });
+    const visit = (statements: readonly ts.Statement[]) => {
+      for (const statement of statements) {
+        if (ts.isVariableStatement(statement)) {
+          const declarations = statement.declarationList.declarations;
+          if (
+            !hasModifier(statement, ts.SyntaxKind.ExportKeyword) &&
+            !hasModifier(statement, ts.SyntaxKind.DeclareKeyword) &&
+            declarations.every((d) => ts.isIdentifier(d.name) && unused(d.name) && (!d.initializer || pure(d.initializer)))
+          )
+            cut(statement);
+        } else if (ts.isFunctionDeclaration(statement) && statement.name && statement.body && !hasModifier(statement, ts.SyntaxKind.ExportKeyword) && unused(statement.name)) {
+          cut(statement);
+        } else if (ts.isImportDeclaration(statement) && statement.importClause) {
+          const clause = statement.importClause;
+          const bindings = clause.namedBindings;
+          const named = bindings && ts.isNamedImports(bindings) ? bindings.elements : [];
+          const keptNamed = named.filter((e) => !unused(e.name));
+          const keepDefault = clause.name && !unused(clause.name);
+          const keepNamespace = bindings && ts.isNamespaceImport(bindings) && !unused(bindings.name);
+          if (keptNamed.length === named.length && (!clause.name || keepDefault) && (!bindings || ts.isNamedImports(bindings) || keepNamespace)) continue;
+          if (!keepDefault && !keepNamespace && keptNamed.length === 0) {
+            // TypeScript drops an import none of whose names are read, too.
+            cut(statement);
+            continue;
+          }
+          const parts = [
+            ...(keepDefault ? [clause.name!.getText()] : []),
+            ...(keepNamespace ? [bindings!.getText()] : []),
+            ...(keptNamed.length ? [`{ ${keptNamed.map((e) => e.getText()).join(", ")} }`] : []),
+          ];
+          cuts.push({ from: clause.getStart(), to: clause.getEnd(), text: `${clause.isTypeOnly ? "type " : ""}${parts.join(", ")}` });
+        }
+      }
+    };
+    // Statements at the top and inside functions (a loop's `const isLeft = …`).
+    const walk = (node: ts.Node) => {
+      if (ts.isSourceFile(node) || ts.isBlock(node)) visit(node.statements);
+      ts.forEachChild(node, walk);
+    };
+    walk(file);
+    if (cuts.length === 0) return code;
+    // A cut inside another (a constant in a removed function) goes with it.
+    const ordered = cuts.sort((x, y) => y.from - x.from).filter((c, i, all) => !all.some((o, j) => j !== i && o.from <= c.from && c.to <= o.to && (o.from !== c.from || o.to !== c.to)));
+    for (const c of ordered) code = code.slice(0, c.from) + c.text + code.slice(c.to);
+  }
+}
+
+/**
+ * How many times each name appears in a file as a binding (declared or read).
+ * Property names (`a.text`, `{ text: 1 }`, `<X text="" />`), the imported name
+ * in `import { A as B }`, and the inside of the helpers this codemod adds
+ * (`helpers`) don't count: they never read the file's own `text` or `A`.
+ */
+function references(file: ts.SourceFile, helpers: Set<string>): Map<string, number> {
+  const counts = new Map<string, number>();
+  const visit = (node: ts.Node, helper: boolean) => {
+    if (ts.isIdentifier(node)) {
+      const parent = node.parent;
+      const property =
+        (ts.isImportSpecifier(parent) && parent.propertyName === node) ||
+        (ts.isPropertyAccessExpression(parent) && parent.name === node) ||
+        ((ts.isPropertyAssignment(parent) || ts.isPropertySignature(parent)) && parent.name === node) ||
+        (ts.isJsxAttribute(parent) && parent.name === node) ||
+        (ts.isQualifiedName(parent) && parent.right === node);
+      if (!property && (!helper || helpers.has(node.text))) counts.set(node.text, (counts.get(node.text) ?? 0) + 1);
+    }
+    const inHelper = helper || (ts.isFunctionDeclaration(node) && !!node.name && helpers.has(node.name.text));
+    ts.forEachChild(node, (child) => visit(child, inHelper));
+  };
+  visit(file, false);
+  return counts;
+}
+
+/** A value whose evaluation has no side effects: literals, objects, arrays, functions, JSX. */
+function pure(node: ts.Node): boolean {
+  if (ts.isArrowFunction(node) || ts.isFunctionExpression(node)) return true;
+  if (
+    ts.isCallExpression(node) ||
+    ts.isNewExpression(node) ||
+    ts.isTaggedTemplateExpression(node) ||
+    ts.isAwaitExpression(node) ||
+    ts.isYieldExpression(node) ||
+    ts.isDeleteExpression(node) ||
+    ts.isClassExpression(node) ||
+    ts.isPostfixUnaryExpression(node) ||
+    (ts.isPrefixUnaryExpression(node) && (node.operator === ts.SyntaxKind.PlusPlusToken || node.operator === ts.SyntaxKind.MinusMinusToken)) ||
+    (ts.isBinaryExpression(node) && node.operatorToken.kind >= ts.SyntaxKind.FirstAssignment && node.operatorToken.kind <= ts.SyntaxKind.LastAssignment)
+  )
+    return false;
+  return !ts.forEachChild(node, (child) => (pure(child) ? undefined : true));
+}
 
 function unwrap(node: ts.Expression): ts.Expression {
   while (

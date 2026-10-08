@@ -318,3 +318,45 @@ export default function Template() {
     expect(result.code).toMatch(/<Paragraph[^>]*fontSize="30px"[^>]*>\s*Important wins/);
   });
 });
+
+describe("names the migrated file no longer reads", () => {
+  it("removes constants, components and imports whose values were written in, and keeps the rest", async () => {
+    const dir = fs.mkdtempSync(path.join(import.meta.dirname, ".tmp-"));
+    try {
+      fs.writeFileSync(path.join(dir, "theme.ts"), `export const brand = "#0055ff";\n`);
+      const source = `import { Html, Body, Container, Text, Heading as EmailHeading } from "@react-email/components";
+import { brand } from "./theme";
+const paragraphStyle = { fontSize: "16px", color: brand };
+const main = { backgroundColor: "#ffffff" };
+const neverRead = { color: "red" };
+const started = Date.now();
+const defaultName = "Ada";
+function Footer() {
+  return <Text style={paragraphStyle}>The team</Text>;
+}
+const Heading = ({ children }: { children: string }) => <EmailHeading as="h2">{children}</EmailHeading>;
+export default function Template({ name = defaultName }: { name?: string }) {
+  return (<Html><Body style={main}><Container>
+    <Heading>Welcome</Heading>
+    <Text style={paragraphStyle}>Hi {name}</Text>
+    <Footer />
+  </Container></Body></Html>);
+}
+console.log(started);`;
+      const file = path.join(dir, "template.tsx");
+      const result = await convertSource(source, { fileName: file });
+      // Written into the props: gone, with the import only they read.
+      expect(result.code).not.toMatch(/const paragraphStyle|const main\b|function Footer|const Heading|from "\.\/theme"/);
+      // Never read by the template, a value with side effects, or still read: kept.
+      expect(result.code).toContain("const neverRead");
+      expect(result.code).toContain("const started = Date.now()");
+      expect(result.code).toContain('const defaultName = "Ada"');
+      // The migrated file still renders.
+      fs.writeFileSync(file, result.code);
+      const { default: Migrated } = await import(file);
+      expect(JSON.stringify(renderToJson(Migrated({ name: "Ada" })))).toContain("The team");
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
+  });
+});
