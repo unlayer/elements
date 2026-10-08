@@ -70,7 +70,7 @@ describe("codemod keeps logic", () => {
     // Badge returns plain JSX: inlined. Stamp uses a hook: kept, rendered to HTML.
     expect(result.report.info).toContainEqual({ reason: "local component inlined where it's used", detail: "Badge" });
     expect(result.report.fallbacks).toEqual([{ reason: "custom component", detail: "Stamp" }]);
-    expect(result.code).toMatch(/renderToStaticMarkup\(\s*<div style=\{\{ fontSize: "16px" \}\}>\s*<Stamp label="paid" \/>/);
+    expect(result.code).toMatch(/renderToStaticMarkup\(\s*<div style=\{\{ fontSize: "medium" \}\}>\s*<Stamp label="paid" \/>/);
     expect(result.code).toMatch(/<span>\$\{escapeHtml\(String\("new"\)\)\}<\/span>|<span>new<\/span>/);
     expect(result.code).not.toContain("const Badge");
   });
@@ -253,5 +253,17 @@ export default function Template() {
     const conversion = await convertReactEmail(Template);
     expect(JSON.stringify(conversion.tree)).toMatch(/"hideOnDesktop":true[^}]*/);
     expect(conversion.report.notes).toContainEqual({ reason: "content shown only on phones stays hidden there", detail: "Section" });
+  });
+});
+
+describe("HTML block text size", () => {
+  it("shows <code> at the browser's monospace size, as the original does", async () => {
+    const source = `import { Html, Body, Text } from "@react-email/components";
+export default function Template({ code }: { code: string }) {
+  return <Html><Body><Text>Your code:</Text><code style={{ display: "inline-block", padding: "16px" }}>{code}</code></Body></Html>;
+}
+Template.PreviewProps = { code: "SPARO-NDIGO-AMURT-SECAN" };`;
+    const result = await convertSource(source);
+    expect(result.code).toMatch(/fontSize="13px"\s*html=\{`<code/);
   });
 });

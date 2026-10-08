@@ -118,6 +118,13 @@ export function withInlineStyles(html: Content, style: Style): Content {
 export const TEXT_DEFAULTS = { fontSize: "14px", lineHeight: "24px" };
 export const INHERITED: { fontSize?: string; lineHeight?: string } = {};
 
+/** HTML that is one monospace element (`<code>`, `<kbd>`, `<samp>`, `<pre>`, `<tt>`) with no font size of its own. */
+function monospaceOnly(html: Content): boolean {
+  const text = (typeof html === "string" ? html : html.$expr).trim().replace(/^[`"']|[`"']$/g, "").trim();
+  const match = /^<(code|kbd|samp|pre|tt)\b([^>]*)>[\s\S]*<\/\1>$/i.exec(text);
+  return !!match && !/font-size/i.test(match[2]);
+}
+
 /**
  * React Email Text (or <p>): 14px/24px with 16px top and bottom margins.
  * Plain text with code (`parts`) stays as children: Elements escapes it.
@@ -125,6 +132,8 @@ export const INHERITED: { fontSize?: string; lineHeight?: string } = {};
 export function paragraphBlock(html: Content, style: Style, ctx: MapCtx, margin: BoxSides, parts?: Parts, defaults: { fontSize?: string; lineHeight?: string } = TEXT_DEFAULTS): Block {
   noteUnconverted(style, ctx, "text");
   const props = textProps(style, ctx, defaults);
+  // Monospace text alone (`<code>`) at the browser's default size shows at 13px, not 16px.
+  if (style.fontSize === undefined && props.fontSize === "16px" && monospaceOnly(html)) props.fontSize = "13px";
   const asChildren = parts !== undefined && !needsSpan(style);
   return {
     node: asChildren ? el("Paragraph", props, parts) : el("Paragraph", { ...props, html: withInlineStyles(html, style) }),
@@ -181,8 +190,9 @@ export function inheritedStyle(ctx: MapCtx): Record<string, string> | undefined 
   const out: Record<string, string> = {};
   if (i.textAlign && i.textAlign !== "left" && i.textAlign !== "start") out.textAlign = i.textAlign;
   if (i.color) out.color = color(i.color) as string;
-  // Even the browser's 16px: the editor's canvas shows HTML blocks at its own 14px otherwise.
-  if (i.fontSize) out.fontSize = cssLength(i.fontSize) as string;
+  // Even the browser's 16px: the editor's canvas shows HTML blocks at its own 14px otherwise. As
+  // `medium`, the same 16px, so monospace text (`<code>`) keeps the browser's smaller default size.
+  if (i.fontSize) out.fontSize = cssLength(i.fontSize) === "16px" ? "medium" : (cssLength(i.fontSize) as string);
   if (i.lineHeight) out.lineHeight = lineHeightValue(i.lineHeight) as string;
   if (i.fontWeight !== undefined) out.fontWeight = String(i.fontWeight);
   if (i.letterSpacing) out.letterSpacing = cssLength(i.letterSpacing) as string;
