@@ -298,6 +298,8 @@ export function imageBlock(
   const flex = ctx.inherited.blockAlign;
   const align = centered ? "center" : flex ? flex : ctx.inherited.textAlign === "center" && style.display !== "block" ? "center" : "left";
   if (style.borderRadius) ctx.report.note("image border radius dropped", String(style.borderRadius));
+  // Elements images show at their file's own aspect ratio (height: auto), and the file isn't loaded to compare.
+  if (height) ctx.report.note("image height not kept (the image keeps its file's aspect ratio)", `${width ? `${width}×` : ""}${height}px`);
   noteUnconverted(style, ctx, "image");
   const src = isExpr(attrs.src)
     ? attrs.src

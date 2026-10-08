@@ -170,3 +170,12 @@ export default function Template() {
     expect(conversion.report.notes).toContainEqual({ reason: "head style rule not converted", detail: ".note > a" });
   });
 });
+
+describe("image height", () => {
+  it("reports a height it can't keep", async () => {
+    const source = `import { Html, Body, Img } from "@react-email/components";
+export default function Template() { return <Html><Body><Img src="https://example.com/square.png" width={80} height={20} alt="Strip" /></Body></Html>; }`;
+    const result = await convertSource(source);
+    expect(result.report.notes).toContainEqual({ reason: "image height not kept (the image keeps its file's aspect ratio)", detail: "80×20px" });
+  });
+});
