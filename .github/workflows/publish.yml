@@ -147,10 +147,11 @@ jobs:
       pull-requests: read
 
     steps:
+      # The commit this run built and tested, not whatever main is when the approval lands.
       - name: Checkout code
         uses: actions/checkout@v4
         with:
-          ref: main
+          ref: ${{ github.sha }}
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
@@ -306,10 +307,11 @@ jobs:
       pull-requests: read
 
     steps:
+      # The commit this run built and tested, not whatever main is when the approval lands.
       - name: Checkout code
         uses: actions/checkout@v4
         with:
-          ref: main
+          ref: ${{ github.sha }}
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
