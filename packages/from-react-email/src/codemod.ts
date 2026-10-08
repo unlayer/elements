@@ -1566,9 +1566,18 @@ class Converter {
       : "";
     if (this.needsStaticMarkup) {
       helpers +=
-        `\n/** React's static markup, without the image preload links React 19 adds: an email has no use for them. */\n` +
+        `\n/**\n * React's static markup, without the image preload links React 19 adds, and with\n` +
+        ` * the color of the div around it on its tables and cells: an Elements email sets\n` +
+        ` * \`table, td { color: #000000 }\`, which they would show instead.\n */\n` +
         `function renderToStaticMarkup(node${javascript ? "" : ": Parameters<typeof reactStaticMarkup>[0]"})${javascript ? "" : ": string"} {\n` +
-        `  return reactStaticMarkup(node).replace(/<link rel="preload" as="image"[^>]*>/g, "");\n` +
+        `  const html = reactStaticMarkup(node).replace(/<link rel="preload" as="image"[^>]*>/g, "");\n` +
+        `  const color = /^<div style="(?:[^"]*;)?\\s*color:\\s*([^;"]+)/.exec(html)?.[1]?.trim();\n` +
+        `  if (!color || !/<t(?:able|d)\\b/.test(html)) return html;\n` +
+        `  return html.replace(/<(table|td)\\b([^>]*)>/g, (tag${javascript ? "" : ": string"}, name${javascript ? "" : ": string"}, attrs${javascript ? "" : ": string"}) => {\n` +
+        `    const style = /\\sstyle="([^"]*)"/.exec(attrs);\n` +
+        `    if (style && /(^|;)\\s*color\\s*:/i.test(style[1])) return tag;\n` +
+        `    return style ? tag.replace(style[0], \` style="\${style[1].replace(/;?\\s*$/, ";")}color:\${color}"\`) : tag.replace(new RegExp(\`^<\${name}\`), \`<\${name} style="color:\${color}"\`);\n` +
+        `  });\n` +
         `}\n`;
     }
     if (this.needsHtmlText) {

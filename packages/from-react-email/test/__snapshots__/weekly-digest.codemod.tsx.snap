@@ -230,9 +230,22 @@ function escapeHtml(text: string): string {
     .replace(/"/g, "&quot;");
 }
 
-/** React's static markup, without the image preload links React 19 adds: an email has no use for them. */
+/**
+ * React's static markup, without the image preload links React 19 adds, and with
+ * the color of the div around it on its tables and cells: an Elements email sets
+ * `table, td { color: #000000 }`, which they would show instead.
+ */
 function renderToStaticMarkup(node: Parameters<typeof reactStaticMarkup>[0]): string {
-  return reactStaticMarkup(node).replace(/<link rel="preload" as="image"[^>]*>/g, "");
+  const html = reactStaticMarkup(node).replace(/<link rel="preload" as="image"[^>]*>/g, "");
+  const color = /^<div style="(?:[^"]*;)?\s*color:\s*([^;"]+)/.exec(html)?.[1]?.trim();
+  if (!color || !/<t(?:able|d)\b/.test(html)) return html;
+  return html.replace(/<(table|td)\b([^>]*)>/g, (tag: string, name: string, attrs: string) => {
+    const style = /\sstyle="([^"]*)"/.exec(attrs);
+    if (style && /(^|;)\s*color\s*:/i.test(style[1])) return tag;
+    return style
+      ? tag.replace(style[0], ` style="${style[1].replace(/;?\s*$/, ";")}color:${color}"`)
+      : tag.replace(new RegExp(`^<${name}`), `<${name} style="color:${color}"`);
+  });
 }
 
 /** A value inside text, as HTML: what React would render for it. */

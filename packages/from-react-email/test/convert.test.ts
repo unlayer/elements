@@ -267,3 +267,35 @@ Template.PreviewProps = { code: "SPARO-NDIGO-AMURT-SECAN" };`;
     expect(result.code).toMatch(/fontSize="13px"\s*html=\{`<code/);
   });
 });
+
+describe("tables kept as HTML", () => {
+  // A raw <table> isn't converted: it's kept, inside a box that sets the text color.
+  const source = `import { Html, Body, Section } from "@react-email/components";
+export default function Template() {
+  return <Html><Body><Section style={{ color: "#333333", fontSize: "12px" }}>
+    <table><tbody><tr><td>18 Jan 2023</td></tr></tbody></table>
+  </Section></Body></Html>;
+}`;
+
+  it("keep the color around them over the email's `table, td` color (both modes)", async () => {
+    const { renderToHtml } = await import("@unlayer/react-elements");
+    const fs = await import("node:fs");
+    const path = await import("node:path");
+    const dir = fs.mkdtempSync(path.join(import.meta.dirname, ".tmp-tables-"));
+    try {
+      const file = path.join(dir, "migrated.tsx");
+      fs.writeFileSync(file, (await convertSource(source)).code);
+      const { default: Migrated } = await import(file);
+      const codemod = renderToHtml(React.createElement(Migrated));
+      expect(codemod).toMatch(/<table style="color:#333333"/);
+      expect(codemod).toMatch(/<td style="color:#333333">18 Jan 2023/);
+      const original = path.join(dir, "original.tsx");
+      fs.writeFileSync(original, source);
+      const { default: Original } = await import(original);
+      const runtime = (await convertReactEmail(Original)).html();
+      expect(runtime).toMatch(/<td style="color:#333333">18 Jan 2023/);
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
+  });
+});

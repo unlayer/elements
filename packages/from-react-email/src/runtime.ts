@@ -31,6 +31,7 @@ import {
   type Block,
   type FontSpec,
   type MapCtx,
+  tablesInherit,
 } from "./map";
 import { addSides, backgroundColor, boxSides, color, fontFamilyProp, inherit, isHidden, margins, phoneOnly, px, shownOnPhones, toPx, ZERO, type Style } from "./styles";
 import type { BoxSides } from "@unlayer/convert-core";
@@ -434,7 +435,7 @@ function kept(html: string, ctx: Ctx): string {
   const css = Object.entries(style)
     .map(([k, v]) => `${k.replace(/[A-Z]/g, (c) => `-${c.toLowerCase()}`)}:${v}`)
     .join(";");
-  return `<div style="${css.replace(/"/g, "&quot;")}">${html}</div>`;
+  return tablesInherit(`<div style="${css.replace(/"/g, "&quot;")}">${html}</div>`);
 }
 
 /** An image without a width: kept as HTML, so it shows at its natural size. */

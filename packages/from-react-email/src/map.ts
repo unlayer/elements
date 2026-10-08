@@ -118,6 +118,21 @@ export function withInlineStyles(html: Content, style: Style): Content {
 export const TEXT_DEFAULTS = { fontSize: "14px", lineHeight: "24px" };
 export const INHERITED: { fontSize?: string; lineHeight?: string } = {};
 
+/**
+ * Kept markup's tables and cells with the color of the div around it. An
+ * Elements email sets `table, td { color: #000000 }` (as the editor's export
+ * does), which would make a kept table's text black instead of inheriting.
+ */
+export function tablesInherit(html: string): string {
+  const color = /^<div style="(?:[^"]*;)?\s*color:\s*([^;"]+)/.exec(html)?.[1]?.trim();
+  if (!color || !/<t(?:able|d)\b/.test(html)) return html;
+  return html.replace(/<(table|td)\b([^>]*)>/g, (tag, name: string, attrs: string) => {
+    const style = /\sstyle="([^"]*)"/.exec(attrs);
+    if (style && /(^|;)\s*color\s*:/i.test(style[1])) return tag;
+    return style ? tag.replace(style[0], ` style="${style[1].replace(/;?\s*$/, ";")}color:${color}"`) : tag.replace(new RegExp(`^<${name}`), `<${name} style="color:${color}"`);
+  });
+}
+
 /** HTML that is one monospace element (`<code>`, `<kbd>`, `<samp>`, `<pre>`, `<tt>`) with no font size of its own. */
 function monospaceOnly(html: Content): boolean {
   const text = (typeof html === "string" ? html : html.$expr).trim().replace(/^[`"']|[`"']$/g, "").trim();
