@@ -92,6 +92,18 @@ export function CTA({ href = "https://example.com/pay" }: { href?: string }) { r
     expect(design).toContain("https://example.com/pay");
   });
 
+  it("rejects a value on a flag, so --write=false writes nothing", async () => {
+    const source = `import { Html, Body, Text } from "@react-email/components";
+export default function Template() { return <Html><Body><Text>Keep the original</Text></Body></Html>; }`;
+    const dir = project({ "emails/welcome.tsx": source });
+    for (const flag of ["--write=false", "--design=no", "--force=0"]) {
+      const out = io(dir);
+      expect(await main(["emails", flag], out, lib)).toBe(1);
+      expect(out.err).toContain("takes no value");
+      expect(fs.readFileSync(path.join(dir, "emails/welcome.tsx"), "utf8")).toBe(source);
+    }
+  });
+
   it("rejects an empty output path without replacing the original template", async () => {
     const source = `import { Html, Body, Text } from "@react-email/components";
 export default function Template() { return <Html><Body><Text>Keep the original</Text></Body></Html>; }`;

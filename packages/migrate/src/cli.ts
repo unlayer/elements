@@ -970,6 +970,8 @@ function parseArgs(argv: string[]): Args {
       if (!value.trim()) throw new Error(`--${name} needs a non-empty value.`);
       values.set(name, value);
     } else if (FLAGS.has(name)) {
+      // `--write=false` must not write: flags take no value.
+      if (inline !== undefined) throw new Error(`--${name} takes no value.`);
       flags.add(name);
     } else {
       throw new Error(`Unknown option: ${arg}`);
