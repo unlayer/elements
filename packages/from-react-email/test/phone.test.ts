@@ -144,7 +144,10 @@ describe("phone styles", () => {
       </Container></Body></Html></Tailwind>; }`;
     const { codemod } = await convertBoth(source);
     expect(codemod.code).toContain('borderLeftColor: "#ffffff"');
-    expect(codemod.code.match(/borderLeftWidth: "\d+px"/g)?.length).toBe(2);
+    // The stacking row's two columns get the phone edge; the Intro row's spacers became a
+    // white border, as wide on phones as they were there (24/640 of the row).
+    expect(codemod.code.match(/borderLeftWidth: "14px"/g)?.length).toBe(2);
+    expect(codemod.code).toContain('borderLeftWidth: "3.75vw"');
     // 32px below the first item only.
     const paddings = [...codemod.code.matchAll(/mobile=\{\{\s*padding: "([^"]+)"/g)].map((m) => m[1].split(" ")[2]);
     expect(paddings).toContain("32px");

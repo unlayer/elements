@@ -223,8 +223,48 @@ describe("vertical space", () => {
     );
     const card = shape.find((r: any) => r.columns.some((c: any) => c.text === "Card"));
     const gapAboveCard = shape[shape.indexOf(card) - 1];
-    expect(card.columns[1].backgroundColor).toBe("#eeeeee");
+    expect(card.columns.find((c: any) => c.text === "Card").backgroundColor).toBe("#eeeeee");
     expect(gapAboveCard.columns.every((c: any) => c.backgroundColor !== "#eeeeee")).toBe(true);
+  });
+});
+
+describe("a card's spacer columns as a border", () => {
+  const card = (cardStyle: Record<string, unknown>, box: Record<string, unknown> = { backgroundColor: "#ffffff", padding: "0 32px" }) =>
+    rows(h(Container, { style: box }, h(Section, { style: { backgroundColor: "#f0f9ff", padding: "24px", ...cardStyle } }, h(Text, { style: { margin: 0 } }, "Card"))));
+
+  it("draws the inset as a border of the color around the card: one column, not three", async () => {
+    const { shape } = await card({});
+    expect(shape).toHaveLength(1);
+    expect(shape[0].cells).toBeUndefined();
+    expect(shape[0].columns).toHaveLength(1);
+    const [inside] = shape[0].columns;
+    expect(inside).toMatchObject({ backgroundColor: "#f0f9ff", padding: "24px 24px 24px 24px", text: "Card" });
+    expect(inside.border).toEqual({ borderLeftWidth: "32px", borderLeftStyle: "solid", borderLeftColor: "#ffffff", borderRightWidth: "32px", borderRightStyle: "solid", borderRightColor: "#ffffff" });
+    // On phones the border is as wide as the spacers were: their share of the row (32 of 600).
+    expect(inside.mobile.border).toMatchObject({ borderLeftWidth: "5.33vw", borderRightWidth: "5.33vw", borderLeftColor: "#ffffff" });
+  });
+
+  it("takes the email's background when nothing else is behind the card", async () => {
+    const { shape } = await card({}, { padding: "0 32px" });
+    expect(shape[0].columns).toHaveLength(1);
+    expect(shape[0].columns[0].border.borderLeftColor).toBe("#ffffff");
+  });
+
+  it("keeps the spacers for rounded corners, an image behind the card, or a translucent color", async () => {
+    for (const { shape } of [
+      await card({ borderRadius: "8px" }),
+      await card({}, { backgroundImage: "url(https://example.com/bg.png)", backgroundColor: "#ffffff", padding: "0 32px" }),
+      await card({}, { backgroundColor: "rgba(255, 255, 255, 0.5)", padding: "0 32px" }),
+    ]) {
+      expect(shape[0].cells).toEqual([32, 536, 32]);
+      expect(shape[0].columns).toHaveLength(3);
+    }
+  });
+
+  it("keeps a spacer on one side only (right-to-left emails show columns the other way round)", async () => {
+    const { shape } = await card({ marginLeft: "40px" }, { backgroundColor: "#ffffff" });
+    expect(shape[0].columns.length).toBeGreaterThan(1);
+    expect(shape[0].columns.some((c: any) => c.border)).toBe(false);
   });
 });
 

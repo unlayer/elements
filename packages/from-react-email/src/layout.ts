@@ -132,6 +132,8 @@ export const NO_STYLE: BoxStyle = { padding: ZERO, margin: ZERO };
 export interface LayoutOptions {
   contentWidth: number;
   report: ReportBuilder;
+  /** The email's background color behind the rows, when it's a plain color (no image). */
+  background?: string;
 }
 
 /** Lay out `flow` (the Body's children) as Elements Rows. */
@@ -249,8 +251,65 @@ class Engine {
     const rows = this.merge(this.foldSpacers(this.merge(this.foldSpacers(this.merge(this.out)))));
     this.pinPhoneInsets(rows);
     this.pinPhoneSizes(rows);
+    this.foldGutters(rows);
     fillEmptyColumns(rows);
     return rows;
+  }
+
+  /**
+   * A card's spacer columns, as wide on both sides and showing one plain color, become a
+   * border of that color on the columns inside them: the same look in far less email markup
+   * (every column is tables of its own), which keeps emails under Gmail's clipping size.
+   * Not when those columns have borders or rounded corners of their own, or anything but an
+   * opaque color shows behind the spacers. On phones the border is as wide as the spacers
+   * were there (their share of the row), or none where the row stacks and they collapsed.
+   */
+  private foldGutters(rows: ElementNode[]): void {
+    const background = this.options.background;
+    for (const row of rows) {
+      if (row.type === "#expr") {
+        for (const slot of row.slots ?? []) this.foldGutters(slot as ElementNode[]);
+        continue;
+      }
+      const info = this.info.get(row);
+      const columns = (row.children ?? []) as ElementNode[];
+      const cells = row.props?.cells;
+      if (!info || info.holes || columns.length < 3 || !Array.isArray(cells) || cells.length !== columns.length) continue;
+      if (row.props?.backgroundImage) continue;
+      const first = columns[0];
+      const last = columns[columns.length - 1];
+      const left = columns[1];
+      const right = columns[columns.length - 2];
+      if (cells[0] !== cells[cells.length - 1] || !gutterBeside(first, left) || !gutterBeside(last, right)) continue;
+      const paint = (gutter: ElementNode) => (gutter.props?.backgroundColor ?? row.props?.columnsBackgroundColor ?? row.props?.backgroundColor ?? background) as string | undefined;
+      const color = paint(first);
+      if (!color || color !== paint(last) || !/^#(?:[0-9a-f]{3}|[0-9a-f]{6})$/i.test(color)) continue;
+      if (![left, right].every(plainEdges)) continue;
+      const sum = (cells as number[]).reduce((a, b) => a + b, 0);
+      const phone = Math.round(((cells[0] as number) / sum) * 10000) / 100;
+      // The editor's phone border CSS paints a side whose width parses above 0.
+      if (!info.stacks && phone < 1) continue;
+      const side = (name: "Left" | "Right", width: string, shown: boolean) => ({ [`border${name}Width`]: width, [`border${name}Style`]: "solid", [`border${name}Color`]: shown ? color : "transparent" });
+      const border = (name: "Left" | "Right") => ({
+        desktop: side(name, `${cells[0]}px`, true),
+        phone: info.stacks ? side(name, "0px", false) : side(name, `${phone}vw`, true),
+      });
+      const edges = left === right ? [{ column: left, sides: [border("Left"), border("Right")] }] : [{ column: left, sides: [border("Left")] }, { column: right, sides: [border("Right")] }];
+      for (const { column, sides } of edges) {
+        column.props = {
+          ...column.props,
+          border: Object.assign({}, ...sides.map((s) => s.desktop)),
+          mobile: { ...(column.props?.mobile as object), border: Object.assign({}, ...sides.map((s) => s.phone)) },
+        };
+      }
+      const folded = (cells as number[]).slice(1, -1);
+      folded[0] += cells[0] as number;
+      folded[folded.length - 1] += cells[cells.length - 1] as number;
+      row.children = columns.slice(1, -1);
+      const { cells: _cells, layout: _layout, ...props } = row.props ?? {};
+      row.props = { ...props, ...LAYOUT_OF(folded) };
+      this.info.set(row, { ...info, depths: info.depths.slice(1, -1) });
+    }
   }
 
   /**
@@ -1138,6 +1197,37 @@ function fillEmptyColumns(rows: Array<ElementNode | string>): void {
     divider.spacer = true;
     column.children = [...((column.children ?? []) as ElementNode[]), divider];
   }
+}
+
+/**
+ * A spacer column (nothing in it, maybe a background) that can go: it never sets its row's
+ * height, as the column beside it has at least its vertical padding, on desktop and phones.
+ */
+function gutterBeside(gutter: ElementNode, beside: ElementNode): boolean {
+  if (gutter.type !== "Column" || beside.type !== "Column" || gutter.children?.length || !beside.children?.length) return false;
+  const { backgroundColor: _background, padding, mobile, ...rest } = gutter.props ?? {};
+  const { padding: phonePadding, ...phoneRest } = (mobile ?? {}) as Record<string, unknown>;
+  if (Object.keys(rest).length || Object.keys(phoneRest).length) return false;
+  // Top and bottom only: the sides can be calc() (phone insets).
+  const height = (css: unknown) => {
+    if (css === undefined || css === null || css === "") return 0;
+    const parts = String(css).trim().split(/\s+(?![^(]*\))/);
+    const [top, bottom] = [parts[0], parts[2] ?? parts[0]].map((part) => (/^-?\d*\.?\d+(px)?$/.test(part) ? Number.parseFloat(part) : undefined));
+    return top === undefined || bottom === undefined ? undefined : top + bottom;
+  };
+  const besideMobile = (beside.props?.mobile ?? {}) as Record<string, unknown>;
+  const pairs = [
+    [height(padding), height(beside.props?.padding)],
+    [height(phonePadding ?? padding), height(besideMobile.padding ?? beside.props?.padding)],
+  ];
+  return pairs.every(([g, b]) => g !== undefined && b !== undefined && g <= b);
+}
+
+/** A column with no border (desktop or phones) and square corners: a spacer's border can go on it. */
+function plainEdges(column: ElementNode): boolean {
+  const mobile = (column.props?.mobile ?? {}) as Record<string, unknown>;
+  const radius = String(column.props?.borderRadius ?? "0px").replace(/0px|0|\s/g, "");
+  return !column.props?.border && !mobile.border && !radius;
 }
 
 /** A column border both parts can share when merged: none, a top on the first, a bottom on the last; false otherwise. */

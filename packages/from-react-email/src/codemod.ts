@@ -45,7 +45,7 @@ import {
   type MapCtx,
   type Parts,
 } from "./map";
-import { addSides, backgroundColor, boxSides, color, fontFamilyProp, inherit, isHidden, margins, phoneOnly, px, shownOnPhones, toPx, ZERO, type Style } from "./styles";
+import { addSides, backgroundColor, backgroundImage, boxSides, color, fontFamilyProp, inherit, isHidden, margins, phoneOnly, px, shownOnPhones, toPx, ZERO, type Style } from "./styles";
 import { inlineLocalComponents, type ModuleLoader } from "./components";
 import { inlineLocalJsx } from "./inline";
 import { splitConditionalClasses } from "./variants";
@@ -719,7 +719,7 @@ class Converter {
     const contentWidth = sizes.length ? Math.min(...sizes) : 600;
     const rootFont = (bodyStyle.fontFamily ?? container?.style.fontFamily ?? fontStack) as string | undefined;
     const ctx: Ctx = { report: this.report, inherited: inherit({ fontSize: "16px" }, bodyStyle), rootFont };
-    const rows = layout(this.flow(content, ctx), { contentWidth, report: this.report });
+    const rows = layout(this.flow(content, ctx), { contentWidth, report: this.report, background: backgroundImage(bodyStyle, true) ? undefined : backgroundColor(bodyStyle) ?? "#ffffff" });
     return el(
       "Email",
       {
