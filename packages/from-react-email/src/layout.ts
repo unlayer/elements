@@ -252,6 +252,7 @@ class Engine {
     this.pinPhoneInsets(rows);
     this.pinPhoneSizes(rows);
     this.foldGutters(rows);
+    fillEmptyColumns(rows);
     return rows;
   }
 
@@ -1170,6 +1171,32 @@ function padForSpacer(columns: ElementNode[], side: "top" | "bottom", height: { 
       padding: sidesToCss({ ...own, [side]: own[side] + height.desktop }),
     };
   });
+}
+
+/**
+ * Columns that only hold space (a card's inset, a gap, a spacer row) get an invisible
+ * Divider: the visual editor draws an empty column as a "No content here" placeholder
+ * that stretches its row and covers its neighbours. The divider has no height, so the
+ * email is unchanged.
+ */
+function fillEmptyColumns(rows: Array<ElementNode | string>): void {
+  for (const row of rows) {
+    if (typeof row === "string") continue;
+    if (row.type === "#expr") { for (const slot of row.slots ?? []) fillEmptyColumns(slot); continue; }
+    for (const column of (row.children ?? []) as ElementNode[]) {
+      if (column.type === "#expr") { for (const slot of column.slots ?? []) for (const c of slot as ElementNode[]) fill(c); continue; }
+      fill(column);
+    }
+  }
+  function fill(column: ElementNode): void {
+    if (column.type !== "Column") return;
+    // Content that code decides (a condition, a loop) can render nothing: keep the spacer after it.
+    const fromCode = (column.children ?? []).every((c) => typeof c !== "string" && (c as ElementNode).type === "#expr");
+    if (!fromCode) return;
+    const divider = el("Divider", { borderTopWidth: "0px", containerPadding: "0px" });
+    divider.spacer = true;
+    column.children = [...((column.children ?? []) as ElementNode[]), divider];
+  }
 }
 
 /**

@@ -141,11 +141,14 @@ export const WeeklyDigestEmail = ({
                 containerPadding="24px 0px 0px 0px"
               />
             ) : null}
+            <Divider borderTopWidth="0px" containerPadding="0px" />
           </Column>
         </Row>,
       ])}
       <Row columnsBackgroundColor="#ffffff">
-        <Column padding="32px 0px 0px 0px" />
+        <Column padding="32px 0px 0px 0px">
+          <Divider borderTopWidth="0px" containerPadding="0px" />
+        </Column>
       </Row>
       <Row columnsBackgroundColor="#fafafa" padding="0px 0px 24px 0px">
         <Column padding="24px 32px 24px 32px">

@@ -106,7 +106,9 @@ export const ReceiptEmail = ({
         </Column>
       </Row>
       <Row cells={[32, 184, 168, 184, 32]} noStackMobile={true}>
-        <Column backgroundColor="#ffffff" />
+        <Column backgroundColor="#ffffff">
+          <Divider borderTopWidth="0px" containerPadding="0px" />
+        </Column>
         <Column backgroundColor="#f9fafb" padding="8px 0px 8px 16px" borderRadius="6px 0px 0px 6px">
           <Paragraph
             color="#6b7280"
@@ -164,14 +166,20 @@ export const ReceiptEmail = ({
             {paymentMethod}
           </Paragraph>
         </Column>
-        <Column backgroundColor="#ffffff" />
+        <Column backgroundColor="#ffffff">
+          <Divider borderTopWidth="0px" containerPadding="0px" />
+        </Column>
       </Row>
       <Row>
-        <Column backgroundColor="#ffffff" padding="24px 0px 0px 0px" />
+        <Column backgroundColor="#ffffff" padding="24px 0px 0px 0px">
+          <Divider borderTopWidth="0px" containerPadding="0px" />
+        </Column>
       </Row>
       {items.map((item) => (
         <Row key={item.name} cells={[32, 80, 356, 100, 32]} noStackMobile={true}>
-          <Column backgroundColor="#ffffff" />
+          <Column backgroundColor="#ffffff">
+            <Divider borderTopWidth="0px" containerPadding="0px" />
+          </Column>
           <Column
             backgroundColor="#ffffff"
             padding="12px 0px 12px 0px"
@@ -246,7 +254,9 @@ export const ReceiptEmail = ({
               {formatMoney(item.quantity * item.unitPrice, currency)}
             </Paragraph>
           </Column>
-          <Column backgroundColor="#ffffff" />
+          <Column backgroundColor="#ffffff">
+            <Divider borderTopWidth="0px" containerPadding="0px" />
+          </Column>
         </Row>
       ))}
       <Row>
