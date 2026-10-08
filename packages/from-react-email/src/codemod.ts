@@ -1521,7 +1521,7 @@ class Converter {
       }),
       `import { ${elementNames.join(", ")} } from "@unlayer/react-elements";`,
       ...(this.needsStaticMarkup
-        ? ['import { renderToStaticMarkup } from "react-dom/server";']
+        ? ['import { renderToStaticMarkup as reactStaticMarkup } from "react-dom/server";']
         : []),
     ].join("\n");
 
@@ -1551,6 +1551,13 @@ class Converter {
     let helpers = this.needsEscape
       ? `\n\nfunction escapeHtml(text${javascript ? "" : ": string"})${javascript ? "" : ": string"} {\n  return text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");\n}\n`
       : "";
+    if (this.needsStaticMarkup) {
+      helpers +=
+        `\n/** React's static markup, without the image preload links React 19 adds: an email has no use for them. */\n` +
+        `function renderToStaticMarkup(node${javascript ? "" : ": Parameters<typeof reactStaticMarkup>[0]"})${javascript ? "" : ": string"} {\n` +
+        `  return reactStaticMarkup(node).replace(/<link rel="preload" as="image"[^>]*>/g, "");\n` +
+        `}\n`;
+    }
     if (this.needsHtmlText) {
       helpers +=
         `\n/** A value inside text, as HTML: what React would render for it. */\n` +

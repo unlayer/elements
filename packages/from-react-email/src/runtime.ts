@@ -11,7 +11,7 @@
  */
 
 import React from "react";
-import { renderToStaticMarkup } from "react-dom/server";
+import { renderToStaticMarkup as reactStaticMarkup } from "react-dom/server";
 import { el, fallbackHtml, ReportBuilder, type ConversionReport, type ElementNode } from "@unlayer/convert-core";
 import { boxStyle, columnWidth, mergeColumnAndBox, mergeRowAndColumn, noteVerticalAlign, textBox, noteTextBox, wrapPadding } from "./boxes";
 import { expand, type Node } from "./expand";
@@ -36,6 +36,11 @@ import { addSides, backgroundColor, boxSides, color, fontFamilyProp, inherit, is
 import type { BoxSides } from "@unlayer/convert-core";
 import { phoneSides, withPhoneStyles } from "./phone-styles";
 import { phoneStyles, stacksOnPhones, stylesheetRules } from "./tailwind";
+
+/** React's static markup, without the image preload links React 19 adds: an email has no use for them. */
+function renderToStaticMarkup(element: React.ReactElement): string {
+  return reactStaticMarkup(element).replace(/<link rel="preload" as="image"[^>]*>/g, "");
+}
 
 export interface RuntimeResult {
   tree: ElementNode;

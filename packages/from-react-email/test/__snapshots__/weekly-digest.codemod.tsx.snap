@@ -1,7 +1,7 @@
 /** @jsxRuntime automatic */
 // Migrated from React Email by @unlayer/from-react-email (codemod mode).
 import { Column, Divider, Email, Heading, Image, Paragraph, Row } from "@unlayer/react-elements";
-import { renderToStaticMarkup } from "react-dom/server";
+import { renderToStaticMarkup as reactStaticMarkup } from "react-dom/server";
 import * as React from "react";
 
 interface Article {
@@ -228,6 +228,11 @@ function escapeHtml(text: string): string {
     .replace(/</g, "&lt;")
     .replace(/>/g, "&gt;")
     .replace(/"/g, "&quot;");
+}
+
+/** React's static markup, without the image preload links React 19 adds: an email has no use for them. */
+function renderToStaticMarkup(node: Parameters<typeof reactStaticMarkup>[0]): string {
+  return reactStaticMarkup(node).replace(/<link rel="preload" as="image"[^>]*>/g, "");
 }
 
 /** A value inside text, as HTML: what React would render for it. */
