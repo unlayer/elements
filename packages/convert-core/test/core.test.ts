@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { el, editorFonts, pinImageWidths, shareEditorFonts, expr, fallbackHtml, hole, printJsx, ReportBuilder, treeToDesign, treeToTsx, boxSides, toPx } from "../src/index";
+import { el, editorFonts, fillEmptyColumns, pinImageWidths, shareEditorFonts, expr, fallbackHtml, hole, printJsx, ReportBuilder, treeToDesign, treeToTsx, boxSides, toPx } from "../src/index";
 
 const tree = el("Email", { contentWidth: "600px" }, [
   el("Row", { layout: "TwoEqual" }, [
@@ -173,5 +173,24 @@ describe("pinned image widths", () => {
     const [text, html] = pinImageWidths(design).rows[0].contents;
     expect(text.values.text).toBe('<a><img alt="X" src="x.png" style="display:block;width:18px" width="18"/></a><img style="width:50%" src="y.png" width="50%">');
     expect(html.values).toEqual(design.rows[0].contents[1].values);
+  });
+});
+
+describe("empty columns in a design", () => {
+  it("get an invisible divider each, numbered after the design's own", () => {
+    const divider = (n: number) => ({ type: "divider", values: { _meta: { htmlID: `u_content_divider_${n}` } } });
+    const design = {
+      counters: { u_content_divider: 2 },
+      body: { rows: [{ columns: [{ contents: [] }, { contents: [divider(1), divider(2)] }, { contents: [] }] }] },
+    };
+    const filled = fillEmptyColumns(design);
+    const [left, middle, right] = filled.body.rows[0].columns as any[];
+    expect(left.contents).toEqual([{ type: "divider", values: expect.objectContaining({ border: expect.objectContaining({ borderTopWidth: "0px" }), containerPadding: "0px", _meta: { htmlID: "u_content_divider_3", htmlClassNames: "u_content_divider" } }) }]);
+    expect(right.contents[0].values._meta.htmlID).toBe("u_content_divider_4");
+    expect(middle.contents).toEqual([divider(1), divider(2)]);
+    expect(filled.counters.u_content_divider).toBe(4);
+    // The design passed in is unchanged.
+    expect(design.body.rows[0].columns[0].contents).toEqual([]);
+    expect(design.counters.u_content_divider).toBe(2);
   });
 });

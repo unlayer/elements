@@ -55,6 +55,48 @@ export function pinImageWidths<T>(design: T): T {
   return walk(design) as T;
 }
 
+/**
+ * The editor draws an empty column (a card's spacer column, or code that
+ * rendered nothing) as a "No content here" placeholder that stretches its row
+ * and covers its neighbours: in a design, each gets an invisible zero-height
+ * divider. The email doesn't need them (each is about 1KB of its HTML), so the
+ * migrated code doesn't have them.
+ */
+export function fillEmptyColumns<T>(design: T): T {
+  const out = structuredClone(design) as {
+    counters?: Record<string, number>;
+    body?: { rows?: Array<{ columns?: Array<{ contents?: Array<{ values?: { _meta?: { htmlID?: string } } }> }> }> };
+  };
+  const columns = (out.body?.rows ?? []).flatMap((row) => row.columns ?? []);
+  // The next divider id: the design's counter, else past the highest one in use.
+  let count =
+    out.counters?.u_content_divider ??
+    Math.max(0, ...columns.flatMap((c) => c.contents ?? []).map((c) => Number(/^u_content_divider_(\d+)$/.exec(c.values?._meta?.htmlID ?? "")?.[1] ?? 0)));
+  for (const column of columns) {
+    if (column.contents?.length) continue;
+    count++;
+    column.contents = [
+      {
+        type: "divider",
+        values: {
+          containerPadding: "0px",
+          width: "100%",
+          border: { borderTopWidth: "0px", borderTopStyle: "solid", borderTopColor: "#BBBBBB" },
+          textAlign: "center",
+          _meta: { htmlID: `u_content_divider_${count}`, htmlClassNames: "u_content_divider" },
+          selectable: true,
+          draggable: true,
+          duplicatable: true,
+          deletable: true,
+          hideable: true,
+        },
+      } as never,
+    ];
+  }
+  if (out.counters && count) out.counters.u_content_divider = count;
+  return out as T;
+}
+
 /** A complete HTML document, as `renderToHtml` writes it. */
 export function treeToHtml(tree: ElementNode, options: { fonts?: Array<{ url: string }> } = {}): string {
   return Elements.renderToHtml(treeToElement(tree), options);

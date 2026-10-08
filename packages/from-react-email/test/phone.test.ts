@@ -1,7 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
-import { renderToJson, renderToHtml } from "@unlayer/react-elements";
+import { renderToHtml } from "@unlayer/react-elements";
 import { convertReactEmail, convertSource, verifyConversion } from "../src/index";
 import { phoneStyles } from "../src/tailwind";
 import { handledPhoneClass, phoneSides, withPhoneStyles } from "../src/phone-styles";
@@ -22,7 +22,8 @@ async function convertBoth(source: string) {
     expect(check.missing).toEqual([]);
     expect(check.missingAttributes).toEqual([]);
     expect(check.designWarnings).toEqual([]);
-    return { runtime, codemod, html: [runtime.html(), renderToHtml(Migrated({}))], designs: [runtime.design(), renderToJson(Migrated({}))] as any[] };
+    // The codemod's design is the one the CLI writes (the check's).
+    return { runtime, codemod, html: [runtime.html(), renderToHtml(Migrated({}))], designs: [runtime.design(), check.design] as any[] };
   } finally {
     fs.rmSync(dir, { recursive: true, force: true });
   }

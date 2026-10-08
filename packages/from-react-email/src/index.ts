@@ -9,6 +9,7 @@ import {
   compareText,
   editorFonts,
   pinImageWidths,
+  fillEmptyColumns,
   treeToDesign,
   treeToHtml,
   treeToTsx,
@@ -92,7 +93,7 @@ export async function convertReactEmail(Template: Template, options: RuntimeOpti
         componentName: options.componentName ?? "Template",
         header: ["Converted from a React Email template by @unlayer/from-react-email (runtime mode)."],
       }),
-    design: () => treeToDesign(tree),
+    design: () => fillEmptyColumns(treeToDesign(tree)),
     editorFonts: () => editorFonts(treeToDesign(tree), fonts),
     html: () => treeToHtml(tree, { fonts }),
   };
@@ -146,7 +147,7 @@ export async function verifyConversion(
   console.warn = (...args: unknown[]) => void designWarnings.push(args.map(String).join(" "));
   let design: Record<string, unknown>;
   try {
-    design = pinImageWidths(renderToJson(designRoot) as unknown as Record<string, unknown>);
+    design = fillEmptyColumns(pinImageWidths(renderToJson(designRoot) as unknown as Record<string, unknown>));
   } finally {
     console.warn = warn;
   }
@@ -212,7 +213,7 @@ export async function mergeTagDesign(
   const warn = console.warn;
   console.warn = () => undefined; // the same warnings as the sample render, already reported
   try {
-    const tagged = await mergeTagged(props, design, (p) => pinImageWidths(renderToJson(callTemplate(Converted, p)) as unknown as Record<string, unknown>));
+    const tagged = await mergeTagged(props, design, (p) => fillEmptyColumns(pinImageWidths(renderToJson(callTemplate(Converted, p)) as unknown as Record<string, unknown>)));
     return { design: tagged.result ?? design, used: tagged.used, kept: tagged.kept };
   } finally {
     console.warn = warn;

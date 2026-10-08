@@ -68,9 +68,7 @@ export default function Template() {
         </Column>
       </Row>
       <Row cells={[32, 184, 168, 184, 32]} noStackMobile={true}>
-        <Column backgroundColor="#ffffff">
-          <Divider borderTopWidth="0px" containerPadding="0px" />
-        </Column>
+        <Column backgroundColor="#ffffff" />
         <Column backgroundColor="#f9fafb" padding="8px 0px 8px 16px" borderRadius="6px 0px 0px 6px">
           <Paragraph
             color="#6b7280"
@@ -125,14 +123,10 @@ export default function Template() {
             containerPadding="0px 0px 8px 0px"
           />
         </Column>
-        <Column backgroundColor="#ffffff">
-          <Divider borderTopWidth="0px" containerPadding="0px" />
-        </Column>
+        <Column backgroundColor="#ffffff" />
       </Row>
       <Row cells={[32, 80, 356, 100, 32]} noStackMobile={true}>
-        <Column backgroundColor="#ffffff" padding="24px 0px 0px 0px">
-          <Divider borderTopWidth="0px" containerPadding="0px" />
-        </Column>
+        <Column backgroundColor="#ffffff" padding="24px 0px 0px 0px" />
         <Column
           backgroundColor="#ffffff"
           padding="36px 0px 12px 0px"
@@ -201,14 +195,10 @@ export default function Template() {
             containerPadding="0px 0px 0px 0px"
           />
         </Column>
-        <Column backgroundColor="#ffffff" padding="24px 0px 0px 0px">
-          <Divider borderTopWidth="0px" containerPadding="0px" />
-        </Column>
+        <Column backgroundColor="#ffffff" padding="24px 0px 0px 0px" />
       </Row>
       <Row cells={[32, 80, 356, 100, 32]} noStackMobile={true}>
-        <Column backgroundColor="#ffffff">
-          <Divider borderTopWidth="0px" containerPadding="0px" />
-        </Column>
+        <Column backgroundColor="#ffffff" />
         <Column
           backgroundColor="#ffffff"
           padding="12px 0px 12px 0px"
@@ -277,14 +267,10 @@ export default function Template() {
             containerPadding="0px 0px 0px 0px"
           />
         </Column>
-        <Column backgroundColor="#ffffff">
-          <Divider borderTopWidth="0px" containerPadding="0px" />
-        </Column>
+        <Column backgroundColor="#ffffff" />
       </Row>
       <Row cells={[32, 80, 356, 100, 32]} noStackMobile={true}>
-        <Column backgroundColor="#ffffff">
-          <Divider borderTopWidth="0px" containerPadding="0px" />
-        </Column>
+        <Column backgroundColor="#ffffff" />
         <Column
           backgroundColor="#ffffff"
           padding="12px 0px 12px 0px"
@@ -353,9 +339,7 @@ export default function Template() {
             containerPadding="0px 0px 0px 0px"
           />
         </Column>
-        <Column backgroundColor="#ffffff">
-          <Divider borderTopWidth="0px" containerPadding="0px" />
-        </Column>
+        <Column backgroundColor="#ffffff" />
       </Row>
       <Row>
         <Column backgroundColor="#ffffff" padding="20px 0px 0px 0px">
