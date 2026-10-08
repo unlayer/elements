@@ -121,8 +121,8 @@ jobs:
       # Converts the committed fixture templates both ways (codemod and
       # runtime) and renders them next to their React Email originals in
       # Chromium at desktop and phone widths. Fails on lost or added content,
-      # a word shown at another size on desktop, or words moved more than
-      # packages/from-react-email/bench/smoke-baseline.json allows.
+      # a word shown at another size on desktop, or words moved (on phones,
+      # only for the fixtures that match there).
       - name: Migration fidelity smoke test
         run: pnpm --filter @unlayer/from-react-email test:fidelity
 
