@@ -98,14 +98,68 @@ export interface CodemodOptions {
 
 export async function convertSource(source: string, options: CodemodOptions = {}): Promise<CodemodResult> {
   const fileName = options.fileName ?? "template.tsx";
-  // Source-level preparation: same-file components and JSX constants go where
-  // they're used, and conditional classNames become one element per class list.
-  const components = inlineLocalComponents(source, fileName, options.loadModule);
+  // Source-level preparation: React Email components by name, same-file
+  // components and JSX constants where they're used, and conditional
+  // classNames as one element per class list.
+  // (Same lines as the source: `Email.Text` → `Text`.)
+  const named = nameNamespaces(source, fileName);
+  const components = inlineLocalComponents(named, fileName, options.loadModule);
   const constants = inlineLocalJsx(components.source, fileName);
   const variants = splitConditionalClasses(constants.source, fileName);
   const file = ts.createSourceFile(fileName, variants.source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
   const converter = new Converter(file, options.tailwindConfig, /\.(?:jsx?|mjs|cjs)$/i.test(fileName), options.tailwind);
-  return converter.run({ components: components.inlined, constants: constants.inlined, variants: variants.split, copied: components.copied, original: source });
+  return converter.run({ components: components.inlined, constants: constants.inlined, variants: variants.split, copied: components.copied, original: named });
+}
+
+/**
+ * `import * as Email from "@react-email/components"` with `<Email.Text>`:
+ * named imports instead (`import { Text } from …`, `<Text>`), so the codemod
+ * finds the components. A name the file already uses gets an alias
+ * (`EmailText`). Left as it is when the namespace is used other than as
+ * `Email.Name`.
+ */
+function nameNamespaces(source: string, fileName: string): string {
+  const file = ts.createSourceFile(fileName, source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
+  const edits: Array<{ from: number; to: number; text: string }> = [];
+  const identifiers: ts.Identifier[] = [];
+  const collect = (node: ts.Node) => {
+    if (ts.isIdentifier(node)) identifiers.push(node);
+    ts.forEachChild(node, collect);
+  };
+  collect(file);
+  for (const statement of file.statements) {
+    if (!ts.isImportDeclaration(statement) || !ts.isStringLiteral(statement.moduleSpecifier) || !isReactEmailModule(statement.moduleSpecifier.text)) continue;
+    const clause = statement.importClause;
+    const bindings = clause?.namedBindings;
+    if (!clause || clause.name || !bindings || !ts.isNamespaceImport(bindings)) continue;
+    const namespace = bindings.name.text;
+    // Each use: `Email.Text` (a value or tag) or `Email.TextProps` (a type).
+    const uses: Array<{ node: ts.PropertyAccessExpression | ts.QualifiedName; member: string; type: boolean }> = [];
+    let other = false;
+    for (const id of identifiers) {
+      if (id.text !== namespace || id === bindings.name) continue;
+      const parent = id.parent;
+      if (ts.isPropertyAccessExpression(parent) && parent.expression === id && ts.isIdentifier(parent.name)) uses.push({ node: parent, member: parent.name.text, type: false });
+      else if (ts.isQualifiedName(parent) && parent.left === id) uses.push({ node: parent, member: parent.right.text, type: !ts.isTypeQueryNode(parent.parent) });
+      else other = true;
+    }
+    if (other || !uses.length) continue;
+    const members = [...new Set(uses.map((u) => u.member))];
+    // Names the file uses besides these members.
+    const memberNodes = new Set(uses.map((u) => (ts.isPropertyAccessExpression(u.node) ? u.node.name : u.node.right)));
+    const taken = new Set(identifiers.filter((id) => !memberNodes.has(id) && id.text !== namespace).map((id) => id.text));
+    const local = new Map(members.map((m) => [m, taken.has(m) ? `${namespace}${m}` : m]));
+    if (members.some((m) => local.get(m) !== m && taken.has(local.get(m)!))) continue;
+    const specifiers = members.map((m) => {
+      const type = uses.filter((u) => u.member === m).every((u) => u.type);
+      return `${type && !clause.isTypeOnly ? "type " : ""}${local.get(m) === m ? m : `${m} as ${local.get(m)}`}`;
+    });
+    edits.push({ from: bindings.getStart(), to: bindings.getEnd(), text: `{ ${specifiers.join(", ")} }` });
+    for (const use of uses) edits.push({ from: use.node.getStart(), to: use.node.getEnd(), text: local.get(use.member)! });
+  }
+  edits.sort((a, b) => b.from - a.from);
+  for (const edit of edits) source = source.slice(0, edit.from) + edit.text + source.slice(edit.to);
+  return source;
 }
 
 /** `undefined` or `null`, which a spread adds nothing from (an optional prop left out, once inlined). */
@@ -169,7 +223,7 @@ class Converter {
     constants: string[];
     variants: number;
     copied: string[];
-    /** The template as written, before its components were inlined. */
+    /** The template as written, before its components were inlined (React Email components by name). */
     original?: string;
   }): Promise<CodemodResult> {
     this.copied = prepared.copied;

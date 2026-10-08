@@ -483,3 +483,48 @@ export default function Template({ tone = "red", size = "14px" }: { tone?: strin
     expect(result.report.lostStyles).toEqual([expect.stringMatching(/^line 11: color/), "line 12: fontSize: size"]);
   });
 });
+
+describe("namespace imports and templates that render nothing", () => {
+  const migrate = async (source: string) => {
+    const dir = fs.mkdtempSync(path.join(import.meta.dirname, ".tmp-"));
+    fs.writeFileSync(path.join(dir, "original.tsx"), source);
+    const file = path.join(dir, "migrated.tsx");
+    const result = await convertSource(source, { fileName: file });
+    fs.writeFileSync(file, result.code);
+    const { default: Original } = await import(path.join(dir, "original.tsx"));
+    const { default: Migrated } = await import(file);
+    fs.rmSync(dir, { recursive: true, force: true });
+    return { result, Original, Migrated };
+  };
+
+  it("converts `import * as Email` like named imports", async () => {
+    const { result, Original, Migrated } = await migrate(`import * as Email from "@react-email/components";
+const Text = "Signed, the team";
+export default function Template({ name = "Ada" }: { name?: string }) {
+  const style: Email.TextProps["style"] = { color: "#333333" };
+  return (<Email.Html><Email.Body><Email.Container>
+    <Email.Heading as="h2">Hi {name}</Email.Heading>
+    <Email.Text style={style}>{Text}</Email.Text>
+  </Email.Container></Email.Body></Email.Html>);
+}`);
+    expect(result.report.nativeRatio).toBe(1);
+    expect(result.code).not.toMatch(/Email\.|@react-email/);
+    const check = await verifyConversion(Original, Migrated);
+    expect([check.missing, check.added]).toEqual([[], []]);
+  });
+
+  it("checks a template that renders nothing for some props", async () => {
+    const { Original, Migrated } = await migrate(`import { Html, Body, Text } from "@react-email/components";
+export default function Template({ show = true, name = "Ada" }: { show?: boolean; name?: string }) {
+  if (!show) return null;
+  return (<Html><Body><Text>Hi {name}</Text></Body></Html>);
+}
+Template.PreviewProps = { show: true, name: "Ada" };`);
+    expect((await verifyConversion(Original, Migrated)).variants).toEqual([]);
+    // A migration that renders nothing where the original shows text fails.
+    const Always = (props: Record<string, unknown>) => Original({ ...props, show: true });
+    Always.PreviewProps = Original.PreviewProps;
+    const variants = (await verifyConversion(Always, Migrated)).variants;
+    expect(variants).toEqual([expect.objectContaining({ change: "show: false", missing: ["Hi", "Ada"] })]);
+  });
+});

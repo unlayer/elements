@@ -138,6 +138,7 @@ export async function verifyConversion(
   const originalHtml = await render(React.createElement(Original, props));
   // renderToHtml reads the root (Email) element, so call the component.
   const root = callTemplate(Converted, props);
+  if (!React.isValidElement(root)) throw new Error("the template renders nothing with these props: give it PreviewProps it renders with");
   const convertedHtml = renderToHtml(root);
   const designRoot = options.designProps ? callTemplate(Converted, options.designProps) : root;
   const designWarnings: string[] = [];
@@ -162,13 +163,20 @@ export async function verifyConversion(
       continue; // the original doesn't render this way either: nothing to compare
     }
     try {
-      const check = compareText(original, renderToHtml(callTemplate(Converted, flipped)));
+      const migrated = callTemplate(Converted, flipped);
+      // It renders nothing this way (`return null`): the original must show nothing either.
+      if (!React.isValidElement(migrated)) {
+        const check = compareText(original, "");
+        if (check.missing.length || check.missingAttributes.length) variants.push({ change, missing: check.missing, added: [], missingAttributes: check.missingAttributes });
+        continue;
+      }
+      const check = compareText(original, renderToHtml(migrated));
       const warnings: string[] = [];
       const previousWarn = console.warn;
       console.warn = (...args: unknown[]) =>
         void warnings.push(args.map(String).join(" "));
       try {
-        renderToJson(callTemplate(Converted, flipped));
+        renderToJson(migrated);
       } finally {
         console.warn = previousWarn;
       }
