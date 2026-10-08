@@ -840,29 +840,54 @@ async function importedInputs(inputs: Input[]): Promise<Map<string, string>> {
   const ts = (await import("typescript")).default;
   const scanned = new Map(await Promise.all(inputs.map(async (input) => [await canonicalPath(input.path), input.path] as const)));
   const dependencies = new Map<string, string>();
+  const parse = async (path: string) => ts.createSourceFile(path, await readFile(path, "utf8"), ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
+  /** A module's `export … from` lines: which name each forwards, from where (`*` for `export *`). */
+  const reExports = async (path: string) => {
+    const out: Array<{ specifier: string; exported: string; imported: string }> = [];
+    for (const statement of (await parse(path)).statements) {
+      if (!ts.isExportDeclaration(statement) || statement.isTypeOnly || !statement.moduleSpecifier || !ts.isStringLiteral(statement.moduleSpecifier)) continue;
+      const specifier = statement.moduleSpecifier.text;
+      if (!statement.exportClause) out.push({ specifier, exported: "*", imported: "*" });
+      else if (ts.isNamedExports(statement.exportClause)) {
+        for (const e of statement.exportClause.elements) if (!e.isTypeOnly) out.push({ specifier, exported: e.name.text, imported: (e.propertyName ?? e.name).text });
+      } else out.push({ specifier, exported: statement.exportClause.name.text, imported: "*" });
+    }
+    return out;
+  };
   for (const input of inputs) {
     const load = await moduleLoader(input.path);
-    const file = ts.createSourceFile(input.path, await readFile(input.path, "utf8"), ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
-    const specifiers = new Set<string>();
+    // Follow an import to the modules that define the names it takes, through re-export files.
+    const follow = async (from: string, specifier: string, names: string[] | "all", depth = 0): Promise<void> => {
+      const loaded = load(specifier, from);
+      if (!loaded || depth > 8) return;
+      const forwards = await reExports(loaded.fileName).catch(() => []);
+      const forwarded = names === "all" ? forwards : forwards.filter((r) => r.exported === "*" || names.includes(r.exported));
+      const own = names === "all" || names.some((name) => !forwards.some((r) => r.exported === name));
+      const dependency = scanned.get(await canonicalPath(loaded.fileName));
+      if (dependency && dependency !== input.path && own) dependencies.set(dependency, input.path);
+      for (const r of forwarded) await follow(loaded.fileName, r.specifier, r.imported === "*" ? names : [r.imported], depth + 1);
+    };
+    const imports: Array<{ specifier: string; names: string[] | "all" }> = [];
     const visit = (node: import("typescript").Node) => {
-      if ((ts.isImportDeclaration(node) && !node.importClause?.isTypeOnly) || (ts.isExportDeclaration(node) && !node.isTypeOnly)) {
-        if (node.moduleSpecifier && ts.isStringLiteral(node.moduleSpecifier)) specifiers.add(node.moduleSpecifier.text);
+      // `export … from` only passes names on: it doesn't use them.
+      if (ts.isImportDeclaration(node) && !node.importClause?.isTypeOnly && ts.isStringLiteral(node.moduleSpecifier)) {
+        const clause = node.importClause;
+        const bindings = clause?.namedBindings;
+        const names = !clause || (bindings && ts.isNamespaceImport(bindings))
+          ? "all"
+          : [...(clause.name ? ["default"] : []), ...(bindings && ts.isNamedImports(bindings) ? bindings.elements.filter((e) => !e.isTypeOnly).map((e) => (e.propertyName ?? e.name).text) : [])];
+        if (names === "all" || names.length) imports.push({ specifier: node.moduleSpecifier.text, names });
       } else if (ts.isImportEqualsDeclaration(node) && !node.isTypeOnly && ts.isExternalModuleReference(node.moduleReference)) {
         const value = node.moduleReference.expression;
-        if (value && ts.isStringLiteral(value)) specifiers.add(value.text);
+        if (value && ts.isStringLiteral(value)) imports.push({ specifier: value.text, names: "all" });
       } else if (ts.isCallExpression(node) && (node.expression.kind === ts.SyntaxKind.ImportKeyword || (ts.isIdentifier(node.expression) && node.expression.text === "require"))) {
         const value = node.arguments[0];
-        if (value && ts.isStringLiteral(value)) specifiers.add(value.text);
+        if (value && ts.isStringLiteral(value)) imports.push({ specifier: value.text, names: "all" });
       }
       ts.forEachChild(node, visit);
     };
-    visit(file);
-    for (const specifier of specifiers) {
-      const loaded = load(specifier, input.path);
-      if (!loaded) continue;
-      const dependency = scanned.get(await canonicalPath(loaded.fileName));
-      if (dependency && dependency !== input.path) dependencies.set(dependency, input.path);
-    }
+    visit(await parse(input.path));
+    for (const { specifier, names } of imports) await follow(input.path, specifier, names);
   }
   return dependencies;
 }

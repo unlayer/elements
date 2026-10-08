@@ -331,6 +331,33 @@ Order.PreviewProps = { id: "A-100" };
     expect(fs.readFileSync(path.join(dir, "emails/components/layout.tsx"), "utf8")).toBe(layout);
   });
 
+  it("follows imports through re-export files to decide what's shared in --write", async () => {
+    const template = (text: string) => `import { Html, Body, Text } from "@react-email/components";
+export default function Template() { return <Html><Body><Text>${text}</Text></Body></Html>; }`;
+    const footer = `import { Text } from "@react-email/components";
+export function Footer() { return <Text>Sent by Acme</Text>; }`;
+    const receipt = `import { Html, Body, Text } from "@react-email/components";
+import { Footer } from "../shared";
+export default function Receipt() { return <Html><Body><Text>Your receipt</Text><Footer /></Body></Html>; }`;
+    const dir = project({
+      "emails/activation.tsx": template("Activate your account"),
+      "emails/welcome.tsx": template("Welcome aboard"),
+      // A barrel only passes templates on: it doesn't make them shared.
+      "emails/index.ts": `export { default as Activation } from "./activation";\nexport { default as Welcome } from "./welcome";\n`,
+      "emails/receipt.tsx": receipt,
+      "emails/components/footer.tsx": footer,
+      // A barrel outside the folder: the footer it passes on is shared.
+      "shared/index.ts": `export { Footer } from "../emails/components/footer";\n`,
+    });
+    const out = io(dir);
+    expect(await main(["emails", "--write"], out, lib), out.out + out.err).toBe(0);
+    expect(out.out).toMatch(/✓ emails\/activation\.tsx/);
+    expect(out.out).toMatch(/✓ emails\/welcome\.tsx/);
+    expect(out.out).toMatch(/- emails\/components\/footer\.tsx: skipped \(imported by emails\/receipt\.tsx/);
+    expect(fs.readFileSync(path.join(dir, "emails/components/footer.tsx"), "utf8")).toBe(footer);
+    expect(fs.readFileSync(path.join(dir, "emails/activation.tsx"), "utf8")).toContain("@unlayer/react-elements");
+  });
+
   it("checks without writing by default, and replaces templates with --write", async () => {
     const dir = project({ "emails/welcome.tsx": WELCOME, "lib/format.ts": FORMAT });
     const dry = io(dir);
