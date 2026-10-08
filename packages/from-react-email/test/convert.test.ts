@@ -154,16 +154,17 @@ export default function Template() {
 });
 
 describe("head <style> rules", () => {
-  const css = `.copy { color: #fff; font-size: 24px } @media (max-width: 600px) { .copy { font-size: 18px } } .note > a { color: red }`;
+  // Text sets 14px inline, so the rule's 24px doesn't apply; its color does, and so does the !important phone size.
+  const css = `.copy { color: #fff; font-size: 24px } @media (max-width: 600px) { .copy { font-size: 18px !important } } .note > a { color: red }`;
   const source = `import { Html, Head, Body, Text } from "@react-email/components";
 export default function Template() {
   return <Html><Head><style>{\`${css}\`}</style></Head><Body style={{ backgroundColor: "#000000" }}><Text className="copy" style={{ margin: 0 }}>Code 482913</Text></Body></Html>;
 }`;
 
-  it("codemod: applies rules on a class, phone rules too, and reports the rest", async () => {
+  it("codemod: applies rules on a class where they'd win, phone rules too, and reports the rest", async () => {
     const result = await convertSource(source);
     expect(result.code).toMatch(/color="#fff(fff)?"/);
-    expect(result.code).toContain('fontSize="24px"');
+    expect(result.code).toContain('fontSize="14px"');
     expect(result.code).toMatch(/mobile=\{\{[^}]*fontSize: "18px"/);
     expect(result.report.notes).toContainEqual({ reason: "head style rule not converted", detail: ".note > a" });
   });
@@ -175,7 +176,8 @@ export default function Template() {
       h(Html, null, h(Head, null, h("style", null, css)), h(Body, { style: { backgroundColor: "#000000" } }, h(Text, { className: "copy", style: { margin: 0 } }, "Code 482913")));
     const conversion = await convertReactEmail(Template);
     const paragraph = JSON.stringify(conversion.tree);
-    expect(paragraph).toContain('"fontSize":"24px"');
+    expect(paragraph).toContain('"fontSize":"14px"');
+    expect(paragraph).toContain('"fontSize":"18px"');
     expect(paragraph).toMatch(/"color":"#fff(fff)?"/);
     expect(conversion.report.notes).toContainEqual({ reason: "head style rule not converted", detail: ".note > a" });
   });
@@ -297,5 +299,22 @@ export default function Template() {
     } finally {
       fs.rmSync(dir, { recursive: true, force: true });
     }
+  });
+});
+
+describe("head <style> rules and React Email's inline styles", () => {
+  it("lets the component's own inline style win, unless the rule is !important", async () => {
+    const source = `import { Html, Head, Body, Text } from "@react-email/components";
+export default function Template() {
+  return <Html><Head><style>{".copy { font-size: 24px; color: #ff0000; margin: 0 20px } .big { font-size: 30px !important }"}</style></Head><Body>
+    <Text className="copy">Inline wins</Text>
+    <Text className="big">Important wins</Text>
+  </Body></Html>;
+}`;
+    const result = await convertSource(source);
+    const inlineWins = /<Paragraph([^>]*)>\s*Inline wins/.exec(result.code)?.[1] ?? "";
+    expect(inlineWins).toContain('fontSize="14px"');
+    expect(inlineWins).toContain('color="#ff0000"');
+    expect(result.code).toMatch(/<Paragraph[^>]*fontSize="30px"[^>]*>\s*Important wins/);
   });
 });

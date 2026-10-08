@@ -36,7 +36,7 @@ import {
 import { addSides, backgroundColor, boxSides, color, fontFamilyProp, inherit, isHidden, margins, phoneOnly, px, shownOnPhones, toPx, ZERO, type Style } from "./styles";
 import type { BoxSides } from "@unlayer/convert-core";
 import { phoneSides, withPhoneStyles } from "./phone-styles";
-import { phoneStyles, stacksOnPhones, stylesheetRules } from "./tailwind";
+import { phoneRules, stacksOnPhones, stylesheetRules, underInline } from "./tailwind";
 
 /** React's static markup, without the image preload links React 19 adds: an email has no use for them. */
 function renderToStaticMarkup(element: React.ReactElement): string {
@@ -85,6 +85,8 @@ export async function convertElement(element: React.ReactElement): Promise<Runti
   });
   const phone = new Map<string, Style>();
   const classes = new Map<string, Style>();
+  const classImportant = new Map<string, Set<string>>();
+  const phoneImportant = new Map<string, Set<string>>();
   const linked: string[] = [];
   walk(nodes, (node) => {
     if (node.kind === "host" && node.tag === "link" && /stylesheet/i.test(String(node.props.rel ?? "")) && /^https?:/.test(String(node.props.href ?? ""))) {
@@ -95,18 +97,26 @@ export async function convertElement(element: React.ReactElement): Promise<Runti
     const css = String(node.props.dangerouslySetInnerHTML?.__html ?? textOf(node.children));
     fontSpecs.push(...fontFaces(css));
     linked.push(...importedStylesheets(css));
-    for (const [cls, style] of phoneStyles(css)) phone.set(cls, { ...phone.get(cls), ...style });
+    const phoneCss = phoneRules(css);
+    for (const [cls, style] of phoneCss.styles) phone.set(cls, { ...phone.get(cls), ...style });
+    for (const [cls, names] of phoneCss.important) phoneImportant.set(cls, new Set([...(phoneImportant.get(cls) ?? []), ...names]));
     const rules = stylesheetRules(css);
     for (const [cls, style] of rules.classes) classes.set(cls, { ...classes.get(cls), ...style });
+    for (const [cls, names] of rules.important) classImportant.set(cls, new Set([...(classImportant.get(cls) ?? []), ...names]));
     for (const selector of rules.other) report.note("head style rule not converted", selector);
   });
 
   walk(nodes, (node) => {
     if (node.kind === "text") return;
     const names = String(node.props.className ?? "").split(/\s+/);
-    // A head rule on a class is under the element's own style, as in the browser.
-    const fromHead = Object.assign({}, ...names.map((name) => classes.get(name) ?? {}));
-    node.props = { ...node.props, style: withPhoneStyles({ ...fromHead, ...(node.props.style ?? {}) }, names, phone) };
+    // A head rule on a class is under the element's own style, and under React Email's inline styles
+    // (Text's 14px) unless it's !important, as in the browser.
+    const component = node.kind === "component" ? nameOf(node) : undefined;
+    const strong = (from: Map<string, Set<string>>) => new Set(names.flatMap((name) => [...(from.get(name) ?? [])]));
+    const fromHead = underInline(component, Object.assign({}, ...names.map((name) => classes.get(name) ?? {})), strong(classImportant));
+    const phoneStrong = strong(phoneImportant);
+    const phoneFor = component ? new Map([...phone].map(([cls, rule]) => [cls, underInline(component, rule, phoneStrong)] as const)) : phone;
+    node.props = { ...node.props, style: withPhoneStyles({ ...fromHead, ...(node.props.style ?? {}) }, names, phoneFor) };
   });
 
   const body = find(nodes, (n) => n.kind === "component" && n.name === "Body") as Element | undefined;

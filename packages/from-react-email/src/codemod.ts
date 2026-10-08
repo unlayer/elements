@@ -49,7 +49,7 @@ import { inlineLocalComponents, type ModuleLoader } from "./components";
 import { inlineLocalJsx } from "./inline";
 import { splitConditionalClasses } from "./variants";
 import { phoneSides, withPhoneStyles, handledPhoneClass } from "./phone-styles";
-import { NO_CLASSES, phoneStyles, resolveTailwind, stacksOnPhones, stylesheetRules, type ResolvedClasses } from "./tailwind";
+import { NO_CLASSES, phoneRules, resolveTailwind, stacksOnPhones, stylesheetRules, underInline, type ResolvedClasses } from "./tailwind";
 
 export interface CodemodResult {
   code: string;
@@ -137,6 +137,8 @@ class Converter {
   private readonly fallbackRanges: Array<{ from: number; to: number }> = [];
   /** Rules on a single class from the head's <style>: desktop, and phone media queries. */
   private readonly headClasses = new Map<string, Style>();
+  private readonly headImportant = new Map<string, Set<string>>();
+  private readonly headPhoneImportant = new Map<string, Set<string>>();
   private readonly headPhone = new Map<string, Style>();
   /** Style values computed at render time, by where they are in the source. */
   private readonly droppedStyles: Array<{ from: number; to: number; detail: string }> = [];
@@ -517,9 +519,15 @@ class Converter {
       // Head <style> rules on these classes sit under Tailwind's inline styles, as in the browser.
       if (typeof value === "string" && (this.headClasses.size || this.headPhone.size)) {
         const names = value.split(/\s+/);
-        const head = withPhoneStyles(Object.assign({}, ...names.map((name) => this.headClasses.get(name) ?? {})), names, this.headPhone);
-        const phone = { ...(head._phone as Style | undefined), ...(style._phone as Style | undefined) };
-        style = { ...head, ...style, ...(Object.keys(phone).length ? { _phone: phone } : {}) };
+        // React Email's own inline styles (Text's 14px) beat a class rule unless it's !important.
+        const component = this.components.get(tag);
+        const strong = (from: Map<string, Set<string>>) => new Set(names.flatMap((name) => [...(from.get(name) ?? [])]));
+        const rules = underInline(component, Object.assign({}, ...names.map((name) => this.headClasses.get(name) ?? {})), strong(this.headImportant));
+        const phoneStrong = strong(this.headPhoneImportant);
+        const phone = new Map([...this.headPhone].map(([cls, rule]) => [cls, underInline(component, rule, phoneStrong)] as const));
+        const head = withPhoneStyles(rules, names, phone);
+        const phoneStyle = { ...(head._phone as Style | undefined), ...(style._phone as Style | undefined) };
+        style = { ...head, ...style, ...(Object.keys(phoneStyle).length ? { _phone: phoneStyle } : {}) };
       }
     }
     if (attrs.has("style")) {
@@ -608,7 +616,10 @@ class Converter {
             linked.push(...importedStylesheets(css));
             const rules = stylesheetRules(css);
             for (const [cls, style] of rules.classes) this.headClasses.set(cls, { ...this.headClasses.get(cls), ...style });
-            for (const [cls, style] of phoneStyles(css)) this.headPhone.set(cls, { ...this.headPhone.get(cls), ...style });
+            for (const [cls, names] of rules.important) this.headImportant.set(cls, new Set([...(this.headImportant.get(cls) ?? []), ...names]));
+            const phone = phoneRules(css);
+            for (const [cls, style] of phone.styles) this.headPhone.set(cls, { ...this.headPhone.get(cls), ...style });
+            for (const [cls, names] of phone.important) this.headPhoneImportant.set(cls, new Set([...(this.headPhoneImportant.get(cls) ?? []), ...names]));
             for (const selector of rules.other) this.report.note("head style rule not converted", selector);
           }
         }

@@ -6,6 +6,7 @@
 import React from "react";
 import { Tailwind } from "@react-email/components";
 import { callSuspending } from "./expand";
+import { boxSides } from "@unlayer/convert-core";
 import type { Style } from "./styles";
 
 export interface ResolvedClasses {
@@ -58,18 +59,27 @@ export function isPhoneQuery(query: string): boolean {
  * (or the unnested form) → mobile_imprtntblock: { display: "block" }.
  */
 export function phoneStyles(css: string): Map<string, Style> {
+  return phoneRules(css).styles;
+}
+
+/** `phoneStyles`, and which of each class's phone declarations are `!important`. */
+export function phoneRules(css: string): { styles: Map<string, Style>; important: Map<string, Set<string>> } {
   const out = new Map<string, Style>();
+  const important = new Map<string, Set<string>>();
   css = css.replace(/\/\*[\s\S]*?\*\//g, "");
   const add = (cls: string, query: string, body: string) => {
     if (!isPhoneQuery(query)) return;
     const style: Style = { ...(out.get(cls) ?? {}) };
+    const strong = important.get(cls) ?? new Set<string>();
     for (const decl of body.split(";")) {
       const at = decl.indexOf(":");
       if (at < 0) continue;
       const name = decl.slice(0, at).trim().replace(/-([a-z])/g, (_, c: string) => c.toUpperCase());
       style[name] = decl.slice(at + 1).replace(/!\s*important/i, "").trim();
+      if (/!\s*important/i.test(decl)) strong.add(name);
     }
     out.set(cls, style);
+    important.set(cls, strong);
   };
   // Nested: .cls{@media (…){…}}
   for (const m of css.matchAll(/\.([\w-]+)\s*\{\s*@media\s*([^{]*)\{([^{}]*)\}\s*\}/g)) add(m[1], m[2], m[3]);
@@ -77,6 +87,32 @@ export function phoneStyles(css: string): Map<string, Style> {
   for (const m of css.matchAll(/@media\s*([^{]*)\{((?:\s*\.[\w-]+\s*\{[^{}]*\})+)\s*\}/g)) {
     for (const rule of m[2].matchAll(/\.([\w-]+)\s*\{([^{}]*)\}/g)) add(rule[1], m[1], rule[2]);
   }
+  return { styles: out, important };
+}
+
+/** Styles React Email components set inline themselves (measured): a stylesheet rule can't override them. */
+export const INLINE_DEFAULTS: Record<string, string[]> = {
+  Text: ["fontSize", "lineHeight", "marginTop", "marginBottom"],
+  Link: ["color", "textDecorationLine"],
+  Button: ["lineHeight", "textDecoration", "display", "maxWidth"],
+  Img: ["display", "outline", "border", "textDecoration"],
+  Hr: ["width", "border", "borderTop"],
+  Container: ["maxWidth"],
+  Row: ["width"],
+};
+
+/** A rule's style without what the component's own inline style overrides (unless the rule is `!important`). */
+export function underInline(component: string | undefined, rules: Style, important: Set<string>): Style {
+  const inline = INLINE_DEFAULTS[component ?? ""] ?? [];
+  if (!inline.length) return rules;
+  const out: Style = { ...rules };
+  if (out.margin !== undefined && !important.has("margin") && inline.some((blocked) => blocked.startsWith("margin"))) {
+    // Only the sides the component doesn't set itself keep the rule's margin.
+    const sides = boxSides(out, "margin");
+    for (const side of ["Top", "Right", "Bottom", "Left"] as const) if (!inline.includes(`margin${side}`)) out[`margin${side}`] ??= `${sides[side.toLowerCase() as "top"]}px`;
+    delete out.margin;
+  }
+  for (const key of Object.keys(out)) if (!important.has(key) && inline.includes(key)) delete out[key];
   return out;
 }
 
@@ -87,8 +123,9 @@ export function phoneStyles(css: string): Map<string, Style> {
  * than phone rules on classes (`phoneStyles` reads those). Imports, web fonts
  * and `*` resets are left to the callers that handle them.
  */
-export function stylesheetRules(css: string): { classes: Map<string, Style>; other: string[] } {
+export function stylesheetRules(css: string): { classes: Map<string, Style>; important: Map<string, Set<string>>; other: string[] } {
   const classes = new Map<string, Style>();
+  const important = new Map<string, Set<string>>();
   const other: string[] = [];
   const text = css.replace(/\/\*[\s\S]*?\*\//g, "");
   for (let i = 0; i < text.length; ) {
@@ -109,16 +146,21 @@ export function stylesheetRules(css: string): { classes: Map<string, Style>; oth
       if (!phone(query)) other.push(`${selector} @media ${query.trim()}`);
     } else if (/^\.[\w-]+$/.test(selector)) {
       const style: Style = { ...(classes.get(selector.slice(1)) ?? {}) };
+      const strong = important.get(selector.slice(1)) ?? new Set<string>();
       for (const decl of body.split(";")) {
         const at = decl.indexOf(":");
-        if (at > 0) style[decl.slice(0, at).trim().replace(/-([a-z])/g, (_, c: string) => c.toUpperCase())] = decl.slice(at + 1).replace(/!\s*important/i, "").trim();
+        if (at <= 0) continue;
+        const name = decl.slice(0, at).trim().replace(/-([a-z])/g, (_, c: string) => c.toUpperCase());
+        style[name] = decl.slice(at + 1).replace(/!\s*important/i, "").trim();
+        if (/!\s*important/i.test(decl)) strong.add(name);
       }
       classes.set(selector.slice(1), style);
+      important.set(selector.slice(1), strong);
     } else if (selector) {
       other.push(selector);
     }
   }
-  return { classes, other };
+  return { classes, important, other };
 }
 
 /**
