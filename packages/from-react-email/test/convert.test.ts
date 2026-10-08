@@ -189,3 +189,21 @@ export default function Template() { return <Html><Body><Img src="https://exampl
     expect(result.report.notes).toContainEqual({ reason: "image height not kept (the image keeps its file's aspect ratio)", detail: "80×20px" });
   });
 });
+
+describe("visibility: hidden", () => {
+  const source = `import { Html, Body, Text } from "@react-email/components";
+export default function Template() {
+  return <Html><Body><Text>Shown</Text><Text style={{ visibility: "hidden" }}>Secret</Text></Body></Html>;
+}`;
+
+  it("stays hidden in both modes", async () => {
+    const codemod = await convertSource(source);
+    expect(codemod.report.fallbacks).toContainEqual({ reason: "hidden element" });
+    expect(codemod.code).toMatch(/visibility(:|: )"?hidden/);
+    const { Html, Body, Text } = await import("@react-email/components");
+    const h = React.createElement;
+    const Template = () => h(Html, null, h(Body, null, h(Text, null, "Shown"), h(Text, { style: { visibility: "hidden" } }, "Secret")));
+    const html = (await convertReactEmail(Template)).html();
+    expect(html).toMatch(/visibility:\s*hidden[^>]*>Secret/);
+  });
+});
