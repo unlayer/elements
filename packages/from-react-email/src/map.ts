@@ -291,7 +291,10 @@ export function imageBlock(
   style: Style,
   ctx: MapCtx
 ): Block {
-  const width = toPx(attrs.width ?? style.width);
+  // CSS shows the smaller of the width and the max-width: a percent width (`100%`) capped in px shows at the cap.
+  const own = toPx(attrs.width ?? style.width);
+  const cap = toPx(style.maxWidth);
+  const width = own !== undefined && cap !== undefined ? Math.min(own, cap) : own ?? cap;
   const height = toPx(attrs.height ?? style.height);
   const margin = boxSides(style, "margin");
   const centered = String(style.margin ?? "").includes("auto") || style.marginLeft === "auto";

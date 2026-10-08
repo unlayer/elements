@@ -207,3 +207,12 @@ export default function Template() {
     expect(html).toMatch(/visibility:\s*hidden[^>]*>Secret/);
   });
 });
+
+describe("image max-width", () => {
+  it("shows a percent-wide image at its max-width", async () => {
+    const source = `import { Html, Body, Img } from "@react-email/components";
+export default function Template() { return <Html><Body><Img src="https://example.com/a.png" width="100%" style={{ maxWidth: "300px" }} alt="A" /></Body></Html>; }`;
+    const result = await convertSource(source);
+    expect(result.code).toContain('width="300px"');
+  });
+});
