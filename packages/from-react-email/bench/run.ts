@@ -24,7 +24,7 @@ import { render } from "@react-email/components";
 import { chromium, type BrowserContext, type Route } from "playwright";
 import { PNG } from "pngjs";
 import pixelmatch from "pixelmatch";
-import { compareText, convertReactEmail, findTailwindConfig, verifyConversion } from "../src/index";
+import { compareText, convertReactEmail, findTailwind, verifyConversion } from "../src/index";
 import { convertSource } from "../src/codemod";
 
 const root = path.resolve(import.meta.dirname, "..");
@@ -226,8 +226,8 @@ async function runtime(Template: any, dir: string): Promise<string> {
 
 async function codemod(file: string, dir: string, Template: any): Promise<string | undefined> {
   // The config itself can be code (plugins, presets): take it from the module.
-  const tailwindConfig = await findTailwindConfig(React.createElement(Template, Template.PreviewProps ?? {}));
-  const result = await convertSource(fs.readFileSync(file, "utf8"), { fileName: path.basename(file), tailwindConfig });
+  const tailwind = await findTailwind(React.createElement(Template, Template.PreviewProps ?? {}));
+  const result = await convertSource(fs.readFileSync(file, "utf8"), { fileName: path.basename(file), tailwindConfig: tailwind?.config, tailwind: tailwind?.component });
   const target = path.join(dir, "codemod.tsx");
   fs.writeFileSync(target, result.code);
   fs.writeFileSync(path.join(dir, "codemod.report.json"), JSON.stringify(summaryOf(result.report), null, 2));

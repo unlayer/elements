@@ -17,7 +17,7 @@ import {
   type ElementNode,
   type TextCheck,
 } from "@unlayer/convert-core";
-import { findTailwindConfig } from "./expand";
+import { findTailwind, findTailwindConfig } from "./expand";
 import { convertElement } from "./runtime";
 import { mergeTagged } from "./merge-tags";
 
@@ -205,10 +205,15 @@ export async function templateTailwindConfig(Original: Template, props?: Record<
   return findTailwindConfig(React.createElement(Original, props ?? Original.PreviewProps ?? {}));
 }
 
+/** The template's own <Tailwind> and its config, for `convertSource`'s `tailwind` and `tailwindConfig`. */
+export async function templateTailwind(Original: Template, props?: Record<string, unknown>): Promise<{ config: Record<string, unknown>; component: unknown } | undefined> {
+  return findTailwind(React.createElement(Original, props ?? Original.PreviewProps ?? {}));
+}
+
 export { rebaseImports } from "./imports";
 export { mergeTagged, textProps, type TextProp } from "./merge-tags";
 export { compareText, htmlWords, shareEditorFonts, type EditorFont, type TextCheck } from "@unlayer/convert-core";
 export { convertElement } from "./runtime";
-export { expand, findTailwindConfig, REACT_EMAIL_COMPONENTS } from "./expand";
+export { expand, findTailwind, findTailwindConfig, REACT_EMAIL_COMPONENTS } from "./expand";
 export { convertSource, type CodemodOptions, type CodemodResult } from "./codemod";
 export type { ModuleLoader } from "./components";

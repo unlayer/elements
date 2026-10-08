@@ -88,9 +88,11 @@ export interface CodemodOptions {
   loadModule?: ModuleLoader;
   /**
    * The template's Tailwind config, when the source's isn't a plain literal
-   * (plugins, imported presets). Get it with `findTailwindConfig`.
+   * (plugins, imported presets). Get it with `findTailwind`.
    */
   tailwindConfig?: Record<string, unknown>;
+  /** The template's own <Tailwind> (from `findTailwind`), to resolve classes as it does. */
+  tailwind?: unknown;
 }
 
 export async function convertSource(source: string, options: CodemodOptions = {}): Promise<CodemodResult> {
@@ -101,13 +103,20 @@ export async function convertSource(source: string, options: CodemodOptions = {}
   const constants = inlineLocalJsx(components.source, fileName);
   const variants = splitConditionalClasses(constants.source, fileName);
   const file = ts.createSourceFile(fileName, variants.source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
-  const converter = new Converter(file, options.tailwindConfig, /\.(?:jsx?|mjs|cjs)$/i.test(fileName));
+  const converter = new Converter(file, options.tailwindConfig, /\.(?:jsx?|mjs|cjs)$/i.test(fileName), options.tailwind);
   return converter.run({ components: components.inlined, constants: constants.inlined, variants: variants.split, copied: components.copied });
+}
+
+/** Packages React Email components are imported from: `react-email` and `@react-email/*`. */
+function isReactEmailModule(from: string): boolean {
+  return from === "react-email" || from.startsWith("@react-email/");
 }
 
 class Converter {
   private readonly report = new ReportBuilder();
   private readonly components = new Map<string, string>();
+  /** Where each React Email import comes from (`react-email`, `@react-email/components`, …), and which are types. */
+  private readonly componentSources = new Map<string, { from: string; type: boolean }>();
   private readonly constants = new Map<string, ts.Expression>();
   private readonly checker: ts.TypeChecker;
   private tailwind: ResolvedClasses = NO_CLASSES;
@@ -125,7 +134,8 @@ class Converter {
   constructor(
     private readonly file: ts.SourceFile,
     private readonly tailwindConfig?: Record<string, unknown>,
-    private readonly javascript = false
+    private readonly javascript = false,
+    private readonly tailwindComponent?: unknown,
   ) {
     const names = new Set(file.getFullText().match(/\b[A-Za-z_$][\w$]*/g));
     while (names.has(this.plainTextName)) this.plainTextName = `_${this.plainTextName}`;
@@ -178,11 +188,12 @@ class Converter {
     for (const statement of this.file.statements) {
       if (ts.isImportDeclaration(statement) && ts.isStringLiteral(statement.moduleSpecifier)) {
         const from = statement.moduleSpecifier.text;
-        if (!from.startsWith("@react-email/") && from !== "react-email") continue;
+        if (!isReactEmailModule(from)) continue;
         const bindings = statement.importClause?.namedBindings;
         if (bindings && ts.isNamedImports(bindings)) {
           for (const spec of bindings.elements) {
             this.components.set(spec.name.text, (spec.propertyName ?? spec.name).text);
+            this.componentSources.set(spec.name.text, { from, type: !!statement.importClause?.isTypeOnly || spec.isTypeOnly });
           }
         }
       }
@@ -293,7 +304,7 @@ class Converter {
     visit(fn);
     // Without <Tailwind>, class names are plain CSS classes: nothing to resolve.
     if (!usesTailwind) return NO_CLASSES;
-    const resolved = await resolveTailwind(classes, this.tailwindConfig ?? config);
+    const resolved = await resolveTailwind(classes, this.tailwindConfig ?? config, this.tailwindComponent);
     for (const [list, rest] of resolved.leftover) {
       for (const cls of rest) if (![...(classOwners.get(list) ?? [""])].every(name => handledPhoneClass(cls, resolved.phone, name))) this.report.note("tailwind class not inlined", cls);
     }
@@ -1372,7 +1383,7 @@ class Converter {
       if (ts.isVariableStatement(statement)) {
         for (const decl of statement.declarationList.declarations) if (ts.isIdentifier(decl.name)) names.push(decl.name.text);
       }
-      if (ts.isImportDeclaration(statement) && ts.isStringLiteral(statement.moduleSpecifier) && !statement.moduleSpecifier.text.startsWith("@react-email/")) {
+      if (ts.isImportDeclaration(statement) && ts.isStringLiteral(statement.moduleSpecifier) && !isReactEmailModule(statement.moduleSpecifier.text)) {
         const clause = statement.importClause;
         if (clause?.name) names.push(clause.name.text);
         const bindings = clause?.namedBindings;
@@ -1421,22 +1432,21 @@ class Converter {
     const source = this.file.getFullText();
     const imports = this.file.statements.filter(
       (s): s is ts.ImportDeclaration =>
-        ts.isImportDeclaration(s) && ts.isStringLiteral(s.moduleSpecifier) && (s.moduleSpecifier.text.startsWith("@react-email/") || s.moduleSpecifier.text === "react-email")
+        ts.isImportDeclaration(s) && ts.isStringLiteral(s.moduleSpecifier) && isReactEmailModule(s.moduleSpecifier.text)
     );
     const elementNames = [...used].sort().map((name) => (rename[name] ? `${name} as ${rename[name]}` : name));
     const newImports = [
-      ...(stillUsed.size
-        ? [
-            `import { ${[...stillUsed]
-              .sort()
-              .map((local) =>
-                this.components.get(local) === local
-                  ? local
-                  : `${this.components.get(local)} as ${local}`,
-              )
-              .join(", ")} } from "@react-email/components";`,
-          ]
-        : []),
+      // Each kept React Email name comes from the package the template imported it from.
+      ...[...new Set([...stillUsed].map((local) => this.componentSources.get(local)?.from ?? "@react-email/components"))].sort().map((from) => {
+        const names = [...stillUsed]
+          .filter((local) => (this.componentSources.get(local)?.from ?? "@react-email/components") === from)
+          .sort()
+          .map((local) => {
+            const imported = this.components.get(local);
+            return `${this.componentSources.get(local)?.type ? "type " : ""}${imported === local ? local : `${imported} as ${local}`}`;
+          });
+        return `import { ${names.join(", ")} } from "${from}";`;
+      }),
       `import { ${elementNames.join(", ")} } from "@unlayer/react-elements";`,
       ...(this.needsStaticMarkup
         ? ['import { renderToStaticMarkup } from "react-dom/server";']

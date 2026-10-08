@@ -350,16 +350,16 @@ async function migrateFile(input: Input, options: Options, lib: Library, io: Io,
       return { file: name, status: "failed", reason: `couldn't load it: ${message(error)}` };
     }
 
-    let tailwindConfig: Record<string, unknown> | undefined;
+    let tailwind: Awaited<ReturnType<Library["templateTailwind"]>>;
     try {
-      tailwindConfig = await lib.templateTailwindConfig(Original, props);
+      tailwind = await lib.templateTailwind(Original, props);
     } catch {
       // The config written in the source is used instead.
     }
 
     let converted: Awaited<ReturnType<Library["convertSource"]>>;
     try {
-      converted = await lib.convertSource(source, { fileName: file, tailwindConfig, loadModule: await moduleLoader(file) });
+      converted = await lib.convertSource(source, { fileName: file, tailwindConfig: tailwind?.config, tailwind: tailwind?.component, loadModule: await moduleLoader(file) });
     } catch (error) {
       return { file: name, status: "failed", reason: `couldn't convert it: ${message(error)}` };
     }
@@ -369,6 +369,9 @@ async function migrateFile(input: Input, options: Options, lib: Library, io: Io,
     const writing = options.write || options.out !== undefined;
     const target = writing ? outputPath(input, options, io.cwd) : file;
     const code = target === file ? converted.code : lib.rebaseImports(converted.code, file, target);
+    // The check runs with this CLI's packages: a React Email package the template's project lacks would pass it and crash there.
+    const missing = [...new Set([...code.matchAll(/from\s+["']((?:@react-email\/[^"'/]+|react-email))(?:\/[^"']*)?["']/g)].map((m) => m[1]))].filter((name) => !hasPackage(file, name));
+    if (missing.length) return { file: name, status: "failed", reason: `the migrated template imports ${missing.join(", ")}, which this project doesn't have: install it (npm install ${missing.join(" ")})` };
     const extension = extname(file);
     const probe = join(dirname(target), `.${basename(file, extension)}.unlayer-migrate-${randomUUID()}${extension}`);
     let probeCreated = false;
@@ -674,6 +677,14 @@ function templateComponent(value: any): { component: any; props: Record<string, 
   }
   if (wrapped) throw new Error("the React template wrapper has no renderable component");
   return undefined;
+}
+
+/** Whether `name` is installed where `file` would find it (a node_modules folder above it). */
+function hasPackage(file: string, name: string): boolean {
+  for (let dir = dirname(file); ; dir = dirname(dir)) {
+    if (existsSync(join(dir, "node_modules", name, "package.json"))) return true;
+    if (dirname(dir) === dir) return false;
+  }
 }
 
 /** CommonJS requires need the same project-first package resolution as hooks.ts. */

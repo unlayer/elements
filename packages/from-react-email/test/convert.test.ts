@@ -99,3 +99,29 @@ describe("runtime details", () => {
     expect(color("#abc")).toBe("#abc");
   });
 });
+
+describe("react-email package", () => {
+  it("imports kept blocks from the package the template imported them from, types as types", async () => {
+    const source = `import { Html, Body, Img, Text, pixelBasedPreset, type TailwindConfig } from "react-email";
+const config: TailwindConfig = { presets: [pixelBasedPreset] };
+export default function Template() {
+  return <Html><Body><Text>Your receipt</Text><Img src="https://example.com/logo.png" alt="Logo" /></Body></Html>;
+}`;
+    const result = await convertSource(source);
+    expect(result.code).toContain('from "react-email"');
+    expect(result.code).not.toContain("@react-email/components");
+    expect(result.code).toMatch(/import \{ Img, type TailwindConfig, pixelBasedPreset \} from "react-email";/);
+  });
+
+  it("resolves classes with the template's own <Tailwind>", async () => {
+    const source = `import { Html, Body, Tailwind, Text } from "react-email";
+export default function Template() {
+  return <Html><Tailwind><Body><Text className="brand">Hello</Text></Body></Tailwind></Html>;
+}`;
+    // A stand-in for the template's Tailwind: it inlines .brand as red.
+    const Tailwind = ({ children }: { children: React.ReactElement[] }) =>
+      children.map((child) => (child.props as { className?: string }).className === "brand" ? React.cloneElement(child, { className: undefined, style: { color: "#ff0000" } } as object) : child);
+    const result = await convertSource(source, { tailwind: Tailwind });
+    expect(result.code).toContain('color="#ff0000"');
+  });
+});

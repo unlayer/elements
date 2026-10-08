@@ -155,11 +155,20 @@ export async function callSuspending<T>(fn: () => T): Promise<T> {
  * template until it gets there. For the codemod when the config isn't a
  * plain literal (plugins, imported presets).
  */
-export async function findTailwindConfig(node: React.ReactNode, depth = 0): Promise<Record<string, unknown> | undefined> {
+export async function findTailwindConfig(node: React.ReactNode): Promise<Record<string, unknown> | undefined> {
+  return (await findTailwind(node))?.config;
+}
+
+/**
+ * The template's own <Tailwind> and its `config`. The codemod resolves classes
+ * with it: React Email releases render Tailwind differently (a phone variant
+ * can come out unconditional), so the template's own is the one to match.
+ */
+export async function findTailwind(node: React.ReactNode, depth = 0): Promise<{ config: Record<string, unknown>; component: unknown } | undefined> {
   if (depth > 200 || node === null || typeof node !== "object") return undefined;
   if (Array.isArray(node)) {
     for (const child of node) {
-      const found = await findTailwindConfig(child, depth + 1);
+      const found = await findTailwind(child, depth + 1);
       if (found) return found;
     }
     return undefined;
@@ -168,13 +177,13 @@ export async function findTailwindConfig(node: React.ReactNode, depth = 0): Prom
   const element = node as React.ReactElement<any>;
   const type: any = element.type;
   const props = element.props ?? {};
-  if (displayName(type) === "Tailwind") return props.config ?? {};
-  if (typeof type === "string" || type === React.Fragment) return findTailwindConfig(props.children, depth + 1);
-  if (displayName(type) && REACT_EMAIL_COMPONENTS.has(displayName(type) as string)) return findTailwindConfig(props.children, depth + 1);
-  if (type?.$$typeof === MEMO) return findTailwindConfig(React.createElement(type.type, props), depth + 1);
-  if (type?.$$typeof === FORWARD_REF) return findTailwindConfig(type.render(props, null), depth + 1);
+  if (displayName(type) === "Tailwind") return { config: props.config ?? {}, component: type };
+  if (typeof type === "string" || type === React.Fragment) return findTailwind(props.children, depth + 1);
+  if (displayName(type) && REACT_EMAIL_COMPONENTS.has(displayName(type) as string)) return findTailwind(props.children, depth + 1);
+  if (type?.$$typeof === MEMO) return findTailwind(React.createElement(type.type, props), depth + 1);
+  if (type?.$$typeof === FORWARD_REF) return findTailwind(type.render(props, null), depth + 1);
   if (typeof type === "function" && !type.prototype?.isReactComponent) {
-    return findTailwindConfig(await callSuspending(() => type(props)), depth + 1);
+    return findTailwind(await callSuspending(() => type(props)), depth + 1);
   }
-  return findTailwindConfig(props.children, depth + 1);
+  return findTailwind(props.children, depth + 1);
 }

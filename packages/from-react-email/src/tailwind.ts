@@ -18,7 +18,7 @@ export interface ResolvedClasses {
 
 export const NO_CLASSES: ResolvedClasses = { styles: new Map(), leftover: new Map(), phone: new Map() };
 
-export async function resolveTailwind(classNames: string[], config?: Record<string, unknown>): Promise<ResolvedClasses> {
+export async function resolveTailwind(classNames: string[], config?: Record<string, unknown>, tailwind: unknown = Tailwind): Promise<ResolvedClasses> {
   const unique = [...new Set(classNames)];
   const styles = new Map<string, Style>();
   const leftover = new Map<string, string[]>();
@@ -28,7 +28,7 @@ export async function resolveTailwind(classNames: string[], config?: Record<stri
     React.createElement("head", { key: "head" }),
     ...unique.map((className, i) => React.createElement("div", { key: i, className, "data-tw": i })),
   ];
-  const result = await callSuspending(() => (Tailwind as any)({ children, config }));
+  const result = await callSuspending(() => (tailwind as any)({ children, config }));
   React.Children.forEach(result as React.ReactNode, (child: any) => {
     if (child?.type === "head") css += textOf(child.props?.children);
     const index = child?.props?.["data-tw"];
