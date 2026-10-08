@@ -459,3 +459,27 @@ export default function Template() {
     }
   });
 });
+
+describe("lost style lines", () => {
+  it("are the lines of the template as written, with components inlined above them", async () => {
+    const source = `import { Html, Body, Section, Text } from "@react-email/components";
+const Card = ({ title, tone }: { title: string; tone: string }) => (
+  <Section>
+    <Text style={{ color: tone }}>{title}</Text>
+  </Section>
+);
+export default function Template({ tone = "red", size = "14px" }: { tone?: string; size?: string }) {
+  return (
+    <Html>
+      <Body>
+        <Card title="One" tone={tone} />
+        <Text style={{ fontSize: size }}>Hi</Text>
+      </Body>
+    </Html>
+  );
+}`;
+    const result = await convertSource(source);
+    // Inside the component: where it's used. In the template: its own line.
+    expect(result.report.lostStyles).toEqual([expect.stringMatching(/^line 11: color/), "line 12: fontSize: size"]);
+  });
+});

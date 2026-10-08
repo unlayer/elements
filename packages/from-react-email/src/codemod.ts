@@ -135,6 +135,8 @@ class Converter {
   /** Module constants copied in with imported components: dropped if the output doesn't use them. */
   private copied: string[] = [];
   private original?: string;
+  /** Lines of `file` → lines of `original` (see lineMap). */
+  private lines?: number[];
   /** Source ranges copied into the output as-is (fallbacks). */
   private readonly fallbackRanges: Array<{ from: number; to: number }> = [];
   /** Rules on a single class from the head's <style>: desktop, and phone media queries. */
@@ -402,6 +404,14 @@ class Converter {
     return undefined;
   }
 
+  /** The line of a position in the template as written (components inlined above it move lines). */
+  private originalLine(position: number): number {
+    const line = this.file.getLineAndCharacterOfPosition(position).line + 1;
+    if (this.original === undefined || this.original === this.file.text) return line;
+    this.lines ??= lineMap(this.original, this.file.text);
+    return this.lines[line - 1] ?? line;
+  }
+
   /**
    * The properties of a style object that are known; the ones computed from
    * props or state are recorded as lost (unless the element is kept as HTML).
@@ -410,7 +420,7 @@ class Converter {
     const style: Style = {};
     const node = expression && unwrap(expression);
     const lose = (part: ts.Node, text: string) => {
-      const line = this.file.getLineAndCharacterOfPosition(part.getStart()).line + 1;
+      const line = this.originalLine(part.getStart());
       if (!this.droppedStyles.some((d) => d.from === part.getStart())) this.droppedStyles.push({ from: part.getStart(), to: part.getEnd(), detail: `line ${line}: ${text.replace(/\s+/g, " ").slice(0, 80)}` });
     };
     if (!node || !ts.isObjectLiteralExpression(node)) {
@@ -1649,6 +1659,36 @@ class Converter {
 // ============================================
 // Helpers
 // ============================================
+
+/**
+ * Each line of `changed` (a template with its components inlined) → the line
+ * of `original` it comes from, by a line diff: an unchanged line keeps its
+ * own, a line the inlining wrote takes the first line it replaced (where the
+ * component is used).
+ */
+function lineMap(original: string, changed: string): number[] {
+  const a = original.split("\n");
+  const b = changed.split("\n");
+  // Longest common subsequence of lines, from the end.
+  const common = Array.from({ length: a.length + 1 }, () => new Uint32Array(b.length + 1));
+  for (let i = a.length - 1; i >= 0; i--) {
+    for (let j = b.length - 1; j >= 0; j--) common[i][j] = a[i] === b[j] ? common[i + 1][j + 1] + 1 : Math.max(common[i + 1][j], common[i][j + 1]);
+  }
+  const map: number[] = [];
+  let i = 0;
+  let replaced = 0; // where the current run of changes starts in `original`
+  for (let j = 0; j < b.length; ) {
+    if (i < a.length && a[i] === b[j]) {
+      map[j++] = ++i;
+      replaced = i;
+    } else if (i < a.length && common[i + 1][j] >= common[i][j + 1]) {
+      i++;
+    } else {
+      map[j++] = Math.min(replaced, a.length - 1) + 1;
+    }
+  }
+  return map;
+}
 
 /**
  * Constants, functions and imports the template read but the migrated file no
