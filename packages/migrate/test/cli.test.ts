@@ -370,6 +370,25 @@ export default function Receipt() { return <Html><Body><Text>Your receipt</Text>
     expect(fs.readFileSync(path.join(dir, "emails/activation.tsx"), "utf8")).toContain("@unlayer/react-elements");
   });
 
+  it("counts a file reached through `export *` as used only when it defines the imported name", async () => {
+    const template = (text: string) => `import { Html, Body, Text } from "@react-email/components";
+export default function Template() { return <Html><Body><Text>${text}</Text></Body></Html>; }`;
+    const footer = `import { Text } from "@react-email/components";
+export function Footer() { return <Text>Sent by Acme</Text>; }`;
+    const dir = project({
+      "emails/welcome.tsx": template("Welcome aboard"),
+      "emails/footer.tsx": footer,
+      "emails/index.ts": `export * from "./footer";\nexport * from "./welcome";\n`,
+      "emails/receipt.tsx": `import { Html, Body, Text } from "@react-email/components";
+import { Footer } from "./index";
+export default function Receipt() { return <Html><Body><Text>Your receipt</Text><Footer /></Body></Html>; }`,
+    });
+    const out = io(dir);
+    expect(await main(["emails", "--write"], out, lib), out.out + out.err).toBe(0);
+    expect(out.out).toMatch(/✓ emails\/welcome\.tsx/);
+    expect(out.out).toMatch(/- emails\/footer\.tsx: skipped \(imported by emails\/receipt\.tsx/);
+  });
+
   it("checks without writing by default, and replaces templates with --write", async () => {
     const dir = project({ "emails/welcome.tsx": WELCOME, "lib/format.ts": FORMAT });
     const dry = io(dir);

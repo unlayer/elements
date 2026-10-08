@@ -860,6 +860,21 @@ async function importedInputs(inputs: Input[]): Promise<Map<string, string>> {
     }
     return out;
   };
+  /** The names a module exports itself (not through `export … from`), "default" included. */
+  const declared = async (path: string) => {
+    const names = new Set<string>();
+    for (const statement of (await parse(path)).statements) {
+      const modifiers = ts.canHaveModifiers(statement) ? ts.getModifiers(statement) ?? [] : [];
+      const exported = modifiers.some((m) => m.kind === ts.SyntaxKind.ExportKeyword);
+      const isDefault = modifiers.some((m) => m.kind === ts.SyntaxKind.DefaultKeyword);
+      if (ts.isExportAssignment(statement)) names.add("default");
+      else if (exported && isDefault) names.add("default");
+      else if (exported && (ts.isFunctionDeclaration(statement) || ts.isClassDeclaration(statement)) && statement.name) names.add(statement.name.text);
+      else if (exported && ts.isVariableStatement(statement)) statement.declarationList.declarations.forEach((d) => ts.isIdentifier(d.name) && names.add(d.name.text));
+      else if (ts.isExportDeclaration(statement) && !statement.moduleSpecifier && statement.exportClause && ts.isNamedExports(statement.exportClause)) statement.exportClause.elements.forEach((e) => names.add(e.name.text));
+    }
+    return names;
+  };
   for (const input of inputs) {
     const load = await moduleLoader(input.path);
     // Follow an import to the modules that define the names it takes, through re-export files.
@@ -868,7 +883,12 @@ async function importedInputs(inputs: Input[]): Promise<Map<string, string>> {
       if (!loaded || depth > 8) return;
       const forwards = await reExports(loaded.fileName).catch(() => []);
       const forwarded = names === "all" ? forwards : forwards.filter((r) => r.exported === "*" || names.includes(r.exported));
-      const own = names === "all" || names.some((name) => !forwards.some((r) => r.exported === name));
+      // A module is used when it defines one of the names, not when an `export *` merely passes them on.
+      // One with no ES exports at all (CommonJS) counts as used.
+      const own = await declared(loaded.fileName).then(
+        (defined) => names === "all" || names.some((name) => defined.has(name)) || (!defined.size && !forwards.length),
+        () => true,
+      );
       const dependency = scanned.get(await canonicalPath(loaded.fileName));
       if (dependency && dependency !== input.path && own) dependencies.set(dependency, input.path);
       for (const r of forwarded) await follow(loaded.fileName, r.specifier, r.imported === "*" ? names : [r.imported], depth + 1);
