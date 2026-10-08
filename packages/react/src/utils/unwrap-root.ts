@@ -6,6 +6,7 @@
  */
 
 import React from "react";
+import { renderToStaticMarkup } from "react-dom/server";
 import { UNLAYER_RENDER_KEY } from "./create-component";
 
 /** The root components a design starts from. */
@@ -26,12 +27,45 @@ function isElementsComponent(element: React.ReactElement): boolean {
   return !!type?.[UNLAYER_RENDER_KEY] || CONTAINER_NAMES.has(type?.displayName);
 }
 
+/** Thrown for a template that is async or suspends: renderToHtml renders synchronously. */
+const ASYNC_TEMPLATE =
+  "async and suspending templates aren't supported: load the data first and pass it as props";
+
+const isThenable = (value: unknown): boolean => typeof (value as { then?: unknown } | null)?.then === "function";
+
+/**
+ * Call a template component in a throwaway render of its own. Its hooks run
+ * there, never on the component that is rendering when renderToHtml is called
+ * (a live preview in `useMemo`), whose hooks they would otherwise corrupt.
+ */
+function callIsolated(call: () => unknown): unknown {
+  let result: unknown;
+  let error: unknown;
+  let ran = false;
+  let threw = false;
+  const Probe = () => {
+    ran = true;
+    try {
+      result = call();
+    } catch (cause) {
+      threw = true;
+      error = cause;
+    }
+    return null;
+  };
+  renderToStaticMarkup(React.createElement(Probe));
+  if (threw) throw isThenable(error) ? new Error(ASYNC_TEMPLATE) : error;
+  if (!ran) throw new Error("the template wasn't rendered");
+  if (isThenable(result)) throw new Error(ASYNC_TEMPLATE);
+  return result;
+}
+
 /**
  * Call wrapper components (plain functions, `memo`, `forwardRef`, nested in any
- * order) until a root element comes out. Returns the element it stops at, which
- * isn't a root when a wrapper can't be called (a class) or doesn't return an
- * element (async, null, an array). Throws what a wrapper throws: React hooks
- * can't run outside a React render.
+ * order) until a root element comes out, each in a render of its own (so its
+ * hooks work). Returns the element it stops at, which isn't a root when a
+ * wrapper can't be called (a class) or doesn't return an element (null, an
+ * array). Throws what a wrapper throws, and for an async template.
  */
 export function unwrapRoot(element: React.ReactElement): React.ReactElement {
   let current = element;
@@ -44,8 +78,8 @@ export function unwrapRoot(element: React.ReactElement): React.ReactElement {
       continue;
     }
     let produced: unknown;
-    if (type?.$$typeof === FORWARD_REF) produced = type.render({ ...props }, null);
-    else if (typeof type === "function" && !type.prototype?.isReactComponent) produced = type({ ...props });
+    if (type?.$$typeof === FORWARD_REF) produced = callIsolated(() => type.render({ ...props }, null));
+    else if (typeof type === "function" && !type.prototype?.isReactComponent) produced = callIsolated(() => type({ ...props }));
     else break;
     if (!React.isValidElement(produced)) break;
     current = produced;
@@ -54,7 +88,7 @@ export function unwrapRoot(element: React.ReactElement): React.ReactElement {
 }
 
 /** The advice both render functions give when a wrapper can't be unwrapped. */
-export const UNWRAP_ADVICE = "Pass the root element (<Email>…</Email>), or a wrapper that returns one without React hooks.";
+export const UNWRAP_ADVICE = "Pass the root element (<Email>…</Email>), or a function component that returns one.";
 
 /**
  * For renderToHtml: the root a template component unwraps to. An element that
@@ -69,6 +103,8 @@ export function htmlRoot(element: React.ReactElement, api: string): React.ReactE
     const root = unwrapRoot(element);
     if (ROOT_NAMES.has(getDisplayName(root) ?? "")) return root;
   } catch (cause) {
+    // An async template can't be rendered through React either: say why.
+    if (cause instanceof Error && cause.message === ASYNC_TEMPLATE) throw new Error(`[Unlayer] ${api}: ${ASYNC_TEMPLATE}.`);
     reason = cause instanceof Error ? cause.message : String(cause);
   }
   console.warn(`[Unlayer] ${api}: couldn't unwrap <${getDisplayName(element) || "wrapper"}> (${reason}): its root's fonts, lang, dir and phone styles are ignored. ${UNWRAP_ADVICE}`);

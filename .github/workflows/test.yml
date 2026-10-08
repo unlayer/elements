@@ -55,8 +55,8 @@ jobs:
         run: pnpm --filter @unlayer/react-elements typecheck
 
       # ── Bundle size budget ──────────────────────────────────────
-      # Fail if the react-elements ESM bundle exceeds 87KB.
-      # Current size: 86,697 bytes, including phone device-override CSS,
+      # Fail if the react-elements ESM bundle exceeds 88KB.
+      # Current size: 87,556 bytes, including phone device-override CSS,
       # visibility settings and template-component unwrapping.
       # The budget tracks the unminified ESM output as a proxy for code volume;
       # it still flags accidental dependency bundling (any real dep is 10KB+).
@@ -64,7 +64,7 @@ jobs:
         run: |
           BUNDLE="packages/react/dist/index.js"
           SIZE=$(wc -c < "$BUNDLE" | tr -d ' ')
-          MAX_SIZE=87000
+          MAX_SIZE=88000
           echo "Bundle: $BUNDLE"
           echo "Size: $SIZE bytes (budget: $MAX_SIZE bytes)"
           if [ "$SIZE" -gt "$MAX_SIZE" ]; then

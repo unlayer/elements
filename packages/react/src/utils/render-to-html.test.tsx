@@ -344,20 +344,35 @@ describe("renderToHtml with a template component", () => {
     for (const Template of [Memo, Ref, MemoRef]) expect(renderToHtml(<Template name="Ada" />)).toBe(direct);
   });
 
-  it("renders a wrapper that uses hooks through React, with a warning", () => {
+  it("unwraps a wrapper that uses hooks, keeping the root's settings", () => {
     const WithHook = (props: { name: string }) => {
       React.useId();
-      return root(props);
+      const [name] = React.useState(props.name);
+      return root({ name });
     };
+    expect(renderToHtml(<WithHook name="Ada" />)).toBe(direct);
+  });
+
+  it("falls back to rendering through React, with a warning, for a wrapper past the depth limit", () => {
+    let Deep: React.ComponentType<{ name: string }> = Welcome;
+    for (let i = 0; i < 21; i++) {
+      const Inner = Deep;
+      Deep = (props: { name: string }) => <Inner {...props} />;
+    }
     const warnings: string[] = [];
     const warn = console.warn;
     console.warn = (message: string) => void warnings.push(message);
     try {
-      expect(renderToHtml(<WithHook name="Ada" />)).toContain("Hello Ada");
+      expect(renderToHtml(<Deep name="Ada" />)).toContain("Hello Ada");
     } finally {
       console.warn = warn;
     }
-    expect(warnings.join()).toContain("couldn't unwrap <WithHook>");
+    expect(warnings.join()).toContain("couldn't unwrap");
+  });
+
+  it("says an async template isn't supported", () => {
+    const Async = (async () => root({ name: "Ada" })) as unknown as React.ComponentType;
+    expect(() => renderToHtml(<Async />)).toThrow("async and suspending templates aren't supported");
   });
 
   it("leaves Elements components and plain HTML as they are", () => {
@@ -370,5 +385,97 @@ describe("renderToHtml with a template component", () => {
       console.warn = warn;
     }
     expect(warnings).toEqual([]);
+  });
+});
+
+describe("renderToHtml inside a React render", () => {
+  // An app showing a live preview: renderToHtml runs while its component renders.
+  const { render: mount } = require("@testing-library/react") as typeof import("@testing-library/react");
+  const Template = ({ name }: { name: string }) => {
+    const id = React.useId();
+    const [greeting] = React.useState("Hello");
+    return (
+      <Email lang="ar" textDirection="rtl" previewText={id}>
+        <Row>
+          <Column>
+            <Paragraph mobile={{ fontSize: "12px" }}>{`${greeting} ${name}`}</Paragraph>
+          </Column>
+        </Row>
+      </Email>
+    );
+  };
+  const Preview = ({ name }: { name: string }) => {
+    const [count, setCount] = React.useState(0);
+    const html = React.useMemo(() => renderToHtml(<Template name={name} />), [name]);
+    React.useEffect(() => void setCount((c) => c + 1), [name]);
+    return <output data-count={count}>{html}</output>;
+  };
+
+  it("doesn't touch the app's hooks, across re-renders, and keeps the root's settings", () => {
+    const errors: string[] = [];
+    const error = console.error;
+    console.error = (...args: unknown[]) => void errors.push(args.map(String).join(" "));
+    let mounted: ReturnType<typeof mount>;
+    try {
+      mounted = mount(<Preview name="Ada" />);
+      mounted.rerender(<Preview name="Grace" />);
+      mounted.rerender(<Preview name="Linus" />);
+    } finally {
+      console.error = error;
+    }
+    expect(errors).toEqual([]);
+    const { container } = mounted;
+    expect(container.querySelector("output")?.getAttribute("data-count")).toBe("3");
+    const html = container.querySelector("output")?.textContent ?? "";
+    expect(html).toContain("Hello Linus");
+    expect(html).toContain('lang="ar"');
+    expect(html).toContain('dir="rtl"');
+    expect(html).toContain("font-size: 12px");
+  });
+
+  it("leaves the app's render working when the template throws", () => {
+    const Broken = () => {
+      React.useId();
+      throw new Error("template bug");
+    };
+    const App = ({ n }: { n: number }) => {
+      const [label] = React.useState("ok");
+      const html = React.useMemo(() => {
+        try {
+          return renderToHtml(<Broken />);
+        } catch {
+          return "failed";
+        }
+      }, [n]);
+      return <output>{`${label} ${html}`}</output>;
+    };
+    const warn = console.warn;
+    console.warn = () => undefined;
+    try {
+      const { rerender, container } = mount(<App n={1} />);
+      rerender(<App n={2} />);
+      expect(container.querySelector("output")?.textContent).toBe("ok failed");
+    } finally {
+      console.warn = warn;
+    }
+  });
+
+  it("works inside a server render of the app", () => {
+    const { renderToString } = require("react-dom/server") as typeof import("react-dom/server");
+    const App = () => {
+      const id = React.useId();
+      const html = renderToHtml(<Template name="Ada" />);
+      return <output data-id={id}>{html}</output>;
+    };
+    const out = renderToString(<App />);
+    expect(out).toContain("Hello Ada");
+    expect(out).toContain("dir=&quot;rtl&quot;");
+    expect(out).toMatch(/data-id=":R[^"]*:"/);
+  });
+
+  it("keeps the root's settings for a template that uses hooks, outside a render too", () => {
+    const html = renderToHtml(<Template name="Ada" />);
+    expect(html).toContain("Hello Ada");
+    expect(html).toContain('dir="rtl"');
   });
 });
