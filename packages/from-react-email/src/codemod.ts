@@ -44,7 +44,7 @@ import {
   type MapCtx,
   type Parts,
 } from "./map";
-import { addSides, backgroundColor, boxSides, color, fontFamilyProp, inherit, isHidden, margins, px, toPx, ZERO, type Style } from "./styles";
+import { addSides, backgroundColor, boxSides, color, fontFamilyProp, inherit, isHidden, margins, phoneOnly, px, shownOnPhones, toPx, ZERO, type Style } from "./styles";
 import { inlineLocalComponents, type ModuleLoader } from "./components";
 import { inlineLocalJsx } from "./inline";
 import { splitConditionalClasses } from "./variants";
@@ -690,9 +690,12 @@ class Converter {
         loose.push(child);
         continue;
       }
-      const jsx = this.read(child);
+      let jsx = this.read(child);
       if (SKIP.has(jsx.name ?? jsx.tag)) continue;
+      // Shown only on phones: a block hidden on desktop. A box can't be hidden that way, so it stays HTML.
+      if (shownOnPhones(jsx.style) && !(jsx.name && BOXES.has(jsx.name))) jsx = { ...jsx, style: phoneOnly(jsx.style) };
       if (isHidden(jsx.style)) {
+        if (shownOnPhones(jsx.style)) this.report.note("content shown only on phones stays hidden there", jsx.name ?? jsx.tag);
         flush();
         out.push({ kind: "content", block: { node: this.fallback(jsx, ctx, "hidden element"), margin: ZERO, padding: ZERO } });
         continue;
@@ -1066,9 +1069,11 @@ class Converter {
         continue;
       }
       if (!(ts.isJsxElement(child) || ts.isJsxSelfClosingElement(child))) continue;
-      const jsx = this.read(child);
+      let jsx = this.read(child);
       if (SKIP.has(jsx.name ?? jsx.tag)) continue;
+      if (shownOnPhones(jsx.style) && !(jsx.name && BOXES.has(jsx.name))) jsx = { ...jsx, style: phoneOnly(jsx.style) };
       if (isHidden(jsx.style)) {
+        if (shownOnPhones(jsx.style)) this.report.note("content shown only on phones stays hidden there", jsx.name ?? jsx.tag);
         flushInline();
         out.push({ block: { node: this.fallback(jsx, ctx, "hidden element"), margin: ZERO, padding: ZERO } });
         continue;

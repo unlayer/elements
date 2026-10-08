@@ -216,3 +216,42 @@ export default function Template() { return <Html><Body><Img src="https://exampl
     expect(result.code).toContain('width="300px"');
   });
 });
+
+describe("phone rules", () => {
+  it("reads every way of writing a phone media query", async () => {
+    const { isPhoneQuery, phoneStyles } = await import("../src/tailwind");
+    for (const query of ["(max-width: 600px)", "(480px>=width)", "(width <= 480px)", "(width<30rem)", "only screen and (max-device-width: 480px)"]) expect(isPhoneQuery(query), query).toBe(true);
+    for (const query of ["(min-width: 481px)", "(width >= 481px)", "(481px<=width)", "(320px <= width <= 480px)", "print"]) expect(isPhoneQuery(query), query).toBe(false);
+    expect(phoneStyles("@media (480px>=width){.mobile_text-14px{font-size:14px!important}}").get("mobile_text-14px")).toEqual({ fontSize: "14px" });
+    expect(phoneStyles("@media (max-width: 600px) { /* phones */ .small { font-size: 12px } }").get("small")).toEqual({ fontSize: "12px" });
+  });
+
+  const css = "@media (max-width: 600px) { .phone-only { display: block !important } }";
+  const source = `import { Html, Head, Body, Section, Text } from "@react-email/components";
+export default function Template() {
+  return <Html><Head><style>{"${css}"}</style></Head><Body>
+    <Text>Everywhere</Text>
+    <Text className="phone-only" style={{ display: "none" }}>Phones only</Text>
+    <Section className="phone-only" style={{ display: "none" }}><Text>Phone section</Text></Section>
+  </Body></Html>;
+}`;
+
+  it("codemod: content a phone rule shows becomes a block hidden on desktop; a box is reported", async () => {
+    const result = await convertSource(source);
+    expect(result.code).toMatch(/hideOnDesktop[\s\S]{0,200}Phones only|Phones only[\s\S]{0,40}/);
+    expect(result.code).toMatch(/<Paragraph[^>]*hideOnDesktop[^>]*>\s*Phones only/);
+    expect(result.report.notes).toContainEqual({ reason: "content shown only on phones stays hidden there", detail: "Section" });
+  });
+
+  it("runtime: the same", async () => {
+    const { Html, Head, Body, Section, Text } = await import("@react-email/components");
+    const h = React.createElement;
+    const Template = () => h(Html, null, h(Head, null, h("style", null, css)), h(Body, null,
+      h(Text, null, "Everywhere"),
+      h(Text, { className: "phone-only", style: { display: "none" } }, "Phones only"),
+      h(Section, { className: "phone-only", style: { display: "none" } }, h(Text, null, "Phone section"))));
+    const conversion = await convertReactEmail(Template);
+    expect(JSON.stringify(conversion.tree)).toMatch(/"hideOnDesktop":true[^}]*/);
+    expect(conversion.report.notes).toContainEqual({ reason: "content shown only on phones stays hidden there", detail: "Section" });
+  });
+});

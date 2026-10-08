@@ -32,7 +32,7 @@ import {
   type FontSpec,
   type MapCtx,
 } from "./map";
-import { addSides, backgroundColor, boxSides, color, fontFamilyProp, inherit, isHidden, margins, px, toPx, ZERO, type Style } from "./styles";
+import { addSides, backgroundColor, boxSides, color, fontFamilyProp, inherit, isHidden, margins, phoneOnly, px, shownOnPhones, toPx, ZERO, type Style } from "./styles";
 import type { BoxSides } from "@unlayer/convert-core";
 import { phoneSides, withPhoneStyles } from "./phone-styles";
 import { phoneStyles, stacksOnPhones, stylesheetRules } from "./tailwind";
@@ -154,7 +154,10 @@ function flowFrom(nodes: Node[], ctx: Ctx): Flow[] {
     }
     const name = nameOf(node);
     if (SKIP.has(name)) continue;
+    // Shown only on phones: a block hidden on desktop. A box can't be hidden that way, so it stays HTML.
+    if (shownOnPhones(node.props.style ?? {}) && !BOXES.has(name)) node.props = { ...node.props, style: phoneOnly(node.props.style) };
     if (isHidden(node.props.style ?? {})) {
+      if (shownOnPhones(node.props.style ?? {})) ctx.report.note("content shown only on phones stays hidden there", name);
       flush();
       out.push({ kind: "content", block: { node: fallbackHtml(kept(renderToStaticMarkup(node.element), ctx), "hidden element"), margin: ZERO, padding: ZERO } });
       continue;
@@ -304,7 +307,10 @@ function blocksFrom(nodes: Node[], ctx: Ctx): Array<{ block: Block; style?: Styl
     }
     const name = nameOf(node);
     if (SKIP.has(name)) continue;
+    // Shown only on phones: a block hidden on desktop. A box can't be hidden that way, so it stays HTML.
+    if (shownOnPhones(node.props.style ?? {}) && !BOXES.has(name)) node.props = { ...node.props, style: phoneOnly(node.props.style) };
     if (isHidden(node.props.style ?? {})) {
+      if (shownOnPhones(node.props.style ?? {})) ctx.report.note("content shown only on phones stays hidden there", name);
       flushInline();
       out.push({ block: { node: fallbackHtml(kept(renderToStaticMarkup(node.element), ctx), "hidden element"), margin: ZERO, padding: ZERO } });
       continue;

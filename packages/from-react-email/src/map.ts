@@ -88,6 +88,7 @@ export function textProps(
   return {
     ...(Object.keys(mobile).length ? { mobile } : {}),
     ...(style._phone?.display === "none" ? { hideOnMobile: true } : {}),
+    ...(style._hideDesktop ? { hideOnDesktop: true } : {}),
     color: color(style.color ?? ctx.inherited.color) ?? "#000000",
     fontSize: cssLength(style.fontSize ?? defaults.fontSize ?? ctx.inherited.fontSize),
     lineHeight: lineHeightValue(style.lineHeight ?? defaults.lineHeight ?? ctx.inherited.lineHeight),
@@ -312,6 +313,7 @@ export function imageBlock(
       src,
       ...(style._phone ? { mobile: { ...(style._phone.width === "100%" || style._phone.maxWidth === "100%" ? { autoWidth: true } : {}), ...(style._phone.textAlign ? { textAlign: style._phone.textAlign } : {}) }, ...(style._phone.display === "none" ? { hideOnMobile: true } : {}) } : {}),
       ...(style._phone?.width === "100%" || style._phone?.maxWidth === "100%" ? { values: { _override: { mobile: { src: { width: 0 } } } } } : {}),
+      ...(style._hideDesktop ? { hideOnDesktop: true } : {}),
       ...(width ? { width: `${width}px` } : {}),
       alt: attrs.alt,
       textAlign: align,
@@ -332,6 +334,7 @@ export function dividerBlock(style: Style, ctx: MapCtx): Block {
   return {
     node: el("Divider", {
       ...(style._phone?.display === "none" ? { hideOnMobile: true } : {}),
+      ...(style._hideDesktop ? { hideOnDesktop: true } : {}),
       borderTopWidth: style.borderTopWidth !== undefined ? cssLength(style.borderTopWidth) : top.width ?? "1px",
       borderTopStyle: style.borderTopStyle ?? top.style ?? "solid",
       borderTopColor: color(style.borderTopColor ?? style.borderColor ?? top.color) ?? "#eaeaea",

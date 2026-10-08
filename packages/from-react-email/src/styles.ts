@@ -11,6 +11,18 @@ export function isHidden(style: Style): boolean {
   return /^none\s*(?:!important)?$/i.test(String(style.display ?? "").trim()) || /^hidden\s*(?:!important)?$/i.test(String(style.visibility ?? "").trim());
 }
 
+/** Hidden on desktop and shown by a phone rule (`hidden mobile:block`, a `<style>` media query). */
+export function shownOnPhones(style: Style): boolean {
+  const shown = style._phone?.display;
+  return /^none/i.test(String(style.display ?? "").trim()) && typeof shown === "string" && !/^none/i.test(shown.trim());
+}
+
+/** The style of an element shown only on phones: no desktop `display: none`, marked to hide on desktop. */
+export function phoneOnly(style: Style): Style {
+  const { display: _display, ...rest } = style;
+  return { ...rest, _hideDesktop: true };
+}
+
 /** CSS properties that pass from a container to the text inside it. */
 export interface Inherited {
   color?: string;

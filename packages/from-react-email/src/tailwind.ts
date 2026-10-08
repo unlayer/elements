@@ -41,14 +41,27 @@ export async function resolveTailwind(classNames: string[], config?: Record<stri
 }
 
 /**
+ * Whether a media query is for small screens: `max-width: 600px`, or the
+ * range syntax (`width <= 480px`, `480px >= width`, as React Email 6 writes
+ * it). Anything with a lower bound (`min-width`, `width >= …`) isn't.
+ */
+export function isPhoneQuery(query: string): boolean {
+  const q = query.replace(/\s+/g, "");
+  const upper = /max-(?:device-)?width|width<=?|[\d.]+(?:px|em|rem)>=?width/i.test(q);
+  const lower = /min-(?:device-)?width|width>=?|[\d.]+(?:px|em|rem)<=?width/i.test(q);
+  return upper && !lower;
+}
+
+/**
  * The rules a stylesheet applies on small screens (`max-width` media
  * queries), by class: `.mobile_imprtntblock{@media (max-width:600px){display:block!important}}`
  * (or the unnested form) → mobile_imprtntblock: { display: "block" }.
  */
 export function phoneStyles(css: string): Map<string, Style> {
   const out = new Map<string, Style>();
+  css = css.replace(/\/\*[\s\S]*?\*\//g, "");
   const add = (cls: string, query: string, body: string) => {
-    if (!/max-width|width\s*<|max-device-width/i.test(query) || /min-width|width\s*>/i.test(query)) return;
+    if (!isPhoneQuery(query)) return;
     const style: Style = { ...(out.get(cls) ?? {}) };
     for (const decl of body.split(";")) {
       const at = decl.indexOf(":");
@@ -87,7 +100,7 @@ export function stylesheetRules(css: string): { classes: Map<string, Style>; oth
     const body = text.slice(open + 1, close - 1);
     i = close;
     if (/^@font-face$|^\*$/.test(selector)) continue;
-    const phone = (query: string) => /max-width|width\s*<|max-device-width/i.test(query) && !/min-width|width\s*>/i.test(query);
+    const phone = isPhoneQuery;
     if (selector.startsWith("@media")) {
       const query = selector.slice(6);
       for (const rule of body.matchAll(/([^{}]+)\{[^{}]*\}/g)) if (!(phone(query) && /^\.[\w-]+$/.test(rule[1].trim()))) other.push(`${rule[1].trim()} ${selector}`);
