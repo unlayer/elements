@@ -386,7 +386,8 @@ async function migrateFile(input: Input, options: Options, lib: Library, io: Io,
       await writeExclusive(probe, code);
       probeCreated = true;
       const migrated = templateComponent(defaultExport(await importFile(probe, io.cwd, release)));
-      const Migrated = migrated?.component;
+      // Checked as exported (memo and forwardRef included), the way users render it.
+      const Migrated = migrated?.exported;
       if (!Migrated) throw new Error("the migrated file has no default export");
       // The migrated preview props are the original's with their JSX converted (classes become styles): the design uses them.
       const designProps = Object.keys(migrated.props).length ? migrated.props : props;
@@ -398,7 +399,7 @@ async function migrateFile(input: Input, options: Options, lib: Library, io: Io,
         mergeTags = tagged;
       }
     } catch (error) {
-      return { file: name, status: "failed", reason: `the migrated template doesn't render: ${message(error)}` };
+      return { file: name, status: "failed", reason: `the migrated template doesn't render: ${renderFailure(error)}` };
     } finally {
       if (probeCreated) await rm(probe, { force: true });
       await cleanProbeDirectories(dirname(probe), firstCreated);
@@ -469,7 +470,7 @@ async function compare(paths: string[], args: Args, io: Io, library?: Library): 
         return 1;
       }
       Original = original.component;
-      Migrated = migrated.component;
+      Migrated = migrated.exported;
       props = original.props;
     } catch (error) {
       io.stderr(`Couldn't load the templates: ${message(error)}\n`);
@@ -479,7 +480,7 @@ async function compare(paths: string[], args: Args, io: Io, library?: Library): 
     try {
       check = await lib.verifyConversion(Original, Migrated, { props });
     } catch (error) {
-      io.stderr(`The migrated template doesn't render: ${message(error)}\n`);
+      io.stderr(`The migrated template doesn't render: ${renderFailure(error)}\n`);
       return 2;
     }
     const problems = [
@@ -661,14 +662,15 @@ function defaultExport(mod: Record<string, any>): unknown {
   return value;
 }
 
-function templateComponent(value: any): { component: any; props: Record<string, unknown> } | undefined {
+function templateComponent(value: any): { component: any; exported: any; props: Record<string, unknown> } | undefined {
+  const exported = value;
   let props: Record<string, unknown> | undefined;
   let wrapped = false;
   const seen = new Set<unknown>();
   while (value && !seen.has(value)) {
     seen.add(value);
     props ??= value.PreviewProps;
-    if (typeof value === "function") return { component: value, props: props ?? {} };
+    if (typeof value === "function") return { component: value, exported, props: props ?? {} };
     if (value.$$typeof === Symbol.for("react.memo")) { value = value.type; wrapped = true; }
     else if (value.$$typeof === Symbol.for("react.forward_ref")) { value = value.render; wrapped = true; }
     else if ("$$typeof" in Object(value)) throw new Error("unsupported React template wrapper");
@@ -677,6 +679,14 @@ function templateComponent(value: any): { component: any; props: Record<string, 
   }
   if (wrapped) throw new Error("the React template wrapper has no renderable component");
   return undefined;
+}
+
+/** Why a migrated template doesn't render, in terms of what to change. */
+function renderFailure(error: unknown): string {
+  const text = message(error);
+  // Elements calls a template as a function to read its root's settings, outside a React render.
+  if (/Invalid hook call|reading 'use[A-Z]\w*'/.test(text)) return "it calls React hooks (useId, useMemo, …), which Elements templates can't use yet: compute those values outside the template and pass them as props";
+  return text;
 }
 
 /** Whether `name` is installed where `file` would find it (a node_modules folder above it). */

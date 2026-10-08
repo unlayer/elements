@@ -60,15 +60,17 @@ npm install @unlayer/react-elements
 
 Migrations render with your project's `@unlayer/react-elements` when it has one, so it must be a version this package supports (its peer dependency range). An older one would ignore settings the converter writes, such as phone layout, so the command stops with exit code `1` and the install command to run.
 
-```ts
+```tsx
 import { renderToHtml, renderToJson } from "@unlayer/react-elements";
 import Welcome from "./emails/welcome";
 
-const html = renderToHtml(Welcome({ name: "Alex" })); // send with any provider
-const design = renderToJson(Welcome({ name: "Alex" })); // open in the visual editor
+const html = renderToHtml(<Welcome name="Alex" />); // send with any provider
+const design = renderToJson(<Welcome name="Alex" />); // open in the visual editor
 ```
 
-`@react-email/components` can be removed once no template imports it. Templates with blocks kept as HTML still import React Email components for those blocks; the report lists them.
+React Email (`react-email` or `@react-email/components`) can be removed once no template imports it. Templates with blocks kept as HTML still import React Email components for those blocks, from the same package the template used; the report lists them.
+
+A migrated template can't call React hooks: Elements calls it to read its root's settings (fonts, language, direction, phone styles). The command reports such a template instead of migrating it.
 
 ## Programmatic use
 

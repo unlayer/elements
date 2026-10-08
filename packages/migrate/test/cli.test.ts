@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it } from "vitest";
+import React from "react";
 import fs from "node:fs";
 import path from "node:path";
 import * as lib from "@unlayer/from-react-email";
@@ -201,6 +202,39 @@ Template.PreviewProps = { note: <p className="mb-5">Read the docs</p> };`;
     const design = fs.readFileSync(path.join(dir, "migrated/note.design.json"), "utf8");
     expect(design).toContain("Read the docs");
     expect(design).not.toContain("mb-5");
+  });
+
+  it("checks a memo or forwardRef template as exported, and it renders as JSX with its root's settings", async () => {
+    for (const wrap of ["memo", "forwardRef"]) {
+      const source = `import React from "react";
+import { Html, Body, Text } from "@react-email/components";
+function Template({ name }: { name: string }) { return <Html lang="ar" dir="rtl"><Body><Text>مرحبا {name}</Text></Body></Html>; }
+const Exported = React.${wrap}(${wrap === "memo" ? "Template" : "(props: { name: string }, _ref) => <Template {...props} />"});
+(Exported as any).PreviewProps = { name: "Ada" };
+export default Exported;`;
+      const dir = project({ "emails/greeting.tsx": source });
+      const out = io(dir);
+      expect(await main(["emails", "--out", "migrated"], out, lib), out.out + out.err).toBe(0);
+      const { tsImport } = await import("tsx/esm/api");
+      const mod = await tsImport(path.join(dir, "migrated/greeting.tsx"), { parentURL: import.meta.url });
+      const Template = mod.default.default ?? mod.default;
+      const { renderToHtml } = await import("@unlayer/react-elements");
+      const html = renderToHtml(React.createElement(Template, { name: "Ada" }));
+      expect(html).toContain('lang="ar"');
+      expect(html).toContain('dir="rtl"');
+      expect(html).toContain("Ada");
+    }
+  });
+
+  it("says a template that calls React hooks can't be migrated yet, and why", async () => {
+    const source = `import React from "react";
+import { Html, Body, Text } from "@react-email/components";
+export default function Template() { const id = React.useId(); return <Html><Body><Text id={id}>Hello</Text></Body></Html>; }`;
+    const dir = project({ "emails/hooks.tsx": source });
+    const out = io(dir);
+    expect(await main(["emails", "--out", "migrated"], out, lib)).toBe(2);
+    expect(out.out + out.err).toContain("calls React hooks");
+    expect(fs.existsSync(path.join(dir, "migrated/hooks.tsx"))).toBe(false);
   });
 
   it("migrates, checks and writes templates to --out, with design JSON and a report", async () => {

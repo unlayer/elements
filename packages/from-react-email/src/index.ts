@@ -22,6 +22,16 @@ import { convertElement } from "./runtime";
 import { mergeTagged } from "./merge-tags";
 
 type Template = React.ComponentType<any> & { PreviewProps?: Record<string, unknown> };
+/** A migrated template as its file exports it: a function, or one wrapped in `memo` or `forwardRef`. */
+type MigratedTemplate = ((props: any) => React.ReactElement) | React.ExoticComponent<any>;
+
+/** Call a migrated template for its root element, unwrapping `memo` and `forwardRef` as renderToHtml does. */
+function callTemplate(Converted: MigratedTemplate, props: Record<string, unknown>): React.ReactElement {
+  const type = Converted as any;
+  if (type?.$$typeof === Symbol.for("react.memo")) return callTemplate(type.type, props);
+  if (type?.$$typeof === Symbol.for("react.forward_ref")) return type.render(props, null);
+  return type(props);
+}
 
 export interface RuntimeOptions {
   /** Props to render the template with. Defaults to its `PreviewProps`. */
@@ -113,7 +123,7 @@ export interface Verification extends TextCheck {
  */
 export async function verifyConversion(
   Original: Template,
-  Converted: (props: any) => React.ReactElement,
+  Converted: MigratedTemplate,
   options: {
     props?: Record<string, unknown>;
     /**
@@ -126,9 +136,9 @@ export async function verifyConversion(
   const props = options.props ?? Original.PreviewProps ?? {};
   const originalHtml = await render(React.createElement(Original, props));
   // renderToHtml reads the root (Email) element, so call the component.
-  const root = Converted(props);
+  const root = callTemplate(Converted, props);
   const convertedHtml = renderToHtml(root);
-  const designRoot = options.designProps ? Converted(options.designProps) : root;
+  const designRoot = options.designProps ? callTemplate(Converted, options.designProps) : root;
   const designWarnings: string[] = [];
   const warn = console.warn;
   console.warn = (...args: unknown[]) => void designWarnings.push(args.map(String).join(" "));
@@ -151,13 +161,13 @@ export async function verifyConversion(
       continue; // the original doesn't render this way either: nothing to compare
     }
     try {
-      const check = compareText(original, renderToHtml(Converted(flipped)));
+      const check = compareText(original, renderToHtml(callTemplate(Converted, flipped)));
       const warnings: string[] = [];
       const previousWarn = console.warn;
       console.warn = (...args: unknown[]) =>
         void warnings.push(args.map(String).join(" "));
       try {
-        renderToJson(Converted(flipped));
+        renderToJson(callTemplate(Converted, flipped));
       } finally {
         console.warn = previousWarn;
       }
@@ -186,14 +196,14 @@ export async function verifyConversion(
  * as given. `design` is its design JSON with the sample props.
  */
 export async function mergeTagDesign(
-  Converted: (props: any) => React.ReactElement,
+  Converted: MigratedTemplate,
   props: Record<string, unknown>,
   design: Record<string, unknown>
 ): Promise<{ design: Record<string, unknown>; used: string[]; kept: string[] }> {
   const warn = console.warn;
   console.warn = () => undefined; // the same warnings as the sample render, already reported
   try {
-    const tagged = await mergeTagged(props, design, (p) => pinImageWidths(renderToJson(Converted(p)) as unknown as Record<string, unknown>));
+    const tagged = await mergeTagged(props, design, (p) => pinImageWidths(renderToJson(callTemplate(Converted, p)) as unknown as Record<string, unknown>));
     return { design: tagged.result ?? design, used: tagged.used, kept: tagged.kept };
   } finally {
     console.warn = warn;
