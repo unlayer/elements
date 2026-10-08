@@ -396,6 +396,9 @@ async function migrateFile(input: Input, options: Options, lib: Library, io: Io,
       // The migrated preview props are the original's with their JSX converted (classes become styles): the design uses them.
       const designProps = Object.keys(migrated.props).length ? migrated.props : props;
       verification = await lib.verifyConversion(Original, Migrated as (props: unknown) => ReturnType<typeof Original>, { props, designProps });
+      // A component that doesn't render <Html> is a shared piece (a footer, a button), not an email:
+      // replacing it would turn it into a whole email inside the templates that use it.
+      if (options.write && !/<html[\s>]/i.test(verification.originalHtml)) return { file: name, status: "skipped", reason: "not an email template (it doesn't render <Html>): a shared component, left as it is" };
       design = verification.design;
       if (options.design && options.mergeTags) {
         const tagged = await lib.mergeTagDesign(Migrated as (props: unknown) => ReturnType<typeof Original>, designProps, verification.design);

@@ -389,6 +389,16 @@ export default function Receipt() { return <Html><Body><Text>Your receipt</Text>
     expect(out.out).toMatch(/- emails\/footer\.tsx: skipped \(imported by emails\/receipt\.tsx/);
   });
 
+  it("leaves a shared component alone even when it's the only file given", async () => {
+    const footer = `import { Section, Text } from "@react-email/components";
+export default function Footer() { return <Section><Text>Sent by Acme</Text></Section>; }`;
+    const dir = project({ "emails/components/footer.tsx": footer });
+    const out = io(dir);
+    expect(await main(["emails/components/footer.tsx", "--write"], out, lib), out.out + out.err).toBe(0);
+    expect(out.out).toContain("not an email template");
+    expect(fs.readFileSync(path.join(dir, "emails/components/footer.tsx"), "utf8")).toBe(footer);
+  });
+
   it("checks without writing by default, and replaces templates with --write", async () => {
     const dir = project({ "emails/welcome.tsx": WELCOME, "lib/format.ts": FORMAT });
     const dry = io(dir);

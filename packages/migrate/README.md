@@ -36,7 +36,7 @@ Without `--write` or `--out`, nothing is written: the command converts and check
 
 Default exports wrapped in React `memo` or `forwardRef` are supported, including nested wrappers. Preview props are read from the outer wrapper first, then from its inner component.
 
-All templates are converted and checked before any output is written. With `--write`, files imported by another scanned file are left in place and reported as skipped; their markup is inlined into the converted templates that use them. Importers that fail the check can keep using the original shared components. `--out` also writes separate converted copies of those shared files.
+All templates are converted and checked before any output is written. With `--write`, files imported by another scanned file, and components that don't render `<Html>`, are left in place and reported as skipped; their markup is inlined into the converted templates that use them. Importers that fail the check can keep using the original shared components. `--out` also writes separate converted copies of those shared files.
 
 `--out` requires a non-empty path. Before loading templates, the command checks all template, design and report destinations. It rejects collisions, destinations that would replace a source input (except that template's explicit `--write`), symlink output files, and symlinked directories within the output folder. These checks also apply with `--force`. Pass the inputs' common parent folder to preserve its subfolders, or migrate each input root to a separate output folder.
 
