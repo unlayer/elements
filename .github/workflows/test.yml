@@ -117,6 +117,15 @@ jobs:
       - name: Browser E2E gate
         run: pnpm --filter @unlayer/react-elements test:e2e
 
+      # ── Migration fidelity smoke test ───────────────────────────
+      # Converts the committed fixture templates both ways (codemod and
+      # runtime) and renders them next to their React Email originals in
+      # Chromium at desktop and phone widths. Fails on lost or added content,
+      # a word shown at another size on desktop, or words moved more than
+      # packages/from-react-email/bench/smoke-baseline.json allows.
+      - name: Migration fidelity smoke test
+        run: pnpm --filter @unlayer/from-react-email test:fidelity
+
       - name: Storybook smoke test
         run: pnpm --filter @unlayer/react-elements test-storybook:ci
 

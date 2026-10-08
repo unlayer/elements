@@ -1,6 +1,6 @@
 # Conversion fidelity
 
-How closely converted templates match their React Email originals, measured on 106 real templates. Rerun with `pnpm --filter @unlayer/from-react-email bench`; `tsx bench/summary.ts` prints the tables below.
+How closely converted templates match their React Email originals, measured on 106 real templates. Rerun with `pnpm --filter @unlayer/from-react-email bench`; `tsx bench/summary.ts` prints the tables below. CI runs a smoke version on the fixture templates in `test/fixtures` (`pnpm --filter @unlayer/from-react-email test:fidelity`): content, desktop text sizes, and words moved against `bench/smoke-baseline.json`.
 
 ## Results
 

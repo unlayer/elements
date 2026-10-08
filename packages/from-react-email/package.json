@@ -12,7 +12,8 @@
     "build": "tsup",
     "test": "vitest",
     "bench": "tsx bench/run.ts",
-    "typecheck": "tsc --noEmit -p tsconfig.check.json"
+    "typecheck": "tsc --noEmit -p tsconfig.check.json",
+    "test:fidelity": "tsx bench/smoke.ts"
   },
   "dependencies": {
     "prettier": "^3.3.3",
