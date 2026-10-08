@@ -4,6 +4,10 @@
 
 /** "16px" → 16, "1.5em" → 24, 12 → 12; undefined for %, auto, calc(), … */
 export function toPx(value: unknown, emBase = 16): number | undefined {
+  return lengthPx(value, emBase, emBase);
+}
+
+function lengthPx(value: unknown, emBase: number, remBase: number): number | undefined {
   if (typeof value === "number" && Number.isFinite(value)) return value;
   if (typeof value !== "string") return undefined;
   const match = /^(-?\d*\.?\d+)(px|em|rem|pt)?$/.exec(value.trim());
@@ -11,8 +15,9 @@ export function toPx(value: unknown, emBase = 16): number | undefined {
   const n = Number.parseFloat(match[1]);
   switch (match[2]) {
     case "em":
-    case "rem":
       return n * emBase;
+    case "rem":
+      return n * remBase;
     case "pt":
       return (n * 4) / 3;
     default:
@@ -27,12 +32,23 @@ export interface BoxSides {
   left: number;
 }
 
+/** The font size an element sets itself, in px (what its `em` lengths are relative to). */
+export function ownFontSize(style: Record<string, unknown>): number | undefined {
+  const size = style.fontSize;
+  if (typeof size === "number" && Number.isFinite(size)) return size;
+  return typeof size === "string" && /^\d*\.?\d+(px)?$/.test(size.trim()) ? Number.parseFloat(size) : undefined;
+}
+
 /**
  * Resolve a margin/padding: the shorthand (`style.padding`) and the longhands
- * (`style.paddingTop`, …) that override it, in px. Unreadable sides are 0.
+ * (`style.paddingTop`, …) that override it, in px. `em` is relative to the
+ * element's own font size (16px when it doesn't set one in px). Unreadable
+ * sides (%, calc(), auto) are 0.
  */
 export function boxSides(style: Record<string, unknown>, property: "margin" | "padding"): BoxSides {
   const sides: BoxSides = { top: 0, right: 0, bottom: 0, left: 0 };
+  const em = ownFontSize(style) ?? 16;
+  const toPx = (value: unknown) => lengthPx(value, em, 16);
   const shorthand = style[property];
   if (shorthand !== undefined) {
     const parts = String(shorthand).trim().split(/\s+/).map((part) => toPx(part) ?? 0);

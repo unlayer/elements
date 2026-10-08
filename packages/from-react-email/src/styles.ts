@@ -2,7 +2,7 @@
  * CSS → Elements props, for the styles React Email components carry.
  */
 
-import { boxSides, toPx, type BoxSides } from "@unlayer/convert-core";
+import { boxSides, ownFontSize, toPx, type BoxSides } from "@unlayer/convert-core";
 
 export type Style = Record<string, any>;
 
@@ -117,6 +117,18 @@ export function unconverted(style: Style | undefined): string[] {
   if (set(style.outline) && !/^(0|none)\b/.test(String(style.outline).trim()) && !/\b0(px)?\s/.test(String(style.outline))) out.push("outline");
   if (/^(absolute|fixed|sticky)$/.test(String(style.position ?? "").trim())) out.push(`position: ${String(style.position).trim()}`);
   if (/gradient\(/.test(String(style.backgroundImage ?? "") + String(style.background ?? ""))) out.push("background gradient");
+  // Padding and margins Elements can't hold in px: a % (of the width around
+  // it), calc(), viewport units count as 0; em without a px font size of its own as 16px.
+  for (const property of ["padding", "margin"] as const) {
+    for (const key of [property, `${property}Top`, `${property}Right`, `${property}Bottom`, `${property}Left`]) {
+      const value = style[key];
+      if (value === undefined || value === null) continue;
+      const text = String(value).trim();
+      const name = key.replace(/[A-Z]/g, (c) => `-${c.toLowerCase()}`);
+      if (/%|\b(?:calc|min|max|clamp|var)\(|\dv(?:w|h|min|max)\b/.test(text)) out.push(`${name}: ${text}`);
+      else if (/\d(?:\.\d+)?em\b/.test(text) && ownFontSize(style) === undefined) out.push(`${name}: ${text} (at 16px per em)`);
+    }
+  }
   return out;
 }
 

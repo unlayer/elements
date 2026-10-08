@@ -4,7 +4,7 @@ import path from "node:path";
 import React from "react";
 import { renderToJson } from "@unlayer/react-elements";
 import { Column, Row, Section, Tailwind, Text } from "@react-email/components";
-import { convertReactEmail, convertSource, expand } from "../src/index";
+import { convertReactEmail, convertSource, expand, verifyConversion } from "../src/index";
 import { color } from "../src/styles";
 
 const fixtures = path.join(import.meta.dirname, "fixtures");
@@ -422,5 +422,40 @@ export default function Template() {
     const loop = await gaps(inColumn(`{items.map((item) => <Text key={item}>{item}</Text>)}`));
     const written = await gaps(inColumn(`<Text>One</Text><Text>Two</Text><Text>Three</Text>`));
     expect(loop).toEqual(written);
+  });
+});
+
+describe("padding that isn't in px", () => {
+  const source = `import { Html, Body, Container, Section, Text } from "@react-email/components";
+export default function Template() {
+  return (<Html><Body><Container style={{ padding: "0 10%" }}>
+    <Text style={{ fontSize: "12px", padding: "0 2em" }}>Twelve</Text>
+    <Section style={{ padding: "1em" }}><Text>Inside</Text></Section>
+  </Container></Body></Html>);
+}`;
+
+  it("codemod: takes em at the element's own font size, and reports % and an em it can't size", async () => {
+    const result = await convertSource(source);
+    expect(result.code).toMatch(/containerPadding="0px 24px 0px 24px"[^>]*>\s*Twelve/);
+    const notes = result.report.notes.map((n) => n.detail);
+    expect(notes).toContain("padding: 0 10% (Container)");
+    expect(notes).toContain("padding: 1em (at 16px per em) (Section)");
+    expect(notes.join(" ")).not.toContain("0 2em");
+  });
+
+  it("runtime: the same", async () => {
+    const dir = fs.mkdtempSync(path.join(import.meta.dirname, ".tmp-"));
+    try {
+      const file = path.join(dir, "template.tsx");
+      fs.writeFileSync(file, source.replace("<Text>Inside</Text>", `<Text style={{ padding: "1em" }}>Inside</Text>`));
+      const { default: Template } = await import(file);
+      const conversion = await convertReactEmail(Template);
+      const notes = conversion.report.notes.map((n) => n.detail);
+      expect(notes).toContain("padding: 0 10% (Container)");
+      expect(notes).toContain("padding: 1em (at 16px per em) (text)");
+      expect(JSON.stringify(conversion.design())).toContain('"containerPadding":"0px 24px 0px 24px"');
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
   });
 });
