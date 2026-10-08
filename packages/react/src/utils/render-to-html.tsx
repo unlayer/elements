@@ -5,6 +5,7 @@ import { DEFAULT_CONFIG } from "@unlayer-internal/shared-elements";
 import { htmlToPlainText } from "@unlayer-internal/shared-elements";
 import type { RenderMode } from "@unlayer-internal/shared-elements";
 import { extractHeadFromTree } from "./extract-head";
+import { htmlRoot } from "./unwrap-root";
 import {
   emailLayout,
   webLayout,
@@ -122,7 +123,10 @@ export interface RenderToHtmlOptions extends Partial<UnlayerConfig> {
  * Use {@link renderToHtmlParts} instead when your app owns the document
  * shell and only needs the head/body chunks.
  *
- * @param element - A React element tree (e.g. `<Email><Row>...</Row></Email>`)
+ * @param element - A React element tree (e.g. `<Email><Row>...</Row></Email>`), or a
+ *   template component that returns one (`<Welcome name="Ada" />`, also `memo`/`forwardRef`).
+ *   A template is called to reach its root, so call renderToHtml outside a React render;
+ *   one that uses React hooks renders without its root's settings, with a warning.
  * @param options - Config overrides (mode, cdnBaseUrl, etc.) plus `title` and `fonts`
  * @returns Complete HTML document string
  * @throws {Error} If rendering fails, with a helpful message
@@ -143,6 +147,8 @@ export function renderToHtml(
   options?: RenderToHtmlOptions
 ): string {
   const { title, lang: optionLang, fonts: optionFonts = [], ...config } = options ?? {};
+  // A template component (<Welcome/>) renders as its root, whose settings follow.
+  element = htmlRoot(element, "renderToHtml");
   // The root's own `fonts` prop, then the option's, each URL once.
   const rootFonts = (element.props as { fonts?: Array<{ url: string }> } | null)?.fonts ?? [];
   const fonts = [...rootFonts, ...optionFonts].filter((font, i, all) => font?.url && all.findIndex((f) => f?.url === font.url) === i);
@@ -288,6 +294,7 @@ export function renderToHtmlParts(
   element: React.ReactElement,
   config?: Partial<UnlayerConfig>
 ): HtmlParts {
+  element = htmlRoot(element, "renderToHtmlParts");
   // Render body markup
   const body = renderBody(element, config);
 

@@ -315,3 +315,60 @@ describe("document direction and language", () => {
     expect(html).toMatch(/<html[^>]*dir="rtl"/);
   });
 });
+
+describe("renderToHtml with a template component", () => {
+  const root = ({ name }: { name: string }) => (
+    <Email lang="ar" textDirection="rtl" fonts={[{ url: "https://fonts.googleapis.com/css2?family=Inter" }]}>
+      <Row>
+        <Column>
+          <Paragraph mobile={{ fontSize: "12px" }}>Hello {name}</Paragraph>
+        </Column>
+      </Row>
+    </Email>
+  );
+  const Welcome = (props: { name: string }) => root(props);
+  const direct = renderToHtml(root({ name: "Ada" }));
+
+  it("renders <Welcome /> as its root, with the root's settings", () => {
+    expect(renderToHtml(<Welcome name="Ada" />)).toBe(direct);
+    expect(direct).toContain('lang="ar"');
+    expect(direct).toContain('dir="rtl"');
+    expect(direct).toContain("family=Inter");
+    expect(direct).toContain("font-size: 12px");
+  });
+
+  it("unwraps memo and forwardRef, nested in any order", () => {
+    const Memo = React.memo(Welcome);
+    const Ref = React.forwardRef<unknown, { name: string }>((props, _ref) => <Welcome {...props} />);
+    const MemoRef = React.memo(Ref);
+    for (const Template of [Memo, Ref, MemoRef]) expect(renderToHtml(<Template name="Ada" />)).toBe(direct);
+  });
+
+  it("renders a wrapper that uses hooks through React, with a warning", () => {
+    const WithHook = (props: { name: string }) => {
+      React.useId();
+      return root(props);
+    };
+    const warnings: string[] = [];
+    const warn = console.warn;
+    console.warn = (message: string) => void warnings.push(message);
+    try {
+      expect(renderToHtml(<WithHook name="Ada" />)).toContain("Hello Ada");
+    } finally {
+      console.warn = warn;
+    }
+    expect(warnings.join()).toContain("couldn't unwrap <WithHook>");
+  });
+
+  it("leaves Elements components and plain HTML as they are", () => {
+    const warn = console.warn;
+    const warnings: string[] = [];
+    console.warn = (message: string) => void warnings.push(message);
+    try {
+      renderToHtml(<Paragraph>Just a block</Paragraph>);
+    } finally {
+      console.warn = warn;
+    }
+    expect(warnings).toEqual([]);
+  });
+});
