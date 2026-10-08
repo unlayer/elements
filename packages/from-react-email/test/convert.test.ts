@@ -141,6 +141,16 @@ export default function Template({ tone }: { tone: string }) {
     expect(result.code).toContain('lineHeight="26px"');
     expect(result.report.lostStyles).toEqual(["line 6: color: tone"]);
   });
+
+  it("treats a spread of undefined (an optional style prop left out) as nothing", async () => {
+    const source = `import { Html, Body, Text } from "@react-email/components";
+export default function Template() {
+  return <Html><Body><Text style={{ fontSize: 18, ...(undefined), ...null }}>Hello</Text></Body></Html>;
+}`;
+    const result = await convertSource(source);
+    expect(result.report.lostStyles).toBeUndefined();
+    expect(result.code).toContain('fontSize="18px"');
+  });
 });
 
 describe("head <style> rules", () => {

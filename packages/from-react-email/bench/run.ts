@@ -64,6 +64,8 @@ interface Result {
   /** Links, image sources and alt text the original has and the conversion doesn't. */
   missingAttributes?: string[];
   addedAttributes?: string[];
+  /** Codemod: style values computed from props it can't keep (the CLI's check fails on them). */
+  lostStyles?: string[];
   /** Codemod: problems with a boolean prop flipped. */
   variants?: Array<{ change: string; missing: string[]; added: string[]; missingAttributes: string[]; error?: string }>;
   layout?: Record<number, Layout>;
@@ -113,7 +115,7 @@ async function main() {
   save();
   fs.writeFileSync(path.join(out, "results.md"), summarize(results));
   console.log(`\n${summarize(results)}`);
-  const failed = results.filter((r) => !r.converted || r.error || r.missingText?.length || r.addedWords || r.missingAttributes?.length || r.addedAttributes?.length || r.variants?.length || r.jsonWarnings);
+  const failed = results.filter((r) => !r.converted || r.error || r.missingText?.length || r.addedWords || r.missingAttributes?.length || r.addedAttributes?.length || r.lostStyles?.length || r.variants?.length || r.jsonWarnings);
   console.log(`${failed.length} conversions failed the content check.`);
   if (failed.length) process.exitCode = 2;
 }
@@ -252,6 +254,7 @@ function summaryOf(report: any) {
     nativeRatio: report.nativeRatio,
     fallbacks: report.fallbacks,
     notes: report.notes,
+    ...(report.lostStyles ? { lostStyles: report.lostStyles } : {}),
   };
 }
 

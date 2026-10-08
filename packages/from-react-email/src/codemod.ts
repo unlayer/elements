@@ -107,6 +107,12 @@ export async function convertSource(source: string, options: CodemodOptions = {}
   return converter.run({ components: components.inlined, constants: constants.inlined, variants: variants.split, copied: components.copied });
 }
 
+/** `undefined` or `null`, which a spread adds nothing from (an optional prop left out, once inlined). */
+function nothing(expression: ts.Expression): boolean {
+  const node = unwrap(expression);
+  return (ts.isIdentifier(node) && node.text === "undefined") || node.kind === ts.SyntaxKind.NullKeyword;
+}
+
 /** Packages React Email components are imported from: `react-email` and `@react-email/*`. */
 function isReactEmailModule(from: string): boolean {
   return from === "react-email" || from.startsWith("@react-email/");
@@ -367,6 +373,7 @@ class Converter {
       const out: Record<string, unknown> = {};
       for (const prop of node.properties) {
         if (ts.isSpreadAssignment(prop)) {
+          if (nothing(prop.expression)) continue;
           const value = this.evaluate(prop.expression, depth + 1);
           if (!value || typeof value !== "object") return undefined;
           Object.assign(out, value);
@@ -404,6 +411,7 @@ class Converter {
       return style;
     }
     for (const prop of node.properties) {
+      if (ts.isSpreadAssignment(prop) && nothing(prop.expression)) continue;
       const key = (ts.isPropertyAssignment(prop) || ts.isShorthandPropertyAssignment(prop)) && (ts.isIdentifier(prop.name) || ts.isStringLiteral(prop.name)) ? prop.name.text : undefined;
       const value = key === undefined ? undefined : this.evaluate(ts.isPropertyAssignment(prop) ? prop.initializer : (prop as ts.ShorthandPropertyAssignment).name);
       if (key !== undefined && (typeof value === "string" || typeof value === "number")) (style as Record<string, unknown>)[key] = value;
