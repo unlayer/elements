@@ -49,7 +49,7 @@ import { inlineLocalComponents, type ModuleLoader } from "./components";
 import { inlineLocalJsx } from "./inline";
 import { splitConditionalClasses } from "./variants";
 import { phoneSides, withPhoneStyles, handledPhoneClass } from "./phone-styles";
-import { NO_CLASSES, resolveTailwind, stacksOnPhones, type ResolvedClasses } from "./tailwind";
+import { NO_CLASSES, phoneStyles, resolveTailwind, stacksOnPhones, stylesheetRules, type ResolvedClasses } from "./tailwind";
 
 export interface CodemodResult {
   code: string;
@@ -129,6 +129,11 @@ class Converter {
   private copied: string[] = [];
   /** Source ranges copied into the output as-is (fallbacks). */
   private readonly fallbackRanges: Array<{ from: number; to: number }> = [];
+  /** Rules on a single class from the head's <style>: desktop, and phone media queries. */
+  private readonly headClasses = new Map<string, Style>();
+  private readonly headPhone = new Map<string, Style>();
+  /** Style values computed at render time, by where they are in the source. */
+  private readonly droppedStyles: Array<{ from: number; to: number; detail: string }> = [];
 
 
   constructor(
@@ -169,6 +174,10 @@ class Converter {
       expression,
       tree: this.root(expression),
     }));
+    // A computed style is lost where its element became Elements; one kept as HTML keeps it.
+    for (const dropped of this.droppedStyles) {
+      if (!this.fallbackRanges.some((r) => dropped.from >= r.from && dropped.to <= r.to)) this.report.lostStyle(dropped.detail);
+    }
     const report = this.report.finish(
       el(
         "Email",
@@ -330,6 +339,10 @@ class Converter {
       return text;
     }
     if (ts.isNumericLiteral(node)) return Number(node.text);
+    if (ts.isConditionalExpression(node)) {
+      const test = this.truthy(node.condition, depth + 1);
+      return test === undefined ? undefined : this.evaluate(test ? node.whenTrue : node.whenFalse, depth + 1);
+    }
     if (node.kind === ts.SyntaxKind.TrueKeyword) return true;
     if (node.kind === ts.SyntaxKind.FalseKeyword) return false;
     if (node.kind === ts.SyntaxKind.NullKeyword) return null;
@@ -373,6 +386,51 @@ class Converter {
       return out;
     }
     return undefined;
+  }
+
+  /**
+   * The properties of a style object that are known; the ones computed from
+   * props or state are recorded as lost (unless the element is kept as HTML).
+   */
+  private staticStyle(expression: ts.Expression | undefined): Style {
+    const style: Style = {};
+    const node = expression && unwrap(expression);
+    const lose = (part: ts.Node, text: string) => {
+      const line = this.file.getLineAndCharacterOfPosition(part.getStart()).line + 1;
+      if (!this.droppedStyles.some((d) => d.from === part.getStart())) this.droppedStyles.push({ from: part.getStart(), to: part.getEnd(), detail: `line ${line}: ${text.replace(/\s+/g, " ").slice(0, 80)}` });
+    };
+    if (!node || !ts.isObjectLiteralExpression(node)) {
+      if (expression) lose(expression, `style={${expression.getText()}}`);
+      return style;
+    }
+    for (const prop of node.properties) {
+      const key = (ts.isPropertyAssignment(prop) || ts.isShorthandPropertyAssignment(prop)) && (ts.isIdentifier(prop.name) || ts.isStringLiteral(prop.name)) ? prop.name.text : undefined;
+      const value = key === undefined ? undefined : this.evaluate(ts.isPropertyAssignment(prop) ? prop.initializer : (prop as ts.ShorthandPropertyAssignment).name);
+      if (key !== undefined && (typeof value === "string" || typeof value === "number")) (style as Record<string, unknown>)[key] = value;
+      else lose(prop, prop.getText());
+    }
+    return style;
+  }
+
+  /** Whether a condition is true, when it's known (`undefined`, a constant, `a === b` of known values). */
+  private truthy(node: ts.Expression, depth: number): boolean | undefined {
+    node = unwrap(node);
+    const known = (side: ts.Expression): { value: unknown } | undefined => {
+      side = unwrap(side);
+      if (ts.isIdentifier(side) && side.text === "undefined") return { value: undefined };
+      const value = this.evaluate(side, depth + 1);
+      return value === undefined ? undefined : { value };
+    };
+    if (ts.isBinaryExpression(node)) {
+      const op = node.operatorToken.kind;
+      const equal = op === ts.SyntaxKind.EqualsEqualsEqualsToken, unequal = op === ts.SyntaxKind.ExclamationEqualsEqualsToken;
+      if (!equal && !unequal) return undefined;
+      const left = known(node.left), right = known(node.right);
+      if (!left || !right) return undefined;
+      return (left.value === right.value) === equal;
+    }
+    const value = known(node);
+    return value && Boolean(value.value);
   }
 
   private attrValue(initializer: ts.JsxAttributeValue | undefined): unknown {
@@ -448,11 +506,19 @@ class Converter {
     if (className) {
       const value = this.evaluate(className);
       if (typeof value === "string") style = withPhoneStyles({ ...(this.tailwind.styles.get(value) ?? {}) }, this.tailwind.leftover.get(value) ?? [], this.tailwind.phone);
+      // Head <style> rules on these classes sit under Tailwind's inline styles, as in the browser.
+      if (typeof value === "string" && (this.headClasses.size || this.headPhone.size)) {
+        const names = value.split(/\s+/);
+        const head = withPhoneStyles(Object.assign({}, ...names.map((name) => this.headClasses.get(name) ?? {})), names, this.headPhone);
+        const phone = { ...(head._phone as Style | undefined), ...(style._phone as Style | undefined) };
+        style = { ...head, ...style, ...(Object.keys(phone).length ? { _phone: phone } : {}) };
+      }
     }
     if (attrs.has("style")) {
-      const value = this.evaluate(attrs.get("style"));
+      const expression = attrs.get("style");
+      const value = this.evaluate(expression);
       if (value && typeof value === "object") style = { ...style, ...(value as Style) };
-      else this.report.note("dynamic style not converted", attrs.get("style")?.getText().slice(0, 60));
+      else style = { ...style, ...this.staticStyle(expression) };
     }
     opaqueProps ||= attrs.has("children") || attrs.has("dangerouslySetInnerHTML");
     const name = this.components.get(tag);
@@ -530,7 +596,13 @@ class Converter {
         if (!jsx.name && jsx.tag === "style") {
           const inner = this.attr(jsx, "dangerouslySetInnerHTML") as { __html?: unknown } | undefined;
           const css = typeof inner?.__html === "string" ? inner.__html : this.plainContent(jsx.children);
-          if (typeof css === "string") linked.push(...importedStylesheets(css));
+          if (typeof css === "string") {
+            linked.push(...importedStylesheets(css));
+            const rules = stylesheetRules(css);
+            for (const [cls, style] of rules.classes) this.headClasses.set(cls, { ...this.headClasses.get(cls), ...style });
+            for (const [cls, style] of phoneStyles(css)) this.headPhone.set(cls, { ...this.headPhone.get(cls), ...style });
+            for (const selector of rules.other) this.report.note("head style rule not converted", selector);
+          }
         }
         if (jsx.name === "Body" && !body) body = jsx;
         else if (jsx.name === "Html" || jsx.name === "Tailwind" || jsx.name === "Head") seek(jsx.children);

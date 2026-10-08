@@ -68,6 +68,47 @@ export function phoneStyles(css: string): Map<string, Style> {
 }
 
 /**
+ * A head stylesheet's desktop rules on a single class (`.copy{color:#fff}`),
+ * by class, and the selectors of the rules that aren't converted: other
+ * selectors (tags, ids, combinators, pseudo-classes) and media queries other
+ * than phone rules on classes (`phoneStyles` reads those). Imports, web fonts
+ * and `*` resets are left to the callers that handle them.
+ */
+export function stylesheetRules(css: string): { classes: Map<string, Style>; other: string[] } {
+  const classes = new Map<string, Style>();
+  const other: string[] = [];
+  const text = css.replace(/\/\*[\s\S]*?\*\//g, "");
+  for (let i = 0; i < text.length; ) {
+    const open = text.indexOf("{", i);
+    if (open < 0) break;
+    let close = open + 1;
+    for (let depth = 1; close < text.length && depth; close++) depth += text[close] === "{" ? 1 : text[close] === "}" ? -1 : 0;
+    const selector = text.slice(i, open).replace(/@import[^;]*;/g, "").trim();
+    const body = text.slice(open + 1, close - 1);
+    i = close;
+    if (/^@font-face$|^\*$/.test(selector)) continue;
+    const phone = (query: string) => /max-width|width\s*<|max-device-width/i.test(query) && !/min-width|width\s*>/i.test(query);
+    if (selector.startsWith("@media")) {
+      const query = selector.slice(6);
+      for (const rule of body.matchAll(/([^{}]+)\{[^{}]*\}/g)) if (!(phone(query) && /^\.[\w-]+$/.test(rule[1].trim()))) other.push(`${rule[1].trim()} ${selector}`);
+    } else if (/^\.[\w-]+$/.test(selector) && body.includes("{")) {
+      const query = /@media\s*([^{]*)\{/.exec(body)?.[1] ?? "";
+      if (!phone(query)) other.push(`${selector} @media ${query.trim()}`);
+    } else if (/^\.[\w-]+$/.test(selector)) {
+      const style: Style = { ...(classes.get(selector.slice(1)) ?? {}) };
+      for (const decl of body.split(";")) {
+        const at = decl.indexOf(":");
+        if (at > 0) style[decl.slice(0, at).trim().replace(/-([a-z])/g, (_, c: string) => c.toUpperCase())] = decl.slice(at + 1).replace(/!\s*important/i, "").trim();
+      }
+      classes.set(selector.slice(1), style);
+    } else if (selector) {
+      other.push(selector);
+    }
+  }
+  return { classes, other };
+}
+
+/**
  * Whether a leftover class only makes its element full width on phones: the
  * conversion carries it out by stacking the column there, so it isn't lost.
  */

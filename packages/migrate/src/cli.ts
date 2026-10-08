@@ -82,6 +82,8 @@ export interface FileResult {
   addedText?: string[];
   /** Links, image sources and image text the original has that the migrated template doesn't. */
   missingAttributes?: string[];
+  /** Style values computed from props that the migrated template drops: they change how it looks. */
+  lostStyles?: string[];
   /** Blocks the visual editor wouldn't get. */
   designWarnings?: string[];
   /** Problems with a boolean prop flipped (branches the preview props don't take). */
@@ -409,7 +411,7 @@ async function migrateFile(input: Input, options: Options, lib: Library, io: Io,
     const result: FileResult = {
       file: name,
       status:
-        verification.missing.length || verification.added.length || verification.missingAttributes.length || verification.designWarnings.length || verification.variants.length
+        verification.missing.length || verification.added.length || verification.missingAttributes.length || verification.designWarnings.length || verification.variants.length || report.lostStyles?.length
           ? "check-failed"
           : "migrated",
       editable: report.nativeRatio,
@@ -423,6 +425,7 @@ async function migrateFile(input: Input, options: Options, lib: Library, io: Io,
       missingText: verification.missing,
       addedText: verification.added,
       missingAttributes: verification.missingAttributes,
+      ...(report.lostStyles?.length ? { lostStyles: report.lostStyles } : {}),
       variants: verification.variants,
       designWarnings: verification.designWarnings,
       ...(options.design && verification.editorFonts.length ? { fonts: verification.editorFonts } : {}),
@@ -533,6 +536,7 @@ function line(result: FileResult): string {
         ...(result.missingText?.length ? [`lost text: ${quote(result.missingText)}`] : []),
         ...(result.addedText?.length ? [`extra text: ${quote(result.addedText)}`] : []),
         ...(result.missingAttributes?.length ? [`lost links/images: ${quote(result.missingAttributes)}`] : []),
+        ...(result.lostStyles?.length ? [`lost styles: ${result.lostStyles.join("; ")}`] : []),
         ...(result.designWarnings?.length ? [`${result.designWarnings.length} block(s) the editor wouldn't get`] : []),
         ...(result.variants ?? []).map((v) => `with ${v.change}: ${variantProblems(v)}`),
       ];
@@ -571,6 +575,7 @@ function markdownReport(results: FileResult[]): string {
     if (r.missingText?.length) lines.push(`**Lost text:** ${quote(r.missingText)}`, "");
     if (r.addedText?.length) lines.push(`**Extra text:** ${quote(r.addedText)}`, "");
     if (r.missingAttributes?.length) lines.push(`**Lost links or images:** ${quote(r.missingAttributes)}`, "");
+    if (r.lostStyles?.length) lines.push("**Lost styles** (change how it looks):", ...r.lostStyles.map((s) => `- ${s}`), "");
     if (r.designWarnings?.length) lines.push("**The editor wouldn't get:**", ...r.designWarnings.map((w) => `- ${w}`), "");
     if (r.variants?.length) {
       lines.push("**With a prop flipped:**", ...r.variants.map((v) => `- \`${v.change}\`: ${variantProblems(v)}`), "");

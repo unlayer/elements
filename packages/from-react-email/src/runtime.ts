@@ -35,7 +35,7 @@ import {
 import { addSides, backgroundColor, boxSides, color, fontFamilyProp, inherit, isHidden, margins, px, toPx, ZERO, type Style } from "./styles";
 import type { BoxSides } from "@unlayer/convert-core";
 import { phoneSides, withPhoneStyles } from "./phone-styles";
-import { phoneStyles, stacksOnPhones } from "./tailwind";
+import { phoneStyles, stacksOnPhones, stylesheetRules } from "./tailwind";
 
 export interface RuntimeResult {
   tree: ElementNode;
@@ -78,6 +78,7 @@ export async function convertElement(element: React.ReactElement): Promise<Runti
     }
   });
   const phone = new Map<string, Style>();
+  const classes = new Map<string, Style>();
   const linked: string[] = [];
   walk(nodes, (node) => {
     if (node.kind === "host" && node.tag === "link" && /stylesheet/i.test(String(node.props.rel ?? "")) && /^https?:/.test(String(node.props.href ?? ""))) {
@@ -89,12 +90,17 @@ export async function convertElement(element: React.ReactElement): Promise<Runti
     fontSpecs.push(...fontFaces(css));
     linked.push(...importedStylesheets(css));
     for (const [cls, style] of phoneStyles(css)) phone.set(cls, { ...phone.get(cls), ...style });
-    if (css.replace(/@font-face\s*{[^}]*}/g, "").replace(/@import[^;]*;/g, "").replace(/\*\s*{[^}]*}/g, "").trim()) report.note("head styles dropped", "media queries / <style> rules");
+    const rules = stylesheetRules(css);
+    for (const [cls, style] of rules.classes) classes.set(cls, { ...classes.get(cls), ...style });
+    for (const selector of rules.other) report.note("head style rule not converted", selector);
   });
 
   walk(nodes, (node) => {
     if (node.kind === "text") return;
-    node.props = { ...node.props, style: withPhoneStyles(node.props.style ?? {}, String(node.props.className ?? "").split(/\s+/), phone) };
+    const names = String(node.props.className ?? "").split(/\s+/);
+    // A head rule on a class is under the element's own style, as in the browser.
+    const fromHead = Object.assign({}, ...names.map((name) => classes.get(name) ?? {}));
+    node.props = { ...node.props, style: withPhoneStyles({ ...fromHead, ...(node.props.style ?? {}) }, names, phone) };
   });
 
   const body = find(nodes, (n) => n.kind === "component" && n.name === "Body") as Element | undefined;

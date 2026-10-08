@@ -36,16 +36,27 @@ export interface ConversionReport {
   addedText?: string[];
   /** Links, image sources and image text the original has and the conversion doesn't. */
   missingAttributes?: string[];
+  /**
+   * Style values computed from props or state that the conversion can't keep,
+   * with where they were. They change how the email looks: the check fails on them.
+   */
+  lostStyles?: string[];
 }
 
 /** Collects notes while converting; `finish` adds the counts from the tree. */
 export class ReportBuilder {
   private readonly notes: ReportEntry[] = [];
   private readonly infos: ReportEntry[] = [];
+  private readonly lost: string[] = [];
 
   /** A difference from the original. */
   note(reason: string, detail?: string): void {
     this.notes.push(detail === undefined ? { reason } : { reason, detail });
+  }
+
+  /** A style dropped that changes how the email looks: the check fails on it. */
+  lostStyle(detail: string): void {
+    this.lost.push(detail);
   }
 
   /** Something the conversion did that doesn't change how the email looks. */
@@ -67,6 +78,7 @@ export class ReportBuilder {
       fallbacks,
       notes: this.notes,
       info: this.infos,
+      ...(this.lost.length ? { lostStyles: this.lost } : {}),
     };
   }
 }

@@ -125,3 +125,48 @@ export default function Template() {
     expect(result.code).toContain('color="#ff0000"');
   });
 });
+
+describe("computed styles", () => {
+  it("evaluates conditions it can know, and lists the values it can't", async () => {
+    const source = `import { Html, Body, Text } from "@react-email/components";
+const level = "h2";
+export default function Template({ tone }: { tone: string }) {
+  return <Html><Body>
+    <Text style={{ fontSize: level === "h1" ? 24 : 20, lineHeight: undefined ? "14px" : "26px" }}>Known</Text>
+    <Text style={{ color: tone, margin: 0 }}>Computed</Text>
+  </Body></Html>;
+}`;
+    const result = await convertSource(source);
+    expect(result.code).toContain('fontSize="20px"');
+    expect(result.code).toContain('lineHeight="26px"');
+    expect(result.report.lostStyles).toEqual(["line 6: color: tone"]);
+  });
+});
+
+describe("head <style> rules", () => {
+  const css = `.copy { color: #fff; font-size: 24px } @media (max-width: 600px) { .copy { font-size: 18px } } .note > a { color: red }`;
+  const source = `import { Html, Head, Body, Text } from "@react-email/components";
+export default function Template() {
+  return <Html><Head><style>{\`${css}\`}</style></Head><Body style={{ backgroundColor: "#000000" }}><Text className="copy" style={{ margin: 0 }}>Code 482913</Text></Body></Html>;
+}`;
+
+  it("codemod: applies rules on a class, phone rules too, and reports the rest", async () => {
+    const result = await convertSource(source);
+    expect(result.code).toMatch(/color="#fff(fff)?"/);
+    expect(result.code).toContain('fontSize="24px"');
+    expect(result.code).toMatch(/mobile=\{\{[^}]*fontSize: "18px"/);
+    expect(result.report.notes).toContainEqual({ reason: "head style rule not converted", detail: ".note > a" });
+  });
+
+  it("runtime: the same", async () => {
+    const { Html, Head, Body, Text } = await import("@react-email/components");
+    const h = React.createElement;
+    const Template = () =>
+      h(Html, null, h(Head, null, h("style", null, css)), h(Body, { style: { backgroundColor: "#000000" } }, h(Text, { className: "copy", style: { margin: 0 } }, "Code 482913")));
+    const conversion = await convertReactEmail(Template);
+    const paragraph = JSON.stringify(conversion.tree);
+    expect(paragraph).toContain('"fontSize":"24px"');
+    expect(paragraph).toMatch(/"color":"#fff(fff)?"/);
+    expect(conversion.report.notes).toContainEqual({ reason: "head style rule not converted", detail: ".note > a" });
+  });
+});

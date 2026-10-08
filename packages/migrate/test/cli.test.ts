@@ -237,6 +237,22 @@ export default function Template() { const id = React.useId(); return <Html><Bod
     expect(fs.existsSync(path.join(dir, "migrated/hooks.tsx"))).toBe(false);
   });
 
+  it("fails the check when a style computed from props would be dropped, naming it", async () => {
+    const source = `import { Html, Body, Text } from "@react-email/components";
+export default function Code({ code, color, size }: { code: string; color: string; size: number }) {
+  return <Html><Body style={{ backgroundColor: "#000000" }}><Text style={{ color, fontSize: size, margin: 0 }}>{code}</Text></Body></Html>;
+}
+Code.PreviewProps = { code: "482913", color: "#ffffff", size: 24 };`;
+    const dir = project({ "emails/code.tsx": source });
+    const out = io(dir);
+    expect(await main(["emails", "--out", "migrated", "--report", "report.json"], out, lib)).toBe(2);
+    expect(out.out).toContain("lost styles");
+    expect(fs.existsSync(path.join(dir, "migrated/code.tsx"))).toBe(false);
+    const [result] = JSON.parse(fs.readFileSync(path.join(dir, "report.json"), "utf8"));
+    expect(result.status).toBe("check-failed");
+    expect(result.lostStyles).toEqual(["line 3: color", "line 3: fontSize: size"]);
+  });
+
   it("migrates, checks and writes templates to --out, with design JSON and a report", async () => {
     const dir = project({ "emails/welcome.tsx": WELCOME, "emails/components/button.tsx": SHARED, "lib/format.ts": FORMAT });
     const out = io(dir);
