@@ -7,7 +7,21 @@ import { callIsolated, isElementsType } from "./unwrap-root";
 
 const MEMO = Symbol.for("react.memo");
 const FORWARD_REF = Symbol.for("react.forward_ref");
-const rendered = new WeakMap<object, React.ReactNode>();
+// What each element rendered to, for the render under way only: an element
+// object kept between renders (`const footer = <Footer />`) is called again by
+// the next one, which may read other data (another user's).
+let rendered: WeakMap<object, React.ReactNode> | undefined;
+
+/** Runs one render (renderToHtml, renderToJson, …) with its own record of what each component rendered. */
+export function withRenderScope<T>(render: () => T): T {
+  if (rendered) return render();
+  rendered = new WeakMap();
+  try {
+    return render();
+  } finally {
+    rendered = undefined;
+  }
+}
 
 function innerType(type: any): any {
   while (type?.$$typeof === MEMO) type = type.type;
@@ -22,20 +36,17 @@ function expands(child: React.ReactNode): child is React.ReactElement {
   return type?.$$typeof === FORWARD_REF || (typeof type === "function" && !type.prototype?.isReactComponent);
 }
 
-// A user component is called once per element, in a render of its own (hooks work).
+// A user component is called in a render of its own (hooks work), once per element in a render.
 function contents(element: React.ReactElement<any>): React.ReactNode {
   if (element.type === React.Fragment) return element.props.children;
-  if (!rendered.has(element)) {
-    const type = innerType(element.type);
-    const props = { ...element.props };
-    rendered.set(
-      element,
-      (isElementsType(type)
-        ? React.createElement(type, props)
-        : callIsolated(() => (type.$$typeof === FORWARD_REF ? type.render(props, null) : type(props)))) as React.ReactNode,
-    );
-  }
-  return rendered.get(element);
+  if (rendered?.has(element)) return rendered.get(element);
+  const type = innerType(element.type);
+  const props = { ...element.props };
+  const out = (isElementsType(type)
+    ? React.createElement(type, props)
+    : callIsolated(() => (type.$$typeof === FORWARD_REF ? type.render(props, null) : type(props)))) as React.ReactNode;
+  rendered?.set(element, out);
+  return out;
 }
 
 /** The children with Fragments and user components expanded; `children` itself when there are none. */

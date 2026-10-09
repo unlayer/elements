@@ -29,7 +29,7 @@ import { UNLAYER_CONFIG_KEY } from "./create-component";
 import { getDisplayName, ROOT_NAMES, unwrapRoot, UNWRAP_ADVICE } from "./unwrap-root";
 import { BODY_DEFAULTS, ROW_DEFAULTS, COLUMN_DEFAULTS } from "./container-defaults";
 import { contentSlotWidth, pinImageSrc, type SlotContext } from "./image-sizing";
-import { expandChildren } from "./expand-children";
+import { expandChildren, withRenderScope } from "./expand-children";
 
 /** Layout context threaded down the walk so an image can be sized against the
  *  real column slot (contentWidth × column share, minus paddings/borders). */
@@ -473,6 +473,10 @@ export function renderRowToJson(element: React.ReactElement): DesignRow {
 }
 
 export function renderToJson(element: React.ReactElement): DesignJSON {
+  return withRenderScope(() => designJson(element));
+}
+
+function designJson(element: React.ReactElement): DesignJSON {
   // Accept a user wrapper component (e.g. <MyEmail/>) by unwrapping to its root,
   // matching renderToHtml which renders wrappers through React.
   element = unwrapForJson(element);

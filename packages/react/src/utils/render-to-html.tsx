@@ -6,6 +6,7 @@ import { htmlToPlainText } from "@unlayer-internal/shared-elements";
 import type { RenderMode } from "@unlayer-internal/shared-elements";
 import { extractHeadFromTree } from "./extract-head";
 import { htmlRoot } from "./unwrap-root";
+import { withRenderScope } from "./expand-children";
 import {
   emailLayout,
   webLayout,
@@ -146,6 +147,10 @@ export function renderToHtml(
   element: React.ReactElement,
   options?: RenderToHtmlOptions
 ): string {
+  return withRenderScope(() => htmlDocument(element, options));
+}
+
+function htmlDocument(element: React.ReactElement, options?: RenderToHtmlOptions): string {
   const { title, lang: optionLang, fonts: optionFonts = [], ...config } = options ?? {};
   // A template component (<Welcome/>) renders as its root, whose settings follow.
   element = htmlRoot(element, "renderToHtml");
@@ -221,7 +226,7 @@ export function renderToPlainText(
   element: React.ReactElement,
   config?: Partial<UnlayerConfig>
 ): string {
-  const html = renderBody(element, config);
+  const html = withRenderScope(() => renderBody(element, config));
   return htmlToPlainText(html);
 }
 
@@ -294,6 +299,10 @@ export function renderToHtmlParts(
   element: React.ReactElement,
   config?: Partial<UnlayerConfig>
 ): HtmlParts {
+  return withRenderScope(() => htmlParts(element, config));
+}
+
+function htmlParts(element: React.ReactElement, config?: Partial<UnlayerConfig>): HtmlParts {
   element = htmlRoot(element, "renderToHtmlParts");
   // Render body markup
   const body = renderBody(element, config);

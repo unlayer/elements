@@ -62,3 +62,32 @@ describe("Fragments and user components among the blocks", () => {
     expect(/#(u_content_paragraph_\d+)[^{]*\{[^}]*font-size:\s*30px/.exec(html)?.[1]).toBe("u_content_paragraph_2");
   });
 });
+
+describe("a component element kept between renders", () => {
+  it("renders again in each render, with the data of that render", () => {
+    let user = "Alice";
+    const Greeting = () => <Paragraph>Hi {user}</Paragraph>;
+    const greeting = <Greeting />; // made once, as a module constant would be
+    const Footer = () => block(`Bye ${user}`);
+    const footer = <Footer />;
+    const email = () => <Email><Row><Column>{greeting}</Column></Row>{footer}</Email>;
+    expect(renderToHtml(email())).toContain("Hi Alice");
+    user = "Bob";
+    const html = renderToHtml(email());
+    expect(html).toContain("Hi Bob");
+    expect(html).toContain("Bye Bob");
+    expect(html).not.toContain("Alice");
+    expect(JSON.stringify(renderToJson(email()))).toContain("Hi Bob");
+  });
+
+  it("is still called once per render where it's used twice, each use with its own id", () => {
+    let calls = 0;
+    const Counted = () => (calls++, block("Twice"));
+    const counted = <Counted />;
+    const html = renderToHtml(<Email>{counted}{counted}</Email>);
+    expect(html.match(/Twice/g)).toHaveLength(2);
+    expect(calls).toBe(1);
+    const ids = [...html.matchAll(/id="(u_content_paragraph_\d+)"/g)].map((m) => m[1]);
+    expect(new Set(ids).size).toBe(ids.length);
+  });
+});
