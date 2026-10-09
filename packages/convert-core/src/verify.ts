@@ -19,13 +19,14 @@ export interface TextCheck {
 }
 
 // A hidden element's opening tag; Elements hides a block on desktop with display:none on its table.
-const HIDDEN = /<(span|div|p|code|td|table)\b[^>]*style="[^"]*display:\s*none[^"]*"[^>]*>/gi;
+const HIDDEN = /<([a-z][\w-]*)\b[^>]*style="[^"]*display:\s*none[^"]*"[^>]*>/gi;
+const VOID = /^(area|base|br|col|embed|hr|img|input|link|meta|source|track|wbr)$/i;
 const INLINE = /<\/?(?:a|span|strong|b|em|i|u|s|small|code|sup|sub|font|mark|abbr)\b[^>]*>/gi;
 
 /** The words a reader sees in `html`, as written, with meaningful numeric punctuation and lone signs preserved, in order. */
 export function htmlWords(html: string): string[] {
   // Hidden elements (e.g. CodeInline's hidden copy for some clients) aren't read.
-  const text = withoutHidden(html
+  const text = withoutHidden(hideClasses(html, hiddenClasses(html))
     .replace(/<head\b[\s\S]*?<\/head>/gi, " ")
     .replace(/<(style|script|title)\b[\s\S]*?<\/\1>/gi, " ")
     // React separates adjacent text with <!-- --> (`{name}'s` → `Alex<!-- -->'s`).
@@ -118,7 +119,7 @@ export function compareText(originalHtml: string, convertedHtml: string): TextCh
 }
 
 function visibleHtml(html: string): string {
-  return withoutHidden(html.replace(/<head\b[\s\S]*?<\/head>/gi, " ").replace(/<!--[\s\S]*?-->/g, ""));
+  return withoutHidden(hideClasses(html, hiddenClasses(html)).replace(/<head\b[\s\S]*?<\/head>/gi, " ").replace(/<!--[\s\S]*?-->/g, ""));
 }
 
 /** `html` without its hidden elements, nested tags and all; the preview text (`data-skip-in-text`) stays: inboxes show it. */
@@ -128,6 +129,11 @@ function withoutHidden(html: string): string {
   HIDDEN.lastIndex = 0;
   for (let open = HIDDEN.exec(html); open; open = HIDDEN.exec(html)) {
     if (/data-skip-in-text/.test(open[0])) continue;
+    if (VOID.test(open[1])) {
+      out += `${html.slice(from, open.index)} `;
+      from = HIDDEN.lastIndex;
+      continue;
+    }
     const tags = new RegExp(`<(/?)${open[1]}\\b[^>]*>`, "gi");
     tags.lastIndex = HIDDEN.lastIndex;
     let depth = 1;
@@ -217,3 +223,64 @@ function lostOccurrences(original: string[], converted: string[]): string[] {
     return false;
   });
 }
+
+/**
+ * Classes a document's stylesheets hide everywhere (`.hide{display:none}`, outside
+ * media queries): hidden though no inline style says so. A rule in a media query
+ * (dark mode, phones) applies only sometimes, so it doesn't count.
+ */
+export function hiddenClasses(html: string): Map<string, { important: boolean }> {
+  const out = new Map<string, { important: boolean }>();
+  for (const [, sheet] of html.matchAll(/<style\b[^>]*>([\s\S]*?)<\/style>/gi)) {
+    const css = withoutAtRules(sheet.replace(/\/\*[\s\S]*?\*\//g, ""));
+    for (const [, selectors, body] of css.matchAll(/([^{}]+)\{([^{}]*)\}/g)) {
+      const hide = /(?:^|;)\s*display\s*:\s*none\s*(!\s*important)?/i.exec(body);
+      if (!hide) continue;
+      for (const selector of selectors.split(",")) {
+        const name = /^\s*\.([\w-]+)\s*$/.exec(selector)?.[1];
+        if (name) out.set(name, { important: Boolean(hide[1]) || Boolean(out.get(name)?.important) });
+      }
+    }
+  }
+  return out;
+}
+
+/**
+ * `html` with display:none written on the elements `classes` hide: unless their own style
+ * sets a display, which wins over a class rule that isn't `!important`.
+ */
+export function hideClasses(html: string, classes: ReadonlyMap<string, { important: boolean }>): string {
+  if (!classes.size) return html;
+  return html.replace(/<([a-z][\w-]*)((?:\s(?:"[^"]*"|'[^']*'|[^'">])*)?)>/gi, (tag, name: string, attrs: string) => {
+    const names = /\sclass\s*=\s*(?:"([^"]*)"|'([^']*)')/i.exec(attrs);
+    const rules = names ? (names[1] ?? names[2]).split(/\s+/).flatMap((c) => classes.get(c) ?? []) : [];
+    if (!rules.length) return tag;
+    const style = /\sstyle\s*=\s*"([^"]*)"/i.exec(attrs);
+    if (style && /(?:^|;)\s*display\s*:/i.test(style[1]) && !rules.some((rule) => rule.important)) return tag;
+    if (style) return tag.replace(style[0], ` style="${style[1].replace(/;?\s*$/, ";")}display:none"`);
+    const selfClosing = /\/\s*$/.test(attrs);
+    return `<${name}${attrs.replace(/\/\s*$/, "")} style="display:none"${selfClosing ? "/" : ""}>`;
+  });
+}
+
+/** CSS without its at-rule blocks (@media, @supports, @font-face). */
+function withoutAtRules(css: string): string {
+  let out = "";
+  for (let i = 0; i < css.length; ) {
+    const at = css.indexOf("@", i);
+    if (at < 0) return out + css.slice(i);
+    out += css.slice(i, at);
+    const open = css.indexOf("{", at);
+    const semi = css.indexOf(";", at);
+    if (open < 0 || (semi >= 0 && semi < open)) {
+      i = semi < 0 ? css.length : semi + 1;
+      continue;
+    }
+    let depth = 1;
+    let j = open + 1;
+    for (; j < css.length && depth; j++) depth += css[j] === "{" ? 1 : css[j] === "}" ? -1 : 0;
+    i = j;
+  }
+  return out;
+}
+

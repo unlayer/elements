@@ -12,7 +12,7 @@
 
 import React from "react";
 import { renderToStaticMarkup as reactStaticMarkup } from "react-dom/server";
-import { el, fallbackHtml, ReportBuilder, type ConversionReport, type ElementNode } from "@unlayer/convert-core";
+import { el, fallbackHtml, hideClasses, ReportBuilder, type ConversionReport, type ElementNode } from "@unlayer/convert-core";
 import { boxStyle, columnWidth, mergeColumnAndBox, mergeRowAndColumn, noteVerticalAlign, textBox, noteTextBox, wrapPadding } from "./boxes";
 import { expand, type Node } from "./expand";
 import { layout, type BoxNode, type BoxStyle, type ColumnNode, type Flow } from "./layout";
@@ -54,6 +54,8 @@ export interface RuntimeResult {
 type Ctx = MapCtx & {
   /** What the template's leftover classes do on phones (from its <style>), by class. */
   phone?: Map<string, Style>;
+  /** Classes a head rule hides (`.hide{display:none}`), written into kept markup: it has no head <style>. */
+  hidden?: Map<string, { important: boolean }>;
 };
 type Element = Exclude<Node, { kind: "text" }>;
 
@@ -133,7 +135,8 @@ export async function convertElement(element: React.ReactElement): Promise<Runti
 
   const rootFont = bodyStyle.fontFamily ?? containerStyle.fontFamily ?? fontStack;
   const rtl = /^rtl$/i.test(String(document?.props.dir ?? ""));
-  const ctx: Ctx = { report, inherited: inherit({ fontSize: "16px", ...(rtl ? { rtl } : {}) }, bodyStyle), rootFont, phone };
+  const hidden = new Map([...classes].filter(([, rule]) => /^none$/i.test(String(rule.display ?? "").trim())).map(([name]) => [name, { important: Boolean(classImportant.get(name)?.has("display")) }] as const));
+  const ctx: Ctx = { report, inherited: inherit({ fontSize: "16px", ...(rtl ? { rtl } : {}) }, bodyStyle), rootFont, phone, hidden };
 
   const fonts = fontStylesheets(fontSpecs, linked);
   const page = pageColor(bodyStyle, report);
@@ -447,7 +450,8 @@ function isImageLink(node: Exclude<Node, { kind: "text" }>): boolean {
 }
 
 /** Kept markup, in a div with the text styles it inherited in the original. */
-function kept(html: string, ctx: Ctx): string {
+function kept(markup: string, ctx: Ctx): string {
+  const html = hideClasses(markup, ctx.hidden ?? new Map());
   const style = inheritedStyle(ctx);
   if (!style) return html;
   const css = Object.entries(style)

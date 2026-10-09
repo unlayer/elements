@@ -4,7 +4,8 @@ import path from "node:path";
 import React from "react";
 import { renderToHtml, renderToJson } from "@unlayer/react-elements";
 import { Column, Row, Section, Tailwind, Text } from "@react-email/components";
-import { compareText, convertReactEmail, convertSource, expand, verifyConversion } from "../src/index";
+import { compareText, convertReactEmail, convertSource, expand, htmlWords, verifyConversion } from "../src/index";
+import { htmlAttributes } from "@unlayer/convert-core";
 import { color } from "../src/styles";
 
 const fixtures = path.join(import.meta.dirname, "fixtures");
@@ -874,3 +875,30 @@ export default function Template() {
   });
 });
 
+describe("content a <style> class hides", () => {
+  it("stays hidden, in both modes, and the check sees it hidden in the original", async () => {
+    const { result, runtime, Original, Migrated } = await bothModes(`import { Html, Head, Body, Text } from "@react-email/components";
+export default function Template() {
+  return <Html><Head><style>{".hide{display:none}"}</style></Head><Body><Text>Shown</Text><Text className="hide">Internal note</Text></Body></Html>;
+}`);
+    for (const html of [renderToHtml(Migrated({})), runtime.html()]) expect(htmlWords(html)).toEqual(["Shown"]);
+    const check = await verifyConversion(Original, Migrated);
+    expect([check.missing, check.added]).toEqual([[], []]);
+    expect(result.code).toMatch(/style=\{\{ display: "none" \}\}/);
+  });
+
+  it("keeps a dark-mode logo pair's light logo only, as the original shows it, and reports the dark-mode rule", async () => {
+    const css = ".dark-img{display:none !important} @media (prefers-color-scheme: dark) { .dark-img{display:block !important} .light-img{display:none !important} }";
+    const { result, runtime, Original, Migrated } = await bothModes(`import { Html, Head, Body, Text, Img } from "@react-email/components";
+export default function Template() {
+  return <Html><Head><style>{"${css}"}</style></Head><Body><Text>Hi</Text>
+    <Img className="light-img" src="https://example.com/light.png" width={100} alt="Light logo" />
+    <Img className="dark-img" src="https://example.com/dark.png" width={100} alt="Dark logo" />
+  </Body></Html>;
+}`);
+    for (const html of [renderToHtml(Migrated({})), runtime.html()]) expect(htmlAttributes(html)).toEqual(["src https://example.com/light.png", "alt Light logo"]);
+    const check = await verifyConversion(Original, Migrated);
+    expect([check.missingAttributes, check.addedAttributes]).toEqual([[], []]);
+    expect(result.report.notes).toContainEqual({ reason: "head style rule not converted", detail: ".dark-img @media (prefers-color-scheme: dark)" });
+  });
+});

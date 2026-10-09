@@ -1412,20 +1412,25 @@ class Converter {
   /** Edits turning each static className under `root` into the style Tailwind gives it (leftover classes stay). */
   private classesToStyles(root: ts.Node): Array<{ from: number; to: number; text: string }> {
     const edits: Array<{ from: number; to: number; text: string }> = [];
-    if (!this.tailwind.styles.size) return edits;
+    // A head rule's hiding (`.hide{display:none}`) is written in too: the migrated email has no head <style>.
+    const hidden = new Set([...this.headClasses].filter(([, rule]) => /^none$/i.test(String(rule.display ?? "").trim())).map(([name]) => name));
+    if (!this.tailwind.styles.size && !hidden.size) return edits;
     const visit = (node: ts.Node) => {
       if (ts.isJsxOpeningElement(node) || ts.isJsxSelfClosingElement(node)) {
         const attrs = node.attributes.properties;
         const className = attrs.find((a): a is ts.JsxAttribute => ts.isJsxAttribute(a) && a.name.getText() === "className");
         const value = className ? this.attrValue(className.initializer) : undefined;
-        const style = typeof value === "string" ? this.tailwind.styles.get(value) : undefined;
-        if (className && typeof value === "string" && style && Object.keys(style).length) {
+        const tailwind = typeof value === "string" ? this.tailwind.styles.get(value) : undefined;
+        const hides = typeof value === "string" && value.split(/\s+/).find((name) => hidden.has(name));
+        const style = { ...tailwind, ...(hides && !this.headImportant.get(hides)?.has("display") ? { display: "none" } : {}) };
+        const after = hides && this.headImportant.get(hides)?.has("display") ? [`display: "none"`] : [];
+        if (className && typeof value === "string" && (Object.keys(style).length || after.length)) {
           const styleAttr = attrs.find((a): a is ts.JsxAttribute => ts.isJsxAttribute(a) && a.name.getText() === "style");
           const own = styleAttr?.initializer && ts.isJsxExpression(styleAttr.initializer) ? styleAttr.initializer.expression?.getText() : undefined;
           const entries = Object.entries(style).map(([k, v]) => `${/^[a-zA-Z_$][\w$]*$/.test(k) ? k : JSON.stringify(k)}: ${JSON.stringify(v)}`);
-          const merged = `style={{ ${[...entries, ...(own ? [`...(${own})`] : [])].join(", ")} }}`;
+          const merged = `style={{ ${[...entries, ...(own ? [`...(${own})`] : []), ...after].join(", ")} }}`;
           // Classes Tailwind couldn't inline (mobile:, hover:) have no stylesheet here: they go.
-          edits.push({ from: className.getStart(), to: className.getEnd(), text: "" });
+          if (tailwind && Object.keys(tailwind).length) edits.push({ from: className.getStart(), to: className.getEnd(), text: "" });
           if (styleAttr) edits.push({ from: styleAttr.getStart(), to: styleAttr.getEnd(), text: merged });
           else edits.push({ from: className.getEnd(), to: className.getEnd(), text: ` ${merged}` });
         }

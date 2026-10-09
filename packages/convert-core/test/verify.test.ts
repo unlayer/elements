@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { compareText } from "../src/verify";
+import { compareText, hiddenClasses, hideClasses, htmlAttributes, htmlWords } from "../src/verify";
 
 describe("link and image occurrences", () => {
   it("detects reordered values even when the conversion adds words", () => {
@@ -65,6 +65,23 @@ describe("hidden elements", () => {
   it("still reads the preview text, and an element that's never closed", () => {
     expect(compareText('<div style="display:none" data-skip-in-text="true">Preview</div><p>Hi</p>', "<p>Hi</p>").missing).toEqual(["Preview"]);
     expect(compareText('<div style="display:none">Open', "").missing).toEqual(["Open"]);
+  });
+});
+
+describe("elements a stylesheet class hides", () => {
+  const sheet = (css: string, body: string) => `<html><head><style>${css}</style></head><body>${body}</body></html>`;
+
+  it("aren't read, unless the rule is in a media query or their own style shows them", () => {
+    const html = sheet(".hide{display:none} @media (prefers-color-scheme: dark){.dark{display:block}} .shown{display:none}", '<p>Visible</p><p class="note hide">Internal note</p><p class="dark">Dark</p><p class="shown" style="display:block">Inline wins</p>');
+    expect(htmlWords(html)).toEqual(["Visible", "Dark", "Inline", "wins"]);
+    expect(compareText(html, "<p>Visible</p><p>Dark</p><p>Inline wins</p>")).toMatchObject({ missing: [], added: [] });
+  });
+
+  it("are hidden by an !important rule over their own style, images included", () => {
+    const html = sheet(".dark-img{display:none !important}", '<img class="dark-img" src="/dark.png" alt="Dark logo" style="display:block"><img src="/light.png" alt="Light logo">');
+    expect(htmlAttributes(html)).toEqual(["src /light.png", "alt Light logo"]);
+    expect([...hiddenClasses(html)]).toEqual([["dark-img", { important: true }]]);
+    expect(hideClasses('<img class="dark-img" style="display:block">', hiddenClasses(html))).toBe('<img class="dark-img" style="display:block;display:none">');
   });
 });
 
