@@ -83,6 +83,14 @@ describe("useId() in components", () => {
     }
   });
 
+  it("gives an element placed twice its own ids in each place", () => {
+    const section = <SectionRow to="/again" />;
+    const html = renderToHtml(<Email>{section}{section}<Row><Column><Section to="/one" /></Column></Row></Email>);
+    const found = ids(html);
+    expect(found).toHaveLength(3);
+    expect(new Set(found).size).toBe(3);
+  });
+
   it("gives the same ids on every render", () => {
     expect(renderToHtml(email())).toBe(renderToHtml(email()));
     expect(renderToStaticMarkup(email())).toBe(renderToStaticMarkup(email()));

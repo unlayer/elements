@@ -80,13 +80,13 @@ describe("a component element kept between renders", () => {
     expect(JSON.stringify(renderToJson(email()))).toContain("Hi Bob");
   });
 
-  it("is still called once per render where it's used twice, each use with its own id", () => {
+  it("is called once for each place it's used in a render (not for each of the render's passes), each use with its own id", () => {
     let calls = 0;
     const Counted = () => (calls++, block("Twice"));
     const counted = <Counted />;
     const html = renderToHtml(<Email>{counted}{counted}</Email>);
     expect(html.match(/Twice/g)).toHaveLength(2);
-    expect(calls).toBe(1);
+    expect(calls).toBe(2);
     const ids = [...html.matchAll(/id="(u_content_paragraph_\d+)"/g)].map((m) => m[1]);
     expect(new Set(ids).size).toBe(ids.length);
   });

@@ -61,3 +61,18 @@ describe.each(EXAMPLES)("%s", (name) => {
     await expect(lines(render.renderToHtml(element))).toMatchFileSnapshot(`__snapshots__/examples/${name}.html`);
   });
 });
+
+describe("a component that renders plain HTML in a Column", () => {
+  it("renders its HTML as the previous release does", async () => {
+    const releases = [await import("../index"), await import("@unlayer/react-elements-previous")] as any[];
+    const [current, previous] = releases.map((E) => {
+      const Footer = () => <div dangerouslySetInnerHTML={{ __html: '<p>Footer copy</p><a href="https://example.com/unsubscribe">Unsubscribe</a>' }} />;
+      const html: string = E.renderToHtml(
+        <E.Email><E.Row><E.Column><E.Paragraph>Start</E.Paragraph><Footer /><E.Paragraph>End</E.Paragraph></E.Column></E.Row></E.Email>
+      );
+      return html.slice(html.indexOf("Start"), html.indexOf("End"));
+    });
+    expect(current).toContain('<a href="https://example.com/unsubscribe">Unsubscribe</a>');
+    expect(current).toBe(previous);
+  });
+});

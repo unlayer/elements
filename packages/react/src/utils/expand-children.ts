@@ -7,10 +7,11 @@ import { callIsolated, isElementsType } from "./unwrap-root";
 
 const MEMO = Symbol.for("react.memo");
 const FORWARD_REF = Symbol.for("react.forward_ref");
-// What each element rendered to, for the render under way only: an element
-// object kept between renders (`const footer = <Footer />`) is called again by
-// the next one, which may read other data (another user's).
-let rendered: WeakMap<object, React.ReactNode> | undefined;
+// What each component rendered to, by the children list it's in and its place
+// there, for the render under way only: an element object kept between renders
+// (`const footer = <Footer />`) is called again by the next one, which may read
+// other data (another user's), and one placed twice is called for each place.
+let rendered: WeakMap<object, Map<number, React.ReactNode>> | undefined;
 // Components called so far in the render: each one's `useId()` values get their own prefix.
 let called = 0;
 
@@ -39,16 +40,17 @@ function expands(child: React.ReactNode): child is React.ReactElement {
   return type?.$$typeof === FORWARD_REF || (typeof type === "function" && !type.prototype?.isReactComponent);
 }
 
-// A user component is called in a render of its own (hooks work), once per element in a render.
-function contents(element: React.ReactElement<any>): React.ReactNode {
+// A user component is called in a render of its own (hooks work), once per place in a render.
+function contents(element: React.ReactElement<any>, list: object, at: number): React.ReactNode {
   if (element.type === React.Fragment) return element.props.children;
-  if (rendered?.has(element)) return rendered.get(element);
+  const done = rendered?.get(list);
+  if (done?.has(at)) return done.get(at);
   const type = innerType(element.type);
   const props = { ...element.props };
   const out = (isElementsType(type)
     ? React.createElement(type, props)
     : callIsolated(() => (type.$$typeof === FORWARD_REF ? type.render(props, null) : type(props)), `u${++called}-`)) as React.ReactNode;
-  rendered?.set(element, out);
+  if (rendered) rendered.set(list, (done ?? new Map()).set(at, out));
   return out;
 }
 
@@ -60,9 +62,14 @@ export function expandChildren(children: React.ReactNode, depth = 0): React.Reac
   if (depth > 50) throw new Error("[Unlayer] components nested more than 50 deep");
   const out: React.ReactNode[] = [];
   const add = (child: React.ReactNode) => child != null && typeof child !== "boolean" && out.push(child);
-  React.Children.forEach(children, (child) => {
-    if (expands(child)) React.Children.forEach(expandChildren(contents(child), depth + 1), add);
-    else add(child);
+  // The list the children are in (a single child is its own).
+  const list = children as object;
+  React.Children.forEach(children, (child, at) => {
+    if (!expands(child)) return add(child);
+    const inside = contents(child, list, at);
+    // A component that renders plain HTML (`<div dangerouslySetInnerHTML>`) is kept: a Column renders its HTML, as it always has.
+    if (child.type !== React.Fragment && React.isValidElement(inside) && typeof inside.type === "string") return add(child);
+    React.Children.forEach(expandChildren(inside, depth + 1), add);
   });
   return out;
 }
