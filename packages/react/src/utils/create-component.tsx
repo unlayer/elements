@@ -343,7 +343,8 @@ export function createItemComponent<
     //    so JSON output preserves the schema's storage shape.
     const valuesForExporter = normalizeValuesForExporter(
       valuesWithMeta as Record<string, any>,
-      config.name
+      config.name,
+      mode
     );
 
     // 5b. Convert a fixed (px) image pin to the editor's canonical percent now

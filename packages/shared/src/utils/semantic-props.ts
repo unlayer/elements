@@ -468,14 +468,16 @@ function safeLink(link: Record<string, any>): Record<string, any> {
  * Knows about the link-bearing paths per component:
  * - top-level `href` (Button, Video)
  * - top-level `action` (Image, Timer)
- * - `menu.items[].link` (Menu)
+ * - `menu.items[].link` (Menu), and its items' text
+ * - `icons.icons[].url` (Social)
  *
  * Only the bridge between mapper and exporter should call this; renderToJson
  * must NOT, because JSON output preserves storage shape.
  */
 export function normalizeValuesForExporter<T extends Record<string, any>>(
   values: T,
-  componentName: string
+  componentName: string,
+  mode?: string
 ): T {
   if (values == null || typeof values !== "object") return values;
 
@@ -497,17 +499,25 @@ export function normalizeValuesForExporter<T extends Record<string, any>>(
     out.text = escapeText(out.text, true);
   }
 
-  // Menu items each carry a `link` field.
+  // Menu items each carry a `link` field, and text the email exporter writes
+  // as it is (the web and document exporters escape it).
   if (componentName === "Menu" && out.menu && Array.isArray(out.menu.items)) {
     out.menu = {
       ...out.menu,
       items: out.menu.items.map((item: any) => {
-        if (!item || item.link === undefined) return item;
-        const normalized = normalizeLinkValue(item.link);
-        if (normalized === undefined) return item;
-        return { ...item, link: safeLink(normalized) };
+        if (!item) return item;
+        const next = mode === "email" && typeof item.text === "string" ? { ...item, text: escapeText(item.text, true) } : item;
+        if (next.link === undefined) return next;
+        const normalized = normalizeLinkValue(next.link);
+        if (normalized === undefined) return next;
+        return { ...next, link: safeLink(normalized) };
       }),
     };
+  }
+
+  // Social icons each carry a `url`, written into an href as it is.
+  if (componentName === "Social" && out.icons && Array.isArray(out.icons.icons)) {
+    out.icons = { ...out.icons, icons: out.icons.icons.map((icon: any) => (icon && typeof icon === "object" ? safeLink(icon) : icon)) };
   }
 
   return out as T;
