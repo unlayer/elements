@@ -936,4 +936,16 @@ export default function Template() { return <Html><Body><Text style={theme}>Colo
     expect(result.report.lostStyles).toEqual(["line 4: style={theme}"]);
     expect(result.code).not.toContain('color="#ff0000"');
   });
+
+  it("fail the check: a column's or a linked image's width computed from props", async () => {
+    const { result } = await bothModes(`import { Html, Body, Section, Row, Column, Link, Img, Text } from "@react-email/components";
+export default function Template({ wide = true }: { wide?: boolean }) {
+  return <Html><Body>
+    <Section><Row><Column width={wide ? 500 : 100}><Text>A</Text></Column><Column><Text>B</Text></Column></Row></Section>
+    <Link href="https://example.com"><Img src="https://example.com/a.png" width={wide ? 200 : 100} alt="Logo" /></Link>
+  </Body></Html>;
+}
+Template.PreviewProps = { wide: true };`);
+    expect(result.report.lostStyles).toEqual(["line 4: width={wide ? 500 : 100}", "line 5: width={wide ? 200 : 100}"]);
+  });
 });

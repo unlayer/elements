@@ -1013,6 +1013,8 @@ class Converter {
 
   private columnWidth(col: Jsx): number | string | undefined {
     const width = this.attr(col, "width");
+    // Computed from props (`width={wide ? 500 : 100}`): the codemod writes a fixed width, so the check fails.
+    if (isExpr(width)) this.computed(col, "width");
     return columnWidth(col.style, isExpr(width) ? undefined : width);
   }
 
@@ -1300,6 +1302,7 @@ class Converter {
         if (only && (only.name === "Img" || only.tag === "img")) {
           if (only.opaqueProps) return [{ node: this.fallback(jsx, ctx, "dynamic spread or content props"), margin: ZERO, padding: ZERO }];
           if (!hasWidth(this.attr(only, "width"), only.style)) return [{ node: this.fallback(jsx, ctx, "image without a width (its natural size isn't known)"), margin: ZERO, padding: ZERO }];
+          this.computed(only, "width");
           return [imageBlock({ src: this.attr(only, "src"), alt: this.attr(only, "alt"), width: this.attr(only, "width"), height: this.attr(only, "height"), href: this.attr(jsx, "href") }, only.style, ctx)];
         }
         if (backgroundColor(style) && (style.padding || style.paddingTop || style.paddingLeft)) {
