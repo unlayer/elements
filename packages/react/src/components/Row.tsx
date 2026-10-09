@@ -8,7 +8,7 @@ import { nextHtmlId } from "../utils/create-component";
 import { bodyContentWidthPx } from "../utils/image-sizing";
 import type { DeviceProps, SizeInput } from "../types";
 import { ROW_DEFAULTS, BODY_DEFAULTS } from "../utils/container-defaults";
-import { expandChildren } from "../utils/expand-children";
+import { expandChildren, looseText } from "../utils/expand-children";
 
 /**
  * Row - Container for columns in a layout
@@ -186,7 +186,7 @@ function processChildren(
   childrenArray.forEach((child, index) => {
     if (!React.isValidElement(child)) {
       if (typeof child === "string" || typeof child === "number") {
-        innerHTML += String(child);
+        innerHTML += looseText(child, "Row");
       }
       return;
     }

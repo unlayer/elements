@@ -1,8 +1,8 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import React from "react";
 import { renderToHtml } from "./render-to-html";
 import { renderToJson } from "./render-to-json";
-import { Email, Page, Row, Column, Heading, Button, Paragraph } from "../index";
+import { Email, Page, Document, Row, Column, Heading, Button, Paragraph } from "../index";
 
 // A value such as a user's name, with markup in it.
 const name = '<img src=x onerror="alert(1)"> & Co';
@@ -62,3 +62,36 @@ describe("link URLs", () => {
     expect(html).toMatch(/>\s*Welcome\s*</);
   });
 });
+
+describe("text placed straight in a Row or Column", () => {
+  const Name = () => name;
+  it.each([["email", Email], ["web", Page], ["document", Document]] as const)("shows as text, from a Fragment, a component or written there (%s)", (_, Root) => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    try {
+      const html = renderToHtml(
+        <Root>
+          <Row>{name}<Column><>{name}</></Column></Row>
+          <Row><Column><Name /></Column></Row>
+          <Row><Column>{name}{7}</Column></Row>
+        </Root>
+      );
+      expect(html).not.toContain("<img src=x");
+      expect(html.match(/&lt;img src=x onerror=&quot;alert\(1\)&quot;&gt; &amp; Co/g)).toHaveLength(4);
+      expect(html).toContain("&amp; Co7");
+      expect(warn).toHaveBeenCalledWith(expect.stringContaining("Put it in a <Paragraph>"));
+    } finally {
+      warn.mockRestore();
+    }
+  });
+
+  it("doesn't warn about whitespace between blocks", () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    try {
+      renderToHtml(<Email><Row>{" "}<Column>{" "}<Paragraph>Hi</Paragraph>{"\n"}</Column></Row></Email>);
+      expect(warn).not.toHaveBeenCalled();
+    } finally {
+      warn.mockRestore();
+    }
+  });
+});
+

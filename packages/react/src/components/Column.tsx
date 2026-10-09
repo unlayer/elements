@@ -5,7 +5,7 @@ import { UNLAYER_RENDER_KEY, UNLAYER_CONFIG_KEY, nextHtmlId } from "../utils/cre
 import { mapSemanticProps, type SemanticProps } from "../utils/semantic-props";
 import type { DeviceProps, SizeInput, BorderInput } from "../types";
 import { COLUMN_DEFAULTS } from "../utils/container-defaults";
-import { expandChildren } from "../utils/expand-children";
+import { expandChildren, looseText } from "../utils/expand-children";
 
 /** Unlayer's default content-block padding when a block sets none. */
 const DEFAULT_CONTAINER_PADDING = "10px";
@@ -121,7 +121,7 @@ export const Column: React.FC<ColumnProps> = (props) => {
 
       childrenArray.forEach((child, childIndex) => {
         if (typeof child === "string" || typeof child === "number") {
-          innerHTML += String(child);
+          innerHTML += looseText(child, "Column");
         } else if (React.isValidElement(child)) {
           // Call component function to get rendered result
           if (typeof child.type === "function") {

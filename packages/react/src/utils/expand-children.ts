@@ -52,3 +52,18 @@ export function expandChildren(children: React.ReactNode, depth = 0): React.Reac
   });
   return out;
 }
+
+const ENTITIES: Record<string, string> = { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" };
+
+/**
+ * Text placed straight in a Row or Column, as HTML: escaped, as React shows
+ * text (raw HTML goes in an Html block). The editor has no place for it, so
+ * the warning says where it belongs.
+ */
+export function looseText(child: string | number, container: string): string {
+  const text = String(child);
+  if (text.trim()) {
+    console.warn(`${container}: text placed straight in a ${container} shows as text and isn't kept in the editor's design. Put it in a <Paragraph>, or HTML in an <Html> block.`);
+  }
+  return text.replace(/[&<>"']/g, (c) => ENTITIES[c]);
+}
