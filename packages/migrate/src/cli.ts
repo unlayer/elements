@@ -7,7 +7,7 @@
  * visual editor would open. Only checked templates are written.
  */
 
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, readFileSync, realpathSync } from "node:fs";
 import { lstat, mkdir, open, readFile, readdir, realpath, rename, rm, rmdir, stat } from "node:fs/promises";
 import { randomUUID } from "node:crypto";
 import Module, { createRequire } from "node:module";
@@ -412,6 +412,8 @@ async function migrateFile(input: Input, options: Options, lib: Library, io: Io,
       // replacing it would turn it into a whole email inside the templates that use it.
       // A dry run says what --write does; --out writes copies of them too.
       if (options.out === undefined && !/<html[\s>]/i.test(verification.originalHtml)) return { file: name, status: "skipped", reason: "not an email template (it doesn't render <Html>): a shared component, left as it is" };
+      // Nor is one that renders its children: a layout templates wrap. This holds when an import of it can't be followed.
+      if (options.out === undefined && (await rendersChildren(source))) return { file: name, status: "skipped", reason: "a layout (it renders its children), not an email template: a shared component, left as it is" };
       design = verification.design;
       if (options.design && options.mergeTags) {
         const tagged = await lib.mergeTagDesign(Migrated as (props: unknown) => ReturnType<typeof Original>, designProps, verification.design);
@@ -768,7 +770,7 @@ async function importFile(
     tmpdir(),
     `unlayer-migrate-tsconfig-${randomUUID()}.json`,
   );
-  const base = findUp("tsconfig.json", dirname(path));
+  const base = projectConfig(dirname(path));
   const ts = (await import("typescript")).default;
   const compiler = base
     ? ts.parseJsonConfigFileContent(
@@ -852,14 +854,21 @@ async function importFile(
  */
 async function moduleLoader(file: string): Promise<(specifier: string, fromFile: string) => { fileName: string; source: string } | undefined> {
   const ts = (await import("typescript")).default;
-  const configFile = ts.findConfigFile(dirname(file), ts.sys.fileExists);
+  const configFile = projectConfig(dirname(file));
   const options = configFile
     ? ts.parseJsonConfigFileContent(ts.readConfigFile(configFile, ts.sys.readFile).config ?? {}, ts.sys, dirname(configFile)).options
     : { allowJs: true, jsx: ts.JsxEmit.ReactJSX };
   return (specifier, fromFile) => {
     const resolved = ts.resolveModuleName(specifier, fromFile, { ...options, allowJs: true }, ts.sys).resolvedModule;
-    const target = resolved?.resolvedFileName;
-    if (!target || resolved.isExternalLibraryImport || target.includes(`${sep}node_modules${sep}`) || target.endsWith(".d.ts")) return undefined;
+    if (!resolved?.resolvedFileName) return undefined;
+    // A workspace package (linked into node_modules) is the project's own code: followed to its real path.
+    let target = resolved.resolvedFileName;
+    try {
+      target = realpathSync(target);
+    } catch {
+      // a file that's gone: as resolved
+    }
+    if (target.includes(`${sep}node_modules${sep}`) || target.endsWith(".d.ts")) return undefined;
     const text = ts.sys.readFile(target);
     return text === undefined ? undefined : { fileName: target, source: text };
   };
@@ -1025,6 +1034,79 @@ export function elementsMismatch(cwd: string, range = ownPackage().peerDependenc
 
 function ownPackage(): { peerDependencies?: Record<string, string> } {
   return createRequire(import.meta.url)("../package.json");
+}
+
+/** The nearest tsconfig.json, or jsconfig.json (JavaScript projects, Next.js), at or above `dir`. */
+function projectConfig(dir: string): string | undefined {
+  for (let current = dir; ; current = dirname(current)) {
+    for (const name of ["tsconfig.json", "jsconfig.json"]) if (existsSync(join(current, name))) return join(current, name);
+    if (dirname(current) === current) return undefined;
+  }
+}
+
+/**
+ * Whether a module's default-exported component renders its `children`
+ * (`({ children }) =>`, `props.children`): a layout that templates wrap.
+ */
+async function rendersChildren(source: string): Promise<boolean> {
+  const ts = (await import("typescript")).default;
+  const file = ts.createSourceFile("template.tsx", source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
+  const declared = new Map<string, import("typescript").Node>();
+  let exported: import("typescript").Node | undefined;
+  for (const statement of file.statements) {
+    const isDefault = ts.canHaveModifiers(statement) && (ts.getModifiers(statement) ?? []).some((m) => m.kind === ts.SyntaxKind.DefaultKeyword);
+    if (ts.isFunctionDeclaration(statement)) {
+      if (statement.name) declared.set(statement.name.text, statement);
+      if (isDefault) exported = statement;
+    } else if (ts.isVariableStatement(statement)) {
+      for (const d of statement.declarationList.declarations) if (ts.isIdentifier(d.name) && d.initializer) declared.set(d.name.text, d.initializer);
+    } else if (ts.isExportAssignment(statement) && !statement.isExportEquals) exported = statement.expression;
+  }
+  // Through a name, parentheses, `memo(…)` and `forwardRef(…)`, to the function.
+  let fn = exported;
+  for (let depth = 0; fn && depth < 5 && !ts.isFunctionLike(fn); depth++) {
+    if (ts.isIdentifier(fn)) fn = declared.get(fn.text);
+    else if (ts.isParenthesizedExpression(fn)) fn = fn.expression;
+    else if (ts.isCallExpression(fn)) fn = fn.arguments[0];
+    else fn = undefined;
+  }
+  if (!fn || !ts.isFunctionLike(fn)) return false;
+  const param = fn.parameters[0]?.name;
+  const body = (fn as import("typescript").FunctionLikeDeclaration).body;
+  if (!param || !body) return false;
+  /** Whether `name` is read in the body, other than where it's declared. */
+  const used = (name: string) => {
+    let found = false;
+    const visit = (node: import("typescript").Node) => {
+      if (found) return;
+      if (ts.isIdentifier(node) && node.text === name && !(ts.isBindingElement(node.parent) && node.parent.name === node) && !(ts.isPropertyAccessExpression(node.parent) && node.parent.name === node)) found = true;
+      else ts.forEachChild(node, visit);
+    };
+    visit(body);
+    return found;
+  };
+  /** The local a `children` element of a destructuring pattern binds. */
+  const bound = (pattern: import("typescript").ObjectBindingPattern) => {
+    const element = pattern.elements.find((e) => (e.propertyName ?? e.name).getText() === "children");
+    return element && ts.isIdentifier(element.name) ? element.name.text : undefined;
+  };
+  if (ts.isObjectBindingPattern(param)) {
+    const local = bound(param);
+    return local !== undefined && used(local);
+  }
+  if (!ts.isIdentifier(param)) return false;
+  // `props.children`, or `const { children } = props` then used.
+  let found = false;
+  const visit = (node: import("typescript").Node) => {
+    if (found) return;
+    if (ts.isPropertyAccessExpression(node) && node.name.text === "children" && ts.isIdentifier(node.expression) && node.expression.text === param.text) found = true;
+    else if (ts.isVariableDeclaration(node) && ts.isObjectBindingPattern(node.name) && node.initializer?.getText() === param.text) {
+      const local = bound(node.name);
+      found = local !== undefined && used(local);
+    } else ts.forEachChild(node, visit);
+  };
+  visit(body);
+  return found;
 }
 
 function findUp(name: string, from: string): string | undefined {

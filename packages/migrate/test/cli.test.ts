@@ -431,6 +431,53 @@ export default function Receipt() { return <Parts.default><Text>Your receipt</Te
     expect(fs.readFileSync(path.join(dir, "emails/Shell.tsx"), "utf8")).toBe(shell);
   });
 
+  it("reads jsconfig.json paths (Next.js) to load templates and to find what's shared", async () => {
+    const layout = `import { Html, Body, Container } from "@react-email/components";
+export default function Layout({ children }) { return <Html><Body><Container>{children}</Container></Body></Html>; }`;
+    const dir = project({
+      "jsconfig.json": JSON.stringify({ compilerOptions: { baseUrl: ".", paths: { "@/*": ["./*"] } } }),
+      "emails/layout.jsx": layout,
+      "emails/welcome.jsx": `import { Text } from "@react-email/components";\nimport Layout from "@/emails/layout";\nexport default function Welcome() { return <Layout><Text>Welcome aboard</Text></Layout>; }`,
+    });
+    const out = io(dir);
+    expect(await main(["emails", "--write"], out, lib), out.out + out.err).toBe(0);
+    expect(out.out).toMatch(/- emails\/layout\.jsx: skipped \(imported by emails\/welcome\.jsx/);
+    expect(out.out).toMatch(/✓ emails\/welcome\.jsx: 100% editable/);
+    expect(fs.readFileSync(path.join(dir, "emails/layout.jsx"), "utf8")).toBe(layout);
+  });
+
+  it("follows a workspace package linked into node_modules to its source", async () => {
+    const layout = `import { Html, Body, Container } from "@react-email/components";
+export default function Layout({ children }: { children?: React.ReactNode }) { return <Html><Body><Container>{children}</Container></Body></Html>; }`;
+    const dir = project({
+      "packages/email-ui/package.json": JSON.stringify({ name: "@acme/email-ui", main: "Layout.tsx", types: "Layout.tsx" }),
+      "packages/email-ui/Layout.tsx": layout,
+      "apps/web/emails/welcome.tsx": `import { Text } from "@react-email/components";\nimport Layout from "@acme/email-ui";\nexport default function Welcome() { return <Layout><Text>Welcome aboard</Text></Layout>; }`,
+    });
+    fs.mkdirSync(path.join(dir, "node_modules/@acme"), { recursive: true });
+    fs.symlinkSync(path.join(dir, "packages/email-ui"), path.join(dir, "node_modules/@acme/email-ui"), "dir");
+    const out = io(dir);
+    await main([".", "--write"], out, lib);
+    expect(out.out).toMatch(/- packages\/email-ui\/Layout\.tsx: skipped \(imported by apps\/web\/emails\/welcome\.tsx/);
+    expect(fs.readFileSync(path.join(dir, "packages/email-ui/Layout.tsx"), "utf8")).toBe(layout);
+  });
+
+  it("leaves a layout alone with --write even when the import of it can't be followed", async () => {
+    const layout = `import { Html, Body, Container } from "@react-email/components";
+export default function Layout(props: { children?: React.ReactNode }) { return <Html><Body><Container>{props.children}</Container></Body></Html>; }`;
+    const dir = project({
+      "emails/layout.tsx": layout,
+      "emails/welcome.tsx": `import { Text } from "@react-email/components";\n// @ts-ignore\nimport Layout from "unknown-alias/layout";\nexport default function Welcome() { return <Layout><Text>Welcome aboard</Text></Layout>; }`,
+      "emails/receipt.tsx": `import { Html, Body, Text } from "@react-email/components";\nexport default function Receipt({ children = "Your receipt" }) { return <Html><Body><Text>Thanks, the team. Our children's charity thanks you too.</Text></Body></Html>; }`,
+    });
+    const out = io(dir);
+    await main(["emails", "--write"], out, lib);
+    expect(out.out).toMatch(/- emails\/layout\.tsx: skipped \(a layout \(it renders its children\)/);
+    expect(fs.readFileSync(path.join(dir, "emails/layout.tsx"), "utf8")).toBe(layout);
+    // A template whose props happen to include a `children` default, or whose text says "children", is still an email.
+    expect(out.out).toMatch(/✓ emails\/receipt\.tsx/);
+  });
+
   it("leaves a shared component alone even when it's the only file given", async () => {
     const footer = `import { Section, Text } from "@react-email/components";
 export default function Footer() { return <Section><Text>Sent by Acme</Text></Section>; }`;
