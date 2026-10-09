@@ -21,10 +21,14 @@ export function getDisplayName(element: React.ReactElement): string | undefined 
   return type?.displayName || type?.name;
 }
 
+/** Whether a component type is an Elements component (a root, a container or a content block). */
+export function isElementsType(type: any): boolean {
+  return !!type?.[UNLAYER_RENDER_KEY] || CONTAINER_NAMES.has(type?.displayName);
+}
+
 /** Whether the element is an Elements component (a root, a container or a content block). */
 function isElementsComponent(element: React.ReactElement): boolean {
-  const type = element.type as any;
-  return !!type?.[UNLAYER_RENDER_KEY] || CONTAINER_NAMES.has(type?.displayName);
+  return isElementsType(element.type);
 }
 
 /** Thrown for a template that is async or suspends: renderToHtml renders synchronously. */
@@ -38,7 +42,7 @@ const isThenable = (value: unknown): boolean => typeof (value as { then?: unknow
  * there, never on the component that is rendering when renderToHtml is called
  * (a live preview in `useMemo`), whose hooks they would otherwise corrupt.
  */
-function callIsolated(call: () => unknown): unknown {
+export function callIsolated(call: () => unknown): unknown {
   let result: unknown;
   let error: unknown;
   let ran = false;

@@ -8,6 +8,7 @@ import { nextHtmlId } from "../utils/create-component";
 import { bodyContentWidthPx } from "../utils/image-sizing";
 import type { DeviceProps, SizeInput } from "../types";
 import { ROW_DEFAULTS, BODY_DEFAULTS } from "../utils/container-defaults";
+import { expandChildren } from "../utils/expand-children";
 
 /**
  * Row - Container for columns in a layout
@@ -180,7 +181,7 @@ function processChildren(
   if (!children) return "";
 
   let innerHTML = "";
-  const childrenArray = React.Children.toArray(children);
+  const childrenArray = React.Children.toArray(expandChildren(children));
 
   childrenArray.forEach((child, index) => {
     if (!React.isValidElement(child)) {
@@ -255,7 +256,7 @@ const Row: React.FC<RowProps> = (props) => {
   } else if (propsCells) {
     cells = propsCells;
   } else {
-    const columnCount = React.Children.toArray(children).filter(
+    const columnCount = React.Children.toArray(expandChildren(children)).filter(
       (c) => React.isValidElement(c) && /^Column$/.test((c.type as any)?.displayName || (c.type as any)?.name || "")
     ).length;
     cells = Array(Math.max(1, columnCount)).fill(1);

@@ -7,6 +7,7 @@ import { mapSemanticProps, type SemanticProps } from "../utils/semantic-props";
 import { nextHtmlId } from "../utils/create-component";
 import type { SizeInput } from "../types";
 import { BODY_DEFAULTS } from "../utils/container-defaults";
+import { expandChildren } from "../utils/expand-children";
 
 export type BodyProps = Omit<SemanticProps<BodyValues>, "padding" | "borderRadius"> & {
   children?: React.ReactNode;
@@ -179,24 +180,20 @@ const Body: React.FC<BodyProps> = (props) => {
   // row container max-width (and therefore each column's width) in web mode.
   // Without this, Row falls back to BODY_DEFAULTS.contentWidth ("500px") and
   // <Body contentWidth="…"> is silently ignored for layout.
-  let enrichedChildren = children;
-  if (children) {
-    enrichedChildren = React.Children.map(children, (child) => {
-      if (React.isValidElement(child)) {
-        return React.cloneElement(child as React.ReactElement<any>, {
-          _config,
-          bodyValues: values,
-        });
-      }
-      return child;
-    });
-  }
-
-  // Process children to innerHTML
+  // Fragments and user components expanded: their rows get the context too.
   let innerHTML = "";
-  if (enrichedChildren) {
+  if (children) {
     try {
-      innerHTML = ReactDOMServer.renderToString(enrichedChildren as React.ReactElement);
+      const enrichedChildren = React.Children.map(expandChildren(children), (child) => {
+        if (React.isValidElement(child)) {
+          return React.cloneElement(child as React.ReactElement<any>, {
+            _config,
+            bodyValues: values,
+          });
+        }
+        return child;
+      });
+      innerHTML = ReactDOMServer.renderToString(enrichedChildren as unknown as React.ReactElement);
     } catch (error) {
       console.error("Body: Failed to render children:", error);
       innerHTML = "";

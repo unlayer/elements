@@ -1,0 +1,54 @@
+// Fragments and user components (`<Header />` returning a Row) among a Body's,
+// Row's or Column's children, expanded into what they render, so the render,
+// the head's phone CSS and renderToJson see the same blocks (ids line up).
+
+import React from "react";
+import { callIsolated, isElementsType } from "./unwrap-root";
+
+const MEMO = Symbol.for("react.memo");
+const FORWARD_REF = Symbol.for("react.forward_ref");
+const rendered = new WeakMap<object, React.ReactNode>();
+
+function innerType(type: any): any {
+  while (type?.$$typeof === MEMO) type = type.type;
+  return type;
+}
+
+function expands(child: React.ReactNode): child is React.ReactElement {
+  if (!React.isValidElement(child)) return false;
+  if (child.type === React.Fragment) return true;
+  const type = innerType(child.type);
+  if (isElementsType(type)) return type !== child.type;
+  return type?.$$typeof === FORWARD_REF || (typeof type === "function" && !type.prototype?.isReactComponent);
+}
+
+// A user component is called once per element, in a render of its own (hooks work).
+function contents(element: React.ReactElement<any>): React.ReactNode {
+  if (element.type === React.Fragment) return element.props.children;
+  if (!rendered.has(element)) {
+    const type = innerType(element.type);
+    const props = { ...element.props };
+    rendered.set(
+      element,
+      (isElementsType(type)
+        ? React.createElement(type, props)
+        : callIsolated(() => (type.$$typeof === FORWARD_REF ? type.render(props, null) : type(props)))) as React.ReactNode,
+    );
+  }
+  return rendered.get(element);
+}
+
+/** The children with Fragments and user components expanded; `children` itself when there are none. */
+export function expandChildren(children: React.ReactNode, depth = 0): React.ReactNode {
+  let any = false;
+  React.Children.forEach(children, (child) => (any ||= expands(child)));
+  if (!any) return children;
+  if (depth > 50) throw new Error("[Unlayer] components nested more than 50 deep");
+  const out: React.ReactNode[] = [];
+  const add = (child: React.ReactNode) => child != null && typeof child !== "boolean" && out.push(child);
+  React.Children.forEach(children, (child) => {
+    if (expands(child)) React.Children.forEach(expandChildren(contents(child), depth + 1), add);
+    else add(child);
+  });
+  return out;
+}

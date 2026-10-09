@@ -29,6 +29,7 @@ import { UNLAYER_CONFIG_KEY } from "./create-component";
 import { getDisplayName, ROOT_NAMES, unwrapRoot, UNWRAP_ADVICE } from "./unwrap-root";
 import { BODY_DEFAULTS, ROW_DEFAULTS, COLUMN_DEFAULTS } from "./container-defaults";
 import { contentSlotWidth, pinImageSrc, type SlotContext } from "./image-sizing";
+import { expandChildren } from "./expand-children";
 
 /** Layout context threaded down the walk so an image can be sized against the
  *  real column slot (contentWidth × column share, minus paddings/borders). */
@@ -60,13 +61,21 @@ function unwrapForJson(element: React.ReactElement): React.ReactElement {
   }
 }
 
-/** Collect valid React element children from a node. */
+/** Valid element children, expanded as the render expands them; one that throws is left out, with a warning. */
 function collectChildren(node: React.ReactNode): React.ReactElement[] {
   const result: React.ReactElement[] = [];
   React.Children.forEach(node, (child) => {
-    if (React.isValidElement(child)) {
-      result.push(child);
+    let expanded: React.ReactNode;
+    try {
+      expanded = expandChildren(child);
+    } catch (cause) {
+      const name = React.isValidElement(child) ? getDisplayName(child) : undefined;
+      console.warn(`[Unlayer] renderToJson: left out <${name || "component"}>: ${cause instanceof Error ? cause.message : String(cause)}`);
+      return;
     }
+    React.Children.forEach(expanded, (inner) => {
+      if (React.isValidElement(inner)) result.push(inner);
+    });
   });
   return result;
 }

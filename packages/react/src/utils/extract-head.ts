@@ -15,6 +15,7 @@ import type { RenderMode, HeadConfig } from "@unlayer-internal/shared-elements";
 import { mapSemanticProps } from "./semantic-props";
 import { UNLAYER_CONFIG_KEY } from "./create-component";
 import { BODY_DEFAULTS, ROW_DEFAULTS, COLUMN_DEFAULTS } from "./container-defaults";
+import { expandChildren } from "./expand-children";
 
 /** Args every head builder receives: (values, bodyValues, meta). */
 type HeadArgs = [Record<string, any>, Record<string, any>, Record<string, any>];
@@ -51,10 +52,16 @@ function getDisplayName(element: React.ReactElement): string | undefined {
   return type?.displayName || type?.name;
 }
 
-/** Collect valid React element children from a node. */
+/** Valid element children, expanded as the render expands them (none if that throws: Body renders none either). */
 function collectChildren(node: React.ReactNode): React.ReactElement[] {
   const result: React.ReactElement[] = [];
-  React.Children.forEach(node, (child) => {
+  let expanded: React.ReactNode;
+  try {
+    expanded = expandChildren(node);
+  } catch {
+    return result;
+  }
+  React.Children.forEach(expanded, (child) => {
     if (React.isValidElement(child)) {
       result.push(child);
     }
