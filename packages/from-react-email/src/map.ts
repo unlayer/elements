@@ -73,6 +73,11 @@ function flexTextAlign(style: Style): string | undefined {
   return justify === "center" ? "center" : /^(flex-end|end|right)$/.test(justify) ? "right" : undefined;
 }
 
+/** The side a line starts on: the right in a right-to-left document. */
+function start(ctx: MapCtx): "left" | "right" {
+  return ctx.inherited.rtl ? "right" : "left";
+}
+
 /** Text props, from the element's style and what it inherits. */
 export function textProps(
   style: Style,
@@ -93,7 +98,7 @@ export function textProps(
     color: color(ownColor(style.color, ctx.inherited.color) ?? ctx.inherited.color) ?? "#000000",
     fontSize: cssLength(style.fontSize ?? defaults.fontSize ?? ctx.inherited.fontSize),
     lineHeight: lineHeightValue(style.lineHeight ?? defaults.lineHeight ?? ctx.inherited.lineHeight),
-    textAlign: (style.textAlign ?? flexTextAlign(style) ?? ctx.inherited.textAlign) as string | undefined,
+    textAlign: (style.textAlign ?? flexTextAlign(style) ?? ctx.inherited.textAlign ?? (ctx.inherited.rtl ? "right" : undefined)) as string | undefined,
     fontWeight: weight === undefined ? undefined : numericWeight(weight),
     letterSpacing: cssLength(style.letterSpacing ?? ctx.inherited.letterSpacing),
     fontFamily: font && font !== ctx.rootFont ? fontFamilyProp(String(font)) : undefined,
@@ -294,8 +299,8 @@ export function buttonBlock(href: unknown, label: Content | Parts, style: Style,
         href,
         backgroundColor: backgroundColor(style) ?? "transparent",
         ...textProps(style, ctx, { lineHeight: "120%" }),
-        // An inline-block link: placed by the parent's text-align (left by default).
-        textAlign: (block ? alignOf(style) ?? "left" : ctx.inherited.blockAlign ?? ctx.inherited.textAlign ?? "left") as string,
+        // An inline-block link: placed by the parent's text-align (the start side by default).
+        textAlign: (block ? alignOf(style) ?? start(ctx) : ctx.inherited.blockAlign ?? ctx.inherited.textAlign ?? start(ctx)) as string,
         color: color(ownColor(style.color, ctx.inherited.color)) ?? "#0000ee",
         padding: sidesToCss(padding),
         ...(style._phone ? { mobile: { ...textProps(style, ctx, {}).mobile, ...(phoneSides(style, "padding", padding) ? { padding: sidesToCss(phoneSides(style, "padding", padding)!) } : {}) } } : {}),
@@ -314,7 +319,7 @@ export function buttonBlock(href: unknown, label: Content | Parts, style: Style,
   };
 }
 
-/** Img (display: block): centred by `margin: 0 auto`, else left. */
+/** Img (display: block): centred by `margin: 0 auto`, else at the start side. */
 export function imageBlock(
   attrs: { src: unknown; alt?: unknown; width?: unknown; height?: unknown; href?: unknown },
   style: Style,
@@ -328,7 +333,7 @@ export function imageBlock(
   const margin = boxSides(style, "margin");
   const centered = String(style.margin ?? "").includes("auto") || style.marginLeft === "auto";
   const flex = ctx.inherited.blockAlign;
-  const align = centered ? "center" : flex ? flex : ctx.inherited.textAlign === "center" && style.display !== "block" ? "center" : "left";
+  const align = centered ? "center" : flex ? flex : ctx.inherited.textAlign === "center" && style.display !== "block" ? "center" : start(ctx);
   if (style.borderRadius) ctx.report.note("image border radius dropped", String(style.borderRadius));
   // Elements images show at their file's own aspect ratio (height: auto), and the file isn't loaded to compare.
   if (height) ctx.report.note("image height not kept (the image keeps its file's aspect ratio)", `${width ? `${width}×` : ""}${height}px`);

@@ -38,6 +38,8 @@ export interface Inherited {
    */
   blockAlign?: string;
   mobile?: { fontSize?: string; lineHeight?: string; textAlign?: string };
+  /** A right-to-left document: text, buttons and images with no alignment start on the right. */
+  rtl?: boolean;
 }
 
 export function inherit(parent: Inherited, style: Style | undefined): Inherited {

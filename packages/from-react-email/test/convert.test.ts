@@ -715,3 +715,32 @@ export default function Template() {
     }
   });
 });
+
+describe("right-to-left templates", () => {
+  const template = (dir: string) => `import { Html, Body, Heading, Text, Button, Img } from "@react-email/components";
+export default function Template() {
+  return <Html lang="ar" ${dir}><Body>
+    <Heading>مرحبا</Heading>
+    <Text>نص</Text>
+    <Text style={{ textAlign: "left" }}>Left</Text>
+    <Text style={{ textAlign: "center" }}>Center</Text>
+    <Button href="https://example.com">زر</Button>
+    <Img src="https://example.com/a.png" width={100} alt="صورة" />
+  </Body></Html>;
+}`;
+  const aligns = (design: any) => design.body.rows.flatMap((row: any) => row.columns.flatMap((column: any) => column.contents.map((content: any) => content.values.textAlign)));
+
+  it("start text, buttons and images on the right where the template sets no alignment, in both modes", async () => {
+    const { runtime, Migrated } = await bothModes(template('dir="rtl"'));
+    for (const design of [renderToJson(Migrated({})), runtime.design()]) {
+      expect(aligns(design)).toEqual(["right", "right", "left", "center", "right", "right"]);
+    }
+  });
+
+  it("leaves left-to-right templates as they were", async () => {
+    const { runtime, Migrated } = await bothModes(template(""));
+    for (const design of [renderToJson(Migrated({})), runtime.design()]) {
+      expect(aligns(design)).toEqual(["left", "left", "left", "center", "left", "left"]);
+    }
+  });
+});

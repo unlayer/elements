@@ -128,7 +128,8 @@ export async function convertElement(element: React.ReactElement): Promise<Runti
   const contentWidth = sizes.length ? Math.min(...sizes) : 600;
 
   const rootFont = bodyStyle.fontFamily ?? containerStyle.fontFamily ?? fontStack;
-  const ctx: Ctx = { report, inherited: inherit({ fontSize: "16px" }, bodyStyle), rootFont, phone };
+  const rtl = /^rtl$/i.test(String(document?.props.dir ?? ""));
+  const ctx: Ctx = { report, inherited: inherit({ fontSize: "16px", ...(rtl ? { rtl } : {}) }, bodyStyle), rootFont, phone };
 
   const fonts = fontStylesheets(fontSpecs, linked);
   const page = pageColor(bodyStyle, report);

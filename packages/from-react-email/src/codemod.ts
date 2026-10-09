@@ -740,7 +740,8 @@ class Converter {
     const sizes = [toPx(container?.style.maxWidth), toPx(container?.style.width)].filter((n): n is number => !!n && n > 0);
     const contentWidth = sizes.length ? Math.min(...sizes) : 600;
     const rootFont = (bodyStyle.fontFamily ?? container?.style.fontFamily ?? fontStack) as string | undefined;
-    const ctx: Ctx = { report: this.report, inherited: inherit({ fontSize: "16px" }, bodyStyle), rootFont };
+    const rtl = /^rtl$/i.test(String((document && this.attr(document, "dir")) ?? ""));
+    const ctx: Ctx = { report: this.report, inherited: inherit({ fontSize: "16px", ...(rtl ? { rtl } : {}) }, bodyStyle), rootFont };
     const page = pageColor(bodyStyle, this.report);
     const rows = layout(this.flow(content, ctx), { contentWidth, report: this.report, background: backgroundImage(bodyStyle, true) ? undefined : page });
     return el(
