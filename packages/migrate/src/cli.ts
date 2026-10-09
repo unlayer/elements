@@ -164,7 +164,8 @@ export async function main(argv: string[], io: Io, library?: Library): Promise<n
 
   if (!supportedElements(io, candidates.map((input) => input.path))) return 1;
   const lib = library ?? ((await import("@unlayer/from-react-email")) as Library);
-  const dependencies = options.write ? await importedInputs(inputs.files) : new Map<string, string>();
+  // A dry run says what --write does; --out writes copies of every template.
+  const dependencies = options.out === undefined ? await importedInputs(inputs.files) : new Map<string, string>();
   const results: FileResult[] = [];
   const pending: Array<{ result: FileResult; writes: PendingWrite[] }> = [];
   for (const input of candidates) {
@@ -350,6 +351,9 @@ async function migrateFile(input: Input, options: Options, lib: Library, io: Io,
   const source = await readFile(file, "utf8");
   // Run again on migrated templates (in CI, or after --write): they're done.
   if (/from\s+["']@unlayer\/react-elements["']/.test(source)) return { file: name, status: "skipped", reason: "already migrated: it imports @unlayer/react-elements" };
+  // Checking a template runs its code and calls its default export: a helper (one that sends an email) is never loaded.
+  const notLoaded = await notATemplate(file, source);
+  if (notLoaded) return { file: name, status: "skipped", reason: notLoaded };
 
   const release: Array<() => void> = [];
   try {
@@ -880,6 +884,8 @@ async function importedInputs(inputs: Input[]): Promise<Map<string, string>> {
   const scanned = new Map(await Promise.all(inputs.map(async (input) => [await canonicalPath(input.path), input.path] as const)));
   const dependencies = new Map<string, string>();
   const parse = async (path: string) => ts.createSourceFile(path, await readFile(path, "utf8"), ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
+  const containsJsx = (node: import("typescript").Node): boolean =>
+    ts.isJsxElement(node) || ts.isJsxSelfClosingElement(node) || ts.isJsxFragment(node) || !!ts.forEachChild(node, (child) => containsJsx(child) || undefined);
   /** A module's imports: local name → where it comes from and the name it has there (`*` for a namespace). */
   const importsOf = (file: import("typescript").SourceFile) => {
     const out = new Map<string, { specifier: string; imported: string }>();
@@ -984,7 +990,10 @@ async function importedInputs(inputs: Input[]): Promise<Map<string, string>> {
       }
       ts.forEachChild(node, visit);
     };
-    visit(await parse(input.path));
+    const source = await parse(input.path);
+    // Only a file that renders what it imports keeps it: an index that lists the templates, or a helper that sends them, doesn't.
+    if (!containsJsx(source)) continue;
+    visit(source);
     for (const { specifier, names } of imports) await follow(input.path, specifier, names);
   }
   return dependencies;
@@ -1042,6 +1051,91 @@ function projectConfig(dir: string): string | undefined {
     for (const name of ["tsconfig.json", "jsconfig.json"]) if (existsSync(join(current, name))) return join(current, name);
     if (dirname(current) === current) return undefined;
   }
+}
+
+/**
+ * Why a file isn't a template, or undefined when it is one: a template's default
+ * export is a component (a function, `memo` or `forwardRef` of one, or a class
+ * with `render`) that isn't async and returns JSX, or that has `PreviewProps`
+ * (React Email's own convention). Read from the source, as loading a file runs
+ * its code.
+ */
+async function notATemplate(path: string, source: string): Promise<string | undefined> {
+  const ts = (await import("typescript")).default;
+  type Node = import("typescript").Node;
+  // A .ts file has no JSX: read as TSX, `<T>value` would be misread.
+  const file = ts.createSourceFile(path, source, ts.ScriptTarget.Latest, true, /\.m?ts$/.test(path) ? ts.ScriptKind.TS : ts.ScriptKind.TSX);
+  const declared = new Map<string, Node>();
+  const previewed = new Set<string>();
+  // React's functions by the names they're imported as (`memo as remember`, `React.memo`).
+  const fromReact = new Map<string, string>();
+  const namespaces = new Set(["React"]);
+  let exported: Node | undefined;
+  for (const statement of file.statements) {
+    if (ts.isImportDeclaration(statement) && ts.isStringLiteral(statement.moduleSpecifier) && statement.moduleSpecifier.text === "react") {
+      const clause = statement.importClause;
+      if (clause?.name) namespaces.add(clause.name.text);
+      const bindings = clause?.namedBindings;
+      if (bindings && ts.isNamespaceImport(bindings)) namespaces.add(bindings.name.text);
+      else if (bindings) for (const e of bindings.elements) fromReact.set(e.name.text, (e.propertyName ?? e.name).text);
+    }
+    const isDefault = ts.canHaveModifiers(statement) && (ts.getModifiers(statement) ?? []).some((m) => m.kind === ts.SyntaxKind.DefaultKeyword);
+    if (ts.isFunctionDeclaration(statement) || ts.isClassDeclaration(statement)) {
+      if (statement.name) declared.set(statement.name.text, statement);
+      if (isDefault) exported = statement;
+    } else if (ts.isVariableStatement(statement)) {
+      for (const d of statement.declarationList.declarations) if (ts.isIdentifier(d.name) && d.initializer) declared.set(d.name.text, d.initializer);
+    } else if (ts.isExportAssignment(statement) && !statement.isExportEquals) exported = statement.expression;
+    else if (ts.isExportDeclaration(statement) && !statement.moduleSpecifier && !statement.isTypeOnly && statement.exportClause && ts.isNamedExports(statement.exportClause)) {
+      const named = statement.exportClause.elements.find((e) => e.name.text === "default");
+      if (named) exported = named.propertyName ?? named.name;
+    } else if (ts.isExpressionStatement(statement) && ts.isBinaryExpression(statement.expression) && statement.expression.operatorToken.kind === ts.SyntaxKind.EqualsToken) {
+      const target = statement.expression.left;
+      if (ts.isPropertyAccessExpression(target) && target.name.text === "PreviewProps" && ts.isIdentifier(target.expression)) previewed.add(target.expression.text);
+    }
+  }
+  if (!exported) return "no default-exported component (a shared component or helper file)";
+  const reactFunction = (callee: Node) =>
+    ts.isIdentifier(callee) ? fromReact.get(callee.text) ?? callee.text
+    : ts.isPropertyAccessExpression(callee) && ts.isIdentifier(callee.expression) && namespaces.has(callee.expression.text) ? callee.name.text
+    : undefined;
+  // Through names, parentheses, `as`, `memo(…)` and `forwardRef(…)`, to the component.
+  let node: Node | undefined = exported;
+  let previewProps = false;
+  for (let depth = 0; node && depth < 8 && !ts.isFunctionLike(node) && !ts.isClassLike(node); depth++) {
+    if (ts.isIdentifier(node)) {
+      previewProps ||= previewed.has(node.text);
+      node = declared.get(node.text);
+    } else if (ts.isParenthesizedExpression(node) || ts.isAsExpression(node) || ts.isSatisfiesExpression(node)) node = node.expression;
+    else if (ts.isCallExpression(node) && ["memo", "forwardRef"].includes(reactFunction(node.expression) ?? "")) node = node.arguments[0];
+    // A React type the check can't render (`lazy(…)`) is loaded, to fail as unsupported.
+    else if ((ts.isCallExpression(node) && reactFunction(node.expression) === "lazy") || (ts.isObjectLiteralExpression(node) && node.properties.some((p) => p.name?.getText(file) === "$$typeof"))) return undefined;
+    else node = undefined;
+  }
+  if (node && (ts.isFunctionDeclaration(node) || ts.isClassDeclaration(node)) && node.name) previewProps ||= previewed.has(node.name.text);
+  if (node && ts.isClassLike(node)) return node.members.some((m) => ts.isMethodDeclaration(m) && m.name.getText(file) === "render") ? undefined : "not loaded: its default export is a class without render()";
+  if (!node || !ts.isFunctionLike(node)) return "not loaded: its default export isn't a component (a helper, or a file that passes one on)";
+  if ((ts.getModifiers(node as import("typescript").FunctionLikeDeclaration) ?? []).some((m) => m.kind === ts.SyntaxKind.AsyncKeyword)) {
+    return "not loaded: its default export is async (a helper, or a template that loads data: load it first and pass it as props)";
+  }
+  /** JSX, in either branch of a condition. */
+  const jsx = (e: Node | undefined): boolean => {
+    while (e && (ts.isParenthesizedExpression(e) || ts.isAsExpression(e) || ts.isSatisfiesExpression(e) || ts.isNonNullExpression(e))) e = e.expression;
+    if (!e) return false;
+    if (ts.isJsxElement(e) || ts.isJsxSelfClosingElement(e) || ts.isJsxFragment(e)) return true;
+    if (ts.isConditionalExpression(e)) return jsx(e.whenTrue) || jsx(e.whenFalse);
+    return ts.isBinaryExpression(e) && [ts.SyntaxKind.AmpersandAmpersandToken, ts.SyntaxKind.BarBarToken, ts.SyntaxKind.QuestionQuestionToken].includes(e.operatorToken.kind) && (jsx(e.left) || jsx(e.right));
+  };
+  const body = (node as import("typescript").FunctionLikeDeclaration).body;
+  let returns = !!body && !ts.isBlock(body) && jsx(body);
+  // Its own returns, not those of functions inside it.
+  const visit = (child: Node) => {
+    if (returns || ts.isFunctionLike(child) || ts.isClassLike(child)) return;
+    if (ts.isReturnStatement(child) && jsx(child.expression)) returns = true;
+    else ts.forEachChild(child, visit);
+  };
+  if (body && ts.isBlock(body)) ts.forEachChild(body, visit);
+  return returns || previewProps ? undefined : "not loaded: its default export doesn't return JSX (a helper, not a template)";
 }
 
 /**

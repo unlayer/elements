@@ -348,3 +348,93 @@ export default function T({trial}) { return <Email><Row><Column><Paragraph>Keep 
     expect(out.out).toContain('with trial: true: extra text: "Unexpected", "Variant"');
   });
 });
+
+describe("files that aren't templates", () => {
+  const welcome = `import { Html, Body, Text } from "@react-email/components";
+export default function Welcome() { return <Html><Body><Text>Welcome aboard</Text></Body></Html>; }`;
+
+  it("are never loaded, even in a dry run: a helper that sends an email isn't called", async () => {
+    // Each helper leaves a mark when it's loaded or called.
+    const marks = fs.mkdtempSync(path.join(tmpdir(), "unlayer-marks-"));
+    dirs.push(marks);
+    const called = (name: string) => `writeFileSync(${JSON.stringify(path.join(marks, name))}, "called")`;
+    const dir = project({
+      "emails/welcome.tsx": welcome,
+      "emails/send-welcome.ts": `import { render } from "@react-email/components";
+import { writeFileSync } from "node:fs";
+import Welcome from "./welcome";
+${called("loaded-send")};
+export default async function sendWelcome(to: string) { ${called("called-send")}; return render(Welcome()); }`,
+      "emails/mailer.mjs": `import { render } from "@react-email/components";
+import { writeFileSync } from "node:fs";
+${called("loaded-mailer")};
+export default function mailer(options) { ${called("called-mailer")}; return null; }`,
+      "emails/registry.tsx": `import { render } from "@react-email/components";
+export default { welcome: "welcome" };`,
+    });
+    for (const flags of [[], ["--write"]]) {
+      const out = io(dir);
+      expect(await main(["emails", ...flags], out, lib), out.out + out.err).toBe(0);
+      expect(out.out).toMatch(/- emails\/send-welcome\.ts: skipped \(not loaded: its default export is async/);
+      expect(out.out).toMatch(/- emails\/mailer\.mjs: skipped \(not loaded: its default export doesn't return JSX/);
+      expect(out.out).toMatch(/- emails\/registry\.tsx: skipped \(not loaded: its default export isn't a component/);
+      expect(fs.readdirSync(marks)).toEqual([]);
+    }
+  });
+
+  it("still loads templates that return JSX through a condition, or that have PreviewProps", async () => {
+    const dir = project({
+      "emails/conditional.tsx": `import * as React from "react";
+import { Html, Body, Text } from "@react-email/components";
+const Inner = ({ name }: { name?: string }) => (name ? <Html><Body><Text>Hi {name}</Text></Body></Html> : null);
+export default React.memo(Inner);`,
+      "emails/previewed.tsx": `import { Html, Body, Text } from "@react-email/components";
+const shell = (text: string) => <Html><Body><Text>{text}</Text></Body></Html>;
+function Previewed({ text }: { text: string }) { const content = shell(text); return content; }
+Previewed.PreviewProps = { text: "Previewed copy" };
+export { Previewed as default };`,
+    });
+    const out = io(dir);
+    await main(["emails"], out, lib);
+    // Loaded: what follows (rendering, converting) may still fail for these shapes.
+    expect(out.out).not.toContain("skipped");
+    expect(out.out).toMatch(/2 templates: .*2 failed|2 migrated/);
+  });
+
+  it("don't keep templates in place with --write: an index that imports them and exports them again", async () => {
+    const dir = project({
+      "emails/welcome.tsx": welcome,
+      "emails/index.ts": `import Welcome from "./welcome";\nexport { Welcome };\n`,
+    });
+    const dry = io(dir);
+    expect(await main(["emails"], dry, lib)).toBe(0);
+    expect(dry.out).toContain("1 migrated and checked");
+    const out = io(dir);
+    expect(await main(["emails", "--write"], out, lib), out.out + out.err).toBe(0);
+    expect(out.out).toContain("1 written");
+    expect(fs.readFileSync(path.join(dir, "emails/welcome.tsx"), "utf8")).toContain("@unlayer/react-elements");
+  });
+
+  it("fail a template that calls process.exit, and the run ends when a template leaves a timer (built CLI)", async () => {
+    const dir = project({
+      "package.json": '{"name":"exit-fixture","private":true,"type":"module"}',
+      "emails/exits.tsx": `import { Html, Body, Text } from "@react-email/components";
+process.exit(0);
+export default function Exits() { return <Html><Body><Text>Exits</Text></Body></Html>; }`,
+      "emails/timer.tsx": `import { Html, Body, Text } from "@react-email/components";
+setInterval(() => {}, 1000);
+export default function Timer() { return <Html><Body><Text>Timer</Text></Body></Html>; }`,
+    }, true);
+    const modules = path.join(dir, "node_modules");
+    fs.mkdirSync(modules);
+    for (const name of ["react", "react-dom", "@react-email"]) {
+      fs.symlinkSync(path.resolve(import.meta.dirname, "../node_modules", name), path.join(modules, name));
+    }
+    const bin = path.resolve(import.meta.dirname, "../dist/bin.js");
+    const result = await promisify(execFile)(process.execPath, [bin, "emails"], { cwd: dir, timeout: 60_000 }).catch((error) => error);
+    expect(result.code, result.stdout + result.stderr).toBe(2);
+    expect(result.stdout).toMatch(/emails\/exits\.tsx: couldn't load it: a template called process\.exit\(0\)/);
+    expect(result.stdout).toMatch(/emails\/timer\.tsx: 100% editable/);
+    expect(result.stdout).toContain("1 migrated and checked, 1 failed");
+  }, 90_000);
+});
