@@ -200,6 +200,7 @@ class Converter {
   private readonly headPhoneImportant = new Map<string, Set<string>>();
   private readonly headPhone = new Map<string, Style>();
   private readonly phoneNoted = new Set<string>();
+  private mutations?: Set<ts.Symbol>;
   /** Statements added before a return (a `dir` worked out once): where, and the code. */
   private readonly hoisted: Array<{ at: number; text: string }> = [];
   /** Style values computed at render time, by where they are in the source. */
@@ -434,8 +435,9 @@ class Converter {
       const binding = ts.isShorthandPropertyAssignment(node.parent)
         ? this.checker.getShorthandAssignmentValueSymbol(node.parent)
         : this.checker.getSymbolAtLocation(node);
-      // Only a `const`: a `let` can be reassigned (`configure(url)`), so its first value isn't known.
-      return value && binding?.declarations?.some((decl) => ts.isVariableDeclaration(decl) && decl.initializer === value && (ts.getCombinedNodeFlags(decl) & ts.NodeFlags.Const) !== 0)
+      // Only a `const` that isn't changed later: a `let` can be reassigned (`configure(url)`), and
+      // a const object changed (`theme.color = …`), so its first value isn't what renders.
+      return value && binding && !this.mutated().has(binding) && binding.declarations?.some((decl) => ts.isVariableDeclaration(decl) && decl.initializer === value && (ts.getCombinedNodeFlags(decl) & ts.NodeFlags.Const) !== 0)
         ? this.evaluate(value, depth + 1)
         : undefined;
     }
@@ -473,6 +475,32 @@ class Converter {
   private lose(part: ts.Node, text: string): void {
     const line = this.originalLine(part.getStart());
     if (!this.droppedStyles.some((d) => d.from === part.getStart())) this.droppedStyles.push({ from: part.getStart(), to: part.getEnd(), detail: `line ${line}: ${text.replace(/\s+/g, " ").slice(0, 80)}` });
+  }
+
+  /** Values changed after they're declared (`theme.color = …`, `items.push(…)`), by symbol. */
+  private mutated(): Set<ts.Symbol> {
+    if (this.mutations) return this.mutations;
+    const out = new Set<ts.Symbol>();
+    const mark = (target: ts.Expression | undefined, memberOnly: boolean) => {
+      if (!target || (memberOnly && !ts.isPropertyAccessExpression(target) && !ts.isElementAccessExpression(target))) return;
+      let root: ts.Expression = target;
+      while (ts.isPropertyAccessExpression(root) || ts.isElementAccessExpression(root) || ts.isParenthesizedExpression(root) || ts.isNonNullExpression(root)) root = root.expression;
+      const symbol = ts.isIdentifier(root) ? this.checker.getSymbolAtLocation(root) : undefined;
+      if (symbol) out.add(symbol);
+    };
+    const visit = (node: ts.Node) => {
+      if (ts.isBinaryExpression(node) && node.operatorToken.kind >= ts.SyntaxKind.FirstAssignment && node.operatorToken.kind <= ts.SyntaxKind.LastAssignment) mark(node.left, true);
+      else if ((ts.isPrefixUnaryExpression(node) || ts.isPostfixUnaryExpression(node)) && (node.operator === ts.SyntaxKind.PlusPlusToken || node.operator === ts.SyntaxKind.MinusMinusToken)) mark(node.operand, true);
+      else if (ts.isDeleteExpression(node)) mark(node.expression, true);
+      else if (ts.isCallExpression(node) && ts.isPropertyAccessExpression(node.expression)) {
+        const { expression: object, name } = node.expression;
+        if (ts.isIdentifier(object) && object.text === "Object" && /^(assign|defineProperty|defineProperties|setPrototypeOf)$/.test(name.text)) mark(node.arguments[0], false);
+        else if (/^(push|pop|shift|unshift|splice|sort|reverse|fill|copyWithin)$/.test(name.text)) mark(object, false);
+      }
+      ts.forEachChild(node, visit);
+    };
+    visit(this.file);
+    return (this.mutations = out);
   }
 
   /** A prop whose value is computed (`as={level}`): lost, as the codemod writes a fixed one. */

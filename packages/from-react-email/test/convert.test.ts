@@ -926,3 +926,14 @@ export default function Template() {
     expect(renderToHtml(Migrated({}))).toContain('<span style="font-family:&quot;Inter&quot;, sans-serif;font-weight:700;color:#ff0000">bold red</span>');
   });
 });
+
+describe("values the codemod can't write in", () => {
+  it("fail the check: a module const changed after it's declared", async () => {
+    const { result } = await bothModes(`import { Html, Body, Text } from "@react-email/components";
+const theme = { color: "#ff0000" };
+theme.color = "#0000ff";
+export default function Template() { return <Html><Body><Text style={theme}>Colored</Text></Body></Html>; }`);
+    expect(result.report.lostStyles).toEqual(["line 4: style={theme}"]);
+    expect(result.code).not.toContain('color="#ff0000"');
+  });
+});
