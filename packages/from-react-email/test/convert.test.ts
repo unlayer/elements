@@ -915,3 +915,14 @@ export default function Template() {
     }
   });
 });
+
+describe("inline styles in text", () => {
+  it("keep a quoted font name inside the style attribute", async () => {
+    const { result, Migrated } = await bothModes(`import { Html, Body, Text } from "@react-email/components";
+export default function Template() {
+  return <Html><Body><Text>Hello <span style={{ fontFamily: '"Inter", sans-serif', fontWeight: 700, color: "#ff0000" }}>bold red</span></Text></Body></Html>;
+}`);
+    expect(result.code).toContain('style="font-family:&quot;Inter&quot;, sans-serif;font-weight:700;color:#ff0000"');
+    expect(renderToHtml(Migrated({}))).toContain('<span style="font-family:&quot;Inter&quot;, sans-serif;font-weight:700;color:#ff0000">bold red</span>');
+  });
+});

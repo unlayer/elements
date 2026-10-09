@@ -1510,15 +1510,15 @@ class Converter {
           }
           const attrs: string[] = [];
           const href = jsx.name === "Link" || tag === "a" ? this.attr(jsx, "href") : undefined;
-          if (href !== undefined) attrs.push(isExpr(href) ? `href="\${escapeHtml(String(${href.$expr}))}"` : `href="${escapeHtml(String(href))}"`);
+          if (href !== undefined) attrs.push(isExpr(href) ? `href="\${escapeHtml(String(${href.$expr}))}"` : `href="${escapeAttribute(String(href))}"`);
           if (href !== undefined) this.needsEscape ||= isExpr(href);
           const css = cssText(jsx.name === "Link" ? { color: "#067df7", textDecorationLine: "none", ...jsx.style } : jsx.style);
-          if (css) attrs.push(`style="${escapeHtml(css)}"`);
+          if (css) attrs.push(`style="${escapeAttribute(css)}"`);
           // A link opens in a new tab unless it sets another target.
           if (jsx.name === "Link" || tag === "a") {
             const target = this.attr(jsx, "target");
             if (isExpr(target)) this.needsEscape = true;
-            attrs.push(isExpr(target) ? `target="\${escapeHtml(String(${target.$expr}))}"` : `target="${escapeHtml(typeof target === "string" ? target : "_blank")}"`);
+            attrs.push(isExpr(target) ? `target="\${escapeHtml(String(${target.$expr}))}"` : `target="${escapeAttribute(typeof target === "string" ? target : "_blank")}"`);
           }
           const open = `<${tag}${attrs.map((a) => ` ${a}`).join("")}>`;
           if (tag === "br") {
@@ -2046,6 +2046,11 @@ function hostAlias(tag: string): string {
 
 function escapeHtml(text: string): string {
   return text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+}
+
+/** A value for a double-quoted attribute: a quote in it (`font-family:"Inter"`) can't end the attribute. */
+function escapeAttribute(text: string): string {
+  return escapeHtml(text).replace(/"/g, "&quot;");
 }
 
 function escapeTemplate(text: string): string {
