@@ -65,8 +65,13 @@ export async function mergeTagged<T>(
   base: T,
   render: (props: Record<string, unknown>) => T | Promise<T>,
 ): Promise<{ result?: T; used: string[]; kept: string[] }> {
-  const probes = textProps(props);
-  if (!probes.length) return { used: [], kept: [] };
+  // A prop written as HTML (`footerHtml`: its sample's markup is markup in the output) isn't
+  // text: as a merge tag, its links would go. A prop shown as text (escaped) still is.
+  const output = JSON.stringify(base);
+  const asHtml = (p: TextProp) => /<[a-z!/]/i.test(p.value) && output.includes(JSON.stringify(p.value).slice(1, -1));
+  const html = textProps(props).filter(asHtml).map((p) => p.path);
+  const probes = textProps(props).filter((p) => !asHtml(p));
+  if (!probes.length) return { used: [], kept: html };
   const attempt = async (chosen: number[]): Promise<T | undefined> => {
     let output: T;
     try {
@@ -86,7 +91,7 @@ export async function mergeTagged<T>(
     marked = chosen.length ? await attempt(chosen) : undefined;
   }
   const shown = (p: TextProp) => JSON.stringify(base).includes(JSON.stringify(p.value).slice(1, -1));
-  if (!marked) return { used: [], kept: probes.filter(shown).map((p) => p.path) };
+  if (!marked) return { used: [], kept: [...html, ...probes.filter(shown).map((p) => p.path)] };
   const tag = (p: TextProp) => `{{${p.path}}}`;
   const result = replaceMarkers(marked, probes, tag);
   const text = JSON.stringify(result);
@@ -98,9 +103,12 @@ export async function mergeTagged<T>(
       .map((i) => probes[i])
       .filter((p) => text.includes(tag(p)))
       .map((p) => p.path),
-    kept: probes
-      .filter((p) => !text.includes(tag(p)) && shown(p))
-      .map((p) => p.path),
+    kept: [
+      ...html,
+      ...probes
+        .filter((p) => !text.includes(tag(p)) && shown(p))
+        .map((p) => p.path),
+    ],
   };
 }
 

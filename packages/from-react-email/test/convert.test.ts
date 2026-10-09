@@ -949,3 +949,17 @@ Template.PreviewProps = { wide: true };`);
     expect(result.report.lostStyles).toEqual(["line 4: width={wide ? 500 : 100}", "line 5: width={wide ? 200 : 100}"]);
   });
 });
+
+describe("merge tags", () => {
+  it("leave a prop written as HTML as it is, so its links stay in the design", async () => {
+    const { Original } = await bothModes(`import { Html, Body, Text } from "@react-email/components";
+export default function Template({ name = "Ada", footerHtml = "" }: { name?: string; footerHtml?: string }) {
+  return <Html><Body><Text>Hi {name}</Text><div dangerouslySetInnerHTML={{ __html: footerHtml }} /></Body></Html>;
+}
+Template.PreviewProps = { name: "Ada", footerHtml: '<a href="https://example.com/unsubscribe">Unsubscribe</a>' };`);
+    const design = JSON.stringify((await convertReactEmail(Original)).design());
+    expect(design).toContain("https://example.com/unsubscribe");
+    expect(design).not.toContain("{{footerHtml}}");
+    expect(design).toContain("{{name}}");
+  });
+});
