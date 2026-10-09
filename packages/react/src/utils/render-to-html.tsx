@@ -127,8 +127,9 @@ export interface RenderToHtmlOptions extends Partial<UnlayerConfig> {
  *
  * @param element - A React element tree (e.g. `<Email><Row>...</Row></Email>`), or a
  *   template component that returns one (`<Welcome name="Ada" />`, also `memo`/`forwardRef`).
- *   A template is called to reach its root, so call renderToHtml outside a React render;
- *   one that uses React hooks renders without its root's settings, with a warning.
+ *   A template is called in a render of its own to reach its root (its hooks work); a class
+ *   component, or one that doesn't return an element, renders without its root's settings,
+ *   with a warning.
  * @param options - Config overrides (mode, cdnBaseUrl, etc.) plus `title` and `fonts`
  * @returns Complete HTML document string
  * @throws {Error} If rendering fails, with a helpful message
