@@ -631,3 +631,24 @@ export default function Template({ level = "h3", logo = 64, tone = "red", quiet 
   });
 });
 
+describe("color: inherit", () => {
+  it("is the color around it, in both modes", async () => {
+    const source = `import { Html, Body, Section, Text } from "@react-email/components";
+export default function Template() {
+  return <Html><Body style={{ backgroundColor: "#000000", color: "#ffffff" }}><Section style={{ backgroundColor: "#000000" }}><Text style={{ color: "inherit" }}>Footer</Text></Section></Body></Html>;
+}`;
+    const { code } = await convertSource(source);
+    expect(code).toMatch(/<Paragraph[^>]*color="#ffffff"[^>]*>\s*Footer/);
+    expect(code).not.toContain('color="inherit"');
+    const dir = fs.mkdtempSync(path.join(import.meta.dirname, ".tmp-"));
+    try {
+      fs.writeFileSync(path.join(dir, "t.tsx"), source);
+      const { default: Template } = await import(path.join(dir, "t.tsx"));
+      const design = JSON.stringify((await convertReactEmail(Template)).design());
+      expect(design).not.toContain('"color":"inherit"');
+      expect(design).toContain('"color":"#ffffff"');
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
+  });
+});

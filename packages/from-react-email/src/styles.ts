@@ -48,7 +48,7 @@ export function inherit(parent: Inherited, style: Style | undefined): Inherited 
     if (style._phone?.[key] !== undefined) next.mobile![key] = String(style._phone[key]);
   }
   for (const key of ["color", "fontFamily", "fontSize", "fontWeight", "textAlign", "letterSpacing", "lineHeight"] as const) {
-    if (style[key] !== undefined && style[key] !== "") next[key] = String(style[key]);
+    if (style[key] !== undefined && style[key] !== "" && !/^\s*(inherit|currentcolor)\s*$/i.test(String(style[key]))) next[key] = String(style[key]);
   }
   if (/flex/.test(String(style.display ?? ""))) {
     const justify = String(style.justifyContent ?? "");
@@ -186,6 +186,11 @@ export function color(value: unknown): string | undefined {
   const alpha = alphaText === undefined ? 1 : alphaText.endsWith("%") ? Number.parseFloat(alphaText) / 100 : Number(alphaText);
   if (alpha < 1) return `rgba(${r}, ${g}, ${b}, ${alpha})`;
   return `#${[r, g, b].map((n) => n.toString(16).padStart(2, "0")).join("")}`;
+}
+
+/** A color as written: `inherit` (or `currentColor`) is the inherited one. */
+export function ownColor(value: unknown, inherited: unknown): unknown {
+  return typeof value === "string" && /^(inherit|currentcolor)$/i.test(value.trim()) ? inherited : value;
 }
 
 /** Margins with the defaults a component applies when the style leaves them out. */
