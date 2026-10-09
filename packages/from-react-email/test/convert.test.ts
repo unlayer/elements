@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import fs from "node:fs";
 import path from "node:path";
 import React from "react";
-import { renderToJson } from "@unlayer/react-elements";
+import { renderToHtml, renderToJson } from "@unlayer/react-elements";
 import { Column, Row, Section, Tailwind, Text } from "@react-email/components";
 import { compareText, convertReactEmail, convertSource, expand, verifyConversion } from "../src/index";
 import { color } from "../src/styles";
@@ -786,6 +786,37 @@ export default function Template() {
     for (const [body, heading, expected] of cases) {
       const { runtime, Migrated } = await bothModes(template(body, heading));
       expect([lineHeight(renderToJson(Migrated({}))), lineHeight(runtime.design())], body + heading).toEqual([expected, expected]);
+    }
+  });
+});
+
+describe("link targets and attributes", () => {
+  const targetOf = (html: string, href: string) => new RegExp(`<a\\b[^>]*href="${href}"[^>]*>`).exec(html)?.[0].match(/target="([^"]*)"/)?.[1];
+
+  it("keeps a link's and a button's target, and opens the others in a new tab, in both modes", async () => {
+    const { runtime, Migrated } = await bothModes(`import { Html, Body, Text, Link, Button } from "@react-email/components";
+export default function Template() {
+  return <Html><Body>
+    <Text>Read <Link href="https://example.com/a" target="_self">here</Link> or <Link href="https://example.com/b">there</Link></Text>
+    <Button href="https://example.com/c" target="_self">Open</Button>
+    <Button href="https://example.com/d">New tab</Button>
+  </Body></Html>;
+}`);
+    for (const html of [renderToHtml(Migrated({})), runtime.html()]) {
+      expect(["a", "b", "c", "d"].map((path) => targetOf(html, `https://example.com/${path}`))).toEqual(["_self", "_blank", "_self", "_blank"]);
+    }
+  });
+
+  it("reports a block's id and accessible names, which Elements blocks have no place for, in both modes", async () => {
+    const { result, runtime } = await bothModes(`import { Html, Body, Text } from "@react-email/components";
+export default function Template() {
+  return <Html><Body><Text id="intro" aria-label="Introduction" className="lead">Hello</Text></Body></Html>;
+}`);
+    for (const report of [result.report, runtime.report]) {
+      expect(report.notes.filter((n) => n.reason === "attribute not kept")).toEqual([
+        { reason: "attribute not kept", detail: "id (Text)" },
+        { reason: "attribute not kept", detail: "aria-label (Text)" },
+      ]);
     }
   });
 });

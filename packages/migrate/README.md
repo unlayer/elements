@@ -97,6 +97,7 @@ The report lists every difference for each template. The common ones:
 
 - **Phones**: columns stay side by side, as React Email's tables do, unless the template stacks them (`mobile:!block`). Side by side, they keep their share of the row, so fixed widths and images scale down with it.
 - **Responsive classes** other than stacking (`mobile:px-6`, `sm:`) and hover styles have no Elements equivalent.
+- **Attributes** a block has no place for in Elements (`id`, `title`, `role`, `aria-*`).
 - **Shadows, gradients, transforms** and column vertical alignment (email columns sit at the top).
 - **A box that shrinks to fit its content** (`w-fit` around text) is as wide as its parent.
 - Text without a font family uses Elements' default font rather than the browser's.

@@ -26,6 +26,7 @@ import {
   hasWidth,
   importedStylesheets,
   inheritedStyle,
+  noteAttributes,
   paragraphBlock,
   INHERITED,
   type Block,
@@ -349,13 +350,15 @@ function blockFrom(node: Element, ctx: Ctx): Block[] {
   const style: Style = node.props.style ?? {};
   const name = nameOf(node);
 
-  switch (node.kind === "component" ? name : hostAlias(name)) {
+  const kind = node.kind === "component" ? name : hostAlias(name);
+  if (["Text", "Heading", "Button", "Img", "Link"].includes(kind)) noteAttributes(Object.keys(node.props), ctx, kind);
+  switch (kind) {
     case "Text":
       return [paragraphBlock(innerHtml(node), style, ctx, margins(style, node.kind === "component" ? { top: 16, bottom: 16 } : browserMargin(name, ctx)))];
     case "Heading":
       return [headingFrom(node, style, ctx)];
     case "Button":
-      return [buttonBlock(node.props.href, [innerText(node)], style, ctx)];
+      return [buttonBlock(node.props.href, [innerText(node)], style, ctx, node.props.target)];
     case "Img":
       if (!hasWidth(node.props.width, style)) return [unsizedImage(node, ctx)];
       return [imageFrom(node, style, ctx)];
@@ -512,7 +515,7 @@ function linkBlock(node: Exclude<Node, { kind: "text" }>, style: Style, ctx: Ctx
     return imageFrom(only, only.props.style ?? {}, ctx, node.props.href);
   }
   if (backgroundColor(style) && (style.padding || style.paddingTop || style.paddingLeft)) {
-    return buttonBlock(node.props.href, [innerText(node)], style, ctx);
+    return buttonBlock(node.props.href, [innerText(node)], style, ctx, node.props.target);
   }
   return paragraphBlock(htmlOf(node), {}, { ...ctx }, ZERO);
 }

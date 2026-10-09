@@ -36,6 +36,7 @@ import {
   importedStylesheets,
   hasWidth,
   inheritedStyle,
+  noteAttributes,
   paragraphBlock,
   INHERITED,
   loopMargins,
@@ -1206,6 +1207,7 @@ class Converter {
     if (jsx.opaqueProps) return [{ node: this.fallback(jsx, ctx, "dynamic spread or content props"), margin: ZERO, padding: ZERO }];
     const style = jsx.style;
     const kind = jsx.name ?? hostAlias(jsx.tag);
+    if (["Text", "Heading", "Button", "Img", "Link"].includes(kind ?? "")) noteAttributes(jsx.attrs.keys(), ctx, kind!);
     switch (kind) {
       case "Text": {
         const parts = this.plainParts(jsx.children);
@@ -1221,7 +1223,7 @@ class Converter {
         return [headingBlock(level, { html: content, plain: false, parts }, style, marginProps, ctx)];
       }
       case "Button":
-        return [buttonBlock(this.attr(jsx, "href"), this.plainParts(jsx.children) ?? this.inlineContent(jsx.children), style, ctx)];
+        return [buttonBlock(this.attr(jsx, "href"), this.plainParts(jsx.children) ?? this.inlineContent(jsx.children), style, ctx, this.attr(jsx, "target"))];
       case "Img":
         this.computed(jsx, "width");
         if (!hasWidth(this.attr(jsx, "width"), style)) return [{ node: this.fallback(jsx, ctx, "image without a width (its natural size isn't known)"), margin: ZERO, padding: ZERO }];
@@ -1244,7 +1246,7 @@ class Converter {
           return [imageBlock({ src: this.attr(only, "src"), alt: this.attr(only, "alt"), width: this.attr(only, "width"), height: this.attr(only, "height"), href: this.attr(jsx, "href") }, only.style, ctx)];
         }
         if (backgroundColor(style) && (style.padding || style.paddingTop || style.paddingLeft)) {
-          return [buttonBlock(this.attr(jsx, "href"), this.plainParts(jsx.children) ?? this.inlineContent(jsx.children), style, ctx)];
+          return [buttonBlock(this.attr(jsx, "href"), this.plainParts(jsx.children) ?? this.inlineContent(jsx.children), style, ctx, this.attr(jsx, "target"))];
         }
         return [paragraphBlock(this.inlineContent([jsx.node]), {}, ctx, ZERO)];
       }
@@ -1478,7 +1480,12 @@ class Converter {
           if (href !== undefined) this.needsEscape ||= isExpr(href);
           const css = cssText(jsx.name === "Link" ? { color: "#067df7", textDecorationLine: "none", ...jsx.style } : jsx.style);
           if (css) attrs.push(`style="${escapeHtml(css)}"`);
-          if (jsx.name === "Link" || tag === "a") attrs.push('target="_blank"');
+          // A link opens in a new tab unless it sets another target.
+          if (jsx.name === "Link" || tag === "a") {
+            const target = this.attr(jsx, "target");
+            if (isExpr(target)) this.needsEscape = true;
+            attrs.push(isExpr(target) ? `target="\${escapeHtml(String(${target.$expr}))}"` : `target="${escapeHtml(typeof target === "string" ? target : "_blank")}"`);
+          }
           const open = `<${tag}${attrs.map((a) => ` ${a}`).join("")}>`;
           if (tag === "br") {
             parts.push("<br/>");

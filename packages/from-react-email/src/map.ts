@@ -61,6 +61,11 @@ const HEADINGS: Record<string, { size: number; margin: number }> = {
   h6: { size: 0.67, margin: 2.33 },
 };
 
+/** Attributes Elements blocks have no place for (an anchor's `id`, accessible names): reported. */
+export function noteAttributes(names: Iterable<string>, ctx: MapCtx, label: string): void {
+  for (const name of names) if (/^(id|title|role|aria-.+)$/.test(name)) ctx.report.note("attribute not kept", `${name} (${label})`);
+}
+
 /** Say what a block's style shows that Elements can't (a shadow, a transform). */
 export function noteUnconverted(style: Style, ctx: MapCtx, label: string): void {
   for (const what of unconverted(style)) ctx.report.note("style not converted", `${what} (${label})`);
@@ -284,7 +289,7 @@ export function headingMarginProps(props: Record<string, any>): Style {
 }
 
 /** Button (an inline-block <a>): no background or radius unless styled. */
-export function buttonBlock(href: unknown, label: Content | Parts, style: Style, ctx: MapCtx): Block {
+export function buttonBlock(href: unknown, label: Content | Parts, style: Style, ctx: MapCtx, target?: unknown): Block {
   noteUnconverted(style, ctx, "button");
   const padding = boxSides(style, "padding");
   // Its width: px or a share of the column as given; a block link with none fills the column.
@@ -297,7 +302,8 @@ export function buttonBlock(href: unknown, label: Content | Parts, style: Style,
     node: el(
       "Button",
       {
-        href,
+        // React Email opens a button's link in a new tab unless it sets another target.
+        href: typeof href === "string" && typeof target === "string" && target !== "_blank" ? { name: "web", values: { href, target } } : href,
         backgroundColor: backgroundColor(style) ?? "transparent",
         ...textProps(style, ctx, { lineHeight: "120%" }),
         // An inline-block link: placed by the parent's text-align (the start side by default).
