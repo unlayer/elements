@@ -200,6 +200,8 @@ class Converter {
   private readonly headPhoneImportant = new Map<string, Set<string>>();
   private readonly headPhone = new Map<string, Style>();
   private readonly phoneNoted = new Set<string>();
+  /** Statements added before a return (a `dir` worked out once): where, and the code. */
+  private readonly hoisted: Array<{ at: number; text: string }> = [];
   /** Style values computed at render time, by where they are in the source. */
   private readonly droppedStyles: Array<{ from: number; to: number; detail: string }> = [];
 
@@ -743,7 +745,9 @@ class Converter {
     const sizes = [toPx(container?.style.maxWidth), toPx(container?.style.width)].filter((n): n is number => !!n && n > 0);
     const contentWidth = sizes.length ? Math.min(...sizes) : 600;
     const rootFont = (bodyStyle.fontFamily ?? container?.style.fontFamily ?? fontStack) as string | undefined;
-    const rtl = /^rtl$/i.test(String((document && this.attr(document, "dir")) ?? ""));
+    // `dir` from props (`dir={direction}`) is worked out where each block is aligned.
+    const dir = this.hoistDirection(returned, document && this.attr(document, "dir"));
+    const rtl = isExpr(dir) ? dir : /^rtl$/i.test(String(dir ?? "")) || undefined;
     const ctx: Ctx = { report: this.report, inherited: inherit({ fontSize: "16px", ...(rtl ? { rtl } : {}) }, bodyStyle), rootFont };
     const page = pageColor(bodyStyle, this.report);
     const rows = layout(this.flow(content, ctx), { contentWidth, report: this.report, background: backgroundImage(bodyStyle, true) ? undefined : page });
@@ -756,11 +760,30 @@ class Converter {
         textColor: color(bodyStyle.color),
         previewText: previewText === "" ? undefined : previewText,
         fonts: fonts.length || linked.length ? fontStylesheets(fonts, linked) : undefined,
-        textDirection: document && this.attr(document, "dir"),
+        textDirection: dir,
         lang: document && this.attr(document, "lang"),
       },
       rows.length ? rows : [el("Row", {}, [el("Column")])]
     );
+  }
+
+  /**
+   * A `dir` written as an expression other than a name (`locale === "ar" ? "rtl" : "ltr"`): a
+   * const before the return, so the blocks aligned by it don't each repeat it. Left as it is when
+   * the email is one branch of a condition, where the expression may only hold in that branch.
+   */
+  private hoistDirection(returned: ts.Expression, dir: unknown): unknown {
+    if (!isExpr(dir) || /^[\w$.]+$/.test(dir.$expr)) return dir;
+    let node: ts.Node = returned;
+    while (ts.isParenthesizedExpression(node.parent)) node = node.parent;
+    const statement = node.parent;
+    if (!ts.isReturnStatement(statement) || !ts.isBlock(statement.parent)) return dir;
+    const source = this.file.getFullText();
+    let name = "textDirection";
+    for (let n = 2; new RegExp(`\\b${name}\\b`).test(source) || this.hoisted.some((h) => h.text.startsWith(`const ${name} =`)); n++) name = `textDirection${n}`;
+    const at = statement.getStart();
+    this.hoisted.push({ at, text: `const ${name} = ${dir.$expr};\n${/[ \t]*$/.exec(source.slice(0, at))?.[0] ?? ""}` });
+    return expr(name);
   }
 
   /** The first Container, through wrappers (Tailwind, Html, Body, Sections). */
@@ -1684,6 +1707,7 @@ class Converter {
     const inside = (e: { from: number }) =>
       returned.some((r) => e.from >= r.getStart() && e.from < r.getEnd());
     edits.push(...this.classesToStyles(this.file).filter((e) => !inside(e)));
+    edits.push(...this.hoisted.map(({ at, text }) => ({ from: at, to: at, text })));
     edits.sort((a, b) => b.from - a.from);
     let body = source;
     for (const edit of edits) body = body.slice(0, edit.from) + edit.text + body.slice(edit.to);

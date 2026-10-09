@@ -2,7 +2,7 @@
  * CSS → Elements props, for the styles React Email components carry.
  */
 
-import { boxSides, ownFontSize, toPx, type BoxSides } from "@unlayer/convert-core";
+import { boxSides, ownFontSize, toPx, type BoxSides, type Expr } from "@unlayer/convert-core";
 
 export type Style = Record<string, any>;
 
@@ -38,8 +38,11 @@ export interface Inherited {
    */
   blockAlign?: string;
   mobile?: { fontSize?: string; lineHeight?: string; textAlign?: string };
-  /** A right-to-left document: text, buttons and images with no alignment start on the right. */
-  rtl?: boolean;
+  /**
+   * A right-to-left document: text, buttons and images with no alignment start on the right.
+   * The template's `dir` expression when it comes from props (`dir={direction}`).
+   */
+  rtl?: true | Expr;
 }
 
 export function inherit(parent: Inherited, style: Style | undefined): Inherited {

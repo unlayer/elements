@@ -78,9 +78,13 @@ function flexTextAlign(style: Style): string | undefined {
   return justify === "center" ? "center" : /^(flex-end|end|right)$/.test(justify) ? "right" : undefined;
 }
 
-/** The side a line starts on: the right in a right-to-left document. */
-function start(ctx: MapCtx): "left" | "right" {
-  return ctx.inherited.rtl ? "right" : "left";
+/** The side a line starts on: the right in a right-to-left document, worked out from `dir` when it comes from props. */
+function start(ctx: MapCtx): string | Expr {
+  const rtl = ctx.inherited.rtl;
+  if (!rtl) return "left";
+  if (rtl === true) return "right";
+  const dir = /^[\w$.]+$/.test(rtl.$expr) ? rtl.$expr : `(${rtl.$expr})`;
+  return expr(`${dir} === "rtl" ? "right" : "left"`);
 }
 
 /** Text props, from the element's style and what it inherits. */
@@ -103,7 +107,7 @@ export function textProps(
     color: color(ownColor(style.color, ctx.inherited.color) ?? ctx.inherited.color) ?? "#000000",
     fontSize: cssLength(style.fontSize ?? defaults.fontSize ?? ctx.inherited.fontSize),
     lineHeight: lineHeightValue(style.lineHeight ?? defaults.lineHeight ?? ctx.inherited.lineHeight),
-    textAlign: (style.textAlign ?? flexTextAlign(style) ?? ctx.inherited.textAlign ?? (ctx.inherited.rtl ? "right" : undefined)) as string | undefined,
+    textAlign: (style.textAlign ?? flexTextAlign(style) ?? ctx.inherited.textAlign ?? (ctx.inherited.rtl ? start(ctx) : undefined)) as string | undefined,
     fontWeight: weight === undefined ? undefined : numericWeight(weight),
     letterSpacing: cssLength(style.letterSpacing ?? ctx.inherited.letterSpacing),
     fontFamily: font && font !== ctx.rootFont ? fontFamilyProp(String(font)) : undefined,

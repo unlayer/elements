@@ -737,6 +737,42 @@ export default function Template() {
     }
   });
 
+  it("align from `dir` when it comes from props or a condition, in the migrated code", async () => {
+    const template = (dir: string) => `import { Html, Body, Heading, Text, Button, Img } from "@react-email/components";
+export default function Template({ direction = "rtl", locale = "ar" }: { direction?: string; locale?: string }) {
+  return <Html lang={locale} dir={${dir}}><Body>
+    <Heading>مرحبا</Heading>
+    <Text>نص</Text>
+    <Text style={{ textAlign: "left" }}>Left</Text>
+    <Text style={{ textAlign: "center" }}>Center</Text>
+    <Button href="https://example.com">زر</Button>
+    <Img src="https://example.com/a.png" width={100} alt="صورة" />
+  </Body></Html>;
+}
+Template.PreviewProps = { direction: "rtl", locale: "ar" };`;
+    for (const dir of ["direction", `locale === "ar" ? "rtl" : "ltr"`]) {
+      const { result, Original, Migrated } = await bothModes(template(dir));
+      // A name is used where it is; an expression is worked out once, before the return.
+      if (dir === "direction") expect(result.code).toContain('textAlign={direction === "rtl" ? "right" : "left"}');
+      else expect(result.code).toMatch(/const textDirection = locale === "ar" \? "rtl" : "ltr";\s+return[\s\S]*textDirection=\{textDirection\}[\s\S]*textAlign=\{textDirection === "rtl" \? "right" : "left"\}/);
+      expect(aligns(renderToJson(Migrated({ direction: "rtl", locale: "ar" })))).toEqual(["right", "right", "left", "center", "right", "right"]);
+      expect(aligns(renderToJson(Migrated({ direction: "ltr", locale: "en" })))).toEqual(["left", "left", "left", "center", "left", "left"]);
+      const check = await verifyConversion(Original, Migrated);
+      expect([check.missing, check.added]).toEqual([[], []]);
+    }
+  });
+
+  it("keeps a `dir` expression where it is when the email is one branch of a condition", async () => {
+    const { result, Migrated } = await bothModes(`import { Html, Body, Text } from "@react-email/components";
+export default function Template({ lang }: { lang?: { dir: string } }) {
+  return lang ? <Html dir={lang.dir === "rtl" ? "rtl" : "ltr"}><Body><Text>نص</Text></Body></Html> : <Html><Body><Text>Text</Text></Body></Html>;
+}
+Template.PreviewProps = { lang: { dir: "rtl" } };`);
+    expect(result.code).not.toContain("const textDirection");
+    expect(aligns(renderToJson(Migrated({ lang: { dir: "rtl" } })))).toEqual(["right"]);
+    expect(aligns(renderToJson(Migrated({})))).toEqual(["left"]);
+  });
+
   it("leaves left-to-right templates as they were", async () => {
     const { runtime, Migrated } = await bothModes(template(""));
     for (const design of [renderToJson(Migrated({})), runtime.design()]) {
