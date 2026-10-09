@@ -744,3 +744,26 @@ export default function Template() {
     }
   });
 });
+
+describe("components imported through a re-export file", () => {
+  it("are inlined from the module that declares them", async () => {
+    const files: Record<string, string> = {
+      "/project/emails/Shell.tsx": `import { Html, Body, Container } from "@react-email/components";
+export default function Shell({ children }: { children?: React.ReactNode }) { return <Html><Body><Container>{children}</Container></Body></Html>; }`,
+      "/project/components/index.ts": `import Shell from "../emails/Shell";\nexport { Shell };\nexport * from "./footer";\n`,
+      "/project/components/footer.tsx": `import { Text } from "@react-email/components";\nexport function Footer() { return <Text>Sent by Acme</Text>; }`,
+    };
+    const loadModule = (specifier: string, from: string) => {
+      const file = path.resolve(path.dirname(from), specifier);
+      const found = ["", ".tsx", ".ts", "/index.ts"].map((ext) => file + ext).find((name) => files[name]);
+      return found ? { fileName: found, source: files[found] } : undefined;
+    };
+    const result = await convertSource(`import { Text } from "@react-email/components";
+import { Shell, Footer } from "../components";
+export default function Welcome() { return <Shell><Text>Welcome aboard</Text><Footer /></Shell>; }`, { fileName: "/project/emails/welcome.tsx", loadModule });
+    expect(result.report.nativeRatio).toBe(1);
+    expect(result.code).toMatch(/<Paragraph[^>]*>\s*Welcome aboard/);
+    expect(result.code).toMatch(/<Paragraph[^>]*>\s*Sent by Acme/);
+    expect(result.code).not.toContain("../components");
+  });
+});

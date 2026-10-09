@@ -28,13 +28,14 @@ export function inlineLocalComponents(source: string, fileName: string, load?: M
   const copied = new Set<string>();
   const skipped = new Set<number>(); // usage positions that can't be inlined
   const modules = new Map<string, ts.SourceFile | null>();
-  const foreign = (specifier: string): ts.SourceFile | undefined => {
+  const foreign = (specifier: string, from = fileName): ts.SourceFile | undefined => {
     if (!load) return undefined;
-    if (!modules.has(specifier)) {
-      const loaded = load(specifier, fileName);
-      modules.set(specifier, loaded ? ts.createSourceFile(loaded.fileName, loaded.source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX) : null);
+    const key = `${from}\0${specifier}`;
+    if (!modules.has(key)) {
+      const loaded = load(specifier, from);
+      modules.set(key, loaded ? ts.createSourceFile(loaded.fileName, loaded.source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX) : null);
     }
-    return modules.get(specifier) ?? undefined;
+    return modules.get(key) ?? undefined;
   };
   for (let round = 0; round < 200; round++) {
     const file = ts.createSourceFile(fileName, source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
@@ -75,7 +76,7 @@ interface Component {
 function inlineOne(
   file: ts.SourceFile,
   skipped: Set<number>,
-  foreign: (specifier: string) => ts.SourceFile | undefined
+  foreign: (specifier: string, from?: string) => ts.SourceFile | undefined
 ): { source: string; name: string; copied?: string[]; skip?: undefined } | { skip: number } | undefined {
   const components = localComponents(file);
   const imports = importedBindings(file);
@@ -92,9 +93,9 @@ function inlineOne(
       const binding = imports.get(tag);
       if (binding && /^[A-Z]/.test(tag) && !binding.namespace && !/^(react|react-dom|react-email|@react-email\/)/.test(binding.specifier)) {
         const module = foreign(binding.specifier);
-        const exported = module && exportedComponent(module, binding.imported);
-        if (module && exported) {
-          found = { usage: node, component: exported, from: { file: module, specifier: binding.specifier } };
+        const exported = module && exportedThrough(module, binding.specifier, binding.imported, foreign, file.fileName);
+        if (exported) {
+          found = { usage: node, ...exported };
           return;
         }
       }
@@ -143,6 +144,56 @@ function importedBindings(file: ts.SourceFile): Map<string, { specifier: string;
       }
     }
     if (bindings && ts.isNamespaceImport(bindings)) out.set(bindings.name.text, { specifier, imported: "*", namespace: true });
+  }
+  return out;
+}
+
+/**
+ * The component `module` exports as `name`, followed through re-export files (`export … from`,
+ * `export *`, and imports exported again): the module that declares it, and the template's
+ * specifier for that module.
+ */
+function exportedThrough(
+  module: ts.SourceFile,
+  specifier: string,
+  name: string,
+  foreign: (specifier: string, from?: string) => ts.SourceFile | undefined,
+  template: string,
+  depth = 0
+): { component: Component; from: Imported } | undefined {
+  const own = exportedComponent(module, name);
+  if (own) return { component: own, from: { file: module, specifier } };
+  if (depth > 8) return undefined;
+  for (const hop of passedOn(module, name)) {
+    const next = foreign(hop.specifier, module.fileName);
+    const found = next && exportedThrough(next, rebase(hop.specifier, module.fileName, template), hop.imported, foreign, template, depth + 1);
+    if (found) return found;
+  }
+  return undefined;
+}
+
+/** Where a module gets `name` from when it only passes it on: the module and the name there. */
+function passedOn(module: ts.SourceFile, name: string): Array<{ specifier: string; imported: string }> {
+  const imports = importedBindings(module);
+  const out: Array<{ specifier: string; imported: string }> = [];
+  const fromImport = (local: string) => {
+    const binding = imports.get(local);
+    if (binding && !binding.namespace) out.push({ specifier: binding.specifier, imported: binding.imported });
+  };
+  for (const statement of module.statements) {
+    if (name === "default" && ts.isExportAssignment(statement) && !statement.isExportEquals && ts.isIdentifier(statement.expression)) fromImport(statement.expression.text);
+    if (!ts.isExportDeclaration(statement) || statement.isTypeOnly) continue;
+    const target = statement.moduleSpecifier && ts.isStringLiteral(statement.moduleSpecifier) ? statement.moduleSpecifier.text : undefined;
+    if (!statement.exportClause) {
+      if (target && name !== "default") out.push({ specifier: target, imported: name });
+    } else if (ts.isNamedExports(statement.exportClause)) {
+      for (const element of statement.exportClause.elements) {
+        if (element.isTypeOnly || element.name.text !== name) continue;
+        const local = (element.propertyName ?? element.name).text;
+        if (target) out.push({ specifier: target, imported: local });
+        else fromImport(local);
+      }
+    }
   }
   return out;
 }
