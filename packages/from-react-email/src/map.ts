@@ -46,7 +46,8 @@ export type Content = string | Expr;
 /** Text as children: plain strings and code, no markup (codemod mode). */
 export type Parts = Array<string | Expr>;
 
-function needsSpan(style: Style): boolean {
+/** Text styles Elements has no prop for, kept on a span (see withInlineStyles). */
+export function needsSpan(style: Style): boolean {
   const decoration = style.textDecoration ?? style.textDecorationLine;
   return Boolean(style.textTransform || (style.fontStyle && style.fontStyle !== "normal") || (decoration && decoration !== "none"));
 }
@@ -320,7 +321,8 @@ export function buttonBlock(href: unknown, label: Content | Parts, style: Style,
         border: borderProp(borders(style)),
         ...(width ? { width } : {}),
         // Markup (a bold word) goes in `text`: Elements escapes a button's children.
-        ...(Array.isArray(label) ? {} : { text: label }),
+        // Text styles it has no prop for (uppercase, italics) go on a span around it, as in Text.
+        ...(Array.isArray(label) ? {} : { text: withInlineStyles(label, style) }),
       },
       Array.isArray(label) ? label : []
     ),

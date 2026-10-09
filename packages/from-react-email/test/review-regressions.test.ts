@@ -132,3 +132,56 @@ describe("merge tags in HTML image sources", () => {
     expect(html).toContain('href="{{asset}}"');
   });
 });
+
+describe("buttons", () => {
+  const html = async (Template: any) => {
+    const { renderToHtml } = await import("@unlayer/react-elements");
+    const React = (await import("react")).default;
+    return renderToHtml(React.createElement(Template, Template.PreviewProps ?? {}));
+  };
+
+  it.each([
+    ["named Button", `import { Button } from "./button";`],
+    ["imported as Button", `import { BrandButton as Button } from "./button";`],
+  ])("keeps a project's own button (%s) with its styles, as it isn't React Email's", async (_, importLine) => {
+    const dir = fs.mkdtempSync(path.join(import.meta.dirname, ".tmp-"));
+    dirs.push(dir);
+    const button = `import * as React from "react";
+import { Button as EmailButton } from "@react-email/components";
+export function Button(props: { href: string; children: React.ReactNode }) {
+  return <EmailButton {...props} style={{ backgroundColor: "#5b21b6", color: "#ffffff", padding: "12px 20px" }} />;
+}
+export const BrandButton = Button;`;
+    fs.writeFileSync(path.join(dir, "button.tsx"), button);
+    const source = `import { Html, Body, Text } from "@react-email/components";
+${importLine}
+export default function T({ url }: { url: string }) {
+  return <Html><Body><Text>Your order shipped.</Text><Button href={url}>Track your order</Button></Body></Html>;
+}
+T.PreviewProps = { url: "https://example.com/track" };`;
+    const original = path.join(dir, "original.tsx");
+    fs.writeFileSync(original, source);
+    const { default: Original } = await import(original);
+    const conversion = await convertSource(source, { fileName: original });
+    const migrated = path.join(dir, "migrated.tsx");
+    fs.writeFileSync(migrated, conversion.code);
+    const { default: Migrated } = await import(migrated);
+    const out = await html(Migrated);
+    expect(out).toContain("background-color:#5b21b6");
+    expect(out).toContain("Track your order");
+    // The link the original renders, with its colors (not a transparent, link-blue Elements button).
+    expect(out).toMatch(/<a[^>]*background-color:#5b21b6[^>]*>(?:(?!<\/a>)[\s\S])*Track your order/);
+    expect((await verifyConversion(Original, Migrated, { props: Original.PreviewProps })).missing).toEqual([]);
+  });
+
+  it("keeps an uppercase button's text-transform, in both converters", async () => {
+    const source = `${imports}
+      export default function T() {
+        return <Html><Body><Button href="https://example.com" style={{ textTransform: "uppercase", fontStyle: "italic", backgroundColor: "#000000", color: "#ffffff", padding: "12px 20px" }}>Track it</Button></Body></Html>;
+      }`;
+    const { Original, Migrated } = await templates(source);
+    for (const out of [await html(Migrated), (await convertReactEmail(Original)).html()]) {
+      expect(out).toMatch(/<span style="text-transform:uppercase;font-style:italic">Track it<\/span>/);
+    }
+  });
+});

@@ -1282,7 +1282,7 @@ class Converter {
         return [headingBlock(level, { html: content, plain: false, parts }, style, marginProps, ctx)];
       }
       case "Button":
-        return [buttonBlock(this.attr(jsx, "href"), this.plainParts(jsx.children) ?? this.inlineContent(jsx.children), style, ctx, this.attr(jsx, "target"))];
+        return [buttonBlock(this.attr(jsx, "href"), this.buttonLabel(jsx.children, style), style, ctx, this.attr(jsx, "target"))];
       case "Img":
         this.computed(jsx, "width");
         if (!hasWidth(this.attr(jsx, "width"), style)) return [{ node: this.fallback(jsx, ctx, "image without a width (its natural size isn't known)"), margin: ZERO, padding: ZERO }];
@@ -1306,7 +1306,7 @@ class Converter {
           return [imageBlock({ src: this.attr(only, "src"), alt: this.attr(only, "alt"), width: this.attr(only, "width"), height: this.attr(only, "height"), href: this.attr(jsx, "href") }, only.style, ctx)];
         }
         if (backgroundColor(style) && (style.padding || style.paddingTop || style.paddingLeft)) {
-          return [buttonBlock(this.attr(jsx, "href"), this.plainParts(jsx.children) ?? this.inlineContent(jsx.children), style, ctx, this.attr(jsx, "target"))];
+          return [buttonBlock(this.attr(jsx, "href"), this.buttonLabel(jsx.children, style), style, ctx, this.attr(jsx, "target"))];
         }
         return [paragraphBlock(this.inlineContent([jsx.node]), {}, ctx, ZERO)];
       }
@@ -1337,6 +1337,12 @@ class Converter {
         }
         return [{ node: this.fallback(jsx, ctx), margin: ZERO, padding: ZERO }];
     }
+  }
+
+  /** A button's label: as children, or as markup when a text style has no prop (uppercase, italics), as for Text. */
+  private buttonLabel(children: ts.JsxChild[], style: Style): Content | Parts {
+    const parts = this.plainParts(children);
+    return parts && !needsHtml(style) ? parts : this.inlineContent(children);
   }
 
   private isInline(jsx: Jsx): boolean {
@@ -2065,6 +2071,10 @@ function needsHtml(style: Style): boolean {
   return Boolean(style.textTransform || (style.fontStyle && style.fontStyle !== "normal") || (decoration && decoration !== "none"));
 }
 
+/**
+ * The React Email component an HTML tag reads as. A capitalised tag that isn't
+ * React Email's (a project's own `Button`) is never read by its name: it's kept.
+ */
 function hostAlias(tag: string): string {
   if (tag === "p") return "Text";
   if (tag === "ul" || tag === "ol") return "List";
@@ -2072,7 +2082,7 @@ function hostAlias(tag: string): string {
   if (tag === "img") return "Img";
   if (tag === "hr") return "Hr";
   if (tag === "a") return "Link";
-  return tag;
+  return /^[a-z]/.test(tag) ? tag : "";
 }
 
 function escapeHtml(text: string): string {

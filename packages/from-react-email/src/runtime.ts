@@ -26,6 +26,7 @@ import {
   hasWidth,
   importedStylesheets,
   inheritedStyle,
+  needsSpan,
   noteAttributes,
   paragraphBlock,
   INHERITED,
@@ -361,7 +362,7 @@ function blockFrom(node: Element, ctx: Ctx): Block[] {
     case "Heading":
       return [headingFrom(node, style, ctx)];
     case "Button":
-      return [buttonBlock(node.props.href, [innerText(node)], style, ctx, node.props.target)];
+      return [buttonBlock(node.props.href, buttonLabel(node, style), style, ctx, node.props.target)];
     case "Img":
       if (!hasWidth(node.props.width, style)) return [unsizedImage(node, ctx)];
       return [imageFrom(node, style, ctx)];
@@ -519,7 +520,7 @@ function linkBlock(node: Exclude<Node, { kind: "text" }>, style: Style, ctx: Ctx
     return imageFrom(only, only.props.style ?? {}, ctx, node.props.href);
   }
   if (backgroundColor(style) && (style.padding || style.paddingTop || style.paddingLeft)) {
-    return buttonBlock(node.props.href, [innerText(node)], style, ctx, node.props.target);
+    return buttonBlock(node.props.href, buttonLabel(node, style), style, ctx, node.props.target);
   }
   return paragraphBlock(htmlOf(node), {}, { ...ctx }, ZERO);
 }
@@ -579,6 +580,11 @@ function innerHtml(node: Exclude<Node, { kind: "text" }>): string {
 function innerText(node: Exclude<Node, { kind: "text" }>): string {
   const html = innerHtml(node);
   return html.replace(/<!--[\s\S]*?-->/g, "").replace(/<[^>]+>/g, "").replace(/&amp;/g, "&").replace(/&#x27;|&#39;/g, "'").replace(/&quot;/g, '"').replace(/&lt;/g, "<").replace(/&gt;/g, ">").trim();
+}
+
+/** A button's label: as text, or as markup when a text style has no prop (uppercase, italics). */
+function buttonLabel(node: Exclude<Node, { kind: "text" }>, style: Style): string | string[] {
+  return needsSpan(style) ? escapeHtml(innerText(node)) : [innerText(node)];
 }
 
 function escapeHtml(text: string): string {
