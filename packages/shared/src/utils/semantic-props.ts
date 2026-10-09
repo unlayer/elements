@@ -141,15 +141,27 @@ function escapeText(text: string, quotes?: boolean): string {
  * Duck-types the element shape (`.props.children`) so this stays framework-free.
  * Inline formatting is not preserved — use the `html` prop for rich text.
  */
-function flattenChildrenText(node: any): string {
+function flattenChildrenText(node: any, breaks?: boolean): string {
   if (node == null || typeof node === "boolean") return "";
   if (typeof node === "string") return node;
   if (typeof node === "number") return String(node);
-  if (Array.isArray(node)) return node.map(flattenChildrenText).join("");
+  if (Array.isArray(node)) return node.map((child) => flattenChildrenText(child, breaks)).join("");
   if (typeof node === "object" && "props" in node) {
-    return flattenChildrenText(node.props?.children);
+    return breaks && node.type === "br" ? "<br/>" : flattenChildrenText(node.props?.children, breaks);
   }
   return "";
+}
+
+/**
+ * Heading and Button children as HTML: text, with markup escaped, so a
+ * value like a user's name can't inject HTML. A line break stays one,
+ * written `<br>` in a string (as it worked before) or as a JSX `<br />`.
+ */
+function childrenHtml(children: any): string {
+  return flattenChildrenText(children, true)
+    .split(/(<br\s*\/?>)/i)
+    .map((part, i) => (i % 2 ? "<br/>" : escapeText(part)))
+    .join("");
 }
 
 /**
@@ -186,9 +198,9 @@ export function mapSemanticProps<T extends Record<string, any>>(
       result.textJson = textToTextJson(textContent);
     } else if (componentType === "Heading" || componentType === "Button") {
       // Children are text, as in React (and as Paragraph's are): markup in them
-      // shows as typed, so a value like a user's name can't inject HTML. The
-      // `text` prop still takes HTML.
-      result.text = escapeText(textContent);
+      // shows as typed, so a value like a user's name can't inject HTML, but a
+      // line break stays one. The `text` prop still takes HTML.
+      result.text = childrenHtml(children);
     } else {
       result.text = textContent;
     }

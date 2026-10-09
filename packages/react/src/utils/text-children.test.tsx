@@ -63,6 +63,27 @@ describe("link URLs", () => {
   });
 });
 
+describe("line breaks in Heading and Button text", () => {
+  it.each([["email", Email], ["web", Page], ["document", Document]] as const)("stay breaks, written in a string or as a JSX <br /> (%s)", (_, Root) => {
+    const html = renderToHtml(
+      <Root><Row><Column>
+        <Heading>{"The Last Light<br/>on the Dolomites"}</Heading>
+        <Heading>Work together,<br />in real time</Heading>
+        <Button href="https://example.com/shop">{"Shop<br>now"}</Button>
+        <Heading>{'Hi<br/><img src=x onerror="alert(1)">'}</Heading>
+      </Column></Row></Root>
+    );
+    const doc = new DOMParser().parseFromString(html, "text/html");
+    const [first, second, last] = Array.from(doc.querySelectorAll("h1"));
+    expect([first, second, last].map((h) => h.querySelectorAll("br").length)).toEqual([1, 1, 1]);
+    expect(first.textContent).toBe("The Last Lighton the Dolomites");
+    expect(doc.querySelector("a[href='https://example.com/shop'] br")).not.toBeNull();
+    // Only the break: other markup still shows as typed.
+    expect(doc.querySelectorAll("img[src='x']")).toHaveLength(0);
+    expect(last.textContent).toBe('Hi<img src=x onerror="alert(1)">');
+  });
+});
+
 describe("text placed straight in a Row or Column", () => {
   const Name = () => name;
   it.each([["email", Email], ["web", Page], ["document", Document]] as const)("shows as text, from a Fragment, a component or written there (%s)", (_, Root) => {
