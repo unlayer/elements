@@ -368,7 +368,13 @@ class Converter {
             names.add(this.components.get(owner.tagName.getText()) ?? owner.tagName.getText());
             classOwners.set(value, names);
           }
-        } else if (node.initializer) this.report.note("dynamic className", node.initializer.getText().slice(0, 60));
+        } else if (node.initializer) {
+          // Classes built from values (`text-${tone}-500`) can't be resolved: lost. Others are noted.
+          const expression = ts.isJsxExpression(node.initializer) ? node.initializer.expression : undefined;
+          const built = expression && (ts.isTemplateExpression(unwrap(expression)) || (ts.isBinaryExpression(unwrap(expression)) && (unwrap(expression) as ts.BinaryExpression).operatorToken.kind === ts.SyntaxKind.PlusToken));
+          if (built) this.lose(node, node.getText());
+          else this.report.note("dynamic className", node.initializer.getText().slice(0, 60));
+        }
       }
       if ((ts.isJsxOpeningElement(node) || ts.isJsxSelfClosingElement(node)) && this.components.get(node.tagName.getText()) === "Tailwind") {
         const attr = node.attributes.properties.find((p) => ts.isJsxAttribute(p) && p.name.getText() === "config") as ts.JsxAttribute | undefined;
@@ -459,6 +465,20 @@ class Converter {
     return undefined;
   }
 
+  /** A value computed from props that the codemod can't keep: the check fails, naming it with its line. */
+  private lose(part: ts.Node, text: string): void {
+    const line = this.originalLine(part.getStart());
+    if (!this.droppedStyles.some((d) => d.from === part.getStart())) this.droppedStyles.push({ from: part.getStart(), to: part.getEnd(), detail: `line ${line}: ${text.replace(/\s+/g, " ").slice(0, 80)}` });
+  }
+
+  /** A prop whose value is computed (`as={level}`): lost, as the codemod writes a fixed one. */
+  private computed(jsx: Jsx, name: string): boolean {
+    const value = jsx.attrs.get(name);
+    if (!value || this.evaluate(value) !== undefined || nothing(value)) return false;
+    this.lose(value.parent ?? value, `${name}={${value.getText()}}`);
+    return true;
+  }
+
   /** The line of a position in the template as written (components inlined above it move lines). */
   private originalLine(position: number): number {
     const line = this.file.getLineAndCharacterOfPosition(position).line + 1;
@@ -474,10 +494,7 @@ class Converter {
   private staticStyle(expression: ts.Expression | undefined): Style {
     const style: Style = {};
     const node = expression && unwrap(expression);
-    const lose = (part: ts.Node, text: string) => {
-      const line = this.originalLine(part.getStart());
-      if (!this.droppedStyles.some((d) => d.from === part.getStart())) this.droppedStyles.push({ from: part.getStart(), to: part.getEnd(), detail: `line ${line}: ${text.replace(/\s+/g, " ").slice(0, 80)}` });
-    };
+    const lose = (part: ts.Node, text: string) => this.lose(part, text);
     if (!node || !ts.isObjectLiteralExpression(node)) {
       if (expression) lose(expression, `style={${expression.getText()}}`);
       return style;
@@ -1194,6 +1211,7 @@ class Converter {
         return [paragraphBlock(parts && needsHtml(style) ? this.inlineContent(jsx.children) : html, style, ctx, margins(style, { top: 16, bottom: 16 }), parts)];
       }
       case "Heading": {
+        this.computed(jsx, "as");
         const level = String(this.attr(jsx, "as") ?? (jsx.name ? "h1" : jsx.tag));
         const content = this.inlineContent(jsx.children);
         const marginProps = headingMarginProps(Object.fromEntries(["m", "mx", "my", "mt", "mr", "mb", "ml"].map((k) => [k, this.attr(jsx, k)])));
@@ -1203,6 +1221,7 @@ class Converter {
       case "Button":
         return [buttonBlock(this.attr(jsx, "href"), this.plainParts(jsx.children) ?? this.inlineContent(jsx.children), style, ctx)];
       case "Img":
+        this.computed(jsx, "width");
         if (!hasWidth(this.attr(jsx, "width"), style)) return [{ node: this.fallback(jsx, ctx, "image without a width (its natural size isn't known)"), margin: ZERO, padding: ZERO }];
         return [imageBlock({ src: this.attr(jsx, "src"), alt: this.attr(jsx, "alt"), width: this.attr(jsx, "width"), height: this.attr(jsx, "height") }, style, ctx)];
       case "Hr":

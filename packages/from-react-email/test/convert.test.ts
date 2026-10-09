@@ -612,3 +612,22 @@ Template.PreviewProps = { title: "Welcome", name: "Ada", url: "https://example.c
     }
   });
 });
+
+describe("values computed from props the codemod can't keep", () => {
+  it("fail the check for a heading level, an image width and classes built from values", async () => {
+    const source = `import { Html, Body, Heading, Img, Text, Tailwind } from "@react-email/components";
+export default function Template({ level = "h3", logo = 64, tone = "red", quiet = true }: { level?: "h1" | "h2" | "h3"; logo?: number; tone?: string; quiet?: boolean }) {
+  return (<Html><Tailwind><Body>
+    <Heading as={level}>Title</Heading>
+    <Img src="https://example.com/logo.png" width={logo} height={logo} alt="Logo" />
+    <Text className={\`text-\${tone}-500\`}>Toned</Text>
+    <Text className={quiet ? undefined : "mb-9"}>Plain</Text>
+  </Body></Tailwind></Html>);
+}`;
+    const { report } = await convertSource(source);
+    expect(report.lostStyles).toEqual(expect.arrayContaining([expect.stringMatching(/as=\{level\}/), expect.stringMatching(/width=\{logo\}/), expect.stringMatching(/className=\{`text-\$\{tone\}-500`\}/)]));
+    // A class list that is a value or nothing (`quiet ? undefined : "mb-9"`) stays a note.
+    expect(report.lostStyles?.some((s) => s.includes("mb-9"))).toBe(false);
+  });
+});
+
