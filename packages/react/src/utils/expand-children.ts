@@ -11,11 +11,14 @@ const FORWARD_REF = Symbol.for("react.forward_ref");
 // object kept between renders (`const footer = <Footer />`) is called again by
 // the next one, which may read other data (another user's).
 let rendered: WeakMap<object, React.ReactNode> | undefined;
+// Components called so far in the render: each one's `useId()` values get their own prefix.
+let called = 0;
 
 /** Runs one render (renderToHtml, renderToJson, …) with its own record of what each component rendered. */
 export function withRenderScope<T>(render: () => T): T {
   if (rendered) return render();
   rendered = new WeakMap();
+  called = 0;
   try {
     return render();
   } finally {
@@ -44,7 +47,7 @@ function contents(element: React.ReactElement<any>): React.ReactNode {
   const props = { ...element.props };
   const out = (isElementsType(type)
     ? React.createElement(type, props)
-    : callIsolated(() => (type.$$typeof === FORWARD_REF ? type.render(props, null) : type(props)))) as React.ReactNode;
+    : callIsolated(() => (type.$$typeof === FORWARD_REF ? type.render(props, null) : type(props)), `u${++called}-`)) as React.ReactNode;
   rendered?.set(element, out);
   return out;
 }

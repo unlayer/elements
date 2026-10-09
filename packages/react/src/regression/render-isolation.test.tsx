@@ -4,10 +4,11 @@
  * same input always gives the same output.
  */
 import { describe, expect, it } from "vitest";
-import React, { memo, useState } from "react";
+import React, { memo, useId, useState } from "react";
+import { renderToStaticMarkup } from "react-dom/server";
 import { renderToHtml, renderToHtmlParts, renderToPlainText } from "../utils/render-to-html";
 import { renderToJson } from "../utils/render-to-json";
-import { Email, Row, Column, Paragraph } from "../index";
+import { Email, Row, Column, Paragraph, Html } from "../index";
 
 let user = "Alice";
 const Greeting = () => <Row><Column><Paragraph>Hi {user}</Paragraph></Column></Row>;
@@ -52,5 +53,39 @@ describe("renders", () => {
     expect(renderToHtml(first())).toBe(alone.first);
     renderToHtmlParts(first());
     expect(JSON.stringify(renderToJson(second()))).toBe(alone.design);
+  });
+});
+
+describe("useId() in components", () => {
+  // A component that links to its own anchor, as a table of contents or a form label does.
+  const Section = ({ to }: { to: string }) => {
+    const id = useId();
+    return <Html html={`<a id="${id}" href="${to}">${to}</a>`} />;
+  };
+  const SectionRow = ({ to }: { to: string }) => {
+    const id = useId();
+    return <Row><Column><Html html={`<a id="${id}" href="${to}">${to}</a>`} /></Column></Row>;
+  };
+  const email = () => (
+    <Email>
+      <Row><Column><Section to="/one" /><Section to="/two" /></Column></Row>
+      <SectionRow to="/three" />
+      <SectionRow to="/four" />
+    </Email>
+  );
+  const ids = (html: string) => [...html.matchAll(/<a id="([^"]+)"/g)].map((m) => m[1]);
+
+  it("gives each component its own ids", () => {
+    for (const html of [renderToHtml(email()), renderToHtmlParts(email()).body, renderToStaticMarkup(email()), JSON.stringify(renderToJson(email()))]) {
+      const found = ids(html.replace(/\\"/g, '"'));
+      expect(found).toHaveLength(4);
+      expect(new Set(found).size).toBe(4);
+    }
+  });
+
+  it("gives the same ids on every render", () => {
+    expect(renderToHtml(email())).toBe(renderToHtml(email()));
+    expect(renderToStaticMarkup(email())).toBe(renderToStaticMarkup(email()));
+    expect(ids(renderToHtml(email()))).toEqual(ids(renderToStaticMarkup(email())));
   });
 });

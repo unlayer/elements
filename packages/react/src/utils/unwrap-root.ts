@@ -41,8 +41,10 @@ const isThenable = (value: unknown): boolean => typeof (value as { then?: unknow
  * Call a template component in a throwaway render of its own. Its hooks run
  * there, never on the component that is rendering when renderToHtml is called
  * (a live preview in `useMemo`), whose hooks they would otherwise corrupt.
+ * Components called in renders of their own each need their own `prefix`, or
+ * their `useId()` values repeat in the document.
  */
-export function callIsolated(call: () => unknown): unknown {
+export function callIsolated(call: () => unknown, prefix?: string): unknown {
   let result: unknown;
   let error: unknown;
   let ran = false;
@@ -57,7 +59,7 @@ export function callIsolated(call: () => unknown): unknown {
     }
     return null;
   };
-  renderToStaticMarkup(React.createElement(Probe));
+  renderToStaticMarkup(React.createElement(Probe), prefix ? { identifierPrefix: prefix } : undefined);
   if (threw) throw isThenable(error) ? new Error(ASYNC_TEMPLATE) : error;
   if (!ran) throw new Error("the template wasn't rendered");
   if (isThenable(result)) throw new Error(ASYNC_TEMPLATE);
