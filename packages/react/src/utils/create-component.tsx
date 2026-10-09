@@ -192,6 +192,12 @@ function ensureMeta(values: any, type: string, index: number = 0): any {
  * Render a component by calling its exporter and wrapping the HTML output.
  * Handles error boundaries, exporterConfig construction, and container vs item calling conventions.
  */
+/** A direction the `dir` attribute takes (ltr, rtl, auto). Anything else is dropped: it's written into markup. */
+export function textDirectionOf(value: unknown): "ltr" | "rtl" | "auto" | undefined {
+  const dir = typeof value === "string" ? value.trim().toLowerCase() : "";
+  return dir === "ltr" || dir === "rtl" || dir === "auto" ? dir : undefined;
+}
+
 function renderComponent<T = any>(config: RenderConfig<T>): JSX.Element {
   const { type, values, mode, className, style, args = [], innerHTML, _config, exporter, metaContext } = config;
 
@@ -201,7 +207,7 @@ function renderComponent<T = any>(config: RenderConfig<T>): JSX.Element {
     const exporterConfig = {
       generateHtmlFromTextJson,
       toSafeHtml: cfg.toSafeHtml,
-      textDirection: cfg.textDirection,
+      textDirection: textDirectionOf(cfg.textDirection),
       cdnBaseUrl: cfg.cdnBaseUrl,
     };
 

@@ -7,6 +7,7 @@ import type { RenderMode } from "@unlayer-internal/shared-elements";
 import { extractHeadFromTree } from "./extract-head";
 import { htmlRoot } from "./unwrap-root";
 import { withRenderScope } from "./expand-children";
+import { textDirectionOf } from "./create-component";
 import {
   emailLayout,
   webLayout,
@@ -27,7 +28,7 @@ const MODE_BY_WRAPPER: Record<string, RenderMode> = {
 /** A template's direction follows its root props; explicit renderer options still win. */
 function resolveConfig(element: React.ReactElement, config?: Partial<UnlayerConfig>): UnlayerConfig {
   const props = element.props as { textDirection?: string; values?: { textDirection?: string } };
-  const textDirection = props.textDirection ?? props.values?.textDirection;
+  const textDirection = textDirectionOf(props.textDirection ?? props.values?.textDirection);
   return { ...DEFAULT_CONFIG, ...(textDirection !== undefined ? { textDirection } : {}), ...config };
 }
 

@@ -95,3 +95,13 @@ describe("text placed straight in a Row or Column", () => {
   });
 });
 
+describe("the text direction", () => {
+  it.each([["email", Email], ["web", Page], ["document", Document]] as const)("is only ever ltr, rtl or auto in the markup (%s)", (_, Root) => {
+    const html = renderToHtml(<Root textDirection={'rtl"><img src=x onerror="alert(1)">'}><Row><Column><Paragraph>x</Paragraph></Column></Row></Root>);
+    expect(html).not.toContain("<img src=x");
+    const rtl = (dir: string) => renderToHtml(<Root textDirection={dir}><Row><Column><Paragraph>x</Paragraph></Column></Row></Root>);
+    expect(rtl("RTL")).toContain('<html dir="rtl"');
+    expect(rtl("RTL")).toBe(rtl("rtl"));
+  });
+});
+
