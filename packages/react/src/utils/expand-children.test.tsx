@@ -1,8 +1,8 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import React, { memo, useState } from "react";
 import { renderToHtml } from "./render-to-html";
 import { renderToJson } from "./render-to-json";
-import { Email, Row, Column, Paragraph } from "../index";
+import { Email, Page, Row, Column, Paragraph } from "../index";
 
 const block = (text: string, props: Record<string, unknown> = {}) => <Row><Column><Paragraph {...props}>{text}</Paragraph></Column></Row>;
 const Header = () => block("Header");
@@ -91,3 +91,19 @@ describe("a component element kept between renders", () => {
     expect(new Set(ids).size).toBe(ids.length);
   });
 });
+
+describe("HTML from a component placed straight in the body", () => {
+  it("doesn't get the body's settings as attributes", () => {
+    const Raw = () => <div dangerouslySetInnerHTML={{ __html: "<p>Raw footer</p>" }} />;
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
+    try {
+      const html = renderToHtml(<Page><Raw />{block("x")}</Page>);
+      expect(html).toContain("<div><p>Raw footer</p></div>");
+      expect(html).not.toMatch(/_config=|bodyValues=|\[object Object\]/);
+      expect(error).not.toHaveBeenCalled();
+    } finally {
+      error.mockRestore();
+    }
+  });
+});
+

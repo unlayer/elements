@@ -185,7 +185,8 @@ const Body: React.FC<BodyProps> = (props) => {
   if (children) {
     try {
       const enrichedChildren = React.Children.map(expandChildren(children), (child) => {
-        if (React.isValidElement(child)) {
+        // Components get the context; an HTML element (<div>) would write it as attributes.
+        if (React.isValidElement(child) && typeof child.type !== "string") {
           return React.cloneElement(child as React.ReactElement<any>, {
             _config,
             bodyValues: values,
