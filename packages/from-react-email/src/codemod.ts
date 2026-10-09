@@ -50,7 +50,7 @@ import { inlineLocalComponents, type ModuleLoader } from "./components";
 import { inlineLocalJsx } from "./inline";
 import { splitConditionalClasses } from "./variants";
 import { phoneSides, withPhoneStyles, handledPhoneClass } from "./phone-styles";
-import { NO_CLASSES, phoneRules, resolveTailwind, stacksOnPhones, stylesheetRules, underInline, type ResolvedClasses } from "./tailwind";
+import { NO_CLASSES, overInline, phoneRules, resolveTailwind, stacksOnPhones, stylesheetRules, underInline, type ResolvedClasses } from "./tailwind";
 
 export interface CodemodResult {
   code: string;
@@ -581,6 +581,8 @@ class Converter {
       );
     }
     let style: Style = {};
+    // Head rules marked !important: they win over the element's own style too.
+    let important: { rules: Style; names: Set<string> } | undefined;
     const className = attrs.get("className");
     if (className) {
       const value = this.evaluate(className);
@@ -592,6 +594,7 @@ class Converter {
         const component = this.components.get(tag);
         const strong = (from: Map<string, Set<string>>) => new Set(names.flatMap((name) => [...(from.get(name) ?? [])]));
         const rules = underInline(component, Object.assign({}, ...names.map((name) => this.headClasses.get(name) ?? {})), strong(this.headImportant));
+        important = { rules, names: strong(this.headImportant) };
         const phoneStrong = strong(this.headPhoneImportant);
         const phone = new Map([...this.headPhone].map(([cls, rule]) => [cls, underInline(component, rule, phoneStrong)] as const));
         const head = withPhoneStyles(rules, names, phone);
@@ -604,6 +607,7 @@ class Converter {
       const value = this.evaluate(expression);
       if (value && typeof value === "object") style = { ...style, ...(value as Style) };
       else style = { ...style, ...this.staticStyle(expression) };
+      if (important) style = overInline(style, important.rules, important.names);
     }
     opaqueProps ||= attrs.has("children") || attrs.has("dangerouslySetInnerHTML");
     const name = this.components.get(tag);

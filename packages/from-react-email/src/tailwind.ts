@@ -117,6 +117,21 @@ export function underInline(component: string | undefined, rules: Style, importa
 }
 
 /**
+ * The element's own inline style with the head rules marked `!important` on
+ * top: those win over an inline style, as in the browser. An important
+ * `margin` or `padding` also wins over the inline sides it covers.
+ */
+export function overInline(inline: Style, rules: Style, important: Set<string>): Style {
+  const out: Style = { ...inline };
+  for (const key of important) {
+    if (rules[key] === undefined) continue;
+    out[key] = rules[key];
+    if (key === "margin" || key === "padding") for (const side of ["Top", "Right", "Bottom", "Left"]) delete out[`${key}${side}`];
+  }
+  return out;
+}
+
+/**
  * A head stylesheet's desktop rules on a single class (`.copy{color:#fff}`),
  * by class, and the selectors of the rules that aren't converted: other
  * selectors (tags, ids, combinators, pseudo-classes) and media queries other

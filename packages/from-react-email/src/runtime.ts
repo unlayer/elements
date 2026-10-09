@@ -36,7 +36,7 @@ import {
 import { addSides, backgroundColor, backgroundImage, boxSides, color, fontFamilyProp, inherit, isHidden, margins, phoneOnly, px, shownOnPhones, toPx, ZERO, type Style } from "./styles";
 import type { BoxSides } from "@unlayer/convert-core";
 import { phoneSides, withPhoneStyles } from "./phone-styles";
-import { phoneRules, stacksOnPhones, stylesheetRules, underInline } from "./tailwind";
+import { overInline, phoneRules, stacksOnPhones, stylesheetRules, underInline } from "./tailwind";
 
 /** React's static markup, without the image preload links React 19 adds: an email has no use for them. */
 function renderToStaticMarkup(element: React.ReactElement): string {
@@ -116,7 +116,7 @@ export async function convertElement(element: React.ReactElement): Promise<Runti
     const fromHead = underInline(component, Object.assign({}, ...names.map((name) => classes.get(name) ?? {})), strong(classImportant));
     const phoneStrong = strong(phoneImportant);
     const phoneFor = component ? new Map([...phone].map(([cls, rule]) => [cls, underInline(component, rule, phoneStrong)] as const)) : phone;
-    node.props = { ...node.props, style: withPhoneStyles({ ...fromHead, ...(node.props.style ?? {}) }, names, phoneFor) };
+    node.props = { ...node.props, style: withPhoneStyles({ ...fromHead, ...overInline(node.props.style ?? {}, fromHead, strong(classImportant)) }, names, phoneFor) };
   });
 
   const body = find(nodes, (n) => n.kind === "component" && n.name === "Body") as Element | undefined;

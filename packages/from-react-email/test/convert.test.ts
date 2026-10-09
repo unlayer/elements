@@ -317,6 +317,33 @@ export default function Template() {
     expect(inlineWins).toContain('color="#ff0000"');
     expect(result.code).toMatch(/<Paragraph[^>]*fontSize="30px"[^>]*>\s*Important wins/);
   });
+
+  it("lets an !important rule win over the template's own inline style too (both modes)", async () => {
+    const source = `import { Html, Head, Body, Text } from "@react-email/components";
+export default function Template() {
+  return <Html><Head><style>{".notice { color: #ff0000 !important; font-size: 40px !important; margin: 0 20px !important } .soft { color: #00ff00 }"}</style></Head><Body>
+    <Text className="notice" style={{ color: "#ffffff", fontSize: 14, marginTop: 30 }}>Important notice</Text>
+    <Text className="soft" style={{ color: "#0000ff" }}>Inline wins</Text>
+  </Body></Html>;
+}`;
+    const codemod = await convertSource(source);
+    const notice = /<Paragraph([^>]*)>\s*Important notice/.exec(codemod.code)?.[1] ?? "";
+    expect(notice).toContain('color="#ff0000"');
+    expect(notice).toContain('fontSize="40px"');
+    expect(notice).toContain('containerPadding="0px 20px 0px 20px"');
+    expect(codemod.code).toMatch(/<Paragraph[^>]*color="#0000ff"[^>]*>\s*Inline wins/);
+    const dir = fs.mkdtempSync(path.join(import.meta.dirname, ".tmp-"));
+    try {
+      fs.writeFileSync(path.join(dir, "t.tsx"), source);
+      const { default: Template } = await import(path.join(dir, "t.tsx"));
+      const design = JSON.stringify((await convertReactEmail(Template)).design());
+      expect(design).toContain('"color":"#ff0000"');
+      expect(design).toContain('"fontSize":"40px"');
+      expect(design).toContain('"color":"#0000ff"');
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
+  });
 });
 
 describe("names the migrated file no longer reads", () => {
