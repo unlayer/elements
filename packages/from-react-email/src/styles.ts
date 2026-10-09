@@ -52,6 +52,11 @@ export function inherit(parent: Inherited, style: Style | undefined): Inherited 
   for (const key of ["color", "fontFamily", "fontSize", "fontWeight", "textAlign", "letterSpacing", "lineHeight"] as const) {
     if (style[key] !== undefined && style[key] !== "" && !/^\s*(inherit|currentcolor)\s*$/i.test(String(style[key]))) next[key] = String(style[key]);
   }
+  // A line height in % or em passes on as px, worked out with the font size where it's set (as CSS does);
+  // a number passes on as a number, and scales with each element's own size.
+  const lineHeight = /^(\d*\.?\d+)(%|em|rem)$/.exec(String(style.lineHeight ?? "").trim());
+  const base = lineHeight && (lineHeight[2] === "rem" ? 16 : toPx(next.fontSize, toPx(parent.fontSize) ?? 16));
+  if (lineHeight && base) next.lineHeight = px((Number(lineHeight[1]) / (lineHeight[2] === "%" ? 100 : 1)) * base);
   if (/flex/.test(String(style.display ?? ""))) {
     const justify = String(style.justifyContent ?? "");
     next.blockAlign = justify === "center" ? "center" : /end|right/.test(justify) ? "right" : undefined;

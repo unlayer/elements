@@ -188,7 +188,8 @@ export function headingBlock(
       "Heading",
       {
         headingType: HEADINGS[level] ? level : "h1",
-        ...textProps(style, ctx, { fontSize: px(fontSize), lineHeight: "normal", fontWeight: 700 }),
+        // A heading's line height is inherited (React Email sets none), else normal.
+        ...textProps(style, ctx, { fontSize: px(fontSize), lineHeight: ctx.inherited.lineHeight ?? "normal", fontWeight: 700 }),
         ...(asChildren ? {} : { text: html }),
       },
       asChildren ? content.parts ?? [html] : []

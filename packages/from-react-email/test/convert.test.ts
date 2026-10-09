@@ -767,3 +767,25 @@ export default function Welcome() { return <Shell><Text>Welcome aboard</Text><Fo
     expect(result.code).not.toContain("../components");
   });
 });
+
+describe("a heading's line height", () => {
+  it("is inherited, as in the browser: a number scales with the heading, % and em are worked out where they're set", async () => {
+    const template = (body: string, heading = "") => `import { Html, Body, Heading } from "@react-email/components";
+export default function Template() {
+  return <Html><Body style={{ ${body} }}><Heading style={{ fontSize: "60px"${heading} }}>Big title</Heading></Body></Html>;
+}`;
+    const lineHeight = (design: any) => design.body.rows[0].columns[0].contents[0].values.lineHeight;
+    const cases: Array<[string, string, string]> = [
+      ["lineHeight: 2", "", "2"],
+      ['fontSize: "16px", lineHeight: "150%"', "", "24px"],
+      ['fontSize: "20px", lineHeight: "1.2em"', "", "24px"],
+      ['lineHeight: "20px"', "", "20px"],
+      ["lineHeight: 2", ', lineHeight: "1.1"', "1.1"],
+      ['color: "#000000"', "", "normal"],
+    ];
+    for (const [body, heading, expected] of cases) {
+      const { runtime, Migrated } = await bothModes(template(body, heading));
+      expect([lineHeight(renderToJson(Migrated({}))), lineHeight(runtime.design())], body + heading).toEqual([expected, expected]);
+    }
+  });
+});
