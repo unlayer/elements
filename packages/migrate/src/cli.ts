@@ -143,6 +143,12 @@ export async function main(argv: string[], io: Io, library?: Library): Promise<n
   }
   const candidates = inputs.files.filter((f) => f.reactEmail);
   if (!candidates.length) {
+    // Run again after --write (in CI): the templates are done.
+    const done = inputs.files.filter((f) => f.migrated).length;
+    if (done) {
+      io.stdout(`${done} template${done === 1 ? "" : "s"} already migrated (importing @unlayer/react-elements): nothing to do.\n`);
+      return 0;
+    }
     io.stderr("No React Email templates found (files that import @react-email/*).\n");
     return 1;
   }
@@ -210,6 +216,8 @@ interface Input {
   /** The folder the output layout is relative to. */
   base: string;
   reactEmail: boolean;
+  /** Imports @unlayer/react-elements: migrated already. */
+  migrated: boolean;
 }
 
 function outputPath(input: Input, options: Options, cwd: string): string {
@@ -340,6 +348,8 @@ async function migrateFile(input: Input, options: Options, lib: Library, io: Io,
   const file = input.path;
   const name = relative(io.cwd, file) || basename(file);
   const source = await readFile(file, "utf8");
+  // Run again on migrated templates (in CI, or after --write): they're done.
+  if (/from\s+["']@unlayer\/react-elements["']/.test(source)) return { file: name, status: "skipped", reason: "already migrated: it imports @unlayer/react-elements" };
 
   const release: Array<() => void> = [];
   try {
@@ -351,6 +361,8 @@ async function migrateFile(input: Input, options: Options, lib: Library, io: Io,
       Original = template.component;
       props = template.props;
     } catch (error) {
+      // A .js file loads as plain JavaScript: JSX there doesn't parse.
+      if (/\.(js|mjs|cjs)$/.test(file) && (await jsxInJs(source))) return { file: name, status: "failed", reason: "it has JSX in a .js file, which can't be loaded: rename it to .jsx" };
       return { file: name, status: "failed", reason: `couldn't load it: ${message(error)}` };
     }
 
@@ -398,7 +410,8 @@ async function migrateFile(input: Input, options: Options, lib: Library, io: Io,
       verification = await lib.verifyConversion(Original, Migrated as (props: unknown) => ReturnType<typeof Original>, { props, designProps });
       // A component that doesn't render <Html> is a shared piece (a footer, a button), not an email:
       // replacing it would turn it into a whole email inside the templates that use it.
-      if (options.write && !/<html[\s>]/i.test(verification.originalHtml)) return { file: name, status: "skipped", reason: "not an email template (it doesn't render <Html>): a shared component, left as it is" };
+      // A dry run says what --write does; --out writes copies of them too.
+      if (options.out === undefined && !/<html[\s>]/i.test(verification.originalHtml)) return { file: name, status: "skipped", reason: "not an email template (it doesn't render <Html>): a shared component, left as it is" };
       design = verification.design;
       if (options.design && options.mergeTags) {
         const tagged = await lib.mergeTagDesign(Migrated as (props: unknown) => ReturnType<typeof Original>, designProps, verification.design);
@@ -641,7 +654,7 @@ async function collect(paths: string[], cwd: string): Promise<{ files: Input[]; 
     if (seen.has(path)) return;
     seen.add(path);
     const text = await readFile(path, "utf8");
-    files.push({ path, base, reactEmail: /from\s+["'](@react-email\/[^"']+|react-email)["']/.test(text) });
+    files.push({ path, base, reactEmail: /from\s+["'](@react-email\/[^"']+|react-email)["']/.test(text), migrated: /from\s+["']@unlayer\/react-elements["']/.test(text) });
   };
   for (const given of paths) {
     const path = resolve(cwd, given);
@@ -731,6 +744,14 @@ function sharedCjsPackages(cwd: string): () => void {
   };
   api._resolveFilename = resolvePackage;
   return () => { if (api._resolveFilename === resolvePackage) api._resolveFilename = previous; };
+}
+
+/** Whether JavaScript source only parses as JSX. */
+async function jsxInJs(source: string): Promise<boolean> {
+  const ts = (await import("typescript")).default;
+  const errors = (fileName: string) => ts.transpileModule(source, { fileName, reportDiagnostics: true }).diagnostics?.length ?? 0;
+  // TypeScript parses .js with JSX allowed: .ts and .tsx differ only in that.
+  return errors("template.ts") > 0 && errors("template.tsx") === 0;
 }
 
 /** Import JSX and TypeScript with React's automatic JSX runtime, honoring the project's tsconfig paths. */
@@ -996,6 +1017,8 @@ function parseArgs(argv: string[]): Args {
     if (VALUE_OPTIONS.has(name)) {
       const value = inline ?? argv[++i];
       if (value === undefined) throw new Error(`--${name} needs a value.`);
+      // `--report --write`: the next flag isn't the value.
+      if (inline === undefined && /^--?[a-z]/i.test(value)) throw new Error(`--${name} needs a value before ${value}.`);
       if (!value.trim()) throw new Error(`--${name} needs a non-empty value.`);
       values.set(name, value);
     } else if (FLAGS.has(name)) {

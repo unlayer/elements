@@ -399,6 +399,35 @@ export default function Footer() { return <Section><Text>Sent by Acme</Text></Se
     expect(fs.readFileSync(path.join(dir, "emails/components/footer.tsx"), "utf8")).toBe(footer);
   });
 
+  it("says the same about a shared component in a dry run as --write does", async () => {
+    const footer = `import { Section, Text } from "@react-email/components";
+export default function Footer() { return <Section><Text>Sent by Acme</Text></Section>; }`;
+    const dir = project({ "emails/components/footer.tsx": footer });
+    const out = io(dir);
+    expect(await main(["emails/components/footer.tsx"], out, lib), out.out + out.err).toBe(0);
+    expect(out.out).toContain("not an email template");
+  });
+
+  it("skips templates already migrated, so running --write again changes nothing", async () => {
+    const dir = project({ "emails/welcome.tsx": WELCOME, "lib/format.ts": FORMAT });
+    const first = io(dir);
+    expect(await main(["emails", "--write"], first, lib), first.out + first.err).toBe(0);
+    const migrated = fs.readFileSync(path.join(dir, "emails/welcome.tsx"), "utf8");
+    const again = io(dir);
+    expect(await main(["emails", "--write"], again, lib), again.out + again.err).toBe(0);
+    expect(again.out).toContain("already migrated");
+    expect(fs.readFileSync(path.join(dir, "emails/welcome.tsx"), "utf8")).toBe(migrated);
+  });
+
+  it("says to rename a .js template with JSX to .jsx", async () => {
+    const dir = project({ "emails/hello.js": `import { Html, Body, Text } from "@react-email/components";
+export default function Hello() { return <Html><Body><Text>Hello</Text></Body></Html>; }
+` });
+    const out = io(dir);
+    expect(await main(["emails"], out, lib)).toBe(2);
+    expect(out.out).toContain("rename it to .jsx");
+  });
+
   it("checks without writing by default, and replaces templates with --write", async () => {
     const dir = project({ "emails/welcome.tsx": WELCOME, "lib/format.ts": FORMAT });
     const dry = io(dir);
@@ -463,6 +492,15 @@ export default function Hi({ name }: { name: string }) {
     expect(bad.out).toContain('lost text: "aboard"');
     const usage = io(dir);
     expect(await main(["compare", "emails/hi.tsx"], usage, lib)).toBe(1);
+  });
+
+  it("doesn't take the next flag as an option's value (`--report --write`)", async () => {
+    const dir = project({ "emails/welcome.tsx": WELCOME, "lib/format.ts": FORMAT });
+    const out = io(dir);
+    expect(await main(["emails", "--report", "--write"], out, lib)).toBe(1);
+    expect(out.err).toContain("--report needs a value before --write");
+    expect(fs.existsSync(path.join(dir, "--write"))).toBe(false);
+    expect(fs.readFileSync(path.join(dir, "emails/welcome.tsx"), "utf8")).toBe(WELCOME);
   });
 
   it("explains usage mistakes", async () => {

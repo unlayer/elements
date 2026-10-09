@@ -42,7 +42,7 @@ All templates are converted and checked before any output is written. With `--wr
 
 Verification uses a temporary file in the destination folder. The command removes it after the check and removes any empty folders it created for that check. A failed check leaves the target template and design untouched unless `--force` was requested. Writes replace files atomically, preserving other files that happen to share a hard link with an output.
 
-Exit codes: `0` when every template converted and passed the check, `1` for a usage error or when no templates were found, `2` when a template failed to convert or the check found a problem. Use it in CI to keep migrated templates honest.
+Exit codes: `0` when every template converted and passed the check, `1` for a usage error or when no templates were found, `2` when a template failed to convert or the check found a problem. Use it in CI to keep migrated templates honest: templates already migrated (importing `@unlayer/react-elements`) are skipped, so running it again after `--write` passes. A `.js` template with JSX can't be loaded: rename it to `.jsx`.
 
 ## Check a template you migrated yourself
 
