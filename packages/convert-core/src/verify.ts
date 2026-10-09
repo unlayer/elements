@@ -18,23 +18,18 @@ export interface TextCheck {
   addedAttributes: string[];
 }
 
-const HIDDEN = /<(span|div|p|code|td)\b[^>]*style="[^"]*display:\s*none[^"]*"[^>]*>[\s\S]*?<\/\1>/gi;
+// A hidden element's opening tag; Elements hides a block on desktop with display:none on its table.
+const HIDDEN = /<(span|div|p|code|td|table)\b[^>]*style="[^"]*display:\s*none[^"]*"[^>]*>/gi;
 const INLINE = /<\/?(?:a|span|strong|b|em|i|u|s|small|code|sup|sub|font|mark|abbr)\b[^>]*>/gi;
 
 /** The words a reader sees in `html`, as written, with meaningful numeric punctuation and lone signs preserved, in order. */
 export function htmlWords(html: string): string[] {
-  const text = html
+  // Hidden elements (e.g. CodeInline's hidden copy for some clients) aren't read.
+  const text = withoutHidden(html
     .replace(/<head\b[\s\S]*?<\/head>/gi, " ")
     .replace(/<(style|script|title)\b[\s\S]*?<\/\1>/gi, " ")
     // React separates adjacent text with <!-- --> (`{name}'s` → `Alex<!-- -->'s`).
-    .replace(/<!--[\s\S]*?-->/g, "")
-    // Hidden elements (e.g. CodeInline's hidden copy for some clients), but
-    // not the preview text: inboxes show it.
-    .replace(HIDDEN, (match) =>
-      /data-skip-in-text/.test(match.slice(0, match.indexOf(">")))
-        ? match
-        : " ",
-    )
+    .replace(/<!--[\s\S]*?-->/g, ""))
     // Inline tags don't break words (`<b>Hel</b>lo` reads "Hello"); block tags
     // do, and so do inline tags styled as boxes (a link with display:block,
     // pills side by side with display:inline-block).
@@ -123,9 +118,30 @@ export function compareText(originalHtml: string, convertedHtml: string): TextCh
 }
 
 function visibleHtml(html: string): string {
-  return html.replace(/<head\b[\s\S]*?<\/head>/gi, " ")
-    .replace(/<!--[\s\S]*?-->/g, "")
-    .replace(HIDDEN, (match) => (/data-skip-in-text/.test(match.slice(0, match.indexOf(">"))) ? match : " "));
+  return withoutHidden(html.replace(/<head\b[\s\S]*?<\/head>/gi, " ").replace(/<!--[\s\S]*?-->/g, ""));
+}
+
+/** `html` without its hidden elements, nested tags and all; the preview text (`data-skip-in-text`) stays: inboxes show it. */
+function withoutHidden(html: string): string {
+  let out = "";
+  let from = 0;
+  HIDDEN.lastIndex = 0;
+  for (let open = HIDDEN.exec(html); open; open = HIDDEN.exec(html)) {
+    if (/data-skip-in-text/.test(open[0])) continue;
+    const tags = new RegExp(`<(/?)${open[1]}\\b[^>]*>`, "gi");
+    tags.lastIndex = HIDDEN.lastIndex;
+    let depth = 1;
+    while (depth) {
+      const tag = tags.exec(html);
+      if (!tag) break;
+      depth += tag[1] ? -1 : 1;
+    }
+    // Unclosed: leave it.
+    if (depth) continue;
+    out += `${html.slice(from, open.index)} `;
+    from = HIDDEN.lastIndex = tags.lastIndex;
+  }
+  return out + html.slice(from);
 }
 
 /** A link's URL: `"`, `<` and `>` percent-encoded (as Elements writes them) are the same URL. */

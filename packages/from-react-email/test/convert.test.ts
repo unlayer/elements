@@ -4,7 +4,7 @@ import path from "node:path";
 import React from "react";
 import { renderToJson } from "@unlayer/react-elements";
 import { Column, Row, Section, Tailwind, Text } from "@react-email/components";
-import { convertReactEmail, convertSource, expand, verifyConversion } from "../src/index";
+import { compareText, convertReactEmail, convertSource, expand, verifyConversion } from "../src/index";
 import { color } from "../src/styles";
 
 const fixtures = path.join(import.meta.dirname, "fixtures");
@@ -649,6 +649,46 @@ export default function Template() {
       expect(design).toContain('"color":"#ffffff"');
     } finally {
       fs.rmSync(dir, { recursive: true, force: true });
+    }
+  });
+});
+
+/** A template in both modes: the codemod's result and migrated component, and the runtime conversion. */
+async function bothModes(source: string) {
+  const dir = fs.mkdtempSync(path.join(import.meta.dirname, ".tmp-"));
+  try {
+    fs.writeFileSync(path.join(dir, "original.tsx"), source);
+    const file = path.join(dir, "migrated.tsx");
+    const result = await convertSource(source, { fileName: file });
+    fs.writeFileSync(file, result.code);
+    const { default: Original } = await import(path.join(dir, "original.tsx"));
+    const { default: Migrated } = await import(file);
+    const runtime = await convertReactEmail(Original, { mergeTags: false });
+    return { result, runtime, Original, Migrated };
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+}
+
+describe("content shown only on phones", () => {
+  it("passes the check: a block hidden on desktop isn't read there, in either mode", async () => {
+    const css = "@media (max-width: 600px) { .phone-only { display: block !important } }";
+    const sources = [
+      `import { Html, Head, Body, Text } from "@react-email/components";
+export default function Template() {
+  return <Html><Head><style>{"${css}"}</style></Head><Body><Text>Everywhere</Text><Text className="phone-only" style={{ display: "none" }}>Phone version</Text></Body></Html>;
+}`,
+      `import { Html, Head, Body, Text, Tailwind } from "@react-email/components";
+export default function Template() {
+  return <Tailwind config={{ theme: { extend: { screens: { mobile: { max: "480px" } } } } }}><Html><Head /><Body><Text>Everywhere</Text><Text className="hidden mobile:block">Phone version</Text></Body></Html></Tailwind>;
+}`,
+    ];
+    for (const source of sources) {
+      const { result, runtime, Original, Migrated } = await bothModes(source);
+      expect(result.code).toMatch(/<Paragraph[^>]*hideOnDesktop[^>]*>\s*Phone version/);
+      const check = await verifyConversion(Original, Migrated);
+      expect([check.missing, check.added]).toEqual([[], []]);
+      expect(compareText(check.originalHtml, runtime.html())).toMatchObject({ missing: [], added: [] });
     }
   });
 });

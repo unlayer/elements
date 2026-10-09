@@ -54,3 +54,17 @@ describe("strict content check", () => {
     expect(compareText("<p>Hello‌ world</p>", "<p>Hello world</p>").missing).toEqual([]);
   });
 });
+
+describe("hidden elements", () => {
+  it("aren't read, nested tags and all: a block Elements hides on desktop is a hidden table", () => {
+    const hidden = '<table style="display: none;mso-hide: all"><tr><td><table><tr><td>Inner</td></tr></table><p>Phone version</p></td></tr></table>';
+    expect(compareText("<p>Everywhere</p>", `<p>Everywhere</p>${hidden}`)).toMatchObject({ missing: [], added: [] });
+    expect(compareText('<div style="display:none"><div>One</div>Two</div><p>Shown</p>', "<p>Shown</p>")).toMatchObject({ missing: [], added: [] });
+  });
+
+  it("still reads the preview text, and an element that's never closed", () => {
+    expect(compareText('<div style="display:none" data-skip-in-text="true">Preview</div><p>Hi</p>', "<p>Hi</p>").missing).toEqual(["Preview"]);
+    expect(compareText('<div style="display:none">Open', "").missing).toEqual(["Open"]);
+  });
+});
+
