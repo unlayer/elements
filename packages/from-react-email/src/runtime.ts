@@ -33,7 +33,7 @@ import {
   type MapCtx,
   tablesInherit,
 } from "./map";
-import { addSides, backgroundColor, backgroundImage, boxSides, color, fontFamilyProp, inherit, isHidden, margins, phoneOnly, px, shownOnPhones, toPx, ZERO, type Style } from "./styles";
+import { addSides, backgroundColor, backgroundImage, boxSides, color, fontFamilyProp, inherit, isHidden, margins, pageColor, phoneOnly, px, shownOnPhones, toPx, ZERO, type Style } from "./styles";
 import type { BoxSides } from "@unlayer/convert-core";
 import { phoneSides, withPhoneStyles } from "./phone-styles";
 import { overInline, phoneRules, stacksOnPhones, stylesheetRules, underInline } from "./tailwind";
@@ -131,9 +131,10 @@ export async function convertElement(element: React.ReactElement): Promise<Runti
   const ctx: Ctx = { report, inherited: inherit({ fontSize: "16px" }, bodyStyle), rootFont, phone };
 
   const fonts = fontStylesheets(fontSpecs, linked);
-  const rows = layout(flowFrom(body ? children(body) : nodes, ctx), { contentWidth, report, background: backgroundImage(bodyStyle, true) ? undefined : backgroundColor(bodyStyle) ?? "#ffffff" });
+  const page = pageColor(bodyStyle, report);
+  const rows = layout(flowFrom(body ? children(body) : nodes, ctx), { contentWidth, report, background: backgroundImage(bodyStyle, true) ? undefined : page });
   const rootProps: Record<string, unknown> = {
-    backgroundColor: backgroundColor(bodyStyle) ?? "#ffffff",
+    backgroundColor: page,
     contentWidth: px(contentWidth),
     fontFamily: rootFont ? fontFamilyProp(String(rootFont)) : undefined,
     textColor: color(bodyStyle.color),

@@ -101,6 +101,32 @@ export function backgroundColor(style: Style | undefined): string | undefined {
 }
 
 /**
+ * The page color for a gradient background (`linear-gradient(#111111, #222222)`):
+ * its first stop, if every stop is an opaque color. One that fades to
+ * transparent shows the white behind it, so it gives none. `solid`: one color.
+ */
+export function gradientColor(style: Style | undefined): { color: string; solid: boolean } | undefined {
+  const args = /^\s*(?:repeating-)?(?:linear|radial|conic)-gradient\((.*)\)\s*$/i.exec(String(style?.backgroundImage ?? style?.background ?? ""))?.[1];
+  if (!args) return undefined;
+  const parts = args.split(/,(?![^(]*\))/).map((part) => part.trim());
+  if (/^(to\s|from\s|at\s|[-\d.]+(deg|grad|rad|turn)\b|circle|ellipse|closest|farthest)/i.test(parts[0] ?? "")) parts.shift();
+  const colors = parts.map((part) => color(/^((?:rgb|hsl)a?\([^)]*\)|#[0-9a-f]{3,8}|[a-z]+)(?=\s|$)/i.exec(part)?.[1]));
+  const opaque = (c: string | undefined) => !!c && /^(#[0-9a-f]{3}|#[0-9a-f]{6}|hsl\((?:[^,)/]*,){0,2}[^,)/]*\)|[a-z]+)$/i.test(c) && !/^(transparent|currentcolor)$/i.test(c);
+  if (!colors.length || !colors.every(opaque)) return undefined;
+  return { color: colors[0]!, solid: new Set(colors.map((c) => c!.toLowerCase())).size === 1 };
+}
+
+/** The page color: the Body's background color, else a gradient's, else white. A gradient it can't show is noted. */
+export function pageColor(style: Style, report: { note(reason: string, detail?: string): void }): string {
+  const plain = backgroundColor(style);
+  if (!/gradient\(/.test(String(style.backgroundImage ?? style.background ?? ""))) return plain ?? "#ffffff";
+  const gradient = gradientColor(style);
+  const page = plain ?? gradient?.color ?? "#ffffff";
+  if (!gradient?.solid || gradient.color !== page) report.note("style not converted", `background gradient (Body, filled with ${page})`);
+  return page;
+}
+
+/**
  * Visible CSS with no Elements equivalent, by name (`box-shadow`,
  * `background gradient`, …): what a block or box loses, for the report.
  */

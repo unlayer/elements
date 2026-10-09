@@ -692,3 +692,26 @@ export default function Template() {
     }
   });
 });
+
+describe("a gradient page background", () => {
+  it("fills the page with the gradient's color, and notes a gradient it can't show, in both modes", async () => {
+    const template = (background: string) => `import { Html, Body, Text } from "@react-email/components";
+export default function Template() {
+  return <Html><Body style={{ background: "${background}", color: "#ffffff" }}><Text>Dark mode</Text></Body></Html>;
+}`;
+    const cases: Array<[string, string, string | undefined]> = [
+      ["linear-gradient(#111111, #111111)", "#111111", undefined],
+      ["linear-gradient(to bottom, #111111, #333333)", "#111111", "background gradient (Body, filled with #111111)"],
+      ["linear-gradient(rgba(0, 0, 0, 0), #000000)", "#ffffff", "background gradient (Body, filled with #ffffff)"],
+      ["linear-gradient(var(--dark), #000000)", "#ffffff", "background gradient (Body, filled with #ffffff)"],
+    ];
+    for (const [background, fill, note] of cases) {
+      const { result, runtime } = await bothModes(template(background));
+      expect(result.code).toContain(`<Email backgroundColor="${fill}"`);
+      expect(runtime.tree.props?.backgroundColor).toBe(fill);
+      for (const report of [result.report, runtime.report]) {
+        expect(report.notes.filter((n) => n.reason === "style not converted")).toEqual(note ? [{ reason: "style not converted", detail: note }] : []);
+      }
+    }
+  });
+});
