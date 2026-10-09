@@ -353,7 +353,7 @@ function blockFrom(node: Element, ctx: Ctx): Block[] {
     case "Heading":
       return [headingFrom(node, style, ctx)];
     case "Button":
-      return [buttonBlock(node.props.href, innerText(node), style, ctx)];
+      return [buttonBlock(node.props.href, [innerText(node)], style, ctx)];
     case "Img":
       if (!hasWidth(node.props.width, style)) return [unsizedImage(node, ctx)];
       return [imageFrom(node, style, ctx)];
@@ -510,7 +510,7 @@ function linkBlock(node: Exclude<Node, { kind: "text" }>, style: Style, ctx: Ctx
     return imageFrom(only, only.props.style ?? {}, ctx, node.props.href);
   }
   if (backgroundColor(style) && (style.padding || style.paddingTop || style.paddingLeft)) {
-    return buttonBlock(node.props.href, innerText(node), style, ctx);
+    return buttonBlock(node.props.href, [innerText(node)], style, ctx);
   }
   return paragraphBlock(htmlOf(node), {}, { ...ctx }, ZERO);
 }

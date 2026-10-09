@@ -528,3 +528,47 @@ Template.PreviewProps = { show: true, name: "Ada" };`);
     expect(variants).toEqual([expect.objectContaining({ change: "show: false", missing: ["Hi", "Ada"] })]);
   });
 });
+
+describe("text and links from props", () => {
+  const source = `import { Html, Body, Heading, Button, Text, Link, Img } from "@react-email/components";
+export default function Template({ title = "Welcome", name = "Ada", url = "https://example.com/start" }: { title?: string; name?: string; url?: string }) {
+  return (<Html><Body>
+    <Heading as="h2">{title}</Heading>
+    <Button href={url}>Hi {name}</Button>
+    <Button href={url}>Hi <strong>{name}</strong></Button>
+    <Text>Hello {name}</Text>
+    <Link href={url}><Img src="https://example.com/logo.png" alt="Logo" width="40" height="40" /></Link>
+  </Body></Html>);
+}
+Template.PreviewProps = { title: "Welcome", name: "Ada", url: "https://example.com/start" };`;
+  const hostile = { title: "<script>alert(1)</script> & co", name: '<img src=x onerror="alert(1)">', url: 'https://example.com/?a=1"><img src=y onerror="alert(2)">' };
+  const injected = (html: string) => /<script>alert|<img src=x|<img src=y/.test(html);
+
+  it("stay text, in both modes, as React Email escapes them", async () => {
+    const dir = fs.mkdtempSync(path.join(import.meta.dirname, ".tmp-"));
+    try {
+      fs.writeFileSync(path.join(dir, "original.tsx"), source);
+      const file = path.join(dir, "migrated.tsx");
+      fs.writeFileSync(file, (await convertSource(source, { fileName: file })).code);
+      const { default: Original } = await import(path.join(dir, "original.tsx"));
+      const { default: Migrated } = await import(file);
+      const { render } = await import("@react-email/components");
+      expect(injected(await render(React.createElement(Original, hostile)))).toBe(false);
+      const check = await verifyConversion(Original, Migrated, { props: hostile });
+      expect(injected(check.convertedHtml)).toBe(false);
+      expect([check.missing, check.added]).toEqual([[], []]);
+      const runtime = await convertReactEmail(Original, { props: hostile, mergeTags: false });
+      expect(injected(runtime.html())).toBe(false);
+      // The check gives text props markup itself: a migration that renders one as HTML fails.
+      expect(check.variants).toEqual([]);
+      const { Email, Row, Column, Heading } = await import("@unlayer/react-elements");
+      const Unsafe = (p: { title: string }) => React.createElement(Email, null, React.createElement(Row, null, React.createElement(Column, null, React.createElement(Heading, { text: p.title }))));
+      const OnlyTitle = (p: { title: string }) => Original({ ...p, name: "", url: "" });
+      OnlyTitle.PreviewProps = { title: "Welcome" };
+      const unsafe = await verifyConversion(OnlyTitle as any, Unsafe as any);
+      expect(unsafe.variants).toEqual([expect.objectContaining({ change: "text props with markup" })]);
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
+  });
+});

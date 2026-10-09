@@ -195,6 +195,28 @@ export async function verifyConversion(
       variants.push({ change, missing: [], added: [], missingAttributes: [], error: (error as Error).message.split("\n")[0] });
     }
   }
+  // Text props with markup and `&"` in them: React Email shows them as text,
+  // and so must the migrated template (no text or link turned into markup).
+  const strings = Object.entries(props).filter(([, value]) => typeof value === "string");
+  if (strings.length) {
+    const marked = { ...props, ...Object.fromEntries(strings.map(([name, value]) => [name, `${value}<i>x</i>&"`])) };
+    const change = "text props with markup";
+    let original: string | undefined;
+    try {
+      original = await render(React.createElement(Original, marked));
+    } catch {
+      original = undefined; // the original doesn't render this way either
+    }
+    if (original !== undefined) {
+      try {
+        const migrated = callTemplate(Converted, marked);
+        const check = compareText(original, React.isValidElement(migrated) ? renderToHtml(migrated) : "");
+        if (check.missing.length || check.added.length || check.missingAttributes.length || check.addedAttributes.length) variants.push({ change, missing: check.missing, added: [...check.added, ...check.addedAttributes], missingAttributes: check.missingAttributes });
+      } catch (error) {
+        variants.push({ change, missing: [], added: [], missingAttributes: [], error: (error as Error).message.split("\n")[0] });
+      }
+    }
+  }
   const stylesheets = (designRoot.props as { fonts?: Array<{ url: string }> } | null)?.fonts;
   return { ...compareText(originalHtml, convertedHtml), originalHtml, convertedHtml, designWarnings, design, editorFonts: editorFonts(design, stylesheets), variants };
 }

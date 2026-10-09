@@ -76,7 +76,7 @@ export function htmlAttributes(html: string): string[] {
   const out: string[] = [];
   for (const [, tag, attrs] of visible.matchAll(/<(a|img)\b((?:"[^"]*"|'[^']*'|[^'">])*)>/gi)) {
     if (tag.toLowerCase() === "a") {
-      const href = attribute(attrs, "href");
+      const href = linkUrl(attrs);
       if (href) out.push(`href ${href}`);
     } else {
       const src = attribute(attrs, "src");
@@ -128,6 +128,11 @@ function visibleHtml(html: string): string {
     .replace(HIDDEN, (match) => (/data-skip-in-text/.test(match.slice(0, match.indexOf(">"))) ? match : " "));
 }
 
+/** A link's URL: `"`, `<` and `>` percent-encoded (as Elements writes them) are the same URL. */
+function linkUrl(attrs: string): string | undefined {
+  return attribute(attrs, "href")?.replace(/%22/gi, '"').replace(/%3C/gi, "<").replace(/%3E/gi, ">");
+}
+
 function attribute(attrs: string, name: string): string | undefined {
   const match = new RegExp(`\\s${name}\\s*=\\s*(?:"([^"]*)"|'([^']*)'|([^\\s>]+))`, "i").exec(attrs);
   return match ? decodeHtmlEntities(match[1] ?? match[2] ?? match[3]).trim() : undefined;
@@ -137,7 +142,7 @@ function attributePairs(html: string): string[] {
   const visible = visibleHtml(html);
   const pairs: string[] = [];
   for (const [, attrs, inner] of visible.matchAll(/<a\b((?:"[^"]*"|'[^']*'|[^'">])*)>([\s\S]*?)<\/a\s*>/gi)) {
-    const href = attribute(attrs, "href");
+    const href = linkUrl(attrs);
     const label = htmlWords(inner).join(" ") || htmlAttributes(inner).join(", ");
     if (href) pairs.push(JSON.stringify(["href", href, label]));
   }

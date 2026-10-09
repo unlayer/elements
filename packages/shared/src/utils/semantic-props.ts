@@ -127,6 +127,13 @@ function normalizeCssProps(props: Record<string, any>): void {
   }
 }
 
+const ENTITIES: Record<string, string> = { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" };
+
+/** Text as HTML: `&`, `<` and `>` escaped (and quotes, with `quotes`). */
+function escapeText(text: string, quotes?: boolean): string {
+  return text.replace(quotes ? /[&<>"']/g : /[&<>]/g, (c) => ENTITIES[c]);
+}
+
 /**
  * Flatten a JSX/ReactNode children tree to its plain text content.
  * Text components store a string (or Lexical JSON derived from one); a raw React
@@ -177,6 +184,11 @@ export function mapSemanticProps<T extends Record<string, any>>(
       typeof children === "string" ? children : flattenChildrenText(children);
     if (componentType === "Paragraph") {
       result.textJson = textToTextJson(textContent);
+    } else if (componentType === "Heading" || componentType === "Button") {
+      // Children are text, as in React (and as Paragraph's are): markup in them
+      // shows as typed, so a value like a user's name can't inject HTML. The
+      // `text` prop still takes HTML.
+      result.text = escapeText(textContent);
     } else {
       result.text = textContent;
     }
@@ -429,6 +441,15 @@ export function normalizeLinkValue(value: unknown): Record<string, any> | undefi
 }
 
 /**
+ * A link whose URL the exporters write into an `href="…"` as it is: `"`, `<`
+ * and `>`, which a URL can't hold unencoded, are percent-encoded (as a browser
+ * would), so a URL can't end the attribute.
+ */
+function safeLink(link: Record<string, any>): Record<string, any> {
+  return typeof link.url === "string" ? { ...link, url: link.url.replace(/["<>]/g, encodeURIComponent) } : link;
+}
+
+/**
  * Normalize all link/action fields on an item's values to the render-value
  * shape the exporter reads. Returns a shallow clone — does not mutate.
  *
@@ -453,8 +474,15 @@ export function normalizeValuesForExporter<T extends Record<string, any>>(
   for (const key of ["href", "action"]) {
     if (out[key] !== undefined) {
       const normalized = normalizeLinkValue(out[key]);
-      if (normalized !== undefined) out[key] = normalized;
+      if (normalized !== undefined) out[key] = safeLink(normalized);
     }
+  }
+
+  // The Button exporter unescapes its text before writing it, where the
+  // editor's canvas shows the text as the HTML it is. Escaping it once here
+  // gives it back as stored: `&lt;b&gt;` shows as text, `<b>` as bold.
+  if (componentName === "Button" && typeof out.text === "string") {
+    out.text = escapeText(out.text, true);
   }
 
   // Menu items each carry a `link` field.
@@ -465,7 +493,7 @@ export function normalizeValuesForExporter<T extends Record<string, any>>(
         if (!item || item.link === undefined) return item;
         const normalized = normalizeLinkValue(item.link);
         if (normalized === undefined) return item;
-        return { ...item, link: normalized };
+        return { ...item, link: safeLink(normalized) };
       }),
     };
   }

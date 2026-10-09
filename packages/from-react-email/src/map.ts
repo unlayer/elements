@@ -302,8 +302,10 @@ export function buttonBlock(href: unknown, label: Content | Parts, style: Style,
         // Every side, from the shorthand or longhands (Tailwind writes border-width/-style/-color).
         border: borderProp(borders(style)),
         ...(width ? { width } : {}),
+        // Markup (a bold word) goes in `text`: Elements escapes a button's children.
+        ...(Array.isArray(label) ? {} : { text: label }),
       },
-      Array.isArray(label) ? label : [label]
+      Array.isArray(label) ? label : []
     ),
     margin: boxSides(style, "margin"),
     mobileMargin: phoneSides(style, "margin", boxSides(style, "margin")),
