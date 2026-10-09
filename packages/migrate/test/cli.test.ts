@@ -389,6 +389,48 @@ export default function Receipt() { return <Html><Body><Text>Your receipt</Text>
     expect(out.out).toMatch(/- emails\/footer\.tsx: skipped \(imported by emails\/receipt\.tsx/);
   });
 
+  it("follows a barrel that imports a layout and exports it again: --write leaves the layout alone and inlines it", async () => {
+    const shell = `import { Html, Body, Container } from "@react-email/components";
+export default function Shell({ children }: { children?: React.ReactNode }) { return <Html><Body><Container>{children}</Container></Body></Html>; }`;
+    const welcome = `import { Text } from "@react-email/components";
+import { Shell } from "../components";
+export default function Welcome() { return <Shell><Text>Welcome aboard</Text></Shell>; }`;
+    for (const barrel of [`import Shell from "../emails/Shell";\nexport { Shell };\n`, `import Layout from "../emails/Shell";\nexport { Layout as Shell };\n`, `export { default as Shell } from "../emails/Shell";\n`]) {
+      const dir = project({ "emails/Shell.tsx": shell, "emails/welcome.tsx": welcome, "components/index.ts": barrel });
+      const out = io(dir);
+      expect(await main(["emails", "--write"], out, lib), out.out + out.err).toBe(0);
+      expect(out.out, barrel).toMatch(/- emails\/Shell\.tsx: skipped \(imported by emails\/welcome\.tsx/);
+      expect(fs.readFileSync(path.join(dir, "emails/Shell.tsx"), "utf8")).toBe(shell);
+      // The layout's markup is in the migrated template, which no longer needs the barrel.
+      expect(out.out, barrel).toMatch(/✓ emails\/welcome\.tsx: 100% editable/);
+      const migrated = fs.readFileSync(path.join(dir, "emails/welcome.tsx"), "utf8");
+      expect(migrated).toMatch(/<Paragraph[^>]*>\s*Welcome aboard/);
+      expect(migrated).not.toContain("components");
+    }
+  });
+
+  it("follows `export default` of an imported layout, and a namespace passed on", async () => {
+    const shell = `import { Html, Body } from "@react-email/components";
+export default function Shell({ children }: { children?: React.ReactNode }) { return <Html><Body>{children}</Body></Html>; }`;
+    const dir = project({
+      "emails/Shell.tsx": shell,
+      "layouts/shell.ts": `import Shell from "../emails/Shell";\nexport default Shell;\n`,
+      "emails/welcome.tsx": `import { Text } from "@react-email/components";
+import Shell from "../layouts/shell";
+export default function Welcome() { return <Shell><Text>Welcome aboard</Text></Shell>; }`,
+      "emails/Footer.tsx": shell.replace(/Shell/g, "Footer"),
+      "layouts/all.ts": `export * as Parts from "../emails/Footer";\n`,
+      "emails/receipt.tsx": `import { Text } from "@react-email/components";
+import { Parts } from "../layouts/all";
+export default function Receipt() { return <Parts.default><Text>Your receipt</Text></Parts.default>; }`,
+    });
+    const out = io(dir);
+    await main(["emails", "--write"], out, lib);
+    expect(out.out).toMatch(/- emails\/Shell\.tsx: skipped \(imported by emails\/welcome\.tsx/);
+    expect(out.out).toMatch(/- emails\/Footer\.tsx: skipped \(imported by emails\/receipt\.tsx/);
+    expect(fs.readFileSync(path.join(dir, "emails/Shell.tsx"), "utf8")).toBe(shell);
+  });
+
   it("leaves a shared component alone even when it's the only file given", async () => {
     const footer = `import { Section, Text } from "@react-email/components";
 export default function Footer() { return <Section><Text>Sent by Acme</Text></Section>; }`;

@@ -871,11 +871,44 @@ async function importedInputs(inputs: Input[]): Promise<Map<string, string>> {
   const scanned = new Map(await Promise.all(inputs.map(async (input) => [await canonicalPath(input.path), input.path] as const)));
   const dependencies = new Map<string, string>();
   const parse = async (path: string) => ts.createSourceFile(path, await readFile(path, "utf8"), ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
-  /** A module's `export … from` lines: which name each forwards, from where (`*` for `export *`). */
+  /** A module's imports: local name → where it comes from and the name it has there (`*` for a namespace). */
+  const importsOf = (file: import("typescript").SourceFile) => {
+    const out = new Map<string, { specifier: string; imported: string }>();
+    for (const statement of file.statements) {
+      if (!ts.isImportDeclaration(statement) || statement.importClause?.isTypeOnly || !ts.isStringLiteral(statement.moduleSpecifier)) continue;
+      const specifier = statement.moduleSpecifier.text;
+      const clause = statement.importClause;
+      if (clause?.name) out.set(clause.name.text, { specifier, imported: "default" });
+      const bindings = clause?.namedBindings;
+      if (bindings && ts.isNamespaceImport(bindings)) out.set(bindings.name.text, { specifier, imported: "*" });
+      else if (bindings) for (const e of bindings.elements) if (!e.isTypeOnly) out.set(e.name.text, { specifier, imported: (e.propertyName ?? e.name).text });
+    }
+    return out;
+  };
+  /**
+   * The names a module passes on from other modules: `export … from` lines, and imports it exports
+   * again (`import Shell from "./shell"; export { Shell }`, `export default Shell`). `*` for `export *`.
+   */
   const reExports = async (path: string) => {
+    const file = await parse(path);
+    const imported = importsOf(file);
     const out: Array<{ specifier: string; exported: string; imported: string }> = [];
-    for (const statement of (await parse(path)).statements) {
-      if (!ts.isExportDeclaration(statement) || statement.isTypeOnly || !statement.moduleSpecifier || !ts.isStringLiteral(statement.moduleSpecifier)) continue;
+    for (const statement of file.statements) {
+      if (ts.isExportAssignment(statement) && !statement.isExportEquals && ts.isIdentifier(statement.expression)) {
+        const from = imported.get(statement.expression.text);
+        if (from) out.push({ specifier: from.specifier, exported: "default", imported: from.imported });
+      }
+      if (!ts.isExportDeclaration(statement) || statement.isTypeOnly) continue;
+      if (!statement.moduleSpecifier) {
+        if (statement.exportClause && ts.isNamedExports(statement.exportClause)) {
+          for (const e of statement.exportClause.elements) {
+            const from = !e.isTypeOnly && imported.get((e.propertyName ?? e.name).text);
+            if (from) out.push({ specifier: from.specifier, exported: e.name.text, imported: from.imported });
+          }
+        }
+        continue;
+      }
+      if (!ts.isStringLiteral(statement.moduleSpecifier)) continue;
       const specifier = statement.moduleSpecifier.text;
       if (!statement.exportClause) out.push({ specifier, exported: "*", imported: "*" });
       else if (ts.isNamedExports(statement.exportClause)) {
@@ -884,18 +917,23 @@ async function importedInputs(inputs: Input[]): Promise<Map<string, string>> {
     }
     return out;
   };
-  /** The names a module exports itself (not through `export … from`), "default" included. */
+  /** The names a module exports itself (not passed on from another module), "default" included. */
   const declared = async (path: string) => {
+    const file = await parse(path);
+    const imported = importsOf(file);
     const names = new Set<string>();
-    for (const statement of (await parse(path)).statements) {
+    for (const statement of file.statements) {
       const modifiers = ts.canHaveModifiers(statement) ? ts.getModifiers(statement) ?? [] : [];
       const exported = modifiers.some((m) => m.kind === ts.SyntaxKind.ExportKeyword);
       const isDefault = modifiers.some((m) => m.kind === ts.SyntaxKind.DefaultKeyword);
-      if (ts.isExportAssignment(statement)) names.add("default");
-      else if (exported && isDefault) names.add("default");
+      if (ts.isExportAssignment(statement)) {
+        if (!(ts.isIdentifier(statement.expression) && imported.has(statement.expression.text))) names.add("default");
+      } else if (exported && isDefault) names.add("default");
       else if (exported && (ts.isFunctionDeclaration(statement) || ts.isClassDeclaration(statement)) && statement.name) names.add(statement.name.text);
       else if (exported && ts.isVariableStatement(statement)) statement.declarationList.declarations.forEach((d) => ts.isIdentifier(d.name) && names.add(d.name.text));
-      else if (ts.isExportDeclaration(statement) && !statement.moduleSpecifier && statement.exportClause && ts.isNamedExports(statement.exportClause)) statement.exportClause.elements.forEach((e) => names.add(e.name.text));
+      else if (ts.isExportDeclaration(statement) && !statement.moduleSpecifier && statement.exportClause && ts.isNamedExports(statement.exportClause)) {
+        statement.exportClause.elements.forEach((e) => !imported.has((e.propertyName ?? e.name).text) && names.add(e.name.text));
+      }
     }
     return names;
   };
@@ -915,7 +953,8 @@ async function importedInputs(inputs: Input[]): Promise<Map<string, string>> {
       );
       const dependency = scanned.get(await canonicalPath(loaded.fileName));
       if (dependency && dependency !== input.path && own) dependencies.set(dependency, input.path);
-      for (const r of forwarded) await follow(loaded.fileName, r.specifier, r.imported === "*" ? names : [r.imported], depth + 1);
+      // `export *` passes the importer's names on; a namespace (`export * as Parts`) passes all of its own.
+      for (const r of forwarded) await follow(loaded.fileName, r.specifier, r.imported !== "*" ? [r.imported] : r.exported === "*" ? names : "all", depth + 1);
     };
     const imports: Array<{ specifier: string; names: string[] | "all" }> = [];
     const visit = (node: import("typescript").Node) => {
