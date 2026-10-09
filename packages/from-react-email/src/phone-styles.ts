@@ -20,6 +20,22 @@ export function phoneSides(style: Style, property: "padding" | "margin", desktop
   return merged;
 }
 
+/**
+ * A phone rule's declarations Elements can't hold on phones (a color, a font weight), as CSS, for
+ * the report. It holds padding, margins, font size, line height, alignment, hiding (and showing
+ * content only phones get), and a full width for columns and images.
+ */
+export function unheldPhoneStyles(rule: Style, component: string | undefined): string[] {
+  return Object.entries(rule)
+    .filter(([key, value]) =>
+      !key.startsWith("-") &&
+      !/^(padding|margin)(Top|Right|Bottom|Left)?$/.test(key) &&
+      !["fontSize", "lineHeight", "textAlign"].includes(key) &&
+      !(key === "display" && /^(none|block)$/.test(String(value).trim())) &&
+      !((component === "Column" || component === "Img") && (key === "width" || key === "maxWidth") && String(value).trim() === "100%"))
+    .map(([key, value]) => `${key.replace(/[A-Z]/g, (c) => `-${c.toLowerCase()}`)}: ${value}`);
+}
+
 /** Only suppress a class note when every declaration is represented. */
 export function handledPhoneClass(cls: string, rules: Map<string, Style>, component: string): boolean {
   const style = rules.get(cls);

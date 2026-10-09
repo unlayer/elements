@@ -50,7 +50,7 @@ import { addSides, backgroundColor, backgroundImage, boxSides, color, fontFamily
 import { inlineLocalComponents, type ModuleLoader } from "./components";
 import { inlineLocalJsx } from "./inline";
 import { splitConditionalClasses } from "./variants";
-import { phoneSides, withPhoneStyles, handledPhoneClass } from "./phone-styles";
+import { phoneSides, withPhoneStyles, handledPhoneClass, unheldPhoneStyles } from "./phone-styles";
 import { NO_CLASSES, overInline, phoneRules, resolveTailwind, stacksOnPhones, stylesheetRules, underInline, type ResolvedClasses } from "./tailwind";
 
 export interface CodemodResult {
@@ -199,6 +199,7 @@ class Converter {
   private readonly headImportant = new Map<string, Set<string>>();
   private readonly headPhoneImportant = new Map<string, Set<string>>();
   private readonly headPhone = new Map<string, Style>();
+  private readonly phoneNoted = new Set<string>();
   /** Style values computed at render time, by where they are in the source. */
   private readonly droppedStyles: Array<{ from: number; to: number; detail: string }> = [];
 
@@ -616,6 +617,7 @@ class Converter {
         important = { rules, names: strong(this.headImportant) };
         const phoneStrong = strong(this.headPhoneImportant);
         const phone = new Map([...this.headPhone].map(([cls, rule]) => [cls, underInline(component, rule, phoneStrong)] as const));
+        for (const cls of names) for (const css of unheldPhoneStyles(phone.get(cls) ?? {}, component)) this.notePhone(`${css} (.${cls})`);
         const head = withPhoneStyles(rules, names, phone);
         const phoneStyle = { ...(head._phone as Style | undefined), ...(style._phone as Style | undefined) };
         style = { ...head, ...style, ...(Object.keys(phoneStyle).length ? { _phone: phoneStyle } : {}) };
@@ -1201,6 +1203,13 @@ class Converter {
     }
     flushInline();
     return out;
+  }
+
+  /** A phone style a head rule sets that Elements can't hold: once per rule, as elements are read more than once. */
+  private notePhone(detail: string): void {
+    if (this.phoneNoted.has(detail)) return;
+    this.phoneNoted.add(detail);
+    this.report.note("phone style not converted", detail);
   }
 
   private block(jsx: Jsx, ctx: Ctx): Block[] {

@@ -820,3 +820,21 @@ export default function Template() {
     }
   });
 });
+
+describe("phone styles a <style> rule sets", () => {
+  it("are reported when Elements can't hold them on phones (a color), in both modes", async () => {
+    const template = (css: string, text: string) => `import { Html, Head, Body, Text } from "@react-email/components";
+export default function Template() {
+  return <Html><Head><style>{"${css}"}</style></Head><Body>${text}</Body></Html>;
+}`;
+    const colored = await bothModes(template(".c { color: red } @media (max-width: 600px) { .c { color: blue !important; font-size: 12px !important } }", `<Text className="c">Colored</Text>`));
+    const phoneOnly = await bothModes(template("@media (max-width: 600px) { .phone-only { display: block !important; font-size: 18px !important } }", `<Text className="phone-only" style={{ display: "none" }}>Phone version</Text>`));
+    for (const report of [colored.result.report, colored.runtime.report]) {
+      expect(report.notes.filter((n) => n.reason === "phone style not converted")).toEqual([{ reason: "phone style not converted", detail: "color: blue (.c)" }]);
+    }
+    for (const report of [phoneOnly.result.report, phoneOnly.runtime.report]) {
+      expect(report.notes.filter((n) => n.reason === "phone style not converted")).toEqual([]);
+    }
+  });
+});
+
