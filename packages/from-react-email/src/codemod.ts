@@ -51,7 +51,7 @@ import { inlineLocalComponents, type ModuleLoader } from "./components";
 import { inlineLocalJsx } from "./inline";
 import { splitConditionalClasses } from "./variants";
 import { phoneSides, withPhoneStyles, handledPhoneClass, unheldPhoneStyles } from "./phone-styles";
-import { NO_CLASSES, overInline, phoneRules, resolveTailwind, stacksOnPhones, stylesheetRules, underInline, type ResolvedClasses } from "./tailwind";
+import { addRules, NO_CLASSES, overInline, phoneRules, resolveTailwind, stacksOnPhones, stylesheetRules, underInline, type ResolvedClasses } from "./tailwind";
 
 export interface CodemodResult {
   code: string;
@@ -711,11 +711,8 @@ class Converter {
           if (typeof css === "string") {
             linked.push(...importedStylesheets(css));
             const rules = stylesheetRules(css);
-            for (const [cls, style] of rules.classes) this.headClasses.set(cls, { ...this.headClasses.get(cls), ...style });
-            for (const [cls, names] of rules.important) this.headImportant.set(cls, new Set([...(this.headImportant.get(cls) ?? []), ...names]));
-            const phone = phoneRules(css);
-            for (const [cls, style] of phone.styles) this.headPhone.set(cls, { ...this.headPhone.get(cls), ...style });
-            for (const [cls, names] of phone.important) this.headPhoneImportant.set(cls, new Set([...(this.headPhoneImportant.get(cls) ?? []), ...names]));
+            addRules(this.headClasses, this.headImportant, { styles: rules.classes, important: rules.important });
+            addRules(this.headPhone, this.headPhoneImportant, phoneRules(css));
             for (const selector of rules.other) this.report.note("head style rule not converted", selector);
           }
         }

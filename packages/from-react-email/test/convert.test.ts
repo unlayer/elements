@@ -902,3 +902,16 @@ export default function Template() {
     expect(result.report.notes).toContainEqual({ reason: "head style rule not converted", detail: ".dark-img @media (prefers-color-scheme: dark)" });
   });
 });
+
+describe("!important in <style> rules", () => {
+  it("isn't overridden by a later declaration that isn't, in one stylesheet or the next, in both modes", async () => {
+    const { runtime, Migrated } = await bothModes(`import { Html, Head, Body, Text } from "@react-email/components";
+export default function Template() {
+  return <Html><Head><style>{".copy { color: #000000 !important; } .copy { color: #ffffff; }"}</style><style>{".copy { color: #ffffff; }"}</style></Head><Body><Text className="copy">Black text</Text></Body></Html>;
+}`);
+    for (const html of [renderToHtml(Migrated({})), runtime.html()]) {
+      expect(html).toContain("color: #000000; line-height: 24px");
+      expect(html).not.toContain("color: #ffffff; line-height: 24px");
+    }
+  });
+});

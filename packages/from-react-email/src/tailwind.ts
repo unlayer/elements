@@ -75,6 +75,8 @@ export function phoneRules(css: string): { styles: Map<string, Style>; important
       const at = decl.indexOf(":");
       if (at < 0) continue;
       const name = decl.slice(0, at).trim().replace(/-([a-z])/g, (_, c: string) => c.toUpperCase());
+      // A later declaration wins, except over an earlier `!important` one when it isn't.
+      if (strong.has(name) && !/!\s*important/i.test(decl)) continue;
       style[name] = decl.slice(at + 1).replace(/!\s*important/i, "").trim();
       if (/!\s*important/i.test(decl)) strong.add(name);
     }
@@ -88,6 +90,21 @@ export function phoneRules(css: string): { styles: Map<string, Style>; important
     for (const rule of m[2].matchAll(/\.([\w-]+)\s*\{([^{}]*)\}/g)) add(rule[1], m[1], rule[2]);
   }
   return { styles: out, important };
+}
+
+/**
+ * One stylesheet's class rules added to those of the stylesheets before it: a
+ * later declaration wins, except over an earlier `!important` one when it isn't.
+ */
+export function addRules(styles: Map<string, Style>, important: Map<string, Set<string>>, next: { styles: Map<string, Style>; important: Map<string, Set<string>> }): void {
+  for (const [cls, style] of next.styles) {
+    const was = important.get(cls) ?? new Set<string>();
+    const now = next.important.get(cls) ?? new Set<string>();
+    const merged: Style = { ...styles.get(cls) };
+    for (const [key, value] of Object.entries(style)) if (!was.has(key) || now.has(key)) merged[key] = value;
+    styles.set(cls, merged);
+    important.set(cls, new Set([...was, ...now]));
+  }
 }
 
 /** Styles React Email components set inline themselves (measured): a stylesheet rule can't override them. */
@@ -166,6 +183,8 @@ export function stylesheetRules(css: string): { classes: Map<string, Style>; imp
         const at = decl.indexOf(":");
         if (at <= 0) continue;
         const name = decl.slice(0, at).trim().replace(/-([a-z])/g, (_, c: string) => c.toUpperCase());
+        // A later declaration wins, except over an earlier `!important` one when it isn't.
+        if (strong.has(name) && !/!\s*important/i.test(decl)) continue;
         style[name] = decl.slice(at + 1).replace(/!\s*important/i, "").trim();
         if (/!\s*important/i.test(decl)) strong.add(name);
       }

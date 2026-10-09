@@ -37,7 +37,7 @@ import {
 import { addSides, backgroundColor, backgroundImage, boxSides, color, fontFamilyProp, inherit, isHidden, margins, pageColor, phoneOnly, px, shownOnPhones, toPx, ZERO, type Style } from "./styles";
 import type { BoxSides } from "@unlayer/convert-core";
 import { phoneSides, unheldPhoneStyles, withPhoneStyles } from "./phone-styles";
-import { overInline, phoneRules, stacksOnPhones, stylesheetRules, underInline } from "./tailwind";
+import { addRules, overInline, phoneRules, stacksOnPhones, stylesheetRules, underInline } from "./tailwind";
 
 /** React's static markup, without the image preload links React 19 adds: an email has no use for them. */
 function renderToStaticMarkup(element: React.ReactElement): string {
@@ -101,12 +101,9 @@ export async function convertElement(element: React.ReactElement): Promise<Runti
     const css = String(node.props.dangerouslySetInnerHTML?.__html ?? textOf(node.children));
     fontSpecs.push(...fontFaces(css));
     linked.push(...importedStylesheets(css));
-    const phoneCss = phoneRules(css);
-    for (const [cls, style] of phoneCss.styles) phone.set(cls, { ...phone.get(cls), ...style });
-    for (const [cls, names] of phoneCss.important) phoneImportant.set(cls, new Set([...(phoneImportant.get(cls) ?? []), ...names]));
+    addRules(phone, phoneImportant, phoneRules(css));
     const rules = stylesheetRules(css);
-    for (const [cls, style] of rules.classes) classes.set(cls, { ...classes.get(cls), ...style });
-    for (const [cls, names] of rules.important) classImportant.set(cls, new Set([...(classImportant.get(cls) ?? []), ...names]));
+    addRules(classes, classImportant, { styles: rules.classes, important: rules.important });
     for (const selector of rules.other) report.note("head style rule not converted", selector);
   });
 
