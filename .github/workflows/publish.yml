@@ -26,6 +26,10 @@
 
 name: Release
 
+# Jobs that publish ask for more (tags, npm's OIDC token); the rest only read.
+permissions:
+  contents: read
+
 on:
   push:
     branches: [main]
@@ -104,24 +108,44 @@ jobs:
 
       # Compared with each package's last release tag, so a release that
       # failed or was rejected is retried on the next push. Fails open: a git
-      # error counts as a change.
+      # error counts as a change. A commit that doesn't descend from the last
+      # release (an older run re-run) publishes nothing: it would ship older
+      # code as the newest version.
       - name: Detect changes since each package's last release
         id: detect
         shell: bash
         run: |
+          if [ "${{ github.ref }}" != "refs/heads/main" ]; then
+            echo "::error::Releases are made from main, not ${{ github.ref }}."
+            exit 1
+          fi
+          last() { git tag -l "$1" --sort=-v:refname | head -1; }
+          for pattern in 'v*' 'migrate-v*'; do
+            tag=$(last "$pattern")
+            if [ -n "$tag" ] && ! git merge-base --is-ancestor "$tag" HEAD; then
+              echo "::notice::$tag isn't an ancestor of this commit: nothing older than it is published."
+            fi
+          done
+          descends() {
+            local tag
+            tag=$(last "$1")
+            [ -z "$tag" ] || git merge-base --is-ancestor "$tag" HEAD
+          }
           changed() {
             local tag
-            tag=$(git tag -l "$1" --sort=-v:refname | head -1)
+            tag=$(last "$1")
             shift
             [ -z "$tag" ] && { echo true; return; }
+            git merge-base --is-ancestor "$tag" HEAD || { echo false; return; }
             git diff --quiet "$tag" HEAD -- "$@" && echo false || echo true
           }
           if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            ELEMENTS=$([ "${{ inputs.package }}" = "react-elements" ] && echo true || echo false)
-            MIGRATE=$([ "${{ inputs.package }}" = "migrate" ] && echo true || echo false)
+            ELEMENTS=$([ "${{ inputs.package }}" = "react-elements" ] && descends 'v*' && echo true || echo false)
+            MIGRATE=$([ "${{ inputs.package }}" = "migrate" ] && descends 'migrate-v*' && echo true || echo false)
           else
             ELEMENTS=$(changed 'v*' packages/react packages/shared pnpm-workspace.yaml)
-            MIGRATE=$(changed 'migrate-v*' packages/migrate packages/from-react-email packages/convert-core)
+            # Elements too: migrate's Elements range is the newest Elements, so it follows each Elements release.
+            MIGRATE=$(changed 'migrate-v*' packages/migrate packages/from-react-email packages/convert-core packages/react packages/shared pnpm-workspace.yaml pnpm-lock.yaml)
           fi
           # The first version of a new package is published by hand (see above).
           if [ "$MIGRATE" = "true" ] && ! npm view @unlayer/migrate version >/dev/null 2>&1; then
@@ -137,6 +161,8 @@ jobs:
     needs: [build-and-test, changes]
     if: needs.changes.outputs.elements == 'true'
     runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
     concurrency:
       group: publish
       cancel-in-progress: false
@@ -379,14 +405,20 @@ jobs:
           fi
           echo "version=$VERSION" >> $GITHUB_OUTPUT
 
-      # Packing writes `^<packages/react version>` as migrate's Elements range:
-      # that release must be on npm, or installs would fail (or, with an older
+      # Packing writes `^<packages/react version>` as migrate's Elements range.
+      # CI bumps versions only on its runner, so the committed one is stale: it
+      # becomes the Elements this commit was tested with, the one this run
+      # published (npm can lag right after a publish) or else npm's latest.
+      # That release must be on npm, or installs would fail (or, with an older
       # range, silently use an Elements without the converter's settings).
-      - name: Check the Elements range is published
+      - name: Set and check the Elements range
         id: elements
         working-directory: packages/migrate
         run: |
-          RANGE="^$(node -p "require('../react/package.json').version")"
+          ELEMENTS="${{ needs.publish.outputs.version }}"
+          if [ -z "$ELEMENTS" ]; then ELEMENTS=$(npm view @unlayer/react-elements version); fi
+          (cd ../react && npm version "$ELEMENTS" --no-git-tag-version --allow-same-version)
+          RANGE="^$ELEMENTS"
           echo "range=$RANGE" >> $GITHUB_OUTPUT
           for attempt in 1 2 3 4 5 6; do
             if [ -n "$(npm view "@unlayer/react-elements@$RANGE" version 2>/dev/null)" ]; then exit 0; fi
