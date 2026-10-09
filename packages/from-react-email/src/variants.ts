@@ -110,6 +110,11 @@ function isSpacing(token: string): boolean {
   return /^(?!(hover|focus|active|visited|disabled|group|peer|dark|first|last|odd|even)\b)[\w-]+:!?-?[mp][trblxy]?-/.test(token);
 }
 
+/** A state or theme variant (`hover:`, `dark:`, `group-hover:`), not a screen size: the converter doesn't keep those. */
+function isStateVariant(token: string): boolean {
+  return /^(hover|focus|focus-within|focus-visible|active|visited|target|first|last|only|odd|even|empty|disabled|enabled|checked|required|invalid|placeholder|before|after|selection|marker|dark|print|motion-safe|motion-reduce|rtl|ltr|open|group(-[\w]+)?|peer(-[\w]+)?|aria-[\w-]+|data-[\w-]+|supports-[\w-]+):/.test(token);
+}
+
 function variantClasses(classes: string): string[] {
   return classes.split(/\s+/).filter((t) => t && isVariant(t));
 }
@@ -164,9 +169,12 @@ function rewrite(file: ts.SourceFile, node: ts.JsxElement | ts.JsxSelfClosingEle
   // keeping the variant classes (`mobile:!block`) both branches share.
   const a = inlinable(variants.whenTrue);
   const b = inlinable(variants.whenFalse);
-  if (a.length === b.length && a.every((t, i) => t === b[i])) {
-    const inTrue = variantClasses(variants.whenTrue);
-    const inFalse = variantClasses(variants.whenFalse);
+  const inTrue = variantClasses(variants.whenTrue);
+  const inFalse = variantClasses(variants.whenFalse);
+  // Phone classes other than spacing that one branch has (`hide ? "mobile:hidden" : ""`)
+  // change what phones show: each branch keeps its own, so split.
+  const phoneOnlyIn = [...inTrue.filter((t) => !inFalse.includes(t)), ...inFalse.filter((t) => !inTrue.includes(t))].some((t) => !isSpacing(t) && !isStateVariant(t));
+  if (!phoneOnlyIn && a.length === b.length && a.every((t, i) => t === b[i])) {
     const shared = inTrue.filter((t) => inFalse.includes(t));
     // Spacing only one branch has (`isLast ? "" : " mobile:mb-8"`): kept, since a gap too many
     // reads closer to the original than every gap missing. Not when the other branch sets it too.

@@ -300,6 +300,22 @@ describe("codemod preparation", () => {
     expect(code).not.toMatch(/wide \?/);
   });
 
+  it("splits when only one branch has a phone class that isn't spacing (`mobile:hidden`), but not for state variants", async () => {
+    const source = `
+      import { Html, Body, Container, Text, Tailwind } from "@react-email/components";
+      export default function T({ hide, active }: { hide: boolean; active: boolean }) {
+        return (
+          <Html><Tailwind config={{ theme: { extend: { screens: { mobile: { max: "480px" } } } } }}><Body><Container>
+            <Text className={hide ? "mobile:hidden" : ""}>Secret</Text>
+            <Text className={active ? "hover:underline" : ""}>Plain</Text>
+          </Container></Body></Tailwind></Html>
+        );
+      }`;
+    const { code } = await convertSource(source);
+    expect(code).toMatch(/hide \?\s*\(\s*<Paragraph\s+hideOnMobile=\{true\}[\s\S]*?Secret[\s\S]*?:\s*\(\s*<Paragraph(?![^>]*hideOnMobile)/);
+    expect(code).not.toMatch(/active \?/);
+  });
+
   it("inlines a component that renders a tag passed as a prop, keeping the tag a plain name", async () => {
     const source = `
       import { Html, Body, Container, Text, Tailwind } from "@react-email/components";
