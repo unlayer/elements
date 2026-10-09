@@ -162,7 +162,7 @@ export async function main(argv: string[], io: Io, library?: Library): Promise<n
     return 1;
   }
 
-  if (!supportedElements(io)) return 1;
+  if (!supportedElements(io, candidates.map((input) => input.path))) return 1;
   const lib = library ?? ((await import("@unlayer/from-react-email")) as Library);
   const dependencies = options.write ? await importedInputs(inputs.files) : new Map<string, string>();
   const results: FileResult[] = [];
@@ -477,7 +477,7 @@ async function compare(paths: string[], args: Args, io: Io, library?: Library): 
       return 1;
     }
   }
-  if (!supportedElements(io)) return 1;
+  if (!supportedElements(io, [originalPath, migratedPath])) return 1;
   const lib = library ?? ((await import("@unlayer/from-react-email")) as Library);
   const release: Array<() => void> = [];
   try {
@@ -984,13 +984,21 @@ async function importedInputs(inputs: Input[]): Promise<Map<string, string>> {
 /**
  * Migrations render with the project's Elements, else this package's. An older
  * one ignores settings the converter writes (phone layout, root props), and the
- * check, which compares words, can't tell: stop before converting.
+ * check, which compares words, can't tell: stop before converting. Checked where
+ * the templates are, as they load it from there (an app in a monorepo has its own).
  */
-function supportedElements(io: Io): boolean {
-  const { error, warning } = elementsMismatch(io.cwd);
-  if (warning) io.stderr(`${warning}\n`);
-  if (error) io.stderr(`${error}\n`);
-  return !error;
+export function supportedElements(io: Pick<Io, "cwd" | "stderr">, files: string[], range?: string): boolean {
+  const folders = [...new Set(files.map((file) => dirname(file)))];
+  const messages = new Set<string>();
+  let ok = true;
+  for (const folder of folders.length ? folders : [io.cwd]) {
+    const { error, warning } = elementsMismatch(folder, range);
+    if (warning) messages.add(warning);
+    if (error) messages.add(error);
+    ok &&= !error;
+  }
+  for (const text of messages) io.stderr(`${text}\n`);
+  return ok;
 }
 
 export function elementsMismatch(cwd: string, range = ownPackage().peerDependencies?.["@unlayer/react-elements"]): { error?: string; warning?: string } {

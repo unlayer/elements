@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { elementsMismatch } from "../src/cli";
+import { elementsMismatch, supportedElements } from "../src/cli";
 
 const directories: string[] = [];
 afterEach(() => {
@@ -39,5 +39,22 @@ describe("the Elements version migrations render with", () => {
 
   it("skips the check for a workspace link (development)", () => {
     expect(elementsMismatch(project("0.1.22"), "workspace:^")).toEqual({});
+  });
+
+  it("checks where the templates are: an app in a monorepo has its own", () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), "unlayer-migrate-monorepo-"));
+    directories.push(root);
+    const app = path.join(root, "apps/web");
+    const elements = path.join(app, "node_modules/@unlayer/react-elements");
+    fs.mkdirSync(elements, { recursive: true });
+    fs.mkdirSync(path.join(app, "emails"));
+    fs.writeFileSync(path.join(elements, "package.json"), JSON.stringify({ name: "@unlayer/react-elements", version: "0.1.22", exports: { "./package.json": "./package.json" } }));
+    fs.writeFileSync(path.join(root, "package.json"), "{}");
+    let err = "";
+    const io = { cwd: root, stderr: (text: string) => void (err += text) };
+    expect(supportedElements(io, [path.join(app, "emails/welcome.tsx"), path.join(app, "emails/receipt.tsx")], "^0.2.0")).toBe(false);
+    expect(err).toContain("this project has 0.1.22");
+    // Said once, for the two templates in one folder.
+    expect(err.trim().split("\n")).toHaveLength(1);
   });
 });
