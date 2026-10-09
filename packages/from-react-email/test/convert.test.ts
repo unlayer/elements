@@ -556,6 +556,19 @@ Template.PreviewProps = { show: true, name: "Ada" };`);
   });
 });
 
+describe("module values", () => {
+  it("writes in a const, not a let that code can change", async () => {
+    const source = `import { Html, Body, Button } from "@react-email/components";
+let destination = "https://example.com/default";
+export function configure(url: string) { destination = url; }
+const fixed = "https://example.com/fixed";
+export default function Template() { return <Html><Body><Button href={destination}>Go</Button><Button href={fixed}>Fixed</Button></Body></Html>; }`;
+    const { code } = await convertSource(source);
+    expect(code).toContain("href={destination}");
+    expect(code).toContain('href="https://example.com/fixed"');
+  });
+});
+
 describe("text and links from props", () => {
   const source = `import { Html, Body, Heading, Button, Text, Link, Img } from "@react-email/components";
 export default function Template({ title = "Welcome", name = "Ada", url = "https://example.com/start" }: { title?: string; name?: string; url?: string }) {

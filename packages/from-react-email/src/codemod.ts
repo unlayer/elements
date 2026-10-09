@@ -424,7 +424,8 @@ class Converter {
       const binding = ts.isShorthandPropertyAssignment(node.parent)
         ? this.checker.getShorthandAssignmentValueSymbol(node.parent)
         : this.checker.getSymbolAtLocation(node);
-      return value && binding?.declarations?.some((decl) => ts.isVariableDeclaration(decl) && decl.initializer === value)
+      // Only a `const`: a `let` can be reassigned (`configure(url)`), so its first value isn't known.
+      return value && binding?.declarations?.some((decl) => ts.isVariableDeclaration(decl) && decl.initializer === value && (ts.getCombinedNodeFlags(decl) & ts.NodeFlags.Const) !== 0)
         ? this.evaluate(value, depth + 1)
         : undefined;
     }
