@@ -539,4 +539,27 @@ export default function Timer() { return <Html><Body><Text>Timer</Text></Body></
     expect(result.stdout).toMatch(/emails\/timer\.tsx: 100% editable/);
     expect(result.stdout).toContain("1 migrated and checked, 1 failed");
   }, 90_000);
+
+  it("finish the run and fail it when a template throws later, from a timer or a promise (built CLI)", async () => {
+    const dir = project({
+      "package.json": '{"name":"late-fixture","private":true,"type":"module"}',
+      "emails/timer.tsx": `import { Html, Body, Text } from "@react-email/components";
+setTimeout(() => process.exit(0), 0);
+export default function Timer() { return <Html><Body><Text>Timer</Text></Body></Html>; }`,
+      "emails/promise.tsx": `import { Html, Body, Text } from "@react-email/components";
+Promise.resolve().then(() => { throw new Error("thrown later"); });
+export default function Later() { return <Html><Body><Text>Later</Text></Body></Html>; }`,
+    }, true);
+    const modules = path.join(dir, "node_modules");
+    fs.mkdirSync(modules);
+    for (const name of ["react", "react-dom", "@react-email"]) {
+      fs.symlinkSync(path.resolve(import.meta.dirname, "../node_modules", name), path.join(modules, name));
+    }
+    const bin = path.resolve(import.meta.dirname, "../dist/bin.js");
+    const result = await promisify(execFile)(process.execPath, [bin, "emails"], { cwd: dir, timeout: 60_000 }).catch((error) => error);
+    expect(result.code, result.stdout + result.stderr).toBe(2);
+    expect(result.stdout).toContain("2 templates: 2 migrated and checked.");
+    expect(result.stderr).toContain("a template's code threw outside a render: a template called process.exit(0)");
+    expect(result.stderr).toContain("a template's code threw outside a render: thrown later");
+  }, 90_000);
 });

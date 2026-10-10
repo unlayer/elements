@@ -21,9 +21,17 @@ const exit = process.exit;
 process.exit = ((code?: number | string | null) => {
   throw new Error(`a template called process.exit(${code ?? ""})`);
 }) as typeof process.exit;
-const code = await main(process.argv.slice(2), {
+// What a template's code throws later (from a timer, or a promise it doesn't
+// wait for) is outside any check: the run still finishes and reports, then fails.
+const thrown = new Set<string>();
+const late = (error: unknown) => void thrown.add((error instanceof Error ? error.message : String(error)).split("\n")[0]);
+process.on("uncaughtException", late);
+process.on("unhandledRejection", late);
+let code = await main(process.argv.slice(2), {
   cwd: process.cwd(),
   stdout: (text) => void process.stdout.write(text),
   stderr: (text) => void process.stderr.write(text),
 });
+for (const text of thrown) process.stderr.write(`✗ a template's code threw outside a render: ${text}\n`);
+if (thrown.size) code = 2;
 process.stdout.write("", () => process.stderr.write("", () => exit(code)));
