@@ -129,12 +129,20 @@ export function parseBorder(value: unknown): { width?: string; style?: string; c
   return out;
 }
 
-/** A plain color from `background` / `backgroundColor`, if there is one. */
+const COLOR = /^(#[0-9a-f]{3,8}|rgba?\([^)]*\)|hsla?\([^)]*\)|[a-z]+)$/i;
+const BACKGROUND_WORDS = /^(none|transparent|repeat|repeat-x|repeat-y|no-repeat|space|round|scroll|fixed|local|top|bottom|left|right|center|cover|contain|auto|border-box|padding-box|content-box|initial|inherit|unset)$/i;
+
+/** A plain color from `background-color`, or the color in a `background` shorthand (`#f4f4f4 url(…) no-repeat`). */
 export function backgroundColor(style: Style | undefined): string | undefined {
   if (!style) return undefined;
-  const value = style.backgroundColor ?? style.background;
-  if (typeof value !== "string") return undefined;
-  return /^(#[0-9a-f]{3,8}|rgba?\([^)]*\)|hsla?\([^)]*\)|[a-z]+)$/i.test(value.trim()) ? color(value) : undefined;
+  if (typeof style.backgroundColor === "string") return COLOR.test(style.backgroundColor.trim()) ? color(style.backgroundColor) : undefined;
+  if (typeof style.background !== "string") return undefined;
+  const value = style.background.trim();
+  if (COLOR.test(value)) return color(value);
+  // The shorthand's color: the part that isn't an image, a keyword, a length or a size.
+  const rest = value.replace(/(?:repeating-)?(?:linear|radial|conic)-gradient\((?:[^()]|\([^)]*\))*\)|url\([^)]*\)/gi, " ");
+  const color_ = rest.match(/rgba?\([^)]*\)|hsla?\([^)]*\)|#[0-9a-f]{3,8}\b|[a-z]+/gi)?.find((part) => !BACKGROUND_WORDS.test(part));
+  return color_ && COLOR.test(color_) ? color(color_) : undefined;
 }
 
 /**
@@ -203,14 +211,18 @@ export function backgroundImage(style: Style | undefined, fullWidth: boolean): R
   const source = String(style?.backgroundImage ?? style?.background ?? "");
   const url = /url\((['"]?)(.*?)\1\)/.exec(source)?.[2];
   if (!url) return undefined;
-  const size = String(style?.backgroundSize ?? "");
-  const repeat = String(style?.backgroundRepeat ?? "repeat");
+  // From the longhands, else from the `background` shorthand (`url(…) no-repeat center / cover`).
+  const shorthand = typeof style?.background === "string" ? style.background.replace(/url\([^)]*\)/gi, " ") : "";
+  const [beforeSize, afterSize = ""] = shorthand.split("/");
+  const size = String(style?.backgroundSize ?? afterSize.trim().split(/\s+/)[0] ?? "");
+  const repeat = String(style?.backgroundRepeat ?? /\b(no-repeat|repeat-x|repeat-y|repeat)\b/i.exec(beforeSize)?.[1] ?? "repeat");
+  const position = style?.backgroundPosition ?? (beforeSize.match(/\b(top|bottom|left|right|center)\b/gi) ?? []).join(" ");
   return {
     url,
     fullWidth,
     repeat: repeat === "no-repeat" ? "no-repeat" : repeat,
     size: size === "cover" || size === "contain" ? size : "custom",
-    ...backgroundPosition(String(style?.backgroundPosition ?? "")),
+    ...backgroundPosition(String(position ?? "")),
   };
 }
 
@@ -249,6 +261,13 @@ export function color(value: unknown): string | undefined {
   const alpha = alphaText === undefined ? 1 : alphaText.endsWith("%") ? Number.parseFloat(alphaText) / 100 : Number(alphaText);
   if (alpha < 1) return `rgba(${r}, ${g}, ${b}, ${alpha})`;
   return `#${[r, g, b].map((n) => n.toString(16).padStart(2, "0")).join("")}`;
+}
+
+/** A translucent `rgba()` color as `#rrggbbaa`: an Elements Row drops `rgba()` backgrounds and keeps this form. */
+export function hexAlpha(value: unknown): unknown {
+  const match = typeof value === "string" ? /^rgba\((\d+), (\d+), (\d+), (\d*\.?\d+)\)$/.exec(value.trim()) : null;
+  if (!match) return value;
+  return `#${[...match.slice(1, 4).map(Number), Math.round(Number(match[4]) * 255)].map((n) => Math.max(0, Math.min(255, n)).toString(16).padStart(2, "0")).join("")}`;
 }
 
 /** A color as written: `inherit` (or `currentColor`) is the inherited one. */

@@ -32,7 +32,7 @@
 import { el, expr, hole, type BoxSides, type ElementNode, type Expr, type ReportBuilder } from "@unlayer/convert-core";
 import { borderProp } from "./boxes";
 import { cellsFrom, collapse, fill, LAYOUTS, type Block } from "./map";
-import { px, sidesToCss, toPx, ZERO } from "./styles";
+import { hexAlpha, px, sidesToCss, toPx, ZERO } from "./styles";
 import { htmlText, unbreakableWords, wordWidth } from "./text-width";
 
 // ============================================
@@ -1413,8 +1413,8 @@ function rowPaint(frame: Frame): Record<string, unknown> {
   }
   const image = fill?.image ? { ...fill.image, fullWidth: false } : band?.image ? { ...band.image, fullWidth: true } : undefined;
   return {
-    backgroundColor: band?.background,
-    columnsBackgroundColor: fill?.background,
+    backgroundColor: hexAlpha(band?.background),
+    columnsBackgroundColor: hexAlpha(fill?.background),
     backgroundImage: image,
   };
 }

@@ -23,7 +23,7 @@ import {
   type ElementNode,
   type Expr,
 } from "@unlayer/convert-core";
-import { boxStyle, columnWidth, drawsBox, mergeColumnAndBox, mergeRowAndColumn, noteVerticalAlign, textBox, noteTextBox, needsTextBox, wrapPadding } from "./boxes";
+import { borders, boxStyle, columnWidth, drawsBox, mergeColumnAndBox, mergeRowAndColumn, noteVerticalAlign, textBox, noteTextBox, needsTextBox, wrapPadding } from "./boxes";
 import { layout, NO_STYLE, type BoxNode, type ColumnNode, type ColumnsHole, type Flow, type RowNode } from "./layout";
 import {
   buttonBlock,
@@ -1293,6 +1293,8 @@ class Converter {
       case "Img":
         this.computed(jsx, "width");
         if (!hasWidth(this.attr(jsx, "width"), style)) return [{ node: this.fallback(jsx, ctx, "image without a width (its natural size isn't known)"), margin: ZERO, padding: ZERO }];
+        // Elements images have no border: one with a border is kept as HTML, as it renders.
+        if (borders(style)) return [{ node: this.fallback(jsx, ctx, "image with a border"), margin: ZERO, padding: ZERO }];
         return [imageBlock({ src: this.attr(jsx, "src"), alt: this.attr(jsx, "alt"), width: this.attr(jsx, "width"), height: this.attr(jsx, "height") }, style, ctx)];
       case "Hr":
         return [dividerBlock(style, ctx)];
@@ -1309,8 +1311,11 @@ class Converter {
         if (only && (only.name === "Img" || only.tag === "img")) {
           if (only.opaqueProps) return [{ node: this.fallback(jsx, ctx, "dynamic spread or content props"), margin: ZERO, padding: ZERO }];
           if (!hasWidth(this.attr(only, "width"), only.style)) return [{ node: this.fallback(jsx, ctx, "image without a width (its natural size isn't known)"), margin: ZERO, padding: ZERO }];
+          if (borders(only.style)) return [{ node: this.fallback(jsx, ctx, "image with a border"), margin: ZERO, padding: ZERO }];
           this.computed(only, "width");
-          return [imageBlock({ src: this.attr(only, "src"), alt: this.attr(only, "alt"), width: this.attr(only, "width"), height: this.attr(only, "height"), href: this.attr(jsx, "href") }, only.style, ctx)];
+          // React Email's Link opens in a new tab unless it sets another target; a plain <a> keeps its own.
+          const target = this.attr(jsx, "target") ?? (jsx.name === "Link" ? "_blank" : "_self");
+          return [imageBlock({ src: this.attr(only, "src"), alt: this.attr(only, "alt"), width: this.attr(only, "width"), height: this.attr(only, "height"), href: this.attr(jsx, "href"), target }, only.style, ctx)];
         }
         if (backgroundColor(style) && (style.padding || style.paddingTop || style.paddingLeft)) {
           return [buttonBlock(this.attr(jsx, "href"), this.buttonLabel(jsx.children, spanStyle(style, ctx)), style, ctx, this.attr(jsx, "target"))];

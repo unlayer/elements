@@ -321,7 +321,7 @@ export function buttonBlock(href: unknown, label: Content | Parts, style: Style,
       "Button",
       {
         // React Email opens a button's link in a new tab unless it sets another target.
-        href: typeof href === "string" && typeof target === "string" && target !== "_blank" ? { name: "web", values: { href, target } } : href,
+        href: (typeof href === "string" || isExpr(href)) && typeof target === "string" && target !== "_blank" ? { name: "web", values: { href, target } } : href,
         backgroundColor: backgroundColor(style) ?? "transparent",
         ...textProps(style, ctx, { lineHeight: "120%" }),
         // An inline-block link: placed by the parent's text-align (the start side by default).
@@ -347,12 +347,15 @@ export function buttonBlock(href: unknown, label: Content | Parts, style: Style,
 
 /** Img (display: block): centred by `margin: 0 auto`, else at the start side. */
 export function imageBlock(
-  attrs: { src: unknown; alt?: unknown; width?: unknown; height?: unknown; href?: unknown },
+  attrs: { src: unknown; alt?: unknown; width?: unknown; height?: unknown; href?: unknown; target?: unknown },
   style: Style,
   ctx: MapCtx
 ): Block {
-  // CSS shows the smaller of the width and the max-width: a percent width (`100%`) capped in px shows at the cap.
-  const own = toPx(attrs.width ?? style.width);
+  // A CSS width beats the width attribute, as in the browser. CSS shows the smaller of the width and
+  // the max-width: a percent width (`100%`) capped in px shows at the cap; one not capped stays a percent.
+  const declared = style.width ?? attrs.width;
+  const percent = typeof declared === "string" && /^\d*\.?\d+%$/.test(declared.trim()) && declared.trim() !== "100%" ? declared.trim() : undefined;
+  const own = toPx(declared);
   const cap = toPx(style.maxWidth);
   const width = own !== undefined && cap !== undefined ? Math.min(own, cap) : own ?? cap;
   const height = toPx(attrs.height ?? style.height);
@@ -373,10 +376,11 @@ export function imageBlock(
       ...(style._phone ? { mobile: { ...(style._phone.width === "100%" || style._phone.maxWidth === "100%" ? { autoWidth: true } : {}), ...(style._phone.textAlign ? { textAlign: style._phone.textAlign } : {}) }, ...(style._phone.display === "none" ? { hideOnMobile: true } : {}) } : {}),
       ...(style._phone?.width === "100%" || style._phone?.maxWidth === "100%" ? { values: { _override: { mobile: { src: { width: 0 } } } } } : {}),
       ...(style._hideDesktop ? { hideOnDesktop: true } : {}),
-      ...(width ? { width: `${width}px` } : {}),
+      ...(width ? { width: `${width}px` } : percent ? { width: percent } : {}),
       alt: attrs.alt,
       textAlign: align,
-      action: attrs.href,
+      // Elements opens an image's link in a new tab: another target is kept.
+      action: attrs.href !== undefined && typeof attrs.target === "string" && attrs.target !== "_blank" ? { name: "web", values: { href: attrs.href, target: attrs.target } } : attrs.href,
     }),
     margin: { ...margin, left: centered ? 0 : margin.left, right: centered ? 0 : margin.right },
     mobileMargin: phoneSides(style, "margin", margin),

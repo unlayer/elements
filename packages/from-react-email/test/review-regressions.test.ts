@@ -326,3 +326,68 @@ describe("text styles from what's around", () => {
     expect([result.codemod, result.runtime]).toEqual([[], []]);
   });
 });
+
+describe("images, links and backgrounds", () => {
+  /** The migrated template's HTML and both converters' check differences. */
+  const convert = async (source: string) => {
+    const { Original, Migrated } = await templates(source);
+    const codemod = await verifyConversion(Original, Migrated);
+    const runtime = await convertReactEmail(Original, { mergeTags: false });
+    const { compareText } = await import("@unlayer/convert-core");
+    const { render } = await import("@react-email/components");
+    const React = (await import("react")).default;
+    const original = await render(React.createElement(Original, Original.PreviewProps ?? {}));
+    const runtimeCheck = compareText(original, runtime.html());
+    const issues = (c: { missing: string[]; added: string[]; missingAttributes: string[]; styles: Array<{ property: string; original: string; converted: string }> }) =>
+      [...c.missing, ...c.added, ...c.missingAttributes, ...c.styles.map((s) => `${s.property}: ${s.original} → ${s.converted}`)];
+    return { html: [codemod.convertedHtml, runtime.html()], issues: [issues(codemod), issues(runtimeCheck)] };
+  };
+
+  it("keeps an image with a border as HTML (Elements images have none)", async () => {
+    const result = await convert(`import { Html, Body, Img, Text } from "@react-email/components";
+      export default function T() { return <Html><Body><Text>Logo</Text><Img src="https://example.com/x.png" width={100} alt="Buy" style={{ border: "10px solid red" }} /></Body></Html>; }`);
+    for (const html of result.html) expect(html).toMatch(/<img[^>]*border:\s*10px solid red/i);
+    expect(result.issues).toEqual([[], []]);
+  });
+
+  it("gives a CSS width priority over the width attribute, and keeps a percent width", async () => {
+    const result = await convert(`import { Html, Body, Img, Text } from "@react-email/components";
+      export default function T() { return <Html><Body><Text>Images</Text><Img src="https://example.com/a.png" width="600" style={{ width: 120 }} alt="Small" /><Img src="https://example.com/b.png" width="50%" alt="Half" /></Body></Html>; }`);
+    for (const html of result.html) {
+      expect(html).toMatch(/<img[^>]*src="https:\/\/example\.com\/a\.png"[^>]*max-width: 120px/);
+      expect(html).not.toMatch(/<img[^>]*src="https:\/\/example\.com\/b\.png"[^>]*max-width: 600px/);
+    }
+  });
+
+  it("keeps a link's target on a linked image and on a button whose URL comes from props", async () => {
+    const result = await convert(`import { Html, Body, Img, Button, Link, Text } from "@react-email/components";
+      export default function T({ url }: { url: string }) {
+        return <Html><Body><Text>Links</Text>
+          <a href="https://example.com/self" target="_self"><Img src="https://example.com/a.png" width={100} alt="Self" /></a>
+          <Link href="https://example.com/new"><Img src="https://example.com/b.png" width={100} alt="New tab" /></Link>
+          <Button href={url} target="_self" style={{ backgroundColor: "#000000", color: "#ffffff", padding: "12px" }}>Open</Button></Body></Html>;
+      }
+      T.PreviewProps = { url: "https://example.com/button" };`);
+    for (const html of result.html) {
+      expect(html).toMatch(/<a[^>]*href="https:\/\/example\.com\/self"[^>]*target="_self"/);
+      expect(html).toMatch(/<a[^>]*href="https:\/\/example\.com\/new"[^>]*target="_blank"/);
+      expect(html).toMatch(/<a[^>]*href="https:\/\/example\.com\/button"[^>]*target="_self"/);
+    }
+    expect(result.issues).toEqual([[], []]);
+  });
+
+  it("keeps a translucent background behind text (white text on 80% black stays readable)", async () => {
+    const result = await convert(`import { Html, Body, Section, Text } from "@react-email/components";
+      export default function T() { return <Html><Body><Section style={{ backgroundColor: "rgba(0, 0, 0, 0.8)", padding: "24px" }}><Text style={{ color: "#ffffff" }}>Banner copy</Text></Section></Body></Html>; }`);
+    expect(result.issues).toEqual([[], []]);
+  });
+
+  it("reads the color, repeat and position of a background shorthand", async () => {
+    const source = `import { Html, Body, Section, Text } from "@react-email/components";
+      export default function T() { return <Html><Body><Section style={{ background: "#f4f4f4 url(https://example.com/bg.png) no-repeat center", padding: "24px" }}><Text>Over the image</Text></Section></Body></Html>; }`;
+    const code = (await convertSource(source, { fileName: "t.tsx" })).code;
+    expect(code).toContain('"#f4f4f4"');
+    expect(code).toMatch(/repeat: "no-repeat"/);
+    expect(code).toMatch(/position: "center"/);
+  });
+});

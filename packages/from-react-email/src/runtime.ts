@@ -13,7 +13,7 @@
 import React from "react";
 import { renderToStaticMarkup as reactStaticMarkup } from "react-dom/server";
 import { el, fallbackHtml, hideClasses, ReportBuilder, type ConversionReport, type ElementNode } from "@unlayer/convert-core";
-import { boxStyle, columnWidth, drawsBox, mergeColumnAndBox, mergeRowAndColumn, noteVerticalAlign, textBox, noteTextBox, wrapPadding } from "./boxes";
+import { borders, boxStyle, columnWidth, drawsBox, mergeColumnAndBox, mergeRowAndColumn, noteVerticalAlign, textBox, noteTextBox, wrapPadding } from "./boxes";
 import { expand, type Node } from "./expand";
 import { layout, type BoxNode, type BoxStyle, type ColumnNode, type Flow } from "./layout";
 import {
@@ -371,6 +371,8 @@ function blockFrom(node: Element, ctx: Ctx): Block[] {
       return [buttonBlock(node.props.href, buttonLabel(node, style, ctx), style, ctx, node.props.target)];
     case "Img":
       if (!hasWidth(node.props.width, style)) return [unsizedImage(node, ctx)];
+      // Elements images have no border: one with a border is kept as HTML, as it renders.
+      if (borders(style)) return [{ node: fallbackHtml(kept(renderToStaticMarkup(node.element), ctx), "image with a border"), margin: ZERO, padding: ZERO }];
       return [imageFrom(node, style, ctx)];
     case "Hr":
       return [dividerBlock(style, ctx)];
@@ -514,9 +516,9 @@ function headingFrom(node: Exclude<Node, { kind: "text" }>, style: Style, ctx: C
   return headingBlock(level, { html, plain: !/[<&]/.test(html) }, style, marginProps, ctx);
 }
 
-function imageFrom(node: Exclude<Node, { kind: "text" }>, style: Style, ctx: Ctx, href?: unknown): Block {
+function imageFrom(node: Exclude<Node, { kind: "text" }>, style: Style, ctx: Ctx, href?: unknown, target?: unknown): Block {
   const { src, alt, width, height } = node.props;
-  return imageBlock({ src, alt, width, height, href }, style, ctx);
+  return imageBlock({ src, alt, width, height, href, target }, style, ctx);
 }
 
 /** A Link on its own line: an Image with a link, a Button, or a Paragraph. */
@@ -524,7 +526,9 @@ function linkBlock(node: Exclude<Node, { kind: "text" }>, style: Style, ctx: Ctx
   const [only] = node.children.filter((c) => !(c.kind === "text" && !c.text.trim()));
   if (only && only.kind !== "text" && ["Img", "img"].includes(nameOf(only)) && node.children.length <= 1) {
     if (!hasWidth(only.props.width, only.props.style ?? {})) return unsizedImage(node, ctx);
-    return imageFrom(only, only.props.style ?? {}, ctx, node.props.href);
+    if (borders(only.props.style ?? {})) return { node: fallbackHtml(kept(renderToStaticMarkup(node.element), ctx), "image with a border"), margin: ZERO, padding: ZERO };
+    // React Email's Link opens in a new tab unless it sets another target; a plain <a> keeps its own.
+    return imageFrom(only, only.props.style ?? {}, ctx, node.props.href, node.props.target ?? (node.kind === "component" ? "_blank" : "_self"));
   }
   if (backgroundColor(style) && (style.padding || style.paddingTop || style.paddingLeft)) {
     return buttonBlock(node.props.href, buttonLabel(node, style, ctx), style, ctx, node.props.target);
