@@ -7,7 +7,7 @@ import { mapSemanticProps, type SemanticProps } from "../utils/semantic-props";
 import { nextHtmlId } from "../utils/create-component";
 import type { SizeInput } from "../types";
 import { BODY_DEFAULTS } from "../utils/container-defaults";
-import { expandChildren, withRenderScope } from "../utils/expand-children";
+import { drivenByReact, expandChildren, withRenderScope } from "../utils/expand-children";
 
 export type BodyProps = Omit<SemanticProps<BodyValues>, "padding" | "borderRadius"> & {
   children?: React.ReactNode;
@@ -186,7 +186,8 @@ const Body: React.FC<BodyProps> = (props) => {
     try {
       // A render of its own when Body is rendered straight through React (not renderToHtml).
       innerHTML = withRenderScope(() => {
-        const enrichedChildren = React.Children.map(expandChildren(children), (child) => {
+        // Body is rendered by React: components among its children are called in this render.
+        const enrichedChildren = React.Children.map(drivenByReact(() => expandChildren(children)), (child) => {
           // Components get the context; an HTML element (<div>) would write it as attributes.
           if (React.isValidElement(child) && typeof child.type !== "string") {
             return React.cloneElement(child as React.ReactElement<any>, {

@@ -8,7 +8,7 @@ import { nextHtmlId } from "../utils/create-component";
 import { bodyContentWidthPx } from "../utils/image-sizing";
 import type { DeviceProps, SizeInput } from "../types";
 import { ROW_DEFAULTS, BODY_DEFAULTS } from "../utils/container-defaults";
-import { expandChildren, looseText } from "../utils/expand-children";
+import { drivenByReact, expandChildren, looseText } from "../utils/expand-children";
 
 /**
  * Row - Container for columns in a layout
@@ -228,7 +228,7 @@ function processChildren(
 // Component
 // ============================================
 
-const Row: React.FC<RowProps> = (props) => {
+function renderRow(props: RowProps): React.ReactElement | null {
   const {
     layout,
     cells: propsCells,
@@ -310,7 +310,10 @@ const Row: React.FC<RowProps> = (props) => {
       </div>
     );
   }
-};
+}
+
+// Rendered by React: the components in its columns are called in this render (see drivenByReact).
+const Row: React.FC<RowProps> = (props) => drivenByReact(() => renderRow(props));
 
 Row.displayName = "Row";
 

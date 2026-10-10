@@ -89,4 +89,10 @@ describe("phone settings, written into the head's CSS", () => {
       expect(html, payload).not.toMatch(/x-pwn\s*[{:]/);
     }
   });
+
+  it("can't open a comment that hides the phone rules after it", () => {
+    const html = renderToHtml(<Email><Row><Column><Paragraph mobile={{ fontSize: "16px /*" } as any}>Hi</Paragraph><Paragraph mobile={{ fontSize: "20px" }}>There</Paragraph></Column></Row></Email>);
+    expect(html).not.toContain("/*");
+    expect(html).toMatch(/font-size:\s*20px !important/);
+  });
 });

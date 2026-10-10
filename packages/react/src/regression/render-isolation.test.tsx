@@ -7,7 +7,7 @@ import { describe, expect, it } from "vitest";
 import React, { memo, useId, useState } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { renderToHtml, renderToHtmlParts, renderToPlainText } from "../utils/render-to-html";
-import { renderToJson } from "../utils/render-to-json";
+import { renderRowToJson, renderToJson } from "../utils/render-to-json";
 import { Email, Row, Column, Paragraph, Html } from "../index";
 
 let user = "Alice";
@@ -95,5 +95,19 @@ describe("useId() in components", () => {
     expect(renderToHtml(email())).toBe(renderToHtml(email()));
     expect(renderToStaticMarkup(email())).toBe(renderToStaticMarkup(email()));
     expect(ids(renderToHtml(email()))).toEqual(ids(renderToStaticMarkup(email())));
+    // A row on its own too.
+    const row = <Row><Column><Section to="/one" /><Section to="/two" /></Column></Row>;
+    expect(JSON.stringify(renderRowToJson(row))).toBe(JSON.stringify(renderRowToJson(row)));
+  });
+
+  it("gives template components inside each other their own ids", () => {
+    const Inner = ({ outer }: { outer: string }) => {
+      const id = useId();
+      return <Email><Row><Column><Html html={`<a id="${outer}" href="/outer">outer</a><a id="${id}" href="/inner">inner</a>`} /></Column></Row></Email>;
+    };
+    const Outer = () => <Inner outer={useId()} />;
+    const found = ids(renderToHtml(<Outer />));
+    expect(found).toHaveLength(2);
+    expect(new Set(found).size).toBe(2);
   });
 });

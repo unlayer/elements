@@ -17,6 +17,10 @@ describe("htmlToPlainText", () => {
     expect(htmlToPlainText("<h2>Features</h2>")).toBe("FEATURES");
   });
 
+  it("uppercases an h1/h2 around its entities, which still decode (`Q&A`, not `Q&AMP;A`)", () => {
+    expect(htmlToPlainText("<h1>Q&amp;A &lt;3 caf\u00e9</h1>")).toBe("Q&A <3 CAF\u00c9");
+  });
+
   it("converts h3-h6 as-is (not uppercased)", () => {
     expect(htmlToPlainText("<h3>Details</h3>")).toBe("Details");
     expect(htmlToPlainText("<h6>Fine Print</h6>")).toBe("Fine Print");

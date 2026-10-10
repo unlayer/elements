@@ -469,7 +469,8 @@ export function renderRowToJson(element: React.ReactElement): DesignRow {
   }
 
   const counters: Record<string, number> = {};
-  return processRow(element, counters);
+  // A render of its own, as renderToJson's: the same row gives the same ids every time.
+  return withRenderScope(() => processRow(element, counters));
 }
 
 export function renderToJson(element: React.ReactElement): DesignJSON {

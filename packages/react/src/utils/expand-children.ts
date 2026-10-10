@@ -14,6 +14,21 @@ const FORWARD_REF = Symbol.for("react.forward_ref");
 let rendered: WeakMap<object, Map<number, React.ReactNode>> | undefined;
 // Components called so far in the render: each one's `useId()` values get their own prefix.
 let called = 0;
+// Inside a render React runs (Body's, a Row's): components are called there,
+// as React calls them, so their hooks and the context around them work. A
+// render of their own (callIsolated) would reset that render's hooks, and
+// couldn't see a Provider placed in the email.
+let driven = 0;
+
+/** Runs `render` as part of a render React is running (Body's or a Row's own). */
+export function drivenByReact<T>(render: () => T): T {
+  driven++;
+  try {
+    return render();
+  } finally {
+    driven--;
+  }
+}
 
 /** Runs one render (renderToHtml, renderToJson, …) with its own record of what each component rendered. */
 export function withRenderScope<T>(render: () => T): T {
@@ -40,18 +55,30 @@ function expands(child: React.ReactNode): child is React.ReactElement {
   return type?.$$typeof === FORWARD_REF || (typeof type === "function" && !type.prototype?.isReactComponent);
 }
 
-// A user component is called in a render of its own (hooks work), once per place in a render.
+// A user component is called once per place in a render: in the render React runs, or
+// outside one (renderToJson) in a render of its own, so its hooks work either way.
 function contents(element: React.ReactElement<any>, list: object, at: number): React.ReactNode {
   if (element.type === React.Fragment) return element.props.children;
   const done = rendered?.get(list);
   if (done?.has(at)) return done.get(at);
   const type = innerType(element.type);
   const props = { ...element.props };
-  const out = (isElementsType(type)
-    ? React.createElement(type, props)
-    : callIsolated(() => (type.$$typeof === FORWARD_REF ? type.render(props, null) : type(props)), `u${++called}-`)) as React.ReactNode;
+  const call = () => (type.$$typeof === FORWARD_REF ? type.render(props, null) : type(props));
+  const out = (isElementsType(type) ? React.createElement(type, props) : driven ? call() : callIsolated(call, `u${++called}-`)) as React.ReactNode;
   if (rendered) rendered.set(list, (done ?? new Map()).set(at, out));
   return out;
+}
+
+/**
+ * A component that rendered plain HTML (`<div dangerouslySetInnerHTML>`), as
+ * an element that gives back what it rendered: a Column reads its HTML (and
+ * names its block after it, as before) without calling it a second time.
+ */
+function renderedAs(element: React.ReactElement<any>, inside: React.ReactNode): React.ReactElement {
+  const type = innerType(element.type);
+  const Rendered = () => inside;
+  Rendered.displayName = type?.displayName || type?.name || "component";
+  return React.createElement(Rendered, { ...element.props, key: element.key });
 }
 
 /** The children with Fragments and user components expanded; `children` itself when there are none. */
@@ -68,7 +95,7 @@ export function expandChildren(children: React.ReactNode, depth = 0): React.Reac
     if (!expands(child)) return add(child);
     const inside = contents(child, list, at);
     // A component that renders plain HTML (`<div dangerouslySetInnerHTML>`) is kept: a Column renders its HTML, as it always has.
-    if (child.type !== React.Fragment && React.isValidElement(inside) && typeof inside.type === "string") return add(child);
+    if (child.type !== React.Fragment && React.isValidElement(inside) && typeof inside.type === "string") return add(renderedAs(child, inside));
     React.Children.forEach(expandChildren(inside, depth + 1), add);
   });
   return out;

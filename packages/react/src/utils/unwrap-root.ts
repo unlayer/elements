@@ -84,8 +84,10 @@ export function unwrapRoot(element: React.ReactElement): React.ReactElement {
       continue;
     }
     let produced: unknown;
-    if (type?.$$typeof === FORWARD_REF) produced = callIsolated(() => type.render({ ...props }, null));
-    else if (typeof type === "function" && !type.prototype?.isReactComponent) produced = callIsolated(() => type({ ...props }));
+    // Each wrapper renders on its own: one inside another gets its own `useId()` prefix (the first keeps React's).
+    const prefix = depth ? `w${depth}-` : undefined;
+    if (type?.$$typeof === FORWARD_REF) produced = callIsolated(() => type.render({ ...props }, null), prefix);
+    else if (typeof type === "function" && !type.prototype?.isReactComponent) produced = callIsolated(() => type({ ...props }), prefix);
     else break;
     if (!React.isValidElement(produced)) break;
     current = produced;
