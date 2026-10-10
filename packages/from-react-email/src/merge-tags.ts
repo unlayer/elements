@@ -80,8 +80,11 @@ export async function mergeTagged<T>(
   // text: as a merge tag, its links would go. A prop shown as text (escaped) still is.
   const output = JSON.stringify(base);
   const asHtml = (p: TextProp) => /<[a-z!/]/i.test(p.value) && output.includes(JSON.stringify(p.value).slice(1, -1));
-  const html = textProps(props).filter(asHtml).map((p) => p.path);
-  const probes = textProps(props).filter((p) => !asHtml(p));
+  // A sample that's already an email service's placeholder (`{{ first_name }}`, `*|FNAME|*`, `{% if %}`) stays as
+  // written: as a merge tag named after the prop, the service would get another name.
+  const placeholder = (p: TextProp) => /\{\{|\{%|\*\|[^|]*\|\*|<%|%%[^%\s]+%%|\[\[[^\]]+\]\]/.test(p.value);
+  const html = textProps(props).filter((p) => asHtml(p) || placeholder(p)).map((p) => p.path);
+  const probes = textProps(props).filter((p) => !asHtml(p) && !placeholder(p));
   if (!probes.length) return { used: [], kept: html };
   const attempt = async (chosen: number[]): Promise<T | undefined> => {
     let output: T;

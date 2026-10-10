@@ -1,5 +1,5 @@
 /** @jsxRuntime automatic */
-// Migrated from React Email by @unlayer/from-react-email (codemod mode).
+// Migrated from React Email by @unlayer/migrate (codemod mode).
 import { Column, Divider, Email, Heading, Image, Paragraph, Row } from "@unlayer/react-elements";
 import { renderToStaticMarkup as reactStaticMarkup } from "react-dom/server";
 import * as React from "react";

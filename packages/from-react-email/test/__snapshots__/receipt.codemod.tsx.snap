@@ -1,5 +1,5 @@
 /** @jsxRuntime automatic */
-// Migrated from React Email by @unlayer/from-react-email (codemod mode).
+// Migrated from React Email by @unlayer/migrate (codemod mode).
 import {
   Button,
   Column,

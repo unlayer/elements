@@ -377,6 +377,28 @@ describe("merge tags (runtime mode)", () => {
   });
 });
 
+describe("an email service's placeholders as sample values", () => {
+  it("keeps them as written in the design, not as merge tags named after the prop", async () => {
+    const dir = fs.mkdtempSync(path.join(import.meta.dirname, ".tmp-"));
+    try {
+      fs.writeFileSync(path.join(dir, "t.tsx"), `${IMPORTS}
+        export default function T({ firstName, unsubscribe, plan }: { firstName: string; unsubscribe: string; plan: string }) {
+          return <Html><Body><Text>Hi {firstName}, you're on {plan}</Text><Text>Unsubscribe: {unsubscribe}</Text></Body></Html>;
+        }
+        T.PreviewProps = { firstName: "{{ first_name }}", unsubscribe: "*|UNSUB|*", plan: "Pro" };`);
+      const { default: T } = await import(path.join(dir, "t.tsx"));
+      const html = (await convertReactEmail(T)).html();
+      expect(html).toContain("Hi {{ first_name }}, you");
+      // Other text props still become merge tags.
+      expect(html).toContain("{{plan}}");
+      expect(html).toContain("*|UNSUB|*");
+      expect(html).not.toContain("{{firstName}}");
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
+  });
+});
+
 describe("returns that render nothing", () => {
   it("converts a template with an early `return null` or a `cond ? <Html> : null` root, leaving the empty return as written", async () => {
     const early = `${IMPORTS}
@@ -576,6 +598,57 @@ describe("evaluation order and conditional roots", () => {
     expect(codemod.code.match(/t\("preview"\)/g)).toHaveLength(1);
     expect(codemod.code.match(/new Date\(\)/g)).toHaveLength(1);
     expect(check.missing).toEqual([]);
+  });
+
+  it("inlines a component given a name for a prop with a default, which still applies when it's undefined", async () => {
+    const source = `${IMPORTS}
+      function Greeting({ name = "there", tone = "warm" }: { name?: string; tone?: string }) { return <Text>Hi {name}, a {tone} welcome</Text>; }
+      export default function T({ user }: { user: { name?: string } }) { return <Html><Body><Greeting name={user.name} tone="kind" /></Body></Html>; }
+      T.PreviewProps = { user: { name: "Ada" } };`;
+    const { codemod, check, Migrated } = await convertBoth(source, "default-kept");
+    expect(codemod.code).not.toMatch(/<Greeting/);
+    expect(check.missing).toEqual([]);
+    const { renderToHtml } = await import("@unlayer/react-elements");
+    expect(renderToHtml(Migrated({ user: {} }))).toContain("Hi there, a kind welcome");
+    expect(renderToHtml(Migrated({ user: { name: "Bo" } }))).toContain("Hi Bo, a kind welcome");
+  });
+
+  it("writes a comparison of a prop given as a literal as its result, so the migration type-checks", async () => {
+    const source = `${IMPORTS}
+      function Notice({ variant = "info", text }: { variant?: "info" | "warning"; text: string }) {
+        return <Text style={{ color: variant === "warning" ? "#b45309" : "#1d4ed8" }}>{variant !== "info" && "Heads up: "}{text}</Text>;
+      }
+      export default function T() { return <Html><Body><Notice variant="info" text="All good" /><Notice variant="warning" text="Check this" /></Body></Html>; }`;
+    const { codemod, check } = await convertBoth(source, "variant-literal");
+    expect(codemod.code).not.toMatch(/"(info|warning)"\)* [!=]==? "/);
+    expect(codemod.code).not.toMatch(/<Notice/);
+    expect(check.missing).toEqual([]);
+    expect(check.styles).toEqual([]);
+  });
+
+  it("inlines a component given entities in a string, and text over several lines, as JSX reads them", async () => {
+    const source = `${IMPORTS}
+      function Cta({ label, href }: { label: string; href: string }) { return <Button href={href}>{label}</Button>; }
+      function Greeting({ children }: { children: React.ReactNode }) { return <Text>Hi {children}!</Text>; }
+      export default function T() {
+        return <Html><Body>
+          <Cta label="Verify &amp; continue" href="https://example.com/?a=1&amp;b=2" />
+          <Greeting>
+            Alex
+          </Greeting>
+        </Body></Html>;
+      }`;
+    const { codemod, check, Migrated } = await convertBoth(source, "entities-lines");
+    expect(codemod.code).not.toMatch(/<(Cta|Greeting)\b/);
+    expect(check.missing).toEqual([]);
+    expect(check.added).toEqual([]);
+    expect(check.missingAttributes).toEqual([]);
+    const { renderToHtml } = await import("@unlayer/react-elements");
+    const html = renderToHtml(Migrated({}));
+    expect(html).toContain("Verify &amp; continue");
+    expect(html).toMatch(/href="https:\/\/example\.com\/\?a=1&(amp;)?b=2"/);
+    expect(html).not.toContain("&amp;amp;");
+    expect(html).toMatch(/Hi Alex!/);
   });
 
   it("keeps a component whose argument would run twice, in a callback, or behind a condition", async () => {

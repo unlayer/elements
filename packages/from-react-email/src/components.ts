@@ -19,6 +19,7 @@
 
 import path from "node:path";
 import ts from "typescript";
+import { decodeHtmlEntities } from "@unlayer/convert-core";
 
 /** Reads the module an import refers to (`specifier`, imported from `fromFile`). */
 export type ModuleLoader = (specifier: string, fromFile: string) => { fileName: string; source: string } | undefined;
@@ -305,6 +306,8 @@ function requirements(component: Component, from: Imported, template: ts.SourceF
             ? `import ${name} from ${JSON.stringify(wanted.specifier)};`
             : `import ${wanted.type ? "type " : ""}{ ${wanted.imported === name ? name : `${wanted.imported} as ${name}`} } from ${JSON.stringify(wanted.specifier)};`
       );
+      // Added here: dropped again if what reads it doesn't stay (a default the template's argument replaces).
+      copiedNames.push(name);
     }
     return true;
   };
@@ -394,7 +397,8 @@ function substitute(usage: ts.JsxElement | ts.JsxSelfClosingElement, component: 
     const name = attr.name.getText();
     const init = attr.initializer;
     if (!init) values.set(name, { code: "true" });
-    else if (ts.isStringLiteral(init)) values.set(name, { code: JSON.stringify(init.text) });
+    // JSX reads entities in an attribute's string (`label="A &amp; B"` is "A & B"): a JS string doesn't.
+    else if (ts.isStringLiteral(init)) values.set(name, { code: JSON.stringify(decodeHtmlEntities(init.text)) });
     else if (ts.isJsxExpression(init) && init.expression) values.set(name, { code: init.expression.getText(), node: init.expression });
     else return undefined;
   }
@@ -405,7 +409,13 @@ function substitute(usage: ts.JsxElement | ts.JsxSelfClosingElement, component: 
   if (!evaluationKept(usage, component, values, children)) return undefined;
   const key = values.get("key");
   values.delete("key");
-  const childrenText = children && children.length ? children.map((c) => c.getFullText()).join("") : undefined;
+  // Text over several lines is as JSX reads it there (lines trimmed and joined, entities read): put elsewhere, it'd read otherwise.
+  const childText = (c: ts.JsxChild) => {
+    if (!ts.isJsxText(c) || !/[\r\n]/.test(c.text)) return c.getFullText();
+    const text = jsxText(c.text);
+    return text ? `{${JSON.stringify(decodeHtmlEntities(text))}}` : "";
+  };
+  const childrenText = children && children.length ? children.map(childText).join("") : undefined;
 
   const parts: ts.Node[] = [...component.consts.map((c) => c.init), component.returned];
   const declaredInside = new Set(parts.flatMap((part) => [...declarations(part)]));
@@ -445,6 +455,9 @@ function substitute(usage: ts.JsxElement | ts.JsxSelfClosingElement, component: 
       ts.isObjectLiteralExpression(value) || ts.isArrayLiteralExpression(value) ||
       value.kind === ts.SyntaxKind.NullKeyword || value.kind === ts.SyntaxKind.TrueKeyword || value.kind === ts.SyntaxKind.FalseKeyword
     ) return given.code;
+    // A name (`name`, `props.user.name`) reads the same twice: the default is written out, applying as it would.
+    const plain = (n: ts.Expression): boolean => ts.isIdentifier(n) || (ts.isPropertyAccessExpression(n) && !n.questionDotToken && plain(n.expression));
+    if (plain(value)) return `(${given.code} === undefined ? ${rewrite(fallback)} : ${given.code})`;
     throw new Unsafe();
   };
   if (component.props) {
@@ -452,6 +465,37 @@ function substitute(usage: ts.JsxElement | ts.JsxSelfClosingElement, component: 
   }
   const constValues = new Map<string, string>();
   for (const { name } of component.consts) local.set(name, () => constValues.get(name) ?? "undefined");
+
+  /** A literal's value: given as a prop (a substituted local), or written. */
+  function literalValue(node: ts.Expression): { value: unknown } | undefined {
+    const e = unwrap(node);
+    if (ts.isIdentifier(e) && local.has(e.text) && isValueReference(e)) {
+      const text = local.get(e.text)!().trim();
+      if (/^"(?:[^"\\]|\\.)*"$/.test(text) || /^-?\d+(\.\d+)?$/.test(text) || /^(true|false|null)$/.test(text)) return { value: JSON.parse(text) };
+      return undefined;
+    }
+    if (ts.isStringLiteral(e) || ts.isNoSubstitutionTemplateLiteral(e)) return { value: e.text };
+    if (ts.isNumericLiteral(e)) return { value: Number(e.text) };
+    if (e.kind === ts.SyntaxKind.TrueKeyword) return { value: true };
+    if (e.kind === ts.SyntaxKind.FalseKeyword) return { value: false };
+    if (e.kind === ts.SyntaxKind.NullKeyword) return { value: null };
+    return undefined;
+  }
+
+  /** "true" or "false" for a comparison of a prop given as a literal with a literal; undefined otherwise. */
+  function foldedComparison(n: ts.BinaryExpression): string | undefined {
+    const op = n.operatorToken.kind;
+    const strict = op === ts.SyntaxKind.EqualsEqualsEqualsToken || op === ts.SyntaxKind.ExclamationEqualsEqualsToken;
+    const negated = op === ts.SyntaxKind.ExclamationEqualsEqualsToken || op === ts.SyntaxKind.ExclamationEqualsToken;
+    if (!strict && op !== ts.SyntaxKind.EqualsEqualsToken && op !== ts.SyntaxKind.ExclamationEqualsToken) return undefined;
+    const isProp = (e: ts.Expression) => ts.isIdentifier(unwrap(e)) && local.has((unwrap(e) as ts.Identifier).text);
+    if (!isProp(n.left) && !isProp(n.right)) return undefined;
+    const [a, b] = [literalValue(n.left), literalValue(n.right)];
+    if (!a || !b) return undefined;
+    // eslint-disable-next-line eqeqeq
+    const equal = strict ? a.value === b.value : a.value == b.value;
+    return String(negated ? !equal : equal);
+  }
 
   /** `node`'s text with props and consts replaced. */
   function rewrite(node: ts.Node, childrenInPlace = false): string {
@@ -471,6 +515,12 @@ function substitute(usage: ts.JsxElement | ts.JsxSelfClosingElement, component: 
         return;
       }
       if (ts.isIdentifier(n) && component.propsObject === n.text && isValueReference(n)) unknownProps = true;
+      // `variant === "warning"` with "info" passed: written as its result, as `"info" === "warning"` doesn't type-check.
+      const folded = ts.isBinaryExpression(n) ? foldedComparison(n) : undefined;
+      if (folded !== undefined) {
+        edits.push({ from: n.getStart() - start, to: n.getEnd() - start, text: folded });
+        return;
+      }
       if (ts.isIdentifier(n) && local.has(n.text) && isValueReference(n)) {
         // A tag name (`<Tailwind>` from a prop): only a plain name can stand there.
         if ((ts.isJsxOpeningElement(n.parent) || ts.isJsxClosingElement(n.parent) || ts.isJsxSelfClosingElement(n.parent)) && n.parent.tagName === n) {
@@ -520,6 +570,21 @@ function substitute(usage: ts.JsxElement | ts.JsxSelfClosingElement, component: 
 }
 
 class Unsafe extends Error {}
+
+/** JSX text as JSX reads it: each line trimmed where it meets another, lines of only spaces dropped, the rest joined by a space. */
+function jsxText(text: string): string {
+  const lines = text.split(/\r\n|\n|\r/);
+  let last = -1;
+  lines.forEach((line, i) => /[^ \t]/.test(line) && (last = i));
+  let out = "";
+  lines.forEach((line, i) => {
+    let part = line.replace(/\t/g, " ");
+    if (i > 0) part = part.replace(/^ +/, "");
+    if (i < lines.length - 1) part = part.replace(/ +$/, "");
+    if (part) out += i === last ? part : `${part} `;
+  });
+  return out;
+}
 
 /**
  * Whether filling `usage`'s arguments into the component keeps what its

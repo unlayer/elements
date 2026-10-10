@@ -109,7 +109,7 @@ export async function convertReactEmail(Template: Template, options: RuntimeOpti
     tsx: () =>
       treeToTsx(tree, {
         componentName: options.componentName ?? "Template",
-        header: ["Converted from a React Email template by @unlayer/from-react-email (runtime mode)."],
+        header: ["Converted from a React Email template by @unlayer/migrate (runtime mode)."],
       }),
     design: () => treeToDesign(tree),
     editorFonts: () => editorFonts(treeToDesign(tree), fonts),
