@@ -174,3 +174,27 @@ describe("pairs a reader sees differently, from a whole-PR review", () => {
     expect(() => compareText(page('<p class="a">Hi</p>', style(".a\\110000 {color:red}")), page("<p>Hi</p>"))).not.toThrow();
   });
 });
+
+describe("screens wider than the desktop width read", () => {
+  // Tailwind's `md:` as React Email writes it: a rule for screens at least 48rem (768px) wide.
+  const md = style("@media (min-width:48rem){.md_block{display:block!important}.md_text-24px{font-size:24px!important}}");
+
+  it("fail a word only wider screens show, or a size they change, that the migration lost", () => {
+    const tip = compareText(page('<p>Your plan renews soon</p><p class="md_block" style="display:none">Tip: upgrade</p>', md), page("<p>Your plan renews soon</p>"));
+    expect(checkFails(tip)).toBe(true);
+    // At 700px "Tip: upgrade" is hidden on both sides; at 768px the original shows it.
+    expect(tip.styles).toEqual([expect.objectContaining({ property: "shown", original: "shown", converted: "hidden", words: ["Tip", "upgrade"], width: 768 })]);
+    const size = compareText(page('<p class="md_text-24px" style="font-size:14px">Your plan renews soon</p>', md), page('<p style="font-size:14px">Your plan renews soon</p>'));
+    expect(size.styles).toEqual([expect.objectContaining({ property: "size", original: "24px", converted: "14px", width: 768 })]);
+    expect(checkFails(size)).toBe(true);
+  });
+
+  it("pass the same rule on both sides, and list nothing twice", () => {
+    const same = page('<p class="md_text-24px" style="font-size:14px">Your plan renews soon</p>', md);
+    expect(checkFails(compareText(same, same))).toBe(false);
+    // A difference the desktop width shows too is listed once, without a width.
+    const color = compareText(page('<p style="color:#e11d48">Hello world</p>', md), page('<p style="color:#000000">Hello world</p>', md));
+    expect(color.styles).toEqual([{ property: "color", original: "#e11d48", converted: "#000000", words: ["Hello", "world"] }]);
+  });
+});
+

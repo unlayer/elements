@@ -1,4 +1,4 @@
-import { compareStyles, normalizeWord, StyledDocument, styledWords, type StyleDifference, type Unverified } from "./cascade";
+import { compareStyles, normalizeWord, StyledDocument, styledWords, widerScreens, type StyleDifference, type Unverified } from "./cascade";
 import { compareLayout, unplaced, type LayoutDifference } from "./geometry";
 
 /**
@@ -175,7 +175,39 @@ export function compareText(originalHtml: string, convertedHtml: string): TextCh
   const phoneAdded = [...new Set(phoneAttributesB)].filter((item) => !phoneAttributesA.includes(item) && !addedAttributes.some((a) => a.startsWith(item)));
   const phoneWithAttributes = { ...phone, ...(phoneLost.length ? { missingAttributes: phoneLost } : {}), ...(phoneAdded.length ? { addedAttributes: phoneAdded } : {}) };
   const unverified = [...style.unverified, ...unread, ...targetDoubts(originalDoc, convertedDoc), ...phoneDoubts(originalPhone, convertedPhone, style.unverified)];
-  return { missing, added, missingAttributes, addedAttributes, styles: style.differences, unverified, phone: phoneWithAttributes, layout, styleCoverage: { words: style.compared, unknown: style.unknown } };
+  const wide = same ? widerDifferences(originalHtml, convertedHtml, style.differences, unverified, missingAttributes, addedAttributes) : { styles: [], unverified: [] };
+  return { missing, added, missingAttributes, addedAttributes, styles: [...style.differences, ...wide.styles], unverified: [...unverified, ...wide.unverified], phone: phoneWithAttributes, layout, styleCoverage: { words: style.compared, unknown: style.unknown } };
+}
+
+/**
+ * On screens wider than the desktop width read, where a rule for them applies
+ * on either side (Tailwind's `md:`, `lg:`): the same words must show, with
+ * the same links and images, in the same styles. Each difference names the
+ * width it starts at; links and images are added to the lists given.
+ */
+function widerDifferences(originalHtml: string, convertedHtml: string, desktopStyles: StyleDifference[], desktopUnverified: Unverified[], missingAttributes: string[], addedAttributes: string[]): { styles: StyleDifference[]; unverified: Unverified[] } {
+  const styles: StyleDifference[] = [];
+  const unverified: Unverified[] = [];
+  // What the desktop width already shows isn't listed again.
+  const key = (item: StyleDifference | Unverified) => JSON.stringify({ ...item, width: undefined });
+  const known = new Set([...desktopStyles, ...desktopUnverified].map(key));
+  for (const width of widerScreens(originalHtml, convertedHtml)) {
+    const original = new StyledDocument(originalHtml, { width });
+    const converted = new StyledDocument(convertedHtml, { width });
+    const [a, b] = [wordsOf(original), wordsOf(converted)];
+    const lost = lostOccurrences(a, b);
+    const extra = lostOccurrences(b, a);
+    if (lost.length) styles.push({ property: "shown", original: "shown", converted: "hidden", words: lost, width });
+    if (extra.length) styles.push({ property: "shown", original: "hidden", converted: "shown", words: extra, width });
+    const [targetsA, targetsB] = [attributesOf(original), attributesOf(converted)];
+    for (const item of lostOccurrences(targetsA, targetsB)) if (!missingAttributes.some((m) => m.startsWith(item))) missingAttributes.push(`${item} (on screens ${width}px and wider)`);
+    for (const item of new Set(targetsB)) if (!targetsA.includes(item) && !addedAttributes.some((m) => m.startsWith(item))) addedAttributes.push(`${item} (on screens ${width}px and wider)`);
+    if (lost.length || extra.length) continue;
+    const check = compareStyles(original, converted);
+    for (const difference of check.differences) if (!known.has(key(difference))) styles.push({ ...difference, width });
+    for (const doubt of check.unverified) if (!known.has(key(doubt))) unverified.push({ ...doubt, width });
+  }
+  return { styles, unverified };
 }
 
 /**

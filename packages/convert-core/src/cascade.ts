@@ -489,6 +489,26 @@ function mediaApplies(query: string, width: number): "yes" | "no" | "unknown" {
   return any;
 }
 
+/**
+ * Screen widths above the desktop width read where the `@media` rules of
+ * these documents apply otherwise than there (Tailwind's `md:` at 768px,
+ * `lg:` at 1024px): the narrowest width of each such set of rules.
+ */
+export function widerScreens(...htmls: string[]): number[] {
+  const queries = [...new Set(htmls.flatMap((html) => [...html.matchAll(/@media\b([^{]*)\{/gi)].map((m) => m[1].trim())))];
+  const thresholds = new Set<number>();
+  for (const query of queries) {
+    for (const [length] of query.matchAll(/[\d.]+(?:px|em|rem)?/gi)) {
+      const px = queryPx(length.toLowerCase());
+      // Where a `min-width` starts to apply, and just past where a `max-width` stops.
+      if (px !== undefined && px >= DESKTOP_WIDTH) thresholds.add(Math.ceil(px)).add(Math.floor(px) + 1);
+    }
+  }
+  const applying = (width: number) => queries.map((query) => mediaApplies(query, width)).join();
+  const seen = new Set([applying(DESKTOP_WIDTH)]);
+  return [...thresholds].sort((a, b) => a - b).filter((width) => !seen.has(applying(width)) && Boolean(seen.add(applying(width))));
+}
+
 // At-rules whose contents don't style the page's text, or don't apply to it.
 const NOT_STYLING = /^(font-face|keyframes|-webkit-keyframes|-moz-keyframes|page|import|charset|namespace|font-feature-values|counter-style|property|font-palette-values)$/;
 
@@ -1532,6 +1552,8 @@ export interface StyleDifference {
   converted: string;
   /** The words that changed this way, in order. */
   words: string[];
+  /** Only on screens at least this wide, where a rule for wider screens than the desktop width applies (Tailwind's `md:`). */
+  width?: number;
 }
 
 /**
@@ -1548,6 +1570,8 @@ export interface Unverified {
   cause: string;
   /** The words it's on, in order. */
   words: string[];
+  /** Only on screens at least this wide (see StyleDifference). */
+  width?: number;
 }
 
 export interface StyleCheck {
