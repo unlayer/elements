@@ -7,6 +7,7 @@
  * visual editor would open. Only checked templates are written.
  */
 
+import { isUtf8 } from "node:buffer";
 import { existsSync, readFileSync, realpathSync } from "node:fs";
 import { lstat, mkdir, open, readFile, readdir, realpath, rename, rm, rmdir, stat } from "node:fs/promises";
 import { randomUUID } from "node:crypto";
@@ -352,12 +353,15 @@ interface PendingWrite {
 async function migrateFile(input: Input, options: Options, lib: Library, io: Io, destinations: Destinations): Promise<FileResult & { writes?: PendingWrite[] }> {
   const file = input.path;
   const name = relative(io.cwd, file) || basename(file);
-  const source = await readFile(file, "utf8");
+  const bytes = await readFile(file);
+  const source = bytes.toString("utf8");
   // Run again on migrated templates (in CI, or after --write): they're done.
   if (/from\s+["']@unlayer\/react-elements["']/.test(source)) return { file: name, status: "skipped", reason: "already migrated: it imports @unlayer/react-elements" };
   // Checking a template runs its code and calls its default export: a helper (one that sends an email) is never loaded.
   const notLoaded = await notATemplate(file, source);
   if (notLoaded) return { file: name, status: "skipped", reason: notLoaded };
+  // Text in another encoding (a Latin-1 é) reads as U+FFFD: it would be written back that way.
+  if (!isUtf8(bytes)) return { file: name, status: "failed", reason: "it isn't saved as UTF-8 (another encoding, like Latin-1): save it as UTF-8, then run again" };
 
   const release: Array<() => void> = [];
   try {
@@ -392,7 +396,7 @@ async function migrateFile(input: Input, options: Options, lib: Library, io: Io,
     // the target. This also checks file-relative resources and module resolution.
     const writing = options.write || options.out !== undefined;
     const target = writing ? outputPath(input, options, io.cwd) : file;
-    const code = target === file ? converted.code : lib.rebaseImports(converted.code, file, target);
+    const code = lineEndings(target === file ? converted.code : lib.rebaseImports(converted.code, file, target), source);
     // The check runs with this CLI's packages: a React Email package the template's project lacks would pass it and crash there.
     const missing = [...new Set([...code.matchAll(/from\s+["']((?:@react-email\/[^"'/]+|react-email))(?:\/[^"']*)?["']/g)].map((m) => m[1]))].filter((name) => !hasPackage(file, name));
     if (missing.length) return { file: name, status: "failed", reason: `the migrated template imports ${missing.join(", ")}, which this project doesn't have: install it (npm install ${missing.join(" ")})` };
@@ -724,6 +728,12 @@ function renderFailure(error: unknown): string {
   // Elements calls a template as a function to read its root's settings, outside a React render.
   if (/Invalid hook call|reading 'use[A-Z]\w*'/.test(text)) return "it calls React hooks (useId, useMemo, …), which Elements templates can't use yet: compute those values outside the template and pass them as props";
   return text;
+}
+
+/** The migrated code with the source's line endings: CRLF when most of its lines end that way. */
+function lineEndings(code: string, source: string): string {
+  const crlf = source.match(/\r\n/g)?.length ?? 0;
+  return crlf && crlf * 2 >= (source.match(/\n/g)?.length ?? 0) ? code.replace(/\r?\n/g, "\r\n") : code;
 }
 
 /** Whether `name` is installed where `file` would find it (a node_modules folder above it). */

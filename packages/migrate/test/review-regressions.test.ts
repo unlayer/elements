@@ -132,6 +132,34 @@ describe("destination safety", () => {
   });
 });
 
+describe("encoding", () => {
+  it("fails a template that isn't UTF-8 without writing it", async () => {
+    const latin1 = Buffer.from(good.replace("Keep the original", "Café menu"), "latin1");
+    const dir = project({});
+    fs.mkdirSync(path.join(dir, "emails"));
+    fs.writeFileSync(path.join(dir, "emails/menu.tsx"), latin1);
+    for (const flags of [["--write"], ["--out", "migrated"]]) {
+      const out = io(dir);
+      expect(await main(["emails", ...flags], out, lib), out.out + out.err).toBe(2);
+      expect(out.out).toContain("✗ emails/menu.tsx: it isn't saved as UTF-8");
+      expect(fs.readFileSync(path.join(dir, "emails/menu.tsx")).equals(latin1)).toBe(true);
+      expect(fs.existsSync(path.join(dir, "migrated"))).toBe(false);
+    }
+  });
+
+  it("keeps CRLF line endings", async () => {
+    const dir = project({ "emails/welcome.tsx": good.replace(/\n/g, "\r\n") });
+    const out = io(dir);
+    expect(await main(["emails", "--out", "migrated"], out, lib), out.out + out.err).toBe(0);
+    const written = fs.readFileSync(path.join(dir, "migrated/welcome.tsx"), "utf8");
+    expect(written).toContain("\r\n");
+    expect(written).not.toMatch(/[^\r]\n/);
+    const write = io(dir);
+    expect(await main(["emails", "--write"], write, lib), write.out + write.err).toBe(0);
+    expect(fs.readFileSync(path.join(dir, "emails/welcome.tsx"), "utf8")).not.toMatch(/[^\r]\n/);
+  });
+});
+
 describe("relocated verification", () => {
   it("preserves static and dynamic new URL resources, relative imports, and design image URLs", async () => {
     const source = `import { Html, Body, Text, Img } from "@react-email/components";
