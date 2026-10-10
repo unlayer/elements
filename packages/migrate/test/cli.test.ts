@@ -600,6 +600,18 @@ export default function Footer() { return <Section><Text>Sent by Acme</Text></Se
     expect(fs.readFileSync(path.join(dir, "emails/welcome.tsx"), "utf8")).toBe(migrated);
   });
 
+  it("migrates a template that takes only types from Elements", async () => {
+    const source = `import { Html, Body, Text } from "@react-email/components";
+import type { EmailProps } from "@unlayer/react-elements";
+import { type RowProps } from "@unlayer/react-elements";
+export default function Welcome() { return <Html><Body><Text>Welcome aboard friend</Text></Body></Html>; }`;
+    const dir = project({ "emails/welcome.tsx": source });
+    const out = io(dir);
+    expect(await main(["emails"], out, lib), out.out + out.err).toBe(0);
+    expect(out.out).not.toContain("already migrated");
+    expect(out.out).toContain("1 migrated and checked");
+  });
+
   it("says to rename a .js template with JSX to .jsx", async () => {
     const dir = project({ "emails/hello.js": `import { Html, Body, Text } from "@react-email/components";
 export default function Hello() { return <Html><Body><Text>Hello</Text></Body></Html>; }

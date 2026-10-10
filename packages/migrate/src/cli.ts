@@ -947,8 +947,20 @@ async function importsElements(path: string, source: string): Promise<boolean> {
   if (!source.includes("@unlayer/react-elements")) return false;
   const ts = (await import("typescript")).default;
   const file = ts.createSourceFile(path, source, ts.ScriptTarget.Latest, false, /\.m?ts$/.test(path) ? ts.ScriptKind.TS : ts.ScriptKind.TSX);
+  // Types only (`import type { EmailProps }`) don't make a template migrated: it still renders with React Email.
+  const typesOnly = (s: import("typescript").ImportDeclaration | import("typescript").ExportDeclaration) => {
+    if (ts.isExportDeclaration(s)) return s.isTypeOnly;
+    const clause = s.importClause;
+    const named = clause?.namedBindings && ts.isNamedImports(clause.namedBindings) ? clause.namedBindings.elements : undefined;
+    return !!clause && (clause.isTypeOnly || (!clause.name && !!named?.length && named.every((e) => e.isTypeOnly)));
+  };
   return file.statements.some(
-    (s) => (ts.isImportDeclaration(s) || ts.isExportDeclaration(s)) && !!s.moduleSpecifier && ts.isStringLiteral(s.moduleSpecifier) && s.moduleSpecifier.text === "@unlayer/react-elements"
+    (s) =>
+      (ts.isImportDeclaration(s) || ts.isExportDeclaration(s)) &&
+      !!s.moduleSpecifier &&
+      ts.isStringLiteral(s.moduleSpecifier) &&
+      s.moduleSpecifier.text === "@unlayer/react-elements" &&
+      !typesOnly(s)
   );
 }
 

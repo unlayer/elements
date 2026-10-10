@@ -2197,8 +2197,10 @@ function dropUnused(code: string, original: ts.SourceFile, javascript: boolean, 
         }
       }
     };
-    // Statements at the top and inside functions (a loop's `const isLeft = …`).
+    // Statements at the top and inside functions (a loop's `const isLeft = …`), not inside the helpers this
+    // codemod adds: their names aren't counted, so their own `const css` would pass for the template's.
     const walk = (node: ts.Node) => {
+      if (ts.isFunctionDeclaration(node) && node.name && helpers.has(node.name.text)) return;
       if (ts.isSourceFile(node) || ts.isBlock(node)) visit(node.statements);
       ts.forEachChild(node, walk);
     };

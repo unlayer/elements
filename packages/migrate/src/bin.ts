@@ -5,7 +5,7 @@
  */
 
 import { statSync } from "node:fs";
-import { register } from "node:module";
+import { register, syncBuiltinESMExports } from "node:module";
 import { dirname, join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import { parseArgs } from "./args";
@@ -42,6 +42,8 @@ const exit = process.exit;
 process.exit = ((code?: number | string | null) => {
   throw new Error(`a template called process.exit(${code ?? ""})`);
 }) as typeof process.exit;
+// `import { exit } from "node:process"` too.
+syncBuiltinESMExports();
 // What a template's code throws later (from a timer, or a promise it doesn't
 // wait for) is outside any check: the run still finishes and reports, then fails.
 const thrown = new Set<string>();

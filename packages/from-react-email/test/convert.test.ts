@@ -427,6 +427,33 @@ console.log(started);`;
       fs.rmSync(dir, { recursive: true, force: true });
     }
   });
+
+  it("keeps the helpers' own names when the template had the same ones", async () => {
+    const dir = fs.mkdtempSync(path.join(import.meta.dirname, ".tmp-"));
+    try {
+      // An optional block kept as HTML (a component with a hook) brings a helper that reads its own `css`.
+      const source = `import { Body, Container, Head, Html, Text } from "@react-email/components";
+import * as React from "react";
+const css = \`.lead { font-size: 16px; }\`;
+const Warning = ({ message }: { message: string }) => {
+  const id = React.useId();
+  return <Text id={id} style={{ color: "#b45309" }}>{message}</Text>;
+};
+export default function Template({ name, warning }: { name: string; warning?: string }) {
+  return (<Html><Head><style>{css}</style></Head><Body><Container>
+    <Text className="lead">Hi {name}</Text>
+    {warning && <Warning message={warning} />}
+  </Container></Body></Html>);
+}
+Template.PreviewProps = { name: "Ana" };`;
+      const file = path.join(dir, "template.tsx");
+      fs.writeFileSync(file, (await convertSource(source, { fileName: file })).code);
+      const { default: Migrated } = await import(file);
+      expect(renderToHtml(Migrated({ name: "Ana", warning: "Check your address" }))).toContain("Check your address");
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
+  });
 });
 
 describe("loops", () => {

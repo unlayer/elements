@@ -813,6 +813,10 @@ export async function POST() { await resend.emails.send({ from: "a@example.com",
       "emails/exits.tsx": `import { Html, Body, Text } from "@react-email/components";
 process.exit(0);
 export default function Exits() { return <Html><Body><Text>Exits</Text></Body></Html>; }`,
+      "emails/named-exit.tsx": `import { Html, Body, Text } from "@react-email/components";
+import { exit } from "node:process";
+if (!process.env.MAILER_KEY_THAT_IS_NOT_SET) exit();
+export default function NamedExit() { return <Html><Body><Text>Named exit</Text></Body></Html>; }`,
       "emails/timer.tsx": `import { Html, Body, Text } from "@react-email/components";
 setInterval(() => {}, 1000);
 export default function Timer() { return <Html><Body><Text>Timer</Text></Body></Html>; }`,
@@ -826,8 +830,9 @@ export default function Timer() { return <Html><Body><Text>Timer</Text></Body></
     const result = await promisify(execFile)(process.execPath, [bin, "emails"], { cwd: dir, timeout: 60_000 }).catch((error) => error);
     expect(result.code, result.stdout + result.stderr).toBe(2);
     expect(result.stdout).toMatch(/emails\/exits\.tsx: couldn't load it: a template called process\.exit\(0\)/);
+    expect(result.stdout).toMatch(/emails\/named-exit\.tsx: couldn't load it: a template called process\.exit\(\)/);
     expect(result.stdout).toMatch(/emails\/timer\.tsx: 100% editable/);
-    expect(result.stdout).toContain("1 migrated and checked, 1 failed");
+    expect(result.stdout).toContain("1 migrated and checked, 2 failed");
   }, 90_000);
 
   it("finish the run and fail it when a template throws later, from a timer or a promise (built CLI)", async () => {
