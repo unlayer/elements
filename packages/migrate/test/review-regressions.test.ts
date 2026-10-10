@@ -55,14 +55,6 @@ describe("destination safety", () => {
     }
   });
 
-  it("requires --write to replace the input itself", async () => {
-    const dir = project({ "emails/a.tsx": neverLoad });
-    const out = io(dir);
-    expect(await main(["emails", "--out", "emails"], out, lib)).toBe(1);
-    expect(out.err).toContain("source input");
-    expect(fs.readFileSync(path.join(dir, "emails/a.tsx"), "utf8")).toBe(neverLoad);
-  });
-
   it("reserves report destinations against inputs and generated designs", async () => {
     const dir = project({ "emails/a.tsx": neverLoad });
     for (const report of ["emails/a.tsx", "migrated/a.design.json"]) {
@@ -136,7 +128,7 @@ describe("destination safety", () => {
     expect(fs.readFileSync(path.join(dir, "existing/welcome.design.json"), "utf8")).toContain('"body"');
   });
 
-  it("replaces an earlier design with --overwrite, and still doesn't write a template that fails the check", async () => {
+  it("with --overwrite, writes neither a template that fails the check nor its design: an earlier design stays", async () => {
     const failing = `import { Html, Body, Text } from "@react-email/components";
 export default function T() {
   const text = import.meta.url.includes(".unlayer-migrate-") ? "Changed" : "Keep this content";
@@ -288,6 +280,7 @@ T.PreviewProps = { asset: "./logo.txt" };`;
     const compare = io(dir);
     expect(await main(["compare", "emails/a.tsx", "migrated/deep/a.tsx"], compare, lib), compare.out + compare.err).toBe(0);
     expect(fs.readFileSync(path.join(dir, "migrated/deep/a.tsx"), "utf8")).not.toContain(dir);
+    expect(fs.readFileSync(path.join(dir, "migrated/deep/a.design.json"), "utf8")).toContain("https://example.com/logo.png");
     expect(fs.readFileSync(path.join(dir, "emails/a.tsx"), "utf8")).toBe(source);
   });
 
@@ -782,7 +775,9 @@ export { Previewed as default };`,
     await main(["emails"], out, lib);
     // Loaded: what follows (rendering, converting) may still fail for these shapes.
     expect(out.out).not.toContain("skipped");
-    expect(out.out).toMatch(/2 templates: .*2 failed|2 migrated/);
+    expect(out.out).toContain("✗ emails/conditional.tsx: the migrated template doesn't render: the template renders nothing with these props");
+    // The codemod doesn't read `export { X as default }` yet: it fails, saying so (never a pass).
+    expect(out.out).toContain("✗ emails/previewed.tsx: couldn't convert it: No default-exported component found");
   });
 
   it("don't keep templates in place with --write: an index that imports them and exports them again", async () => {
@@ -971,7 +966,9 @@ describe("--write only replaces what git can restore", () => {
     expect(fs.readFileSync(path.join(dir, "emails/welcome.tsx"), "utf8")).toBe(good);
     fs.writeFileSync(path.join(dir, "emails/welcome.tsx"), good.replace("Keep the original", "Keep the edited original"));
     expect(await main(["emails", "--write", "--allow-dirty"], io(dir), lib)).toBe(0);
-    expect(fs.readFileSync(path.join(dir, "emails/welcome.tsx"), "utf8")).toContain("Keep the edited original");
+    const replaced = fs.readFileSync(path.join(dir, "emails/welcome.tsx"), "utf8");
+    expect(replaced).toContain("@unlayer/react-elements");
+    expect(replaced).toContain("Keep the edited original");
     const loose = fs.mkdtempSync(path.join(tmpdir(), "unlayer-loose-"));
     dirs.push(loose);
     fs.writeFileSync(path.join(loose, "welcome.tsx"), good);

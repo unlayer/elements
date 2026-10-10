@@ -37,7 +37,7 @@ describe("Fragments and user components among the blocks", () => {
     const ids = [...body.matchAll(/id="(u_(?:row|column|content_paragraph)_\d+)"/g)].map((m) => m[1]);
     expect(new Set(ids).size).toBe(ids.length);
     // Every row renders as an email row, a user component's too.
-    expect(body.match(/<!--\[if \(mso\)\|\(IE\)\]><table[^>]*><tr><td align="center"/g)?.length ?? 0).toBeGreaterThan(0);
+    expect(body.match(/id="u_row_\d+" class="u-row-container/g)?.length ?? 0).toBe(8);
     expect(ids.filter((id) => id.startsWith("u_row_")).length).toBe(8);
   });
 

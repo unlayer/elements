@@ -14,7 +14,10 @@ import * as previous from "@unlayer/react-elements-previous";
 type Lib = typeof current;
 const releases = { current, previous: previous as unknown as Lib };
 
-/** What a reader sees: the body's text, tags and entities gone. */
+/** React's `useId()` values (`:R1:` in React 18, `«R1»` in 19). */
+const REACT_ID = /:R[\w-]*:|«R[\w-]*»/g;
+
+/** What a reader sees: the body's text, tags and entities gone (React's ids as "‹id›", whatever their format). */
 function visible(html: string): string {
   return html
     .replace(/<head[\s\S]*?<\/head>/gi, "")
@@ -27,6 +30,7 @@ function visible(html: string): string {
     .replace(/&#x27;|&#39;/g, "'")
     .replace(/&amp;/g, "&")
     .replace(/\s+/g, " ")
+    .replace(REACT_ID, "‹id›")
     .trim();
 }
 
@@ -41,6 +45,8 @@ type Pattern = {
   fixed?: true;
   /** The design isn't compared: a component of the user's own isn't a block, or the design keeps text as HTML now. */
   json?: false;
+  /** How many different `useId()` values the HTML shows. */
+  ids?: number;
 };
 
 const PATTERNS: Record<string, Pattern> = {
@@ -75,7 +81,8 @@ const PATTERNS: Record<string, Pattern> = {
       const twice = <Field />;
       return <L.Email><L.Row><L.Column><Field />{twice}{twice}</L.Column></L.Row></L.Email>;
     },
-    shows: "Field :R1: Field :R1H1: Field :R1H2:",
+    shows: "Field ‹id› Field ‹id› Field ‹id›",
+    ids: 3,
     json: false,
   },
   "a component with hooks that returns Rows, among the email's children": {
@@ -150,12 +157,13 @@ const PATTERNS: Record<string, Pattern> = {
   },
 };
 
-describe.each(Object.entries(PATTERNS))("%s", (_, { build, shows, fixed, json }) => {
+describe.each(Object.entries(PATTERNS))("%s", (_, { build, shows, fixed, json, ids }) => {
   const now = build(releases.current);
   const before = build(releases.previous);
 
   it("shows what React shows", () => {
     expect(visible(current.renderToHtml(now))).toBe(shows);
+    if (ids) expect(new Set(current.renderToHtml(now).match(REACT_ID)).size).toBe(ids);
     // The previous release showed it too, or it's a fix: a pattern that changes either way is a decision to make.
     expect(visible(previous.renderToHtml(before)) === shows).toBe(!fixed);
   });

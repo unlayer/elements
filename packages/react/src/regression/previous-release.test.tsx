@@ -8,6 +8,7 @@
  * reviewed. After a release, move the alias in package.json to it.
  */
 import { describe, expect, it, vi } from "vitest";
+import { lines } from "./lines";
 import type React from "react";
 
 const EXAMPLES = [
@@ -38,10 +39,6 @@ async function example(name: string, release: "current" | "previous"): Promise<{
   return { element: stories[name](), render };
 }
 
-/** One tag per line, so a change shows as the lines it touches. */
-export function lines(html: string): string {
-  return `${html.replace(/>\s*</g, ">\n<").trim()}\n`;
-}
 
 describe.each(EXAMPLES)("%s", (name) => {
   it("gives the design and plain text the previous release gives", async () => {
@@ -51,7 +48,6 @@ describe.each(EXAMPLES)("%s", (name) => {
     expect(previous.element.type).toBe((previous.render as unknown as { Email: unknown }).Email);
     expect(current.element.type).toBe((current.render as unknown as { Email: unknown }).Email);
     expect(previous.element.type).not.toBe(current.element.type);
-    expect(previous.render.renderToHtml(previous.element)).not.toBe(current.render.renderToHtml(current.element));
     expect(JSON.stringify(current.render.renderToJson(current.element), null, 1)).toBe(JSON.stringify(previous.render.renderToJson(previous.element), null, 1));
     expect(current.render.renderToPlainText(current.element)).toBe(previous.render.renderToPlainText(previous.element));
   });

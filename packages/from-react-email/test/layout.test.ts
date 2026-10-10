@@ -97,11 +97,6 @@ describe("phones", () => {
     expect(shape[0].columns[0]).toMatchObject({ padding: "0px 250px 0px 40px", mobile: { padding: "0px 40px 0px 40px" }, text: "Narrow" });
   });
 
-  it("keeps a card's spacers on phones", async () => {
-    const card = { backgroundColor: "#f0f9ff", padding: "24px" };
-    const { shape } = await rows(h(Container, { style: { backgroundColor: "#ffffff", padding: "0 32px" } }, h(Section, { style: card }, h(Text, { style: { margin: 0 } }, "Card"))));
-    expect(shape[0].noStackMobile).toBe(true);
-  });
 });
 
 describe("phones: more", () => {

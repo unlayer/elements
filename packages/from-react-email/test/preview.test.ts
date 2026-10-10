@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import fs from "node:fs";
 import path from "node:path";
-import { convertSource, verifyConversion } from "../src/index";
+import { convertSource, htmlWords, verifyConversion } from "../src/index";
 
 describe("dynamic preview text", () => {
   it.each(["tsx", "jsx"])("keeps absent and mixed text empty as React does in %s", async (extension) => {
@@ -41,7 +41,7 @@ T.PreviewProps = ${JSON.stringify(props)};`;
         expect(check.convertedHtml).not.toMatch(/undefined|null|>true|>false/);
         if (name === "absent") expect(converted.code).toContain("previewText={_plainText(preview)}");
         if (name === "array") expect(check.convertedHtml).toContain("42");
-        if (name === "array-zero") expect(check.convertedHtml).toContain("0");
+        if (name === "array-zero") expect(htmlWords(check.convertedHtml)).toContain("0");
         if (name === "mixed") expect(check.convertedHtml).toContain("Hi Guest");
         if (name === "scalars" || name === "zero") expect(check.convertedHtml).toContain("Count 0");
         if (extension === "jsx") expect(converted.code).not.toContain("value: unknown");

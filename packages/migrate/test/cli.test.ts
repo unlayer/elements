@@ -623,12 +623,14 @@ export default function Hello() { return <Html><Body><Text>Hello</Text></Body></
     expect(fs.readdirSync(path.join(dir, "emails")).filter((f) => f.includes("unlayer-migrate"))).toEqual([]);
   });
 
-  it("reports templates it can't load and exits with 2, writing nothing for them", async () => {
-    const dir = project({ "emails/broken.tsx": `import { Html } from "@react-email/components";\nexport default function B() { return <Html>{missing}</Html> }\nB.PreviewProps = {};\n` });
+  it("reports a template that doesn't render, exits with 2 and leaves it as it is", async () => {
+    const broken = `import { Html } from "@react-email/components";\nexport default function B() { return <Html>{missing}</Html> }\nB.PreviewProps = {};\n`;
+    const dir = project({ "emails/broken.tsx": broken });
     const out = io(dir);
     const code = await main(["emails", "--write"], out, lib);
     expect(code).toBe(2);
-    expect(out.out).toMatch(/✗ emails\/broken\.tsx: /);
+    expect(out.out).toMatch(/✗ emails\/broken\.tsx: .*doesn't render: .*missing is not defined/);
+    expect(fs.readFileSync(path.join(dir, "emails/broken.tsx"), "utf8")).toBe(broken);
   });
 
   it("writes merge tags for text props into the design JSON, or sample values with --no-merge-tags", async () => {
@@ -689,10 +691,17 @@ export default function Hi({ name }: { name: string }) {
 
   it("explains usage mistakes", async () => {
     const dir = project({});
-    for (const argv of [[], ["--write", "--out", "x", "emails"], ["nope"], ["--bogus"], ["--from", "mjml", "x"]]) {
+    const mistakes: Array<[string[], string]> = [
+      [[], "Pass the templates to migrate"],
+      [["--write", "--out", "x", "emails"], "Use --write or --out, not both"],
+      [["nope"], "Not found: nope"],
+      [["--bogus"], "Unknown option: --bogus"],
+      [["--from", "mjml", "x"], 'Unknown --from "mjml"'],
+    ];
+    for (const [argv, message] of mistakes) {
       const out = io(dir);
       expect(await main(argv, out, lib)).toBe(1);
-      expect(out.err).not.toBe("");
+      expect(out.err, argv.join(" ")).toContain(message);
     }
     const help = io(dir);
     expect(await main(["--help"], help, lib)).toBe(0);

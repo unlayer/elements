@@ -59,7 +59,8 @@ describe.each(Object.entries(ROOTS))("%s", (_, Root) => {
     }
   });
 
-  it.each(Object.keys(ROOT_PROPS))("the root's %s can't add markup", (name) => {
+  // Only an email renders its preview text.
+  it.each(Object.keys(ROOT_PROPS).filter((name) => name !== "previewText" || Root === Email))("the root's %s can't add markup", (name) => {
     for (const payload of PAYLOADS) {
       const html = renderToHtml(React.createElement(Root, ROOT_PROPS[name](payload) as never, content(payload)));
       expect(injected(html), payload).toEqual([]);

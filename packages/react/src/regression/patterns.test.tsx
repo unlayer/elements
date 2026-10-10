@@ -8,7 +8,7 @@ import React, { forwardRef, memo, useState } from "react";
 import { renderToHtml } from "../utils/render-to-html";
 import { renderToJson } from "../utils/render-to-json";
 import { Email, Page, Document, Row, Column, Paragraph, Heading, Button, Image, Html } from "../index";
-import { lines } from "./previous-release.test";
+import { lines } from "./lines";
 
 const block = (text: string) => <Row><Column><Paragraph>{text}</Paragraph></Column></Row>;
 const Header = () => block("From a component");

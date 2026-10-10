@@ -241,7 +241,6 @@ export default function Template() {
 
   it("codemod: content a phone rule shows becomes a block hidden on desktop; a box is reported", async () => {
     const result = await convertSource(source);
-    expect(result.code).toMatch(/hideOnDesktop[\s\S]{0,200}Phones only|Phones only[\s\S]{0,40}/);
     expect(result.code).toMatch(/<Paragraph[^>]*hideOnDesktop[^>]*>\s*Phones only/);
     expect(result.report.notes).toContainEqual({ reason: "content shown only on phones stays hidden there", detail: "Section" });
   });
