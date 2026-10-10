@@ -1926,20 +1926,36 @@ class Converter {
       ? `\n\nfunction escapeHtml(text${javascript ? "" : ": string"})${javascript ? "" : ": string"} {\n  return text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");\n}\n`
       : "";
     if (this.needsStaticMarkup) {
-      helpers +=
-        `\n/**\n * React's static markup, without the image preload links React 19 adds, and with\n` +
-        ` * the color of the div around it on its tables and cells: an Elements email sets\n` +
-        ` * \`table, td { color: #000000 }\`, which they would show instead.\n */\n` +
-        `function renderToStaticMarkup(node${javascript ? "" : ": Parameters<typeof reactStaticMarkup>[0]"})${javascript ? "" : ": string"} {\n` +
-        `  const html = reactStaticMarkup(node).replace(/<link rel="preload" as="image"[^>]*>/g, "");\n` +
-        `  const color = /^<div style="(?:[^"]*;)?\\s*color:\\s*([^;"]+)/.exec(html)?.[1]?.trim();\n` +
-        `  if (!color || !/<t(?:able|d)\\b/.test(html)) return html;\n` +
-        `  return html.replace(/<(table|td)\\b([^>]*)>/g, (tag${javascript ? "" : ": string"}, name${javascript ? "" : ": string"}, attrs${javascript ? "" : ": string"}) => {\n` +
-        `    const style = /\\sstyle="([^"]*)"/.exec(attrs);\n` +
-        `    if (style && /(^|;)\\s*color\\s*:/i.test(style[1])) return tag;\n` +
-        `    return style ? tag.replace(style[0], \` style="\${style[1].replace(/;?\\s*$/, ";")}color:\${color}"\`) : tag.replace(new RegExp(\`^<\${name}\`), \`<\${name} style="color:\${color}"\`);\n` +
-        `  });\n` +
-        `}\n`;
+      const type = (annotation: string) => (javascript ? "" : annotation);
+      helpers += String.raw`
+/**
+ * React's static markup, without the image preload links React 19 adds, and
+ * safe from the email's head styles: tables and cells take the color of the
+ * div around it (an Elements email sets "table, td { color: #000000 }"), and
+ * tables and paragraphs say the browser's defaults the editor's export resets
+ * ("border-collapse: collapse" drops a table's padding, rounded corners and
+ * cell spacing; "p { margin: 0 }" a paragraph's margins).
+ */
+function renderToStaticMarkup(node${type(": Parameters<typeof reactStaticMarkup>[0]")})${type(": string")} {
+  const html = reactStaticMarkup(node).replace(/<link rel="preload" as="image"[^>]*>/g, "");
+  const color = /^<div style="(?:[^"]*;)?\s*color:\s*([^;"]+)/.exec(html)?.[1]?.trim();
+  return html.replace(/<(table|td|p)\b([^>]*)>/g, (tag${type(": string")}, name${type(": string")}, attrs${type(": string")}) => {
+    const style = /\sstyle="([^"]*)"/.exec(attrs);
+    const css = style ? style[1] : "";
+    const sets = (property${type(": string")}) => new RegExp("(^|;)\\s*(" + property + ")\\s*:", "i").test(css);
+    const add${type(": string[]")} = [];
+    if (color && name !== "p" && !sets("color")) add.push("color:" + color);
+    if (name === "table" && !sets("border-collapse")) add.push("border-collapse:separate");
+    if (name === "p" && !sets("margin|margin-block")) {
+      if (!sets("margin-top|margin-block-start")) add.push("margin-top:1em");
+      if (!sets("margin-bottom|margin-block-end")) add.push("margin-bottom:1em");
+    }
+    if (!add.length) return tag;
+    const value = style ? css.replace(/;?\s*$/, ";") + add.join(";") : add.join(";");
+    return style ? tag.replace(style[0], ' style="' + value + '"') : "<" + name + ' style="' + value + '"' + tag.slice(name.length + 1);
+  });
+}
+`;
     }
     if (this.needsHtmlText) {
       helpers +=

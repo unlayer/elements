@@ -290,13 +290,54 @@ export default function Template() {
       fs.writeFileSync(file, (await convertSource(source)).code);
       const { default: Migrated } = await import(file);
       const codemod = renderToHtml(React.createElement(Migrated));
-      expect(codemod).toMatch(/<table style="color:#333333"/);
+      expect(codemod).toMatch(/<table style="color:#333333;border-collapse:separate"/);
       expect(codemod).toMatch(/<td style="color:#333333">18 Jan 2023/);
       const original = path.join(dir, "original.tsx");
       fs.writeFileSync(original, source);
       const { default: Original } = await import(original);
       const runtime = (await convertReactEmail(Original)).html();
       expect(runtime).toMatch(/<td style="color:#333333">18 Jan 2023/);
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("say the browser's table and paragraph defaults the editor's export resets (both modes)", async () => {
+    // The editor's export sets `table, td, tr { border-collapse: collapse }` and
+    // `p { margin: 0 }`. Under collapse a table loses its padding, rounded
+    // corners and cell spacing, and shows borders set on its rows.
+    const kept = `import { Html, Body, Section, Row, Column, Text } from "@react-email/components";
+export default function Template() {
+  return <Html><Body><Section><Row>
+    <Column><Text>IDEAS!</Text><Section style={{ padding: "20px", borderRadius: "10px", backgroundColor: "#fff4c8", border: "1px solid #f4d247" }}><Text>Ideas</Text></Section></Column>
+    <Column><Text>RESOURCES!</Text><Section style={{ padding: "20px", backgroundColor: "#d7f3fb", border: "1px solid #91d8ec", borderCollapse: "collapse" }}><Text>Resources</Text></Section></Column>
+  </Row></Section>
+  <Section><table><tbody><tr style={{ borderBottom: "1px solid #eaeaea" }}><td><p>Billing</p><p style={{ marginTop: "0" }}>Street</p><p style={{ margin: "4px 0" }}>Town</p></td></tr></tbody></table></Section>
+  </Body></Html>;
+}`;
+    const dir = fs.mkdtempSync(path.join(import.meta.dirname, ".tmp-tables-"));
+    try {
+      const file = path.join(dir, "migrated.tsx");
+      const converted = await convertSource(kept);
+      expect(converted.code).toContain("box with a background or border inside a column");
+      fs.writeFileSync(file, converted.code);
+      const { default: Migrated } = await import(file);
+      const original = path.join(dir, "original.tsx");
+      fs.writeFileSync(original, kept);
+      const { default: Original } = await import(original);
+      for (const html of [renderToHtml(React.createElement(Migrated)), (await convertReactEmail(Original)).html()]) {
+        const tableBefore = (word: string) => (html.slice(0, html.indexOf(word)).match(/<table\b[^>]*>/g) ?? []).pop() ?? "";
+        expect(tableBefore("Ideas")).toMatch(/style="[^"]*padding:20px[^"]*;border-collapse:separate"/);
+        expect(tableBefore("Billing")).toMatch(/style="border-collapse:separate"/);
+        // A table that sets its own border-collapse keeps it.
+        expect(tableBefore("Resources")).toMatch(/border-collapse:collapse/);
+        expect(tableBefore("Resources")).not.toMatch(/separate/);
+        expect(html.match(/<td\b[^>]*border-collapse:separate/g)).toBeNull();
+        // A paragraph's margins: the sides it doesn't set.
+        expect(html).toContain('<p style="margin-top:1em;margin-bottom:1em">Billing</p>');
+        expect(html).toContain('<p style="margin-top:0;margin-bottom:1em">Street</p>');
+        expect(html).toContain('<p style="margin:4px 0">Town</p>');
+      }
     } finally {
       fs.rmSync(dir, { recursive: true, force: true });
     }

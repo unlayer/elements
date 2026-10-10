@@ -146,17 +146,30 @@ export const INHERITED: { fontSize?: string; lineHeight?: string } = {};
 export const LIST_DEFAULTS = { fontSize: "16px" };
 
 /**
- * Kept markup's tables and cells with the color of the div around it. An
- * Elements email sets `table, td { color: #000000 }` (as the editor's export
- * does), which would make a kept table's text black instead of inheriting.
+ * Kept markup, safe from the email's head styles, which it wasn't written for:
+ * - tables and cells take the color of the div around it. An Elements email
+ *   sets `table, td { color: #000000 }` (as the editor's export does), which
+ *   would make a kept table's text black instead of inheriting.
+ * - tables and paragraphs say the browser's defaults the editor's export
+ *   resets: `border-collapse: separate` (under its `collapse`, a table loses its
+ *   padding, rounded corners and cell spacing, and shows borders set on rows),
+ *   and a paragraph's 1em margins (it sets `p { margin: 0 }`).
  */
-export function tablesInherit(html: string): string {
+export function keptMarkup(html: string): string {
   const color = /^<div style="(?:[^"]*;)?\s*color:\s*([^;"]+)/.exec(html)?.[1]?.trim();
-  if (!color || !/<t(?:able|d)\b/.test(html)) return html;
-  return html.replace(/<(table|td)\b([^>]*)>/g, (tag, name: string, attrs: string) => {
+  return html.replace(/<(table|td|p)\b([^>]*)>/g, (tag, name: string, attrs: string) => {
     const style = /\sstyle="([^"]*)"/.exec(attrs);
-    if (style && /(^|;)\s*color\s*:/i.test(style[1])) return tag;
-    return style ? tag.replace(style[0], ` style="${style[1].replace(/;?\s*$/, ";")}color:${color}"`) : tag.replace(new RegExp(`^<${name}`), `<${name} style="color:${color}"`);
+    const css = style?.[1] ?? "";
+    const sets = (property: string) => new RegExp(`(^|;)\\s*(${property})\\s*:`, "i").test(css);
+    const add: string[] = [];
+    if (color && name !== "p" && !sets("color")) add.push(`color:${color}`);
+    if (name === "table" && !sets("border-collapse")) add.push("border-collapse:separate");
+    if (name === "p" && !sets("margin|margin-block")) {
+      if (!sets("margin-top|margin-block-start")) add.push("margin-top:1em");
+      if (!sets("margin-bottom|margin-block-end")) add.push("margin-bottom:1em");
+    }
+    if (!add.length) return tag;
+    return style ? tag.replace(style[0], ` style="${css.replace(/;?\s*$/, ";")}${add.join(";")}"`) : `<${name} style="${add.join(";")}"${tag.slice(name.length + 1)}`;
   });
 }
 

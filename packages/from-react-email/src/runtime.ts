@@ -35,7 +35,7 @@ import {
   type Block,
   type FontSpec,
   type MapCtx,
-  tablesInherit,
+  keptMarkup,
 } from "./map";
 import { addSides, backgroundColor, backgroundImage, boxSides, color, fontFamilyProp, fontSizePx, inherit, isHidden, margins, pageColor, phoneOnly, px, shownOnPhones, toPx, ZERO, type Style } from "./styles";
 import type { BoxSides } from "@unlayer/convert-core";
@@ -464,11 +464,11 @@ function isImageLink(node: Exclude<Node, { kind: "text" }>): boolean {
 function kept(markup: string, ctx: Ctx): string {
   const html = hideClasses(markup, ctx.hidden ?? new Map(), ctx.hides);
   const style = inheritedStyle(ctx);
-  if (!style) return html;
+  if (!style) return keptMarkup(html);
   const css = Object.entries(style)
     .map(([k, v]) => `${k.replace(/[A-Z]/g, (c) => `-${c.toLowerCase()}`)}:${v}`)
     .join(";");
-  return tablesInherit(`<div style="${css.replace(/"/g, "&quot;")}">${html}</div>`);
+  return keptMarkup(`<div style="${css.replace(/"/g, "&quot;")}">${html}</div>`);
 }
 
 /** An image without a width: kept as HTML, so it shows at its natural size. */

@@ -231,20 +231,33 @@ function escapeHtml(text: string): string {
 }
 
 /**
- * React's static markup, without the image preload links React 19 adds, and with
- * the color of the div around it on its tables and cells: an Elements email sets
- * `table, td { color: #000000 }`, which they would show instead.
+ * React's static markup, without the image preload links React 19 adds, and
+ * safe from the email's head styles: tables and cells take the color of the
+ * div around it (an Elements email sets "table, td { color: #000000 }"), and
+ * tables and paragraphs say the browser's defaults the editor's export resets
+ * ("border-collapse: collapse" drops a table's padding, rounded corners and
+ * cell spacing; "p { margin: 0 }" a paragraph's margins).
  */
 function renderToStaticMarkup(node: Parameters<typeof reactStaticMarkup>[0]): string {
   const html = reactStaticMarkup(node).replace(/<link rel="preload" as="image"[^>]*>/g, "");
   const color = /^<div style="(?:[^"]*;)?\s*color:\s*([^;"]+)/.exec(html)?.[1]?.trim();
-  if (!color || !/<t(?:able|d)\b/.test(html)) return html;
-  return html.replace(/<(table|td)\b([^>]*)>/g, (tag: string, name: string, attrs: string) => {
+  return html.replace(/<(table|td|p)\b([^>]*)>/g, (tag: string, name: string, attrs: string) => {
     const style = /\sstyle="([^"]*)"/.exec(attrs);
-    if (style && /(^|;)\s*color\s*:/i.test(style[1])) return tag;
+    const css = style ? style[1] : "";
+    const sets = (property: string) =>
+      new RegExp("(^|;)\\s*(" + property + ")\\s*:", "i").test(css);
+    const add: string[] = [];
+    if (color && name !== "p" && !sets("color")) add.push("color:" + color);
+    if (name === "table" && !sets("border-collapse")) add.push("border-collapse:separate");
+    if (name === "p" && !sets("margin|margin-block")) {
+      if (!sets("margin-top|margin-block-start")) add.push("margin-top:1em");
+      if (!sets("margin-bottom|margin-block-end")) add.push("margin-bottom:1em");
+    }
+    if (!add.length) return tag;
+    const value = style ? css.replace(/;?\s*$/, ";") + add.join(";") : add.join(";");
     return style
-      ? tag.replace(style[0], ` style="${style[1].replace(/;?\s*$/, ";")}color:${color}"`)
-      : tag.replace(new RegExp(`^<${name}`), `<${name} style="color:${color}"`);
+      ? tag.replace(style[0], ' style="' + value + '"')
+      : "<" + name + ' style="' + value + '"' + tag.slice(name.length + 1);
   });
 }
 
