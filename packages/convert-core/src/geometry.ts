@@ -45,10 +45,22 @@ const DISPLAY: Record<string, string> = {
   center: "block",
 };
 
-/** A length in px against `of` (for %); undefined when it isn't one (auto, calc()). */
+/** A length in px against `of` (for %); undefined when it isn't one (auto, a unit this can't size). */
 function length(value: string | null | undefined, of: number): number | undefined {
   if (!value) return undefined;
-  const m = /^(-?[\d.]+)(px|%|em|rem|pt)?$/.exec(value.trim().replace(/\s*!important$/i, ""));
+  const text = value.trim().replace(/\s*!important$/i, "");
+  // `calc()` of lengths added and taken away (`calc(50% - 4px)`).
+  const calc = /^calc\((.*)\)$/i.exec(text);
+  if (calc) {
+    const terms = calc[1].trim().split(/\s+([+-])\s+/);
+    let total = length(terms[0], of);
+    for (let i = 1; i < terms.length && total !== undefined; i += 2) {
+      const term = length(terms[i + 1], of);
+      total = term === undefined ? undefined : terms[i] === "+" ? total + term : total - term;
+    }
+    return total;
+  }
+  const m = /^(-?[\d.]+)(px|%|em|rem|pt)?$/.exec(text);
   if (!m) return undefined;
   const n = parseFloat(m[1]);
   switch (m[2]) {
@@ -64,6 +76,14 @@ function length(value: string | null | undefined, of: number): number | undefine
   }
 }
 
+/** A value set that isn't a length this can work out (and isn't `auto`): where the box sits can't be told. */
+function unreadable(value: string | null | undefined): boolean {
+  if (value === null) return true;
+  if (!value) return false;
+  const text = value.trim().replace(/\s*!important$/i, "");
+  return !/^(auto|none|initial|unset|0)$/i.test(text) && length(text, 100) === undefined;
+}
+
 /** Four sides from a shorthand and its longhands (`padding`, `padding-left`, …). */
 function sides(doc: StyledDocument, element: Element, name: "padding" | "margin", of: number): { left: number; right: number; autoLeft: boolean; autoRight: boolean; leftSet: boolean; rightSet: boolean; unknown: boolean } {
   const all = doc.property(element, name);
@@ -71,7 +91,7 @@ function sides(doc: StyledDocument, element: Element, name: "padding" | "margin"
   const parts = all ? all.trim().replace(/\s*!important$/i, "").split(/\s+/) : [];
   const leftRaw = doc.property(element, `${name}-left`) || (parts[3] ?? parts[1] ?? parts[0] ?? "");
   const rightRaw = doc.property(element, `${name}-right`) || (parts[1] ?? parts[0] ?? "");
-  const unknown = all === null || doc.property(element, `${name}-left`) === null || doc.property(element, `${name}-right`) === null;
+  const unknown = all === null || doc.property(element, `${name}-left`) === null || doc.property(element, `${name}-right`) === null || unreadable(leftRaw) || unreadable(rightRaw);
   return {
     left: length(leftRaw, of) ?? 0,
     right: length(rightRaw, of) ?? 0,
@@ -136,7 +156,12 @@ export function placements(doc: StyledDocument): Map<Element, Placement> {
  */
 function place(doc: StyledDocument, element: Element, x: number, available: number, inherited: Align, blockAlign: Align | undefined, rtl: boolean, out: Map<Element, Placement>, inline: boolean, givenWidth?: number): Placement {
   const kind = display(doc, element);
-  const unknown = doc.property(element, "display") === null || doc.property(element, "width") === null || doc.property(element, "max-width") === null;
+  // A box as wide as its content at most (`max-width: min-content`, a badge): its text starts at its start edge.
+  const hugs = /^(min|max|fit)-content$/i.test((doc.property(element, "max-width") ?? "").trim().replace(/\s*!important$/i, ""));
+  let unknown =
+    doc.property(element, "display") === null ||
+    ["width", "min-width", ...(hugs ? [] : ["max-width"])].some((name) => unreadable(doc.property(element, name))) ||
+    ["text-align", "justify-content", "float"].some((name) => doc.property(element, name) === null);
   // Its outer width: given (a cell's share), set (width, the width attribute), or all there is; then max-/min-width.
   const margin = sides(doc, element, "margin", available);
   const declared = length(doc.property(element, "width"), available) ?? length(attr(element, "width"), available);
@@ -170,12 +195,22 @@ function place(doc: StyledDocument, element: Element, x: number, available: numb
   const contentWidth = Math.max(0, outer - borderWidth(doc, element, "left") - borderWidth(doc, element, "right") - padLeft - padRight);
   // A flex container places its own text (an anonymous item) by justify-content.
   const justify = /flex$/.test(kind) ? (doc.property(element, "justify-content") ?? "").toLowerCase() : "";
-  const align = /center/.test(justify) ? "center" : /flex-end|end|right/.test(justify) ? "right" : textAlign(doc, element, inherited, rtl);
+  let align: Align = /center/.test(justify) ? "center" : /flex-end|end|right/.test(justify) ? "right" : textAlign(doc, element, inherited, rtl);
+  if (hugs) {
+    // Where the box itself sits depends on its content's width when something centers it, or it starts on the right.
+    if (rtl || margin.autoLeft || margin.autoRight || (blockAlign !== undefined && blockAlign !== "left")) unknown = true;
+    align = "left";
+  }
   const placement: Placement = { x: contentX, width: contentWidth, align, ...(unknown || margin.unknown || padding.unknown ? { unknown: true } : {}) };
   out.set(element, placement);
-  // An `align` attribute (not CSS text-align) also places block children (`-webkit-center`).
+  // An `align` attribute (not CSS text-align) also places block children (`-webkit-center`). A CSS
+  // text-align on the element overrides it, and what it inherits from above.
   const own = (attr(element, "align") ?? "").toLowerCase();
-  const childBlockAlign: Align | undefined = element.tagName === "table" ? blockAlign : own === "center" || element.tagName === "center" ? "center" : own === "right" ? "right" : own === "left" ? "left" : blockAlign;
+  const cssAlign = !!doc.property(element, "text-align");
+  const childBlockAlign: Align | undefined =
+    element.tagName === "table" ? blockAlign
+    : cssAlign ? undefined
+    : own === "center" || element.tagName === "center" ? "center" : own === "right" ? "right" : own === "left" ? "left" : blockAlign;
   placeChildren(doc, element, kind, placement, childBlockAlign, rtl, out);
   return placement;
 }
@@ -292,7 +327,10 @@ function line(doc: StyledDocument, items: Element[], box: Placement, blockAlign:
   if (widths.every((w) => w === undefined)) {
     const justify = flex ? (doc.property(items[0].parentNode as Element, "justify-content") ?? "").toLowerCase() : "";
     items.forEach((element, i) => {
-      const align: Align = !flex
+      const float = (doc.property(element, "float") ?? "").trim().toLowerCase();
+      const align: Align = !flex && (float === "left" || float === "right")
+        ? float
+        : !flex
         ? box.align
         : /space-between|space-around|space-evenly/.test(justify)
           ? items.length === 1 ? "left" : i === 0 ? "left" : i === items.length - 1 ? "right" : "center"
@@ -323,7 +361,18 @@ function line(doc: StyledDocument, items: Element[], box: Placement, blockAlign:
     used += width;
   });
   const justify = flex ? (doc.property(items[0].parentNode as Element, "justify-content") ?? "").toLowerCase() : "";
+  // Boxes floated right sit from the line's right edge, in order; the rest as the line places them.
+  const floatsRight = (element: Element) => !flex && /^right$/i.test((doc.property(element, "float") ?? "").trim());
+  let right = box.x + box.width;
   for (const items_ of lines) {
+    for (const it of items_.filter((item) => floatsRight(item.element))) {
+      right -= it.width;
+      const margin = sides(doc, it.element, "margin", box.width);
+      place(doc, it.element, right, it.width - margin.left - margin.right, box.align, blockAlign, rtl, out, false, it.width - margin.left - margin.right);
+    }
+  }
+  for (const all of lines) {
+    const items_ = all.filter((item) => !floatsRight(item.element));
     const total = items_.reduce((a, it) => a + it.width, 0);
     const spare = Math.max(0, box.width - total);
     const align = flex ? (/center/.test(justify) ? "center" : /end|right/.test(justify) ? "right" : "left") : box.align;
@@ -356,6 +405,26 @@ export interface LayoutDifference {
   items: string[];
   /** How far, in px at the width read (negative: to the left). */
   by: number;
+}
+
+/**
+ * Words whose place across the page only one side can work out: a width,
+ * padding, margin or display there that the check can't read. Read as
+ * anywhere, a move would pass unseen, so the check fails on them. Both sides
+ * unknown the same way (markup kept as it was) isn't listed.
+ */
+export function unplaced(original: StyledDocument, converted: StyledDocument, a: StyledWord[], b: StyledWord[]): Array<{ side: "original" | "migrated"; words: string[] }> {
+  const pa = placements(original);
+  const pb = placements(converted);
+  const out = { original: [] as string[], migrated: [] as string[] };
+  for (let i = 0; i < a.length && i < b.length; i++) {
+    if (!a[i].shown || !a[i].at || !b[i].at) continue;
+    const x = placementOf(pa, a[i].at!);
+    const y = placementOf(pb, b[i].at!);
+    if (!x || !y || x.loose || y.loose || !x.unknown === !y.unknown) continue;
+    out[x.unknown ? "original" : "migrated"].push(a[i].word);
+  }
+  return (["original", "migrated"] as const).filter((side) => out[side].length).map((side) => ({ side, words: out[side] }));
 }
 
 /**

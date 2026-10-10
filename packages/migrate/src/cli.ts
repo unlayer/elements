@@ -123,7 +123,19 @@ export interface FileResult {
   /** Blocks the visual editor wouldn't get. */
   designWarnings?: string[];
   /** Problems with a boolean prop flipped (branches the preview props don't take). */
-  variants?: Array<{ change: string; missing: string[]; added: string[]; missingAttributes: string[]; styles?: StyleChange[]; error?: string }>;
+  variants?: Array<CheckParts & { change: string; error?: string }>;
+}
+
+/** A check's parts, as the library returns them (the main render's, or a flipped prop's). */
+interface CheckParts {
+  missing?: string[];
+  added?: string[];
+  missingAttributes?: string[];
+  addedAttributes?: string[];
+  styles?: StyleChange[];
+  unverified?: FileResult["unverified"];
+  phone?: FileResult["phone"];
+  layout?: FileResult["layout"];
 }
 
 interface Options {
@@ -544,7 +556,7 @@ async function migrateFile(input: Input, options: Options, lib: Library, io: Io,
     const result: FileResult = {
       file: name,
       status:
-        verification.missing.length || verification.added.length || verification.missingAttributes.length || verification.addedAttributes.length || verification.styles.length || verification.unverified.length || verification.phone.missing.length || verification.phone.added.length || verification.layout.length || verification.designWarnings.length || verification.variants.length || report.lostStyles?.length
+        problems(verification).length || verification.designWarnings.length || verification.variants.length || report.lostStyles?.length
           ? "check-failed"
           : "migrated",
       editable: report.nativeRatio,
@@ -631,22 +643,18 @@ async function compare(paths: string[], args: Args, io: Io, library?: Library): 
       io.stderr(original ? `The original template doesn't render: ${original}\n` : `The migrated template doesn't render: ${renderFailure(error)}\n`);
       return 2;
     }
-    const problems = [
-      ...(check.missing.length ? [`lost text: ${quote(check.missing)}`] : []),
-      ...(check.added.length ? [`extra text: ${quote(check.added)}`] : []),
-      ...(check.missingAttributes.length ? [`lost links/images: ${quote(check.missingAttributes)}`] : []),
-      ...(check.addedAttributes.length ? [`extra links/images: ${quote(check.addedAttributes)}`] : []),
-      ...(check.styles.length ? [`shown in another style: ${styleChanges(check.styles)}`] : []),
+    const found = [
+      ...problems(check),
       ...(check.designWarnings.length ? check.designWarnings.map((w) => `the editor wouldn't get: ${w}`) : []),
       ...check.variants.map((v) => `with ${v.change}: ${variantProblems(v)}`),
     ];
     const name = `${relative(io.cwd, migratedPath)} against ${relative(io.cwd, originalPath)}`;
-    if (!problems.length) {
+    if (!found.length) {
       const flipped = Object.values(props).filter((v) => typeof v === "boolean").length;
       io.stdout(`✓ ${name}: same words, links and images${flipped ? ` (also with each of ${flipped} true/false props flipped)` : ""}; the editor gets every block.\n`);
       return 0;
     }
-    io.stdout(`✗ ${name}:\n${problems.map((p) => `  - ${p}`).join("\n")}\n`);
+    io.stdout(`✗ ${name}:\n${found.map((p) => `  - ${p}`).join("\n")}\n`);
     return 2;
   } finally {
     for (const unregister of release.reverse()) unregister();
@@ -679,21 +687,13 @@ function line(result: FileResult): string {
       const differences = result.differences?.length ? `, ${result.differences.length} kind${result.differences.length > 1 ? "s" : ""} of difference` : "";
       const written = result.output ? ` → ${result.output}` : "";
       if (result.status === "migrated") return `✓ ${result.file}: ${editable}${differences}${written}`;
-      const problems = [
-        ...(result.missingText?.length ? [`lost text: ${quote(result.missingText)}`] : []),
-        ...(result.addedText?.length ? [`extra text: ${quote(result.addedText)}`] : []),
-        ...(result.missingAttributes?.length ? [`lost links/images: ${quote(result.missingAttributes)}`] : []),
-        ...(result.addedAttributes?.length ? [`extra links/images: ${quote(result.addedAttributes)}`] : []),
+      const found = [
+        ...problems({ ...result, missing: result.missingText, added: result.addedText }),
         ...(result.lostStyles?.length ? [`lost styles: ${result.lostStyles.join("; ")}`] : []),
-        ...(result.styles?.length ? [`shown in another style: ${styleChanges(result.styles)}`] : []),
-        ...(result.unverified?.length ? [`couldn't verify: ${unverifiedList(result.unverified)}`] : []),
-        ...(result.phone?.missing.length ? [`on phones, lost text: ${quote(result.phone.missing)}`] : []),
-        ...(result.phone?.added.length ? [`on phones, extra text: ${quote(result.phone.added)}`] : []),
-        ...(result.layout?.length ? [`moved: ${moves(result.layout)}`] : []),
         ...(result.designWarnings?.length ? [`${result.designWarnings.length} block(s) the editor wouldn't get`] : []),
         ...(result.variants ?? []).map((v) => `with ${v.change}: ${variantProblems(v)}`),
       ];
-      return `✗ ${result.file}: check failed (${problems.join("; ")})${written}`;
+      return `✗ ${result.file}: check failed (${found.join("; ")})${written}`;
     }
   }
 }
@@ -705,7 +705,7 @@ function moves(layout: NonNullable<FileResult["layout"]>): string {
 
 /** What couldn't be verified, one line per cause: `the color of "Hello", "world" (the rule \`.x:has(b)\` …)`. */
 function unverifiedList(items: NonNullable<FileResult["unverified"]>): string {
-  const name: Record<string, string> = { shown: "whether it's shown", size: "the size", bold: "the weight", italic: "italics", transform: "letter case", underline: "underline", color: "the color", background: "the background", target: "the link target" };
+  const name: Record<string, string> = { shown: "whether it's shown", "shown on phones": "whether a phone shows it", "where it sits": "where it sits across the page", size: "the size", bold: "the weight", italic: "italics", transform: "letter case", underline: "underline", color: "the color", background: "the background", target: "the link target" };
   return items
     .map((u) => `${name[u.what] ?? u.what} of ${quote(u.words)} (${u.side === "migrated" ? "the migrated template writes " : ""}${u.cause})`)
     .join("; ");
@@ -773,13 +773,26 @@ function markdownReport(results: FileResult[]): string {
 }
 
 function variantProblems(variant: NonNullable<FileResult["variants"]>[number]): string {
+  return [...(variant.error ? [`fails (${variant.error})`] : []), ...problems(variant)].join("; ");
+}
+
+/**
+ * What a check found, one line per kind: the run, `compare` and each flipped
+ * prop all fail on the same list, so a part of the check can't be read in one
+ * place and missed in another.
+ */
+function problems(check: CheckParts): string[] {
   return [
-    ...(variant.error ? [`fails (${variant.error})`] : []),
-    ...(variant.missing.length ? [`lost text: ${quote(variant.missing)}`] : []),
-    ...(variant.added.length ? [`extra text: ${quote(variant.added)}`] : []),
-    ...(variant.missingAttributes.length ? [`lost links/images: ${quote(variant.missingAttributes)}`] : []),
-    ...(variant.styles?.length ? [`shown in another style: ${styleChanges(variant.styles)}`] : []),
-  ].join("; ");
+    ...(check.missing?.length ? [`lost text: ${quote(check.missing)}`] : []),
+    ...(check.added?.length ? [`extra text: ${quote(check.added)}`] : []),
+    ...(check.missingAttributes?.length ? [`lost links/images: ${quote(check.missingAttributes)}`] : []),
+    ...(check.addedAttributes?.length ? [`extra links/images: ${quote(check.addedAttributes)}`] : []),
+    ...(check.styles?.length ? [`shown in another style: ${styleChanges(check.styles)}`] : []),
+    ...(check.unverified?.length ? [`couldn't verify: ${unverifiedList(check.unverified)}`] : []),
+    ...(check.phone?.missing.length ? [`on phones, lost text: ${quote(check.phone.missing)}`] : []),
+    ...(check.phone?.added.length ? [`on phones, extra text: ${quote(check.phone.added)}`] : []),
+    ...(check.layout?.length ? [`moved: ${moves(check.layout)}`] : []),
+  ];
 }
 
 /** Style changes in a line: "color #e11d48 → #000000 on "Hello", "world"". */
@@ -1241,18 +1254,47 @@ async function importedInputs(inputs: Input[]): Promise<Map<string, string>> {
     }
     return names;
   };
-  /** What a module imports: each specifier with the names it takes ("all" for a namespace or a bare import). */
-  const importsIn = (file: import("typescript").SourceFile) => {
+  /** The names a module renders as components: JSX tags (`<Base>`, `<Parts.Base>`) and `createElement(Base, …)`. */
+  const renderedNames = (file: import("typescript").SourceFile) => {
+    const names = new Set<string>();
+    const visit = (node: import("typescript").Node) => {
+      if (ts.isJsxOpeningElement(node) || ts.isJsxSelfClosingElement(node)) {
+        let tag: import("typescript").Node = node.tagName;
+        while (ts.isPropertyAccessExpression(tag)) tag = tag.expression;
+        if (ts.isIdentifier(tag)) names.add(tag.text);
+      } else if (ts.isCallExpression(node) && /(^|\.)createElement$/.test(node.expression.getText(file)) && node.arguments[0] && ts.isIdentifier(node.arguments[0])) {
+        names.add(node.arguments[0].text);
+      }
+      ts.forEachChild(node, visit);
+    };
+    visit(file);
+    return names;
+  };
+  /**
+   * What a module imports: each specifier with the names it takes ("all" for a namespace or a bare import).
+   * With `rendered`, only the names it renders as components (a component file outside the scanned
+   * folder uses a layout it renders, not a template it lists or sends).
+   */
+  const importsIn = (file: import("typescript").SourceFile, rendered?: Set<string>) => {
     const imports: Array<{ specifier: string; names: string[] | "all" }> = [];
     const visit = (node: import("typescript").Node) => {
       // `export … from` only passes names on: it doesn't use them.
       if (ts.isImportDeclaration(node) && !node.importClause?.isTypeOnly && ts.isStringLiteral(node.moduleSpecifier)) {
         const clause = node.importClause;
         const bindings = clause?.namedBindings;
-        const names = !clause || (bindings && ts.isNamespaceImport(bindings))
+        const names = rendered
+          ? [
+              ...(clause?.name && rendered.has(clause.name.text) ? ["default"] : []),
+              ...(bindings && ts.isNamedImports(bindings) ? bindings.elements.filter((e) => !e.isTypeOnly && rendered.has(e.name.text)).map((e) => (e.propertyName ?? e.name).text) : []),
+            ]
+          : !clause || (bindings && ts.isNamespaceImport(bindings))
           ? "all"
           : [...(clause.name ? ["default"] : []), ...(bindings && ts.isNamedImports(bindings) ? bindings.elements.filter((e) => !e.isTypeOnly).map((e) => (e.propertyName ?? e.name).text) : [])];
-        if (names === "all" || names.length) imports.push({ specifier: node.moduleSpecifier.text, names });
+        const namespace = rendered && bindings && ts.isNamespaceImport(bindings) && rendered.has(bindings.name.text);
+        if (namespace) imports.push({ specifier: node.moduleSpecifier.text, names: "all" });
+        else if (names === "all" || names.length) imports.push({ specifier: node.moduleSpecifier.text, names });
+      } else if (rendered) {
+        // Through a module outside the scanned folder, only components it renders, imported by name.
       } else if (ts.isImportEqualsDeclaration(node) && !node.isTypeOnly && ts.isExternalModuleReference(node.moduleReference)) {
         const value = node.moduleReference.expression;
         if (value && ts.isStringLiteral(value)) imports.push({ specifier: value.text, names: "all" });
@@ -1270,7 +1312,8 @@ async function importedInputs(inputs: Input[]): Promise<Map<string, string>> {
     const seen = new Set<string>();
     // Follow an import to the modules that define the names it takes, through re-export files, and on
     // through the project's own modules that aren't templates (a component file outside the scanned
-    // folder that renders a layout inside it): what they use, the template uses.
+    // folder that renders a layout inside it): the components they render, the template uses. What
+    // they import otherwise (a list of templates, a helper that sends one) isn't used by the template.
     const follow = async (from: string, specifier: string, names: string[] | "all", depth = 0): Promise<void> => {
       const loaded = load(specifier, from);
       if (!loaded || depth > 8) return;
@@ -1291,7 +1334,7 @@ async function importedInputs(inputs: Input[]): Promise<Map<string, string>> {
       if (!dependency && own && !seen.has(canonical) && !/[\\/]node_modules[\\/]/.test(canonical)) {
         seen.add(canonical);
         const file = await parse(loaded.fileName).catch(() => undefined);
-        if (file) for (const next of importsIn(file)) await follow(loaded.fileName, next.specifier, next.names, depth + 1);
+        if (file) for (const next of importsIn(file, renderedNames(file))) await follow(loaded.fileName, next.specifier, next.names, depth + 1);
       }
     };
     // Only a template or a component keeps what it imports: an index that lists the templates, or a route or helper that sends them, doesn't.
@@ -1458,7 +1501,15 @@ async function notATemplate(path: string, source: string): Promise<{ reason: str
     // A React type the check can't render (`lazy(…)`) is loaded, to fail as unsupported.
     else if ((ts.isCallExpression(node) && reactFunction(node.expression) === "lazy") || (ts.isObjectLiteralExpression(node) && node.properties.some((p) => p.name?.getText(file) === "$$typeof"))) return undefined;
     else {
-      if (ts.isCallExpression(node)) wrapper = node.expression.getText(file);
+      if (ts.isCallExpression(node)) {
+        wrapper = node.expression.getText(file);
+        // What it wraps: an async function sends or loads an email (a helper), it isn't one.
+        let wrapped: Node | undefined = node.arguments[0];
+        if (wrapped && ts.isIdentifier(wrapped)) wrapped = declared.get(wrapped.text);
+        if (wrapped && ts.isFunctionLike(wrapped) && (ts.getModifiers(wrapped as import("typescript").FunctionLikeDeclaration) ?? []).some((m) => m.kind === ts.SyntaxKind.AsyncKeyword)) {
+          return skip(`not loaded: its default export wraps an async function in ${wrapper}(…) (a helper that sends or loads an email)`);
+        }
+      }
       node = undefined;
     }
   }

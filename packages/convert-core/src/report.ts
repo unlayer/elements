@@ -3,7 +3,8 @@
  * components (editable in the visual editor) and what fell back, and why.
  */
 
-import type { StyleDifference } from "./cascade";
+import type { StyleDifference, Unverified } from "./cascade";
+import type { LayoutDifference } from "./geometry";
 import { contentNodes, type ElementNode } from "./tree";
 
 export interface ReportEntry {
@@ -41,6 +42,12 @@ export interface ConversionReport {
   addedAttributes?: string[];
   /** Words the conversion shows in another style (size, weight, color, the background behind them, …). */
   styleDifferences?: StyleDifference[];
+  /** What the check couldn't verify (a style, or whether words show, one side sets in a way it can't read): the check fails on it. */
+  unverified?: Unverified[];
+  /** At a phone's width: words the original shows there that the conversion doesn't, and the other way round. */
+  phoneDifferences?: { missing: string[]; added: string[] };
+  /** Text that sits elsewhere across the page at a desktop width (a column stacked, a block on the other side). */
+  layoutDifferences?: LayoutDifference[];
   /**
    * Style values computed from props or state that the conversion can't keep,
    * with where they were. They change how the email looks: the check fails on them.

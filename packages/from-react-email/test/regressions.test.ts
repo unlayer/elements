@@ -234,7 +234,8 @@ describe("verifyConversion", () => {
     const Broken = ({trial}: {trial:boolean}) => h(Email, null, h(Row, null, h(Column, null, h(Paragraph, null, `Welcome${trial ? " Unexpected" : ""}`))));
     const check = await verifyConversion(Original, Broken);
     expect(check.added).toEqual([]);
-    expect(check.variants).toEqual([{change:"trial: true",missing:[],added:["Unexpected"],missingAttributes:[]}]);
+    // On phones too: the variant lists every part of the check that fails.
+    expect(check.variants).toEqual([{change:"trial: true",missing:[],added:["Unexpected"],missingAttributes:[],phone:{missing:[],added:["Unexpected"]}}]);
   });
 
   it("flips boolean props to reach branches the preview props don't take", async () => {
@@ -250,7 +251,7 @@ describe("verifyConversion", () => {
     const Broken = () => h(Email, null, h(Row, null, h(Column, null, h(Paragraph, null, "Welcome"))));
     const check = await verifyConversion(Original, Broken);
     expect(check.missing).toEqual([]);
-    expect(check.variants).toEqual([{ change: "trial: true", missing: ["Your", "trial", "ends", "soon"], added: [], missingAttributes: [] }]);
+    expect(check.variants).toEqual([{ change: "trial: true", missing: ["Your", "trial", "ends", "soon"], added: [], missingAttributes: [], phone: { missing: ["Your", "trial", "ends", "soon"], added: [] } }]);
   });
 });
 

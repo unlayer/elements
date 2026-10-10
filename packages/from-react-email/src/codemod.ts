@@ -1186,7 +1186,8 @@ class Converter {
     const align = this.attr(col, "align");
     // From props (`align={side}`): the codemod can't keep it, so the check fails, naming it.
     if (isExpr(align)) this.computed(col, "align");
-    return { ...(typeof align === "string" ? { textAlign: align, _alignAttribute: align } : {}), ...col.style };
+    // A CSS text-align of its own overrides the attribute's (`-webkit-center`): blocks then stay where the CSS puts them.
+    return { ...(typeof align === "string" ? { textAlign: align, ...(col.style.textAlign === undefined ? { _alignAttribute: align } : {}) } : {}), ...col.style };
   }
 
   private columnWidth(col: Jsx): number | string | undefined {

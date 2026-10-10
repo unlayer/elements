@@ -6,6 +6,7 @@ import React from "react";
 import { render } from "@react-email/components";
 import { renderToHtml, renderToJson } from "@unlayer/react-elements";
 import {
+  checkFails,
   compareText,
   editorFonts,
   pinImageWidths,
@@ -73,8 +74,10 @@ export interface Conversion {
  *
  * The result is checked against the original: `report.missingText` lists
  * any words the original shows that the conversion doesn't (empty when
- * nothing was lost), and `report.styleDifferences` the words it shows in
- * another style.
+ * nothing was lost), `report.styleDifferences` the words it shows in
+ * another style, `report.unverified` what the check couldn't read, and
+ * `report.phoneDifferences` and `report.layoutDifferences` what shows or
+ * sits elsewhere on phones and across the page.
  */
 export async function convertReactEmail(Template: Template, options: RuntimeOptions = {}): Promise<Conversion> {
   const props = options.props ?? Template.PreviewProps ?? {};
@@ -88,6 +91,9 @@ export async function convertReactEmail(Template: Template, options: RuntimeOpti
   report.missingAttributes = check.missingAttributes;
   report.addedAttributes = check.addedAttributes;
   report.styleDifferences = check.styles;
+  report.unverified = check.unverified;
+  report.phoneDifferences = check.phone;
+  report.layoutDifferences = check.layout;
   let tree = converted.tree;
   if (options.mergeTags !== false) {
     const tagged = await mergeTagged(props, converted.tree, async (p) => (await convertElement(React.createElement(Template, p))).tree);
@@ -121,10 +127,35 @@ export interface Verification extends TextCheck {
   editorFonts: EditorFont[];
   /**
    * The same check with each boolean prop flipped, to reach branches the
-   * preview props don't take. Only variants with missing or extra content, or where
-   * the migrated template fails and the original doesn't, are listed.
+   * preview props don't take. Only variants the check fails (a difference,
+   * or something it couldn't verify), or where the migrated template fails
+   * and the original doesn't, are listed.
    */
-  variants: Array<{ change: string; missing: string[]; added: string[]; missingAttributes: string[]; styles?: StyleDifference[]; error?: string }>;
+  variants: Array<{
+    change: string;
+    missing: string[];
+    added: string[];
+    missingAttributes: string[];
+    styles?: StyleDifference[];
+    unverified?: TextCheck["unverified"];
+    phone?: TextCheck["phone"];
+    layout?: TextCheck["layout"];
+    error?: string;
+  }>;
+}
+
+/** A flipped prop's check, as listed in `variants`: every part that failed. */
+function variant(change: string, check: TextCheck): Verification["variants"][number] {
+  return {
+    change,
+    missing: check.missing,
+    added: [...check.added, ...check.addedAttributes],
+    missingAttributes: check.missingAttributes,
+    ...(check.styles.length ? { styles: check.styles } : {}),
+    ...(check.unverified.length ? { unverified: check.unverified } : {}),
+    ...(check.phone.missing.length || check.phone.added.length ? { phone: check.phone } : {}),
+    ...(check.layout.length ? { layout: check.layout } : {}),
+  };
 }
 
 /**
@@ -202,7 +233,7 @@ export async function verifyConversion(
         });
         continue;
       }
-      if (check.missing.length || check.added.length || check.missingAttributes.length || check.addedAttributes.length || check.styles.length) variants.push({ change, missing: check.missing, added: [...check.added, ...check.addedAttributes], missingAttributes: check.missingAttributes, ...(check.styles.length ? { styles: check.styles } : {}) });
+      if (checkFails(check)) variants.push(variant(change, check));
     } catch (error) {
       variants.push({ change, missing: [], added: [], missingAttributes: [], error: (error as Error).message.split("\n")[0] });
     }
@@ -289,7 +320,7 @@ export async function templateTailwind(Original: Template, props?: Record<string
 
 export { rebaseImports } from "./imports";
 export { mergeTagged, textProps, type TextProp } from "./merge-tags";
-export { compareText, htmlWords, shareEditorFonts, type EditorFont, type TextCheck } from "@unlayer/convert-core";
+export { checkFails, compareText, htmlWords, shareEditorFonts, type EditorFont, type TextCheck } from "@unlayer/convert-core";
 export { convertElement } from "./runtime";
 export { expand, findTailwind, findTailwindConfig, REACT_EMAIL_COMPONENTS } from "./expand";
 export { convertSource, type CodemodOptions, type CodemodResult } from "./codemod";

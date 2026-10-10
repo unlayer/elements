@@ -416,8 +416,12 @@ function mediaApplies(query: string, width: number): "yes" | "no" | "unknown" {
       const range = raw === undefined ? widthRange(feature, width) : undefined;
       if (name === "prefers-color-scheme") {
         if (raw === "dark") result = "no";
-      } else if ((name === "min-width" || name === "max-width") && px !== undefined) {
-        if (name === "min-width" ? width < px : width > px) result = "no";
+      } else if (/^(min|max)-(device-)?width$/.test(name) && px !== undefined) {
+        // The device's width is read as the window's: a phone's screen, or a desktop at least this wide.
+        if (name.startsWith("min") ? width < px : width > px) result = "no";
+      } else if (name === "orientation" && (raw === "portrait" || raw === "landscape") && width <= 480) {
+        // A phone held upright.
+        if (raw === "landscape") result = "no";
       } else if (range !== undefined) {
         if (!range) result = "no";
       } else if (result === "yes") {
@@ -440,7 +444,10 @@ const NOT_STYLING = /^(font-face|keyframes|-webkit-keyframes|-moz-keyframes|page
  */
 function parseStylesheet(css: string, rules: Rule[], width: number, media: "yes" | "unknown" = "yes", context = ""): void {
   const text = css.replace(/\/\*[\s\S]*?\*\//g, "");
-  for (const { prelude, body } of blocks(text)) {
+  for (const block of blocks(text)) {
+    // `<!--` and `-->` between a stylesheet's rules are ignored (old pages hid CSS from browsers that showed it).
+    const prelude = context ? block.prelude : block.prelude.replace(/^(?:\s*(?:<!--|-->))+\s*/, "");
+    const { body } = block;
     if (prelude.startsWith("@")) {
       const at = /^@([\w-]+)\s*(.*)$/s.exec(prelude);
       const name = at?.[1].toLowerCase() ?? "";
@@ -679,6 +686,13 @@ const UA: Record<string, Record<string, string>> = {
 const INHERITED_CSS = new Set(["font-size", "font-weight", "font-style", "text-transform", "color", "visibility"]);
 /** Initial values of the properties read here that don't inherit. */
 const INITIAL: Record<string, string> = {
+  // Inherited ones, for `initial`.
+  "font-size": "16px",
+  "font-weight": "normal",
+  "font-style": "normal",
+  "text-transform": "none",
+  color: "#000000",
+  visibility: "visible",
   "background-color": "transparent",
   "background-image": "none",
   display: "inline",
@@ -719,6 +733,8 @@ function substitute(text: string, vars: Map<string, { value?: string; cause?: st
     });
     if (cause) return { cause };
     if (missing) return {};
+    // Variables that hold each other grow without end: the browser drops such a value.
+    if (out.length > 10_000) return { cause: `a value with variables that refer to each other: ${text.slice(0, 120)}` };
   }
   return /var\(/i.test(out) ? { cause: `a value with variables this can't follow: ${text}` } : { value: out.trim() };
 }
@@ -737,6 +753,8 @@ interface Computed {
   visible?: boolean;
   /** The element itself hides what's in it (display:none, a zero box, opacity 0). */
   hidden?: boolean;
+  /** Its own opacity, below 1: what's in it shows that faint. */
+  fade?: number;
   /** Its own underline (not inherited: decorations draw across what's inside). */
   underline?: boolean;
   /**
@@ -845,18 +863,28 @@ export class StyledDocument {
     if (bgcolor && /^(body|table|tr|td|th)$/.test(element.tagName)) add("background-color", { value: bgcolor, important: false, level: 1, specificity: [0, 0, 0], order: 0, unknown: false });
     if (element.tagName === "font" && attr(element, "color")) add("color", { value: attr(element, "color")!, important: false, level: 1, specificity: [0, 0, 0], order: 0, unknown: false });
     for (const rule of this.rules) {
-      let match: Match = rule.unknownSelector ? "maybe" : "no";
+      // The selectors that match, and those that may: one this can't read may be as specific as any.
+      let applies = false;
       let specificity: [number, number, number] = [0, 0, 0];
+      let mayApply = rule.unknownSelector;
+      let maySpecificity: [number, number, number] = rule.unknownSelector ? [Number.MAX_SAFE_INTEGER, 0, 0] : [0, 0, 0];
       for (const selector of rule.selectors) {
         const m = matches(element, selector);
-        if (m === "no") continue;
-        if (m === "yes" && compare(selector.specificity, specificity) >= 0) specificity = selector.specificity;
-        match = either(match, m);
+        if (m === "yes") {
+          applies = true;
+          if (compare(selector.specificity, specificity) >= 0) specificity = selector.specificity;
+        } else if (m === "maybe") {
+          mayApply = true;
+          if (compare(selector.specificity, maySpecificity) >= 0) maySpecificity = selector.specificity;
+        }
       }
-      if (match === "no") continue;
-      const unknown = match === "maybe" || rule.media === "unknown";
-      const cause = unknown ? `the rule \`${rule.source.trim()}\` (${rule.media === "unknown" ? "a condition" : "a selector"} the check can't evaluate)` : undefined;
-      rule.declarations.forEach((d, i) => add(d.property, { value: d.value, important: d.important, level: 2, specificity, order: rule.order * 10_000 + i, unknown, cause }));
+      const declare = (rank: [number, number, number], unknown: boolean, condition: string) => {
+        const cause = unknown ? `the rule \`${rule.source.trim()}\` (${condition} the check can't evaluate)` : undefined;
+        rule.declarations.forEach((d, i) => add(d.property, { value: d.value, important: d.important, level: 2, specificity: rank, order: rule.order * 10_000 + i, unknown, cause }));
+      };
+      if (applies) declare(specificity, rule.media === "unknown", "a condition");
+      // It may also apply with more weight (a selector it can't read): what it sets is then in doubt.
+      if (mayApply && (!applies || compare(maySpecificity, specificity) > 0)) declare(maySpecificity, true, rule.media === "unknown" ? "a condition" : "a selector");
     }
     const inline = attr(element, "style");
     if (inline) parseDeclarations(inline).forEach((d, i) => add(d.property, { value: d.value, important: d.important, level: 3, specificity: [0, 0, 0], order: i, unknown: false }));
@@ -916,7 +944,16 @@ export class StyledDocument {
         if (resolved.value === undefined) return INHERITED_CSS.has(property) ? undefined : INITIAL[property];
         v = resolved.value;
       }
-      if (/^(initial|unset|revert)$/i.test(v)) return INHERITED_CSS.has(property) && !/^initial$/i.test(v) ? undefined : INITIAL[property];
+      if (/^(initial|unset|revert|revert-layer)$/i.test(v)) {
+        const keyword = v.toLowerCase();
+        // `revert`: the browser's own style for the element, else as `unset`.
+        if (keyword.startsWith("revert") && UA[element.tagName]?.[property] !== undefined) return UA[element.tagName][property];
+        // `unset` (and `revert` with no browser style) inherits an inherited property; `initial` never does.
+        if (keyword !== "initial" && INHERITED_CSS.has(property)) return undefined;
+        if (INITIAL[property] !== undefined) return INITIAL[property];
+        doubt(property, `${property}: ${d.value}`);
+        return undefined;
+      }
       if (/^inherit$/i.test(v)) return undefined;
       if (/calc\(|env\(|attr\(/i.test(v)) {
         doubt(property, `${property}: ${d.value}`);
@@ -978,6 +1015,8 @@ export class StyledDocument {
         }));
     // (A font size of 0 hides only the box's own text: a child with a size of its own shows.)
     computed.hidden = (display !== undefined && /^none$/i.test(display)) || clipped || readerOnly || (opacity !== undefined && parseFloat(opacity) === 0);
+    const fade = opacity === undefined ? 1 : /%\s*$/.test(opacity) ? parseFloat(opacity) / 100 : parseFloat(opacity);
+    if (Number.isFinite(fade) && fade > 0 && fade < 1) computed.fade = fade;
     const hiding = ["display", "overflow", "max-height", "height", "opacity", "position"].find((p) => unknown.has(p)) ?? (placed ? ["clip", "clip-path", "left", "top", "width"].find((p) => unknown.has(p)) : undefined);
     if (hiding) doubt("hides", causes.get(hiding));
     // As the word check reads tags: these don't break words unless styled as boxes; every other tag does.
@@ -1167,8 +1206,11 @@ export class StyledDocument {
     let image = false;
     // Where images don't load: the color the box with the image sets under it (none set: unknown).
     let under: Rgba | undefined;
+    // Faint text: each box's opacity, multiplied.
+    let fade = 1;
     for (const e of chain) {
       const s = this.style(e);
+      fade *= s.fade ?? 1;
       if (s.image) {
         image = true;
         under = s.under && s.under[3] >= 1 ? s.under : undefined;
@@ -1219,7 +1261,7 @@ export class StyledDocument {
       italic: known("font-style", own.italic) as boolean | undefined,
       transform: known("text-transform", own.transform) as string | undefined,
       underline,
-      color: known("color", own.color) as Rgba | undefined,
+      color: own.color && fade < 1 && !own.unknown.has("color") ? [own.color[0], own.color[1], own.color[2], own.color[3] * fade] : (known("color", own.color) as Rgba | undefined),
       background,
       ...(image ? { image, ...(under ? { underImage: under } : {}) } : {}),
       ...(options ? { backgrounds: options } : {}),
@@ -1255,7 +1297,12 @@ function expand(property: string, value: string): Array<{ property: string; valu
       { property: "font-style", value: /\b(italic|oblique)\b/.test(before) ? "italic" : "normal", unknown: false },
     ];
   }
-  if (property === "text-decoration") return [{ property: "text-decoration", value, unknown: false }];
+  if (property === "text-decoration") {
+    // The shorthand sets the line too: whichever comes last wins, as in the browser.
+    const keyword = /^\s*(inherit|initial|unset|revert|revert-layer)\s*$/i.test(value) || /var\(/i.test(value);
+    const line = keyword ? value : value.match(/\b(underline|overline|line-through|blink)\b/gi)?.join(" ") ?? "none";
+    return [{ property: "text-decoration", value, unknown: false }, { property: "text-decoration-line", value: line, unknown: false }];
+  }
   return [{ property, value, unknown: false }];
 }
 
@@ -1307,7 +1354,8 @@ function compareArrays(a: number[], b: number[]): number {
 // ============================================
 
 export interface StyleDifference {
-  property: (typeof STYLE_PROPERTIES)[number];
+  /** A style, or "shown": text that is only the inbox preview on one side and in the email on the other. */
+  property: (typeof STYLE_PROPERTIES)[number] | "shown";
   original: string;
   converted: string;
   /** The words that changed this way, in order. */
@@ -1321,7 +1369,7 @@ export interface StyleDifference {
  */
 export interface Unverified {
   /** A style property, or whether the words are shown. */
-  what: (typeof STYLE_PROPERTIES)[number] | "shown";
+  what: (typeof STYLE_PROPERTIES)[number] | "shown" | "shown on phones" | "where it sits";
   /** The original template, or the migration (a value the migrated template writes that this can't read). */
   side: "original" | "migrated";
   /** The rule, condition or value it couldn't read. */
@@ -1404,6 +1452,15 @@ export function compareStyles(originalHtml: string | StyledDocument, convertedHt
     // Whether it's shown at all: on one side only, the check can't tell it shows the same.
     if (a[i].doubt && !b[i].doubt) doubt("shown", "original", a[i].doubt, a[i].word);
     else if (b[i].doubt && !a[i].doubt) doubt("shown", "migrated", b[i].doubt, b[i].word);
+    // The inbox preview on one side, in the email on the other: not the same text a reader sees.
+    if (a[i].shown !== b[i].shown) {
+      const where = (shown: boolean) => (shown ? "in the email" : "the inbox preview only");
+      const key = `shown\u0000${where(a[i].shown)}`;
+      const group = groups.get(key) ?? { property: "shown" as const, original: where(a[i].shown), converted: where(b[i].shown), words: [] };
+      group.words.push(a[i].word);
+      groups.set(key, group);
+      continue;
+    }
     if (!a[i].shown || !b[i].shown) continue;
     compared++;
     for (const property of STYLE_PROPERTIES) {

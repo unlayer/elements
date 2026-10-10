@@ -294,7 +294,9 @@ function rowFlow(node: Element, ctx: Ctx): Flow[] {
 
 /** A Column's style, with its `align` attribute as text-align. */
 function columnStyle(col: Element): Style {
-  return { ...(col.props.align ? { textAlign: col.props.align, _alignAttribute: col.props.align } : {}), ...(col.props.style ?? {}) };
+  // A CSS text-align of its own overrides the attribute's (`-webkit-center`): blocks then stay where the CSS puts them.
+  const style = (col.props.style ?? {}) as Style;
+  return { ...(col.props.align ? { textAlign: col.props.align, ...(style.textAlign === undefined ? { _alignAttribute: col.props.align } : {}) } : {}), ...style };
 }
 
 

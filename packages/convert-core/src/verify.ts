@@ -1,5 +1,5 @@
 import { compareStyles, normalizeWord, StyledDocument, styledWords, type StyleDifference, type Unverified } from "./cascade";
-import { compareLayout, type LayoutDifference } from "./geometry";
+import { compareLayout, unplaced, type LayoutDifference } from "./geometry";
 
 /**
  * Content check: does the converted HTML still say everything the original
@@ -42,6 +42,14 @@ export interface TextCheck {
 
 /** The width phones are read at. */
 export const PHONE_WIDTH = 375;
+
+/** Whether a check fails: a difference anywhere, or anything it couldn't verify. */
+export function checkFails(check: Omit<TextCheck, "styleCoverage">): boolean {
+  return Boolean(
+    check.missing.length || check.added.length || check.missingAttributes.length || check.addedAttributes.length ||
+    check.styles.length || check.unverified.length || check.phone.missing.length || check.phone.added.length || check.layout.length
+  );
+}
 
 /**
  * The words a reader sees in `html`, as written, with meaningful numeric punctuation
@@ -121,19 +129,57 @@ export function compareText(originalHtml: string, convertedHtml: string): TextCh
   // Styles are compared word for word, so only when the words are the same.
   const same = !missing.length && !added.length;
   const style = same ? compareStyles(originalDoc, convertedDoc) : { differences: [], unverified: [], compared: 0, unknown: 0 };
-  const layout = same ? compareLayout(originalDoc, convertedDoc, styledWords(originalDoc), styledWords(convertedDoc)) : [];
+  const originalStyled = same ? styledWords(originalDoc) : [];
+  const convertedStyled = same ? styledWords(convertedDoc) : [];
+  const layout = same ? compareLayout(originalDoc, convertedDoc, originalStyled, convertedStyled) : [];
+  // Where words sit that only one side can place: unverified, as a style one side sets unreadably.
+  const unread: Unverified[] = same
+    ? unplaced(originalDoc, convertedDoc, originalStyled, convertedStyled).map(({ side, words }) => ({ what: "where it sits", side, cause: "a width, margin, padding or display the check can't read", words }))
+    : [];
   // On phones: the same words shown (content a phone rule shows or hides), as a multiset.
-  const phoneWords = (html: string) => wordsOf(new StyledDocument(html, { width: PHONE_WIDTH }));
+  const originalPhone = new StyledDocument(originalHtml, { width: PHONE_WIDTH });
+  const convertedPhone = new StyledDocument(convertedHtml, { width: PHONE_WIDTH });
   const phone = { missing: [] as string[], added: [] as string[] };
   const phoneCounts = new Map<string, number>();
-  for (const word of phoneWords(convertedHtml)) phoneCounts.set(word, (phoneCounts.get(word) ?? 0) + 1);
-  for (const word of phoneWords(originalHtml)) {
+  for (const word of wordsOf(convertedPhone)) phoneCounts.set(word, (phoneCounts.get(word) ?? 0) + 1);
+  for (const word of wordsOf(originalPhone)) {
     const left = phoneCounts.get(word) ?? 0;
     if (left > 0) phoneCounts.set(word, left - 1);
     else phone.missing.push(word);
   }
   phone.added = [...phoneCounts].flatMap(([word, n]) => Array<string>(n).fill(word));
-  return { missing, added, missingAttributes, addedAttributes, styles: style.differences, unverified: style.unverified, phone, layout, styleCoverage: { words: style.compared, unknown: style.unknown } };
+  const unverified = [...style.unverified, ...unread, ...phoneDoubts(originalPhone, convertedPhone, style.unverified)];
+  return { missing, added, missingAttributes, addedAttributes, styles: style.differences, unverified, phone, layout, styleCoverage: { words: style.compared, unknown: style.unknown } };
+}
+
+/**
+ * Words whether a phone shows can't be told on one side only (a phone rule
+ * with a condition or selector the check can't read): read as shown, they
+ * would pass unseen. Those the desktop check already lists aren't repeated.
+ */
+function phoneDoubts(original: StyledDocument, converted: StyledDocument, desktop: Unverified[]): Unverified[] {
+  const listed = new Set(desktop.filter((u) => u.what === "shown").flatMap((u) => u.words));
+  const doubted = (doc: StyledDocument) => {
+    const out = new Map<string, Array<{ word: string; cause: string }>>();
+    for (const w of styledWords(doc)) if (w.doubt && !listed.has(w.word)) out.set(w.word, [...(out.get(w.word) ?? []), { word: w.word, cause: w.doubt }]);
+    return out;
+  };
+  const a = doubted(original);
+  const b = doubted(converted);
+  const groups = new Map<string, Unverified>();
+  const add = (side: Unverified["side"], from: Map<string, Array<{ word: string; cause: string }>>, other: Map<string, unknown[]>) => {
+    for (const [word, list] of from) {
+      for (const { cause } of list.slice(other.get(word)?.length ?? 0)) {
+        const key = `${side}\u0000${cause}`;
+        const entry = groups.get(key) ?? { what: "shown on phones", side, cause, words: [] };
+        entry.words.push(word);
+        groups.set(key, entry);
+      }
+    }
+  };
+  add("original", a, b);
+  add("migrated", b, a);
+  return [...groups.values()];
 }
 
 /**

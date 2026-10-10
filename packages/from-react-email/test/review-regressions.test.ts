@@ -940,3 +940,45 @@ T.PreviewProps = { url: "https://example.com", target: "_self" };`);
     }
   });
 });
+
+describe("a flipped prop and the whole check", () => {
+  it("fails a migration whose columns stack only when a boolean prop is flipped", async () => {
+    const dir = fs.mkdtempSync(path.join(import.meta.dirname, ".tmp-"));
+    dirs.push(dir);
+    fs.writeFileSync(path.join(dir, "original.tsx"), `import { Html, Body, Section, Row, Column, Text } from "@react-email/components";
+export default function T({ compact = false }: { compact?: boolean }) {
+  return <Html><Body><Section style={{ width: "600px" }}><Row>
+    <Column style={{ width: "300px" }}><Text>{compact ? "Short" : "Left"} column words</Text></Column>
+    <Column style={{ width: "300px" }}><Text>Right column words</Text></Column>
+  </Row></Section></Body></Html>;
+}
+T.PreviewProps = { compact: false };`);
+    fs.writeFileSync(path.join(dir, "migrated.tsx"), `import { Email, Row, Column, Paragraph } from "@unlayer/react-elements";
+export default function T({ compact = false }: { compact?: boolean }) {
+  if (compact) return <Email><Row><Column><Paragraph>Short column words</Paragraph></Column></Row><Row><Column><Paragraph>Right column words</Paragraph></Column></Row></Email>;
+  return <Email><Row cells={[1, 1]}><Column><Paragraph>Left column words</Paragraph></Column><Column><Paragraph>Right column words</Paragraph></Column></Row></Email>;
+}`);
+    const { default: Original } = await import(path.join(dir, "original.tsx"));
+    const { default: Migrated } = await import(path.join(dir, "migrated.tsx"));
+    const check = await verifyConversion(Original, Migrated);
+    expect(check.layout).toEqual([]);
+    expect(check.variants).toEqual([expect.objectContaining({ change: "compact: true", layout: [expect.objectContaining({ items: ["Right", "column", "words"] })] })]);
+  });
+});
+
+describe("an align attribute under a CSS text-align", () => {
+  it("leaves blocks where the CSS puts them, in both modes", async () => {
+    const { Original, Migrated, conversion } = await templates(`import { Html, Body, Section, Row, Column, Img, Button, Text } from "@react-email/components";
+export default function T() { return <Html><Body><Section style={{ width: "600px" }}><Row><Column align="center" style={{ textAlign: "left" }}>
+  <Text>Your order is on its way to you</Text>
+  <Img src="https://example.com/logo.png" width="100" height="40" alt="Logo" />
+  <Button href="https://example.com/track" style={{ display: "block", width: "200px", backgroundColor: "#111111", color: "#ffffff", padding: "12px 0" }}>Track package</Button>
+</Column></Row></Section></Body></Html>; }`);
+    expect(conversion.code).not.toMatch(/textAlign="center"/);
+    const check = await verifyConversion(Original, Migrated);
+    expect(check.layout).toEqual([]);
+    const design = (await convertReactEmail(Original)).design();
+    const contents = design.body.rows.flatMap((r: any) => r.columns.flatMap((c: any) => c.contents));
+    expect(contents.filter((c: any) => c.type === "image" || c.type === "button").map((c: any) => c.values.textAlign)).not.toContain("center");
+  });
+});

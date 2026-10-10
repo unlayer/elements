@@ -846,3 +846,47 @@ export default function Later() { return <Html><Body><Text>Later</Text></Body></
     expect(result.stderr).toContain("a template's code threw outside a render: thrown later");
   }, 90_000);
 });
+
+describe("compare and the whole check", () => {
+  it("fails a hand migration that moves text across the page, as a run would", async () => {
+    const original = `import { Html, Body, Section, Row, Column, Text } from "@react-email/components";
+export default function T() { return <Html><Body><Section style={{ width: "600px" }}><Row><Column><Text>Thanks for your order, here is the summary</Text><Text style={{ textAlign: "right" }}>Total due: 40 dollars</Text></Column></Row></Section></Body></Html>; }`;
+    const migrated = `import { Email, Row, Column, Paragraph } from "@unlayer/react-elements";
+export default function T() { return <Email backgroundColor="#ffffff" contentWidth="600px"><Row><Column><Paragraph>Thanks for your order, here is the summary</Paragraph><Paragraph textAlign="left">Total due: 40 dollars</Paragraph></Column></Row></Email>; }`;
+    const dir = project({ "emails/t.tsx": original, "hand.tsx": migrated });
+    const out = io(dir);
+    expect(await main(["compare", "emails/t.tsx", "hand.tsx"], out, lib), out.out + out.err).toBe(2);
+    expect(out.out).toMatch(/moved: "Total", "due", "40", "dollars" \d+px to the left/);
+  });
+});
+
+describe("templates reached through the project's own modules", () => {
+  const template = (text: string) => `import { Html, Body, Text } from "@react-email/components";
+import { BRAND } from "../lib/brand";
+export default function T() { return <Html><Body><Text>${text} from {BRAND}</Text></Body></Html>; }`;
+
+  it("migrates templates a registry or a mailer outside the folder imports without rendering them", async () => {
+    const dir = project({
+      "emails/welcome.tsx": template("Welcome"),
+      "emails/reset.tsx": template("Reset your password"),
+      "lib/brand.ts": `import Welcome from "../emails/welcome";\nimport Reset from "../emails/reset";\nimport { send } from "./mailer";\nexport const BRAND = "Acme";\nexport const templates = { welcome: Welcome, reset: Reset, send };`,
+      "lib/mailer.tsx": `import { render } from "@react-email/components";\nimport Reset from "../emails/reset";\nexport async function send() { return render(<Reset />); }`,
+    });
+    for (const flags of [[], ["--write"]]) {
+      const out = io(dir);
+      expect(await main(["emails", ...flags], out, lib), out.out + out.err).toBe(0);
+      expect(out.out).toContain("2 templates: 2 migrated and checked");
+    }
+  });
+
+  it("doesn't take a helper that wraps an async send function for a template", async () => {
+    const dir = project({
+      "emails/welcome.tsx": `import { Html, Body, Text } from "@react-email/components";\nexport default function Welcome() { return <Html><Body><Text>Welcome aboard</Text></Body></Html>; }`,
+      "emails/send.tsx": `import { render } from "@react-email/components";\nimport Welcome from "./welcome";\nconst withLogging = <T,>(f: T) => f;\nexport default withLogging(async function sendWelcome() { return render(<Welcome />); });`,
+    });
+    const out = io(dir);
+    expect(await main(["emails"], out, lib), out.out + out.err).toBe(0);
+    expect(out.out).toMatch(/✓ emails\/welcome\.tsx/);
+    expect(out.out).toMatch(/- emails\/send\.tsx: skipped \(not loaded: its default export wraps an async function in withLogging/);
+  });
+});
