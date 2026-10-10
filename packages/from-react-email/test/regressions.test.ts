@@ -651,6 +651,19 @@ describe("evaluation order and conditional roots", () => {
     expect(html).toMatch(/Hi Alex!/);
   });
 
+  it("writes the cells of an optional list of columns so the template renders without it", async () => {
+    const source = `${IMPORTS}
+      export default function T({ logos }: { logos?: string[] }) {
+        return <Html><Body><Section><Row>{logos?.map((logo) => <Column key={logo} style={{ width: "120px" }}><Text>{logo}</Text></Column>)}</Row></Section><Text>Thanks for reading</Text></Body></Html>;
+      }
+      T.PreviewProps = { logos: ["Acme", "Globex"] };`;
+    const { codemod, check, Migrated } = await convertBoth(source, "optional-columns");
+    expect(codemod.code).toContain("(logos ?? [])");
+    expect(check.missing).toEqual([]);
+    const { renderToHtml } = await import("@unlayer/react-elements");
+    expect(renderToHtml(Migrated({}))).toContain("Thanks for reading");
+  });
+
   it("converts a template exported as `export { Welcome as default }`", async () => {
     const source = `${IMPORTS}
       function Welcome({ name = "Ada" }: { name?: string }) { return <Html><Body><Text>Hi {name}, welcome aboard</Text></Body></Html>; }

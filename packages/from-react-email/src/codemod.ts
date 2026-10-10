@@ -1274,7 +1274,9 @@ class Converter {
       body = last && ts.isReturnStatement(last) && last.expression ? last.expression : undefined;
     }
     if (!body || this.cellWidth(body as ts.Expression) === false) return undefined;
-    return call.expression.expression.getText();
+    // `logos?.map(…)`: no list is no cells.
+    const optional = call.questionDotToken || call.expression.questionDotToken;
+    return optional ? `(${call.expression.expression.getText()} ?? [])` : call.expression.expression.getText();
   }
 
   /** `cond ? <>…</> : <>…</>` where both branches are static cell lists: their widths. */
