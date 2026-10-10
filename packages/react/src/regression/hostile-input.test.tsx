@@ -3,7 +3,9 @@
  * markup: each is given markup that would add an element or an attribute, in
  * every mode, and the parsed output must have neither. Raw HTML is what the
  * Html block and the `text` prop of Heading and Button are for, so they aren't
- * tested; design props (colors, sizes) come from the template's author.
+ * tested; design props (colors, sizes) come from the template's author. Phone
+ * settings are written into the head's CSS, where a value could end the
+ * `<style>` element or add rules, so they're tested too.
  */
 import { describe, expect, it, vi } from "vitest";
 import React from "react";
@@ -66,5 +68,25 @@ describe.each(Object.entries(ROOTS))("%s", (_, Root) => {
 
   it("the title option can't add markup", () => {
     for (const payload of PAYLOADS) expect(injected(renderToHtml(<Root>{content(payload)}</Root>, { title: payload, lang: payload })), payload).toEqual([]);
+  });
+});
+
+describe("phone settings, written into the head's CSS", () => {
+  const CSS_PAYLOADS = ["16px</style><x-pwn></x-pwn><style>", "16px;</style><x-pwn></x-pwn>", "16px} x-pwn { color: red", "16px !important; x-pwn: 1"];
+  const PHONE: Record<string, (v: string) => React.ReactElement> = {
+    "Paragraph font size": (v) => <Row><Column><Paragraph mobile={{ fontSize: v } as any}>Hi</Paragraph></Column></Row>,
+    "Paragraph line height": (v) => <Row><Column><Paragraph mobile={{ lineHeight: v } as any}>Hi</Paragraph></Column></Row>,
+    "Heading alignment": (v) => <Row><Column><Heading mobile={{ textAlign: v } as any}>Hi</Heading></Column></Row>,
+    "Button padding": (v) => <Row><Column><Button href="https://example.com" mobile={{ padding: v } as any}>Go</Button></Column></Row>,
+    "Row padding": (v) => <Row mobile={{ padding: v } as any}><Column><Paragraph>Hi</Paragraph></Column></Row>,
+    "Column padding": (v) => <Row><Column mobile={{ padding: v } as any}><Paragraph>Hi</Paragraph></Column></Row>,
+    "Column border": (v) => <Row><Column mobile={{ border: { borderTopWidth: "2px", borderTopStyle: "solid", borderTopColor: v } } as any}><Paragraph>Hi</Paragraph></Column></Row>,
+  };
+  it.each(Object.entries(ROOTS).flatMap(([mode, Root]) => Object.keys(PHONE).map((name) => [mode, name, Root] as const)))("%s: the %s can't end the style element or add rules", (_, name, Root) => {
+    for (const payload of CSS_PAYLOADS) {
+      const html = renderToHtml(<Root>{PHONE[name](payload)}</Root>);
+      expect(injected(html), payload).toEqual([]);
+      expect(html, payload).not.toMatch(/x-pwn\s*[{:]/);
+    }
   });
 });

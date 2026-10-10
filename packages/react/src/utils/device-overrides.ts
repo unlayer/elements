@@ -13,6 +13,16 @@ const contentOptions: Record<string, string[]> = {
   Divider: ["width", "textAlign"],
 };
 
+/**
+ * A value as CSS writes it in a declaration, or undefined when it could end the
+ * declaration, the rule or the `<style>` element (`16px</style><script>`): a
+ * phone setting may come from data, and it's written into the head as is.
+ */
+function css(value: unknown): string | undefined {
+  const text = String(value).trim();
+  return text && !/[<>{};!\\"'\n\r]/.test(text) ? text : undefined;
+}
+
 function size(value: unknown): string | undefined {
   const number = parseFloat(String(value));
   if (!Number.isFinite(number)) return;
@@ -36,17 +46,17 @@ export function collectDeviceStyles(values: Record<string, any>, collection: Col
       const selector = (attribute: string) => `#${id} .v-${prefix}${property === attribute ? property : `${property}-${attribute}`}`;
       const push = (rule: string) => (styles[device] ||= []).push(rule);
       if (option === "padding" || option === "containerPadding") {
-        if (!(value || value === 0)) continue;
+        if (!(value || value === 0) || css(value) === undefined) continue;
         const direct = collection === "rows" || (mode === "web" && collection === "contents" && option === "containerPadding");
         const target = direct ? selector("padding").replace(`#${id} `, `#${id}`) : selector("padding");
-        push(`${target} { padding: ${value} !important; }`);
+        push(`${target} { padding: ${css(value)} !important; }`);
         if (mode === "email" && collection === "rows") {
           const parts = String(value).trim().split(/\s+/);
           push(`${target}--vertical { padding-top: ${size(parts[0])} !important; padding-bottom: ${size(parts[2] || parts[0])} !important; }`);
         }
       } else if (option === "border") {
         // As the editor's borderToStyle: transparent unless a side has a width.
-        if (value) push(`${selector("border")} { ${["Top", "Left", "Right", "Bottom"].map((d) => { const w = value[`border${d}Width`] || "0px"; return `border-${d.toLowerCase()}: ${w} ${value[`border${d}Style`] || "solid"} ${(parseInt(w) > 0 && value[`border${d}Color`]) || "transparent"} !important;`; }).join("")} }`);
+        if (value) push(`${selector("border")} { ${["Top", "Left", "Right", "Bottom"].map((d) => { const w = css(value[`border${d}Width`] || "0px") ?? "0px"; return `border-${d.toLowerCase()}: ${w} ${css(value[`border${d}Style`] || "solid") ?? "solid"} ${(parseInt(w) > 0 && css(value[`border${d}Color`])) || "transparent"} !important;`; }).join("")} }`);
       } else if (option === "src") {
         if (!value) continue;
         const merged = { ...values.src, ...value };
@@ -59,7 +69,8 @@ export function collectDeviceStyles(values: Record<string, any>, collection: Col
         push(`${selector("max-width")} { max-width: 100% !important; }`);
       } else {
         if (!(value || (option === "lineHeight" && `${value}` === "0"))) continue;
-        const rendered = option === "fontSize" && typeof value === "number" ? `${value}px` : value;
+        const rendered = css(option === "fontSize" && typeof value === "number" ? `${value}px` : value);
+        if (rendered === undefined) continue;
         push(`${selector(property)} { ${property}: ${rendered} !important; }`);
       }
     }

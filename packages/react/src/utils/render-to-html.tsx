@@ -152,6 +152,11 @@ export function renderToHtml(
   return withRenderScope(() => htmlDocument(element, options));
 }
 
+/** CSS for a `<style>` element: a `</style` in it would end the element (CSS escapes the slash). */
+function styleText(css: string): string {
+  return css.replace(/<\/(style)/gi, "<\\/$1");
+}
+
 function htmlDocument(element: React.ReactElement, options?: RenderToHtmlOptions): string {
   const { title, lang: optionLang, fonts: optionFonts = [], ...config } = options ?? {};
   // A template component (<Welcome/>) renders as its root, whose settings follow.
@@ -183,7 +188,7 @@ function htmlDocument(element: React.ReactElement, options?: RenderToHtmlOptions
       ? ` dir="${escapeForHtml(String(mergedConfig.textDirection))}"`
       : "",
     titleTag: title ? `<title>${escapeForHtml(title.trim())}</title>` : "",
-    styleTag: css ? `<style type="text/css">\n${css}\n</style>` : "",
+    styleTag: css ? `<style type="text/css">\n${styleText(css)}\n</style>` : "",
     scriptTag: js
       ? `<script type="application/javascript">\n${js}\n</script>`
       : "",
@@ -323,7 +328,7 @@ function htmlParts(element: React.ReactElement, config?: Partial<UnlayerConfig>)
   const headParts: string[] = [];
 
   if (css) {
-    headParts.push(`<style>${css}</style>`);
+    headParts.push(`<style>${styleText(css)}</style>`);
   }
 
   if (js) {

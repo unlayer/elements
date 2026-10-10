@@ -56,7 +56,7 @@ jobs:
 
       # ── Bundle size budget ──────────────────────────────────────
       # Fail if the react-elements ESM bundle exceeds 93KB.
-      # Current size: 92,602 bytes, including phone device-override CSS,
+      # Current size: 92,970 bytes, including phone device-override CSS,
       # visibility settings, template-component unwrapping, escaping of
       # Heading/Button text (line breaks kept), link URLs, menu text, social
       # links and text placed straight in a Row or Column, and expanding Fragments and user components among blocks
