@@ -1011,27 +1011,25 @@ async function importedInputs(inputs: Input[]): Promise<Map<string, string>> {
 }
 
 /**
- * Migrations render with the project's Elements, else this package's. An older
- * one ignores settings the converter writes (phone layout, root props), and the
- * check, which compares words, can't tell: stop before converting. Checked where
- * the templates are, as they load it from there (an app in a monorepo has its own).
+ * Migrations render with the project's Elements, else this package's. One
+ * outside the supported range writes other settings than the converter expects
+ * (an older one ignores the phone layout and root props), and the check, which
+ * compares words, can't tell: stop before converting. Checked where the
+ * templates are, as they load it from there (an app in a monorepo has its own).
  */
 export function supportedElements(io: Pick<Io, "cwd" | "stderr">, files: string[], range?: string): boolean {
   const folders = [...new Set(files.map((file) => dirname(file)))];
   const messages = new Set<string>();
-  let ok = true;
   for (const folder of folders.length ? folders : [io.cwd]) {
-    const { error, warning } = elementsMismatch(folder, range);
-    if (warning) messages.add(warning);
+    const { error } = elementsMismatch(folder, range);
     if (error) messages.add(error);
-    ok &&= !error;
   }
   for (const text of messages) io.stderr(`${text}\n`);
-  return ok;
+  return !messages.size;
 }
 
-export function elementsMismatch(cwd: string, range = ownPackage().peerDependencies?.["@unlayer/react-elements"]): { error?: string; warning?: string } {
-  const minimum = /^\^(\d+)\.(\d+)\.(\d+)$/.exec(range ?? ""); // a workspace link in development: nothing to check
+export function elementsMismatch(cwd: string, range = ownPackage().peerDependencies?.["@unlayer/react-elements"]): { error?: string } {
+  const minimum = parseVersion(/^\^(.+)$/.exec(range ?? "")?.[1]); // a workspace link in development: nothing to check
   if (!minimum) return {};
   for (const [from, where] of [[join(cwd, "noop.js"), "this project has"], [import.meta.url, "@unlayer/migrate came with"]] as const) {
     let version: string;
@@ -1040,16 +1038,51 @@ export function elementsMismatch(cwd: string, range = ownPackage().peerDependenc
     } catch {
       continue; // not installed there
     }
-    const found = /^(\d+)\.(\d+)\.(\d+)/.exec(version);
+    const found = parseVersion(version);
     if (!found) return {};
-    const [want, have] = [minimum.slice(1).map(Number), found.slice(1).map(Number)];
-    const older = (have[0] - want[0] || have[1] - want[1] || have[2] - want[2]) < 0;
-    const sameLine = have[0] === want[0] && (want[0] > 0 || have[1] === want[1]);
-    if (older) return { error: `@unlayer/migrate needs @unlayer/react-elements ${range}, but ${where} ${version}. Install a supported version: npm install @unlayer/react-elements@"${range}"` };
-    if (!sameLine) return { warning: `@unlayer/migrate supports @unlayer/react-elements ${range}; ${where} ${version}. Check the converted templates, or update @unlayer/migrate.` };
-    return {};
+    if (satisfiesCaret(found, minimum)) return {};
+    const newer = compareVersions(found, minimum) > 0 ? ", or update @unlayer/migrate" : "";
+    return { error: `@unlayer/migrate needs @unlayer/react-elements ${range}, but ${where} ${version}. Install a supported version: npm install @unlayer/react-elements@"${range}"${newer}` };
   }
   return {};
+}
+
+interface Version {
+  release: number[];
+  /** Prerelease identifiers (`beta.1` → ["beta", "1"]). */
+  pre: string[];
+}
+
+function parseVersion(text: string | undefined): Version | undefined {
+  const found = /^(\d+)\.(\d+)\.(\d+)(?:-([0-9A-Za-z.-]+))?(?:\+[0-9A-Za-z.-]+)?$/.exec(text ?? "");
+  return found ? { release: found.slice(1, 4).map(Number), pre: found[4]?.split(".") ?? [] } : undefined;
+}
+
+/** Semver order: the release numbers, then a prerelease before its release, identifier by identifier. */
+function compareVersions(a: Version, b: Version): number {
+  for (let i = 0; i < 3; i++) if (a.release[i] !== b.release[i]) return a.release[i] - b.release[i];
+  if (!a.pre.length || !b.pre.length) return b.pre.length - a.pre.length;
+  for (let i = 0; i < Math.max(a.pre.length, b.pre.length); i++) {
+    const [x, y] = [a.pre[i], b.pre[i]];
+    if (x === y) continue;
+    if (x === undefined || y === undefined) return x === undefined ? -1 : 1;
+    const [xNumber, yNumber] = [/^\d+$/.test(x), /^\d+$/.test(y)];
+    if (xNumber && yNumber) return Number(x) - Number(y);
+    return xNumber ? -1 : yNumber ? 1 : x < y ? -1 : 1;
+  }
+  return 0;
+}
+
+/**
+ * Whether `version` is in `^minimum`, as npm reads it: up to the next major
+ * (the next minor below 1.0.0), and a prerelease only when the range is one
+ * of the same version (`^0.2.0-beta.0` takes `0.2.0-beta.1`; `^0.2.0` doesn't).
+ */
+function satisfiesCaret(version: Version, minimum: Version): boolean {
+  const [major, minor, patch] = minimum.release;
+  const limit = major > 0 ? [major + 1, 0, 0] : minor > 0 ? [0, minor + 1, 0] : [0, 0, patch + 1];
+  if (compareVersions(version, minimum) < 0 || compareVersions(version, { release: limit, pre: [] }) >= 0) return false;
+  return !version.pre.length || (minimum.pre.length > 0 && version.release.every((n, i) => n === minimum.release[i]));
 }
 
 function ownPackage(): { peerDependencies?: Record<string, string> } {

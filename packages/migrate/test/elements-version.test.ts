@@ -32,9 +32,23 @@ describe("the Elements version migrations render with", () => {
     expect(elementsMismatch(project("1.4.0"), "^1.2.0")).toEqual({});
   });
 
-  it("warns, without stopping, on a newer line than it supports", () => {
-    expect(elementsMismatch(project("0.3.0"), "^0.2.0")).toEqual({ warning: expect.stringContaining("this project has 0.3.0") });
-    expect(elementsMismatch(project("2.0.0"), "^1.2.0").error).toBeUndefined();
+  it("stops on a newer line than it supports too, with the install command", () => {
+    for (const [version, range] of [["0.3.0", "^0.2.0"], ["1.0.0", "^0.2.0"], ["2.0.0", "^1.2.0"], ["0.0.4", "^0.0.3"]]) {
+      const { error } = elementsMismatch(project(version), range);
+      expect(error, version).toContain(`this project has ${version}`);
+      expect(error, version).toContain(`npm install @unlayer/react-elements@"${range}"`);
+    }
+  });
+
+  it("stops on a prerelease, unless the range is a prerelease of the same version", () => {
+    for (const version of ["0.2.0-beta.1", "0.2.5-beta.1"]) {
+      expect(elementsMismatch(project(version), "^0.2.0").error, version).toContain(`this project has ${version}`);
+    }
+    expect(elementsMismatch(project("0.2.0-beta.1"), "^0.2.0-beta.0")).toEqual({});
+    expect(elementsMismatch(project("0.2.0-beta.10"), "^0.2.0-beta.2")).toEqual({});
+    expect(elementsMismatch(project("0.2.4"), "^0.2.0-beta.0")).toEqual({});
+    expect(elementsMismatch(project("0.2.0-alpha.3"), "^0.2.0-beta.0").error).toContain("0.2.0-alpha.3");
+    expect(elementsMismatch(project("0.2.1-beta.1"), "^0.2.0-beta.0").error).toContain("0.2.1-beta.1");
   });
 
   it("skips the check for a workspace link (development)", () => {
