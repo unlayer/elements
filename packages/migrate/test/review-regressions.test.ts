@@ -742,6 +742,18 @@ export default withLocale("en")(Receipt);`,
     expect(out.out).toContain("0 migrated and checked, 2 failed, 1 skipped");
   });
 
+  it("never pass a run that checked nothing: a wrapped template whose <Html> is in a layout fails, one that returns a JSX value is loaded (and refused, saying why)", async () => {
+    const dir = project({
+      "emails/layout.tsx": `import { Html, Body } from "@react-email/components";\nexport function Layout({ children }: { children?: React.ReactNode }) { return <Html><Body>{children}</Body></Html>; }`,
+      "emails/tracked.tsx": `import { Text } from "@react-email/components";\nimport { Layout } from "./layout";\nconst withTracking = <T,>(c: T) => c;\nfunction Welcome() { return <Layout><Text>Welcome aboard</Text></Layout>; }\nexport default withTracking(Welcome);`,
+      "emails/variable.tsx": `import { Html, Body, Text } from "@react-email/components";\nexport default function Receipt() { const email = <Html><Body><Text>Thanks for your order</Text></Body></Html>; return email; }`,
+    });
+    const out = io(dir);
+    expect(await main(["emails"], out, lib), out.out + out.err).toBe(2);
+    expect(out.out).toMatch(/✗ emails\/tracked\.tsx: its default export is wrapped in withTracking/);
+    expect(out.out).toMatch(/✗ emails\/variable\.tsx: couldn't convert it: A template return must be JSX: return the JSX itself \(not a variable holding it\)/);
+  });
+
   it("still loads templates that return JSX through a condition, or that have PreviewProps", async () => {
     const dir = project({
       "emails/conditional.tsx": `import * as React from "react";

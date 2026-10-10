@@ -831,6 +831,20 @@ T.PreviewProps = { look: 'uppercase"><img src=x onerror=alert(1)>' };`);
   });
 });
 
+describe("props typed to hold JSX", () => {
+  it("keeps a link passed in a ReactNode prop whose preview is text: rendered as React renders it", async () => {
+    const { Migrated, conversion } = await templates(`import type { ReactNode } from "react";
+import { Html, Body, Text } from "@react-email/components";
+export default function T({ message }: { message: ReactNode }) { return <Html><Body><Text>{message}, soon.</Text></Body></Html>; }
+T.PreviewProps = { message: "Track it here" };`);
+    expect(conversion.code).toContain("htmlText(message)");
+    const { renderToHtml } = await import("@unlayer/react-elements");
+    const withLink = renderToHtml(React.createElement(Migrated, { message: React.createElement(React.Fragment, null, "Track it ", React.createElement("a", { href: "https://example.com/track" }, "here")) }));
+    expect(withLink).toContain('<a href="https://example.com/track">here</a>');
+    expect(renderToHtml(React.createElement(Migrated, { message: "Tom & <b>Jerry</b>" }))).toContain("Tom &amp; &lt;b&gt;Jerry&lt;/b&gt;");
+  });
+});
+
 describe("blocks an align attribute places", () => {
   it("centers a block link with a width of its own under <Column align=\"center\">, in both modes, and the check finds nothing moved", async () => {
     const { Original, Migrated, conversion } = await templates(`import { Html, Body, Section, Row, Column, Link, Text } from "@react-email/components";
@@ -845,6 +859,59 @@ export default function T() {
     expect(check.layout).toEqual([]);
     const runtime = (await convertReactEmail(Original)).html();
     expect(runtime).toMatch(/width:220px;[^"]*margin-left:auto;margin-right:auto/);
+  });
+});
+
+describe("raw HTML in runtime mode", () => {
+  it("keeps what dangerouslySetInnerHTML gives a Text or a Heading", async () => {
+    const { Original } = await templates(`import { Html, Body, Text, Heading } from "@react-email/components";
+export default function T() { return <Html><Body><Text dangerouslySetInnerHTML={{ __html: "Raw <b>bold</b> copy" }} /><Heading dangerouslySetInnerHTML={{ __html: "Raw heading" }} /><Text>Plain</Text></Body></Html>; }`);
+    const conversion = await convertReactEmail(Original);
+    expect(conversion.report.missingText).toEqual([]);
+    expect(conversion.html()).toContain("Raw <b>bold</b> copy");
+  });
+});
+
+describe("two Tailwind configs", () => {
+  it("refuse a template whose returns use different configs, and keep one used twice", async () => {
+    const two = `import { Html, Body, Text, Tailwind } from "@react-email/components";
+const brand = { theme: { extend: { colors: { brand: "#e11d48" } } } };
+const other = { theme: { extend: { colors: { brand: "#2563eb" } } } };
+export default function T({ alt }: { alt: boolean }) {
+  if (alt) return <Html><Tailwind config={other}><Body><Text className="text-brand">Hi</Text></Body></Tailwind></Html>;
+  return <Html><Tailwind config={brand}><Body><Text className="text-brand">Hi</Text></Body></Tailwind></Html>;
+}`;
+    await expect(convertSource(two)).rejects.toThrow(/different <Tailwind> configs/);
+    await expect(convertSource(two.replace("config={other}", "config={brand}"))).resolves.toBeTruthy();
+  });
+});
+
+describe("direction and alignment the migration can't keep", () => {
+  it("reports a block's own dir, and fails the check for a column's align from props", async () => {
+    const { Original, conversion } = await templates(`import { Html, Body, Section, Row, Column, Text } from "@react-email/components";
+export default function T({ side = "right" }: { side?: "left" | "right" }) { return <Html><Body>
+  <Text dir="rtl">שלום עולם</Text>
+  <Section><Row><Column align={side}><Text>Total</Text></Column></Row></Section>
+</Body></Html>; }`);
+    expect(conversion.report.notes).toContainEqual({ reason: "attribute not kept", detail: "dir (Text)" });
+    expect(conversion.report.lostStyles).toEqual([expect.stringContaining("align={side}")]);
+    expect((await convertReactEmail(Original)).report.notes).toContainEqual({ reason: "attribute not kept", detail: "dir (Text)" });
+  });
+});
+
+describe("images placed by auto margins", () => {
+  it("puts an image with only a left auto margin on the right, and one with only a right auto margin on the left, in both modes", async () => {
+    const { Original, conversion } = await templates(`import { Html, Body, Img } from "@react-email/components";
+export default function T() { return <Html><Body>
+  <Img src="https://example.com/right.png" width="100" height="40" alt="Right" style={{ marginLeft: "auto", marginRight: 0 }} />
+  <Img src="https://example.com/left.png" width="100" height="40" alt="Left" style={{ margin: "0 auto 0 0" }} />
+  <Img src="https://example.com/center.png" width="100" height="40" alt="Center" style={{ margin: "0 auto" }} />
+</Body></Html>; }`);
+    const aligns = (code: string) => [...code.matchAll(/example\.com\/(\w+)\.png[\s\S]*?textAlign="(\w+)"/g)].map((m) => `${m[1]}:${m[2]}`);
+    expect(aligns(conversion.code)).toEqual(["right:right", "left:left", "center:center"]);
+    const design = (await convertReactEmail(Original)).design();
+    const images = design.body.rows.flatMap((r: any) => r.columns.flatMap((c: any) => c.contents)).filter((c: any) => c.type === "image");
+    expect(images.map((i: any) => i.values.textAlign)).toEqual(["right", "left", "center"]);
   });
 });
 

@@ -1241,25 +1241,8 @@ async function importedInputs(inputs: Input[]): Promise<Map<string, string>> {
     }
     return names;
   };
-  for (const input of inputs) {
-    const load = await moduleLoader(input.path);
-    // Follow an import to the modules that define the names it takes, through re-export files.
-    const follow = async (from: string, specifier: string, names: string[] | "all", depth = 0): Promise<void> => {
-      const loaded = load(specifier, from);
-      if (!loaded || depth > 8) return;
-      const forwards = await reExports(loaded.fileName).catch(() => []);
-      const forwarded = names === "all" ? forwards : forwards.filter((r) => r.exported === "*" || names.includes(r.exported));
-      // A module is used when it defines one of the names, not when an `export *` merely passes them on.
-      // One with no ES exports at all (CommonJS) counts as used.
-      const own = await declared(loaded.fileName).then(
-        (defined) => names === "all" || names.some((name) => defined.has(name)) || (!defined.size && !forwards.length),
-        () => true,
-      );
-      const dependency = scanned.get(await canonicalPath(loaded.fileName));
-      if (dependency && dependency !== input.path && own) dependencies.set(dependency, input.path);
-      // `export *` passes the importer's names on; a namespace (`export * as Parts`) passes all of its own.
-      for (const r of forwarded) await follow(loaded.fileName, r.specifier, r.imported !== "*" ? [r.imported] : r.exported === "*" ? names : "all", depth + 1);
-    };
+  /** What a module imports: each specifier with the names it takes ("all" for a namespace or a bare import). */
+  const importsIn = (file: import("typescript").SourceFile) => {
     const imports: Array<{ specifier: string; names: string[] | "all" }> = [];
     const visit = (node: import("typescript").Node) => {
       // `export … from` only passes names on: it doesn't use them.
@@ -1279,12 +1262,43 @@ async function importedInputs(inputs: Input[]): Promise<Map<string, string>> {
       }
       ts.forEachChild(node, visit);
     };
+    visit(file);
+    return imports;
+  };
+  for (const input of inputs) {
+    const load = await moduleLoader(input.path);
+    const seen = new Set<string>();
+    // Follow an import to the modules that define the names it takes, through re-export files, and on
+    // through the project's own modules that aren't templates (a component file outside the scanned
+    // folder that renders a layout inside it): what they use, the template uses.
+    const follow = async (from: string, specifier: string, names: string[] | "all", depth = 0): Promise<void> => {
+      const loaded = load(specifier, from);
+      if (!loaded || depth > 8) return;
+      const forwards = await reExports(loaded.fileName).catch(() => []);
+      const forwarded = names === "all" ? forwards : forwards.filter((r) => r.exported === "*" || names.includes(r.exported));
+      // A module is used when it defines one of the names, not when an `export *` merely passes them on.
+      // One with no ES exports at all (CommonJS) counts as used.
+      const own = await declared(loaded.fileName).then(
+        (defined) => names === "all" || names.some((name) => defined.has(name)) || (!defined.size && !forwards.length),
+        () => true,
+      );
+      const canonical = await canonicalPath(loaded.fileName);
+      const dependency = scanned.get(canonical);
+      if (dependency && dependency !== input.path && own) dependencies.set(dependency, input.path);
+      // `export *` passes the importer's names on; a namespace (`export * as Parts`) passes all of its own.
+      for (const r of forwarded) await follow(loaded.fileName, r.specifier, r.imported !== "*" ? [r.imported] : r.exported === "*" ? names : "all", depth + 1);
+      // A module of the project's own that isn't scanned: what it imports is used too.
+      if (!dependency && own && !seen.has(canonical) && !/[\\/]node_modules[\\/]/.test(canonical)) {
+        seen.add(canonical);
+        const file = await parse(loaded.fileName).catch(() => undefined);
+        if (file) for (const next of importsIn(file)) await follow(loaded.fileName, next.specifier, next.names, depth + 1);
+      }
+    };
     // Only a template or a component keeps what it imports: an index that lists the templates, or a route or helper that sends them, doesn't.
     // A template the check can't load (a wrapped one) still uses what it imports.
     const notLoaded = await notATemplate(input.path, await readFile(input.path, "utf8"));
     if (notLoaded && !notLoaded.fail) continue;
-    visit(await parse(input.path));
-    for (const { specifier, names } of imports) await follow(input.path, specifier, names);
+    for (const { specifier, names } of importsIn(await parse(input.path))) await follow(input.path, specifier, names);
   }
   return dependencies;
 }
@@ -1467,17 +1481,38 @@ async function notATemplate(path: string, source: string): Promise<{ reason: str
     visit(file);
     return found;
   };
+  /** Whether the file has JSX anywhere (its email may render <Html> through a shared layout). */
+  const hasJsx = () => {
+    let found = false;
+    const visit = (child: Node) => {
+      if (found) return;
+      if (ts.isJsxElement(child) || ts.isJsxSelfClosingElement(child) || ts.isJsxFragment(child)) found = true;
+      else ts.forEachChild(child, visit);
+    };
+    visit(file);
+    return found;
+  };
   // An email the check can't reach: it fails rather than being skipped as a helper.
-  if (wrapper && rendersHtml()) return { reason: `its default export is wrapped in ${wrapper}(…), which the check can't unwrap: export the component itself`, fail: true };
+  if (wrapper && (rendersHtml() || hasJsx())) return { reason: `its default export is wrapped in ${wrapper}(…), which the check can't unwrap: export the component itself`, fail: true };
   if (!node || !ts.isFunctionLike(node)) return skip("not loaded: its default export isn't a component (a helper, or a file that passes one on)");
   if ((ts.getModifiers(node as import("typescript").FunctionLikeDeclaration) ?? []).some((m) => m.kind === ts.SyntaxKind.AsyncKeyword)) {
     return skip("not loaded: its default export is async (a helper, or a template that loads data: load it first and pass it as props)");
   }
-  /** JSX, in either branch of a condition. */
-  const jsx = (e: Node | undefined): boolean => {
+  // Values its body declares (`const email = <Html>…</Html>; return email;`).
+  const locals = new Map<string, Node>();
+  const collect = (child: Node) => {
+    if (ts.isFunctionLike(child) || ts.isClassLike(child)) return;
+    if (ts.isVariableDeclaration(child) && ts.isIdentifier(child.name) && child.initializer) locals.set(child.name.text, child.initializer);
+    ts.forEachChild(child, collect);
+  };
+  const fnBody = (node as import("typescript").FunctionLikeDeclaration).body;
+  if (fnBody && ts.isBlock(fnBody)) ts.forEachChild(fnBody, collect);
+  /** JSX, in either branch of a condition, or a value declared as JSX. */
+  const jsx = (e: Node | undefined, depth = 0): boolean => {
     while (e && (ts.isParenthesizedExpression(e) || ts.isAsExpression(e) || ts.isSatisfiesExpression(e) || ts.isNonNullExpression(e))) e = e.expression;
     if (!e) return false;
     if (ts.isJsxElement(e) || ts.isJsxSelfClosingElement(e) || ts.isJsxFragment(e)) return true;
+    if (ts.isIdentifier(e) && depth < 5 && locals.has(e.text)) return jsx(locals.get(e.text), depth + 1);
     if (ts.isConditionalExpression(e)) return jsx(e.whenTrue) || jsx(e.whenFalse);
     return ts.isBinaryExpression(e) && [ts.SyntaxKind.AmpersandAmpersandToken, ts.SyntaxKind.BarBarToken, ts.SyntaxKind.QuestionQuestionToken].includes(e.operatorToken.kind) && (jsx(e.left) || jsx(e.right));
   };

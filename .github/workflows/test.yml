@@ -54,6 +54,9 @@ jobs:
       - name: Type contract
         run: pnpm --filter @unlayer/react-elements typecheck
 
+      - name: Converter typechecks
+        run: pnpm --filter @unlayer/from-react-email typecheck && pnpm --filter @unlayer/migrate typecheck
+
       # ── Bundle size budget ──────────────────────────────────────
       # Fail if the react-elements ESM bundle exceeds 95KB.
       # Current size: 93,706 bytes, including phone device-override CSS,

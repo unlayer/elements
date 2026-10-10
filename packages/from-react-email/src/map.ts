@@ -70,9 +70,9 @@ const HEADINGS: Record<string, { size: number; margin: number }> = {
   h6: { size: 0.67, margin: 2.33 },
 };
 
-/** Attributes Elements blocks have no place for (an anchor's `id`, accessible names): reported. */
+/** Attributes Elements blocks have no place for (an anchor's `id`, accessible names, a block's own text direction): reported. */
 export function noteAttributes(names: Iterable<string>, ctx: MapCtx, label: string): void {
-  for (const name of names) if (/^(id|title|role|aria-.+)$/.test(name)) ctx.report.note("attribute not kept", `${name} (${label})`);
+  for (const name of names) if (/^(id|title|role|dir|aria-.+)$/.test(name)) ctx.report.note("attribute not kept", `${name} (${label})`);
 }
 
 /** Say what a block's style shows that Elements can't (a shadow, a transform). */
@@ -391,9 +391,11 @@ export function imageBlock(
   const width = own !== undefined && cap !== undefined ? Math.min(own, cap) : own ?? cap;
   const height = toPx(attrs.height ?? style.height);
   const margin = boxSides(style, "margin");
-  const centered = String(style.margin ?? "").includes("auto") || style.marginLeft === "auto";
+  // Auto margins place it: both sides center it, the left one alone puts it on the right (`margin: 0 auto 0 0` stays left).
+  const placedBy = alignOf(style);
+  const centered = placedBy !== undefined;
   const flex = ctx.inherited.blockAlign;
-  const align = centered ? "center" : flex ? flex : ctx.inherited.textAlign === "center" && style.display !== "block" ? "center" : start(ctx);
+  const align = placedBy ?? (flex ? flex : ctx.inherited.textAlign === "center" && style.display !== "block" ? "center" : start(ctx));
   if (style.borderRadius) ctx.report.note("image border radius dropped", String(style.borderRadius));
   // Elements images show at their file's own aspect ratio (height: auto), and the file isn't loaded to compare.
   if (height) ctx.report.note("image height not kept (the image keeps its file's aspect ratio)", `${width ? `${width}×` : ""}${height}px`);

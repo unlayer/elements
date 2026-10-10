@@ -916,6 +916,27 @@ export default function Template() {
   });
 });
 
+describe("phone rules and the element's own style", () => {
+  it("leave an inline style alone unless the phone rule is !important, in both modes", async () => {
+    const { Original, Migrated, runtime } = await bothModes(`import { Html, Head, Body, Text } from "@react-email/components";
+const css = "@media (max-width: 600px) { .soft { display: none } .hard { display: none !important } .roomy { padding: 40px } }";
+export default function Template() {
+  return <Html><Head><style>{css}</style></Head><Body>
+    <Text className="soft" style={{ display: "block" }}>Kept on phones</Text>
+    <Text className="hard" style={{ display: "block" }}>Desktop only</Text>
+    <Text className="roomy" style={{ paddingTop: "4px" }}>Padded</Text>
+  </Body></Html>;
+}`);
+    const check = await verifyConversion(Original, Migrated);
+    expect(check.phone).toEqual({ missing: [], added: [] });
+    expect(compareText(check.originalHtml, runtime.html()).phone).toEqual({ missing: [], added: [] });
+    for (const design of [renderToJson(Migrated({})), runtime.design()]) {
+      const texts = design.body.rows.flatMap((r: any) => r.columns.flatMap((c: any) => c.contents));
+      expect(texts.map((t: any) => Boolean(t.values._override?.mobile?.hideMobile))).toEqual([false, true, false]);
+    }
+  });
+});
+
 describe("content a <style> class hides", () => {
   it("stays hidden, in both modes, and the check sees it hidden in the original", async () => {
     const { result, runtime, Original, Migrated } = await bothModes(`import { Html, Head, Body, Text } from "@react-email/components";

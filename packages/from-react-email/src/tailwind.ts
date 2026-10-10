@@ -6,7 +6,6 @@
 import React from "react";
 import { Tailwind } from "@react-email/components";
 import { callSuspending } from "./expand";
-import { boxSides } from "@unlayer/convert-core";
 import type { Style } from "./styles";
 
 export interface ResolvedClasses {
@@ -143,14 +142,26 @@ export const INLINE_DEFAULTS: Record<string, string[]> = {
 
 /** A rule's style without what the component's own inline style overrides (unless the rule is `!important`). */
 export function underInline(component: string | undefined, rules: Style, important: Set<string>): Style {
-  const inline = INLINE_DEFAULTS[component ?? ""] ?? [];
+  return underKeys(rules, INLINE_DEFAULTS[component ?? ""] ?? [], important);
+}
+
+/** The properties an inline style sets, a `margin` or `padding` shorthand as its four sides too. */
+export function inlineKeys(style: Style | undefined): string[] {
+  return Object.keys(style ?? {}).flatMap((key) => (key === "margin" || key === "padding" ? [key, ...["Top", "Right", "Bottom", "Left"].map((side) => `${key}${side}`)] : [key]));
+}
+
+/** A rule's style without the properties an inline style sets (`inline`), except those the rule marks `!important`. */
+export function underKeys(rules: Style, inline: readonly string[], important: Set<string>): Style {
   if (!inline.length) return rules;
   const out: Style = { ...rules };
-  if (out.margin !== undefined && !important.has("margin") && inline.some((blocked) => blocked.startsWith("margin"))) {
-    // Only the sides the component doesn't set itself keep the rule's margin.
-    const sides = boxSides(out, "margin");
-    for (const side of ["Top", "Right", "Bottom", "Left"] as const) if (!inline.includes(`margin${side}`)) out[`margin${side}`] ??= `${sides[side.toLowerCase() as "top"]}px`;
-    delete out.margin;
+  for (const box of ["margin", "padding"] as const) {
+    if (out[box] === undefined || important.has(box) || !inline.some((blocked) => blocked.startsWith(box))) continue;
+    // Only the sides the inline style doesn't set keep the rule's shorthand (as written: `auto` stays `auto`).
+    const value = out[box];
+    const [top, right = top, bottom = top, left = right] = typeof value === "number" ? [`${value}px`] : String(value).trim().split(/\s+/);
+    const sides = { Top: top, Right: right, Bottom: bottom, Left: left };
+    for (const side of ["Top", "Right", "Bottom", "Left"] as const) if (!inline.includes(`${box}${side}`)) out[`${box}${side}`] ??= sides[side];
+    delete out[box];
   }
   for (const key of Object.keys(out)) if (!important.has(key) && inline.includes(key)) delete out[key];
   return out;

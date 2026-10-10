@@ -144,8 +144,9 @@ jobs:
             MIGRATE=$([ "${{ inputs.package }}" = "migrate" ] && descends 'migrate-v*' && echo true || echo false)
           else
             ELEMENTS=$(changed 'v*' packages/react packages/shared pnpm-workspace.yaml)
-            # Elements too: migrate's Elements range is the newest Elements, so it follows each Elements release.
-            MIGRATE=$(changed 'migrate-v*' packages/migrate packages/from-react-email packages/convert-core packages/react packages/shared pnpm-workspace.yaml pnpm-lock.yaml)
+            # Not Elements: migrate requires the Elements range committed in its package.json (the oldest
+            # release the converter supports), not the newest, so an Elements release doesn't republish it.
+            MIGRATE=$(changed 'migrate-v*' packages/migrate packages/from-react-email packages/convert-core pnpm-workspace.yaml pnpm-lock.yaml)
           fi
           # The first version of a new package is published by hand (see above).
           if [ "$MIGRATE" = "true" ] && ! npm view @unlayer/migrate version >/dev/null 2>&1; then
@@ -433,20 +434,17 @@ jobs:
           fi
           echo "version=$VERSION" >> $GITHUB_OUTPUT
 
-      # Packing writes `^<packages/react version>` as migrate's Elements range.
-      # CI bumps versions only on its runner, so the committed one is stale: it
-      # becomes the Elements this commit was tested with, the one this run
-      # published (npm can lag right after a publish) or else npm's latest.
-      # That release must be on npm, or installs would fail (or, with an older
-      # range, silently use an Elements without the converter's settings).
-      - name: Set and check the Elements range
+      # Packing writes the Elements range committed in package.json
+      # (`workspace:^0.2.0` → `^0.2.0`): the oldest Elements the converter
+      # supports, raised in a commit when the converter needs a newer one. Not
+      # the newest Elements, which would refuse projects a patch behind. A
+      # release in that range must be on npm, or installs would fail.
+      - name: Check the Elements range
         id: elements
         working-directory: packages/migrate
         run: |
-          ELEMENTS="${{ needs.publish.outputs.version }}"
-          if [ -z "$ELEMENTS" ]; then ELEMENTS=$(npm view @unlayer/react-elements version); fi
-          (cd ../react && npm version "$ELEMENTS" --no-git-tag-version --allow-same-version)
-          RANGE="^$ELEMENTS"
+          RANGE=$(node -p "require('./package.json').peerDependencies['@unlayer/react-elements'].replace(/^workspace:/, '')")
+          case "$RANGE" in ^[0-9]*) ;; *) echo "::error::migrate's Elements range must be a committed ^<version> (found $RANGE)"; exit 1 ;; esac
           echo "range=$RANGE" >> $GITHUB_OUTPUT
           for attempt in 1 2 3 4 5 6; do
             if [ -n "$(npm view "@unlayer/react-elements@$RANGE" version 2>/dev/null)" ]; then exit 0; fi

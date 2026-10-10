@@ -55,7 +55,7 @@ import { inlineLocalComponents, type ModuleLoader } from "./components";
 import { inlineLocalJsx } from "./inline";
 import { splitConditionalClasses } from "./variants";
 import { phoneSides, withPhoneStyles, handledPhoneClass, unheldPhoneStyles } from "./phone-styles";
-import { addRules, classStyle, NO_CLASSES, overInline, phoneRules, resolveTailwind, stacksOnPhones, stylesheetRules, underInline, type ResolvedClasses, type RuleOrder } from "./tailwind";
+import { addRules, classStyle, inlineKeys, NO_CLASSES, overInline, phoneRules, resolveTailwind, stacksOnPhones, stylesheetRules, underInline, underKeys, type ResolvedClasses, type RuleOrder } from "./tailwind";
 
 export interface CodemodResult {
   code: string;
@@ -370,6 +370,8 @@ class Converter {
     // A shared class list may appear on components with different phone props.
     const classOwners = new Map<string, Set<string>>();
     let config: Record<string, unknown> | undefined;
+    // Each <Tailwind>'s config (or none): classes are resolved with one, so different ones can't be kept.
+    const configs = new Set<string>();
     let usesTailwind = false;
     const component = this.findComponent();
     const visit = (node: ts.Node) => {
@@ -420,6 +422,10 @@ class Converter {
         }
         if (value && typeof value === "object") config = value as Record<string, unknown>;
         else if (attr && !this.tailwindConfig) this.report.note("tailwind config not static; default config used");
+        configs.add(attr ? (value && typeof value === "object" ? JSON.stringify(value) : attr.initializer?.getText() ?? "") : "(none)");
+        if (configs.size > 1) {
+          throw new Error("Can't convert a template with different <Tailwind> configs (one return's and another's): the migrated template resolves classes with one. Use the same config in each");
+        }
       }
       ts.forEachChild(node, visit);
     };
@@ -552,6 +558,12 @@ class Converter {
     return found;
   }
 
+  /** Whether a value's declared type admits JSX (`ReactNode`, `ReactElement`, `JSX.Element`), whatever the preview gives. */
+  private mayHoldJsx(expression: ts.Expression): boolean {
+    const type = this.checker.typeToString(this.checker.getTypeAtLocation(expression));
+    return /\b(ReactNode|ReactElement|JSX\.Element|ReactPortal|ReactChild|ReactFragment)\b/.test(type);
+  }
+
   /** Whether a call builds a class list (`cx`, `clsx`, `classnames`, `cn`, `twMerge`). */
   private classListCall(node: ts.Expression): node is ts.CallExpression {
     const call = unwrap(node);
@@ -657,6 +669,12 @@ class Converter {
    * The properties of a style object that are known; the ones computed from
    * props or state are recorded as lost (unless the element is kept as HTML).
    */
+  /** An element's `style` prop: its value, or what it sets that can be read without running it. */
+  private inlineStyle(expression: ts.Expression | undefined): Style {
+    const value = this.evaluate(expression);
+    return value && typeof value === "object" ? (value as Style) : this.staticStyle(expression);
+  }
+
   private staticStyle(expression: ts.Expression | undefined): Style {
     const style: Style = {};
     const node = expression && unwrap(expression);
@@ -776,6 +794,7 @@ class Converter {
     let style: Style = {};
     // Head rules marked !important: they win over the element's own style too.
     let important: { rules: Style; names: Set<string> } | undefined;
+    const inline = attrs.has("style") ? this.inlineStyle(attrs.get("style")) : undefined;
     const className = attrs.get("className");
     if (className) {
       const value = this.evaluate(className) ?? (this.classListCall(className) ? this.classListOf(className) : undefined);
@@ -789,18 +808,17 @@ class Converter {
         const rules = underInline(component, classStyle(names, this.headClasses, this.headImportant, this.headOrder), strong(this.headImportant));
         important = { rules, names: strong(this.headImportant) };
         const phoneStrong = strong(this.headPhoneImportant);
-        const phone = new Map([...this.headPhone].map(([cls, rule]) => [cls, underInline(component, rule, phoneStrong)] as const));
+        // A head phone rule is under the element's own inline style too, unless it's !important.
+        const own = inlineKeys(inline);
+        const phone = new Map([...this.headPhone].map(([cls, rule]) => [cls, underKeys(underInline(component, rule, phoneStrong), own, phoneStrong)] as const));
         for (const cls of names) for (const css of unheldPhoneStyles(phone.get(cls) ?? {}, component)) this.notePhone(`${css} (.${cls})`);
         const head = withPhoneStyles(rules, names, phone);
         const phoneStyle = { ...(head._phone as Style | undefined), ...(style._phone as Style | undefined) };
         style = { ...head, ...style, ...(Object.keys(phoneStyle).length ? { _phone: phoneStyle } : {}) };
       }
     }
-    if (attrs.has("style")) {
-      const expression = attrs.get("style");
-      const value = this.evaluate(expression);
-      if (value && typeof value === "object") style = { ...style, ...(value as Style) };
-      else style = { ...style, ...this.staticStyle(expression) };
+    if (inline) {
+      style = { ...style, ...inline };
       if (important) style = overInline(style, important.rules, important.names);
     }
     opaqueProps ||= attrs.has("children") || attrs.has("dangerouslySetInnerHTML");
@@ -838,7 +856,7 @@ class Converter {
       !ts.isJsxFragment(returned)
     ) {
       throw new Error(
-        "A template return must be JSX; use separate JSX returns for conditional roots",
+        "A template return must be JSX: return the JSX itself (not a variable holding it), with separate returns for conditional roots",
       );
     }
     let previewText: unknown;
@@ -1166,6 +1184,8 @@ class Converter {
   /** A Column's style, with its `align` attribute as text-align (which, as an attribute, also places blocks in it). */
   private columnStyle(col: Jsx): Style {
     const align = this.attr(col, "align");
+    // From props (`align={side}`): the codemod can't keep it, so the check fails, naming it.
+    if (isExpr(align)) this.computed(col, "align");
     return { ...(typeof align === "string" ? { textAlign: align, _alignAttribute: align } : {}), ...col.style };
   }
 
@@ -1665,12 +1685,15 @@ class Converter {
   // ============================================
 
   /** Text + expressions only (no inline elements), as children. */
-  private plainParts(children: readonly ts.JsxChild[]): Parts | undefined {
+  private plainParts(children: readonly ts.JsxChild[], textOnly = false): Parts | undefined {
     const parts: Parts = [];
     for (const child of this.flatten(children)) {
       if (ts.isJsxText(child)) parts.push(jsxText(child.text));
       else if (ts.isJsxExpression(child) && child.expression && !containsJsx(child.expression)) {
         const value = this.evaluate(child.expression);
+        // A value typed to hold JSX (`message: ReactNode`) may get a link or bold text where the preview
+        // gives text: not plain text, but rendered as React would (inlineContent's htmlText).
+        if (!textOnly && value === undefined && this.mayHoldJsx(child.expression)) return undefined;
         parts.push(typeof value === "string" || typeof value === "number" ? String(value) : expr(child.expression.getText()));
       } else return undefined;
     }
@@ -1685,7 +1708,7 @@ class Converter {
 
   /** Text + expressions as one value (for a prop like previewText). */
   private plainContent(children: readonly ts.JsxChild[]): string | Expr | undefined {
-    const parts = this.plainParts(children);
+    const parts = this.plainParts(children, true);
     if (!parts) return undefined;
     if (parts.every((p) => typeof p === "string")) return parts.join("");
     this.needsPlainText = true;

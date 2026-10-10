@@ -501,6 +501,20 @@ export default function Layout({ children }: { children?: React.ReactNode }) { r
     expect(fs.readFileSync(path.join(dir, "packages/email-ui/Layout.tsx"), "utf8")).toBe(layout);
   });
 
+  it("leaves a layout alone with --write when a template reaches it through a component file outside the folder", async () => {
+    const base = `import { Html, Body } from "@react-email/components";
+export default function Base({ content }: { content?: React.ReactNode }) { return <Html><Body>{content}</Body></Html>; }`;
+    const dir = project({
+      "emails/layouts/base.tsx": base,
+      "src/shell.tsx": `import Base from "../emails/layouts/base";\nexport function Shell({ content }: { content?: React.ReactNode }) { return <Base content={content} />; }`,
+      "emails/promo.tsx": `import { Text } from "@react-email/components";\nimport { Shell } from "../src/shell";\nexport default function Promo() { return <Shell content={<Text>Big sale today</Text>} />; }\nPromo.PreviewProps = {};`,
+    });
+    const out = io(dir);
+    await main(["emails", "--write"], out, lib);
+    expect(out.out).toMatch(/- emails\/layouts\/base\.tsx: skipped \(imported by emails\/promo\.tsx/);
+    expect(fs.readFileSync(path.join(dir, "emails/layouts/base.tsx"), "utf8")).toBe(base);
+  });
+
   it("leaves a layout alone with --write even when the import of it can't be followed", async () => {
     const layout = `import { Html, Body, Container } from "@react-email/components";
 export default function Layout(props: { children?: React.ReactNode }) { return <Html><Body><Container>{props.children}</Container></Body></Html>; }`;

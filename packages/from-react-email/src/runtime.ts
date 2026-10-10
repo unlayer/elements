@@ -40,7 +40,7 @@ import {
 import { addSides, backgroundColor, backgroundImage, boxSides, color, fillColor, fontFamilyProp, fontSizePx, inherit, isHidden, margins, noteContainerWidth, pageColor, phoneOnly, px, shownOnPhones, toPx, ZERO, type Style } from "./styles";
 import type { BoxSides } from "@unlayer/convert-core";
 import { phoneSides, unheldPhoneStyles, withPhoneStyles } from "./phone-styles";
-import { addRules, classStyle, overInline, phoneRules, stacksOnPhones, stylesheetRules, underInline, type RuleOrder } from "./tailwind";
+import { addRules, classStyle, inlineKeys, overInline, phoneRules, stacksOnPhones, stylesheetRules, underInline, underKeys, type RuleOrder } from "./tailwind";
 
 /** React's static markup, without the image preload links React 19 adds: an email has no use for them. */
 function renderToStaticMarkup(element: React.ReactElement): string {
@@ -122,7 +122,9 @@ export async function convertElement(element: React.ReactElement): Promise<Runti
     const strong = (from: Map<string, Set<string>>) => new Set(names.flatMap((name) => [...(from.get(name) ?? [])]));
     const fromHead = underInline(component, classStyle(names, classes, classImportant, classOrder), strong(classImportant));
     const phoneStrong = strong(phoneImportant);
-    const phoneFor = component ? new Map([...phone].map(([cls, rule]) => [cls, underInline(component, rule, phoneStrong)] as const)) : phone;
+    // A phone rule is under the element's own inline style too, unless it's !important.
+    const own = inlineKeys(node.props.style);
+    const phoneFor = new Map([...phone].map(([cls, rule]) => [cls, underKeys(underInline(component, rule, phoneStrong), own, phoneStrong)] as const));
     for (const cls of names) for (const css of unheldPhoneStyles(phoneFor.get(cls) ?? {}, component)) phoneNoted.add(`${css} (.${cls})`);
     node.props = { ...node.props, style: withPhoneStyles({ ...fromHead, ...overInline(node.props.style ?? {}, fromHead, strong(classImportant)) }, names, phoneFor) };
   });
@@ -367,6 +369,10 @@ function blockFrom(node: Element, ctx: Ctx): Block[] {
 
   const kind = node.kind === "component" ? name : hostAlias(name);
   if (["Text", "Heading", "Button", "Img", "Link"].includes(kind)) noteAttributes(Object.keys(node.props), ctx, kind);
+  // Raw HTML given to it (`<Text dangerouslySetInnerHTML={…}>`): kept as HTML, as it renders.
+  if (typeof node.props.dangerouslySetInnerHTML?.__html === "string") {
+    return [{ node: fallbackHtml(kept(renderToStaticMarkup(node.element), ctx), "HTML from dangerouslySetInnerHTML"), margin: ZERO, padding: ZERO }];
+  }
   switch (kind) {
     case "Text":
       return [paragraphBlock(innerHtml(node), style, ctx, margins(style, node.kind === "component" ? { top: 16, bottom: 16 } : browserMargin(name, ctx)))];
