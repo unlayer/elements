@@ -322,6 +322,29 @@ export default function Promo() { const settings = {}; return <Html><Body {...se
     expect(fs.readFileSync(path.join(dir, "emails/promo.tsx"), "utf8")).toBe(promo);
   });
 
+  it.each([
+    ["wraps it", { "components/ui.tsx": `import { Html, Body, Text } from "@react-email/components";
+export function Shell({ children }: { children?: React.ReactNode }) { return <Html><Body>{children}</Body></Html>; }
+export function Copy({ children }: { children?: React.ReactNode }) { return <Text style={{ color: "#333333" }}>{children}</Text>; }` }],
+    ["passes it on", { "components/ui.ts": 'export { Html as Shell, Text as Copy } from "@react-email/components";\n' }],
+    ["passes on a file that does", { "components/ui.ts": 'export * from "./primitives";\n', "components/primitives.tsx": `import { Html, Text } from "@react-email/components";
+export { Html as Shell, Text as Copy };` }],
+  ])("finds a template that uses React Email only through a component file that %s", async (_kind, components) => {
+    const welcome = `import { Shell, Copy } from "../components/ui";
+export default function Welcome() { return <Shell><Copy>Welcome aboard</Copy></Shell>; }`;
+    const helper = `import { format } from "../components/format";
+export default function label(name: string) { return format(name); }`;
+    const dir = project({ "emails/welcome.tsx": welcome, "emails/label.ts": helper, "components/format.ts": "export const format = (s: string) => s.trim();\n", ...components });
+    const out = io(dir);
+    expect(await main(["emails", "--write"], out, lib), out.out + out.err).toBe(0);
+    // Found and checked: how much is editable depends on what the converter recognizes.
+    expect(out.out).toMatch(/✓ emails\/welcome\.tsx: \d+% editable/);
+    expect(fs.readFileSync(path.join(dir, "emails/welcome.tsx"), "utf8")).toContain("@unlayer/react-elements");
+    // A file that isn't a template, or that doesn't reach React Email, is left out.
+    expect(out.out).not.toContain("label.ts");
+    expect(fs.readFileSync(path.join(dir, "emails/label.ts"), "utf8")).toBe(helper);
+  });
+
   it("writes separate copies with --out without changing shared sources", async () => {
     const dir = project({ "emails/components/footer.tsx": footer, "emails/welcome.tsx": welcome.replace('"./components"', '"./components/footer"') });
     const out = io(dir);

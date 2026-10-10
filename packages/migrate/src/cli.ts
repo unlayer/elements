@@ -142,6 +142,10 @@ export async function main(argv: string[], io: Io, library?: Library): Promise<n
     io.stderr(`Not found: ${inputs.missing.join(", ")}\n`);
     return 1;
   }
+  // A template can use React Email only through the project's own components (a ui file).
+  for (const input of inputs.files) {
+    if (!input.reactEmail && !input.migrated) input.reactEmail = await reactEmailThroughProject(input.path);
+  }
   const candidates = inputs.files.filter((f) => f.reactEmail);
   if (!candidates.length) {
     // Run again after --write (in CI): the templates are done.
@@ -150,7 +154,7 @@ export async function main(argv: string[], io: Io, library?: Library): Promise<n
       io.stdout(`${done} template${done === 1 ? "" : "s"} already migrated (importing @unlayer/react-elements): nothing to do.\n`);
       return 0;
     }
-    io.stderr("No React Email templates found (files that import @react-email/*).\n");
+    io.stderr("No React Email templates found (files that import @react-email/*, or the project's components that do).\n");
     return 1;
   }
 
@@ -217,6 +221,7 @@ interface Input {
   path: string;
   /** The folder the output layout is relative to. */
   base: string;
+  /** Imports React Email, or (a template) the project's files that do. */
   reactEmail: boolean;
   /** Imports @unlayer/react-elements: migrated already. */
   migrated: boolean;
@@ -702,6 +707,7 @@ function message(error: unknown): string {
 // ============================================
 
 const SOURCE = /\.(tsx|jsx|ts|js|mts|mjs)$/;
+const REACT_EMAIL_IMPORT = /from\s+["'](@react-email\/[^"']+|react-email)["']/;
 const IGNORED = new Set(["node_modules", ".git", ".next", "dist", "build", "out", ".turbo", "coverage"]);
 
 async function collect(paths: string[], cwd: string): Promise<{ files: Input[]; missing: string[] }> {
@@ -712,7 +718,7 @@ async function collect(paths: string[], cwd: string): Promise<{ files: Input[]; 
     if (seen.has(path)) return;
     seen.add(path);
     const text = await readFile(path, "utf8");
-    files.push({ path, base, reactEmail: /from\s+["'](@react-email\/[^"']+|react-email)["']/.test(text), migrated: /from\s+["']@unlayer\/react-elements["']/.test(text) });
+    files.push({ path, base, reactEmail: REACT_EMAIL_IMPORT.test(text), migrated: /from\s+["']@unlayer\/react-elements["']/.test(text) });
   };
   for (const given of paths) {
     const path = resolve(cwd, given);
@@ -941,11 +947,9 @@ async function moduleLoader(file: string): Promise<(specifier: string, fromFile:
   };
 }
 
-/** Keep shared source files available to importers that aren't migrated. */
-async function importedInputs(inputs: Input[]): Promise<Map<string, string>> {
+/** Reading what a module imports and passes on, to follow imports between the project's files. */
+async function moduleSyntax() {
   const ts = (await import("typescript")).default;
-  const scanned = new Map(await Promise.all(inputs.map(async (input) => [await canonicalPath(input.path), input.path] as const)));
-  const dependencies = new Map<string, string>();
   const parse = async (path: string) => ts.createSourceFile(path, await readFile(path, "utf8"), ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
   /** A module's imports: local name → where it comes from and the name it has there (`*` for a namespace). */
   const importsOf = (file: import("typescript").SourceFile) => {
@@ -993,6 +997,36 @@ async function importedInputs(inputs: Input[]): Promise<Map<string, string>> {
     }
     return out;
   };
+  return { ts, parse, importsOf, reExports };
+}
+
+/**
+ * Whether a template uses React Email through the project's own files: it
+ * imports one that imports React Email (a ui file that wraps it or passes it
+ * on), directly or through files that pass that one on.
+ */
+async function reactEmailThroughProject(path: string): Promise<boolean> {
+  if (await notATemplate(path, await readFile(path, "utf8"))) return false;
+  const { parse, importsOf, reExports } = await moduleSyntax();
+  const load = await moduleLoader(path);
+  const seen = new Set<string>();
+  const reaches = async (from: string, specifier: string, depth = 0): Promise<boolean> => {
+    const loaded = load(specifier, from);
+    if (!loaded || depth > 8 || seen.has(loaded.fileName)) return false;
+    seen.add(loaded.fileName);
+    if (REACT_EMAIL_IMPORT.test(loaded.source)) return true;
+    for (const next of await reExports(loaded.fileName).catch(() => [])) if (await reaches(loaded.fileName, next.specifier, depth + 1)) return true;
+    return false;
+  };
+  for (const { specifier } of importsOf(await parse(path)).values()) if (await reaches(path, specifier)) return true;
+  return false;
+}
+
+/** Keep shared source files available to importers that aren't migrated. */
+async function importedInputs(inputs: Input[]): Promise<Map<string, string>> {
+  const { ts, parse, importsOf, reExports } = await moduleSyntax();
+  const scanned = new Map(await Promise.all(inputs.map(async (input) => [await canonicalPath(input.path), input.path] as const)));
+  const dependencies = new Map<string, string>();
   /** The names a module exports itself (not passed on from another module), "default" included. */
   const declared = async (path: string) => {
     const file = await parse(path);
