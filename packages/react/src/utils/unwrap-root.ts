@@ -46,6 +46,17 @@ const ASYNC_TEMPLATE =
 
 export const isThenable = (value: unknown): boolean => typeof (value as { then?: unknown } | null)?.then === "function";
 
+/** A promise a component gave back, which Elements doesn't wait for: its rejection mustn't end the process. */
+const settle = (value: unknown): void => {
+  if (isThenable(value)) (value as PromiseLike<unknown>).then(undefined, () => {});
+};
+
+/** A component declared `async`: it can't render synchronously, so it isn't called at all. */
+export function isAsyncComponent(type: any): boolean {
+  while (type?.$$typeof === MEMO) type = type.type;
+  return (type?.$$typeof === FORWARD_REF ? type.render : type)?.[Symbol.toStringTag] === "AsyncFunction";
+}
+
 /**
  * Call a template component in a throwaway render of its own. Its hooks run
  * there, never on the component that is rendering when renderToHtml is called
@@ -69,6 +80,8 @@ export function callIsolated(call: () => unknown, prefix?: string): unknown {
     return null;
   };
   renderToStaticMarkup(React.createElement(Probe), prefix ? { identifierPrefix: prefix } : undefined);
+  settle(error);
+  settle(result);
   if (threw) throw isThenable(error) ? new Error(ASYNC_TEMPLATE) : error;
   if (!ran) throw new Error("the template wasn't rendered");
   if (isThenable(result)) throw new Error(ASYNC_TEMPLATE);

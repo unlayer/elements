@@ -5,7 +5,7 @@
  */
 import React, { Suspense } from "react";
 import { collecting, marker, type Collection } from "./collect";
-import { isElementsType } from "./unwrap-root";
+import { isAsyncComponent, isElementsType } from "./unwrap-root";
 
 /**
  * Children with each component Elements doesn't know wrapped: markers that
@@ -20,6 +20,9 @@ export function guard(children: React.ReactNode, collection: Collection): React.
       return React.createElement(React.Fragment, { key: child.key }, guard((child.props as { children?: React.ReactNode }).children, collection));
     }
     const at = collection.recorded.push({ kind: "boundary", element: child }) - 1;
+    // An async component is left out without calling it: it can't render synchronously, and React 18 leaves
+    // the promise it gives back unhandled (its rejection would end the process).
+    if (isAsyncComponent(child.type)) return marker(collection, at, "f");
     return React.createElement(
       Suspense,
       { key: child.key ?? `b${at}`, fallback: marker(collection, at, "f") },

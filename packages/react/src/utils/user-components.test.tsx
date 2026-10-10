@@ -151,3 +151,59 @@ describe("a component that fails", () => {
     ]);
   });
 });
+
+describe("HTML from a component in a Column", () => {
+  // As CMS snippets often are: what's in it doesn't pair up as markup.
+  const snippets = {
+    "a self-closing spacer": '<div style="height:16px"/><p>after spacer</p>',
+    "a comment naming a tag": "<!-- <div> old layout --><p>commented</p>",
+    "an unclosed div": "<div><p>unclosed wrapper</p>",
+    "a stray end tag": "<p>first</p></div><p>second</p>",
+    "an attribute naming a tag": '<img alt="see <div> docs" src="https://example.com/a.png"><p>alt text</p>',
+    "a script naming a tag": '<p>scripted</p><script>var t = "<div>";</script>',
+  };
+  it.each(Object.entries(snippets))("is kept as it is, with %s", (_, snippet) => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    try {
+      const Snippet = () => <div dangerouslySetInnerHTML={{ __html: snippet }} />;
+      expect(renderToHtml(<Email><Row><Column><Snippet /><Paragraph>Next</Paragraph></Column></Row></Email>)).toContain(snippet);
+      expect(warn).not.toHaveBeenCalled();
+    } finally {
+      warn.mockRestore();
+    }
+  });
+
+  it("says so when it's markup a block can't hold", () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    try {
+      const Two = () => <><div>one</div><p>two</p></>;
+      renderToHtml(<Email><Row><Column><Two /></Column></Row></Email>);
+      expect(warn.mock.calls.map((call) => String(call[0]))).toEqual(["Column: <Two> rendered markup that isn't a block, so it's left out. Put HTML in an <Html> block."]);
+    } finally {
+      warn.mockRestore();
+    }
+  });
+});
+
+describe("an async component whose data load fails", () => {
+  it("isn't called, and its rejection can't end the process", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    let calls = 0;
+    async function Orders() {
+      calls++;
+      await new Promise((resolve) => setTimeout(resolve, 5));
+      throw new Error("db unavailable");
+    }
+    try {
+      const email = <Email>{block("Hello")}<Orders /><Row><Column><Orders /><Paragraph>In a column</Paragraph></Column></Row></Email>;
+      expect(renderToHtml(email)).toContain("In a column");
+      expect(JSON.stringify(renderToJson(email))).toContain("Hello");
+      // Vitest fails the run on an unhandled rejection: give one the time to happen.
+      await new Promise((resolve) => setTimeout(resolve, 30));
+      expect(calls).toBe(0);
+      expect(warn).toHaveBeenCalledWith(expect.stringContaining("<Orders> is async or suspends"));
+    } finally {
+      warn.mockRestore();
+    }
+  });
+});

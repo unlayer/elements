@@ -17,7 +17,7 @@ import React from "react";
 import { renderToStaticMarkup, renderToString } from "react-dom/server";
 import { MARK, within, type Collection, type Recorded } from "./collect";
 import { guard } from "./record";
-import { callIsolated, FORWARD_REF, isThenable, MEMO } from "./unwrap-root";
+import { callIsolated, FORWARD_REF, isAsyncComponent, isThenable, MEMO } from "./unwrap-root";
 import { scopeCache } from "./render-scope";
 import Row from "../components/Row";
 import Column from "../components/Column";
@@ -140,6 +140,9 @@ function leftOut(c: Collected, node: { at: number }): [] {
 function tell(element: React.ReactElement<any>): void {
   const type = innerType(element.type);
   const name = nameOf(element);
+  const async = () =>
+    console.warn(`[Unlayer] <${name}> is async or suspends: Elements renders synchronously, so it's left out. Load its data first and pass it as props.`);
+  if (isAsyncComponent(type)) return async();
   try {
     let inner: Collected;
     if (type?.$$typeof === FORWARD_REF || (typeof type === "function" && !type.prototype?.isReactComponent)) {
@@ -152,9 +155,8 @@ function tell(element: React.ReactElement<any>): void {
     for (const node of found) tell(recorded(inner, node).element);
     if (!found.length) console.error(`[Unlayer] <${name}> failed while rendering, so it's left out.`);
   } catch (error) {
-    if (isThenable(error) || /async and suspending|suspended/.test(String((error as Error)?.message))) {
-      console.warn(`[Unlayer] <${name}> is async or suspends: Elements renders synchronously, so it's left out. Load its data first and pass it as props.`);
-    } else console.error(`[Unlayer] <${name}> threw while rendering, so it's left out:`, error);
+    if (isThenable(error) || /async and suspending|suspended/.test(String((error as Error)?.message))) async();
+    else console.error(`[Unlayer] <${name}> threw while rendering, so it's left out:`, error);
   }
 }
 
@@ -163,10 +165,18 @@ function tell(element: React.ReactElement<any>): void {
  * named after the component (with its props, for its padding and visibility).
  */
 function keptMarkup(c: Collected, node: Within): React.ReactElement | undefined {
-  const only = node.children.length === 1 && node.children[0].kind === "raw" ? parts(node.children[0].html) : [];
-  if (only.length !== 1 || !("inner" in only[0]) || only[0].inner === undefined) return undefined;
+  const raw = node.children.length === 1 && node.children[0].kind === "raw" ? node.children[0].html : "";
+  const only = parts(raw);
+  // Where what's in it doesn't pair up as markup (a `<div/>`, a stray end tag, a comment or an attribute naming a
+  // tag), everything between its start tag and its end tag: what it held, as React wrote it.
+  const inner =
+    only.length === 1 && "inner" in only[0]
+      ? only[0].inner
+      : only.some((p) => "tag" in p && p.tag === "#")
+        ? /^<([a-zA-Z][\w:-]*)\b[^>]*>([\s\S]*)<\/\1>$/.exec(raw)?.[2]
+        : undefined;
+  if (inner === undefined) return undefined;
   const element = recorded(c, node).element as React.ReactElement<any>;
-  const inner = only[0].inner;
   const Rendered = () => React.createElement("div", { dangerouslySetInnerHTML: { __html: inner } });
   Rendered.displayName = nameOf(element);
   return React.createElement(Rendered, { ...element.props });
@@ -203,6 +213,10 @@ function elements(c: Collected, nodes: Node[], inColumn: boolean, owner?: React.
         // Markup it renders, where it isn't kept, is named after it in the messages that say so.
         const Named = () => null;
         Named.displayName = nameOf(recorded(c, node).element);
+        if (inColumn && !c.told.has(node.at) && node.children.some((n) => n.kind === "raw" && parts(n.html).some((p) => "tag" in p))) {
+          c.told.add(node.at);
+          console.warn(`Column: <${Named.displayName}> rendered markup that isn't a block, so it's left out. Put HTML in an <Html> block.`);
+        }
         return elements(c, node.children, inColumn, Named);
       }
       case "raw":
