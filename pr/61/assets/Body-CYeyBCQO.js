@@ -1,0 +1,19 @@
+import{j as f}from"./jsx-runtime-ChrHJXf9.js";import{R as S}from"./iframe-Dkw49vpq.js";import{D as T,b as P,m as R,o as _,p as B,q as y}from"./create-component-BdGwnAvX.js";import{w as q,c as F,B as D}from"./Column-BHHjCxvO.js";const h=D,p=150,x=[" ","‌","​","‍","‎","‏","\uFEFF"];function E(e){return e.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;")}function N(e){if(!e||e.trim().length===0)return"";const n=e.length>p?e.slice(0,p):e,t=Math.max(0,p-n.length);let o="";for(let r=0;r<t;r++)o+=x[r%x.length];return'<div data-skip-in-text="true" style="display:none;font-size:1px;color:#ffffff;line-height:1px;max-height:0px;max-width:0px;opacity:0;overflow:hidden;">'+E(n)+o+"</div>"}function U(e,n,t,o){let r=e;if(t==="email"&&o){const s=N(o);s&&(r=s+e)}const a=y[t]||y.web;return(t==="document"?a(r,n,{type:""}):t==="email"?a(r,n,{bodyValues:n}):a(r,n,n)).replace("min-height: 100vh; ","").replace("min-height: 100vh;","")}const w=e=>{const{children:n,mode:t,className:o,style:r,index:a=0,config:c,previewText:s,fonts:I,lang:A,...C}=e,u={...T,...c},g=t??u.mode??"web",d={...u,mode:g};d.__ids={};const l=P(h,R(C,h,"Body")),b={...l,_meta:{htmlID:_(d,"u_body"),htmlClassNames:"u_body",...l._meta||{}}};let m="";if(n)try{m=q(()=>{const i=F(n,v=>S.cloneElement(v,{_config:d,bodyValues:l}));return B.renderToString(i)})}catch(i){console.error("Body: Failed to render children:",i),m=""}try{const i=U(m,b,g,s);return f.jsx("div",{dangerouslySetInnerHTML:{__html:i},className:o,style:r})}catch(i){return console.error("Body rendering failed:",i),f.jsx("div",{className:o,style:r,children:n})}};w.displayName="Body";w.__docgenInfo={description:`Body - Universal Server/Client Component
+
+Works in both Server Components and Client Components.
+In Server Components, pass config as a prop.
+In Client Components, config can come from UnlayerProvider context or props.
+
+@example Server Component
+\`\`\`tsx
+<Body backgroundColor="#F7F8F9" contentWidth="600px" mode="web">
+  <Row><Column><Paragraph values={{...}} mode="web" /></Column></Row>
+</Body>
+\`\`\`
+
+@example Client Component with Provider
+\`\`\`tsx
+<UnlayerProvider config={{ mode: "email" }}>
+  <Body>...</Body>
+</UnlayerProvider>
+\`\`\``,methods:[],displayName:"Body",props:{children:{required:!1,tsType:{name:"ReactReactNode",raw:"React.ReactNode"},description:""},mode:{required:!1,tsType:{name:"RenderMode"},description:""},className:{required:!1,tsType:{name:"string"},description:""},style:{required:!1,tsType:{name:"ReactCSSProperties",raw:"React.CSSProperties"},description:""},index:{required:!1,tsType:{name:"number"},description:""},config:{required:!1,tsType:{name:"Partial",elements:[{name:"UnlayerConfig"}],raw:"Partial<UnlayerConfig>"},description:"Optional config (replaces context-based config for Server Component usage)"},previewText:{required:!1,tsType:{name:"string"},description:"Preview text shown in email client inboxes (email mode only)"},textDirection:{required:!1,tsType:{name:"string"},description:"Document text direction, also kept in the design JSON. Renderer options can override it."},lang:{required:!1,tsType:{name:"string"},description:'Language of the rendered document (for example, "ar").'},fonts:{required:!1,tsType:{name:"Array",elements:[{name:"signature",type:"object",raw:"{ url: string }",signature:{properties:[{key:"url",value:{name:"string",required:!0}}]}}],raw:"Array<{ url: string }>"},description:"Web font stylesheets the content uses (e.g. a Google Fonts CSS URL).\nrenderToHtml links them in the document head, with any `fonts` option."},padding:{required:!1,tsType:{name:"union",raw:"number | (string & {})",elements:[{name:"number"},{name:"unknown"}]},description:'Padding — a CSS string ("0 48px", "20px") or a number (px).'},borderRadius:{required:!1,tsType:{name:"union",raw:"number | (string & {})",elements:[{name:"number"},{name:"unknown"}]},description:'Corner radius — a number (→ px) or CSS string ("8px").'}}};export{w as B};
