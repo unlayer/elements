@@ -6,6 +6,7 @@ import { promisify } from "node:util";
 import { tmpdir } from "node:os";
 import * as lib from "@unlayer/from-react-email";
 import { main, type Io } from "../src/cli";
+import { resolutionOrder } from "../src/resolution";
 
 const dirs: string[] = [];
 afterEach(() => {
@@ -395,6 +396,96 @@ T.PreviewProps = {name:"Jordan"};`,
   });
 });
 
+
+describe("a monorepo", () => {
+  const layout = `import { Html, Body, Container } from "@react-email/components";
+export default function Layout({ children }: { children?: React.ReactNode }) { return <Html><Body><Container>{children}</Container></Body></Html>; }`;
+  /**
+   * The root has a fake Elements that says when it's loaded; the app has the real
+   * one, and a workspace package with a TSX layout (outside the app) is linked.
+   */
+  function monorepo(): string {
+    const root = fs.realpathSync(project({
+      "package.json": JSON.stringify({ name: "mono", private: true, workspaces: ["apps/*", "packages/*"] }),
+      "node_modules/@unlayer/react-elements/package.json": JSON.stringify({ name: "@unlayer/react-elements", version: "0.2.0", type: "module", exports: { ".": "./index.js", "./package.json": "./package.json" } }),
+      "node_modules/@unlayer/react-elements/index.js": 'process.stderr.write("fake Elements from the root was loaded\\n");\nexport const renderToHtml = () => "";\nexport const renderToJson = () => ({});\n',
+      "packages/email-ui/package.json": JSON.stringify({ name: "@acme/email-ui", private: true, main: "Layout.tsx" }),
+      "packages/email-ui/Layout.tsx": layout,
+      "apps/web/package.json": JSON.stringify({ name: "web", private: true }),
+      "apps/web/emails/welcome.tsx": `import { Html, Body, Text } from "@react-email/components";
+export default function Welcome() { return <Html><Body><Text>Welcome aboard</Text></Body></Html>; }`,
+      "apps/web/emails/framed.tsx": `import { Text } from "@react-email/components";
+import Layout from "@acme/email-ui";
+export default function Framed() { return <Layout><Text>Inside the shared layout</Text></Layout>; }`,
+    }, true));
+    const modules = path.resolve(import.meta.dirname, "../node_modules");
+    for (const name of ["react", "react-dom", "@react-email"]) fs.symlinkSync(path.join(modules, name), path.join(root, "node_modules", name));
+    fs.mkdirSync(path.join(root, "node_modules/@acme"));
+    fs.symlinkSync(path.join(root, "packages/email-ui"), path.join(root, "node_modules/@acme/email-ui"), "dir");
+    fs.mkdirSync(path.join(root, "apps/web/node_modules/@unlayer"), { recursive: true });
+    fs.symlinkSync(fs.realpathSync(path.join(modules, "@unlayer/react-elements")), path.join(root, "apps/web/node_modules/@unlayer/react-elements"), "dir");
+    return root;
+  }
+  const run = (args: string[], cwd: string) =>
+    promisify(execFile)(process.execPath, [path.resolve(import.meta.dirname, "../dist/bin.js"), ...args], { cwd, timeout: 60_000 }).catch((error) => error);
+
+  it("migrates an app's templates with the app's Elements when run from the root (built CLI)", async () => {
+    const root = monorepo();
+    const result = await run(["apps/web/emails", "--out", "apps/web/migrated"], root);
+    expect(result.stderr).not.toContain("fake Elements");
+    expect(result.stdout, result.stdout + result.stderr).toContain("2 templates: 2 migrated and checked. 2 written.");
+    const compare = await run(["compare", "apps/web/emails/welcome.tsx", "apps/web/migrated/welcome.tsx"], root);
+    expect(compare.stderr).not.toContain("fake Elements");
+    expect(compare.stdout, compare.stdout + compare.stderr).toContain("same words, links and images");
+  }, 90_000);
+
+  it("loads a workspace package's TSX with the JSX runtime when run from the app (built CLI)", async () => {
+    const root = monorepo();
+    const result = await run(["emails"], path.join(root, "apps/web"));
+    expect(result.stdout, result.stdout + result.stderr).toMatch(/✓ emails\/framed\.tsx: 100% editable/);
+    expect(result.stdout).toContain("2 templates: 2 migrated and checked.");
+  }, 90_000);
+
+  it("stops before checking templates whose Elements isn't the one the run loads (built CLI)", async () => {
+    const root = monorepo();
+    // From the root's folder of apps, the run loads the root's Elements; the app has its own.
+    const result = await run(["apps", "--write"], root);
+    expect(result.code, result.stdout + result.stderr).toBe(1);
+    expect(result.stderr).toContain("apps/web/emails has its own @unlayer/react-elements");
+    expect(result.stderr).toContain("npx @unlayer/migrate apps/web/emails");
+    expect(result.stdout).toBe("");
+    expect(fs.readFileSync(path.join(root, "apps/web/emails/welcome.tsx"), "utf8")).not.toContain("@unlayer/react-elements");
+  }, 90_000);
+
+  it("says when the original is what doesn't render, not the migrated template", async () => {
+    // Fine as converted; the original throws (as a workspace file loaded without the JSX runtime would).
+    const source = `import { Html, Body, Text } from "@react-email/components";
+export default function T() {
+  if (!import.meta.url.includes(".unlayer-migrate-")) throw new Error("React is not defined");
+  return <Html><Body><Text>Hello</Text></Body></Html>;
+}`;
+    const dir = project({ "emails/t.tsx": source, "migrated/t.tsx": `import { Email, Row, Column, Paragraph } from "@unlayer/react-elements";
+export default function T() { return <Email><Row><Column><Paragraph>Hello</Paragraph></Column></Row></Email>; }` });
+    const out = io(dir);
+    expect(await main(["emails"], out, lib)).toBe(2);
+    expect(out.out).toMatch(/✗ emails\/t\.tsx: the original template doesn't render: React is not defined in emails\/t\.tsx, which was loaded without the project's JSX settings/);
+    const compare = io(dir);
+    expect(await main(["compare", "emails/t.tsx", "migrated/t.tsx"], compare, lib)).toBe(2);
+    expect(compare.err).toContain("The original template doesn't render: React is not defined");
+  });
+
+  it("keeps one React, the project's, for every module; React Email and Elements come from the module's own folder", () => {
+    for (const name of ["react", "react/jsx-runtime", "react-dom/server"]) {
+      expect(resolutionOrder(name, false), name).toEqual(["project", "importer", "self"]);
+    }
+    for (const name of ["@unlayer/react-elements", "@react-email/components", "react-email"]) {
+      expect(resolutionOrder(name, false), name).toEqual(["importer", "project", "self"]);
+      // The converter renders with the project's.
+      expect(resolutionOrder(name, true), name).toEqual(["project", "importer", "self"]);
+    }
+    expect(resolutionOrder("lodash", false)).toBeUndefined();
+  });
+});
 
 describe("wrapped templates", () => {
   it.each([

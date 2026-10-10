@@ -2,17 +2,20 @@
  * Module resolution for the migration, registered with `module.register`
  * before anything else loads.
  *
- * The converter's own imports of React, React DOM, React Email and Unlayer
- * Elements go to the project being migrated when it has them, so templates
- * and the converter share one copy of each (a template's elements only
- * render with the React that created them). Everything else resolves as
- * usual; a template (or a migrated one) that imports something the project
- * doesn't have, like @unlayer/react-elements before it's installed, falls
- * back to this package's copy.
+ * React and React DOM come from the project being migrated (the folder of the
+ * templates given) for every module, so templates and the converter share one
+ * copy (a template's elements only render with the React that created them).
+ * React Email and Elements come from the importing module's own location, as
+ * where the template runs (an app in a monorepo has its own), and the
+ * converter's from the project. A module that imports one its location doesn't
+ * have, like @unlayer/react-elements before it's installed, gets the project's,
+ * else this package's copy. Everything else resolves as usual.
  */
 
+import { resolutionOrder } from "./resolution";
+
 interface Data {
-  /** A URL inside the project (its folder), to resolve from. */
+  /** A URL inside the project (the templates' folder), to resolve from. */
   project: string;
   /** A URL inside this package. */
   self: string;
@@ -21,25 +24,26 @@ interface Data {
 type Context = { parentURL?: string; conditions?: string[] };
 type Resolve = (specifier: string, context: Context) => Promise<{ url: string }>;
 
-const SHARED = /^(react|react-dom|@react-email\/[^/]+|react-email|@unlayer\/react-elements)(\/.*)?$/;
-
 let data: Data | undefined;
+/** This package's own code (the converter): its folder's URL. */
+let cli: string | undefined;
 
 export async function initialize(value: Data): Promise<void> {
   data = value;
+  cli = new URL(".", value.self).href;
 }
 
 export async function resolve(specifier: string, context: Context, nextResolve: Resolve): Promise<{ url: string }> {
-  if (!data || !SHARED.test(specifier)) return nextResolve(specifier, context);
-  // nextResolve merges the context it's given into the shared one: keep the
-  // importer and hand each attempt its own copy.
   const importer = context.parentURL;
-  const parents = [data.project, importer, data.self];
-  const attempts: Context[] = parents.map((parentURL) => ({ ...context, parentURL }));
+  const order = data && resolutionOrder(specifier, !!importer && !!cli && importer.startsWith(cli));
+  if (!data || !order) return nextResolve(specifier, context);
+  const parents = { project: data.project, importer, self: data.self };
   let failure: unknown;
-  for (const attempt of attempts) {
+  for (const origin of order) {
+    // nextResolve merges the context it's given into the shared one: keep the
+    // importer and hand each attempt its own copy.
     try {
-      return await nextResolve(specifier, attempt);
+      return await nextResolve(specifier, { ...context, parentURL: parents[origin] });
     } catch (error) {
       failure ??= error;
     }

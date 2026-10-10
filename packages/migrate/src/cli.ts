@@ -14,10 +14,18 @@ import { randomUUID } from "node:crypto";
 import Module, { createRequire } from "node:module";
 import { tmpdir } from "node:os";
 import { basename, dirname, extname, isAbsolute, join, relative, resolve, sep } from "node:path";
-import { pathToFileURL } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
+import { parseArgs, type Args } from "./args";
+import { resolutionOrder, type Origin } from "./resolution";
 
 export interface Io {
   cwd: string;
+  /**
+   * The folder the converter's React, React Email and Elements resolve from
+   * (the command sets it up before the CLI loads: see bin.ts). Without it, the
+   * current folder.
+   */
+  project?: string;
   stdout(text: string): void;
   stderr(text: string): void;
 }
@@ -168,6 +176,12 @@ export async function main(argv: string[], io: Io, library?: Library): Promise<n
   }
 
   if (!supportedElements(io, candidates.map((input) => input.path))) return 1;
+  // Checked where each template and its migrated copy load their packages from.
+  const copies = otherCopies(io, candidates.flatMap((input) => [input.path, outputPath(input, options, io.cwd)]));
+  if (copies) {
+    io.stderr(`${copies}\n`);
+    return 1;
+  }
   const lib = library ?? ((await import("@unlayer/from-react-email")) as Library);
   // A dry run says what --write does; --out writes copies of every template.
   const dependencies = options.out === undefined ? await importedInputs(inputs.files) : new Map<string, string>();
@@ -407,7 +421,7 @@ async function migrateFile(input: Input, options: Options, lib: Library, io: Io,
     let Original: any;
     let props: Record<string, unknown>;
     try {
-      const template = templateComponent(defaultExport(await importFile(file, io.cwd, release)));
+      const template = templateComponent(defaultExport(await importFile(file, io, release)));
       if (!template) return { file: name, status: "skipped", reason: "no default-exported component (a shared component or helper file)" };
       Original = template.component;
       props = template.props;
@@ -462,7 +476,7 @@ async function migrateFile(input: Input, options: Options, lib: Library, io: Io,
         if (!code || !["EACCES", "EPERM", "EROFS"].includes(code)) throw error;
         return { file: name, status: "failed", reason: `can't write a temporary copy ${target === file ? "next to it" : "in its output folder"} to check it (read-only folder)` };
       }
-      const migrated = templateComponent(defaultExport(await importFile(probe, io.cwd, release)));
+      const migrated = templateComponent(defaultExport(await importFile(probe, io, release)));
       // Checked as exported (memo and forwardRef included), the way users render it.
       const Migrated = migrated?.exported;
       if (!Migrated) throw new Error("the migrated file has no default export");
@@ -482,6 +496,8 @@ async function migrateFile(input: Input, options: Options, lib: Library, io: Io,
         mergeTags = tagged;
       }
     } catch (error) {
+      const original = await originalFailure(Original, props, io.cwd);
+      if (original) return { file: name, status: "failed", reason: `the original template doesn't render: ${original}` };
       return { file: name, status: "failed", reason: `the migrated template doesn't render: ${renderFailure(error)}` };
     } finally {
       releaseProbe();
@@ -541,6 +557,11 @@ async function compare(paths: string[], args: Args, io: Io, library?: Library): 
     }
   }
   if (!supportedElements(io, [originalPath, migratedPath])) return 1;
+  const copies = otherCopies(io, [originalPath, migratedPath]);
+  if (copies) {
+    io.stderr(`${copies}\n`);
+    return 1;
+  }
   const lib = library ?? ((await import("@unlayer/from-react-email")) as Library);
   const release: Array<() => void> = [];
   try {
@@ -548,8 +569,8 @@ async function compare(paths: string[], args: Args, io: Io, library?: Library): 
     let Migrated: any;
     let props: Record<string, unknown>;
     try {
-      const original = templateComponent(defaultExport(await importFile(originalPath, io.cwd, release)));
-      const migrated = templateComponent(defaultExport(await importFile(migratedPath, io.cwd, release)));
+      const original = templateComponent(defaultExport(await importFile(originalPath, io, release)));
+      const migrated = templateComponent(defaultExport(await importFile(migratedPath, io, release)));
       if (!original || !migrated) {
         io.stderr("Both files need a default-exported template component.\n");
         return 1;
@@ -565,7 +586,8 @@ async function compare(paths: string[], args: Args, io: Io, library?: Library): 
     try {
       check = await lib.verifyConversion(Original, Migrated, { props });
     } catch (error) {
-      io.stderr(`The migrated template doesn't render: ${renderFailure(error)}\n`);
+      const original = await originalFailure(Original, props, io.cwd);
+      io.stderr(original ? `The original template doesn't render: ${original}\n` : `The migrated template doesn't render: ${renderFailure(error)}\n`);
       return 2;
     }
     const problems = [
@@ -772,6 +794,25 @@ function templateComponent(value: any): { component: any; exported: any; props: 
   return undefined;
 }
 
+/**
+ * Why the original template doesn't render, or undefined when it does: when a
+ * check fails, the migration isn't to blame for that.
+ */
+async function originalFailure(Original: any, props: Record<string, unknown>, cwd: string): Promise<string | undefined> {
+  try {
+    const [{ default: React }, { render }] = await Promise.all([import("react"), import("@react-email/components")]);
+    await render(React.createElement(Original, props));
+    return undefined;
+  } catch (error) {
+    const text = message(error);
+    // JSX compiled the classic way (React.createElement) in a file the project's JSX settings don't reach:
+    // the first JSX file in the stack (a path, or a URL with the loader's query).
+    const frame = /React is not defined/.test(text) ? /((?:file:\/\/)?\/[^\s()?]+?\.[cm]?[jt]sx)(?:\?[^\s()]*?)?:\d+/.exec((error as Error).stack ?? "")?.[1] : undefined;
+    const file = frame?.startsWith("file:") ? fileURLToPath(frame) : frame;
+    return file ? `${text} in ${relative(cwd, file)}, which was loaded without the project's JSX settings` : text;
+  }
+}
+
 /** Why a migrated template doesn't render, in terms of what to change. */
 function renderFailure(error: unknown): string {
   const text = message(error);
@@ -794,26 +835,87 @@ function hasPackage(file: string, name: string): boolean {
   }
 }
 
-/** CommonJS requires need the same project-first package resolution as hooks.ts. */
-function sharedCjsPackages(cwd: string): () => void {
+/** CommonJS requires bypass the module hooks: they need the same order as hooks.ts. */
+function sharedCjsPackages(projectFolder: string): () => void {
   type Resolve = (request: string, parent: NodeJS.Module | undefined, isMain?: boolean, options?: unknown) => string;
   const api = Module as typeof Module & { _resolveFilename: Resolve };
   const previous = api._resolveFilename;
-  const project = createRequire(pathToFileURL(join(cwd, "noop.js")));
+  const project = createRequire(pathToFileURL(join(projectFolder, "noop.js")));
   const self = createRequire(import.meta.url);
   let resolving = false;
   const resolvePackage: Resolve = (request, parent, isMain, options) => {
-    if (resolving || !/^(react|react-dom|@react-email\/[^/]+|react-email|@unlayer\/react-elements)(\/.*)?$/.test(request)) {
-      return previous(request, parent, isMain, options);
-    }
+    // A require never comes from the converter, which is an ES module.
+    const order = resolving ? undefined : resolutionOrder(request, false);
+    if (!order) return previous(request, parent, isMain, options);
     resolving = true;
     try {
-      try { return project.resolve(request); } catch { /* Try the importing module next. */ }
-      try { return previous(request, parent, isMain, options); } catch { return self.resolve(request); }
+      const from: Record<Origin, () => string> = {
+        project: () => project.resolve(request),
+        importer: () => previous(request, parent, isMain, options),
+        self: () => self.resolve(request),
+      };
+      let failure: unknown;
+      for (const origin of order) {
+        try { return from[origin](); } catch (error) { failure ??= error; }
+      }
+      throw failure;
     } finally { resolving = false; }
   };
   api._resolveFilename = resolvePackage;
   return () => { if (api._resolveFilename === resolvePackage) api._resolveFilename = previous; };
+}
+
+/** Where `name` resolves from `folder` (its real path), or undefined when it isn't installed there. */
+function resolveFrom(folder: string, name: string): string | undefined {
+  try {
+    return realpathSync(createRequire(join(folder, "noop.js")).resolve(name));
+  } catch {
+    return undefined;
+  }
+}
+
+/**
+ * The converter loads React Email and Elements once, from the project (the
+ * folder of the first template given); a template, and its migrated copy, load
+ * them from their own folder where it has them (hooks.ts). Where those differ
+ * (two apps of a monorepo), the check would render with copies other than the
+ * template's: say which folder to migrate in a run of its own.
+ */
+function otherCopies(io: Pick<Io, "cwd" | "project">, files: string[]): string | undefined {
+  if (io.project === undefined) return undefined; // called directly: packages resolve as usual
+  const self = dirname(fileURLToPath(import.meta.url));
+  for (const name of ["@react-email/components", "@unlayer/react-elements"]) {
+    const used = resolveFrom(io.project, name) ?? resolveFrom(self, name);
+    for (const folder of new Set(files.map((file) => dirname(file)))) {
+      const own = resolveFrom(folder, name);
+      if (own && own !== used) {
+        const where = relative(io.cwd, folder) || ".";
+        return `${where} has its own ${name}, other than the one this run checks with (from ${relative(io.cwd, io.project) || "."}): migrate that folder in a run of its own (npx @unlayer/migrate ${where}), writing inside it.`;
+      }
+    }
+  }
+  return undefined;
+}
+
+function realpathOr(path: string): string {
+  try {
+    return realpathSync(path);
+  } catch {
+    return path;
+  }
+}
+
+/** The monorepo `dir` is in: the nearest folder with pnpm-workspace.yaml, or a package.json with workspaces. */
+function workspaceRoot(dir: string): string | undefined {
+  for (let current = dir; ; current = dirname(current)) {
+    if (existsSync(join(current, "pnpm-workspace.yaml"))) return current;
+    try {
+      if (JSON.parse(readFileSync(join(current, "package.json"), "utf8")).workspaces) return current;
+    } catch {
+      // no package.json here, or not one that parses
+    }
+    if (dirname(current) === current) return undefined;
+  }
 }
 
 /** Whether JavaScript source only parses as JSX. */
@@ -827,10 +929,11 @@ async function jsxInJs(source: string): Promise<boolean> {
 /** Import JSX and TypeScript with React's automatic JSX runtime, honoring the project's tsconfig paths. */
 async function importFile(
   path: string,
-  cwd: string,
+  io: Pick<Io, "cwd" | "project">,
   release: Array<() => void>,
 ): Promise<Record<string, any>> {
-  release.push(sharedCjsPackages(cwd));
+  const { cwd, project = io.cwd } = io;
+  release.push(sharedCjsPackages(project));
   const url = pathToFileURL(path).href;
   if (/\.(mjs|cjs|js)$/.test(path)) return import(`${url}?t=${Date.now()}`);
   const { tsImport } = await import("tsx/esm/api");
@@ -855,14 +958,18 @@ async function importFile(
   for (const [alias, entries] of Object.entries(paths))
     paths[alias] = entries.map((entry) => resolve(pathBase, entry));
   // CJS imports bypass ESM hooks. Only supply Elements from the CLI when
-  // the project doesn't have it, and retain the project's resolved aliases.
-  try {
-    createRequire(join(cwd, "noop.js")).resolve("@unlayer/react-elements");
-  } catch {
+  // neither the template's folder nor the project has it (hooks.ts's order),
+  // and retain the project's resolved aliases.
+  if (!resolveFrom(dirname(path), "@unlayer/react-elements") && !resolveFrom(project, "@unlayer/react-elements")) {
     paths["@unlayer/react-elements"] = [
       createRequire(import.meta.url).resolve("@unlayer/react-elements"),
     ];
   }
+  // tsx applies the JSX settings only to the files `include` lists, by their real
+  // paths: a workspace package's TSX (outside the app) needs them too.
+  const workspace = workspaceRoot(dirname(path));
+  const roots = [cwd, dirname(path), ...(base ? [dirname(base)] : []), ...(workspace ? [workspace] : [])];
+  const include = [...new Set(roots.flatMap((root) => [root, realpathOr(root)]))];
   const removeConfig = () => rmSync(tsconfig, { force: true });
   const releaseConfig = removedOnExit(removeConfig);
   try {
@@ -878,9 +985,7 @@ async function importFile(
             ...(Object.keys(paths).length ? { paths } : {}),
           },
           // Imports outside the template folder need the same JSX runtime too.
-          include: [
-            ...new Set([cwd, dirname(path), ...(base ? [dirname(base)] : [])]),
-          ].map((root) => join(root, "**/*").split(sep).join("/")),
+          include: include.map((root) => join(root, "**/*").split(sep).join("/")),
         }),
       );
     } finally {
@@ -1370,48 +1475,4 @@ function findUp(name: string, from: string): string | undefined {
     if (existsSync(candidate)) return candidate;
     if (dirname(dir) === dir) return undefined;
   }
-}
-
-// ============================================
-// Arguments
-// ============================================
-
-interface Args {
-  positional: string[];
-  option(name: string): string | undefined;
-  flag(name: string): boolean;
-}
-
-const VALUE_OPTIONS = new Set(["out", "report", "from"]);
-const FLAGS = new Set(["write", "design", "no-merge-tags", "force", "help"]);
-const ALIASES: Record<string, string> = { h: "help", o: "out" };
-
-function parseArgs(argv: string[]): Args {
-  const positional: string[] = [];
-  const values = new Map<string, string>();
-  const flags = new Set<string>();
-  for (let i = 0; i < argv.length; i++) {
-    const arg = argv[i];
-    if (!arg.startsWith("-") || arg === "-") {
-      positional.push(arg);
-      continue;
-    }
-    const [rawName, inline] = arg.replace(/^--?/, "").split(/=(.*)/s, 2);
-    const name = ALIASES[rawName] ?? rawName;
-    if (VALUE_OPTIONS.has(name)) {
-      const value = inline ?? argv[++i];
-      if (value === undefined) throw new Error(`--${name} needs a value.`);
-      // `--report --write`: the next flag isn't the value.
-      if (inline === undefined && /^--?[a-z]/i.test(value)) throw new Error(`--${name} needs a value before ${value}.`);
-      if (!value.trim()) throw new Error(`--${name} needs a non-empty value.`);
-      values.set(name, value);
-    } else if (FLAGS.has(name)) {
-      // `--write=false` must not write: flags take no value.
-      if (inline !== undefined) throw new Error(`--${name} takes no value.`);
-      flags.add(name);
-    } else {
-      throw new Error(`Unknown option: ${arg}`);
-    }
-  }
-  return { positional, option: (name) => values.get(name), flag: (name) => flags.has(name) };
 }
