@@ -395,9 +395,19 @@ function line(doc: StyledDocument, items: Element[], box: Placement, blockAlign:
     const shorthand = (doc.property(k, "flex") ?? "").trim().split(/\s+/)[0];
     return parseFloat(doc.property(k, "flex-grow") || (/^\d/.test(shorthand ?? "") ? shorthand : "") || "0") > 0;
   };
+  // A side margin on an item placed by its share or its content moves it by an amount this doesn't work out:
+  // one that could move it by half the distance the check allows, or an auto one, leaves it unplaced.
+  const shifted = (element: Element) => {
+    const margin = sides(doc, element, "margin", box.width);
+    // (An auto margin moves a flex item; on an inline-block it's 0.)
+    if (margin.unknown || (flex && (margin.autoLeft || margin.autoRight)) || Math.abs(margin.left) >= 60 || Math.abs(margin.right) >= 60) unknownWithin(element, out);
+  };
   if (flex && widths.every((w) => w === undefined) && items.every(grows)) {
     const share = box.width / items.length;
-    items.forEach((element, i) => place(doc, element, box.x + i * share, share, box, blockAlign, rtl, out, false, share));
+    items.forEach((element, i) => {
+      place(doc, element, box.x + i * share, share, box, blockAlign, rtl, out, false, share);
+      shifted(element);
+    });
     return;
   }
   // Boxes that shrink to their content (a button: an inline-block without a width) sit where the line's
@@ -422,6 +432,7 @@ function line(doc: StyledDocument, items: Element[], box: Placement, blockAlign:
       out.set(element, placement);
       placeChildren(doc, element, display(doc, element), placement, blockAlign, rtl, out);
       out.set(element, placement);
+      shifted(element);
     });
     return;
   }

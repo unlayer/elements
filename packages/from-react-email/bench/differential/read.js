@@ -53,11 +53,13 @@
       let box = { left: r.left, top: r.top, right: r.right, bottom: r.bottom };
       for (let e = el; e && e.nodeType === 1 && e !== document.documentElement; e = e.parentElement) {
         const c = css(e);
-        const clips = c.overflowX !== "visible" || c.overflowY !== "visible" || (/^(absolute|fixed)$/.test(c.position) && /rect\(/.test(c.clip)) || (c.clipPath && c.clipPath !== "none");
+        // Overflow clips block containers (an inline-block, a cell) only: not an inline box or a table row.
+        const overflows = (c.overflowX !== "visible" || c.overflowY !== "visible") && !/^(inline|contents|table-row|table-row-group|table-header-group|table-footer-group|table-column|table-column-group)$/.test(c.display);
+        const clips = overflows || (/^(absolute|fixed)$/.test(c.position) && /rect\(/.test(c.clip)) || (c.clipPath && c.clipPath !== "none");
         if (!clips) continue;
         const b = e.getBoundingClientRect();
         const cut = (r) => (box = { left: Math.max(box.left, r.left), top: Math.max(box.top, r.top), right: Math.min(box.right, r.right), bottom: Math.min(box.bottom, r.bottom) });
-        if (c.overflowX !== "visible" || c.overflowY !== "visible") {
+        if (overflows) {
           const bl = parseFloat(c.borderLeftWidth), bt = parseFloat(c.borderTopWidth);
           cut({ left: b.left + bl, top: b.top + bt, right: b.left + bl + e.clientWidth, bottom: b.top + bt + e.clientHeight });
         }

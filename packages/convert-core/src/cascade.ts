@@ -1028,7 +1028,15 @@ export class StyledDocument {
     const vars = new Map(parent?.vars ?? []);
     for (const [property, d] of declared) {
       if (!property.startsWith("--")) continue;
-      vars.set(property, d.unknown ? { cause: d.cause ?? `${property}: ${d.value}` } : { value: d.value });
+      const keyword = d.unknown ? undefined : d.value.trim().toLowerCase();
+      // `initial` leaves it unset (a var() takes its fallback, or the declaration is invalid); the other keywords
+      // take the parent's, as custom properties inherit.
+      if (keyword === "initial") vars.delete(property);
+      else if (keyword && /^(inherit|unset|revert|revert-layer)$/.test(keyword)) {
+        const inherited = parent?.vars.get(property);
+        if (inherited) vars.set(property, inherited);
+        else vars.delete(property);
+      } else vars.set(property, d.unknown ? { cause: d.cause ?? `${property}: ${d.value}` } : { value: d.value });
     }
     const value = (property: string): string | undefined => {
       const d = declared.get(property);
@@ -1107,10 +1115,11 @@ export class StyledDocument {
     const kind = (display ?? (tag === "td" || tag === "th" ? "table-cell" : tag === "tr" ? "table-row" : INLINE_TAGS.has(tag) ? "inline" : "block")).trim().toLowerCase();
     const floated = /^(left|right)$/i.test((value("float") ?? "").trim());
     const sized = placed || floated || !(kind === "inline" || kind === "contents" || kind.startsWith("table-"));
-    // A block box that clips to nothing (`max-height:0;overflow:hidden`, `width:0;overflow:hidden`).
+    // A block box that clips to nothing a reader can read (`max-height:0;overflow:hidden`, `width:1px;overflow:hidden`).
     const clipped = sized && !!overflow && /hidden|clip/i.test(overflow) && ["max-height", "height", "max-width", "width"].some((p) => {
       const v = value(p);
-      return v !== undefined && lengthPx(v) === 0;
+      const px = v === undefined ? undefined : lengthPx(v);
+      return px !== undefined && px < 2;
     });
     const opacity = value("opacity");
     // Shown only to screen readers: positioned and clipped to nothing (`sr-only`), or moved far off the page.

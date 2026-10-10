@@ -21,5 +21,6 @@ export const SELF_TEST: Array<{ name: string; a: string; b: string; differs: boo
   { name: "faint text", a: doc('<div style="opacity:0.3"><p>Faint words</p></div>'), b: doc("<div><p>Faint words</p></div>"), differs: true },
   { name: "a background behind the text", a: doc('<div style="background:#111827;color:#fff"><p>On dark</p></div>'), b: doc('<div style="color:#fff"><p>On dark</p></div>'), differs: true },
   { name: "the preview text in the email", a: doc('<div data-skip-in-text="true" style="display:none">Preview words</div><p>Body</p>'), b: doc("<p>Preview words</p><p>Body</p>"), differs: true },
+  { name: "overflow on an inline box clips nothing", a: doc('<p><span style="overflow:hidden">Inline words</span></p>'), b: doc("<p><span>Inline words</span></p>"), differs: false },
   { name: "letter case as a style", a: doc('<p style="text-transform:uppercase">Case words</p>'), b: doc("<p>Case words</p>"), differs: true },
 ];

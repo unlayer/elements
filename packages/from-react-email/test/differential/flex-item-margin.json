@@ -1,0 +1,5 @@
+{
+  "why": "A flex item's 300px left margin moves its text 300px.",
+  "original": "<!doctype html><html><head><style></style></head><body style=\"margin:0;font-family:Arial\"><div style=\"display:flex;width:600px;justify-content:space-between\"><p style=\"margin:0 0 0 300px;flex:1\">Plan name Pro</p><center><p style=\"margin:0\">Monthly price</p></center></div></body></html>",
+  "migrated": "<!doctype html><html><head><style></style></head><body style=\"margin:0;font-family:Arial\"><div style=\"display:flex;width:600px;justify-content:space-between\"><p style=\"margin:0;flex:1\">Plan name Pro</p><center><p style=\"margin:0\">Monthly price</p></center></div></body></html>"
+}
