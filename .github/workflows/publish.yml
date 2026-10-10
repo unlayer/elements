@@ -270,6 +270,32 @@ jobs:
           fi
           echo "version=$VERSION" >> $GITHUB_OUTPUT
 
+      # Published @unlayer/migrate refuses an Elements outside its range (^0.2.0 holds 0.2.x only). A release
+      # outside it (a minor, 0.3.0) must raise the range in packages/migrate/package.json in the same change, so
+      # migrate publishes after it with the new range; otherwise every published migrate refuses the newest Elements.
+      - name: Check migrate supports this Elements
+        working-directory: packages/react
+        run: |
+          RANGE=$(node -p "require('../migrate/package.json').peerDependencies['@unlayer/react-elements']")
+          VERSION="${{ steps.version.outputs.version }}"
+          if node -e '
+            const [range, version] = process.argv.slice(1);
+            const base = /^\^(\d+)\.(\d+)\.(\d+)$/.exec(range);
+            if (!base) process.exit(2);
+            const [M, m, p] = base.slice(1).map(Number);
+            const [x, y, z] = version.split("-")[0].split(".").map(Number);
+            const sameLine = M > 0 ? x === M : x === 0 && y === m;
+            const atLeast = x !== M ? x > M : y !== m ? y > m : z >= p;
+            process.exit(sameLine && atLeast ? 0 : 1);
+          ' "$RANGE" "$VERSION"; then
+            echo "Elements $VERSION is inside @unlayer/migrate's range $RANGE"
+          elif npm view @unlayer/migrate version >/dev/null 2>&1; then
+            echo "::error::Elements $VERSION is outside @unlayer/migrate's Elements range ($RANGE): every published migrate would refuse it. Raise the range in packages/migrate/package.json in this change (the converter must support $VERSION), so migrate publishes after it."
+            exit 1
+          else
+            echo "::notice::Elements $VERSION is outside migrate's range ($RANGE), and migrate isn't on npm yet."
+          fi
+
       - name: Pre-publish summary
         working-directory: packages/react
         run: |
