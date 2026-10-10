@@ -15,13 +15,21 @@ const contentOptions: Record<string, string[]> = {
 
 /**
  * A value as CSS writes it in a declaration, or undefined when it could end the
- * declaration, the rule or the `<style>` element (`16px</style><script>`), or
- * start a comment that hides the rules after it (`16px /*`): a phone setting
- * may come from data, and it's written into the head as is.
+ * declaration, the rule or the `<style>` element (`16px</style><script>`),
+ * start a comment that hides the rules after it (`16px /*`), or leave a
+ * bracket open, which swallows the rules after it (`calc(12px + 4px`): a
+ * phone setting may come from data, and it's written into the head as is.
  */
 function css(value: unknown): string | undefined {
   const text = String(value).trim();
-  return text && !/[<>{};!\\"'\n\r]|\/\*|\*\//.test(text) ? text : undefined;
+  if (!text || /[<>{};!\\"'\n\r]|\/\*|\*\//.test(text)) return undefined;
+  let depth = 0;
+  for (const c of text) {
+    if (c === "(" || c === "[") depth++;
+    else if (c === ")" || c === "]") depth--;
+    if (depth < 0) return undefined;
+  }
+  return depth === 0 ? text : undefined;
 }
 
 function size(value: unknown): string | undefined {

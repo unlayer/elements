@@ -79,3 +79,16 @@ describe("device settings", () => {
     expect(doc.querySelector("#u_content_paragraph_2")?.getAttribute("style")).toContain("display: none");
   });
 });
+
+describe("phone values that could break the head's CSS", () => {
+  it("drops one that leaves a bracket open, which would swallow the phone rules after it", () => {
+    const html = renderToHtml(
+      <Email>
+        <Row><Column><Paragraph mobile={{ fontSize: "calc(12px + 4px" }}>Open bracket</Paragraph></Column></Row>
+        <Row><Column><Paragraph mobile={{ fontSize: "30px" }}>Later rule</Paragraph></Column></Row>
+      </Email>
+    );
+    expect(html).not.toContain("calc(12px + 4px");
+    expect(deviceCss(html)).toMatch(/font-size:30px !important/);
+  });
+});

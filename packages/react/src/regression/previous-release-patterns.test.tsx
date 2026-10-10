@@ -6,12 +6,15 @@
  * design; where it didn't (`fixed`), this build must show it. Each pattern is
  * built twice, once with each release's components.
  */
-import { describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import React, { createContext, forwardRef, memo, useContext, useId, useMemo, useState } from "react";
 import * as current from "../index";
 import * as previous from "@unlayer/react-elements-previous";
+import previousPackage from "@unlayer/react-elements-previous/package.json";
 
 type Lib = typeof current;
+// The previous release had the bugs `fixed` patterns record until 0.2.0, the release that fixed them.
+const previousHasTheBugs = /^0\.1\./.test(previousPackage.version);
 const releases = { current, previous: previous as unknown as Lib };
 
 /** React's `useId()` values (`:R1:` in React 18, `«R1»` in 19). */
@@ -140,6 +143,22 @@ const PATTERNS: Record<string, Pattern> = {
     shows: "Always Shown",
     fixed: true,
   },
+  "an async component among a Column's blocks": {
+    build: (L) => {
+      const Recommendations = (async () => <L.Paragraph>You may also like</L.Paragraph>) as unknown as () => React.ReactElement;
+      return <L.Email><L.Row><L.Column><L.Paragraph>Thanks for your order</L.Paragraph><Recommendations /><L.Paragraph>See you soon</L.Paragraph></L.Column></L.Row></L.Email>;
+    },
+    shows: "Thanks for your order See you soon",
+    json: false, // 0.1.22's design read the async component's promise as a block
+  },
+  "a component that throws, among a Row's columns": {
+    build: (L) => {
+      const ItemColumns = ({ order }: { order: { items?: string[] } }) => <>{order.items!.map((item) => <L.Column key={item}><L.Paragraph>{item}</L.Paragraph></L.Column>)}</>;
+      return <L.Email><L.Row><L.Column><L.Paragraph>Thanks for your order</L.Paragraph></L.Column></L.Row><L.Row><ItemColumns order={{}} /><L.Column><L.Paragraph>Total 0 dollars</L.Paragraph></L.Column></L.Row><L.Row><L.Column><L.Paragraph>Footer</L.Paragraph></L.Column></L.Row></L.Email>;
+    },
+    shows: "Thanks for your order Total 0 dollars Footer",
+    json: false,
+  },
   "headings, buttons and text with &, < and quotes": {
     build: (L) => (
       <L.Email>
@@ -157,6 +176,13 @@ const PATTERNS: Record<string, Pattern> = {
   },
 };
 
+// An async or throwing component is left out with a message: keep the test output quiet.
+beforeAll(() => {
+  vi.spyOn(console, "error").mockImplementation(() => {});
+  vi.spyOn(console, "warn").mockImplementation(() => {});
+});
+afterAll(() => vi.restoreAllMocks());
+
 describe.each(Object.entries(PATTERNS))("%s", (_, { build, shows, fixed, json, ids }) => {
   const now = build(releases.current);
   const before = build(releases.previous);
@@ -164,8 +190,9 @@ describe.each(Object.entries(PATTERNS))("%s", (_, { build, shows, fixed, json, i
   it("shows what React shows", () => {
     expect(visible(current.renderToHtml(now))).toBe(shows);
     if (ids) expect(new Set(current.renderToHtml(now).match(REACT_ID)).size).toBe(ids);
-    // The previous release showed it too, or it's a fix: a pattern that changes either way is a decision to make.
-    expect(visible(previous.renderToHtml(before)) === shows).toBe(!fixed);
+    // The previous release showed it too, or (while it's a release before the fix) it's a fix: a pattern that
+    // changes either way is a decision to make.
+    if (!fixed || previousHasTheBugs) expect(visible(previous.renderToHtml(before)) === shows).toBe(!fixed);
   });
 
   if (!fixed) {

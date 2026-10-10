@@ -69,6 +69,33 @@ function callComponent(element: React.ReactElement<any>): React.ReactNode {
   return type.$$typeof === FORWARD_REF ? type.render(props, null) : type(props);
 }
 
+const isThenable = (value: unknown): boolean => typeof (value as { then?: unknown } | null)?.then === "function";
+
+/**
+ * A user component's blocks, or nothing when it can't render here: one that's
+ * async (Elements renders synchronously) or throws is left out, and the rest
+ * of the email renders, as when such a component wasn't called at all.
+ */
+function renderedOrNothing(element: React.ReactElement<any>, call: () => unknown): React.ReactNode {
+  const name = innerType(element.type)?.displayName || innerType(element.type)?.name || "component";
+  let out: unknown;
+  try {
+    out = call();
+  } catch (error) {
+    if (isThenable(error) || /async and suspending/.test(String((error as Error)?.message))) {
+      console.warn(`[Unlayer] <${name}> suspends or is async: Elements renders synchronously, so it's left out. Load its data first and pass it as props.`);
+    } else {
+      console.error(`[Unlayer] <${name}> threw while rendering, so it's left out:`, error);
+    }
+    return null;
+  }
+  if (isThenable(out)) {
+    console.warn(`[Unlayer] <${name}> is async: Elements renders synchronously, so it's left out. Load its data first and pass it as props.`);
+    return null;
+  }
+  return out as React.ReactNode;
+}
+
 /** Notes what a component rendered in this render (the last pass of it), for the head and the design. */
 function record(list: object, at: number, out: React.ReactNode): void {
   if (rendered) rendered.set(list, (rendered.get(list) ?? new Map()).set(at, out));
@@ -83,7 +110,7 @@ function contents(element: React.ReactElement<any>, list: object, at: number): R
   const done = own?.get(list);
   if (done?.has(at)) return done.get(at);
   const type = innerType(element.type);
-  const out = (isElementsType(type) ? React.createElement(type, { ...element.props }) : driven ? callComponent(element) : callIsolated(() => callComponent(element), `u${++called}-`)) as React.ReactNode;
+  const out = (isElementsType(type) ? React.createElement(type, { ...element.props }) : renderedOrNothing(element, () => (driven ? callComponent(element) : callIsolated(() => callComponent(element), `u${++called}-`)))) as React.ReactNode;
   if (own) own.set(list, (done ?? new Map()).set(at, out));
   if (driven) record(list, at, out);
   return out;
@@ -128,7 +155,7 @@ export function expandChildren(children: React.ReactNode, depth = 0): React.Reac
  * own children are placed. It has no hooks of its own.
  */
 function Expanded({ element, list, at, place, depth, prefix }: { element: React.ReactElement<any>; list: object; at: number; place: (child: React.ReactElement) => React.ReactElement; depth: number; prefix: string }): React.ReactNode {
-  const inside = callComponent(element);
+  const inside = renderedOrNothing(element, () => callComponent(element));
   // Noted again on each pass (a component that sets state while rendering): the head reads the last.
   record(list, at, inside);
   // A component that renders plain HTML (`<div dangerouslySetInnerHTML>`) is kept as it is.

@@ -249,16 +249,17 @@ function renderRow(props: RowProps): React.ReactElement | null {
   // Determine cells from layout or props. With neither, default to one equal
   // cell PER <Column> child (mirroring renderToJson) — `[1]` regardless of column
   // count left the 2nd/3rd column with no cell, rendering width="NaN".
+  // Columns written in the Row, from Fragments and from components alike.
+  const columnCount = React.Children.toArray(expandChildren(children)).filter(
+    (c) => React.isValidElement(c) && /^Column$/.test((c.type as any)?.displayName || (c.type as any)?.name || "")
+  ).length;
   let cells: number[];
   if (layout) {
-    validateColumnLayout(layout, React.Children.count(children));
+    validateColumnLayout(layout, columnCount);
     cells = layout.cells;
   } else if (propsCells) {
     cells = propsCells;
   } else {
-    const columnCount = React.Children.toArray(expandChildren(children)).filter(
-      (c) => React.isValidElement(c) && /^Column$/.test((c.type as any)?.displayName || (c.type as any)?.name || "")
-    ).length;
     cells = Array(Math.max(1, columnCount)).fill(1);
   }
 

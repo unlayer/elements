@@ -85,3 +85,18 @@ describe("Row Component", () => {
     expect(Row.displayName).toBe("Row");
   });
 });
+
+describe("Row layout with columns from components", () => {
+  it("counts the columns a Fragment or a component gives", async () => {
+    const { Email, renderToHtml, ColumnLayouts } = await import("../index");
+    const Pair = () => (
+      <>
+        <Column><Paragraph>Left column words</Paragraph></Column>
+        <Column><Paragraph>Right column words</Paragraph></Column>
+      </>
+    );
+    const html = renderToHtml(<Email><Row layout={ColumnLayouts.TwoEqual}><Pair /></Row></Email>);
+    expect(html).toContain("Left column words");
+    expect(html).toContain("Right column words");
+  });
+});
