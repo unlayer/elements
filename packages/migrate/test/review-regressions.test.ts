@@ -776,8 +776,8 @@ export { Previewed as default };`,
     // Loaded: what follows (rendering, converting) may still fail for these shapes.
     expect(out.out).not.toContain("skipped");
     expect(out.out).toContain("✗ emails/conditional.tsx: the migrated template doesn't render: the template renders nothing with these props");
-    // The codemod doesn't read `export { X as default }` yet: it fails, saying so (never a pass).
-    expect(out.out).toContain("✗ emails/previewed.tsx: couldn't convert it: No default-exported component found");
+    // `export { X as default }` is read; a return of a variable holding the JSX fails, saying so (never a pass).
+    expect(out.out).toContain("✗ emails/previewed.tsx: couldn't convert it: A template return must be JSX");
   });
 
   it("don't keep templates in place with --write: an index that imports them and exports them again", async () => {
