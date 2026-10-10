@@ -8,14 +8,16 @@ From the repository root, with Node.js 20+ and pnpm 9:
 
 ```bash
 pnpm install
-pnpm build
+pnpm build    # builds the packages, including the migrate command this example runs
 pnpm --filter @unlayer/react-email-in-editor-example migrate
 pnpm --filter @unlayer/react-email-in-editor-example preview
 ```
 
+`pnpm build` comes before `migrate`: a fresh clone has no built `@unlayer/migrate` until then.
+
 Open <http://127.0.0.1:3002/editor.html> and pick a template. Every block is editable, the phone preview follows the template's phone styles, and **Download edited design and HTML** exports your changes. The editor needs internet access.
 
-`migrate` writes to `output/`:
+`migrate` empties `output/`, then writes to it:
 
 | File | What it is |
 |------|------------|
