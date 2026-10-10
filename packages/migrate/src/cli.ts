@@ -393,7 +393,7 @@ async function migrateFile(input: Input, options: Options, lib: Library, io: Io,
   if (/from\s+["']@unlayer\/react-elements["']/.test(source)) return { file: name, status: "skipped", reason: "already migrated: it imports @unlayer/react-elements" };
   // Checking a template runs its code and calls its default export: a helper (one that sends an email) is never loaded.
   const notLoaded = await notATemplate(file, source);
-  if (notLoaded) return { file: name, status: "skipped", reason: notLoaded };
+  if (notLoaded) return { file: name, status: notLoaded.fail ? "failed" : "skipped", reason: notLoaded.reason };
   // Text in another encoding (a Latin-1 é) reads as U+FFFD: it would be written back that way.
   if (!isUtf8(bytes)) return { file: name, status: "failed", reason: "it isn't saved as UTF-8 (another encoding, like Latin-1): save it as UTF-8, then run again" };
 
@@ -1048,7 +1048,9 @@ async function importedInputs(inputs: Input[]): Promise<Map<string, string>> {
       ts.forEachChild(node, visit);
     };
     // Only a template or a component keeps what it imports: an index that lists the templates, or a route or helper that sends them, doesn't.
-    if (await notATemplate(input.path, await readFile(input.path, "utf8"))) continue;
+    // A template the check can't load (a wrapped one) still uses what it imports.
+    const notLoaded = await notATemplate(input.path, await readFile(input.path, "utf8"));
+    if (notLoaded && !notLoaded.fail) continue;
     visit(await parse(input.path));
     for (const { specifier, names } of imports) await follow(input.path, specifier, names);
   }
@@ -1143,22 +1145,26 @@ function projectConfig(dir: string): string | undefined {
 }
 
 /**
- * Why a file isn't a template, or undefined when it is one: a template's default
+ * Why a file isn't loaded, or undefined when it's a template: a template's default
  * export is a component (a function, `memo` or `forwardRef` of one, or a class
- * with `render`) that isn't async and returns JSX, or that has `PreviewProps`
- * (React Email's own convention). Read from the source, as loading a file runs
- * its code.
+ * extending React's `Component` with `render`) that isn't async and returns JSX,
+ * or that has `PreviewProps` (React Email's own convention). Read from the source,
+ * as loading a file runs its code. `fail` marks a template the check can't load
+ * (one wrapped in another function), as opposed to a file that isn't one.
  */
-async function notATemplate(path: string, source: string): Promise<string | undefined> {
+async function notATemplate(path: string, source: string): Promise<{ reason: string; fail?: true } | undefined> {
   const ts = (await import("typescript")).default;
   type Node = import("typescript").Node;
   // A .ts file has no JSX: read as TSX, `<T>value` would be misread.
   const file = ts.createSourceFile(path, source, ts.ScriptTarget.Latest, true, /\.m?ts$/.test(path) ? ts.ScriptKind.TS : ts.ScriptKind.TSX);
+  const skip = (reason: string) => ({ reason });
   const declared = new Map<string, Node>();
   const previewed = new Set<string>();
   // React's functions by the names they're imported as (`memo as remember`, `React.memo`).
   const fromReact = new Map<string, string>();
   const namespaces = new Set(["React"]);
+  // React Email's <Html> by the names it's imported as (`Html`, `Email.Html`).
+  const htmlTags = new Set<string>();
   let exported: Node | undefined;
   for (const statement of file.statements) {
     if (ts.isImportDeclaration(statement) && ts.isStringLiteral(statement.moduleSpecifier) && statement.moduleSpecifier.text === "react") {
@@ -1167,6 +1173,11 @@ async function notATemplate(path: string, source: string): Promise<string | unde
       const bindings = clause?.namedBindings;
       if (bindings && ts.isNamespaceImport(bindings)) namespaces.add(bindings.name.text);
       else if (bindings) for (const e of bindings.elements) fromReact.set(e.name.text, (e.propertyName ?? e.name).text);
+    }
+    if (ts.isImportDeclaration(statement) && ts.isStringLiteral(statement.moduleSpecifier) && /^(@react-email\/|react-email$)/.test(statement.moduleSpecifier.text)) {
+      const bindings = statement.importClause?.namedBindings;
+      if (bindings && ts.isNamespaceImport(bindings)) htmlTags.add(`${bindings.name.text}.Html`);
+      else if (bindings) for (const e of bindings.elements) if ((e.propertyName ?? e.name).text === "Html") htmlTags.add(e.name.text);
     }
     const isDefault = ts.canHaveModifiers(statement) && (ts.getModifiers(statement) ?? []).some((m) => m.kind === ts.SyntaxKind.DefaultKeyword);
     if (ts.isFunctionDeclaration(statement) || ts.isClassDeclaration(statement)) {
@@ -1183,7 +1194,7 @@ async function notATemplate(path: string, source: string): Promise<string | unde
       if (ts.isPropertyAccessExpression(target) && target.name.text === "PreviewProps" && ts.isIdentifier(target.expression)) previewed.add(target.expression.text);
     }
   }
-  if (!exported) return "no default-exported component (a shared component or helper file)";
+  if (!exported) return skip("no default-exported component (a shared component or helper file)");
   const reactFunction = (callee: Node) =>
     ts.isIdentifier(callee) ? fromReact.get(callee.text) ?? callee.text
     : ts.isPropertyAccessExpression(callee) && ts.isIdentifier(callee.expression) && namespaces.has(callee.expression.text) ? callee.name.text
@@ -1191,6 +1202,7 @@ async function notATemplate(path: string, source: string): Promise<string | unde
   // Through names, parentheses, `as`, `memo(…)` and `forwardRef(…)`, to the component.
   let node: Node | undefined = exported;
   let previewProps = false;
+  let wrapper: string | undefined;
   for (let depth = 0; node && depth < 8 && !ts.isFunctionLike(node) && !ts.isClassLike(node); depth++) {
     if (ts.isIdentifier(node)) {
       previewProps ||= previewed.has(node.text);
@@ -1199,13 +1211,35 @@ async function notATemplate(path: string, source: string): Promise<string | unde
     else if (ts.isCallExpression(node) && ["memo", "forwardRef"].includes(reactFunction(node.expression) ?? "")) node = node.arguments[0];
     // A React type the check can't render (`lazy(…)`) is loaded, to fail as unsupported.
     else if ((ts.isCallExpression(node) && reactFunction(node.expression) === "lazy") || (ts.isObjectLiteralExpression(node) && node.properties.some((p) => p.name?.getText(file) === "$$typeof"))) return undefined;
-    else node = undefined;
+    else {
+      if (ts.isCallExpression(node)) wrapper = node.expression.getText(file);
+      node = undefined;
+    }
   }
   if (node && (ts.isFunctionDeclaration(node) || ts.isClassDeclaration(node)) && node.name) previewProps ||= previewed.has(node.name.text);
-  if (node && ts.isClassLike(node)) return node.members.some((m) => ts.isMethodDeclaration(m) && m.name.getText(file) === "render") ? undefined : "not loaded: its default export is a class without render()";
-  if (!node || !ts.isFunctionLike(node)) return "not loaded: its default export isn't a component (a helper, or a file that passes one on)";
+  if (node && ts.isClassLike(node)) {
+    // Only React's classes are components: another class with render() may be a helper (a mailer).
+    const base = node.heritageClauses?.find((c) => c.token === ts.SyntaxKind.ExtendsKeyword)?.types[0]?.expression;
+    const component = base && (ts.isIdentifier(base) ? fromReact.get(base.text) : reactFunction(base));
+    if (!component || !["Component", "PureComponent"].includes(component)) return skip("not loaded: its default export is a class that doesn't extend React's Component (a helper, not a template)");
+    return node.members.some((m) => ts.isMethodDeclaration(m) && m.name.getText(file) === "render") ? undefined : skip("not loaded: its default export is a class without render()");
+  }
+  /** Whether JSX anywhere in the file renders React Email's <Html>. */
+  const rendersHtml = () => {
+    let found = false;
+    const visit = (child: Node) => {
+      if (found) return;
+      if ((ts.isJsxOpeningElement(child) || ts.isJsxSelfClosingElement(child)) && htmlTags.has(child.tagName.getText(file))) found = true;
+      else ts.forEachChild(child, visit);
+    };
+    visit(file);
+    return found;
+  };
+  // An email the check can't reach: it fails rather than being skipped as a helper.
+  if (wrapper && rendersHtml()) return { reason: `its default export is wrapped in ${wrapper}(…), which the check can't unwrap: export the component itself`, fail: true };
+  if (!node || !ts.isFunctionLike(node)) return skip("not loaded: its default export isn't a component (a helper, or a file that passes one on)");
   if ((ts.getModifiers(node as import("typescript").FunctionLikeDeclaration) ?? []).some((m) => m.kind === ts.SyntaxKind.AsyncKeyword)) {
-    return "not loaded: its default export is async (a helper, or a template that loads data: load it first and pass it as props)";
+    return skip("not loaded: its default export is async (a helper, or a template that loads data: load it first and pass it as props)");
   }
   /** JSX, in either branch of a condition. */
   const jsx = (e: Node | undefined): boolean => {
@@ -1224,7 +1258,7 @@ async function notATemplate(path: string, source: string): Promise<string | unde
     else ts.forEachChild(child, visit);
   };
   if (body && ts.isBlock(body)) ts.forEachChild(body, visit);
-  return returns || previewProps ? undefined : "not loaded: its default export doesn't return JSX (a helper, not a template)";
+  return returns || previewProps ? undefined : skip("not loaded: its default export doesn't return JSX (a helper, not a template)");
 }
 
 /**

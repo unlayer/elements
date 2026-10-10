@@ -471,6 +471,59 @@ export default { welcome: "welcome" };`,
     }
   });
 
+  it("don't load a default-exported class that isn't a React component, even with render()", async () => {
+    const marks = fs.mkdtempSync(path.join(tmpdir(), "unlayer-marks-"));
+    dirs.push(marks);
+    const mark = (name: string) => `writeFileSync(${JSON.stringify(path.join(marks, name))}, "called")`;
+    const dir = project({
+      "emails/mailer.tsx": `import { render } from "@react-email/components";
+import { writeFileSync } from "node:fs";
+${mark("loaded")};
+class Mailer { render() { ${mark("rendered")}; return render(null as any); } }
+export default Mailer;`,
+      "emails/component.tsx": `import { Component } from "react";
+import { Html, Body, Text } from "@react-email/components";
+export default class Welcome extends Component { render() { return <Html><Body><Text>Welcome aboard</Text></Body></Html>; } }`,
+      "emails/pure.tsx": `import * as React from "react";
+import { Html, Body, Text } from "@react-email/components";
+export default class Receipt extends React.PureComponent { render() { return <Html><Body><Text>Your receipt</Text></Body></Html>; } }`,
+      "emails/local.tsx": `import { Html, Body, Text } from "@react-email/components";
+class Component { render() { return null; } }
+export default class Note extends Component { render() { return <Html><Body><Text>Note</Text></Body></Html>; } }`,
+    });
+    const out = io(dir);
+    await main(["emails"], out, lib);
+    expect(out.out).toMatch(/- emails\/mailer\.tsx: skipped \(not loaded: its default export is a class that doesn't extend React's Component/);
+    expect(out.out).toMatch(/- emails\/local\.tsx: skipped \(not loaded: its default export is a class that doesn't extend React's Component/);
+    expect(fs.readdirSync(marks)).toEqual([]);
+    // React's own classes are loaded (what follows may still fail for them).
+    expect(out.out).not.toMatch(/emails\/(component|pure)\.tsx: skipped/);
+  });
+
+  it("fail a template whose default export is wrapped in a call the check can't unwrap; helpers stay skipped", async () => {
+    const dir = project({
+      "lib/wrap.ts": "export const withTracking = (component: any) => component;\nexport const withRetry = (send: any) => send;\n",
+      "emails/welcome.tsx": `import { Html, Body, Text } from "@react-email/components";
+import { withTracking } from "../lib/wrap";
+function Welcome() { return <Html><Body><Text>Welcome aboard</Text></Body></Html>; }
+export default withTracking(Welcome);`,
+      "emails/send.ts": `import { render } from "@react-email/components";
+import { withRetry } from "../lib/wrap";
+async function send(to: string) { return render(null as any); }
+export default withRetry(send);`,
+      "emails/receipt.tsx": `import * as Email from "@react-email/components";
+const withLocale = (locale: string) => (component: any) => component;
+function Receipt() { return <Email.Html><Email.Body><Email.Text>Your receipt</Email.Text></Email.Body></Email.Html>; }
+export default withLocale("en")(Receipt);`,
+    });
+    const out = io(dir);
+    expect(await main(["emails"], out, lib), out.out + out.err).toBe(2);
+    expect(out.out).toContain("✗ emails/welcome.tsx: its default export is wrapped in withTracking(…), which the check can't unwrap: export the component itself");
+    expect(out.out).toContain('✗ emails/receipt.tsx: its default export is wrapped in withLocale("en")(…)');
+    expect(out.out).toMatch(/- emails\/send\.ts: skipped \(not loaded/);
+    expect(out.out).toContain("0 migrated and checked, 2 failed, 1 skipped");
+  });
+
   it("still loads templates that return JSX through a condition, or that have PreviewProps", async () => {
     const dir = project({
       "emails/conditional.tsx": `import * as React from "react";
