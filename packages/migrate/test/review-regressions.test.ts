@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it } from "vitest";
 import fs from "node:fs";
+import { execFileSync } from "node:child_process";
 import path from "node:path";
 import { execFile, spawn } from "node:child_process";
 import { promisify } from "node:util";
@@ -24,7 +25,17 @@ function project(files: Record<string, string>, external = false): string {
     fs.mkdirSync(path.dirname(path.join(dir, file)), { recursive: true });
     fs.writeFileSync(path.join(dir, file), text);
   }
+  // A project under git, its files committed: --write replaces only what git can restore.
+  commit(dir);
   return dir;
+}
+
+/** Commits everything in `dir` (a git repository of its own). */
+function commit(dir: string): void {
+  const git = (...args: string[]) => execFileSync("git", ["-c", "user.name=Test", "-c", "user.email=test@example.com", "-c", "commit.gpgsign=false", ...args], { cwd: dir, stdio: "ignore" });
+  if (!fs.existsSync(path.join(dir, ".git"))) git("init", "-q");
+  git("add", "-A");
+  git("commit", "-q", "--allow-empty", "-m", "templates");
 }
 
 function io(cwd: string): Io & { out: string; err: string } {
@@ -200,6 +211,7 @@ describe("encoding", () => {
     const dir = project({});
     fs.mkdirSync(path.join(dir, "emails"));
     fs.writeFileSync(path.join(dir, "emails/menu.tsx"), latin1);
+    commit(dir);
     for (const flags of [["--write"], ["--out", "migrated"]]) {
       const out = io(dir);
       expect(await main(["emails", ...flags], out, lib), out.out + out.err).toBe(2);
@@ -925,5 +937,45 @@ export default function Base({ content }: { content?: React.ReactNode }) { retur
     expect(await main(["emails"], out, lib), out.out + out.err).toBe(0);
     expect(out.out).toMatch(/✓ emails\/welcome\.tsx/);
     expect(out.out).toMatch(/- emails\/send\.tsx: skipped \(not loaded: its default export wraps an async function in withLogging/);
+  });
+});
+
+describe("--write only replaces what git can restore", () => {
+  it("refuses templates with uncommitted changes, untracked ones and ones outside a repository, before running anything", async () => {
+    const dir = project({ "emails/welcome.tsx": good, "emails/other.tsx": neverLoad.replace("must not load", "other") });
+    fs.writeFileSync(path.join(dir, "emails/welcome.tsx"), good.replace("Keep the original", "Keep the edited original"));
+    fs.writeFileSync(path.join(dir, "emails/new.tsx"), neverLoad);
+    const out = io(dir);
+    expect(await main(["emails", "--write"], out, lib), out.out + out.err).toBe(1);
+    expect(out.err).toContain("emails/welcome.tsx (changed since the last commit)");
+    expect(out.err).toContain("emails/new.tsx (not committed)");
+    expect(out.err).not.toContain("emails/other.tsx");
+    expect(out.out).toBe("");
+    expect(fs.readFileSync(path.join(dir, "emails/new.tsx"), "utf8")).toBe(neverLoad);
+    // Outside a repository: nothing git could restore.
+    const loose = fs.mkdtempSync(path.join(tmpdir(), "unlayer-loose-"));
+    dirs.push(loose);
+    fs.mkdirSync(path.join(loose, "emails"));
+    fs.writeFileSync(path.join(loose, "emails/welcome.tsx"), good);
+    const outside = io(loose);
+    expect(await main(["emails", "--write"], outside, lib)).toBe(1);
+    expect(outside.err).toContain("emails/welcome.tsx (not in a git repository)");
+    expect(fs.readFileSync(path.join(loose, "emails/welcome.tsx"), "utf8")).toBe(good);
+  });
+
+  it("replaces committed templates, which git can then restore; --allow-dirty and --out don't need git", async () => {
+    const dir = project({ "emails/welcome.tsx": good });
+    expect(await main(["emails", "--write"], io(dir), lib)).toBe(0);
+    expect(fs.readFileSync(path.join(dir, "emails/welcome.tsx"), "utf8")).toContain("@unlayer/react-elements");
+    execFileSync("git", ["checkout", "--", "emails/welcome.tsx"], { cwd: dir });
+    expect(fs.readFileSync(path.join(dir, "emails/welcome.tsx"), "utf8")).toBe(good);
+    fs.writeFileSync(path.join(dir, "emails/welcome.tsx"), good.replace("Keep the original", "Keep the edited original"));
+    expect(await main(["emails", "--write", "--allow-dirty"], io(dir), lib)).toBe(0);
+    expect(fs.readFileSync(path.join(dir, "emails/welcome.tsx"), "utf8")).toContain("Keep the edited original");
+    const loose = fs.mkdtempSync(path.join(tmpdir(), "unlayer-loose-"));
+    dirs.push(loose);
+    fs.writeFileSync(path.join(loose, "welcome.tsx"), good);
+    expect(await main(["welcome.tsx", "--out", "migrated"], io(loose), lib)).toBe(0);
+    expect(fs.readFileSync(path.join(loose, "welcome.tsx"), "utf8")).toBe(good);
   });
 });

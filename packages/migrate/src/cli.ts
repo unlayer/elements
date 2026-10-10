@@ -52,6 +52,10 @@ and the visual editor must get every block. Nothing is written unless you ask:
   --force          Write templates even when the check finds a problem.
   --overwrite      Replace files already at a destination that this run
                    didn't produce (a design file from an earlier run).
+  --allow-dirty    With --write, replace templates git can't restore
+                   (changed since the last commit, not committed, or not
+                   in a repository). Without it, --write refuses them, so
+                   git can always undo a migration.
   --from <source>  What to migrate from (default and only: react-email).
   -h, --help       Show this help.
 
@@ -146,6 +150,8 @@ interface Options {
   force: boolean;
   /** Replace files at the destinations that this run didn't produce. */
   overwrite: boolean;
+  /** With --write, replace templates git can't restore. */
+  allowDirty: boolean;
 }
 
 type Library = typeof import("@unlayer/from-react-email");
@@ -179,6 +185,7 @@ export async function main(argv: string[], io: Io, library?: Library): Promise<n
     mergeTags: !args.flag("no-merge-tags"),
     force: args.flag("force"),
     overwrite: args.flag("overwrite"),
+    allowDirty: args.flag("allow-dirty"),
   };
   if (options.write && options.out !== undefined) {
     io.stderr("Use --write or --out, not both.\n");
@@ -209,6 +216,18 @@ export async function main(argv: string[], io: Io, library?: Library): Promise<n
     }
     io.stderr("No React Email templates found (files that import @react-email/*, or the project's components that do).\n");
     return 1;
+  }
+
+  // --write replaces the templates themselves: only ones git can give back as they were.
+  if (options.write && !options.allowDirty) {
+    const unsafe = await notRestorable(candidates.map((input) => input.path));
+    if (unsafe.length) {
+      io.stderr(
+        `--write replaces templates in place, and git couldn't restore these:\n${unsafe.map((u) => `  ${relative(io.cwd, u.file)} (${u.why})`).join("\n")}\n` +
+          "Commit them first (then git can undo the migration), write copies with --out <dir>, or pass --allow-dirty.\n"
+      );
+      return 1;
+    }
   }
 
   const reportFile = args.option("report");
@@ -1693,6 +1712,43 @@ async function sharedPiece(source: string): Promise<"shared" | "email" | "unknow
   };
   if (!read(param.type)) return "unknown";
   return written.some((text) => /\b(ReactNode|ReactElement|ReactChild|ReactFragment|ReactPortal|PropsWithChildren|JSX\.Element|Element)\b/.test(text)) ? "shared" : "email";
+}
+
+/**
+ * Files git can't give back as they are: outside a repository (or without
+ * git), not committed (untracked or ignored), or changed since the last
+ * commit (staged or not). --write replaces only files git can restore.
+ */
+async function notRestorable(files: string[]): Promise<Array<{ file: string; why: string }>> {
+  const { execFile } = await import("node:child_process");
+  const git = (cwd: string, args: string[]) =>
+    new Promise<string | undefined>((done) => execFile("git", args, { cwd, maxBuffer: 64 * 1024 * 1024 }, (error, stdout) => done(error ? undefined : stdout)));
+  const out: Array<{ file: string; why: string }> = [];
+  const byRepository = new Map<string, Array<{ file: string; path: string }>>();
+  for (const file of files) {
+    const root = (await git(dirname(file), ["rev-parse", "--show-toplevel"]))?.trim();
+    if (!root) {
+      out.push({ file, why: "not in a git repository" });
+      continue;
+    }
+    const top = await canonicalPath(root);
+    const list = byRepository.get(top) ?? [];
+    list.push({ file, path: relative(top, await canonicalPath(file)).split(sep).join("/") });
+    byRepository.set(top, list);
+  }
+  for (const [root, list] of byRepository) {
+    const paths = list.map((f) => f.path);
+    const tracked = new Set((await git(root, ["ls-files", "-z", "--", ...paths]))?.split("\0").filter(Boolean) ?? []);
+    const changedOutput = await git(root, ["diff", "--name-only", "-z", "HEAD", "--", ...paths]);
+    const changed = new Set(changedOutput?.split("\0").filter(Boolean) ?? []);
+    for (const { file, path } of list) {
+      if (!tracked.has(path)) out.push({ file, why: "not committed" });
+      // No commit yet: nothing to restore from.
+      else if (changedOutput === undefined) out.push({ file, why: "not committed" });
+      else if (changed.has(path)) out.push({ file, why: "changed since the last commit" });
+    }
+  }
+  return out;
 }
 
 function findUp(name: string, from: string): string | undefined {

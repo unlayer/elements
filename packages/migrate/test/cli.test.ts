@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it } from "vitest";
 import React from "react";
 import fs from "node:fs";
+import { execFileSync } from "node:child_process";
 import path from "node:path";
 import * as lib from "@unlayer/from-react-email";
 import { main, type Io } from "../src/cli";
@@ -62,7 +63,17 @@ function project(files: Record<string, string>): string {
     fs.mkdirSync(path.dirname(path.join(dir, file)), { recursive: true });
     fs.writeFileSync(path.join(dir, file), text);
   }
+  // A project under git, its files committed: --write replaces only what git can restore.
+  commit(dir);
   return dir;
+}
+
+/** Commits everything in `dir` (a git repository of its own). */
+function commit(dir: string): void {
+  const git = (...args: string[]) => execFileSync("git", ["-c", "user.name=Test", "-c", "user.email=test@example.com", "-c", "commit.gpgsign=false", ...args], { cwd: dir, stdio: "ignore" });
+  if (!fs.existsSync(path.join(dir, ".git"))) git("init", "-q");
+  git("add", "-A");
+  git("commit", "-q", "--allow-empty", "-m", "templates");
 }
 
 function io(cwd: string): Io & { out: string; err: string } {

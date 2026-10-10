@@ -19,7 +19,7 @@ Before a template is written, the original and the migrated version are rendered
 - no new words may appear in the migrated template;
 - any block the visual editor can't represent (`renderToJson`) fails the check, including on each boolean variant.
 
-A template that fails isn't written (unless `--force`), and the command exits with code `2`. Code paths these props don't reach (a loop over an empty preview array, a condition on a non-boolean prop) are converted but not verified: extend `PreviewProps` to cover them. Without `--write` or `--out <dir>`, nothing is written: run it first to see the report.
+A template that fails isn't written (unless `--force`), and the command exits with code `2`. Code paths these props don't reach (a loop over an empty preview array, a condition on a non-boolean prop) are converted but not verified: extend `PreviewProps` to cover them. Without `--write` or `--out <dir>`, nothing is written: run it first to see the report. `--write` only replaces templates git can restore (committed, unchanged since), so commit before running it; `--allow-dirty` skips that check.
 
 ## Reading the report
 

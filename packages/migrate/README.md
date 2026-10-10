@@ -24,16 +24,19 @@ Run it from your project folder. Each template is:
 
 | Option | |
 |---|---|
-| `--write` | Replace each template with its migrated version. |
+| `--write` | Replace each template with its migrated version. Only templates git can restore: committed, with no changes since. |
 | `--out <dir>` | Write migrated templates to `<dir>` instead, keeping the folder layout. Relative imports and resources loaded with `new URL(path, import.meta.url)` keep resolving from their original location. The rewritten source is checked in its destination folder. |
 | `--design` | Also write `<name>.design.json` next to each migrated template: the design the Unlayer editor opens with `loadDesign()`. Text props the template shows as given become merge tags (`{{name}}`); props it changes first (a formatted date, an uppercased word) keep their `PreviewProps` value. CSS, font URLs, backgrounds and image sources (including inline images in HTML) keep sample values. The design is built from the migrated template's `PreviewProps`, where JSX passed as a prop has styles instead of Tailwind classes. The JSON report lists each template's web fonts (`fonts`): register them when you create the editor (`fonts: { showDefaultFonts: true, customFonts }`), since it loads and exports only fonts it was created with. |
 | `--no-merge-tags` | Keep the `PreviewProps` values in the design JSON instead of merge tags. |
 | `--report <file>` | Write the migration report as Markdown (`.md`) or JSON (`.json`). |
 | `--force` | Write templates even when the check finds a problem. |
 | `--overwrite` | Replace files already at a destination that the run didn't produce (a design file from an earlier run). It never writes a template that failed the check. |
+| `--allow-dirty` | With `--write`, replace templates git can't restore (uncommitted changes, not committed, or not in a repository). |
 | `--from react-email` | The source format (the only one today). |
 
 Without `--write` or `--out`, nothing is written: the command converts and checks, and prints what it would do.
+
+`--write` replaces templates in place, so before running anything it checks that git can give each one back: a template with uncommitted changes, one that isn't committed, or one outside a git repository stops the run (exit `1`), naming them. Commit first, and git can undo the migration. `--out <dir>` writes copies and doesn't need git; `--allow-dirty` replaces templates anyway.
 
 Default exports wrapped in React `memo` or `forwardRef` are supported, including nested wrappers. Preview props are read from the outer wrapper first, then from its inner component.
 
