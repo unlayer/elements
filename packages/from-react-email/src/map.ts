@@ -32,6 +32,12 @@ export interface MapCtx {
   inherited: Inherited;
   /** The root's font stack; blocks with the same one don't repeat it. */
   rootFont?: string;
+  /**
+   * A <Font>'s stack: React Email writes it as `* { font-family: … }`, a rule on
+   * every element, so an element without a family of its own takes it, not
+   * the one around it.
+   */
+  universalFont?: string;
 }
 
 /** A content block before margins become containerPadding. */
@@ -102,7 +108,7 @@ export function textProps(
   ctx: MapCtx,
   defaults: { fontSize?: string; lineHeight?: string; fontWeight?: string | number; ownWeight?: boolean }
 ) {
-  const font = style.fontFamily ?? ctx.inherited.fontFamily;
+  const font = style.fontFamily ?? ctx.universalFont ?? ctx.inherited.fontFamily;
   // A weight of its own (a heading's bold) beats the one around it, as the browser's styles do.
   const weight = style.fontWeight ?? (defaults.ownWeight ? defaults.fontWeight : ctx.inherited.fontWeight ?? defaults.fontWeight);
   const ownSize = fontSizePx(style.fontSize, ctx.inherited.fontSize);
@@ -141,6 +147,23 @@ export function withInlineStyles(html: Content, style: Style): Content {
   if (!css.length) return html;
   const open = `<span style="${css.join(";")}">`;
   return isExpr(html) ? expr(`\`${open}\${${html.$expr}}</span>\``) : `${open}${html}</span>`;
+}
+
+/**
+ * A <Font>'s family on the inline elements in kept markup that set none (a
+ * link, a bold word): its `*` rule reaches them, over their paragraph's font.
+ */
+export function withUniversalFont(html: Content, font: string | undefined): Content {
+  if (!font || /["<>]/.test(font)) return html;
+  const family = font.replace(/"/g, "'");
+  const add = (text: string) =>
+    text.replace(/<(a|span|strong|b|em|i|u|s|small|code|sup|sub|mark|font|abbr|label|del|ins|big)\b([^>]*)>/gi, (whole, tag: string, attrs: string) => {
+      const css = /\sstyle="([^"]*)"/i.exec(attrs);
+      if (css && /(^|;)\s*font-family\s*:/i.test(css[1])) return whole;
+      if (css) return `<${tag}${attrs.replace(css[0], ` style="${css[1].replace(/;?\s*$/, ";")}font-family:${family}"`)}>`;
+      return `<${tag}${attrs} style="font-family:${family}">`;
+    });
+  return isExpr(html) ? expr(add(html.$expr)) : add(html);
 }
 
 /** Auto side margins on the blocks with a width of their own in `html` (`display:block;width:220px`) that set none. */
@@ -207,7 +230,8 @@ export function paragraphBlock(html: Content, style: Style, ctx: MapCtx, margin:
   const asChildren = parts !== undefined && !needsSpan(span);
   // Where an `align` attribute places blocks (a Column's), a block in the text with a width of its
   // own (a link made a 220px box) sits there too: text-align alone wouldn't move it.
-  const placed = ctx.inherited.blockAlign === "center" || ctx.inherited.blockAlign === "right" ? placeBlocks(html, ctx.inherited.blockAlign) : html;
+  const aligned = ctx.inherited.blockAlign === "center" || ctx.inherited.blockAlign === "right" ? placeBlocks(html, ctx.inherited.blockAlign) : html;
+  const placed = withUniversalFont(aligned, ctx.universalFont);
   return {
     node: asChildren && placed === html ? el("Paragraph", props, parts) : el("Paragraph", { ...props, html: withInlineStyles(placed, span) }),
     margin,
@@ -234,7 +258,7 @@ export function headingBlock(
   const fontSize = fontSizePx(style.fontSize, ctx.inherited.fontSize) ?? preset.size * base;
   const margin = margins({ ...marginProps, ...style }, { top: preset.margin * fontSize, bottom: preset.margin * fontSize });
   const span = spanStyle(style, ctx);
-  const html = withInlineStyles(content.html, span);
+  const html = withInlineStyles(withUniversalFont(content.html, ctx.universalFont), span);
   const asChildren = (content.plain || content.parts !== undefined) && !needsSpan(span);
   return {
     node: el(

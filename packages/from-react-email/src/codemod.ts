@@ -408,6 +408,9 @@ class Converter {
           if (expression && this.comesToNothing(expression)) {
             // No classes.
           } else if (built || picked) this.lose(node, node.getText());
+          // Held in a value or returned by a helper that reads the component's props or its own values
+          // (`className={etaClass}`, `className={noticeClass(status)}`): the same, picked where it can't be kept.
+          else if (expression && component && !this.classListCall(expression) && this.declaredInside(expression, component)) this.lose(node, node.getText());
           else if (!(expression && this.classListCall(expression))) this.report.note("dynamic className", node.initializer.getText().slice(0, 60));
         }
       }
@@ -528,8 +531,15 @@ class Converter {
    * types, from the preview props' value for it.
    */
   private jsxValued(expression: ts.Expression): boolean {
-    const type = this.checker.typeToString(this.checker.getTypeAtLocation(expression));
+    const resolved = this.checker.getTypeAtLocation(expression);
+    const type = this.checker.typeToString(resolved);
     if (/\b(ReactElement|JSX\.Element|ReactPortal)\b|\bElement\[\]/.test(type)) return true;
+    // A value that's JSX on some paths (`channel === "marketing" && legalFooter`: `false | Element`).
+    const parts = resolved.isUnion() ? resolved.types : [resolved];
+    const elementish = (t: ts.Type) => /^(Element|ReactElement|ReactPortal)$/.test(t.aliasSymbol?.getName() ?? t.getSymbol()?.getName() ?? "");
+    if (parts.some((t) => elementish(t) || (this.checker.isArrayType(t) && (this.checker.getTypeArguments(t as ts.TypeReference) ?? []).some(elementish)))) return true;
+    // Without the project's types: a value that can be a constant written as JSX, on any path of the condition.
+    if (this.yieldsJsxConstant(expression)) return true;
     // An array JSX is pushed into (`rows.push(<Text>…</Text>)`).
     if (ts.isIdentifier(expression)) {
       let pushed = false;
@@ -584,6 +594,22 @@ class Converter {
   }
 
   /** Whether an expression uses a value declared inside `scope` (its props, or values worked out in it). */
+  /** Whether one of the values an expression can give (`cond && footer`, `a ? b : c`, `x ?? y`) is a constant declared as JSX. */
+  private yieldsJsxConstant(expression: ts.Expression, depth = 0): boolean {
+    const e = unwrap(expression);
+    if (depth > 8) return false;
+    if (ts.isConditionalExpression(e)) return this.yieldsJsxConstant(e.whenTrue, depth + 1) || this.yieldsJsxConstant(e.whenFalse, depth + 1);
+    if (ts.isBinaryExpression(e)) {
+      const op = e.operatorToken.kind;
+      if (op === ts.SyntaxKind.AmpersandAmpersandToken) return this.yieldsJsxConstant(e.right, depth + 1);
+      if (op === ts.SyntaxKind.BarBarToken || op === ts.SyntaxKind.QuestionQuestionToken) return this.yieldsJsxConstant(e.left, depth + 1) || this.yieldsJsxConstant(e.right, depth + 1);
+      return false;
+    }
+    if (!ts.isIdentifier(e)) return false;
+    const declaration = this.checker.getSymbolAtLocation(e)?.declarations?.[0];
+    return !!declaration && ts.isVariableDeclaration(declaration) && !!declaration.initializer && containsJsx(declaration.initializer);
+  }
+
   private declaredInside(node: ts.Node, scope: ts.Node): boolean {
     let found = false;
     const visit = (n: ts.Node) => {
@@ -860,7 +886,7 @@ class Converter {
       );
     }
     let previewText: unknown;
-    let fontStack: string | undefined;
+    let lastFont: string | undefined;
     const fonts: FontSpec[] = [];
     const linked: string[] = [];
     let body: Jsx | undefined;
@@ -885,7 +911,8 @@ class Converter {
         if (jsx.name === "Font") {
           const family = this.attr(jsx, "fontFamily");
           const fallback = this.attr(jsx, "fallbackFontFamily");
-          if (typeof family === "string") fontStack ??= [family, ...([] as unknown[]).concat(fallback ?? []).map(String)].join(", ");
+          // Each <Font> writes `* { font-family }`: the last one is what every element gets.
+          if (typeof family === "string") lastFont = [family, ...([] as unknown[]).concat(fallback ?? []).map(String)].join(", ");
           const webFont = this.attr(jsx, "webFont") as { url?: unknown; format?: unknown } | undefined;
           const weight = this.attr(jsx, "fontWeight");
           const style = this.attr(jsx, "fontStyle");
@@ -949,11 +976,12 @@ class Converter {
     // React Email's Container is 37.5em wide unless it says otherwise.
     const contentWidth = sizes.length ? Math.min(...sizes) : container ? 37.5 * em : 600;
     if (container && !sizes.length) noteContainerWidth(container.style, em, contentWidth, this.report);
-    const rootFont = (bodyStyle.fontFamily ?? container?.style.fontFamily ?? fontStack) as string | undefined;
+    // A <Font> reaches every element without a family of its own (its `* {}` rule): it's the email's font then.
+    const rootFont = (lastFont ?? bodyStyle.fontFamily ?? container?.style.fontFamily) as string | undefined;
     // `dir` from props (`dir={direction}`) is worked out where each block is aligned.
     const dir = this.hoistDirection(returned, document && this.attr(document, "dir"));
     const rtl = isExpr(dir) ? dir : /^rtl$/i.test(String(dir ?? "")) || undefined;
-    const ctx: Ctx = { report: this.report, inherited: inherit({ fontSize: "16px", ...(rtl ? { rtl } : {}) }, bodyStyle), rootFont };
+    const ctx: Ctx = { report: this.report, inherited: inherit({ fontSize: "16px", ...(rtl ? { rtl } : {}) }, bodyStyle), rootFont, ...(lastFont ? { universalFont: lastFont } : {}) };
     const page = pageColor(bodyStyle, this.report, document?.style);
     const rows = layout(this.flow(content, ctx), { contentWidth, report: this.report, background: backgroundImage(bodyStyle, true) ? undefined : page });
     return el(
@@ -1016,7 +1044,9 @@ class Converter {
       loose = [];
     };
     for (const child of this.flatten(children)) {
-      if (ts.isJsxExpression(child) && child.expression && containsJsx(child.expression) && (this.holdsStructure(child.expression) || this.holdsTextBoxes(child.expression))) {
+      // Code making boxes stacks them, one after the other; code making inline ones (pills, badges, icons)
+      // keeps them on a line, as text.
+      if (ts.isJsxExpression(child) && child.expression && containsJsx(child.expression) && !this.makesInlineImages(child.expression) && (this.holdsStructure(child.expression) || this.holdsTextBoxes(child.expression))) {
         flush();
         out.push(this.rowsHole(child.expression, ctx));
         continue;
@@ -1565,8 +1595,15 @@ class Converter {
   private isInlineImage(jsx: Jsx): boolean {
     return (
       this.isImageLink(jsx) ||
-      ((jsx.name === "Img" || jsx.tag === "img") && inlineDisplay(jsx.style))
+      ((jsx.name === "Img" || jsx.tag === "img") && inlineDisplay(jsx.style)) ||
+      // Text set inline (`display: inline-block` pills, badges): it sits on a line with its neighbours too.
+      ((jsx.name === "Text" || jsx.name === "Link" || /^(p|span|a|strong|em|b|i)$/.test(jsx.tag)) && /^inline(-block)?$/.test(String(jsx.style.display ?? "").trim()) && this.textOnly(jsx))
     );
+  }
+
+  /** Whether an element holds only text and inline text markup (no blocks, images or code making them). */
+  private textOnly(jsx: Jsx): boolean {
+    return this.flatten(jsx.children).every((c) => ts.isJsxText(c) || (ts.isJsxExpression(c) && !!c.expression && !containsJsx(c.expression)) || ((ts.isJsxElement(c) || ts.isJsxSelfClosingElement(c)) && /^(span|strong|em|b|i|u|br|a)$/.test(c.kind === ts.SyntaxKind.JsxElement ? c.openingElement.tagName.getText() : c.tagName.getText())));
   }
 
   /** Whether code only makes inline images: every JSX element it returns is one. */

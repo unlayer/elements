@@ -210,7 +210,7 @@ export default function Template() {
     const out = io(dir);
     expect(await main(["emails", "--out", "migrated", "--design", "--report", "report.json"], out, lib), out.out + out.err).toBe(0);
     const [result] = JSON.parse(fs.readFileSync(path.join(dir, "report.json"), "utf8"));
-    expect(result.fonts).toEqual([{ label: "Inter", value: "Inter, Arial, sans-serif", url: "https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap" }]);
+    expect(result.fonts).toEqual([{ label: "Inter", value: "Inter, Arial", url: "https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap" }]);
   });
 
   it("builds the design from the migrated preview props, whose JSX has styles instead of classes", async () => {

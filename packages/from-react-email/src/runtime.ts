@@ -77,7 +77,7 @@ export async function convertElement(element: React.ReactElement): Promise<Runti
   const nodes = await expand(element);
 
   const fontSpecs: FontSpec[] = [];
-  let fontStack: string | undefined;
+  let lastFont: string | undefined;
   const previews: string[] = [];
   walk(nodes, (node) => {
     if (node.kind !== "component") return;
@@ -88,7 +88,8 @@ export async function convertElement(element: React.ReactElement): Promise<Runti
         fontSpecs.push({ family: node.props.fontFamily, url, format: node.props.webFont?.format, weight: node.props.fontWeight, style: node.props.fontStyle });
       }
       const fallback = [].concat(node.props.fallbackFontFamily ?? []).join(", ");
-      fontStack ??= [node.props.fontFamily, fallback].filter(Boolean).join(", ");
+      // Each <Font> writes `* { font-family }`: the last one is what every element gets.
+      lastFont = [node.props.fontFamily, fallback].filter(Boolean).join(", ") || lastFont;
     }
   });
   const phone = new Map<string, Style>();
@@ -142,11 +143,12 @@ export async function convertElement(element: React.ReactElement): Promise<Runti
   const contentWidth = sizes.length ? Math.min(...sizes) : container ? 37.5 * em : 600;
   if (!sizes.length) noteContainerWidth(containerStyle, em, contentWidth, report);
 
-  const rootFont = bodyStyle.fontFamily ?? containerStyle.fontFamily ?? fontStack;
+  // A <Font> reaches every element without a family of its own (its `* {}` rule): it's the email's font then.
+  const rootFont = lastFont ?? bodyStyle.fontFamily ?? containerStyle.fontFamily;
   const rtl = /^rtl$/i.test(String(document?.props.dir ?? ""));
   const hidden = new Map([...classes].filter(([, rule]) => /^none$/i.test(String(rule.display ?? "").trim())).map(([name]) => [name, { important: Boolean(classImportant.get(name)?.has("display")) }] as const));
   const hides = (names: string[]) => /^none$/i.test(String(classStyle(names, classes, classImportant, classOrder).display ?? "").trim());
-  const ctx: Ctx = { report, inherited: inherit({ fontSize: "16px", ...(rtl ? { rtl } : {}) }, bodyStyle), rootFont, phone, hidden, hides };
+  const ctx: Ctx = { report, inherited: inherit({ fontSize: "16px", ...(rtl ? { rtl } : {}) }, bodyStyle), rootFont, ...(lastFont ? { universalFont: lastFont } : {}), phone, hidden, hides };
 
   const fonts = fontStylesheets(fontSpecs, linked);
   const page = pageColor(bodyStyle, report, (document?.kind === "component" && document.props.style) || undefined);

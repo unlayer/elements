@@ -982,3 +982,79 @@ export default function T() { return <Html><Body><Section style={{ width: "600px
     expect(contents.filter((c: any) => c.type === "image" || c.type === "button").map((c: any) => c.values.textAlign)).not.toContain("center");
   });
 });
+
+describe("what preview props don't reach", () => {
+  it("keeps a JSX constant shown under a condition, with its links, for the values the preview doesn't use", async () => {
+    const { Migrated, conversion } = await templates(`import { Html, Body, Section, Text, Link, Heading } from "@react-email/components";
+const legalFooter = (
+  <Section style={{ borderTop: "1px solid #e5e7eb", paddingTop: "16px" }}>
+    <Text style={{ fontSize: "12px", color: "#6b7280" }}>Acme Inc. · 1 Main St.</Text>
+    <Link href="https://acme.com/unsubscribe" style={{ fontSize: "12px" }}>Unsubscribe</Link>
+  </Section>
+);
+export default function Receipt({ name, channel }: { name: string; channel: "transactional" | "marketing" }) {
+  return <Html><Body><Heading>Thanks, {name}</Heading><Text>Your order is confirmed.</Text>{channel === "marketing" && legalFooter}</Body></Html>;
+}
+Receipt.PreviewProps = { name: "Alex", channel: "transactional" } as const;`);
+    const { renderToHtml } = await import("@unlayer/react-elements");
+    expect(renderToHtml(Migrated({ name: "Bo", channel: "marketing" }))).toContain('href="https://acme.com/unsubscribe"');
+    expect(renderToHtml(Migrated({ name: "Bo", channel: "transactional" }))).not.toContain("unsubscribe");
+    expect(conversion.code).not.toMatch(/<Paragraph[^>]*>\s*\{channel === "marketing" && legalFooter\}/);
+  });
+
+  it("fails the check for a class list held in a value or returned by a helper that reads props", async () => {
+    const { conversion } = await templates(`import { Html, Body, Section, Text, Tailwind } from "@react-email/components";
+type Status = "shipped" | "delayed";
+const noticeClass = (status: Status) => (status === "delayed" ? "bg-amber-100 font-semibold" : "");
+export default function OrderStatus({ status, eta }: { status: Status; eta: string }) {
+  const etaClass = status === "delayed" ? "text-red-600 font-bold" : "";
+  return <Html><Tailwind><Body><Section className={noticeClass(status)}><Text>Current status: {status}</Text></Section><Text className={etaClass}>Estimated delivery: {eta}</Text></Body></Tailwind></Html>;
+}
+OrderStatus.PreviewProps = { status: "shipped", eta: "May 3" } as const;`);
+    expect(conversion.report.lostStyles).toEqual([expect.stringContaining("noticeClass(status)"), expect.stringContaining("etaClass")]);
+  });
+});
+
+describe("text set inline, and a <Font> on every element", () => {
+  it("keeps pills a loop makes on one line, as the original shows them", async () => {
+    const { Original, Migrated, conversion } = await templates(`import { Html, Body, Section, Row, Column, Text } from "@react-email/components";
+export default function T({ places }: { places: string[] }) {
+  return <Html><Body><Section style={{ width: "600px" }}><Row><Column align="center">
+    {places.map((place) => <Text key={place} style={{ display: "inline-block", margin: "4px", padding: "4px 12px", borderRadius: "9999px", backgroundColor: "#10b981", color: "#ffffff" }}>{place}</Text>)}
+  </Column></Row></Section></Body></Html>;
+}
+T.PreviewProps = { places: ["United States", "United Kingdom", "Germany"] };`);
+    expect(conversion.code).not.toMatch(/places\.map\([^]*?<Row/);
+    const check = await verifyConversion(Original, Migrated);
+    expect(check.styles).toEqual([]);
+    expect(check.layout).toEqual([]);
+  });
+
+  it("gives a <Font>'s family to links in text that sets another, as its rule on every element does", async () => {
+    const { Original, Migrated, conversion } = await templates(`import { Html, Head, Font, Body, Text, Link } from "@react-email/components";
+export default function T() {
+  return <Html><Head><Font fontFamily="Inter" fallbackFontFamily="Arial" /></Head><Body style={{ fontFamily: "Arial" }}>
+    <Text style={{ fontFamily: "Arial" }}>Visit our <Link href="https://example.com/help">Help Center</Link> any time.</Text>
+  </Body></Html>;
+}`);
+    expect(conversion.code).toMatch(/Help Center/);
+    const check = await verifyConversion(Original, Migrated);
+    expect(check.styles).toEqual([]);
+  });
+});
+
+describe("several <Font>s", () => {
+  it("give every element the last one's family, as their rules do", async () => {
+    const { Original, Migrated, conversion } = await templates(`import { Html, Head, Font, Body, Text, Link } from "@react-email/components";
+export default function T() {
+  return <Html><Head><Font fontFamily="Georgia" fallbackFontFamily="serif" /><Font fontFamily="Verdana" fallbackFontFamily="sans-serif" /></Head><Body>
+    <Text>Plain words in the body copy, long enough to wrap if the font were another one entirely.</Text>
+    <Text>Visit our <Link href="https://example.com/help">Help Center</Link> any time.</Text>
+  </Body></Html>;
+}`);
+    expect(conversion.code).toMatch(/fontFamily=\{\{ label: "Verdana"/);
+    expect(conversion.code).not.toMatch(/Georgia/);
+    const check = await verifyConversion(Original, Migrated);
+    expect(check.styles).toEqual([]);
+  });
+});
