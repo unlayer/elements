@@ -23,7 +23,7 @@ import {
   type ElementNode,
   type Expr,
 } from "@unlayer/convert-core";
-import { boxStyle, columnWidth, mergeColumnAndBox, mergeRowAndColumn, noteVerticalAlign, textBox, noteTextBox, needsTextBox, wrapPadding } from "./boxes";
+import { boxStyle, columnWidth, drawsBox, mergeColumnAndBox, mergeRowAndColumn, noteVerticalAlign, textBox, noteTextBox, needsTextBox, wrapPadding } from "./boxes";
 import { layout, NO_STYLE, type BoxNode, type ColumnNode, type ColumnsHole, type Flow, type RowNode } from "./layout";
 import {
   buttonBlock,
@@ -39,6 +39,7 @@ import {
   noteAttributes,
   paragraphBlock,
   INHERITED,
+  LIST_DEFAULTS,
   loopMargins,
   type Block,
   type FontSpec,
@@ -184,6 +185,7 @@ class Converter {
   private tailwind: ResolvedClasses = NO_CLASSES;
   private needsEscape = false;
   private needsHtmlText = false;
+  private needsAttribute = false;
   private needsPlainText = false;
   private plainTextName = "plainText";
   private needsStaticMarkup = false;
@@ -1294,7 +1296,7 @@ class Converter {
         // its items come from code that isn't JSX (they could be elements): kept.
         const opaque = this.flatten(jsx.children).some((c) => ts.isJsxExpression(c) && c.expression && !containsJsx(c.expression) && !this.isBlank(c));
         if (opaque) return [{ node: this.fallback(jsx, ctx), margin: ZERO, padding: ZERO }];
-        return [paragraphBlock(this.inlineContent([jsx.node]), {}, ctx, margins(style, { top: 16, bottom: 16 }))];
+        return [paragraphBlock(this.inlineContent([jsx.node]), {}, ctx, margins(style, { top: 16, bottom: 16 }), undefined, LIST_DEFAULTS)];
       }
       case "Link": {
         const kids = this.flatten(jsx.children);
@@ -1314,8 +1316,8 @@ class Converter {
         // Inside a column of several, a Row of one Column is a box: its content goes in this column.
         const column = this.soleColumn(jsx);
         if (!column || this.hasColumns(this.flatten(column.children))) return [{ node: this.fallback(jsx, ctx), margin: ZERO, padding: ZERO }];
-        const look = { ...style, ...column.style };
-        if (backgroundColor(look)) this.report.note("nested section background dropped", backgroundColor(look));
+        // A box it draws (a background, a border) can't nest in a column: kept as HTML, as it renders.
+        if (drawsBox(style) || drawsBox(column.style)) return [{ node: this.fallback(jsx, ctx, "box with a background or border inside a column"), margin: ZERO, padding: ZERO }];
         const inside = this.blocks(column.children, { ...ctx, inherited: inherit(inherit(ctx.inherited, style), column.style) }).map((entry) => entry.block);
         return wrapPadding(inside, addSides(boxSides(style, "padding"), boxSides(column.style, "padding")), ctx, style._phone || column.style._phone ? addSides(phoneSides(style, "padding", boxSides(style, "padding")) ?? boxSides(style, "padding"), phoneSides(column.style, "padding", boxSides(column.style, "padding")) ?? boxSides(column.style, "padding")) : undefined, style._phone?.display === "none" || column.style._phone?.display === "none");
       }
@@ -1325,7 +1327,8 @@ class Converter {
         // content goes in this column, with its padding around it.
         // Columns can't nest in a column: those are kept. Sections inside flatten too.
         if (this.hasColumns(this.flatten(jsx.children))) return [{ node: this.fallback(jsx, ctx), margin: ZERO, padding: ZERO }];
-        if (backgroundColor(style)) this.report.note("nested section background dropped", backgroundColor(style));
+        // A box it draws (a background, a border) can't nest in a column: kept as HTML, as it renders.
+        if (drawsBox(style)) return [{ node: this.fallback(jsx, ctx, "box with a background or border inside a column"), margin: ZERO, padding: ZERO }];
         const inside = this.blocks(jsx.children, { ...ctx, inherited: inherit(ctx.inherited, style) }).map((entry) => entry.block);
         return wrapPadding(inside, boxSides(style, "padding"), ctx, phoneSides(style, "padding", boxSides(style, "padding")), style._phone?.display === "none");
       }
@@ -1343,6 +1346,13 @@ class Converter {
   private buttonLabel(children: ts.JsxChild[], style: Style): Content | Parts {
     const parts = this.plainParts(children);
     return parts && !needsHtml(style) ? parts : this.inlineContent(children);
+  }
+
+  /** An attribute from code in markup: a value that's always a string is written as it is, any other is left out when missing. */
+  private codeAttribute(name: string, code: string): string {
+    if (/^[`"']/.test(code.trim())) return `${name}="\${escapeHtml(String(${code}))}"`;
+    this.needsAttribute = true;
+    return `\${htmlAttribute("${name}", ${code})}`;
   }
 
   private isInline(jsx: Jsx): boolean {
@@ -1547,17 +1557,20 @@ class Converter {
           }
           const attrs: string[] = [];
           const href = jsx.name === "Link" || tag === "a" ? this.attr(jsx, "href") : undefined;
-          if (href !== undefined) attrs.push(isExpr(href) ? `href="\${escapeHtml(String(${href.$expr}))}"` : `href="${escapeAttribute(String(href))}"`);
+          // A URL from props that's missing renders no href, as React renders it (not href="undefined").
+          if (href !== undefined) attrs.push(isExpr(href) ? this.codeAttribute("href", href.$expr) : `href="${escapeAttribute(String(href))}"`);
           if (href !== undefined) this.needsEscape ||= isExpr(href);
           const css = cssText(jsx.name === "Link" ? { color: "#067df7", textDecorationLine: "none", ...jsx.style } : jsx.style);
           if (css) attrs.push(`style="${escapeAttribute(css)}"`);
-          // A link opens in a new tab unless it sets another target.
+          // React Email's Link opens in a new tab unless it sets another target; a plain <a> keeps the target it has.
           if (jsx.name === "Link" || tag === "a") {
             const target = this.attr(jsx, "target");
             if (isExpr(target)) this.needsEscape = true;
-            attrs.push(isExpr(target) ? `target="\${escapeHtml(String(${target.$expr}))}"` : `target="${escapeAttribute(typeof target === "string" ? target : "_blank")}"`);
+            if (isExpr(target)) attrs.push(this.codeAttribute("target", target.$expr));
+            else if (typeof target === "string" || jsx.name === "Link") attrs.push(`target="${escapeAttribute(typeof target === "string" ? target : "_blank")}"`);
           }
-          const open = `<${tag}${attrs.map((a) => ` ${a}`).join("")}>`;
+          // An attribute from code that may be missing brings its own space (it may render nothing).
+          const open = `<${tag}${attrs.map((a) => (a.startsWith("${htmlAttribute(") ? a : ` ${a}`)).join("")}>`;
           if (tag === "br") {
             parts.push("<br/>");
             continue;
@@ -1781,6 +1794,13 @@ class Converter {
         `  return renderToStaticMarkup(<>{value${javascript ? "" : " as Parameters<typeof renderToStaticMarkup>[0]"}}</>);\n` +
         `}\n`;
     }
+    if (this.needsAttribute) {
+      helpers +=
+        `\n/** An attribute as React renders it: left out when its value is missing. */\n` +
+        `function htmlAttribute(name${javascript ? "" : ": string"}, value${javascript ? "" : ": unknown"})${javascript ? "" : ": string"} {\n` +
+        `  return value === null || value === undefined || value === false ? "" : \` \${name}="\${escapeHtml(String(value))}"\`;\n` +
+        `}\n`;
+    }
     if (this.needsPlainText) {
       helpers +=
         `\nfunction ${this.plainTextName}(value${javascript ? "" : ": unknown"})${javascript ? "" : ": string"} {\n` +
@@ -1803,6 +1823,7 @@ class Converter {
       ...(this.needsEscape ? ["escapeHtml"] : []),
       ...(this.needsStaticMarkup ? ["renderToStaticMarkup", "reactStaticMarkup"] : []),
       ...(this.needsHtmlText ? ["htmlText"] : []),
+      ...(this.needsAttribute ? ["htmlAttribute"] : []),
       ...(this.needsPlainText ? [this.plainTextName] : []),
     ]);
     const original = this.original === undefined ? this.file : ts.createSourceFile(this.file.fileName, this.original, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);

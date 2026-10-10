@@ -13,7 +13,7 @@
 import React from "react";
 import { renderToStaticMarkup as reactStaticMarkup } from "react-dom/server";
 import { el, fallbackHtml, hideClasses, ReportBuilder, type ConversionReport, type ElementNode } from "@unlayer/convert-core";
-import { boxStyle, columnWidth, mergeColumnAndBox, mergeRowAndColumn, noteVerticalAlign, textBox, noteTextBox, wrapPadding } from "./boxes";
+import { boxStyle, columnWidth, drawsBox, mergeColumnAndBox, mergeRowAndColumn, noteVerticalAlign, textBox, noteTextBox, wrapPadding } from "./boxes";
 import { expand, type Node } from "./expand";
 import { layout, type BoxNode, type BoxStyle, type ColumnNode, type Flow } from "./layout";
 import {
@@ -30,6 +30,7 @@ import {
   noteAttributes,
   paragraphBlock,
   INHERITED,
+  LIST_DEFAULTS,
   type Block,
   type FontSpec,
   type MapCtx,
@@ -372,7 +373,7 @@ function blockFrom(node: Element, ctx: Ctx): Block[] {
       return [linkBlock(node, style, ctx)];
     case "List":
       // Elements text takes list markup (the editor edits it as a list).
-      return [paragraphBlock(renderToStaticMarkup(node.element), {}, ctx, margins(style, browserMargin("p", ctx)))];
+      return [paragraphBlock(renderToStaticMarkup(node.element), {}, ctx, margins(style, browserMargin("p", ctx)), undefined, LIST_DEFAULTS)];
     case "Markdown":
       ctx.report.note("markdown kept as HTML in a Paragraph");
       return [paragraphBlock(renderToStaticMarkup(node.element), {}, ctx, ZERO)];
@@ -387,7 +388,8 @@ function blockFrom(node: Element, ctx: Ctx): Block[] {
       if (kids.some((k) => k.kind === "component" && ((k.name === "Row" && !soleColumn(k)) || k.name === "Column"))) {
         return [{ node: fallbackHtml(kept(renderToStaticMarkup(node.element), ctx), "nested columns"), margin: ZERO, padding: ZERO }];
       }
-      if (backgroundColor(style)) ctx.report.note("nested section background dropped", backgroundColor(style));
+      // A box it draws (a background, a border) can't nest in a column: kept as HTML, as it renders.
+      if (drawsBox(style)) return [{ node: fallbackHtml(kept(renderToStaticMarkup(node.element), ctx), "box with a background or border inside a column"), margin: ZERO, padding: ZERO }];
       const inside = blocksFrom(kids, { ...ctx, inherited: inherit(ctx.inherited, style) }).map((entry) => entry.block);
       return wrapPadding(inside, boxSides(style, "padding"), ctx, phoneSides(style, "padding", boxSides(style, "padding")), style._phone?.display === "none");
     }
@@ -397,7 +399,7 @@ function blockFrom(node: Element, ctx: Ctx): Block[] {
       const nested = column && children(column).some((k) => k.kind === "component" && ["Row", "Column"].includes(k.name));
       if (!column || nested) return [{ node: fallbackHtml(kept(renderToStaticMarkup(node.element), ctx), "nested columns"), margin: ZERO, padding: ZERO }];
       const colStyle: Style = column.props.style ?? {};
-      if (backgroundColor({ ...style, ...colStyle })) ctx.report.note("nested section background dropped", backgroundColor({ ...style, ...colStyle }));
+      if (drawsBox(style) || drawsBox(colStyle)) return [{ node: fallbackHtml(kept(renderToStaticMarkup(node.element), ctx), "box with a background or border inside a column"), margin: ZERO, padding: ZERO }];
       const inside = blocksFrom(children(column), { ...ctx, inherited: inherit(inherit(ctx.inherited, style), colStyle) }).map((entry) => entry.block);
       return wrapPadding(inside, addSides(boxSides(style, "padding"), boxSides(colStyle, "padding")), ctx, style._phone || colStyle._phone ? addSides(phoneSides(style, "padding", boxSides(style, "padding")) ?? boxSides(style, "padding"), phoneSides(colStyle, "padding", boxSides(colStyle, "padding")) ?? boxSides(colStyle, "padding")) : undefined, style._phone?.display === "none" || colStyle._phone?.display === "none");
     }
@@ -582,8 +584,10 @@ function innerText(node: Exclude<Node, { kind: "text" }>): string {
   return html.replace(/<!--[\s\S]*?-->/g, "").replace(/<[^>]+>/g, "").replace(/&amp;/g, "&").replace(/&#x27;|&#39;/g, "'").replace(/&quot;/g, '"').replace(/&lt;/g, "<").replace(/&gt;/g, ">").trim();
 }
 
-/** A button's label: as text, or as markup when a text style has no prop (uppercase, italics). */
+/** A button's label: as text, or as markup when it has some (a bold word) or a text style has no prop (uppercase, italics). */
 function buttonLabel(node: Exclude<Node, { kind: "text" }>, style: Style): string | string[] {
+  const html = innerHtml(node).replace(/<!--[\s\S]*?-->/g, "").trim();
+  if (/<[a-z]/i.test(html)) return html;
   return needsSpan(style) ? escapeHtml(innerText(node)) : [innerText(node)];
 }
 

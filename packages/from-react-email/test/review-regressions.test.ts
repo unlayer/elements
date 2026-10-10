@@ -185,3 +185,79 @@ T.PreviewProps = { url: "https://example.com/track" };`;
     }
   });
 });
+
+describe("links in text", () => {
+  const html = async (Template: any, props: Record<string, unknown> = Template.PreviewProps ?? {}) => {
+    const { renderToHtml } = await import("@unlayer/react-elements");
+    return renderToHtml(Template(props));
+  };
+
+  it("keep a plain <a>'s target (none), while React Email's Link opens in a new tab", async () => {
+    const { Original, Migrated } = await templates(`${imports}
+      import { Link } from "@react-email/components";
+      export default function T() {
+        return <Html><Body><Text>Read <a href="https://example.com/a">the guide</a> or <Link href="https://example.com/b">the docs</Link> or <a href="https://example.com/c" target="_self">here</a>.</Text></Body></Html>;
+      }`);
+    const out = await html(Migrated);
+    expect(out).toContain('<a href="https://example.com/a">the guide</a>');
+    expect(out).toMatch(/<a href="https:\/\/example\.com\/b"[^>]*target="_blank"/);
+    expect(out).toMatch(/<a href="https:\/\/example\.com\/c"[^>]*target="_self"/);
+    expect((await verifyConversion(Original, Migrated)).styles).toEqual([]);
+  });
+
+  it("leave out an href whose URL prop is missing, as React does (not href=\"undefined\")", async () => {
+    const { Original, Migrated } = await templates(`${imports}
+      export default function T({ url, label }: { url?: string; label: string }) {
+        return <Html><Body><Text>Go <a href={url}>{label}</a></Text></Body></Html>;
+      }
+      T.PreviewProps = { url: "https://example.com", label: "there" };`);
+    expect(await html(Migrated, { label: "there" })).not.toContain('href="undefined"');
+    expect(await html(Migrated, { label: "there" })).toMatch(/<a\s[^>]*>there<\/a>|<a>there<\/a>/);
+    expect(await html(Migrated)).toContain('href="https://example.com"');
+    expect((await verifyConversion(Original, Migrated, { props: { label: "there" } })).missingAttributes).toEqual([]);
+  });
+});
+
+describe("styles the check now compares", () => {
+  /** Both conversions of a template, each with the check's style differences. */
+  const both = async (source: string) => {
+    const { Original, Migrated } = await templates(source);
+    const codemod = await verifyConversion(Original, Migrated);
+    const runtime = await convertReactEmail(Original, { mergeTags: false });
+    const { compareText } = await import("@unlayer/convert-core");
+    const { render } = await import("@react-email/components");
+    const React = (await import("react")).default;
+    const runtimeCheck = compareText(await render(React.createElement(Original, Original.PreviewProps ?? {})), runtime.html());
+    return { codemod, runtime: runtimeCheck };
+  };
+
+  it("keeps a box with a background or border inside a column of several as HTML, so it still shows", async () => {
+    const { codemod, runtime } = await both(`import { Html, Body, Section, Row, Column, Text } from "@react-email/components";
+      export default function T() {
+        return <Html><Body><Section><Row>
+          <Column style={{ width: "50%" }}><Text>Left</Text><Section style={{ backgroundColor: "#fff4c8", padding: "20px", border: "1px solid #f4d247" }}><Text>Panel copy</Text></Section></Column>
+          <Column style={{ width: "50%" }}><Text>Right</Text></Column>
+        </Row></Section></Body></Html>;
+      }`);
+    for (const check of [codemod, runtime]) {
+      expect(check.missing).toEqual([]);
+      expect(check.styles).toEqual([]);
+    }
+  });
+
+  it("gives a list the size around it (the browser's 16px), not Text's 14px", async () => {
+    const { codemod, runtime } = await both(`import { Html, Body, Text } from "@react-email/components";
+      export default function T() {
+        return <Html><Body><Text>Steps:</Text><ul><li>Deploy your first project</li><li>Invite your team</li></ul></Body></Html>;
+      }`);
+    for (const check of [codemod, runtime]) expect(check.styles).toEqual([]);
+  });
+
+  it("keeps markup in a button's label (a bold word) in runtime mode too", async () => {
+    const { codemod, runtime } = await both(`import { Html, Body, Button } from "@react-email/components";
+      export default function T() {
+        return <Html><Body><Button href="https://example.com" style={{ backgroundColor: "#2138c6", color: "#ffffff", padding: "12px" }}><strong>Learn More</strong></Button></Body></Html>;
+      }`);
+    for (const check of [codemod, runtime]) expect(check.styles).toEqual([]);
+  });
+});

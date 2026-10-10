@@ -80,6 +80,13 @@ export function borders(style: Style): Borders | undefined {
   return Object.keys(out).length ? out : undefined;
 }
 
+/** Whether a box draws something around its content: a background (color or image) or a border. */
+export function drawsBox(style: Style): boolean {
+  const background = backgroundColor(style);
+  const shown = background !== undefined && !/^(transparent|rgba\([^)]*,\s*0\))$/i.test(background);
+  return shown || backgroundImage(style, false) !== undefined || borders(style) !== undefined;
+}
+
 /** `margin: 0 auto` → center; `margin-left: auto` → right. */
 export function alignOf(style: Style): BoxStyle["align"] {
   const parts = typeof style.margin === "string" ? style.margin.trim().split(/\s+/) : [];

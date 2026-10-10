@@ -139,7 +139,7 @@ export const WelcomeEmail = ({
             color="#364153"
             fontSize="15px"
             lineHeight="24px"
-            html={`Want to dig deeper? Our <a href="${escapeHtml(String(docsUrl))}" style="color:rgb(79,57,246);text-decoration-line:underline" target="_blank">documentation</a> covers everything from quickstarts to advanced guides.`}
+            html={`Want to dig deeper? Our <a${htmlAttribute("href", docsUrl)} style="color:rgb(79,57,246);text-decoration-line:underline" target="_blank">documentation</a> covers everything from quickstarts to advanced guides.`}
             containerPadding="0px 0px 16px 0px"
           />
           <Divider
@@ -211,6 +211,13 @@ function htmlText(value: unknown): string {
   if (value === null || value === undefined || typeof value === "boolean") return "";
   if (typeof value === "string" || typeof value === "number") return escapeHtml(String(value));
   return renderToStaticMarkup(<>{value as Parameters<typeof renderToStaticMarkup>[0]}</>);
+}
+
+/** An attribute as React renders it: left out when its value is missing. */
+function htmlAttribute(name: string, value: unknown): string {
+  return value === null || value === undefined || value === false
+    ? ""
+    : ` ${name}="${escapeHtml(String(value))}"`;
 }
 
 function plainText(value: unknown): string {

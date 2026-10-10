@@ -133,6 +133,8 @@ export function withInlineStyles(html: Content, style: Style): Content {
 /** React Email Text's own size; text outside a Text (`<Section>🌟</Section>`) inherits instead. */
 export const TEXT_DEFAULTS = { fontSize: "14px", lineHeight: "24px" };
 export const INHERITED: { fontSize?: string; lineHeight?: string } = {};
+/** A list (`<ul>`, `<ol>`) isn't a Text: it takes the size around it, or the browser's 16px. */
+export const LIST_DEFAULTS = { fontSize: "16px" };
 
 /**
  * Kept markup's tables and cells with the color of the div around it. An

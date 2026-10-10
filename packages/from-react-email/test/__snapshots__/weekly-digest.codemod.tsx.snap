@@ -110,7 +110,7 @@ export const WeeklyDigestEmail = ({
               color="#000000"
               fontSize="14px"
               lineHeight="24px"
-              html={`<a href="${escapeHtml(String(article.url))}" style="color:rgb(23,23,23);text-decoration-line:none;margin-top:4px;display:block;font-size:18px;font-weight:700;line-height:24px" target="_blank">${htmlText(article.title)}</a>`}
+              html={`<a${htmlAttribute("href", article.url)} style="color:rgb(23,23,23);text-decoration-line:none;margin-top:4px;display:block;font-size:18px;font-weight:700;line-height:24px" target="_blank">${htmlText(article.title)}</a>`}
               containerPadding="0px 0px 0px 0px"
             />
             <Paragraph
@@ -125,7 +125,7 @@ export const WeeklyDigestEmail = ({
               color="#000000"
               fontSize="14px"
               lineHeight="24px"
-              html={`<a href="${escapeHtml(String(article.url))}" style="color:rgb(79,57,246);text-decoration-line:underline;margin-top:8px;display:block;font-size:14px;font-weight:600" target="_blank">Read more</a>`}
+              html={`<a${htmlAttribute("href", article.url)} style="color:rgb(79,57,246);text-decoration-line:underline;margin-top:8px;display:block;font-size:14px;font-weight:600" target="_blank">Read more</a>`}
               containerPadding="0px 0px 0px 0px"
             />
           </Column>
@@ -166,7 +166,7 @@ export const WeeklyDigestEmail = ({
             fontSize="12px"
             lineHeight="20px"
             textAlign="center"
-            html={`<a href="${escapeHtml(String(preferencesUrl))}" style="color:rgb(115,115,115);text-decoration-line:underline" target="_blank">Email preferences</a> · <a href="${escapeHtml(String(unsubscribeUrl))}" style="color:rgb(115,115,115);text-decoration-line:underline" target="_blank">Unsubscribe</a>`}
+            html={`<a${htmlAttribute("href", preferencesUrl)} style="color:rgb(115,115,115);text-decoration-line:underline" target="_blank">Email preferences</a> · <a${htmlAttribute("href", unsubscribeUrl)} style="color:rgb(115,115,115);text-decoration-line:underline" target="_blank">Unsubscribe</a>`}
             containerPadding="8px 0px 0px 0px"
           />
         </Column>
@@ -253,6 +253,13 @@ function htmlText(value: unknown): string {
   if (value === null || value === undefined || typeof value === "boolean") return "";
   if (typeof value === "string" || typeof value === "number") return escapeHtml(String(value));
   return renderToStaticMarkup(<>{value as Parameters<typeof renderToStaticMarkup>[0]}</>);
+}
+
+/** An attribute as React renders it: left out when its value is missing. */
+function htmlAttribute(name: string, value: unknown): string {
+  return value === null || value === undefined || value === false
+    ? ""
+    : ` ${name}="${escapeHtml(String(value))}"`;
 }
 
 function plainText(value: unknown): string {
