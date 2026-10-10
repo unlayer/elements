@@ -571,6 +571,18 @@ describe("extra text", () => {
     expect(fs.existsSync(path.join(dir, "converted/welcome.tsx"))).toBe(false);
   });
 
+  it("compare fails a template that writes a nested text prop into HTML as is", async () => {
+    const original = `import { Html, Body, Text } from "@react-email/components";
+export default function T({ user }: { user: { city: string } }) { return <Html><Body><Text>From {user.city}</Text></Body></Html>; }
+T.PreviewProps = { user: { city: "Paris" } };`;
+    const migrated = `import { Email, Row, Column, Html } from "@unlayer/react-elements";
+export default function T({ user }: { user: { city: string } }) { return <Email><Row><Column><Html html={\`<p>From \${user.city}</p>\`} /></Column></Row></Email>; }`;
+    const dir = project({ "original.tsx": original, "converted.tsx": migrated });
+    const out = io(dir);
+    expect(await main(["compare", "original.tsx", "converted.tsx"], out, lib), out.out + out.err).toBe(2);
+    expect(out.out).toContain("with text props with markup:");
+  });
+
   it("compare lists extra words in the sample and flipped props", async () => {
     const original = good.replace('function T()', 'function T({trial})') + '\nT.PreviewProps = {trial:false};';
     const migrated = `import { Email, Row, Column, Paragraph } from "@unlayer/react-elements";

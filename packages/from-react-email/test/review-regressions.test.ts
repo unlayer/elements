@@ -466,3 +466,34 @@ describe("classes and head styles", () => {
     expect(result.codemod.join("\n")).toMatch(/line \d+: style=\{style\}/);
   });
 });
+
+describe("text props with markup", () => {
+  const original = `${imports}
+    export default function T({ user, items }: { user: { city: string }; items: Array<{ name: string }> }) {
+      return <Html><Body><Text>From {user.city}</Text>{items.map((item) => <Text key={item.name}>{item.name}</Text>)}</Body></Html>;
+    }
+    T.PreviewProps = { user: { city: "Paris" }, items: [{ name: "Tea" }] };`;
+
+  /** The original, and a migrated template written by hand (`body` renders the props). */
+  async function pair(body: string) {
+    const dir = fs.mkdtempSync(path.join(import.meta.dirname, ".tmp-"));
+    dirs.push(dir);
+    fs.writeFileSync(path.join(dir, "original.tsx"), original);
+    fs.writeFileSync(path.join(dir, "migrated.tsx"), `import { Email, Row, Column, Html, Paragraph } from "@unlayer/react-elements";
+export default function T({ user, items }: { user: { city: string }; items: Array<{ name: string }> }) {
+  return <Email><Row><Column>${body}</Column></Row></Email>;
+}`);
+    const { default: Original } = await import(path.join(dir, "original.tsx"));
+    const { default: Migrated } = await import(path.join(dir, "migrated.tsx"));
+    return verifyConversion(Original, Migrated);
+  }
+
+  it("go into strings nested in objects and arrays: one written into HTML as is fails", async () => {
+    const raw = await pair('<Html html={`<p>From ${user.city}</p>${items.map((item) => `<p>${item.name}</p>`).join("")}`} />');
+    expect([raw.missing, raw.added]).toEqual([[], []]);
+    expect(raw.variants).toEqual([expect.objectContaining({ change: "text props with markup" })]);
+    // Shown as text, they pass.
+    const text = await pair("<Paragraph>From {user.city}</Paragraph>{items.map((item) => <Paragraph key={item.name}>{item.name}</Paragraph>)}");
+    expect([text.missing, text.added, text.variants]).toEqual([[], [], []]);
+  });
+});

@@ -196,11 +196,10 @@ export async function verifyConversion(
       variants.push({ change, missing: [], added: [], missingAttributes: [], error: (error as Error).message.split("\n")[0] });
     }
   }
-  // Text props with markup and `&"` in them: React Email shows them as text,
-  // and so must the migrated template (no text or link turned into markup).
-  const strings = Object.entries(props).filter(([, value]) => typeof value === "string");
-  if (strings.length) {
-    const marked = { ...props, ...Object.fromEntries(strings.map(([name, value]) => [name, `${value}<i>x</i>&"`])) };
+  // Text props with markup and `&"` in them, nested ones too (`user.city`, `items[0].name`):
+  // React Email shows them as text, and so must the migrated template (no text or link turned into markup).
+  const { value: marked, strings } = withMarkup(props);
+  if (strings) {
     const change = "text props with markup";
     let original: string | undefined;
     try {
@@ -220,6 +219,31 @@ export async function verifyConversion(
   }
   const stylesheets = (designRoot.props as { fonts?: Array<{ url: string }> } | null)?.fonts;
   return { ...compareText(originalHtml, convertedHtml), originalHtml, convertedHtml, designWarnings, design, editorFonts: editorFonts(design, stylesheets), variants };
+}
+
+/**
+ * `props` with markup and `&"` added to every string in it, through plain
+ * objects and arrays. Anything else (a React element, a function, a Date) is
+ * kept as given. `strings`: how many were changed.
+ */
+function withMarkup(props: Record<string, unknown>): { value: Record<string, unknown>; strings: number } {
+  let strings = 0;
+  const copies = new Map<object, unknown>(); // a value used twice (or itself) is copied once
+  const mark = (value: unknown): unknown => {
+    if (typeof value === "string") {
+      strings++;
+      return `${value}<i>x</i>&"`;
+    }
+    if (!value || typeof value !== "object" || React.isValidElement(value)) return value;
+    const prototype = Object.getPrototypeOf(value);
+    if (!Array.isArray(value) && prototype !== Object.prototype && prototype !== null) return value;
+    if (copies.has(value)) return copies.get(value);
+    const copy: Record<string, unknown> | unknown[] = Array.isArray(value) ? [] : {};
+    copies.set(value, copy);
+    for (const [key, item] of Object.entries(value)) (copy as Record<string, unknown>)[key] = mark(item);
+    return copy;
+  };
+  return { value: mark(props) as Record<string, unknown>, strings };
 }
 
 /**
