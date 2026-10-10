@@ -332,7 +332,7 @@ export default function Welcome() { return <Html><Body style={{ backgroundColor:
     const out = io(dir);
     expect(await main(["emails", "--write", "--design"], out, lib), out.out + out.err).toBe(0);
     expect(fs.readFileSync(path.join(dir, "emails/components/footer.tsx"), "utf8")).toBe(footer);
-    expect(out.out).toContain("imported by");
+    expect(out.out).toMatch(/- emails\/components\/footer\.tsx: skipped \(not an email template/);
     const migrated = fs.readFileSync(path.join(dir, "emails/welcome.tsx"), "utf8");
     expect(migrated).toContain("@unlayer/react-elements");
     expect(migrated).toContain('contentWidth="400px"');
@@ -988,3 +988,138 @@ describe("--write only replaces what git can restore", () => {
     expect(fs.readFileSync(path.join(loose, "welcome.tsx"), "utf8")).toBe(good);
   });
 });
+
+describe("--write keeps", () => {
+  it("each template's permissions", async () => {
+    const dir = project({ "emails/welcome.tsx": good });
+    fs.chmodSync(path.join(dir, "emails/welcome.tsx"), 0o664);
+    const out = io(dir);
+    expect(await main(["emails", "--write", "--allow-dirty"], out, lib), out.out + out.err).toBe(0);
+    expect(fs.statSync(path.join(dir, "emails/welcome.tsx")).mode & 0o777).toBe(0o664);
+  });
+});
+
+describe("--out", () => {
+  it("checks a template with the project's import aliases in an output folder outside the project", async () => {
+    const dir = project({
+      "app/tsconfig.json": JSON.stringify({ compilerOptions: { baseUrl: ".", paths: { "@/*": ["./*"] } } }),
+      "app/lib/brand.ts": `export const BRAND = "Acme";\n`,
+      "app/emails/welcome.tsx": `import { Html, Body, Text } from "@react-email/components";\nimport { BRAND } from "@/lib/brand";\nexport default function Welcome() { return <Html><Body><Text>Welcome to {BRAND}</Text></Body></Html>; }`,
+    });
+    const out = io(path.join(dir, "app"));
+    expect(await main(["emails", "--out", "../migrated"], out, lib), out.out + out.err).toBe(0);
+    expect(fs.readFileSync(path.join(dir, "migrated/welcome.tsx"), "utf8")).toContain("@unlayer/react-elements");
+  });
+});
+
+describe("what --write leaves for the templates that use it", () => {
+  const wrap = "export const withTracking = (component: any) => component;\n";
+  const read = (dir: string, file: string) => fs.readFileSync(path.join(dir, file), "utf8");
+
+  it("leaves a template a failing one renders through a file of named components", async () => {
+    const base = `import * as React from "react";
+import { Html, Body, Heading } from "@react-email/components";
+export default function Base({ heading = "Notice", content }: { heading?: string; content?: React.ReactNode }) { return <Html><Body><Heading>{heading}</Heading>{content}</Body></Html>; }`;
+    const dir = project({
+      "lib/wrap.ts": wrap,
+      "emails/components/base.tsx": base,
+      "emails/components/shells.tsx": `import { Text } from "@react-email/components";\nimport Base from "./base";\nexport function Notice({ text }: { text: string }) { return <Base heading="Notice" content={<Text>{text}</Text>} />; }`,
+      "emails/welcome.tsx": `import { Notice } from "./components/shells";\nexport default function Welcome() { return <Notice text="Welcome aboard" />; }\nWelcome.PreviewProps = {};`,
+      "emails/alert.tsx": `import { Notice } from "./components/shells";\nimport { withTracking } from "../lib/wrap";\nfunction Alert() { return <Notice text="Your account needs attention" />; }\nexport default withTracking(Alert);`,
+    });
+    const out = io(dir);
+    expect(await main(["emails", "--write"], out, lib), out.out + out.err).toBe(2);
+    expect(out.out).toMatch(/✗ emails\/alert\.tsx/);
+    expect(out.out).toMatch(/- emails\/components\/base\.tsx: skipped \(imported by emails\/alert\.tsx/);
+    expect(read(dir, "emails/components/base.tsx")).toBe(base);
+    expect(read(dir, "emails/welcome.tsx")).toContain("@unlayer/react-elements");
+  });
+
+  it("leaves a template a failing one takes by another name than default (export { Promo })", async () => {
+    const promo = `import { Html, Body, Text } from "@react-email/components";\nfunction Promo({ code = "SAVE10" }: { code?: string }) { return <Html><Body><Text>Use {code} today</Text></Body></Html>; }\nPromo.PreviewProps = {};\nexport { Promo };\nexport default Promo;`;
+    const dir = project({
+      "lib/wrap.ts": wrap,
+      "emails/promo.tsx": promo,
+      "emails/weekly.tsx": `import { Promo } from "./promo";\nimport { withTracking } from "../lib/wrap";\nfunction Weekly() { return <Promo code="WEEK" />; }\nexport default withTracking(Weekly);`,
+    });
+    const out = io(dir);
+    expect(await main(["emails", "--write"], out, lib), out.out + out.err).toBe(2);
+    expect(read(dir, "emails/promo.tsx")).toBe(promo);
+  });
+
+  it("migrates a template another imports only a value from, in one run", async () => {
+    const dir = project({
+      "emails/welcome.tsx": `import { Html, Body, Text } from "@react-email/components";\nexport const brand = "Acme";\nexport default function Welcome() { return <Html><Body><Text>Welcome to {brand}</Text></Body></Html>; }\nWelcome.PreviewProps = {};`,
+      "emails/reset.tsx": `import { Html, Body, Text } from "@react-email/components";\nimport { brand } from "./welcome";\nexport default function Reset() { return <Html><Body><Text>Reset your {brand} password</Text></Body></Html>; }\nReset.PreviewProps = {};`,
+    });
+    for (const flags of [[], ["--write"]]) {
+      const out = io(dir);
+      expect(await main(["emails", ...flags], out, lib), out.out + out.err).toBe(0);
+      expect(out.out).toContain("2 templates: 2 migrated and checked");
+    }
+    const { default: Reset } = await import(path.join(dir, "emails/reset.tsx"));
+    const { renderToHtml } = await import("@unlayer/react-elements");
+    expect(renderToHtml(Reset({}))).toContain("Reset your Acme password");
+  });
+
+  it("migrates templates a mailer outside the folder sends, when one takes only a constant from it", async () => {
+    const dir = project({
+      "lib/email.tsx": `import { render } from "@react-email/components";\nimport Invite from "../emails/invite";\nimport Reset from "../emails/reset";\nexport const BRAND = "Acme";\nexport const sendInvite = () => render(<Invite />);\nexport const sendReset = () => render(<Reset name="Ada" />);`,
+      "emails/welcome.tsx": `import { Html, Body, Text } from "@react-email/components";\nimport { BRAND } from "../lib/email";\nexport default function Welcome() { return <Html><Body><Text>Welcome to {BRAND}</Text></Body></Html>; }\nWelcome.PreviewProps = {};`,
+      "emails/invite.tsx": `import * as React from "react";\nimport { Html, Body, Text } from "@react-email/components";\nexport default function Invite({ note }: { note?: React.ReactNode }) { return <Html><Body><Text>You're invited</Text>{note}</Body></Html>; }\nInvite.PreviewProps = {};`,
+      "emails/reset.tsx": `import * as React from "react";\nimport { Html, Body, Text } from "@react-email/components";\ninterface ResetProps { name: string }\nconst Reset: React.FC<ResetProps> = ({ name }) => <Html><Body><Text>Reset it, {name}</Text></Body></Html>;\nexport default Reset;`,
+    });
+    const out = io(dir);
+    expect(await main(["emails", "--write"], out, lib), out.out + out.err).toBe(0);
+    expect(out.out).toContain("3 templates: 3 migrated and checked");
+  });
+
+  it("migrates a template once the one that renders it is written, in the same run, and a dry run says so", async () => {
+    const welcome = `import { Html, Body, Text } from "@react-email/components";\nexport default function Welcome({ name = "Ada", pro = false }: { name?: string; pro?: boolean }) { return <Html><Body><Text>Welcome {name}</Text>{pro ? <Text>Thanks for going Pro</Text> : null}</Body></Html>; }\nWelcome.PreviewProps = { name: "Ada" };`;
+    const dir = project({
+      "emails/welcome.tsx": welcome,
+      "emails/welcome-pro.tsx": `import Welcome from "./welcome";\nexport default function WelcomePro({ name = "Ada" }: { name?: string }) { return <Welcome name={name} pro />; }\nWelcomePro.PreviewProps = { name: "Ada" };`,
+    });
+    const dry = io(dir);
+    expect(await main(["emails"], dry, lib), dry.out + dry.err).toBe(0);
+    expect(dry.out).toContain("2 templates: 2 migrated and checked");
+    const out = io(dir);
+    expect(await main(["emails", "--write"], out, lib), out.out + out.err).toBe(0);
+    expect(out.out).toContain("2 templates: 2 migrated and checked");
+    expect(read(dir, "emails/welcome.tsx")).toContain("@unlayer/react-elements");
+    expect(read(dir, "emails/welcome-pro.tsx")).not.toContain('from "./welcome"');
+  });
+
+  it("doesn't leave an import an inlined component brought for a default the template replaces", async () => {
+    const dir = project({
+      "lib/brand.ts": `export const brand = { primary: "#4f46e5" };\n`,
+      "components/cta.tsx": `import { Button } from "@react-email/components";\nimport { brand } from "../lib/brand";\nexport function CTA({ href, color = brand.primary, label }: { href: string; color?: string; label: string }) { return <Button href={href} style={{ backgroundColor: color }}>{label}</Button>; }`,
+      "emails/welcome.tsx": `import { Html, Body } from "@react-email/components";\nimport { CTA } from "../components/cta";\nexport default function Welcome() { return <Html><Body><CTA href="https://example.com" color="#000000" label="Start" /></Body></Html>; }`,
+    });
+    const out = io(dir);
+    expect(await main(["emails", "--out", "migrated"], out, lib), out.out + out.err).toBe(0);
+    const migrated = read(dir, "migrated/welcome.tsx");
+    expect(migrated).not.toMatch(/\bbrand\b/);
+    expect(migrated).toContain('backgroundColor="#000000"');
+  });
+
+  it("lists the files it left that still use a template it replaced", async () => {
+    const dir = project({
+      "emails/welcome.tsx": good,
+      "emails/send.tsx": `import { render } from "@react-email/components";\nimport Welcome from "./welcome";\nexport async function sendWelcome() { return render(<Welcome />); }`,
+    });
+    const out = io(dir);
+    expect(await main(["emails", "--write"], out, lib), out.out + out.err).toBe(0);
+    expect(out.out).toMatch(/Still using a migrated template[^\n]*\n  emails\/send\.tsx → emails\/welcome\.tsx/);
+  });
+
+  it("refuses --write when a template imports a module by a computed path", async () => {
+    const welcome = `import { Html, Body, Text } from "@react-email/components";\nconst theme = (name: string) => require(\`./themes/\${name}\`);\nexport default function Welcome() { return <Html><Body><Text>Welcome {String(Boolean(theme))}</Text></Body></Html>; }`;
+    const dir = project({ "emails/welcome.tsx": welcome });
+    const out = io(dir);
+    expect(await main(["emails", "--write"], out, lib), out.out + out.err).toBe(2);
+    expect(out.err).toContain("emails/welcome.tsx");
+    expect(read(dir, "emails/welcome.tsx")).toBe(welcome);
+  });
+});
+

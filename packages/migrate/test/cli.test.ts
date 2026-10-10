@@ -415,7 +415,8 @@ export default function Receipt() { return <Html><Body><Text>Your receipt</Text>
     expect(await main(["emails", "--write"], out, lib), out.out + out.err).toBe(0);
     expect(out.out).toMatch(/✓ emails\/activation\.tsx/);
     expect(out.out).toMatch(/✓ emails\/welcome\.tsx/);
-    expect(out.out).toMatch(/- emails\/components\/footer\.tsx: skipped \(imported by emails\/receipt\.tsx/);
+    // It has no default export, so migrating never rewrites it: what the receipt takes from it stays as it is.
+    expect(out.out).toMatch(/- emails\/components\/footer\.tsx: skipped \(no default-exported component/);
     expect(fs.readFileSync(path.join(dir, "emails/components/footer.tsx"), "utf8")).toBe(footer);
     expect(fs.readFileSync(path.join(dir, "emails/activation.tsx"), "utf8")).toContain("@unlayer/react-elements");
   });
@@ -436,7 +437,7 @@ export default function Receipt() { return <Html><Body><Text>Your receipt</Text>
     const out = io(dir);
     expect(await main(["emails", "--write"], out, lib), out.out + out.err).toBe(0);
     expect(out.out).toMatch(/✓ emails\/welcome\.tsx/);
-    expect(out.out).toMatch(/- emails\/footer\.tsx: skipped \(imported by emails\/receipt\.tsx/);
+    expect(out.out).toMatch(/- emails\/footer\.tsx: skipped \(no default-exported component/);
   });
 
   it("follows a barrel that imports a layout and exports it again: --write leaves the layout alone and inlines it", async () => {
@@ -449,7 +450,8 @@ export default function Welcome() { return <Shell><Text>Welcome aboard</Text></S
       const dir = project({ "emails/Shell.tsx": shell, "emails/welcome.tsx": welcome, "components/index.ts": barrel });
       const out = io(dir);
       expect(await main(["emails", "--write"], out, lib), out.out + out.err).toBe(0);
-      expect(out.out, barrel).toMatch(/- emails\/Shell\.tsx: skipped \(imported by emails\/welcome\.tsx/);
+      // Left while the template uses it; once the migrated template no longer does, it's left as the layout it is.
+      expect(out.out, barrel).toMatch(/- emails\/Shell\.tsx: skipped \(a layout/);
       expect(fs.readFileSync(path.join(dir, "emails/Shell.tsx"), "utf8")).toBe(shell);
       // The layout's markup is in the migrated template, which no longer needs the barrel.
       expect(out.out, barrel).toMatch(/✓ emails\/welcome\.tsx: 100% editable/);
@@ -476,7 +478,7 @@ export default function Receipt() { return <Parts.default><Text>Your receipt</Te
     });
     const out = io(dir);
     await main(["emails", "--write"], out, lib);
-    expect(out.out).toMatch(/- emails\/Shell\.tsx: skipped \(imported by emails\/welcome\.tsx/);
+    expect(out.out).toMatch(/- emails\/Shell\.tsx: skipped \(a layout/);
     expect(out.out).toMatch(/- emails\/Footer\.tsx: skipped \(imported by emails\/receipt\.tsx/);
     expect(fs.readFileSync(path.join(dir, "emails/Shell.tsx"), "utf8")).toBe(shell);
   });
@@ -491,7 +493,7 @@ export default function Layout({ children }) { return <Html><Body><Container>{ch
     });
     const out = io(dir);
     expect(await main(["emails", "--write"], out, lib), out.out + out.err).toBe(0);
-    expect(out.out).toMatch(/- emails\/layout\.jsx: skipped \(imported by emails\/welcome\.jsx/);
+    expect(out.out).toMatch(/- emails\/layout\.jsx: skipped \(a layout/);
     expect(out.out).toMatch(/✓ emails\/welcome\.jsx: 100% editable/);
     expect(fs.readFileSync(path.join(dir, "emails/layout.jsx"), "utf8")).toBe(layout);
   });

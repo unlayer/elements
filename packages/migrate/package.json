@@ -56,6 +56,13 @@
     },
     "./package.json": "./package.json"
   },
+  "typesVersions": {
+    "*": {
+      "react-email": [
+        "./dist/react-email.d.ts"
+      ]
+    }
+  },
   "peerDependencies": {
     "@react-email/components": ">=0.0.30",
     "@unlayer/react-elements": "^0.2.0",

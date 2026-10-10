@@ -77,6 +77,8 @@ export interface StyleChange {
   original: string;
   converted: string;
   words: string[];
+  /** Only on screens at least this wide (a rule for wider screens than the desktop width checked, as `md:`). */
+  width?: number;
 }
 
 export interface FileResult {
@@ -117,7 +119,7 @@ export interface FileResult {
    * shown, that the original (or the migration) sets in a way it can't read.
    * The check fails on it.
    */
-  unverified?: Array<{ what: string; side: "original" | "migrated"; cause: string; words: string[] }>;
+  unverified?: Array<{ what: string; side: "original" | "migrated"; cause: string; words: string[]; width?: number }>;
   /** At a phone's width: words, links and images the original shows there that the migrated template doesn't, and the other way round. */
   phone?: { missing: string[]; added: string[]; missingAttributes?: string[]; addedAttributes?: string[] };
   /** Text and images that sit elsewhere across the page on desktop (a column stacked or moved, a block on the other side), and how far. */
@@ -247,52 +249,94 @@ export async function main(argv: string[], io: Io, library?: Library): Promise<n
     return 1;
   }
   const lib = library ?? ((await import("@unlayer/from-react-email")) as Library);
-  // A dry run says what --write does; --out writes copies of every template.
-  const dependencies = options.out === undefined ? await importedInputs(inputs.files) : new Map<string, { importer: string; through?: string }>();
   const results: FileResult[] = [...inputs.unreadable];
-  const pending: Array<{ result: FileResult; writes: PendingWrite[] }> = [];
-  for (const input of candidates) {
-    const use = dependencies.get(input.path);
-    if (use && !use.through) {
-      results.push({ file: relative(io.cwd, input.path), status: "skipped", reason: `imported by ${relative(io.cwd, use.importer)}: its markup is inlined into the templates that use it` });
-      continue;
+  // Templates another one renders are left for now. With --write, a pass that writes the templates using one may
+  // free it (the migrated ones render their own markup): it's tried again, until a pass writes nothing more.
+  let todo = candidates;
+  // A dry run's migrated templates, read in place of the files (it says what --write does).
+  const wouldWrite = new Map<string, string>();
+  for (;;) {
+    // --out writes copies of every template.
+    const used = options.out === undefined ? await importedInputs(inputs.files, wouldWrite) : { uses: new Map() as Uses, computed: [] };
+    if (used.computed.length) {
+      io.stderr(
+        `These import a module by a path worked out when they run (import() or require with a computed path), so what they render can't be told, nor which files --write may replace:\n${used.computed.map((file) => `  ${relative(io.cwd, file)}`).join("\n")}\n` +
+          "Write copies with --out <dir> instead, or migrate the templates that don't use them on their own.\n"
+      );
+      return 2;
     }
-    if (use?.through) {
-      // Reached only through a module outside the folder, which may render it or only list or send it:
-      // what it is decides. A shared piece is left as it is; an email of its own is migrated.
-      const kind = await sharedPiece(await readFile(input.path, "utf8"));
-      const via = `${relative(io.cwd, use.through)} (outside the folder)`;
-      const by = relative(io.cwd, use.importer);
-      if (kind === "shared") {
-        results.push({ file: relative(io.cwd, input.path), status: "skipped", reason: `a shared piece (it takes content: children or a prop typed to hold JSX) that ${via} may render for ${by}: left as it is` });
+    const left: Array<{ input: Input; result: FileResult }> = [];
+    const pending: Array<{ input: Input; result: FileResult; writes: PendingWrite[]; code?: string }> = [];
+    for (const input of todo) {
+      const use = used.uses.get(input.path);
+      if (use && !use.through) {
+        left.push({ input, result: { file: relative(io.cwd, input.path), status: "skipped", reason: `imported by ${relative(io.cwd, use.importer)}: its markup is inlined into the templates that use it` } });
         continue;
       }
-      if (kind === "unknown") {
-        results.push({ file: relative(io.cwd, input.path), status: "failed", reason: `imported through ${via} by ${by}, and whether it's an email of its own or a shared piece that module renders can't be told (its props aren't typed here): --write leaves it. If it's an email, migrate it on its own: npx @unlayer/migrate ${relative(io.cwd, input.path)} --write` });
-        continue;
+      if (use?.through) {
+        // Reached only through a module outside the folder, which may render it or only list or send it:
+        // what it is decides. A shared piece is left as it is; an email of its own is migrated.
+        const kind = await sharedPiece(await readFile(input.path, "utf8"));
+        const via = `${relative(io.cwd, use.through)} (outside the folder)`;
+        const by = relative(io.cwd, use.importer);
+        if (kind === "shared") {
+          results.push({ file: relative(io.cwd, input.path), status: "skipped", reason: `a shared piece (it takes content: children or a prop typed to hold JSX) that ${via} may render for ${by}: left as it is` });
+          continue;
+        }
+        if (kind === "unknown") {
+          results.push({ file: relative(io.cwd, input.path), status: "failed", reason: `imported through ${via} by ${by}, and whether it's an email of its own or a shared piece that module renders can't be told (its props aren't typed here): --write leaves it. If it's an email, migrate it on its own: npx @unlayer/migrate ${relative(io.cwd, input.path)} --write` });
+          continue;
+        }
+      }
+      const { writes = [], code, ...result } = await migrateFile(input, options, lib, io, destinations);
+      results.push(result);
+      pending.push({ input, result, writes, code });
+    }
+    let wrote = false;
+    for (const { result, writes } of pending) {
+      try {
+        for (const write of writes) {
+          await writeDestination(write.path, write.text, destinations);
+          result[write.kind] = relative(io.cwd, write.path);
+          wrote ||= write.kind === "output";
+        }
+      } catch (error) {
+        result.status = "failed";
+        result.reason = `couldn't write output: ${message(error)}`;
       }
     }
-    const { writes = [], ...result } = await migrateFile(input, options, lib, io, destinations);
-    results.push(result);
-    pending.push({ result, writes });
+    if (options.out === undefined && !options.write) {
+      for (const { input, result, code } of pending) {
+        if (result.status !== "migrated" || code === undefined) continue;
+        wouldWrite.set(await canonicalPath(input.path), code);
+        wrote = true;
+      }
+    }
+    if (options.out !== undefined || !wrote || !left.length) {
+      results.push(...left.map((l) => l.result));
+      break;
+    }
+    todo = left.map((l) => l.input);
   }
-
   // An editor registers each font family once: give every template the stylesheet that loads what all of them use.
   const withFonts = results.filter((r) => r.fonts);
   lib.shareEditorFonts(withFonts.map((r) => r.fonts!)).forEach((fonts, i) => (withFonts[i].fonts = fonts));
-  for (const { result, writes } of pending) {
-    try {
-      for (const write of writes) {
-        await writeDestination(write.path, write.text, destinations);
-        result[write.kind] = relative(io.cwd, write.path);
-      }
-    } catch (error) {
-      result.status = "failed";
-      result.reason = `couldn't write output: ${message(error)}`;
-    }
-  }
+  // In the templates' order (a later pass's after the first's otherwise), files it couldn't read first.
+  const read = results.splice(inputs.unreadable.length).sort((a, b) => a.file.localeCompare(b.file));
+  results.push(...read);
   for (const result of results) io.stdout(`${line(result)}\n`);
   io.stdout(`\n${summary(results, options)}\n`);
+  // Files the run left that use a template it replaced (a component file, a helper that sends it): they now get Elements'.
+  if (options.write) {
+    const written = new Set(results.filter((r) => r.output).map((r) => resolve(io.cwd, r.file)));
+    const left = new Set(inputs.files.filter((f) => !written.has(f.path)).map((f) => f.path));
+    if (written.size && left.size) {
+      const stale = [...(await importedInputs(inputs.files, undefined, left)).uses].filter(([file, use]) => written.has(file) && !use.through);
+      if (stale.length) {
+        io.stdout(`\nStill using a migrated template (send it with renderToHtml from @unlayer/react-elements, or render it in an Elements template):\n${stale.map(([file, use]) => `  ${relative(io.cwd, use.importer)} → ${relative(io.cwd, file)}`).join("\n")}\n`);
+      }
+    }
+  }
   if (reportFile) {
     const target = resolve(io.cwd, reportFile);
     try {
@@ -406,8 +450,11 @@ async function checkDestination(path: string, destinations: Destinations): Promi
 async function writeExclusive(path: string, text: string, mode?: number): Promise<void> {
   const handle = await open(path, "wx", mode);
   try {
-    try { await handle.writeFile(text); }
-    finally { await handle.close(); }
+    try {
+      await handle.writeFile(text);
+      // The file's own permissions, as they were: creating it applies the umask (664 would become 644).
+      if (mode !== undefined) await handle.chmod(mode & 0o7777);
+    } finally { await handle.close(); }
   } catch (error) {
     await rm(path, { force: true });
     throw error;
@@ -482,7 +529,7 @@ interface PendingWrite {
   kind: "output" | "design";
 }
 
-async function migrateFile(input: Input, options: Options, lib: Library, io: Io, destinations: Destinations): Promise<FileResult & { writes?: PendingWrite[] }> {
+async function migrateFile(input: Input, options: Options, lib: Library, io: Io, destinations: Destinations): Promise<FileResult & { writes?: PendingWrite[]; code?: string }> {
   const file = input.path;
   const name = relative(io.cwd, file) || basename(file);
   const bytes = await readFile(file);
@@ -557,7 +604,7 @@ async function migrateFile(input: Input, options: Options, lib: Library, io: Io,
         if (!code || !["EACCES", "EPERM", "EROFS"].includes(code)) throw error;
         return { file: name, status: "failed", reason: `can't write a temporary copy ${target === file ? "next to it" : "in its output folder"} to check it (read-only folder)` };
       }
-      const migrated = templateComponent(defaultExport(await importFile(probe, io, release)));
+      const migrated = templateComponent(defaultExport(await importFile(probe, io, release, file)));
       // Checked as exported (memo and forwardRef included), the way users render it.
       const Migrated = migrated?.exported;
       if (!Migrated) throw new Error("the migrated file has no default export");
@@ -621,7 +668,7 @@ async function migrateFile(input: Input, options: Options, lib: Library, io: Io,
       writes.push({ path: target, text: code, kind: "output" });
       if (options.design) writes.push({ path: designPath(target), text: `${JSON.stringify(design, null, 2)}\n`, kind: "design" });
     }
-    return { ...result, writes };
+    return { ...result, writes, code };
   } finally {
     for (const unregister of release.reverse()) unregister();
   }
@@ -741,7 +788,7 @@ function moves(layout: NonNullable<FileResult["layout"]>): string {
 function unverifiedList(items: NonNullable<FileResult["unverified"]>): string {
   const name: Record<string, string> = { shown: "whether it's shown", "shown on phones": "whether a phone shows it", "where it sits": "where it sits across the page", size: "the size", bold: "the weight", italic: "italics", transform: "letter case", underline: "underline", color: "the color", background: "the background", target: "the link target" };
   return items
-    .map((u) => `${name[u.what] ?? u.what} of ${quote(u.words)} (${u.side === "migrated" ? "the migrated template writes " : ""}${u.cause})`)
+    .map((u) => `${name[u.what] ?? u.what} of ${quote(u.words)}${wider(u.width)} (${u.side === "migrated" ? "the migrated template writes " : ""}${u.cause})`)
     .join("; ");
 }
 
@@ -777,7 +824,7 @@ function markdownReport(results: FileResult[]): string {
     if (r.missingAttributes?.length) lines.push(`**Lost links or images:** ${quote(r.missingAttributes)}`, "");
     if (r.addedAttributes?.length) lines.push(`**Extra links or images:** ${quote(r.addedAttributes)}`, "");
     if (r.lostStyles?.length) lines.push("**Lost styles** (change how it looks):", ...r.lostStyles.map((s) => `- ${s}`), "");
-    if (r.styles?.length) lines.push("**Shown in another style:**", ...r.styles.map((c) => `- ${c.property}: ${c.original} → ${c.converted}, on ${quote(c.words)}`), "");
+    if (r.styles?.length) lines.push("**Shown in another style:**", ...r.styles.map((c) => `- ${c.property}: ${c.original} → ${c.converted}, on ${quote(c.words)}${wider(c.width)}`), "");
     if (r.unverified?.length) lines.push("**Couldn't verify** (the check fails on what it can't read):", ...unverifiedList(r.unverified).split("; ").map((line) => `- ${line}`), "");
     if (r.phone?.missing.length) lines.push(`**On phones, lost text:** ${quote(r.phone.missing)}`, "");
     if (r.phone?.added.length) lines.push(`**On phones, extra text:** ${quote(r.phone.added)}`, "");
@@ -835,7 +882,12 @@ function problems(check: CheckParts): string[] {
 
 /** Style changes in a line: "color #e11d48 → #000000 on "Hello", "world"". */
 function styleChanges(changes: StyleChange[]): string {
-  return changes.map((c) => `${c.property} ${c.original} → ${c.converted} on ${quote(c.words)}`).join("; ");
+  return changes.map((c) => `${c.property} ${c.original} → ${c.converted} on ${quote(c.words)}${wider(c.width)}`).join("; ");
+}
+
+/** " on screens 768px and wider", for a difference only wider screens than the desktop width show. */
+function wider(width: number | undefined): string {
+  return width ? ` on screens ${width}px and wider` : "";
 }
 
 function quote(words: string[]): string {
@@ -1071,6 +1123,8 @@ async function importFile(
   path: string,
   io: Pick<Io, "cwd" | "project">,
   release: Array<() => void>,
+  // Whose project settings (tsconfig paths) apply: a migrated copy's are its template's, wherever it's written.
+  configFrom = path,
 ): Promise<Record<string, any>> {
   const { cwd, project = io.cwd } = io;
   release.push(sharedCjsPackages(project));
@@ -1081,7 +1135,7 @@ async function importFile(
     tmpdir(),
     `unlayer-migrate-tsconfig-${randomUUID()}.json`,
   );
-  const base = projectConfig(dirname(path));
+  const base = projectConfig(dirname(configFrom)) ?? projectConfig(dirname(path));
   const ts = (await import("typescript")).default;
   const compiler = base
     ? ts.parseJsonConfigFileContent(
@@ -1193,9 +1247,11 @@ async function moduleLoader(file: string): Promise<(specifier: string, fromFile:
 }
 
 /** Reading what a module imports and passes on, to follow imports between the project's files. */
-async function moduleSyntax() {
+async function moduleSyntax(overlay?: Map<string, string>) {
   const ts = (await import("typescript")).default;
-  const parse = async (path: string) => ts.createSourceFile(path, await readFile(path, "utf8"), ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
+  // A file's text, or what a dry run would write in its place (by its real path).
+  const text = async (path: string) => (overlay?.size && overlay.get(await canonicalPath(path))) || readFile(path, "utf8");
+  const parse = async (path: string) => ts.createSourceFile(path, await text(path), ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
   /** A module's imports: local name → where it comes from and the name it has there (`*` for a namespace). */
   const importsOf = (file: import("typescript").SourceFile) => {
     const out = new Map<string, { specifier: string; imported: string }>();
@@ -1242,7 +1298,7 @@ async function moduleSyntax() {
     }
     return out;
   };
-  return { ts, parse, importsOf, reExports };
+  return { ts, parse, text, importsOf, reExports };
 }
 
 /**
@@ -1251,7 +1307,9 @@ async function moduleSyntax() {
  * on), directly or through files that pass that one on.
  */
 async function reactEmailThroughProject(path: string): Promise<boolean> {
-  if (await notATemplate(path, await readFile(path, "utf8"))) return false;
+  // A template the check can't load (a wrapped one) is still one: it fails, saying why.
+  const not = await notATemplate(path, await readFile(path, "utf8"));
+  if (not && !not.fail) return false;
   const { parse, importsOf, reExports } = await moduleSyntax();
   const load = await moduleLoader(path);
   const seen = new Set<string>();
@@ -1267,96 +1325,203 @@ async function reactEmailThroughProject(path: string): Promise<boolean> {
   return false;
 }
 
-/** Keep shared source files available to importers that aren't migrated. */
-async function importedInputs(inputs: Input[]): Promise<Map<string, { importer: string; through?: string }>> {
-  const { ts, parse, importsOf, reExports } = await moduleSyntax();
-  const scanned = new Map(await Promise.all(inputs.map(async (input) => [await canonicalPath(input.path), input.path] as const)));
-  const dependencies = new Map<string, { importer: string; through?: string }>();
-  /** The names a module exports itself (not passed on from another module), "default" included. */
-  const declared = async (path: string) => {
-    const file = await parse(path);
-    const imported = importsOf(file);
-    const names = new Set<string>();
-    for (const statement of file.statements) {
-      const modifiers = ts.canHaveModifiers(statement) ? ts.getModifiers(statement) ?? [] : [];
-      const exported = modifiers.some((m) => m.kind === ts.SyntaxKind.ExportKeyword);
-      const isDefault = modifiers.some((m) => m.kind === ts.SyntaxKind.DefaultKeyword);
-      if (ts.isExportAssignment(statement)) {
-        if (!(ts.isIdentifier(statement.expression) && imported.has(statement.expression.text))) names.add("default");
-      } else if (exported && isDefault) names.add("default");
-      else if (exported && (ts.isFunctionDeclaration(statement) || ts.isClassDeclaration(statement)) && statement.name) names.add(statement.name.text);
-      else if (exported && ts.isVariableStatement(statement)) statement.declarationList.declarations.forEach((d) => ts.isIdentifier(d.name) && names.add(d.name.text));
-      else if (ts.isExportDeclaration(statement) && !statement.moduleSpecifier && statement.exportClause && ts.isNamedExports(statement.exportClause)) {
-        statement.exportClause.elements.forEach((e) => !imported.has((e.propertyName ?? e.name).text) && names.add(e.name.text));
-      }
-    }
-    return names;
+/** Who uses a scanned file's template, and how: straight, or through a module outside the folder. */
+type Uses = Map<string, { importer: string; through?: string }>;
+
+/**
+ * A module's top-level names, for following only what an import uses: what
+ * each export name is locally, what each local's declaration refers to (other
+ * locals, imported names, modules imported by `import()`/`require`), and the
+ * declarations its default export is: what migrating the file rewrites.
+ */
+interface ModuleShape {
+  exports: Map<string, string>;
+  refers: Map<string, { locals: Set<string>; imports: Set<string>; dynamic: string[]; computed: boolean }>;
+  imports: Map<string, { specifier: string; imported: string }>;
+  template: Set<string>;
+  /** The whole module's bare imports (`import "./x"`) and modules imported by `import()`/`require`, for a module used whole. */
+  whole: { bare: string[]; dynamic: string[]; computed: boolean };
+  /** Whether it has ES exports (a CommonJS module counts as using everything it imports). */
+  esm: boolean;
+}
+
+const DEFAULT = "<default>";
+
+function shapeOf(ts: typeof import("typescript"), file: import("typescript").SourceFile, imports: ModuleShape["imports"]): ModuleShape {
+  const exports = new Map<string, string>();
+  const declarations = new Map<string, import("typescript").Node[]>();
+  const declare = (name: string, node: import("typescript").Node) => declarations.set(name, [...(declarations.get(name) ?? []), node]);
+  const bound = (name: import("typescript").BindingName, out: string[] = []): string[] => {
+    if (ts.isIdentifier(name)) out.push(name.text);
+    else for (const element of name.elements) if (!ts.isOmittedExpression(element)) bound(element.name, out);
+    return out;
   };
-  /** What a module imports: each specifier with the names it takes ("all" for a namespace or a bare import). */
-  const importsIn = (file: import("typescript").SourceFile) => {
-    const imports: Array<{ specifier: string; names: string[] | "all" }> = [];
+  let esm = false;
+  for (const statement of file.statements) {
+    const modifiers = ts.canHaveModifiers(statement) ? ts.getModifiers(statement) ?? [] : [];
+    const exported = modifiers.some((m) => m.kind === ts.SyntaxKind.ExportKeyword);
+    const isDefault = modifiers.some((m) => m.kind === ts.SyntaxKind.DefaultKeyword);
+    if (exported || ts.isExportAssignment(statement) || ts.isExportDeclaration(statement)) esm = true;
+    if ((ts.isFunctionDeclaration(statement) || ts.isClassDeclaration(statement)) && (statement.name || isDefault)) {
+      const name = statement.name?.text ?? DEFAULT;
+      declare(name, statement);
+      if (exported) exports.set(isDefault ? "default" : name, name);
+    } else if (ts.isVariableStatement(statement)) {
+      for (const d of statement.declarationList.declarations) for (const name of bound(d.name)) {
+        declare(name, d);
+        if (exported) exports.set(name, name);
+      }
+    } else if (ts.isEnumDeclaration(statement)) {
+      declare(statement.name.text, statement);
+      if (exported) exports.set(statement.name.text, statement.name.text);
+    } else if (ts.isExportAssignment(statement) && !statement.isExportEquals) {
+      if (ts.isIdentifier(statement.expression)) exports.set("default", statement.expression.text);
+      else {
+        declare(DEFAULT, statement.expression);
+        exports.set("default", DEFAULT);
+      }
+    } else if (ts.isExportDeclaration(statement) && !statement.moduleSpecifier && !statement.isTypeOnly && statement.exportClause && ts.isNamedExports(statement.exportClause)) {
+      for (const e of statement.exportClause.elements) if (!e.isTypeOnly) exports.set(e.name.text, (e.propertyName ?? e.name).text);
+    } else if (ts.isExpressionStatement(statement)) {
+      // `Welcome.PreviewProps = …`: part of what it names.
+      let target: import("typescript").Expression = statement.expression;
+      while (ts.isBinaryExpression(target) || ts.isPropertyAccessExpression(target) || ts.isElementAccessExpression(target) || ts.isCallExpression(target)) {
+        target = ts.isBinaryExpression(target) ? target.left : target.expression;
+      }
+      if (ts.isIdentifier(target)) declare(target.text, statement);
+    }
+  }
+  const refers: ModuleShape["refers"] = new Map();
+  const read = (name: string, nodes: readonly import("typescript").Node[]) => {
+    const found = { locals: new Set<string>(), imports: new Set<string>(), dynamic: [] as string[], computed: false };
     const visit = (node: import("typescript").Node) => {
-      // `export … from` only passes names on: it doesn't use them.
-      if (ts.isImportDeclaration(node) && !node.importClause?.isTypeOnly && ts.isStringLiteral(node.moduleSpecifier)) {
-        const clause = node.importClause;
-        const bindings = clause?.namedBindings;
-        const names = !clause || (bindings && ts.isNamespaceImport(bindings))
-          ? "all"
-          : [...(clause.name ? ["default"] : []), ...(bindings && ts.isNamedImports(bindings) ? bindings.elements.filter((e) => !e.isTypeOnly).map((e) => (e.propertyName ?? e.name).text) : [])];
-        if (names === "all" || names.length) imports.push({ specifier: node.moduleSpecifier.text, names });
-      } else if (ts.isImportEqualsDeclaration(node) && !node.isTypeOnly && ts.isExternalModuleReference(node.moduleReference)) {
-        const value = node.moduleReference.expression;
-        if (value && ts.isStringLiteral(value)) imports.push({ specifier: value.text, names: "all" });
-      } else if (ts.isCallExpression(node) && (node.expression.kind === ts.SyntaxKind.ImportKeyword || (ts.isIdentifier(node.expression) && node.expression.text === "require"))) {
-        const value = node.arguments[0];
-        if (value && ts.isStringLiteral(value)) imports.push({ specifier: value.text, names: "all" });
+      if (ts.isIdentifier(node)) {
+        // A property's name (`a.b`, `{ b: 1 }`) names no binding.
+        const parent = node.parent;
+        const property = (ts.isPropertyAccessExpression(parent) && parent.name === node) || (ts.isPropertyAssignment(parent) && parent.name === node) || (ts.isJsxAttribute(parent) && parent.name === node);
+        if (!property && node.text !== name && declarations.has(node.text)) found.locals.add(node.text);
+        if (!property && imports.has(node.text)) found.imports.add(node.text);
+      }
+      if (ts.isCallExpression(node) && (node.expression.kind === ts.SyntaxKind.ImportKeyword || (ts.isIdentifier(node.expression) && node.expression.text === "require"))) {
+        const argument = node.arguments[0];
+        if (argument && (ts.isStringLiteral(argument) || ts.isNoSubstitutionTemplateLiteral(argument))) found.dynamic.push(argument.text);
+        else if (argument) found.computed = true;
       }
       ts.forEachChild(node, visit);
     };
-    visit(file);
-    return imports;
+    nodes.forEach(visit);
+    return found;
+  };
+  for (const [name, nodes] of declarations) refers.set(name, read(name, nodes));
+  const all = read("", file.statements.filter((statement) => !ts.isImportDeclaration(statement)));
+  const bare = file.statements.flatMap((statement) => (ts.isImportDeclaration(statement) && !statement.importClause && ts.isStringLiteral(statement.moduleSpecifier) ? [statement.moduleSpecifier.text] : []));
+  // What the default export is, through `memo(…)`/`forwardRef(…)` and names: the declarations the migration rewrites.
+  const template = new Set<string>();
+  const reach = (name: string | undefined, depth = 0) => {
+    if (!name || template.has(name) || depth > 5) return;
+    template.add(name);
+    for (const node of declarations.get(name) ?? []) {
+      let value: import("typescript").Node | undefined = ts.isVariableDeclaration(node) ? node.initializer : ts.isExportAssignment(node) ? node.expression : node;
+      while (value && (ts.isParenthesizedExpression(value) || ts.isAsExpression(value) || ts.isSatisfiesExpression(value))) value = value.expression;
+      if (value && ts.isIdentifier(value)) reach(value.text, depth + 1);
+      else if (value && ts.isCallExpression(value)) for (const argument of value.arguments) if (ts.isIdentifier(argument)) reach(argument.text, depth + 1);
+    }
+  };
+  reach(exports.get("default"));
+  return { exports, refers, imports, template, whole: { bare, dynamic: all.dynamic, computed: all.computed }, esm };
+}
+
+/** The locals `names` (export names) stand for and every local their declarations use. */
+function closureOf(shape: ModuleShape, names: string[]): Set<string> {
+  const out = new Set<string>();
+  const add = (local: string) => {
+    if (out.has(local)) return;
+    out.add(local);
+    for (const next of shape.refers.get(local)?.locals ?? []) add(next);
+  };
+  for (const name of names) {
+    const local = shape.exports.get(name);
+    if (local !== undefined) add(local);
+  }
+  return out;
+}
+
+/**
+ * Keep shared source files available to importers that aren't migrated.
+ * `overlay`: files a dry run would write, by real path, read in their place.
+ */
+async function importedInputs(inputs: Input[], overlay?: Map<string, string>, importers?: Set<string>): Promise<{ uses: Uses; computed: string[] }> {
+  const { ts, parse, text, importsOf, reExports } = await moduleSyntax(overlay);
+  const scanned = new Map(await Promise.all(inputs.map(async (input) => [await canonicalPath(input.path), input.path] as const)));
+  const uses: Uses = new Map();
+  const computed = new Set<string>();
+  const shapes = new Map<string, Promise<ModuleShape | undefined>>();
+  const shape = (path: string) => {
+    if (!shapes.has(path)) shapes.set(path, parse(path).then((file) => shapeOf(ts, file, importsOf(file)), () => undefined));
+    return shapes.get(path)!;
+  };
+  /**
+   * The imports `names` of a module use: those their declarations refer to
+   * (all of them for "all", or a CommonJS module), by module, with the names taken there.
+   */
+  const usedImports = (module: ModuleShape, names: string[] | "all", path: string) => {
+    const everything = names === "all" || !module.esm;
+    const locals = everything ? [...module.refers.keys()] : [...closureOf(module, names)];
+    const taken = new Map<string, Set<string> | "all">();
+    const take = (specifier: string, name: string) => {
+      const known = taken.get(specifier);
+      if (name === "*" || known === "all") taken.set(specifier, "all");
+      else taken.set(specifier, (known ?? new Set<string>()).add(name));
+    };
+    const bindings = everything ? [...module.imports.keys()] : locals.flatMap((local) => [...(module.refers.get(local)?.imports ?? [])]);
+    for (const binding of bindings) {
+      const from = module.imports.get(binding);
+      if (from) take(from.specifier, from.imported);
+    }
+    for (const refers of everything ? [module.whole] : locals.map((local) => module.refers.get(local))) {
+      for (const specifier of refers?.dynamic ?? []) take(specifier, "*");
+      if (refers?.computed) computed.add(path);
+    }
+    if (everything) for (const specifier of module.whole.bare) take(specifier, "*");
+    return [...taken].map(([specifier, names]) => ({ specifier, names: names === "all" ? ("all" as const) : [...names] }));
   };
   for (const input of inputs) {
     const load = await moduleLoader(input.path);
     const seen = new Set<string>();
-    // Follow an import to the modules that define the names it takes, through re-export files, and on
-    // through the project's own modules that aren't templates (a component file outside the scanned
-    // folder that renders a layout inside it): what they use, the template may use. `through` is the
-    // first such module on the way: what's reached past it is judged by what it is (see sharedPiece).
+    // Follow an import to the modules that define the names it takes, through re-export files, and on through what
+    // those names use in the project's own modules (inside the folder or out). A scanned file is used when what's taken
+    // from it reaches its template (the declaration its default export is): migrating it rewrites only that. `through`
+    // is the first module outside the folder on the way: what's reached past it is judged by what it is (sharedPiece).
     const follow = async (from: string, specifier: string, names: string[] | "all", depth = 0, through?: string): Promise<void> => {
       const loaded = load(specifier, from);
-      if (!loaded || depth > 8) return;
+      if (!loaded || depth > 12) return;
       const forwards = await reExports(loaded.fileName).catch(() => []);
       const forwarded = names === "all" ? forwards : forwards.filter((r) => r.exported === "*" || names.includes(r.exported));
-      // A module is used when it defines one of the names, not when an `export *` merely passes them on.
-      // One with no ES exports at all (CommonJS) counts as used.
-      const own = await declared(loaded.fileName).then(
-        (defined) => names === "all" || names.some((name) => defined.has(name)) || (!defined.size && !forwards.length),
-        () => true,
-      );
       const canonical = await canonicalPath(loaded.fileName);
       const dependency = scanned.get(canonical);
-      if (dependency && dependency !== input.path && own) {
-        // Imported straight (or through re-export files) wins over reached through another module.
-        const known = dependencies.get(dependency);
-        if (!known || (known.through && !through)) dependencies.set(dependency, { importer: input.path, ...(through ? { through } : {}) });
+      const module = await shape(loaded.fileName);
+      const reached = !module || !module.esm || names === "all" ? true : [...closureOf(module, names)].some((local) => module.template.has(local));
+      if (dependency && dependency !== input.path && reached && module?.template.size !== 0) {
+        // Used straight (or through re-export files) wins over reached through another module.
+        const known = uses.get(dependency);
+        if (!known || (known.through && !through)) uses.set(dependency, { importer: input.path, ...(through ? { through } : {}) });
       }
       // `export *` passes the importer's names on; a namespace (`export * as Parts`) passes all of its own.
       for (const r of forwarded) await follow(loaded.fileName, r.specifier, r.imported !== "*" ? [r.imported] : r.exported === "*" ? names : "all", depth + 1, through);
-      // A module of the project's own that isn't scanned: what it imports is used too.
-      if (!dependency && own && !seen.has(canonical) && !/[\\/]node_modules[\\/]/.test(canonical)) {
-        seen.add(canonical);
-        const file = await parse(loaded.fileName).catch(() => undefined);
-        if (file) for (const next of importsIn(file)) await follow(loaded.fileName, next.specifier, next.names, depth + 1, through ?? loaded.fileName);
-      }
+      const key = `${canonical}\u0000${names === "all" ? "*" : [...names].sort().join(",")}`;
+      if (!module || seen.has(key) || /[\\/]node_modules[\\/]/.test(canonical)) return;
+      seen.add(key);
+      for (const next of usedImports(module, names, loaded.fileName)) await follow(loaded.fileName, next.specifier, next.names, depth + 1, dependency ? through : (through ?? loaded.fileName));
     };
-    // Only a template or a component keeps what it imports: an index that lists the templates, or a route or helper that sends them, doesn't.
-    // A template the check can't load (a wrapped one) still uses what it imports.
-    const notLoaded = await notATemplate(input.path, await readFile(input.path, "utf8"));
-    if (notLoaded && !notLoaded.fail) continue;
-    for (const { specifier, names } of importsIn(await parse(input.path))) await follow(input.path, specifier, names);
+    // Only a template keeps what it imports: an index that lists the templates, or a route or helper that sends them,
+    // doesn't. A template the check can't load (a wrapped one) still uses what it imports.
+    // `importers`: the files to follow from instead, whatever they are.
+    if (importers ? !importers.has(input.path) : await notATemplate(input.path, await text(input.path)).then((not) => not && !not.fail)) continue;
+    const own = await shape(input.path);
+    if (!own) continue;
+    for (const next of usedImports(own, "all", input.path)) await follow(input.path, next.specifier, next.names);
   }
-  return dependencies;
+  return { uses, computed: [...computed] };
 }
 
 /**
@@ -1669,6 +1834,8 @@ async function sharedPiece(source: string): Promise<"shared" | "email" | "unknow
   const ts = (await import("typescript")).default;
   const file = ts.createSourceFile("template.tsx", source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
   const declared = new Map<string, import("typescript").Node>();
+  // A component's type, where a variable has one (`const Reset: React.FC<ResetProps> = …`).
+  const typed = new Map<import("typescript").Node, import("typescript").TypeNode>();
   const types = new Map<string, import("typescript").Node>();
   let exported: import("typescript").Node | undefined;
   for (const statement of file.statements) {
@@ -1677,21 +1844,34 @@ async function sharedPiece(source: string): Promise<"shared" | "email" | "unknow
       if (statement.name) declared.set(statement.name.text, statement);
       if (isDefault) exported = statement;
     } else if (ts.isVariableStatement(statement)) {
-      for (const d of statement.declarationList.declarations) if (ts.isIdentifier(d.name) && d.initializer) declared.set(d.name.text, d.initializer);
+      for (const d of statement.declarationList.declarations) {
+        if (!ts.isIdentifier(d.name) || !d.initializer) continue;
+        declared.set(d.name.text, d.initializer);
+        if (d.type) typed.set(d.initializer, d.type);
+      }
     } else if (ts.isExportAssignment(statement) && !statement.isExportEquals) exported = statement.expression;
     else if (ts.isInterfaceDeclaration(statement) || ts.isTypeAliasDeclaration(statement)) types.set(statement.name.text, statement);
   }
+  // A template React Email previews (`PreviewProps`) is an email of its own, whatever its props hold.
+  const name = exported && (ts.isFunctionDeclaration(exported) ? exported.name?.text : ts.isIdentifier(exported) ? exported.text : undefined);
+  if (name && file.statements.some((s) => ts.isExpressionStatement(s) && ts.isBinaryExpression(s.expression) && s.expression.operatorToken.kind === ts.SyntaxKind.EqualsToken && ts.isPropertyAccessExpression(s.expression.left) && ts.isIdentifier(s.expression.left.expression) && s.expression.left.expression.text === name && s.expression.left.name.text === "PreviewProps")) return "email";
   let fn = exported;
+  let componentType: import("typescript").TypeNode | undefined;
   for (let depth = 0; fn && depth < 5 && !ts.isFunctionLike(fn); depth++) {
-    if (ts.isIdentifier(fn)) fn = declared.get(fn.text);
-    else if (ts.isParenthesizedExpression(fn)) fn = fn.expression;
+    if (ts.isIdentifier(fn)) {
+      fn = declared.get(fn.text);
+      if (fn) componentType = typed.get(fn) ?? componentType;
+    } else if (ts.isParenthesizedExpression(fn)) fn = fn.expression;
     else if (ts.isCallExpression(fn)) fn = fn.arguments[0];
     else fn = undefined;
   }
   if (!fn || !ts.isFunctionLike(fn)) return "unknown";
   const param = fn.parameters[0];
   if (!param) return "email";
-  if (!param.type) return "unknown";
+  // `React.FC<Props>`, `FunctionComponent<Props>`: the props are its type argument.
+  const fromComponent = componentType && ts.isTypeReferenceNode(componentType) && /^(React\.)?(FC|FunctionComponent|VFC|VoidFunctionComponent)$/.test(componentType.typeName.getText(file)) ? componentType.typeArguments?.[0] : undefined;
+  const propsType = param.type ?? fromComponent;
+  if (!propsType) return "unknown";
   // The props' type as written here: inline, or an interface or type declared in this file (and what it extends from here).
   const written: string[] = [];
   const read = (type: import("typescript").Node, depth = 0): boolean => {
@@ -1714,7 +1894,7 @@ async function sharedPiece(source: string): Promise<"shared" | "email" | "unknow
     }
     return false;
   };
-  if (!read(param.type)) return "unknown";
+  if (!read(propsType)) return "unknown";
   return written.some((text) => /\b(ReactNode|ReactElement|ReactChild|ReactFragment|ReactPortal|PropsWithChildren|JSX\.Element|Element)\b/.test(text)) ? "shared" : "email";
 }
 
