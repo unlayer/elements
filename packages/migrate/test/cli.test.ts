@@ -117,10 +117,10 @@ export default function Template() { return <Html><Body><Text>Keep the original<
     }
   });
 
-  it("rejects colliding output paths before loading or writing any template, even with --force", async () => {
+  it("rejects colliding output paths before loading or writing any template, even with --force or --overwrite", async () => {
     const source = `import { Html } from "@react-email/components"; throw new Error("must not load");`;
     const dir = project({ "a/welcome.tsx": source, "b/welcome.tsx": source });
-    for (const force of [[], ["--force"]]) {
+    for (const force of [[], ["--force"], ["--overwrite"]]) {
       const out = io(dir);
       expect(await main(["a", "b", "--out", "migrated", ...force], out, lib)).toBe(1);
       expect(out.err).toMatch(/same output.*welcome\.tsx/);
@@ -486,6 +486,32 @@ export default function Layout(props: { children?: React.ReactNode }) { return <
     expect(fs.readFileSync(path.join(dir, "emails/layout.tsx"), "utf8")).toBe(layout);
     // A template whose props happen to include a `children` default, or whose text says "children", is still an email.
     expect(out.out).toMatch(/✓ emails\/receipt\.tsx/);
+  });
+
+  it("writes a template that renders optional children but has PreviewProps: an email of its own", async () => {
+    const notice = `import type { ReactNode } from "react";
+import { Html, Body, Container, Text, Heading } from "@react-email/components";
+export default function Notice({ title = "Heads up", children }: { title?: string; children?: ReactNode }) {
+  return <Html><Body><Container><Heading>{title}</Heading><Text>Your plan renews soon.</Text>{children}</Container></Body></Html>;
+}
+Notice.PreviewProps = { title: "Heads up" };`;
+    const dir = project({ "emails/notice.tsx": notice });
+    const out = io(dir);
+    expect(await main(["emails", "--write"], out, lib), out.out + out.err).toBe(0);
+    expect(out.out).toContain("1 migrated and checked. 1 written.");
+    expect(fs.readFileSync(path.join(dir, "emails/notice.tsx"), "utf8")).toContain("@unlayer/react-elements");
+  });
+
+  it("migrates a template whose comment mentions Elements' import: only a real import means it's done", async () => {
+    const source = `// Next: import { Email } from "@unlayer/react-elements" once migrated.
+import { Html, Body, Text } from "@react-email/components";
+/* see from "@unlayer/react-elements" */
+export default function T() { return <Html><Body><Text>Keep the original</Text></Body></Html>; }`;
+    const dir = project({ "emails/t.tsx": source, "emails/done.tsx": `import { Email } from "@unlayer/react-elements";\nexport default function Done() { return <Email />; }` });
+    const out = io(dir);
+    expect(await main(["emails"], out, lib), out.out + out.err).toBe(0);
+    expect(out.out).toMatch(/✓ emails\/t\.tsx: 100% editable/);
+    expect(out.out).toContain("1 migrated and checked");
   });
 
   it("leaves a shared component alone even when it's the only file given", async () => {

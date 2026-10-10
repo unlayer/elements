@@ -35,7 +35,7 @@ function io(cwd: string): Io & { out: string; err: string } {
 describe("destination safety", () => {
   it("rejects outputs that would overwrite another source before executing templates", async () => {
     const dir = project({ "emails/a.tsx": neverLoad, "emails/target/a.tsx": neverLoad });
-    for (const flags of [[], ["--force"]]) {
+    for (const flags of [[], ["--force"], ["--overwrite"]]) {
       const out = io(dir);
       expect(await main(["emails", "--out", "emails/target", ...flags], out, lib)).toBe(1);
       expect(out.err).toContain("source input");
@@ -98,13 +98,13 @@ describe("destination safety", () => {
     expect(fs.readFileSync(path.join(dir, "outside/keep.txt"), "utf8")).toBe("OUTSIDE");
   });
 
-  it("refuses to replace a file in the output folder that this run didn't produce, unless --force", async () => {
+  it("refuses to replace a file in the output folder that this run didn't produce, unless --overwrite", async () => {
     const dir = project({ "emails/welcome.tsx": good, "existing/welcome.tsx": "MINE", "existing/welcome.design.json": "MINE TOO" });
     for (const keep of ["welcome.tsx", "welcome.design.json"]) {
       const out = io(dir);
       expect(await main(["emails", "--out", "existing", "--design"], out, lib), out.out + out.err).toBe(1);
       expect(out.err).toContain(`Output already exists: existing/${keep}`);
-      expect(out.err).toContain("--force");
+      expect(out.err).toContain("pass --overwrite to replace it");
       expect(out.out).toBe("");
       expect(fs.readFileSync(path.join(dir, "existing/welcome.design.json"), "utf8")).toBe("MINE TOO");
       // Then only the design JSON is someone's: still refused.
@@ -116,9 +116,27 @@ describe("destination safety", () => {
     expect(await main(["emails", "--write", "--design"], write, lib)).toBe(1);
     expect(write.err).toContain("Output already exists: emails/welcome.design.json");
     expect(fs.readFileSync(path.join(dir, "emails/welcome.tsx"), "utf8")).toBe(good);
+    // --force is for templates that fail the check: it doesn't replace other files.
     const forced = io(dir);
-    expect(await main(["emails", "--out", "existing", "--design", "--force"], forced, lib), forced.out + forced.err).toBe(0);
+    expect(await main(["emails", "--out", "existing", "--design", "--force"], forced, lib)).toBe(1);
+    expect(fs.readFileSync(path.join(dir, "existing/welcome.design.json"), "utf8")).toBe("MINE TOO");
+    const overwritten = io(dir);
+    expect(await main(["emails", "--out", "existing", "--design", "--overwrite"], overwritten, lib), overwritten.out + overwritten.err).toBe(0);
     expect(fs.readFileSync(path.join(dir, "existing/welcome.design.json"), "utf8")).toContain('"body"');
+  });
+
+  it("replaces an earlier design with --overwrite, and still doesn't write a template that fails the check", async () => {
+    const failing = `import { Html, Body, Text } from "@react-email/components";
+export default function T() {
+  const text = import.meta.url.includes(".unlayer-migrate-") ? "Changed" : "Keep this content";
+  return <Html><Body><Text>{text}</Text></Body></Html>;
+}`;
+    const dir = project({ "emails/t.tsx": failing, "emails/t.design.json": "EARLIER RUN" });
+    const out = io(dir);
+    expect(await main(["emails", "--write", "--design", "--overwrite"], out, lib), out.out + out.err).toBe(2);
+    expect(out.out).toContain("lost text");
+    expect(fs.readFileSync(path.join(dir, "emails/t.tsx"), "utf8")).toBe(failing);
+    expect(fs.readFileSync(path.join(dir, "emails/t.design.json"), "utf8")).toBe("EARLIER RUN");
   });
 
   it("does not truncate an outside file hard-linked to an existing output", async () => {
@@ -126,11 +144,54 @@ describe("destination safety", () => {
     fs.mkdirSync(path.join(dir, "migrated"));
     fs.linkSync(path.join(dir, "outside/keep.tsx"), path.join(dir, "migrated/a.tsx"));
     const out = io(dir);
-    // Replacing a file that's already there needs --force.
-    expect(await main(["emails", "--out", "migrated", "--force"], out, lib), out.out + out.err).toBe(0);
+    // Replacing a file that's already there needs --overwrite.
+    expect(await main(["emails", "--out", "migrated", "--overwrite"], out, lib), out.out + out.err).toBe(0);
     expect(fs.readFileSync(path.join(dir, "outside/keep.tsx"), "utf8")).toBe("OUTSIDE");
     expect(fs.readFileSync(path.join(dir, "migrated/a.tsx"), "utf8")).toContain("@unlayer/react-elements");
   });
+});
+
+describe("files the run can't read (built CLI)", () => {
+  const bin = path.resolve(import.meta.dirname, "../dist/bin.js");
+  function linked(files: Record<string, string>): string {
+    const dir = project({ "package.json": '{"name":"unreadable-fixture","private":true,"type":"module"}', ...files }, true);
+    const modules = path.join(dir, "node_modules");
+    fs.mkdirSync(modules);
+    for (const name of ["react", "react-dom", "@react-email"]) fs.symlinkSync(path.resolve(import.meta.dirname, "../node_modules", name), path.join(modules, name));
+    return dir;
+  }
+  const run = (args: string[], cwd: string) => promisify(execFile)(process.execPath, [bin, ...args], { cwd, timeout: 60_000 }).catch((error) => error);
+
+  it("fail a link to a file that's gone, and still migrate the rest", async () => {
+    const dir = linked({ "emails/welcome.tsx": good });
+    fs.symlinkSync(path.join(dir, "emails/missing.tsx"), path.join(dir, "emails/old.tsx"));
+    const result = await run(["emails", "--out", "migrated"], dir);
+    expect(result.code, result.stdout + result.stderr).toBe(2);
+    expect(result.stdout).toMatch(/emails\/old\.tsx: couldn't read it: it links to a file that doesn't exist/);
+    expect(result.stdout).toContain("2 templates: 1 migrated and checked, 1 failed. 1 written.");
+    expect(fs.existsSync(path.join(dir, "migrated/welcome.tsx"))).toBe(true);
+  }, 90_000);
+
+  it("fail a run that has only a link to a file that's gone", async () => {
+    const dir = linked({});
+    fs.mkdirSync(path.join(dir, "emails"));
+    fs.symlinkSync(path.join(dir, "emails/missing.tsx"), path.join(dir, "emails/old.tsx"));
+    const result = await run(["emails"], dir);
+    expect(result.code, result.stdout + result.stderr).toBe(2);
+    expect(result.stdout).toContain("couldn't read it");
+  }, 90_000);
+
+  it("stop with a non-zero exit when the run can't go on (a folder it can't list), never a silent pass", async () => {
+    const dir = linked({ "emails/welcome.tsx": good, "emails/locked/a.tsx": good });
+    fs.chmodSync(path.join(dir, "emails/locked"), 0o000);
+    try {
+      const result = await run(["emails"], dir);
+      expect(result.code, result.stdout + result.stderr).toBe(2);
+      expect(result.stderr).toMatch(/✗ the run stopped: .*EACCES/);
+    } finally {
+      fs.chmodSync(path.join(dir, "emails/locked"), 0o755);
+    }
+  }, 90_000);
 });
 
 describe("encoding", () => {

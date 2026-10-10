@@ -41,7 +41,7 @@ renderToPlainText(element); // the text part
 renderToJson(element); // open in the visual editor with loadDesign()
 ```
 
-`--out` refuses symlinked destinations and directories inside the output folder, and cannot replace input templates. Use `--write` to replace originals. It doesn't replace files already in the output folder that the run didn't produce either, unless you pass `--force`.
+`--out` refuses symlinked destinations and directories inside the output folder, and cannot replace input templates. Use `--write` to replace originals. It doesn't replace files already in the output folder that the run didn't produce either, unless you pass `--overwrite` (which still never writes a template that failed the check).
 
 `--design` also writes each template's design JSON next to it, ready for `loadDesign()`. Text props become merge tags (`{{name}}`) where the template shows them as given; `--no-merge-tags` keeps the `PreviewProps` values. CSS, font URLs, backgrounds and all image sources retain sample values even when merge tags are enabled.
 

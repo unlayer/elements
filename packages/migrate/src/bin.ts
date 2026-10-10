@@ -48,12 +48,20 @@ const thrown = new Set<string>();
 const late = (error: unknown) => void thrown.add((error instanceof Error ? error.message : String(error)).split("\n")[0]);
 process.on("uncaughtException", late);
 process.on("unhandledRejection", late);
-let code = await main(argv, {
-  cwd: process.cwd(),
-  project,
-  stdout: (text) => void process.stdout.write(text),
-  stderr: (text) => void process.stderr.write(text),
-});
+let code: number;
+try {
+  code = await main(argv, {
+    cwd: process.cwd(),
+    project,
+    stdout: (text) => void process.stdout.write(text),
+    stderr: (text) => void process.stderr.write(text),
+  });
+} catch (error) {
+  // Not a template's failure (those are reported per file): the run itself
+  // couldn't go on. It must not end as a pass that checked nothing.
+  process.stderr.write(`✗ the run stopped: ${error instanceof Error ? error.message : String(error)}\n`);
+  code = 2;
+}
 for (const text of thrown) process.stderr.write(`✗ a template's code threw outside a render: ${text}\n`);
 if (thrown.size) code = 2;
 process.stdout.write("", () => process.stderr.write("", () => exit(code)));

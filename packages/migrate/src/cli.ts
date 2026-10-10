@@ -50,6 +50,8 @@ and the visual editor must get every block. Nothing is written unless you ask:
   --no-merge-tags  Keep the sample values in the design JSON instead.
   --report <file>  Write the migration report (.md or .json).
   --force          Write templates even when the check finds a problem.
+  --overwrite      Replace files already at a destination that this run
+                   didn't produce (a design file from an earlier run).
   --from <source>  What to migrate from (default and only: react-email).
   -h, --help       Show this help.
 
@@ -61,7 +63,8 @@ must get every block.
 Run it from your project folder: templates load with your project's React,
 React Email and TypeScript paths. Exit code 0 when every template converted
 and passed the check, 1 for a usage error or when no templates were found,
-2 when a template failed to convert or the check found a problem.`;
+2 when a template failed to convert, the check found a problem, a file
+couldn't be read, or the run couldn't go on.`;
 
 /** What happened to one file. */
 /** A style the migrated template shows differently, with the words it's on. */
@@ -119,6 +122,8 @@ interface Options {
   design: boolean;
   mergeTags: boolean;
   force: boolean;
+  /** Replace files at the destinations that this run didn't produce. */
+  overwrite: boolean;
 }
 
 type Library = typeof import("@unlayer/from-react-email");
@@ -151,6 +156,7 @@ export async function main(argv: string[], io: Io, library?: Library): Promise<n
     design: args.flag("design"),
     mergeTags: !args.flag("no-merge-tags"),
     force: args.flag("force"),
+    overwrite: args.flag("overwrite"),
   };
   if (options.write && options.out !== undefined) {
     io.stderr("Use --write or --out, not both.\n");
@@ -167,6 +173,11 @@ export async function main(argv: string[], io: Io, library?: Library): Promise<n
     if (!input.reactEmail && !input.migrated) input.reactEmail = await reactEmailThroughProject(input.path);
   }
   const candidates = inputs.files.filter((f) => f.reactEmail);
+  if (!candidates.length && inputs.unreadable.length) {
+    for (const result of inputs.unreadable) io.stdout(`${line(result)}\n`);
+    io.stdout(`\n${summary(inputs.unreadable, options)}\n`);
+    return 2;
+  }
   if (!candidates.length) {
     // Run again after --write (in CI): the templates are done.
     const done = inputs.files.filter((f) => f.migrated).length;
@@ -197,7 +208,7 @@ export async function main(argv: string[], io: Io, library?: Library): Promise<n
   const lib = library ?? ((await import("@unlayer/from-react-email")) as Library);
   // A dry run says what --write does; --out writes copies of every template.
   const dependencies = options.out === undefined ? await importedInputs(inputs.files) : new Map<string, string>();
-  const results: FileResult[] = [];
+  const results: FileResult[] = [...inputs.unreadable];
   const pending: Array<{ result: FileResult; writes: PendingWrite[] }> = [];
   for (const input of candidates) {
     const importer = dependencies.get(input.path);
@@ -261,7 +272,7 @@ function designPath(target: string): string {
   return join(dirname(target), `${basename(target, extname(target))}.design.json`);
 }
 
-/** Each output, and whether a file already there may be replaced (the template itself with --write, the report, or --force). */
+/** Each output, and whether a file already there may be replaced (the template itself with --write, the report, or --overwrite). */
 type Destinations = Map<string, { canonical: string; root?: string; replace: boolean }>;
 
 /** Resolve existing ancestors too, including symlinked directories. */
@@ -310,11 +321,11 @@ async function reserveDestinations(inputs: Input[], candidates: Input[], options
   const destinations: Destinations = new Map();
   const owners = new Map<string, string>();
   const root = options.out !== undefined ? resolve(cwd, options.out) : undefined;
-  const reserve = async (path: string, owner: string, outputRoot?: string, ownSource = false, replace = ownSource || options.force) => {
+  const reserve = async (path: string, owner: string, outputRoot?: string, ownSource = false, replace = ownSource || options.overwrite) => {
     const canonical = await safeDestination(path, outputRoot);
     if (sources.has(canonical) && !ownSource) throw new Error(`Output would overwrite a source input: ${relative(cwd, path)}. Use --write to replace a template itself.`);
     // A file this run didn't scan or produce is someone's work: never replaced silently.
-    if (!replace && (await fileInfo(path))) throw new Error(`Output already exists: ${relative(cwd, path)}. This run didn't produce it: choose an empty folder, or pass --force to replace it.`);
+    if (!replace && (await fileInfo(path))) throw new Error(`Output already exists: ${relative(cwd, path)}. This run didn't produce it: choose an empty folder, or pass --overwrite to replace it.`);
     const previous = owners.get(canonical);
     if (previous !== undefined) throw new Error(`${previous} and ${owner} have the same output: ${relative(cwd, path)}. Use separate destinations.`);
     owners.set(canonical, owner);
@@ -358,7 +369,7 @@ async function writeDestination(path: string, text: string, destinations: Destin
   const release = removedOnExit(remove);
   try {
     const existing = await fileInfo(path);
-    if (existing && !destinations.get(path)?.replace) throw new Error(`${path} appeared during the run: pass --force to replace it`);
+    if (existing && !destinations.get(path)?.replace) throw new Error(`${path} appeared during the run: pass --overwrite to replace it`);
     await writeExclusive(temporary, text, existing?.mode);
     await checkDestination(path, destinations);
     await rename(temporary, path);
@@ -421,7 +432,7 @@ async function migrateFile(input: Input, options: Options, lib: Library, io: Io,
   const bytes = await readFile(file);
   const source = bytes.toString("utf8");
   // Run again on migrated templates (in CI, or after --write): they're done.
-  if (/from\s+["']@unlayer\/react-elements["']/.test(source)) return { file: name, status: "skipped", reason: "already migrated: it imports @unlayer/react-elements" };
+  if (await importsElements(file, source)) return { file: name, status: "skipped", reason: "already migrated: it imports @unlayer/react-elements" };
   // Checking a template runs its code and calls its default export: a helper (one that sends an email) is never loaded.
   const notLoaded = await notATemplate(file, source);
   if (notLoaded) return { file: name, status: notLoaded.fail ? "failed" : "skipped", reason: notLoaded.reason };
@@ -432,11 +443,13 @@ async function migrateFile(input: Input, options: Options, lib: Library, io: Io,
   try {
     let Original: any;
     let props: Record<string, unknown>;
+    let previewed = false;
     try {
       const template = templateComponent(defaultExport(await importFile(file, io, release)));
       if (!template) return { file: name, status: "skipped", reason: "no default-exported component (a shared component or helper file)" };
       Original = template.component;
       props = template.props;
+      previewed = template.previewed;
     } catch (error) {
       // A .js file loads as plain JavaScript: JSX there doesn't parse.
       if (/\.(js|mjs|cjs)$/.test(file) && (await jsxInJs(source))) return { file: name, status: "failed", reason: "it has JSX in a .js file, which can't be loaded: rename it to .jsx" };
@@ -500,7 +513,8 @@ async function migrateFile(input: Input, options: Options, lib: Library, io: Io,
       // A dry run says what --write does; --out writes copies of them too.
       if (options.out === undefined && !/<html[\s>]/i.test(verification.originalHtml)) return { file: name, status: "skipped", reason: "not an email template (it doesn't render <Html>): a shared component, left as it is" };
       // Nor is one that renders its children: a layout templates wrap. This holds when an import of it can't be followed.
-      if (options.out === undefined && (await rendersChildren(source))) return { file: name, status: "skipped", reason: "a layout (it renders its children), not an email template: a shared component, left as it is" };
+      // One with PreviewProps is an email of its own (React Email previews it), with optional content passed in.
+      if (options.out === undefined && !previewed && (await rendersChildren(source))) return { file: name, status: "skipped", reason: "a layout (it renders its children), not an email template: a shared component, left as it is" };
       design = verification.design;
       if (options.design && options.mergeTags) {
         const tagged = await lib.mergeTagDesign(Migrated as (props: unknown) => ReturnType<typeof Original>, designProps, verification.design);
@@ -756,15 +770,25 @@ const SOURCE = /\.(tsx|jsx|ts|js|mts|mjs)$/;
 const REACT_EMAIL_IMPORT = /from\s+["'](@react-email\/[^"']+|react-email)["']/;
 const IGNORED = new Set(["node_modules", ".git", ".next", "dist", "build", "out", ".turbo", "coverage"]);
 
-async function collect(paths: string[], cwd: string): Promise<{ files: Input[]; missing: string[] }> {
+async function collect(paths: string[], cwd: string): Promise<{ files: Input[]; missing: string[]; unreadable: FileResult[] }> {
   const files: Input[] = [];
   const missing: string[] = [];
+  const unreadable: FileResult[] = [];
   const seen = new Set<string>();
   const add = async (path: string, base: string) => {
     if (seen.has(path)) return;
     seen.add(path);
-    const text = await readFile(path, "utf8");
-    files.push({ path, base, reactEmail: REACT_EMAIL_IMPORT.test(text), migrated: /from\s+["']@unlayer\/react-elements["']/.test(text) });
+    let text: string;
+    try {
+      text = await readFile(path, "utf8");
+    } catch (error) {
+      // A link to a file that's gone, or one without read permission: it fails, the others still run.
+      const code = (error as NodeJS.ErrnoException).code;
+      const why = code === "ENOENT" ? "it links to a file that doesn't exist" : code === "EACCES" || code === "EPERM" ? "no permission to read it" : message(error);
+      unreadable.push({ file: relative(cwd, path), status: "failed", reason: `couldn't read it: ${why}` });
+      return;
+    }
+    files.push({ path, base, reactEmail: REACT_EMAIL_IMPORT.test(text), migrated: await importsElements(path, text) });
   };
   for (const given of paths) {
     const path = resolve(cwd, given);
@@ -778,7 +802,17 @@ async function collect(paths: string[], cwd: string): Promise<{ files: Input[]; 
       await add(path, dirname(path));
     }
   }
-  return { files: files.sort((a, b) => a.path.localeCompare(b.path)), missing };
+  return { files: files.sort((a, b) => a.path.localeCompare(b.path)), missing, unreadable };
+}
+
+/** Whether a module imports Elements: an import or export from it, not a comment or a string that names it. */
+async function importsElements(path: string, source: string): Promise<boolean> {
+  if (!source.includes("@unlayer/react-elements")) return false;
+  const ts = (await import("typescript")).default;
+  const file = ts.createSourceFile(path, source, ts.ScriptTarget.Latest, false, /\.m?ts$/.test(path) ? ts.ScriptKind.TS : ts.ScriptKind.TSX);
+  return file.statements.some(
+    (s) => (ts.isImportDeclaration(s) || ts.isExportDeclaration(s)) && !!s.moduleSpecifier && ts.isStringLiteral(s.moduleSpecifier) && s.moduleSpecifier.text === "@unlayer/react-elements"
+  );
 }
 
 async function walk(dir: string): Promise<string[]> {
@@ -799,7 +833,7 @@ function defaultExport(mod: Record<string, any>): unknown {
   return value;
 }
 
-function templateComponent(value: any): { component: any; exported: any; props: Record<string, unknown> } | undefined {
+function templateComponent(value: any): { component: any; exported: any; props: Record<string, unknown>; previewed: boolean } | undefined {
   const exported = value;
   let props: Record<string, unknown> | undefined;
   let wrapped = false;
@@ -807,7 +841,7 @@ function templateComponent(value: any): { component: any; exported: any; props: 
   while (value && !seen.has(value)) {
     seen.add(value);
     props ??= value.PreviewProps;
-    if (typeof value === "function") return { component: value, exported, props: props ?? {} };
+    if (typeof value === "function") return { component: value, exported, props: props ?? {}, previewed: props !== undefined };
     if (value.$$typeof === Symbol.for("react.memo")) { value = value.type; wrapped = true; }
     else if (value.$$typeof === Symbol.for("react.forward_ref")) { value = value.render; wrapped = true; }
     else if ("$$typeof" in Object(value)) throw new Error("unsupported React template wrapper");
