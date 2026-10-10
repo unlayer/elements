@@ -1,0 +1,519 @@
+/** @jsxRuntime automatic */
+// Converted from a React Email template by @unlayer/migrate (runtime mode).
+import {
+  Button,
+  Column,
+  ColumnLayouts,
+  Divider,
+  Email,
+  Heading,
+  Image,
+  Paragraph,
+  Row,
+} from "@unlayer/react-elements";
+
+export default function Template() {
+  return (
+    <Email
+      backgroundColor="#f3f4f6"
+      contentWidth="600px"
+      fontFamily={{
+        label: "-apple-system",
+        value:
+          "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Ubuntu, sans-serif",
+      }}
+      previewText="Your receipt for order #{{orderNumber}} - $122.88"
+    >
+      <Row padding="40px 0px 0px 0px">
+        <Column
+          backgroundColor="#111827"
+          padding="24px 32px 24px 32px"
+          borderRadius="8px 8px 0px 0px"
+        >
+          <Image
+            src={{
+              url: "https://placehold.co/140x36/111827/ffffff?text=Northwind",
+              width: 140,
+              height: 36,
+            }}
+            width="140px"
+            alt="Northwind"
+            textAlign="left"
+            containerPadding="0px 0px 0px 0px"
+            mobile={{ width: "140px" }}
+          />
+        </Column>
+      </Row>
+      <Row>
+        <Column backgroundColor="#ffffff" padding="32px 0px 24px 0px">
+          <Heading
+            headingType="h1"
+            color="#111827"
+            fontSize="24px"
+            lineHeight="32px"
+            fontWeight={700}
+            containerPadding="0px 32px 12px 32px"
+          >
+            {"Thanks for your order, {{customerName}}!"}
+          </Heading>
+          <Paragraph
+            color="#4b5563"
+            fontSize="15px"
+            lineHeight="24px"
+            html={
+              "We&#x27;ve received your payment and are getting your order ready. Here&#x27;s your receipt for your records."
+            }
+            containerPadding="0px 32px 0px 32px"
+          />
+        </Column>
+      </Row>
+      <Row cells={[32, 184, 168, 184, 32]} noStackMobile={true}>
+        <Column backgroundColor="#ffffff">
+          <Divider borderTopWidth="0px" containerPadding="0px" />
+        </Column>
+        <Column backgroundColor="#f9fafb" padding="8px 0px 8px 16px" borderRadius="6px 0px 0px 6px">
+          <Paragraph
+            color="#6b7280"
+            fontSize="11px"
+            lineHeight="24px"
+            fontWeight={600}
+            letterSpacing="0.05em"
+            html={`<span style="text-transform:uppercase">Order number</span>`}
+            containerPadding="8px 0px 2px 0px"
+          />
+          <Paragraph
+            color="#111827"
+            fontSize="14px"
+            lineHeight="24px"
+            html="#{{orderNumber}}"
+            containerPadding="0px 0px 8px 0px"
+          />
+        </Column>
+        <Column backgroundColor="#f9fafb" padding="8px 0px 8px 0px">
+          <Paragraph
+            color="#6b7280"
+            fontSize="11px"
+            lineHeight="24px"
+            fontWeight={600}
+            letterSpacing="0.05em"
+            html={`<span style="text-transform:uppercase">Order date</span>`}
+            containerPadding="8px 0px 2px 0px"
+          />
+          <Paragraph
+            color="#111827"
+            fontSize="14px"
+            lineHeight="24px"
+            html="{{orderDate}}"
+            containerPadding="0px 0px 8px 0px"
+          />
+        </Column>
+        <Column backgroundColor="#f9fafb" padding="8px 16px 8px 0px" borderRadius="0px 6px 6px 0px">
+          <Paragraph
+            color="#6b7280"
+            fontSize="11px"
+            lineHeight="24px"
+            fontWeight={600}
+            letterSpacing="0.05em"
+            html={`<span style="text-transform:uppercase">Payment method</span>`}
+            containerPadding="8px 0px 2px 0px"
+          />
+          <Paragraph
+            color="#111827"
+            fontSize="14px"
+            lineHeight="24px"
+            html="{{paymentMethod}}"
+            containerPadding="0px 0px 8px 0px"
+          />
+        </Column>
+        <Column backgroundColor="#ffffff">
+          <Divider borderTopWidth="0px" containerPadding="0px" />
+        </Column>
+      </Row>
+      <Row cells={[32, 80, 356, 100, 32]} noStackMobile={true}>
+        <Column backgroundColor="#ffffff" padding="24px 0px 0px 0px">
+          <Divider borderTopWidth="0px" containerPadding="0px" />
+        </Column>
+        <Column
+          backgroundColor="#ffffff"
+          padding="36px 0px 12px 0px"
+          border={{
+            borderBottomWidth: "1px",
+            borderBottomStyle: "solid",
+            borderBottomColor: "#f3f4f6",
+          }}
+        >
+          <Image
+            src={{ url: "https://picsum.photos/seed/beanie/128/128", width: 64, height: 64 }}
+            width="64px"
+            alt="Merino Wool Beanie"
+            textAlign="left"
+            containerPadding="0px 0px 0px 0px"
+          />
+        </Column>
+        <Column
+          backgroundColor="#ffffff"
+          padding="36px 0px 12px 8px"
+          border={{
+            borderBottomWidth: "1px",
+            borderBottomStyle: "solid",
+            borderBottomColor: "#f3f4f6",
+          }}
+        >
+          <Paragraph
+            color="#111827"
+            fontSize="15px"
+            lineHeight="24px"
+            fontWeight={600}
+            html="Merino Wool Beanie"
+            containerPadding="0px 0px 2px 0px"
+          />
+          <Paragraph
+            color="#6b7280"
+            fontSize="13px"
+            lineHeight="18px"
+            html="Charcoal / One size"
+            containerPadding="0px 0px 0px 0px"
+          />
+          <Paragraph
+            color="#6b7280"
+            fontSize="13px"
+            lineHeight="18px"
+            html="Qty: 1"
+            containerPadding="0px 0px 0px 0px"
+          />
+        </Column>
+        <Column
+          backgroundColor="#ffffff"
+          padding="36px 0px 12px 0px"
+          border={{
+            borderBottomWidth: "1px",
+            borderBottomStyle: "solid",
+            borderBottomColor: "#f3f4f6",
+          }}
+        >
+          <Paragraph
+            color="#111827"
+            fontSize="15px"
+            lineHeight="24px"
+            textAlign="right"
+            fontWeight={600}
+            html="$34.00"
+            containerPadding="0px 0px 0px 0px"
+          />
+        </Column>
+        <Column backgroundColor="#ffffff" padding="24px 0px 0px 0px">
+          <Divider borderTopWidth="0px" containerPadding="0px" />
+        </Column>
+      </Row>
+      <Row cells={[32, 80, 356, 100, 32]} noStackMobile={true}>
+        <Column backgroundColor="#ffffff">
+          <Divider borderTopWidth="0px" containerPadding="0px" />
+        </Column>
+        <Column
+          backgroundColor="#ffffff"
+          padding="12px 0px 12px 0px"
+          border={{
+            borderBottomWidth: "1px",
+            borderBottomStyle: "solid",
+            borderBottomColor: "#f3f4f6",
+          }}
+        >
+          <Image
+            src={{ url: "https://picsum.photos/seed/socks/128/128", width: 64, height: 64 }}
+            width="64px"
+            alt="Trail Running Socks (3-pack)"
+            textAlign="left"
+            containerPadding="0px 0px 0px 0px"
+          />
+        </Column>
+        <Column
+          backgroundColor="#ffffff"
+          padding="12px 0px 12px 8px"
+          border={{
+            borderBottomWidth: "1px",
+            borderBottomStyle: "solid",
+            borderBottomColor: "#f3f4f6",
+          }}
+        >
+          <Paragraph
+            color="#111827"
+            fontSize="15px"
+            lineHeight="24px"
+            fontWeight={600}
+            html="Trail Running Socks (3-pack)"
+            containerPadding="0px 0px 2px 0px"
+          />
+          <Paragraph
+            color="#6b7280"
+            fontSize="13px"
+            lineHeight="18px"
+            html="Assorted / Medium"
+            containerPadding="0px 0px 0px 0px"
+          />
+          <Paragraph
+            color="#6b7280"
+            fontSize="13px"
+            lineHeight="18px"
+            html="Qty: 2"
+            containerPadding="0px 0px 0px 0px"
+          />
+        </Column>
+        <Column
+          backgroundColor="#ffffff"
+          padding="12px 0px 12px 0px"
+          border={{
+            borderBottomWidth: "1px",
+            borderBottomStyle: "solid",
+            borderBottomColor: "#f3f4f6",
+          }}
+        >
+          <Paragraph
+            color="#111827"
+            fontSize="15px"
+            lineHeight="24px"
+            textAlign="right"
+            fontWeight={600}
+            html="$49.00"
+            containerPadding="0px 0px 0px 0px"
+          />
+        </Column>
+        <Column backgroundColor="#ffffff">
+          <Divider borderTopWidth="0px" containerPadding="0px" />
+        </Column>
+      </Row>
+      <Row cells={[32, 80, 356, 100, 32]} noStackMobile={true}>
+        <Column backgroundColor="#ffffff">
+          <Divider borderTopWidth="0px" containerPadding="0px" />
+        </Column>
+        <Column
+          backgroundColor="#ffffff"
+          padding="12px 0px 12px 0px"
+          border={{
+            borderBottomWidth: "1px",
+            borderBottomStyle: "solid",
+            borderBottomColor: "#f3f4f6",
+          }}
+        >
+          <Image
+            src={{ url: "https://picsum.photos/seed/bottle/128/128", width: 64, height: 64 }}
+            width="64px"
+            alt="Insulated Water Bottle"
+            textAlign="left"
+            containerPadding="0px 0px 0px 0px"
+          />
+        </Column>
+        <Column
+          backgroundColor="#ffffff"
+          padding="12px 0px 12px 8px"
+          border={{
+            borderBottomWidth: "1px",
+            borderBottomStyle: "solid",
+            borderBottomColor: "#f3f4f6",
+          }}
+        >
+          <Paragraph
+            color="#111827"
+            fontSize="15px"
+            lineHeight="24px"
+            fontWeight={600}
+            html="Insulated Water Bottle"
+            containerPadding="0px 0px 2px 0px"
+          />
+          <Paragraph
+            color="#6b7280"
+            fontSize="13px"
+            lineHeight="18px"
+            html="24 oz / Forest green"
+            containerPadding="0px 0px 0px 0px"
+          />
+          <Paragraph
+            color="#6b7280"
+            fontSize="13px"
+            lineHeight="18px"
+            html="Qty: 1"
+            containerPadding="0px 0px 0px 0px"
+          />
+        </Column>
+        <Column
+          backgroundColor="#ffffff"
+          padding="12px 0px 12px 0px"
+          border={{
+            borderBottomWidth: "1px",
+            borderBottomStyle: "solid",
+            borderBottomColor: "#f3f4f6",
+          }}
+        >
+          <Paragraph
+            color="#111827"
+            fontSize="15px"
+            lineHeight="24px"
+            textAlign="right"
+            fontWeight={600}
+            html="$29.99"
+            containerPadding="0px 0px 0px 0px"
+          />
+        </Column>
+        <Column backgroundColor="#ffffff">
+          <Divider borderTopWidth="0px" containerPadding="0px" />
+        </Column>
+      </Row>
+      <Row>
+        <Column backgroundColor="#ffffff" padding="20px 0px 0px 0px">
+          <Divider
+            borderTopWidth="1px"
+            borderTopStyle="solid"
+            borderTopColor="#e5e7eb"
+            width="100%"
+            containerPadding="0px 32px 0px 32px"
+          />
+        </Column>
+      </Row>
+      <Row layout={ColumnLayouts.TwoEqual} noStackMobile={true}>
+        <Column backgroundColor="#ffffff" padding="20px 0px 0px 0px">
+          <Paragraph
+            color="#6b7280"
+            fontSize="14px"
+            lineHeight="24px"
+            html="Subtotal"
+            containerPadding="4px 0px 4px 32px"
+          />
+        </Column>
+        <Column backgroundColor="#ffffff" padding="20px 0px 0px 0px">
+          <Paragraph
+            color="#111827"
+            fontSize="14px"
+            lineHeight="24px"
+            textAlign="right"
+            html="$112.99"
+            containerPadding="4px 32px 4px 0px"
+          />
+        </Column>
+      </Row>
+      <Row layout={ColumnLayouts.TwoEqual} noStackMobile={true}>
+        <Column backgroundColor="#ffffff">
+          <Paragraph
+            color="#6b7280"
+            fontSize="14px"
+            lineHeight="24px"
+            html="Shipping"
+            containerPadding="4px 0px 4px 32px"
+          />
+        </Column>
+        <Column backgroundColor="#ffffff">
+          <Paragraph
+            color="#111827"
+            fontSize="14px"
+            lineHeight="24px"
+            textAlign="right"
+            html="Free"
+            containerPadding="4px 32px 4px 0px"
+          />
+        </Column>
+      </Row>
+      <Row layout={ColumnLayouts.TwoEqual} noStackMobile={true}>
+        <Column backgroundColor="#ffffff">
+          <Paragraph
+            color="#6b7280"
+            fontSize="14px"
+            lineHeight="24px"
+            html="Tax (8.75%)"
+            containerPadding="4px 0px 4px 32px"
+          />
+        </Column>
+        <Column backgroundColor="#ffffff">
+          <Paragraph
+            color="#111827"
+            fontSize="14px"
+            lineHeight="24px"
+            textAlign="right"
+            html="$9.89"
+            containerPadding="4px 32px 4px 0px"
+          />
+        </Column>
+      </Row>
+      <Row>
+        <Column backgroundColor="#ffffff" padding="20px 0px 0px 0px">
+          <Divider
+            borderTopWidth="1px"
+            borderTopStyle="solid"
+            borderTopColor="#e5e7eb"
+            width="100%"
+            containerPadding="0px 32px 0px 32px"
+          />
+        </Column>
+      </Row>
+      <Row layout={ColumnLayouts.TwoEqual} noStackMobile={true}>
+        <Column backgroundColor="#ffffff" padding="20px 0px 0px 0px">
+          <Paragraph
+            color="#111827"
+            fontSize="16px"
+            lineHeight="24px"
+            fontWeight={700}
+            html="Total"
+            containerPadding="4px 0px 4px 32px"
+          />
+        </Column>
+        <Column backgroundColor="#ffffff" padding="20px 0px 0px 0px">
+          <Paragraph
+            color="#111827"
+            fontSize="18px"
+            lineHeight="24px"
+            textAlign="right"
+            fontWeight={700}
+            html="$122.88"
+            containerPadding="4px 32px 4px 0px"
+          />
+        </Column>
+      </Row>
+      <Row>
+        <Column backgroundColor="#ffffff" padding="28px 0px 0px 0px">
+          <Button
+            href="{{orderUrl}}"
+            backgroundColor="#111827"
+            color="#ffffff"
+            fontSize="14px"
+            lineHeight="120%"
+            textAlign="center"
+            fontWeight={600}
+            padding="12px 24px 12px 24px"
+            borderRadius="6px"
+            containerPadding="0px 0px 0px 0px"
+          >
+            View your order
+          </Button>
+        </Column>
+      </Row>
+      <Row padding="0px 0px 40px 0px">
+        <Column
+          backgroundColor="#ffffff"
+          padding="20px 0px 38px 0px"
+          borderRadius="0px 0px 8px 8px"
+        >
+          <Divider
+            borderTopWidth="1px"
+            borderTopStyle="solid"
+            borderTopColor="#e5e7eb"
+            width="100%"
+            containerPadding="0px 32px 20px 32px"
+          />
+          <Paragraph
+            color="#9ca3af"
+            fontSize="12px"
+            lineHeight="18px"
+            textAlign="center"
+            html={`Need help with your order? Visit our <a href="https://northwind.example.com/help" style="color:#6b7280;text-decoration-line:none;text-decoration:underline" target="_blank">help center</a> or reply to this email.`}
+            containerPadding="0px 32px 6px 32px"
+          />
+          <Paragraph
+            color="#9ca3af"
+            fontSize="12px"
+            lineHeight="18px"
+            textAlign="center"
+            html="Northwind Traders · 500 Harbor Way · Seattle, WA 98101"
+            containerPadding="0px 32px 0px 32px"
+          />
+        </Column>
+      </Row>
+    </Email>
+  );
+}

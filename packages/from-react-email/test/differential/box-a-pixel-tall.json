@@ -1,0 +1,5 @@
+{
+  "why": "A list item 1px tall that clips what overflows shows nothing a reader can read.",
+  "original": "<!doctype html><html><head><style></style></head><body style=\"margin:0;font-family:Arial\"><p style=\"margin:0\">Thanks for your order, here is the summary</p><ul><li>New color picker</li><li>Faster exports</li></ul></body></html>",
+  "migrated": "<!doctype html><html><head><style></style></head><body style=\"margin:0;font-family:Arial\"><p style=\"margin:0\">Thanks for your order, here is the summary</p><ul><li style=\"height:1px;overflow:hidden\">New color picker</li><li>Faster exports</li></ul></body></html>"
+}

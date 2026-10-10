@@ -3,11 +3,12 @@ import type { RenderMode, UnlayerConfig, ColumnValues } from "@unlayer-internal/
 import { ColumnExporters, ContentExporters } from "@unlayer/exporters";
 import { UNLAYER_RENDER_KEY, UNLAYER_CONFIG_KEY, nextHtmlId } from "../utils/create-component";
 import { mapSemanticProps, type SemanticProps } from "../utils/semantic-props";
-import type { SizeInput, BorderInput } from "../types";
+import type { DeviceProps, SizeInput, BorderInput } from "../types";
 import { COLUMN_DEFAULTS } from "../utils/container-defaults";
+import { expandChildren, looseText } from "../utils/expand-children";
+import { DEFAULT_CONTAINER_PADDING } from "../utils/image-sizing";
 
 /** Unlayer's default content-block padding when a block sets none. */
-const DEFAULT_CONTAINER_PADDING = "10px";
 
 /**
  * Column - Single column in a Row layout
@@ -56,7 +57,8 @@ function renderContentToHtml(innerHTML: string, values: any, bodyValues: any, mo
 // Component
 // ============================================
 
-export type ColumnProps = Omit<SemanticProps<ColumnValues>, "padding" | "border" | "borderRadius"> & {
+// The editor hides rows and content on a device, never a column: no hideOnMobile/hideOnDesktop here.
+export type ColumnProps = Omit<SemanticProps<ColumnValues>, "padding" | "border" | "borderRadius" | keyof DeviceProps> & Omit<DeviceProps, "hideOnMobile" | "hideOnDesktop"> & {
   children?: React.ReactNode;
   // Internal props (provided by Row)
   index?: number;
@@ -115,11 +117,11 @@ export const Column: React.FC<ColumnProps> = (props) => {
   let innerHTML = "";
   if (children) {
     try {
-      const childrenArray = React.Children.toArray(children);
+      const childrenArray = React.Children.toArray(expandChildren(children));
 
       childrenArray.forEach((child, childIndex) => {
         if (typeof child === "string" || typeof child === "number") {
-          innerHTML += String(child);
+          innerHTML += looseText(child, "Column");
         } else if (React.isValidElement(child)) {
           // Call component function to get rendered result
           if (typeof child.type === "function") {
@@ -184,7 +186,10 @@ export const Column: React.FC<ColumnProps> = (props) => {
               // for the flat-prop API, so every block collapsed to 0px padding.)
               const childProps = child.props as {
                 containerPadding?: string | number;
-                values?: { containerPadding?: string | number };
+                mobile?: { containerPadding?: string | number };
+                hideOnMobile?: boolean;
+                hideOnDesktop?: boolean;
+                values?: { containerPadding?: string | number; _override?: Record<string, any>; _meta?: Record<string, any> };
               };
               const rawContainerPadding =
                 childProps.containerPadding ??
@@ -199,9 +204,19 @@ export const Column: React.FC<ColumnProps> = (props) => {
               // Wrap via the canonical content-container exporter for this mode.
               const contentValues = {
                 containerPadding,
+                _override: {
+                  ...childProps.values?._override,
+                  mobile: { ...childProps.values?._override?.mobile,
+                    ...(childProps.hideOnMobile !== undefined ? { hideMobile: childProps.hideOnMobile } : {}),
+                  },
+                  desktop: { ...childProps.values?._override?.desktop,
+                    ...(childProps.hideOnDesktop !== undefined ? { hideDesktop: childProps.hideOnDesktop } : {}),
+                  },
+                },
                 _meta: {
                   htmlID: contentHtmlId,
                   htmlClassNames: `u_content_${componentName}`,
+                  ...(childProps.values?._meta?.htmlID ? { htmlID: childProps.values._meta.htmlID } : {}),
                 },
               };
               innerHTML += renderContentToHtml(

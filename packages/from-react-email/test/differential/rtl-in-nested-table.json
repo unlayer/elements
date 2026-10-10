@@ -1,0 +1,5 @@
+{
+  "why": "A table resets an align attribute's centering: its text starts at the start, which dir=rtl puts on the right.",
+  "original": "<!doctype html><html><head><style></style></head><body style=\"margin:0;font-family:Arial\"><table width=\"100%\"><tr><td align=\"center\"><table width=\"480\"><tr><td><p style=\"margin:0\">Thanks for your order, here is the summary</p><p style=\"margin:0\">Right to left words</p></td></tr></table></td></tr></table></body></html>",
+  "migrated": "<!doctype html><html><head><style></style></head><body style=\"margin:0;font-family:Arial\"><table width=\"100%\"><tr><td align=\"center\"><table width=\"480\"><tr><td><p style=\"margin:0\">Thanks for your order, here is the summary</p><p dir=\"rtl\" style=\"margin:0\">Right to left words</p></td></tr></table></td></tr></table></body></html>"
+}

@@ -1,0 +1,82 @@
+# Migrate from React Email
+
+Move React Email templates to Unlayer Elements to render the same templates as email, web pages and print documents, and to open them in the Unlayer visual editor. One command converts them and checks each one against the original.
+
+```bash
+npx @unlayer/migrate emails --write --report migration.md
+npm install @unlayer/react-elements
+```
+
+Run it from your project folder (it uses your project's React, React Email and `tsconfig` paths). Each template keeps its props, loops and conditions. Components it uses from the same file or other files of yours (a shared `Layout`, a `Footer`) are inlined, so their markup converts too.
+
+JavaScript templates keep JavaScript helpers. The document's `dir` and `lang` become `Email`'s `textDirection` and `lang` props. Content with `display: none` stays hidden in an HTML block and is listed in the report.
+
+## What the check guarantees
+
+Before a template is written, the original and the migrated version are rendered with the template's `PreviewProps`, then again with each boolean prop flipped, and compared:
+
+- every word, numeric value (including separators, signs, currencies and percentages), link, image and image `alt` text the original renders must be in the migrated template, with the words in the same order;
+- no new words may appear in the migrated template;
+- any block the visual editor can't represent (`renderToJson`) fails the check, including on each boolean variant.
+
+A template that fails isn't written (unless `--force`), and the command exits with code `2`. Code paths these props don't reach (a loop over an empty preview array, a condition on a non-boolean prop) are converted but not verified: extend `PreviewProps` to cover them. Without `--write` or `--out <dir>`, nothing is written: run it first to see the report. `--write` only replaces templates git can restore (committed, unchanged since), so commit before running it; `--allow-dirty` skips that check.
+
+## Reading the report
+
+For each template:
+
+- **Editable**: the share of content that became Elements blocks you can edit in the visual editor. The rest is kept as `Html` blocks that render exactly as before.
+- **Differences**: what Elements can't express and how it was approximated. Typical ones are responsive classes other than column stacking and the phone settings (`mobile:` colors, `sm:`), hover styles, shadows, column vertical alignment (email columns sit at the top), and fixed widths that scale with the screen on phones.
+- **What the migration did**: changes that don't affect the look (components inlined, a conditional `className` split into one element per class list).
+
+## Afterwards
+
+```tsx
+import { renderToHtml, renderToPlainText, renderToJson } from "@unlayer/react-elements";
+import Welcome from "./emails/welcome";
+
+const element = <Welcome name="Alex" />;
+renderToHtml(element); // send with any provider
+renderToPlainText(element); // the text part
+renderToJson(element); // open in the visual editor with loadDesign()
+```
+
+`--out` refuses symlinked destinations and directories inside the output folder, and cannot replace input templates. Use `--write` to replace originals. It doesn't replace files already in the output folder that the run didn't produce either, unless you pass `--overwrite` (which still never writes a template that failed the check).
+
+`--design` also writes each template's design JSON next to it, ready for `loadDesign()`. Text props become merge tags (`{{name}}`) where the template shows them as given; `--no-merge-tags` keeps the `PreviewProps` values. CSS, font URLs, backgrounds and all image sources retain sample values even when merge tags are enabled.
+
+## Open React Email templates in the Unlayer editor
+
+`--design` makes any React Email template editable in Unlayer's visual editor:
+
+```bash
+npx @unlayer/migrate emails --out unlayer --design --report unlayer/report.json
+```
+
+```js
+editor.loadDesign(await fetch("/unlayer/welcome.design.json").then((r) => r.json()));
+```
+
+A template's web fonts (Google Fonts, `<Font>`) aren't part of the design JSON: the editor loads and exports a web font only when it's registered when the editor is created. The report lists each template's fonts in that shape, so pass them on:
+
+```js
+const report = await fetch("/unlayer/report.json").then((r) => r.json());
+const customFonts = report.flatMap((result) => result.fonts ?? []);
+const editor = unlayer.createEditor({ id: "editor", displayMode: "email", fonts: { showDefaultFonts: true, customFonts } });
+```
+
+From the library, `verifyConversion(...).editorFonts` and `convertReactEmail(...).editorFonts()` return the same list.
+
+The [react-email-in-editor example](../../../examples/react-email-in-editor) runs this end to end: it migrates two templates and opens them in the hosted editor, with a picker for every template that passed the check. Spacing between sections becomes padding, and a column that only holds space (around a card, beside an image) holds an invisible divider, so the editor shows the design as it looks rather than empty-column placeholders.
+
+For a right-to-left design, call `unlayer.setTextDirection("rtl")` when loading it. The design keeps `body.values.textDirection`; `lang` belongs to the rendered document and is not stored in the editor's design JSON.
+
+## Agent rules
+
+- To move React Email templates to Elements, run `npx @unlayer/migrate <folder> --report migration.md` first, read the report, then run it again with `--write`. Don't rewrite templates by hand when the command can do it: it keeps their logic and checks the result.
+- Exit code `2` means a template failed to convert or lost content: report that to the user with the file and the reason from the report. Don't pass `--force` to hide it.
+- Blocks marked `TODO(convert)` in a migrated template are kept as HTML. Converting one by hand: replace it with Elements components (`Row` > `Column` > content), then check it with `npx @unlayer/migrate compare <original> <migrated>`. Exit code `2` lists missing or extra content.
+- After converting any template by hand, run the same `compare` before reporting it done.
+- React Email → Elements, when writing by hand: `Text` → `Paragraph`; `Section`/`Row`/`Column` → `Row` > `Column`; `Container` width → `Email` `contentWidth`; `Img` → `Image`; `Hr` → `Divider`; `Preview` → `Email` `previewText`; Tailwind classes → props.
+
+For programmatic conversion (from an agent, a build step or a server), see [`@unlayer/migrate/react-email`](../../migrate#programmatic-use).

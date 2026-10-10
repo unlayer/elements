@@ -1,0 +1,59 @@
+{
+  "name": "@unlayer/from-react-email",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Convert React Email (@react-email/components) templates to Unlayer Elements: a codemod that keeps your props and logic, a runtime converter for the visual editor, and a check against the original.",
+  "license": "MIT",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "build": "tsup",
+    "test": "vitest",
+    "bench": "tsx bench/run.ts",
+    "typecheck": "tsc --noEmit -p tsconfig.check.json",
+    "test:fidelity": "tsx bench/smoke.ts",
+    "test:differential": "tsx bench/differential.ts"
+  },
+  "dependencies": {
+    "prettier": "^3.3.3",
+    "typescript": "^5.6.3",
+    "parse5": "^7.3.0"
+  },
+  "peerDependencies": {
+    "@react-email/components": ">=0.0.30",
+    "@unlayer/react-elements": "workspace:^",
+    "react": ">=18",
+    "react-dom": ">=18"
+  },
+  "devDependencies": {
+    "@react-email/components": "^1.0.12",
+    "@types/node": "^24.9.1",
+    "@types/pngjs": "^6.0.5",
+    "@types/react": "^18.3.3",
+    "@types/react-dom": "^18.3.0",
+    "@unlayer/convert-core": "workspace:*",
+    "@unlayer/react-elements": "workspace:*",
+    "pixelmatch": "^7.1.0",
+    "playwright": "1.60.0",
+    "pngjs": "^7.0.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "tsup": "^8.0.1",
+    "tsx": "^4.20.5",
+    "vitest": "^3.2.4"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/unlayer/elements.git",
+    "directory": "packages/from-react-email"
+  },
+  "files": [
+    "dist",
+    "THIRD_PARTY_NOTICES.md"
+  ],
+  "engines": {
+    "node": ">=20"
+  }
+}

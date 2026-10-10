@@ -5,6 +5,9 @@ import { DEFAULT_CONFIG } from "@unlayer-internal/shared-elements";
 import { htmlToPlainText } from "@unlayer-internal/shared-elements";
 import type { RenderMode } from "@unlayer-internal/shared-elements";
 import { extractHeadFromTree } from "./extract-head";
+import { htmlRoot } from "./unwrap-root";
+import { withRenderScope } from "./expand-children";
+import { textDirectionOf } from "./create-component";
 import {
   emailLayout,
   webLayout,
@@ -21,6 +24,13 @@ const MODE_BY_WRAPPER: Record<string, RenderMode> = {
   Page: "web",
   Document: "document",
 };
+
+/** A template's direction follows its root props; explicit renderer options still win. */
+function resolveConfig(element: React.ReactElement, config?: Partial<UnlayerConfig>): UnlayerConfig {
+  const props = element.props as { textDirection?: string; values?: { textDirection?: string } };
+  const textDirection = textDirectionOf(props.textDirection ?? props.values?.textDirection);
+  return { ...DEFAULT_CONFIG, ...(textDirection !== undefined ? { textDirection } : {}), ...config };
+}
 
 /**
  * Resolve the display mode for a tree: wrapper component type first
@@ -51,7 +61,7 @@ function renderBody(
   element: React.ReactElement,
   config?: Partial<UnlayerConfig>
 ): string {
-  const mergedConfig = { ...DEFAULT_CONFIG, ...config };
+  const mergedConfig = resolveConfig(element, config);
 
   try {
     // Pass config via prop (not context) so this works in React Server Components.
@@ -90,6 +100,8 @@ function escapeForHtml(text: string): string {
  * Options for renderToHtml — config overrides plus document-level extras.
  */
 export interface RenderToHtmlOptions extends Partial<UnlayerConfig> {
+  /** Document language; overrides the root's `lang` prop. */
+  lang?: string;
   /** Document `<title>` */
   title?: string;
   /**
@@ -113,7 +125,11 @@ export interface RenderToHtmlOptions extends Partial<UnlayerConfig> {
  * Use {@link renderToHtmlParts} instead when your app owns the document
  * shell and only needs the head/body chunks.
  *
- * @param element - A React element tree (e.g. `<Email><Row>...</Row></Email>`)
+ * @param element - A React element tree (e.g. `<Email><Row>...</Row></Email>`), or a
+ *   template component that returns one (`<Welcome name="Ada" />`, also `memo`/`forwardRef`).
+ *   A template is called in a render of its own to reach its root (its hooks work); a class
+ *   component, or one that doesn't return an element, renders without its root's settings,
+ *   with a warning.
  * @param options - Config overrides (mode, cdnBaseUrl, etc.) plus `title` and `fonts`
  * @returns Complete HTML document string
  * @throws {Error} If rendering fails, with a helpful message
@@ -133,9 +149,24 @@ export function renderToHtml(
   element: React.ReactElement,
   options?: RenderToHtmlOptions
 ): string {
-  const { title, fonts = [], ...config } = options ?? {};
+  return withRenderScope(() => htmlDocument(element, options));
+}
 
-  const mergedConfig = { ...DEFAULT_CONFIG, ...config };
+/** CSS for a `<style>` element: a `</style` in it would end the element (CSS escapes the slash). */
+function styleText(css: string): string {
+  return css.replace(/<\/(style)/gi, "<\\/$1");
+}
+
+function htmlDocument(element: React.ReactElement, options?: RenderToHtmlOptions): string {
+  const { title, lang: optionLang, fonts: optionFonts = [], ...config } = options ?? {};
+  // A template component (<Welcome/>) renders as its root, whose settings follow.
+  element = htmlRoot(element, "renderToHtml");
+  // The root's own `fonts` prop, then the option's, each URL once.
+  const rootFonts = (element.props as { fonts?: Array<{ url: string }> } | null)?.fonts ?? [];
+  const fonts = [...rootFonts, ...optionFonts].filter((font, i, all) => font?.url && all.findIndex((f) => f?.url === font.url) === i);
+
+  const lang = optionLang ?? (element.props as { lang?: string }).lang;
+  const mergedConfig = resolveConfig(element, config);
   const displayMode = resolveDisplayMode(element, mergedConfig);
 
   // Only Unlayer wrappers (Body/Email/Page/Document) get their renderer's
@@ -152,11 +183,12 @@ export function renderToHtml(
   });
 
   const layoutArgs: DocumentLayoutArgs = {
+    lang: lang ? ` lang="${escapeForHtml(String(lang))}"` : "",
     dir: mergedConfig.textDirection
       ? ` dir="${escapeForHtml(String(mergedConfig.textDirection))}"`
       : "",
     titleTag: title ? `<title>${escapeForHtml(title.trim())}</title>` : "",
-    styleTag: css ? `<style type="text/css">\n${css}\n</style>` : "",
+    styleTag: css ? `<style type="text/css">\n${styleText(css)}\n</style>` : "",
     scriptTag: js
       ? `<script type="application/javascript">\n${js}\n</script>`
       : "",
@@ -201,7 +233,7 @@ export function renderToPlainText(
   element: React.ReactElement,
   config?: Partial<UnlayerConfig>
 ): string {
-  const html = renderBody(element, config);
+  const html = withRenderScope(() => renderBody(element, config));
   return htmlToPlainText(html);
 }
 
@@ -274,11 +306,16 @@ export function renderToHtmlParts(
   element: React.ReactElement,
   config?: Partial<UnlayerConfig>
 ): HtmlParts {
+  return withRenderScope(() => htmlParts(element, config));
+}
+
+function htmlParts(element: React.ReactElement, config?: Partial<UnlayerConfig>): HtmlParts {
+  element = htmlRoot(element, "renderToHtmlParts");
   // Render body markup
   const body = renderBody(element, config);
 
   // Resolve display mode from the wrapper component, element props, or config
-  const mergedConfig = { ...DEFAULT_CONFIG, ...config };
+  const mergedConfig = resolveConfig(element, config);
   const displayMode = resolveDisplayMode(element, mergedConfig);
 
   // Extract head CSS/JS/tags by walking the element tree
@@ -291,7 +328,7 @@ export function renderToHtmlParts(
   const headParts: string[] = [];
 
   if (css) {
-    headParts.push(`<style>${css}</style>`);
+    headParts.push(`<style>${styleText(css)}</style>`);
   }
 
   if (js) {

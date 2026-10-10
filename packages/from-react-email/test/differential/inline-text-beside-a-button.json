@@ -1,0 +1,5 @@
+{
+  "why": "Inline text and an inline-block share a line: the button sits after the text.",
+  "original": "<!doctype html><html><head><style></style></head><body style=\"margin:0;font-family:Arial\"><p style=\"margin:0\">Thanks for your order, here is the summary</p><div style=\"width:600px\"><p style=\"display:inline;margin:0\">Confirm your address to keep receiving updates</p><a href=\"https://example.com/confirm\" style=\"display:inline-block;background:#111827;color:#ffffff;padding:12px 20px\">Confirm email</a></div></body></html>",
+  "migrated": "<!doctype html><html><head><style></style></head><body style=\"margin:0;font-family:Arial\"><p style=\"margin:0\">Thanks for your order, here is the summary</p><div style=\"width:600px\"><p style=\"margin:0\">Confirm your address to keep receiving updates</p><a href=\"https://example.com/confirm\" style=\"display:inline-block;background:#111827;color:#ffffff;padding:12px 20px\">Confirm email</a></div></body></html>"
+}

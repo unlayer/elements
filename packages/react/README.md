@@ -144,7 +144,9 @@ Root wrapper for email-safe HTML. Same props as Body (without `mode`).
 - `fontFamily?: { label: string, value: string }` — `{ label: "Arial", value: "arial,helvetica,sans-serif" }`
 - `textColor?: string` — `"#000000"`
 - `linkStyle?: { linkColor, linkHoverColor, linkUnderline, linkHoverUnderline }`
-- `previewText?: string` — preview text shown in email client inboxes
+- `previewText?: string` — plain text shown in email client inboxes, escaped for HTML. Pass `"Fish & chips"`, not `"Fish &amp; chips"`; entities supplied in the string display literally.
+- `textDirection?: string` — document direction (`"ltr"` or `"rtl"`), kept in design JSON. When opening the design in the editor, also set its direction with `unlayer.setTextDirection(...)`.
+- `lang?: string` — document language, such as `"ar"`; emitted on `<html>` by `renderToHtml`. Language is document metadata and is not stored in design JSON. Renderer options override both props.
 
 ### Page
 Root wrapper for responsive web display. Same props as Email.
@@ -529,6 +531,23 @@ const monoFont = { label: "Monospace", value: "'SF Mono', 'Fira Code', 'Roboto M
 4. **JSX formatting in children** — `<Heading>Hi <b>x</b></Heading>` is flattened to plain text (the formatting is **not** preserved). For inline formatting use `<Paragraph html="Hi <b>x</b>" />`.
 
 > Note: the CSS-idiom forms that used to be mistakes now work — a string `fontFamily`, a string/number `fontWeight`, a numeric `fontSize`, `padding="0"`, and `<Paragraph text="..." />` are all accepted and normalized. The object/numeric forms above are still recommended for clarity.
+
+## Phone settings
+
+Rows, columns and content items accept `mobile` settings with the same flat CSS inputs as desktop props. For example:
+
+```tsx
+<Column padding="24px 40px" mobile={{ padding: "16px 20px" }}>
+  <Heading fontSize={32} mobile={{ fontSize: 24, lineHeight: "120%", textAlign: "center" }}>Welcome</Heading>
+  <Image src={{ url: "https://example.com/photo.png", width: 800 }} width="50%" mobile={{ autoWidth: true }} />
+  <Paragraph hideOnMobile>Desktop detail</Paragraph>
+  <Paragraph hideOnDesktop>Phone detail</Paragraph>
+</Column>
+```
+
+Supported settings are padding, content `containerPadding`, font size, line height, text alignment and image/button width (`width`, `maxWidth`, `autoWidth`), where the component supports them. Numeric padding and font sizes use pixels; numeric line height is a multiplier. Phone CSS applies at 480px and below, matching the editor. `noStackMobile` still controls column stacking separately.
+
+`hideOnMobile` and `hideOnDesktop` work on rows and content, as in the editor; a column can't be hidden on its own (hide its content or its row). `renderToJson` stores these settings in `_override.mobile` and `_override.desktop`, so designs keep them when opened in the visual editor. Image `autoWidth` follows the editor's natural-size cap. Document output keeps its desktop settings.
 
 ## Development
 

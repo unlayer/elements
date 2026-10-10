@@ -11,6 +11,8 @@
  */
 
 export interface DocumentLayoutArgs {
+  /** ` lang="ar"` attribute chunk for <html>, or "" */
+  lang?: string;
   /** ` dir="rtl"` attribute chunk for <html>, or "" */
   dir: string;
   /** `<title>...</title>` or "" */
@@ -46,7 +48,7 @@ export function emailLayout(args: DocumentLayoutArgs): string {
     .join("\n  ");
 
   return `<!DOCTYPE HTML PUBLIC "-//W3C//DTD XHTML 1.0 Transitional //EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
-<html${dir} xmlns="http://www.w3.org/1999/xhtml" xmlns:v="urn:schemas-microsoft-com:vml" xmlns:o="urn:schemas-microsoft-com:office:office">
+<html${dir}${args.lang || ""} xmlns="http://www.w3.org/1999/xhtml" xmlns:v="urn:schemas-microsoft-com:vml" xmlns:o="urn:schemas-microsoft-com:office:office">
 <head>
 <!--[if gte mso 9]>
 <xml>
@@ -80,7 +82,7 @@ export function documentLayout(args: DocumentLayoutArgs): string {
     .join("\n  ");
 
   return `<!DOCTYPE HTML PUBLIC "-//W3C//DTD XHTML 1.0 Transitional //EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
-<html${dir} xmlns="http://www.w3.org/1999/xhtml">
+<html${dir}${args.lang || ""} xmlns="http://www.w3.org/1999/xhtml">
 <head>
   <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
   ${head}
@@ -102,7 +104,7 @@ export function webLayout(args: DocumentLayoutArgs): string {
     .join("\n    ");
 
   return `<!doctype html>
-<html${dir}>
+<html${dir}${args.lang || ""}>
   <head>
     <meta charset="utf-8">
     <meta http-equiv="x-ua-compatible" content="ie=edge">

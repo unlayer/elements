@@ -275,6 +275,16 @@ describe("mapSemanticProps", () => {
       expect(result._meta).toBeUndefined();
       expect(result.backgroundColor).toBe("#fff");
     });
+
+    it("stores Row noStackMobile as a mobile override, where the editor and exporters keep it", () => {
+      const result = mapSemanticProps(
+        { noStackMobile: true, values: { _override: { mobile: { padding: "10px" } } } } as any,
+        {},
+        "Row"
+      );
+      expect(result.noStackMobile).toBe(false);
+      expect(result._override).toEqual({ mobile: { padding: "10px", noStackMobile: true } });
+    });
   });
 });
 

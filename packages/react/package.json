@@ -1,6 +1,6 @@
 {
   "name": "@unlayer/react-elements",
-  "version": "0.1.1",
+  "version": "0.2.0",
   "description": "React components for transactional emails, landing pages, invoices and PDFs: email-safe HTML, responsive web HTML, and print-ready PDF HTML from one component tree.",
   "license": "MIT",
   "author": "Unlayer",
@@ -81,6 +81,7 @@
     "@types/react": "^18.3.3",
     "@types/react-dom": "^18.3.0",
     "@unlayer-internal/shared-elements": "workspace:*",
+    "@unlayer/react-elements-previous": "npm:@unlayer/react-elements@0.1.22",
     "@vitejs/plugin-react": "^4.2.0",
     "@vitest/coverage-v8": "^3.2.4",
     "concurrently": "9.2.1",

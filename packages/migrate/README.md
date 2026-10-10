@@ -1,0 +1,113 @@
+# @unlayer/migrate
+
+Migrate React Email templates to [Unlayer Elements](https://github.com/unlayer/elements). Your templates keep their props, loops and conditions; they become Elements components that render email-safe HTML, web pages and print documents, and open in the Unlayer visual editor.
+
+```bash
+npx @unlayer/migrate emails --write
+```
+
+Run it from your project folder. Each template is:
+
+1. **Converted.** React Email components become Elements components (`Text` → `Paragraph`, `Section`/`Row`/`Column` → `Row`/`Column`, `Button` → `Button`, …). Tailwind classes become props. Components the template uses from the same file or from your other files (a shared `Layout`, a `Footer`, also through an `index.ts` that re-exports them) are inlined. Anything with no Elements equivalent is kept as an `Html` block that renders exactly as before.
+2. **Checked.** The original and the migrated template are rendered with the template's `PreviewProps`, then again with each boolean prop flipped, and compared. Every word (including numeric separators, signs, currency symbols and percentages), link, image and image `alt` text the original renders must be in the migrated output, words in the same order, no new words may appear, and any block the visual editor can't represent fails the check. Each word's text style must match at a desktop width (700px): size, bold, italics, letter case, underline, color, the background behind it and a link's target; at a phone's width (375px) the same words, links and images must show; on wider screens where a rule targets them (Tailwind's `md:`, `lg:`), the same words, links, images and styles; and each line of text must sit where it did across the page (a column stacked into one, or a block moved to the other side, fails). What the check can't read on one side (a selector, condition or value it doesn't evaluate, on desktop or on phones, or a width it can't place) fails it too, naming the rule: it never passes what it didn't verify. All of this holds for each flipped prop and for `compare` as well. The check is tested against Chromium: thousands of generated pairs, each with one side's look changed (or the same look written another way), must fail the check whenever Chromium shows them differently. Not verified: vertical spacing, exact positions (under about 120px), where images sit, fonts as drawn, dark mode, hover, and how each email client renders. A template that fails isn't written unless you pass `--force`. Code paths these props don't reach (a loop over an empty preview array, a condition on a non-boolean prop) are converted but not verified: extend `PreviewProps` to cover them.
+3. **Reported.** How much is editable in the visual editor, what was kept as HTML, and every visual difference (a dropped hover style, a `mobile:` class, a radius).
+
+```text
+✓ emails/welcome.tsx: 100% editable, 1 kind of difference
+✓ emails/receipt.tsx: 96% editable, 2 kinds of difference
+- emails/components/layout.tsx: skipped (no default-exported component)
+
+2 templates: 2 migrated and checked. 2 written.
+```
+
+## Options
+
+| Option | |
+|---|---|
+| `--write` | Replace each template with its migrated version. Only templates git can restore: committed, with no changes since. |
+| `--out <dir>` | Write migrated templates to `<dir>` instead, keeping the folder layout. Relative imports and resources loaded with `new URL(path, import.meta.url)` keep resolving from their original location. The rewritten source is checked in its destination folder. |
+| `--design` | Also write `<name>.design.json` next to each migrated template: the design the Unlayer editor opens with `loadDesign()`. Text props the template shows as given become merge tags (`{{name}}`); props it changes first (a formatted date, an uppercased word) keep their `PreviewProps` value. CSS, font URLs, backgrounds and image sources (including inline images in HTML) keep sample values. The design is built from the migrated template's `PreviewProps`, where JSX passed as a prop has styles instead of Tailwind classes. The JSON report lists each template's web fonts (`fonts`): register them when you create the editor (`fonts: { showDefaultFonts: true, customFonts }`), since it loads and exports only fonts it was created with. |
+| `--no-merge-tags` | Keep the `PreviewProps` values in the design JSON instead of merge tags. |
+| `--report <file>` | Write the migration report as Markdown (`.md`) or JSON (`.json`). |
+| `--force` | Write templates even when the check finds a problem. |
+| `--overwrite` | Replace files already at a destination that the run didn't produce (a design file from an earlier run). It never writes a template that failed the check. |
+| `--allow-dirty` | With `--write`, replace templates git can't restore (uncommitted changes, not committed, or not in a repository). |
+| `--from react-email` | The source format (the only one today). |
+
+Without `--write` or `--out`, nothing is written: the command converts and checks, and prints what it would do.
+
+`--write` replaces templates in place, so before running anything it checks that git can give each one back: a template with uncommitted changes, one that isn't committed, or one outside a git repository stops the run (exit `1`), naming them. Commit first, and git can undo the migration. `--out <dir>` writes copies and doesn't need git; `--allow-dirty` replaces templates anyway.
+
+Default exports wrapped in React `memo` or `forwardRef` are supported, including nested wrappers. Preview props are read from the outer wrapper first, then from its inner component.
+
+All templates are converted and checked before any output is written. With `--write` (and in a dry run, which says what `--write` does), a template another scanned template renders (it uses its default export, directly or through other files) is left in place and reported as skipped, as are components that don't render `<Html>` and layouts (components that render their `children`); their markup is inlined into the converted templates that use them. Migrating a file rewrites only its default export, so a template that only takes a constant or a named component from another doesn't keep it in place, and a file that only lists or sends templates (an `index.ts`, a send helper) doesn't either. Importers that fail the check keep using the original shared components. When the templates that use one are written and no longer need it, it's migrated in the same run. Files the run leaves that still use a migrated template (a helper that sends it with React Email's `render`) are listed after the summary. A module imported by a path worked out when it runs (`` import(`./${name}`) ``) stops a run that would write in place, since what it renders can't be told: use `--out`. `--out` also writes separate converted copies of those shared files.
+
+`--out` requires a non-empty path. Before loading templates, the command checks all template, design and report destinations. It rejects collisions, destinations that would replace a source input (except that template's explicit `--write`), symlink output files, and symlinked directories within the output folder. These checks also apply with `--force` and `--overwrite`. A template or design file already at a destination, which the run didn't produce, stops it too unless you pass `--overwrite` (the report file is replaced). Pass the inputs' common parent folder to preserve its subfolders, or migrate each input root to a separate output folder.
+
+Verification uses a temporary file in the destination folder. The command removes it after the check, also when the run is interrupted (Ctrl-C, a kill) or fails, and removes any empty folders it created for that check. A template whose destination folder can't be written fails with that reason. A failed check leaves the target template and design untouched unless `--force` was requested. Writes replace files atomically, preserving other files that happen to share a hard link with an output.
+
+Exit codes: `0` when every template converted and passed the check, `1` for a usage error or when no templates were found, `2` when a template failed to convert, the check found a problem, a file couldn't be read (a link to a file that's gone), or the run couldn't go on. A run never ends with `0` without checking what it was given. Use it in CI to keep migrated templates honest: templates already migrated (importing `@unlayer/react-elements`: an import, not a comment that names it) are skipped, so running it again after `--write` passes. A `.js` template with JSX can't be loaded: rename it to `.jsx`.
+
+## Check a template you migrated yourself
+
+```bash
+npx @unlayer/migrate compare emails/welcome.tsx emails/welcome.elements.tsx
+```
+
+Renders both with the original's `PreviewProps`, then with each true/false prop flipped, and checks both the HTML and design JSON that every word, link, image and `alt` text is still there and that the visual editor gets every block. No new words may appear. Exit code `0` when it passes, `2` with missing or extra content when it doesn't.
+
+## After migrating
+
+```bash
+npm install @unlayer/react-elements
+```
+
+Migrations render with the `@unlayer/react-elements` installed where your templates are (in a monorepo, the app's), so it must be a version this package supports (its peer dependency range). One outside it (older, a newer line, or a prerelease the range doesn't name) would handle the settings the converter writes, such as phone layout, differently, so the command stops with exit code `1` and the install command to run.
+
+```tsx
+import { renderToHtml, renderToJson } from "@unlayer/react-elements";
+import Welcome from "./emails/welcome";
+
+const html = renderToHtml(<Welcome name="Alex" />); // send with any provider
+const design = renderToJson(<Welcome name="Alex" />); // open in the visual editor
+```
+
+React Email (`react-email` or `@react-email/components`) can be removed once no template imports it. Templates with blocks kept as HTML still import React Email components for those blocks, from the same package the template used; the report lists them.
+
+A template that calls React hooks (`useMemo`, `useId`, …) migrates like any other: the check and Elements call it in a render of its own, as React does.
+
+## Programmatic use
+
+Install `@unlayer/migrate` to use the React Email converter from an agent, a build step or a server. The subpath supports ESM and CommonJS.
+
+```bash
+npm install @unlayer/migrate
+```
+
+```ts
+import { convertReactEmail } from "@unlayer/migrate/react-email";
+import Welcome from "./emails/welcome";
+
+const conversion = await convertReactEmail(Welcome);
+const design = conversion.design(); // open in the visual editor with loadDesign()
+const customFonts = conversion.editorFonts(); // register when creating the editor: fonts: { customFonts }
+const html = conversion.html();
+const tsx = await conversion.tsx();
+```
+
+## What changes
+
+The report lists every difference for each template. The common ones:
+
+- **Phones**: columns stay side by side, as React Email's tables do, unless the template stacks them (`mobile:!block`). Side by side, they keep their share of the row, so fixed widths and images scale down with it.
+- **Phone styles** become phone settings for padding, margins, font size, line height, alignment and hiding. Others (a color, font weight, letter spacing) and hover styles have no Elements equivalent. Styles for screens wider than the desktop width (`md:`, `lg:`) have none either: the check compares those screens too, so a template that uses them fails.
+- **Attributes** a block has no place for in Elements (`id`, `title`, `role`, `aria-*`).
+- **Shadows, gradients, transforms** and column vertical alignment (email columns sit at the top).
+- **A box that shrinks to fit its content** (`w-fit` around text) is as wide as its parent.
+- Text without a font family uses Elements' default font rather than the browser's.
+
+## How it works
+
+The conversion runs in your project, with your project's React, React Email and TypeScript paths (`tsconfig` and `jsconfig` aliases work, imports TypeScript can't follow are resolved as Node does, and workspace packages are followed to their source). Templates are the files that import React Email, or that import your own components that do (a `ui` file that wraps or re-exports it). The automatic JSX runtime applies to templates and imported helpers in ESM and CommonJS projects, including helpers outside the input folder and workspace packages. React Email and Elements load from each template's own folder, as where it runs, and React is one copy, the project's: in a monorepo, an app's templates use the app's packages. Pass one app's templates per run; a run whose templates would load different copies stops and says which folder to migrate on its own. It reads your templates and executes them to check the result: a template's module code runs, and its component is rendered, as React Email's preview does. Only files whose default export is a component (a function or a React `Component` class, not async, returning JSX or with `PreviewProps`) are loaded; others, like a helper that sends an email, are reported as skipped and never run. A template wrapped in another function (`export default withTracking(Welcome)`) fails: export the component itself. A template that calls `process.exit` fails instead of ending the run; one that throws later, from a timer or a promise, makes the run exit with `2` after its summary. A template that isn't saved as UTF-8 fails instead of being written back with replaced characters; CRLF line endings are kept. Run it only on code you trust. It makes no network requests: rendering produces HTML, and nothing is fetched.
+
+For the full `@unlayer/migrate/react-email` API, see the [React Email converter documentation](../from-react-email).

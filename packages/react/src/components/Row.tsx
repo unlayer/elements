@@ -6,8 +6,9 @@ import { RowExporters } from "@unlayer/exporters";
 import { mapSemanticProps, type SemanticProps } from "../utils/semantic-props";
 import { nextHtmlId } from "../utils/create-component";
 import { bodyContentWidthPx } from "../utils/image-sizing";
-import type { SizeInput } from "../types";
+import type { DeviceProps, SizeInput } from "../types";
 import { ROW_DEFAULTS, BODY_DEFAULTS } from "../utils/container-defaults";
+import { drivenByReact, expandChildren, looseText } from "../utils/expand-children";
 
 /**
  * Row - Container for columns in a layout
@@ -28,7 +29,7 @@ const DEFAULT_VALUES = ROW_DEFAULTS;
 
 const DEFAULT_BODY_VALUES = BODY_DEFAULTS;
 
-export type RowProps = Omit<SemanticProps<RowValues>, "padding"> & {
+export type RowProps = Omit<SemanticProps<RowValues>, "padding" | keyof DeviceProps> & DeviceProps & {
   children?: React.ReactNode;
   layout?: ColumnLayout;
   cells?: number[];
@@ -70,6 +71,9 @@ function generateGridCSS(cells: number[], mode: RenderMode, contentWidth: number
   if (mode === 'email') {
     const minQuery = `@media only screen and (min-width: ${contentWidth + 20}px)`;
     const maxQuery = `@media only screen and (max-width: ${contentWidth + 20}px)`;
+    // Every Row writes this block, so a later row's `.u-row .u-col` rules
+    // would override an earlier row's `.no-stack` ones of equal specificity:
+    // `.u-row.no-stack` outranks them wherever it comes.
 
     return `
 ${minQuery} {
@@ -83,8 +87,8 @@ ${maxQuery} {
   .u-row { width: 100% !important; }
   .u-row .u-col { display: block !important; width: 100% !important; min-width: 320px !important; max-width: 100% !important; }
   .u-row .u-col > div { margin: 0 auto; }
-  .no-stack .u-col { min-width: 0 !important; display: table-cell !important; }
-${widths.map(({ value, className }) => `  .no-stack .u-col-${className} { width: ${value}% !important; }`).join('\n')}
+  .u-row.no-stack .u-col { min-width: 0 !important; display: table-cell !important; }
+${widths.map(({ value, className }) => `  .u-row.no-stack .u-col-${className} { width: ${value}% !important; }`).join('\n')}
 }`;
   }
 
@@ -177,12 +181,12 @@ function processChildren(
   if (!children) return "";
 
   let innerHTML = "";
-  const childrenArray = React.Children.toArray(children);
+  const childrenArray = React.Children.toArray(expandChildren(children));
 
   childrenArray.forEach((child, index) => {
     if (!React.isValidElement(child)) {
       if (typeof child === "string" || typeof child === "number") {
-        innerHTML += String(child);
+        innerHTML += looseText(child, "Row");
       }
       return;
     }
@@ -224,7 +228,7 @@ function processChildren(
 // Component
 // ============================================
 
-const Row: React.FC<RowProps> = (props) => {
+function renderRow(props: RowProps): React.ReactElement | null {
   const {
     layout,
     cells: propsCells,
@@ -245,16 +249,18 @@ const Row: React.FC<RowProps> = (props) => {
   // Determine cells from layout or props. With neither, default to one equal
   // cell PER <Column> child (mirroring renderToJson) — `[1]` regardless of column
   // count left the 2nd/3rd column with no cell, rendering width="NaN".
+  // Columns written in the Row, from Fragments and from components alike.
+  const columnCount = React.Children.toArray(expandChildren(children)).filter(
+    (c) => React.isValidElement(c) && /^Column$/.test((c.type as any)?.displayName || (c.type as any)?.name || "")
+  ).length;
   let cells: number[];
   if (layout) {
-    validateColumnLayout(layout, React.Children.count(children));
+    // Columns as written count too, as before (a Column shown under a condition leaves its place: `{image && <Column>}`).
+    validateColumnLayout(layout, columnCount === layout.expectedColumns ? columnCount : React.Children.count(children));
     cells = layout.cells;
   } else if (propsCells) {
     cells = propsCells;
   } else {
-    const columnCount = React.Children.toArray(children).filter(
-      (c) => React.isValidElement(c) && /^Column$/.test((c.type as any)?.displayName || (c.type as any)?.name || "")
-    ).length;
     cells = Array(Math.max(1, columnCount)).fill(1);
   }
 
@@ -306,6 +312,23 @@ const Row: React.FC<RowProps> = (props) => {
       </div>
     );
   }
+}
+
+// The ids allocated when a Row's render started, by its props: React runs the same render again
+// (same props) when a component in it sets state while rendering, and it must get the same ids.
+const idsAtStart = new WeakMap<object, Record<string, number>>();
+
+// Rendered by React: the components in its columns are called in this render (see drivenByReact).
+const Row: React.FC<RowProps> = (props) => {
+  const ids = (props._config as { __ids?: Record<string, number> } | undefined)?.__ids;
+  if (ids) {
+    const start = idsAtStart.get(props);
+    if (start) {
+      for (const key of Object.keys(ids)) delete ids[key];
+      Object.assign(ids, start);
+    } else idsAtStart.set(props, { ...ids });
+  }
+  return drivenByReact(() => renderRow(props));
 };
 
 Row.displayName = "Row";

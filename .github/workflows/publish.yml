@@ -1,30 +1,48 @@
 # Release & Publish
 #
-# Gated publish flow:
+# Gated publish flow, one package at a time:
 #   1. PR merged to main → triggers build & test
-#   2. A reviewer approves the publish in the Actions UI (environment gate)
-#   3. Package is published to npm via trusted publishing (OIDC)
+#   2. Each package publishes only when its code changed since its last
+#      release tag (Elements: v*, migrate: migrate-v*)
+#   3. A reviewer approves each publish in the Actions UI (environment gate)
+#   4. The package is published to npm via trusted publishing (OIDC)
 #
 # Version: reads the latest published version from npm and bumps from that.
 # Defaults to patch. Add a `release:minor` or `release:major` PR label to
-# override. Manual dispatch also supports bump selection.
+# override. Manual dispatch also supports bump selection. A version
+# committed ahead of npm (a planned minor or major) wins over the bump.
 #
 # Auth: Uses npm trusted publishing (OIDC) — no NPM_TOKEN needed.
 # The `npm-publish` environment must be configured in repo Settings →
 # Environments with at least one required reviewer.
 #
-# npm trusted publishing must also be configured on npmjs.com:
+# npm trusted publishing must also be configured on npmjs.com, per package:
 #   Package Settings → Publishing access → Add trusted publisher →
-#     Repository: unlayer/elements
-#     Workflow:   publish.yml
+#     Repository:  unlayer/elements
+#     Workflow:    publish.yml
+#     Environment: npm-publish
+# npm only offers this on a package that exists, so a new package's first
+# version is published by hand, with its release tag (e.g. migrate-v0.1.0).
 
 name: Release
+
+# Jobs that publish ask for more (tags, npm's OIDC token); the rest only read.
+permissions:
+  contents: read
 
 on:
   push:
     branches: [main]
   workflow_dispatch:
     inputs:
+      package:
+        description: 'Package to release'
+        required: true
+        type: choice
+        options:
+          - react-elements
+          - migrate
+        default: react-elements
       bump:
         description: 'Version bump type'
         required: true
@@ -75,10 +93,77 @@ jobs:
       - name: Run tests
         run: pnpm test
 
-  publish:
-    name: Publish to npm
-    needs: build-and-test
+  changes:
+    name: Detect package changes
     runs-on: ubuntu-latest
+    outputs:
+      elements: ${{ steps.detect.outputs.elements }}
+      migrate: ${{ steps.detect.outputs.migrate }}
+
+    steps:
+      - name: Checkout code (with tags)
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      # Compared with each package's last release tag, so a release that
+      # failed or was rejected is retried on the next push. Fails open: a git
+      # error counts as a change. A commit that doesn't descend from the last
+      # release (an older run re-run) publishes nothing: it would ship older
+      # code as the newest version.
+      - name: Detect changes since each package's last release
+        id: detect
+        shell: bash
+        run: |
+          if [ "${{ github.ref }}" != "refs/heads/main" ]; then
+            echo "::error::Releases are made from main, not ${{ github.ref }}."
+            exit 1
+          fi
+          last() { git tag -l "$1" --sort=-v:refname | head -1; }
+          for pattern in 'v*' 'migrate-v*'; do
+            tag=$(last "$pattern")
+            if [ -n "$tag" ] && ! git merge-base --is-ancestor "$tag" HEAD; then
+              echo "::notice::$tag isn't an ancestor of this commit: nothing older than it is published."
+            fi
+          done
+          descends() {
+            local tag
+            tag=$(last "$1")
+            [ -z "$tag" ] || git merge-base --is-ancestor "$tag" HEAD
+          }
+          changed() {
+            local tag
+            tag=$(last "$1")
+            shift
+            [ -z "$tag" ] && { echo true; return; }
+            git merge-base --is-ancestor "$tag" HEAD || { echo false; return; }
+            git diff --quiet "$tag" HEAD -- "$@" && echo false || echo true
+          }
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            ELEMENTS=$([ "${{ inputs.package }}" = "react-elements" ] && descends 'v*' && echo true || echo false)
+            MIGRATE=$([ "${{ inputs.package }}" = "migrate" ] && descends 'migrate-v*' && echo true || echo false)
+          else
+            ELEMENTS=$(changed 'v*' packages/react packages/shared pnpm-workspace.yaml)
+            # Not Elements: migrate requires the Elements range committed in its package.json (the oldest
+            # release the converter supports), not the newest, so an Elements release doesn't republish it.
+            MIGRATE=$(changed 'migrate-v*' packages/migrate packages/from-react-email packages/convert-core pnpm-workspace.yaml pnpm-lock.yaml)
+          fi
+          # The first version of a new package is published by hand (see above).
+          if [ "$MIGRATE" = "true" ] && ! npm view @unlayer/migrate version >/dev/null 2>&1; then
+            echo "::notice::@unlayer/migrate isn't on npm yet: publish its first version by hand, tag it migrate-v<version>, and add its trusted publisher."
+            MIGRATE=false
+          fi
+          echo "elements=$ELEMENTS" >> $GITHUB_OUTPUT
+          echo "migrate=$MIGRATE" >> $GITHUB_OUTPUT
+          echo "Elements changed: $ELEMENTS, migrate changed: $MIGRATE"
+
+  publish:
+    name: Publish @unlayer/react-elements
+    needs: [build-and-test, changes]
+    if: needs.changes.outputs.elements == 'true'
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
     concurrency:
       group: publish
       cancel-in-progress: false
@@ -89,10 +174,25 @@ jobs:
       pull-requests: read
 
     steps:
+      # The commit this run built and tested, not whatever main is when the approval lands.
       - name: Checkout code
         uses: actions/checkout@v4
         with:
-          ref: main
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+
+      # Checked again here, where publishes run one at a time: re-running an
+      # older run's failed jobs reuses the `changes` job's result from before a
+      # newer commit was published, and would ship older code as the newest version.
+      - name: Check no newer commit was published
+        shell: bash
+        run: |
+          git fetch --tags --force origin
+          TAG=$(git tag -l 'v*' --sort=-v:refname | head -1)
+          if [ -n "$TAG" ] && ! git merge-base --is-ancestor "$TAG" HEAD; then
+            echo "::error::$TAG was published from a newer commit than this run's: nothing older than it is published."
+            exit 1
+          fi
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
@@ -151,8 +251,9 @@ jobs:
         id: version
         working-directory: packages/react
         run: |
+          COMMITTED=$(node -p "require('./package.json').version")
           # Read latest published version from npm (falls back to package.json for first publish)
-          CURRENT=$(npm view @unlayer/react-elements version 2>/dev/null || node -p "require('./package.json').version")
+          CURRENT=$(npm view @unlayer/react-elements version 2>/dev/null || echo "$COMMITTED")
           echo "current=$CURRENT" >> $GITHUB_OUTPUT
 
           # Write current version to package.json so npm version can bump from it
@@ -161,7 +262,39 @@ jobs:
           # Bump
           VERSION=$(npm version ${{ steps.bump.outputs.type }} --no-git-tag-version)
           VERSION="${VERSION#v}"
+
+          # A version committed ahead of npm (a planned minor or major) wins
+          if [ "$COMMITTED" != "$VERSION" ] && [ "$(printf '%s\n%s\n' "$VERSION" "$COMMITTED" | sort -V | tail -1)" = "$COMMITTED" ]; then
+            npm version "$COMMITTED" --no-git-tag-version --allow-same-version
+            VERSION="$COMMITTED"
+          fi
           echo "version=$VERSION" >> $GITHUB_OUTPUT
+
+      # Published @unlayer/migrate refuses an Elements outside its range (^0.2.0 holds 0.2.x only). A release
+      # outside it (a minor, 0.3.0) must raise the range in packages/migrate/package.json in the same change, so
+      # migrate publishes after it with the new range; otherwise every published migrate refuses the newest Elements.
+      - name: Check migrate supports this Elements
+        working-directory: packages/react
+        run: |
+          RANGE=$(node -p "require('../migrate/package.json').peerDependencies['@unlayer/react-elements']")
+          VERSION="${{ steps.version.outputs.version }}"
+          if node -e '
+            const [range, version] = process.argv.slice(1);
+            const base = /^\^(\d+)\.(\d+)\.(\d+)$/.exec(range);
+            if (!base) process.exit(2);
+            const [M, m, p] = base.slice(1).map(Number);
+            const [x, y, z] = version.split("-")[0].split(".").map(Number);
+            const sameLine = M > 0 ? x === M : x === 0 && y === m;
+            const atLeast = x !== M ? x > M : y !== m ? y > m : z >= p;
+            process.exit(sameLine && atLeast ? 0 : 1);
+          ' "$RANGE" "$VERSION"; then
+            echo "Elements $VERSION is inside @unlayer/migrate's range $RANGE"
+          elif npm view @unlayer/migrate version >/dev/null 2>&1; then
+            echo "::error::Elements $VERSION is outside @unlayer/migrate's Elements range ($RANGE): every published migrate would refuse it. Raise the range in packages/migrate/package.json in this change (the converter must support $VERSION), so migrate publishes after it."
+            exit 1
+          else
+            echo "::notice::Elements $VERSION is outside migrate's range ($RANGE), and migrate isn't on npm yet."
+          fi
 
       - name: Pre-publish summary
         working-directory: packages/react
@@ -205,15 +338,190 @@ jobs:
             git push origin "$TAG"
           fi
 
+      # Notes start at the previous Elements tag: migrate-v* tags don't match v*.
       - name: Create GitHub Release
         run: |
           TAG="v${{ steps.version.outputs.version }}"
+          PREVIOUS=$(git ls-remote --tags --refs origin | sed 's#.*refs/tags/##' | grep -E '^v[0-9]' | grep -vFx "$TAG" | sort -V | tail -1)
           if gh release view "$TAG" >/dev/null 2>&1; then
             echo "Release $TAG already exists — skipping"
           else
             gh release create "$TAG" \
               --title "$TAG" \
-              --generate-notes
+              --generate-notes \
+              ${PREVIOUS:+--notes-start-tag "$PREVIOUS"}
+          fi
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  publish-migrate:
+    name: Publish @unlayer/migrate
+    needs: [build-and-test, changes, publish]
+    # After Elements (when it publishes too), so the Elements range migrate requires is on npm.
+    if: >-
+      !cancelled() &&
+      needs.build-and-test.result == 'success' &&
+      needs.changes.outputs.migrate == 'true' &&
+      (needs.publish.result == 'success' || needs.publish.result == 'skipped')
+    runs-on: ubuntu-latest
+    concurrency:
+      group: publish-migrate
+      cancel-in-progress: false
+    environment: npm-publish
+    permissions:
+      contents: write
+      id-token: write
+      pull-requests: read
+
+    steps:
+      # The commit this run built and tested, not whatever main is when the approval lands.
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+
+      # Checked again here, where publishes run one at a time: re-running an
+      # older run's failed jobs reuses the `changes` job's result from before a
+      # newer commit was published, and would ship older code as the newest version.
+      - name: Check no newer commit was published
+        shell: bash
+        run: |
+          git fetch --tags --force origin
+          TAG=$(git tag -l 'migrate-v*' --sort=-v:refname | head -1)
+          if [ -n "$TAG" ] && ! git merge-base --is-ancestor "$TAG" HEAD; then
+            echo "::error::$TAG was published from a newer commit than this run's: nothing older than it is published."
+            exit 1
+          fi
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9.7.0
+
+      - name: Setup Node.js 24 (with npm registry for OIDC)
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          registry-url: https://registry.npmjs.org
+
+      - name: Update npm for trusted publishing
+        run: npm install -g npm@12
+
+      - name: Get pnpm store directory
+        shell: bash
+        run: echo "STORE_PATH=$(pnpm store path --silent)" >> $GITHUB_ENV
+
+      - name: Setup pnpm cache
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.STORE_PATH }}
+          key: ${{ runner.os }}-pnpm-store-${{ hashFiles('**/pnpm-lock.yaml') }}
+          restore-keys: |
+            ${{ runner.os }}-pnpm-store-
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build packages
+        run: pnpm build
+
+      - name: Determine version bump
+        id: bump
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "type=${{ inputs.bump }}" >> $GITHUB_OUTPUT
+          else
+            LABELS=$(gh api "repos/${GITHUB_REPOSITORY}/commits/${GITHUB_SHA}/pulls" --jq '.[0].labels[].name' 2>/dev/null || echo "")
+            if echo "$LABELS" | grep -Fxq "release:major"; then
+              echo "type=major" >> $GITHUB_OUTPUT
+            elif echo "$LABELS" | grep -Fxq "release:minor"; then
+              echo "type=minor" >> $GITHUB_OUTPUT
+            else
+              echo "type=patch" >> $GITHUB_OUTPUT
+            fi
+          fi
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Determine version
+        id: version
+        working-directory: packages/migrate
+        run: |
+          COMMITTED=$(node -p "require('./package.json').version")
+          CURRENT=$(npm view @unlayer/migrate version 2>/dev/null || echo "$COMMITTED")
+          echo "current=$CURRENT" >> $GITHUB_OUTPUT
+          npm version "$CURRENT" --no-git-tag-version --allow-same-version
+          VERSION=$(npm version ${{ steps.bump.outputs.type }} --no-git-tag-version)
+          VERSION="${VERSION#v}"
+          if [ "$COMMITTED" != "$VERSION" ] && [ "$(printf '%s\n%s\n' "$VERSION" "$COMMITTED" | sort -V | tail -1)" = "$COMMITTED" ]; then
+            npm version "$COMMITTED" --no-git-tag-version --allow-same-version
+            VERSION="$COMMITTED"
+          fi
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+
+      # Packing writes the Elements range committed in package.json
+      # (`workspace:^0.2.0` → `^0.2.0`): the oldest Elements the converter
+      # supports, raised in a commit when the converter needs a newer one. Not
+      # the newest Elements, which would refuse projects a patch behind. A
+      # release in that range must be on npm, or installs would fail.
+      - name: Check the Elements range
+        id: elements
+        working-directory: packages/migrate
+        run: |
+          RANGE=$(node -p "require('./package.json').peerDependencies['@unlayer/react-elements'].replace(/^workspace:/, '')")
+          case "$RANGE" in ^[0-9]*) ;; *) echo "::error::migrate's Elements range must be a committed ^<version> (found $RANGE)"; exit 1 ;; esac
+          echo "range=$RANGE" >> $GITHUB_OUTPUT
+          for attempt in 1 2 3 4 5 6; do
+            if [ -n "$(npm view "@unlayer/react-elements@$RANGE" version 2>/dev/null)" ]; then exit 0; fi
+            sleep 10
+          done
+          echo "::error::@unlayer/react-elements@$RANGE isn't on npm: release Elements first."
+          exit 1
+
+      - name: Pre-publish summary
+        run: |
+          echo "## Publish Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| | |" >> $GITHUB_STEP_SUMMARY
+          echo "|---|---|" >> $GITHUB_STEP_SUMMARY
+          echo "| **Package** | \`@unlayer/migrate\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| **Version** | ${{ steps.version.outputs.current }} → ${{ steps.version.outputs.version }} (${{ steps.bump.outputs.type }}) |" >> $GITHUB_STEP_SUMMARY
+          echo "| **Elements range** | ${{ steps.elements.outputs.range }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| **Trigger** | ${{ github.event_name }} |" >> $GITHUB_STEP_SUMMARY
+
+      - name: Publish to npm (trusted publishing)
+        working-directory: packages/migrate
+        run: |
+          pnpm pack --pack-destination /tmp
+          TARBALL=$(ls /tmp/unlayer-migrate-*.tgz)
+          npm publish "$TARBALL" --access public
+
+      - name: Tag release
+        run: |
+          TAG="migrate-v${{ steps.version.outputs.version }}"
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          if git ls-remote --tags origin | awk '{print $2}' | grep -Fxq "refs/tags/$TAG"; then
+            echo "Tag $TAG already exists — skipping"
+          else
+            git tag "$TAG"
+            git push origin "$TAG"
+          fi
+
+      # Not marked latest: the repository's latest release stays Elements.
+      - name: Create GitHub Release
+        run: |
+          TAG="migrate-v${{ steps.version.outputs.version }}"
+          PREVIOUS=$(git ls-remote --tags --refs origin | sed 's#.*refs/tags/##' | grep -E '^migrate-v[0-9]' | grep -vFx "$TAG" | sort -V | tail -1)
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            echo "Release $TAG already exists — skipping"
+          else
+            gh release create "$TAG" \
+              --title "@unlayer/migrate ${{ steps.version.outputs.version }}" \
+              --generate-notes \
+              --latest=false \
+              ${PREVIOUS:+--notes-start-tag "$PREVIOUS"}
           fi
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

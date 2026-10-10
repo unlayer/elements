@@ -1,0 +1,5 @@
+{
+  "why": "A text-align written with a variable's fallback applies.",
+  "original": "<!doctype html><html><head><style>.r { text-align: var(--undefined-align, right) }</style></head><body style=\"margin:0;font-family:Arial\"><p style=\"margin:0\">Thanks for your order, here is the summary</p><p class=\"r\" style=\"margin:0\">Lead paragraph words</p></body></html>",
+  "migrated": "<!doctype html><html><head><style></style></head><body style=\"margin:0;font-family:Arial\"><p style=\"margin:0\">Thanks for your order, here is the summary</p><p style=\"margin:0\">Lead paragraph words</p></body></html>"
+}

@@ -337,6 +337,32 @@ describe("renderToJson", () => {
     expect(() => renderToJson(<Boom />)).toThrow("could not unwrap");
   });
 
+  it("unwraps a wrapper that uses hooks, also while the app is rendering", () => {
+    const { render: mount } = require("@testing-library/react") as typeof import("@testing-library/react");
+    const WithHooks = () => {
+      const [title] = React.useState("Hooked");
+      React.useId();
+      return (
+        <Email>
+          <Row layout={ColumnLayouts.OneColumn}>
+            <Column>
+              <Heading>{title}</Heading>
+            </Column>
+          </Row>
+        </Email>
+      );
+    };
+    const App = ({ n }: { n: number }) => {
+      const [count] = React.useState(n);
+      const rows = React.useMemo(() => renderToJson(<WithHooks />).body.rows.length, [n]);
+      return <output>{`${count}:${rows}`}</output>;
+    };
+    const { rerender, container } = mount(<App n={1} />);
+    rerender(<App n={2} />);
+    expect(container.querySelector("output")?.textContent).toBe("1:1");
+    expect(JSON.stringify(renderToJson(<WithHooks />))).toContain("Hooked");
+  });
+
   it("generates _meta at all levels", () => {
     const design = renderToJson(
       <Body>
@@ -595,5 +621,20 @@ describe("renderRowToJson", () => {
     expect(row.columns[1].contents).toHaveLength(1);
     expect(row.columns[0].contents[0].type).toBe("heading");
     expect(row.columns[1].contents[0].type).toBe("button");
+  });
+});
+
+describe("renderToJson fonts prop", () => {
+  it("keeps the root's fonts out of the design (renderToHtml links them)", () => {
+    const design = renderToJson(
+      <Email fonts={[{ url: "https://fonts.googleapis.com/css2?family=Inter" }]}>
+        <Row>
+          <Column>
+            <Paragraph>Hello</Paragraph>
+          </Column>
+        </Row>
+      </Email>
+    );
+    expect(JSON.stringify(design)).not.toContain("fonts.googleapis.com");
   });
 });

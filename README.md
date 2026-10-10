@@ -264,6 +264,9 @@ For the full API reference, component props, design patterns, and common mistake
 | Package | Description | Published |
 |---------|-------------|-----------|
 | [`@unlayer/react-elements`](./packages/react) | React components and renderers | [![npm](https://img.shields.io/npm/v/@unlayer/react-elements.svg)](https://www.npmjs.com/package/@unlayer/react-elements) |
+| [`@unlayer/migrate`](./packages/migrate) | Migrate React Email templates to Elements, checked against the originals | Not yet |
+| [`@unlayer/from-react-email`](./packages/from-react-email) | The React Email → Elements converter, as a library | Private (bundled into `@unlayer/migrate`, API at `@unlayer/migrate/react-email`) |
+| [`@unlayer/convert-core`](./packages/convert-core) | Shared model for converters (Elements tree, report, TSX printer, layout check) | Internal |
 | [`@unlayer-internal/shared-elements`](./packages/shared) | Framework-agnostic shared logic | Internal |
 | [`@unlayer/elements-demo`](./packages/demo) | Demo application | — |
 

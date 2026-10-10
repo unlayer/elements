@@ -1,0 +1,1026 @@
+import { describe, expect, it } from "vitest";
+import fs from "node:fs";
+import path from "node:path";
+import React from "react";
+import { renderToHtml, renderToJson } from "@unlayer/react-elements";
+import { Column, Row, Section, Tailwind, Text } from "@react-email/components";
+import { compareText, convertReactEmail, convertSource, expand, htmlWords, verifyConversion } from "../src/index";
+import { htmlAttributes } from "@unlayer/convert-core";
+import { color } from "../src/styles";
+
+const fixtures = path.join(import.meta.dirname, "fixtures");
+const TEMPLATES = ["welcome", "receipt", "weekly-digest"];
+
+describe.each(TEMPLATES)("%s", (name) => {
+  it("runtime mode: TSX and design JSON", async () => {
+    const { default: Template } = await import(path.join(fixtures, `${name}.tsx`));
+    const conversion = await convertReactEmail(Template);
+    expect(conversion.report.nativeRatio).toBe(1);
+    await expect(await conversion.tsx()).toMatchFileSnapshot(`__snapshots__/${name}.runtime.tsx.snap`);
+    await expect(JSON.stringify(conversion.design(), null, 2)).toMatchFileSnapshot(`__snapshots__/${name}.runtime.design.json.snap`);
+  });
+
+  it("codemod mode: TSX that renders with the template's own props", async () => {
+    const result = await convertSource(fs.readFileSync(path.join(fixtures, `${name}.tsx`), "utf8"), { fileName: `${name}.tsx` });
+    expect(result.report.nativeRatio).toBe(1);
+    expect(result.code).toContain('from "@unlayer/react-elements"');
+    expect(result.code).not.toContain("@react-email/components");
+    await expect(result.code).toMatchFileSnapshot(`__snapshots__/${name}.codemod.tsx.snap`);
+
+    // The migrated component still takes the template's props.
+    const dir = fs.mkdtempSync(path.join(import.meta.dirname, ".tmp-"));
+    try {
+      const file = path.join(dir, `${name}.tsx`);
+      fs.writeFileSync(file, result.code);
+      const { default: Migrated } = await import(file);
+      const design = renderToJson(Migrated(Migrated.PreviewProps));
+      expect(design.body.rows.length).toBeGreaterThan(1);
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
+  });
+});
+
+describe("codemod keeps logic", () => {
+  it("converts JSX inside loops and conditions, keeping keys", async () => {
+    const result = await convertSource(fs.readFileSync(path.join(fixtures, "receipt.tsx"), "utf8"));
+    expect(result.code).toContain("{items.map((item) => (");
+    expect(result.code).toContain("<Row key={item.name}");
+    expect(result.code).toMatch(/\{item\.description \? \(\s*<Paragraph/);
+    expect(result.code).toContain("ReceiptEmail.PreviewProps");
+  });
+
+  it("inlines same-file components, and keeps what it can't map as HTML, reported", async () => {
+    const source = `
+      import { Html, Body, Container, Text } from "@react-email/components";
+      import { useMemo } from "react";
+      const Badge = ({ label }: { label: string }) => <span>{label}</span>;
+      const Stamp = ({ label }: { label: string }) => {
+        const upper = useMemo(() => label.toUpperCase(), [label]);
+        return <div style={{ border: "1px solid red" }}>{upper}</div>;
+      };
+      export default function T({ name }: { name: string }) {
+        return (
+          <Html><Body><Container>
+            <Text>Hi {name} <Badge label="new" /></Text>
+            <Stamp label="paid" />
+          </Container></Body></Html>
+        );
+      }`;
+    const result = await convertSource(source);
+    // Badge returns plain JSX: inlined. Stamp uses a hook: kept, rendered to HTML.
+    expect(result.report.info).toContainEqual({ reason: "local component inlined where it's used", detail: "Badge" });
+    expect(result.report.fallbacks).toEqual([{ reason: "custom component", detail: "Stamp" }]);
+    expect(result.code).toMatch(/renderToStaticMarkup\(\s*<div style=\{\{ fontSize: "medium" \}\}>\s*<Stamp label="paid" \/>/);
+    expect(result.code).toMatch(/<span>\$\{escapeHtml\(String\("new"\)\)\}<\/span>|<span>new<\/span>/);
+    expect(result.code).not.toContain("const Badge");
+  });
+});
+
+describe("runtime details", () => {
+  it("keeps Sections, Rows and Columns through <Tailwind>", async () => {
+    const nodes = await expand(
+      React.createElement(
+        Tailwind,
+        null,
+        React.createElement(Section, { className: "bg-white" }, React.createElement(Row, null, React.createElement(Column, { className: "w-1/2" }, React.createElement(Text, { className: "text-red-500" }, "x"))))
+      )
+    );
+    const section = nodes[0] as any;
+    expect(section.name).toBe("Section");
+    expect(section.props.style.backgroundColor).toMatch(/255/);
+    expect(section.children[0].name).toBe("Row");
+    expect(section.children[0].children[0].name).toBe("Column");
+  });
+
+  it("writes colors as hex (the exporters mangle rgb())", () => {
+    expect(color("rgb(255,255,255)")).toBe("#ffffff");
+    expect(color("rgb(54 65 83)")).toBe("#364153");
+    expect(color("rgba(0, 0, 0, 0.5)")).toBe("rgba(0, 0, 0, 0.5)");
+    expect(color("#abc")).toBe("#abc");
+  });
+});
+
+describe("react-email package", () => {
+  it("imports kept blocks from the package the template imported them from, types as types", async () => {
+    const source = `import { Html, Body, Img, Text, pixelBasedPreset, type TailwindConfig } from "react-email";
+const config: TailwindConfig = { presets: [pixelBasedPreset] };
+export default function Template() {
+  return <Html><Body><Text>Your receipt</Text><Img src="https://example.com/logo.png" alt="Logo" /></Body></Html>;
+}`;
+    const result = await convertSource(source);
+    expect(result.code).toContain('from "react-email"');
+    expect(result.code).not.toContain("@react-email/components");
+    expect(result.code).toMatch(/import \{ Img, type TailwindConfig, pixelBasedPreset \} from "react-email";/);
+  });
+
+  it("resolves classes with the template's own <Tailwind>", async () => {
+    const source = `import { Html, Body, Tailwind, Text } from "react-email";
+export default function Template() {
+  return <Html><Tailwind><Body><Text className="brand">Hello</Text></Body></Tailwind></Html>;
+}`;
+    // A stand-in for the template's Tailwind: it inlines .brand as red.
+    const Tailwind = ({ children }: { children: React.ReactElement[] }) =>
+      children.map((child) => (child.props as { className?: string }).className === "brand" ? React.cloneElement(child, { className: undefined, style: { color: "#ff0000" } } as object) : child);
+    const result = await convertSource(source, { tailwind: Tailwind });
+    expect(result.code).toContain('color="#ff0000"');
+  });
+});
+
+describe("computed styles", () => {
+  it("evaluates conditions it can know, and lists the values it can't", async () => {
+    const source = `import { Html, Body, Text } from "@react-email/components";
+const level = "h2";
+export default function Template({ tone }: { tone: string }) {
+  return <Html><Body>
+    <Text style={{ fontSize: level === "h1" ? 24 : 20, lineHeight: undefined ? "14px" : "26px" }}>Known</Text>
+    <Text style={{ color: tone, margin: 0 }}>Computed</Text>
+  </Body></Html>;
+}`;
+    const result = await convertSource(source);
+    expect(result.code).toContain('fontSize="20px"');
+    expect(result.code).toContain('lineHeight="26px"');
+    expect(result.report.lostStyles).toEqual(["line 6: color: tone"]);
+  });
+
+  it("treats a spread of undefined (an optional style prop left out) as nothing", async () => {
+    const source = `import { Html, Body, Text } from "@react-email/components";
+export default function Template() {
+  return <Html><Body><Text style={{ fontSize: 18, ...(undefined), ...null }}>Hello</Text></Body></Html>;
+}`;
+    const result = await convertSource(source);
+    expect(result.report.lostStyles).toBeUndefined();
+    expect(result.code).toContain('fontSize="18px"');
+  });
+});
+
+describe("head <style> rules", () => {
+  // Text sets 14px inline, so the rule's 24px doesn't apply; its color does, and so does the !important phone size.
+  const css = `.copy { color: #fff; font-size: 24px } @media (max-width: 600px) { .copy { font-size: 18px !important } } .note > a { color: red }`;
+  const source = `import { Html, Head, Body, Text } from "@react-email/components";
+export default function Template() {
+  return <Html><Head><style>{\`${css}\`}</style></Head><Body style={{ backgroundColor: "#000000" }}><Text className="copy" style={{ margin: 0 }}>Code 482913</Text></Body></Html>;
+}`;
+
+  it("codemod: applies rules on a class where they'd win, phone rules too, and reports the rest", async () => {
+    const result = await convertSource(source);
+    expect(result.code).toMatch(/color="#fff(fff)?"/);
+    expect(result.code).toContain('fontSize="14px"');
+    expect(result.code).toMatch(/mobile=\{\{[^}]*fontSize: "18px"/);
+    expect(result.report.notes).toContainEqual({ reason: "head style rule not converted", detail: ".note > a" });
+  });
+
+  it("runtime: the same", async () => {
+    const { Html, Head, Body, Text } = await import("@react-email/components");
+    const h = React.createElement;
+    const Template = () =>
+      h(Html, null, h(Head, null, h("style", null, css)), h(Body, { style: { backgroundColor: "#000000" } }, h(Text, { className: "copy", style: { margin: 0 } }, "Code 482913")));
+    const conversion = await convertReactEmail(Template);
+    const paragraph = JSON.stringify(conversion.tree);
+    expect(paragraph).toContain('"fontSize":"14px"');
+    expect(paragraph).toContain('"fontSize":"18px"');
+    expect(paragraph).toMatch(/"color":"#fff(fff)?"/);
+    expect(conversion.report.notes).toContainEqual({ reason: "head style rule not converted", detail: ".note > a" });
+  });
+});
+
+describe("image height", () => {
+  it("reports a height it can't keep", async () => {
+    const source = `import { Html, Body, Img } from "@react-email/components";
+export default function Template() { return <Html><Body><Img src="https://example.com/square.png" width={80} height={20} alt="Strip" /></Body></Html>; }`;
+    const result = await convertSource(source);
+    expect(result.report.notes).toContainEqual({ reason: "image height not kept (the image keeps its file's aspect ratio)", detail: "80×20px" });
+  });
+});
+
+describe("visibility: hidden", () => {
+  const source = `import { Html, Body, Text } from "@react-email/components";
+export default function Template() {
+  return <Html><Body><Text>Shown</Text><Text style={{ visibility: "hidden" }}>Secret</Text></Body></Html>;
+}`;
+
+  it("stays hidden in both modes", async () => {
+    const codemod = await convertSource(source);
+    expect(codemod.report.fallbacks).toContainEqual({ reason: "hidden element" });
+    expect(codemod.code).toMatch(/visibility(:|: )"?hidden/);
+    const { Html, Body, Text } = await import("@react-email/components");
+    const h = React.createElement;
+    const Template = () => h(Html, null, h(Body, null, h(Text, null, "Shown"), h(Text, { style: { visibility: "hidden" } }, "Secret")));
+    const html = (await convertReactEmail(Template)).html();
+    expect(html).toMatch(/visibility:\s*hidden[^>]*>Secret/);
+  });
+});
+
+describe("image max-width", () => {
+  it("shows a percent-wide image at its max-width", async () => {
+    const source = `import { Html, Body, Img } from "@react-email/components";
+export default function Template() { return <Html><Body><Img src="https://example.com/a.png" width="100%" style={{ maxWidth: "300px" }} alt="A" /></Body></Html>; }`;
+    const result = await convertSource(source);
+    expect(result.code).toContain('width="300px"');
+  });
+});
+
+describe("phone rules", () => {
+  it("reads every way of writing a phone media query", async () => {
+    const { isPhoneQuery, phoneStyles } = await import("../src/tailwind");
+    for (const query of ["(max-width: 600px)", "(480px>=width)", "(width <= 480px)", "(width<30rem)", "only screen and (max-device-width: 480px)"]) expect(isPhoneQuery(query), query).toBe(true);
+    for (const query of ["(min-width: 481px)", "(width >= 481px)", "(481px<=width)", "(320px <= width <= 480px)", "print"]) expect(isPhoneQuery(query), query).toBe(false);
+    expect(phoneStyles("@media (480px>=width){.mobile_text-14px{font-size:14px!important}}").get("mobile_text-14px")).toEqual({ fontSize: "14px" });
+    expect(phoneStyles("@media (max-width: 600px) { /* phones */ .small { font-size: 12px } }").get("small")).toEqual({ fontSize: "12px" });
+  });
+
+  const css = "@media (max-width: 600px) { .phone-only { display: block !important } }";
+  const source = `import { Html, Head, Body, Section, Text } from "@react-email/components";
+export default function Template() {
+  return <Html><Head><style>{"${css}"}</style></Head><Body>
+    <Text>Everywhere</Text>
+    <Text className="phone-only" style={{ display: "none" }}>Phones only</Text>
+    <Section className="phone-only" style={{ display: "none" }}><Text>Phone section</Text></Section>
+  </Body></Html>;
+}`;
+
+  it("codemod: content a phone rule shows becomes a block hidden on desktop; a box is reported", async () => {
+    const result = await convertSource(source);
+    expect(result.code).toMatch(/<Paragraph[^>]*hideOnDesktop[^>]*>\s*Phones only/);
+    expect(result.report.notes).toContainEqual({ reason: "content shown only on phones stays hidden there", detail: "Section" });
+  });
+
+  it("runtime: the same", async () => {
+    const { Html, Head, Body, Section, Text } = await import("@react-email/components");
+    const h = React.createElement;
+    const Template = () => h(Html, null, h(Head, null, h("style", null, css)), h(Body, null,
+      h(Text, null, "Everywhere"),
+      h(Text, { className: "phone-only", style: { display: "none" } }, "Phones only"),
+      h(Section, { className: "phone-only", style: { display: "none" } }, h(Text, null, "Phone section"))));
+    const conversion = await convertReactEmail(Template);
+    expect(JSON.stringify(conversion.tree)).toMatch(/"hideOnDesktop":true[^}]*/);
+    expect(conversion.report.notes).toContainEqual({ reason: "content shown only on phones stays hidden there", detail: "Section" });
+  });
+});
+
+describe("HTML block text size", () => {
+  it("shows <code> at the browser's monospace size, as the original does", async () => {
+    const source = `import { Html, Body, Text } from "@react-email/components";
+export default function Template({ code }: { code: string }) {
+  return <Html><Body><Text>Your code:</Text><code style={{ display: "inline-block", padding: "16px" }}>{code}</code></Body></Html>;
+}
+Template.PreviewProps = { code: "SPARO-NDIGO-AMURT-SECAN" };`;
+    const result = await convertSource(source);
+    expect(result.code).toMatch(/fontSize="13px"\s*html=\{`<code/);
+  });
+});
+
+describe("tables kept as HTML", () => {
+  // A raw <table> isn't converted: it's kept, inside a box that sets the text color.
+  const source = `import { Html, Body, Section } from "@react-email/components";
+export default function Template() {
+  return <Html><Body><Section style={{ color: "#333333", fontSize: "12px" }}>
+    <table><tbody><tr><td>18 Jan 2023</td></tr></tbody></table>
+  </Section></Body></Html>;
+}`;
+
+  it("keep the color around them over the email's `table, td` color (both modes)", async () => {
+    const { renderToHtml } = await import("@unlayer/react-elements");
+    const fs = await import("node:fs");
+    const path = await import("node:path");
+    const dir = fs.mkdtempSync(path.join(import.meta.dirname, ".tmp-tables-"));
+    try {
+      const file = path.join(dir, "migrated.tsx");
+      fs.writeFileSync(file, (await convertSource(source)).code);
+      const { default: Migrated } = await import(file);
+      const codemod = renderToHtml(React.createElement(Migrated));
+      expect(codemod).toMatch(/<table style="color:#333333;border-collapse:separate"/);
+      expect(codemod).toMatch(/<td style="color:#333333">18 Jan 2023/);
+      const original = path.join(dir, "original.tsx");
+      fs.writeFileSync(original, source);
+      const { default: Original } = await import(original);
+      const runtime = (await convertReactEmail(Original)).html();
+      expect(runtime).toMatch(/<td style="color:#333333">18 Jan 2023/);
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("say the browser's table and paragraph defaults the editor's export resets (both modes)", async () => {
+    // The editor's export sets `table, td, tr { border-collapse: collapse }` and
+    // `p { margin: 0 }`. Under collapse a table loses its padding, rounded
+    // corners and cell spacing, and shows borders set on its rows.
+    const kept = `import { Html, Body, Section, Row, Column, Text } from "@react-email/components";
+export default function Template() {
+  return <Html><Body><Section><Row>
+    <Column><Text>IDEAS!</Text><Section style={{ padding: "20px", borderRadius: "10px", backgroundColor: "#fff4c8", border: "1px solid #f4d247" }}><Text>Ideas</Text></Section></Column>
+    <Column><Text>RESOURCES!</Text><Section style={{ padding: "20px", backgroundColor: "#d7f3fb", border: "1px solid #91d8ec", borderCollapse: "collapse" }}><Text>Resources</Text></Section></Column>
+  </Row></Section>
+  <Section><table><tbody><tr style={{ borderBottom: "1px solid #eaeaea" }}><td><p>Billing</p><p style={{ marginTop: "0" }}>Street</p><p style={{ margin: "4px 0" }}>Town</p></td></tr></tbody></table></Section>
+  </Body></Html>;
+}`;
+    const dir = fs.mkdtempSync(path.join(import.meta.dirname, ".tmp-tables-"));
+    try {
+      const file = path.join(dir, "migrated.tsx");
+      const converted = await convertSource(kept);
+      expect(converted.code).toContain("box with a background or border inside a column");
+      fs.writeFileSync(file, converted.code);
+      const { default: Migrated } = await import(file);
+      const original = path.join(dir, "original.tsx");
+      fs.writeFileSync(original, kept);
+      const { default: Original } = await import(original);
+      for (const html of [renderToHtml(React.createElement(Migrated)), (await convertReactEmail(Original)).html()]) {
+        const tableBefore = (word: string) => (html.slice(0, html.indexOf(word)).match(/<table\b[^>]*>/g) ?? []).pop() ?? "";
+        expect(tableBefore("Ideas")).toMatch(/style="[^"]*padding:20px[^"]*;border-collapse:separate"/);
+        expect(tableBefore("Billing")).toMatch(/style="border-collapse:separate"/);
+        // A table that sets its own border-collapse keeps it.
+        expect(tableBefore("Resources")).toMatch(/border-collapse:collapse/);
+        expect(tableBefore("Resources")).not.toMatch(/separate/);
+        expect(html.match(/<td\b[^>]*border-collapse:separate/g)).toBeNull();
+        // A paragraph's margins: the sides it doesn't set.
+        expect(html).toContain('<p style="margin-top:1em;margin-bottom:1em">Billing</p>');
+        expect(html).toContain('<p style="margin-top:0;margin-bottom:1em">Street</p>');
+        expect(html).toContain('<p style="margin:4px 0">Town</p>');
+      }
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
+  });
+});
+
+describe("head <style> rules and React Email's inline styles", () => {
+  it("lets the component's own inline style win, unless the rule is !important", async () => {
+    const source = `import { Html, Head, Body, Text } from "@react-email/components";
+export default function Template() {
+  return <Html><Head><style>{".copy { font-size: 24px; color: #ff0000; margin: 0 20px } .big { font-size: 30px !important }"}</style></Head><Body>
+    <Text className="copy">Inline wins</Text>
+    <Text className="big">Important wins</Text>
+  </Body></Html>;
+}`;
+    const result = await convertSource(source);
+    const inlineWins = /<Paragraph([^>]*)>\s*Inline wins/.exec(result.code)?.[1] ?? "";
+    expect(inlineWins).toContain('fontSize="14px"');
+    expect(inlineWins).toContain('color="#ff0000"');
+    expect(result.code).toMatch(/<Paragraph[^>]*fontSize="30px"[^>]*>\s*Important wins/);
+  });
+
+  it("lets an !important rule win over the template's own inline style too (both modes)", async () => {
+    const source = `import { Html, Head, Body, Text } from "@react-email/components";
+export default function Template() {
+  return <Html><Head><style>{".notice { color: #ff0000 !important; font-size: 40px !important; margin: 0 20px !important } .soft { color: #00ff00 }"}</style></Head><Body>
+    <Text className="notice" style={{ color: "#ffffff", fontSize: 14, marginTop: 30 }}>Important notice</Text>
+    <Text className="soft" style={{ color: "#0000ff" }}>Inline wins</Text>
+  </Body></Html>;
+}`;
+    const codemod = await convertSource(source);
+    const notice = /<Paragraph([^>]*)>\s*Important notice/.exec(codemod.code)?.[1] ?? "";
+    expect(notice).toContain('color="#ff0000"');
+    expect(notice).toContain('fontSize="40px"');
+    expect(notice).toContain('containerPadding="0px 20px 0px 20px"');
+    expect(codemod.code).toMatch(/<Paragraph[^>]*color="#0000ff"[^>]*>\s*Inline wins/);
+    const dir = fs.mkdtempSync(path.join(import.meta.dirname, ".tmp-"));
+    try {
+      fs.writeFileSync(path.join(dir, "t.tsx"), source);
+      const { default: Template } = await import(path.join(dir, "t.tsx"));
+      const design = JSON.stringify((await convertReactEmail(Template)).design());
+      expect(design).toContain('"color":"#ff0000"');
+      expect(design).toContain('"fontSize":"40px"');
+      expect(design).toContain('"color":"#0000ff"');
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
+  });
+});
+
+describe("names the migrated file no longer reads", () => {
+  it("removes constants, components and imports whose values were written in, and keeps the rest", async () => {
+    const dir = fs.mkdtempSync(path.join(import.meta.dirname, ".tmp-"));
+    try {
+      fs.writeFileSync(path.join(dir, "theme.ts"), `export const brand = "#0055ff";\n`);
+      const source = `import { Html, Body, Container, Text, Heading as EmailHeading } from "@react-email/components";
+import { brand } from "./theme";
+const paragraphStyle = { fontSize: "16px", color: brand };
+const main = { backgroundColor: "#ffffff" };
+const neverRead = { color: "red" };
+const started = Date.now();
+const defaultName = "Ada";
+function Footer() {
+  return <Text style={paragraphStyle}>The team</Text>;
+}
+const Heading = ({ children }: { children: string }) => <EmailHeading as="h2">{children}</EmailHeading>;
+export default function Template({ name = defaultName }: { name?: string }) {
+  return (<Html><Body style={main}><Container>
+    <Heading>Welcome</Heading>
+    <Text style={paragraphStyle}>Hi {name}</Text>
+    <Footer />
+  </Container></Body></Html>);
+}
+console.log(started);`;
+      const file = path.join(dir, "template.tsx");
+      const result = await convertSource(source, { fileName: file });
+      // Written into the props: gone, with the import only they read.
+      expect(result.code).not.toMatch(/const paragraphStyle|const main\b|function Footer|const Heading|from "\.\/theme"/);
+      // Never read by the template, a value with side effects, or still read: kept.
+      expect(result.code).toContain("const neverRead");
+      expect(result.code).toContain("const started = Date.now()");
+      expect(result.code).toContain('const defaultName = "Ada"');
+      // The migrated file still renders.
+      fs.writeFileSync(file, result.code);
+      const { default: Migrated } = await import(file);
+      expect(JSON.stringify(renderToJson(Migrated({ name: "Ada" })))).toContain("The team");
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
+  });
+});
+
+describe("loops", () => {
+  // The gaps between content blocks, top to bottom, in a migrated template's design.
+  const gaps = async (source: string) => {
+    const dir = fs.mkdtempSync(path.join(import.meta.dirname, ".tmp-"));
+    try {
+      const file = path.join(dir, "template.tsx");
+      fs.writeFileSync(file, (await convertSource(source, { fileName: file })).code);
+      const { default: Migrated } = await import(file);
+      const design = renderToJson(Migrated({}));
+      const blocks = design.body.rows.flatMap((row: any) => row.columns.flatMap((column: any) => [
+        { padding: column.values.padding ?? "0px" },
+        ...column.contents.map((content: any) => ({ padding: content.values.containerPadding ?? "0px", text: content.values.text })),
+      ]));
+      const px = (css: string, side: number) => { const v = css.split(/\s+/).map((x) => parseFloat(x) || 0); return [v[0], v[1] ?? v[0], v[2] ?? v[0], v[3] ?? v[1] ?? v[0]][side]; };
+      const out: number[] = [];
+      let space = 0;
+      for (const block of blocks) {
+        if (block.text === undefined) { space += px(block.padding, 0); continue; }
+        out.push(space + px(block.padding, 0));
+        space = px(block.padding, 2);
+      }
+      return [...out, space];
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
+  };
+  const template = (items: string) => `import { Html, Body, Container, Heading, Text } from "@react-email/components";
+const items = ["One", "Two", "Three"];
+export default function Template() {
+  return (<Html><Body><Container>
+    <Heading as="h2" style={{ margin: "0" }}>Title</Heading>
+    ${items}
+    <Text>After</Text>
+  </Container></Body></Html>);
+}`;
+
+  it.each([
+    ["margins like <Text>'s", `style={{ margin: "16px 0" }}`],
+    ["a larger bottom margin", `style={{ marginBottom: "40px" }}`],
+  ])("spaces items like the same blocks written out (%s)", async (_, style) => {
+    const loop = await gaps(template(`{items.map((item) => <Text key={item} ${style}>{item}</Text>)}`));
+    const written = await gaps(template(`<Text ${style}>One</Text><Text ${style}>Two</Text><Text ${style}>Three</Text>`));
+    expect(loop).toEqual(written);
+  });
+
+  it("spaces a loop first in its section like the blocks written out", async () => {
+    const first = (items: string) => template(items).replace(`<Heading as="h2" style={{ margin: "0" }}>Title</Heading>`, "");
+    const loop = await gaps(first(`{items.map((item) => <Text key={item} style={{ marginBottom: "40px" }}>{item}</Text>)}`));
+    const written = await gaps(first(`<Text style={{ marginBottom: "40px" }}>One</Text><Text style={{ marginBottom: "40px" }}>Two</Text><Text style={{ marginBottom: "40px" }}>Three</Text>`));
+    expect(loop).toEqual(written);
+  });
+
+  it("spaces a loop first in a column like the blocks written out", async () => {
+    const inColumn = (items: string) =>
+      template(items)
+        .replace(`<Heading as="h2" style={{ margin: "0" }}>Title</Heading>`, "")
+        .replace("Html, Body, Container,", "Html, Body, Container, Row, Column,")
+        .replace(`    ${items}\n`, `    <Row><Column>${items}</Column><Column><Text>Side</Text></Column></Row>\n`);
+    const loop = await gaps(inColumn(`{items.map((item) => <Text key={item}>{item}</Text>)}`));
+    const written = await gaps(inColumn(`<Text>One</Text><Text>Two</Text><Text>Three</Text>`));
+    expect(loop).toEqual(written);
+  });
+});
+
+describe("padding that isn't in px", () => {
+  const source = `import { Html, Body, Container, Section, Text } from "@react-email/components";
+export default function Template() {
+  return (<Html><Body><Container style={{ padding: "0 10%" }}>
+    <Text style={{ fontSize: "12px", padding: "0 2em" }}>Twelve</Text>
+    <Section style={{ padding: "1em" }}><Text>Inside</Text></Section>
+  </Container></Body></Html>);
+}`;
+
+  it("codemod: takes em at the element's own font size, and reports % and an em it can't size", async () => {
+    const result = await convertSource(source);
+    expect(result.code).toMatch(/containerPadding="0px 24px 0px 24px"[^>]*>\s*Twelve/);
+    const notes = result.report.notes.map((n) => n.detail);
+    expect(notes).toContain("padding: 0 10% (Container)");
+    expect(notes).toContain("padding: 1em (at 16px per em) (Section)");
+    expect(notes.join(" ")).not.toContain("0 2em");
+  });
+
+  it("runtime: the same", async () => {
+    const dir = fs.mkdtempSync(path.join(import.meta.dirname, ".tmp-"));
+    try {
+      const file = path.join(dir, "template.tsx");
+      fs.writeFileSync(file, source.replace("<Text>Inside</Text>", `<Text style={{ padding: "1em" }}>Inside</Text>`));
+      const { default: Template } = await import(file);
+      const conversion = await convertReactEmail(Template);
+      const notes = conversion.report.notes.map((n) => n.detail);
+      expect(notes).toContain("padding: 0 10% (Container)");
+      expect(notes).toContain("padding: 1em (at 16px per em) (text)");
+      expect(JSON.stringify(conversion.design())).toContain('"containerPadding":"0px 24px 0px 24px"');
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
+  });
+});
+
+describe("lost style lines", () => {
+  it("are the lines of the template as written, with components inlined above them", async () => {
+    const source = `import { Html, Body, Section, Text } from "@react-email/components";
+const Card = ({ title, tone }: { title: string; tone: string }) => (
+  <Section>
+    <Text style={{ color: tone }}>{title}</Text>
+  </Section>
+);
+export default function Template({ tone = "red", size = "14px" }: { tone?: string; size?: string }) {
+  return (
+    <Html>
+      <Body>
+        <Card title="One" tone={tone} />
+        <Text style={{ fontSize: size }}>Hi</Text>
+      </Body>
+    </Html>
+  );
+}`;
+    const result = await convertSource(source);
+    // Inside the component: where it's used. In the template: its own line.
+    expect(result.report.lostStyles).toEqual([expect.stringMatching(/^line 11: color/), "line 12: fontSize: size"]);
+  });
+});
+
+describe("namespace imports and templates that render nothing", () => {
+  const migrate = async (source: string) => {
+    const dir = fs.mkdtempSync(path.join(import.meta.dirname, ".tmp-"));
+    fs.writeFileSync(path.join(dir, "original.tsx"), source);
+    const file = path.join(dir, "migrated.tsx");
+    const result = await convertSource(source, { fileName: file });
+    fs.writeFileSync(file, result.code);
+    const { default: Original } = await import(path.join(dir, "original.tsx"));
+    const { default: Migrated } = await import(file);
+    fs.rmSync(dir, { recursive: true, force: true });
+    return { result, Original, Migrated };
+  };
+
+  it("converts `import * as Email` like named imports", async () => {
+    const { result, Original, Migrated } = await migrate(`import * as Email from "@react-email/components";
+const Text = "Signed, the team";
+export default function Template({ name = "Ada" }: { name?: string }) {
+  const style: Email.TextProps["style"] = { color: "#333333" };
+  return (<Email.Html><Email.Body><Email.Container>
+    <Email.Heading as="h2">Hi {name}</Email.Heading>
+    <Email.Text style={style}>{Text}</Email.Text>
+  </Email.Container></Email.Body></Email.Html>);
+}`);
+    expect(result.report.nativeRatio).toBe(1);
+    expect(result.code).not.toMatch(/Email\.|@react-email/);
+    const check = await verifyConversion(Original, Migrated);
+    expect([check.missing, check.added]).toEqual([[], []]);
+  });
+
+  it("checks a template that renders nothing for some props", async () => {
+    const { Original, Migrated } = await migrate(`import { Html, Body, Text } from "@react-email/components";
+export default function Template({ show = true, name = "Ada" }: { show?: boolean; name?: string }) {
+  if (!show) return null;
+  return (<Html><Body><Text>Hi {name}</Text></Body></Html>);
+}
+Template.PreviewProps = { show: true, name: "Ada" };`);
+    expect((await verifyConversion(Original, Migrated)).variants).toEqual([]);
+    // A migration that renders nothing where the original shows text fails.
+    const Always = (props: Record<string, unknown>) => Original({ ...props, show: true });
+    Always.PreviewProps = Original.PreviewProps;
+    const variants = (await verifyConversion(Always, Migrated)).variants;
+    expect(variants).toEqual([expect.objectContaining({ change: "show: false", missing: ["Hi", "Ada"] })]);
+  });
+});
+
+describe("module values", () => {
+  it("writes in a const, not a let that code can change", async () => {
+    const source = `import { Html, Body, Button } from "@react-email/components";
+let destination = "https://example.com/default";
+export function configure(url: string) { destination = url; }
+const fixed = "https://example.com/fixed";
+export default function Template() { return <Html><Body><Button href={destination}>Go</Button><Button href={fixed}>Fixed</Button></Body></Html>; }`;
+    const { code } = await convertSource(source);
+    expect(code).toContain("href={destination}");
+    expect(code).toContain('href="https://example.com/fixed"');
+  });
+});
+
+describe("text and links from props", () => {
+  const source = `import { Html, Body, Heading, Button, Text, Link, Img } from "@react-email/components";
+export default function Template({ title = "Welcome", name = "Ada", url = "https://example.com/start" }: { title?: string; name?: string; url?: string }) {
+  return (<Html><Body>
+    <Heading as="h2">{title}</Heading>
+    <Button href={url}>Hi {name}</Button>
+    <Button href={url}>Hi <strong>{name}</strong></Button>
+    <Text>Hello {name}</Text>
+    <Link href={url}><Img src="https://example.com/logo.png" alt="Logo" width="40" height="40" /></Link>
+  </Body></Html>);
+}
+Template.PreviewProps = { title: "Welcome", name: "Ada", url: "https://example.com/start" };`;
+  const hostile = { title: "<script>alert(1)</script> & co", name: '<img src=x onerror="alert(1)">', url: 'https://example.com/?a=1"><img src=y onerror="alert(2)">' };
+  const injected = (html: string) => /<script>alert|<img src=x|<img src=y/.test(html);
+
+  it("stay text, in both modes, as React Email escapes them", async () => {
+    const dir = fs.mkdtempSync(path.join(import.meta.dirname, ".tmp-"));
+    try {
+      fs.writeFileSync(path.join(dir, "original.tsx"), source);
+      const file = path.join(dir, "migrated.tsx");
+      fs.writeFileSync(file, (await convertSource(source, { fileName: file })).code);
+      const { default: Original } = await import(path.join(dir, "original.tsx"));
+      const { default: Migrated } = await import(file);
+      const { render } = await import("@react-email/components");
+      expect(injected(await render(React.createElement(Original, hostile)))).toBe(false);
+      const check = await verifyConversion(Original, Migrated, { props: hostile });
+      expect(injected(check.convertedHtml)).toBe(false);
+      expect([check.missing, check.added]).toEqual([[], []]);
+      const runtime = await convertReactEmail(Original, { props: hostile, mergeTags: false });
+      expect(injected(runtime.html())).toBe(false);
+      // The check gives text props markup itself: a migration that renders one as HTML fails.
+      expect(check.variants).toEqual([]);
+      const { Email, Row, Column, Heading } = await import("@unlayer/react-elements");
+      const Unsafe = (p: { title: string }) => React.createElement(Email, null, React.createElement(Row, null, React.createElement(Column, null, React.createElement(Heading, { text: p.title }))));
+      const OnlyTitle = (p: { title: string }) => Original({ ...p, name: "", url: "" });
+      OnlyTitle.PreviewProps = { title: "Welcome" };
+      const unsafe = await verifyConversion(OnlyTitle as any, Unsafe as any);
+      expect(unsafe.variants).toEqual([expect.objectContaining({ change: "text props with markup" })]);
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
+  });
+});
+
+describe("values computed from props the codemod can't keep", () => {
+  it("fail the check for a heading level, an image width and classes built from values", async () => {
+    const source = `import { Html, Body, Heading, Img, Text, Tailwind } from "@react-email/components";
+export default function Template({ level = "h3", logo = 64, tone = "red", quiet = true }: { level?: "h1" | "h2" | "h3"; logo?: number; tone?: string; quiet?: boolean }) {
+  return (<Html><Tailwind><Body>
+    <Heading as={level}>Title</Heading>
+    <Img src="https://example.com/logo.png" width={logo} height={logo} alt="Logo" />
+    <Text className={\`text-\${tone}-500\`}>Toned</Text>
+    <Text className={quiet ? undefined : "mb-9"}>Plain</Text>
+  </Body></Tailwind></Html>);
+}`;
+    const { report } = await convertSource(source);
+    expect(report.lostStyles).toEqual(expect.arrayContaining([expect.stringMatching(/as=\{level\}/), expect.stringMatching(/width=\{logo\}/), expect.stringMatching(/className=\{`text-\$\{tone\}-500`\}/)]));
+    // A class list that is a value or nothing (`quiet ? undefined : "mb-9"`) is kept: one element per class list.
+    expect(report.lostStyles?.some((s) => s.includes("mb-9"))).toBe(false);
+  });
+});
+
+describe("color: inherit", () => {
+  it("is the color around it, in both modes", async () => {
+    const source = `import { Html, Body, Section, Text } from "@react-email/components";
+export default function Template() {
+  return <Html><Body style={{ backgroundColor: "#000000", color: "#ffffff" }}><Section style={{ backgroundColor: "#000000" }}><Text style={{ color: "inherit" }}>Footer</Text></Section></Body></Html>;
+}`;
+    const { code } = await convertSource(source);
+    expect(code).toMatch(/<Paragraph[^>]*color="#ffffff"[^>]*>\s*Footer/);
+    expect(code).not.toContain('color="inherit"');
+    const dir = fs.mkdtempSync(path.join(import.meta.dirname, ".tmp-"));
+    try {
+      fs.writeFileSync(path.join(dir, "t.tsx"), source);
+      const { default: Template } = await import(path.join(dir, "t.tsx"));
+      const design = JSON.stringify((await convertReactEmail(Template)).design());
+      expect(design).not.toContain('"color":"inherit"');
+      expect(design).toContain('"color":"#ffffff"');
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
+  });
+});
+
+/** A template in both modes: the codemod's result and migrated component, and the runtime conversion. */
+async function bothModes(source: string) {
+  const dir = fs.mkdtempSync(path.join(import.meta.dirname, ".tmp-"));
+  try {
+    fs.writeFileSync(path.join(dir, "original.tsx"), source);
+    const file = path.join(dir, "migrated.tsx");
+    const result = await convertSource(source, { fileName: file });
+    fs.writeFileSync(file, result.code);
+    const { default: Original } = await import(path.join(dir, "original.tsx"));
+    const { default: Migrated } = await import(file);
+    const runtime = await convertReactEmail(Original, { mergeTags: false });
+    return { result, runtime, Original, Migrated };
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+}
+
+describe("content shown only on phones", () => {
+  it("passes the check: a block hidden on desktop isn't read there, in either mode", async () => {
+    const css = "@media (max-width: 600px) { .phone-only { display: block !important } }";
+    const sources = [
+      `import { Html, Head, Body, Text } from "@react-email/components";
+export default function Template() {
+  return <Html><Head><style>{"${css}"}</style></Head><Body><Text>Everywhere</Text><Text className="phone-only" style={{ display: "none" }}>Phone version</Text></Body></Html>;
+}`,
+      `import { Html, Head, Body, Text, Tailwind } from "@react-email/components";
+export default function Template() {
+  return <Tailwind config={{ theme: { extend: { screens: { mobile: { max: "480px" } } } } }}><Html><Head /><Body><Text>Everywhere</Text><Text className="hidden mobile:block">Phone version</Text></Body></Html></Tailwind>;
+}`,
+    ];
+    for (const source of sources) {
+      const { result, runtime, Original, Migrated } = await bothModes(source);
+      expect(result.code).toMatch(/<Paragraph[^>]*hideOnDesktop[^>]*>\s*Phone version/);
+      const check = await verifyConversion(Original, Migrated);
+      expect([check.missing, check.added]).toEqual([[], []]);
+      expect(compareText(check.originalHtml, runtime.html())).toMatchObject({ missing: [], added: [] });
+    }
+  });
+});
+
+describe("a gradient page background", () => {
+  it("fills the page with the gradient's color, and notes a gradient it can't show, in both modes", async () => {
+    const template = (background: string) => `import { Html, Body, Text } from "@react-email/components";
+export default function Template() {
+  return <Html><Body style={{ background: "${background}", color: "#ffffff" }}><Text>Dark mode</Text></Body></Html>;
+}`;
+    const cases: Array<[string, string, string | undefined]> = [
+      ["linear-gradient(#111111, #111111)", "#111111", undefined],
+      ["linear-gradient(to bottom, #111111, #333333)", "#111111", "background gradient (Body, filled with #111111)"],
+      ["linear-gradient(rgba(0, 0, 0, 0), #000000)", "#ffffff", "background gradient (Body, filled with #ffffff)"],
+      ["linear-gradient(var(--dark), #000000)", "#ffffff", "background gradient (Body, filled with #ffffff)"],
+    ];
+    for (const [background, fill, note] of cases) {
+      const { result, runtime } = await bothModes(template(background));
+      expect(result.code).toContain(`<Email backgroundColor="${fill}"`);
+      expect(runtime.tree.props?.backgroundColor).toBe(fill);
+      for (const report of [result.report, runtime.report]) {
+        expect(report.notes.filter((n) => n.reason === "style not converted")).toEqual(note ? [{ reason: "style not converted", detail: note }] : []);
+      }
+    }
+  });
+});
+
+describe("right-to-left templates", () => {
+  const template = (dir: string) => `import { Html, Body, Heading, Text, Button, Img } from "@react-email/components";
+export default function Template() {
+  return <Html lang="ar" ${dir}><Body>
+    <Heading>مرحبا</Heading>
+    <Text>نص</Text>
+    <Text style={{ textAlign: "left" }}>Left</Text>
+    <Text style={{ textAlign: "center" }}>Center</Text>
+    <Button href="https://example.com">زر</Button>
+    <Img src="https://example.com/a.png" width={100} alt="صورة" />
+  </Body></Html>;
+}`;
+  const aligns = (design: any) => design.body.rows.flatMap((row: any) => row.columns.flatMap((column: any) => column.contents.map((content: any) => content.values.textAlign)));
+
+  it("start text, buttons and images on the right where the template sets no alignment, in both modes", async () => {
+    const { runtime, Migrated } = await bothModes(template('dir="rtl"'));
+    for (const design of [renderToJson(Migrated({})), runtime.design()]) {
+      expect(aligns(design)).toEqual(["right", "right", "left", "center", "right", "right"]);
+    }
+  });
+
+  it("align from `dir` when it comes from props or a condition, in the migrated code", async () => {
+    const template = (dir: string) => `import { Html, Body, Heading, Text, Button, Img } from "@react-email/components";
+export default function Template({ direction = "rtl", locale = "ar" }: { direction?: string; locale?: string }) {
+  return <Html lang={locale} dir={${dir}}><Body>
+    <Heading>مرحبا</Heading>
+    <Text>نص</Text>
+    <Text style={{ textAlign: "left" }}>Left</Text>
+    <Text style={{ textAlign: "center" }}>Center</Text>
+    <Button href="https://example.com">زر</Button>
+    <Img src="https://example.com/a.png" width={100} alt="صورة" />
+  </Body></Html>;
+}
+Template.PreviewProps = { direction: "rtl", locale: "ar" };`;
+    for (const dir of ["direction", `locale === "ar" ? "rtl" : "ltr"`]) {
+      const { result, Original, Migrated } = await bothModes(template(dir));
+      // A name is used where it is; an expression is worked out once, before the return.
+      if (dir === "direction") expect(result.code).toContain('textAlign={direction === "rtl" ? "right" : "left"}');
+      else expect(result.code).toMatch(/const textDirection = locale === "ar" \? "rtl" : "ltr";\s+return[\s\S]*textDirection=\{textDirection\}[\s\S]*textAlign=\{textDirection === "rtl" \? "right" : "left"\}/);
+      expect(aligns(renderToJson(Migrated({ direction: "rtl", locale: "ar" })))).toEqual(["right", "right", "left", "center", "right", "right"]);
+      expect(aligns(renderToJson(Migrated({ direction: "ltr", locale: "en" })))).toEqual(["left", "left", "left", "center", "left", "left"]);
+      const check = await verifyConversion(Original, Migrated);
+      expect([check.missing, check.added]).toEqual([[], []]);
+    }
+  });
+
+  it("keeps a `dir` expression where it is when the email is one branch of a condition", async () => {
+    const { result, Migrated } = await bothModes(`import { Html, Body, Text } from "@react-email/components";
+export default function Template({ lang }: { lang?: { dir: string } }) {
+  return lang ? <Html dir={lang.dir === "rtl" ? "rtl" : "ltr"}><Body><Text>نص</Text></Body></Html> : <Html><Body><Text>Text</Text></Body></Html>;
+}
+Template.PreviewProps = { lang: { dir: "rtl" } };`);
+    expect(result.code).not.toContain("const textDirection");
+    expect(aligns(renderToJson(Migrated({ lang: { dir: "rtl" } })))).toEqual(["right"]);
+    expect(aligns(renderToJson(Migrated({})))).toEqual(["left"]);
+  });
+
+  it("leaves left-to-right templates as they were", async () => {
+    const { runtime, Migrated } = await bothModes(template(""));
+    for (const design of [renderToJson(Migrated({})), runtime.design()]) {
+      expect(aligns(design)).toEqual(["left", "left", "left", "center", "left", "left"]);
+    }
+  });
+});
+
+describe("components imported through a re-export file", () => {
+  it("are inlined from the module that declares them", async () => {
+    const files: Record<string, string> = {
+      "/project/emails/Shell.tsx": `import { Html, Body, Container } from "@react-email/components";
+export default function Shell({ children }: { children?: React.ReactNode }) { return <Html><Body><Container>{children}</Container></Body></Html>; }`,
+      "/project/components/index.ts": `import Shell from "../emails/Shell";\nexport { Shell };\nexport * from "./footer";\n`,
+      "/project/components/footer.tsx": `import { Text } from "@react-email/components";\nexport function Footer() { return <Text>Sent by Acme</Text>; }`,
+    };
+    const loadModule = (specifier: string, from: string) => {
+      const file = path.resolve(path.dirname(from), specifier);
+      const found = ["", ".tsx", ".ts", "/index.ts"].map((ext) => file + ext).find((name) => files[name]);
+      return found ? { fileName: found, source: files[found] } : undefined;
+    };
+    const result = await convertSource(`import { Text } from "@react-email/components";
+import { Shell, Footer } from "../components";
+export default function Welcome() { return <Shell><Text>Welcome aboard</Text><Footer /></Shell>; }`, { fileName: "/project/emails/welcome.tsx", loadModule });
+    expect(result.report.nativeRatio).toBe(1);
+    expect(result.code).toMatch(/<Paragraph[^>]*>\s*Welcome aboard/);
+    expect(result.code).toMatch(/<Paragraph[^>]*>\s*Sent by Acme/);
+    expect(result.code).not.toContain("../components");
+  });
+});
+
+describe("a heading's line height", () => {
+  it("is inherited, as in the browser: a number scales with the heading, % and em are worked out where they're set", async () => {
+    const template = (body: string, heading = "") => `import { Html, Body, Heading } from "@react-email/components";
+export default function Template() {
+  return <Html><Body style={{ ${body} }}><Heading style={{ fontSize: "60px"${heading} }}>Big title</Heading></Body></Html>;
+}`;
+    const lineHeight = (design: any) => design.body.rows[0].columns[0].contents[0].values.lineHeight;
+    const cases: Array<[string, string, string]> = [
+      ["lineHeight: 2", "", "2"],
+      ['fontSize: "16px", lineHeight: "150%"', "", "24px"],
+      ['fontSize: "20px", lineHeight: "1.2em"', "", "24px"],
+      ['lineHeight: "20px"', "", "20px"],
+      ["lineHeight: 2", ', lineHeight: "1.1"', "1.1"],
+      ['color: "#000000"', "", "normal"],
+    ];
+    for (const [body, heading, expected] of cases) {
+      const { runtime, Migrated } = await bothModes(template(body, heading));
+      expect([lineHeight(renderToJson(Migrated({}))), lineHeight(runtime.design())], body + heading).toEqual([expected, expected]);
+    }
+  });
+});
+
+describe("link targets and attributes", () => {
+  const targetOf = (html: string, href: string) => new RegExp(`<a\\b[^>]*href="${href}"[^>]*>`).exec(html)?.[0].match(/target="([^"]*)"/)?.[1];
+
+  it("keeps a link's and a button's target, and opens the others in a new tab, in both modes", async () => {
+    const { runtime, Migrated } = await bothModes(`import { Html, Body, Text, Link, Button } from "@react-email/components";
+export default function Template() {
+  return <Html><Body>
+    <Text>Read <Link href="https://example.com/a" target="_self">here</Link> or <Link href="https://example.com/b">there</Link></Text>
+    <Button href="https://example.com/c" target="_self">Open</Button>
+    <Button href="https://example.com/d">New tab</Button>
+  </Body></Html>;
+}`);
+    for (const html of [renderToHtml(Migrated({})), runtime.html()]) {
+      expect(["a", "b", "c", "d"].map((path) => targetOf(html, `https://example.com/${path}`))).toEqual(["_self", "_blank", "_self", "_blank"]);
+    }
+  });
+
+  it("reports a block's id and accessible names, which Elements blocks have no place for, in both modes", async () => {
+    const { result, runtime } = await bothModes(`import { Html, Body, Text } from "@react-email/components";
+export default function Template() {
+  return <Html><Body><Text id="intro" aria-label="Introduction" className="lead">Hello</Text></Body></Html>;
+}`);
+    for (const report of [result.report, runtime.report]) {
+      expect(report.notes.filter((n) => n.reason === "attribute not kept")).toEqual([
+        { reason: "attribute not kept", detail: "id (Text)" },
+        { reason: "attribute not kept", detail: "aria-label (Text)" },
+      ]);
+    }
+  });
+});
+
+describe("phone styles a <style> rule sets", () => {
+  it("are reported when Elements can't hold them on phones (a color), in both modes", async () => {
+    const template = (css: string, text: string) => `import { Html, Head, Body, Text } from "@react-email/components";
+export default function Template() {
+  return <Html><Head><style>{"${css}"}</style></Head><Body>${text}</Body></Html>;
+}`;
+    const colored = await bothModes(template(".c { color: red } @media (max-width: 600px) { .c { color: blue !important; font-size: 12px !important } }", `<Text className="c">Colored</Text>`));
+    const phoneOnly = await bothModes(template("@media (max-width: 600px) { .phone-only { display: block !important; font-size: 18px !important } }", `<Text className="phone-only" style={{ display: "none" }}>Phone version</Text>`));
+    for (const report of [colored.result.report, colored.runtime.report]) {
+      expect(report.notes.filter((n) => n.reason === "phone style not converted")).toEqual([{ reason: "phone style not converted", detail: "color: blue (.c)" }]);
+    }
+    for (const report of [phoneOnly.result.report, phoneOnly.runtime.report]) {
+      expect(report.notes.filter((n) => n.reason === "phone style not converted")).toEqual([]);
+    }
+  });
+});
+
+describe("phone rules and the element's own style", () => {
+  it("leave an inline style alone unless the phone rule is !important, in both modes", async () => {
+    const { Original, Migrated, runtime } = await bothModes(`import { Html, Head, Body, Text } from "@react-email/components";
+const css = "@media (max-width: 600px) { .soft { display: none } .hard { display: none !important } .roomy { padding: 40px } }";
+export default function Template() {
+  return <Html><Head><style>{css}</style></Head><Body>
+    <Text className="soft" style={{ display: "block" }}>Kept on phones</Text>
+    <Text className="hard" style={{ display: "block" }}>Desktop only</Text>
+    <Text className="roomy" style={{ paddingTop: "4px" }}>Padded</Text>
+  </Body></Html>;
+}`);
+    const check = await verifyConversion(Original, Migrated);
+    expect(check.phone).toEqual({ missing: [], added: [] });
+    expect(compareText(check.originalHtml, runtime.html()).phone).toEqual({ missing: [], added: [] });
+    for (const design of [renderToJson(Migrated({})), runtime.design()]) {
+      const texts = design.body.rows.flatMap((r: any) => r.columns.flatMap((c: any) => c.contents));
+      expect(texts.map((t: any) => Boolean(t.values._override?.mobile?.hideMobile))).toEqual([false, true, false]);
+    }
+  });
+});
+
+describe("content a <style> class hides", () => {
+  it("stays hidden, in both modes, and the check sees it hidden in the original", async () => {
+    const { result, runtime, Original, Migrated } = await bothModes(`import { Html, Head, Body, Text } from "@react-email/components";
+export default function Template() {
+  return <Html><Head><style>{".hide{display:none}"}</style></Head><Body><Text>Shown</Text><Text className="hide">Internal note</Text></Body></Html>;
+}`);
+    for (const html of [renderToHtml(Migrated({})), runtime.html()]) expect(htmlWords(html)).toEqual(["Shown"]);
+    const check = await verifyConversion(Original, Migrated);
+    expect([check.missing, check.added]).toEqual([[], []]);
+    expect(result.code).toMatch(/style=\{\{ display: "none" \}\}/);
+  });
+
+  it("keeps a dark-mode logo pair's light logo only, as the original shows it, and reports the dark-mode rule", async () => {
+    const css = ".dark-img{display:none !important} @media (prefers-color-scheme: dark) { .dark-img{display:block !important} .light-img{display:none !important} }";
+    const { result, runtime, Original, Migrated } = await bothModes(`import { Html, Head, Body, Text, Img } from "@react-email/components";
+export default function Template() {
+  return <Html><Head><style>{"${css}"}</style></Head><Body><Text>Hi</Text>
+    <Img className="light-img" src="https://example.com/light.png" width={100} alt="Light logo" />
+    <Img className="dark-img" src="https://example.com/dark.png" width={100} alt="Dark logo" />
+  </Body></Html>;
+}`);
+    for (const html of [renderToHtml(Migrated({})), runtime.html()]) expect(htmlAttributes(html)).toEqual(["src https://example.com/light.png", "alt Light logo"]);
+    const check = await verifyConversion(Original, Migrated);
+    expect([check.missingAttributes, check.addedAttributes]).toEqual([[], []]);
+    expect(result.report.notes).toContainEqual({ reason: "head style rule not converted", detail: ".dark-img @media (prefers-color-scheme: dark)" });
+  });
+});
+
+describe("!important in <style> rules", () => {
+  it("isn't overridden by a later declaration that isn't, in one stylesheet or the next, in both modes", async () => {
+    const { runtime, Migrated } = await bothModes(`import { Html, Head, Body, Text } from "@react-email/components";
+export default function Template() {
+  return <Html><Head><style>{".copy { color: #000000 !important; } .copy { color: #ffffff; }"}</style><style>{".copy { color: #ffffff; }"}</style></Head><Body><Text className="copy">Black text</Text></Body></Html>;
+}`);
+    for (const html of [renderToHtml(Migrated({})), runtime.html()]) {
+      expect(html).toContain("color: #000000; line-height: 24px");
+      expect(html).not.toContain("color: #ffffff; line-height: 24px");
+    }
+  });
+});
+
+describe("inline styles in text", () => {
+  it("keep a quoted font name inside the style attribute", async () => {
+    const { result, Migrated } = await bothModes(`import { Html, Body, Text } from "@react-email/components";
+export default function Template() {
+  return <Html><Body><Text>Hello <span style={{ fontFamily: '"Inter", sans-serif', fontWeight: 700, color: "#ff0000" }}>bold red</span></Text></Body></Html>;
+}`);
+    expect(result.code).toContain('style="font-family:&quot;Inter&quot;, sans-serif;font-weight:700;color:#ff0000"');
+    expect(renderToHtml(Migrated({}))).toContain('<span style="font-family:&quot;Inter&quot;, sans-serif;font-weight:700;color:#ff0000">bold red</span>');
+  });
+});
+
+describe("values the codemod can't write in", () => {
+  it("fail the check: a module const changed after it's declared", async () => {
+    const { result } = await bothModes(`import { Html, Body, Text } from "@react-email/components";
+const theme = { color: "#ff0000" };
+theme.color = "#0000ff";
+export default function Template() { return <Html><Body><Text style={theme}>Colored</Text></Body></Html>; }`);
+    expect(result.report.lostStyles).toEqual(["line 4: style={theme}"]);
+    expect(result.code).not.toContain('color="#ff0000"');
+  });
+
+  it("fail the check: a column's or a linked image's width computed from props", async () => {
+    const { result } = await bothModes(`import { Html, Body, Section, Row, Column, Link, Img, Text } from "@react-email/components";
+export default function Template({ wide = true }: { wide?: boolean }) {
+  return <Html><Body>
+    <Section><Row><Column width={wide ? 500 : 100}><Text>A</Text></Column><Column><Text>B</Text></Column></Row></Section>
+    <Link href="https://example.com"><Img src="https://example.com/a.png" width={wide ? 200 : 100} alt="Logo" /></Link>
+  </Body></Html>;
+}
+Template.PreviewProps = { wide: true };`);
+    expect(result.report.lostStyles).toEqual(["line 4: width={wide ? 500 : 100}", "line 5: width={wide ? 200 : 100}"]);
+  });
+});
+
+describe("merge tags", () => {
+  it("leave a prop written as HTML as it is, so its links stay in the design", async () => {
+    const { Original } = await bothModes(`import { Html, Body, Text } from "@react-email/components";
+export default function Template({ name = "Ada", footerHtml = "" }: { name?: string; footerHtml?: string }) {
+  return <Html><Body><Text>Hi {name}</Text><div dangerouslySetInnerHTML={{ __html: footerHtml }} /></Body></Html>;
+}
+Template.PreviewProps = { name: "Ada", footerHtml: '<a href="https://example.com/unsubscribe">Unsubscribe</a>' };`);
+    const design = JSON.stringify((await convertReactEmail(Original)).design());
+    expect(design).toContain("https://example.com/unsubscribe");
+    expect(design).not.toContain("{{footerHtml}}");
+    expect(design).toContain("{{name}}");
+  });
+});

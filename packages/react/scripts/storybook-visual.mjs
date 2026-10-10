@@ -85,8 +85,10 @@ const serverReady = async () => {
 /**
  * Fingerprint the story markup: one compact line per meaningful element
  * (semantic tags and Unlayer-classed wrappers; layout plumbing like
- * tbody/tr is skipped). Identical lines are run-length collapsed so email
- * table repetition doesn't bloat the baseline.
+ * tbody/tr is skipped), then the text the story shows, a line per line of
+ * text, so a change in the words (markup shown as text, a lost line break)
+ * fails as a change in style does. Identical lines are run-length collapsed
+ * so email table repetition doesn't bloat the baseline.
  */
 async function fingerprint(page) {
   return page.evaluate((props) => {
@@ -118,6 +120,11 @@ async function fingerprint(page) {
         .join(";");
       const classes = [...el.classList].filter((c) => c.startsWith("u") || c.startsWith("v-")).sort().join(".");
       lines.push(`${el.tagName.toLowerCase()}${classes ? "." + classes : ""}|${styles}`);
+    }
+    // The visible text: CSS decides it (hidden, transformed), not fonts.
+    for (const line of root.innerText.split("\n")) {
+      const text = line.replace(/[\s\u00a0]+/g, " ").trim();
+      if (text) lines.push(`text|${text}`);
     }
     // Run-length collapse
     const collapsed = [];

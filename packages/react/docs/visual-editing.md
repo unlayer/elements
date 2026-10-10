@@ -1,6 +1,6 @@
 # Make React and AI-generated email templates visually editable with renderToJson
 
-Use `@unlayer/react-elements` when a developer or AI agent writes a template in React and another person needs to edit its content in Unlayer's visual editor. `renderToJson()` creates design data; `loadDesign()` opens it; the editor's `exportHtml()` callback returns the updated design and HTML.
+Use `@unlayer/react-elements` when a developer or AI agent writes a template in React and another person needs to edit its content in Unlayer's visual editor. Templates already written with React Email open the same way: see [Open React Email templates in the Unlayer editor](./migrate-from-react-email.md#open-react-email-templates-in-the-unlayer-editor). `renderToJson()` creates design data; `loadDesign()` opens it; the editor's `exportHtml()` callback returns the updated design and HTML.
 
 ## Generate Unlayer design JSON from React
 
@@ -102,7 +102,7 @@ Expected: the editor loads the invoice after `editor:ready`; after `design:loade
 
 ## Constraints
 
-- `renderToJson()` is synchronous and statically walks `root > Row > Column > content`. It does not run a full React render. Plain synchronous root wrappers can be unwrapped, but hooks, async components, class components, `memo`, and `forwardRef` wrappers are not supported by that unwrapping path.
+- `renderToJson()` is synchronous and statically walks `root > Row > Column > content`. It does not run a full React render. Root wrappers are unwrapped, including `memo`, `forwardRef` and wrappers that use hooks (each is called in a render of its own); async components and class components are not.
 - Nested custom layout components or fragments hiding Row/Column nodes are not expanded by the walker; they can be skipped. Return the actual Elements nodes as in the [shared invoice factory](../../../examples/content-workflows/src/invoice.tsx). Fetch data before building the tree.
 - A hand-written content wrapper is not a registered Elements item. Custom items must use [the custom tool API](../README.md#custom-tools) and need matching tool registration in the hosted editor.
 - Match the editor's `displayMode` to the design (`email` in this example). Preserve the generated schema version and counters rather than constructing guessed design JSON. Editor support for individual tools/features depends on its version and project configuration.

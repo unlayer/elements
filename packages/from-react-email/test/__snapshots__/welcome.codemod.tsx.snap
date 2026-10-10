@@ -1,0 +1,238 @@
+/** @jsxRuntime automatic */
+// Migrated from React Email by @unlayer/migrate (codemod mode).
+import {
+  Button,
+  Column,
+  Divider,
+  Email,
+  Heading,
+  Image,
+  Paragraph,
+  Row,
+} from "@unlayer/react-elements";
+import { renderToStaticMarkup as reactStaticMarkup } from "react-dom/server";
+import * as React from "react";
+
+interface WelcomeEmailProps {
+  firstName: string;
+  productName: string;
+  dashboardUrl: string;
+  docsUrl: string;
+  supportEmail: string;
+}
+
+export const WelcomeEmail = ({
+  firstName,
+  productName,
+  dashboardUrl,
+  docsUrl,
+  supportEmail,
+}: WelcomeEmailProps) => {
+  return (
+    <Email
+      backgroundColor="#f3f4f6"
+      contentWidth="560px"
+      fontFamily={{
+        label: "ui-sans-serif",
+        value:
+          "ui-sans-serif,system-ui,sans-serif,'Apple Color Emoji','Segoe UI Emoji','Segoe UI Symbol','Noto Color Emoji'",
+      }}
+      previewText={`Welcome to ${plainText(productName)}, ${plainText(firstName)}! Let's get you set up.`}
+    >
+      <Row padding="40px 0px 0px 0px">
+        <Column
+          backgroundColor="#ffffff"
+          padding="40px 32px 0px 32px"
+          borderRadius="8px 8px 0px 0px"
+        >
+          <Image
+            src={{
+              url: "https://placehold.co/120x40/4f46e5/ffffff?text=Acme",
+              width: 120,
+              height: 40,
+            }}
+            width="120px"
+            alt={productName}
+            textAlign="center"
+            containerPadding="0px 0px 0px 0px"
+            mobile={{ width: "120px" }}
+          />
+        </Column>
+      </Row>
+      <Row>
+        <Column backgroundColor="#ffffff" padding="30px 32px 0px 32px">
+          <Heading
+            headingType="h1"
+            color="#101828"
+            fontSize="24px"
+            lineHeight="normal"
+            textAlign="center"
+            fontWeight={600}
+            containerPadding="0px 0px 30px 0px"
+          >
+            Welcome to {productName}
+          </Heading>
+          <Paragraph
+            color="#364153"
+            fontSize="15px"
+            lineHeight="24px"
+            containerPadding="0px 0px 16px 0px"
+          >
+            Hi {firstName},
+          </Paragraph>
+          <Paragraph
+            color="#364153"
+            fontSize="15px"
+            lineHeight="24px"
+            containerPadding="0px 0px 0px 0px"
+          >
+            Thanks for signing up! Your workspace is ready and you can start building right away.
+            Here are three quick things to try on your first day:
+          </Paragraph>
+          <Paragraph
+            color="#364153"
+            fontSize="15px"
+            lineHeight="28px"
+            containerPadding="16px 0px 0px 0px"
+          >
+            1. Create your first project
+          </Paragraph>
+          <Paragraph
+            color="#364153"
+            fontSize="15px"
+            lineHeight="28px"
+            containerPadding="0px 0px 0px 0px"
+          >
+            2. Invite your teammates
+          </Paragraph>
+          <Paragraph
+            color="#364153"
+            fontSize="15px"
+            lineHeight="28px"
+            containerPadding="0px 0px 0px 0px"
+          >
+            3. Connect your favorite integrations
+          </Paragraph>
+          <Button
+            href={dashboardUrl}
+            backgroundColor="#4f39f6"
+            color="#ffffff"
+            fontSize="15px"
+            lineHeight="120%"
+            textAlign="center"
+            fontWeight={600}
+            padding="12px 24px 12px 24px"
+            borderRadius="0.375rem"
+            containerPadding="28px 0px 0px 0px"
+          >
+            Go to your dashboard
+          </Button>
+        </Column>
+      </Row>
+      <Row padding="0px 0px 40px 0px">
+        <Column
+          backgroundColor="#ffffff"
+          padding="28px 32px 48px 32px"
+          borderRadius="0px 0px 8px 8px"
+        >
+          <Paragraph
+            color="#364153"
+            fontSize="15px"
+            lineHeight="24px"
+            html={`Want to dig deeper? Our <a${htmlAttribute("href", docsUrl)} style="color:rgb(79,57,246);text-decoration-line:underline" target="_blank">documentation</a> covers everything from quickstarts to advanced guides.`}
+            containerPadding="0px 0px 16px 0px"
+          />
+          <Divider
+            borderTopWidth="1px"
+            borderTopStyle="solid"
+            borderTopColor="#e5e7eb"
+            width="100%"
+            containerPadding="10px 0px 26px 0px"
+          />
+          <Paragraph
+            color="#6a7282"
+            fontSize="12px"
+            lineHeight="20px"
+            html={`Questions? Just reply to this email or write to <a href="${escapeHtml(String(`mailto:${supportEmail}`))}" style="color:rgb(106,114,130);text-decoration-line:underline" target="_blank">${htmlText(supportEmail)}</a>. We're always happy to help.`}
+            containerPadding="0px 0px 16px 0px"
+          />
+          <Paragraph
+            color="#99a1af"
+            fontSize="12px"
+            lineHeight="20px"
+            containerPadding="0px 0px 0px 0px"
+          >
+            Acme, Inc. · 123 Market Street · San Francisco, CA 94105
+          </Paragraph>
+        </Column>
+      </Row>
+    </Email>
+  );
+};
+
+WelcomeEmail.PreviewProps = {
+  firstName: "Alex",
+  productName: "Acme",
+  dashboardUrl: "https://app.acme.com/dashboard",
+  docsUrl: "https://docs.acme.com",
+  supportEmail: "support@acme.com",
+} as WelcomeEmailProps;
+
+export default WelcomeEmail;
+
+function escapeHtml(text: string): string {
+  return text
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
+
+/**
+ * React's static markup, without the image preload links React 19 adds, and
+ * safe from the email's head styles: tables and cells take the color of the
+ * div around it (an Elements email sets "table, td { color: #000000 }"), and
+ * tables and paragraphs say the browser's defaults the editor's export resets
+ * ("border-collapse: collapse" drops a table's padding, rounded corners and
+ * cell spacing; "p { margin: 0 }" a paragraph's margins).
+ */
+function renderToStaticMarkup(node: Parameters<typeof reactStaticMarkup>[0]): string {
+  const html = reactStaticMarkup(node).replace(/<link rel="preload" as="image"[^>]*>/g, "");
+  const color = /^<div style="(?:[^"]*;)?\s*color:\s*([^;"]+)/.exec(html)?.[1]?.trim();
+  return html.replace(/<(table|td|p)\b([^>]*)>/g, (tag: string, name: string, attrs: string) => {
+    const style = /\sstyle="([^"]*)"/.exec(attrs);
+    const css = style ? style[1] : "";
+    const sets = (property: string) =>
+      new RegExp("(^|;)\\s*(" + property + ")\\s*:", "i").test(css);
+    const add: string[] = [];
+    if (color && name !== "p" && !sets("color")) add.push("color:" + color);
+    if (name === "table" && !sets("border-collapse")) add.push("border-collapse:separate");
+    if (name === "p" && !sets("margin|margin-block")) {
+      if (!sets("margin-top|margin-block-start")) add.push("margin-top:1em");
+      if (!sets("margin-bottom|margin-block-end")) add.push("margin-bottom:1em");
+    }
+    if (!add.length) return tag;
+    const value = style ? css.replace(/;?\s*$/, ";") + add.join(";") : add.join(";");
+    return style
+      ? tag.replace(style[0], ' style="' + value + '"')
+      : "<" + name + ' style="' + value + '"' + tag.slice(name.length + 1);
+  });
+}
+
+/** A value inside text, as HTML: what React would render for it. */
+function htmlText(value: unknown): string {
+  if (value === null || value === undefined || typeof value === "boolean") return "";
+  if (typeof value === "string" || typeof value === "number") return escapeHtml(String(value));
+  return renderToStaticMarkup(<>{value as Parameters<typeof renderToStaticMarkup>[0]}</>);
+}
+
+/** An attribute as React renders it: left out when its value is missing. */
+function htmlAttribute(name: string, value: unknown): string {
+  return value === null || value === undefined || value === false
+    ? ""
+    : ` ${name}="${escapeHtml(String(value))}"`;
+}
+
+function plainText(value: unknown): string {
+  return value === null || value === undefined || typeof value === "boolean" ? "" : String(value);
+}

@@ -12,7 +12,7 @@ import type { ExporterName } from "@unlayer/types";
 /** Exporter map keyed by display mode. Defined locally until added to @unlayer/types. */
 type ItemExporters = Partial<Record<ExporterName, (...args: any[]) => string>>;
 import type { RenderMode, UnlayerConfig } from "@unlayer-internal/shared-elements";
-import type { SizeInput } from "../types";
+import type { DeviceProps, SizeInput } from "../types";
 import { contentSlotWidth, pinImageSrc } from "./image-sizing";
 import {
   mergeValues,
@@ -38,7 +38,7 @@ export const UNLAYER_CONFIG_KEY = "__unlayerItemConfig";
 /**
  * Base props that all item components support
  */
-export interface BaseItemComponentProps {
+export interface BaseItemComponentProps extends DeviceProps {
   children?: React.ReactNode;
   className?: string;
   style?: React.CSSProperties;
@@ -110,7 +110,7 @@ export interface ItemComponentConfig<TValues, TSemanticProps> {
  * Props type that combines base props with semantic props
  */
 export type ItemComponentProps<TSemanticProps> = BaseItemComponentProps &
-  TSemanticProps;
+  Omit<TSemanticProps, keyof DeviceProps>;
 
 // ============================================
 // Internal: rendering helpers (merged from render-component.tsx)
@@ -192,6 +192,12 @@ function ensureMeta(values: any, type: string, index: number = 0): any {
  * Render a component by calling its exporter and wrapping the HTML output.
  * Handles error boundaries, exporterConfig construction, and container vs item calling conventions.
  */
+/** A direction the `dir` attribute takes (ltr, rtl, auto). Anything else is dropped: it's written into markup. */
+export function textDirectionOf(value: unknown): "ltr" | "rtl" | "auto" | undefined {
+  const dir = typeof value === "string" ? value.trim().toLowerCase() : "";
+  return dir === "ltr" || dir === "rtl" || dir === "auto" ? dir : undefined;
+}
+
 function renderComponent<T = any>(config: RenderConfig<T>): JSX.Element {
   const { type, values, mode, className, style, args = [], innerHTML, _config, exporter, metaContext } = config;
 
@@ -201,7 +207,7 @@ function renderComponent<T = any>(config: RenderConfig<T>): JSX.Element {
     const exporterConfig = {
       generateHtmlFromTextJson,
       toSafeHtml: cfg.toSafeHtml,
-      textDirection: cfg.textDirection,
+      textDirection: textDirectionOf(cfg.textDirection),
       cdnBaseUrl: cfg.cdnBaseUrl,
     };
 
@@ -337,7 +343,8 @@ export function createItemComponent<
     //    so JSON output preserves the schema's storage shape.
     const valuesForExporter = normalizeValuesForExporter(
       valuesWithMeta as Record<string, any>,
-      config.name
+      config.name,
+      mode
     );
 
     // 5b. Convert a fixed (px) image pin to the editor's canonical percent now

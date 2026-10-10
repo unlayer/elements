@@ -31,6 +31,8 @@
     "Start with packages/react/docs/README.md for task selection. Runnable transactional email, provider, PDF, and visual editing recipes are in packages/react/docs/ and examples/content-workflows/.",
     "Elements renders HTML, not email delivery or PDF bytes. Send email HTML through a provider; print Document HTML with Playwright Chromium for a real PDF.",
     "For shared templates, pass a factory result with an actual Email/Page/Document root to renderers. Keep Row and Column nodes directly visible to renderToJson.",
-    "renderToJson statically walks supported Elements nodes, not arbitrary React components. Edited design JSON does not regenerate JSX; use editor.exportHtml for edited HTML."
+    "renderToJson statically walks supported Elements nodes, not arbitrary React components. Edited design JSON does not regenerate JSX; use editor.exportHtml for edited HTML.",
+    "To move React Email templates to Elements, run `npx @unlayer/migrate <folder> --report migration.md`, read the report, then add `--write`. It keeps props, loops and conditions, checks every template against the original, and lists what differs. After converting a template by hand, check it with `npx @unlayer/migrate compare <original> <migrated>`. See packages/react/docs/migrate-from-react-email.md.",
+    "To open React Email templates in the Unlayer editor, run `npx @unlayer/migrate <folder> --out <dir> --design` and pass each `<name>.design.json` to `loadDesign()`. See examples/react-email-in-editor."
   ]
 }

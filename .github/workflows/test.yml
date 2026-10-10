@@ -54,17 +54,28 @@ jobs:
       - name: Type contract
         run: pnpm --filter @unlayer/react-elements typecheck
 
+      - name: Converter typechecks
+        run: pnpm --filter @unlayer/from-react-email typecheck && pnpm --filter @unlayer/migrate typecheck
+
       # ── Bundle size budget ──────────────────────────────────────
-      # Fail if the react-elements ESM bundle exceeds 76KB.
-      # Current size: ~76KB (15 components + image width-pinning geometry
-      # + per-mode full-document shells for renderToHtml).
+      # Fail if the react-elements ESM bundle exceeds 98KB.
+      # Current size: 96,573 bytes, including phone device-override CSS,
+      # visibility settings, template-component unwrapping, escaping of
+      # Heading/Button text (line breaks kept), link URLs, menu text, social
+      # links and text placed straight in a Row or Column, and expanding Fragments and user components among blocks
+      # (unique ids, phone CSS on the right block, recorded per render only,
+      # called in the render React runs so hooks and context work, each in its
+      # own place among the rows so a client re-render keeps their state),
+      # the text direction kept to ltr/rtl/auto, async or throwing components
+      # left out, a render nested inside a component kept apart from its Row's,
+      # and components nested past the limit left out.
       # The budget tracks the unminified ESM output as a proxy for code volume;
       # it still flags accidental dependency bundling (any real dep is 10KB+).
       - name: Check bundle size
         run: |
           BUNDLE="packages/react/dist/index.js"
           SIZE=$(wc -c < "$BUNDLE" | tr -d ' ')
-          MAX_SIZE=76000
+          MAX_SIZE=98000
           echo "Bundle: $BUNDLE"
           echo "Size: $SIZE bytes (budget: $MAX_SIZE bytes)"
           if [ "$SIZE" -gt "$MAX_SIZE" ]; then
@@ -117,15 +128,34 @@ jobs:
       - name: Browser E2E gate
         run: pnpm --filter @unlayer/react-elements test:e2e
 
+      # ── Migration fidelity smoke test ───────────────────────────
+      # Converts the committed fixture templates both ways (codemod and
+      # runtime) and renders them next to their React Email originals in
+      # Chromium at desktop and phone widths. Fails on lost or added content,
+      # a word shown at another size on desktop, or words moved (on phones,
+      # only for the fixtures that match there).
+      - name: Migration fidelity smoke test
+        run: pnpm --filter @unlayer/from-react-email test:fidelity
+
+      # ── Migration check vs Chromium (differential) ──────────────
+      # 400 fixed seeds: one side of a base (hand-written documents and the
+      # fixture templates' renders) is mutated, Chromium decides whether a
+      # reader sees the two differently, and the check must fail every pair
+      # it does. Committed fixtures (test/differential/) must still differ in
+      # Chromium and fail the check. A false pass writes its pair to
+      # .bench-out/differential/ and fails the job.
+      - name: Migration check vs Chromium
+        run: pnpm --filter @unlayer/from-react-email test:differential
+
       - name: Storybook smoke test
         run: pnpm --filter @unlayer/react-elements test-storybook:ci
 
       # ── Storybook visual-drift gate ─────────────────────────────
-      # Fingerprints the computed styles of every story at desktop and
-      # mobile widths (reusing the static build from the smoke test) and
-      # diffs against the committed baseline. Fails naming the exact
-      # stories and properties that changed — answers "did any story
-      # change visually?" without paging through them by hand.
+      # Fingerprints the computed styles and the visible text of every story
+      # at desktop and mobile widths (reusing the static build from the smoke
+      # test) and diffs against the committed baseline. Fails naming the
+      # exact stories and properties (or lines of text) that changed —
+      # answers "did any story change?" without paging through them by hand.
       - name: Storybook visual-drift gate
         run: pnpm --filter @unlayer/react-elements test:visual
 

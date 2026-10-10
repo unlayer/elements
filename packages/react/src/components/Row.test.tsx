@@ -67,7 +67,36 @@ describe("Row Component", () => {
     expect(container.querySelector('table[role="presentation"]')).not.toBeNull();
   });
 
+  it("keeps columns side by side on phones with noStackMobile, in both modes", () => {
+    for (const mode of ["email", "web"] as const) {
+      const { container } = render(
+        <Body mode={mode}>
+          <Row cells={[1, 1]} noStackMobile>
+            <Column><Paragraph>A</Paragraph></Column>
+            <Column><Paragraph>B</Paragraph></Column>
+          </Row>
+        </Body>
+      );
+      expect(container.querySelector(".u-row.no-stack")).not.toBeNull();
+    }
+  });
+
   it("has correct displayName", () => {
     expect(Row.displayName).toBe("Row");
+  });
+});
+
+describe("Row layout with columns from components", () => {
+  it("counts the columns a Fragment or a component gives", async () => {
+    const { Email, renderToHtml, ColumnLayouts } = await import("../index");
+    const Pair = () => (
+      <>
+        <Column><Paragraph>Left column words</Paragraph></Column>
+        <Column><Paragraph>Right column words</Paragraph></Column>
+      </>
+    );
+    const html = renderToHtml(<Email><Row layout={ColumnLayouts.TwoEqual}><Pair /></Row></Email>);
+    expect(html).toContain("Left column words");
+    expect(html).toContain("Right column words");
   });
 });
