@@ -765,6 +765,19 @@ export default function T() { return <Html><Body style={{ ${background}, color: 
     expect(kept.conversion.report.notes).toContainEqual({ reason: "style not converted", detail: "background image (Body, its color #0b1020 shows)" });
   });
 
+  it("writes only colors the browser reads: none, initial and a background shorthand's keywords aren't colors", async () => {
+    const { conversion } = await templates(`${head}
+export default function T() {
+  return <Html><Body style={{ backgroundColor: "#111111" }}><Container>
+    <Section style={{ background: "none", padding: "8px" }}><Text style={{ color: "#ffffff" }}>None</Text></Section>
+    <Section style={{ backgroundColor: "initial", padding: "8px" }}><Text style={{ color: "#ffffff" }}>Initial</Text></Section>
+    <Section style={{ background: "url(https://example.com/a.jpg) no-repeat center / cover #0b1f3a", padding: "8px" }}><Text style={{ color: "#ffffff", backgroundColor: "nonsense" }}>Shorthand</Text></Section>
+  </Container></Body></Html>;
+}`);
+    expect(conversion.code).not.toMatch(/(?:olor|Color)="(none|initial|no|nonsense)"/);
+    expect(conversion.code).toContain("#0b1f3a");
+  });
+
   it("puts the page on <Html>'s background when the Body sets none, in both modes", async () => {
     const { Original, Migrated, conversion } = await templates(`${head}
 export default function T() { return <Html style={{ backgroundColor: "#111111" }}><Body><Container><Text style={{ color: "#ffffff" }}>Dark html background</Text></Container></Body></Html>; }`);

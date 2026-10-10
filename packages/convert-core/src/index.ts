@@ -19,6 +19,6 @@ export { treeToElement, treeToDesign, treeToHtml, pinImageWidths } from "./rende
 export { treeToTsx, printJsx, formatTsx, type PrintOptions } from "./print";
 export { parseStyle, toPx, boxSides, ownFontSize, type BoxSides } from "./css";
 export { compareText, hiddenClasses, hideClasses, htmlAttributes, htmlWords, type TextCheck } from "./verify";
-export { compareStyles, StyledDocument, type StyleCheck, type StyleDifference, type WordStyle } from "./cascade";
+export { compareStyles, StyledDocument, type StyleCheck, type StyleDifference, type Unverified, type WordStyle, parseColor } from "./cascade";
 export { decodeHtmlEntities } from "./entities";
 export { editorFonts, shareEditorFonts, type EditorFont } from "./fonts";

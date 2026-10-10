@@ -1,4 +1,4 @@
-import { compareStyles, normalizeWord, StyledDocument, type StyleDifference } from "./cascade";
+import { compareStyles, normalizeWord, StyledDocument, type StyleDifference, type Unverified } from "./cascade";
 
 /**
  * Content check: does the converted HTML still say everything the original
@@ -21,9 +21,24 @@ export interface TextCheck {
    * color, the background behind it, a link's target), when the words are the same.
    */
   styles: StyleDifference[];
+  /**
+   * What couldn't be verified: a style, or whether words are shown, that one
+   * side sets in a way the check can't read (with the rule or value). The
+   * check fails on it: unread isn't the same.
+   */
+  unverified: Unverified[];
+  /**
+   * At a phone's width (375px): words the original shows there and the
+   * conversion doesn't, and the other way round (content shown or hidden
+   * only on phones).
+   */
+  phone: { missing: string[]; added: string[] };
   /** How much of the styles was compared: words, and properties left out because one side couldn't be worked out. */
   styleCoverage: { words: number; unknown: number };
 }
+
+/** The width phones are read at. */
+export const PHONE_WIDTH = 375;
 
 /**
  * The words a reader sees in `html`, as written, with meaningful numeric punctuation
@@ -101,8 +116,19 @@ export function compareText(originalHtml: string, convertedHtml: string): TextCh
     if (!missingAttributes.includes(`${kind} ${value}`)) missingAttributes.push(`${kind} ${value} (${label})`);
   }
   // Styles are compared word for word, so only when the words are the same.
-  const style = missing.length || added.length ? { differences: [], compared: 0, unknown: 0 } : compareStyles(originalDoc, convertedDoc);
-  return { missing, added, missingAttributes, addedAttributes, styles: style.differences, styleCoverage: { words: style.compared, unknown: style.unknown } };
+  const style = missing.length || added.length ? { differences: [], unverified: [], compared: 0, unknown: 0 } : compareStyles(originalDoc, convertedDoc);
+  // On phones: the same words shown (content a phone rule shows or hides), as a multiset.
+  const phoneWords = (html: string) => wordsOf(new StyledDocument(html, { width: PHONE_WIDTH }));
+  const phone = { missing: [] as string[], added: [] as string[] };
+  const phoneCounts = new Map<string, number>();
+  for (const word of phoneWords(convertedHtml)) phoneCounts.set(word, (phoneCounts.get(word) ?? 0) + 1);
+  for (const word of phoneWords(originalHtml)) {
+    const left = phoneCounts.get(word) ?? 0;
+    if (left > 0) phoneCounts.set(word, left - 1);
+    else phone.missing.push(word);
+  }
+  phone.added = [...phoneCounts].flatMap(([word, n]) => Array<string>(n).fill(word));
+  return { missing, added, missingAttributes, addedAttributes, styles: style.differences, unverified: style.unverified, phone, styleCoverage: { words: style.compared, unknown: style.unknown } };
 }
 
 /**

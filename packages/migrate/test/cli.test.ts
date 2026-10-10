@@ -259,6 +259,19 @@ Hooky.PreviewProps = { name: "Ada", items: ["a", "b", "c"] };`;
     expect(words).toContain("You have 3 items");
   });
 
+  it("fails what it can't verify, saying why, and what phones or Tailwind's sm: show differently", async () => {
+    const unreadable = `import { Html, Head, Body, Text } from "@react-email/components";
+export default function T() { return <Html><Head><style>{"p:has(b) { color: #ff0000 }"}</style></Head><Body><Text>Hello there</Text></Body></Html>; }`;
+    const responsive = `import { Html, Head, Body, Text, Tailwind } from "@react-email/components";
+export default function T() { return <Html><Tailwind><Head /><Body><Text className="hidden sm:block">Desktop only</Text><Text>Always</Text></Body></Tailwind></Html>; }`;
+    const dir = project({ "emails/unreadable.tsx": unreadable, "emails/responsive.tsx": responsive });
+    const out = io(dir);
+    expect(await main(["emails", "--out", "migrated"], out, lib), out.out + out.err).toBe(2);
+    expect(out.out).toMatch(/✗ emails\/unreadable\.tsx: check failed \(couldn't verify: the color of "Hello", "there" \(the rule `p:has\(b\)`/);
+    expect(out.out).toMatch(/✗ emails\/responsive\.tsx: check failed \(lost text: "Desktop", "only"/);
+    expect(fs.existsSync(path.join(dir, "migrated/unreadable.tsx"))).toBe(false);
+  });
+
   it("fails the check when a style computed from props would be dropped, naming it", async () => {
     const source = `import { Html, Body, Text } from "@react-email/components";
 export default function Code({ code, color, size }: { code: string; color: string; size: number }) {

@@ -108,6 +108,14 @@ export interface FileResult {
   lostStyles?: string[];
   /** Text the migrated template shows in another style (size, bold, italics, letter case, underline, color, background, a link's target). */
   styles?: StyleChange[];
+  /**
+   * What the check couldn't verify, with why: a style, or whether words are
+   * shown, that the original (or the migration) sets in a way it can't read.
+   * The check fails on it.
+   */
+  unverified?: Array<{ what: string; side: "original" | "migrated"; cause: string; words: string[] }>;
+  /** At a phone's width: words the original shows there that the migrated template doesn't, and the other way round. */
+  phone?: { missing: string[]; added: string[] };
   /** How much of the styles the check compared: words, and properties left out because one side couldn't be worked out. */
   styleCoverage?: { words: number; unknown: number };
   /** Blocks the visual editor wouldn't get. */
@@ -534,7 +542,7 @@ async function migrateFile(input: Input, options: Options, lib: Library, io: Io,
     const result: FileResult = {
       file: name,
       status:
-        verification.missing.length || verification.added.length || verification.missingAttributes.length || verification.addedAttributes.length || verification.styles.length || verification.designWarnings.length || verification.variants.length || report.lostStyles?.length
+        verification.missing.length || verification.added.length || verification.missingAttributes.length || verification.addedAttributes.length || verification.styles.length || verification.unverified.length || verification.phone.missing.length || verification.phone.added.length || verification.designWarnings.length || verification.variants.length || report.lostStyles?.length
           ? "check-failed"
           : "migrated",
       editable: report.nativeRatio,
@@ -551,6 +559,8 @@ async function migrateFile(input: Input, options: Options, lib: Library, io: Io,
       addedAttributes: verification.addedAttributes,
       ...(report.lostStyles?.length ? { lostStyles: report.lostStyles } : {}),
       ...(verification.styles.length ? { styles: verification.styles } : {}),
+      ...(verification.unverified.length ? { unverified: verification.unverified } : {}),
+      ...(verification.phone.missing.length || verification.phone.added.length ? { phone: verification.phone } : {}),
       styleCoverage: verification.styleCoverage,
       variants: verification.variants,
       designWarnings: verification.designWarnings,
@@ -673,12 +683,23 @@ function line(result: FileResult): string {
         ...(result.addedAttributes?.length ? [`extra links/images: ${quote(result.addedAttributes)}`] : []),
         ...(result.lostStyles?.length ? [`lost styles: ${result.lostStyles.join("; ")}`] : []),
         ...(result.styles?.length ? [`shown in another style: ${styleChanges(result.styles)}`] : []),
+        ...(result.unverified?.length ? [`couldn't verify: ${unverifiedList(result.unverified)}`] : []),
+        ...(result.phone?.missing.length ? [`on phones, lost text: ${quote(result.phone.missing)}`] : []),
+        ...(result.phone?.added.length ? [`on phones, extra text: ${quote(result.phone.added)}`] : []),
         ...(result.designWarnings?.length ? [`${result.designWarnings.length} block(s) the editor wouldn't get`] : []),
         ...(result.variants ?? []).map((v) => `with ${v.change}: ${variantProblems(v)}`),
       ];
       return `✗ ${result.file}: check failed (${problems.join("; ")})${written}`;
     }
   }
+}
+
+/** What couldn't be verified, one line per cause: `the color of "Hello", "world" (the rule \`.x:has(b)\` …)`. */
+function unverifiedList(items: NonNullable<FileResult["unverified"]>): string {
+  const name: Record<string, string> = { shown: "whether it's shown", size: "the size", bold: "the weight", italic: "italics", transform: "letter case", underline: "underline", color: "the color", background: "the background", target: "the link target" };
+  return items
+    .map((u) => `${name[u.what] ?? u.what} of ${quote(u.words)} (${u.side === "migrated" ? "the migrated template writes " : ""}${u.cause})`)
+    .join("; ");
 }
 
 function summary(results: FileResult[], options: Options): string {
@@ -714,6 +735,9 @@ function markdownReport(results: FileResult[]): string {
     if (r.addedAttributes?.length) lines.push(`**Extra links or images:** ${quote(r.addedAttributes)}`, "");
     if (r.lostStyles?.length) lines.push("**Lost styles** (change how it looks):", ...r.lostStyles.map((s) => `- ${s}`), "");
     if (r.styles?.length) lines.push("**Shown in another style:**", ...r.styles.map((c) => `- ${c.property}: ${c.original} → ${c.converted}, on ${quote(c.words)}`), "");
+    if (r.unverified?.length) lines.push("**Couldn't verify** (the check fails on what it can't read):", ...unverifiedList(r.unverified).split("; ").map((line) => `- ${line}`), "");
+    if (r.phone?.missing.length) lines.push(`**On phones, lost text:** ${quote(r.phone.missing)}`, "");
+    if (r.phone?.added.length) lines.push(`**On phones, extra text:** ${quote(r.phone.added)}`, "");
     if (r.styleCoverage?.words) lines.push(`Styles compared on ${r.styleCoverage.words} words${r.styleCoverage.unknown ? ` (${r.styleCoverage.unknown} values couldn't be worked out, and were left out)` : ""}.`, "");
     if (r.designWarnings?.length) lines.push("**The editor wouldn't get:**", ...r.designWarnings.map((w) => `- ${w}`), "");
     if (r.variants?.length) {

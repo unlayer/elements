@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { compareStyles, styledWords } from "../src/cascade";
+import { compareStyles, StyledDocument, styledWords } from "../src/cascade";
 import { compareText, htmlWords } from "../src/verify";
 
 const doc = (css: string, body: string) => `<html><head><style>${css}</style></head><body>${body}</body></html>`;
@@ -36,14 +36,41 @@ describe("the cascade", () => {
     expect(style(doc("p:hover{color:red}", "<p>x</p>")).color).toEqual([0, 0, 0, 1]);
   });
 
-  it("leaves a property unknown when a rule it can't place could set it", () => {
+  it("leaves a property unknown when a rule it can't place could set it, and says which rule", () => {
     expect(style(doc("@media (orientation: landscape){p{color:red}}", "<p>x</p>")).color).toBeUndefined();
-    expect(style(doc("p:nth-child(1){color:red}", "<p>x</p>")).color).toBeUndefined();
-    expect(style(doc("p{color:var(--c)}", "<p>x</p>")).color).toBeUndefined();
+    expect(style(doc("p:has(b){color:red}", "<p>x</p>")).color).toBeUndefined();
+    expect(style(doc("p:has(b){color:red}", "<p>x</p>")).causes?.color).toContain("p:has(b)");
+    expect(style(doc("p{color:calc(1)}", "<p>x</p>")).color).toBeUndefined();
+    // A rule it can't place that would set the same value changes nothing.
+    expect(style(doc("p{color:#333} p:has(b){color:#333}", "<p>x</p>")).color).toEqual([51, 51, 51, 1]);
     // A selector this can't fully read still can't reach elements its known parts rule out.
     expect(style(doc(".other:nth-child(1){color:red}", "<p>x</p>")).color).toEqual([0, 0, 0, 1]);
     // An inline style that wins anyway stays known.
     expect(style(doc("@media (orientation: landscape){p{color:red}}", '<p style="color:blue !important">x</p>')).color).toEqual([0, 0, 255, 1]);
+  });
+
+  it("reads what React Email writes: Tailwind's sm: as @media nested in the rule (range syntax), at the width read", () => {
+    const css = ".sm_block{@media (width>=40rem){display:block!important}}.sm_hidden{@media (width>=40rem){display:none!important}}.sm_text-white{@media (width>=40rem){color:rgb(255,255,255)!important}}";
+    const html = doc(css, '<p class="sm_block" style="display:none">Desktop only</p><p class="sm_hidden">Phone only</p><p class="sm_text-white" style="color:rgb(0,0,0)">Swap</p>');
+    expect(htmlWords(html)).toEqual(["Desktop", "only", "Swap"]);
+    expect(styledWords(html)[2].style.color).toEqual([255, 255, 255, 1]);
+    expect(new StyledDocument(html, { width: 375 }).words().map((w) => w.word)).toEqual(["Phone", "only", "Swap"]);
+  });
+
+  it("drops a rule whose selector the browser can't read (React writes `.footer > p` in a <style> as `.footer &gt; p`)", () => {
+    expect(style(doc(".footer &gt; p{font-weight:bold}", '<div class="footer"><p>x</p></div>')).bold).toBe(false);
+  });
+
+  it("reads :not(), :nth-child() and the other structural pseudo-classes", () => {
+    const html = doc("p:not(.muted){color:red} li:nth-child(2n){font-style:italic} li:last-of-type{text-transform:uppercase}", '<p class="muted">a</p><p>b</p><ul><li>c</li><li>d</li><li>e</li></ul>');
+    const words = styledWords(html);
+    expect(words.map((w) => w.style.color?.[0])).toEqual([0, 255, 0, 0, 0]);
+    expect(words.map((w) => w.style.italic)).toEqual([false, false, false, true, false]);
+    expect(words[4].style.transform).toBe("uppercase");
+  });
+
+  it("hides only the text a font size of 0 sets, not a child with a size of its own", () => {
+    expect(htmlWords(doc("", '<div style="font-size:0">gap<span style="font-size:14px">Shown</span></div>'))).toEqual(["Shown"]);
   });
 
   it("ignores Outlook-only markup", () => {
@@ -83,7 +110,10 @@ describe("text styles", () => {
   it("reads a gradient of written-out opaque colors as its first stop; one from variables or translucent stops is unknown", () => {
     expect(style(doc("", '<div style="background:linear-gradient(135deg,#1e3a8a,#312e81)"><p>x</p></div>')).background).toEqual([30, 58, 138, 1]);
     expect(style(doc("", '<div style="background-image:linear-gradient(to right, rgb(79,70,229), rgb(147,51,234))"><p>x</p></div>')).background).toEqual([79, 70, 229, 1]);
-    expect(style(doc("", '<div style="background-image:linear-gradient(var(--tw-gradient-from) var(--tw-gradient-from-position), var(--tw-gradient-to))"><p>x</p></div>')).background).toBeUndefined();
+    // Variables that aren't set: the declaration is invalid, so it draws nothing (what React Email's Tailwind gradients do).
+    expect(style(doc("", '<div style="background-image:linear-gradient(var(--tw-gradient-from) var(--tw-gradient-from-position), var(--tw-gradient-to))"><p>x</p></div>')).background).toEqual([255, 255, 255, 1]);
+    // Set ones are read.
+    expect(style(doc("", '<div style="--from:#1e3a8a;background-image:linear-gradient(var(--from), #312e81)"><p>x</p></div>')).background).toEqual([30, 58, 138, 1]);
     expect(style(doc("", '<div style="background:linear-gradient(rgba(0,0,0,0.5),transparent)"><p>x</p></div>')).background).toBeUndefined();
   });
 
@@ -130,7 +160,7 @@ describe("compareStyles", () => {
       { property: "color", original: "#e11d48", converted: "#000000", words: ["Hello", "world"] },
     ]);
     expect(check.compared).toBe(3);
-    expect(compareStyles(doc("p{color:var(--x)}", "<p>Hi</p>"), doc("", '<p style="color:red">Hi</p>')).differences).toEqual([]);
+    expect(compareStyles(doc("p:has(b){color:red}", "<p>Hi</p>"), doc("", '<p style="color:red">Hi</p>')).differences).toEqual([]);
   });
 
   it("allows a pixel of size and a little color rounding", () => {
@@ -164,8 +194,38 @@ describe("compareStyles", () => {
     expect(compareStyles(covered("#eeeeee"), `<div style="background-color:#eeeeee"><p>Covered</p></div>`).differences).toEqual([]);
   });
 
+  it("accepts on a gradient that fades any color it shows behind the text, and nothing else", () => {
+    const glow = (bg: string) => `<div style="background-color:#111111"><div style="${bg}"><p style="color:#ffffff">Glow</p></div></div>`;
+    const fades = "background-image:radial-gradient(circle at bottom right, rgb(251,122,0) 0%, transparent 60%)";
+    expect(compareStyles(glow(fades), glow("")).differences).toEqual([]);
+    expect(compareStyles(glow(fades), `<p style="color:#ffffff">Glow</p>`).differences.map((d) => d.property)).toEqual(["background"]);
+  });
+
+  it("says what it couldn't verify, on which side and why, and nothing when both sides are unknown the same way", () => {
+    const original = doc("p:has(b){color:red}", "<p>Hello there</p>");
+    const check = compareStyles(original, doc("", "<p>Hello there</p>"));
+    expect(check.unverified).toEqual([{ what: "color", side: "original", cause: expect.stringContaining("p:has(b)"), words: ["Hello", "there"] }]);
+    // The migration writing a value the check can't read.
+    expect(compareStyles(doc("", "<p>Hi</p>"), doc("", '<p style="color:calc(1)">Hi</p>')).unverified).toEqual([{ what: "color", side: "migrated", cause: "color: calc(1)", words: ["Hi"] }]);
+    // Markup kept as it was: unknown on both sides, nothing to report.
+    expect(compareStyles(original, original).unverified).toEqual([]);
+    // Whether it's shown, when a rule it can't place may hide it.
+    expect(compareStyles(doc("p:has(b){display:none}", "<p>Hi</p>"), doc("", "<p>Hi</p>")).unverified.map((u) => u.what)).toEqual(["shown"]);
+  });
+
+  it("reads an unset variable as the browser does: the declaration is dropped", () => {
+    expect(compareStyles(doc("p{color:var(--x)}", '<div style="color:#333333"><p>Hi</p></div>'), doc("", '<p style="color:#333333">Hi</p>')).differences).toEqual([]);
+  });
+
   it("is part of the content check, only when the words are the same", () => {
     expect(compareText('<p style="text-transform:uppercase">Track it</p>', "<p>Track it</p>").styles).toEqual([{ property: "transform", original: "uppercase", converted: "none", words: ["Track", "it"] }]);
     expect(compareText("<p>Track it</p>", "<p>Track</p>").styles).toEqual([]);
+  });
+
+  it("compares what phones show too: content a phone rule shows, lost in the migration", () => {
+    const original = doc("@media (max-width: 480px){.only-phone{display:block !important}}", '<p>Both</p><p class="only-phone" style="display:none">Phone</p>');
+    const check = compareText(original, doc("", "<p>Both</p>"));
+    expect([check.missing, check.phone]).toEqual([[], { missing: ["Phone"], added: [] }]);
+    expect(compareText(original, original).phone).toEqual({ missing: [], added: [] });
   });
 });

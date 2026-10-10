@@ -2,7 +2,7 @@
  * CSS → Elements props, for the styles React Email components carry.
  */
 
-import { boxSides, ownFontSize, toPx, type BoxSides, type Expr } from "@unlayer/convert-core";
+import { boxSides, ownFontSize, parseColor, toPx, type BoxSides, type Expr } from "@unlayer/convert-core";
 
 export type Style = Record<string, any>;
 
@@ -135,20 +135,22 @@ export function parseBorder(value: unknown): { width?: string; style?: string; c
   return out;
 }
 
-const COLOR = /^(#[0-9a-f]{3,8}|rgba?\([^)]*\)|hsla?\([^)]*\)|[a-z]+)$/i;
 const BACKGROUND_WORDS = /^(none|transparent|repeat|repeat-x|repeat-y|no-repeat|space|round|scroll|fixed|local|top|bottom|left|right|center|cover|contain|auto|border-box|padding-box|content-box|initial|inherit|unset)$/i;
 
 /** A plain color from `background-color`, or the color in a `background` shorthand (`#f4f4f4 url(…) no-repeat`). */
 export function backgroundColor(style: Style | undefined): string | undefined {
   if (!style) return undefined;
-  if (typeof style.backgroundColor === "string") return COLOR.test(style.backgroundColor.trim()) ? color(style.backgroundColor) : undefined;
+  // `none`, `initial`, a value from a variable: no color of its own (the one behind shows).
+  if (typeof style.backgroundColor === "string") return color(style.backgroundColor);
   if (typeof style.background !== "string") return undefined;
   const value = style.background.trim();
-  if (COLOR.test(value)) return color(value);
-  // The shorthand's color: the part that isn't an image, a keyword, a length or a size.
+  if (parseColor(value)) return color(value);
+  // The shorthand's color: the part that isn't an image, a keyword, a position or a size
+  // (`url(…) no-repeat center / cover #0b1f3a`).
   const rest = value.replace(/(?:repeating-)?(?:linear|radial|conic)-gradient\((?:[^()]|\([^)]*\))*\)|url\([^)]*\)/gi, " ");
-  const color_ = rest.match(/rgba?\([^)]*\)|hsla?\([^)]*\)|#[0-9a-f]{3,8}\b|[a-z]+/gi)?.find((part) => !BACKGROUND_WORDS.test(part));
-  return color_ && COLOR.test(color_) ? color(color_) : undefined;
+  const parts = rest.match(/(?:rgba?|hsla?)\([^)]*\)|[^\s/]+/gi) ?? [];
+  const color_ = parts.find((part) => !BACKGROUND_WORDS.test(part) && parseColor(part));
+  return color_ ? color(color_) : undefined;
 }
 
 /**
@@ -286,7 +288,8 @@ export function color(value: unknown): string | undefined {
   if (value === undefined || value === null || value === "") return undefined;
   const text = String(value).trim();
   const match = /^rgba?\(\s*(\d+(?:\.\d+)?)[\s,]+(\d+(?:\.\d+)?)[\s,]+(\d+(?:\.\d+)?)(?:\s*[,/]\s*(\d*\.?\d+%?))?\s*\)$/i.exec(text);
-  if (!match) return text;
+  // Only a color the browser reads: `none`, `initial`, `var(--x)`, a misread word aren't written.
+  if (!match) return parseColor(text) ? text : undefined;
   const [r, g, b] = match.slice(1, 4).map((n) => Math.max(0, Math.min(255, Math.round(Number(n)))));
   const alphaText = match[4];
   const alpha = alphaText === undefined ? 1 : alphaText.endsWith("%") ? Number.parseFloat(alphaText) / 100 : Number(alphaText);

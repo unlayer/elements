@@ -115,7 +115,8 @@ export function textProps(
     ...(Object.keys(mobile).length ? { mobile } : {}),
     ...(style._phone?.display === "none" ? { hideOnMobile: true } : {}),
     ...(style._hideDesktop ? { hideOnDesktop: true } : {}),
-    color: color(ownColor(style.color, ctx.inherited.color) ?? ctx.inherited.color) ?? "#000000",
+    // A color the browser can't read is ignored there: the text takes the one around it.
+    color: color(ownColor(style.color, ctx.inherited.color)) ?? color(ctx.inherited.color) ?? "#000000",
     fontSize: cssLength(ownSize !== undefined ? px(ownSize) : style.fontSize ?? defaults.fontSize ?? ctx.inherited.fontSize),
     lineHeight: lineHeightValue(style.lineHeight ?? defaults.lineHeight ?? ctx.inherited.lineHeight),
     textAlign: (style.textAlign ?? flexTextAlign(style) ?? ctx.inherited.textAlign ?? (ctx.inherited.rtl ? start(ctx) : undefined)) as string | undefined,
