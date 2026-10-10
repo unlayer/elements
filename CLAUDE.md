@@ -112,6 +112,7 @@ Example: `<Button fontSize="16px">` → `{ style: { fontSize: "16px" } }` in the
 - **Hostile inputs**: `src/regression/hostile-input.test.tsx` — every value that often comes from users (text, links, image sources and text, menu items, social links, preview text, direction, language, font URLs, title) given markup in every mode; the parsed output must have no element or attribute it adds.
 - **Render isolation**: `src/regression/render-isolation.test.tsx` — a render never leaks into the next (data, kept elements, order), and the same input always gives the same output.
 - **Migration fidelity smoke test**: `packages/from-react-email/bench/smoke.ts` (`pnpm --filter @unlayer/from-react-email test:fidelity`, needs `playwright install chromium` once) — converts the templates in `packages/from-react-email/test/fixtures` both ways (codemod and runtime) and renders them next to their React Email originals in Chromium at 700px and 375px, with the network off. Fails on lost or added words, links or images, on any word shown at another font size on desktop, or on words moved on desktop (and on phones for the fixtures that match there, listed in `PHONE_EXACT`); a 2% tolerance absorbs font rendering differences between macOS and Linux. The full benchmark (`pnpm --filter @unlayer/from-react-email bench`, results in `FIDELITY.md`) runs the 106-template corpus locally.
+- **The migration check's styles**: `packages/convert-core/src/cascade.ts` (tests in `packages/convert-core/test/cascade.test.ts`) — the content check reads both documents with a small CSS cascade (inline styles, the `<style>` rules that apply at a desktop width, the browser's defaults, inheritance) and compares each word's size, bold, italics, letter case, underline, color, the background behind it and a link's target; the same cascade decides what's hidden (display:none, the `hidden` attribute, `max-height:0;overflow:hidden`, visibility, opacity, compound selectors). A property it can't work out (a selector or value it doesn't know) is left out, never reported as different, and the report says how many words it compared. On the 106-template benchmark every conversion has no style difference; a change that adds one is a regression to look at, as is a rise in the share of unknown properties (0.2% now).
 
 ## CI Quality Gates
 
@@ -122,6 +123,7 @@ Example: `<Button fontSize="16px">` → `{ style: { fontSize: "16px" } }` in the
 - Next.js integration build succeeds
 - Browser E2E gate passes (rendered documents verified in Chromium: 0px `<p>` margins, single `<body>`, no errors)
 - Migration fidelity smoke test passes (fixture templates keep their content, text sizes and desktop layout)
+- The migration check compares text styles as well as words, links and images (`cascade.test.ts`, and the converters' tests)
 - Storybook smoke test passes (every story renders, no console errors)
 - Storybook visual-drift gate passes (every story's computed styles and text match the committed baseline)
 - CSP safety gate passes (green in CI; may fail locally on some Node setups due to an ESM interop quirk under the V8 flag)
