@@ -27,6 +27,10 @@ export interface WordStyle {
   italic?: boolean;
   transform?: string;
   underline?: boolean;
+  /** The first font family (lowercase); undefined when none is set. */
+  font?: string;
+  /** Struck through (a line-through drawn over it). */
+  strike?: boolean;
   color?: Rgba;
   background?: Rgba;
   /** A `url()` image is behind it: the background color is then unknown, but losing the image isn't. */
@@ -41,7 +45,7 @@ export interface WordStyle {
   causes?: Partial<Record<(typeof STYLE_PROPERTIES)[number], string>>;
 }
 
-export const STYLE_PROPERTIES = ["size", "bold", "italic", "transform", "underline", "color", "background", "target"] as const;
+export const STYLE_PROPERTIES = ["size", "bold", "italic", "transform", "underline", "strike", "color", "background", "font", "target"] as const;
 
 export interface StyledWord {
   word: string;
@@ -52,6 +56,8 @@ export interface StyledWord {
   doubt?: string;
   /** The element its text is in. */
   at?: Element;
+  /** It starts a line: after a `<br>`, or first in a box that starts one (a paragraph, a row; not a cell). */
+  lineStart?: boolean;
 }
 
 /** A link or image a reader gets, with the words or image text it carries (for links). */
@@ -60,6 +66,8 @@ export interface Target {
   value: string;
   /** For a link: the words in it, or its images' URLs and text when it has no words. */
   label?: string;
+  /** Whether it shows can't be told: why (a rule or value this can't read). */
+  doubt?: string;
 }
 
 // ============================================
@@ -205,6 +213,8 @@ interface Compound {
   maybe: boolean;
   /** It names `::first-line` or `::first-letter`: part of the element's text. */
   partial?: boolean;
+  /** `:is(…)`/`:where(…)`: each group matches when one of its compounds does. */
+  any?: Compound[][];
 }
 interface Selector {
   /** Right to left: each compound and the combinator that relates it to the next one (to its left). */
@@ -228,11 +238,28 @@ interface Rule {
 
 const DYNAMIC_PSEUDO = /^(hover|focus|focus-within|focus-visible|active|visited|target|checked|disabled|placeholder-shown|autofill)$/;
 const IGNORED_PSEUDO_ELEMENT = /^(before|after|placeholder|selection|marker|-webkit-[\w-]+|-moz-[\w-]+)$/;
-const SIMPLE = /\[[^\]]*\]|::?[\w-]+(?:\((?:[^()]|\([^)]*\))*\))?|[#.](?:[\w-]|\\.)+|(?:[\w-]|\\.)+|\*/g;
+// Identifiers take any non-ASCII character too (`.sólo-móvil`), as CSS does.
+const SIMPLE = /\[[^\]]*\]|::?[\w-]+(?:\((?:[^()]|\([^)]*\))*\))?|[#.](?:[\w\u00a0-\uffff-]|\\.)+|(?:[\w\u00a0-\uffff-]|\\.)+|\*/g;
 
 /** A CSS identifier with its escapes resolved (`sm\:w-full` → `sm:w-full`). */
 function unescape(ident: string): string {
-  return ident.replace(/\\([0-9a-f]{1,6}\s?|.)/gi, (_, c: string) => (/^[0-9a-f]{1,6}\s?$/i.test(c) && c.trim().length > 1 ? String.fromCodePoint(parseInt(c, 16)) : c));
+  return ident.replace(/\\([0-9a-f]{1,6}\s?|.)/gi, (_, c: string) => {
+    if (!(/^[0-9a-f]{1,6}\s?$/i.test(c) && c.trim().length > 1)) return c;
+    const code = parseInt(c, 16);
+    // Zero, a surrogate or past the last code point: the replacement character, as CSS reads it.
+    return code === 0 || code > 0x10ffff || (code >= 0xd800 && code <= 0xdfff) ? "\ufffd" : String.fromCodePoint(code);
+  });
+}
+
+/** About how specific a selector argument this can't read could be: its ids, classes, attributes and pseudo-classes, and tags. */
+function roughSpecificity(text: string): [number, number, number] {
+  let most: [number, number, number] = [0, 0, 0];
+  for (const part of splitTopLevel(text)) {
+    const p = part.replace(/\([^)]*\)/g, "()");
+    const own: [number, number, number] = [(p.match(/#/g) ?? []).length, (p.match(/\.|\[|(?<!:):(?!:)/g) ?? []).length, (p.match(/(?:^|[\s>+~(])[a-z][\w-]*/gi) ?? []).length];
+    if (compare(own, most) > 0) most = own;
+  }
+  return most;
 }
 
 /**
@@ -306,8 +333,26 @@ function parseCompound(text: string, specificity: [number, number, number]): Com
       const name = /^:([\w-]+)/.exec(token)![1].toLowerCase();
       const argument = /^:[\w-]+\((.*)\)$/s.exec(token)?.[1];
       if (DYNAMIC_PSEUDO.test(name)) return null;
-      if (name === "where") {
-        compound.maybe = true;
+      if (/^(is|where|matches|-webkit-any|-moz-any)$/.test(name) && argument !== undefined) {
+        // Matches when one argument does; as specific as its most specific argument (`:where` adds nothing).
+        // An argument the browser can't read is left out (these lists forgive it); one with a combinator may match.
+        const group: Compound[] = [];
+        let most: [number, number, number] = [0, 0, 0];
+        for (const inner of splitTopLevel(argument)) {
+          const own: [number, number, number] = [0, 0, 0];
+          const parsed = /[\s>+~]/.test(inner.trim()) ? "unknown" : parseCompound(inner.trim(), own);
+          if (parsed === "invalid" || parsed === null) continue;
+          if (parsed === "unknown") {
+            compound.maybe = true;
+            const rough = roughSpecificity(inner);
+            if (compare(rough, most) > 0) most = rough;
+            continue;
+          }
+          group.push(parsed);
+          if (compare(own, most) > 0) most = own;
+        }
+        if (name !== "where") most.forEach((n, k) => (specificity[k] += n));
+        (compound.any ??= []).push(group);
         continue;
       }
       if (name === "not" && argument !== undefined) {
@@ -325,10 +370,13 @@ function parseCompound(text: string, specificity: [number, number, number]): Com
         most.forEach((n, k) => (specificity[k] += n));
         continue;
       }
-      specificity[1]++;
       const pseudo = argument === undefined ? name : `${name}(${argument.replace(/\s+/g, "")})`;
+      const structural = STRUCTURAL.test(pseudo) && (argument === undefined || nth(argument) !== undefined);
+      // `:has(#a .b)` is as specific as its argument: one this can't evaluate counts as that specific.
+      if (!structural && argument !== undefined && name !== "lang" && name !== "dir") roughSpecificity(argument).forEach((n, k) => (specificity[k] += n));
+      else specificity[1]++;
       if (name === "link" || name === "any-link") compound.attributes.push({ name: "href" });
-      else if (STRUCTURAL.test(pseudo) && (argument === undefined || nth(argument) !== undefined)) compound.pseudo.push(pseudo);
+      else if (structural) compound.pseudo.push(pseudo);
       else compound.maybe = true;
       continue;
     }
@@ -620,6 +668,11 @@ function matchesCompound(element: Element, compound: Compound): Match {
     }
   }
   let match: Match = compound.maybe ? "maybe" : "yes";
+  for (const group of compound.any ?? []) {
+    const one = group.reduce<Match>((m, c) => either(m, matchesCompound(element, c)), "no");
+    if (one === "no" && !compound.maybe) return "no";
+    if (one !== "yes") match = "maybe";
+  }
   for (const not of compound.not) {
     const inner = matchesCompound(element, not);
     if (inner === "yes") return "no";
@@ -677,6 +730,10 @@ const UA: Record<string, Record<string, string>> = {
   dfn: { "font-style": "italic" },
   address: { "font-style": "italic" },
   u: { "text-decoration": "underline" },
+  s: { "text-decoration": "line-through" },
+  strike: { "text-decoration": "line-through" },
+  del: { "text-decoration": "line-through" },
+  mark: { "background-color": "#ffff00", color: "#000000" },
   ins: { "text-decoration": "underline" },
   small: { "font-size": "smaller" },
   big: { "font-size": "larger" },
@@ -689,7 +746,7 @@ const UA: Record<string, Record<string, string>> = {
   template: { display: "none" },
 };
 /** CSS properties that inherit, among those read here. */
-const INHERITED_CSS = new Set(["font-size", "font-weight", "font-style", "text-transform", "color", "visibility"]);
+const INHERITED_CSS = new Set(["font-size", "font-weight", "font-style", "text-transform", "color", "visibility", "font-family"]);
 /** Initial values of the properties read here that don't inherit. */
 const INITIAL: Record<string, string> = {
   // Inherited ones, for `initial`.
@@ -762,7 +819,13 @@ interface Computed {
   /** Its own opacity, below 1: what's in it shows that faint. */
   fade?: number;
   /** Its own underline (not inherited: decorations draw across what's inside). */
+  /** The first font family it asks for, lowercase; undefined when none is set (the reader's default). */
+  family?: string;
+  /** A `url()` image behind it, with its URL. */
+  imageUrl?: string;
   underline?: boolean;
+  /** Its own line-through. */
+  strike?: boolean;
   /**
    * Its own background color; `undefined` (unknown) when it has an image or a
    * value this can't read. A gradient of opaque colors counts as its first stop.
@@ -783,6 +846,8 @@ interface Computed {
   vars: Map<string, { value?: string; cause?: string }>;
 }
 
+/** Tags whose boxes start a line of their own. */
+const LINE_TAGS = new Set(["p", "div", "h1", "h2", "h3", "h4", "h5", "h6", "li", "ul", "ol", "dl", "dt", "dd", "table", "tr", "td", "th", "tbody", "thead", "tfoot", "section", "article", "header", "footer", "main", "nav", "aside", "blockquote", "pre", "center", "address", "form", "fieldset", "figure", "figcaption", "body", "html", "hr"]);
 const INLINE_TAGS = new Set(["a", "span", "strong", "b", "em", "i", "u", "s", "small", "code", "sup", "sub", "font", "mark", "abbr"]);
 
 export class StyledDocument {
@@ -994,6 +1059,9 @@ export class StyledDocument {
     if (MONOSPACE.has(element.tagName) && sizeValue === undefined) doubt("font-size", "monospace text at the browser's own size");
     if (parent?.unknown.has("font-size") && sizeValue !== undefined && /em|%|smaller|larger/.test(sizeValue)) doubt("font-size", parent.causes.get("font-size"));
     // Weight, italics, letter case, color, visibility: inherited.
+    // The first font family it asks for (not the ones that stand in for it), inherited.
+    const familyValue = value("font-family");
+    computed.family = familyValue !== undefined ? firstFamily(familyValue) : inherit("font-family", undefined, parent?.family, !!parent?.unknown.has("font-family"));
     const weightValue = value("font-weight");
     computed.weight = weightValue !== undefined ? fontWeight(weightValue, parent ? parent.weight : 400) : inherit("font-weight", undefined, parent ? parent.weight : 400, !!parent?.unknown.has("font-weight"));
     if (weightValue !== undefined && computed.weight === undefined) doubt("font-weight", `font-weight: ${weightValue}`);
@@ -1010,15 +1078,22 @@ export class StyledDocument {
     computed.visible = visibilityValue !== undefined ? !/hidden|collapse/i.test(visibilityValue) : inherit("visibility", undefined, parent ? parent.visible : true, !!parent?.unknown.has("visibility"));
     // Hidden boxes: display:none, a zero-size box that clips (`max-height:0;overflow:hidden`), opacity 0, font size 0.
     const display = value("display");
-    const overflow = value("overflow") ?? value("overflow-y");
-    const clipped = !!overflow && /hidden|clip/i.test(overflow) && ["max-height", "height"].some((p) => {
+    const overflow = value("overflow") ?? value("overflow-y") ?? value("overflow-x");
+    const position = value("position");
+    const placed = position !== undefined && /^(absolute|fixed)$/i.test(position.trim());
+    // A box's height and width apply to block boxes: not to inline ones (a span) or to table cells and rows,
+    // which grow to fit what's in them (a float or a positioned box is a block box).
+    const tag = element.tagName;
+    const kind = (display ?? (tag === "td" || tag === "th" ? "table-cell" : tag === "tr" ? "table-row" : INLINE_TAGS.has(tag) ? "inline" : "block")).trim().toLowerCase();
+    const floated = /^(left|right)$/i.test((value("float") ?? "").trim());
+    const sized = placed || floated || !(kind === "inline" || kind === "contents" || kind.startsWith("table-"));
+    // A block box that clips to nothing (`max-height:0;overflow:hidden`, `width:0;overflow:hidden`).
+    const clipped = sized && !!overflow && /hidden|clip/i.test(overflow) && ["max-height", "height", "max-width", "width"].some((p) => {
       const v = value(p);
       return v !== undefined && lengthPx(v) === 0;
     });
     const opacity = value("opacity");
     // Shown only to screen readers: positioned and clipped to nothing (`sr-only`), or moved far off the page.
-    const position = value("position");
-    const placed = position !== undefined && /^(absolute|fixed)$/i.test(position.trim());
     const clip = value("clip");
     const clipPath = value("clip-path");
     const tiny = ["width", "height"].every((p) => {
@@ -1053,6 +1128,7 @@ export class StyledDocument {
     // Its own underline.
     const decoration = value("text-decoration-line") ?? value("text-decoration");
     computed.underline = decoration !== undefined ? /underline/i.test(decoration) : false;
+    computed.strike = decoration !== undefined ? /line-through/i.test(decoration) : false;
     if (unknown.has("text-decoration") || unknown.has("text-decoration-line")) doubt("underline", causes.get("text-decoration") ?? causes.get("text-decoration-line"));
     // Its own background color.
     const background = value("background-color");
@@ -1060,6 +1136,9 @@ export class StyledDocument {
     const painted = image !== undefined && !/^none$/i.test(image);
     const stop = painted ? gradientStop(image) : undefined;
     computed.image = painted && /url\(/i.test(image) && !unknown.has("background-image");
+    // Its own background image's URL (a style, or the `background` attribute email tables use).
+    const url = (painted && /url\(\s*['"]?([^'")]+)/i.exec(image)?.[1]) || (/^(body|table|td|th)$/.test(element.tagName) ? attr(element, "background") : undefined);
+    if (url?.trim()) computed.imageUrl = url.trim();
     computed.under = unknown.has("background-color") ? undefined : background !== undefined ? parseColor(background) : [0, 0, 0, 0];
     // A gradient that fades (a translucent stop): the text is on one of the colors it shows, over its own background color.
     const stops = painted && !stop && !computed.image && !unknown.has("background-image") ? gradientColors(image) : undefined;
@@ -1096,13 +1175,19 @@ export class StyledDocument {
       bufferDoubt = undefined;
       pieces.push({ text: " ", style: {}, shown: true });
     };
+    // A line break: what follows starts a line.
+    const newLine = () => {
+      flush();
+      pieces.push({ text: "\n", style: {}, shown: true });
+    };
     // Inside the preview text (`data-skip-in-text`): inboxes list it, but it isn't shown, so its styles aren't compared.
     let preview = 0;
     const visit = (node: Node, chain: Element[]) => {
       if (isElement(node)) {
         const style = this.style(node);
         if (MSO_ONLY.test(node.tagName)) return;
-        const skipInText = attr(node, "data-skip-in-text") !== undefined;
+        // The preview text: inboxes list it, the email doesn't show it. Shown in the email, it's text like any other.
+        const skipInText = attr(node, "data-skip-in-text") !== undefined && !!style.hidden;
         if (skipInText) preview++;
         try {
           visitElement(node, chain, style, skipInText);
@@ -1116,8 +1201,10 @@ export class StyledDocument {
     const visitElement = (node: Element, chain: Element[], style: Computed, skipInText: boolean) => {
       {
         if (style.hidden && !skipInText && !style.unknown.has("hides")) return;
-        if (node.tagName === "br" || node.tagName === "img" || node.tagName === "hr") return void flush();
-        if (style.block) flush();
+        if (node.tagName === "br" || node.tagName === "hr") return void newLine();
+        if (node.tagName === "img") return void flush();
+        if (this.startsLine(node)) newLine();
+        else if (style.block) flush();
         const outer = doubting;
         if (style.unknown.has("hides") && !skipInText) doubting ??= style.causes.get("hides") ?? "a rule that may hide it";
         try {
@@ -1125,7 +1212,8 @@ export class StyledDocument {
         } finally {
           doubting = outer;
         }
-        if (style.block) flush();
+        if (this.startsLine(node)) newLine();
+        else if (style.block) flush();
       }
     };
     const visitText = (node: Node, chain: Element[]) => {
@@ -1148,7 +1236,8 @@ export class StyledDocument {
           flush();
           continue;
         }
-        if (!buffer) {
+        // A word takes the style of its first part with a letter or a digit (`$` then a bold `49`).
+        if (!buffer || (!/[\p{L}\p{N}]/u.test(buffer) && /[\p{L}\p{N}]/u.test(part))) {
           bufferStyle = wordStyle;
           bufferShown = !preview;
           bufferDoubt = preview ? undefined : doubt;
@@ -1162,24 +1251,36 @@ export class StyledDocument {
     for (let up = isElement(body) ? body.parentNode : undefined; isElement(up); up = up.parentNode) ancestors.unshift(up);
     visit(body, ancestors);
     flush();
-    // Pieces into words; a word that spans styles keeps its first part's style.
+    // Pieces into words; a word that spans styles keeps the style of its first part with a letter or a digit
+    // (`$<b>49</b>` is a bold 49, `(<b>required</b>)` a bold word).
     let word = "";
     let style: WordStyle = {};
     let shown = true;
     let doubt: string | undefined;
     let at: Element | undefined;
-    const push = () => out.push({ word, style, shown, ...(doubt ? { doubt } : {}), ...(at ? { at } : {}) });
+    let lettered = false;
+    let lineAhead = true;
+    let lineStart = false;
+    const push = () => out.push({ word, style, shown, ...(doubt ? { doubt } : {}), ...(at ? { at } : {}), ...(lineStart ? { lineStart: true } : {}) });
     for (const piece of pieces) {
-      if (piece.text === " ") {
+      if (piece.text === " " || piece.text === "\n") {
         if (word) push();
         word = "";
         doubt = undefined;
+        lettered = false;
+        if (piece.text === "\n") lineAhead = true;
         continue;
       }
       if (!word) {
+        lineStart = lineAhead;
+        lineAhead = false;
+      }
+      const letters = /[\p{L}\p{N}]/u.test(piece.text);
+      if (!word || (letters && !lettered)) {
         style = piece.style;
         shown = piece.shown;
         at = piece.at;
+        lettered = letters;
       }
       doubt ??= piece.doubt;
       word += piece.text;
@@ -1199,26 +1300,56 @@ export class StyledDocument {
     return true;
   }
 
+  /** Why whether an element shows can't be told (a rule or value around it this can't read), if it can't. */
+  private showDoubt(element: Element): string | undefined {
+    for (let e: Node | null = element; isElement(e); e = e.parentNode) {
+      if (attr(e, "data-skip-in-text") !== undefined) return undefined;
+      const s = this.style(e);
+      if (s.unknown.has("hides")) return s.causes.get("hides") ?? "a rule that may hide it";
+      if (s.unknown.has("visibility")) return s.causes.get("visibility") ?? "a rule that may hide it";
+    }
+    return undefined;
+  }
+
   /** The links (href), images (src) and image text (alt) a reader gets, in order. */
   targets(): Target[] {
     const out: Target[] = [];
     for (const e of this.elements()) {
+      const background = this.style(e).imageUrl;
+      if (background && this.shows(e)) out.push({ kind: "src", value: background, ...(this.showDoubt(e) ? { doubt: this.showDoubt(e) } : {}) });
       if (e.tagName !== "a" && e.tagName !== "img") continue;
       if (!this.shows(e)) continue;
+      const doubt = this.showDoubt(e);
+      const doubted = doubt ? { doubt } : {};
       if (e.tagName === "a") {
         const href = attr(e, "href")?.trim();
         if (!href) continue;
         const words = this.words(e).map((w) => w.word).join(" ");
         const images = this.elements(e).filter((i) => i.tagName === "img").flatMap((i) => [attr(i, "src"), attr(i, "alt")].filter((v): v is string => !!v?.trim()).map((v) => v.trim()));
-        out.push({ kind: "href", value: href.replace(/%22/gi, '"').replace(/%3C/gi, "<").replace(/%3E/gi, ">"), label: words || images.join(", ") });
+        out.push({ kind: "href", value: href.replace(/%22/gi, '"').replace(/%3C/gi, "<").replace(/%3E/gi, ">"), label: words || images.join(", "), ...doubted });
       } else {
         const src = attr(e, "src")?.trim();
         const alt = attr(e, "alt")?.trim();
-        if (src) out.push({ kind: "src", value: src });
-        if (alt) out.push({ kind: "alt", value: alt });
+        if (src) out.push({ kind: "src", value: src, ...doubted });
+        if (alt) out.push({ kind: "alt", value: alt, ...doubted });
       }
     }
     return out;
+  }
+
+  /** Whether a box starts a line of its own: a block (a paragraph, a list item, a table, a row, a cell), not an inline box. */
+  private startsLine(element: Element): boolean {
+    const display = (this.property(element, "display") ?? "").trim().toLowerCase();
+    if (display) return /^(block|list-item|flex|grid|table|flow-root|table-row|table-row-group|table-header-group|table-footer-group|table-cell)$/.test(display.split(/\s+/)[0]);
+    return LINE_TAGS.has(element.tagName);
+  }
+
+  /** A box decorations from above don't reach into: an inline-block (and its kin), a float, a positioned box. */
+  private decorationBoundary(element: Element): boolean {
+    const display = (this.property(element, "display") ?? "").trim().toLowerCase();
+    const float = (this.property(element, "float") ?? "").trim().toLowerCase();
+    const position = (this.property(element, "position") ?? "").trim().toLowerCase();
+    return /^inline-(block|table|flex|grid)$/.test(display) || float === "left" || float === "right" || position === "absolute" || position === "fixed";
   }
 
   /** A word's style from the elements it's in, outermost first. */
@@ -1227,6 +1358,7 @@ export class StyledDocument {
     const own = this.style(element);
     const known = (property: string, v: unknown) => (own.unknown.has(property) ? undefined : v);
     let underline: boolean | undefined = false;
+    let strike = false;
     let background: Rgba | undefined = [255, 255, 255, 1];
     let underlineCause: string | undefined;
     let backgroundCause: string | undefined;
@@ -1250,10 +1382,16 @@ export class StyledDocument {
       } else if (image && under !== undefined) {
         under = s.unknown.has("background") || !s.background ? undefined : over(s.background, under);
       }
+      // Decorations drawn above don't reach into an inline-block, a float or a positioned box.
+      if (e !== chain[0] && this.decorationBoundary(e)) {
+        underline = underline === undefined ? undefined : false;
+        strike = false;
+      }
       if (s.unknown.has("underline")) {
         underline = undefined;
         underlineCause ??= s.causes.get("underline");
       } else if (underline !== undefined && s.underline) underline = true;
+      if (s.strike) strike = true;
       if (s.gradient && !s.unknown.has("background")) {
         // A gradient that fades: each color it shows, over what's behind.
         const below = background !== undefined ? [background] : options;
@@ -1283,6 +1421,7 @@ export class StyledDocument {
     if (own.unknown.has("font-style")) why("italic", own.causes.get("font-style"));
     if (own.unknown.has("text-transform")) why("transform", own.causes.get("text-transform"));
     if (own.unknown.has("color")) why("color", own.causes.get("color"));
+    if (own.unknown.has("font-family")) why("font", own.causes.get("font-family"));
     if (underline === undefined) why("underline", underlineCause);
     if (background === undefined && !options) why("background", backgroundCause);
     return {
@@ -1291,6 +1430,8 @@ export class StyledDocument {
       italic: known("font-style", own.italic) as boolean | undefined,
       transform: known("text-transform", own.transform) as string | undefined,
       underline,
+      strike,
+      ...(own.family !== undefined && !own.unknown.has("font-family") ? { font: own.family } : {}),
       color: own.color && fade < 1 && !own.unknown.has("color") ? [own.color[0], own.color[1], own.color[2], own.color[3] * fade] : (known("color", own.color) as Rgba | undefined),
       background,
       ...(image ? { image, ...(under ? { underImage: under } : {}) } : {}),
@@ -1318,7 +1459,8 @@ function expand(property: string, value: string): Array<{ property: string; valu
   }
   if (property === "font") {
     // `font: italic bold 14px/1.5 Arial`: size and the keywords before it.
-    const m = /^(.*?)\b([\d.]+(?:px|em|rem|%|pt)|xx-small|x-small|small|medium|large|x-large|xx-large|smaller|larger)(?:\s*\/\s*\S+)?\s+.+$/i.exec(value.trim());
+    // The size starts a word: `.875em` is 0.875em.
+    const m = /^((?:.*?\s)?)((?:\d+\.?\d*|\.\d+)(?:px|em|rem|%|pt)|xx-small|x-small|small|medium|large|x-large|xx-large|smaller|larger)(?:\s*\/\s*\S+)?\s+.+$/i.exec(value.trim());
     if (!m) return [{ property: "font-size", value: "", unknown: true }, { property: "font-weight", value: "", unknown: true }, { property: "font-style", value: "", unknown: true }];
     const before = m[1].toLowerCase();
     return [
@@ -1384,8 +1526,8 @@ function compareArrays(a: number[], b: number[]): number {
 // ============================================
 
 export interface StyleDifference {
-  /** A style, or "shown": text that is only the inbox preview on one side and in the email on the other. */
-  property: (typeof STYLE_PROPERTIES)[number] | "shown";
+  /** A style; "shown": text that is only the inbox preview on one side and in the email on the other; "line": a line break moved. */
+  property: (typeof STYLE_PROPERTIES)[number] | "shown" | "line";
   original: string;
   converted: string;
   /** The words that changed this way, in order. */
@@ -1418,19 +1560,26 @@ export interface StyleCheck {
   unknown: number;
 }
 
+/** The first family of a `font-family` list, lowercase and unquoted. */
+function firstFamily(value: string): string {
+  return (value.split(",")[0] ?? "").trim().replace(/^['"]|['"]$/g, "").trim().toLowerCase();
+}
+
 /** A word as the content check reads it ("" for punctuation alone). */
 export function normalizeWord(word: string): string {
   const w = word.normalize("NFC").replace(/[​-‍⁠﻿]/g, "").replace(/[-−－﹣]/g, "−");
   if (/\p{N}/u.test(w)) return w.replace(/[^\p{L}\p{N}\p{Sc}.,/:'’+−%‰]/gu, "").replace(/[.,]+$/g, "");
   if (/^[+−±]$/.test(w)) return w;
-  return w.replace(/[^\p{L}\p{Sc}%‰]/gu, "");
+  // Letters, or else the symbols a reader reads (✓ ✗ ★ © → &): punctuation alone ("—", "·", "|") isn't a word.
+  if (/\p{L}/u.test(w)) return w.replace(/[^\p{L}\p{Sc}%‰]/gu, "");
+  return w.replace(/[^\p{Sc}\p{So}\p{Sm}%‰&]|[|¦]/gu, "");
 }
 
 /** The words a reader sees, as the content check reads them, each with its style. */
 export function styledWords(html: string | StyledDocument): StyledWord[] {
   return (typeof html === "string" ? new StyledDocument(html) : html)
     .words()
-    .flatMap((w) => w.word.split(/\s+/).map((part) => ({ word: normalizeWord(part), style: w.style, shown: w.shown, ...(w.doubt ? { doubt: w.doubt } : {}), ...(w.at ? { at: w.at } : {}) })))
+    .flatMap((w) => w.word.split(/\s+/).map((part, k) => ({ word: normalizeWord(part), style: w.style, shown: w.shown, ...(w.doubt ? { doubt: w.doubt } : {}), ...(w.at ? { at: w.at } : {}), ...(w.lineStart && k === 0 ? { lineStart: true } : {}) })))
     .filter((w) => w.word);
 }
 
@@ -1444,6 +1593,7 @@ function show(property: StyleDifference["property"], value: unknown): string {
   if (property === "bold") return value ? "bold" : "not bold";
   if (property === "italic") return value ? "italic" : "not italic";
   if (property === "underline") return value ? "underlined" : "not underlined";
+  if (property === "strike") return value ? "struck through" : "not struck through";
   return String(value);
 }
 
@@ -1493,9 +1643,19 @@ export function compareStyles(originalHtml: string | StyledDocument, convertedHt
     }
     if (!a[i].shown || !b[i].shown) continue;
     compared++;
+    // Where a line breaks: a word that starts a line on one side only (a `<br>` lost or added).
+    if (!!a[i].lineStart !== !!b[i].lineStart && i > 0) {
+      const where = (start: boolean | undefined) => (start ? "starts a line" : "continues the line");
+      const key = `line\u0000${where(a[i].lineStart)}`;
+      const group = groups.get(key) ?? { property: "line" as const, original: where(a[i].lineStart), converted: where(b[i].lineStart), words: [] };
+      group.words.push(a[i].word);
+      groups.set(key, group);
+    }
     for (const property of STYLE_PROPERTIES) {
       const x = a[i].style[property], y = b[i].style[property];
       if (property === "target" && (x === undefined) !== (y === undefined)) continue;
+      // No font family set is the reader's default (it differs from one client to the next): compared only where both set one.
+      if (property === "font" && (x === undefined || y === undefined) && !a[i].style.causes?.font && !b[i].style.causes?.font) continue;
       // An image behind the original's text that the migration doesn't have: the text must still be on
       // the color under the image (what shows where images don't load), or it reads differently.
       if (property === "background" && a[i].style.image && !b[i].style.image && y !== undefined) {
@@ -1528,6 +1688,10 @@ export function compareStyles(originalHtml: string | StyledDocument, convertedHt
         // Unknown on one side only: what the other shows can't be checked against it.
         if (property !== "target" && x === undefined && y !== undefined) doubt(property, "original", a[i].style.causes?.[property], a[i].word);
         if (property !== "target" && y === undefined && x !== undefined) doubt(property, "migrated", b[i].style.causes?.[property], b[i].word);
+        // Unknown on both sides, but written differently (`oklch(… 25)` against `oklch(… 250)`): not the same.
+        const causeA = a[i].style.causes?.[property];
+        const causeB = b[i].style.causes?.[property];
+        if (property !== "target" && x === undefined && y === undefined && causeA && causeB && causeA !== causeB) doubt(property, "original", `${causeA}, where the migrated template writes ${causeB}`, a[i].word);
         continue;
       }
       if (same(property, x, y)) continue;

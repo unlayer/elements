@@ -118,8 +118,8 @@ export interface FileResult {
    * The check fails on it.
    */
   unverified?: Array<{ what: string; side: "original" | "migrated"; cause: string; words: string[] }>;
-  /** At a phone's width: words the original shows there that the migrated template doesn't, and the other way round. */
-  phone?: { missing: string[]; added: string[] };
+  /** At a phone's width: words, links and images the original shows there that the migrated template doesn't, and the other way round. */
+  phone?: { missing: string[]; added: string[]; missingAttributes?: string[]; addedAttributes?: string[] };
   /** Text and images that sit elsewhere across the page on desktop (a column stacked or moved, a block on the other side), and how far. */
   layout?: Array<{ items: string[]; by: number }>;
   /** How much of the styles the check compared: words, and properties left out because one side couldn't be worked out. */
@@ -608,7 +608,7 @@ async function migrateFile(input: Input, options: Options, lib: Library, io: Io,
       ...(report.lostStyles?.length ? { lostStyles: report.lostStyles } : {}),
       ...(verification.styles.length ? { styles: verification.styles } : {}),
       ...(verification.unverified.length ? { unverified: verification.unverified } : {}),
-      ...(verification.phone.missing.length || verification.phone.added.length ? { phone: verification.phone } : {}),
+      ...(lib.phoneDiffers(verification.phone) ? { phone: verification.phone } : {}),
       ...(verification.layout.length ? { layout: verification.layout } : {}),
       styleCoverage: verification.styleCoverage,
       variants: verification.variants,
@@ -781,6 +781,8 @@ function markdownReport(results: FileResult[]): string {
     if (r.unverified?.length) lines.push("**Couldn't verify** (the check fails on what it can't read):", ...unverifiedList(r.unverified).split("; ").map((line) => `- ${line}`), "");
     if (r.phone?.missing.length) lines.push(`**On phones, lost text:** ${quote(r.phone.missing)}`, "");
     if (r.phone?.added.length) lines.push(`**On phones, extra text:** ${quote(r.phone.added)}`, "");
+    if (r.phone?.missingAttributes?.length) lines.push(`**On phones, lost links or images:** ${quote(r.phone.missingAttributes)}`, "");
+    if (r.phone?.addedAttributes?.length) lines.push(`**On phones, extra links or images:** ${quote(r.phone.addedAttributes)}`, "");
     if (r.layout?.length) lines.push(`**Moved across the page:** ${moves(r.layout)}`, "");
     if (r.styleCoverage?.words) lines.push(`Styles compared on ${r.styleCoverage.words} words${r.styleCoverage.unknown ? ` (${r.styleCoverage.unknown} values couldn't be worked out, and were left out)` : ""}.`, "");
     if (r.designWarnings?.length) lines.push("**The editor wouldn't get:**", ...r.designWarnings.map((w) => `- ${w}`), "");
@@ -825,6 +827,8 @@ function problems(check: CheckParts): string[] {
     ...(check.unverified?.length ? [`couldn't verify: ${unverifiedList(check.unverified)}`] : []),
     ...(check.phone?.missing.length ? [`on phones, lost text: ${quote(check.phone.missing)}`] : []),
     ...(check.phone?.added.length ? [`on phones, extra text: ${quote(check.phone.added)}`] : []),
+    ...(check.phone?.missingAttributes?.length ? [`on phones, lost links/images: ${quote(check.phone.missingAttributes)}`] : []),
+    ...(check.phone?.addedAttributes?.length ? [`on phones, extra links/images: ${quote(check.phone.addedAttributes)}`] : []),
     ...(check.layout?.length ? [`moved: ${moves(check.layout)}`] : []),
   ];
 }

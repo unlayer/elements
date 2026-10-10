@@ -45,7 +45,7 @@ export interface ConversionReport {
   /** What the check couldn't verify (a style, or whether words show, one side sets in a way it can't read): the check fails on it. */
   unverified?: Unverified[];
   /** At a phone's width: words the original shows there that the conversion doesn't, and the other way round. */
-  phoneDifferences?: { missing: string[]; added: string[] };
+  phoneDifferences?: { missing: string[]; added: string[]; missingAttributes?: string[]; addedAttributes?: string[] };
   /** Text that sits elsewhere across the page at a desktop width (a column stacked, a block on the other side). */
   layoutDifferences?: LayoutDifference[];
   /**

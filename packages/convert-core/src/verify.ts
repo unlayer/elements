@@ -33,7 +33,7 @@ export interface TextCheck {
    * conversion doesn't, and the other way round (content shown or hidden
    * only on phones).
    */
-  phone: { missing: string[]; added: string[] };
+  phone: { missing: string[]; added: string[]; missingAttributes?: string[]; addedAttributes?: string[] };
   /** Text and images that sit elsewhere across the page at a desktop width (a column stacked or moved, a block on the other side). */
   layout: LayoutDifference[];
   /** How much of the styles was compared: words, and properties left out because one side couldn't be worked out. */
@@ -47,8 +47,13 @@ export const PHONE_WIDTH = 375;
 export function checkFails(check: Omit<TextCheck, "styleCoverage">): boolean {
   return Boolean(
     check.missing.length || check.added.length || check.missingAttributes.length || check.addedAttributes.length ||
-    check.styles.length || check.unverified.length || check.phone.missing.length || check.phone.added.length || check.layout.length
+    check.styles.length || check.unverified.length || phoneDiffers(check.phone) || check.layout.length
   );
+}
+
+/** A phone shows other words, links or images than the original does there. */
+export function phoneDiffers(phone: TextCheck["phone"]): boolean {
+  return Boolean(phone.missing.length || phone.added.length || phone.missingAttributes?.length || phone.addedAttributes?.length);
 }
 
 /**
@@ -126,6 +131,21 @@ export function compareText(originalHtml: string, convertedHtml: string): TextCh
     const [kind, value, label] = JSON.parse(item) as [string, string, string];
     if (!missingAttributes.includes(`${kind} ${value}`)) missingAttributes.push(`${kind} ${value} (${label})`);
   }
+  // A link the original doesn't have on these words (the same URL on other words is another link). As a set:
+  // a renderer may repeat a link on the same words.
+  const originalPairs = new Set(pairsOf(originalDoc));
+  for (const item of new Set(pairsOf(convertedDoc).filter((pair) => !originalPairs.has(pair)))) {
+    const [kind, value, label] = JSON.parse(item) as [string, string, string];
+    if (kind === "href" && !addedAttributes.includes(`${kind} ${value}`)) addedAttributes.push(`${kind} ${value} (${label})`);
+  }
+  // Images in another order (two product photos swapped): the same images, but not where they were.
+  const images = (list: string[]) => list.filter((item) => item.startsWith("src "));
+  if (!lostOccurrences(images(originalAttributeList), images(convertedAttributeList)).length) {
+    for (const item of outOfOrder(images(originalAttributeList), images(convertedAttributeList))) {
+      missingAttributes.push(`${item} (out of order)`);
+      addedAttributes.push(`${item} (out of order)`);
+    }
+  }
   // Styles are compared word for word, so only when the words are the same.
   const same = !missing.length && !added.length;
   const style = same ? compareStyles(originalDoc, convertedDoc) : { differences: [], unverified: [], compared: 0, unknown: 0 };
@@ -148,9 +168,45 @@ export function compareText(originalHtml: string, convertedHtml: string): TextCh
     else phone.missing.push(word);
   }
   phone.added = [...phoneCounts].flatMap(([word, n]) => Array<string>(n).fill(word));
-  const unverified = [...style.unverified, ...unread, ...phoneDoubts(originalPhone, convertedPhone, style.unverified)];
-  return { missing, added, missingAttributes, addedAttributes, styles: style.differences, unverified, phone, layout, styleCoverage: { words: style.compared, unknown: style.unknown } };
+  // Links and images too: one a phone shows or hides on one side only (a phone-only call link, a hero image).
+  const phoneAttributesA = attributesOf(originalPhone);
+  const phoneAttributesB = attributesOf(convertedPhone);
+  const phoneLost = lostOccurrences(phoneAttributesA, phoneAttributesB).filter((item) => !missingAttributes.some((m) => m.startsWith(item)));
+  const phoneAdded = [...new Set(phoneAttributesB)].filter((item) => !phoneAttributesA.includes(item) && !addedAttributes.some((a) => a.startsWith(item)));
+  const phoneWithAttributes = { ...phone, ...(phoneLost.length ? { missingAttributes: phoneLost } : {}), ...(phoneAdded.length ? { addedAttributes: phoneAdded } : {}) };
+  const unverified = [...style.unverified, ...unread, ...targetDoubts(originalDoc, convertedDoc), ...phoneDoubts(originalPhone, convertedPhone, style.unverified)];
+  return { missing, added, missingAttributes, addedAttributes, styles: style.differences, unverified, phone: phoneWithAttributes, layout, styleCoverage: { words: style.compared, unknown: style.unknown } };
 }
+
+/**
+ * Links and images whether a reader gets can't be told on one side only (a
+ * rule with a condition or selector the check can't read around them): read
+ * as shown, a lost one would pass unseen.
+ */
+function targetDoubts(original: StyledDocument, converted: StyledDocument): Unverified[] {
+  const doubted = (doc: StyledDocument) => doc.targets().filter((t) => t.doubt).map((t) => ({ item: `${t.kind} ${t.value}`, cause: t.doubt! }));
+  const a = doubted(original);
+  const b = doubted(converted);
+  const out = new Map<string, Unverified>();
+  const add = (side: Unverified["side"], list: Array<{ item: string; cause: string }>, other: Array<{ item: string }>) => {
+    const left = counts(other.map((x) => x.item));
+    for (const { item, cause } of list) {
+      const n = left.get(item) ?? 0;
+      if (n) {
+        left.set(item, n - 1);
+        continue;
+      }
+      const entry = out.get(`${side}\u0000${cause}`) ?? { what: "shown", side, cause, words: [] };
+      entry.words.push(item);
+      out.set(`${side}\u0000${cause}`, entry);
+    }
+  };
+  add("original", a, b);
+  add("migrated", b, a);
+  return [...out.values()];
+}
+
+const counts = (list: string[]) => list.reduce((m, x) => m.set(x, (m.get(x) ?? 0) + 1), new Map<string, number>());
 
 /**
  * Words whether a phone shows can't be told on one side only (a phone rule

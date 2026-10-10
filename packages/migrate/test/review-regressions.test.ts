@@ -865,6 +865,18 @@ export default function T() { return <Email backgroundColor="#ffffff" contentWid
     expect(await main(["compare", "emails/t.tsx", "hand.tsx"], out, lib), out.out + out.err).toBe(2);
     expect(out.out).toMatch(/moved: "Total", "due", "40", "dollars" \d+px to the left/);
   });
+
+  it("fails a hand migration that hides a linked image on phones, naming it", async () => {
+    const original = `import { Html, Body, Section, Text, Link, Img } from "@react-email/components";
+export default function T() { return <Html><Body><Section><Text>Thanks for your order, here is the summary</Text><Link href="https://example.com/app"><Img src="https://example.com/badge.png" alt="" width="120" height="40" /></Link></Section></Body></Html>; }`;
+    const migrated = `import { Email, Row, Column, Paragraph, Image } from "@unlayer/react-elements";
+export default function T() { return <Email><Row><Column><Paragraph>Thanks for your order, here is the summary</Paragraph><Image src="https://example.com/badge.png" alt="" width="120px" href="https://example.com/app" hideOnMobile /></Column></Row></Email>; }`;
+    const dir = project({ "emails/t.tsx": original, "hand.tsx": migrated });
+    const out = io(dir);
+    expect(await main(["compare", "emails/t.tsx", "hand.tsx"], out, lib), out.out + out.err).toBe(2);
+    expect(out.out).toContain("on phones, lost links/images:");
+    expect(out.out).toContain("https://example.com/badge.png");
+  });
 });
 
 describe("templates reached through the project's own modules", () => {

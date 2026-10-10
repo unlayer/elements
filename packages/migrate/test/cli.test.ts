@@ -160,13 +160,13 @@ export default function Template() { return <Html><Body><Text>${text}</Text></Bo
   });
 
   it("preserves a default CTA URL even when another link would mask its loss", async () => {
-    const source = `import { Html, Body, Button } from "@react-email/components";
+    const source = `import { Html, Body, Button, Section } from "@react-email/components";
 function CTA({ href = "https://example.com/pay" }: { href?: string }) { return <Button href={href}>Pay invoice</Button>; }
-export default function Template({ href }: { href?: string }) { return <Html><Body><CTA href={href}/><Button href="https://example.com/pay">Help</Button></Body></Html>; }
+export default function Template({ href }: { href?: string }) { return <Html><Body><Section><CTA href={href}/></Section><Section><Button href="https://example.com/pay">Help</Button></Section></Body></Html>; }
 Template.PreviewProps = { href: undefined };`;
     const dir = project({ "emails/default.tsx": source });
     const out = io(dir);
-    expect(await main(["emails", "--out", "migrated"], out, lib)).toBe(0);
+    expect(await main(["emails", "--out", "migrated"], out, lib), out.out).toBe(0);
     const compare = io(dir);
     expect(await main(["compare", "emails/default.tsx", "migrated/default.tsx"], compare, lib)).toBe(0);
     // Check the actual output: the verifier's set of URLs alone can mask a lost CTA.

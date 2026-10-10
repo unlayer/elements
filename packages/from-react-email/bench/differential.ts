@@ -26,7 +26,7 @@ import React from "react";
 import { render } from "@react-email/components";
 import { renderToHtml } from "@unlayer/react-elements";
 import { chromium, type Page } from "playwright";
-import { checkFails, compareText, convertReactEmail, convertSource, findTailwind } from "../src/index";
+import { checkFails, compareText, convertReactEmail, convertSource, findTailwind, phoneDiffers } from "../src/index";
 import { BASES } from "./differential/bases";
 import { verdict, type Reading } from "./differential/oracle";
 
@@ -176,10 +176,10 @@ async function main() {
       tally.same++;
       if (fails) {
         tally.falseFails++;
-        const concrete = check.missing.length + check.added.length + check.styles.length + check.layout.length + check.phone.missing.length + check.phone.added.length + check.missingAttributes.length + check.addedAttributes.length > 0;
+        const concrete = check.missing.length + check.added.length + check.styles.length + check.layout.length + check.missingAttributes.length + check.addedAttributes.length > 0 || phoneDiffers(check.phone);
         if (concrete) tally.falseFailsConcrete++;
         const cause = concrete
-          ? `reads a difference: ${[...check.styles.map((s) => s.property), ...(check.layout.length ? ["layout"] : []), ...(check.missing.length || check.added.length ? ["words"] : []), ...(check.phone.missing.length || check.phone.added.length ? ["phone"] : [])].join(", ")}`
+          ? `reads a difference: ${[...check.styles.map((s) => s.property), ...(check.layout.length ? ["layout"] : []), ...(check.missing.length || check.added.length ? ["words"] : []), ...(phoneDiffers(check.phone) ? ["phone"] : [])].join(", ")}`
           : `unverified: ${check.unverified.map((u) => u.what).join(", ")}`;
         falseFails.set(cause, (falseFails.get(cause) ?? 0) + 1);
         if (process.argv.includes("--verbose")) console.log(`  false fail, seed ${seed} (${base.name}): ${cause}\n    ${mutated.log.join("\n    ")}`);

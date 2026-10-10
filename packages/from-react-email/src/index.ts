@@ -9,6 +9,7 @@ import {
   checkFails,
   compareText,
   editorFonts,
+  phoneDiffers,
   pinImageWidths,
   treeToDesign,
   treeToHtml,
@@ -153,7 +154,7 @@ function variant(change: string, check: TextCheck): Verification["variants"][num
     missingAttributes: check.missingAttributes,
     ...(check.styles.length ? { styles: check.styles } : {}),
     ...(check.unverified.length ? { unverified: check.unverified } : {}),
-    ...(check.phone.missing.length || check.phone.added.length ? { phone: check.phone } : {}),
+    ...(phoneDiffers(check.phone) ? { phone: check.phone } : {}),
     ...(check.layout.length ? { layout: check.layout } : {}),
   };
 }
@@ -320,7 +321,7 @@ export async function templateTailwind(Original: Template, props?: Record<string
 
 export { rebaseImports } from "./imports";
 export { mergeTagged, textProps, type TextProp } from "./merge-tags";
-export { checkFails, compareText, htmlWords, shareEditorFonts, type EditorFont, type TextCheck } from "@unlayer/convert-core";
+export { checkFails, compareText, htmlWords, phoneDiffers, shareEditorFonts, type EditorFont, type TextCheck } from "@unlayer/convert-core";
 export { convertElement } from "./runtime";
 export { expand, findTailwind, findTailwindConfig, REACT_EMAIL_COMPONENTS } from "./expand";
 export { convertSource, type CodemodOptions, type CodemodResult } from "./codemod";
