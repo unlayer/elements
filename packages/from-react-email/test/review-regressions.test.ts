@@ -634,3 +634,35 @@ describe("merge tags", () => {
     for (const path of ["name", "fullName", "title"]) expect(runtime).not.toContain(`{{${path}}}`);
   });
 });
+
+describe("names the template already uses", () => {
+  it("don't clash with the helpers and Elements components the migration adds", async () => {
+    const { Original, Migrated, conversion } = await templates(`import { Html, Body, Text, Link } from "@react-email/components";
+      function escapeHtml(text: string) { return text; }
+      function htmlText(text: string) { return text; }
+      export default function T({ name, url, Paragraph = "unused" }: { name: string; url?: string; Paragraph?: string }) {
+        const Button = escapeHtml(htmlText(name));
+        return <Html><Body><Text>Hi {Button}, <Link href={url}>open</Link> {name}</Text></Body></Html>;
+      }
+      T.PreviewProps = { name: "Ana", url: "https://example.com" };`);
+    expect(conversion.code).toMatch(/function _escapeHtml\(/);
+    expect(conversion.code).toMatch(/Paragraph as UnlayerParagraph/);
+    const check = await verifyConversion(Original, Migrated);
+    expect([check.missing, check.added, check.styles, check.variants]).toEqual([[], [], [], []]);
+  });
+
+  it("keep a JSX constant from being written where a loop or catch variable of the same name would capture it", async () => {
+    const { Original, Migrated } = await templates(`import { Html, Body, Section, Text } from "@react-email/components";
+      export default function T({ items }: { items: string[] }) {
+        const item = "Total";
+        const label = <Text>{item}</Text>;
+        const rows = [];
+        for (const item of items) rows.push(<Section key={item}><Text>{item}</Text>{label}</Section>);
+        try { JSON.parse("{"); } catch (item) { rows.push(<Section key="error">{label}</Section>); }
+        return <Html><Body>{rows}{label}</Body></Html>;
+      }
+      T.PreviewProps = { items: ["One", "Two"] };`);
+    const check = await verifyConversion(Original, Migrated);
+    expect([check.missing, check.added]).toEqual([[], []]);
+  });
+});

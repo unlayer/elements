@@ -191,6 +191,8 @@ class Converter {
   private needsAttribute = false;
   private needsPlainText = false;
   private plainTextName = "plainText";
+  /** The functions the migrated file gets, by names the template doesn't use already. */
+  private readonly helper = { escapeHtml: "escapeHtml", htmlText: "htmlText", htmlAttribute: "htmlAttribute", renderToStaticMarkup: "renderToStaticMarkup", reactStaticMarkup: "reactStaticMarkup" };
   private needsStaticMarkup = false;
   /** Module constants copied in with imported components: dropped if the output doesn't use them. */
   private copied: string[] = [];
@@ -221,6 +223,7 @@ class Converter {
   ) {
     const names = new Set(file.getFullText().match(/\b[A-Za-z_$][\w$]*/g));
     while (names.has(this.plainTextName)) this.plainTextName = `_${this.plainTextName}`;
+    for (const key of Object.keys(this.helper) as Array<keyof typeof this.helper>) while (names.has(this.helper[key])) this.helper[key] = `_${this.helper[key]}`;
     // Bind this source without resolving dependencies. The checker still
     // distinguishes module constants from parameters, locals and loop bindings.
     const options: ts.CompilerOptions = { noLib: true, noResolve: true };
@@ -499,7 +502,18 @@ class Converter {
    */
   private jsxValued(expression: ts.Expression): boolean {
     const type = this.checker.typeToString(this.checker.getTypeAtLocation(expression));
-    if (/\b(ReactElement|JSX\.Element|ReactPortal)\b/.test(type)) return true;
+    if (/\b(ReactElement|JSX\.Element|ReactPortal)\b|\bElement\[\]/.test(type)) return true;
+    // An array JSX is pushed into (`rows.push(<Text>…</Text>)`).
+    if (ts.isIdentifier(expression)) {
+      let pushed = false;
+      const find = (node: ts.Node) => {
+        if (pushed) return;
+        if (ts.isCallExpression(node) && ts.isPropertyAccessExpression(node.expression) && /^(push|unshift)$/.test(node.expression.name.text) && ts.isIdentifier(node.expression.expression) && node.expression.expression.text === expression.text && node.arguments.some((arg) => containsJsx(arg))) pushed = true;
+        else ts.forEachChild(node, find);
+      };
+      find(this.file);
+      if (pushed) return true;
+    }
     const name = ts.isIdentifier(expression) ? expression.text : ts.isPropertyAccessExpression(expression) ? expression.name.text : undefined;
     if (!name || !/^(any|ReactNode|React\.ReactNode)$/.test(type)) return false;
     // Untyped, or typed ReactNode (text or JSX): JSX when the preview props give JSX.
@@ -1475,9 +1489,9 @@ class Converter {
 
   /** An attribute from code in markup: a value that's always a string is written as it is, any other is left out when missing. */
   private codeAttribute(name: string, code: string): string {
-    if (/^[`"']/.test(code.trim())) return `${name}="\${escapeHtml(String(${code}))}"`;
+    if (/^[`"']/.test(code.trim())) return `${name}="\${${this.helper.escapeHtml}(String(${code}))}"`;
     this.needsAttribute = true;
-    return `\${htmlAttribute("${name}", ${code})}`;
+    return `\${${this.helper.htmlAttribute}("${name}", ${code})}`;
   }
 
   private isInline(jsx: Jsx): boolean {
@@ -1562,7 +1576,7 @@ class Converter {
   /** `renderToStaticMarkup(<jsx>)` for kept JSX. */
   private staticMarkup(jsx: string): Expr {
     this.needsStaticMarkup = true;
-    return expr(`renderToStaticMarkup(${jsx})`);
+    return expr(`${this.helper.renderToStaticMarkup}(${jsx})`);
   }
 
   /**
@@ -1668,7 +1682,7 @@ class Converter {
             this.needsEscape = true;
             this.needsHtmlText = true;
             this.needsStaticMarkup = true;
-            parts.push(expr(`htmlText(${child.expression.getText()})`));
+            parts.push(expr(`${this.helper.htmlText}(${child.expression.getText()})`));
           }
         } else if (ts.isJsxElement(child) || ts.isJsxSelfClosingElement(child)) {
           const jsx = this.read(child);
@@ -1704,7 +1718,7 @@ class Converter {
           // from code that may be missing brings its own space (it may render nothing).
           const code = attrs.some((a) => a.code);
           const open = code
-            ? expr(`\`<${tag}${attrs.map((a) => (a.code ? (a.text.startsWith("${htmlAttribute(") ? a.text : ` ${a.text}`) : ` ${escapeTemplate(a.text)}`)).join("")}>\``)
+            ? expr(`\`<${tag}${attrs.map((a) => (a.code ? (a.text.startsWith(`\${${this.helper.htmlAttribute}(`) ? a.text : ` ${a.text}`) : ` ${escapeTemplate(a.text)}`)).join("")}>\``)
             : `<${tag}${attrs.map((a) => ` ${a.text}`).join("")}>`;
           if (tag === "br") {
             parts.push("<br/>");
@@ -1802,11 +1816,18 @@ class Converter {
   /** Top-level names the file declares itself (not React Email imports). */
   private localNames(): string[] {
     const names: string[] = [];
+    // Every name the file declares, at any depth (a `Paragraph` inside the component, a prop named `Button`).
+    const bind = (name: ts.BindingName) => {
+      if (ts.isIdentifier(name)) names.push(name.text);
+      else for (const element of name.elements) if (!ts.isOmittedExpression(element)) bind(element.name);
+    };
+    const visit = (node: ts.Node) => {
+      if ((ts.isFunctionDeclaration(node) || ts.isClassDeclaration(node) || ts.isFunctionExpression(node) || ts.isClassExpression(node)) && node.name) names.push(node.name.text);
+      if (ts.isVariableDeclaration(node) || ts.isParameter(node) || ts.isBindingElement(node)) bind(node.name);
+      ts.forEachChild(node, visit);
+    };
+    visit(this.file);
     for (const statement of this.file.statements) {
-      if ((ts.isFunctionDeclaration(statement) || ts.isClassDeclaration(statement)) && statement.name) names.push(statement.name.text);
-      if (ts.isVariableStatement(statement)) {
-        for (const decl of statement.declarationList.declarations) if (ts.isIdentifier(decl.name)) names.push(decl.name.text);
-      }
       if (ts.isImportDeclaration(statement) && ts.isStringLiteral(statement.moduleSpecifier) && !isReactEmailModule(statement.moduleSpecifier.text)) {
         const clause = statement.importClause;
         if (clause?.name) names.push(clause.name.text);
@@ -1873,7 +1894,7 @@ class Converter {
       }),
       `import { ${elementNames.join(", ")} } from "@unlayer/react-elements";`,
       ...(this.needsStaticMarkup
-        ? ['import { renderToStaticMarkup as reactStaticMarkup } from "react-dom/server";']
+        ? [`import { renderToStaticMarkup as ${this.helper.reactStaticMarkup} } from "react-dom/server";`]
         : []),
     ].join("\n");
 
@@ -1936,6 +1957,8 @@ class Converter {
         `  return value === null || value === undefined || value === false ? "" : \` \${name}="\${escapeHtml(String(value))}"\`;\n` +
         `}\n`;
     }
+    // The helpers by the names chosen for them (the template may use these names already).
+    for (const [name, chosen] of Object.entries(this.helper)) if (name !== chosen) helpers = helpers.replace(new RegExp(`\\b${name}\\b`, "g"), chosen);
     if (this.needsPlainText) {
       helpers +=
         `\nfunction ${this.plainTextName}(value${javascript ? "" : ": unknown"})${javascript ? "" : ": string"} {\n` +
@@ -1955,10 +1978,10 @@ class Converter {
       if (statement && (body.match(new RegExp(`\\b${name}\\b`, "g")) ?? []).length === 1) body = body.replace(statement.getText(), "");
     }
     const generated = new Set([
-      ...(this.needsEscape ? ["escapeHtml"] : []),
-      ...(this.needsStaticMarkup ? ["renderToStaticMarkup", "reactStaticMarkup"] : []),
-      ...(this.needsHtmlText ? ["htmlText"] : []),
-      ...(this.needsAttribute ? ["htmlAttribute"] : []),
+      ...(this.needsEscape ? [this.helper.escapeHtml] : []),
+      ...(this.needsStaticMarkup ? [this.helper.renderToStaticMarkup, this.helper.reactStaticMarkup] : []),
+      ...(this.needsHtmlText ? [this.helper.htmlText] : []),
+      ...(this.needsAttribute ? [this.helper.htmlAttribute] : []),
       ...(this.needsPlainText ? [this.plainTextName] : []),
     ]);
     const original = this.original === undefined ? this.file : ts.createSourceFile(this.file.fileName, this.original, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);

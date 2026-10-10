@@ -157,9 +157,13 @@ function shadowed(ref: ts.Node, scope: ts.Node, names: Set<string>): boolean {
       : binding.elements.some((e) => !ts.isOmittedExpression(e) && declares(e.name));
   for (let node: ts.Node = ref.parent; node && node !== scope; node = node.parent) {
     if (ts.isFunctionLike(node) && node.parameters.some((p) => declares(p.name))) return true;
-    if (ts.isBlock(node)) {
+    // A loop's variable (`for (const item of items)`) and a catch clause's.
+    if ((ts.isForStatement(node) || ts.isForInStatement(node) || ts.isForOfStatement(node)) && node.initializer && ts.isVariableDeclarationList(node.initializer) && node.initializer.declarations.some((d) => declares(d.name))) return true;
+    if (ts.isCatchClause(node) && node.variableDeclaration && declares(node.variableDeclaration.name)) return true;
+    if (ts.isBlock(node) || ts.isSourceFile(node)) {
       for (const statement of node.statements) {
         if (ts.isVariableStatement(statement) && statement.declarationList.declarations.some((d) => declares(d.name))) return true;
+        if ((ts.isFunctionDeclaration(statement) || ts.isClassDeclaration(statement)) && statement.name && names.has(statement.name.text)) return true;
       }
     }
   }
