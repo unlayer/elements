@@ -84,6 +84,8 @@ function expands(child: React.ReactNode): child is React.ReactElement {
 function callComponent(element: React.ReactElement<any>): React.ReactNode {
   const type = innerType(element.type);
   const props = { ...element.props };
+  // A memo'd component's own defaultProps: React fills them when it renders it (creating the element filled the memo's).
+  if (type !== element.type && type?.defaultProps) for (const [key, value] of Object.entries(type.defaultProps)) if (props[key] === undefined) props[key] = value;
   return type.$$typeof === FORWARD_REF ? type.render(props, null) : type(props);
 }
 

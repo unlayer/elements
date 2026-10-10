@@ -179,6 +179,18 @@ const PATTERNS: Record<string, Pattern> = {
     shows: "Inside a Fragment",
     json: false, // the previous release's renderToJson threw for it; this one reads the root inside
   },
+  "a memo component whose function has defaultProps, among the email's rows": {
+    build: (L) => {
+      function Banner({ title }: { title?: string }) {
+        return <L.Row><L.Column><L.Paragraph>{`Banner: ${title}`}</L.Paragraph></L.Column></L.Row>;
+      }
+      (Banner as unknown as { defaultProps: object }).defaultProps = { title: "default title" };
+      const MemoBanner = memo(Banner);
+      return <L.Email><MemoBanner /><L.Row><L.Column><L.Paragraph>Footer</L.Paragraph></L.Column></L.Row></L.Email>;
+    },
+    shows: "Banner: default title Footer",
+    json: false, // 0.1.22's design left out components among the rows
+  },
   "headings, buttons and text with &, < and quotes": {
     build: (L) => (
       <L.Email>

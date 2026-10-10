@@ -25,7 +25,7 @@ const releases: Record<"current" | "previous", Lib> = { current, previous: previ
 
 type Block = { kind: "paragraph" | "heading" | "button" | "html"; word: string } | { kind: "divider" };
 /** What a component does with what it holds. */
-type Wrapper = "plain" | "state" | "memoized" | "memo" | "forwardRef";
+type Wrapper = "plain" | "state" | "memoized" | "memo" | "forwardRef" | "memoDefaults";
 type Item<T> =
   | { kind: "is"; value: T }
   | { kind: "when"; show: boolean; value: T }
@@ -54,7 +54,7 @@ function generate(seed: number): Template {
   const r = random(seed);
   let words = 0;
   const word = () => `w${++words}`;
-  const WRAPPERS: Wrapper[] = ["plain", "state", "memoized", "memo", "forwardRef"];
+  const WRAPPERS: Wrapper[] = ["plain", "state", "memoized", "memo", "forwardRef", "memoDefaults"];
   const item = <T,>(make: () => T, depth: number, allowNothing: boolean): Item<T> => {
     const roll = r.next();
     if (depth > 2 || roll < 0.45) return { kind: "is", value: make() };
@@ -115,6 +115,12 @@ function build(t: Template, L: Lib): React.ReactElement {
     };
     else if (wrapper === "memoized") Component = () => <>{useMemo(render, [])}</>;
     else if (wrapper === "memo") Component = memo(() => <>{render()}</>);
+    else if (wrapper === "memoDefaults") {
+      // What it holds shows through a default prop (React 18 fills a memo'd function's defaultProps).
+      const Inner = ({ show }: { show?: boolean }) => <>{show ? render() : null}</>;
+      (Inner as unknown as { defaultProps: object }).defaultProps = { show: true };
+      Component = memo(Inner) as unknown as React.ComponentType<{ tag: number }>;
+    }
     else if (wrapper === "forwardRef") Component = forwardRef<HTMLDivElement, { tag: number }>(() => <>{render()}</>) as unknown as React.ComponentType<{ tag: number }>;
     else Component = () => <>{render()}</>;
     return <Component key={`c${id}`} tag={id} />;
