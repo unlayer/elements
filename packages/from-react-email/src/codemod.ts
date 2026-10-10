@@ -333,6 +333,11 @@ class Converter {
     for (const statement of this.file.statements) {
       if (ts.isFunctionDeclaration(statement) && hasModifier(statement, ts.SyntaxKind.DefaultKeyword)) return statement;
       if (ts.isExportAssignment(statement) && !statement.isExportEquals) return resolve(statement.expression);
+      // `export { Welcome as default }`.
+      if (ts.isExportDeclaration(statement) && !statement.moduleSpecifier && !statement.isTypeOnly && statement.exportClause && ts.isNamedExports(statement.exportClause)) {
+        const named = statement.exportClause.elements.find((e) => e.name.text === "default" && !e.isTypeOnly);
+        if (named) return resolve(named.propertyName ?? named.name);
+      }
     }
     return undefined;
   }

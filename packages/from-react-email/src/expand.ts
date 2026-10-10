@@ -10,6 +10,14 @@ import React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 
 /** React Email components the converter maps (by displayName). */
+/**
+ * React Email's <Font>, a plain function (its other components are forwardRef): known by the props it requires.
+ * Kept as itself, so the conversion sees the family its `* { font-family }` rule gives every element.
+ */
+function isFont(name: string, props: Record<string, any>): boolean {
+  return name === "Font" && typeof props.fontFamily === "string" && props.fallbackFontFamily !== undefined;
+}
+
 export const REACT_EMAIL_COMPONENTS = new Set([
   "Html",
   "Head",
@@ -59,7 +67,7 @@ export async function expand(node: React.ReactNode, depth = 0): Promise<Node[]> 
 
   const name = displayName(type);
   if (name === "Tailwind") return expand(await runTailwind(type, props), depth + 1);
-  if (name && REACT_EMAIL_COMPONENTS.has(name) && type?.$$typeof === FORWARD_REF) {
+  if (name && REACT_EMAIL_COMPONENTS.has(name) && (type?.$$typeof === FORWARD_REF || isFont(name, props))) {
     return [{ kind: "component", name, props, children: await expand(props.children, depth + 1), element }];
   }
 
@@ -107,7 +115,7 @@ async function toPlaceholders(node: React.ReactNode, types: Map<string, any>): P
     return React.cloneElement(element, undefined, ...(kids === undefined ? [] : [kids]));
   }
   const name = displayName(type);
-  if (name && REACT_EMAIL_COMPONENTS.has(name) && type?.$$typeof === FORWARD_REF) {
+  if (name && REACT_EMAIL_COMPONENTS.has(name) && (type?.$$typeof === FORWARD_REF || isFont(name, props))) {
     types.set(name, type);
     // A real <head>, so Tailwind can put rules it can't inline there.
     const tag = name === "Head" ? "head" : `${PLACEHOLDER}${name}`;

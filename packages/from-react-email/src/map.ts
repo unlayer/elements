@@ -378,7 +378,9 @@ export function buttonBlock(href: unknown, label: Content | Parts, style: Style,
         // React Email opens a button's link in a new tab unless it sets another target.
         href: (typeof href === "string" || isExpr(href)) && ((typeof target === "string" && target !== "_blank") || isExpr(target)) ? { name: "web", values: { href, target } } : href,
         backgroundColor: fillColor(style) ?? "transparent",
-        ...textProps(style, ctx, { lineHeight: "120%" }),
+        // React Email's Button puts its label in a span of its own, which a <Font>'s `* { font-family }` styles:
+        // the label takes that font, whatever the link sets.
+        ...textProps(ctx.universalFont ? { ...style, fontFamily: undefined } : style, ctx, { lineHeight: "120%" }),
         // An inline-block link: placed by the parent's text-align (the start side by default).
         textAlign: (block ? alignOf(style) ?? ctx.inherited.blockAlign ?? start(ctx) : ctx.inherited.blockAlign ?? ctx.inherited.textAlign ?? start(ctx)) as string,
         color: color(ownColor(style.color, ctx.inherited.color)) ?? "#0000ee",

@@ -1043,6 +1043,20 @@ export default function T() {
   });
 });
 
+describe("a <Font> and a Button", () => {
+  it("gives the button's label the <Font>'s family, which its rule sets on the label's own span", async () => {
+    const { Original, Migrated } = await templates(`import { Html, Head, Font, Body, Button } from "@react-email/components";
+export default function T() {
+  return <Html><Head><Font fontFamily="Inter" fallbackFontFamily="Arial" /></Head><Body>
+    <Button href="https://example.com/manage" style={{ fontFamily: "Arial, Helvetica, sans-serif", padding: "12px 20px", backgroundColor: "#111827", color: "#ffffff" }}>Manage subscription</Button>
+  </Body></Html>;
+}`);
+    const check = await verifyConversion(Original, Migrated);
+    expect(check.styles).toEqual([]);
+    expect((await convertReactEmail(Original)).report.styleDifferences ?? []).toEqual([]);
+  });
+});
+
 describe("several <Font>s", () => {
   it("give every element the last one's family, as their rules do", async () => {
     const { Original, Migrated, conversion } = await templates(`import { Html, Head, Font, Body, Text, Link } from "@react-email/components";

@@ -651,6 +651,18 @@ describe("evaluation order and conditional roots", () => {
     expect(html).toMatch(/Hi Alex!/);
   });
 
+  it("converts a template exported as `export { Welcome as default }`", async () => {
+    const source = `${IMPORTS}
+      function Welcome({ name = "Ada" }: { name?: string }) { return <Html><Body><Text>Hi {name}, welcome aboard</Text></Body></Html>; }
+      Welcome.PreviewProps = { name: "Ada" };
+      export { Welcome as default };`;
+    const { codemod, check } = await convertBoth(source, "export-as-default");
+    expect(codemod.code).toContain("<Email");
+    expect(codemod.code).toContain("export { Welcome as default }");
+    expect(check.missing).toEqual([]);
+    expect(check.styles).toEqual([]);
+  });
+
   it("keeps a component whose argument would run twice, in a callback, or behind a condition", async () => {
     const cases = {
       twice: `function C({ v }) { return <Text>{v}{v}</Text>; }`,
