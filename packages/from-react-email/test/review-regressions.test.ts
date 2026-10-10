@@ -391,3 +391,78 @@ describe("images, links and backgrounds", () => {
     expect(code).toMatch(/position: "center"/);
   });
 });
+
+describe("classes and head styles", () => {
+  /** Both converters' check issues for a template (styles included), with its preview props and each boolean flipped. */
+  const issues = async (source: string, props?: Record<string, unknown>) => {
+    const { Original, Migrated, conversion } = await templates(source);
+    const codemod = await verifyConversion(Original, Migrated, props ? { props } : {});
+    const runtime = await convertReactEmail(Original, { mergeTags: false, ...(props ? { props } : {}) });
+    const { compareText } = await import("@unlayer/convert-core");
+    const { render } = await import("@react-email/components");
+    const React = (await import("react")).default;
+    const runtimeCheck = compareText(await render(React.createElement(Original, props ?? Original.PreviewProps ?? {})), runtime.html());
+    const list = (c: { missing: string[]; added: string[]; styles?: Array<{ property: string; original: string; converted: string }> }) => [...c.missing, ...c.added, ...(c.styles ?? []).map((s) => `${s.property}: ${s.original} → ${s.converted}`)];
+    return { codemod: [...list(codemod), ...codemod.variants.flatMap((v) => list(v).map((i) => `${v.change}: ${i}`)), ...(conversion.report.lostStyles ?? [])], runtime: list(runtimeCheck), code: conversion.code };
+  };
+  const head = (css: string, body: string, extra = "") => `import { Html, Head, Body, Text, Section, Row, Column } from "@react-email/components";
+    ${extra}
+    export default function T() { return <Html><Head><style>{${JSON.stringify(css)}}</style></Head><Body>${body}</Body></Html>; }`;
+
+  it("merges class rules in stylesheet order, not the class attribute's", async () => {
+    const result = await issues(head(".muted{color:#888888} .alert{color:#e11d48} .hide{display:none} .show{display:block}", '<Text className="alert muted">Alert</Text><Text className="show hide">Shown</Text>'));
+    expect([result.codemod, result.runtime]).toEqual([[], []]);
+  });
+
+  it("reads each class rule in a phone media query, whatever else the block holds, and stacks columns a head class stacks", async () => {
+    const result = await issues(head("@media (max-width: 600px){ u + .body .gmail{color:red} .big{font-size:24px !important} .stack{display:block !important;width:100% !important} }",
+      '<Section><Row><Column className="stack"><Text className="big">Left</Text></Column><Column className="stack"><Text>Right</Text></Column></Row></Section>'));
+    expect(result.code).toMatch(/mobile=\{\{[^}]*fontSize: "24px"/);
+    expect(result.code).not.toContain("noStackMobile");
+  });
+
+  it("keeps one return's head styles off another's elements", async () => {
+    const source = `import { Html, Head, Body, Text } from "@react-email/components";
+      export default function T({ alert }: { alert: boolean }) {
+        if (alert) return <Html><Head><style>{".status{color:#ff0000;font-size:40px}"}</style></Head><Body><Text className="status">Account status</Text></Body></Html>;
+        return <Html><Body><Text className="status">Account status</Text></Body></Html>;
+      }
+      T.PreviewProps = { alert: true };`;
+    expect((await issues(source)).codemod).toEqual([]);
+    expect((await issues(source, { alert: false })).codemod).toEqual([]);
+  });
+
+  it("refuses a head <style> it can't keep: CSS from code, or under a condition", async () => {
+    await expect(convertSource(`import { Html, Head, Body, Text } from "@react-email/components";
+      export default function T({ css }: { css: string }) { return <Html><Head><style>{css}</style></Head><Body><Text>Hi</Text></Body></Html>; }`, { fileName: "t.tsx" })).rejects.toThrow(/whose CSS comes from code/);
+    await expect(convertSource(`import { Html, Head, Body, Text } from "@react-email/components";
+      export default function T({ alert }: { alert: boolean }) { return <Html><Head>{alert && <style>{".a{color:red}"}</style>}</Head><Body><Text className="a">Hi</Text></Body></Html>; }`, { fileName: "t.tsx" })).rejects.toThrow(/under a condition/);
+  });
+
+  it("resolves a class list spread onto an element, and a class-list call's fixed classes (its picked ones are reported)", async () => {
+    const tw = (body: string, extra = "") => `import { Html, Body, Text, Tailwind } from "@react-email/components";
+      ${extra}
+      export default function T({ active }: { active?: boolean }) { return <Tailwind><Html><Body>${body}</Body></Html></Tailwind>; }`;
+    const spread = await issues(tw("<Text {...shared}>Spread</Text>", `const shared = { className: "text-red-600 font-bold text-2xl" };`));
+    expect([spread.codemod, spread.runtime]).toEqual([[], []]);
+    const fixed = await issues(tw('<Text className={cx("text-red-600", "font-bold")}>Fixed</Text>', `const cx = (...names: Array<string | false | undefined>) => names.filter(Boolean).join(" ");`));
+    expect([fixed.codemod, fixed.runtime]).toEqual([[], []]);
+    const picked = await issues(tw('<Text className={cx("text-red-600", active && "font-bold")}>Picked</Text>', `const cx = (...names: Array<string | false | undefined>) => names.filter(Boolean).join(" ");`));
+    expect(picked.codemod.join("\n")).toMatch(/cx\("text-red-600", active && "font-bold"\)/);
+  });
+
+  it("refuses a Tailwind config built from props, and follows a change made through another name", async () => {
+    await expect(convertSource(`import { Html, Body, Text, Tailwind } from "@react-email/components";
+      export default function T({ brand }: { brand: string }) { return <Tailwind config={{ theme: { extend: { colors: { brand } } } }}><Html><Body><Text className="text-brand">Hi</Text></Body></Html></Tailwind>; }`, { fileName: "t.tsx" })).rejects.toThrow(/config built from props/);
+    // A config written out in the component (with an imported preset) is fixed: it converts.
+    await expect(convertSource(`import { Html, Body, Text, Tailwind, pixelBasedPreset } from "@react-email/components";
+      export default function T() { return <Tailwind config={{ presets: [pixelBasedPreset], theme: { extend: { colors: { brand: "#2250f4" }, spacing: { 20: "20px" } } } }}><Html><Body><Text className="text-brand">Hi</Text></Body></Html></Tailwind>; }`, { fileName: "t.tsx" })).resolves.toBeTruthy();
+    const result = await issues(`import { Html, Body, Text } from "@react-email/components";
+      const style = { color: "#ff0000" };
+      const alias = style;
+      alias.color = "#0000ff";
+      export default function T() { return <Html><Body><Text style={style}>Blue</Text></Body></Html>; }`);
+    // The style isn't written in as its first value (red): it's reported, so the check fails.
+    expect(result.codemod.join("\n")).toMatch(/line \d+: style=\{style\}/);
+  });
+});

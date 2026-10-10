@@ -178,12 +178,18 @@ export function hiddenClasses(html: string): Map<string, { important: boolean }>
  * `html` with display:none written on the elements `classes` hide: unless their own style
  * sets a display, which wins over a class rule that isn't `!important`.
  */
-export function hideClasses(html: string, classes: ReadonlyMap<string, { important: boolean }>): string {
+export function hideClasses(
+  html: string,
+  classes: ReadonlyMap<string, { important: boolean }>,
+  /** Whether an element with these classes is hidden, when another rule (`.show{display:block}`) can win: by default any hiding class hides it. */
+  hides?: (names: string[]) => boolean
+): string {
   if (!classes.size) return html;
   return html.replace(/<([a-z][\w-]*)((?:\s(?:"[^"]*"|'[^']*'|[^'">])*)?)>/gi, (tag, name: string, attrs: string) => {
     const names = /\sclass\s*=\s*(?:"([^"]*)"|'([^']*)')/i.exec(attrs);
-    const rules = names ? (names[1] ?? names[2]).split(/\s+/).flatMap((c) => classes.get(c) ?? []) : [];
-    if (!rules.length) return tag;
+    const list = names ? (names[1] ?? names[2]).split(/\s+/) : [];
+    const rules = list.flatMap((c) => classes.get(c) ?? []);
+    if (!rules.length || (hides && !hides(list))) return tag;
     const style = /\sstyle\s*=\s*"([^"]*)"/i.exec(attrs);
     if (style && /(?:^|;)\s*display\s*:/i.test(style[1]) && !rules.some((rule) => rule.important)) return tag;
     if (style) return tag.replace(style[0], ` style="${style[1].replace(/;?\s*$/, ";")}display:none"`);

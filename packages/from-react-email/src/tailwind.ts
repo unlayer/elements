@@ -85,9 +85,20 @@ export function phoneRules(css: string): { styles: Map<string, Style>; important
   };
   // Nested: .cls{@media (…){…}}
   for (const m of css.matchAll(/\.([\w-]+)\s*\{\s*@media\s*([^{]*)\{([^{}]*)\}\s*\}/g)) add(m[1], m[2], m[3]);
-  // Classic: @media (…){.a{…}.b{…}}
-  for (const m of css.matchAll(/@media\s*([^{]*)\{((?:\s*\.[\w-]+\s*\{[^{}]*\})+)\s*\}/g)) {
-    for (const rule of m[2].matchAll(/\.([\w-]+)\s*\{([^{}]*)\}/g)) add(rule[1], m[1], rule[2]);
+  // Classic: @media (…){.a{…}.b{…}}. Each rule a class alone selects is read, whatever else the block holds
+  // (a client hack like `u + .body .x`, which is reported).
+  for (let at = css.indexOf("@media"); at >= 0; at = css.indexOf("@media", at + 6)) {
+    const open = css.indexOf("{", at);
+    if (open < 0) break;
+    let close = open + 1;
+    for (let depth = 1; close < css.length && depth; close++) depth += css[close] === "{" ? 1 : css[close] === "}" ? -1 : 0;
+    const query = css.slice(at + 6, open);
+    for (const rule of css.slice(open + 1, close - 1).matchAll(/([^{}]+)\{([^{}]*)\}/g)) {
+      for (const selector of rule[1].split(",")) {
+        const cls = /^\s*\.([\w-]+)\s*$/.exec(selector)?.[1];
+        if (cls) add(cls, query, rule[2]);
+      }
+    }
   }
   return { styles: out, important };
 }
@@ -96,14 +107,26 @@ export function phoneRules(css: string): { styles: Map<string, Style>; important
  * One stylesheet's class rules added to those of the stylesheets before it: a
  * later declaration wins, except over an earlier `!important` one when it isn't.
  */
-export function addRules(styles: Map<string, Style>, important: Map<string, Set<string>>, next: { styles: Map<string, Style>; important: Map<string, Set<string>> }): void {
+export function addRules(
+  styles: Map<string, Style>,
+  important: Map<string, Set<string>>,
+  next: { styles: Map<string, Style>; important: Map<string, Set<string>>; order?: RuleOrder },
+  order?: RuleOrder
+): void {
   for (const [cls, style] of next.styles) {
     const was = important.get(cls) ?? new Set<string>();
     const now = next.important.get(cls) ?? new Set<string>();
     const merged: Style = { ...styles.get(cls) };
-    for (const [key, value] of Object.entries(style)) if (!was.has(key) || now.has(key)) merged[key] = value;
+    const places = order?.get(cls) ?? new Map<string, number>();
+    for (const [key, value] of Object.entries(style)) {
+      if (was.has(key) && !now.has(key)) continue;
+      merged[key] = value;
+      const place = next.order?.get(cls)?.get(key);
+      if (place !== undefined) places.set(key, place);
+    }
     styles.set(cls, merged);
     important.set(cls, new Set([...was, ...now]));
+    order?.set(cls, places);
   }
 }
 
@@ -155,9 +178,14 @@ export function overInline(inline: Style, rules: Style, important: Set<string>):
  * than phone rules on classes (`phoneStyles` reads those). Imports, web fonts
  * and `*` resets are left to the callers that handle them.
  */
-export function stylesheetRules(css: string): { classes: Map<string, Style>; important: Map<string, Set<string>>; other: string[] } {
+/** Each class's declarations' places in the stylesheets, in the order they were read. */
+export type RuleOrder = Map<string, Map<string, number>>;
+let declarations = 0;
+
+export function stylesheetRules(css: string): { classes: Map<string, Style>; important: Map<string, Set<string>>; order: RuleOrder; other: string[] } {
   const classes = new Map<string, Style>();
   const important = new Map<string, Set<string>>();
+  const order: RuleOrder = new Map();
   const other: string[] = [];
   const text = css.replace(/\/\*[\s\S]*?\*\//g, "");
   for (let i = 0; i < text.length; ) {
@@ -187,6 +215,9 @@ export function stylesheetRules(css: string): { classes: Map<string, Style>; imp
         if (strong.has(name) && !/!\s*important/i.test(decl)) continue;
         style[name] = decl.slice(at + 1).replace(/!\s*important/i, "").trim();
         if (/!\s*important/i.test(decl)) strong.add(name);
+        const places = order.get(selector.slice(1)) ?? new Map<string, number>();
+        places.set(name, ++declarations);
+        order.set(selector.slice(1), places);
       }
       classes.set(selector.slice(1), style);
       important.set(selector.slice(1), strong);
@@ -194,7 +225,27 @@ export function stylesheetRules(css: string): { classes: Map<string, Style>; imp
       other.push(selector);
     }
   }
-  return { classes, important, other };
+  return { classes, important, order, other };
+}
+
+/**
+ * An element's class rules merged as the browser does: by `!important`, then
+ * by where each declaration is in the stylesheets, not by the order of the
+ * class attribute (`class="alert muted"` takes the later rule's color).
+ */
+export function classStyle(names: string[], styles: Map<string, Style>, important: Map<string, Set<string>>, order: RuleOrder): Style {
+  const out: Style = {};
+  const rank = new Map<string, [number, number]>();
+  for (const name of names) {
+    for (const [key, value] of Object.entries(styles.get(name) ?? {})) {
+      const mine: [number, number] = [important.get(name)?.has(key) ? 1 : 0, order.get(name)?.get(key) ?? 0];
+      const best = rank.get(key);
+      if (best && (mine[0] < best[0] || (mine[0] === best[0] && mine[1] < best[1]))) continue;
+      out[key] = value;
+      rank.set(key, mine);
+    }
+  }
+  return out;
 }
 
 /**

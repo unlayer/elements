@@ -53,7 +53,7 @@ import { inlineLocalComponents, type ModuleLoader } from "./components";
 import { inlineLocalJsx } from "./inline";
 import { splitConditionalClasses } from "./variants";
 import { phoneSides, withPhoneStyles, handledPhoneClass, unheldPhoneStyles } from "./phone-styles";
-import { addRules, NO_CLASSES, overInline, phoneRules, resolveTailwind, stacksOnPhones, stylesheetRules, underInline, type ResolvedClasses } from "./tailwind";
+import { addRules, classStyle, NO_CLASSES, overInline, phoneRules, resolveTailwind, stacksOnPhones, stylesheetRules, underInline, type ResolvedClasses, type RuleOrder } from "./tailwind";
 
 export interface CodemodResult {
   code: string;
@@ -202,6 +202,7 @@ class Converter {
   private readonly headImportant = new Map<string, Set<string>>();
   private readonly headPhoneImportant = new Map<string, Set<string>>();
   private readonly headPhone = new Map<string, Style>();
+  private readonly headOrder: RuleOrder = new Map();
   private readonly phoneNoted = new Set<string>();
   private mutations?: Set<ts.Symbol>;
   /** Statements added before a return (a `dir` worked out once): where, and the code. */
@@ -365,9 +366,18 @@ class Converter {
     const classOwners = new Map<string, Set<string>>();
     let config: Record<string, unknown> | undefined;
     let usesTailwind = false;
+    const component = this.findComponent();
     const visit = (node: ts.Node) => {
+      // A class list in an object spread onto an element (`const shared = { className: "…" }`) is resolved too.
+      if (ts.isPropertyAssignment(node) && node.name.getText() === "className") {
+        const value = this.evaluate(node.initializer);
+        if (typeof value === "string") classes.push(value);
+      }
       if (ts.isJsxAttribute(node) && node.name.getText() === "className") {
-        const value = this.attrValue(node.initializer);
+        const value = this.attrValue(node.initializer) ?? this.classList(node.initializer);
+        // A class-list call's classes picked from values (`active && "font-bold"`) can't be kept: lost.
+        const call = node.initializer && ts.isJsxExpression(node.initializer) ? node.initializer.expression : undefined;
+        if (call && this.classListCall(call) && call.arguments.some((arg) => typeof this.evaluate(arg) !== "string" && !nothing(arg))) this.lose(node, node.getText());
         const owner = node.parent.parent;
         if (typeof value === "string") {
           classes.push(value);
@@ -381,13 +391,18 @@ class Converter {
           const expression = ts.isJsxExpression(node.initializer) ? node.initializer.expression : undefined;
           const built = expression && (ts.isTemplateExpression(unwrap(expression)) || (ts.isBinaryExpression(unwrap(expression)) && (unwrap(expression) as ts.BinaryExpression).operatorToken.kind === ts.SyntaxKind.PlusToken));
           if (built) this.lose(node, node.getText());
-          else this.report.note("dynamic className", node.initializer.getText().slice(0, 60));
+          else if (!(expression && this.classListCall(expression))) this.report.note("dynamic className", node.initializer.getText().slice(0, 60));
         }
       }
       if ((ts.isJsxOpeningElement(node) || ts.isJsxSelfClosingElement(node)) && this.components.get(node.tagName.getText()) === "Tailwind") {
         const attr = node.attributes.properties.find((p) => ts.isJsxAttribute(p) && p.name.getText() === "config") as ts.JsxAttribute | undefined;
         usesTailwind = true;
         const value = attr ? this.attrValue(attr.initializer) : undefined;
+        // A config built from props or the component's own values differs from one render to the next: it can't be frozen.
+        const configCode = attr?.initializer && ts.isJsxExpression(attr.initializer) ? attr.initializer.expression : undefined;
+        if (configCode && value === undefined && component && this.declaredInside(configCode, component)) {
+          throw new Error("Can't convert a <Tailwind> config built from props or values inside the component: the migrated template's styles are fixed. Build the config from module-level values");
+        }
         if (value && typeof value === "object") config = value as Record<string, unknown>;
         else if (attr && !this.tailwindConfig) this.report.note("tailwind config not static; default config used");
       }
@@ -474,6 +489,43 @@ class Converter {
     return undefined;
   }
 
+  /** Whether a call builds a class list (`cx`, `clsx`, `classnames`, `cn`, `twMerge`). */
+  private classListCall(node: ts.Expression): node is ts.CallExpression {
+    const call = unwrap(node);
+    return ts.isCallExpression(call) && /^(cx|clsx|classnames|classNames|cn|twMerge|twJoin)$/.test(call.expression.getText());
+  }
+
+  /** The classes a class-list call always gives (its string arguments); the ones it picks from values are left out. */
+  private classListOf(node: ts.Expression): string | undefined {
+    const call = unwrap(node) as ts.CallExpression;
+    const fixed = call.arguments.map((arg) => this.evaluate(arg)).filter((v): v is string => typeof v === "string");
+    return fixed.length ? fixed.join(" ") : undefined;
+  }
+
+  /** A className attribute's class-list call, as the classes it always gives. */
+  private classList(initializer: ts.JsxAttributeValue | undefined): string | undefined {
+    const expression = initializer && ts.isJsxExpression(initializer) ? initializer.expression : undefined;
+    return expression && this.classListCall(expression) ? this.classListOf(expression) : undefined;
+  }
+
+  /** Whether an expression uses a value declared inside `scope` (its props, or values worked out in it). */
+  private declaredInside(node: ts.Node, scope: ts.Node): boolean {
+    let found = false;
+    const visit = (n: ts.Node) => {
+      if (found) return;
+      // A name that reads a value: not a property's own name (`theme:`, `.extend`), but `{ brand }` reads `brand`.
+      const parent = n.parent;
+      const named = parent && ((ts.isPropertyAssignment(parent) && parent.name === n) || (ts.isPropertyAccessExpression(parent) && parent.name === n) || (ts.isMethodDeclaration(parent) && parent.name === n));
+      if (ts.isIdentifier(n) && !named) {
+        const symbol = parent && ts.isShorthandPropertyAssignment(parent) ? this.checker.getShorthandAssignmentValueSymbol(parent) : this.checker.getSymbolAtLocation(n);
+        if (symbol?.declarations?.some((d) => d.getStart() >= scope.getStart() && d.getEnd() <= scope.getEnd())) found = true;
+      }
+      ts.forEachChild(n, visit);
+    };
+    visit(node);
+    return found;
+  }
+
   /** A value computed from props that the codemod can't keep: the check fails, naming it with its line. */
   private lose(part: ts.Node, text: string): void {
     const line = this.originalLine(part.getStart());
@@ -503,6 +555,22 @@ class Converter {
       ts.forEachChild(node, visit);
     };
     visit(this.file);
+    // A change through another name (`const alias = style; alias.color = …`) changes the original too.
+    for (let changed = true; changed; ) {
+      changed = false;
+      const aliases = (node: ts.Node): void => {
+        if (ts.isVariableDeclaration(node) && ts.isIdentifier(node.name) && node.initializer && ts.isIdentifier(unwrap(node.initializer))) {
+          const alias = this.checker.getSymbolAtLocation(node.name);
+          const original = this.checker.getSymbolAtLocation(unwrap(node.initializer));
+          if (alias && original && out.has(alias) && !out.has(original)) {
+            out.add(original);
+            changed = true;
+          }
+        }
+        ts.forEachChild(node, aliases);
+      };
+      aliases(this.file);
+    }
     return (this.mutations = out);
   }
 
@@ -638,7 +706,7 @@ class Converter {
     let important: { rules: Style; names: Set<string> } | undefined;
     const className = attrs.get("className");
     if (className) {
-      const value = this.evaluate(className);
+      const value = this.evaluate(className) ?? (this.classListCall(className) ? this.classListOf(className) : undefined);
       if (typeof value === "string") style = withPhoneStyles({ ...(this.tailwind.styles.get(value) ?? {}) }, this.tailwind.leftover.get(value) ?? [], this.tailwind.phone);
       // Head <style> rules on these classes sit under Tailwind's inline styles, as in the browser.
       if (typeof value === "string" && (this.headClasses.size || this.headPhone.size)) {
@@ -646,7 +714,7 @@ class Converter {
         // React Email's own inline styles (Text's 14px) beat a class rule unless it's !important.
         const component = this.components.get(tag);
         const strong = (from: Map<string, Set<string>>) => new Set(names.flatMap((name) => [...(from.get(name) ?? [])]));
-        const rules = underInline(component, Object.assign({}, ...names.map((name) => this.headClasses.get(name) ?? {})), strong(this.headImportant));
+        const rules = underInline(component, classStyle(names, this.headClasses, this.headImportant, this.headOrder), strong(this.headImportant));
         important = { rules, names: strong(this.headImportant) };
         const phoneStrong = strong(this.headPhoneImportant);
         const phone = new Map([...this.headPhone].map(([cls, rule]) => [cls, underInline(component, rule, phoneStrong)] as const));
@@ -707,8 +775,14 @@ class Converter {
     const linked: string[] = [];
     let body: Jsx | undefined;
     let document: Jsx | undefined;
+    // Each return is a document of its own: one's <style> rules don't reach another's elements.
+    for (const map of [this.headClasses, this.headImportant, this.headPhone, this.headPhoneImportant, this.headOrder]) map.clear();
     const seek = (children: ts.JsxChild[]) => {
       for (const child of this.flatten(children)) {
+        // A <style> under a condition (`{alert && <style>…</style>}`) applies only sometimes: the migrated template can't keep that.
+        if (ts.isJsxExpression(child) && child.expression && containsTag(child.expression, "style")) {
+          throw new Error("Can't convert a <style> shown under a condition: the migrated template has one set of styles. Write the styles out unconditionally, or apply them inline where the condition is");
+        }
         if (!(ts.isJsxElement(child) || ts.isJsxSelfClosingElement(child))) continue;
         const jsx = this.read(child);
         if (jsx.name === "Html" && !document) document = jsx;
@@ -739,10 +813,14 @@ class Converter {
         if (!jsx.name && jsx.tag === "style") {
           const inner = this.attr(jsx, "dangerouslySetInnerHTML") as { __html?: unknown } | undefined;
           const css = typeof inner?.__html === "string" ? inner.__html : this.plainContent(jsx.children);
+          // CSS that comes from code can't be read to convert, and dropping it would change the email.
+          if (typeof css !== "string" && (inner !== undefined || jsx.children.some((c) => !this.isBlank(c)))) {
+            throw new Error("Can't convert a <style> whose CSS comes from code: write the CSS out in the template");
+          }
           if (typeof css === "string") {
             linked.push(...importedStylesheets(css));
             const rules = stylesheetRules(css);
-            addRules(this.headClasses, this.headImportant, { styles: rules.classes, important: rules.important });
+            addRules(this.headClasses, this.headImportant, { styles: rules.classes, important: rules.important, order: rules.order }, this.headOrder);
             addRules(this.headPhone, this.headPhoneImportant, phoneRules(css));
             for (const selector of rules.other) this.report.note("head style rule not converted", selector);
           }
@@ -1003,13 +1081,8 @@ class Converter {
   private stacksOnPhones(col: Jsx): boolean {
     const className = col.attrs.get("className");
     const value = className ? this.evaluate(className) : undefined;
-    return (
-      typeof value === "string" &&
-      stacksOnPhones(
-        this.tailwind.leftover.get(value) ?? [],
-        this.tailwind.phone,
-      )
-    );
+    // Tailwind's phone classes (`mobile:!block`), or a class a head <style> stacks on phones.
+    return typeof value === "string" && (stacksOnPhones(this.tailwind.leftover.get(value) ?? [], this.tailwind.phone) || stacksOnPhones(value.split(/\s+/), this.headPhone));
   }
 
   /** A Column's style, with its `align` attribute as text-align. */
@@ -1475,9 +1548,12 @@ class Converter {
         const className = attrs.find((a): a is ts.JsxAttribute => ts.isJsxAttribute(a) && a.name.getText() === "className");
         const value = className ? this.attrValue(className.initializer) : undefined;
         const tailwind = typeof value === "string" ? this.tailwind.styles.get(value) : undefined;
-        const hides = typeof value === "string" && value.split(/\s+/).find((name) => hidden.has(name));
-        const style = { ...tailwind, ...(hides && !this.headImportant.get(hides)?.has("display") ? { display: "none" } : {}) };
-        const after = hides && this.headImportant.get(hides)?.has("display") ? [`display: "none"`] : [];
+        // Hidden when the display that wins among its class rules (by !important, then stylesheet order) is none.
+        const names = typeof value === "string" ? value.split(/\s+/) : [];
+        const hides = names.some((name) => hidden.has(name)) && /^none$/i.test(String(classStyle(names, this.headClasses, this.headImportant, this.headOrder).display ?? "").trim());
+        const strongHide = hides && names.some((name) => this.headImportant.get(name)?.has("display"));
+        const style = { ...tailwind, ...(hides && !strongHide ? { display: "none" } : {}) };
+        const after = strongHide ? [`display: "none"`] : [];
         if (className && typeof value === "string" && (Object.keys(style).length || after.length)) {
           const styleAttr = attrs.find((a): a is ts.JsxAttribute => ts.isJsxAttribute(a) && a.name.getText() === "style");
           const own = styleAttr?.initializer && ts.isJsxExpression(styleAttr.initializer) ? styleAttr.initializer.expression?.getText() : undefined;
@@ -2106,6 +2182,18 @@ function needsHtml(style: Style): boolean {
  * The React Email component an HTML tag reads as. A capitalised tag that isn't
  * React Email's (a project's own `Button`) is never read by its name: it's kept.
  */
+/** Whether `node` has a JSX element with this tag in it (`<style>` inside a condition). */
+function containsTag(node: ts.Node, tag: string): boolean {
+  let found = false;
+  const visit = (n: ts.Node) => {
+    if (found) return;
+    if ((ts.isJsxOpeningElement(n) || ts.isJsxSelfClosingElement(n)) && n.tagName.getText() === tag) found = true;
+    else ts.forEachChild(n, visit);
+  };
+  visit(node);
+  return found;
+}
+
 function hostAlias(tag: string): string {
   if (tag === "p") return "Text";
   if (tag === "ul" || tag === "ol") return "List";

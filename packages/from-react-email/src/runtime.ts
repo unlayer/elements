@@ -40,7 +40,7 @@ import {
 import { addSides, backgroundColor, backgroundImage, boxSides, color, fontFamilyProp, fontSizePx, inherit, isHidden, margins, pageColor, phoneOnly, px, shownOnPhones, toPx, ZERO, type Style } from "./styles";
 import type { BoxSides } from "@unlayer/convert-core";
 import { phoneSides, unheldPhoneStyles, withPhoneStyles } from "./phone-styles";
-import { addRules, overInline, phoneRules, stacksOnPhones, stylesheetRules, underInline } from "./tailwind";
+import { addRules, classStyle, overInline, phoneRules, stacksOnPhones, stylesheetRules, underInline, type RuleOrder } from "./tailwind";
 
 /** React's static markup, without the image preload links React 19 adds: an email has no use for them. */
 function renderToStaticMarkup(element: React.ReactElement): string {
@@ -59,6 +59,8 @@ type Ctx = MapCtx & {
   phone?: Map<string, Style>;
   /** Classes a head rule hides (`.hide{display:none}`), written into kept markup: it has no head <style>. */
   hidden?: Map<string, { important: boolean }>;
+  /** Whether the class rules that win on an element with these classes hide it. */
+  hides?: (names: string[]) => boolean;
 };
 type Element = Exclude<Node, { kind: "text" }>;
 
@@ -92,6 +94,7 @@ export async function convertElement(element: React.ReactElement): Promise<Runti
   const phone = new Map<string, Style>();
   const classes = new Map<string, Style>();
   const classImportant = new Map<string, Set<string>>();
+  const classOrder: RuleOrder = new Map();
   const phoneImportant = new Map<string, Set<string>>();
   const phoneNoted = new Set<string>();
   const linked: string[] = [];
@@ -106,7 +109,7 @@ export async function convertElement(element: React.ReactElement): Promise<Runti
     linked.push(...importedStylesheets(css));
     addRules(phone, phoneImportant, phoneRules(css));
     const rules = stylesheetRules(css);
-    addRules(classes, classImportant, { styles: rules.classes, important: rules.important });
+    addRules(classes, classImportant, { styles: rules.classes, important: rules.important, order: rules.order }, classOrder);
     for (const selector of rules.other) report.note("head style rule not converted", selector);
   });
 
@@ -117,7 +120,7 @@ export async function convertElement(element: React.ReactElement): Promise<Runti
     // (Text's 14px) unless it's !important, as in the browser.
     const component = node.kind === "component" ? nameOf(node) : undefined;
     const strong = (from: Map<string, Set<string>>) => new Set(names.flatMap((name) => [...(from.get(name) ?? [])]));
-    const fromHead = underInline(component, Object.assign({}, ...names.map((name) => classes.get(name) ?? {})), strong(classImportant));
+    const fromHead = underInline(component, classStyle(names, classes, classImportant, classOrder), strong(classImportant));
     const phoneStrong = strong(phoneImportant);
     const phoneFor = component ? new Map([...phone].map(([cls, rule]) => [cls, underInline(component, rule, phoneStrong)] as const)) : phone;
     for (const cls of names) for (const css of unheldPhoneStyles(phoneFor.get(cls) ?? {}, component)) phoneNoted.add(`${css} (.${cls})`);
@@ -139,7 +142,8 @@ export async function convertElement(element: React.ReactElement): Promise<Runti
   const rootFont = bodyStyle.fontFamily ?? containerStyle.fontFamily ?? fontStack;
   const rtl = /^rtl$/i.test(String(document?.props.dir ?? ""));
   const hidden = new Map([...classes].filter(([, rule]) => /^none$/i.test(String(rule.display ?? "").trim())).map(([name]) => [name, { important: Boolean(classImportant.get(name)?.has("display")) }] as const));
-  const ctx: Ctx = { report, inherited: inherit({ fontSize: "16px", ...(rtl ? { rtl } : {}) }, bodyStyle), rootFont, phone, hidden };
+  const hides = (names: string[]) => /^none$/i.test(String(classStyle(names, classes, classImportant, classOrder).display ?? "").trim());
+  const ctx: Ctx = { report, inherited: inherit({ fontSize: "16px", ...(rtl ? { rtl } : {}) }, bodyStyle), rootFont, phone, hidden, hides };
 
   const fonts = fontStylesheets(fontSpecs, linked);
   const page = pageColor(bodyStyle, report);
@@ -458,7 +462,7 @@ function isImageLink(node: Exclude<Node, { kind: "text" }>): boolean {
 
 /** Kept markup, in a div with the text styles it inherited in the original. */
 function kept(markup: string, ctx: Ctx): string {
-  const html = hideClasses(markup, ctx.hidden ?? new Map());
+  const html = hideClasses(markup, ctx.hidden ?? new Map(), ctx.hides);
   const style = inheritedStyle(ctx);
   if (!style) return html;
   const css = Object.entries(style)

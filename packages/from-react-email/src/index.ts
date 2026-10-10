@@ -15,6 +15,7 @@ import {
   type ConversionReport,
   type EditorFont,
   type ElementNode,
+  type StyleDifference,
   type TextCheck,
 } from "@unlayer/convert-core";
 import { findTailwind, findTailwindConfig } from "./expand";
@@ -112,7 +113,7 @@ export interface Verification extends TextCheck {
    * preview props don't take. Only variants with missing or extra content, or where
    * the migrated template fails and the original doesn't, are listed.
    */
-  variants: Array<{ change: string; missing: string[]; added: string[]; missingAttributes: string[]; error?: string }>;
+  variants: Array<{ change: string; missing: string[]; added: string[]; missingAttributes: string[]; styles?: StyleDifference[]; error?: string }>;
 }
 
 /**
@@ -190,7 +191,7 @@ export async function verifyConversion(
         });
         continue;
       }
-      if (check.missing.length || check.added.length || check.missingAttributes.length || check.addedAttributes.length) variants.push({ change, missing: check.missing, added: [...check.added, ...check.addedAttributes], missingAttributes: check.missingAttributes });
+      if (check.missing.length || check.added.length || check.missingAttributes.length || check.addedAttributes.length || check.styles.length) variants.push({ change, missing: check.missing, added: [...check.added, ...check.addedAttributes], missingAttributes: check.missingAttributes, ...(check.styles.length ? { styles: check.styles } : {}) });
     } catch (error) {
       variants.push({ change, missing: [], added: [], missingAttributes: [], error: (error as Error).message.split("\n")[0] });
     }
