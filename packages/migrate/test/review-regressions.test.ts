@@ -97,12 +97,36 @@ describe("destination safety", () => {
     expect(fs.readFileSync(path.join(dir, "outside/keep.txt"), "utf8")).toBe("OUTSIDE");
   });
 
+  it("refuses to replace a file in the output folder that this run didn't produce, unless --force", async () => {
+    const dir = project({ "emails/welcome.tsx": good, "existing/welcome.tsx": "MINE", "existing/welcome.design.json": "MINE TOO" });
+    for (const keep of ["welcome.tsx", "welcome.design.json"]) {
+      const out = io(dir);
+      expect(await main(["emails", "--out", "existing", "--design"], out, lib), out.out + out.err).toBe(1);
+      expect(out.err).toContain(`Output already exists: existing/${keep}`);
+      expect(out.err).toContain("--force");
+      expect(out.out).toBe("");
+      expect(fs.readFileSync(path.join(dir, "existing/welcome.design.json"), "utf8")).toBe("MINE TOO");
+      // Then only the design JSON is someone's: still refused.
+      fs.rmSync(path.join(dir, "existing/welcome.tsx"), { force: true });
+    }
+    // Next to a template with --write, too.
+    fs.writeFileSync(path.join(dir, "emails/welcome.design.json"), "MINE");
+    const write = io(dir);
+    expect(await main(["emails", "--write", "--design"], write, lib)).toBe(1);
+    expect(write.err).toContain("Output already exists: emails/welcome.design.json");
+    expect(fs.readFileSync(path.join(dir, "emails/welcome.tsx"), "utf8")).toBe(good);
+    const forced = io(dir);
+    expect(await main(["emails", "--out", "existing", "--design", "--force"], forced, lib), forced.out + forced.err).toBe(0);
+    expect(fs.readFileSync(path.join(dir, "existing/welcome.design.json"), "utf8")).toContain('"body"');
+  });
+
   it("does not truncate an outside file hard-linked to an existing output", async () => {
     const dir = project({ "emails/a.tsx": good, "outside/keep.tsx": "OUTSIDE" });
     fs.mkdirSync(path.join(dir, "migrated"));
     fs.linkSync(path.join(dir, "outside/keep.tsx"), path.join(dir, "migrated/a.tsx"));
     const out = io(dir);
-    expect(await main(["emails", "--out", "migrated"], out, lib), out.out + out.err).toBe(0);
+    // Replacing a file that's already there needs --force.
+    expect(await main(["emails", "--out", "migrated", "--force"], out, lib), out.out + out.err).toBe(0);
     expect(fs.readFileSync(path.join(dir, "outside/keep.tsx"), "utf8")).toBe("OUTSIDE");
     expect(fs.readFileSync(path.join(dir, "migrated/a.tsx"), "utf8")).toContain("@unlayer/react-elements");
   });

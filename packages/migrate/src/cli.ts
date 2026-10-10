@@ -229,7 +229,8 @@ function designPath(target: string): string {
   return join(dirname(target), `${basename(target, extname(target))}.design.json`);
 }
 
-type Destinations = Map<string, { canonical: string; root?: string }>;
+/** Each output, and whether a file already there may be replaced (the template itself with --write, the report, or --force). */
+type Destinations = Map<string, { canonical: string; root?: string; replace: boolean }>;
 
 /** Resolve existing ancestors too, including symlinked directories. */
 async function canonicalPath(path: string): Promise<string> {
@@ -277,13 +278,15 @@ async function reserveDestinations(inputs: Input[], candidates: Input[], options
   const destinations: Destinations = new Map();
   const owners = new Map<string, string>();
   const root = options.out !== undefined ? resolve(cwd, options.out) : undefined;
-  const reserve = async (path: string, owner: string, outputRoot?: string, ownSource = false) => {
+  const reserve = async (path: string, owner: string, outputRoot?: string, ownSource = false, replace = ownSource || options.force) => {
     const canonical = await safeDestination(path, outputRoot);
     if (sources.has(canonical) && !ownSource) throw new Error(`Output would overwrite a source input: ${relative(cwd, path)}. Use --write to replace a template itself.`);
+    // A file this run didn't scan or produce is someone's work: never replaced silently.
+    if (!replace && (await fileInfo(path))) throw new Error(`Output already exists: ${relative(cwd, path)}. This run didn't produce it: choose an empty folder, or pass --force to replace it.`);
     const previous = owners.get(canonical);
     if (previous !== undefined) throw new Error(`${previous} and ${owner} have the same output: ${relative(cwd, path)}. Use separate destinations.`);
     owners.set(canonical, owner);
-    destinations.set(path, { canonical, root: outputRoot });
+    destinations.set(path, { canonical, root: outputRoot, replace });
   };
   if (options.write || options.out !== undefined) {
     for (const input of candidates) {
@@ -292,7 +295,7 @@ async function reserveDestinations(inputs: Input[], candidates: Input[], options
       if (options.design) await reserve(designPath(target), relative(cwd, input.path), root);
     }
   }
-  if (report) await reserve(resolve(cwd, report), "--report");
+  if (report) await reserve(resolve(cwd, report), "--report", undefined, false, true);
   return destinations;
 }
 
@@ -320,8 +323,9 @@ async function writeDestination(path: string, text: string, destinations: Destin
   const temporary = join(dirname(path), `.${basename(path)}.unlayer-write-${randomUUID()}`);
   let created = false;
   try {
-    const mode = (await fileInfo(path))?.mode;
-    await writeExclusive(temporary, text, mode);
+    const existing = await fileInfo(path);
+    if (existing && !destinations.get(path)?.replace) throw new Error(`${path} appeared during the run: pass --force to replace it`);
+    await writeExclusive(temporary, text, existing?.mode);
     created = true;
     await checkDestination(path, destinations);
     await rename(temporary, path);
