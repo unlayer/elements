@@ -73,6 +73,7 @@ export { normalizeColor, normalizeCssValues, normalizeFontStack } from "./utils/
 
 // Utils - Semantic props
 export {
+  escapeText,
   mapSemanticProps,
   normalizeLinkValue,
   normalizeValuesForExporter,

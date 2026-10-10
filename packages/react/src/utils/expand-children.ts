@@ -3,10 +3,8 @@
 // the head's phone CSS and renderToJson see the same blocks (ids line up).
 
 import React from "react";
-import { callIsolated, isElementsType } from "./unwrap-root";
-
-const MEMO = Symbol.for("react.memo");
-const FORWARD_REF = Symbol.for("react.forward_ref");
+import { escapeText } from "@unlayer-internal/shared-elements";
+import { callIsolated, FORWARD_REF, isElementsType, isThenable, MEMO } from "./unwrap-root";
 // What each component rendered to, by the children list it's in and its place
 // there, for the render under way only: an element object kept between renders
 // (`const footer = <Footer />`) is called again by the next one, which may read
@@ -89,7 +87,6 @@ function callComponent(element: React.ReactElement<any>): React.ReactNode {
   return type.$$typeof === FORWARD_REF ? type.render(props, null) : type(props);
 }
 
-const isThenable = (value: unknown): boolean => typeof (value as { then?: unknown } | null)?.then === "function";
 
 /**
  * A user component's blocks, or nothing when it can't render here: one that's
@@ -98,22 +95,17 @@ const isThenable = (value: unknown): boolean => typeof (value as { then?: unknow
  */
 function renderedOrNothing(element: React.ReactElement<any>, call: () => unknown): React.ReactNode {
   const name = innerType(element.type)?.displayName || innerType(element.type)?.name || "component";
-  let out: unknown;
   try {
-    out = call();
+    const out = call();
+    if (!isThenable(out)) return out as React.ReactNode;
   } catch (error) {
-    if (isThenable(error) || /async and suspending/.test(String((error as Error)?.message))) {
-      console.warn(`[Unlayer] <${name}> suspends or is async: Elements renders synchronously, so it's left out. Load its data first and pass it as props.`);
-    } else {
+    if (!isThenable(error) && !/async and suspending/.test(String((error as Error)?.message))) {
       console.error(`[Unlayer] <${name}> threw while rendering, so it's left out:`, error);
+      return null;
     }
-    return null;
   }
-  if (isThenable(out)) {
-    console.warn(`[Unlayer] <${name}> is async: Elements renders synchronously, so it's left out. Load its data first and pass it as props.`);
-    return null;
-  }
-  return out as React.ReactNode;
+  console.warn(`[Unlayer] <${name}> is async or suspends: Elements renders synchronously, so it's left out. Load its data first and pass it as props.`);
+  return null;
 }
 
 /**
@@ -165,12 +157,19 @@ function renderedAs(element: React.ReactElement<any>, inside: React.ReactNode): 
   return React.createElement(Rendered, { ...element.props, key: element.key });
 }
 
+// Components calling components this deep (one rendering itself, say): what's deeper is left out, and the rest renders.
+const DEEPEST = 50;
+function tooDeep(): [] {
+  console.warn(`[Unlayer] components nested more than ${DEEPEST} deep: what they render deeper is left out.`);
+  return [];
+}
+
 /** The children with Fragments and user components expanded; `children` itself when there are none. */
 export function expandChildren(children: React.ReactNode, depth = 0): React.ReactNode {
   let any = false;
   React.Children.forEach(children, (child) => (any ||= expands(child)));
   if (!any) return children;
-  if (depth > 50) throw new Error("[Unlayer] components nested more than 50 deep");
+  if (depth > DEEPEST) return tooDeep();
   const out: React.ReactNode[] = [];
   const add = (child: React.ReactNode) => child != null && typeof child !== "boolean" && out.push(child);
   // The list the children are in (a single child is its own).
@@ -180,7 +179,8 @@ export function expandChildren(children: React.ReactNode, depth = 0): React.Reac
     const inside = contents(child, list, at);
     // A component that renders plain HTML (`<div dangerouslySetInnerHTML>`) is kept: a Column renders its HTML, as it always has.
     if (child.type !== React.Fragment && React.isValidElement(inside) && typeof inside.type === "string") return add(renderedAs(child, inside));
-    React.Children.forEach(expandChildren(inside, depth + 1), add);
+    // A Fragment is written out: only a component's call counts toward the depth.
+    React.Children.forEach(expandChildren(inside, child.type === React.Fragment ? depth : depth + 1), add);
   });
   return out;
 }
@@ -210,7 +210,7 @@ Expanded.displayName = "Expanded";
  * or its place), as React expects of a list.
  */
 export function bodyChildren(children: React.ReactNode, place: (child: React.ReactElement) => React.ReactElement, depth = 0, prefix = ""): React.ReactNode[] {
-  if (depth > 50) throw new Error("[Unlayer] components nested more than 50 deep");
+  if (depth > DEEPEST) return tooDeep();
   const out: React.ReactNode[] = [];
   // The list the children are in (a single child is its own), as expandChildren keys them.
   const list = children as object;
@@ -218,7 +218,7 @@ export function bodyChildren(children: React.ReactNode, place: (child: React.Rea
     if (child == null || typeof child === "boolean") return;
     if (!React.isValidElement(child)) return void out.push(child);
     const key = `${prefix}${child.key ?? `#${at}`}`;
-    if (child.type === React.Fragment) return void out.push(...bodyChildren((child.props as { children?: React.ReactNode }).children, place, depth + 1, `${key}/`));
+    if (child.type === React.Fragment) return void out.push(...bodyChildren((child.props as { children?: React.ReactNode }).children, place, depth, `${key}/`));
     const type = innerType(child.type);
     if (expands(child) && !isElementsType(type)) return void out.push(React.createElement(Expanded, { key, element: child, list, at, place, depth, prefix: `${key}/` }));
     const element = expands(child) ? React.createElement(type, { ...(child.props as object) }) : child;
@@ -227,8 +227,6 @@ export function bodyChildren(children: React.ReactNode, place: (child: React.Rea
   });
   return out;
 }
-
-const ENTITIES: Record<string, string> = { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" };
 
 /**
  * Text placed straight in a Row or Column, as HTML: escaped, as React shows
@@ -240,5 +238,5 @@ export function looseText(child: string | number, container: string): string {
   if (text.trim()) {
     console.warn(`${container}: text placed straight in a ${container} shows as text and isn't kept in the editor's design. Put it in a <Paragraph>, or HTML in an <Html> block.`);
   }
-  return text.replace(/[&<>"']/g, (c) => ENTITIES[c]);
+  return escapeText(text, true);
 }

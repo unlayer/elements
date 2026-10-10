@@ -130,7 +130,7 @@ function normalizeCssProps(props: Record<string, any>): void {
 const ENTITIES: Record<string, string> = { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" };
 
 /** Text as HTML: `&`, `<` and `>` escaped (and quotes, with `quotes`). */
-function escapeText(text: string, quotes?: boolean): string {
+export function escapeText(text: string, quotes?: boolean): string {
   return text.replace(quotes ? /[&<>"']/g : /[&<>]/g, (c) => ENTITIES[c]);
 }
 

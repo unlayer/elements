@@ -42,6 +42,10 @@ describe("htmlToPlainText", () => {
     expect(htmlToPlainText("Line 1<br>Line 2")).toBe("Line 1\nLine 2");
     expect(htmlToPlainText("Line 1<br/>Line 2")).toBe("Line 1\nLine 2");
     expect(htmlToPlainText("Line 1<br />Line 2")).toBe("Line 1\nLine 2");
+    // In a heading, a link and a list item too.
+    expect(htmlToPlainText("<h1>Welcome back,<br>Ada</h1>")).toBe("WELCOME BACK,\nADA");
+    expect(htmlToPlainText('<a href="https://x.com/t">Track<br>order</a>')).toBe("Track\norder (https://x.com/t)");
+    expect(htmlToPlainText("<ul><li>One<br>more</li></ul>")).toBe("- One\nmore");
   });
 
   // Block elements

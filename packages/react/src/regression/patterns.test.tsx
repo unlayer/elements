@@ -89,3 +89,33 @@ describe("a template or wrapper named like an Elements component (`function Emai
   });
 });
 
+describe("components inside components", () => {
+  it("render however many Fragments they return, and leave out only what's nested too deep", () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    try {
+      const nest = (levels: number) => {
+        let Inner = () => <Row><Column><Paragraph>Deep</Paragraph></Column></Row>;
+        for (let i = 0; i < levels; i++) {
+          const Wrapped = Inner;
+          Inner = () => <><Wrapped /></>;
+        }
+        return <Email><Row><Column><Paragraph>Top</Paragraph></Column></Row><Inner /></Email>;
+      };
+      // 30 components, each returning a Fragment: all there.
+      for (const output of [renderToHtml(nest(30)), JSON.stringify(renderToJson(nest(30)))]) {
+        expect(output).toContain("Top");
+        expect(output).toContain("Deep");
+      }
+      expect(warn).not.toHaveBeenCalled();
+      // 60: past the limit, what's deeper is left out, and the rest renders.
+      for (const output of [renderToHtml(nest(60)), JSON.stringify(renderToJson(nest(60)))]) {
+        expect(output).toContain("Top");
+        expect(output).not.toContain("Deep");
+      }
+      expect(warn).toHaveBeenCalledWith(expect.stringContaining("nested more than 50 deep"));
+    } finally {
+      warn.mockRestore();
+    }
+  });
+});
+

@@ -6,9 +6,9 @@ import { mapSemanticProps, type SemanticProps } from "../utils/semantic-props";
 import type { DeviceProps, SizeInput, BorderInput } from "../types";
 import { COLUMN_DEFAULTS } from "../utils/container-defaults";
 import { expandChildren, looseText } from "../utils/expand-children";
+import { DEFAULT_CONTAINER_PADDING } from "../utils/image-sizing";
 
 /** Unlayer's default content-block padding when a block sets none. */
-const DEFAULT_CONTAINER_PADDING = "10px";
 
 /**
  * Column - Single column in a Row layout

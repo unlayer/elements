@@ -84,7 +84,7 @@ function collectChildren(node: React.ReactNode): React.ReactElement[] {
  * Strip internal/base props from an element's props,
  * returning only the semantic props that should be mapped to values.
  */
-function extractSemanticProps(
+export function extractSemanticProps(
   props: Record<string, any>,
   extraKeys: string[] = []
 ): Record<string, any> {
@@ -118,7 +118,7 @@ function extractSemanticProps(
 }
 
 /** Increment and return counter for a given key. */
-function nextCounter(counters: Record<string, number>, key: string): number {
+export function nextCounter(counters: Record<string, number>, key: string): number {
   counters[key] = (counters[key] || 0) + 1;
   return counters[key];
 }

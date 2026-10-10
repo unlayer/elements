@@ -12,8 +12,8 @@ import { UNLAYER_RENDER_KEY } from "./create-component";
 /** The root components a design starts from. */
 export const ROOT_NAMES = new Set(["Body", "Email", "Page", "Document"]);
 const CONTAINER_NAMES = new Set([...ROOT_NAMES, "Row", "Column"]);
-const MEMO = Symbol.for("react.memo");
-const FORWARD_REF = Symbol.for("react.forward_ref");
+export const MEMO = Symbol.for("react.memo");
+export const FORWARD_REF = Symbol.for("react.forward_ref");
 
 /**
  * The Elements component an element is, by the `displayName` Elements gives
@@ -44,7 +44,7 @@ function isElementsComponent(element: React.ReactElement): boolean {
 const ASYNC_TEMPLATE =
   "async and suspending templates aren't supported: load the data first and pass it as props";
 
-const isThenable = (value: unknown): boolean => typeof (value as { then?: unknown } | null)?.then === "function";
+export const isThenable = (value: unknown): boolean => typeof (value as { then?: unknown } | null)?.then === "function";
 
 /**
  * Call a template component in a throwaway render of its own. Its hooks run

@@ -16,6 +16,8 @@ import { mapSemanticProps } from "./semantic-props";
 import { UNLAYER_CONFIG_KEY } from "./create-component";
 import { BODY_DEFAULTS, ROW_DEFAULTS, COLUMN_DEFAULTS } from "./container-defaults";
 import { expandChildren } from "./expand-children";
+import { getDisplayName } from "./unwrap-root";
+import { extractSemanticProps, nextCounter } from "./render-to-json";
 
 /** Args every head builder receives: (values, bodyValues, meta). */
 type HeadArgs = [Record<string, any>, Record<string, any>, Record<string, any>];
@@ -46,10 +48,6 @@ function ensureMeta(values: any, type: string, index: number = 0): any {
   };
 }
 
-/** The Elements component an element is (see unwrap-root's getDisplayName): a user function named `Row` isn't one. */
-function getDisplayName(element: React.ReactElement): string | undefined {
-  return (element.type as any)?.displayName;
-}
 
 /** Valid element children, expanded as the render expands them (none if that throws: Body renders none either). */
 function collectChildren(node: React.ReactNode): React.ReactElement[] {
@@ -68,48 +66,6 @@ function collectChildren(node: React.ReactNode): React.ReactElement[] {
   return result;
 }
 
-/**
- * Strip internal/base props from an element's props,
- * returning only the semantic props that should be mapped to values.
- */
-function extractSemanticProps(
-  props: Record<string, any>,
-  extraKeys: string[] = []
-): Record<string, any> {
-  const internalKeys = new Set([
-    "children",
-    "mode",
-    "className",
-    "style",
-    "index",
-    "colIndex",
-    "cells",
-    "bodyValues",
-    "rowValues",
-    "_config",
-    "config",
-    "previewText",
-    "fonts",
-    "lang",
-    "layout",
-    "collection",
-    ...extraKeys,
-  ]);
-
-  const result: Record<string, any> = {};
-  for (const [key, value] of Object.entries(props)) {
-    if (!internalKeys.has(key) && value !== undefined) {
-      result[key] = value;
-    }
-  }
-  return result;
-}
-
-/** Increment and return counter for a given key. */
-function nextCounter(counters: Record<string, number>, key: string): number {
-  counters[key] = (counters[key] || 0) + 1;
-  return counters[key];
-}
 
 // ============================================
 // Types
