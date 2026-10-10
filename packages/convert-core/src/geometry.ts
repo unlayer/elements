@@ -60,7 +60,7 @@ function length(value: string | null | undefined, of: number): number | undefine
     }
     return total;
   }
-  const m = /^(-?[\d.]+)(px|%|em|rem|pt)?$/.exec(text);
+  const m = /^(-?[\d.]+)(px|%|em|rem|pt|ch)?$/.exec(text);
   if (!m) return undefined;
   const n = parseFloat(m[1]);
   switch (m[2]) {
@@ -71,6 +71,9 @@ function length(value: string | null | undefined, of: number): number | undefine
       return n * 16;
     case "pt":
       return (n * 4) / 3;
+    case "ch":
+      // About half the font size (the width of "0" in common fonts).
+      return n * 8;
     default:
       return n;
   }
@@ -156,11 +159,12 @@ export function placements(doc: StyledDocument): Map<Element, Placement> {
  */
 function place(doc: StyledDocument, element: Element, x: number, available: number, inherited: Align, blockAlign: Align | undefined, rtl: boolean, out: Map<Element, Placement>, inline: boolean, givenWidth?: number): Placement {
   const kind = display(doc, element);
-  // A box as wide as its content at most (`max-width: min-content`, a badge): its text starts at its start edge.
-  const hugs = /^(min|max|fit)-content$/i.test((doc.property(element, "max-width") ?? "").trim().replace(/\s*!important$/i, ""));
+  // A box as wide as its content (`width: fit-content`, `max-width: min-content`, a badge): its text starts at its start edge.
+  const sized = (name: string) => /^(min|max|fit)-content$/i.test((doc.property(element, name) ?? "").trim().replace(/\s*!important$/i, ""));
+  const hugs = sized("width") || sized("max-width");
   let unknown =
     doc.property(element, "display") === null ||
-    ["width", "min-width", ...(hugs ? [] : ["max-width"])].some((name) => unreadable(doc.property(element, name))) ||
+    ["width", "min-width", "max-width"].filter((name) => !sized(name)).some((name) => unreadable(doc.property(element, name))) ||
     ["text-align", "justify-content", "float"].some((name) => doc.property(element, name) === null);
   // Its outer width: given (a cell's share), set (width, the width attribute), or all there is; then max-/min-width.
   const margin = sides(doc, element, "margin", available);

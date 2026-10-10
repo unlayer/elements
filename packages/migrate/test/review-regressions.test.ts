@@ -879,6 +879,43 @@ export default function T() { return <Html><Body><Text>${text} from {BRAND}</Tex
     }
   });
 
+  it("leaves a layout alone however a component file outside the folder picks it, and fails what it can't tell", async () => {
+    const base = `import * as React from "react";
+import { Html, Body } from "@react-email/components";
+export default function Base({ content }: { content?: React.ReactNode }) { return <Html><Body>{content}</Body></Html>; }`;
+    const shells = {
+      condition: `import Base from "../emails/layouts/base";\nconst Minimal = Base;\nexport function Shell({ content, slim = false }: { content?: React.ReactNode; slim?: boolean }) { const Layout = slim ? Minimal : Base; return <Layout content={content} />; }`,
+      call: `import Base from "../emails/layouts/base";\nexport function Shell({ content }: { content?: React.ReactNode }) { return Base({ content }); }`,
+      object: `import Base from "../emails/layouts/base";\nconst layouts = { base: Base };\nexport function Shell({ content }: { content?: React.ReactNode }) { const L = layouts.base; return <L content={content} />; }`,
+    };
+    const promo = `import { Text } from "@react-email/components";\nimport { Shell } from "../src/shell";\nexport default function Promo() { return <Shell content={<Text>Big sale today</Text>} />; }\nPromo.PreviewProps = {};`;
+    for (const [shape, shell] of Object.entries(shells)) {
+      const dir = project({ "emails/layouts/base.tsx": base, "src/shell.tsx": shell, "emails/promo.tsx": promo });
+      const out = io(dir);
+      await main(["emails", "--write"], out, lib);
+      expect(out.out, shape).toMatch(/- emails\/layouts\/base\.tsx: skipped \(a shared piece/);
+      expect(fs.readFileSync(path.join(dir, "emails/layouts/base.tsx"), "utf8"), shape).toBe(base);
+    }
+    // Untyped: an email of its own or a piece the shell renders can't be told. It fails, unchanged.
+    const untyped = `import { Html, Body } from "@react-email/components";\nexport default function Base({ content }) { return <Html><Body>{content}</Body></Html>; }`;
+    const dir = project({ "emails/layouts/base.jsx": untyped, "src/shell.tsx": shells.condition.replace("../emails/layouts/base", "../emails/layouts/base.jsx"), "emails/promo.tsx": promo });
+    const out = io(dir);
+    expect(await main(["emails", "--write"], out, lib), out.out + out.err).toBe(2);
+    expect(out.out).toMatch(/✗ emails\/layouts\/base\.jsx: imported through src\/shell\.tsx \(outside the folder\)/);
+    expect(fs.readFileSync(path.join(dir, "emails/layouts/base.jsx"), "utf8")).toBe(untyped);
+  });
+
+  it("migrates a template that a mailer outside the folder renders to send, when the templates import the mailer's constants", async () => {
+    const dir = project({
+      "emails/welcome.tsx": `import { Html, Body, Text } from "@react-email/components";\nimport { BRAND } from "../lib/email";\nexport default function Welcome() { return <Html><Body><Text>Welcome to {BRAND}</Text></Body></Html>; }`,
+      "emails/reset.tsx": `import { Html, Body, Text } from "@react-email/components";\nexport default function Reset({ name }: { name: string }) { return <Html><Body><Text>Reset it, {name}</Text></Body></Html>; }\nReset.PreviewProps = { name: "Ada" };`,
+      "lib/email.tsx": `import { render } from "@react-email/components";\nimport Reset from "../emails/reset";\nexport const BRAND = "Acme";\nexport async function sendReset() { return render(<Reset name="Ada" />); }`,
+    });
+    const out = io(dir);
+    expect(await main(["emails", "--write"], out, lib), out.out + out.err).toBe(0);
+    expect(out.out).toContain("2 templates: 2 migrated and checked");
+  });
+
   it("doesn't take a helper that wraps an async send function for a template", async () => {
     const dir = project({
       "emails/welcome.tsx": `import { Html, Body, Text } from "@react-email/components";\nexport default function Welcome() { return <Html><Body><Text>Welcome aboard</Text></Body></Html>; }`,

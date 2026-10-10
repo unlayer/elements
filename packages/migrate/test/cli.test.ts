@@ -511,7 +511,7 @@ export default function Base({ content }: { content?: React.ReactNode }) { retur
     });
     const out = io(dir);
     await main(["emails", "--write"], out, lib);
-    expect(out.out).toMatch(/- emails\/layouts\/base\.tsx: skipped \(imported by emails\/promo\.tsx/);
+    expect(out.out).toMatch(/- emails\/layouts\/base\.tsx: skipped \(a shared piece .* that src\/shell\.tsx \(outside the folder\) may render for emails\/promo\.tsx: left as it is\)/);
     expect(fs.readFileSync(path.join(dir, "emails/layouts/base.tsx"), "utf8")).toBe(base);
   });
 

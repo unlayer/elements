@@ -118,3 +118,15 @@ describe("the inbox preview", () => {
     expect(checkFails(compareText(page(`${preview}<p>Thanks</p>`), page(`${preview}<p>Thanks</p>`)))).toBe(false);
   });
 });
+
+describe("boxes sized to their content", () => {
+  it("place their text at their start edge (`w-fit`, `w-max`), and read `ch` widths (`max-w-prose`)", () => {
+    const badge = (width: string) => page(`${anchor}<div style="width:600px"><p style="width:${width};padding:0 8px;margin:0">NEW</p></div>`);
+    const plain = page(`${anchor}<div style="width:600px"><p style="padding:0 8px;margin:0">NEW</p></div>`);
+    for (const width of ["fit-content", "max-content", "min-content"]) expect(checkFails(compareText(badge(width), plain)), width).toBe(false);
+    expect(checkFails(compareText(page(`${anchor}<p style="max-width:65ch;margin:0">Prose words</p>`), page(`${anchor}<p style="margin:0">Prose words</p>`)))).toBe(false);
+    // Centered, its place depends on its content's width: unverified, not passed.
+    const centered = page(`${anchor}<div style="width:600px"><p style="width:fit-content;margin:0 auto">NEW</p></div>`);
+    expect(compareText(centered, plain).unverified).toEqual([expect.objectContaining({ what: "where it sits", side: "original" })]);
+  });
+});
