@@ -237,3 +237,68 @@ describe("generated templates", () => {
     expect(regressions, regressions.slice(0, 5).join("\n")).toEqual([]);
   }, Math.max(10_000, SEEDS * 10));
 });
+
+// ── Each block's props ──────────────────────────────────────────────────────
+
+const COLORS = ["#111827", "#e11d48", "#ffffff", "#0ea5e9"];
+const SIZES = ["12px", "14px", "16px", "22px", "32px"];
+const PADDINGS = ["0px", "8px", "10px 20px", "12px 24px 12px 24px"];
+const ALIGNS = ["left", "center", "right"];
+const WEIGHTS = [400, 700];
+type Random = ReturnType<typeof random>;
+/** Some of the props given, each with one of its values. */
+function some(r: Random, props: Record<string, readonly unknown[]>): Record<string, unknown> {
+  const out: Record<string, unknown> = {};
+  for (const [key, values] of Object.entries(props)) if (r.chance(0.5)) out[key] = r.pick(values);
+  return out;
+}
+const BLOCKS: Record<string, (L: any, r: Random) => React.ReactElement> = {
+  Paragraph: (L, r) => <L.Paragraph {...some(r, { color: COLORS, fontSize: SIZES, lineHeight: ["140%", "24px"], textAlign: ALIGNS, fontWeight: WEIGHTS, containerPadding: PADDINGS, backgroundColor: COLORS, letterSpacing: ["0px", "1px"] })}>Paragraph words</L.Paragraph>,
+  Heading: (L, r) => <L.Heading {...some(r, { headingType: ["h1", "h2", "h3"], color: COLORS, fontSize: SIZES, textAlign: ALIGNS, fontWeight: WEIGHTS, containerPadding: PADDINGS, lineHeight: ["120%", "140%"] })}>Heading words</L.Heading>,
+  Button: (L, r) => <L.Button href="https://example.com/go" {...some(r, { backgroundColor: COLORS, color: COLORS, fontSize: SIZES, padding: PADDINGS, borderRadius: ["0px", "4px", "999px"], textAlign: ALIGNS, containerPadding: PADDINGS, fontWeight: WEIGHTS })}>Button words</L.Button>,
+  Image: (L, r) => <L.Image src="https://example.com/a.png" alt="Alt words" {...some(r, { width: ["120px", "50%", "300px"], textAlign: ALIGNS, href: ["https://example.com/i"], containerPadding: PADDINGS })} />,
+  Divider: (L, r) => <L.Divider {...some(r, { containerPadding: PADDINGS, textAlign: ALIGNS })} />,
+  Html: (L, r) => <L.Html html="<p>Html words</p>" {...some(r, { containerPadding: PADDINGS })} />,
+  Menu: (L, r) => <L.Menu items={[{ text: "Home", href: "https://example.com/" }, { text: "About", href: "https://example.com/a" }]} {...some(r, { color: COLORS, fontSize: SIZES, textAlign: ALIGNS, containerPadding: PADDINGS })} />,
+  Social: (L, r) => <L.Social icons={[{ name: "Facebook", url: "https://facebook.com/x" }, { name: "Twitter", url: "https://twitter.com/x" }]} {...some(r, { textAlign: ALIGNS, containerPadding: PADDINGS })} />,
+};
+
+/**
+ * The body's HTML with ids and the documented changes to the device CSS left out: no-stack rules
+ * written `.u-row.no-stack` (a later row's rules overrode them), and the rules that hide content on a device.
+ */
+function comparable(html: string): string {
+  return html
+    .replace(/<head[\s\S]*?<\/head>/i, "")
+    .replace(/<style[\s\S]*?<\/style>/gi, (css) =>
+      css
+        .replace(/\.u-row\.no-stack/g, ".no-stack")
+        .replace(/@media \(min-width: 0px\) \{ \.hide-default__display-block[^}]*\}[^}]*\} \}/g, "")
+        .replace(/@media \(max-width: 480px\) \{ \.hide-mobile \{[^}]*\} \}/g, "")
+        .replace(/@media \(min-width: 481px\) \{ \.hide-desktop \{[^}]*\} \}/g, "")
+    )
+    .replace(/u_[a-z_]+_\d+/g, "ID")
+    .replace(/\s+/g, " ");
+}
+/** A design without its ids, counters and the phone settings the previous release didn't keep. */
+const designOf = (design: unknown) => JSON.stringify(design, (key, value) => (["_meta", "counters", "schemaVersion", "_override", "hideMobile", "hideDesktop"].includes(key) ? undefined : value));
+
+describe("each block with its props", () => {
+  it.each(Object.keys(BLOCKS))("%s renders as the previous release did, in every mode", (name) => {
+    const different: string[] = [];
+    for (let seed = 1; seed <= 60; seed++) {
+      for (const root of ["Email", "Page", "Document"] as const) {
+        const build = (L: any) => {
+          const Root = L[root];
+          return <Root><L.Row><L.Column>{BLOCKS[name](L, random(seed * 7 + name.length))}</L.Column></L.Row></Root>;
+        };
+        const now = { html: comparable(current.renderToHtml(build(current))), design: designOf(current.renderToJson(build(current))) };
+        const before = { html: comparable(previous.renderToHtml(build(previous))), design: designOf(previous.renderToJson(build(previous))) };
+        if (now.html !== before.html) different.push(`seed ${seed}, ${root}: HTML`);
+        if (now.design !== before.design) different.push(`seed ${seed}, ${root}: design`);
+      }
+    }
+    expect(different).toEqual([]);
+  });
+});
+
