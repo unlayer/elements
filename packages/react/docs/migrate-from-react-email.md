@@ -26,7 +26,7 @@ A template that fails isn't written (unless `--force`), and the command exits wi
 For each template:
 
 - **Editable**: the share of content that became Elements blocks you can edit in the visual editor. The rest is kept as `Html` blocks that render exactly as before.
-- **Differences**: what Elements can't express and how it was approximated. Typical ones are responsive classes other than column stacking (`mobile:px-6`, `sm:`), hover styles, shadows, column vertical alignment (email columns sit at the top), and fixed widths that scale with the screen on phones.
+- **Differences**: what Elements can't express and how it was approximated. Typical ones are responsive classes other than column stacking and the phone settings (`mobile:` colors, `sm:`), hover styles, shadows, column vertical alignment (email columns sit at the top), and fixed widths that scale with the screen on phones.
 - **What the migration did**: changes that don't affect the look (components inlined, a conditional `className` split into one element per class list).
 
 ## Afterwards
