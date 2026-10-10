@@ -415,6 +415,19 @@ export { Previewed as default };`,
     expect(fs.readFileSync(path.join(dir, "emails/welcome.tsx"), "utf8")).toContain("@unlayer/react-elements");
   });
 
+  it("don't keep templates in place with --write: a Next.js route that sends one", async () => {
+    const dir = project({
+      "src/emails/welcome.tsx": welcome,
+      "src/app/api/send/route.tsx": `import Welcome from "../../../emails/welcome";
+const resend = { emails: { send: async (message: unknown) => message } };
+export async function POST() { await resend.emails.send({ from: "a@example.com", to: "b@example.com", subject: "Hi", react: <Welcome /> }); return new Response("ok"); }`,
+    });
+    const out = io(dir);
+    expect(await main(["src", "--write"], out, lib), out.out + out.err).toBe(0);
+    expect(out.out).toContain("1 written");
+    expect(fs.readFileSync(path.join(dir, "src/emails/welcome.tsx"), "utf8")).toContain("@unlayer/react-elements");
+  });
+
   it("fail a template that calls process.exit, and the run ends when a template leaves a timer (built CLI)", async () => {
     const dir = project({
       "package.json": '{"name":"exit-fixture","private":true,"type":"module"}',

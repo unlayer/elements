@@ -884,8 +884,6 @@ async function importedInputs(inputs: Input[]): Promise<Map<string, string>> {
   const scanned = new Map(await Promise.all(inputs.map(async (input) => [await canonicalPath(input.path), input.path] as const)));
   const dependencies = new Map<string, string>();
   const parse = async (path: string) => ts.createSourceFile(path, await readFile(path, "utf8"), ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
-  const containsJsx = (node: import("typescript").Node): boolean =>
-    ts.isJsxElement(node) || ts.isJsxSelfClosingElement(node) || ts.isJsxFragment(node) || !!ts.forEachChild(node, (child) => containsJsx(child) || undefined);
   /** A module's imports: local name → where it comes from and the name it has there (`*` for a namespace). */
   const importsOf = (file: import("typescript").SourceFile) => {
     const out = new Map<string, { specifier: string; imported: string }>();
@@ -990,10 +988,9 @@ async function importedInputs(inputs: Input[]): Promise<Map<string, string>> {
       }
       ts.forEachChild(node, visit);
     };
-    const source = await parse(input.path);
-    // Only a file that renders what it imports keeps it: an index that lists the templates, or a helper that sends them, doesn't.
-    if (!containsJsx(source)) continue;
-    visit(source);
+    // Only a template or a component keeps what it imports: an index that lists the templates, or a route or helper that sends them, doesn't.
+    if (await notATemplate(input.path, await readFile(input.path, "utf8"))) continue;
+    visit(await parse(input.path));
     for (const { specifier, names } of imports) await follow(input.path, specifier, names);
   }
   return dependencies;
