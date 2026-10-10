@@ -1,0 +1,139 @@
+import { describe, expect, it } from "vitest";
+import { compareStyles, styledWords } from "../src/cascade";
+import { compareText, htmlWords } from "../src/verify";
+
+const doc = (css: string, body: string) => `<html><head><style>${css}</style></head><body>${body}</body></html>`;
+/** The style of the first word. */
+const style = (html: string) => styledWords(html)[0].style;
+
+describe("the cascade", () => {
+  it("lets a style attribute beat a rule, !important beat both, and a later declaration beat an earlier one", () => {
+    expect(style(doc(".a{color:red}", '<p class="a" style="color:blue">x</p>')).color).toEqual([0, 0, 255, 1]);
+    expect(style(doc(".a{color:red !important}", '<p class="a" style="color:blue">x</p>')).color).toEqual([255, 0, 0, 1]);
+    expect(style(doc("", '<p style="color:red;color:blue">x</p>')).color).toEqual([0, 0, 255, 1]);
+    expect(style(doc(".a{color:red} .a{color:blue}", '<p class="a">x</p>')).color).toEqual([0, 0, 255, 1]);
+  });
+
+  it("applies rules by specificity, not by the order of the class attribute", () => {
+    expect(style(doc(".muted{color:gray} .alert{color:red}", '<p class="alert muted">x</p>')).color).toEqual([255, 0, 0, 1]);
+    expect(style(doc("p.a{color:red} .a{color:blue}", '<p class="a">x</p>')).color).toEqual([255, 0, 0, 1]);
+    expect(style(doc("#x{color:red} .a.b{color:blue}", '<p id="x" class="a b">x</p>')).color).toEqual([255, 0, 0, 1]);
+  });
+
+  it("reads descendant, child and sibling selectors, attributes and escaped class names", () => {
+    expect(style(doc(".card p{color:red}", '<div class="card"><div><p>x</p></div></div>')).color).toEqual([255, 0, 0, 1]);
+    expect(style(doc(".card > p{color:red}", '<div class="card"><div><p>x</p></div></div>')).color).toEqual([0, 0, 0, 1]);
+    expect(style(doc("h1 + p{color:red}", "<h1>T</h1><p>x</p>")).size).toBe(32);
+    expect(styledWords(doc("h1 + p{color:red}", "<h1>T</h1><p>x</p>"))[1].style.color).toEqual([255, 0, 0, 1]);
+    expect(style(doc('a[href^="https"]{color:red}', '<a href="https://x.com">x</a>')).color).toEqual([255, 0, 0, 1]);
+    expect(style(doc(".sm\\:text-red{color:red}", '<p class="sm:text-red">x</p>')).color).toEqual([255, 0, 0, 1]);
+  });
+
+  it("applies media queries that hold at desktop width, never dark mode or phones, and :hover never", () => {
+    expect(style(doc("@media (min-width: 600px){p{color:red}}", "<p>x</p>")).color).toEqual([255, 0, 0, 1]);
+    expect(style(doc("@media (max-width: 480px){p{color:red}}", "<p>x</p>")).color).toEqual([0, 0, 0, 1]);
+    expect(style(doc("@media (prefers-color-scheme: dark){p{color:red}}", "<p>x</p>")).color).toEqual([0, 0, 0, 1]);
+    expect(style(doc("p:hover{color:red}", "<p>x</p>")).color).toEqual([0, 0, 0, 1]);
+  });
+
+  it("leaves a property unknown when a rule it can't place could set it", () => {
+    expect(style(doc("@media (orientation: landscape){p{color:red}}", "<p>x</p>")).color).toBeUndefined();
+    expect(style(doc("p:nth-child(1){color:red}", "<p>x</p>")).color).toBeUndefined();
+    expect(style(doc("p{color:var(--c)}", "<p>x</p>")).color).toBeUndefined();
+    // A selector this can't fully read still can't reach elements its known parts rule out.
+    expect(style(doc(".other:nth-child(1){color:red}", "<p>x</p>")).color).toEqual([0, 0, 0, 1]);
+    // An inline style that wins anyway stays known.
+    expect(style(doc("@media (orientation: landscape){p{color:red}}", '<p style="color:blue !important">x</p>')).color).toEqual([0, 0, 255, 1]);
+  });
+
+  it("ignores Outlook-only markup", () => {
+    expect(htmlWords('<!--[if mso]><table><tr><td>Outlook only</td></tr></table><![endif]--><p>Everyone</p>')).toEqual(["Everyone"]);
+    expect(htmlWords("<v:roundrect><v:textbox>Button</v:textbox></v:roundrect><p>Everyone</p>")).toEqual(["Everyone"]);
+  });
+});
+
+describe("text styles", () => {
+  it("inherit size, weight, italics, letter case and color, and resolve em, rem and % against the parent", () => {
+    const words = styledWords(doc("", '<div style="font-size:20px;font-style:italic;text-transform:uppercase;color:#e11d48"><div style="font-size:2em"><h1>Big</h1></div><span style="font-size:50%">half</span></div>'));
+    expect(words[0].style).toMatchObject({ size: 80, bold: true, italic: true, transform: "uppercase", color: [225, 29, 72, 1] });
+    expect(words[1].style.size).toBe(10);
+    expect(style(doc("", '<p style="font-size:1.5rem">x</p>')).size).toBe(24);
+  });
+
+  it("gives headings, bold, italic and underlined tags the browser's defaults, which a body weight doesn't undo", () => {
+    expect(style(doc("", '<body style="font-weight:400"><h1>T</h1></body>'))).toMatchObject({ size: 32, bold: true });
+    expect(style(doc("", "<p><b>x</b></p>")).bold).toBe(true);
+    expect(style(doc("", "<p><em>x</em></p>")).italic).toBe(true);
+    expect(style(doc("", "<p><u>x</u></p>")).underline).toBe(true);
+    expect(style(doc("", '<h2 style="font-weight:400">x</h2>')).bold).toBe(false);
+  });
+
+  it("underlines a link unless its own style says not to, and reads its target (_self when it sets none)", () => {
+    expect(style(doc("", '<a href="https://x.com">x</a>'))).toMatchObject({ underline: true, color: [0, 0, 238, 1], target: "_self" });
+    expect(style(doc("", '<a href="https://x.com" target="_blank" style="text-decoration:none;color:#111111">x</a>'))).toMatchObject({ underline: false, target: "_blank" });
+    expect(style(doc("", "<p>x</p>")).target).toBeUndefined();
+  });
+
+  it("composites the backgrounds behind text, from bgcolor too, and leaves it unknown over an image", () => {
+    expect(style(doc("", '<div style="background-color:#000000"><div style="background:rgba(255,255,255,0.5)"><p>x</p></div></div>')).background?.map(Math.round)).toEqual([128, 128, 128, 1]);
+    expect(style(doc("", '<table bgcolor="#fff4c8"><tr><td>x</td></tr></table>')).background).toEqual([255, 244, 200, 1]);
+    expect(style(doc("", '<div style="background:url(a.png) #ff0000"><p>x</p></div>')).background).toBeUndefined();
+  });
+
+  it("leaves monospace text's size unknown unless set (browsers show it at 13px)", () => {
+    expect(style(doc("", "<p><code>x</code></p>")).size).toBeUndefined();
+    expect(style(doc("", '<p><code style="font-size:14px">x</code></p>')).size).toBe(14);
+  });
+});
+
+describe("hidden text", () => {
+  it("isn't read: display:none, the hidden attribute, a box that clips to nothing, visibility:hidden, opacity 0", () => {
+    expect(htmlWords(doc("", '<p>A</p><p hidden>B</p><div style="max-height:0;overflow:hidden">C</div><div style="height:0px;overflow:hidden">D</div><p style="opacity:0">E</p><p style="visibility:hidden">F</p>'))).toEqual(["A"]);
+  });
+
+  it("isn't read when a rule hides it: a class, compound selectors, a class on a parent, at desktop width", () => {
+    expect(htmlWords(doc(".footer .legacy{display:none} p.old{display:none} #promo{display:none} .v{visibility:hidden}", '<div class="footer"><p class="legacy">A</p></div><p class="old">B</p><p id="promo">C</p><p class="v">D</p><p>E</p>'))).toEqual(["E"]);
+    expect(htmlWords(doc("@media (min-width: 481px){.hide-desktop{display:none !important}}", '<p class="hide-desktop">A</p><p>B</p>'))).toEqual(["B"]);
+    expect(htmlWords(doc("@media (max-width: 480px){.hide-mobile{display:none !important}}", '<p class="hide-mobile">A</p><p>B</p>'))).toEqual(["A", "B"]);
+  });
+
+  it("is read again where it's shown: a visible child of a visibility:hidden parent, or the parent's own display set", () => {
+    expect(htmlWords(doc("", '<div style="visibility:hidden">A <span style="visibility:visible">B</span></div>'))).toEqual(["B"]);
+    expect(htmlWords(doc(".hide{display:none}", '<p class="hide" style="display:block">A</p>'))).toEqual(["A"]);
+    expect(htmlWords('<p hidden style="display:block">A</p>')).toEqual(["A"]);
+  });
+});
+
+describe("compareStyles", () => {
+  it("finds a word shown in another style, grouped by change, and nothing when only unknown properties differ", () => {
+    const original = doc("", '<p style="color:#e11d48;font-style:italic">Hello world</p><p>Same</p>');
+    const converted = doc("", '<p style="color:#000000">Hello world</p><p>Same</p>');
+    const check = compareStyles(original, converted);
+    expect(check.differences).toEqual([
+      { property: "italic", original: "italic", converted: "not italic", words: ["Hello", "world"] },
+      { property: "color", original: "#e11d48", converted: "#000000", words: ["Hello", "world"] },
+    ]);
+    expect(check.compared).toBe(3);
+    expect(compareStyles(doc("p{color:var(--x)}", "<p>Hi</p>"), doc("", '<p style="color:red">Hi</p>')).differences).toEqual([]);
+  });
+
+  it("allows a pixel of size and a little color rounding", () => {
+    expect(compareStyles(doc("", '<p style="font-size:14px;color:rgb(16,59,5)">x</p>'), doc("", '<p style="font-size:14.5px;color:#103b06">x</p>')).differences).toEqual([]);
+  });
+
+  it("doesn't compare the preview text's styles (inboxes list it, but it isn't shown)", () => {
+    const preview = (style: string) => `<div data-skip-in-text="true" style="display:none;${style}">Welcome</div><p>Hi</p>`;
+    expect(compareStyles(preview("font-size:1px;color:#ffffff"), preview("")).differences).toEqual([]);
+  });
+
+  it("reports a background lost behind text, and a link that opens elsewhere", () => {
+    const panel = (bg: string) => `<table><tr><td style="background-color:${bg}"><p>Panel copy</p></td></tr></table><a href="https://x.com">Learn</a>`;
+    const changed = compareStyles(panel("#fff4c8"), panel("#ffffff").replace('href="https://x.com"', 'href="https://x.com" target="_blank"'));
+    expect(changed.differences.map((d) => `${d.property}: ${d.original} → ${d.converted}`)).toEqual(["background: #fff4c8 → #ffffff", "target: _self → _blank"]);
+  });
+
+  it("is part of the content check, only when the words are the same", () => {
+    expect(compareText('<p style="text-transform:uppercase">Track it</p>', "<p>Track it</p>").styles).toEqual([{ property: "transform", original: "uppercase", converted: "none", words: ["Track", "it"] }]);
+    expect(compareText("<p>Track it</p>", "<p>Track</p>").styles).toEqual([]);
+  });
+});

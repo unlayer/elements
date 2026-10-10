@@ -1,4 +1,4 @@
-import { decodeHtmlEntities } from "./entities";
+import { compareStyles, normalizeWord, StyledDocument, type StyleDifference } from "./cascade";
 
 /**
  * Content check: does the converted HTML still say everything the original
@@ -16,78 +16,61 @@ export interface TextCheck {
   missingAttributes: string[];
   /** Links, images and image text only the conversion has. */
   addedAttributes: string[];
+  /**
+   * Text shown in another style (size, bold, italics, letter case, underline,
+   * color, the background behind it, a link's target), when the words are the same.
+   */
+  styles: StyleDifference[];
+  /** How much of the styles was compared: words, and properties left out because one side couldn't be worked out. */
+  styleCoverage: { words: number; unknown: number };
 }
 
-// A hidden element's opening tag; Elements hides a block on desktop with display:none on its table.
-const HIDDEN = /<([a-z][\w-]*)\b[^>]*style="[^"]*display:\s*none[^"]*"[^>]*>/gi;
-const VOID = /^(area|base|br|col|embed|hr|img|input|link|meta|source|track|wbr)$/i;
-const INLINE = /<\/?(?:a|span|strong|b|em|i|u|s|small|code|sup|sub|font|mark|abbr)\b[^>]*>/gi;
-
-/** The words a reader sees in `html`, as written, with meaningful numeric punctuation and lone signs preserved, in order. */
+/**
+ * The words a reader sees in `html`, as written, with meaningful numeric punctuation
+ * and lone signs preserved, in order. Hidden text isn't read: display:none (inline,
+ * or from a rule that applies at desktop width), the `hidden` attribute, a box that
+ * clips to nothing (`max-height:0;overflow:hidden`), visibility:hidden, opacity 0.
+ * The preview text (`data-skip-in-text`) is read: inboxes show it.
+ */
 export function htmlWords(html: string): string[] {
-  // Hidden elements (e.g. CodeInline's hidden copy for some clients) aren't read.
-  const text = withoutHidden(hideClasses(html, hiddenClasses(html))
-    .replace(/<head\b[\s\S]*?<\/head>/gi, " ")
-    .replace(/<(style|script|title)\b[\s\S]*?<\/\1>/gi, " ")
-    // React separates adjacent text with <!-- --> (`{name}'s` → `Alex<!-- -->'s`).
-    .replace(/<!--[\s\S]*?-->/g, ""))
-    // Inline tags don't break words (`<b>Hel</b>lo` reads "Hello"); block tags
-    // do, and so do inline tags styled as boxes (a link with display:block,
-    // pills side by side with display:inline-block).
-    .replace(INLINE, (tag) =>
-      /display:\s*(block|flex|grid|table|list-item|inline-block|inline-flex)/i.test(
-        tag,
-      )
-        ? " "
-        : "",
-    )
-    .replace(/<[^>]+>/g, " ");
-  return decodeHtmlEntities(text)
-    .normalize("NFC")
-    // Zero-width characters (preview text padding) aren't read.
-    .replace(/[\u200b-\u200d\u2060\ufeff]/g, "")
-    // One minus, however it was written (-, −, &minus;).
-    .replace(/[-−－﹣]/g, "−")
-    .split(/\s+/)
-    .map((word) => {
-      // Punctuation around prose is cosmetic. Numeric separators, signs,
-      // currency symbols and percentages change what the reader is told,
-      // and so does a sign on its own ("Balance − 100").
-      if (/\p{N}/u.test(word)) {
-        return word.replace(/[^\p{L}\p{N}\p{Sc}.,/:'’+−%‰]/gu, "").replace(/[.,]+$/g, "");
-      }
-      if (/^[+−±]$/.test(word)) return word;
-      return word.replace(/[^\p{L}\p{Sc}%‰]/gu, "");
-    })
-    .filter(Boolean);
+  return wordsOf(new StyledDocument(html));
+}
+
+function wordsOf(doc: StyledDocument, within?: Parameters<StyledDocument["words"]>[0]): string[] {
+  return doc.words(within).flatMap((w) => w.word.split(/\s+/)).map(normalizeWord).filter(Boolean);
 }
 
 /**
  * The links, images and image text a reader gets: `href=` of links, `src=`
- * and `alt=` of images (alt shows when images are blocked, common in email),
- * entities decoded. Hidden elements and MSO-only markup aren't counted.
+ * and `alt=` of images (alt shows when images are blocked, common in email).
+ * Hidden elements and Outlook-only markup aren't counted.
  */
 export function htmlAttributes(html: string): string[] {
-  const visible = visibleHtml(html);
+  return attributesOf(new StyledDocument(html));
+}
+
+function attributesOf(doc: StyledDocument): string[] {
+  return doc.targets().map((t) => `${t.kind} ${t.value}`);
+}
+
+/** Each link with the words it carries, and each image with its text: a URL must stay on the same link or image. */
+function pairsOf(doc: StyledDocument): string[] {
   const out: string[] = [];
-  for (const [, tag, attrs] of visible.matchAll(/<(a|img)\b((?:"[^"]*"|'[^']*'|[^'">])*)>/gi)) {
-    if (tag.toLowerCase() === "a") {
-      const href = linkUrl(attrs);
-      if (href) out.push(`href ${href}`);
-    } else {
-      const src = attribute(attrs, "src");
-      const alt = attribute(attrs, "alt");
-      if (src) out.push(`src ${src}`);
-      if (alt) out.push(`alt ${alt}`);
-    }
+  const targets = doc.targets();
+  for (let i = 0; i < targets.length; i++) {
+    const t = targets[i];
+    if (t.kind === "href") out.push(JSON.stringify(["href", t.value, t.label ?? ""]));
+    if (t.kind === "src") out.push(JSON.stringify(["src", t.value, targets[i + 1]?.kind === "alt" ? targets[i + 1].value : ""]));
   }
   return out;
 }
 
-/** Compare the words, links and images two HTML documents show. */
+/** Compare the words, links, images and text styles two HTML documents show. */
 export function compareText(originalHtml: string, convertedHtml: string): TextCheck {
-  const originalWords = htmlWords(originalHtml);
-  const convertedWords = htmlWords(convertedHtml);
+  const originalDoc = new StyledDocument(originalHtml);
+  const convertedDoc = new StyledDocument(convertedHtml);
+  const originalWords = wordsOf(originalDoc);
+  const convertedWords = wordsOf(convertedDoc);
   const counts = new Map<string, number>();
   for (const word of convertedWords) counts.set(word, (counts.get(word) ?? 0) + 1);
   const missing: string[] = [];
@@ -105,75 +88,21 @@ export function compareText(originalHtml: string, convertedHtml: string): TextCh
     added.push(...moved);
   }
   // Count visible occurrences; Outlook-only duplicates are already excluded.
-  const missingAttributes = lostOccurrences(htmlAttributes(originalHtml), htmlAttributes(convertedHtml));
+  const originalAttributeList = attributesOf(originalDoc);
+  const convertedAttributeList = attributesOf(convertedDoc);
+  const missingAttributes = lostOccurrences(originalAttributeList, convertedAttributeList);
   // Added ones as a set: a renderer may repeat a link (a button's fallback), but a new destination is new.
-  const originalAttributes = new Set(htmlAttributes(originalHtml));
-  const addedAttributes = [...new Set(htmlAttributes(convertedHtml))].filter((item) => !originalAttributes.has(item));
+  const originalAttributes = new Set(originalAttributeList);
+  const addedAttributes = [...new Set(convertedAttributeList)].filter((item) => !originalAttributes.has(item));
   // A destination must also stay on the same link/image, even if every URL
   // still appears elsewhere in the document.
-  for (const item of lostOccurrences(attributePairs(originalHtml), attributePairs(convertedHtml))) {
+  for (const item of lostOccurrences(pairsOf(originalDoc), pairsOf(convertedDoc))) {
     const [kind, value, label] = JSON.parse(item) as [string, string, string];
     if (!missingAttributes.includes(`${kind} ${value}`)) missingAttributes.push(`${kind} ${value} (${label})`);
   }
-  return { missing, added, missingAttributes, addedAttributes };
-}
-
-function visibleHtml(html: string): string {
-  return withoutHidden(hideClasses(html, hiddenClasses(html)).replace(/<head\b[\s\S]*?<\/head>/gi, " ").replace(/<!--[\s\S]*?-->/g, ""));
-}
-
-/** `html` without its hidden elements, nested tags and all; the preview text (`data-skip-in-text`) stays: inboxes show it. */
-function withoutHidden(html: string): string {
-  let out = "";
-  let from = 0;
-  HIDDEN.lastIndex = 0;
-  for (let open = HIDDEN.exec(html); open; open = HIDDEN.exec(html)) {
-    if (/data-skip-in-text/.test(open[0])) continue;
-    if (VOID.test(open[1])) {
-      out += `${html.slice(from, open.index)} `;
-      from = HIDDEN.lastIndex;
-      continue;
-    }
-    const tags = new RegExp(`<(/?)${open[1]}\\b[^>]*>`, "gi");
-    tags.lastIndex = HIDDEN.lastIndex;
-    let depth = 1;
-    while (depth) {
-      const tag = tags.exec(html);
-      if (!tag) break;
-      depth += tag[1] ? -1 : 1;
-    }
-    // Unclosed: leave it.
-    if (depth) continue;
-    out += `${html.slice(from, open.index)} `;
-    from = HIDDEN.lastIndex = tags.lastIndex;
-  }
-  return out + html.slice(from);
-}
-
-/** A link's URL: `"`, `<` and `>` percent-encoded (as Elements writes them) are the same URL. */
-function linkUrl(attrs: string): string | undefined {
-  return attribute(attrs, "href")?.replace(/%22/gi, '"').replace(/%3C/gi, "<").replace(/%3E/gi, ">");
-}
-
-function attribute(attrs: string, name: string): string | undefined {
-  const match = new RegExp(`\\s${name}\\s*=\\s*(?:"([^"]*)"|'([^']*)'|([^\\s>]+))`, "i").exec(attrs);
-  return match ? decodeHtmlEntities(match[1] ?? match[2] ?? match[3]).trim() : undefined;
-}
-
-function attributePairs(html: string): string[] {
-  const visible = visibleHtml(html);
-  const pairs: string[] = [];
-  for (const [, attrs, inner] of visible.matchAll(/<a\b((?:"[^"]*"|'[^']*'|[^'">])*)>([\s\S]*?)<\/a\s*>/gi)) {
-    const href = linkUrl(attrs);
-    const label = htmlWords(inner).join(" ") || htmlAttributes(inner).join(", ");
-    if (href) pairs.push(JSON.stringify(["href", href, label]));
-  }
-  for (const [, attrs] of visible.matchAll(/<img\b((?:"[^"]*"|'[^']*'|[^'">])*)>/gi)) {
-    const src = attribute(attrs, "src");
-    const alt = attribute(attrs, "alt");
-    if (src) pairs.push(JSON.stringify(["src", src, alt ?? ""]));
-  }
-  return pairs;
+  // Styles are compared word for word, so only when the words are the same.
+  const style = missing.length || added.length ? { differences: [], compared: 0, unknown: 0 } : compareStyles(originalDoc, convertedDoc);
+  return { missing, added, missingAttributes, addedAttributes, styles: style.differences, styleCoverage: { words: style.compared, unknown: style.unknown } };
 }
 
 /**

@@ -62,9 +62,11 @@ describe("hidden elements", () => {
     expect(compareText('<div style="display:none"><div>One</div>Two</div><p>Shown</p>', "<p>Shown</p>")).toMatchObject({ missing: [], added: [] });
   });
 
-  it("still reads the preview text, and an element that's never closed", () => {
+  it("still reads the preview text, and reads an element that's never closed as a browser does", () => {
     expect(compareText('<div style="display:none" data-skip-in-text="true">Preview</div><p>Hi</p>', "<p>Hi</p>").missing).toEqual(["Preview"]);
-    expect(compareText('<div style="display:none">Open', "").missing).toEqual(["Open"]);
+    // A browser closes the hidden div at the end: what's in it stays hidden, and what follows its parent shows.
+    expect(compareText('<div style="display:none">Hidden', "").missing).toEqual([]);
+    expect(compareText('<table><tr><td><div style="display:none">Hidden</td><td>Shown</td></tr></table>', "").missing).toEqual(["Shown"]);
   });
 });
 
