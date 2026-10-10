@@ -118,7 +118,8 @@ function inPass(element: React.ReactElement<any>, isolated: () => unknown): unkn
   try {
     return callComponent(element);
   } catch (error) {
-    if (!/Invalid hook call/.test(String((error as Error)?.message))) throw error;
+    // React's production build says it by number (#321).
+    if (!/Invalid hook call|React error #321\b/.test(String((error as Error)?.message))) throw error;
     reset = true;
     return isolated();
   }

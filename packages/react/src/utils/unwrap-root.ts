@@ -92,6 +92,13 @@ export function unwrapRoot(element: React.ReactElement): React.ReactElement {
       current = React.createElement(type.type, props);
       continue;
     }
+    // A Fragment around the template (`<><Welcome /></>`): what's in it, when that's one element.
+    if (type === React.Fragment) {
+      const inside = React.Children.toArray(props.children as React.ReactNode);
+      if (inside.length !== 1 || !React.isValidElement(inside[0])) break;
+      current = inside[0];
+      continue;
+    }
     let produced: unknown;
     // Each wrapper renders on its own: one inside another gets its own `useId()` prefix (the first keeps React's).
     const prefix = depth ? `w${depth}-` : undefined;

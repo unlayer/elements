@@ -119,3 +119,23 @@ describe("components inside components", () => {
   });
 });
 
+describe("a template inside a Fragment", () => {
+  it("is called once, and its root's settings apply", () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    try {
+      let calls = 0;
+      const Welcome = () => {
+        calls++;
+        return <Email lang="es"><Row><Column><Paragraph>Hola</Paragraph></Column></Row></Email>;
+      };
+      const html = renderToHtml(<><Welcome /></>);
+      expect(calls).toBe(1);
+      expect(html).toMatch(/<html[^>]*lang="es"/);
+      expect(warn).not.toHaveBeenCalled();
+      expect(JSON.stringify(renderToJson(<><Welcome /></>))).toContain("Hola");
+    } finally {
+      warn.mockRestore();
+    }
+  });
+});
+

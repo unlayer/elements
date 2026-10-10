@@ -159,6 +159,26 @@ const PATTERNS: Record<string, Pattern> = {
     shows: "Thanks for your order Total 0 dollars Footer",
     json: false,
   },
+  "a Column shown under a condition, in a Row with a layout": {
+    build: (L) => {
+      const image: string | undefined = undefined;
+      return (
+        <L.Email>
+          <L.Row layout={L.ColumnLayouts.TwoEqual}>
+            {image && <L.Column><L.Image src={image} alt="Product" /></L.Column>}
+            <L.Column><L.Paragraph>Order shipped</L.Paragraph></L.Column>
+          </L.Row>
+          <L.Row><L.Column><L.Paragraph>Footer</L.Paragraph></L.Column></L.Row>
+        </L.Email>
+      );
+    },
+    shows: "Order shipped Footer",
+  },
+  "a template whose root is in a Fragment": {
+    build: (L) => <><L.Email><L.Row><L.Column><L.Paragraph>Inside a Fragment</L.Paragraph></L.Column></L.Row></L.Email></>,
+    shows: "Inside a Fragment",
+    json: false, // the previous release's renderToJson threw for it; this one reads the root inside
+  },
   "headings, buttons and text with &, < and quotes": {
     build: (L) => (
       <L.Email>

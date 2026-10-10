@@ -255,7 +255,8 @@ function renderRow(props: RowProps): React.ReactElement | null {
   ).length;
   let cells: number[];
   if (layout) {
-    validateColumnLayout(layout, columnCount);
+    // Columns as written count too, as before (a Column shown under a condition leaves its place: `{image && <Column>}`).
+    validateColumnLayout(layout, columnCount === layout.expectedColumns ? columnCount : React.Children.count(children));
     cells = layout.cells;
   } else if (propsCells) {
     cells = propsCells;
