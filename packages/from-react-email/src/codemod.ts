@@ -11,6 +11,8 @@
 import ts from "typescript";
 import {
   decodeHtmlEntities,
+  SLOT_CLOSE,
+  SLOT_OPEN,
   el,
   expr,
   fallbackHtml,
@@ -426,6 +428,8 @@ class Converter {
   private evaluate(node: ts.Expression | undefined, depth = 0): unknown {
     if (!node || depth > 20) return undefined;
     node = unwrap(node);
+    // A JSX attribute's string has its HTML entities decoded (`&amp;` is `&`), as JSX reads it.
+    if (ts.isStringLiteral(node) && ts.isJsxAttribute(node.parent)) return decodeHtmlEntities(node.text);
     if (ts.isStringLiteral(node) || ts.isNoSubstitutionTemplateLiteral(node)) return node.text;
     if (ts.isTemplateExpression(node)) {
       let text = node.head.text;
@@ -487,6 +491,30 @@ class Converter {
       return out;
     }
     return undefined;
+  }
+
+  /**
+   * Whether a value holds JSX (a prop like `banner: ReactElement`): from its type, or, without
+   * types, from the preview props' value for it.
+   */
+  private jsxValued(expression: ts.Expression): boolean {
+    const type = this.checker.typeToString(this.checker.getTypeAtLocation(expression));
+    if (/\b(ReactElement|JSX\.Element|ReactPortal)\b/.test(type)) return true;
+    const name = ts.isIdentifier(expression) ? expression.text : ts.isPropertyAccessExpression(expression) ? expression.name.text : undefined;
+    if (!name || !/^(any|ReactNode|React\.ReactNode)$/.test(type)) return false;
+    // Untyped, or typed ReactNode (text or JSX): JSX when the preview props give JSX.
+    let found = false;
+    const visit = (node: ts.Node) => {
+      if (found) return;
+      if (ts.isBinaryExpression(node) && ts.isPropertyAccessExpression(node.left) && node.left.name.text === "PreviewProps" && ts.isObjectLiteralExpression(unwrap(node.right))) {
+        for (const prop of (unwrap(node.right) as ts.ObjectLiteralExpression).properties) {
+          if (ts.isPropertyAssignment(prop) && prop.name.getText() === name && containsJsx(prop.initializer)) found = true;
+        }
+      }
+      ts.forEachChild(node, visit);
+    };
+    visit(this.file);
+    return found;
   }
 
   /** Whether a call builds a class list (`cx`, `clsx`, `classnames`, `cn`, `twMerge`). */
@@ -635,7 +663,7 @@ class Converter {
 
   private attrValue(initializer: ts.JsxAttributeValue | undefined): unknown {
     if (!initializer) return true;
-    if (ts.isStringLiteral(initializer)) return initializer.text;
+    if (ts.isStringLiteral(initializer)) return decodeHtmlEntities(initializer.text);
     if (ts.isJsxExpression(initializer)) return this.evaluate(initializer.expression);
     return undefined;
   }
@@ -777,7 +805,8 @@ class Converter {
     let document: Jsx | undefined;
     // Each return is a document of its own: one's <style> rules don't reach another's elements.
     for (const map of [this.headClasses, this.headImportant, this.headPhone, this.headPhoneImportant, this.headOrder]) map.clear();
-    const seek = (children: ts.JsxChild[]) => {
+    /** `wrapper`: a component of the template's own around what's being read (a context provider). */
+    const seek = (children: ts.JsxChild[], wrapper?: string) => {
       for (const child of this.flatten(children)) {
         // A <style> under a condition (`{alert && <style>…</style>}`) applies only sometimes: the migrated template can't keep that.
         if (ts.isJsxExpression(child) && child.expression && containsTag(child.expression, "style")) {
@@ -785,6 +814,10 @@ class Converter {
         }
         if (!(ts.isJsxElement(child) || ts.isJsxSelfClosingElement(child))) continue;
         const jsx = this.read(child);
+        // <Html> inside a component of the template's own: the migrated root is <Email>, and the wrapper would be dropped.
+        if (jsx.name === "Html" && wrapper) {
+          throw new Error(`Can't convert <Html> inside <${wrapper}>: the migrated template's root is <Email>, so <${wrapper}> (a context provider, say) would be dropped. Move it inside <Html>, or provide what it gives another way`);
+        }
         if (jsx.name === "Html" && !document) document = jsx;
         if (jsx.name === "Preview") previewText = this.plainContent(jsx.children);
         if (jsx.name === "Font") {
@@ -826,8 +859,8 @@ class Converter {
           }
         }
         if (jsx.name === "Body" && !body) body = jsx;
-        else if (jsx.name === "Html" || jsx.name === "Tailwind" || jsx.name === "Head") seek(jsx.children);
-        else if (!body) seek(jsx.children);
+        else if (jsx.name === "Html" || jsx.name === "Tailwind" || jsx.name === "Head") seek(jsx.children, jsx.name === "Html" ? undefined : wrapper);
+        else if (!body) seek(jsx.children, jsx.name || !/^[A-Z]|\./.test(jsx.tag) ? wrapper : jsx.tag);
       }
     };
     const top = ts.isJsxFragment(returned) ? [...returned.children] : [returned as ts.JsxChild];
@@ -1284,6 +1317,13 @@ class Converter {
     // Code making only inline images (`stars.map(s => <Img className="inline-block" />)`): a run of its own.
     const imageList = (c: ts.JsxChild | undefined) => !!c && ts.isJsxExpression(c) && !!c.expression && this.makesInlineImages(c.expression);
     for (const [at, child] of significant.entries()) {
+      // A prop or value holding JSX (`{banner}`) isn't text: kept as HTML, rendered as the template renders it.
+      if (ts.isJsxExpression(child) && child.expression && !containsJsx(child.expression) && this.jsxValued(child.expression)) {
+        flushInline();
+        this.fallbackRanges.push({ from: child.getStart(), to: child.getEnd() });
+        out.push({ block: { node: { ...fallbackHtml("", `JSX from a value: ${child.expression.getText().slice(0, 40)}`), props: { html: this.staticMarkup(this.inherited(`<>${this.keptText(child)}</>`, ctx)) } }, margin: ZERO, padding: ZERO } });
+        continue;
+      }
       if (ts.isJsxText(child) || (ts.isJsxExpression(child) && child.expression && !containsJsx(child.expression))) {
         inline.push(child);
         continue;
@@ -1357,6 +1397,8 @@ class Converter {
         this.computed(jsx, "as");
         const level = String(this.attr(jsx, "as") ?? (jsx.name ? "h1" : jsx.tag));
         const content = this.inlineContent(jsx.children);
+        // A margin from props (`m={margin}`) can't be kept: written as a fixed one, so it's reported.
+        for (const k of ["m", "mx", "my", "mt", "mr", "mb", "ml"]) this.computed(jsx, k);
         const marginProps = headingMarginProps(Object.fromEntries(["m", "mx", "my", "mt", "mr", "mb", "ml"].map((k) => [k, this.attr(jsx, k)])));
         const parts = this.plainParts(jsx.children);
         return [headingBlock(level, { html: content, plain: false, parts }, style, marginProps, ctx)];
@@ -1635,33 +1677,40 @@ class Converter {
             : jsx.name === "CodeInline" ? "code"
             : (jsx.name === "Text" || jsx.tag === "p") && inlineDisplay(jsx.style) ? "span"
             : jsx.name ? undefined
+            // A component the codemod doesn't convert (`<Trans>`) is rendered where the template renders, not written as a tag.
+            : /^[A-Z]|\./.test(jsx.tag) ? undefined
             : jsx.tag;
           if (!tag || jsx.opaqueProps) {
             this.fallbackRanges.push({ from: child.getStart(), to: child.getEnd() });
             parts.push(this.staticMarkup(this.keptText(child)));
             continue;
           }
-          const attrs: string[] = [];
+          // Each attribute, and whether it's code (a fixed one's text can hold `${`, which isn't code).
+          const attrs: Array<{ text: string; code?: boolean }> = [];
           const href = jsx.name === "Link" || tag === "a" ? this.attr(jsx, "href") : undefined;
           // A URL from props that's missing renders no href, as React renders it (not href="undefined").
-          if (href !== undefined) attrs.push(isExpr(href) ? this.codeAttribute("href", href.$expr) : `href="${escapeAttribute(String(href))}"`);
+          if (href !== undefined) attrs.push(isExpr(href) ? { text: this.codeAttribute("href", href.$expr), code: true } : { text: `href="${escapeAttribute(String(href))}"` });
           if (href !== undefined) this.needsEscape ||= isExpr(href);
           const css = cssText(jsx.name === "Link" ? { color: "#067df7", textDecorationLine: "none", ...jsx.style } : jsx.style);
-          if (css) attrs.push(`style="${escapeAttribute(css)}"`);
+          if (css) attrs.push({ text: `style="${escapeAttribute(css)}"` });
           // React Email's Link opens in a new tab unless it sets another target; a plain <a> keeps the target it has.
           if (jsx.name === "Link" || tag === "a") {
             const target = this.attr(jsx, "target");
             if (isExpr(target)) this.needsEscape = true;
-            if (isExpr(target)) attrs.push(this.codeAttribute("target", target.$expr));
-            else if (typeof target === "string" || jsx.name === "Link") attrs.push(`target="${escapeAttribute(typeof target === "string" ? target : "_blank")}"`);
+            if (isExpr(target)) attrs.push({ text: this.codeAttribute("target", target.$expr), code: true });
+            else if (typeof target === "string" || jsx.name === "Link") attrs.push({ text: `target="${escapeAttribute(typeof target === "string" ? target : "_blank")}"` });
           }
-          // An attribute from code that may be missing brings its own space (it may render nothing).
-          const open = `<${tag}${attrs.map((a) => (a.startsWith("${htmlAttribute(") ? a : ` ${a}`)).join("")}>`;
+          // With code in it, the tag is a template literal (fixed text escaped for it); an attribute
+          // from code that may be missing brings its own space (it may render nothing).
+          const code = attrs.some((a) => a.code);
+          const open = code
+            ? expr(`\`<${tag}${attrs.map((a) => (a.code ? (a.text.startsWith("${htmlAttribute(") ? a.text : ` ${a.text}`) : ` ${escapeTemplate(a.text)}`)).join("")}>\``)
+            : `<${tag}${attrs.map((a) => ` ${a.text}`).join("")}>`;
           if (tag === "br") {
             parts.push("<br/>");
             continue;
           }
-          parts.push(open.includes("${") ? expr(`\`${open}\``) : open);
+          parts.push(open);
           visit(jsx.children);
           parts.push(`</${tag}>`);
         }
@@ -1680,8 +1729,8 @@ class Converter {
 
   /**
    * Code with JSX inside: each outermost JSX element is converted with
-   * `convert` into a slot (`§n`); the code around it stays. A fragment becomes
-   * an array (`<>{a}<B/></>` → `[a, §0]`), as Elements walks arrays but not
+   * `convert` into a slot (SLOT_OPEN n SLOT_CLOSE); the code around it stays. A fragment becomes
+   * an array (`<>{a}<B/></>` → `[a, slot 0]`), as Elements walks arrays but not
    * fragments. Undefined when part of it can't be converted safely (text in
    * a fragment): the caller then keeps the whole expression as HTML, so
    * nothing is dropped.
@@ -1695,7 +1744,7 @@ class Converter {
     };
     const slot = (node: ts.JsxElement | ts.JsxSelfClosingElement, key?: Expr) => {
       slots.push(convert(node, keyOf(node) ?? key));
-      return `§${slots.length - 1}`;
+      return `${SLOT_OPEN}${slots.length - 1}${SLOT_CLOSE}`;
     };
     const codeOf = (node: ts.Node, key?: Expr): string | undefined => {
       if (ts.isJsxElement(node) || ts.isJsxSelfClosingElement(node)) return slot(node, key);
@@ -2096,6 +2145,8 @@ function isLoop(node: ts.Node): boolean {
 /** null, undefined, false or "": a return or branch that renders nothing. */
 function rendersNothing(value: ts.Expression): boolean {
   if (value.kind === ts.SyntaxKind.NullKeyword || value.kind === ts.SyntaxKind.FalseKeyword) return true;
+  // An empty fragment (`<></>`) renders nothing too: it stays as written, not an empty email.
+  if (ts.isJsxFragment(value) && value.children.every((child) => ts.isJsxText(child) && !child.text.trim())) return true;
   if (ts.isIdentifier(value) && value.text === "undefined") return true;
   return (ts.isStringLiteral(value) || ts.isNoSubstitutionTemplateLiteral(value)) && value.text === "";
 }

@@ -130,6 +130,21 @@ function isPackage(specifier: string): boolean {
 }
 
 /** The template's import bindings: local name → module and imported name. */
+/** The names a file imports as types only (`import type { Tone }`, `import { type Tone }`). */
+function typeImports(file: ts.SourceFile): Map<string, { specifier: string; imported: string }> {
+  const out = new Map<string, { specifier: string; imported: string }>();
+  for (const statement of file.statements) {
+    if (!ts.isImportDeclaration(statement) || !ts.isStringLiteral(statement.moduleSpecifier)) continue;
+    const clause = statement.importClause;
+    const bindings = clause?.namedBindings;
+    if (!bindings || !ts.isNamedImports(bindings)) continue;
+    for (const element of bindings.elements) {
+      if (clause.isTypeOnly || element.isTypeOnly) out.set(element.name.text, { specifier: statement.moduleSpecifier.text, imported: (element.propertyName ?? element.name).text });
+    }
+  }
+  return out;
+}
+
 function importedBindings(file: ts.SourceFile): Map<string, { specifier: string; imported: string; namespace?: boolean }> {
   const out = new Map<string, { specifier: string; imported: string; namespace?: boolean }>();
   for (const statement of file.statements) {
@@ -236,9 +251,12 @@ function requirements(component: Component, from: Imported, template: ts.SourceF
   const copiedNames: string[] = [];
   const templateBindings = topLevelBindings(template);
   const moduleImports = importedBindings(module);
+  const moduleTypeImports = typeImports(module);
   const moduleDeclarations = new Map<string, ts.Statement>();
   for (const statement of module.statements) {
     if (ts.isFunctionDeclaration(statement) && statement.name) moduleDeclarations.set(statement.name.text, statement);
+    // Types a copied value or the component needs (`Record<Tone, string>`) come along too.
+    if (ts.isTypeAliasDeclaration(statement) || ts.isInterfaceDeclaration(statement) || ts.isEnumDeclaration(statement)) moduleDeclarations.set(statement.name.text, statement);
     if (ts.isVariableStatement(statement)) {
       for (const decl of statement.declarationList.declarations) if (ts.isIdentifier(decl.name)) moduleDeclarations.set(decl.name.text, statement);
     }
@@ -251,16 +269,21 @@ function requirements(component: Component, from: Imported, template: ts.SourceF
       if (done.has(name)) continue;
       done.add(name);
       const imported = moduleImports.get(name);
+      const typeImported = moduleTypeImports.get(name);
       const declared = moduleDeclarations.get(name);
-      let wanted: { specifier: string; imported: string; namespace?: boolean } | undefined;
+      const isType = !!declared && (ts.isTypeAliasDeclaration(declared) || ts.isInterfaceDeclaration(declared));
+      let wanted: { specifier: string; imported: string; namespace?: boolean; type?: boolean } | undefined;
       if (imported) {
         wanted = { ...imported, specifier: rebase(imported.specifier, module.fileName, template.fileName) };
+      } else if (typeImported) {
+        wanted = { ...typeImported, specifier: rebase(typeImported.specifier, module.fileName, template.fileName), type: true };
       } else if (declared && isExported(declared)) {
-        wanted = { specifier: from.specifier, imported: name };
+        wanted = { specifier: from.specifier, imported: name, type: isType };
       } else if (declared) {
-        // Not exported: a copy of its declaration (a const or function), and what it needs in turn.
+        // Not exported: a copy of its declaration (a const, function, type or enum), and what it needs in turn.
         if (depth > 5 || templateBindings.has(name)) return false;
-        if (!(ts.isVariableStatement(declared) && declared.declarationList.flags & ts.NodeFlags.Const && declared.declarationList.declarations.length === 1) && !ts.isFunctionDeclaration(declared)) return false;
+        const copyable = (ts.isVariableStatement(declared) && declared.declarationList.flags & ts.NodeFlags.Const && declared.declarationList.declarations.length === 1) || ts.isFunctionDeclaration(declared) || isType || ts.isEnumDeclaration(declared);
+        if (!copyable) return false;
         if (!need(freeIdentifiers(declared), depth + 1)) return false;
         copies.push(declared.getText());
         copiedNames.push(name);
@@ -280,7 +303,7 @@ function requirements(component: Component, from: Imported, template: ts.SourceF
           ? `import * as ${name} from ${JSON.stringify(wanted.specifier)};`
           : wanted.imported === "default"
             ? `import ${name} from ${JSON.stringify(wanted.specifier)};`
-            : `import { ${wanted.imported === name ? name : `${wanted.imported} as ${name}`} } from ${JSON.stringify(wanted.specifier)};`
+            : `import ${wanted.type ? "type " : ""}{ ${wanted.imported === name ? name : `${wanted.imported} as ${name}`} } from ${JSON.stringify(wanted.specifier)};`
       );
     }
     return true;
@@ -376,6 +399,9 @@ function substitute(usage: ts.JsxElement | ts.JsxSelfClosingElement, component: 
     else return undefined;
   }
   const children = ts.isJsxElement(usage) ? usage.children : undefined;
+  // Children passed on as one fragment would count as one child: a component that goes through
+  // them one by one (`Children.map`, `Children.count`) isn't inlined, so they stay separate.
+  if (children?.length && /\bChildren\s*\.\s*(map|forEach|toArray|count|only)\s*\(/.test(component.declaration.getText())) return undefined;
   if (!evaluationKept(usage, component, values, children)) return undefined;
   const key = values.get("key");
   values.delete("key");

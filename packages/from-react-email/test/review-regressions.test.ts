@@ -3,6 +3,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { convertReactEmail, convertSource, verifyConversion } from "../src/index";
 import { replaceMarkers } from "../src/merge-tags";
+import ts from "typescript";
 
 const dirs: string[] = [];
 afterEach(() => {
@@ -495,5 +496,116 @@ export default function T({ user, items }: { user: { city: string }; items: Arra
     // Shown as text, they pass.
     const text = await pair("<Paragraph>From {user.city}</Paragraph>{items.map((item) => <Paragraph key={item.name}>{item.name}</Paragraph>)}");
     expect([text.missing, text.added, text.variants]).toEqual([[], [], []]);
+  });
+});
+
+describe("template shapes the codemod keeps or refuses", () => {
+  const check = async (source: string, props?: Record<string, unknown>) => {
+    const { Original, Migrated, conversion } = await templates(source);
+    const result = await verifyConversion(Original, Migrated, props ? { props } : {});
+    return { result, code: conversion.code, report: conversion.report, Migrated };
+  };
+  const clean = (r: Awaited<ReturnType<typeof check>>) => [...r.result.missing, ...r.result.added, ...r.result.missingAttributes, ...r.result.styles.map((s) => s.property), ...r.result.variants.map((v) => v.change), ...(r.report.lostStyles ?? [])];
+
+  it("renders a component it can't convert inside text (an i18n <Trans>) instead of writing it as a tag", async () => {
+    const r = await check(`import { Html, Body, Text, Button } from "@react-email/components";
+      import { useState } from "react";
+      function Trans({ children }: { children: string }) { const [text] = useState(children); return <>{text}</>; }
+      export default function T() { return <Html><Body><Text>Hello! <Trans>Click below</Trans></Text><Button href="https://example.com"><Trans>Get started</Trans></Button></Body></Html>; }`);
+    expect(r.result.convertedHtml).not.toMatch(/&lt;Trans|<Trans/);
+    expect(clean(r)).toEqual([]);
+  });
+
+  it("refuses <Html> inside a component of the template's own (a provider would be dropped)", async () => {
+    await expect(convertSource(`import { Html, Body, Text } from "@react-email/components";
+      import { createContext } from "react";
+      const Theme = createContext("#e11d48");
+      export default function T() { return <Theme.Provider value="#e11d48"><Html><Body><Text>Hi</Text></Body></Html></Theme.Provider>; }`, { fileName: "t.tsx" })).rejects.toThrow(/inside <Theme\.Provider>/);
+  });
+
+  it("keeps a template's own text that looks like its internal markers (§13), entities in attributes, and ${ in a fixed URL", async () => {
+    const r = await check(`import { Html, Body, Text, Button, Img } from "@react-email/components";
+      export default function T({ legalRef, name }: { legalRef: string; name: string }) {
+        return <Html><Body>{legalRef === "§13" ? <Text>Legal copy</Text> : <Text>Other copy</Text>}
+          <Text>Hi {name}, <a href="https://example.com/?id=\${name}">open</a></Text>
+          <Button href="https://example.com/?a=1&amp;b=2">Buy</Button>
+          <Img src="https://example.com/x.png" width={100} alt="Tom &amp; Jerry" /></Body></Html>;
+      }
+      T.PreviewProps = { legalRef: "§13", name: "Ana" };`);
+    expect(r.code).toContain('"§13"');
+    expect(clean(r)).toEqual([]);
+    const design = JSON.stringify(r.result.design);
+    expect(design).toContain("https://example.com/?a=1&b=2");
+    expect(design).toContain("Tom & Jerry");
+    expect(design).not.toContain("&amp;");
+    expect(r.result.convertedHtml).toContain("?id=${name}");
+  });
+
+  it("asks Google Fonts for a keyword weight as a number (bold is 700)", async () => {
+    const r = await check(`import { Html, Head, Body, Text, Font } from "@react-email/components";
+      export default function T() { return <Html><Head><Font fontFamily="Roboto" fallbackFontFamily="Arial" webFont={{ url: "https://fonts.gstatic.com/s/roboto/v27/x.woff2", format: "woff2" }} fontWeight="bold" fontStyle="normal" /></Head><Body><Text>Hi</Text></Body></Html>; }`);
+    expect(r.code).toContain("wght@700");
+    expect(r.code).not.toContain("wght@bold");
+  });
+
+  it("keeps an empty fragment return as nothing, not an empty email, and reports a heading margin from props", async () => {
+    const empty = await check(`import { Html, Body, Text } from "@react-email/components";
+      export default function T({ show }: { show: boolean }) { if (!show) return <></>; return <Html><Body><Text>Shown</Text></Body></Html>; }
+      T.PreviewProps = { show: true };`);
+    expect(clean(empty)).toEqual([]);
+    expect(empty.Migrated({ show: false }).type).toBe((await import("react")).default.Fragment);
+    const margin = await check(`import { Html, Body, Heading } from "@react-email/components";
+      export default function T({ margin }: { margin: number }) { return <Html><Body><Heading m={margin}>Title</Heading></Body></Html>; }
+      T.PreviewProps = { margin: 40 };`);
+    expect((margin.report.lostStyles ?? []).join("\n")).toMatch(/m=\{margin\}/);
+  });
+
+  it("keeps JSX from a prop (`{banner}`) as it renders, and a component that walks its children one by one", async () => {
+    const banner = await check(`import * as React from "react";
+      import { Html, Body, Text, Section } from "@react-email/components";
+      export default function T({ banner }: { banner: React.ReactElement }) { return <Html><Body>{banner}<Text>After</Text></Body></Html>; }
+      T.PreviewProps = { banner: <Section style={{ backgroundColor: "#fef3c7", padding: "16px" }}><Text>Sale ends soon</Text></Section> };`);
+    expect(clean(banner)).toEqual([]);
+    expect(banner.code).not.toMatch(/<Paragraph[^>]*>\s*\{banner\}/);
+    const columns = await check(`import * as React from "react";
+      import { Html, Body, Section, Row, Column, Text } from "@react-email/components";
+      function Cols({ children }: { children: React.ReactNode }) { return <Row>{React.Children.map(children, (child) => <Column style={{ width: "50%" }}>{child}</Column>)}</Row>; }
+      export default function T() { return <Html><Body><Section><Cols><Text>Left</Text><Text>Right</Text></Cols></Section></Body></Html>; }`);
+    expect(clean(columns)).toEqual([]);
+    // Not inlined with its children as one fragment (which made one column): the two stay side by side.
+    expect((columns.result.convertedHtml.match(/>Left</g) ?? []).length).toBe(1);
+    expect(columns.result.convertedHtml).toMatch(/Left[\s\S]*<\/td>[\s\S]*<td[\s\S]*Right/);
+  });
+});
+
+describe("types an inlined component needs", () => {
+  it("come along: an imported type, a type declared in its module, and an exported one", async () => {
+    const files: Record<string, string> = {
+      "/project/emails/types.ts": `export type Tone = "info" | "warn";\nexport interface Labels { info: string; warn: string }`,
+      "/project/emails/badge.tsx": `import { Text } from "@react-email/components";
+import type { Tone } from "./types";
+type Size = "s" | "m";
+const LABELS: Record<Tone, string> = { info: "Note", warn: "Careful" };
+const SIZES: Record<Size, number> = { s: 12, m: 14 };
+export function Badge({ tone }: { tone: Tone }) { return <Text style={{ fontSize: SIZES.m }}>{LABELS[tone]}</Text>; }`,
+    };
+    const loadModule = (specifier: string, from: string) => {
+      const target = path.posix.join(path.posix.dirname(from), `${specifier.replace(/^\.\//, "")}`);
+      for (const candidate of [target, `${target}.tsx`, `${target}.ts`]) if (files[candidate]) return { fileName: candidate, source: files[candidate] };
+      return undefined;
+    };
+    const { code } = await convertSource(`import { Html, Body } from "@react-email/components";
+import { Badge } from "./badge";
+export default function Welcome() { return <Html><Body><Badge tone="info" /></Body></Html>; }`, { fileName: "/project/emails/welcome.tsx", loadModule });
+    // Everything the copied constants name is declared or imported, so the migrated file type-checks.
+    expect(code).toMatch(/import type \{ Tone \} from "\.\/types"/);
+    expect(code).toMatch(/type Size = "s" \| "m"/);
+    const program = ts.createProgram(["/project/emails/welcome.tsx"], { noEmit: true, jsx: ts.JsxEmit.ReactJSX, strict: true, noResolve: true, types: [] }, {
+      ...ts.createCompilerHost({}),
+      getSourceFile: (name, version) => (name === "/project/emails/welcome.tsx" ? ts.createSourceFile(name, code, version, true, ts.ScriptKind.TSX) : undefined),
+      fileExists: (name) => name === "/project/emails/welcome.tsx",
+    });
+    const unknownNames = ts.getPreEmitDiagnostics(program).filter((d) => d.code === 2304).map((d) => ts.flattenDiagnosticMessageText(d.messageText, "\n"));
+    expect(unknownNames.filter((m) => /Tone|Size/.test(m))).toEqual([]);
   });
 });

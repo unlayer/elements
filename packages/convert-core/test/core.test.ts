@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { el, editorFonts, pinImageWidths, shareEditorFonts, expr, fallbackHtml, hole, printJsx, ReportBuilder, treeToDesign, treeToTsx, boxSides, toPx } from "../src/index";
+import { el, editorFonts, pinImageWidths, shareEditorFonts, expr, fallbackHtml, hole, printJsx, ReportBuilder, treeToDesign, treeToTsx, boxSides, toPx, SLOT_OPEN, SLOT_CLOSE } from "../src/index";
 
 const tree = el("Email", { contentWidth: "600px" }, [
   el("Row", { layout: "TwoEqual" }, [
@@ -20,7 +20,7 @@ describe("printing", () => {
 
   it("prints code holes and expressions", () => {
     const withCode = el("Column", {}, [
-      hole("items.map((item) => (§0))", [[el("Paragraph", { key: expr("item.id") }, ["Hi ", expr("item.name")])]]),
+      hole(`items.map((item) => (${SLOT_OPEN}0${SLOT_CLOSE}))`, [[el("Paragraph", { key: expr("item.id") }, ["Hi ", expr("item.name")])]]),
     ]);
     const { jsx } = printJsx(withCode);
     expect(jsx).toContain("{items.map((item) => (<Paragraph key={item.id}>Hi {item.name}</Paragraph>))}");
@@ -173,5 +173,13 @@ describe("pinned image widths", () => {
     const [text, html] = pinImageWidths(design).rows[0].contents;
     expect(text.values.text).toBe('<a><img alt="X" src="x.png" style="display:block;width:18px" width="18"/></a><img style="width:50%" src="y.png" width="50%">');
     expect(html.values).toEqual(design.rows[0].contents[1].values);
+  });
+});
+
+describe("code holes", () => {
+  it("leave a § in the template's own code as it is", async () => {
+    const tree = el("Email", {}, [el("Row", {}, [el("Column", {}, [hole(`legalRef === "§13" ? ${SLOT_OPEN}0${SLOT_CLOSE} : null`, [[el("Paragraph", {}, ["Legal"])]])])])]);
+    const { jsx } = printJsx(tree);
+    expect(jsx).toContain('legalRef === "§13" ? <Paragraph>Legal</Paragraph> : null');
   });
 });

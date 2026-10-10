@@ -4,7 +4,7 @@
  */
 
 import * as prettier from "prettier";
-import { isExpr, type ElementNode, type Expr } from "./tree";
+import { isExpr, SLOT, type ElementNode, type Expr } from "./tree";
 
 export interface PrintOptions {
   /** Name of the default-exported component. */
@@ -50,7 +50,7 @@ function printNode(node: ElementNode | string | Expr, used: Set<string>, rename:
   if (typeof node === "string") return printText(node);
   if (isExpr(node)) return `{${node.$expr}}`;
   if (node.type === "#expr") {
-    const code = (node.code ?? "").replace(/§(\d+)/g, (_, i: string) => {
+    const code = (node.code ?? "").replace(SLOT, (_, i: string) => {
       const slot = node.slots?.[Number(i)] ?? [];
       const single = slot.length === 1 && typeof slot[0] !== "string" && !(slot[0] as ElementNode).fallback;
       if (single) return printNode(slot[0], used, rename);

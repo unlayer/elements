@@ -23,11 +23,19 @@ export function isExpr(value: unknown): value is Expr {
   return typeof value === "object" && value !== null && typeof (value as Expr).$expr === "string";
 }
 
+/**
+ * A slot in a code hole: where its nodes go. Written with private-use
+ * characters, which a template's own code (`legalRef === "§13"`) doesn't hold.
+ */
+export const SLOT_OPEN = "\uE000";
+export const SLOT_CLOSE = "\uE001";
+export const SLOT = /\uE000(\d+)\uE001/g;
+
 export interface ElementNode {
   /**
    * Component name: Email, Row, Column, Paragraph, … — or "#expr" for a
-   * code hole whose `code` contains `§0`, `§1`, … where each `slots` entry
-   * (more Elements nodes) goes, e.g. `items.map((item) => (§0))`.
+   * code hole whose `code` has a slot (SLOT_OPEN, its index, SLOT_CLOSE)
+   * where each `slots` entry (more Elements nodes) goes.
    */
   type: string;
   props?: Record<string, unknown>;

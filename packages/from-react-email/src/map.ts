@@ -261,7 +261,8 @@ export interface FontSpec {
  */
 export function fontStylesheets(fonts: FontSpec[], linked: string[] = []): Array<{ url: string }> {
   const urls = fonts.map((font) => {
-    const weight = font.weight !== undefined ? String(font.weight) : "400";
+    // A keyword weight (`bold`) as the number Google Fonts' URLs take.
+    const weight = font.weight !== undefined ? String(numericWeight(font.weight as string | number)) : "400";
     const italic = font.style === "italic";
     if (/^https:\/\/fonts\.gstatic\.com\//.test(font.url)) {
       const axes = italic ? `:ital,wght@1,${weight}` : `:wght@${weight}`;

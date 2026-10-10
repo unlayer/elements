@@ -8,6 +8,9 @@ export {
   ROOT_TYPES,
   LAYOUT_TYPES,
   CONTENT_TYPES,
+  SLOT,
+  SLOT_OPEN,
+  SLOT_CLOSE,
   type ElementNode,
   type Expr,
 } from "./tree";

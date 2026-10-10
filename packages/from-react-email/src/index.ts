@@ -26,6 +26,12 @@ type Template = React.ComponentType<any> & { PreviewProps?: Record<string, unkno
 /** A migrated template as its file exports it: a function, or one wrapped in `memo` or `forwardRef`. */
 type MigratedTemplate = ((props: any) => React.ReactElement) | React.ExoticComponent<any>;
 
+/** Whether a template's output is nothing: not an element (`null`), or an empty fragment (`<></>`). */
+function rendersNothing(output: unknown): boolean {
+  if (!React.isValidElement(output)) return true;
+  return output.type === React.Fragment && React.Children.count((output.props as { children?: React.ReactNode }).children) === 0;
+}
+
 /** Call a migrated template for its root element, unwrapping `memo` and `forwardRef` as renderToHtml does. */
 function callTemplate(Converted: MigratedTemplate, props: Record<string, unknown>): React.ReactElement {
   const type = Converted as any;
@@ -165,8 +171,8 @@ export async function verifyConversion(
     }
     try {
       const migrated = callTemplate(Converted, flipped);
-      // It renders nothing this way (`return null`): the original must show nothing either.
-      if (!React.isValidElement(migrated)) {
+      // It renders nothing this way (`return null`, an empty fragment): the original must show nothing either.
+      if (rendersNothing(migrated)) {
         const check = compareText(original, "");
         if (check.missing.length || check.missingAttributes.length) variants.push({ change, missing: check.missing, added: [], missingAttributes: check.missingAttributes });
         continue;
@@ -210,7 +216,7 @@ export async function verifyConversion(
     if (original !== undefined) {
       try {
         const migrated = callTemplate(Converted, marked);
-        const check = compareText(original, React.isValidElement(migrated) ? renderToHtml(migrated) : "");
+        const check = compareText(original, rendersNothing(migrated) ? "" : renderToHtml(migrated));
         if (check.missing.length || check.added.length || check.missingAttributes.length || check.addedAttributes.length) variants.push({ change, missing: check.missing, added: [...check.added, ...check.addedAttributes], missingAttributes: check.missingAttributes });
       } catch (error) {
         variants.push({ change, missing: [], added: [], missingAttributes: [], error: (error as Error).message.split("\n")[0] });
