@@ -14,6 +14,7 @@ import {
   color,
   ownColor,
   fontFamilyProp,
+  fontSizePx,
   margins,
   parseBorder,
   px,
@@ -45,6 +46,12 @@ export type Content = string | Expr;
 
 /** Text as children: plain strings and code, no markup (codemod mode). */
 export type Parts = Array<string | Expr>;
+
+/** The text styles kept on a span: the element's own, over what it inherits (italics, letter case, underline). */
+export function spanStyle(style: Style, ctx: MapCtx): Style {
+  const { fontStyle, textTransform, textDecoration } = ctx.inherited;
+  return { ...(fontStyle ? { fontStyle } : {}), ...(textTransform ? { textTransform } : {}), ...(textDecoration ? { textDecoration } : {}), ...style };
+}
 
 /** Text styles Elements has no prop for, kept on a span (see withInlineStyles). */
 export function needsSpan(style: Style): boolean {
@@ -92,10 +99,12 @@ function start(ctx: MapCtx): string | Expr {
 export function textProps(
   style: Style,
   ctx: MapCtx,
-  defaults: { fontSize?: string; lineHeight?: string; fontWeight?: string | number }
+  defaults: { fontSize?: string; lineHeight?: string; fontWeight?: string | number; ownWeight?: boolean }
 ) {
   const font = style.fontFamily ?? ctx.inherited.fontFamily;
-  const weight = style.fontWeight ?? ctx.inherited.fontWeight ?? defaults.fontWeight;
+  // A weight of its own (a heading's bold) beats the one around it, as the browser's styles do.
+  const weight = style.fontWeight ?? (defaults.ownWeight ? defaults.fontWeight : ctx.inherited.fontWeight ?? defaults.fontWeight);
+  const ownSize = fontSizePx(style.fontSize, ctx.inherited.fontSize);
   const mobile: Record<string, unknown> = {};
   for (const key of ["fontSize", "lineHeight", "textAlign"] as const) {
     const value = style._phone?.[key] ?? (style[key] === undefined ? ctx.inherited.mobile?.[key] : undefined);
@@ -106,7 +115,7 @@ export function textProps(
     ...(style._phone?.display === "none" ? { hideOnMobile: true } : {}),
     ...(style._hideDesktop ? { hideOnDesktop: true } : {}),
     color: color(ownColor(style.color, ctx.inherited.color) ?? ctx.inherited.color) ?? "#000000",
-    fontSize: cssLength(style.fontSize ?? defaults.fontSize ?? ctx.inherited.fontSize),
+    fontSize: cssLength(ownSize !== undefined ? px(ownSize) : style.fontSize ?? defaults.fontSize ?? ctx.inherited.fontSize),
     lineHeight: lineHeightValue(style.lineHeight ?? defaults.lineHeight ?? ctx.inherited.lineHeight),
     textAlign: (style.textAlign ?? flexTextAlign(style) ?? ctx.inherited.textAlign ?? (ctx.inherited.rtl ? start(ctx) : undefined)) as string | undefined,
     fontWeight: weight === undefined ? undefined : numericWeight(weight),
@@ -167,9 +176,10 @@ export function paragraphBlock(html: Content, style: Style, ctx: MapCtx, margin:
   const props = textProps(style, ctx, defaults);
   // Monospace text alone (`<code>`) at the browser's default size shows at 13px, not 16px.
   if (style.fontSize === undefined && props.fontSize === "16px" && monospaceOnly(html)) props.fontSize = "13px";
-  const asChildren = parts !== undefined && !needsSpan(style);
+  const span = spanStyle(style, ctx);
+  const asChildren = parts !== undefined && !needsSpan(span);
   return {
-    node: asChildren ? el("Paragraph", props, parts) : el("Paragraph", { ...props, html: withInlineStyles(html, style) }),
+    node: asChildren ? el("Paragraph", props, parts) : el("Paragraph", { ...props, html: withInlineStyles(html, span) }),
     margin,
     padding: boxSides(style, "padding"),
     mobilePadding: phoneSides(style, "padding", boxSides(style, "padding")),
@@ -191,17 +201,18 @@ export function headingBlock(
   noteUnconverted(style, ctx, "heading");
   const preset = HEADINGS[level] ?? HEADINGS.h1;
   const base = toPx(ctx.inherited.fontSize) ?? 16;
-  const fontSize = toPx(style.fontSize) ?? preset.size * base;
+  const fontSize = fontSizePx(style.fontSize, ctx.inherited.fontSize) ?? preset.size * base;
   const margin = margins({ ...marginProps, ...style }, { top: preset.margin * fontSize, bottom: preset.margin * fontSize });
-  const html = withInlineStyles(content.html, style);
-  const asChildren = (content.plain || content.parts !== undefined) && !needsSpan(style);
+  const span = spanStyle(style, ctx);
+  const html = withInlineStyles(content.html, span);
+  const asChildren = (content.plain || content.parts !== undefined) && !needsSpan(span);
   return {
     node: el(
       "Heading",
       {
         headingType: HEADINGS[level] ? level : "h1",
         // A heading's line height is inherited (React Email sets none), else normal.
-        ...textProps(style, ctx, { fontSize: px(fontSize), lineHeight: ctx.inherited.lineHeight ?? "normal", fontWeight: 700 }),
+        ...textProps(style, ctx, { fontSize: px(fontSize), lineHeight: ctx.inherited.lineHeight ?? "normal", fontWeight: 700, ownWeight: true }),
         ...(asChildren ? {} : { text: html }),
       },
       asChildren ? content.parts ?? [html] : []
@@ -324,7 +335,7 @@ export function buttonBlock(href: unknown, label: Content | Parts, style: Style,
         ...(width ? { width } : {}),
         // Markup (a bold word) goes in `text`: Elements escapes a button's children.
         // Text styles it has no prop for (uppercase, italics) go on a span around it, as in Text.
-        ...(Array.isArray(label) ? {} : { text: withInlineStyles(label, style) }),
+        ...(Array.isArray(label) ? {} : { text: withInlineStyles(label, spanStyle(style, ctx)) }),
       },
       Array.isArray(label) ? label : []
     ),

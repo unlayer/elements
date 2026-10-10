@@ -40,6 +40,7 @@ import {
   paragraphBlock,
   INHERITED,
   LIST_DEFAULTS,
+  spanStyle,
   loopMargins,
   type Block,
   type FontSpec,
@@ -47,7 +48,7 @@ import {
   type MapCtx,
   type Parts,
 } from "./map";
-import { addSides, backgroundColor, backgroundImage, boxSides, color, fontFamilyProp, inherit, isHidden, margins, pageColor, phoneOnly, px, shownOnPhones, toPx, ZERO, type Style } from "./styles";
+import { addSides, backgroundColor, backgroundImage, boxSides, color, fontFamilyProp, fontSizePx, inherit, isHidden, margins, pageColor, phoneOnly, px, shownOnPhones, toPx, ZERO, type Style } from "./styles";
 import { inlineLocalComponents, type ModuleLoader } from "./components";
 import { inlineLocalJsx } from "./inline";
 import { splitConditionalClasses } from "./variants";
@@ -769,8 +770,11 @@ class Converter {
     const content = body ? body.children : (top as ts.JsxChild[]);
     const container = this.findContainer(content);
     const bodyStyle = body?.style ?? {};
-    const sizes = [toPx(container?.style.maxWidth), toPx(container?.style.width)].filter((n): n is number => !!n && n > 0);
-    const contentWidth = sizes.length ? Math.min(...sizes) : 600;
+    // Its width in em is relative to its own font size (the body's, else 16px).
+    const em = fontSizePx(container?.style.fontSize, fontSizePx(bodyStyle.fontSize, 16) ?? 16) ?? fontSizePx(bodyStyle.fontSize, 16) ?? 16;
+    const sizes = [toPx(container?.style.maxWidth, em), toPx(container?.style.width, em)].filter((n): n is number => !!n && n > 0);
+    // React Email's Container is 37.5em wide unless it says otherwise.
+    const contentWidth = sizes.length ? Math.min(...sizes) : container ? 37.5 * em : 600;
     const rootFont = (bodyStyle.fontFamily ?? container?.style.fontFamily ?? fontStack) as string | undefined;
     // `dir` from props (`dir={direction}`) is worked out where each block is aligned.
     const dir = this.hoistDirection(returned, document && this.attr(document, "dir"));
@@ -851,7 +855,8 @@ class Converter {
       if (SKIP.has(jsx.name ?? jsx.tag)) continue;
       // Shown only on phones: a block hidden on desktop. A box can't be hidden that way, so it stays HTML.
       if (shownOnPhones(jsx.style) && !(jsx.name && BOXES.has(jsx.name))) jsx = { ...jsx, style: phoneOnly(jsx.style) };
-      if (isHidden(jsx.style)) {
+      // Hidden (the `hidden` attribute too, from props or not): kept as HTML, as it renders.
+      if (isHidden(jsx.style) || jsx.attrs.has("hidden")) {
         if (shownOnPhones(jsx.style)) this.report.note("content shown only on phones stays hidden there", jsx.name ?? jsx.tag);
         flush();
         out.push({ kind: "content", block: { node: this.fallback(jsx, ctx, "hidden element"), margin: ZERO, padding: ZERO } });
@@ -1238,7 +1243,7 @@ class Converter {
       let jsx = this.read(child);
       if (SKIP.has(jsx.name ?? jsx.tag)) continue;
       if (shownOnPhones(jsx.style) && !(jsx.name && BOXES.has(jsx.name))) jsx = { ...jsx, style: phoneOnly(jsx.style) };
-      if (isHidden(jsx.style)) {
+      if (isHidden(jsx.style) || jsx.attrs.has("hidden")) {
         if (shownOnPhones(jsx.style)) this.report.note("content shown only on phones stays hidden there", jsx.name ?? jsx.tag);
         flushInline();
         out.push({ block: { node: this.fallback(jsx, ctx, "hidden element"), margin: ZERO, padding: ZERO } });
@@ -1273,7 +1278,7 @@ class Converter {
       case "Text": {
         const parts = this.plainParts(jsx.children);
         const html = parts ? "" : this.inlineContent(jsx.children);
-        return [paragraphBlock(parts && needsHtml(style) ? this.inlineContent(jsx.children) : html, style, ctx, margins(style, { top: 16, bottom: 16 }), parts)];
+        return [paragraphBlock(parts && needsHtml(spanStyle(style, ctx)) ? this.inlineContent(jsx.children) : html, style, ctx, margins(style, { top: 16, bottom: 16 }), parts)];
       }
       case "Heading": {
         this.computed(jsx, "as");
@@ -1284,7 +1289,7 @@ class Converter {
         return [headingBlock(level, { html: content, plain: false, parts }, style, marginProps, ctx)];
       }
       case "Button":
-        return [buttonBlock(this.attr(jsx, "href"), this.buttonLabel(jsx.children, style), style, ctx, this.attr(jsx, "target"))];
+        return [buttonBlock(this.attr(jsx, "href"), this.buttonLabel(jsx.children, spanStyle(style, ctx)), style, ctx, this.attr(jsx, "target"))];
       case "Img":
         this.computed(jsx, "width");
         if (!hasWidth(this.attr(jsx, "width"), style)) return [{ node: this.fallback(jsx, ctx, "image without a width (its natural size isn't known)"), margin: ZERO, padding: ZERO }];
@@ -1308,7 +1313,7 @@ class Converter {
           return [imageBlock({ src: this.attr(only, "src"), alt: this.attr(only, "alt"), width: this.attr(only, "width"), height: this.attr(only, "height"), href: this.attr(jsx, "href") }, only.style, ctx)];
         }
         if (backgroundColor(style) && (style.padding || style.paddingTop || style.paddingLeft)) {
-          return [buttonBlock(this.attr(jsx, "href"), this.buttonLabel(jsx.children, style), style, ctx, this.attr(jsx, "target"))];
+          return [buttonBlock(this.attr(jsx, "href"), this.buttonLabel(jsx.children, spanStyle(style, ctx)), style, ctx, this.attr(jsx, "target"))];
         }
         return [paragraphBlock(this.inlineContent([jsx.node]), {}, ctx, ZERO)];
       }

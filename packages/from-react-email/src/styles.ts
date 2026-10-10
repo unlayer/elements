@@ -6,9 +6,17 @@ import { boxSides, ownFontSize, toPx, type BoxSides, type Expr } from "@unlayer/
 
 export type Style = Record<string, any>;
 
-/** Desktop hiding (`display: none`, Tailwind's `hidden`, `visibility: hidden`) must survive conversion as original HTML. */
+/**
+ * Desktop hiding must survive conversion as original HTML: `display: none` (Tailwind's
+ * `hidden`), `visibility: hidden`, opacity 0, and a box that clips to nothing
+ * (`max-height: 0; overflow: hidden`, a common way to hide content outside phones).
+ */
 export function isHidden(style: Style): boolean {
-  return /^none\s*(?:!important)?$/i.test(String(style.display ?? "").trim()) || /^hidden\s*(?:!important)?$/i.test(String(style.visibility ?? "").trim());
+  const value = (key: string) => String(style[key] ?? "").trim().replace(/\s*!\s*important$/i, "");
+  if (/^none$/i.test(value("display")) || /^hidden$/i.test(value("visibility"))) return true;
+  if (value("opacity") !== "" && Number.parseFloat(value("opacity")) === 0) return true;
+  const clips = /^(hidden|clip)$/i.test(value("overflow")) || /^(hidden|clip)$/i.test(value("overflowY"));
+  return clips && (toPx(value("maxHeight")) === 0 || toPx(value("height")) === 0);
 }
 
 /** Hidden on desktop and shown by a phone rule (`hidden mobile:block`, a `<style>` media query). */
@@ -32,6 +40,10 @@ export interface Inherited {
   textAlign?: string;
   letterSpacing?: string;
   lineHeight?: string;
+  /** Italics, letter case and underline from a container: kept on a span around the text (Elements has no prop for them). */
+  fontStyle?: string;
+  textTransform?: string;
+  textDecoration?: string;
   /**
    * How a flex box (`display: flex; justify-content: center`) places the
    * images and buttons directly inside it. Not inherited further.
@@ -45,6 +57,15 @@ export interface Inherited {
   rtl?: true | Expr;
 }
 
+/** A font size in px: em and % relative to `parent`'s size, rem to 16px; undefined when it isn't a length. */
+export function fontSizePx(value: unknown, parent: unknown): number | undefined {
+  const text = String(value ?? "").trim().replace(/\s*!\s*important$/i, "");
+  const base = toPx(parent) ?? 16;
+  const m = /^(\d*\.?\d+)(em|%|rem)$/.exec(text);
+  if (m) return Number(m[1]) * (m[2] === "rem" ? 16 : m[2] === "%" ? base / 100 : base);
+  return typeof value === "number" || /^\d*\.?\d+(px|pt)?$/.test(text) ? toPx(text) : undefined;
+}
+
 export function inherit(parent: Inherited, style: Style | undefined): Inherited {
   if (!style) return parent;
   const next: Inherited = { ...parent, blockAlign: undefined, mobile: { ...parent.mobile } };
@@ -52,9 +73,15 @@ export function inherit(parent: Inherited, style: Style | undefined): Inherited 
     if (style[key] !== undefined) delete next.mobile![key];
     if (style._phone?.[key] !== undefined) next.mobile![key] = String(style._phone[key]);
   }
-  for (const key of ["color", "fontFamily", "fontSize", "fontWeight", "textAlign", "letterSpacing", "lineHeight"] as const) {
+  for (const key of ["color", "fontFamily", "fontSize", "fontWeight", "textAlign", "letterSpacing", "lineHeight", "fontStyle", "textTransform"] as const) {
     if (style[key] !== undefined && style[key] !== "" && !/^\s*(inherit|currentcolor)\s*$/i.test(String(style[key]))) next[key] = String(style[key]);
   }
+  // An underline isn't inherited, but it's drawn across everything inside.
+  const decoration = style.textDecorationLine ?? style.textDecoration;
+  if (decoration !== undefined && /underline|line-through|overline/i.test(String(decoration))) next.textDecoration = String(decoration);
+  // A relative size (`2em`, `120%`) is worked out against the parent's size, as CSS does.
+  const size = fontSizePx(style.fontSize, parent.fontSize);
+  if (size !== undefined) next.fontSize = px(size);
   // A line height in % or em passes on as px, worked out with the font size where it's set (as CSS does);
   // a number passes on as a number, and scales with each element's own size.
   const lineHeight = /^(\d*\.?\d+)(%|em|rem)$/.exec(String(style.lineHeight ?? "").trim());

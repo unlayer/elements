@@ -27,6 +27,7 @@ import {
   importedStylesheets,
   inheritedStyle,
   needsSpan,
+  spanStyle,
   noteAttributes,
   paragraphBlock,
   INHERITED,
@@ -36,7 +37,7 @@ import {
   type MapCtx,
   tablesInherit,
 } from "./map";
-import { addSides, backgroundColor, backgroundImage, boxSides, color, fontFamilyProp, inherit, isHidden, margins, pageColor, phoneOnly, px, shownOnPhones, toPx, ZERO, type Style } from "./styles";
+import { addSides, backgroundColor, backgroundImage, boxSides, color, fontFamilyProp, fontSizePx, inherit, isHidden, margins, pageColor, phoneOnly, px, shownOnPhones, toPx, ZERO, type Style } from "./styles";
 import type { BoxSides } from "@unlayer/convert-core";
 import { phoneSides, unheldPhoneStyles, withPhoneStyles } from "./phone-styles";
 import { addRules, overInline, phoneRules, stacksOnPhones, stylesheetRules, underInline } from "./tailwind";
@@ -129,8 +130,11 @@ export async function convertElement(element: React.ReactElement): Promise<Runti
   const bodyStyle: Style = (body?.kind === "component" && body.props.style) || {};
   const container = find(body ? children(body) : nodes, (n) => n.kind === "component" && n.name === "Container");
   const containerStyle: Style = (container?.kind === "component" && container.props.style) || {};
-  const sizes = [toPx(containerStyle.maxWidth), toPx(containerStyle.width)].filter((n): n is number => !!n && n > 0);
-  const contentWidth = sizes.length ? Math.min(...sizes) : 600;
+  // Its width in em is relative to its own font size (the body's, else 16px).
+  const em = fontSizePx(containerStyle.fontSize, fontSizePx(bodyStyle.fontSize, 16) ?? 16) ?? fontSizePx(bodyStyle.fontSize, 16) ?? 16;
+  const sizes = [toPx(containerStyle.maxWidth, em), toPx(containerStyle.width, em)].filter((n): n is number => !!n && n > 0);
+  // React Email's Container is 37.5em wide unless it says otherwise.
+  const contentWidth = sizes.length ? Math.min(...sizes) : container ? 37.5 * em : 600;
 
   const rootFont = bodyStyle.fontFamily ?? containerStyle.fontFamily ?? fontStack;
   const rtl = /^rtl$/i.test(String(document?.props.dir ?? ""));
@@ -175,7 +179,8 @@ function flowFrom(nodes: Node[], ctx: Ctx): Flow[] {
     if (SKIP.has(name)) continue;
     // Shown only on phones: a block hidden on desktop. A box can't be hidden that way, so it stays HTML.
     if (shownOnPhones(node.props.style ?? {}) && !BOXES.has(name)) node.props = { ...node.props, style: phoneOnly(node.props.style) };
-    if (isHidden(node.props.style ?? {})) {
+    // Hidden (the `hidden` attribute too): kept as HTML, as it renders.
+    if (isHidden(node.props.style ?? {}) || node.props.hidden === true || node.props.hidden === "") {
       if (shownOnPhones(node.props.style ?? {})) ctx.report.note("content shown only on phones stays hidden there", name);
       flush();
       out.push({ kind: "content", block: { node: fallbackHtml(kept(renderToStaticMarkup(node.element), ctx), "hidden element"), margin: ZERO, padding: ZERO } });
@@ -328,7 +333,7 @@ function blocksFrom(nodes: Node[], ctx: Ctx): Array<{ block: Block; style?: Styl
     if (SKIP.has(name)) continue;
     // Shown only on phones: a block hidden on desktop. A box can't be hidden that way, so it stays HTML.
     if (shownOnPhones(node.props.style ?? {}) && !BOXES.has(name)) node.props = { ...node.props, style: phoneOnly(node.props.style) };
-    if (isHidden(node.props.style ?? {})) {
+    if (isHidden(node.props.style ?? {}) || node.props.hidden === true || node.props.hidden === "") {
       if (shownOnPhones(node.props.style ?? {})) ctx.report.note("content shown only on phones stays hidden there", name);
       flushInline();
       out.push({ block: { node: fallbackHtml(kept(renderToStaticMarkup(node.element), ctx), "hidden element"), margin: ZERO, padding: ZERO } });
@@ -363,7 +368,7 @@ function blockFrom(node: Element, ctx: Ctx): Block[] {
     case "Heading":
       return [headingFrom(node, style, ctx)];
     case "Button":
-      return [buttonBlock(node.props.href, buttonLabel(node, style), style, ctx, node.props.target)];
+      return [buttonBlock(node.props.href, buttonLabel(node, style, ctx), style, ctx, node.props.target)];
     case "Img":
       if (!hasWidth(node.props.width, style)) return [unsizedImage(node, ctx)];
       return [imageFrom(node, style, ctx)];
@@ -522,7 +527,7 @@ function linkBlock(node: Exclude<Node, { kind: "text" }>, style: Style, ctx: Ctx
     return imageFrom(only, only.props.style ?? {}, ctx, node.props.href);
   }
   if (backgroundColor(style) && (style.padding || style.paddingTop || style.paddingLeft)) {
-    return buttonBlock(node.props.href, buttonLabel(node, style), style, ctx, node.props.target);
+    return buttonBlock(node.props.href, buttonLabel(node, style, ctx), style, ctx, node.props.target);
   }
   return paragraphBlock(htmlOf(node), {}, { ...ctx }, ZERO);
 }
@@ -585,10 +590,10 @@ function innerText(node: Exclude<Node, { kind: "text" }>): string {
 }
 
 /** A button's label: as text, or as markup when it has some (a bold word) or a text style has no prop (uppercase, italics). */
-function buttonLabel(node: Exclude<Node, { kind: "text" }>, style: Style): string | string[] {
+function buttonLabel(node: Exclude<Node, { kind: "text" }>, style: Style, ctx: Ctx): string | string[] {
   const html = innerHtml(node).replace(/<!--[\s\S]*?-->/g, "").trim();
   if (/<[a-z]/i.test(html)) return html;
-  return needsSpan(style) ? escapeHtml(innerText(node)) : [innerText(node)];
+  return needsSpan(spanStyle(style, ctx)) ? escapeHtml(innerText(node)) : [innerText(node)];
 }
 
 function escapeHtml(text: string): string {

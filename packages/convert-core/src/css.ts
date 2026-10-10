@@ -10,7 +10,8 @@ export function toPx(value: unknown, emBase = 16): number | undefined {
 function lengthPx(value: unknown, emBase: number, remBase: number): number | undefined {
   if (typeof value === "number" && Number.isFinite(value)) return value;
   if (typeof value !== "string") return undefined;
-  const match = /^(-?\d*\.?\d+)(px|em|rem|pt)?$/.exec(value.trim());
+  // `!important` (Tailwind's `!p-6`) doesn't change the length.
+  const match = /^(-?\d*\.?\d+)(px|em|rem|pt)?$/.exec(value.trim().replace(/\s*!\s*important$/i, ""));
   if (!match) return undefined;
   const n = Number.parseFloat(match[1]);
   switch (match[2]) {
@@ -36,7 +37,8 @@ export interface BoxSides {
 export function ownFontSize(style: Record<string, unknown>): number | undefined {
   const size = style.fontSize;
   if (typeof size === "number" && Number.isFinite(size)) return size;
-  return typeof size === "string" && /^\d*\.?\d+(px)?$/.test(size.trim()) ? Number.parseFloat(size) : undefined;
+  const text = typeof size === "string" ? size.trim().replace(/\s*!\s*important$/i, "") : undefined;
+  return text !== undefined && /^\d*\.?\d+(px)?$/.test(text) ? Number.parseFloat(text) : undefined;
 }
 
 /**
@@ -51,7 +53,7 @@ export function boxSides(style: Record<string, unknown>, property: "margin" | "p
   const toPx = (value: unknown) => lengthPx(value, em, 16);
   const shorthand = style[property];
   if (shorthand !== undefined) {
-    const parts = String(shorthand).trim().split(/\s+/).map((part) => toPx(part) ?? 0);
+    const parts = String(shorthand).trim().replace(/\s*!\s*important$/i, "").split(/\s+/).map((part) => toPx(part) ?? 0);
     const [t, r = t, b = t, l = r] = typeof shorthand === "number" ? [shorthand] : parts;
     Object.assign(sides, { top: t, right: r, bottom: b, left: l });
   }

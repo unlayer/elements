@@ -261,3 +261,68 @@ describe("styles the check now compares", () => {
     for (const check of [codemod, runtime]) expect(check.styles).toEqual([]);
   });
 });
+
+describe("text styles from what's around", () => {
+  /** The check's differences for both conversions of a template, with its preview props and each boolean flipped. */
+  const differences = async (source: string) => {
+    const { Original, Migrated } = await templates(source);
+    const codemod = await verifyConversion(Original, Migrated);
+    const runtime = await convertReactEmail(Original, { mergeTags: false });
+    const { compareText } = await import("@unlayer/convert-core");
+    const { render } = await import("@react-email/components");
+    const React = (await import("react")).default;
+    const runtimeCheck = compareText(await render(React.createElement(Original, Original.PreviewProps ?? {})), runtime.html());
+    return {
+      codemod: [...codemod.missing, ...codemod.added, ...codemod.styles.map((s) => `${s.property}: ${s.original} → ${s.converted}`), ...codemod.variants.map((v) => `${v.change}: ${[...v.missing, ...v.added].join(" ")}${v.error ?? ""}`)],
+      runtime: [...runtimeCheck.missing, ...runtimeCheck.added, ...runtimeCheck.styles.map((s) => `${s.property}: ${s.original} → ${s.converted}`)],
+      code: (await convertSource(source, { fileName: "t.tsx" })).code,
+    };
+  };
+
+  it("keeps italics and letter case a container sets on the text and buttons in it", async () => {
+    const result = await differences(`import { Html, Body, Section, Text, Button } from "@react-email/components";
+      export default function T() {
+        return <Html><Body><Section style={{ fontStyle: "italic", textTransform: "uppercase" }}><Text>Hello world</Text><Button href="https://example.com" style={{ backgroundColor: "#000000", color: "#ffffff", padding: "12px" }}>Buy now</Button></Section></Body></Html>;
+      }`);
+    expect([result.codemod, result.runtime]).toEqual([[], []]);
+  });
+
+  it("keeps a heading bold when the body sets a normal weight", async () => {
+    const result = await differences(`import { Html, Body, Heading, Text } from "@react-email/components";
+      export default function T() { return <Html><Body style={{ fontWeight: 400 }}><Heading>Reset your password</Heading><Text>Body copy</Text></Body></Html>; }`);
+    expect([result.codemod, result.runtime]).toEqual([[], []]);
+  });
+
+  it("works out em and % sizes against the size around them, and a container's em width against its own size", async () => {
+    const result = await differences(`import { Html, Body, Section, Heading, Text, Container } from "@react-email/components";
+      export default function T() {
+        return <Html><Body style={{ fontSize: "20px" }}><Section style={{ fontSize: "2em" }}><Heading>Big</Heading><Text style={{ fontSize: "75%" }}>Small</Text></Section></Body></Html>;
+      }`);
+    expect([result.codemod, result.runtime]).toEqual([[], []]);
+    const container = await differences(`import { Html, Body, Container, Text } from "@react-email/components";
+      export default function T() { return <Html><Body style={{ fontSize: "14px" }}><Container><Text>Hi</Text></Container></Body></Html>; }`);
+    expect(container.code).toContain('contentWidth="525px"');
+  });
+
+  it("reads !important lengths (an inline style, Tailwind's !p-6) instead of dropping them", async () => {
+    for (const source of [
+      `import { Html, Body, Section, Text } from "@react-email/components";
+      export default function T() { return <Html><Body><Section style={{ padding: "24px !important" }}><Text style={{ marginTop: "40px !important" }}>Spaced</Text></Section></Body></Html>; }`,
+      `import { Html, Body, Section, Text, Tailwind } from "@react-email/components";
+      export default function T() { return <Tailwind><Html><Body><Section className="!p-6"><Text className="!mt-10">Spaced</Text></Section></Body></Html></Tailwind>; }`,
+    ]) {
+      // The section's 24px on every side, and the text's 40px above it.
+      expect((await convertSource(source, { fileName: "t.tsx" })).code).toContain('<Column padding="64px 24px 40px 24px">');
+    }
+  });
+
+  it("keeps hidden text hidden: the hidden attribute (from props too) and a box that clips to nothing", async () => {
+    const result = await differences(`import { Html, Body, Section, Text } from "@react-email/components";
+      export default function T({ hideInternal }: { hideInternal: boolean }) {
+        return <Html><Body><Text>Visible</Text><Text hidden={hideInternal}>Internal note</Text><Text hidden>Always hidden</Text>
+          <Section style={{ maxHeight: 0, overflow: "hidden" }}><Text>Phones only</Text></Section></Body></Html>;
+      }
+      T.PreviewProps = { hideInternal: true };`);
+    expect([result.codemod, result.runtime]).toEqual([[], []]);
+  });
+});
