@@ -74,7 +74,7 @@ const design = renderToJson(<Welcome name="Alex" />); // open in the visual edit
 
 React Email (`react-email` or `@react-email/components`) can be removed once no template imports it. Templates with blocks kept as HTML still import React Email components for those blocks, from the same package the template used; the report lists them.
 
-A template that calls React hooks (`useMemo`, `useId`, …) migrates like any other: the check and Elements call it in a render of its own, as React does.
+A template that calls React hooks (`useMemo`, `useId`, …) migrates like any other: the check calls it in a render of its own, and Elements renders it with React.
 
 ## Programmatic use
 
