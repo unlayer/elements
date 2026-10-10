@@ -14,19 +14,26 @@ const FORWARD_REF = Symbol.for("react.forward_ref");
 let rendered: WeakMap<object, Map<number, React.ReactNode>> | undefined;
 // Components called so far in the render: each one's `useId()` values get their own prefix.
 let called = 0;
-// Inside a render React runs (Body's, a Row's): components are called there,
-// as React calls them, so their hooks and the context around them work. A
-// render of their own (callIsolated) would reset that render's hooks, and
-// couldn't see a Provider placed in the email.
+// Inside a render React runs (a Row's): components are called there, as React
+// calls them, so their hooks and the context around them work. A render of
+// their own (callIsolated) would reset that render's hooks, and couldn't see a
+// Provider placed in the email.
 let driven = 0;
+// What each component rendered in this pass of that render: React runs a
+// render again when a component sets state while rendering, and each pass
+// calls every component once, so its hooks run in the same order.
+let pass: WeakMap<object, Map<number, React.ReactNode>> | undefined;
 
-/** Runs `render` as part of a render React is running (Body's or a Row's own). */
+/** Runs `render` as one pass of a render React is running (a Row's own). */
 export function drivenByReact<T>(render: () => T): T {
+  const outer = pass;
   driven++;
+  pass = new WeakMap();
   try {
     return render();
   } finally {
     driven--;
+    pass = outer;
   }
 }
 
@@ -55,17 +62,30 @@ function expands(child: React.ReactNode): child is React.ReactElement {
   return type?.$$typeof === FORWARD_REF || (typeof type === "function" && !type.prototype?.isReactComponent);
 }
 
-// A user component is called once per place in a render: in the render React runs, or
-// outside one (renderToJson) in a render of its own, so its hooks work either way.
-function contents(element: React.ReactElement<any>, list: object, at: number): React.ReactNode {
-  if (element.type === React.Fragment) return element.props.children;
-  const done = rendered?.get(list);
-  if (done?.has(at)) return done.get(at);
+/** Calls a user component (memo and forwardRef unwrapped) with its props. */
+function callComponent(element: React.ReactElement<any>): React.ReactNode {
   const type = innerType(element.type);
   const props = { ...element.props };
-  const call = () => (type.$$typeof === FORWARD_REF ? type.render(props, null) : type(props));
-  const out = (isElementsType(type) ? React.createElement(type, props) : driven ? call() : callIsolated(call, `u${++called}-`)) as React.ReactNode;
-  if (rendered) rendered.set(list, (done ?? new Map()).set(at, out));
+  return type.$$typeof === FORWARD_REF ? type.render(props, null) : type(props);
+}
+
+/** Notes what a component rendered in this render (the last pass of it), for the head and the design. */
+function record(list: object, at: number, out: React.ReactNode): void {
+  if (rendered) rendered.set(list, (rendered.get(list) ?? new Map()).set(at, out));
+}
+
+// A user component is called once per place in a render: in the render React runs (once
+// per pass of it), or outside one (renderToJson) in a render of its own, so its hooks work
+// either way.
+function contents(element: React.ReactElement<any>, list: object, at: number): React.ReactNode {
+  if (element.type === React.Fragment) return element.props.children;
+  const own = driven ? pass : rendered;
+  const done = own?.get(list);
+  if (done?.has(at)) return done.get(at);
+  const type = innerType(element.type);
+  const out = (isElementsType(type) ? React.createElement(type, { ...element.props }) : driven ? callComponent(element) : callIsolated(() => callComponent(element), `u${++called}-`)) as React.ReactNode;
+  if (own) own.set(list, (done ?? new Map()).set(at, out));
+  if (driven) record(list, at, out);
   return out;
 }
 
@@ -97,6 +117,49 @@ export function expandChildren(children: React.ReactNode, depth = 0): React.Reac
     // A component that renders plain HTML (`<div dangerouslySetInnerHTML>`) is kept: a Column renders its HTML, as it always has.
     if (child.type !== React.Fragment && React.isValidElement(inside) && typeof inside.type === "string") return add(renderedAs(child, inside));
     React.Children.forEach(expandChildren(inside, depth + 1), add);
+  });
+  return out;
+}
+
+/**
+ * A user component among Body's children, in the render Body runs: it calls the
+ * component in its place, so the component's hooks are its own (state,
+ * `useId()`), as when React renders it, and places what it returns as Body's
+ * own children are placed. It has no hooks of its own.
+ */
+function Expanded({ element, list, at, place, depth, prefix }: { element: React.ReactElement<any>; list: object; at: number; place: (child: React.ReactElement) => React.ReactElement; depth: number; prefix: string }): React.ReactNode {
+  const inside = callComponent(element);
+  // Noted again on each pass (a component that sets state while rendering): the head reads the last.
+  record(list, at, inside);
+  // A component that renders plain HTML (`<div dangerouslySetInnerHTML>`) is kept as it is.
+  if (React.isValidElement(inside) && typeof inside.type === "string") return inside;
+  return bodyChildren(inside, place, depth + 1, prefix);
+}
+Expanded.displayName = "Expanded";
+
+/**
+ * Body's children, for the render Body runs: Fragments flattened, blocks and
+ * rows given Body's settings by `place`, and each user component an element
+ * that calls it in that render (see Expanded). Nothing is called here, so
+ * Body's own render keeps no hooks of theirs: a component added, removed or
+ * moved between renders keeps its own state. Each child gets a key (its own,
+ * or its place), as React expects of a list.
+ */
+export function bodyChildren(children: React.ReactNode, place: (child: React.ReactElement) => React.ReactElement, depth = 0, prefix = ""): React.ReactNode[] {
+  if (depth > 50) throw new Error("[Unlayer] components nested more than 50 deep");
+  const out: React.ReactNode[] = [];
+  // The list the children are in (a single child is its own), as expandChildren keys them.
+  const list = children as object;
+  React.Children.forEach(children, (child, at) => {
+    if (child == null || typeof child === "boolean") return;
+    if (!React.isValidElement(child)) return void out.push(child);
+    const key = `${prefix}${child.key ?? `#${at}`}`;
+    if (child.type === React.Fragment) return void out.push(...bodyChildren((child.props as { children?: React.ReactNode }).children, place, depth + 1, `${key}/`));
+    const type = innerType(child.type);
+    if (expands(child) && !isElementsType(type)) return void out.push(React.createElement(Expanded, { key, element: child, list, at, place, depth, prefix: `${key}/` }));
+    const element = expands(child) ? React.createElement(type, { ...(child.props as object) }) : child;
+    // An HTML element (<div>) is kept: Body's settings would be written as its attributes.
+    out.push(React.cloneElement(typeof element.type === "string" ? element : place(element), { key }));
   });
   return out;
 }

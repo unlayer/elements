@@ -7,7 +7,7 @@ import { mapSemanticProps, type SemanticProps } from "../utils/semantic-props";
 import { nextHtmlId } from "../utils/create-component";
 import type { SizeInput } from "../types";
 import { BODY_DEFAULTS } from "../utils/container-defaults";
-import { drivenByReact, expandChildren, withRenderScope } from "../utils/expand-children";
+import { bodyChildren, withRenderScope } from "../utils/expand-children";
 
 export type BodyProps = Omit<SemanticProps<BodyValues>, "padding" | "borderRadius"> & {
   children?: React.ReactNode;
@@ -186,17 +186,11 @@ const Body: React.FC<BodyProps> = (props) => {
     try {
       // A render of its own when Body is rendered straight through React (not renderToHtml).
       innerHTML = withRenderScope(() => {
-        // Body is rendered by React: components among its children are called in this render.
-        const enrichedChildren = React.Children.map(drivenByReact(() => expandChildren(children)), (child) => {
-          // Components get the context; an HTML element (<div>) would write it as attributes.
-          if (React.isValidElement(child) && typeof child.type !== "string") {
-            return React.cloneElement(child as React.ReactElement<any>, {
-              _config,
-              bodyValues: values,
-            });
-          }
-          return child;
-        });
+        // Components among the children are called in the render below, each in its own place
+        // (not in Body's render, which would keep their hooks); blocks get Body's settings.
+        const enrichedChildren = bodyChildren(children, (child) =>
+          React.cloneElement(child as React.ReactElement<any>, { _config, bodyValues: values })
+        );
         return ReactDOMServer.renderToString(enrichedChildren as unknown as React.ReactElement);
       });
     } catch (error) {

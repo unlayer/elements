@@ -312,8 +312,22 @@ function renderRow(props: RowProps): React.ReactElement | null {
   }
 }
 
+// The ids allocated when a Row's render started, by its props: React runs the same render again
+// (same props) when a component in it sets state while rendering, and it must get the same ids.
+const idsAtStart = new WeakMap<object, Record<string, number>>();
+
 // Rendered by React: the components in its columns are called in this render (see drivenByReact).
-const Row: React.FC<RowProps> = (props) => drivenByReact(() => renderRow(props));
+const Row: React.FC<RowProps> = (props) => {
+  const ids = (props._config as { __ids?: Record<string, number> } | undefined)?.__ids;
+  if (ids) {
+    const start = idsAtStart.get(props);
+    if (start) {
+      for (const key of Object.keys(ids)) delete ids[key];
+      Object.assign(ids, start);
+    } else idsAtStart.set(props, { ...ids });
+  }
+  return drivenByReact(() => renderRow(props));
+};
 
 Row.displayName = "Row";
 
