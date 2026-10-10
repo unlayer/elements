@@ -1,0 +1,5 @@
+{
+  "why": "clip-path: inset(50%) hides the words, positioned or not.",
+  "original": "<!doctype html><html><head><style></style></head><body style=\"margin:0;font-family:Arial\"><p style=\"margin:0\">Thanks for your order, here is the summary</p><p style=\"clip-path:inset(50%)\">Clipped words</p></body></html>",
+  "migrated": "<!doctype html><html><head><style></style></head><body style=\"margin:0;font-family:Arial\"><p style=\"margin:0\">Thanks for your order, here is the summary</p><p>Clipped words</p></body></html>"
+}

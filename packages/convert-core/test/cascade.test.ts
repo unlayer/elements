@@ -40,7 +40,10 @@ describe("the cascade", () => {
     expect(style(doc("@media (orientation: landscape){p{color:red}}", "<p>x</p>")).color).toBeUndefined();
     expect(style(doc("p:has(b){color:red}", "<p>x</p>")).color).toBeUndefined();
     expect(style(doc("p:has(b){color:red}", "<p>x</p>")).causes?.color).toContain("p:has(b)");
-    expect(style(doc("p{color:calc(1)}", "<p>x</p>")).color).toBeUndefined();
+    expect(style(doc("p{color:color-mix(in srgb, red 40%, blue)}", "<p>x</p>")).color).toBeUndefined();
+    // A value the property can't take is dropped, as the browser drops it: an earlier one applies.
+    expect(style(doc("p{color:calc(1)}", "<p>x</p>")).color).toEqual([0, 0, 0, 1]);
+    expect(style(doc("p{color:#ff0000; color:not-a-color}", "<p>x</p>")).color).toEqual([255, 0, 0, 1]);
     // A rule it can't place that would set the same value changes nothing.
     expect(style(doc("p{color:#333} p:has(b){color:#333}", "<p>x</p>")).color).toEqual([51, 51, 51, 1]);
     // A selector this can't fully read still can't reach elements its known parts rule out.
@@ -206,7 +209,7 @@ describe("compareStyles", () => {
     const check = compareStyles(original, doc("", "<p>Hello there</p>"));
     expect(check.unverified).toEqual([{ what: "color", side: "original", cause: expect.stringContaining("p:has(b)"), words: ["Hello", "there"] }]);
     // The migration writing a value the check can't read.
-    expect(compareStyles(doc("", "<p>Hi</p>"), doc("", '<p style="color:calc(1)">Hi</p>')).unverified).toEqual([{ what: "color", side: "migrated", cause: "color: calc(1)", words: ["Hi"] }]);
+    expect(compareStyles(doc("", "<p>Hi</p>"), doc("", '<p style="color:color-mix(in srgb, red 40%, blue)">Hi</p>')).unverified).toEqual([{ what: "color", side: "migrated", cause: "color: color-mix(in srgb, red 40%, blue)", words: ["Hi"] }]);
     // Markup kept as it was: unknown on both sides, nothing to report.
     expect(compareStyles(original, original).unverified).toEqual([]);
     // Whether it's shown, when a rule it can't place may hide it.

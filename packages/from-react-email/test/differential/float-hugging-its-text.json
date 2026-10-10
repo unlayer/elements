@@ -1,0 +1,5 @@
+{
+  "why": "A float sized to its text sits at its side, whatever its own text-align.",
+  "original": "<!doctype html><html><head><style></style></head><body style=\"margin:0;font-family:Arial\"><p style=\"margin:0\">Thanks for your order, here is the summary</p><div style=\"width:600px\"><div style=\"float:right;width:fit-content;text-align:left\">Qty 1 item</div></div></body></html>",
+  "migrated": "<!doctype html><html><head><style></style></head><body style=\"margin:0;font-family:Arial\"><p style=\"margin:0\">Thanks for your order, here is the summary</p><div style=\"width:600px\"><div style=\"text-align:left\">Qty 1 item</div></div></body></html>"
+}

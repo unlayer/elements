@@ -135,6 +135,16 @@ jobs:
       - name: Migration fidelity smoke test
         run: pnpm --filter @unlayer/from-react-email test:fidelity
 
+      # ── Migration check vs Chromium (differential) ──────────────
+      # 400 fixed seeds: one side of a base (hand-written documents and the
+      # fixture templates' renders) is mutated, Chromium decides whether a
+      # reader sees the two differently, and the check must fail every pair
+      # it does. Committed fixtures (test/differential/) must still differ in
+      # Chromium and fail the check. A false pass writes its pair to
+      # .bench-out/differential/ and fails the job.
+      - name: Migration check vs Chromium
+        run: pnpm --filter @unlayer/from-react-email test:differential
+
       - name: Storybook smoke test
         run: pnpm --filter @unlayer/react-elements test-storybook:ci
 

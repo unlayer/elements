@@ -9,6 +9,7 @@
  * difference it reports is one a browser shows.
  */
 import { parse, type DefaultTreeAdapterMap } from "parse5";
+import { isInvalid } from "./validity";
 
 type Node = DefaultTreeAdapterMap["node"];
 type Element = DefaultTreeAdapterMap["element"];
@@ -202,11 +203,15 @@ interface Compound {
   not: Compound[];
   /** A pseudo-class this can't evaluate (`:has(…)`): the compound may or may not match. */
   maybe: boolean;
+  /** It names `::first-line` or `::first-letter`: part of the element's text. */
+  partial?: boolean;
 }
 interface Selector {
   /** Right to left: each compound and the combinator that relates it to the next one (to its left). */
   parts: Array<{ compound: Compound; combinator?: Combinator }>;
   specificity: [number, number, number];
+  /** `::first-line`, `::first-letter`: it styles part of the element's text, whatever the element's own style says. */
+  partial?: boolean;
 }
 
 interface Rule {
@@ -279,7 +284,7 @@ function parseSelector(text: string): Selector | null | "unknown" | "invalid" {
     if (compound === null || compound === "unknown" || compound === "invalid") return compound;
     parts.push({ compound, combinator: i > 0 ? (items[i - 1] as Combinator) : undefined });
   }
-  return { parts, specificity };
+  return { parts, specificity, ...(parts[0]?.compound.partial ? { partial: true } : {}) };
 }
 
 const STRUCTURAL = /^(first-child|last-child|only-child|first-of-type|last-of-type|only-of-type|root|empty|nth-child\(.*\)|nth-last-child\(.*\)|nth-of-type\(.*\)|nth-last-of-type\(.*\))$/;
@@ -293,7 +298,8 @@ function parseCompound(text: string, specificity: [number, number, number]): Com
     if (token === "*") continue;
     if (token.startsWith("::")) {
       if (IGNORED_PSEUDO_ELEMENT.test(token.slice(2))) return null;
-      compound.maybe = true;
+      if (/^first-(line|letter)$/i.test(token.slice(2))) compound.partial = true;
+      else compound.maybe = true;
       continue;
     }
     if (token.startsWith(":")) {
@@ -364,7 +370,7 @@ function nthMatches([a, b]: [number, number], index: number): boolean {
 
 function parseDeclarations(text: string): Declaration[] {
   const out: Declaration[] = [];
-  for (const piece of text.split(/;(?![^(]*\))/)) {
+  for (const piece of text.replace(/\/\*[\s\S]*?\*\//g, "").split(/;(?![^(]*\))/)) {
     const colon = piece.indexOf(":");
     if (colon < 0) continue;
     const property = piece.slice(0, colon).trim().toLowerCase();
@@ -829,7 +835,12 @@ export class StyledDocument {
   property(element: Element, name: string): string | null {
     const d = this.declared(element).get(name);
     if (!d) return "";
-    return d.unknown ? null : d.value;
+    if (d.unknown) return null;
+    if (!/var\(/i.test(d.value)) return d.value;
+    // With its variables: one it can't follow is unknown; an unset one (or a value the property can't take) unsets it.
+    const resolved = substitute(d.value, this.style(element).vars);
+    if ("cause" in resolved) return null;
+    return resolved.value === undefined || isInvalid(name, resolved.value) ? "" : resolved.value;
   }
 
   /** The winning declaration of each property on `element`, or unknown when a rule this can't place could win. */
@@ -846,6 +857,8 @@ export class StyledDocument {
     type Candidate = { value: string; important: boolean; level: number; specificity: [number, number, number]; order: number; unknown: boolean; cause?: string };
     const candidates = new Map<string, Candidate[]>();
     const add = (property: string, candidate: Candidate) => {
+      // A value the property can't take: the browser drops the declaration, and an earlier one applies.
+      if (isInvalid(property, candidate.value)) return;
       for (const p of expand(property, candidate.value)) {
         const list = candidates.get(p.property) ?? [];
         list.push({ ...candidate, value: p.value, unknown: candidate.unknown || p.unknown, cause: candidate.cause ?? (p.unknown ? `${property}: ${candidate.value}` : undefined) });
@@ -882,6 +895,13 @@ export class StyledDocument {
         const cause = unknown ? `the rule \`${rule.source.trim()}\` (${condition} the check can't evaluate)` : undefined;
         rule.declarations.forEach((d, i) => add(d.property, { value: d.value, important: d.important, level: 2, specificity: rank, order: rule.order * 10_000 + i, unknown, cause }));
       };
+      // A rule on `::first-line`/`::first-letter` styles part of the text, over the element's own style: which
+      // words can't be told, so what it sets is in doubt wherever it differs.
+      if ((applies || mayApply) && rule.selectors.some((selector) => selector.partial && matches(element, selector) !== "no")) {
+        const cause = `the rule \`${rule.source.trim()}\` (it styles only part of the text)`;
+        rule.declarations.forEach((d, i) => add(d.property, { value: d.value, important: true, level: 9, specificity: [0, 0, 0], order: rule.order * 10_000 + i, unknown: true, cause }));
+        continue;
+      }
       if (applies) declare(specificity, rule.media === "unknown", "a condition");
       // It may also apply with more weight (a selector it can't read): what it sets is then in doubt.
       if (mayApply && (!applies || compare(maySpecificity, specificity) > 0)) declare(maySpecificity, true, rule.media === "unknown" ? "a condition" : "a selector");
@@ -939,9 +959,10 @@ export class StyledDocument {
           doubt(property, resolved.cause);
           return undefined;
         }
-        // A variable that isn't set, without a fallback: the declaration is invalid there, and the property takes
-        // its inherited or initial value (a gradient made of unset variables draws nothing).
-        if (resolved.value === undefined) return INHERITED_CSS.has(property) ? undefined : INITIAL[property];
+        // A variable that isn't set, without a fallback, or that gives a value the property can't take: the
+        // declaration is invalid there, and the property takes its inherited or initial value (a gradient made
+        // of unset variables draws nothing).
+        if (resolved.value === undefined || isInvalid(property, resolved.value)) return INHERITED_CSS.has(property) ? undefined : INITIAL[property];
         v = resolved.value;
       }
       if (/^(initial|unset|revert|revert-layer)$/i.test(v)) {
@@ -1004,10 +1025,17 @@ export class StyledDocument {
       const v = value(p);
       return v !== undefined && (lengthPx(v) ?? 2) <= 1;
     });
+    // A clip-path that cuts everything away hides, positioned or not; one this can't measure may.
+    const clippedAway = clipPath !== undefined && /^inset\(\s*([5-9]\d|100)(\.\d+)?%\s*\)$/i.test(clipPath.trim());
+    const clipUnknown = clipPath !== undefined && !/^none$/i.test(clipPath.trim()) && !clippedAway && !/^inset\(\s*0(px|%)?\s*\)$/i.test(clipPath.trim());
+    // Text pushed far to the left (`text-indent: -9999px`): off the page, where no one can scroll to it.
+    const indent = value("text-indent");
+    const indentedAway = indent !== undefined && (lengthPx(indent) ?? 0) <= -999;
     const readerOnly =
+      clippedAway ||
+      indentedAway ||
       placed &&
       ((clip !== undefined && /^rect\(\s*0(px)?[\s,]+0(px)?[\s,]+0(px)?[\s,]+0(px)?\s*\)$/i.test(clip.trim())) ||
-        (clipPath !== undefined && /^inset\(\s*(50|100)%\s*\)$/i.test(clipPath.trim())) ||
         (tiny && !!overflow && /hidden|clip/i.test(overflow)) ||
         ["left", "top"].some((p) => {
           const v = value(p);
@@ -1017,8 +1045,9 @@ export class StyledDocument {
     computed.hidden = (display !== undefined && /^none$/i.test(display)) || clipped || readerOnly || (opacity !== undefined && parseFloat(opacity) === 0);
     const fade = opacity === undefined ? 1 : /%\s*$/.test(opacity) ? parseFloat(opacity) / 100 : parseFloat(opacity);
     if (Number.isFinite(fade) && fade > 0 && fade < 1) computed.fade = fade;
-    const hiding = ["display", "overflow", "max-height", "height", "opacity", "position"].find((p) => unknown.has(p)) ?? (placed ? ["clip", "clip-path", "left", "top", "width"].find((p) => unknown.has(p)) : undefined);
+    const hiding = ["display", "overflow", "max-height", "height", "opacity", "position", "clip-path", "text-indent"].find((p) => unknown.has(p)) ?? (placed ? ["clip", "left", "top", "width"].find((p) => unknown.has(p)) : undefined);
     if (hiding) doubt("hides", causes.get(hiding));
+    else if (clipUnknown) doubt("hides", `clip-path: ${clipPath}`);
     // As the word check reads tags: these don't break words unless styled as boxes; every other tag does.
     computed.block = INLINE_TAGS.has(element.tagName) ? display !== undefined && /^(block|flex|grid|table|list-item|inline-block|inline-flex)/i.test(display) : true;
     // Its own underline.
@@ -1109,7 +1138,8 @@ export class StyledDocument {
         flush();
         return;
       }
-      const doubt = doubting ?? (style.unknown.has("visibility") ? style.causes.get("visibility") ?? "a rule that may hide it" : undefined);
+      // A size this can't read may be 0, which hides the text.
+      const doubt = doubting ?? (style.unknown.has("visibility") ? style.causes.get("visibility") ?? "a rule that may hide it" : style.unknown.has("font-size") && !MONOSPACE.has(element.tagName) ? style.causes.get("font-size") ?? "a font size it can't read" : undefined);
       const text = (node as { value: string }).value;
       const wordStyle = preview ? {} : this.wordStyle(chain);
       for (const part of text.split(/(\s+)/)) {

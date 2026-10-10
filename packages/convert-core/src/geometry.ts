@@ -15,12 +15,25 @@ type Element = DefaultTreeAdapterMap["element"];
 type Node = DefaultTreeAdapterMap["node"];
 
 export type Align = "left" | "center" | "right";
+/** An alignment, and whether it's the text's start or end (which flips where the direction does) rather than a side. */
+export interface Flow {
+  align: Align;
+  logical?: "start" | "end";
+  /** From an `align` attribute or <center> (the browser's -webkit-center): a table inside resets it. */
+  legacy?: boolean;
+  /** A text-align this can't read, here or above (what inherits it can't be placed). */
+  unknown?: boolean;
+}
 
 /** An element's content box across the page, and how it aligns its inline content. */
 export interface Placement {
   x: number;
   width: number;
   align: Align;
+  /** The alignment is the text's start or end, so a box inside with the other direction flips it. */
+  logical?: "start" | "end";
+  /** It comes from an `align` attribute or <center>: a table inside starts over at the text's start. */
+  legacy?: boolean;
   /** A property this needs couldn't be read (a rule it can't place): the placement is a guess. */
   unknown?: boolean;
   /**
@@ -122,15 +135,40 @@ function display(doc: StyledDocument, element: Element): string {
   return DISPLAY[element.tagName] ?? (INLINE.has(element.tagName) ? "inline" : "block");
 }
 
-/** How a box aligns what's inline in it: its text-align, or an `align` attribute (legacy, inherited as text-align; a table's only places the table). */
-function textAlign(doc: StyledDocument, element: Element, inherited: Align, rtl: boolean): Align {
-  const own = doc.property(element, "text-align") || (element.tagName === "table" || element.tagName === "img" ? "" : attr(element, "align"));
-  if (!own) return inherited;
+/**
+ * How a box aligns what's inline in it: its text-align, an `align` attribute (legacy, inherited as
+ * text-align; a table's only places the table), or <center>'s own. Unset, it's what's above it: the
+ * text's start or end where that's what's above, in this box's own direction.
+ */
+function textAlign(doc: StyledDocument, element: Element, inherited: Flow, rtl: boolean): Flow {
+  const start: Flow = { align: rtl ? "right" : "left", logical: "start" };
+  const end: Flow = { align: rtl ? "left" : "right", logical: "end" };
+  // The browser resets an alignment that comes from an `align` attribute or <center> at a table.
+  const reset = element.tagName === "table" && inherited.legacy;
+  const unread = inherited.unknown ? { unknown: true } : {};
+  const above: Flow = reset ? start : inherited.logical === "start" ? { ...start, ...unread } : inherited.logical === "end" ? { ...end, ...unread } : { align: inherited.align, ...(inherited.legacy ? { legacy: true } : {}), ...unread };
+  const css = doc.property(element, "text-align");
+  if (css === null) return { ...above, unknown: true };
+  const own = css || (element.tagName === "table" || element.tagName === "img" ? "" : attr(element, "align")) || (element.tagName === "center" ? "center" : "");
+  if (!own) return above;
   const v = own.trim().toLowerCase().replace(/\s*!important$/, "");
-  if (/center/.test(v)) return "center";
-  if (v === "right" || (v === "end" && !rtl) || (v === "start" && rtl)) return "right";
-  if (v === "left" || v === "justify" || v === "start" || v === "end") return "left";
-  return inherited;
+  const legacy = !css || /^-webkit-/.test(v) ? { legacy: true } : {};
+  if (/center/.test(v)) return { align: "center", ...legacy };
+  if (v === "right" || v === "-webkit-right") return { align: "right", ...legacy };
+  if (v === "left" || v === "-webkit-left") return { align: "left", ...legacy };
+  // A justified paragraph's last line sits at the start.
+  if (v === "start" || v === "justify" || v === "justify-all") return start;
+  if (v === "end") return end;
+  return above;
+}
+
+/** The box's text direction: its CSS `direction`, else its `dir` attribute, else what's above it; undefined for `dir="auto"` (it depends on the text). */
+function direction(doc: StyledDocument, element: Element, inherited: boolean): boolean | undefined {
+  const css = (doc.property(element, "direction") ?? "").trim().toLowerCase();
+  if (css === "rtl" || css === "ltr") return css === "rtl";
+  const dir = (attr(element, "dir") ?? "").trim().toLowerCase();
+  if (dir === "rtl" || dir === "ltr") return dir === "rtl";
+  return dir === "auto" ? undefined : inherited;
 }
 
 /**
@@ -148,7 +186,7 @@ export function placements(doc: StyledDocument): Map<Element, Placement> {
   const set = (doc.property(body, "margin") ?? "") !== "" || (doc.property(body, "margin-left") ?? "") !== "";
   const left = set ? bodyMargin.left : 8;
   const right = set ? bodyMargin.right : 8;
-  place(doc, body, left, doc.width - left - right, rtl ? "right" : "left", undefined, rtl, out, false);
+  place(doc, body, left, doc.width - left - right, { align: rtl ? "right" : "left", logical: "start" }, undefined, rtl, out, false);
   return out;
 }
 
@@ -157,12 +195,16 @@ export function placements(doc: StyledDocument): Map<Element, Placement> {
  * position, then its children. `blockAlign` is how an `align` attribute above
  * places block children (the browser centers them under `align="center"`).
  */
-function place(doc: StyledDocument, element: Element, x: number, available: number, inherited: Align, blockAlign: Align | undefined, rtl: boolean, out: Map<Element, Placement>, inline: boolean, givenWidth?: number): Placement {
+function place(doc: StyledDocument, element: Element, x: number, available: number, inherited: Flow, blockAlign: Align | undefined, rtlAbove: boolean, out: Map<Element, Placement>, inline: boolean, givenWidth?: number): Placement {
   const kind = display(doc, element);
+  // Its own direction (a `dir` on it flips where its text starts); `dir="auto"` depends on the text.
+  const ownDirection = direction(doc, element, rtlAbove);
+  const rtl = ownDirection ?? rtlAbove;
   // A box as wide as its content (`width: fit-content`, `max-width: min-content`, a badge): its text starts at its start edge.
   const sized = (name: string) => /^(min|max|fit)-content$/i.test((doc.property(element, name) ?? "").trim().replace(/\s*!important$/i, ""));
   const hugs = sized("width") || sized("max-width");
   let unknown =
+    ownDirection === undefined ||
     doc.property(element, "display") === null ||
     ["width", "min-width", "max-width"].filter((name) => !sized(name)).some((name) => unreadable(doc.property(element, name))) ||
     ["text-align", "justify-content", "float"].some((name) => doc.property(element, name) === null);
@@ -199,24 +241,42 @@ function place(doc: StyledDocument, element: Element, x: number, available: numb
   const contentWidth = Math.max(0, outer - borderWidth(doc, element, "left") - borderWidth(doc, element, "right") - padLeft - padRight);
   // A flex container places its own text (an anonymous item) by justify-content.
   const justify = /flex$/.test(kind) ? (doc.property(element, "justify-content") ?? "").toLowerCase() : "";
-  let align: Align = /center/.test(justify) ? "center" : /flex-end|end|right/.test(justify) ? "right" : textAlign(doc, element, inherited, rtl);
+  let flow: Flow = /center/.test(justify) ? { align: "center" } : /flex-end|end|right/.test(justify) ? { align: "right" } : textAlign(doc, element, inherited, rtl);
   if (hugs) {
     // Where the box itself sits depends on its content's width when something centers it, or it starts on the right.
     if (rtl || margin.autoLeft || margin.autoRight || (blockAlign !== undefined && blockAlign !== "left")) unknown = true;
-    align = "left";
+    flow = { align: "left" };
   }
-  const placement: Placement = { x: contentX, width: contentWidth, align, ...(unknown || margin.unknown || padding.unknown ? { unknown: true } : {}) };
+  const placement: Placement = { x: contentX, width: contentWidth, ...flow, ...(unknown || flow.unknown || margin.unknown || padding.unknown ? { unknown: true } : {}) };
   out.set(element, placement);
   // An `align` attribute (not CSS text-align) also places block children (`-webkit-center`). A CSS
   // text-align on the element overrides it, and what it inherits from above.
   const own = (attr(element, "align") ?? "").toLowerCase();
   const cssAlign = !!doc.property(element, "text-align");
+  // A table inside starts over: the browser resets the -webkit-center an `align` attribute gives.
   const childBlockAlign: Align | undefined =
-    element.tagName === "table" ? blockAlign
+    element.tagName === "table" ? undefined
     : cssAlign ? undefined
     : own === "center" || element.tagName === "center" ? "center" : own === "right" ? "right" : own === "left" ? "left" : blockAlign;
   placeChildren(doc, element, kind, placement, childBlockAlign, rtl, out);
   return placement;
+}
+
+const VISIBLE_TEXT = /[^\s\u200b-\u200d\u2060\ufeff]/;
+
+/** Whether an element holds text a reader sees (not just spaces, or markup in comments). */
+function hasText(element: Element): boolean {
+  return element.childNodes.some((n) => (n.nodeName === "#text" ? VISIBLE_TEXT.test((n as { value?: string }).value ?? "") : isElement(n) && hasText(n)));
+}
+
+/** Marks an element and what's placed inside it as unknown. */
+function unknownWithin(element: Element, out: Map<Element, Placement>): void {
+  for (const [e, p] of out) if (e === element || contains(element, e)) out.set(e, { ...p, unknown: true });
+}
+
+function contains(ancestor: Element, element: Element): boolean {
+  for (let up = element.parentNode; isElement(up); up = up.parentNode) if (up === ancestor) return true;
+  return false;
 }
 
 function tableOf(element: Element): Element | undefined {
@@ -248,7 +308,7 @@ function placeChildren(doc: StyledDocument, element: Element, kind: string, box:
       }
       flushCells();
       if (k === "table-row") row(doc, kid, cellsOf(doc, kid), box, blockAlign, rtl, out);
-      else place(doc, kid, box.x, box.width, box.align, blockAlign, rtl, out, false);
+      else place(doc, kid, box.x, box.width, box, blockAlign, rtl, out, false);
     }
     flushCells();
     return;
@@ -268,17 +328,28 @@ function placeChildren(doc: StyledDocument, element: Element, kind: string, box:
     if (run.length) line(doc, run, box, blockAlign, rtl, out, flex);
     run = [];
   };
+  // Content after a float flows around it: where its lines sit depends on the float's height, which isn't modeled.
+  let afterFloat = false;
   for (const kid of kids) {
     if (flex || sideBySide(kid)) {
       run.push(kid);
+      if (/^(left|right)$/i.test(doc.property(kid, "float") ?? "")) afterFloat = true;
       continue;
     }
     flush();
     const inline = display(doc, kid) === "inline";
-    place(doc, kid, box.x, box.width, box.align, blockAlign, rtl, out, inline);
-    if (inline) out.set(kid, { ...box, align: textAlign(doc, kid, box.align, rtl) });
+    place(doc, kid, box.x, box.width, box, blockAlign, rtl, out, inline);
+    if (inline) out.set(kid, { ...box, ...textAlign(doc, kid, box, direction(doc, kid, rtl) ?? rtl) });
+    if (/^(both|left|right)$/i.test(doc.property(kid, "clear") ?? "")) afterFloat = false;
+    if (afterFloat) unknownWithin(kid, out);
   }
   flush();
+  // Inline text and inline-blocks in one box share lines: where each sits depends on the others' widths.
+  const text = element.childNodes.some((n) => n.nodeName === "#text" && VISIBLE_TEXT.test((n as { value?: string }).value ?? ""));
+  // Only inline boxes with text of their own take room on the line (not a button's empty Outlook spacers).
+  const inlines = kids.filter((k) => display(doc, k) === "inline" && hasText(k));
+  const atomic = kids.filter((k) => /^inline-(block|table|flex|grid)$/.test(display(doc, k)) && !/^(left|right)$/i.test(doc.property(k, "float") ?? ""));
+  if (atomic.length && (text || inlines.length)) for (const k of [...atomic, ...inlines]) unknownWithin(k, out);
 }
 
 function cellsOf(doc: StyledDocument, rowElement: Element): Element[] {
@@ -296,9 +367,13 @@ function row(doc: StyledDocument, rowElement: Element, cells: Element[], box: Pl
   const total = fixed + share * free;
   const scale = total > box.width && total > 0 ? box.width / total : 1;
   let x = box.x;
+  // A cell floated, or (beside other cells) displayed as something else, isn't a cell to the browser: cells
+  // displayed as blocks share one anonymous cell and stack. One such cell alone lays out as a cell would.
+  const broken = cells.some((c) => /^(left|right)$/i.test(doc.property(c, "float") ?? "")) || (cells.length > 1 && cells.some((c) => display(doc, c) !== "table-cell"));
   for (let i = 0; i < cells.length; i++) {
     const w = (widths[i] ?? share) * scale;
-    place(doc, cells[i], x, w, box.align, blockAlign, rtl, out, false, w);
+    place(doc, cells[i], x, w, box, blockAlign, rtl, out, false, w);
+    if (broken) unknownWithin(cells[i], out);
     x += w;
   }
 }
@@ -322,7 +397,7 @@ function line(doc: StyledDocument, items: Element[], box: Placement, blockAlign:
   };
   if (flex && widths.every((w) => w === undefined) && items.every(grows)) {
     const share = box.width / items.length;
-    items.forEach((element, i) => place(doc, element, box.x + i * share, share, box.align, blockAlign, rtl, out, false, share));
+    items.forEach((element, i) => place(doc, element, box.x + i * share, share, box, blockAlign, rtl, out, false, share));
     return;
   }
   // Boxes that shrink to their content (a button: an inline-block without a width) sit where the line's
@@ -341,8 +416,9 @@ function line(doc: StyledDocument, items: Element[], box: Placement, blockAlign:
           : /center/.test(justify) ? "center" : /end|right/.test(justify) ? "right" : "left";
       // The box hugs its text: its own text-align doesn't move it, the line's does; unless the text fills
       // the line, which can't be told here.
-      const own = textAlign(doc, element, align, rtl);
-      const placement: Placement = { x: box.x, width: box.width, align, ...(own !== align || box.loose ? { loose: true } : {}) };
+      const own = textAlign(doc, element, { align }, rtl).align;
+      const floated = !flex && (float === "left" || float === "right");
+      const placement: Placement = { x: box.x, width: box.width, align, ...(!floated && (own !== align || box.loose) ? { loose: true } : {}) };
       out.set(element, placement);
       placeChildren(doc, element, display(doc, element), placement, blockAlign, rtl, out);
       out.set(element, placement);
@@ -372,7 +448,7 @@ function line(doc: StyledDocument, items: Element[], box: Placement, blockAlign:
     for (const it of items_.filter((item) => floatsRight(item.element))) {
       right -= it.width;
       const margin = sides(doc, it.element, "margin", box.width);
-      place(doc, it.element, right, it.width - margin.left - margin.right, box.align, blockAlign, rtl, out, false, it.width - margin.left - margin.right);
+      place(doc, it.element, right, it.width - margin.left - margin.right, box, blockAlign, rtl, out, false, it.width - margin.left - margin.right);
     }
   }
   for (const all of lines) {
@@ -384,7 +460,7 @@ function line(doc: StyledDocument, items: Element[], box: Placement, blockAlign:
     const gap = flex && /space-between/.test(justify) && items_.length > 1 ? spare / (items_.length - 1) : 0;
     for (const it of items_) {
       const margin = sides(doc, it.element, "margin", box.width);
-      place(doc, it.element, x, it.width - margin.left - margin.right, box.align, blockAlign, rtl, out, false, it.width - margin.left - margin.right);
+      place(doc, it.element, x, it.width - margin.left - margin.right, box, blockAlign, rtl, out, false, it.width - margin.left - margin.right);
       x += it.width + gap;
     }
   }

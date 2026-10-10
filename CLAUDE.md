@@ -128,6 +128,17 @@ Example: `<Button fontSize="16px">` → `{ style: { fontSize: "16px" } }` in the
 - Storybook visual-drift gate passes (every story's computed styles and text match the committed baseline)
 - CSP safety gate passes (green in CI; may fail locally on some Node setups due to an ESM interop quirk under the V8 flag)
 
+## Review bar for the migration tool
+
+What blocks a merge of the converter, the check or the CLI (`packages/convert-core`, `packages/from-react-email`, `packages/migrate`), and of Elements changes made for them:
+
+1. **Elements regressions**: code that rendered with the last release renders differently (HTML, plain text, design) and the change isn't a documented fix.
+2. **Check false passes**: the check passes a migration a reader sees differently, within what it promises (words, links, images, the compared text styles, what shows on desktop and phones, where lines sit beyond 120px).
+3. **Destructive writes**: the CLI changes a file it wasn't asked to, or one git can't restore (`--write` refuses those unless `--allow-dirty`).
+4. **Wrong exit codes**: a run that skipped, failed or checked nothing exits `0`.
+
+Not blockers: a template the converter can't convert, or that the check fails (it fails closed: a refusal, with its reason, is the guarantee working); a check that fails a migration that looks the same (a false fail: worth fixing, not blocking); polish. Each blocker fix comes with a test that fails without it. A false pass found by the differential test (`pnpm --filter @unlayer/from-react-email test:differential`) is committed as a fixture it replays.
+
 ## Common Gotchas
 
 - `fontFamily` must be `{ label: string, value: string }`, NOT a plain string
