@@ -58,4 +58,11 @@ describe("normalizeCssValues", () => {
     });
     expect(input.color).toBe("rgb(1, 2, 3)");
   });
+
+  it("passes a long value through at once", () => {
+    const value = `rgb(1${" ".repeat(50_000)}`;
+    const start = performance.now();
+    expect(normalizeColor(value)).toBe(value);
+    expect(performance.now() - start).toBeLessThan(100);
+  });
 });

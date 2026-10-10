@@ -26,7 +26,7 @@ import { schemaVersion as _schemaVersion } from "@unlayer/exporters";
 const schemaVersion: number = _schemaVersion ?? 24;
 import { mapSemanticProps } from "./semantic-props";
 import { UNLAYER_CONFIG_KEY } from "./create-component";
-import { getDisplayName, ROOT_NAMES, unwrapRoot, UNWRAP_ADVICE } from "./unwrap-root";
+import { componentName, getDisplayName, ROOT_NAMES, unwrapRoot, UNWRAP_ADVICE } from "./unwrap-root";
 import { BODY_DEFAULTS, ROW_DEFAULTS, COLUMN_DEFAULTS } from "./container-defaults";
 import { contentSlotWidth, pinImageSrc, type SlotContext } from "./image-sizing";
 import { expandChildren, withRenderScope } from "./expand-children";
@@ -56,7 +56,7 @@ function unwrapForJson(element: React.ReactElement): React.ReactElement {
   } catch (cause) {
     const detail = cause instanceof Error ? cause.message : String(cause);
     throw new Error(
-      `[Unlayer] renderToJson: could not unwrap <${getDisplayName(element) || "wrapper"}>. ${UNWRAP_ADVICE} (${detail})`
+      `[Unlayer] renderToJson: could not unwrap <${componentName(element) || "wrapper"}>. ${UNWRAP_ADVICE} (${detail})`
     );
   }
 }
@@ -69,7 +69,7 @@ function collectChildren(node: React.ReactNode): React.ReactElement[] {
     try {
       expanded = expandChildren(child);
     } catch (cause) {
-      const name = React.isValidElement(child) ? getDisplayName(child) : undefined;
+      const name = React.isValidElement(child) ? componentName(child) : undefined;
       console.warn(`[Unlayer] renderToJson: left out <${name || "component"}>: ${cause instanceof Error ? cause.message : String(cause)}`);
       return;
     }
@@ -185,7 +185,7 @@ function processItem(
   const config = componentType[UNLAYER_CONFIG_KEY];
 
   if (!config) {
-    const name = getDisplayName(element) || "Unknown";
+    const name = componentName(element) || "Unknown";
     throw new Error(
       `[Unlayer] renderToJson: <${name}> is not a recognized Unlayer item component. ` +
         `Only components created with createItemComponent are supported.`
@@ -347,7 +347,7 @@ function processRow(
       columnIndex += 1;
     } else {
       console.warn(
-        `[Unlayer] renderToJson: <${name}> is not a valid Row child. Only <Column> is allowed.`
+        `[Unlayer] renderToJson: <${componentName(child) ?? String(child.type)}> is not a valid Row child. Only <Column> is allowed.`
       );
     }
   }
@@ -394,7 +394,7 @@ function processBody(
       rows.push(processRow(child, counters, { bodyValues: valuesWithMeta }));
     } else {
       console.warn(
-        `[Unlayer] renderToJson: <${name}> is not a valid Body child. Only <Row> is allowed.`
+        `[Unlayer] renderToJson: <${componentName(child) ?? String(child.type)}> is not a valid Body child. Only <Row> is allowed.`
       );
     }
   }
@@ -463,7 +463,7 @@ export function renderRowToJson(element: React.ReactElement): DesignRow {
   if (displayName !== "Row") {
     throw new Error(
       `[Unlayer] renderRowToJson: Element must be <Row>, ` +
-        `but got <${displayName || "unknown"}>. ` +
+        `but got <${componentName(element) || "unknown"}>. ` +
         `For full designs, use renderToJson instead.`
     );
   }
@@ -486,7 +486,7 @@ function designJson(element: React.ReactElement): DesignJSON {
   if (!displayName || !ROOT_NAMES.has(displayName)) {
     throw new Error(
       `[Unlayer] renderToJson: Root element must be <Body>, <Email>, <Page>, or <Document>, ` +
-        `but got <${displayName || "unknown"}>. ` +
+        `but got <${componentName(element) || "unknown"}>. ` +
         `Wrap your content: <Body><Row><Column>...</Column></Row></Body>`
     );
   }

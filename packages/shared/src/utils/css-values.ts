@@ -16,6 +16,8 @@ const COLOR_FUNCTION = new RegExp(
 
 /** rgb()/rgba() in any CSS syntax → "#rrggbb", or "rgba(r, g, b, a)" when translucent. Other values pass through. */
 export function normalizeColor(value: string): string {
+  // A color is short: a long value (whitespace from data) isn't one, and the pattern would take long to say so.
+  if (value.length > 200) return value;
   const match = COLOR_FUNCTION.exec(value.trim());
   if (!match) return value;
   // A number, or a percentage of `full`.

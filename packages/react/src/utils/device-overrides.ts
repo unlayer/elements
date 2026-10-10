@@ -61,7 +61,9 @@ export function collectDeviceStyles(values: Record<string, any>, collection: Col
         push(`${target} { padding: ${css(value)} !important; }`);
         if (mode === "email" && collection === "rows") {
           const parts = String(value).trim().split(/\s+/);
-          push(`${target}--vertical { padding-top: ${size(parts[0])} !important; padding-bottom: ${size(parts[2] || parts[0])} !important; }`);
+          // A length the editor doesn't write (`2em`, a bare `0`) is written as it is.
+          const [top, bottom] = [parts[0], parts[2] || parts[0]].map((part) => size(part) ?? css(part));
+          if (top !== undefined && bottom !== undefined) push(`${target}--vertical { padding-top: ${top} !important; padding-bottom: ${bottom} !important; }`);
         }
       } else if (option === "border") {
         // As the editor's borderToStyle: transparent unless a side has a width.

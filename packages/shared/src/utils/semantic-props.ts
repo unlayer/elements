@@ -515,9 +515,11 @@ export function normalizeValuesForExporter<T extends Record<string, any>>(
     };
   }
 
-  // Social icons each carry a `url`, written into an href as it is.
+  // Social icons each carry a `url`, written into an href as it is, and a `name`, which an email writes into its
+  // `title`, `alt` and image URL as it is too (a web page or a document escapes it).
   if (componentName === "Social" && out.icons && Array.isArray(out.icons.icons)) {
-    out.icons = { ...out.icons, icons: out.icons.icons.map((icon: any) => (icon && typeof icon === "object" ? safeLink(icon) : icon)) };
+    const named = (icon: any) => (mode === "email" && typeof icon.name === "string" ? { ...icon, name: escapeText(icon.name, true) } : icon);
+    out.icons = { ...out.icons, icons: out.icons.icons.map((icon: any) => (icon && typeof icon === "object" ? named(safeLink(icon)) : icon)) };
   }
 
   return out as T;

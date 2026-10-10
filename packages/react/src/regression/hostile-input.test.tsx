@@ -36,6 +36,7 @@ const CASES: Record<string, (v: string) => React.ReactElement> = {
   "Image link": (v) => <Row><Column><Image src="https://example.com/a.png" width="100px" alt="x" href={`https://example.com/${v}`} /></Column></Row>,
   "Menu item": (v) => <Row><Column><Menu items={[{ text: v, href: `https://example.com/${v}` }]} /></Column></Row>,
   "Social link": (v) => <Row><Column><Social icons={[{ name: "Twitter", url: `https://twitter.com/${v}` }]} /></Column></Row>,
+  "Social name": (v) => <Row><Column><Social icons={[{ name: v, url: "https://twitter.com/x" }]} /></Column></Row>,
   "text in a Column": (v) => <Row><Column>{v}</Column></Row>,
   "text in a Fragment": (v) => <Row><Column><>{v}</></Column></Row>,
 };

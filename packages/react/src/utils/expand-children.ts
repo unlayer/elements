@@ -23,22 +23,42 @@ let driven = 0;
 // render again when a component sets state while rendering, and each pass
 // calls every component once, so its hooks run in the same order.
 let pass: WeakMap<object, Map<number, React.ReactNode>> | undefined;
+// A render ran inside this pass (a component that renders another email with
+// renderToHtml): React's server renderer keeps the render under way in one
+// place, and that render reset it, so a component called after it in this
+// pass can't use hooks there and is called in a render of its own.
+let reset = false;
 
 /** Runs `render` as one pass of a render React is running (a Row's own). */
 export function drivenByReact<T>(render: () => T): T {
-  const outer = pass;
+  const [outer, outerReset] = [pass, reset];
   driven++;
   pass = new WeakMap();
+  reset = false;
   try {
     return render();
   } finally {
     driven--;
     pass = outer;
+    reset = outerReset;
   }
 }
 
 /** Runs one render (renderToHtml, renderToJson, …) with its own record of what each component rendered. */
 export function withRenderScope<T>(render: () => T): T {
+  // A render a component called in a Row's pass started: its components aren't part of that pass.
+  if (driven) {
+    const [outerDriven, outerPass] = [driven, pass];
+    driven = 0;
+    pass = undefined;
+    try {
+      return withRenderScope(render);
+    } finally {
+      driven = outerDriven;
+      pass = outerPass;
+      reset = true;
+    }
+  }
   if (rendered) return render();
   rendered = new WeakMap();
   called = 0;
@@ -96,6 +116,22 @@ function renderedOrNothing(element: React.ReactElement<any>, call: () => unknown
   return out as React.ReactNode;
 }
 
+/**
+ * Calls a component in the pass under way. A render of React's that ran
+ * before it in the pass, which isn't one of ours (react-dom's own, an email
+ * library's), reset where React keeps the render: its first hook says so, and
+ * it's called again in a render of its own, as is the rest of the pass.
+ */
+function inPass(element: React.ReactElement<any>, isolated: () => unknown): unknown {
+  try {
+    return callComponent(element);
+  } catch (error) {
+    if (!/Invalid hook call/.test(String((error as Error)?.message))) throw error;
+    reset = true;
+    return isolated();
+  }
+}
+
 /** Notes what a component rendered in this render (the last pass of it), for the head and the design. */
 function record(list: object, at: number, out: React.ReactNode): void {
   if (rendered) rendered.set(list, (rendered.get(list) ?? new Map()).set(at, out));
@@ -110,7 +146,8 @@ function contents(element: React.ReactElement<any>, list: object, at: number): R
   const done = own?.get(list);
   if (done?.has(at)) return done.get(at);
   const type = innerType(element.type);
-  const out = (isElementsType(type) ? React.createElement(type, { ...element.props }) : renderedOrNothing(element, () => (driven ? callComponent(element) : callIsolated(() => callComponent(element), `u${++called}-`)))) as React.ReactNode;
+  const isolated = () => callIsolated(() => callComponent(element), `u${++called}-`);
+  const out = (isElementsType(type) ? React.createElement(type, { ...element.props }) : renderedOrNothing(element, () => (driven && !reset ? inPass(element, isolated) : isolated()))) as React.ReactNode;
   if (own) own.set(list, (done ?? new Map()).set(at, out));
   if (driven) record(list, at, out);
   return out;

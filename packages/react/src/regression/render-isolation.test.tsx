@@ -3,7 +3,7 @@
  * kept between renders, and the order renders run in don't carry over, and the
  * same input always gives the same output.
  */
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import React, { memo, useId, useState } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { renderToHtml, renderToHtmlParts, renderToPlainText } from "../utils/render-to-html";
@@ -109,5 +109,33 @@ describe("useId() in components", () => {
     const found = ids(renderToHtml(<Outer />));
     expect(found).toHaveLength(2);
     expect(new Set(found).size).toBe(2);
+  });
+});
+
+describe("an email rendered inside a component", () => {
+  const Count = ({ n }: { n: number }) => {
+    const [value] = useState(n);
+    return <Paragraph>{`Count ${value}`}</Paragraph>;
+  };
+  // Renders another email (a signature), with Elements or with react-dom itself.
+  const Signature = () => <Html html={renderToHtmlParts(<Email><Row><Column><Paragraph>Signed</Paragraph><Count n={9} /></Column></Row></Email>).body} />;
+  const Bold = () => <Html html={renderToStaticMarkup(<b>Bold bit</b>)} />;
+  const SignedBy = () => {
+    const [who] = useState("Ada");
+    return <Html html={renderToHtmlParts(<Email><Row><Column><Paragraph>{`Signed ${who}`}</Paragraph></Column></Row></Email>).body} />;
+  };
+
+  it("leaves the components after it in the column, and their hooks, as they were", () => {
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
+    try {
+      const email = <Email><Row><Column><Count n={1} /><Signature /><Count n={2} /><SignedBy /><Bold /><Count n={3} /></Column><Column><Count n={4} /></Column></Row></Email>;
+      const html = renderToHtml(email);
+      for (const text of ["Count 1", "Count 2", "Count 3", "Count 4", "Count 9", "Signed Ada", "Bold bit"]) expect(html.split(text).length - 1, text).toBe(1);
+      const design = JSON.stringify(renderToJson(email));
+      for (const text of ["Count 1", "Count 2", "Count 3", "Count 4", "Signed Ada"]) expect(design, text).toContain(text);
+      expect(error).not.toHaveBeenCalled();
+    } finally {
+      error.mockRestore();
+    }
   });
 });

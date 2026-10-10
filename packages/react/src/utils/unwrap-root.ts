@@ -15,8 +15,17 @@ const CONTAINER_NAMES = new Set([...ROOT_NAMES, "Row", "Column"]);
 const MEMO = Symbol.for("react.memo");
 const FORWARD_REF = Symbol.for("react.forward_ref");
 
-/** Get the displayName of a React element's component type. */
+/**
+ * The Elements component an element is, by the `displayName` Elements gives
+ * each of its own: a user function that happens to be named `Email` or `Row`
+ * (a template, a wrapper) isn't one, and is called like any component.
+ */
 export function getDisplayName(element: React.ReactElement): string | undefined {
+  return (element.type as any)?.displayName;
+}
+
+/** A component's name, for messages. */
+export function componentName(element: React.ReactElement): string | undefined {
   const type = element.type as any;
   return type?.displayName || type?.name;
 }
@@ -115,6 +124,6 @@ export function htmlRoot(element: React.ReactElement, api: string): React.ReactE
     if (cause instanceof Error && cause.message === ASYNC_TEMPLATE) throw new Error(`[Unlayer] ${api}: ${ASYNC_TEMPLATE}.`);
     reason = cause instanceof Error ? cause.message : String(cause);
   }
-  console.warn(`[Unlayer] ${api}: couldn't unwrap <${getDisplayName(element) || "wrapper"}> (${reason}): its root's fonts, lang, dir and phone styles are ignored. ${UNWRAP_ADVICE}`);
+  console.warn(`[Unlayer] ${api}: couldn't unwrap <${componentName(element) || "wrapper"}> (${reason}): its root's fonts, lang, dir and phone styles are ignored. ${UNWRAP_ADVICE}`);
   return element;
 }

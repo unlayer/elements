@@ -91,4 +91,10 @@ describe("phone values that could break the head's CSS", () => {
     expect(html).not.toContain("calc(12px + 4px");
     expect(deviceCss(html)).toMatch(/font-size:30px !important/);
   });
+
+  it("writes a row's phone padding in em as it is", () => {
+    const html = renderToHtml(<Email><Row mobile={{ padding: "2em 0" }}><Column><Paragraph>Padded</Paragraph></Column></Row></Email>);
+    expect(html).not.toContain("undefined");
+    expect(deviceCss(html)).toMatch(/--vertical\{padding-top:2em !important;padding-bottom:2em !important;\}/);
+  });
 });

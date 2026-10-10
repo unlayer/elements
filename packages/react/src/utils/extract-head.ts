@@ -46,10 +46,9 @@ function ensureMeta(values: any, type: string, index: number = 0): any {
   };
 }
 
-/** Get the displayName of a React element's component type. */
+/** The Elements component an element is (see unwrap-root's getDisplayName): a user function named `Row` isn't one. */
 function getDisplayName(element: React.ReactElement): string | undefined {
-  const type = element.type as any;
-  return type?.displayName || type?.name;
+  return (element.type as any)?.displayName;
 }
 
 /** Valid element children, expanded as the render expands them (none if that throws: Body renders none either). */

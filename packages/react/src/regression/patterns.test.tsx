@@ -69,3 +69,23 @@ describe.each(Object.keys(PATTERNS))("%s", (name) => {
     }
   });
 });
+
+describe("a template or wrapper named like an Elements component (`function Email()`)", () => {
+  it("renders as one with any other name", () => {
+    const content = (name: string) => <Email backgroundColor="#f4f4f4" lang="en"><Row><Column><Paragraph>{`Hi ${name}`}</Paragraph></Column></Row></Email>;
+    const named = {
+      Email: ({ name }: { name: string }) => content(name),
+      Row: ({ name }: { name: string }) => <Row><Column><Paragraph>{`Row of ${name}`}</Paragraph></Column></Row>,
+      Shell: ({ name }: { name: string }) => content(name),
+      Block: ({ name }: { name: string }) => <Row><Column><Paragraph>{`Row of ${name}`}</Paragraph></Column></Row>,
+    };
+    // Functions with these names, as a template file declares them.
+    for (const [key, component] of Object.entries(named)) Object.defineProperty(component, "name", { value: key });
+    const { Email: EmailTemplate, Row: RowWrapper, Shell, Block } = named;
+    expect(renderToHtml(<EmailTemplate name="Bo" />)).toBe(renderToHtml(<Shell name="Bo" />));
+    expect(renderToJson(<EmailTemplate name="Bo" />)).toEqual(renderToJson(<Shell name="Bo" />));
+    expect(renderToHtml(<Email><RowWrapper name="Bo" /></Email>)).toBe(renderToHtml(<Email><Block name="Bo" /></Email>));
+    expect(renderToJson(<Email><RowWrapper name="Bo" /></Email>)).toEqual(renderToJson(<Email><Block name="Bo" /></Email>));
+  });
+});
+
