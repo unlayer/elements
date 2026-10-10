@@ -831,6 +831,23 @@ T.PreviewProps = { look: 'uppercase"><img src=x onerror=alert(1)>' };`);
   });
 });
 
+describe("blocks an align attribute places", () => {
+  it("centers a block link with a width of its own under <Column align=\"center\">, in both modes, and the check finds nothing moved", async () => {
+    const { Original, Migrated, conversion } = await templates(`import { Html, Body, Section, Row, Column, Link, Text } from "@react-email/components";
+export default function T() {
+  return <Html><Body><Section style={{ width: "600px" }}>
+    <Row><Column><Text>Your order shipped</Text></Column></Row>
+    <Row><Column align="center"><Link href="https://example.com" style={{ display: "block", width: "220px", textAlign: "center", padding: "10px 0", border: "1px solid #929292" }}>Order Status</Link></Column></Row>
+  </Section></Body></Html>;
+}`);
+    expect(conversion.code).toMatch(/width:220px;[^"]*margin-left:auto;margin-right:auto/);
+    const check = await verifyConversion(Original, Migrated);
+    expect(check.layout).toEqual([]);
+    const runtime = (await convertReactEmail(Original)).html();
+    expect(runtime).toMatch(/width:220px;[^"]*margin-left:auto;margin-right:auto/);
+  });
+});
+
 describe("link targets from props", () => {
   it("keep a Button's and a linked image's target from props, and their default when it's left out", async () => {
     const { Original, Migrated, conversion } = await templates(`import { Html, Body, Section, Button, Link, Img, Text } from "@react-email/components";

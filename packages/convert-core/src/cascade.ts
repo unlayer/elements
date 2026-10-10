@@ -49,6 +49,8 @@ export interface StyledWord {
   shown: boolean;
   /** Whether it's hidden can't be told: why (a rule or value this can't read). It's read as shown. */
   doubt?: string;
+  /** The element its text is in. */
+  at?: Element;
 }
 
 /** A link or image a reader gets, with the words or image text it carries (for links). */
@@ -547,11 +549,11 @@ function splitTopLevel(text: string): string[] {
 // Matching
 // ============================================
 
-function attr(element: Element, name: string): string | undefined {
+export function attr(element: Element, name: string): string | undefined {
   return element.attrs.find((a) => a.name === name)?.value;
 }
 
-function isElement(node: Node | null | undefined): node is Element {
+export function isElement(node: Node | null | undefined): node is Element {
   return !!node && "tagName" in node;
 }
 
@@ -800,8 +802,28 @@ export class StyledDocument {
     return out;
   }
 
+  private readonly declaredCache = new Map<Element, Map<string, { value: string; unknown: boolean; cause?: string }>>();
+
+  /**
+   * A property's winning value on `element` as written: "" when nothing sets
+   * it, null when a rule this can't place could set it.
+   */
+  property(element: Element, name: string): string | null {
+    const d = this.declared(element).get(name);
+    if (!d) return "";
+    return d.unknown ? null : d.value;
+  }
+
   /** The winning declaration of each property on `element`, or unknown when a rule this can't place could win. */
   private declared(element: Element): Map<string, { value: string; unknown: boolean; cause?: string }> {
+    const cached = this.declaredCache.get(element);
+    if (cached) return cached;
+    const out = this.declare(element);
+    this.declaredCache.set(element, out);
+    return out;
+  }
+
+  private declare(element: Element): Map<string, { value: string; unknown: boolean; cause?: string }> {
     // `order` places a declaration in the document: its rule's place, then its place in the rule or style attribute.
     type Candidate = { value: string; important: boolean; level: number; specificity: [number, number, number]; order: number; unknown: boolean; cause?: string };
     const candidates = new Map<string, Candidate[]>();
@@ -995,11 +1017,12 @@ export class StyledDocument {
     let bufferStyle: WordStyle | undefined;
     let bufferShown = true;
     let bufferDoubt: string | undefined;
+    let bufferAt: Element | undefined;
     // Inside a box whose hiding can't be told: why.
     let doubting: string | undefined;
-    const pieces: Array<{ text: string; style: WordStyle; shown: boolean; doubt?: string }> = [];
+    const pieces: Array<{ text: string; style: WordStyle; shown: boolean; doubt?: string; at?: Element }> = [];
     const flush = () => {
-      if (buffer) pieces.push({ text: buffer, style: bufferStyle!, shown: bufferShown, doubt: bufferDoubt });
+      if (buffer) pieces.push({ text: buffer, style: bufferStyle!, shown: bufferShown, doubt: bufferDoubt, at: bufferAt });
       buffer = "";
       bufferStyle = undefined;
       bufferDoubt = undefined;
@@ -1060,6 +1083,7 @@ export class StyledDocument {
           bufferStyle = wordStyle;
           bufferShown = !preview;
           bufferDoubt = preview ? undefined : doubt;
+          bufferAt = element;
         }
         buffer += part;
       }
@@ -1074,7 +1098,8 @@ export class StyledDocument {
     let style: WordStyle = {};
     let shown = true;
     let doubt: string | undefined;
-    const push = () => out.push({ word, style, shown, ...(doubt ? { doubt } : {}) });
+    let at: Element | undefined;
+    const push = () => out.push({ word, style, shown, ...(doubt ? { doubt } : {}), ...(at ? { at } : {}) });
     for (const piece of pieces) {
       if (piece.text === " ") {
         if (word) push();
@@ -1085,6 +1110,7 @@ export class StyledDocument {
       if (!word) {
         style = piece.style;
         shown = piece.shown;
+        at = piece.at;
       }
       doubt ??= piece.doubt;
       word += piece.text;
@@ -1326,7 +1352,7 @@ export function normalizeWord(word: string): string {
 export function styledWords(html: string | StyledDocument): StyledWord[] {
   return (typeof html === "string" ? new StyledDocument(html) : html)
     .words()
-    .flatMap((w) => w.word.split(/\s+/).map((part) => ({ word: normalizeWord(part), style: w.style, shown: w.shown, ...(w.doubt ? { doubt: w.doubt } : {}) })))
+    .flatMap((w) => w.word.split(/\s+/).map((part) => ({ word: normalizeWord(part), style: w.style, shown: w.shown, ...(w.doubt ? { doubt: w.doubt } : {}), ...(w.at ? { at: w.at } : {}) })))
     .filter((w) => w.word);
 }
 

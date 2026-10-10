@@ -272,6 +272,22 @@ export default function T() { return <Html><Tailwind><Head /><Body><Text classNa
     expect(fs.existsSync(path.join(dir, "migrated/unreadable.tsx"))).toBe(false);
   });
 
+  it("fails a migration that moves text across the page: columns stacked into one", async () => {
+    const hybrid = `import { Html, Head, Body, Container, Section, Text } from "@react-email/components";
+export default function Hybrid() {
+  return <Html><Head /><Body style={{ margin: 0 }}><Container style={{ width: "600px" }}>
+    <Section>
+      <div style={{ display: "inline-block", width: "50%", verticalAlign: "top" }}><Text>Left hybrid column</Text></div>
+      <div style={{ display: "inline-block", width: "50%", verticalAlign: "top" }}><Text>Right hybrid column</Text></div>
+    </Section>
+  </Container></Body></Html>;
+}`;
+    const dir = project({ "emails/hybrid.tsx": hybrid });
+    const out = io(dir);
+    expect(await main(["emails", "--out", "migrated"], out, lib), out.out + out.err).toBe(2);
+    expect(out.out).toMatch(/✗ emails\/hybrid\.tsx: check failed \(moved: "Right", "hybrid", "column" 300px to the left\)/);
+  });
+
   it("fails the check when a style computed from props would be dropped, naming it", async () => {
     const source = `import { Html, Body, Text } from "@react-email/components";
 export default function Code({ code, color, size }: { code: string; color: string; size: number }) {

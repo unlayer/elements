@@ -97,6 +97,8 @@ export function inherit(parent: Inherited, style: Style | undefined): Inherited 
     const justify = String(style.justifyContent ?? "");
     next.blockAlign = justify === "center" ? "center" : /end|right/.test(justify) ? "right" : undefined;
   }
+  // An `align` attribute (a Column's) also places the blocks in it, as the browser does (`-webkit-center`).
+  if (typeof style._alignAttribute === "string" && /^(center|right)$/i.test(style._alignAttribute)) next.blockAlign = style._alignAttribute.toLowerCase();
   return next;
 }
 

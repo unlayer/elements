@@ -1163,10 +1163,10 @@ class Converter {
     return typeof value === "string" && (stacksOnPhones(this.tailwind.leftover.get(value) ?? [], this.tailwind.phone) || stacksOnPhones(value.split(/\s+/), this.headPhone));
   }
 
-  /** A Column's style, with its `align` attribute as text-align. */
+  /** A Column's style, with its `align` attribute as text-align (which, as an attribute, also places blocks in it). */
   private columnStyle(col: Jsx): Style {
     const align = this.attr(col, "align");
-    return { ...(typeof align === "string" ? { textAlign: align } : {}), ...col.style };
+    return { ...(typeof align === "string" ? { textAlign: align, _alignAttribute: align } : {}), ...col.style };
   }
 
   private columnWidth(col: Jsx): number | string | undefined {

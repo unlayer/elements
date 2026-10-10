@@ -292,7 +292,7 @@ function rowFlow(node: Element, ctx: Ctx): Flow[] {
 
 /** A Column's style, with its `align` attribute as text-align. */
 function columnStyle(col: Element): Style {
-  return { ...(col.props.align ? { textAlign: col.props.align } : {}), ...(col.props.style ?? {}) };
+  return { ...(col.props.align ? { textAlign: col.props.align, _alignAttribute: col.props.align } : {}), ...(col.props.style ?? {}) };
 }
 
 

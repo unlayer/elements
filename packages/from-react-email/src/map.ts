@@ -143,6 +143,16 @@ export function withInlineStyles(html: Content, style: Style): Content {
   return isExpr(html) ? expr(`\`${open}\${${html.$expr}}</span>\``) : `${open}${html}</span>`;
 }
 
+/** Auto side margins on the blocks with a width of their own in `html` (`display:block;width:220px`) that set none. */
+function placeBlocks(html: Content, align: string): Content {
+  const margins = align === "center" ? "margin-left:auto;margin-right:auto" : "margin-left:auto";
+  const place = (text: string) =>
+    text.replace(/style="([^"]*)"/g, (whole, css: string) =>
+      /(^|;)\s*display\s*:\s*block/i.test(css) && /(^|;)\s*width\s*:\s*\d/i.test(css) && !/(^|;)\s*margin(-left|-right)?\s*:/i.test(css) ? `style="${css.replace(/;?\s*$/, ";")}${margins}"` : whole
+    );
+  return isExpr(html) ? expr(place(html.$expr)) : place(html);
+}
+
 /** React Email Text's own size; text outside a Text (`<Section>🌟</Section>`) inherits instead. */
 export const TEXT_DEFAULTS = { fontSize: "14px", lineHeight: "24px" };
 export const INHERITED: { fontSize?: string; lineHeight?: string } = {};
@@ -195,8 +205,11 @@ export function paragraphBlock(html: Content, style: Style, ctx: MapCtx, margin:
   if (style.fontSize === undefined && props.fontSize === "16px" && monospaceOnly(html)) props.fontSize = "13px";
   const span = spanStyle(style, ctx);
   const asChildren = parts !== undefined && !needsSpan(span);
+  // Where an `align` attribute places blocks (a Column's), a block in the text with a width of its
+  // own (a link made a 220px box) sits there too: text-align alone wouldn't move it.
+  const placed = ctx.inherited.blockAlign === "center" || ctx.inherited.blockAlign === "right" ? placeBlocks(html, ctx.inherited.blockAlign) : html;
   return {
-    node: asChildren ? el("Paragraph", props, parts) : el("Paragraph", { ...props, html: withInlineStyles(html, span) }),
+    node: asChildren && placed === html ? el("Paragraph", props, parts) : el("Paragraph", { ...props, html: withInlineStyles(placed, span) }),
     margin,
     padding: boxSides(style, "padding"),
     mobilePadding: phoneSides(style, "padding", boxSides(style, "padding")),
@@ -343,7 +356,7 @@ export function buttonBlock(href: unknown, label: Content | Parts, style: Style,
         backgroundColor: fillColor(style) ?? "transparent",
         ...textProps(style, ctx, { lineHeight: "120%" }),
         // An inline-block link: placed by the parent's text-align (the start side by default).
-        textAlign: (block ? alignOf(style) ?? start(ctx) : ctx.inherited.blockAlign ?? ctx.inherited.textAlign ?? start(ctx)) as string,
+        textAlign: (block ? alignOf(style) ?? ctx.inherited.blockAlign ?? start(ctx) : ctx.inherited.blockAlign ?? ctx.inherited.textAlign ?? start(ctx)) as string,
         color: color(ownColor(style.color, ctx.inherited.color)) ?? "#0000ee",
         padding: sidesToCss(padding),
         ...(style._phone ? { mobile: { ...textProps(style, ctx, {}).mobile, ...(phoneSides(style, "padding", padding) ? { padding: sidesToCss(phoneSides(style, "padding", padding)!) } : {}) } } : {}),

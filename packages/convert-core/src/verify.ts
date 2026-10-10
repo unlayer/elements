@@ -1,4 +1,5 @@
-import { compareStyles, normalizeWord, StyledDocument, type StyleDifference, type Unverified } from "./cascade";
+import { compareStyles, normalizeWord, StyledDocument, styledWords, type StyleDifference, type Unverified } from "./cascade";
+import { compareLayout, type LayoutDifference } from "./geometry";
 
 /**
  * Content check: does the converted HTML still say everything the original
@@ -33,6 +34,8 @@ export interface TextCheck {
    * only on phones).
    */
   phone: { missing: string[]; added: string[] };
+  /** Text and images that sit elsewhere across the page at a desktop width (a column stacked or moved, a block on the other side). */
+  layout: LayoutDifference[];
   /** How much of the styles was compared: words, and properties left out because one side couldn't be worked out. */
   styleCoverage: { words: number; unknown: number };
 }
@@ -116,7 +119,9 @@ export function compareText(originalHtml: string, convertedHtml: string): TextCh
     if (!missingAttributes.includes(`${kind} ${value}`)) missingAttributes.push(`${kind} ${value} (${label})`);
   }
   // Styles are compared word for word, so only when the words are the same.
-  const style = missing.length || added.length ? { differences: [], unverified: [], compared: 0, unknown: 0 } : compareStyles(originalDoc, convertedDoc);
+  const same = !missing.length && !added.length;
+  const style = same ? compareStyles(originalDoc, convertedDoc) : { differences: [], unverified: [], compared: 0, unknown: 0 };
+  const layout = same ? compareLayout(originalDoc, convertedDoc, styledWords(originalDoc), styledWords(convertedDoc)) : [];
   // On phones: the same words shown (content a phone rule shows or hides), as a multiset.
   const phoneWords = (html: string) => wordsOf(new StyledDocument(html, { width: PHONE_WIDTH }));
   const phone = { missing: [] as string[], added: [] as string[] };
@@ -128,7 +133,7 @@ export function compareText(originalHtml: string, convertedHtml: string): TextCh
     else phone.missing.push(word);
   }
   phone.added = [...phoneCounts].flatMap(([word, n]) => Array<string>(n).fill(word));
-  return { missing, added, missingAttributes, addedAttributes, styles: style.differences, unverified: style.unverified, phone, styleCoverage: { words: style.compared, unknown: style.unknown } };
+  return { missing, added, missingAttributes, addedAttributes, styles: style.differences, unverified: style.unverified, phone, layout, styleCoverage: { words: style.compared, unknown: style.unknown } };
 }
 
 /**

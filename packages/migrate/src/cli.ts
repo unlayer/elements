@@ -116,6 +116,8 @@ export interface FileResult {
   unverified?: Array<{ what: string; side: "original" | "migrated"; cause: string; words: string[] }>;
   /** At a phone's width: words the original shows there that the migrated template doesn't, and the other way round. */
   phone?: { missing: string[]; added: string[] };
+  /** Text and images that sit elsewhere across the page on desktop (a column stacked or moved, a block on the other side), and how far. */
+  layout?: Array<{ items: string[]; by: number }>;
   /** How much of the styles the check compared: words, and properties left out because one side couldn't be worked out. */
   styleCoverage?: { words: number; unknown: number };
   /** Blocks the visual editor wouldn't get. */
@@ -542,7 +544,7 @@ async function migrateFile(input: Input, options: Options, lib: Library, io: Io,
     const result: FileResult = {
       file: name,
       status:
-        verification.missing.length || verification.added.length || verification.missingAttributes.length || verification.addedAttributes.length || verification.styles.length || verification.unverified.length || verification.phone.missing.length || verification.phone.added.length || verification.designWarnings.length || verification.variants.length || report.lostStyles?.length
+        verification.missing.length || verification.added.length || verification.missingAttributes.length || verification.addedAttributes.length || verification.styles.length || verification.unverified.length || verification.phone.missing.length || verification.phone.added.length || verification.layout.length || verification.designWarnings.length || verification.variants.length || report.lostStyles?.length
           ? "check-failed"
           : "migrated",
       editable: report.nativeRatio,
@@ -561,6 +563,7 @@ async function migrateFile(input: Input, options: Options, lib: Library, io: Io,
       ...(verification.styles.length ? { styles: verification.styles } : {}),
       ...(verification.unverified.length ? { unverified: verification.unverified } : {}),
       ...(verification.phone.missing.length || verification.phone.added.length ? { phone: verification.phone } : {}),
+      ...(verification.layout.length ? { layout: verification.layout } : {}),
       styleCoverage: verification.styleCoverage,
       variants: verification.variants,
       designWarnings: verification.designWarnings,
@@ -686,12 +689,18 @@ function line(result: FileResult): string {
         ...(result.unverified?.length ? [`couldn't verify: ${unverifiedList(result.unverified)}`] : []),
         ...(result.phone?.missing.length ? [`on phones, lost text: ${quote(result.phone.missing)}`] : []),
         ...(result.phone?.added.length ? [`on phones, extra text: ${quote(result.phone.added)}`] : []),
+        ...(result.layout?.length ? [`moved: ${moves(result.layout)}`] : []),
         ...(result.designWarnings?.length ? [`${result.designWarnings.length} block(s) the editor wouldn't get`] : []),
         ...(result.variants ?? []).map((v) => `with ${v.change}: ${variantProblems(v)}`),
       ];
       return `✗ ${result.file}: check failed (${problems.join("; ")})${written}`;
     }
   }
+}
+
+/** Moved text and images: `"Order", "Status" 149px to the left`. */
+function moves(layout: NonNullable<FileResult["layout"]>): string {
+  return layout.map((m) => `${quote(m.items)} ${Math.abs(m.by)}px to the ${m.by < 0 ? "left" : "right"}`).join("; ");
 }
 
 /** What couldn't be verified, one line per cause: `the color of "Hello", "world" (the rule \`.x:has(b)\` …)`. */
@@ -738,6 +747,7 @@ function markdownReport(results: FileResult[]): string {
     if (r.unverified?.length) lines.push("**Couldn't verify** (the check fails on what it can't read):", ...unverifiedList(r.unverified).split("; ").map((line) => `- ${line}`), "");
     if (r.phone?.missing.length) lines.push(`**On phones, lost text:** ${quote(r.phone.missing)}`, "");
     if (r.phone?.added.length) lines.push(`**On phones, extra text:** ${quote(r.phone.added)}`, "");
+    if (r.layout?.length) lines.push(`**Moved across the page:** ${moves(r.layout)}`, "");
     if (r.styleCoverage?.words) lines.push(`Styles compared on ${r.styleCoverage.words} words${r.styleCoverage.unknown ? ` (${r.styleCoverage.unknown} values couldn't be worked out, and were left out)` : ""}.`, "");
     if (r.designWarnings?.length) lines.push("**The editor wouldn't get:**", ...r.designWarnings.map((w) => `- ${w}`), "");
     if (r.variants?.length) {
