@@ -912,8 +912,8 @@ async function importFile(
 
 /**
  * Reads the project files a template imports (relative paths and tsconfig
- * aliases, resolved the way TypeScript does), so the components in them can
- * be inlined. Packages in node_modules aren't read.
+ * aliases, resolved the way TypeScript does, else the way Node does), so the
+ * components in them can be inlined. Packages in node_modules aren't read.
  */
 async function moduleLoader(file: string): Promise<(specifier: string, fromFile: string) => { fileName: string; source: string } | undefined> {
   const ts = (await import("typescript")).default;
@@ -922,10 +922,14 @@ async function moduleLoader(file: string): Promise<(specifier: string, fromFile:
     ? ts.parseJsonConfigFileContent(ts.readConfigFile(configFile, ts.sys.readFile).config ?? {}, ts.sys, dirname(configFile)).options
     : { allowJs: true, jsx: ts.JsxEmit.ReactJSX };
   return (specifier, fromFile) => {
-    const resolved = ts.resolveModuleName(specifier, fromFile, { ...options, allowJs: true }, ts.sys).resolvedModule;
-    if (!resolved?.resolvedFileName) return undefined;
+    // TypeScript's resolution can't follow what Node does at run time with `moduleResolution: node`
+    // (a package's exports, #imports paths) or without a tsconfig: Node's own is the fallback.
+    let target = ts.resolveModuleName(specifier, fromFile, { ...options, allowJs: true }, ts.sys).resolvedModule?.resolvedFileName;
+    if (!target) {
+      try { target = createRequire(fromFile).resolve(specifier); } catch { /* not a file Node finds either */ }
+    }
+    if (!target || !isAbsolute(target)) return undefined; // a builtin (node:fs)
     // A workspace package (linked into node_modules) is the project's own code: followed to its real path.
-    let target = resolved.resolvedFileName;
     try {
       target = realpathSync(target);
     } catch {

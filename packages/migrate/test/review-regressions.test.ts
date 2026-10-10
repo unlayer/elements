@@ -291,6 +291,37 @@ export default function Failed() { const settings = {}; return <Html><Body {...s
     expect(await render(React.createElement(Failed))).toContain("Footer copy");
   });
 
+  it.each([
+    ["a #imports path, with no tsconfig", "#emails/base", {}],
+    ["a package's exports, with moduleResolution node", "@acme/emails/base", { "tsconfig.json": JSON.stringify({ compilerOptions: { moduleResolution: "node", jsx: "react-jsx" } }) }],
+  ])("keeps a shared template that a failing one imports through %s", async (_kind, specifier, extra) => {
+    const base = `import { Html, Body, Text } from "@react-email/components";
+export default function Base({ title = "Base" }: { title?: string }) { return <Html><Body><Text>{title}</Text></Body></Html>; }`;
+    const promo = `import { Html, Body } from "@react-email/components";
+import Base from "${specifier}";
+export default function Promo() { const settings = {}; return <Html><Body {...settings}><Base title="Promo" /></Body></Html>; }`;
+    // Outside this package, whose tsconfig would apply.
+    const dir = fs.realpathSync(project({
+      "package.json": JSON.stringify({ name: "imports-fixture", private: true, imports: { "#emails/*": "./emails/*.tsx" } }),
+      "emails/base.tsx": base,
+      "emails/promo.tsx": promo,
+      "packages/emails/package.json": JSON.stringify({ name: "@acme/emails", exports: { "./base": "./src/base.tsx" } }),
+      "packages/emails/src/base.tsx": base,
+      ...extra,
+    }, true));
+    fs.mkdirSync(path.join(dir, "node_modules/@acme"), { recursive: true });
+    for (const name of ["react", "react-dom", "@react-email"]) {
+      fs.symlinkSync(path.resolve(import.meta.dirname, "../node_modules", name), path.join(dir, "node_modules", name));
+    }
+    fs.symlinkSync(path.join(dir, "packages/emails"), path.join(dir, "node_modules/@acme/emails"), "dir");
+    const imported = specifier.startsWith("#") ? "emails/base.tsx" : "packages/emails/src/base.tsx";
+    const out = io(dir);
+    expect(await main(["emails", "packages", "--write"], out, lib)).toBe(2);
+    expect(out.out).toContain(`- ${imported}: skipped (imported by emails/promo.tsx`);
+    expect(fs.readFileSync(path.join(dir, imported), "utf8")).toBe(base);
+    expect(fs.readFileSync(path.join(dir, "emails/promo.tsx"), "utf8")).toBe(promo);
+  });
+
   it("writes separate copies with --out without changing shared sources", async () => {
     const dir = project({ "emails/components/footer.tsx": footer, "emails/welcome.tsx": welcome.replace('"./components"', '"./components/footer"') });
     const out = io(dir);
