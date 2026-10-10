@@ -80,6 +80,17 @@ describe("text styles", () => {
     expect(style(doc("", '<div style="background:url(a.png) #ff0000"><p>x</p></div>')).background).toBeUndefined();
   });
 
+  it("reads a gradient of written-out opaque colors as its first stop; one from variables or translucent stops is unknown", () => {
+    expect(style(doc("", '<div style="background:linear-gradient(135deg,#1e3a8a,#312e81)"><p>x</p></div>')).background).toEqual([30, 58, 138, 1]);
+    expect(style(doc("", '<div style="background-image:linear-gradient(to right, rgb(79,70,229), rgb(147,51,234))"><p>x</p></div>')).background).toEqual([79, 70, 229, 1]);
+    expect(style(doc("", '<div style="background-image:linear-gradient(var(--tw-gradient-from) var(--tw-gradient-from-position), var(--tw-gradient-to))"><p>x</p></div>')).background).toBeUndefined();
+    expect(style(doc("", '<div style="background:linear-gradient(rgba(0,0,0,0.5),transparent)"><p>x</p></div>')).background).toBeUndefined();
+  });
+
+  it("puts the text on <html>'s background, and gives it <html>'s color", () => {
+    expect(style('<html style="background-color:#111111;color:#eeeeee"><body><p>x</p></body></html>')).toMatchObject({ background: [17, 17, 17, 1], color: [238, 238, 238, 1] });
+  });
+
   it("leaves monospace text's size unknown unless set (browsers show it at 13px)", () => {
     expect(style(doc("", "<p><code>x</code></p>")).size).toBeUndefined();
     expect(style(doc("", '<p><code style="font-size:14px">x</code></p>')).size).toBe(14);
@@ -89,6 +100,11 @@ describe("text styles", () => {
 describe("hidden text", () => {
   it("isn't read: display:none, the hidden attribute, a box that clips to nothing, visibility:hidden, opacity 0", () => {
     expect(htmlWords(doc("", '<p>A</p><p hidden>B</p><div style="max-height:0;overflow:hidden">C</div><div style="height:0px;overflow:hidden">D</div><p style="opacity:0">E</p><p style="visibility:hidden">F</p>'))).toEqual(["A"]);
+  });
+
+  it("isn't read when only screen readers get it: sr-only (clipped to nothing) or placed far off the page", () => {
+    const srOnly = "position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0, 0, 0, 0);white-space:nowrap;border-width:0";
+    expect(htmlWords(doc(".sr-only{" + srOnly + "}", `<p>A</p><span class="sr-only">B</span><span style="position:absolute;left:-9999px">C</span><span style="position:absolute;clip-path:inset(50%)">D</span><span style="position:relative;left:-9999px">E</span>`))).toEqual(["A", "E"]);
   });
 
   it("isn't read when a rule hides it: a class, compound selectors, a class on a parent, at desktop width", () => {
@@ -130,6 +146,22 @@ describe("compareStyles", () => {
     const panel = (bg: string) => `<table><tr><td style="background-color:${bg}"><p>Panel copy</p></td></tr></table><a href="https://x.com">Learn</a>`;
     const changed = compareStyles(panel("#fff4c8"), panel("#ffffff").replace('href="https://x.com"', 'href="https://x.com" target="_blank"'));
     expect(changed.differences.map((d) => `${d.property}: ${d.original} → ${d.converted}`)).toEqual(["background: #fff4c8 → #ffffff", "target: _self → _blank"]);
+  });
+
+  it("reports light text whose gradient or image behind it was lost, and nothing when it's kept or filled with the gradient's color", () => {
+    const card = (bg: string) => `<table><tr><td style="${bg}"><p style="color:#ffffff">Welcome aboard</p></td></tr></table>`;
+    const changes = (original: string, converted: string) => compareStyles(card(original), card(converted)).differences.map((d) => `${d.property}: ${d.original} → ${d.converted}`);
+    expect(changes("background:linear-gradient(135deg,#1e3a8a,#312e81)", "")).toEqual(["background: #1e3a8a → #ffffff"]);
+    expect(changes("background:linear-gradient(135deg,#1e3a8a,#312e81)", "background-color:#1e3a8a")).toEqual([]);
+    expect(changes("background:#0b1020 url(https://x.com/night.jpg)", "")).toEqual(["background: an image on #0b1020 → #ffffff"]);
+    // No color under the image: white text on it is lost on white.
+    expect(changes("background-image:url(https://x.com/night.jpg)", "")).toEqual(["background: an image → #ffffff"]);
+    expect(changes("background:#0b1020 url(https://x.com/night.jpg)", "background:#0b1020 url(https://x.com/night.jpg)")).toEqual([]);
+    // Without the image, on the color under it: as the original shows where images don't load.
+    expect(changes("background:#0b1020 url(https://x.com/night.jpg)", "background-color:#0b1020")).toEqual([]);
+    // A box with its own color in front of the image covers it: nothing to lose.
+    const covered = (inner: string) => `<div style="background:url(https://x.com/a.jpg)"><div style="background-color:${inner}"><p>Covered</p></div></div>`;
+    expect(compareStyles(covered("#eeeeee"), `<div style="background-color:#eeeeee"><p>Covered</p></div>`).differences).toEqual([]);
   });
 
   it("is part of the content check, only when the words are the same", () => {

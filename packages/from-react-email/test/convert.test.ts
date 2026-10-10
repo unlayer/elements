@@ -668,7 +668,7 @@ export default function Template({ level = "h3", logo = 64, tone = "red", quiet 
 }`;
     const { report } = await convertSource(source);
     expect(report.lostStyles).toEqual(expect.arrayContaining([expect.stringMatching(/as=\{level\}/), expect.stringMatching(/width=\{logo\}/), expect.stringMatching(/className=\{`text-\$\{tone\}-500`\}/)]));
-    // A class list that is a value or nothing (`quiet ? undefined : "mb-9"`) stays a note.
+    // A class list that is a value or nothing (`quiet ? undefined : "mb-9"`) is kept: one element per class list.
     expect(report.lostStyles?.some((s) => s.includes("mb-9"))).toBe(false);
   });
 });

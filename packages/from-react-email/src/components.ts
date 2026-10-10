@@ -412,8 +412,10 @@ function substitute(usage: ts.JsxElement | ts.JsxSelfClosingElement, component: 
   const constNames = new Set(component.consts.map((c) => c.name));
   const propLocals = new Set([...(component.props?.values() ?? [])].map((p) => p.local).concat(component.propsObject ?? []));
 
-  // Names the component reads from its module must mean the same where it's used…
-  const free = [...new Set(parts.flatMap((part) => [...identifiersIn(part)]))].filter(
+  // Names the component reads from its module must mean the same where it's used (in its
+  // props' defaults too: `({ n = seats })` with a `seats` where it's used would read that)…
+  const defaults = [...(component.props?.values() ?? [])].flatMap((p) => (p.fallback ? [p.fallback] : []));
+  const free = [...new Set([...parts, ...defaults].flatMap((part) => [...identifiersIn(part)]))].filter(
     (n) => !declaredInside.has(n) && !propLocals.has(n) && !constNames.has(n)
   );
   if (shadowedAt(usage, free)) return undefined;

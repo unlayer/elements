@@ -238,15 +238,25 @@ export default Exported;`;
     }
   });
 
-  it("says a template that calls React hooks can't be migrated yet, and why", async () => {
-    const source = `import React from "react";
-import { Html, Body, Text } from "@react-email/components";
-export default function Template() { const id = React.useId(); return <Html><Body><Text id={id}>Hello</Text></Body></Html>; }`;
-    const dir = project({ "emails/hooks.tsx": source });
+  it("migrates a template that calls React hooks, and one of its components that does, in both modes", async () => {
+    const source = `import { useId, useMemo, useState } from "react";
+import { Html, Body, Heading, Text } from "@react-email/components";
+function Count({ items }: { items: string[] }) { const [shown] = useState(items.length); return <Text>You have {shown} items</Text>; }
+export default function Hooky({ name = "Ada", items = ["a", "b"] }: { name?: string; items?: string[] }) {
+  const greeting = useMemo(() => "Hello " + name, [name]);
+  useId();
+  return <Html><Body><Heading>{greeting}</Heading><Count items={items} /></Body></Html>;
+}
+Hooky.PreviewProps = { name: "Ada", items: ["a", "b", "c"] };`;
+    const dir = project({ "emails/hooky.tsx": source });
     const out = io(dir);
-    expect(await main(["emails", "--out", "migrated"], out, lib)).toBe(2);
-    expect(out.out + out.err).toContain("calls React hooks");
-    expect(fs.existsSync(path.join(dir, "migrated/hooks.tsx"))).toBe(false);
+    expect(await main(["emails", "--out", "migrated", "--design"], out, lib), out.out + out.err).toBe(0);
+    expect(out.out).toContain("1 migrated and checked");
+    expect(fs.readFileSync(path.join(dir, "migrated/hooky.design.json"), "utf8")).toContain("You have 3 items");
+    const { default: Hooky } = await import(path.join(dir, "emails/hooky.tsx"));
+    const words = (await lib.convertReactEmail(Hooky)).html().replace(/<[^>]+>/g, " ").replace(/\s+/g, " ");
+    expect(words).toContain("Hello {{name}}"); // a text prop shown as given: a merge tag
+    expect(words).toContain("You have 3 items");
   });
 
   it("fails the check when a style computed from props would be dropped, naming it", async () => {

@@ -29,7 +29,7 @@
  * - Vertical margins collapse like CSS: siblings share the larger margin.
  */
 
-import { el, expr, hole, type BoxSides, type ElementNode, type Expr, type ReportBuilder } from "@unlayer/convert-core";
+import { el, expr, hole, SLOT_CLOSE, SLOT_OPEN, type BoxSides, type ElementNode, type Expr, type ReportBuilder } from "@unlayer/convert-core";
 import { borderProp } from "./boxes";
 import { cellsFrom, collapse, fill, LAYOUTS, type Block } from "./map";
 import { hexAlpha, px, sidesToCss, toPx, ZERO } from "./styles";
@@ -849,7 +849,9 @@ class Engine {
     // One column per item (a slot per branch when the callback chooses one), all as wide.
     const sameWidth = only?.slots.every((slot) => slot.length === 1 && slot[0].width === only.slots[0][0]?.width);
     const mapped = only?.mappedOver && only.slots.length && sameWidth ? { list: only.mappedOver, column: only.slots[0][0] } : undefined;
-    const counted = !holes || Boolean(options.branches) || Boolean(mapped);
+    // One column shown under a condition (`{image && <Column>…</Column>}`) next to others: the row is laid out with and without it.
+    const optional = !options.branches && !mapped ? optionalColumn(specs) : undefined;
+    const counted = !holes || Boolean(options.branches) || Boolean(mapped) || Boolean(optional);
     const area = depth ? frames[depth - 1].width : this.options.contentWidth;
     const available = area - ctx.inset.left - ctx.inset.right;
 
@@ -926,11 +928,16 @@ class Engine {
       const each = width !== undefined ? `() => ${Math.round(width)}` : `(_item, _index, all) => Math.round(${Math.round(available)} / all.length)`;
       const cells = [...left.map((s) => String(Math.round(s.width))), `...${mapped.list}.map(${each})`, ...right.map((s) => String(Math.round(s.width)))];
       layoutProps = { cells: expr(`[${cells.join(", ")}]`) };
+    } else if (optional) {
+      const given = specs.map((s) => widthOf(s.kind === "hole" ? optional.column.width : s.node.width, available));
+      const shown = JSON.stringify(laidOut(given));
+      const left_out = JSON.stringify(laidOut(given.filter((_, i) => i !== optional.index)));
+      layoutProps = { cells: expr(`(${optional.condition}) ? ${shown} : ${left_out}`) };
     } else if (!holes) {
       pxCells = laidOut(widths);
       // One column is a Row's default: no layout prop.
       layoutProps = LAYOUT_OF(pxCells);
-    } else if (widths.some((w) => w !== undefined)) {
+    } else if (widths.some((w) => w !== undefined) || specs.some((s) => s.kind === "hole" && s.slots.flat().some((c) => c.width !== undefined))) {
       this.report.note("column widths dropped for a generated column list");
     }
 
@@ -1333,6 +1340,25 @@ function fitPhoneWords(item: ElementNode, room: number, scale: number): number |
   const fontSize = fit < 1 ? Math.max(Math.min(size, 10), Math.floor(size * fit)) : undefined;
   item.props = { ...props, mobile: { ...mobile, ...(scaled ? { containerPadding: sidesToCss(scaled) } : {}), ...(fontSize ? { fontSize: px(fontSize) } : {}) } };
   return fontSize;
+}
+
+/**
+ * The one column a row shows under a condition, next to columns it always
+ * shows: `{cond && <Column>…</Column>}` or `{cond ? <Column>…</Column> : null}`.
+ * A condition with `||`, `??` or another `?` isn't read (what renders could be its value).
+ */
+function optionalColumn(specs: ColumnSpec[]): { condition: string; index: number; column: ColumnNode } | undefined {
+  const holes = specs.filter((s): s is Extract<ColumnSpec, { kind: "hole" }> => s.kind === "hole");
+  if (holes.length !== 1 || specs.length < 2) return undefined;
+  const [only] = holes;
+  if (only.mappedOver || only.slots.length !== 1 || only.slots[0].length !== 1) return undefined;
+  const slot = `${SLOT_OPEN}0${SLOT_CLOSE}`;
+  const code = only.code.trim();
+  const condition =
+    (code.endsWith(slot) && /^(.+?)\s*&&\s*$/s.exec(code.slice(0, -slot.length))?.[1]) ||
+    /^(.+?)\s*\?\s*\uE0000\uE001\s*:\s*(?:null|undefined|false|""|'')$/s.exec(code)?.[1];
+  if (!condition || /\|\||\?\?|\?|:|\uE000/.test(condition)) return undefined;
+  return { condition: condition.trim(), index: specs.indexOf(only), column: only.slots[0][0] };
 }
 
 /** Whether `flow` holds a row of several columns, or columns from code. */

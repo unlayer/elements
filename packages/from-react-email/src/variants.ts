@@ -7,8 +7,8 @@
  *                       : <Section className="border bg-white">…</Section>}
  *
  * Each copy has static classes, so it converts to static props, and the
- * condition stays in the code. Handles `c ? "a" : "b"`, `c && "a"` and a
- * template string with one of those inside. When the element is the only
+ * condition stays in the code. Handles `c ? "a" : "b"` (a branch can be
+ * `undefined`: no class), `c && "a"` and a template string with one of those inside. When the element is the only
  * child of a Column, the Column is copied instead, so the card's look can go
  * on the column.
  */
@@ -72,7 +72,7 @@ function classVariants(node: ts.JsxElement | ts.JsxSelfClosingElement): Variants
   return undefined;
 }
 
-/** `c ? "a" : "b"` / `c && "a"` with string branches. */
+/** `c ? "a" : "b"` / `c && "a"` with string branches (`undefined` or `null` for no class). */
 function choice(value: ts.Expression): { condition: string; whenTrue: string; whenFalse: string } | undefined {
   if (ts.isConditionalExpression(value)) {
     const a = text(value.whenTrue);
@@ -88,7 +88,10 @@ function choice(value: ts.Expression): { condition: string; whenTrue: string; wh
 
 function text(node: ts.Expression): string | undefined {
   const value = unwrap(node);
-  return ts.isStringLiteral(value) || ts.isNoSubstitutionTemplateLiteral(value) ? value.text : undefined;
+  if (ts.isStringLiteral(value) || ts.isNoSubstitutionTemplateLiteral(value)) return value.text;
+  // No class (`plan === "pro" ? "font-bold" : undefined`).
+  if ((ts.isIdentifier(value) && value.text === "undefined") || value.kind === ts.SyntaxKind.NullKeyword) return "";
+  return undefined;
 }
 
 /** A class with a variant (`mobile:`, `hover:`): never inlined, so it can't make the branches differ. */

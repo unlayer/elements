@@ -28,6 +28,10 @@ export interface WordStyle {
   underline?: boolean;
   color?: Rgba;
   background?: Rgba;
+  /** A `url()` image is behind it: the background color is then unknown, but losing the image isn't. */
+  image?: boolean;
+  /** Behind an image: the color its box sets under it, what shows where images don't load (none set: unknown). */
+  underImage?: Rgba;
   /** The target of the link the word is in ("_self" when the link sets none); absent outside links. */
   target?: string;
 }
@@ -502,8 +506,15 @@ interface Computed {
   hidden?: boolean;
   /** Its own underline (not inherited: decorations draw across what's inside). */
   underline?: boolean;
-  /** Its own background color; `undefined` (unknown) when it has an image or a value this can't read. */
+  /**
+   * Its own background color; `undefined` (unknown) when it has an image or a
+   * value this can't read. A gradient of opaque colors counts as its first stop.
+   */
   background?: Rgba;
+  /** It has a `url()` background image. */
+  image?: boolean;
+  /** Its background color under any image (unknown when unreadable). */
+  under?: Rgba;
   /** Whether it breaks words (a block box); from its display. */
   block?: boolean;
   unknown: Set<string>;
@@ -653,8 +664,27 @@ export class StyledDocument {
       return v !== undefined && lengthPx(v) === 0;
     });
     const opacity = value("opacity");
-    computed.hidden = (display !== undefined && /^none$/i.test(display)) || clipped || (opacity !== undefined && parseFloat(opacity) === 0) || computed.size === 0;
-    if (["display", "overflow", "max-height", "height", "opacity"].some((p) => unknown.has(p))) unknown.add("hides");
+    // Shown only to screen readers: positioned and clipped to nothing (`sr-only`), or moved far off the page.
+    const position = value("position");
+    const placed = position !== undefined && /^(absolute|fixed)$/i.test(position.trim());
+    const clip = value("clip");
+    const clipPath = value("clip-path");
+    const tiny = ["width", "height"].every((p) => {
+      const v = value(p);
+      return v !== undefined && (lengthPx(v) ?? 2) <= 1;
+    });
+    const readerOnly =
+      placed &&
+      ((clip !== undefined && /^rect\(\s*0(px)?[\s,]+0(px)?[\s,]+0(px)?[\s,]+0(px)?\s*\)$/i.test(clip.trim())) ||
+        (clipPath !== undefined && /^inset\(\s*(50|100)%\s*\)$/i.test(clipPath.trim())) ||
+        (tiny && !!overflow && /hidden|clip/i.test(overflow)) ||
+        ["left", "top"].some((p) => {
+          const v = value(p);
+          return v !== undefined && (lengthPx(v) ?? 0) <= -999;
+        }));
+    computed.hidden = (display !== undefined && /^none$/i.test(display)) || clipped || readerOnly || (opacity !== undefined && parseFloat(opacity) === 0) || computed.size === 0;
+    if (["display", "overflow", "max-height", "height", "opacity", "position"].some((p) => unknown.has(p))) unknown.add("hides");
+    if (placed && ["clip", "clip-path", "left", "top", "width"].some((p) => unknown.has(p))) unknown.add("hides");
     // As the word check reads tags: these don't break words unless styled as boxes; every other tag does.
     computed.block = INLINE_TAGS.has(element.tagName) ? display !== undefined && /^(block|flex|grid|table|list-item|inline-block|inline-flex)/i.test(display) : true;
     // Its own underline.
@@ -664,11 +694,15 @@ export class StyledDocument {
     // Its own background color.
     const background = value("background-color");
     const image = value("background-image");
-    if (unknown.has("background-color") || unknown.has("background-image") || (image !== undefined && !/^none$/i.test(image))) {
+    const painted = image !== undefined && !/^none$/i.test(image);
+    const stop = painted ? gradientStop(image) : undefined;
+    computed.image = painted && /url\(/i.test(image) && !unknown.has("background-image");
+    computed.under = unknown.has("background-color") ? undefined : background !== undefined ? parseColor(background) : [0, 0, 0, 0];
+    if (unknown.has("background-color") || unknown.has("background-image") || (painted && !stop)) {
       unknown.add("background");
       computed.background = undefined;
     } else {
-      computed.background = background !== undefined ? parseColor(background) : [0, 0, 0, 0];
+      computed.background = stop ?? (background !== undefined ? parseColor(background) : [0, 0, 0, 0]);
       if (!computed.background) unknown.add("background");
     }
     this.computed.set(element, computed);
@@ -739,8 +773,9 @@ export class StyledDocument {
         buffer += part;
       }
     };
+    // What's above where it starts counts: <html>'s background and text styles reach the body.
     const ancestors: Element[] = [];
-    for (let up = within?.parentNode; isElement(up); up = up.parentNode) ancestors.unshift(up);
+    for (let up = isElement(body) ? body.parentNode : undefined; isElement(up); up = up.parentNode) ancestors.unshift(up);
     visit(body, ancestors);
     flush();
     // Pieces into words; a word that spans styles keeps its first part's style.
@@ -805,8 +840,20 @@ export class StyledDocument {
     let background: Rgba | undefined = [255, 255, 255, 1];
     let target: string | undefined;
     let inLink = false;
+    let image = false;
+    // Where images don't load: the color the box with the image sets under it (none set: unknown).
+    let under: Rgba | undefined;
     for (const e of chain) {
       const s = this.style(e);
+      if (s.image) {
+        image = true;
+        under = s.under && s.under[3] >= 1 ? s.under : undefined;
+      } else if (!s.unknown.has("background") && s.background && s.background[3] >= 1) {
+        // A box with a color of its own covers the images behind it.
+        image = false;
+      } else if (image && under !== undefined) {
+        under = s.unknown.has("background") || !s.background ? undefined : over(s.background, under);
+      }
       if (s.unknown.has("underline")) underline = undefined;
       else if (underline !== undefined && s.underline) underline = true;
       if (background !== undefined) background = s.unknown.has("background") || !s.background ? undefined : over(s.background, background);
@@ -823,6 +870,7 @@ export class StyledDocument {
       underline,
       color: known("color", own.color) as Rgba | undefined,
       background,
+      ...(image ? { image, ...(under ? { underImage: under } : {}) } : {}),
       ...(inLink ? { target } : {}),
     };
   }
@@ -834,7 +882,12 @@ const MSO_ONLY = /^(v:|o:|w:)/;
 /** Longhands a shorthand sets; values this can't split are unknown. */
 function expand(property: string, value: string): Array<{ property: string; value: string; unknown: boolean }> {
   if (property === "background") {
-    if (/url\(|gradient\(/i.test(value)) return [{ property: "background-image", value: "url()", unknown: false }, { property: "background-color", value: backgroundColorToken(value) ?? "transparent", unknown: false }];
+    if (/url\(|gradient\(/i.test(value)) {
+      // The image layer as written (a gradient is read as its colors); with a url() in any layer, an image.
+      const gradient = /(?:repeating-)?(?:linear|radial|conic)-gradient\((?:[^()]|\([^()]*\))*\)/i.exec(value)?.[0];
+      const image = /url\(/i.test(value) ? "url()" : gradient ?? "unreadable-gradient()";
+      return [{ property: "background-image", value: image, unknown: false }, { property: "background-color", value: backgroundColorToken(value) ?? "transparent", unknown: false }];
+    }
     const color = backgroundColorToken(value);
     return [{ property: "background-color", value: color ?? "transparent", unknown: color === undefined && !/^(none|transparent|initial|unset)$/i.test(value.trim()) && /[a-z#]/i.test(value) && !/^(no-repeat|repeat|center|top|left|right|bottom|cover|contain|fixed|scroll|[\d.]+(px|%)?|\s)+$/i.test(value) }];
   }
@@ -851,6 +904,21 @@ function expand(property: string, value: string): Array<{ property: string; valu
   }
   if (property === "text-decoration") return [{ property: "text-decoration", value, unknown: false }];
   return [{ property, value, unknown: false }];
+}
+
+/**
+ * A gradient's first color, when every stop is an opaque color written out:
+ * the one color closest to what it paints behind the start of the text. A
+ * stop from a variable, or a translucent one, leaves it unknown.
+ */
+function gradientStop(image: string): Rgba | undefined {
+  const args = /^\s*(?:repeating-)?(?:linear|radial|conic)-gradient\((.*)\)\s*$/i.exec(image)?.[1];
+  if (!args) return undefined;
+  const parts = args.split(/,(?![^(]*\))/).map((part) => part.trim());
+  if (/^(to\s|from\s|at\s|[-\d.]+(deg|grad|rad|turn)\b|circle|ellipse|closest|farthest)/i.test(parts[0] ?? "")) parts.shift();
+  const colors = parts.map((part) => parseColor(/^((?:rgb|hsl)a?\([^)]*\)|#[0-9a-f]{3,8}|[a-z]+)(?=\s|$)/i.exec(part)?.[1] ?? ""));
+  if (!colors.length || colors.some((c) => !c || c[3] < 1)) return undefined;
+  return colors[0];
 }
 
 function backgroundColorToken(value: string): string | undefined {
@@ -953,6 +1021,18 @@ export function compareStyles(originalHtml: string | StyledDocument, convertedHt
     for (const property of STYLE_PROPERTIES) {
       const x = a[i].style[property], y = b[i].style[property];
       if (property === "target" && (x === undefined) !== (y === undefined)) continue;
+      // An image behind the original's text that the migration doesn't have: the text must still be on
+      // the color under the image (what shows where images don't load), or it reads differently.
+      if (property === "background" && a[i].style.image && !b[i].style.image && y !== undefined) {
+        const under = a[i].style.underImage;
+        if (under && same(property, under, y)) continue;
+        const original = under ? `an image on ${show(property, under)}` : "an image";
+        const key = `background\u0000${original}\u0000${show(property, y)}`;
+        const group = groups.get(key) ?? { property, original, converted: show(property, y), words: [] };
+        group.words.push(a[i].word);
+        groups.set(key, group);
+        continue;
+      }
       if (x === undefined || y === undefined) {
         if (property !== "target") unknown++;
         continue;

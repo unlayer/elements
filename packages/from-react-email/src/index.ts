@@ -18,7 +18,7 @@ import {
   type StyleDifference,
   type TextCheck,
 } from "@unlayer/convert-core";
-import { findTailwind, findTailwindConfig } from "./expand";
+import { callInRender, findTailwind, findTailwindConfig } from "./expand";
 import { convertElement } from "./runtime";
 import { mergeTagged } from "./merge-tags";
 
@@ -32,12 +32,15 @@ function rendersNothing(output: unknown): boolean {
   return output.type === React.Fragment && React.Children.count((output.props as { children?: React.ReactNode }).children) === 0;
 }
 
-/** Call a migrated template for its root element, unwrapping `memo` and `forwardRef` as renderToHtml does. */
+/**
+ * Call a migrated template for its root element, unwrapping `memo` and
+ * `forwardRef` as renderToHtml does, in a render of its own: its hooks work.
+ */
 function callTemplate(Converted: MigratedTemplate, props: Record<string, unknown>): React.ReactElement {
   const type = Converted as any;
   if (type?.$$typeof === Symbol.for("react.memo")) return callTemplate(type.type, props);
-  if (type?.$$typeof === Symbol.for("react.forward_ref")) return type.render(props, null);
-  return type(props);
+  if (type?.$$typeof === Symbol.for("react.forward_ref")) return callInRender(() => type.render(props, null));
+  return callInRender(() => type(props));
 }
 
 export interface RuntimeOptions {
@@ -70,7 +73,8 @@ export interface Conversion {
  *
  * The result is checked against the original: `report.missingText` lists
  * any words the original shows that the conversion doesn't (empty when
- * nothing was lost).
+ * nothing was lost), and `report.styleDifferences` the words it shows in
+ * another style.
  */
 export async function convertReactEmail(Template: Template, options: RuntimeOptions = {}): Promise<Conversion> {
   const props = options.props ?? Template.PreviewProps ?? {};
@@ -83,6 +87,7 @@ export async function convertReactEmail(Template: Template, options: RuntimeOpti
   report.addedText = check.added;
   report.missingAttributes = check.missingAttributes;
   report.addedAttributes = check.addedAttributes;
+  report.styleDifferences = check.styles;
   let tree = converted.tree;
   if (options.mergeTags !== false) {
     const tagged = await mergeTagged(props, converted.tree, async (p) => (await convertElement(React.createElement(Template, p))).tree);

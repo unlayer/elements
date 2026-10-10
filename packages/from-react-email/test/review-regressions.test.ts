@@ -1,9 +1,10 @@
 import { afterEach, describe, expect, it } from "vitest";
 import fs from "node:fs";
 import path from "node:path";
-import { convertReactEmail, convertSource, mergeTagDesign, verifyConversion } from "../src/index";
+import { convertReactEmail, convertSource, htmlWords, mergeTagDesign, verifyConversion } from "../src/index";
 import { replaceMarkers } from "../src/merge-tags";
 import ts from "typescript";
+import React from "react";
 
 const dirs: string[] = [];
 afterEach(() => {
@@ -394,6 +395,29 @@ describe("images, links and backgrounds", () => {
 });
 
 describe("classes and head styles", () => {
+  it("keeps a class list a condition picks, also against no class, and fails the check for one it can't follow", async () => {
+    const { Original, Migrated, conversion } = await templates(`import { Html, Body, Text, Tailwind } from "@react-email/components";
+export default function T({ plan, vip }: { plan: string; vip: boolean }) {
+  return <Html><Tailwind><Body>
+    <Text className={plan === "pro" ? "font-bold text-red-600 uppercase" : undefined}>Your plan</Text>
+    <Text className={vip && "font-bold"}>Vip</Text>
+    <Text className={(true) ? undefined : "mb-9"}>Plain</Text>
+  </Body></Tailwind></Html>;
+}
+T.PreviewProps = { plan: "free", vip: false };`);
+    expect(conversion.report.lostStyles ?? []).toEqual([]);
+    expect(conversion.code).toContain('plan === "pro" ?');
+    for (const props of [{ plan: "pro", vip: true }, { plan: "free", vip: false }]) {
+      const check = await verifyConversion(Original, Migrated, { props });
+      expect(check.styles).toEqual([]);
+    }
+    const lookup = await templates(`import { Html, Body, Text, Tailwind } from "@react-email/components";
+const tones: Record<string, string> = { info: "text-blue-600", danger: "text-red-600 font-bold" };
+export default function T({ level }: { level: string }) { return <Html><Tailwind><Body><Text className={tones[level]}>Alert text</Text></Body></Tailwind></Html>; }
+T.PreviewProps = { level: "unknown" };`);
+    expect(lookup.conversion.report.lostStyles).toEqual(["line 3: className={tones[level]}"]);
+  });
+
   /** Both converters' check issues for a template (styles included), with its preview props and each boolean flipped. */
   const issues = async (source: string, props?: Record<string, unknown>) => {
     const { Original, Migrated, conversion } = await templates(source);
@@ -500,6 +524,35 @@ export default function T({ user, items }: { user: { city: string }; items: Arra
 });
 
 describe("template shapes the codemod keeps or refuses", () => {
+  it("keeps a column's width when it's shown under a condition next to others: the row's cells follow the condition", async () => {
+    const { Migrated, conversion } = await templates(`import { Html, Body, Container, Section, Row, Column, Img, Text } from "@react-email/components";
+export default function Card({ image, name = "Ada" }: { image?: string; name?: string }) {
+  return <Html><Body><Container><Section><Row>
+    {image && <Column style={{ width: "120px" }}><Img src={image} width="100" height="100" alt="" /></Column>}
+    <Column><Text>Hello {name}, your order shipped.</Text></Column>
+  </Row></Section></Container></Body></Html>;
+}
+Card.PreviewProps = { image: "https://example.com/a.png", name: "Ada" };`);
+    expect(conversion.code).toMatch(/cells=\{image \? \[120, 480\] : \[600\]\}/);
+    const { renderToJson } = await import("@unlayer/react-elements");
+    const cells = (props: Record<string, unknown>) => (renderToJson(React.createElement(Migrated, props)) as any).body.rows[0].cells;
+    const shown = cells({ image: "https://example.com/a.png" });
+    expect(shown.length).toBe(2);
+    expect(shown[0] / (shown[0] + shown[1])).toBeCloseTo(0.2);
+    expect(cells({}).length).toBe(1);
+    // Two columns under conditions: the widths aren't worked out, and the report says so.
+    const two = await templates(`import { Html, Body, Section, Row, Column, Text } from "@react-email/components";
+export default function T({ a, b }: { a?: boolean; b?: boolean }) {
+  return <Html><Body><Section><Row>
+    {a && <Column style={{ width: "120px" }}><Text>A</Text></Column>}
+    {b && <Column style={{ width: "120px" }}><Text>B</Text></Column>}
+    <Column><Text>Always</Text></Column>
+  </Row></Section></Body></Html>;
+}
+T.PreviewProps = { a: true, b: true };`);
+    expect(two.conversion.report.notes).toContainEqual({ reason: "column widths dropped for a generated column list" });
+  });
+
   const check = async (source: string, props?: Record<string, unknown>) => {
     const { Original, Migrated, conversion } = await templates(source);
     const result = await verifyConversion(Original, Migrated, props ? { props } : {});
@@ -636,6 +689,19 @@ describe("merge tags", () => {
 });
 
 describe("names the template already uses", () => {
+  it("doesn't inline a component whose prop default reads a name the template uses for something else", async () => {
+    const { Original, Migrated, conversion } = await templates(`import { Html, Body, Text } from "@react-email/components";
+const seats = 5;
+const Note = ({ n = seats }: { n?: number }) => <Text>Every plan includes {n} free seats</Text>;
+export default function T({ seats }: { seats: number }) {
+  return <Html><Body><Text>You bought {seats} seats</Text><Note /></Body></Html>;
+}
+T.PreviewProps = { seats: 5 };`);
+    expect(conversion.code).not.toContain("includes {seats}");
+    const check = await verifyConversion(Original, Migrated, { props: { seats: 20 } });
+    expect([check.missing, check.added]).toEqual([[], []]);
+  });
+
   it("don't clash with the helpers and Elements components the migration adds", async () => {
     const { Original, Migrated, conversion } = await templates(`import { Html, Body, Text, Link } from "@react-email/components";
       function escapeHtml(text: string) { return text; }
@@ -664,5 +730,116 @@ describe("names the template already uses", () => {
       T.PreviewProps = { items: ["One", "Two"] };`);
     const check = await verifyConversion(Original, Migrated);
     expect([check.missing, check.added]).toEqual([[], []]);
+  });
+});
+
+describe("backgrounds, text only screen readers get, and widths", () => {
+  const head = `import { Html, Body, Container, Section, Heading, Text, Button } from "@react-email/components";`;
+  const styles = (check: { styles: Array<{ property: string; original: string; converted: string }> }) => check.styles.map((d) => `${d.property}: ${d.original} → ${d.converted}`);
+
+  it("fills a gradient section and a gradient button with their first color, so white text stays on it, in both modes", async () => {
+    const { Original, Migrated, conversion } = await templates(`${head}
+export default function T() {
+  return <Html><Body style={{ backgroundColor: "#ffffff" }}><Container>
+    <Section style={{ background: "linear-gradient(135deg,#1e3a8a,#312e81)", padding: "40px" }}><Heading style={{ color: "#fff" }}>Welcome aboard</Heading></Section>
+    <Button href="https://example.com" style={{ background: "linear-gradient(#be123c,#9f1239)", color: "#fff", padding: "12px 20px" }}>Start now</Button>
+  </Container></Body></Html>;
+}`);
+    expect(conversion.code).toContain("#1e3a8a");
+    expect(conversion.code).toMatch(/<Button[^>]*backgroundColor="#be123c"/);
+    expect(conversion.report.notes).toContainEqual({ reason: "style not converted", detail: "background gradient (filled with #1e3a8a) (Section)" });
+    expect(styles(await verifyConversion(Original, Migrated))).toEqual([]);
+    const runtime = await convertReactEmail(Original);
+    expect(runtime.report.styleDifferences).toEqual([]);
+    expect(runtime.html()).toContain("#1e3a8a");
+  });
+
+  it("fails the check when the image behind light text is lost with no color under it; passes when its color is kept", async () => {
+    const page = (background: string) => `${head}
+export default function T() { return <Html><Body style={{ ${background}, color: "#ffffff" }}><Container><Text>Night mode newsletter</Text></Container></Body></Html>; }`;
+    const bare = await templates(page(`backgroundImage: "url(https://example.com/night.jpg)"`));
+    expect(styles(await verifyConversion(bare.Original, bare.Migrated))).toEqual(["background: an image → #ffffff"]);
+    expect((await convertReactEmail(bare.Original)).report.styleDifferences?.map((d) => d.original)).toEqual(["an image"]);
+    const kept = await templates(page(`background: "#0b1020 url(https://example.com/night.jpg) repeat"`));
+    expect(styles(await verifyConversion(kept.Original, kept.Migrated))).toEqual([]);
+    expect(kept.conversion.report.notes).toContainEqual({ reason: "style not converted", detail: "background image (Body, its color #0b1020 shows)" });
+  });
+
+  it("puts the page on <Html>'s background when the Body sets none, in both modes", async () => {
+    const { Original, Migrated, conversion } = await templates(`${head}
+export default function T() { return <Html style={{ backgroundColor: "#111111" }}><Body><Container><Text style={{ color: "#ffffff" }}>Dark html background</Text></Container></Body></Html>; }`);
+    expect(conversion.code).toContain('backgroundColor="#111111"');
+    expect(styles(await verifyConversion(Original, Migrated))).toEqual([]);
+    expect((await convertReactEmail(Original)).design().body.values.backgroundColor).toBe("#111111");
+  });
+
+  it("keeps text only screen readers get hidden (sr-only, placed off the page), in both modes", async () => {
+    const { Original, Migrated, conversion } = await templates(`${head}
+export default function T() { return <Html><Body><Container>
+  <Text>Visible line</Text>
+  <Text style={{ position: "absolute", width: "1px", height: "1px", overflow: "hidden", clip: "rect(0 0 0 0)" }}>Screen reader note</Text>
+  <Text style={{ position: "absolute", left: "-9999px" }}>Offscreen filler</Text>
+</Container></Body></Html>; }`);
+    expect(conversion.code).not.toMatch(/<Paragraph[^>]*>\s*(Screen reader note|Offscreen filler)/);
+    const check = await verifyConversion(Original, Migrated);
+    expect([check.missing, check.added]).toEqual([[], []]);
+    expect(htmlWords(check.convertedHtml)).toEqual(["Visible", "line"]);
+    // Still in the HTML, for screen readers.
+    expect(check.convertedHtml).toContain("Screen reader note");
+    const runtime = (await convertReactEmail(Original)).html();
+    expect(htmlWords(runtime)).toEqual(["Visible", "line"]);
+    expect(runtime).toContain("Screen reader note");
+  });
+
+  it("says when a Container's width can't be kept (an email's content width is in px), in both modes", async () => {
+    const source = `${head}
+export default function T() { return <Html><Body><Container style={{ maxWidth: "100%" }}><Text>Wide</Text></Container></Body></Html>; }`;
+    const { Original, conversion } = await templates(source);
+    const note = { reason: "style not converted", detail: "Container width 100% (the email's content is 600px wide)" };
+    expect(conversion.report.notes).toContainEqual(note);
+    expect((await convertReactEmail(Original)).report.notes).toContainEqual(note);
+    // 100% wide up to a width in px: that width, kept.
+    const capped = await templates(`${head}
+export default function T() { return <Html><Body><Container style={{ width: "100%", maxWidth: "640px" }}><Text>Wide</Text></Container></Body></Html>; }`);
+    expect(capped.conversion.report.notes.filter((n) => String(n.detail).startsWith("Container width"))).toEqual([]);
+  });
+});
+
+describe("style values from props", () => {
+  it("can't add markup through the span that keeps a text style (runtime mode)", async () => {
+    const { Original } = await templates(`import { Html, Body, Text } from "@react-email/components";
+export default function T({ look = "uppercase" }: { look?: string }) { return <Html><Body><Text style={{ textTransform: look as any }}>Hello there</Text></Body></Html>; }
+T.PreviewProps = { look: 'uppercase"><img src=x onerror=alert(1)>' };`);
+    const conversion = await convertReactEmail(Original);
+    expect(conversion.html()).not.toMatch(/<img[^>]*onerror/);
+    expect(JSON.stringify(conversion.design())).not.toContain("onerror");
+    const safe = await convertReactEmail(Original, { props: { look: "uppercase" } });
+    expect(safe.html()).toContain("text-transform:uppercase");
+  });
+});
+
+describe("link targets from props", () => {
+  it("keep a Button's and a linked image's target from props, and their default when it's left out", async () => {
+    const { Original, Migrated, conversion } = await templates(`import { Html, Body, Section, Button, Link, Img, Text } from "@react-email/components";
+export default function T({ url = "https://example.com", target }: { url?: string; target?: string }) {
+  return <Html><Body>
+    <Button href={url} target={target} style={{ backgroundColor: "#111111", color: "#ffffff", padding: "12px 20px" }}>Open</Button>
+    <Section><Link href={url} target={target}><Img src="https://example.com/a.png" width="100" height="40" alt="Linked" /></Link></Section>
+    <Section><a href={url} target={target}><Img src="https://example.com/b.png" width="100" height="40" alt="Plain" /></a></Section>
+    <Text>Read <Link href={url} target={target}>more</Link></Text>
+  </Body></Html>;
+}
+T.PreviewProps = { url: "https://example.com", target: "_self" };`);
+    expect(conversion.code).toContain('target: target ?? "_blank"');
+    expect(conversion.code).toContain('target: target ?? "_self"');
+    expect(conversion.code).toContain('htmlAttribute("target", target ?? "_blank")');
+    const { renderToHtml } = await import("@unlayer/react-elements");
+    const targets = (props: Record<string, unknown>) => [...renderToHtml(React.createElement(Migrated, props)).matchAll(/<a\b[^>]*target="([^"]*)"/g)].map((m) => m[1]);
+    expect(targets({ target: "_self" })).toEqual(["_self", "_self", "_self", "_self"]);
+    expect(targets({})).toEqual(["_blank", "_blank", "_self", "_blank"]);
+    for (const target of ["_self", undefined]) {
+      const check = await verifyConversion(Original, Migrated, { props: { url: "https://example.com", target } });
+      expect(check.styles).toEqual([]);
+    }
   });
 });

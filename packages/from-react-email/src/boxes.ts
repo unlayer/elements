@@ -6,7 +6,7 @@ import { phoneSides } from "./phone-styles";
 import type { BoxStyle, BorderSide, Borders, Flow } from "./layout";
 import { NO_STYLE } from "./layout";
 import type { Block, MapCtx } from "./map";
-import { addSides, backgroundColor, backgroundImage, boxSides, color, parseBorder, px, toPx, unconverted, ZERO, type BoxSides, type Style } from "./styles";
+import { addSides, backgroundColor, backgroundImage, boxSides, color, fillColor, parseBorder, px, toPx, unconverted, ZERO, type BoxSides, type Style } from "./styles";
 
 /**
  * A box's style: background, border, corners, padding, margins, width and placement.
@@ -18,10 +18,12 @@ export function boxStyle(style: Style | undefined, options: { fitWidth?: () => n
   const image = backgroundImage(style, false);
   if (image) delete image.fullWidth;
   const radius = toPx(style.borderRadius);
-  const dropped = unconverted(style);
+  const fill = fillColor(style);
+  // A gradient shows as its first stop: the report says so.
+  const dropped = unconverted(style).map((what) => (what === "background gradient" && fill && !backgroundColor(style) ? `background gradient (filled with ${fill})` : what));
   return {
     ...(dropped.length ? { dropped } : {}),
-    background: backgroundColor(style),
+    background: fill,
     image,
     border: borders(style),
     radius: radius ? (typeof style.borderRadius === "string" && /\s/.test(style.borderRadius.trim()) ? style.borderRadius : px(radius)) : undefined,
@@ -82,7 +84,7 @@ export function borders(style: Style): Borders | undefined {
 
 /** Whether a box draws something around its content: a background (color or image) or a border. */
 export function drawsBox(style: Style): boolean {
-  const background = backgroundColor(style);
+  const background = fillColor(style);
   const shown = background !== undefined && !/^(transparent|rgba\([^)]*,\s*0\))$/i.test(background);
   return shown || backgroundImage(style, false) !== undefined || borders(style) !== undefined;
 }
@@ -139,13 +141,13 @@ export function textBox(block: Block, style: Style): Flow {
 
 /** Whether a text element's own box (background, border, max-width) shows. */
 export function needsTextBox(style: Style): boolean {
-  return toPx(style.maxWidth) !== undefined || Boolean(backgroundColor(style)) || Boolean(borders(style));
+  return toPx(style.maxWidth) !== undefined || Boolean(fillColor(style)) || Boolean(borders(style));
 }
 
 /** Inside a column of several, a text's own box can't be drawn: say what's lost. */
 export function noteTextBox(style: Style, ctx: MapCtx): void {
   if (toPx(style.maxWidth) !== undefined) ctx.report.note("text max-width dropped (text runs wider)", String(style.maxWidth));
-  if (backgroundColor(style)) ctx.report.note("text background dropped", backgroundColor(style));
+  if (fillColor(style)) ctx.report.note("text background dropped", fillColor(style));
   if (borders(style)) ctx.report.note("text border dropped");
 }
 

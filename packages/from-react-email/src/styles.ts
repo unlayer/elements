@@ -9,14 +9,20 @@ export type Style = Record<string, any>;
 /**
  * Desktop hiding must survive conversion as original HTML: `display: none` (Tailwind's
  * `hidden`), `visibility: hidden`, opacity 0, and a box that clips to nothing
- * (`max-height: 0; overflow: hidden`, a common way to hide content outside phones).
+ * (`max-height: 0; overflow: hidden`, a common way to hide content outside phones),
+ * and text only screen readers get (`sr-only`, or placed far off the page).
  */
 export function isHidden(style: Style): boolean {
   const value = (key: string) => String(style[key] ?? "").trim().replace(/\s*!\s*important$/i, "");
   if (/^none$/i.test(value("display")) || /^hidden$/i.test(value("visibility"))) return true;
   if (value("opacity") !== "" && Number.parseFloat(value("opacity")) === 0) return true;
   const clips = /^(hidden|clip)$/i.test(value("overflow")) || /^(hidden|clip)$/i.test(value("overflowY"));
-  return clips && (toPx(value("maxHeight")) === 0 || toPx(value("height")) === 0);
+  if (clips && (toPx(value("maxHeight")) === 0 || toPx(value("height")) === 0)) return true;
+  // Shown only to screen readers: positioned and clipped to nothing (`sr-only`), or moved far off the page.
+  if (!/^(absolute|fixed)$/i.test(value("position"))) return false;
+  if (/^rect\(\s*0(px)?[\s,]+0(px)?[\s,]+0(px)?[\s,]+0(px)?\s*\)$/i.test(value("clip")) || /^inset\(\s*(50|100)%\s*\)$/i.test(value("clipPath"))) return true;
+  if (clips && (toPx(value("width")) ?? 2) <= 1 && (toPx(value("height")) ?? 2) <= 1) return true;
+  return [value("left"), value("top")].some((v) => (toPx(v) ?? 0) <= -999);
 }
 
 /** Hidden on desktop and shown by a phone rule (`hidden mobile:block`, a `<style>` media query). */
@@ -161,9 +167,34 @@ export function gradientColor(style: Style | undefined): { color: string; solid:
   return { color: colors[0]!, solid: new Set(colors.map((c) => c!.toLowerCase())).size === 1 };
 }
 
-/** The page color: the Body's background color, else a gradient's, else white. A gradient it can't show is noted. */
-export function pageColor(style: Style, report: { note(reason: string, detail?: string): void }): string {
+/**
+ * A box's or a button's fill: its background color, else a gradient's first
+ * stop (as the page's is), the closest an Elements background shows. Without
+ * it, white text on a gradient would land on the white page.
+ */
+export function fillColor(style: Style | undefined): string | undefined {
+  return backgroundColor(style) ?? gradientColor(style)?.color;
+}
+
+/**
+ * A Container width Elements can't hold (`max-width: 100%` and no width in
+ * px): an email's content width is in px. The email keeps the width it gets,
+ * and says so. Call it only when neither width is in px.
+ */
+export function noteContainerWidth(style: Style, em: number, contentWidth: number, report: { note(reason: string, detail?: string): void }): void {
+  for (const value of [style.maxWidth, style.width]) {
+    if (typeof value !== "string" || !value.trim() || /^(auto|none|initial|unset|inherit)$/i.test(value.trim()) || toPx(value, em) !== undefined) continue;
+    report.note("style not converted", `Container width ${value.trim()} (the email's content is ${contentWidth}px wide)`);
+  }
+}
+
+/** The page color: the Body's background color, else a gradient's, else <Html>'s, else white. A gradient it can't show is noted. */
+export function pageColor(style: Style, report: { note(reason: string, detail?: string): void }, html?: Style): string {
   const plain = backgroundColor(style);
+  // A Body without a background of its own shows what's behind it: <Html>'s.
+  if (html && plain === undefined && !/gradient\(|url\(/i.test(String(style.backgroundImage ?? style.background ?? ""))) return pageColor(html, report);
+  // An email's page has a color, no image: where images don't load, the original shows that color too.
+  if (/url\(/i.test(String(style.backgroundImage ?? style.background ?? ""))) report.note("style not converted", `background image (Body, its color ${plain ?? "#ffffff"} shows)`);
   if (!/gradient\(/.test(String(style.backgroundImage ?? style.background ?? ""))) return plain ?? "#ffffff";
   const gradient = gradientColor(style);
   const page = plain ?? gradient?.color ?? "#ffffff";

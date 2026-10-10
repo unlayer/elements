@@ -7,6 +7,7 @@
  */
 
 import React from "react";
+import { renderToStaticMarkup } from "react-dom/server";
 
 /** React Email components the converter maps (by displayName). */
 export const REACT_EMAIL_COMPONENTS = new Set([
@@ -64,7 +65,7 @@ export async function expand(node: React.ReactNode, depth = 0): Promise<Node[]> 
 
   // Anything else renders like React would render it.
   if (type?.$$typeof === MEMO) return expand(React.createElement(type.type, props), depth + 1);
-  if (type?.$$typeof === FORWARD_REF) return expand(type.render(props, null), depth + 1);
+  if (type?.$$typeof === FORWARD_REF) return expand(await callSuspending(() => type.render(props, null)), depth + 1);
   if (type?.$$typeof === PROVIDER || type?.$$typeof === CONTEXT) return expand(props.children, depth + 1);
   if (typeof type === "function") {
     if (type.prototype?.isReactComponent) return expand(new type(props).render(), depth + 1);
@@ -114,7 +115,7 @@ async function toPlaceholders(node: React.ReactNode, types: Map<string, any>): P
   }
   // User components render now, so Tailwind sees their output.
   if (type?.$$typeof === MEMO) return toPlaceholders(React.createElement(type.type, props), types);
-  if (type?.$$typeof === FORWARD_REF) return toPlaceholders(type.render(props, null), types);
+  if (type?.$$typeof === FORWARD_REF) return toPlaceholders(await callSuspending(() => type.render(props, null)), types);
   if (typeof type === "function" && !type.prototype?.isReactComponent) {
     return toPlaceholders(await callSuspending(() => type(props)), types);
   }
@@ -134,11 +135,37 @@ function fromPlaceholders(node: React.ReactNode, types: Map<string, any>): React
   return React.cloneElement(element, undefined, ...kids);
 }
 
-/** Call `fn`, waiting out any promise it throws (React suspense). */
+/**
+ * Call a component in a throwaway render of its own, as React calls it: its
+ * hooks (useMemo, useId, useContext's default) work there, as they do when
+ * Elements renders the migrated template.
+ */
+export function callInRender<T>(fn: () => T): T {
+  let result: T | undefined;
+  let error: unknown;
+  let threw = false;
+  let ran = false;
+  const Probe = () => {
+    ran = true;
+    try {
+      result = fn();
+    } catch (cause) {
+      threw = true;
+      error = cause;
+    }
+    return null;
+  };
+  renderToStaticMarkup(React.createElement(Probe));
+  if (threw) throw error;
+  if (!ran) throw new Error("the component wasn't rendered");
+  return result as T;
+}
+
+/** Call `fn` in a render of its own, waiting out any promise it throws (React suspense). */
 export async function callSuspending<T>(fn: () => T): Promise<T> {
   for (let attempt = 0; attempt < 20; attempt++) {
     try {
-      return fn();
+      return callInRender(fn);
     } catch (thrown) {
       if (thrown && typeof (thrown as Promise<unknown>).then === "function") {
         await thrown;
@@ -181,7 +208,7 @@ export async function findTailwind(node: React.ReactNode, depth = 0): Promise<{ 
   if (typeof type === "string" || type === React.Fragment) return findTailwind(props.children, depth + 1);
   if (displayName(type) && REACT_EMAIL_COMPONENTS.has(displayName(type) as string)) return findTailwind(props.children, depth + 1);
   if (type?.$$typeof === MEMO) return findTailwind(React.createElement(type.type, props), depth + 1);
-  if (type?.$$typeof === FORWARD_REF) return findTailwind(type.render(props, null), depth + 1);
+  if (type?.$$typeof === FORWARD_REF) return findTailwind(await callSuspending(() => type.render(props, null)), depth + 1);
   if (typeof type === "function" && !type.prototype?.isReactComponent) {
     return findTailwind(await callSuspending(() => type(props)), depth + 1);
   }

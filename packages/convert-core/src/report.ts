@@ -3,6 +3,7 @@
  * components (editable in the visual editor) and what fell back, and why.
  */
 
+import type { StyleDifference } from "./cascade";
 import { contentNodes, type ElementNode } from "./tree";
 
 export interface ReportEntry {
@@ -38,6 +39,8 @@ export interface ConversionReport {
   missingAttributes?: string[];
   /** Links, image sources and image text only the conversion has. */
   addedAttributes?: string[];
+  /** Words the conversion shows in another style (size, weight, color, the background behind them, …). */
+  styleDifferences?: StyleDifference[];
   /**
    * Style values computed from props or state that the conversion can't keep,
    * with where they were. They change how the email looks: the check fails on them.

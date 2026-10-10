@@ -12,6 +12,7 @@ import {
   backgroundColor,
   boxSides,
   color,
+  fillColor,
   ownColor,
   fontFamilyProp,
   fontSizePx,
@@ -130,10 +131,12 @@ export function textProps(
  */
 export function withInlineStyles(html: Content, style: Style): Content {
   const css: string[] = [];
-  if (style.textTransform) css.push(`text-transform:${style.textTransform}`);
-  if (style.fontStyle && style.fontStyle !== "normal") css.push(`font-style:${style.fontStyle}`);
+  // A value that could end the attribute or the declaration (from props: `"><img …>`) is left out, as Elements does.
+  const safe = (value: unknown) => typeof value === "string" && !/[<>"'`\\{};$\n\r]/.test(value);
+  if (safe(style.textTransform)) css.push(`text-transform:${style.textTransform}`);
+  if (safe(style.fontStyle) && style.fontStyle !== "normal") css.push(`font-style:${style.fontStyle}`);
   const decoration = style.textDecoration ?? style.textDecorationLine;
-  if (decoration && decoration !== "none") css.push(`text-decoration:${decoration}`);
+  if (safe(decoration) && decoration !== "none") css.push(`text-decoration:${decoration}`);
   if (!css.length) return html;
   const open = `<span style="${css.join(";")}">`;
   return isExpr(html) ? expr(`\`${open}\${${html.$expr}}</span>\``) : `${open}${html}</span>`;
@@ -335,8 +338,8 @@ export function buttonBlock(href: unknown, label: Content | Parts, style: Style,
       "Button",
       {
         // React Email opens a button's link in a new tab unless it sets another target.
-        href: (typeof href === "string" || isExpr(href)) && typeof target === "string" && target !== "_blank" ? { name: "web", values: { href, target } } : href,
-        backgroundColor: backgroundColor(style) ?? "transparent",
+        href: (typeof href === "string" || isExpr(href)) && ((typeof target === "string" && target !== "_blank") || isExpr(target)) ? { name: "web", values: { href, target } } : href,
+        backgroundColor: fillColor(style) ?? "transparent",
         ...textProps(style, ctx, { lineHeight: "120%" }),
         // An inline-block link: placed by the parent's text-align (the start side by default).
         textAlign: (block ? alignOf(style) ?? start(ctx) : ctx.inherited.blockAlign ?? ctx.inherited.textAlign ?? start(ctx)) as string,
@@ -394,7 +397,7 @@ export function imageBlock(
       alt: attrs.alt,
       textAlign: align,
       // Elements opens an image's link in a new tab: another target is kept.
-      action: attrs.href !== undefined && typeof attrs.target === "string" && attrs.target !== "_blank" ? { name: "web", values: { href: attrs.href, target: attrs.target } } : attrs.href,
+      action: attrs.href !== undefined && ((typeof attrs.target === "string" && attrs.target !== "_blank") || isExpr(attrs.target)) ? { name: "web", values: { href: attrs.href, target: attrs.target } } : attrs.href,
     }),
     margin: { ...margin, left: centered ? 0 : margin.left, right: centered ? 0 : margin.right },
     mobileMargin: phoneSides(style, "margin", margin),

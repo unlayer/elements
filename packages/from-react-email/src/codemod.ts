@@ -50,7 +50,7 @@ import {
   type MapCtx,
   type Parts,
 } from "./map";
-import { addSides, backgroundColor, backgroundImage, boxSides, color, fontFamilyProp, fontSizePx, inherit, isHidden, margins, pageColor, phoneOnly, px, shownOnPhones, toPx, ZERO, type Style } from "./styles";
+import { addSides, backgroundColor, backgroundImage, boxSides, color, fillColor, fontFamilyProp, fontSizePx, inherit, isHidden, margins, noteContainerWidth, pageColor, phoneOnly, px, shownOnPhones, toPx, ZERO, type Style } from "./styles";
 import { inlineLocalComponents, type ModuleLoader } from "./components";
 import { inlineLocalJsx } from "./inline";
 import { splitConditionalClasses } from "./variants";
@@ -392,10 +392,20 @@ class Converter {
             classOwners.set(value, names);
           }
         } else if (node.initializer) {
-          // Classes built from values (`text-${tone}-500`) can't be resolved: lost. Others are noted.
+          // Classes built from values (`text-${tone}-500`), or picked by a value (`plan === "pro" ? "…" : undefined`,
+          // `active && "…"`, `tones[level]`), can't be kept: lost, the check fails. One that comes to nothing
+          // (`(true) ? undefined : "mb-9"` once inlined) has none; a component's own prop passed on is noted.
           const expression = ts.isJsxExpression(node.initializer) ? node.initializer.expression : undefined;
-          const built = expression && (ts.isTemplateExpression(unwrap(expression)) || (ts.isBinaryExpression(unwrap(expression)) && (unwrap(expression) as ts.BinaryExpression).operatorToken.kind === ts.SyntaxKind.PlusToken));
-          if (built) this.lose(node, node.getText());
+          const inner = expression && unwrap(expression);
+          const built = inner && (ts.isTemplateExpression(inner) || (ts.isBinaryExpression(inner) && inner.operatorToken.kind === ts.SyntaxKind.PlusToken));
+          const picked =
+            inner &&
+            (ts.isConditionalExpression(inner) ||
+              ts.isElementAccessExpression(inner) ||
+              (ts.isBinaryExpression(inner) && [ts.SyntaxKind.AmpersandAmpersandToken, ts.SyntaxKind.BarBarToken, ts.SyntaxKind.QuestionQuestionToken].includes(inner.operatorToken.kind)));
+          if (expression && this.comesToNothing(expression)) {
+            // No classes.
+          } else if (built || picked) this.lose(node, node.getText());
           else if (!(expression && this.classListCall(expression))) this.report.note("dynamic className", node.initializer.getText().slice(0, 60));
         }
       }
@@ -428,6 +438,17 @@ class Converter {
   // ============================================
 
   /** Evaluate literals, object/array literals and module constants. */
+  /** Whether a value is nothing (`undefined`, `null`, `false`) wherever it renders: through conditions it can work out. */
+  private comesToNothing(expression: ts.Expression): boolean {
+    const node = unwrap(expression);
+    if (nothing(node) || node.kind === ts.SyntaxKind.FalseKeyword) return true;
+    if (ts.isConditionalExpression(node)) {
+      const test = this.truthy(node.condition, 0);
+      return test !== undefined && this.comesToNothing(test ? node.whenTrue : node.whenFalse);
+    }
+    return false;
+  }
+
   private evaluate(node: ts.Expression | undefined, depth = 0): unknown {
     if (!node || depth > 20) return undefined;
     node = unwrap(node);
@@ -683,6 +704,15 @@ class Converter {
   }
 
   /** A prop as a value when static, else as code. */
+  /**
+   * A link's target, or what the element opens it in without one (`fallback`):
+   * from props, the same, where the prop is left out.
+   */
+  private target(jsx: Jsx, fallback: string): unknown {
+    const given = this.attr(jsx, "target");
+    return isExpr(given) ? expr(`${given.$expr} ?? ${JSON.stringify(fallback)}`) : given ?? fallback;
+  }
+
   private attr(jsx: Jsx, name: string): unknown {
     if (!jsx.attrs.has(name)) return undefined;
     const value = jsx.attrs.get(name);
@@ -900,12 +930,13 @@ class Converter {
     const sizes = [toPx(container?.style.maxWidth, em), toPx(container?.style.width, em)].filter((n): n is number => !!n && n > 0);
     // React Email's Container is 37.5em wide unless it says otherwise.
     const contentWidth = sizes.length ? Math.min(...sizes) : container ? 37.5 * em : 600;
+    if (container && !sizes.length) noteContainerWidth(container.style, em, contentWidth, this.report);
     const rootFont = (bodyStyle.fontFamily ?? container?.style.fontFamily ?? fontStack) as string | undefined;
     // `dir` from props (`dir={direction}`) is worked out where each block is aligned.
     const dir = this.hoistDirection(returned, document && this.attr(document, "dir"));
     const rtl = isExpr(dir) ? dir : /^rtl$/i.test(String(dir ?? "")) || undefined;
     const ctx: Ctx = { report: this.report, inherited: inherit({ fontSize: "16px", ...(rtl ? { rtl } : {}) }, bodyStyle), rootFont };
-    const page = pageColor(bodyStyle, this.report);
+    const page = pageColor(bodyStyle, this.report, document?.style);
     const rows = layout(this.flow(content, ctx), { contentWidth, report: this.report, background: backgroundImage(bodyStyle, true) ? undefined : page });
     return el(
       "Email",
@@ -1418,7 +1449,7 @@ class Converter {
         return [headingBlock(level, { html: content, plain: false, parts }, style, marginProps, ctx)];
       }
       case "Button":
-        return [buttonBlock(this.attr(jsx, "href"), this.buttonLabel(jsx.children, spanStyle(style, ctx)), style, ctx, this.attr(jsx, "target"))];
+        return [buttonBlock(this.attr(jsx, "href"), this.buttonLabel(jsx.children, spanStyle(style, ctx)), style, ctx, this.target(jsx, "_blank"))];
       case "Img":
         this.computed(jsx, "width");
         if (!hasWidth(this.attr(jsx, "width"), style)) return [{ node: this.fallback(jsx, ctx, "image without a width (its natural size isn't known)"), margin: ZERO, padding: ZERO }];
@@ -1443,11 +1474,11 @@ class Converter {
           if (borders(only.style)) return [{ node: this.fallback(jsx, ctx, "image with a border"), margin: ZERO, padding: ZERO }];
           this.computed(only, "width");
           // React Email's Link opens in a new tab unless it sets another target; a plain <a> keeps its own.
-          const target = this.attr(jsx, "target") ?? (jsx.name === "Link" ? "_blank" : "_self");
+          const target = this.target(jsx, jsx.name === "Link" ? "_blank" : "_self");
           return [imageBlock({ src: this.attr(only, "src"), alt: this.attr(only, "alt"), width: this.attr(only, "width"), height: this.attr(only, "height"), href: this.attr(jsx, "href"), target }, only.style, ctx)];
         }
-        if (backgroundColor(style) && (style.padding || style.paddingTop || style.paddingLeft)) {
-          return [buttonBlock(this.attr(jsx, "href"), this.buttonLabel(jsx.children, spanStyle(style, ctx)), style, ctx, this.attr(jsx, "target"))];
+        if (fillColor(style) && (style.padding || style.paddingTop || style.paddingLeft)) {
+          return [buttonBlock(this.attr(jsx, "href"), this.buttonLabel(jsx.children, spanStyle(style, ctx)), style, ctx, this.target(jsx, jsx.name === "Link" ? "_blank" : "_self"))];
         }
         return [paragraphBlock(this.inlineContent([jsx.node]), {}, ctx, ZERO)];
       }
@@ -1503,7 +1534,7 @@ class Converter {
       const style = jsx.style;
       const kids = this.flatten(jsx.children);
       const onlyImage = kids.length === 1 && (ts.isJsxElement(kids[0]) || ts.isJsxSelfClosingElement(kids[0])) && ["Img", "img"].includes(this.read(kids[0] as ts.JsxElement).name ?? this.read(kids[0] as ts.JsxElement).tag);
-      const buttonLike = backgroundColor(style) && (style.padding || style.paddingTop || style.paddingLeft);
+      const buttonLike = fillColor(style) && (style.padding || style.paddingTop || style.paddingLeft);
       return !onlyImage && !buttonLike && style.display !== "block";
     }
     return false;
@@ -1711,7 +1742,8 @@ class Converter {
           if (jsx.name === "Link" || tag === "a") {
             const target = this.attr(jsx, "target");
             if (isExpr(target)) this.needsEscape = true;
-            if (isExpr(target)) attrs.push({ text: this.codeAttribute("target", target.$expr), code: true });
+            // From props: where it's left out, a Link still opens a new tab.
+            if (isExpr(target)) attrs.push({ text: this.codeAttribute("target", jsx.name === "Link" ? `${target.$expr} ?? "_blank"` : target.$expr), code: true });
             else if (typeof target === "string" || jsx.name === "Link") attrs.push({ text: `target="${escapeAttribute(typeof target === "string" ? target : "_blank")}"` });
           }
           // With code in it, the tag is a template literal (fixed text escaped for it); an attribute

@@ -188,7 +188,7 @@ describe("the report", () => {
     const cols = h(Row, null, h(Column, { style: { verticalAlign: "middle" } }, h(Text, null, "A")), h(Column, null, h(Text, { style: { textShadow: "0 0 1px red" } }, "B")));
     const { report } = await rows(h(Container, null, h(Section, { style: box }, cols)));
     const details = report.notes.filter((n) => n.reason === "style not converted").map((n) => n.detail);
-    expect(details).toEqual(expect.arrayContaining(["box-shadow (Section)", "background gradient (Section)", "text-shadow (text)"]));
+    expect(details).toEqual(expect.arrayContaining(["box-shadow (Section)", "background gradient (filled with #fff) (Section)", "text-shadow (text)"]));
     expect(report.notes).toContainEqual({ reason: "column vertical alignment (Elements email columns align to the top)", detail: "middle" });
   });
 });

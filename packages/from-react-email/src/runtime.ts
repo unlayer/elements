@@ -37,7 +37,7 @@ import {
   type MapCtx,
   keptMarkup,
 } from "./map";
-import { addSides, backgroundColor, backgroundImage, boxSides, color, fontFamilyProp, fontSizePx, inherit, isHidden, margins, pageColor, phoneOnly, px, shownOnPhones, toPx, ZERO, type Style } from "./styles";
+import { addSides, backgroundColor, backgroundImage, boxSides, color, fillColor, fontFamilyProp, fontSizePx, inherit, isHidden, margins, noteContainerWidth, pageColor, phoneOnly, px, shownOnPhones, toPx, ZERO, type Style } from "./styles";
 import type { BoxSides } from "@unlayer/convert-core";
 import { phoneSides, unheldPhoneStyles, withPhoneStyles } from "./phone-styles";
 import { addRules, classStyle, overInline, phoneRules, stacksOnPhones, stylesheetRules, underInline, type RuleOrder } from "./tailwind";
@@ -138,6 +138,7 @@ export async function convertElement(element: React.ReactElement): Promise<Runti
   const sizes = [toPx(containerStyle.maxWidth, em), toPx(containerStyle.width, em)].filter((n): n is number => !!n && n > 0);
   // React Email's Container is 37.5em wide unless it says otherwise.
   const contentWidth = sizes.length ? Math.min(...sizes) : container ? 37.5 * em : 600;
+  if (!sizes.length) noteContainerWidth(containerStyle, em, contentWidth, report);
 
   const rootFont = bodyStyle.fontFamily ?? containerStyle.fontFamily ?? fontStack;
   const rtl = /^rtl$/i.test(String(document?.props.dir ?? ""));
@@ -146,7 +147,7 @@ export async function convertElement(element: React.ReactElement): Promise<Runti
   const ctx: Ctx = { report, inherited: inherit({ fontSize: "16px", ...(rtl ? { rtl } : {}) }, bodyStyle), rootFont, phone, hidden, hides };
 
   const fonts = fontStylesheets(fontSpecs, linked);
-  const page = pageColor(bodyStyle, report);
+  const page = pageColor(bodyStyle, report, (document?.kind === "component" && document.props.style) || undefined);
   const rows = layout(flowFrom(body ? children(body) : nodes, ctx), { contentWidth, report, background: backgroundImage(bodyStyle, true) ? undefined : page });
   const rootProps: Record<string, unknown> = {
     backgroundColor: page,
@@ -435,7 +436,7 @@ function isInline(node: Exclude<Node, { kind: "text" }>): boolean {
   if ((name === "Text" || name === "p") && inlineDisplay(node.props.style ?? {})) return true;
   if (name === "Link" || name === "a") {
     const style: Style = node.props.style ?? {};
-    const buttonLike = backgroundColor(style) && (style.padding || style.paddingTop || style.paddingLeft);
+    const buttonLike = fillColor(style) && (style.padding || style.paddingTop || style.paddingLeft);
     const onlyImage = node.children.length === 1 && node.children[0].kind !== "text" && ["Img", "img"].includes(nameOf(node.children[0]));
     return !buttonLike && !onlyImage && style.display !== "block";
   }
@@ -534,7 +535,7 @@ function linkBlock(node: Exclude<Node, { kind: "text" }>, style: Style, ctx: Ctx
     // React Email's Link opens in a new tab unless it sets another target; a plain <a> keeps its own.
     return imageFrom(only, only.props.style ?? {}, ctx, node.props.href, node.props.target ?? (node.kind === "component" ? "_blank" : "_self"));
   }
-  if (backgroundColor(style) && (style.padding || style.paddingTop || style.paddingLeft)) {
+  if (fillColor(style) && (style.padding || style.paddingTop || style.paddingLeft)) {
     return buttonBlock(node.props.href, buttonLabel(node, style, ctx), style, ctx, node.props.target);
   }
   return paragraphBlock(htmlOf(node), {}, { ...ctx }, ZERO);

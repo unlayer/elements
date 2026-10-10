@@ -837,12 +837,9 @@ async function originalFailure(Original: any, props: Record<string, unknown>, cw
   }
 }
 
-/** Why a migrated template doesn't render, in terms of what to change. */
+/** Why a migrated template doesn't render. */
 function renderFailure(error: unknown): string {
-  const text = message(error);
-  // Elements calls a template as a function to read its root's settings, outside a React render.
-  if (/Invalid hook call|reading 'use[A-Z]\w*'/.test(text)) return "it calls React hooks (useId, useMemo, …), which Elements templates can't use yet: compute those values outside the template and pass them as props";
-  return text;
+  return message(error);
 }
 
 /** The migrated code with the source's line endings: CRLF when most of its lines end that way. */
