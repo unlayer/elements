@@ -567,18 +567,23 @@ export default function Hi({ name }: { name: string }) {
 }
 Hi.PreviewProps = { name: "Alex" };
 `;
-    const migrated = (text: string) => `import { Button, Column, Email, Paragraph, Row } from "@unlayer/react-elements";
+    // The original's look: a white page, and a button that looks like a link (React Email's Button has no colors of its own).
+    const migrated = (text: string, button = 'backgroundColor="transparent" color="#0000ee" fontSize="16px"') => `import { Button, Column, Email, Paragraph, Row } from "@unlayer/react-elements";
 export default function Hi({ name }: { name: string }) {
-  return <Email><Row><Column><Paragraph>${text}</Paragraph><Button href="https://example.com">Start</Button></Column></Row></Email>;
+  return <Email backgroundColor="#ffffff"><Row><Column><Paragraph>${text}</Paragraph><Button href="https://example.com" ${button}>Start</Button></Column></Row></Email>;
 }
 `;
-    const dir = project({ "emails/hi.tsx": original, "migrated/good.tsx": migrated("Hello {name}, welcome aboard."), "migrated/bad.tsx": migrated("Hello {name}, welcome.") });
+    const dir = project({ "emails/hi.tsx": original, "migrated/good.tsx": migrated("Hello {name}, welcome aboard."), "migrated/bad.tsx": migrated("Hello {name}, welcome."), "migrated/styled.tsx": migrated("Hello {name}, welcome aboard.", "") });
     const good = io(dir);
     expect(await main(["compare", "emails/hi.tsx", "migrated/good.tsx"], good, lib)).toBe(0);
     expect(good.out).toMatch(/✓ migrated\/good\.tsx against emails\/hi\.tsx: same words, links and images/);
     const bad = io(dir);
     expect(await main(["compare", "emails/hi.tsx", "migrated/bad.tsx"], bad, lib)).toBe(2);
     expect(bad.out).toContain('lost text: "aboard"');
+    // The same words, with Elements' own button colors: shown in another style.
+    const styled = io(dir);
+    expect(await main(["compare", "emails/hi.tsx", "migrated/styled.tsx"], styled, lib)).toBe(2);
+    expect(styled.out).toMatch(/shown in another style: .*color #0000ee → #ffffff on "Start"/);
     const usage = io(dir);
     expect(await main(["compare", "emails/hi.tsx"], usage, lib)).toBe(1);
   });

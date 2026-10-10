@@ -64,6 +64,14 @@ and passed the check, 1 for a usage error or when no templates were found,
 2 when a template failed to convert or the check found a problem.`;
 
 /** What happened to one file. */
+/** A style the migrated template shows differently, with the words it's on. */
+export interface StyleChange {
+  property: string;
+  original: string;
+  converted: string;
+  words: string[];
+}
+
 export interface FileResult {
   file: string;
   status: "migrated" | "check-failed" | "failed" | "skipped";
@@ -95,10 +103,14 @@ export interface FileResult {
   addedAttributes?: string[];
   /** Style values computed from props that the migrated template drops: they change how it looks. */
   lostStyles?: string[];
+  /** Text the migrated template shows in another style (size, bold, italics, letter case, underline, color, background, a link's target). */
+  styles?: StyleChange[];
+  /** How much of the styles the check compared: words, and properties left out because one side couldn't be worked out. */
+  styleCoverage?: { words: number; unknown: number };
   /** Blocks the visual editor wouldn't get. */
   designWarnings?: string[];
   /** Problems with a boolean prop flipped (branches the preview props don't take). */
-  variants?: Array<{ change: string; missing: string[]; added: string[]; missingAttributes: string[]; error?: string }>;
+  variants?: Array<{ change: string; missing: string[]; added: string[]; missingAttributes: string[]; styles?: StyleChange[]; error?: string }>;
 }
 
 interface Options {
@@ -508,7 +520,7 @@ async function migrateFile(input: Input, options: Options, lib: Library, io: Io,
     const result: FileResult = {
       file: name,
       status:
-        verification.missing.length || verification.added.length || verification.missingAttributes.length || verification.addedAttributes.length || verification.designWarnings.length || verification.variants.length || report.lostStyles?.length
+        verification.missing.length || verification.added.length || verification.missingAttributes.length || verification.addedAttributes.length || verification.styles.length || verification.designWarnings.length || verification.variants.length || report.lostStyles?.length
           ? "check-failed"
           : "migrated",
       editable: report.nativeRatio,
@@ -524,6 +536,8 @@ async function migrateFile(input: Input, options: Options, lib: Library, io: Io,
       missingAttributes: verification.missingAttributes,
       addedAttributes: verification.addedAttributes,
       ...(report.lostStyles?.length ? { lostStyles: report.lostStyles } : {}),
+      ...(verification.styles.length ? { styles: verification.styles } : {}),
+      styleCoverage: verification.styleCoverage,
       variants: verification.variants,
       designWarnings: verification.designWarnings,
       ...(options.design && verification.editorFonts.length ? { fonts: verification.editorFonts } : {}),
@@ -595,6 +609,7 @@ async function compare(paths: string[], args: Args, io: Io, library?: Library): 
       ...(check.added.length ? [`extra text: ${quote(check.added)}`] : []),
       ...(check.missingAttributes.length ? [`lost links/images: ${quote(check.missingAttributes)}`] : []),
       ...(check.addedAttributes.length ? [`extra links/images: ${quote(check.addedAttributes)}`] : []),
+      ...(check.styles.length ? [`shown in another style: ${styleChanges(check.styles)}`] : []),
       ...(check.designWarnings.length ? check.designWarnings.map((w) => `the editor wouldn't get: ${w}`) : []),
       ...check.variants.map((v) => `with ${v.change}: ${variantProblems(v)}`),
     ];
@@ -643,6 +658,7 @@ function line(result: FileResult): string {
         ...(result.missingAttributes?.length ? [`lost links/images: ${quote(result.missingAttributes)}`] : []),
         ...(result.addedAttributes?.length ? [`extra links/images: ${quote(result.addedAttributes)}`] : []),
         ...(result.lostStyles?.length ? [`lost styles: ${result.lostStyles.join("; ")}`] : []),
+        ...(result.styles?.length ? [`shown in another style: ${styleChanges(result.styles)}`] : []),
         ...(result.designWarnings?.length ? [`${result.designWarnings.length} block(s) the editor wouldn't get`] : []),
         ...(result.variants ?? []).map((v) => `with ${v.change}: ${variantProblems(v)}`),
       ];
@@ -683,6 +699,8 @@ function markdownReport(results: FileResult[]): string {
     if (r.missingAttributes?.length) lines.push(`**Lost links or images:** ${quote(r.missingAttributes)}`, "");
     if (r.addedAttributes?.length) lines.push(`**Extra links or images:** ${quote(r.addedAttributes)}`, "");
     if (r.lostStyles?.length) lines.push("**Lost styles** (change how it looks):", ...r.lostStyles.map((s) => `- ${s}`), "");
+    if (r.styles?.length) lines.push("**Shown in another style:**", ...r.styles.map((c) => `- ${c.property}: ${c.original} → ${c.converted}, on ${quote(c.words)}`), "");
+    if (r.styleCoverage?.words) lines.push(`Styles compared on ${r.styleCoverage.words} words${r.styleCoverage.unknown ? ` (${r.styleCoverage.unknown} values couldn't be worked out, and were left out)` : ""}.`, "");
     if (r.designWarnings?.length) lines.push("**The editor wouldn't get:**", ...r.designWarnings.map((w) => `- ${w}`), "");
     if (r.variants?.length) {
       lines.push("**With a prop flipped:**", ...r.variants.map((v) => `- \`${v.change}\`: ${variantProblems(v)}`), "");
@@ -712,7 +730,13 @@ function variantProblems(variant: NonNullable<FileResult["variants"]>[number]): 
     ...(variant.missing.length ? [`lost text: ${quote(variant.missing)}`] : []),
     ...(variant.added.length ? [`extra text: ${quote(variant.added)}`] : []),
     ...(variant.missingAttributes.length ? [`lost links/images: ${quote(variant.missingAttributes)}`] : []),
+    ...(variant.styles?.length ? [`shown in another style: ${styleChanges(variant.styles)}`] : []),
   ].join("; ");
+}
+
+/** Style changes in a line: "color #e11d48 → #000000 on "Hello", "world"". */
+function styleChanges(changes: StyleChange[]): string {
+  return changes.map((c) => `${c.property} ${c.original} → ${c.converted} on ${quote(c.words)}`).join("; ");
 }
 
 function quote(words: string[]): string {
