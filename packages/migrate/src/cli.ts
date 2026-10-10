@@ -8,8 +8,8 @@
  */
 
 import { isUtf8 } from "node:buffer";
-import { existsSync, readFileSync, realpathSync } from "node:fs";
-import { lstat, mkdir, open, readFile, readdir, realpath, rename, rm, rmdir, stat } from "node:fs/promises";
+import { existsSync, readFileSync, realpathSync, rmSync, rmdirSync } from "node:fs";
+import { lstat, mkdir, open, readFile, readdir, realpath, rename, rm, stat } from "node:fs/promises";
 import { randomUUID } from "node:crypto";
 import Module, { createRequire } from "node:module";
 import { tmpdir } from "node:os";
@@ -321,27 +321,61 @@ async function writeDestination(path: string, text: string, destinations: Destin
   await checkDestination(path, destinations);
   await mkdir(dirname(path), { recursive: true });
   await checkDestination(path, destinations);
+  // A new name each time: removing it never removes someone else's file.
   const temporary = join(dirname(path), `.${basename(path)}.unlayer-write-${randomUUID()}`);
-  let created = false;
+  const remove = () => rmSync(temporary, { force: true });
+  const release = removedOnExit(remove);
   try {
     const existing = await fileInfo(path);
     if (existing && !destinations.get(path)?.replace) throw new Error(`${path} appeared during the run: pass --force to replace it`);
     await writeExclusive(temporary, text, existing?.mode);
-    created = true;
     await checkDestination(path, destinations);
     await rename(temporary, path);
   } finally {
-    if (created) await rm(temporary, { force: true });
+    release();
+    remove();
   }
 }
 
-async function cleanProbeDirectories(directory: string, firstCreated: string | undefined): Promise<void> {
+function cleanProbeDirectories(directory: string, firstCreated: string | undefined): void {
   if (!firstCreated) return;
   while (true) {
-    try { await rmdir(directory); } catch { return; } // Never remove a directory that acquired content.
+    try { rmdirSync(directory); } catch { return; } // Never remove a directory that acquired content.
     if (directory === firstCreated) return;
     directory = dirname(directory);
   }
+}
+
+// Temporary files go when the run ends however it ends: an error, Ctrl-C, a kill.
+const cleanups = new Set<() => void>();
+const SIGNALS = ["SIGINT", "SIGTERM", "SIGHUP"] as const;
+
+function cleanUp(): void {
+  for (const cleanup of cleanups) {
+    try { cleanup(); } catch { /* the rest still go */ }
+  }
+  cleanups.clear();
+}
+
+function interrupted(signal: NodeJS.Signals): void {
+  cleanUp();
+  watchExit(false);
+  // End as the signal would have without this handler.
+  process.kill(process.pid, signal);
+}
+
+function watchExit(on: boolean): void {
+  for (const signal of SIGNALS) process[on ? "on" : "off"](signal, interrupted);
+  process[on ? "on" : "off"]("exit", cleanUp);
+}
+
+/** Run `cleanup` (synchronous) if the process ends before the returned release is called. */
+function removedOnExit(cleanup: () => void): () => void {
+  if (!cleanups.size) watchExit(true);
+  cleanups.add(cleanup);
+  return () => {
+    if (cleanups.delete(cleanup) && !cleanups.size) watchExit(false);
+  };
 }
 
 interface PendingWrite {
@@ -401,18 +435,28 @@ async function migrateFile(input: Input, options: Options, lib: Library, io: Io,
     const missing = [...new Set([...code.matchAll(/from\s+["']((?:@react-email\/[^"'/]+|react-email))(?:\/[^"']*)?["']/g)].map((m) => m[1]))].filter((name) => !hasPackage(file, name));
     if (missing.length) return { file: name, status: "failed", reason: `the migrated template imports ${missing.join(", ")}, which this project doesn't have: install it (npm install ${missing.join(" ")})` };
     const extension = extname(file);
+    // A new name each time: removing it never removes someone else's file.
     const probe = join(dirname(target), `.${basename(file, extension)}.unlayer-migrate-${randomUUID()}${extension}`);
-    let probeCreated = false;
     let firstCreated: string | undefined;
+    const removeProbe = () => {
+      rmSync(probe, { force: true });
+      cleanProbeDirectories(dirname(probe), firstCreated);
+    };
+    const releaseProbe = removedOnExit(removeProbe);
     let verification: Awaited<ReturnType<Library["verifyConversion"]>>;
     let design: unknown;
     let mergeTags: { used: string[]; kept: string[] } | undefined;
     try {
       if (writing) await checkDestination(target, destinations);
-      firstCreated = await mkdir(dirname(probe), { recursive: true });
-      if (writing) await checkDestination(target, destinations);
-      await writeExclusive(probe, code);
-      probeCreated = true;
+      try {
+        firstCreated = await mkdir(dirname(probe), { recursive: true });
+        if (writing) await checkDestination(target, destinations);
+        await writeExclusive(probe, code);
+      } catch (error) {
+        const code = (error as NodeJS.ErrnoException).code;
+        if (!code || !["EACCES", "EPERM", "EROFS"].includes(code)) throw error;
+        return { file: name, status: "failed", reason: `can't write a temporary copy ${target === file ? "next to it" : "in its output folder"} to check it (read-only folder)` };
+      }
       const migrated = templateComponent(defaultExport(await importFile(probe, io.cwd, release)));
       // Checked as exported (memo and forwardRef included), the way users render it.
       const Migrated = migrated?.exported;
@@ -435,8 +479,8 @@ async function migrateFile(input: Input, options: Options, lib: Library, io: Io,
     } catch (error) {
       return { file: name, status: "failed", reason: `the migrated template doesn't render: ${renderFailure(error)}` };
     } finally {
-      if (probeCreated) await rm(probe, { force: true });
-      await cleanProbeDirectories(dirname(probe), firstCreated);
+      releaseProbe();
+      removeProbe();
     }
 
     const report = converted.report;
@@ -813,10 +857,10 @@ async function importFile(
       createRequire(import.meta.url).resolve("@unlayer/react-elements"),
     ];
   }
-  let created = false;
+  const removeConfig = () => rmSync(tsconfig, { force: true });
+  const releaseConfig = removedOnExit(removeConfig);
   try {
     const handle = await open(tsconfig, "wx");
-    created = true;
     try {
       await handle.writeFile(
         JSON.stringify({
@@ -861,7 +905,8 @@ async function importFile(
     release.push(scope);
     return scope.require(path, pathToFileURL(join(cwd, "noop.js")));
   } finally {
-    if (created) await rm(tsconfig, { force: true });
+    releaseConfig();
+    removeConfig();
   }
 }
 

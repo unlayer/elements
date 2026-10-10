@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it } from "vitest";
 import fs from "node:fs";
 import path from "node:path";
-import { execFile } from "node:child_process";
+import { execFile, spawn } from "node:child_process";
 import { promisify } from "node:util";
 import { tmpdir } from "node:os";
 import * as lib from "@unlayer/from-react-email";
@@ -157,6 +157,43 @@ describe("encoding", () => {
     const write = io(dir);
     expect(await main(["emails", "--write"], write, lib), write.out + write.err).toBe(0);
     expect(fs.readFileSync(path.join(dir, "emails/welcome.tsx"), "utf8")).not.toMatch(/[^\r]\n/);
+  });
+});
+
+describe("the temporary copy a check loads", () => {
+  it.each(["SIGINT", "SIGTERM"] as const)("is removed when the run gets %s (built CLI)", async (signal) => {
+    const dir = project({ "package.json": '{"name":"signal-fixture","private":true,"type":"module"}' }, true);
+    const loaded = path.join(dir, "probe-loaded");
+    fs.mkdirSync(path.join(dir, "emails"));
+    // The copy waits once loaded, so the run is interrupted while it's there.
+    fs.writeFileSync(path.join(dir, "emails/slow.tsx"), `import { Html, Body, Text } from "@react-email/components";
+import { writeFileSync } from "node:fs";
+if (import.meta.url.includes(".unlayer-migrate-")) { writeFileSync(${JSON.stringify(loaded)}, "loaded"); await new Promise((done) => setTimeout(done, 60_000)); }
+export default function Slow() { return <Html><Body><Text>Slow</Text></Body></Html>; }`);
+    fs.mkdirSync(path.join(dir, "node_modules"));
+    for (const name of ["react", "react-dom", "@react-email"]) {
+      fs.symlinkSync(path.resolve(import.meta.dirname, "../node_modules", name), path.join(dir, "node_modules", name));
+    }
+    const child = spawn(process.execPath, [path.resolve(import.meta.dirname, "../dist/bin.js"), "emails"], { cwd: dir });
+    const exited = new Promise<unknown>((done) => child.on("exit", (code, received) => done(received ?? code)));
+    for (let waited = 0; !fs.existsSync(loaded) && waited < 30_000; waited += 50) await new Promise((done) => setTimeout(done, 50));
+    expect(fs.readdirSync(path.join(dir, "emails")).filter((name) => name.includes(".unlayer-migrate-"))).toHaveLength(1);
+    child.kill(signal);
+    expect(await exited).toBe(signal);
+    expect(fs.readdirSync(path.join(dir, "emails"))).toEqual(["slow.tsx"]);
+  }, 60_000);
+
+  it.skipIf(process.getuid?.() === 0)("fails the template with a reason when its folder is read-only", async () => {
+    const dir = project({ "emails/welcome.tsx": good });
+    fs.chmodSync(path.join(dir, "emails"), 0o555);
+    try {
+      const out = io(dir);
+      expect(await main(["emails"], out, lib), out.out + out.err).toBe(2);
+      expect(out.out).toContain("✗ emails/welcome.tsx: can't write a temporary copy next to it to check it (read-only folder)");
+      expect(fs.readdirSync(path.join(dir, "emails"))).toEqual(["welcome.tsx"]);
+    } finally {
+      fs.chmodSync(path.join(dir, "emails"), 0o755);
+    }
   });
 });
 
