@@ -8,7 +8,9 @@ import { nextHtmlId } from "../utils/create-component";
 import { bodyContentWidthPx } from "../utils/image-sizing";
 import type { DeviceProps, SizeInput } from "../types";
 import { ROW_DEFAULTS, BODY_DEFAULTS } from "../utils/container-defaults";
-import { drivenByReact, expandChildren, looseText } from "../utils/expand-children";
+import { looseText } from "../utils/render-scope";
+import { collecting } from "../utils/collect";
+import { recordContainer } from "../utils/record";
 
 /**
  * Row - Container for columns in a layout
@@ -181,7 +183,7 @@ function processChildren(
   if (!children) return "";
 
   let innerHTML = "";
-  const childrenArray = React.Children.toArray(expandChildren(children));
+  const childrenArray = React.Children.toArray(children);
 
   childrenArray.forEach((child, index) => {
     if (!React.isValidElement(child)) {
@@ -249,14 +251,13 @@ function renderRow(props: RowProps): React.ReactElement | null {
   // Determine cells from layout or props. With neither, default to one equal
   // cell PER <Column> child (mirroring renderToJson) — `[1]` regardless of column
   // count left the 2nd/3rd column with no cell, rendering width="NaN".
-  // Columns written in the Row, from Fragments and from components alike.
-  const columnCount = React.Children.toArray(expandChildren(children)).filter(
+  // Its Columns, as React rendered them (see normalize.tsx).
+  const columnCount = React.Children.toArray(children).filter(
     (c) => React.isValidElement(c) && /^Column$/.test((c.type as any)?.displayName || (c.type as any)?.name || "")
   ).length;
   let cells: number[];
   if (layout) {
-    // Columns as written count too, as before (a Column shown under a condition leaves its place: `{image && <Column>}`).
-    validateColumnLayout(layout, columnCount === layout.expectedColumns ? columnCount : React.Children.count(children));
+    validateColumnLayout(layout, columnCount);
     cells = layout.cells;
   } else if (propsCells) {
     cells = propsCells;
@@ -314,22 +315,8 @@ function renderRow(props: RowProps): React.ReactElement | null {
   }
 }
 
-// The ids allocated when a Row's render started, by its props: React runs the same render again
-// (same props) when a component in it sets state while rendering, and it must get the same ids.
-const idsAtStart = new WeakMap<object, Record<string, number>>();
-
-// Rendered by React: the components in its columns are called in this render (see drivenByReact).
-const Row: React.FC<RowProps> = (props) => {
-  const ids = (props._config as { __ids?: Record<string, number> } | undefined)?.__ids;
-  if (ids) {
-    const start = idsAtStart.get(props);
-    if (start) {
-      for (const key of Object.keys(ids)) delete ids[key];
-      Object.assign(ids, start);
-    } else idsAtStart.set(props, { ...ids });
-  }
-  return drivenByReact(() => renderRow(props));
-};
+// While a template is collected, a Row records itself (see normalize.tsx); then it renders the collected tree.
+const Row: React.FC<RowProps> = (props) => (collecting() ? recordContainer("row", props) : renderRow(props));
 
 Row.displayName = "Row";
 

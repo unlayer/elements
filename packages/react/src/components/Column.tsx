@@ -5,7 +5,9 @@ import { UNLAYER_RENDER_KEY, UNLAYER_CONFIG_KEY, nextHtmlId } from "../utils/cre
 import { mapSemanticProps, type SemanticProps } from "../utils/semantic-props";
 import type { DeviceProps, SizeInput, BorderInput } from "../types";
 import { COLUMN_DEFAULTS } from "../utils/container-defaults";
-import { expandChildren, looseText } from "../utils/expand-children";
+import { looseText } from "../utils/render-scope";
+import { collecting } from "../utils/collect";
+import { recordContainer } from "../utils/record";
 import { DEFAULT_CONTAINER_PADDING } from "../utils/image-sizing";
 
 /** Unlayer's default content-block padding when a block sets none. */
@@ -80,6 +82,7 @@ export type ColumnProps = Omit<SemanticProps<ColumnValues>, "padding" | "border"
 };
 
 export const Column: React.FC<ColumnProps> = (props) => {
+  if (collecting()) return recordContainer("column", props);
   const {
     children,
     index = 0,
@@ -117,7 +120,7 @@ export const Column: React.FC<ColumnProps> = (props) => {
   let innerHTML = "";
   if (children) {
     try {
-      const childrenArray = React.Children.toArray(expandChildren(children));
+      const childrenArray = React.Children.toArray(children);
 
       childrenArray.forEach((child, childIndex) => {
         if (typeof child === "string" || typeof child === "number") {

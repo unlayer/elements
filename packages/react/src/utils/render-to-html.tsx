@@ -6,7 +6,7 @@ import { htmlToPlainText } from "@unlayer-internal/shared-elements";
 import type { RenderMode } from "@unlayer-internal/shared-elements";
 import { extractHeadFromTree } from "./extract-head";
 import { htmlRoot } from "./unwrap-root";
-import { withRenderScope } from "./expand-children";
+import { withRenderScope } from "./render-scope";
 import { textDirectionOf } from "./create-component";
 import {
   emailLayout,

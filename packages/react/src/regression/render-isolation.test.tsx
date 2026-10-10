@@ -125,16 +125,15 @@ describe("an email rendered inside a component", () => {
     return <Html html={renderToHtmlParts(<Email><Row><Column><Paragraph>{`Signed ${who}`}</Paragraph></Column></Row></Email>).body} />;
   };
 
-  it("calls a component again in a render of its own when React's production build says hooks can't run (#321)", () => {
-    let calls = 0;
-    // As React's minified build throws after a render of react-dom's own ran in the Row's pass.
+  it("renders a component that runs a render of react-dom's own before its hooks (as email libraries do)", () => {
     const Late = () => {
-      calls++;
-      if (calls === 1) throw new Error("Minified React error #321; visit https://react.dev/errors/321 for the full message");
-      return <Paragraph>Still here</Paragraph>;
+      const bold = renderToStaticMarkup(<b>bold</b>);
+      const [text] = useState("Still here");
+      return <Paragraph>{`${text} ${bold.length}`}</Paragraph>;
     };
-    const html = renderToHtml(<Email><Row><Column><Paragraph>First</Paragraph><Late /></Column></Row></Email>);
-    expect(html).toContain("Still here");
+    const email = <Email><Row><Column><Paragraph>First</Paragraph><Late /></Column></Row></Email>;
+    expect(renderToHtml(email)).toContain("Still here 11");
+    expect(JSON.stringify(renderToJson(email))).toContain("Still here 11");
   });
 
   it("leaves the components after it in the column, and their hooks, as they were", () => {

@@ -7,6 +7,8 @@
  */
 
 import React from "react";
+import { collecting } from "./collect";
+import { recordBlock } from "./record";
 import type { ExporterName } from "@unlayer/types";
 
 /** Exporter map keyed by display mode. Defined locally until added to @unlayer/types. */
@@ -396,6 +398,7 @@ export function createItemComponent<
   const ItemComponent: React.FC<ItemComponentProps<TSemanticProps>> = (
     props
   ) => {
+    if (collecting()) return recordBlock(ItemComponent, props as Record<string, any>);
     return renderFn(props);
   };
 

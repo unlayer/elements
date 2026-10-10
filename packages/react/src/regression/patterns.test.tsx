@@ -90,7 +90,7 @@ describe("a template or wrapper named like an Elements component (`function Emai
 });
 
 describe("components inside components", () => {
-  it("render however many Fragments they return, and leave out only what's nested too deep", () => {
+  it("render however many Fragments they return, however deep", () => {
     const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
     try {
       const nest = (levels: number) => {
@@ -101,18 +101,14 @@ describe("components inside components", () => {
         }
         return <Email><Row><Column><Paragraph>Top</Paragraph></Column></Row><Inner /></Email>;
       };
-      // 30 components, each returning a Fragment: all there.
-      for (const output of [renderToHtml(nest(30)), JSON.stringify(renderToJson(nest(30)))]) {
-        expect(output).toContain("Top");
-        expect(output).toContain("Deep");
+      // Each component returns a Fragment: React renders them all.
+      for (const levels of [30, 60, 200]) {
+        for (const output of [renderToHtml(nest(levels)), JSON.stringify(renderToJson(nest(levels)))]) {
+          expect(output, `${levels}`).toContain("Top");
+          expect(output, `${levels}`).toContain("Deep");
+        }
       }
       expect(warn).not.toHaveBeenCalled();
-      // 60: past the limit, what's deeper is left out, and the rest renders.
-      for (const output of [renderToHtml(nest(60)), JSON.stringify(renderToJson(nest(60)))]) {
-        expect(output).toContain("Top");
-        expect(output).not.toContain("Deep");
-      }
-      expect(warn).toHaveBeenCalledWith(expect.stringContaining("nested more than 50 deep"));
     } finally {
       warn.mockRestore();
     }
@@ -136,6 +132,21 @@ describe("a template inside a Fragment", () => {
     } finally {
       warn.mockRestore();
     }
+  });
+});
+
+describe("a Context Provider placed in the email", () => {
+  it("reaches the blocks inside it, in the HTML and in the design", () => {
+    const Theme = React.createContext("light theme");
+    const Themed = () => <Paragraph>{`Theme: ${React.useContext(Theme)}`}</Paragraph>;
+    const email = (
+      <Email>
+        <Theme.Provider value="dark theme"><Row><Column><Themed /></Column></Row></Theme.Provider>
+        <Row><Column><Paragraph>Footer</Paragraph></Column></Row>
+      </Email>
+    );
+    expect(renderToHtml(email)).toContain("Theme: dark theme");
+    expect(JSON.stringify(renderToJson(email))).toContain("Theme: dark theme");
   });
 });
 

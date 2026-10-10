@@ -29,7 +29,8 @@ import { UNLAYER_CONFIG_KEY } from "./create-component";
 import { componentName, getDisplayName, ROOT_NAMES, unwrapRoot, UNWRAP_ADVICE } from "./unwrap-root";
 import { BODY_DEFAULTS, ROW_DEFAULTS, COLUMN_DEFAULTS } from "./container-defaults";
 import { contentSlotWidth, pinImageSrc, type SlotContext } from "./image-sizing";
-import { expandChildren, withRenderScope } from "./expand-children";
+import { withRenderScope } from "./render-scope";
+import { normalizedChildren, normalizedRoot } from "./normalize";
 
 /** Layout context threaded down the walk so an image can be sized against the
  *  real column slot (contentWidth × column share, minus paddings/borders). */
@@ -61,24 +62,8 @@ function unwrapForJson(element: React.ReactElement): React.ReactElement {
   }
 }
 
-/** Valid element children, expanded as the render expands them; one that throws is left out, with a warning. */
-function collectChildren(node: React.ReactNode): React.ReactElement[] {
-  const result: React.ReactElement[] = [];
-  React.Children.forEach(node, (child) => {
-    let expanded: React.ReactNode;
-    try {
-      expanded = expandChildren(child);
-    } catch (cause) {
-      const name = React.isValidElement(child) ? componentName(child) : undefined;
-      console.warn(`[Unlayer] renderToJson: left out <${name || "component"}>: ${cause instanceof Error ? cause.message : String(cause)}`);
-      return;
-    }
-    React.Children.forEach(expanded, (inner) => {
-      if (React.isValidElement(inner)) result.push(inner);
-    });
-  });
-  return result;
-}
+/** The element children of a collected (Elements-only) tree. */
+const collectChildren = (node: React.ReactNode): React.ReactElement[] => React.Children.toArray(node).filter(React.isValidElement);
 
 /**
  * Strip internal/base props from an element's props,
@@ -469,8 +454,8 @@ export function renderRowToJson(element: React.ReactElement): DesignRow {
   }
 
   const counters: Record<string, number> = {};
-  // A render of its own, as renderToJson's: the same row gives the same ids every time.
-  return withRenderScope(() => processRow(element, counters));
+  // A render of its own, as renderToJson's: the same row gives the same ids every time. React renders what's in it.
+  return withRenderScope(() => processRow(normalizedChildren(element).find((c): c is React.ReactElement => React.isValidElement(c)) ?? element, counters));
 }
 
 export function renderToJson(element: React.ReactElement): DesignJSON {
@@ -482,6 +467,8 @@ function designJson(element: React.ReactElement): DesignJSON {
   // matching renderToHtml which renders wrappers through React.
   element = unwrapForJson(element);
   const displayName = getDisplayName(element);
+  // One React render collects the rows and blocks (as the HTML does).
+  if (displayName && ROOT_NAMES.has(displayName)) element = normalizedRoot(element);
 
   if (!displayName || !ROOT_NAMES.has(displayName)) {
     throw new Error(

@@ -15,7 +15,7 @@ import type { RenderMode, HeadConfig } from "@unlayer-internal/shared-elements";
 import { mapSemanticProps } from "./semantic-props";
 import { UNLAYER_CONFIG_KEY } from "./create-component";
 import { BODY_DEFAULTS, ROW_DEFAULTS, COLUMN_DEFAULTS } from "./container-defaults";
-import { expandChildren } from "./expand-children";
+import { normalizedRoot } from "./normalize";
 import { getDisplayName } from "./unwrap-root";
 import { extractSemanticProps, nextCounter } from "./render-to-json";
 
@@ -49,23 +49,8 @@ function ensureMeta(values: any, type: string, index: number = 0): any {
 }
 
 
-/** Valid element children, expanded as the render expands them (none if that throws: Body renders none either). */
-function collectChildren(node: React.ReactNode): React.ReactElement[] {
-  const result: React.ReactElement[] = [];
-  let expanded: React.ReactNode;
-  try {
-    expanded = expandChildren(node);
-  } catch {
-    return result;
-  }
-  React.Children.forEach(expanded, (child) => {
-    if (React.isValidElement(child)) {
-      result.push(child);
-    }
-  });
-  return result;
-}
-
+/** The element children of a collected (Elements-only) tree. */
+const collectChildren = (node: React.ReactNode): React.ReactElement[] => React.Children.toArray(node).filter(React.isValidElement);
 
 // ============================================
 // Types
@@ -245,6 +230,8 @@ export function extractHeadFromTree(
   element: React.ReactElement,
   options: ExtractHeadOptions
 ): ExtractHeadResult {
+  // The rows and blocks as the body rendered them (the same collected render).
+  element = normalizedRoot(element);
   const { displayMode } = options;
   const headConfig: HeadConfig = {
     hasFeature: options.headConfig?.hasFeature ?? (() => false),

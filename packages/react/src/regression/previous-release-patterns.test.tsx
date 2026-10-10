@@ -229,7 +229,9 @@ describe.each(Object.entries(PATTERNS))("%s", (_, { build, shows, fixed, json, i
 
   if (!fixed) {
     it("gives the previous release's plain text", () => {
-      expect(current.renderToPlainText(now)).toBe(previous.renderToPlainText(before));
+      // React's useId() values are opaque: where React places a component in its tree sets them.
+      const ids = (text: string) => text.replace(REACT_ID, "‹id›");
+      expect(ids(current.renderToPlainText(now))).toBe(ids(previous.renderToPlainText(before)));
     });
   }
 

@@ -60,10 +60,18 @@ This factory:
 
 ```
 JSX flat props
+  → one React render collects the template (utils/normalize.tsx): Row, Column and blocks record their props
+    and render markers, React renders everything else (the user's components, hooks, Context, Fragments);
+    the result is the template as Elements components only (Email > Row > Column > blocks)
+  → the HTML, the head and the design are all made from that collected tree, so they can't disagree
   → mapSemanticProps() converts to nested values matching @unlayer/types
-  → Body component uses ReactDOMServer.renderToString() for children innerHTML
-  → BodyExporter from @unlayer/exporters produces final HTML per mode
+  → each row is rendered with ReactDOMServer.renderToString(); BodyExporter from @unlayer/exporters
+    produces final HTML per mode
 ```
+
+A component that throws, suspends or is async is left out at the nearest Row, Column or root child (a
+Suspense boundary), with a message naming it; the rest renders. The collector is a module-level stack shared
+by every copy of Elements in a process (`Symbol.for`), not React context, so it works in Server Components.
 
 Three render modes: `email` (table-based), `web` (div+flexbox), `document` (print).
 
@@ -119,7 +127,7 @@ Example: `<Button fontSize="16px">` → `{ style: { fontSize: "16px" } }` in the
 
 - TypeScript strict compilation
 - All unit tests pass
-- Bundle size < 98KB (ESM)
+- Bundle size < 101KB (ESM)
 - Elements output matches the previous release (designs, plain text) and the reviewed snapshots (HTML, template patterns); hostile inputs add no markup
 - Next.js integration build succeeds
 - Browser E2E gate passes (rendered documents verified in Chromium: 0px `<p>` margins, single `<body>`, no errors)

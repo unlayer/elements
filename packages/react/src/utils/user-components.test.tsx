@@ -107,3 +107,47 @@ describe("HTML from a component placed straight in the body", () => {
   });
 });
 
+
+describe("a component that fails", () => {
+  const messages = (run: () => unknown) => {
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    try {
+      run();
+      return [...error.mock.calls, ...warn.mock.calls].map((call) => String(call[0]));
+    } finally {
+      error.mockRestore();
+      warn.mockRestore();
+    }
+  };
+
+  it("is left out with what it renders, and the one that failed in it says so, once per render", () => {
+    const Boom = () => {
+      throw new Error("boom");
+    };
+    const Section = () => <>{block("In the section")}<Boom /></>;
+    const email = <Email><Section />{block("After")}</Email>;
+    for (const render of [() => renderToHtml(email), () => renderToJson(email)]) {
+      let output = "";
+      expect(messages(() => (output = JSON.stringify(render())))).toEqual(["[Unlayer] <Boom> threw while rendering, so it's left out:"]);
+      expect(output).toContain("After");
+      expect(output).not.toContain("In the section");
+    }
+  });
+
+  it("says a lazy component suspends", () => {
+    const Later = React.lazy(() => new Promise<{ default: React.FC }>(() => {}));
+    let html = "";
+    expect(messages(() => (html = renderToHtml(<Email><Row><Column><Later /><Paragraph>Still here</Paragraph></Column></Row></Email>)))).toEqual([
+      "[Unlayer] <component> is async or suspends: Elements renders synchronously, so it's left out. Load its data first and pass it as props.",
+    ]);
+    expect(html).toContain("Still here");
+  });
+
+  it("names a component whose markup the design can't keep", () => {
+    const Banner = () => <div dangerouslySetInnerHTML={{ __html: "<table><tr><td>Sale</td></tr></table>" }} />;
+    expect(messages(() => renderToJson(<Email><Banner />{block("x")}</Email>))).toEqual([
+      "[Unlayer] renderToJson: <Banner> is not a valid Body child. Only <Row> is allowed.",
+    ]);
+  });
+});
