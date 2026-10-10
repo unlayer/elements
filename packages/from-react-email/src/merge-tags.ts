@@ -8,7 +8,10 @@
  * prop. A prop becomes a merge tag only where its marker comes through
  * intact and, with the sample values put back, the conversion is the same:
  * a prop the template changes (`name.toUpperCase()`, a date it formats) or
- * tests keeps its sample value.
+ * tests keeps its sample value. It's rendered again with other values (a
+ * lowercase first letter, more words, longer), which must show as given
+ * too: a change a sample doesn't reveal (`name.split(" ")[0]` of "Alex",
+ * `slice(0, 40)` of a short title) keeps the sample value as well.
  */
 
 import { decodeHtmlEntities } from "@unlayer/convert-core";
@@ -37,8 +40,16 @@ export function textProps(props: Record<string, unknown>, prefix = ""): TextProp
   return out;
 }
 
-/** `props` with the chosen text props replaced by markers. */
-function withMarkers(props: Record<string, unknown>, probes: TextProp[], chosen: number[]): Record<string, unknown> {
+/**
+ * Another value for a text prop, that a change the template makes shows on: its first letter in
+ * lowercase, more words, and longer than a title cut short.
+ */
+function otherValue(value: string): string {
+  return `${value.charAt(0).toLowerCase()}${value.slice(1)} zQ mOrE wOrDs ${"x".repeat(48)}`;
+}
+
+/** `props` with the chosen text props replaced by markers, or by `value(i)`. */
+function withMarkers(props: Record<string, unknown>, probes: TextProp[], chosen: number[], value = (i: number) => `${OPEN}uNlAyEr${i}${CLOSE}`): Record<string, unknown> {
   // Copies only the objects on each prop's path: props can hold functions and elements.
   const copy: Record<string, unknown> = { ...props };
   for (const i of chosen) {
@@ -48,7 +59,7 @@ function withMarkers(props: Record<string, unknown>, probes: TextProp[], chosen:
       target[key] = { ...(target[key] as Record<string, unknown>) };
       target = target[key] as Record<string, unknown>;
     }
-    target[keys[keys.length - 1]] = `${OPEN}uNlAyEr${i}${CLOSE}`;
+    target[keys[keys.length - 1]] = value(i);
   }
   return copy;
 }
@@ -80,6 +91,15 @@ export async function mergeTagged<T>(
       return undefined; // the template can't take a placeholder there
     }
     if (hasBrokenMarkers(output) || !sameOutput(replaceMarkers(output, probes, (p) => p.value), base)) return undefined;
+    // Shown as given: with other values in, the output is the marked one with them in place.
+    const others = probes.map((p) => otherValue(p.value));
+    let other: T;
+    try {
+      other = await render(withMarkers(props, probes, chosen, (i) => others[i]));
+    } catch {
+      return undefined;
+    }
+    if (!sameOutput(replaceMarkers(output, probes.map((p, i) => ({ ...p, value: others[i] })), (p) => p.value), other)) return undefined;
     return output;
   };
   const all = probes.map((_, i) => i);

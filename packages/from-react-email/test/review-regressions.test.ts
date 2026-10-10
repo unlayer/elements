@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it } from "vitest";
 import fs from "node:fs";
 import path from "node:path";
-import { convertReactEmail, convertSource, verifyConversion } from "../src/index";
+import { convertReactEmail, convertSource, mergeTagDesign, verifyConversion } from "../src/index";
 import { replaceMarkers } from "../src/merge-tags";
 import ts from "typescript";
 
@@ -607,5 +607,30 @@ export default function Welcome() { return <Html><Body><Badge tone="info" /></Bo
     });
     const unknownNames = ts.getPreEmitDiagnostics(program).filter((d) => d.code === 2304).map((d) => ts.flattenDiagnosticMessageText(d.messageText, "\n"));
     expect(unknownNames.filter((m) => /Tone|Size/.test(m))).toEqual([]);
+  });
+});
+
+describe("merge tags", () => {
+  it("only stand for props the template shows as given, not ones it cuts, splits or capitalizes", async () => {
+    const { Original, Migrated } = await templates(`import { Html, Body, Text } from "@react-email/components";
+      export default function T({ name, fullName, title, city }: { name: string; fullName: string; title: string; city: string }) {
+        return <Html><Body>
+          <Text>Hello {name.charAt(0).toUpperCase() + name.slice(1)}</Text>
+          <Text>Hi {fullName.split(" ")[0]}</Text>
+          <Text>Re: {title.slice(0, 40)}</Text>
+          <Text>From {city}</Text>
+        </Body></Html>;
+      }
+      T.PreviewProps = { name: "Alex", fullName: "Jordan", title: "Your order", city: "Lisbon" };`);
+    const check = await verifyConversion(Original, Migrated);
+    const tagged = await mergeTagDesign(Migrated, Original.PreviewProps, check.design);
+    expect(tagged.used).toEqual(["city"]);
+    const design = JSON.stringify(tagged.design);
+    expect(design).toContain("{{city}}");
+    for (const path of ["name", "fullName", "title"]) expect(design).not.toContain(`{{${path}}}`);
+    // The runtime converter's design too.
+    const runtime = JSON.stringify((await convertReactEmail(Original)).design());
+    expect(runtime).toContain("{{city}}");
+    for (const path of ["name", "fullName", "title"]) expect(runtime).not.toContain(`{{${path}}}`);
   });
 });
