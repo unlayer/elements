@@ -197,7 +197,7 @@ function htmlDocument(element: React.ReactElement, options?: RenderToHtmlOptions
       .filter((font) => font?.url)
       .map(
         (font) =>
-          `<link href="${escapeForHtml(font.url)}" rel="stylesheet" type="text/css">`
+          `<link href="${escapeForHtml(String(font.url))}" rel="stylesheet" type="text/css">`
       )
       .join(""),
     body,

@@ -21,6 +21,13 @@ import { callIsolated, FORWARD_REF, isAsyncComponent, isThenable, MEMO } from ".
 import { scopeCache } from "./render-scope";
 import Row from "../components/Row";
 import Column from "../components/Column";
+import Html from "../components/Html";
+
+/**
+ * On markup a component of the user's own rendered in a Column (see `keptMarkup`): the Html block the design
+ * keeps it as. The HTML numbers it after the component, and the head counts it so too.
+ */
+export const KEPT = Symbol.for("@unlayer/react-elements/kept");
 
 type Within = { at: number; children: Node[] };
 type Node =
@@ -133,6 +140,15 @@ function leftOut(c: Collected, node: { at: number }): [] {
   return [];
 }
 
+/** A function component of the user's own (memo, forwardRef), called once more on its own; undefined for others. */
+function calledAgain(element: React.ReactElement<any>): { out: unknown } | undefined {
+  const type = innerType(element.type);
+  if (type?.$$typeof !== FORWARD_REF && (typeof type !== "function" || type.prototype?.isReactComponent)) return undefined;
+  const props = { ...element.props };
+  for (const key in type.defaultProps) if (props[key] === undefined) props[key] = type.defaultProps[key];
+  return { out: callIsolated(() => (type.$$typeof === FORWARD_REF ? type.render(props, null) : type(props))) };
+}
+
 /**
  * Says why a component was left out: it's called once more on its own, and what it renders is collected, so a
  * component in it that fails says so itself.
@@ -144,12 +160,9 @@ function tell(element: React.ReactElement<any>): void {
     console.warn(`[Unlayer] <${name}> is async or suspends: Elements renders synchronously, so it's left out. Load its data first and pass it as props.`);
   if (isAsyncComponent(type)) return async();
   try {
-    let inner: Collected;
-    if (type?.$$typeof === FORWARD_REF || (typeof type === "function" && !type.prototype?.isReactComponent)) {
-      const props = { ...element.props };
-      for (const key in type.defaultProps) if (props[key] === undefined) props[key] = type.defaultProps[key];
-      inner = collected(callIsolated(() => (type.$$typeof === FORWARD_REF ? type.render(props, null) : type(props))) as React.ReactNode);
-    } else inner = collected(element, false); // a class, lazy, …: React renders it, and throws what it does
+    const again = calledAgain(element);
+    // A class, lazy, …: React renders it, and throws what it does.
+    const inner = again ? collected(again.out as React.ReactNode) : collected(element, false);
     const failed = (nodes: Node[]): Array<{ at: number }> => nodes.flatMap((n) => (n.kind === "failed" ? [n] : "children" in n ? failed(n.children) : []));
     const found = failed(inner.nodes);
     for (const node of found) tell(recorded(inner, node).element);
@@ -160,32 +173,101 @@ function tell(element: React.ReactElement<any>): void {
   }
 }
 
+/** What a component rendered, when that's markup only (its own components' markup in, those that failed left out). */
+function markupOnly(c: Collected, nodes: Node[]): string | undefined {
+  let out = "";
+  for (const node of nodes) {
+    if (node.kind === "raw") out += node.html;
+    else if (node.kind === "failed") leftOut(c, node);
+    else if (node.kind !== "boundary") return undefined;
+    else {
+      const inner = markupOnly(c, node.children);
+      if (inner === undefined) return undefined;
+      out += inner;
+    }
+  }
+  return out;
+}
+
 /**
- * A component of the user's own that rendered one element of markup in a Column: an HTML block of what's in it,
- * named after the component (with its props, for its padding and visibility).
+ * A component of the user's own that rendered markup in a Column: an HTML block of it, named after the component
+ * (with its props, for its padding and visibility). An element given `dangerouslySetInnerHTML` gives what's in it,
+ * as 0.1.22 kept it (the element itself left out), whatever that holds (a `<div/>`, a stray end tag, a comment);
+ * other markup, which 0.1.22 left out (a link, a table, an image, elements side by side), is kept as it is.
  */
 function keptMarkup(c: Collected, node: Within): React.ReactElement | undefined {
-  const raw = node.children.length === 1 && node.children[0].kind === "raw" ? node.children[0].html : "";
-  const only = parts(raw);
-  // Where what's in it doesn't pair up as markup (a `<div/>`, a stray end tag, a comment or an attribute naming a
-  // tag), everything between its start tag and its end tag: what it held, as React wrote it.
-  const inner =
-    only.length === 1 && "inner" in only[0]
-      ? only[0].inner
-      : only.some((p) => "tag" in p && p.tag === "#")
-        ? /^<([a-zA-Z][\w:-]*)\b[^>]*>([\s\S]*)<\/\1>$/.exec(raw)?.[2]
-        : undefined;
-  if (inner === undefined) return undefined;
+  const raw = markupOnly(c, node.children);
+  if (raw === undefined) return undefined;
+  const list = parts(raw);
+  // Text alone shows as text (see `elements`).
+  if (!list.some((p) => "tag" in p)) return undefined;
   const element = recorded(c, node).element as React.ReactElement<any>;
-  const Rendered = () => React.createElement("div", { dangerouslySetInnerHTML: { __html: inner } });
+  // One element (what's in it may not pair up as markup): React writes `dangerouslySetInnerHTML` and children
+  // alike, so the component is asked which it gave (a <div> when it can't say, as most such are).
+  const one = list.length === 1 || list.some((p) => "tag" in p && p.tag === "#") ? /^<([a-zA-Z][\w:-]*)\b[^>]*>([\s\S]*)<\/\1>$/.exec(raw) : null;
+  let given: boolean;
+  try {
+    const out = calledAgain(element)?.out as React.ReactElement<{ dangerouslySetInnerHTML?: unknown }> | undefined;
+    given = React.isValidElement(out) && typeof out.type === "string" && out.props.dangerouslySetInnerHTML != null;
+  } catch {
+    given = one?.[1].toLowerCase() === "div";
+  }
+  const html = one && given ? one[2] : raw;
+  const Rendered = () => React.createElement("div", { dangerouslySetInnerHTML: { __html: html } });
   Rendered.displayName = nameOf(element);
+  const { containerPadding, hideOnMobile, hideOnDesktop } = (element.props ?? {}) as Record<string, unknown>;
+  (Rendered as unknown as Record<symbol, unknown>)[KEPT] = React.createElement(Html, {
+    html,
+    ...(containerPadding !== undefined ? { containerPadding } : {}),
+    ...(hideOnMobile !== undefined ? { hideOnMobile } : {}),
+    ...(hideOnDesktop !== undefined ? { hideOnDesktop } : {}),
+  } as Record<string, unknown>);
   return React.createElement(Rendered, { ...element.props });
+}
+
+/**
+ * A block a component of the template rendered to a string (react-dom's own `renderToStaticMarkup`) while the
+ * template is collected comes out as its marker. In a prop (an Html block's `html`) that's what it renders.
+ */
+function resolvedProps(c: Collected, props: Record<string, any>): Record<string, any> {
+  let out = props;
+  for (const [key, value] of Object.entries(props)) {
+    if (typeof value !== "string" || !value.includes(MARK) || !value.includes(c.collection.nonce)) continue;
+    let html = value;
+    try {
+      html = markup(c, parse(value, c.collection), (block) => within(null, () => renderToStaticMarkup(block)));
+    } catch {
+      // Markers that don't pair up (part of a string): as it is.
+    }
+    out = out === props ? { ...props } : out;
+    out[key] = html;
+  }
+  return out;
+}
+
+/** Collected nodes as HTML: markup as it is, each row, column or block by `render`. */
+function markup(c: Collected, nodes: Node[], render: (element: React.ReactElement) => string): string {
+  return nodes
+    .map((node) => {
+      switch (node.kind) {
+        case "raw":
+          return node.html;
+        case "boundary":
+          return markup(c, node.children, render);
+        case "failed":
+          leftOut(c, node);
+          return "";
+        default:
+          return render(element(c, node));
+      }
+    })
+    .join("");
 }
 
 /** A recorded Row, Column or block, as the Elements component it was, with what React rendered in it. */
 function element(c: Collected, node: Extract<Node, { kind: "row" | "column" | "block" }>): React.ReactElement {
   const r = recorded(c, node);
-  if (node.kind === "block") return React.createElement(r.type, r.props);
+  if (node.kind === "block") return React.createElement(r.type, resolvedProps(c, r.props));
   if (node.kind === "column") return React.createElement(Column, { ...r.props, children: elements(c, node.children, true) });
   const props = { ...r.props };
   const children = elements(c, node.children, false);
@@ -245,23 +327,7 @@ const collect = (children: React.ReactNode): Collected =>
  */
 export function childrenHtml(children: React.ReactNode, place: (child: React.ReactElement) => React.ReactElement): string {
   const c = collect(children);
-  const html = (nodes: Node[]): string =>
-    nodes
-      .map((node) => {
-        switch (node.kind) {
-          case "raw":
-            return node.html;
-          case "boundary":
-            return html(node.children);
-          case "failed":
-            leftOut(c, node);
-            return "";
-          default:
-            return within(null, () => renderToString(place(element(c, node))));
-        }
-      })
-      .join("");
-  return html(c.nodes);
+  return markup(c, c.nodes, (child) => within(null, () => renderToString(place(child))));
 }
 
 /** Children (a root's, or a Row on its own) as Elements components only, for the head and the design. */

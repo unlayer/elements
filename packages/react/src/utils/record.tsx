@@ -15,7 +15,12 @@ import { isAsyncComponent, isElementsType } from "./unwrap-root";
  */
 export function guard(children: React.ReactNode, collection: Collection): React.ReactNode {
   return React.Children.toArray(children).map((child) => {
-    if (!React.isValidElement(child) || typeof child.type === "string" || isElementsType(child.type)) return child;
+    if (!React.isValidElement(child) || isElementsType(child.type)) return child;
+    if (typeof child.type === "string") {
+      // Markup with a component of the user's own in it (`<div><Promo /></div>`): that component gets its own too.
+      const inside = (child.props as { children?: React.ReactNode }).children;
+      return inside !== undefined && hasComponent(inside) ? React.cloneElement(child, undefined, guard(inside, collection)) : child;
+    }
     if (child.type === React.Fragment) {
       return React.createElement(React.Fragment, { key: child.key }, guard((child.props as { children?: React.ReactNode }).children, collection));
     }
@@ -31,6 +36,15 @@ export function guard(children: React.ReactNode, collection: Collection): React.
       marker(collection, at, "c")
     );
   });
+}
+
+/** Whether there's a component of the user's own in `children`, in markup or Fragments (not in Elements' own). */
+function hasComponent(children: React.ReactNode): boolean {
+  return React.Children.toArray(children).some(
+    (child) =>
+      React.isValidElement(child) &&
+      (typeof child.type === "string" || child.type === React.Fragment ? hasComponent((child.props as { children?: React.ReactNode }).children) : !isElementsType(child.type))
+  );
 }
 
 /** A Row or Column while collecting: its props, and markers around its children. */

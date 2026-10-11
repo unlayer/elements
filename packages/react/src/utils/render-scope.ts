@@ -4,6 +4,7 @@
  * by the next render (an element kept between renders may read other data).
  */
 import { escapeText } from "@unlayer-internal/shared-elements";
+import { within } from "./collect";
 
 let scoped: WeakMap<object, unknown> | undefined;
 
@@ -14,15 +15,20 @@ export function scopeCache<T>(key: object, make: () => T): T {
   return scoped.get(key) as T;
 }
 
-/** Runs one render with its own scope (a render inside another shares it). */
+/**
+ * Runs one render with its own scope (a render inside another shares it), apart from a template being
+ * collected: called inside a component of one (a block rendered to a string), it renders what it's given.
+ */
 export function withRenderScope<T>(render: () => T): T {
-  if (scoped) return render();
-  scoped = new WeakMap();
-  try {
-    return render();
-  } finally {
-    scoped = undefined;
-  }
+  return within(null, () => {
+    if (scoped) return render();
+    scoped = new WeakMap();
+    try {
+      return render();
+    } finally {
+      scoped = undefined;
+    }
+  });
 }
 
 /**

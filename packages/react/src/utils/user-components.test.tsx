@@ -1,8 +1,9 @@
 import { describe, it, expect, vi } from "vitest";
 import React, { memo, useState } from "react";
-import { renderToHtml } from "./render-to-html";
+import { renderToStaticMarkup } from "react-dom/server";
+import { renderToHtml, renderToHtmlParts, renderToPlainText } from "./render-to-html";
 import { renderToJson } from "./render-to-json";
-import { Email, Page, Row, Column, Paragraph } from "../index";
+import { Email, Page, Row, Column, Paragraph, Html, Button as ElementsButton } from "../index";
 
 const block = (text: string, props: Record<string, unknown> = {}) => <Row><Column><Paragraph {...props}>{text}</Paragraph></Column></Row>;
 const Header = () => block("Header");
@@ -173,15 +174,76 @@ describe("HTML from a component in a Column", () => {
     }
   });
 
-  it("says so when it's markup a block can't hold", () => {
+  it("keeps markup other than a bare div as it is: a link, a table, an image, elements side by side", () => {
     const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
     try {
-      const Two = () => <><div>one</div><p>two</p></>;
-      renderToHtml(<Email><Row><Column><Two /></Column></Row></Email>);
-      expect(warn.mock.calls.map((call) => String(call[0]))).toEqual(["Column: <Two> rendered markup that isn't a block, so it's left out. Put HTML in an <Html> block."]);
+      const shapes: Array<[React.FC, string]> = [
+        [() => <a href="https://example.com/visit">Visit</a>, '<a href="https://example.com/visit">Visit</a>'],
+        [() => <table><tbody><tr><td align="right">cell</td></tr></tbody></table>, '<table><tbody><tr><td align="right">cell</td></tr></tbody></table>'],
+        [() => <img src="https://example.com/pic.png" alt="pic" />, '<img src="https://example.com/pic.png" alt="pic"/>'],
+        [() => <><div>one</div><p>two</p></>, "<div>one</div><p>two</p>"],
+      ];
+      for (const [Shape, kept] of shapes) {
+        const email = <Email><Row><Column><Shape /></Column></Row></Email>;
+        expect(renderToHtml(email)).toContain(kept);
+        // The design keeps it as an HTML block too.
+        expect(renderToJson(email).body.rows[0].columns[0].contents).toEqual([expect.objectContaining({ type: "html", values: expect.objectContaining({ html: kept }) })]);
+      }
+      expect(warn).not.toHaveBeenCalled();
     } finally {
       warn.mockRestore();
     }
+  });
+
+  it("says so when markup comes with blocks, which a Column can't hold together", () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    try {
+      const Mixed = () => <><div>note</div><Paragraph>Kept</Paragraph></>;
+      expect(renderToHtml(<Email><Row><Column><Mixed /></Column></Row></Email>)).toContain("Kept");
+      expect(warn.mock.calls.map((call) => String(call[0]))).toEqual(["Column: <Mixed> rendered markup that isn't a block, so it's left out. Put HTML in an <Html> block."]);
+    } finally {
+      warn.mockRestore();
+    }
+  });
+
+  it("is numbered as the HTML numbers it, so phone CSS reaches the block that asked for it", () => {
+    // A component of the user's own named like a block (React Email's own `Button`), before an Elements Button.
+    function Button() {
+      return <a href="https://example.com/plain">Plain link</a>;
+    }
+    const html = renderToHtml(<Email><Row><Column><Button /><ElementsButton href="https://example.com" mobile={{ fontSize: "22px" }}>Real</ElementsButton></Column></Row></Email>);
+    const id = /id="(u_content_button_\d+)"[\s\S]{0,1500}?Real/.exec(html)![1];
+    const css = /<style[^>]*>([\s\S]*?)<\/style>/.exec(html)![1];
+    expect([...new Set(css.match(/#u_content_button_\d+/g))]).toEqual([`#${id}`]);
+  });
+});
+
+describe("a component inside markup", () => {
+  it("that throws is left out, and the rest renders (markup straight in a Column isn't rendered, as before)", () => {
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
+    try {
+      const Boom = () => {
+        throw new Error("deep");
+      };
+      const html = renderToHtml(<Email><Row><Column><Paragraph>Before</Paragraph><div><Boom /></div><Paragraph>After</Paragraph></Column></Row></Email>);
+      expect(html).toContain("Before");
+      expect(html).toContain("After");
+      expect(error).toHaveBeenCalledWith("[Unlayer] <Boom> threw while rendering, so it's left out:", expect.anything());
+    } finally {
+      error.mockRestore();
+    }
+  });
+});
+
+describe("a block rendered to a string inside a component", () => {
+  it("is what the block renders, with Elements' own render functions and with react-dom's", () => {
+    const viaParts = () => renderToHtmlParts(<Paragraph>From parts</Paragraph>).body;
+    const viaReactDom = () => renderToStaticMarkup(<Paragraph>From react-dom</Paragraph>);
+    const viaPlainText = () => renderToPlainText(<Paragraph>From plain text</Paragraph>);
+    const Signature = ({ make }: { make: () => string }) => <Row><Column><Html html={make()} /></Column></Row>;
+    const html = renderToHtml(<Email>{block("Hello")}<Signature make={viaParts} /><Signature make={viaReactDom} /><Signature make={viaPlainText} /></Email>);
+    for (const text of ["From parts", "From react-dom", "From plain text"]) expect(html).toContain(text);
+    expect(html).not.toContain("unlayer-mark");
   });
 });
 

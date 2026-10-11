@@ -25,12 +25,12 @@ import { mergeValues } from "@unlayer-internal/shared-elements";
 import { schemaVersion as _schemaVersion } from "@unlayer/exporters";
 const schemaVersion: number = _schemaVersion ?? 24;
 import { mapSemanticProps } from "./semantic-props";
-import { UNLAYER_CONFIG_KEY } from "./create-component";
 import { componentName, getDisplayName, ROOT_NAMES, unwrapRoot, UNWRAP_ADVICE } from "./unwrap-root";
 import { BODY_DEFAULTS, ROW_DEFAULTS, COLUMN_DEFAULTS } from "./container-defaults";
 import { contentSlotWidth, pinImageSrc, type SlotContext } from "./image-sizing";
 import { withRenderScope } from "./render-scope";
-import { normalizedChildren, normalizedRoot } from "./normalize";
+import { KEPT, normalizedChildren, normalizedRoot } from "./normalize";
+import { textDirectionOf, UNLAYER_CONFIG_KEY } from "./create-component";
 
 /** Layout context threaded down the walk so an image can be sized against the
  *  real column slot (contentWidth × column share, minus paddings/borders). */
@@ -164,11 +164,17 @@ function extractTextFromTextJson(textJson: string): string {
 function processItem(
   element: React.ReactElement,
   counters: Record<string, number>,
-  layout: LayoutContext = {}
+  layout: LayoutContext = {},
+  /** The id and class base, when not the item's own (markup kept as an HTML block, named after its component). */
+  metaName?: string
 ): DesignContent {
   const componentType = element.type as any;
   const config = componentType[UNLAYER_CONFIG_KEY];
 
+  if (!config && componentType?.[KEPT]) {
+    // Markup a component of the user's own rendered in a Column: an HTML block, numbered as the HTML numbers it.
+    return processItem(componentType[KEPT], counters, layout, (componentType.displayName || componentType.name || "component").toLowerCase());
+  }
   if (!config) {
     const name = componentName(element) || "Unknown";
     throw new Error(
@@ -180,7 +186,7 @@ function processItem(
   const { name, defaultValues, propMapper, slug } = config;
   const contentType = config.contentType ?? toContentType(name);
   // Custom tools use u_content_custom_<slug> as their id/class base
-  const metaBase = `u_content_${config.metaName ?? contentType}`;
+  const metaBase = `u_content_${metaName ?? config.metaName ?? contentType}`;
   const count = nextCounter(counters, metaBase);
   const id = makeId(metaBase, count);
 
@@ -350,6 +356,12 @@ function processBody(
   const semanticProps = extractSemanticProps(element.props);
   const mapped = mapSemanticProps(semanticProps, BODY_DEFAULTS, "Body");
   const values = mergeValues(BODY_DEFAULTS, mapped);
+  // Only ltr, rtl or auto, as in the HTML (a value from a request could carry anything).
+  if ("textDirection" in values) {
+    const direction = textDirectionOf((values as Record<string, unknown>).textDirection);
+    if (direction) (values as Record<string, unknown>).textDirection = direction;
+    else delete (values as Record<string, unknown>).textDirection;
+  }
 
   // `previewText` is the React alias for the schema's `preheaderText`. It is
   // excluded from the mapped values (it drives the email preview HTML at render

@@ -15,7 +15,7 @@ import type { RenderMode, HeadConfig } from "@unlayer-internal/shared-elements";
 import { mapSemanticProps } from "./semantic-props";
 import { UNLAYER_CONFIG_KEY } from "./create-component";
 import { BODY_DEFAULTS, ROW_DEFAULTS, COLUMN_DEFAULTS } from "./container-defaults";
-import { normalizedRoot } from "./normalize";
+import { KEPT, normalizedRoot } from "./normalize";
 import { getDisplayName } from "./unwrap-root";
 import { extractSemanticProps, nextCounter } from "./render-to-json";
 
@@ -126,7 +126,11 @@ function walkItem(
 ): void {
   const componentType = element.type as any;
   const config = componentType[UNLAYER_CONFIG_KEY];
-  if (!config) return;
+  if (!config) {
+    // Markup a component of the user's own rendered in a Column: the HTML numbers it after the component.
+    if (componentType?.[KEPT]) nextCounter(counters, `u_content_${(componentType.displayName || componentType.name || "component").toLowerCase()}`);
+    return;
+  }
 
   const { name, defaultValues, propMapper } = config;
 
