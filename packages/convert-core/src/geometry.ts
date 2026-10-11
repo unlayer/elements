@@ -644,10 +644,10 @@ export interface LayoutDifference {
 }
 
 /**
- * Words whose place across the page only one side can work out: a width,
- * padding, margin or display there that the check can't read. Read as
- * anywhere, a move would pass unseen, so the check fails on them. Both sides
- * unknown the same way (markup kept as it was) isn't listed.
+ * Words whose place across the page the check can't work out on one side or
+ * both: a width, padding, margin or display there that it can't read. Read
+ * as anywhere, a move would pass unseen, so the check fails on them (unknown
+ * on both sides, whether they sit in the same place can't be told either).
  */
 export function unplaced(original: StyledDocument, converted: StyledDocument, a: StyledWord[], b: StyledWord[]): Array<{ side: "original" | "migrated"; words: string[] }> {
   const pa = bandedPlacements(original);
@@ -657,7 +657,8 @@ export function unplaced(original: StyledDocument, converted: StyledDocument, a:
     if (!a[i].shown || !a[i].at || !b[i].at) continue;
     const x = placementOf(pa, a[i].at!);
     const y = placementOf(pb, b[i].at!);
-    if (!x || !y || x.loose || y.loose || !x.unknown === !y.unknown) continue;
+    if (!x || !y || x.loose || y.loose || (!x.unknown && !y.unknown)) continue;
+    // Unknown on both sides tells nothing about whether it moved: listed on the original's side.
     out[x.unknown ? "original" : "migrated"].push(a[i].word);
   }
   return (["original", "migrated"] as const).filter((side) => out[side].length).map((side) => ({ side, words: out[side] }));

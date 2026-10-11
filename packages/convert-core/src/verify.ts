@@ -220,12 +220,13 @@ function targetDoubts(original: StyledDocument, converted: StyledDocument): Unve
   const a = doubted(original);
   const b = doubted(converted);
   const out = new Map<string, Unverified>();
-  const add = (side: Unverified["side"], list: Array<{ item: string; cause: string }>, other: Array<{ item: string }>) => {
-    const left = counts(other.map((x) => x.item));
+  // In doubt on both sides for the same reason (markup kept as it was) is the same; for another reason, it isn't.
+  const add = (side: Unverified["side"], list: Array<{ item: string; cause: string }>, other: Array<{ item: string; cause: string }>) => {
+    const left = counts(other.map((x) => `${x.item}\u0000${x.cause}`));
     for (const { item, cause } of list) {
-      const n = left.get(item) ?? 0;
+      const n = left.get(`${item}\u0000${cause}`) ?? 0;
       if (n) {
-        left.set(item, n - 1);
+        left.set(`${item}\u0000${cause}`, n - 1);
         continue;
       }
       const entry = out.get(`${side}\u0000${cause}`) ?? { what: "shown", side, cause, words: [] };
@@ -255,9 +256,16 @@ function phoneDoubts(original: StyledDocument, converted: StyledDocument, deskto
   const a = doubted(original);
   const b = doubted(converted);
   const groups = new Map<string, Unverified>();
-  const add = (side: Unverified["side"], from: Map<string, Array<{ word: string; cause: string }>>, other: Map<string, unknown[]>) => {
+  // In doubt on both sides for the same reason is the same; for another reason (another condition), it isn't.
+  const add = (side: Unverified["side"], from: Map<string, Array<{ word: string; cause: string }>>, other: Map<string, Array<{ cause: string }>>) => {
     for (const [word, list] of from) {
-      for (const { cause } of list.slice(other.get(word)?.length ?? 0)) {
+      const left = counts((other.get(word) ?? []).map((x) => x.cause));
+      for (const { cause } of list) {
+        const n = left.get(cause) ?? 0;
+        if (n) {
+          left.set(cause, n - 1);
+          continue;
+        }
         const key = `${side}\u0000${cause}`;
         const entry = groups.get(key) ?? { what: "shown on phones", side, cause, words: [] };
         entry.words.push(word);

@@ -288,3 +288,40 @@ describe("right to left", () => {
     expect(flipped.layout).toEqual([expect.objectContaining({ items: ["First", "column"] }), expect.objectContaining({ items: ["Second", "column"] })]);
   });
 });
+
+describe("in doubt on both sides", () => {
+  // The same rule kept on both sides is the same markup; another condition on each side isn't.
+  const supports = (condition: string, body: string) => page(body, style(`@supports (${condition}) { .offer { display: none } }`));
+
+  it("fails when whether words show depends on another condition on each side", () => {
+    const body = '<p class="offer">Big offer</p>';
+    const check = compareText(supports("display: grid", body), supports("display: unsupported", body));
+    expect(checkFails(check)).toBe(true);
+    expect(check.unverified).toContainEqual(expect.objectContaining({ what: "shown", words: ["Big", "offer"] }));
+    // The same rule on both sides: whether they show is the same (where they sit, unknown on both, still fails).
+    expect(compareText(supports("display: grid", body), supports("display: grid", body)).unverified.filter((u) => u.what === "shown")).toEqual([]);
+  });
+
+  it("fails when whether a link or image shows depends on another condition on each side", () => {
+    const body = '<p>Read <a class="offer" href="https://example.com/sale"><img src="https://example.com/a.png" alt=""></a></p>';
+    const check = compareText(supports("display: grid", body), supports("display: unsupported", body));
+    expect(checkFails(check)).toBe(true);
+    expect(checkFails(compareText(supports("display: grid", body), supports("display: grid", body)))).toBe(false);
+  });
+
+  it("fails when whether a phone shows words depends on another condition on each side", () => {
+    const phone = (condition: string) =>
+      page('<p class="offer">Big offer</p>', style(`@media (max-width: 600px) { @supports (${condition}) { .offer { display: none } } }`));
+    const check = compareText(phone("display: grid"), phone("display: unsupported"));
+    expect(checkFails(check)).toBe(true);
+    expect(checkFails(compareText(phone("display: grid"), phone("display: grid")))).toBe(false);
+  });
+
+  it("fails where a word sits when neither side can be placed", () => {
+    // A flex box's content can't be measured: the column beside it can't be placed, on either side.
+    const columns = (first: string, second: string) =>
+      page(`${anchor}<table width="600" style="width:600px"><tr><td><div style="display:flex">${first}</div></td><td><div style="display:flex">${second}</div></td></tr></table>`);
+    const check = compareText(columns("Left words", "Right words"), columns("Left words", "Right words"));
+    expect(check.unverified).toContainEqual(expect.objectContaining({ what: "where it sits" }));
+  });
+});

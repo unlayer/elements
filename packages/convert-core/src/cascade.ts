@@ -1863,7 +1863,7 @@ export interface Unverified {
 
 export interface StyleCheck {
   differences: StyleDifference[];
-  /** What couldn't be verified on one side, grouped by cause. Both sides unknown the same way (markup kept as it was) isn't. */
+  /** What couldn't be verified on one side, or on both for different reasons, grouped by cause. Both unknown for the same reason (markup kept as it was) isn't. */
   unverified: Unverified[];
   /** Words whose styles were compared (both documents show the same words). */
   compared: number;
@@ -1960,6 +1960,8 @@ export function compareStyles(originalHtml: string | StyledDocument, convertedHt
     // Whether it's shown at all: on one side only, the check can't tell it shows the same.
     if (a[i].doubt && !b[i].doubt) doubt("shown", "original", a[i].doubt, a[i].word);
     else if (b[i].doubt && !a[i].doubt) doubt("shown", "migrated", b[i].doubt, b[i].word);
+    // In doubt on both sides, but for other reasons (another condition around it): not the same.
+    else if (a[i].doubt && b[i].doubt && a[i].doubt !== b[i].doubt) doubt("shown", "original", `${a[i].doubt}, where the migrated template has ${b[i].doubt}`, a[i].word);
     // The inbox preview on one side, in the email on the other: not the same text a reader sees.
     if (a[i].shown !== b[i].shown) {
       const where = (shown: boolean) => (shown ? "in the email" : "the inbox preview only");
