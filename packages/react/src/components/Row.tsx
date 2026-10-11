@@ -10,7 +10,7 @@ import type { DeviceProps, SizeInput } from "../types";
 import { ROW_DEFAULTS, BODY_DEFAULTS } from "../utils/container-defaults";
 import { looseText } from "../utils/render-scope";
 import { collecting } from "../utils/collect";
-import { recordContainer } from "../utils/record";
+import { recordContainer, whileCollecting } from "../utils/record";
 
 /**
  * Row - Container for columns in a layout
@@ -316,7 +316,8 @@ function renderRow(props: RowProps): React.ReactElement | null {
 }
 
 // While a template is collected, a Row records itself (see normalize.tsx); then it renders the collected tree.
-const Row: React.FC<RowProps> = (props) => (collecting() ? recordContainer("row", props) : renderRow(props));
+const Row: React.FC<RowProps> = (props) =>
+  collecting() ? whileCollecting(() => recordContainer("row", props), () => renderRow(props)) : renderRow(props);
 
 Row.displayName = "Row";
 

@@ -15,7 +15,7 @@
  */
 import React from "react";
 import { renderToStaticMarkup, renderToString } from "react-dom/server";
-import { MARK, within, type Collection, type Recorded } from "./collect";
+import { COLLECTING_ID, MARK, within, type Collection, type Recorded } from "./collect";
 import { guard } from "./record";
 import { callIsolated, FORWARD_REF, isAsyncComponent, isThenable, MEMO } from "./unwrap-root";
 import { scopeCache } from "./render-scope";
@@ -232,17 +232,28 @@ function keptMarkup(c: Collected, node: Within): React.ReactElement | undefined 
 function resolvedProps(c: Collected, props: Record<string, any>): Record<string, any> {
   let out = props;
   for (const [key, value] of Object.entries(props)) {
-    if (typeof value !== "string" || !value.includes(MARK) || !value.includes(c.collection.nonce)) continue;
+    if (typeof value !== "string" || !value.includes(MARK)) continue;
     let html = value;
     try {
-      html = markup(c, parse(value, c.collection), (block) => within(null, () => renderToStaticMarkup(block)));
+      if (value.includes(c.collection.nonce)) html = markup(c, parse(value, c.collection), (block) => within(null, () => renderToStaticMarkup(block)));
     } catch {
-      // Markers that don't pair up (part of a string): as it is.
+      // Markers that don't pair up (part of a string): left for withoutMarkers.
     }
     out = out === props ? { ...props } : out;
-    out[key] = html;
+    out[key] = withoutMarkers(html);
   }
   return out;
+}
+
+/**
+ * A marker that got out of the collecting render (it can't, by the Sentinel: this is the net under it) is
+ * taken out, and said, rather than sent in an email: what it stood for can't be told any more.
+ */
+const LEFT_BEHIND = new RegExp(`</?${MARK}\\b[^>]*>`, "g");
+function withoutMarkers(html: string): string {
+  if (!html.includes(MARK) || !html.match(LEFT_BEHIND)) return html;
+  console.error(`[Unlayer] an Elements block rendered inside a component left a marker behind; it's taken out, and the block it stood for is missing.`);
+  return html.replace(LEFT_BEHIND, "");
 }
 
 /** Collected nodes as HTML: markup as it is, each row, column or block by `render`. */
@@ -313,7 +324,7 @@ function elements(c: Collected, nodes: Node[], inColumn: boolean, owner?: React.
 /** A render of `children` that collects them; `guarded`, a component in them that fails is left out. */
 function collected(children: React.ReactNode, guarded = true): Collected {
   const collection: Collection = { nonce: Math.random().toString(36).slice(2, 10), recorded: [] };
-  const html = within(collection, () => renderToStaticMarkup(<>{guarded ? guard(children, collection) : children}</>));
+  const html = within(collection, () => renderToStaticMarkup(<>{guarded ? guard(children, collection) : children}</>, { identifierPrefix: COLLECTING_ID }));
   return { nodes: parse(html, collection), collection, told: new Set() };
 }
 
@@ -327,7 +338,7 @@ const collect = (children: React.ReactNode): Collected =>
  */
 export function childrenHtml(children: React.ReactNode, place: (child: React.ReactElement) => React.ReactElement): string {
   const c = collect(children);
-  return markup(c, c.nodes, (child) => within(null, () => renderToString(place(child))));
+  return withoutMarkers(markup(c, c.nodes, (child) => within(null, () => renderToString(place(child)))));
 }
 
 /** Children (a root's, or a Row on its own) as Elements components only, for the head and the design. */

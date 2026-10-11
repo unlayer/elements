@@ -7,7 +7,7 @@ import type { DeviceProps, SizeInput, BorderInput } from "../types";
 import { COLUMN_DEFAULTS } from "../utils/container-defaults";
 import { looseText } from "../utils/render-scope";
 import { collecting } from "../utils/collect";
-import { recordContainer } from "../utils/record";
+import { recordContainer, whileCollecting } from "../utils/record";
 import { DEFAULT_CONTAINER_PADDING } from "../utils/image-sizing";
 
 /** Unlayer's default content-block padding when a block sets none. */
@@ -82,7 +82,7 @@ export type ColumnProps = Omit<SemanticProps<ColumnValues>, "padding" | "border"
 };
 
 export const Column: React.FC<ColumnProps> = (props) => {
-  if (collecting()) return recordContainer("column", props);
+  if (collecting()) return whileCollecting(() => recordContainer("column", props), () => Column(props));
   const {
     children,
     index = 0,

@@ -245,6 +245,25 @@ describe("a block rendered to a string inside a component", () => {
     for (const text of ["From parts", "From react-dom", "From plain text"]) expect(html).toContain(text);
     expect(html).not.toContain("unlayer-mark");
   });
+
+  it("is what the block renders even when the string is changed before it's used (quotes swapped, tags filtered)", () => {
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
+    try {
+      const swapped = () => renderToStaticMarkup(<ElementsButton href="https://example.com/call">Book a call</ElementsButton>).replace(/"/g, "'");
+      // A sanitizer that keeps only the tags it knows.
+      const filtered = () => renderToStaticMarkup(<Paragraph>Kept after filtering</Paragraph>).replace(/<\/?([a-z-]+)[^>]*>/g, (tag, name) => (["div", "p", "span", "table", "tbody", "tr", "td", "a", "strong"].includes(name) ? tag : ""));
+      const Snippet = ({ make }: { make: () => string }) => <Row><Column><Html html={make()} /></Column></Row>;
+      const email = <Email>{block("Hello")}<Snippet make={swapped} /><Snippet make={filtered} /></Email>;
+      const html = renderToHtml(email);
+      expect(html).toContain("Book a call");
+      expect(html).toContain("Kept after filtering");
+      expect(html).not.toContain("unlayer-mark");
+      expect(JSON.stringify(renderToJson(email))).not.toContain("unlayer-mark");
+      expect(error).not.toHaveBeenCalled();
+    } finally {
+      error.mockRestore();
+    }
+  });
 });
 
 describe("an async component whose data load fails", () => {

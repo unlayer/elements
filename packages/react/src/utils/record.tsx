@@ -4,7 +4,7 @@
  * renders inside them.
  */
 import React, { Suspense } from "react";
-import { collecting, marker, type Collection } from "./collect";
+import { collecting, COLLECTING_ID, marker, within, type Collection } from "./collect";
 import { isAsyncComponent, isElementsType } from "./unwrap-root";
 
 /**
@@ -45,6 +45,27 @@ function hasComponent(children: React.ReactNode): boolean {
       React.isValidElement(child) &&
       (typeof child.type === "string" || child.type === React.Fragment ? hasComponent((child.props as { children?: React.ReactNode }).children) : !isElementsType(child.type))
   );
+}
+
+/**
+ * What a Row, Column or block renders while a template is collected: in the collecting render (its ids carry
+ * COLLECTING_ID), what `record` gives; in any other render started inside it, what it renders anyway (`real`,
+ * called with nothing collecting). When it can't tell, it renders what it renders: a marker never leaves the
+ * collecting render.
+ */
+function Sentinel({ record, real }: { record: () => React.ReactNode; real: () => React.ReactNode }): React.ReactNode {
+  let collected = false;
+  try {
+    collected = React.useId().includes(COLLECTING_ID);
+  } catch {
+    // Not in a render React runs: what it renders.
+  }
+  return collected ? record() : within(null, real);
+}
+
+/** A Row, Column or block, while a template is collected (see Sentinel). */
+export function whileCollecting(record: () => React.ReactNode, real: () => React.ReactNode): React.ReactElement {
+  return React.createElement(Sentinel, { record, real });
 }
 
 /** A Row or Column while collecting: its props, and markers around its children. */
