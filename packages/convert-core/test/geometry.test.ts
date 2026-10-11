@@ -17,7 +17,7 @@ const moved = (a: string, b: string) => compareText(page(a), page(b)).layout;
 
 describe("where text sits across the page", () => {
   it("puts table cells side by side, sharing what widths leave, and centers a table by align (CSS overrides only the sides it sets)", () => {
-    expect(boxes(page('<table width="600" align="center" style="margin-right:auto"><tr><td width="200">Left</td><td>Right</td></tr></table>'))).toEqual(["Left@50+200:left", "Right@250+400:left"]);
+    expect(boxes(page('<table width="600" cellspacing="0" align="center" style="margin-right:auto"><tr><td width="200">Left</td><td>Right</td></tr></table>'))).toEqual(["Left@50+200:left", "Right@250+400:left"]);
   });
 
   it("reads Elements' columns: cells straight in a display:table box, sized by their width", () => {
@@ -71,10 +71,47 @@ describe("cells without a width, beside others", () => {
   });
 });
 
+describe("layout inputs", () => {
+  it("spaces a row's cells by border-spacing, the cellspacing attribute or the browser's 2px, unless borders collapse", () => {
+    const row = (attrs: string, css = "") => boxes(page(`<table width="600" ${attrs} style="${css}"><tr><td width="200">Left</td><td>Right</td></tr></table>`));
+    expect(row('cellspacing="0"')).toEqual(["Left@0+200:left", "Right@200+400:left"]);
+    expect(row("")).toEqual(["Left@2+200:left", "Right@204+394:left"]);
+    expect(row('cellspacing="20"')).toEqual(["Left@20+200:left", "Right@240+340:left"]);
+    expect(row('cellspacing="20"', "border-spacing:50px")).toEqual(["Left@50+200:left", "Right@300+250:left"]);
+    expect(row('cellspacing="20"', "border-collapse:collapse")).toEqual(["Left@0+200:left", "Right@200+400:left"]);
+  });
+
+  it("adds padding and borders outside a width set on the content box, but a table's or one set to border-box", () => {
+    const centered = (css: string) => boxes(page(`<div style="width:300px;margin:0 auto;${css}">Centered box</div>`));
+    // 700px across: 300px plus 200px of padding, centered.
+    expect(centered("padding:0 100px")).toEqual(["Centered@200+300:left", "box@200+300:left"]);
+    expect(centered("padding:0 100px;box-sizing:border-box")).toEqual(["Centered@300+100:left", "box@300+100:left"]);
+  });
+
+  it("reads the logical sides: an inline start is the left, the right right to left", () => {
+    expect(boxes(page('<p style="padding-inline-start:200px;margin:0">Indented</p>'))).toEqual(["Indented@200+500:left"]);
+    expect(boxes(page('<div dir="rtl"><p style="margin-inline-start:200px;margin-block:0">Indented</p></div>'))).toEqual(["Indented@0+500:right"]);
+    // Set beside a physical side to another value: which wins isn't told.
+    expect(compareText(page('<p style="padding-left:10px;padding-inline-start:200px">Indented</p>'), page('<p style="padding-left:200px">Indented</p>')).unverified).toContainEqual(expect.objectContaining({ what: "where it sits" }));
+  });
+
+  it("shares a fixed table layout's width equally, whatever the cells hold; a later row set otherwise is unknown", () => {
+    const fixed = (rows: string) => page(`<table width="600" cellspacing="0" style="table-layout:fixed">${rows}</table>`);
+    expect(boxes(fixed('<tr><td>Short</td><td>A much longer cell of text that auto layout would widen</td></tr>'))[0]).toBe("Short@0+300:left");
+    const map = placements(new StyledDocument(fixed('<tr><td width="100">A</td><td>B</td></tr><tr><td width="500">Later</td><td>Row</td></tr>')));
+    expect([...map].filter(([, p]) => p.unknown).map(([e]) => (e as { tagName: string }).tagName)).toContain("td");
+  });
+
+  it("puts a flex row's gap between its items, and reads place-content as justify-content", () => {
+    expect(boxes(page('<div style="display:flex;gap:100px;width:600px"><div style="width:200px">One</div><div style="width:200px">Two</div></div>'))).toEqual(["One@0+200:left", "Two@300+200:left"]);
+    expect(boxes(page('<div style="display:flex;place-content:center;width:600px"><div style="width:200px">One</div></div>'))).toEqual(["One@200+200:left"]);
+  });
+});
+
 describe("compareLayout", () => {
-  const columns = '<table width="600"><tr><td width="300">Left side</td><td width="300">Right side</td></tr></table>';
+  const columns = '<table width="600" cellspacing="0"><tr><td width="300">Left side</td><td width="300">Right side</td></tr></table>';
   it("finds columns stacked into one: the second column's words moved", () => {
-    expect(moved(columns, '<table width="600"><tr><td>Left side</td></tr><tr><td>Right side</td></tr></table>')).toEqual([{ items: ["Right", "side"], by: -300 }]);
+    expect(moved(columns, '<table width="600" cellspacing="0"><tr><td>Left side</td></tr><tr><td>Right side</td></tr></table>')).toEqual([{ items: ["Right", "side"], by: -300 }]);
   });
 
   it("finds a block moved to the other side, and centered text that stays centered in a narrower box passes", () => {

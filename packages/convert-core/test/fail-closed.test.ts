@@ -229,13 +229,18 @@ describe("styles the check doesn't model", () => {
     ["content drawn before it", '<p class="star">Big sale</p>', ".star::before{content:'★ '}"],
     ["content drawn with the old one-colon spelling", '<p class="star">Big sale</p>', ".star:after{content:' →'}"],
   ];
+  // Layouts the check doesn't place: kept as they are, where words sit still can't be told (it depends on heights
+  // and content sizes the check doesn't read), so they fail either way.
+  const unplaced = new Set(["a line clamp", "a grid", "a box taken out of the flow", "text in columns"]);
   for (const [name, html, css] of cases) {
-    it(`fail on ${name} the migration doesn't have, and pass it kept`, () => {
+    it(`fail on ${name} the migration doesn't have, and ${unplaced.has(name) ? "on where it sits kept" : "pass it kept"}`, () => {
       const head = css ? style(css) : "";
       const lost = compareText(page(html, head), page("<p>Big sale</p>"));
       expect(checkFails(lost)).toBe(true);
-      expect(lost.unverified).toContainEqual(expect.objectContaining({ what: "look", side: "original" }));
-      expect(checkFails(compareText(page(html, head), page(html, head)))).toBe(false);
+      expect(lost.unverified).toContainEqual(expect.objectContaining({ what: unplaced.has(name) ? expect.stringMatching(/^(look|where it sits)$/) : "look", side: "original" }));
+      const kept = compareText(page(html, head), page(html, head));
+      if (unplaced.has(name)) expect(kept.unverified).toEqual([expect.objectContaining({ what: "where it sits" })]);
+      else expect(checkFails(kept)).toBe(false);
     });
   }
 
@@ -323,5 +328,65 @@ describe("in doubt on both sides", () => {
       page(`${anchor}<table width="600" style="width:600px"><tr><td><div style="display:flex">${first}</div></td><td><div style="display:flex">${second}</div></td></tr></table>`);
     const check = compareText(columns("Left words", "Right words"), columns("Left words", "Right words"));
     expect(check.unverified).toContainEqual(expect.objectContaining({ what: "where it sits" }));
+  });
+});
+
+describe("layouts where words sit", () => {
+  // Each pair moves words a reader sees by more than the check allows: it must fail, as a move or as unverified.
+  // (A line that stays where it is on both sides, so a move isn't read as the whole email shifting.)
+  const fails = (original: string, migrated: string, head = "") => checkFails(compareText(page(anchor + original, head), page(anchor + migrated, head)));
+  const plain = '<div style="width:600px"><p style="margin:0">Your order shipped</p></div>';
+
+  it("a column flex box's items aligned (not stretched), and an item's own alignment there", () => {
+    expect(fails('<div style="width:600px;display:flex;flex-direction:column;align-items:center"><p style="margin:0">Your order shipped</p></div>', plain)).toBe(true);
+    expect(fails('<div style="width:600px;display:flex;flex-direction:column;align-items:flex-start"><p style="margin:0;text-align:center">Your order shipped</p></div>', '<div style="width:600px"><p style="margin:0;text-align:center">Your order shipped</p></div>')).toBe(true);
+    // Stretched (the default), its items are as wide as it: that's block flow, which the check places.
+    expect(fails('<div style="width:600px;display:flex;flex-direction:column"><p style="margin:0">Your order shipped</p></div>', plain)).toBe(false);
+  });
+
+  it("logical sides: a start padding or margin, auto inline margins, a relative box moved by inset-inline", () => {
+    expect(fails('<div style="width:600px"><p style="margin:0;padding-inline-start:200px">Your order shipped</p></div>', plain)).toBe(true);
+    expect(fails('<div style="width:600px"><p style="margin:0;margin-inline-start:200px">Your order shipped</p></div>', plain)).toBe(true);
+    expect(fails('<div style="width:600px"><p style="margin:0;margin-inline:auto;width:150px;text-align:center">Your order shipped</p></div>', '<div style="width:600px"><p style="margin:0;width:150px;text-align:center">Your order shipped</p></div>')).toBe(true);
+    expect(fails('<div style="width:600px"><p style="margin:0;position:relative;inset-inline-start:300px">Your order shipped</p></div>', plain)).toBe(true);
+  });
+
+  it("a flex row's gap, place-content, and padding outside a content-box width", () => {
+    const row = (css: string) => `<div style="display:flex;width:600px;${css}"><div style="width:150px">First item</div><div style="width:150px">Second item</div></div>`;
+    expect(fails(row("gap:300px"), row(""))).toBe(true);
+    expect(fails(row("place-content:end"), row(""))).toBe(true);
+    const boxed = (css: string) => `<div style="width:300px;margin:0 auto;${css}">Centered words</div>`;
+    expect(fails(boxed("padding:0 150px"), boxed("padding:0 150px;box-sizing:border-box"))).toBe(true);
+  });
+
+  it("places boxes that shrink to their content one after the other: stacked, the second moves back to the start", () => {
+    const button = (text: string) => `<a href="https://example.com/${text}" style="display:inline-block;padding:10px 20px">${text} now</a>`;
+    const check = compareText(page(anchor + `<div style="width:600px">${button("Shop all our new arrivals")}${button("Browse")}</div>`), page(anchor + `<div style="width:600px"><div>${button("Shop all our new arrivals")}</div><div>${button("Browse")}</div></div>`));
+    expect(check.layout).toEqual([expect.objectContaining({ items: ["Browse", "now"] })]);
+    expect(check.layout[0].by).toBeLessThan(-200);
+  });
+
+  it("layouts the check doesn't place, the same CSS on both sides: a grid, columns, a box out of the flow, wrapping flex items", () => {
+    const kept = [
+      '<div style="display:grid;grid-template-columns:1fr 1fr"><p>Left words</p><p>Right words</p></div>',
+      '<div style="column-count:2"><p>Left words</p><p>Right words</p></div>',
+      '<div style="position:absolute;left:300px"><p>Left words</p></div>',
+      '<div style="display:flex;flex-wrap:wrap;width:600px"><div style="width:400px">Left words</div><div style="width:400px">Right words</div></div>',
+    ];
+    for (const html of kept) expect(compareText(page(html), page(html)).unverified, html).toContainEqual(expect.objectContaining({ what: "where it sits" }));
+  });
+
+  it("CSS that changes how words show: a last line's alignment, a list's numbers, an underline drawn transparent", () => {
+    expect(fails('<p style="text-align-last:center">Your order shipped</p>', "<p>Your order shipped</p>")).toBe(true);
+    expect(fails('<ol style="counter-reset:list-item 41"><li>Your order shipped</li></ol>', "<ol><li>Your order shipped</li></ol>")).toBe(true);
+    expect(fails('<p style="text-decoration:underline;text-decoration-color:transparent">Your order shipped</p>', '<p style="text-decoration:underline">Your order shipped</p>')).toBe(true);
+  });
+});
+
+describe("the font shorthand", () => {
+  it("reads its family: one the migration doesn't keep differs", () => {
+    const check = compareText(page('<p style="font:14px/20px Georgia, serif">Your order shipped</p>'), page('<p style="font-size:14px;font-family:Arial, sans-serif">Your order shipped</p>'));
+    expect(check.styles).toContainEqual(expect.objectContaining({ property: "font", original: "georgia", converted: "arial" }));
+    expect(checkFails(compareText(page('<p style="font:italic bold 14px Georgia">Your order shipped</p>'), page('<p style="font-style:italic;font-weight:bold;font-size:14px;font-family:Georgia">Your order shipped</p>')))).toBe(false);
   });
 });

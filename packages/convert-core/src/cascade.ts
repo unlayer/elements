@@ -1475,7 +1475,7 @@ export class StyledDocument {
       if (bare === "position") {
         if (v === "static") continue;
         // Moved from where it sits only by its offsets.
-        const offsets = ["top", "right", "bottom", "left", "inset"].flatMap((side) => {
+        const offsets = ["top", "right", "bottom", "left", "inset", "inset-inline", "inset-inline-start", "inset-inline-end", "inset-block", "inset-block-start", "inset-block-end"].flatMap((side) => {
           const o = this.property(element, side);
           return o === null || (o && !/^(auto|[+-]?0(\.0*)?([a-z]+|%)?)$/i.test(o.trim())) ? [`${side}: ${o ?? "?"}`] : [];
         });
@@ -1665,16 +1665,19 @@ const MODELED = new Set([
  */
 const INERT = new Set([
   // Vertical layout and boxes' own drawing: the check verifies words, their styles and where they sit across,
-  // not how tall boxes are, their borders, corners or outer shadows.
+  // not how tall boxes are, their corners or outer shadows.
   "height", "min-height", "max-height", "line-height", "margin-top", "margin-bottom", "padding-top", "padding-bottom",
   "margin-block", "margin-block-start", "margin-block-end", "padding-block", "padding-block-start", "padding-block-end",
+  "border-radius", "outline", "outline-color", "outline-style", "outline-width", "outline-offset", "box-decoration-break",
+  "row-gap", "align-content", "z-index", "empty-cells", "caption-side",
+  // Read where words sit across the page (geometry.ts), not compared again here: side widths and sizing, a flex
+  // row's gap and alignment (a column's items placed only stretched), cell spacing, and the layouts it doesn't
+  // model (a grid, columns, a box out of the flow, wrapping flex items, a fixed table layout, size containment,
+  // a width from an aspect ratio), whose words are unknown there.
   "margin-inline", "margin-inline-start", "margin-inline-end", "padding-inline", "padding-inline-start", "padding-inline-end",
-  "border", "border-radius", "outline", "outline-color", "outline-style", "outline-width", "outline-offset", "box-sizing",
-  "box-decoration-break", "aspect-ratio", "align-items", "align-self", "align-content", "justify-items", "justify-self",
-  "place-items", "place-self", "place-content", "gap", "row-gap", "column-gap", "column-rule", "column-span", "column-fill",
-  "flex-wrap", "z-index", "inset", "top", "left", "right", "bottom",
-  // Tables: their cells are placed from their widths (`table-layout` within the distance the check allows).
-  "table-layout", "border-collapse", "border-spacing", "empty-cells", "caption-side",
+  "border", "box-sizing", "aspect-ratio", "align-items", "align-self", "justify-items", "justify-self", "place-items",
+  "place-self", "place-content", "gap", "column-gap", "column-rule", "column-span", "column-fill", "flex-wrap", "inset",
+  "top", "left", "right", "bottom", "table-layout", "border-collapse", "border-spacing", "contain",
   // Where lines wrap (vertical layout).
   "word-break", "overflow-wrap", "word-wrap", "hyphens", "line-break", "text-wrap-style", "tab-size", "orphans", "widows",
   "page-break-before", "page-break-after", "page-break-inside", "break-before", "break-after", "break-inside",
@@ -1683,18 +1686,19 @@ const INERT = new Set([
   "background-attachment", "background-origin",
   // Images: no words in them.
   "object-fit", "object-position", "image-rendering", "interpolation-mode",
-  // Decoration details: whether a word is underlined or struck through is compared, not the line's own look.
-  "text-decoration-color", "text-decoration-style", "text-decoration-thickness", "text-decoration-skip", "text-decoration-skip-ink",
+  // Decoration details: whether a word is underlined or struck through is compared, not the line's own look
+  // (a color that hides the line is in doubt: see NEUTRAL).
+  "text-decoration-style", "text-decoration-thickness", "text-decoration-skip", "text-decoration-skip-ink",
   "text-underline-offset", "text-underline-position",
   // Rendering hints, interaction, motion between states: what's drawn at rest is the same.
   "font-smoothing", "osx-font-smoothing", "font-smooth", "text-rendering", "text-size-adjust", "font-kerning", "font-optical-sizing",
   "font-synthesis", "font-synthesis-weight", "font-synthesis-style", "font-synthesis-small-caps", "font-display", "src", "unicode-range",
   "cursor", "pointer-events", "user-select", "user-drag", "touch-callout", "touch-action", "tap-highlight-color", "caret-color",
-  "accent-color", "appearance", "resize", "scroll-behavior", "overscroll-behavior", "will-change", "contain", "isolation",
+  "accent-color", "appearance", "resize", "scroll-behavior", "overscroll-behavior", "will-change", "isolation",
   "backface-visibility", "transform-origin", "transform-style", "perspective", "perspective-origin", "transition",
   "transition-property", "transition-duration", "transition-timing-function", "transition-delay", "color-scheme",
-  "print-color-adjust", "color-adjust", "forced-color-adjust", "speak", "behavior", "counter-reset", "counter-increment",
-  "counter-set", "box-orient", "box-pack", "box-align", "box-direction", "text-align-last", "text-justify",
+  "print-color-adjust", "color-adjust", "forced-color-adjust", "speak", "behavior", "box-orient", "box-pack", "box-align",
+  "box-direction", "text-justify",
   // List markers: read from the list item (see `look`).
   "list-style", "list-style-type", "list-style-position", "list-style-image",
 ]);
@@ -1722,6 +1726,9 @@ const NEUTRAL: Record<string, RegExp> = {
   "flex-flow": /^(?!.*reverse).*$/, "vertical-align": /^(baseline|top|middle|bottom|text-top|text-bottom)$/,
   "box-shadow": /^(?!.*\binset\b).*$/, "background-clip": /^(?!.*\btext\b).*$/, overflow: /^visible$/, "overflow-x": /^visible$/,
   "overflow-y": /^visible$/, "overflow-clip-margin": /.*/,
+  // A one-line paragraph's alignment; a list's numbers; an underline drawn in a color that shows.
+  "text-align-last": /^auto$/, "counter-reset": /^none$/, "counter-increment": /^none$/, "counter-set": /^none$/,
+  "text-decoration-color": /^(?!transparent$)(?!rgba?\(.*[,/]\s*0(\.0+)?%?\s*\)$)(?!#[0-9a-f]{6}00$|#[0-9a-f]{3}0$).*$/,
 };
 
 /** Properties in doubt that inherit: the nearest box that sets one decides. Others add up from every box around the word. */
@@ -1767,13 +1774,15 @@ function expand(property: string, value: string): Array<{ property: string; valu
   if (property === "font") {
     // `font: italic bold 14px/1.5 Arial`: size and the keywords before it.
     // The size starts a word: `.875em` is 0.875em.
-    const m = /^((?:.*?\s)?)((?:\d+\.?\d*|\.\d+)(?:px|em|rem|%|pt)|xx-small|x-small|small|medium|large|x-large|xx-large|smaller|larger)(?:\s*\/\s*\S+)?\s+.+$/i.exec(value.trim());
-    if (!m) return [{ property: "font-size", value: "", unknown: true }, { property: "font-weight", value: "", unknown: true }, { property: "font-style", value: "", unknown: true }];
+    const m = /^((?:.*?\s)?)((?:\d+\.?\d*|\.\d+)(?:px|em|rem|%|pt)|xx-small|x-small|small|medium|large|x-large|xx-large|smaller|larger)(?:\s*\/\s*\S+)?\s+(.+)$/i.exec(value.trim());
+    if (!m) return ["font-size", "font-weight", "font-style", "font-family"].map((property) => ({ property, value: "", unknown: true }));
     const before = m[1].toLowerCase();
     return [
       { property: "font-size", value: m[2], unknown: false },
       { property: "font-weight", value: /\b(bold|bolder|lighter|[1-9]00)\b/.exec(before)?.[1] ?? "normal", unknown: false },
       { property: "font-style", value: /\b(italic|oblique)\b/.test(before) ? "italic" : "normal", unknown: false },
+      // The family is what follows the size (and line height).
+      { property: "font-family", value: m[3].trim(), unknown: false },
     ];
   }
   if (property === "text-decoration") {

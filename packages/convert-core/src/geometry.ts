@@ -38,11 +38,6 @@ export interface Placement {
   /** A property this needs couldn't be read (a rule it can't place): the placement is a guess. */
   unknown?: boolean;
   /**
-   * In a box that shrinks to its text and aligns it otherwise than its line (an inline-block heading
-   * centered in a left-aligned cell): where the text sits depends on its length. Not compared.
-   */
-  loose?: boolean;
-  /**
    * How far its anchor may be from `x`'s: a column its content sizes sits where text widths put it, and
    * those are estimates (see `bandedPlacements`).
    */
@@ -111,9 +106,25 @@ function sides(doc: StyledDocument, element: Element, name: "padding" | "margin"
   const all = doc.property(element, name);
   // `a` / `a b` / `a b c` / `a b c d`: right is the 2nd (else the 1st), left the 4th (else the right).
   const parts = all ? all.trim().replace(/\s*!important$/i, "").split(/\s+/) : [];
-  const leftRaw = doc.property(element, `${name}-left`) || (parts[3] ?? parts[1] ?? parts[0] ?? "");
-  const rightRaw = doc.property(element, `${name}-right`) || (parts[1] ?? parts[0] ?? "");
-  const unknown = all === null || doc.property(element, `${name}-left`) === null || doc.property(element, `${name}-right`) === null || unreadable(leftRaw) || unreadable(rightRaw);
+  let leftRaw = doc.property(element, `${name}-left`) || (parts[3] ?? parts[1] ?? parts[0] ?? "");
+  let rightRaw = doc.property(element, `${name}-right`) || (parts[1] ?? parts[0] ?? "");
+  let unknown = all === null || doc.property(element, `${name}-left`) === null || doc.property(element, `${name}-right`) === null || unreadable(leftRaw) || unreadable(rightRaw);
+  // The logical sides (`padding-inline-start`, `margin-inline`): the start is the left, or the right right to left.
+  // Set beside a physical side to another value, which one the cascade puts last isn't told: unknown.
+  const inline = doc.property(element, `${name}-inline`);
+  const pair = (inline ?? "").trim().replace(/\s*!important$/i, "").split(/\s+/).filter(Boolean);
+  const startRaw = doc.property(element, `${name}-inline-start`) || pair[0] || "";
+  const endRaw = doc.property(element, `${name}-inline-end`) || pair[1] || pair[0] || "";
+  if (inline === null || doc.property(element, `${name}-inline-start`) === null || doc.property(element, `${name}-inline-end`) === null) unknown = true;
+  const rtl = doc.look(element).get("direction") === "rtl";
+  for (const [logical, side] of [[startRaw, rtl ? "right" : "left"], [endRaw, rtl ? "left" : "right"]] as const) {
+    if (!logical) continue;
+    const physical = side === "left" ? leftRaw : rightRaw;
+    if (physical && physical.trim() !== logical.trim()) unknown = true;
+    if (side === "left") leftRaw = logical;
+    else rightRaw = logical;
+    if (unreadable(logical)) unknown = true;
+  }
   return {
     left: length(leftRaw, of) ?? 0,
     right: length(rightRaw, of) ?? 0,
@@ -126,10 +137,27 @@ function sides(doc: StyledDocument, element: Element, name: "padding" | "margin"
 }
 
 function borderWidth(doc: StyledDocument, element: Element, side: "left" | "right"): number {
-  const own = doc.property(element, `border-${side}-width`) || doc.property(element, `border-${side}`) || doc.property(element, "border-width") || doc.property(element, "border");
-  if (!own || /\bnone\b|\bhidden\b/.test(own)) return 0;
-  const width = own.split(/\s+/).map((p) => length(p, 0)).find((n) => n !== undefined);
-  return width ?? 0;
+  const width = (own: string | null) => {
+    if (!own || /\bnone\b|\bhidden\b/.test(own)) return 0;
+    return own.split(/\s+/).map((p) => length(p, 0)).find((n) => n !== undefined) ?? 0;
+  };
+  const physical = width(doc.property(element, `border-${side}-width`) || doc.property(element, `border-${side}`) || doc.property(element, "border-width") || doc.property(element, "border"));
+  // The logical side (`border-inline-start`): the start is the left, or the right right to left. Beside a
+  // physical one, the wider (which the cascade puts last isn't told).
+  const logical = (side === "left") !== (doc.look(element).get("direction") === "rtl") ? "start" : "end";
+  const inline = doc.property(element, "border-inline-width") || doc.property(element, "border-inline");
+  return Math.max(physical, width(doc.property(element, `border-inline-${logical}-width`) || doc.property(element, `border-inline-${logical}`) || inline));
+}
+
+/** Whether a set width includes the padding and borders: `box-sizing: border-box`, or a table's or button's default. */
+function borderBox(element: Element, sizing: string | null): boolean {
+  return sizing ? /^border-box/i.test(sizing.trim()) : /^(table|button)$/.test(element.tagName);
+}
+
+/** The padding and borders across a box: what a width set on its content box leaves outside it. */
+function paddingAndBorders(doc: StyledDocument, element: Element, of: number): number {
+  const padding = sides(doc, element, "padding", of);
+  return padding.left + padding.right + borderWidth(doc, element, "left") + borderWidth(doc, element, "right");
 }
 
 function display(doc: StyledDocument, element: Element): string {
@@ -213,15 +241,20 @@ function place(doc: StyledDocument, element: Element, x: number, available: numb
     ownDirection === undefined ||
     doc.property(element, "display") === null ||
     ["width", "min-width", "max-width"].filter((name) => !sized(name)).some((name) => unreadable(doc.property(element, name))) ||
-    ["text-align", "justify-content", "float"].some((name) => doc.property(element, name) === null);
+    ["text-align", "justify-content", "place-content", "float"].some((name) => doc.property(element, name) === null);
   // Its outer width: given (a cell's share), set (width, the width attribute), or all there is; then max-/min-width.
   const margin = sides(doc, element, "margin", available);
-  const declared = length(doc.property(element, "width"), available) ?? length(attr(element, "width"), available);
-  let width = givenWidth ?? declared ?? (inline ? undefined : available - margin.left - margin.right);
   // A table cell's width is its share of the row (browsers ignore max-/min-width on cells).
   const cell = givenWidth !== undefined || kind === "table-cell";
-  const max = cell ? undefined : length(doc.property(element, "max-width"), available);
-  const min = cell ? undefined : length(doc.property(element, "min-width"), available);
+  // A width set on the content box (the default but for tables and buttons) leaves its padding and borders outside.
+  const sizing = doc.property(element, "box-sizing");
+  if (sizing === null) unknown = true;
+  const around = cell || borderBox(element, sizing) ? 0 : paddingAndBorders(doc, element, available);
+  const set = (value: number | undefined) => (value === undefined ? undefined : value + around);
+  const declared = set(length(doc.property(element, "width"), available) ?? length(attr(element, "width"), available));
+  let width = givenWidth ?? declared ?? (inline ? undefined : available - margin.left - margin.right);
+  const max = cell ? undefined : set(length(doc.property(element, "max-width"), available));
+  const min = cell ? undefined : set(length(doc.property(element, "min-width"), available));
   if (width !== undefined && max !== undefined) width = Math.min(width, max);
   if (width !== undefined && min !== undefined) width = Math.max(width, min);
   if (width === undefined && max !== undefined) width = Math.min(max, available);
@@ -245,9 +278,11 @@ function place(doc: StyledDocument, element: Element, x: number, available: numb
   const padRight = Number.isFinite(cellPadding) && !padding.right ? cellPadding : padding.right;
   const contentX = left + borderWidth(doc, element, "left") + padLeft;
   const contentWidth = Math.max(0, outer - borderWidth(doc, element, "left") - borderWidth(doc, element, "right") - padLeft - padRight);
-  // A flex container places its own text (an anonymous item) by justify-content.
-  const justify = /flex$/.test(kind) ? (doc.property(element, "justify-content") ?? "").toLowerCase() : "";
-  let flow: Flow = /center/.test(justify) ? { align: "center" } : /flex-end|end|right/.test(justify) ? { align: "right" } : textAlign(doc, element, inherited, rtl);
+  // A flex row places its own text (an anonymous item) by justify-content (a column's is vertical).
+  const justify = /flex$/.test(kind) && !/column/.test(doc.property(element, "flex-direction") ?? "") ? justifyContent(doc, element) : "";
+  const text = textAlign(doc, element, inherited, rtl);
+  const justified = /center|end|right|left/.test(justify);
+  let flow: Flow = justified ? { align: flexAlign(justify, rtl) } : text;
   if (hugs) {
     // Where the box itself sits depends on its content's width when something centers it, or it starts on the right.
     if (rtl || margin.autoLeft || margin.autoRight || (blockAlign !== undefined && blockAlign !== "left")) unknown = true;
@@ -264,8 +299,55 @@ function place(doc: StyledDocument, element: Element, x: number, available: numb
     element.tagName === "table" ? undefined
     : cssAlign ? undefined
     : own === "center" || element.tagName === "center" ? "center" : own === "right" ? "right" : own === "left" ? "left" : blockAlign;
-  placeChildren(doc, element, kind, placement, childBlockAlign, rtl, out);
+  // (A flex item's text lines up by the box's text-align, which it inherits, not by justify-content.)
+  placeChildren(doc, element, kind, justified && !hugs ? { ...placement, ...text, ...(placement.unknown ? { unknown: true } : {}) } : placement, childBlockAlign, rtl, out);
+  // A layout the check doesn't model places what's in it as unknown (the check fails on it), never as block flow.
+  if (unmodeled(doc, element, kind)) unknownWithin(element, out);
   return placement;
+}
+
+/** The display values the check places. */
+const PLACED = /^(block|inline|inline-block|flex|inline-flex|flow-root|list-item|table|inline-table|table-row|table-cell|table-row-group|table-header-group|table-footer-group|table-column|table-column-group|none)$/;
+
+/**
+ * Whether a box lays out what's in it in a way the check doesn't model: a grid, columns of text, a box taken out
+ * of the flow, flex items that wrap or (in a column) don't stretch, vertical text, size containment, a width
+ * from an aspect ratio, or a display it doesn't know. Each depends on things the check
+ * doesn't read (heights, content sizes), so the same CSS on both sides isn't the same layout.
+ */
+function unmodeled(doc: StyledDocument, element: Element, kind: string): boolean {
+  const read = (name: string) => {
+    const value = doc.property(element, name);
+    return value === null ? null : value.trim().toLowerCase().replace(/\s*!important$/, "");
+  };
+  const is = (name: string, neutral: RegExp) => {
+    const value = read(name);
+    return value === null || (value !== "" && !neutral.test(value));
+  };
+  if (!PLACED.test(kind)) return true;
+  if (is("position", /^(static|relative|initial|unset|revert|revert-layer)$/)) return true;
+  if (is("column-count", /^(auto|initial|unset)$/) || is("column-width", /^(auto|initial|unset)$/) || is("columns", /^(auto|auto auto|initial|unset)$/)) return true;
+  if (is("writing-mode", /^(horizontal-tb|initial|unset)$/)) return true;
+  if (is("contain", /^(none|layout|style|layout style|style layout|initial|unset)$/)) return true;
+  // A width from an aspect ratio: set, with no width of its own.
+  if (is("aspect-ratio", /^(auto|initial|unset)$/) && !read("width") && !attr(element, "width")) return true;
+  if (/flex$/.test(kind)) {
+    if (is("flex-wrap", /^(nowrap|initial|unset)$/) || /wrap/.test(read("flex-flow") ?? "?")) return true;
+    // A column: its items are as wide as it (stretched) unless aligned otherwise.
+    if (/column/.test(read("flex-direction") ?? "?") || /column/.test(read("flex-flow") ?? "")) {
+      const stretched = /^(|normal|stretch|initial|unset)$/;
+      if (is("align-items", stretched) || is("place-items", stretched)) return true;
+      const own = /^(|auto|normal|stretch|initial|unset)$/;
+      for (const child of element.childNodes) {
+        if (!isElement(child)) continue;
+        for (const name of ["align-self", "place-self"]) {
+          const value = doc.property(child, name);
+          if (value === null || !own.test(value.trim().toLowerCase().replace(/\s*!important$/, ""))) return true;
+        }
+      }
+    }
+  }
+  return false;
 }
 
 const VISIBLE_TEXT = /[^\s\u200b-\u200d\u2060\ufeff]/;
@@ -358,6 +440,21 @@ function placeChildren(doc: StyledDocument, element: Element, kind: string, box:
   if (atomic.length && (text || inlines.length)) for (const k of [...atomic, ...inlines]) unknownWithin(k, out);
 }
 
+/** A table's first row: the first `tr` (or row-displayed box) in it, not in a table inside it. */
+function firstRow(doc: StyledDocument, table: Element): Element | undefined {
+  const find = (node: Element): Element | undefined => {
+    for (const child of node.childNodes) {
+      if (!isElement(child)) continue;
+      if (child.tagName === "tr" || display(doc, child) === "table-row") return child;
+      if (/^(inline-)?table$/.test(display(doc, child))) continue;
+      const found = find(child);
+      if (found) return found;
+    }
+    return undefined;
+  };
+  return find(table);
+}
+
 function cellsOf(doc: StyledDocument, rowElement: Element): Element[] {
   return children(doc, rowElement).filter((c) => display(doc, c) === "table-cell" || c.tagName === "td" || c.tagName === "th");
 }
@@ -369,10 +466,43 @@ function cellsOf(doc: StyledDocument, rowElement: Element): Element[] {
  */
 function row(doc: StyledDocument, rowElement: Element, cells: Element[], box: Placement, blockAlign: Align | undefined, rtl: boolean, out: Map<Element, Placement>): void {
   if (!out.has(rowElement)) out.set(rowElement, box);
+  // The space around each cell (`border-spacing`, else the `cellspacing` attribute, else the browser's 2px for
+  // a <table>), unless the borders collapse.
+  // (The table is the box displayed as one: a <table>, or Elements' `display: table` row.)
+  let table: Element | undefined = rowElement;
+  while (table && !/^(inline-)?table$/.test(display(doc, table))) table = isElement(table.parentNode) ? table.parentNode : undefined;
+  let spacing = 0;
+  let spacingUnknown = false;
+  if (table) {
+    const collapse = doc.property(table, "border-collapse");
+    const css = doc.property(table, "border-spacing");
+    const attribute = Number(attr(table, "cellspacing") ?? NaN);
+    if (collapse === null || css === null) spacingUnknown = true;
+    else if (!/^collapse/i.test(collapse.trim())) {
+      const first = css.trim().replace(/\s*!important$/i, "").split(/\s+/)[0];
+      // (The browser's 2px is its style for <table>; a box displayed as a table starts at 0.)
+      const value = first ? length(first, 0) : Number.isFinite(attribute) ? attribute : table.tagName === "table" ? 2 : 0;
+      if (value === undefined) spacingUnknown = true;
+      else spacing = value;
+    }
+  }
+  box = { ...box, x: box.x + spacing, width: Math.max(0, box.width - spacing * (cells.length + 1)) };
   const widths = cells.map((c) => length(doc.property(c, "width"), box.width) ?? length(attr(c, "width"), box.width) ?? length(doc.property(c, "min-width"), box.width));
   let unmeasured = false;
   let sized = false;
-  if (cells.length > 1 && widths.some((w) => w === undefined)) {
+  // A fixed table layout (with a width set on the table) gives cells their set widths and shares the rest
+  // equally, whatever they hold; its first row decides, so a later row set otherwise is unknown.
+  const layout = table ? doc.property(table, "table-layout") : "";
+  const fixedLayout = !!table && /^fixed/i.test(layout ?? "") && !!(doc.property(table, "width") || attr(table, "width"));
+  if (layout === null) unmeasured = true;
+  if (fixedLayout && table) {
+    const first = firstRow(doc, table);
+    if (first && first !== rowElement) {
+      const firstWidths = cellsOf(doc, first).map((c) => doc.property(c, "width") || attr(c, "width") || "");
+      if (firstWidths.length !== cells.length || cells.some((c, i) => (doc.property(c, "width") || attr(c, "width") || "") !== firstWidths[i])) unmeasured = true;
+    }
+  }
+  if (!fixedLayout && cells.length > 1 && widths.some((w) => w === undefined)) {
     const columns = cells.map((c, i): TableColumn | undefined => {
       const needs = extent(doc, c);
       return needs && { ...needs, ...(widths[i] !== undefined ? { set: widths[i] } : {}) };
@@ -397,8 +527,8 @@ function row(doc: StyledDocument, rowElement: Element, cells: Element[], box: Pl
     const w = (widths[i] ?? share) * scale;
     if (rtl) x -= w;
     place(doc, cells[i], x, w, box, blockAlign, rtl, out, false, w);
-    if (broken || unmeasured) unknownWithin(cells[i], out);
-    if (!rtl) x += w;
+    if (broken || unmeasured || spacingUnknown) unknownWithin(cells[i], out);
+    x += rtl ? -spacing : w + spacing;
   }
 }
 
@@ -431,7 +561,8 @@ function extent(doc: StyledDocument, element: Element): { min: number; max: numb
   if (element.tagName === "img" && /%$/.test(declared)) return { min: around, max: imageGuess + around };
   if (/%$/.test(declared) && parseFloat(declared) < 100) return undefined;
   const px = /%$/.test(declared) ? undefined : length(declared, 0);
-  if (px !== undefined) return { min: px + margin.left + margin.right, max: px + margin.left + margin.right };
+  const set = px === undefined ? undefined : px + margin.left + margin.right + (borderBox(element, doc.property(element, "box-sizing")) ? 0 : around - margin.left - margin.right);
+  if (set !== undefined) return { min: set, max: set };
   if (element.tagName === "img") return { min: imageGuess + around, max: imageGuess + around };
   if (kind === "table-row") {
     // Cells side by side: the row needs what they all need.
@@ -536,44 +667,74 @@ function line(doc: StyledDocument, items: Element[], box: Placement, blockAlign:
     // (An auto margin moves a flex item; on an inline-block it's 0.)
     if (margin.unknown || (flex && (margin.autoLeft || margin.autoRight)) || Math.abs(margin.left) >= 60 || Math.abs(margin.right) >= 60) unknownWithin(element, out);
   };
+  // The space between flex items (`column-gap`, or `gap`'s second value or only one).
+  let gap = 0;
+  let gapUnknown = false;
+  if (flex) {
+    const container = items[0].parentNode as Element;
+    const column = doc.property(container, "column-gap");
+    const both = doc.property(container, "gap");
+    const parts = (both ?? "").trim().replace(/\s*!important$/i, "").split(/\s+/).filter(Boolean);
+    const raw = (column || parts[1] || parts[0] || "").trim().replace(/\s*!important$/i, "");
+    gapUnknown = column === null || both === null || (!/^(normal|0)?$/i.test(raw) && length(raw, box.width) === undefined);
+    gap = /^normal$/i.test(raw) ? 0 : length(raw, box.width) ?? 0;
+  }
+  const unknownAll = () => items.forEach((element) => unknownWithin(element, out));
   if (flex && widths.every((w) => w === undefined) && items.every(grows)) {
-    const share = box.width / items.length;
+    const share = Math.max(0, box.width - gap * (items.length - 1)) / items.length;
     items.forEach((element, i) => {
-      place(doc, element, rtl ? box.x + box.width - (i + 1) * share : box.x + i * share, share, box, blockAlign, rtl, out, false, share);
+      place(doc, element, rtl ? box.x + box.width - (i + 1) * share - i * gap : box.x + i * (share + gap), share, box, blockAlign, rtl, out, false, share);
       shifted(element);
     });
+    if (gapUnknown) unknownAll();
     return;
   }
-  // Boxes that shrink to their content (a button: an inline-block without a width) sit where the line's
-  // alignment puts them: their text lines up as the line's does. In a flex row without widths, the first
-  // item starts the row and the last ends it (space-between), or all sit by justify-content.
-  if (widths.every((w) => w === undefined)) {
-    const justify = flex ? (doc.property(items[0].parentNode as Element, "justify-content") ?? "").toLowerCase() : "";
+  // Boxes that shrink to their content (a button: an inline-block without a width), each alone at an edge of
+  // the line, sit where the line's alignment puts them: their text lines up as the line's does. In a flex row
+  // without widths, the first item starts the row and the last ends it (space-between), or all sit by
+  // justify-content.
+  const justify = flex ? justifyContent(doc, items[0].parentNode as Element) : "";
+  const [start, end]: Align[] = rtl ? ["right", "left"] : ["left", "right"];
+  const edges = items.map((element, i): Align => {
+    const float = (doc.property(element, "float") ?? "").trim().toLowerCase();
+    return !flex && (float === "left" || float === "right")
+      ? float
+      : !flex
+      ? box.align
+      : /space-between|space-around|space-evenly/.test(justify)
+        ? items.length === 1 ? start : i === 0 ? start : i === items.length - 1 ? end : "center"
+        : flexAlign(justify, rtl);
+  });
+  // (Two at one edge sit one after the other, and one centered between others is centered in what's left.)
+  const alone = items.length === 1 || (new Set(edges).size === edges.length && !edges.includes("center"));
+  if (widths.every((w) => w === undefined) && alone) {
     items.forEach((element, i) => {
-      const float = (doc.property(element, "float") ?? "").trim().toLowerCase();
-      const [start, end]: Align[] = rtl ? ["right", "left"] : ["left", "right"];
-      const align: Align = !flex && (float === "left" || float === "right")
-        ? float
-        : !flex
-        ? box.align
-        : /space-between|space-around|space-evenly/.test(justify)
-          ? items.length === 1 ? start : i === 0 ? start : i === items.length - 1 ? end : "center"
-          : flexAlign(justify, rtl);
-      // The box hugs its text: its own text-align doesn't move it, the line's does; unless the text fills
-      // the line, which can't be told here.
+      const align = edges[i];
       const own = textAlign(doc, element, { align }, rtl).align;
-      const floated = !flex && (float === "left" || float === "right");
-      const placement: Placement = { x: box.x, width: box.width, align, ...(!floated && (own !== align || box.loose) ? { loose: true } : {}) };
+      // On one line, its own text-align doesn't move its text, the line's does; wider than the line, it fills
+      // it and its text lines up by its own. Where its width can't be told: unknown.
+      const needs = own !== align ? extent(doc, element) : undefined;
+      const placement: Placement = { x: box.x, width: box.width, align: needs && needs.max > box.width ? own : align };
       out.set(element, placement);
       placeChildren(doc, element, display(doc, element), placement, blockAlign, rtl, out);
       out.set(element, placement);
+      if (own !== align && !needs) unknownWithin(element, out);
       shifted(element);
     });
     return;
   }
+  // Otherwise each takes its width: set, a share (a cell, a flex item that grows), or its content's, by the
+  // text widths' estimate (where that can't be told, the line is unknown).
+  let unmeasured = false;
+  for (let i = 0; i < items.length; i++) {
+    if (widths[i] !== undefined || display(doc, items[i]) === "table-cell" || (flex && grows(items[i]))) continue;
+    const needs = extent(doc, items[i]);
+    if (needs) widths[i] = Math.min(needs.max, box.width);
+    else unmeasured = true;
+  }
   const fixed = widths.reduce<number>((a, w) => a + (w ?? 0), 0);
   const free = widths.filter((w) => w === undefined).length;
-  const share = free ? Math.max(0, box.width - fixed) / free : 0;
+  const share = free ? Math.max(0, box.width - fixed - gap * (items.length - 1)) / free : 0;
   // Lines: fill up to the box's width.
   const lines: Array<Array<{ element: Element; width: number }>> = [[]];
   let used = 0;
@@ -586,7 +747,6 @@ function line(doc: StyledDocument, items: Element[], box: Placement, blockAlign:
     lines[lines.length - 1].push({ element, width });
     used += width;
   });
-  const justify = flex ? (doc.property(items[0].parentNode as Element, "justify-content") ?? "").toLowerCase() : "";
   // Boxes floated right sit from the line's right edge, in order; the rest as the line places them.
   const floatsRight = (element: Element) => !flex && /^right$/i.test((doc.property(element, "float") ?? "").trim());
   let right = box.x + box.width;
@@ -597,21 +757,33 @@ function line(doc: StyledDocument, items: Element[], box: Placement, blockAlign:
       place(doc, it.element, right, it.width - margin.left - margin.right, box, blockAlign, rtl, out, false, it.width - margin.left - margin.right);
     }
   }
+  let overflows = false;
   for (const all of lines) {
     const items_ = all.filter((item) => !floatsRight(item.element));
-    const total = items_.reduce((a, it) => a + it.width, 0);
+    const total = items_.reduce((a, it) => a + it.width, 0) + gap * Math.max(0, items_.length - 1);
+    // A flex row wider than its box shrinks its items, by amounts this doesn't work out.
+    overflows ||= flex && total > box.width + 0.5;
     const spare = Math.max(0, box.width - total);
     const align = flex ? flexAlign(justify, rtl) : box.align;
-    const gap = flex && /space-between/.test(justify) && items_.length > 1 ? spare / (items_.length - 1) : 0;
+    const spread = flex && /space-between/.test(justify) && items_.length > 1 ? spare / (items_.length - 1) : 0;
     // (Spread out, the items fill the row from edge to edge.)
-    let x = box.x + (gap ? 0 : align === "center" ? spare / 2 : align === "right" ? spare : 0);
+    let x = box.x + (spread ? 0 : align === "center" ? spare / 2 : align === "right" ? spare : 0);
     // Right to left, the first box is the rightmost.
     for (const it of rtl ? [...items_].reverse() : items_) {
       const margin = sides(doc, it.element, "margin", box.width);
       place(doc, it.element, x, it.width - margin.left - margin.right, box, blockAlign, rtl, out, false, it.width - margin.left - margin.right);
-      x += it.width + gap;
+      x += it.width + spread + gap;
     }
   }
+  if (gapUnknown || unmeasured || overflows) unknownAll();
+}
+
+/** A flex box's `justify-content`, or what `place-content` gives it (its second value, else its only one). */
+function justifyContent(doc: StyledDocument, element: Element): string {
+  const own = (doc.property(element, "justify-content") ?? "").trim().toLowerCase();
+  if (own) return own;
+  const place = (doc.property(element, "place-content") ?? "").trim().toLowerCase().split(/\s+/).filter(Boolean);
+  return place[1] ?? place[0] ?? "";
 }
 
 /** Where a flex row's `justify-content` puts its items: its start and end are the right and left right to left. */
@@ -657,7 +829,7 @@ export function unplaced(original: StyledDocument, converted: StyledDocument, a:
     if (!a[i].shown || !a[i].at || !b[i].at) continue;
     const x = placementOf(pa, a[i].at!);
     const y = placementOf(pb, b[i].at!);
-    if (!x || !y || x.loose || y.loose || (!x.unknown && !y.unknown)) continue;
+    if (!x || !y || (!x.unknown && !y.unknown)) continue;
     // Unknown on both sides tells nothing about whether it moved: listed on the original's side.
     out[x.unknown ? "original" : "migrated"].push(a[i].word);
   }
@@ -687,7 +859,7 @@ export function compareLayout(original: StyledDocument, converted: StyledDocumen
     if (!a[i].shown || !a[i].at || !b[i].at) continue;
     const x = placementOf(pa, a[i].at!);
     const y = placementOf(pb, b[i].at!);
-    if (!x || !y || x.loose || y.loose || x.unknown || y.unknown) continue;
+    if (!x || !y || x.unknown || y.unknown) continue;
     pairs.push({ item: a[i].word, x: anchor(x), y: anchor(y), spread: (x.spread ?? 0) + (y.spread ?? 0) });
   }
   if (!pairs.length) return [];
