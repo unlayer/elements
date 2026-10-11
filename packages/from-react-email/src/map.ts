@@ -267,9 +267,9 @@ export function headingBlock(
         headingType: HEADINGS[level] ? level : "h1",
         // A heading's line height is inherited (React Email sets none), else normal.
         ...textProps(style, ctx, { fontSize: px(fontSize), lineHeight: ctx.inherited.lineHeight ?? "normal", fontWeight: 700, ownWeight: true }),
-        ...(asChildren ? {} : { text: html }),
+        ...(asChildren ? {} : { text: orEmpty(html) }),
       },
-      asChildren ? content.parts ?? [html] : []
+      asChildren ? orEmptyParts(content.parts ?? [html]) : []
     ),
     margin,
     padding: boxSides(style, "padding"),
@@ -361,6 +361,22 @@ export function headingMarginProps(props: Record<string, any>): Style {
   return out;
 }
 
+/**
+ * Content that's code alone (`{heading}`, `src={avatarUrl}`): a prop the template may leave out. React shows
+ * nothing then, so the migration writes `?? ""`: Elements would show its own default ("Heading", "Button",
+ * a placeholder image).
+ */
+export function orEmpty<T>(value: T): T | Expr {
+  if (!isExpr(value)) return value;
+  const code = value.$expr.trim();
+  return expr(`${/^[\w$]+(\.[\w$]+)*$/.test(code) ? code : `(${code})`} ?? ""`);
+}
+
+/** Children that are code alone, as `orEmpty` writes them. */
+function orEmptyParts(parts: Parts): Parts {
+  return parts.length === 1 && isExpr(parts[0]) ? [orEmpty(parts[0]) as Expr] : parts;
+}
+
 /** Button (an inline-block <a>): no background or radius unless styled. */
 export function buttonBlock(href: unknown, label: Content | Parts, style: Style, ctx: MapCtx, target?: unknown): Block {
   noteUnconverted(style, ctx, "button");
@@ -392,9 +408,9 @@ export function buttonBlock(href: unknown, label: Content | Parts, style: Style,
         ...(width ? { width } : {}),
         // Markup (a bold word) goes in `text`: Elements escapes a button's children.
         // Text styles it has no prop for (uppercase, italics) go on a span around it, as in Text.
-        ...(Array.isArray(label) ? {} : { text: withInlineStyles(label, spanStyle(style, ctx)) }),
+        ...(Array.isArray(label) ? {} : { text: orEmpty(withInlineStyles(label, spanStyle(style, ctx))) }),
       },
-      Array.isArray(label) ? label : []
+      Array.isArray(label) ? orEmptyParts(label) : []
     ),
     margin: boxSides(style, "margin"),
     mobileMargin: phoneSides(style, "margin", boxSides(style, "margin")),
@@ -427,7 +443,7 @@ export function imageBlock(
   if (height) ctx.report.note("image height not kept (the image keeps its file's aspect ratio)", `${width ? `${width}×` : ""}${height}px`);
   noteUnconverted(style, ctx, "image");
   const src = isExpr(attrs.src)
-    ? attrs.src
+    ? orEmpty(attrs.src)
     : { url: String(attrs.src ?? ""), ...(width ? { width } : {}), ...(height ? { height } : {}) };
   return {
     node: el("Image", {

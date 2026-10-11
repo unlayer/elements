@@ -625,6 +625,27 @@ Receipt.PreviewProps = { orderId: "#A-1001", date: "January 4, 2026" } satisfies
     expect((await verifyConversion(Original, Migrated)).variants).toEqual([]);
   });
 
+  it("shows nothing where an optional prop is left out, as the original does (not Elements' defaults)", async () => {
+    const { result, Migrated } = await migrate(`import { Html, Body, Container, Heading, Text, Img, Button } from "@react-email/components";
+type Props = { name: string; ctaUrl: string; avatarUrl?: string; heading?: string; ctaLabel?: string; user?: { title?: string } };
+export default function Profile({ name, ctaUrl, avatarUrl, heading, ctaLabel, user }: Props) {
+  return (<Html><Body><Container>
+    <Img src={avatarUrl} width="64" height="64" alt="" />
+    <Heading as="h2">{heading}</Heading>
+    <Heading as="h3">{user?.title || heading}</Heading>
+    <Text>Hi {name}</Text>
+    <Button href={ctaUrl}>{ctaLabel}</Button>
+  </Container></Body></Html>);
+}
+Profile.PreviewProps = { name: "Ana", ctaUrl: "https://example.com", avatarUrl: "https://example.com/a.png", heading: "Updated", ctaLabel: "Review" } satisfies Props;`);
+    expect(result.code).toContain('(user?.title || heading) ?? ""');
+    const html = renderToHtml(Migrated({ name: "Ana", ctaUrl: "https://example.com" }));
+    const text = html.replace(/<style[\s\S]*?<\/style>/g, "").replace(/<[^>]+>/g, " ");
+    expect(text).not.toMatch(/\bHeading\b|\bButton\b/i);
+    expect(html).not.toContain("placeholder.png");
+    expect(text).toContain("Hi Ana");
+  });
+
   it("checks a template that renders nothing for some props", async () => {
     const { Original, Migrated } = await migrate(`import { Html, Body, Text } from "@react-email/components";
 export default function Template({ show = true, name = "Ada" }: { show?: boolean; name?: string }) {

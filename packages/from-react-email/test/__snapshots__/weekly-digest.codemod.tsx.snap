@@ -89,7 +89,7 @@ export const WeeklyDigestEmail = ({
         <Row key={0} cells={[164, 436]} noStackMobile={true} columnsBackgroundColor="#ffffff">
           <Column padding="24px 0px 0px 32px">
             <Image
-              src={article.thumbnailUrl}
+              src={article.thumbnailUrl ?? ""}
               width="112px"
               alt={article.title}
               textAlign="left"

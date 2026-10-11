@@ -190,7 +190,7 @@ export const ReceiptEmail = ({
             }}
           >
             <Image
-              src={item.imageUrl}
+              src={item.imageUrl ?? ""}
               width="64px"
               alt={item.name}
               textAlign="left"
