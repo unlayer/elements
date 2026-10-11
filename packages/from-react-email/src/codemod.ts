@@ -491,15 +491,15 @@ class Converter {
       return typeof value === "number" ? -value : undefined;
     }
     if (ts.isIdentifier(node)) {
-      const value = this.constants.get(node.text);
-      const binding = ts.isShorthandPropertyAssignment(node.parent)
-        ? this.checker.getShorthandAssignmentValueSymbol(node.parent)
-        : this.checker.getSymbolAtLocation(node);
-      // Only a `const` that isn't changed later: a `let` can be reassigned (`configure(url)`), and
-      // a const object changed (`theme.color = …`), so its first value isn't what renders.
-      return value && binding && !this.mutated().has(binding) && binding.declarations?.some((decl) => ts.isVariableDeclaration(decl) && decl.initializer === value && (ts.getCombinedNodeFlags(decl) & ts.NodeFlags.Const) !== 0)
-        ? this.evaluate(value, depth + 1)
-        : undefined;
+      const value = this.constantValue(node);
+      return value ? this.evaluate(value, depth + 1) : undefined;
+    }
+    // A property of a constant (`styles.body`, `theme.colors.primary`, `sizes["lg"]`): read from the
+    // literal that sets it, so the constant's other properties (a function, a prop) don't matter.
+    if (ts.isPropertyAccessExpression(node) || ts.isElementAccessExpression(node)) {
+      const key = ts.isPropertyAccessExpression(node) ? node.name.text : this.evaluate(node.argumentExpression, depth + 1);
+      if (typeof key !== "string" && typeof key !== "number") return undefined;
+      return this.member(node.expression, String(key), depth + 1);
     }
     if (ts.isArrayLiteralExpression(node)) {
       const items = node.elements.map((item) => this.evaluate(item, depth + 1));
@@ -529,6 +529,70 @@ class Converter {
       return out;
     }
     return undefined;
+  }
+
+  /** What a module constant is set to: only a `const` that isn't changed later. */
+  private constantValue(node: ts.Identifier): ts.Expression | undefined {
+    const value = this.constants.get(node.text);
+    const binding = ts.isShorthandPropertyAssignment(node.parent)
+      ? this.checker.getShorthandAssignmentValueSymbol(node.parent)
+      : this.checker.getSymbolAtLocation(node);
+    // A `let` can be reassigned (`configure(url)`), and a const object changed (`theme.color = …`),
+    // so its first value isn't what renders.
+    return value && binding && !this.mutated().has(binding) && binding.declarations?.some((decl) => ts.isVariableDeclaration(decl) && decl.initializer === value && (ts.getCombinedNodeFlags(decl) & ts.NodeFlags.Const) !== 0)
+      ? value
+      : undefined;
+  }
+
+  /** The literal an expression is written as: itself, a constant's, or a property of one (`styles.card`). */
+  private literalOf(expression: ts.Expression, depth: number): ts.Expression | undefined {
+    if (depth > 20) return undefined;
+    const node = unwrap(expression);
+    if (ts.isIdentifier(node)) {
+      const value = this.constantValue(node);
+      return value && this.literalOf(value, depth + 1);
+    }
+    if (ts.isPropertyAccessExpression(node) || ts.isElementAccessExpression(node)) {
+      const key = ts.isPropertyAccessExpression(node) ? node.name.text : this.evaluate(node.argumentExpression, depth + 1);
+      const parent = (typeof key === "string" || typeof key === "number") && this.literalOf(node.expression, depth + 1);
+      if (!parent || !ts.isObjectLiteralExpression(parent)) return undefined;
+      let found: ts.Expression | undefined;
+      for (const prop of parent.properties) {
+        const name = !ts.isSpreadAssignment(prop) && (ts.isIdentifier(prop.name) || ts.isStringLiteral(prop.name) || ts.isNumericLiteral(prop.name)) ? prop.name.text : undefined;
+        // A spread or a computed key could set it: the literal isn't known.
+        if (name === undefined) return undefined;
+        if (name === String(key)) found = ts.isPropertyAssignment(prop) ? prop.initializer : ts.isShorthandPropertyAssignment(prop) ? prop.name : undefined;
+      }
+      return found && this.literalOf(found, depth + 1);
+    }
+    return node;
+  }
+
+  /** A property of a constant (`styles.body`): undefined when what sets it isn't known. */
+  private member(object: ts.Expression, key: string, depth: number): unknown {
+    const literal = this.literalOf(object, depth);
+    if (!literal || !ts.isObjectLiteralExpression(literal)) {
+      // Built some other way (`[...items]`, a spread above it): from its whole value.
+      const value = this.evaluate(literal ?? object, depth + 1);
+      return value && typeof value === "object" && Object.prototype.hasOwnProperty.call(value, key) ? (value as Record<string, unknown>)[key] : undefined;
+    }
+    let found: unknown;
+    for (const prop of literal.properties) {
+      if (ts.isSpreadAssignment(prop)) {
+        if (nothing(prop.expression)) continue;
+        const spread = this.evaluate(prop.expression, depth + 1);
+        if (!spread || typeof spread !== "object") return undefined;
+        if (Object.prototype.hasOwnProperty.call(spread, key)) found = (spread as Record<string, unknown>)[key];
+        continue;
+      }
+      const name = ts.isIdentifier(prop.name) || ts.isStringLiteral(prop.name) || ts.isNumericLiteral(prop.name) ? prop.name.text : undefined;
+      if (name === undefined) return undefined;
+      if (name !== key) continue;
+      if (ts.isPropertyAssignment(prop)) found = this.evaluate(prop.initializer, depth + 1);
+      else if (ts.isShorthandPropertyAssignment(prop)) found = this.evaluate(prop.name, depth + 1);
+      else return undefined;
+    }
+    return found;
   }
 
   /**
@@ -695,9 +759,12 @@ class Converter {
     for (let changed = true; changed; ) {
       changed = false;
       const aliases = (node: ts.Node): void => {
-        if (ts.isVariableDeclaration(node) && ts.isIdentifier(node.name) && node.initializer && ts.isIdentifier(unwrap(node.initializer))) {
+        // Or through a part of it (`const card = styles.card; card.color = …`).
+        let root = ts.isVariableDeclaration(node) && node.initializer ? unwrap(node.initializer) : undefined;
+        while (root && (ts.isPropertyAccessExpression(root) || ts.isElementAccessExpression(root))) root = unwrap(root.expression);
+        if (ts.isVariableDeclaration(node) && ts.isIdentifier(node.name) && root && ts.isIdentifier(root)) {
           const alias = this.checker.getSymbolAtLocation(node.name);
-          const original = this.checker.getSymbolAtLocation(unwrap(node.initializer));
+          const original = this.checker.getSymbolAtLocation(root);
           if (alias && original && out.has(alias) && !out.has(original)) {
             out.add(original);
             changed = true;
@@ -2204,6 +2271,9 @@ function dropUnused(code: string, original: ts.SourceFile, javascript: boolean, 
           )
             cut(statement);
         } else if (ts.isFunctionDeclaration(statement) && statement.name && statement.body && !hasModifier(statement, ts.SyntaxKind.ExportKeyword) && unused(statement.name)) {
+          cut(statement);
+        } else if ((ts.isTypeAliasDeclaration(statement) || ts.isInterfaceDeclaration(statement)) && !hasModifier(statement, ts.SyntaxKind.ExportKeyword) && unused(statement.name)) {
+          // A type only what was written in read (`Record<Size, number>`).
           cut(statement);
         } else if (ts.isImportDeclaration(statement) && statement.importClause) {
           const clause = statement.importClause;

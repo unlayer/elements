@@ -649,17 +649,20 @@ export function Badge({ tone }: { tone: Tone }) { return <Text style={{ fontSize
     };
     const { code } = await convertSource(`import { Html, Body } from "@react-email/components";
 import { Badge } from "./badge";
-export default function Welcome() { return <Html><Body><Badge tone="info" /></Body></Html>; }`, { fileName: "/project/emails/welcome.tsx", loadModule });
-    // Everything the copied constants name is declared or imported, so the migrated file type-checks.
+export default function Welcome({ tone = "info" }: { tone?: "info" | "warn" }) { return <Html><Body><Badge tone={tone} /></Body></Html>; }`, { fileName: "/project/emails/welcome.tsx", loadModule });
+    // Everything the copied constants name is declared or imported, so the migrated file type-checks:
+    // LABELS stays (read with a prop) and needs Tone; SIZES.m was written in, so SIZES and Size go.
     expect(code).toMatch(/import type \{ Tone \} from "\.\/types"/);
-    expect(code).toMatch(/type Size = "s" \| "m"/);
-    const program = ts.createProgram(["/project/emails/welcome.tsx"], { noEmit: true, jsx: ts.JsxEmit.ReactJSX, strict: true, noResolve: true, types: [] }, {
+    expect(code).toContain("LABELS[tone]");
+    expect(code).not.toMatch(/\bSIZES\b|\bSize\b/);
+    const program = ts.createProgram(["/project/emails/welcome.tsx"], { noEmit: true, jsx: ts.JsxEmit.ReactJSX, strict: true, noUnusedLocals: true, noResolve: true, types: [] }, {
       ...ts.createCompilerHost({}),
       getSourceFile: (name, version) => (name === "/project/emails/welcome.tsx" ? ts.createSourceFile(name, code, version, true, ts.ScriptKind.TSX) : undefined),
       fileExists: (name) => name === "/project/emails/welcome.tsx",
     });
-    const unknownNames = ts.getPreEmitDiagnostics(program).filter((d) => d.code === 2304).map((d) => ts.flattenDiagnosticMessageText(d.messageText, "\n"));
-    expect(unknownNames.filter((m) => /Tone|Size/.test(m))).toEqual([]);
+    // Unknown (2304) or declared and never read (6133, 6196).
+    const problems = ts.getPreEmitDiagnostics(program).filter((d) => [2304, 6133, 6196].includes(d.code)).map((d) => ts.flattenDiagnosticMessageText(d.messageText, "\n"));
+    expect(problems.filter((m) => /Tone|Size|LABELS|SIZES/.test(m))).toEqual([]);
   });
 });
 

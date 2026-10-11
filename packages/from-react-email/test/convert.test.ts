@@ -1053,6 +1053,63 @@ export default function Template() {
   });
 });
 
+describe("styles objects", () => {
+  it("write in a styles object's and a theme's values (`styles.body`, `theme.colors.primary`)", async () => {
+    const { result, Migrated } = await bothModes(`import { Html, Body, Container, Heading, Text, Button } from "@react-email/components";
+const theme = { colors: { primary: "#4f46e5", text: "#111827", muted: "#6b7280" }, font: "Inter, Arial, sans-serif" } as const;
+const styles = {
+  body: { backgroundColor: "#f3f4f6", fontFamily: theme.font },
+  heading: { color: theme.colors.text, fontSize: "24px" },
+  muted: { color: theme.colors.muted, fontSize: "13px" },
+};
+export default function Template({ name }: { name: string }) {
+  return <Html><Body style={styles.body}><Container style={{ maxWidth: 600 }}>
+    <Heading style={styles.heading}>Welcome {name}</Heading>
+    <Text style={{ ...styles.muted, fontWeight: 600 }}>You're in.</Text>
+    <Button href="https://example.com" style={{ backgroundColor: theme.colors.primary, color: "#ffffff", padding: "10px 16px" }}>Start</Button>
+  </Container></Body></Html>;
+}
+Template.PreviewProps = { name: "Ana" };`);
+    expect(result.report.lostStyles).toBeUndefined();
+    expect(result.code).toContain('backgroundColor="#f3f4f6"');
+    expect(result.code).toContain('value: "Inter, Arial, sans-serif"');
+    expect(result.code).toMatch(/<Heading[^>]*color="#111827"[^>]*fontSize="24px"/);
+    expect(result.code).toMatch(/<Paragraph[^>]*color="#6b7280"[^>]*fontSize="13px"[^>]*fontWeight=\{600\}/);
+    expect(result.code).toMatch(/<Button[^>]*backgroundColor="#4f46e5"/);
+    const html = renderToHtml(Migrated({ name: "Ana" }));
+    expect(html).toContain("color: #111827");
+    expect(html).toContain("background-color: #4f46e5");
+  });
+
+  it("read the property used, whatever else the object holds or however it's named", async () => {
+    const { result } = await bothModes(`import { Html, Body, Text } from "@react-email/components";
+const base = { card: { color: "#ff0000" } };
+const styles = { ...base, tone: (on: boolean) => ({ color: on ? "#00ff00" : "#0000ff" }), "big-text": { fontSize: "20px" } };
+const sizes = ["12px", "18px"] as const;
+export default function Template() {
+  return <Html><Body>
+    <Text style={styles.card}>Card</Text>
+    <Text style={styles["big-text"]}>Big</Text>
+    <Text style={{ fontSize: sizes[1] }}>Sized</Text>
+  </Body></Html>;
+}`);
+    expect(result.report.lostStyles).toBeUndefined();
+    expect(result.code).toMatch(/color="#ff0000"[^>]*>\s*Card/);
+    expect(result.code).toMatch(/fontSize="20px"[^>]*>\s*Big/);
+    expect(result.code).toMatch(/fontSize="18px"[^>]*>\s*Sized/);
+  });
+
+  it("fail the check: a style from props or from a function of the styles object", async () => {
+    const { result } = await bothModes(`import { Html, Body, Text } from "@react-email/components";
+const styles = { tone: (on: boolean) => ({ color: on ? "#00ff00" : "#0000ff" }) };
+export default function Template({ theme }: { theme: { card: { color: string } } }) {
+  return <Html><Body><Text style={theme.card}>From props</Text><Text style={styles.tone(true)}>Called</Text></Body></Html>;
+}
+Template.PreviewProps = { theme: { card: { color: "#ff0000" } } };`);
+    expect(result.report.lostStyles).toEqual(["line 4: style={theme.card}", "line 4: style={styles.tone(true)}"]);
+  });
+});
+
 describe("values the codemod can't write in", () => {
   it("fail the check: a module const changed after it's declared", async () => {
     const { result } = await bothModes(`import { Html, Body, Text } from "@react-email/components";
@@ -1061,6 +1118,17 @@ theme.color = "#0000ff";
 export default function Template() { return <Html><Body><Text style={theme}>Colored</Text></Body></Html>; }`);
     expect(result.report.lostStyles).toEqual(["line 4: style={theme}"]);
     expect(result.code).not.toContain('color="#ff0000"');
+  });
+
+  it("fail the check: a styles object changed after it's declared, directly or through a part of it", async () => {
+    for (const change of ['styles.card.color = "#0000ff";', 'const card = styles.card;\ncard.color = "#0000ff";']) {
+      const { result } = await bothModes(`import { Html, Body, Text } from "@react-email/components";
+const styles = { card: { color: "#ff0000" } };
+${change}
+export default function Template() { return <Html><Body><Text style={styles.card}>Colored</Text></Body></Html>; }`);
+      expect(result.report.lostStyles).toEqual([expect.stringMatching(/style=\{styles\.card\}$/)]);
+      expect(result.code).not.toContain('color="#ff0000"');
+    }
   });
 
   it("fail the check: a column's or a linked image's width computed from props", async () => {
