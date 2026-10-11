@@ -570,12 +570,12 @@ export default function T() { return <Html><Body><Text>Keep the original</Text><
     expect(out.out).toContain("1 migrated and checked");
   });
 
-  it("leaves a shared component alone even when it's the only file given", async () => {
+  it("leaves a shared component alone even when it's the only file given (and says it checked nothing)", async () => {
     const footer = `import { Section, Text } from "@react-email/components";
 export default function Footer() { return <Section><Text>Sent by Acme</Text></Section>; }`;
     const dir = project({ "emails/components/footer.tsx": footer });
     const out = io(dir);
-    expect(await main(["emails/components/footer.tsx", "--write"], out, lib), out.out + out.err).toBe(0);
+    expect(await main(["emails/components/footer.tsx", "--write"], out, lib), out.out + out.err).toBe(1);
     expect(out.out).toContain("not an email template");
     expect(fs.readFileSync(path.join(dir, "emails/components/footer.tsx"), "utf8")).toBe(footer);
   });
@@ -585,7 +585,7 @@ export default function Footer() { return <Section><Text>Sent by Acme</Text></Se
 export default function Footer() { return <Section><Text>Sent by Acme</Text></Section>; }`;
     const dir = project({ "emails/components/footer.tsx": footer });
     const out = io(dir);
-    expect(await main(["emails/components/footer.tsx"], out, lib), out.out + out.err).toBe(0);
+    expect(await main(["emails/components/footer.tsx"], out, lib), out.out + out.err).toBe(1);
     expect(out.out).toContain("not an email template");
   });
 

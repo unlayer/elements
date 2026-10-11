@@ -347,7 +347,13 @@ export async function main(argv: string[], io: Io, library?: Library): Promise<n
     }
     io.stdout(`Report: ${relative(io.cwd, target)}\n`);
   }
-  return results.some((r) => r.status === "failed" || r.status === "check-failed") ? 2 : 0;
+  if (results.some((r) => r.status === "failed" || r.status === "check-failed")) return 2;
+  // A run ends with 0 only when it checked what it was given: a template migrated, or nothing left to migrate.
+  if (!results.some((r) => r.status === "migrated") && !results.some((r) => r.reason?.startsWith("already migrated"))) {
+    io.stderr("No email template was checked: nothing here renders React Email's <Html> (shared components and helpers are skipped).\n");
+    return 1;
+  }
+  return 0;
 }
 
 // ============================================
@@ -1704,15 +1710,22 @@ async function notATemplate(path: string, source: string): Promise<{ reason: str
     }
   }
   if (node && (ts.isFunctionDeclaration(node) || ts.isClassDeclaration(node)) && node.name) previewProps ||= previewed.has(node.name.text);
+  /** An email (it renders React Email's <Html>, or has preview props) the check can't load fails: it's never skipped as a helper. */
+  const helperOrFail = (reason: string, failReason: string) => (rendersHtml() || previewProps ? { reason: failReason, fail: true as const } : skip(reason));
   if (node && ts.isClassLike(node)) {
     // Only React's classes are components: another class with render() may be a helper (a mailer).
     const base = node.heritageClauses?.find((c) => c.token === ts.SyntaxKind.ExtendsKeyword)?.types[0]?.expression;
     const component = base && (ts.isIdentifier(base) ? fromReact.get(base.text) : reactFunction(base));
-    if (!component || !["Component", "PureComponent"].includes(component)) return skip("not loaded: its default export is a class that doesn't extend React's Component (a helper, not a template)");
-    return node.members.some((m) => ts.isMethodDeclaration(m) && m.name.getText(file) === "render") ? undefined : skip("not loaded: its default export is a class without render()");
+    if (!component || !["Component", "PureComponent"].includes(component)) {
+      return helperOrFail(
+        "not loaded: its default export is a class that doesn't extend React's Component (a helper, not a template)",
+        "its default export is a class that doesn't extend React's Component directly, which the check can't load: export a function component"
+      );
+    }
+    return node.members.some((m) => ts.isMethodDeclaration(m) && m.name.getText(file) === "render") ? undefined : helperOrFail("not loaded: its default export is a class without render()", "its default export is a class without render(), which the check can't load: export a function component");
   }
   /** Whether JSX anywhere in the file renders React Email's <Html>. */
-  const rendersHtml = () => {
+  function rendersHtml(): boolean {
     let found = false;
     const visit = (child: Node) => {
       if (found) return;
@@ -1737,7 +1750,10 @@ async function notATemplate(path: string, source: string): Promise<{ reason: str
   if (wrapper && (rendersHtml() || hasJsx())) return { reason: `its default export is wrapped in ${wrapper}(…), which the check can't unwrap: export the component itself`, fail: true };
   if (!node || !ts.isFunctionLike(node)) return skip("not loaded: its default export isn't a component (a helper, or a file that passes one on)");
   if ((ts.getModifiers(node as import("typescript").FunctionLikeDeclaration) ?? []).some((m) => m.kind === ts.SyntaxKind.AsyncKeyword)) {
-    return skip("not loaded: its default export is async (a helper, or a template that loads data: load it first and pass it as props)");
+    return helperOrFail(
+      "not loaded: its default export is async (a helper, or a template that loads data: load it first and pass it as props)",
+      "its default export is async, which Elements can't render (it renders synchronously): load the data first and pass it as props"
+    );
   }
   // Values its body declares (`const email = <Html>…</Html>; return email;`).
   const locals = new Map<string, Node>();
@@ -1912,8 +1928,10 @@ async function sharedPiece(source: string): Promise<"shared" | "email" | "unknow
 
 /**
  * Files git can't give back as they are: outside a repository (or without
- * git), not committed (untracked or ignored), or changed since the last
- * commit (staged or not). --write replaces only files git can restore.
+ * git), not committed (untracked or ignored), changed since the last commit
+ * (staged or not, compared byte for byte with the committed file), or marked
+ * so git doesn't look at them (skip-worktree, assume-unchanged). --write
+ * replaces only files git can restore.
  */
 async function notRestorable(files: string[]): Promise<Array<{ file: string; why: string }>> {
   const { execFile } = await import("node:child_process");
@@ -1937,12 +1955,20 @@ async function notRestorable(files: string[]): Promise<Array<{ file: string; why
     const tracked = new Set((await git(root, ["ls-files", "-z", "--", ...paths]))?.split("\0").filter(Boolean) ?? []);
     const changedOutput = await git(root, ["diff", "--name-only", "-z", "HEAD", "--", ...paths]);
     const changed = new Set(changedOutput?.split("\0").filter(Boolean) ?? []);
-    for (const { file, path } of list) {
+    // Index flags (skip-worktree "S", assume-unchanged in lowercase) hide changes from git diff.
+    const flags = new Map((await git(root, ["ls-files", "-v", "-z", "--", ...paths]))?.split("\0").filter(Boolean).map((line) => [line.slice(2), line[0]] as const) ?? []);
+    // What's on disk against what's committed, whatever the index says.
+    const committed = new Map(
+      (await git(root, ["ls-tree", "-z", "HEAD", "--", ...paths]))?.split("\0").filter(Boolean).map((line) => [line.slice(line.indexOf("\t") + 1), line.split(/\s/)[2]] as const) ?? []
+    );
+    const onDisk = (await git(root, ["hash-object", "--", ...paths]))?.trim().split("\n") ?? [];
+    list.forEach(({ file, path }, i) => {
       if (!tracked.has(path)) out.push({ file, why: "not committed" });
       // No commit yet: nothing to restore from.
-      else if (changedOutput === undefined) out.push({ file, why: "not committed" });
-      else if (changed.has(path)) out.push({ file, why: "changed since the last commit" });
-    }
+      else if (changedOutput === undefined || !committed.has(path)) out.push({ file, why: "not committed" });
+      else if (flags.get(path) !== "H") out.push({ file, why: "marked in git so its changes don't show (skip-worktree or assume-unchanged)" });
+      else if (changed.has(path) || onDisk[i] !== committed.get(path)) out.push({ file, why: "changed since the last commit" });
+    });
   }
   return out;
 }

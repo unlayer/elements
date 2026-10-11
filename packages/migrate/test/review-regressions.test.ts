@@ -600,7 +600,7 @@ export default Wrapped;`;
       "unsupported.tsx": 'import { Html } from "@react-email/components"; export default {$$typeof:Symbol.for("react.lazy"),_payload:{}};',
     });
     const config = io(dir);
-    expect(await main(["config.tsx", "--write"], config, lib)).toBe(0);
+    expect(await main(["config.tsx", "--write"], config, lib)).toBe(1);
     expect(config.out).toContain("skipped");
     const out = io(dir);
     expect(await main(["unsupported.tsx", "--write"], out, lib)).toBe(2);
@@ -717,7 +717,8 @@ export default class Note extends Component { render() { return <Html><Body><Tex
     const out = io(dir);
     await main(["emails"], out, lib);
     expect(out.out).toMatch(/- emails\/mailer\.tsx: skipped \(not loaded: its default export is a class that doesn't extend React's Component/);
-    expect(out.out).toMatch(/- emails\/local\.tsx: skipped \(not loaded: its default export is a class that doesn't extend React's Component/);
+    // An email (it renders <Html>) the check can't load fails rather than being skipped as a helper.
+    expect(out.out).toMatch(/✗ emails\/local\.tsx: its default export is a class that doesn't extend React's Component directly/);
     expect(fs.readdirSync(marks)).toEqual([]);
     // React's own classes are loaded (what follows may still fail for them).
     expect(out.out).not.toMatch(/emails\/(component|pure)\.tsx: skipped/);
@@ -952,7 +953,38 @@ export default function Base({ content }: { content?: React.ReactNode }) { retur
   });
 });
 
+describe("a run that checks nothing", () => {
+  it("fails a template it can't load (async, or a class not from React) instead of skipping it", async () => {
+    const dir = project({
+      "emails/async.tsx": `import { Html, Body, Text } from "@react-email/components";\nexport default async function Welcome() { return <Html><Body><Text>Hi</Text></Body></Html>; }\nWelcome.PreviewProps = {};`,
+    });
+    const out = io(dir);
+    expect(await main(["emails"], out, lib), out.out + out.err).toBe(2);
+    expect(out.out).toMatch(/✗ emails\/async\.tsx: .*async, which Elements can't render/);
+  });
+
+  it("doesn't end with 0 when it found React Email files but no email among them (only shared components)", async () => {
+    const dir = project({ "emails/footer.tsx": `import { Section, Text } from "@react-email/components";\nexport default function Footer() { return <Section><Text>Sent by Acme</Text></Section>; }` });
+    const out = io(dir);
+    expect(await main(["emails"], out, lib), out.out + out.err).toBe(1);
+    expect(out.err).toContain("No email template was checked");
+  });
+});
+
 describe("--write only replaces what git can restore", () => {
+  it("refuses templates git was told not to look at (skip-worktree, assume-unchanged), changed or not", async () => {
+    const dir = project({ "emails/welcome.tsx": good, "emails/other.tsx": good.replace("Keep the original", "Other") });
+    execFileSync("git", ["update-index", "--skip-worktree", "emails/welcome.tsx"], { cwd: dir });
+    execFileSync("git", ["update-index", "--assume-unchanged", "emails/other.tsx"], { cwd: dir });
+    const edited = good.replace("Keep the original", "Keep the edited original");
+    fs.writeFileSync(path.join(dir, "emails/welcome.tsx"), edited);
+    const out = io(dir);
+    expect(await main(["emails", "--write"], out, lib), out.out + out.err).toBe(1);
+    expect(out.err).toContain("emails/welcome.tsx (marked in git so its changes don't show (skip-worktree or assume-unchanged))");
+    expect(out.err).toContain("emails/other.tsx (marked in git so its changes don't show");
+    expect(fs.readFileSync(path.join(dir, "emails/welcome.tsx"), "utf8")).toBe(edited);
+  });
+
   it("refuses templates with uncommitted changes, untracked ones and ones outside a repository, before running anything", async () => {
     const dir = project({ "emails/welcome.tsx": good, "emails/other.tsx": neverLoad.replace("must not load", "other") });
     fs.writeFileSync(path.join(dir, "emails/welcome.tsx"), good.replace("Keep the original", "Keep the edited original"));
