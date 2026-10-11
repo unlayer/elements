@@ -8,18 +8,26 @@
  * double-quoted family name ended the attribute early.
  */
 
-const CHANNEL = String.raw`(-?\d*\.?\d+%?)`;
-const COLOR_FUNCTION = new RegExp(
-  String.raw`^rgba?\(\s*${CHANNEL}\s*[,\s]\s*${CHANNEL}\s*[,\s]\s*${CHANNEL}\s*(?:[,/]\s*${CHANNEL}\s*)?\)$`,
-  "i"
-);
+/** A channel: a number, maybe a percentage. */
+const CHANNEL = /^-?(?:\d+\.?\d*|\.\d+)%?$/;
 
-/** rgb()/rgba() in any CSS syntax → "#rrggbb", or "rgba(r, g, b, a)" when translucent. Other values pass through. */
+/**
+ * rgb()/rgba() in any CSS syntax → "#rrggbb", or "rgba(r, g, b, a)" when translucent. Other values pass through.
+ * Read in one pass, token by token (no pattern that could backtrack on a long value from data).
+ */
 export function normalizeColor(value: string): string {
-  // A color is short: a long value (whitespace from data) isn't one, and the pattern would take long to say so.
   if (value.length > 200) return value;
-  const match = COLOR_FUNCTION.exec(value.trim());
-  if (!match) return value;
+  const text = value.trim();
+  const open = text.indexOf("(");
+  if (!/^rgba?$/i.test(text.slice(0, open)) || !text.endsWith(")")) return value;
+  // r g b, r, g, b, or either with an alpha after "/" or ",".
+  const inner = text.slice(open + 1, -1);
+  const slash = inner.split("/");
+  if (slash.length > 2) return value;
+  const rgb = slash[0].trim().split(/\s*,\s*|\s+/);
+  const channels = slash.length === 2 ? [...rgb, slash[1].trim()] : rgb;
+  if ((channels.length !== 3 && channels.length !== 4) || (slash.length === 2 && rgb.length !== 3) || !channels.every((c) => CHANNEL.test(c))) return value;
+  const match = [text, ...channels];
   // A number, or a percentage of `full`.
   const num = (text: string, full: number) => (text.endsWith("%") ? (Number.parseFloat(text) / 100) * full : Number.parseFloat(text));
   const [r, g, b] = [match[1], match[2], match[3]].map((text) => Math.max(0, Math.min(255, Math.round(num(text, 255)))));

@@ -249,6 +249,56 @@ export default function Slow() { return <Html><Body><Text>Slow</Text></Body></Ht
     expect(fs.readdirSync(path.join(dir, "emails"))).toEqual(["slow.tsx"]);
   }, 60_000);
 
+  it("listens for Ctrl-C for the whole run, between writes too, so a signal waiting to be handled isn't lost", async () => {
+    const samples: boolean[] = [];
+    const shared = globalThis as { __stopListenerSamples?: boolean[]; __stopListenerTimer?: ReturnType<typeof setInterval> };
+    shared.__stopListenerSamples = samples;
+    // A template that, once loaded, samples the run's own SIGINT listener every millisecond until the test ends.
+    const sampler = `import { Html, Body, Text } from "@react-email/components";
+const shared = globalThis as { __stopListenerSamples?: boolean[]; __stopListenerTimer?: ReturnType<typeof setInterval> };
+shared.__stopListenerTimer ??= setInterval(() => shared.__stopListenerSamples?.push(process.listeners("SIGINT").some((l) => l.name === "interrupted")), 1);
+export default function Sampler() { return <Html><Body><Text>Sampler</Text></Body></Html>; }`;
+    const files: Record<string, string> = { "emails/a-sampler.tsx": sampler };
+    for (let i = 1; i <= 6; i++) files[`emails/w${i}.tsx`] = good.replace("Keep the original", `Keep the original ${i}`);
+    const dir = project(files);
+    try {
+      const out = io(dir);
+      expect(await main(["emails", "--out", "out"], out, lib), out.out + out.err).toBe(0);
+      expect(samples.length).toBeGreaterThan(0);
+      expect(samples.filter((listening) => !listening)).toEqual([]);
+    } finally {
+      clearInterval(shared.__stopListenerTimer);
+      delete shared.__stopListenerTimer;
+      delete shared.__stopListenerSamples;
+    }
+  });
+
+  it("stops the run on Ctrl-C while templates load: nothing is written, even with --allow-dirty (built CLI)", async () => {
+    const dir = project({ "package.json": '{"name":"slow-load-fixture","private":true,"type":"module"}' }, true);
+    const started = path.join(dir, "load-started");
+    fs.mkdirSync(path.join(dir, "emails"));
+    // One template takes a while to load; the other loads meanwhile.
+    const slow = `import { Html, Body, Text } from "@react-email/components";
+import { writeFileSync } from "node:fs";
+writeFileSync(${JSON.stringify(started)}, "started");
+await new Promise((done) => setTimeout(done, 3000));
+export default function Slow() { return <Html><Body><Text>Slow one</Text></Body></Html>; }`;
+    fs.writeFileSync(path.join(dir, "emails/slow.tsx"), slow);
+    fs.writeFileSync(path.join(dir, "emails/welcome.tsx"), good);
+    fs.mkdirSync(path.join(dir, "node_modules"));
+    for (const name of ["react", "react-dom", "@react-email"]) {
+      fs.symlinkSync(path.resolve(import.meta.dirname, "../node_modules", name), path.join(dir, "node_modules", name));
+    }
+    const child = spawn(process.execPath, [path.resolve(import.meta.dirname, "../dist/bin.js"), "emails", "--write", "--allow-dirty"], { cwd: dir });
+    const exited = new Promise<unknown>((done) => child.on("exit", (code, received) => done(received ?? code)));
+    for (let waited = 0; !fs.existsSync(started) && waited < 30_000; waited += 20) await new Promise((done) => setTimeout(done, 20));
+    await new Promise((done) => setTimeout(done, 500));
+    child.kill("SIGINT");
+    expect(await exited).toBe("SIGINT");
+    expect(fs.readFileSync(path.join(dir, "emails/slow.tsx"), "utf8")).toBe(slow);
+    expect(fs.readFileSync(path.join(dir, "emails/welcome.tsx"), "utf8")).toBe(good);
+  }, 60_000);
+
   it.skipIf(process.getuid?.() === 0)("fails the template with a reason when its folder is read-only", async () => {
     const dir = project({ "emails/welcome.tsx": good });
     fs.chmodSync(path.join(dir, "emails"), 0o555);

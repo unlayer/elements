@@ -14,6 +14,16 @@ describe("normalizeColor", () => {
     expect(normalizeColor("rgb(0 0 0 / 25%)")).toBe("rgba(0, 0, 0, 0.25)");
   });
 
+  it("reads a long value from data quickly (no backtracking)", () => {
+    const digits = "1".repeat(48);
+    const spaces = " ".repeat(48);
+    for (const value of [`rgb(${digits}${spaces}${digits}${spaces}x`, `rgb(${"1".repeat(195)}x`, `rgb(1${" ".repeat(190)}x`, `rgb(1 ${"1 ".repeat(95)}x`, `rgb(${"1 1 ".repeat(48)}!`]) {
+      const start = performance.now();
+      expect(normalizeColor(value)).toBe(value);
+      expect(performance.now() - start, value.slice(0, 20)).toBeLessThan(20);
+    }
+  });
+
   it("leaves other values alone", () => {
     for (const value of ["#abc", "red", "transparent", "var(--x)", "hsl(0 0% 0%)"]) {
       expect(normalizeColor(value)).toBe(value);

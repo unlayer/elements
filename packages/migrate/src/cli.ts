@@ -159,6 +159,16 @@ interface Options {
 type Library = typeof import("@unlayer/from-react-email");
 
 export async function main(argv: string[], io: Io, library?: Library): Promise<number> {
+  // Ctrl-C (or a kill) is heard for the whole run: once it comes, nothing more is written.
+  watchSignals(true);
+  try {
+    return await run(argv, io, library);
+  } finally {
+    watchSignals(false);
+  }
+}
+
+async function run(argv: string[], io: Io, library?: Library): Promise<number> {
   let args: Args;
   try {
     args = parseArgs(argv);
@@ -469,6 +479,7 @@ async function writeExclusive(path: string, text: string, mode?: number): Promis
 
 /** Replace the directory entry, rather than truncating a symlink/hard-link target. */
 async function writeDestination(path: string, text: string, destinations: Destinations): Promise<void> {
+  if (stoppedBy) throw new Error(`the run was stopped (${stoppedBy}): nothing more is written`);
   await checkDestination(path, destinations);
   await mkdir(dirname(path), { recursive: true });
   await checkDestination(path, destinations);
@@ -500,6 +511,9 @@ function cleanProbeDirectories(directory: string, firstCreated: string | undefin
 // Temporary files go when the run ends however it ends: an error, Ctrl-C, a kill.
 const cleanups = new Set<() => void>();
 const SIGNALS = ["SIGINT", "SIGTERM", "SIGHUP"] as const;
+/** The signal that stopped the run, if one did: nothing is written after it. */
+let stoppedBy: NodeJS.Signals | undefined;
+let watching = 0;
 
 function cleanUp(): void {
   for (const cleanup of cleanups) {
@@ -509,23 +523,35 @@ function cleanUp(): void {
 }
 
 function interrupted(signal: NodeJS.Signals): void {
+  stoppedBy = signal;
   cleanUp();
-  watchExit(false);
+  for (const s of SIGNALS) process.off(s, interrupted);
+  process.off("exit", cleanUp);
   // End as the signal would have without this handler.
   process.kill(process.pid, signal);
 }
 
-function watchExit(on: boolean): void {
-  for (const signal of SIGNALS) process[on ? "on" : "off"](signal, interrupted);
-  process[on ? "on" : "off"]("exit", cleanUp);
+/**
+ * Listens for the stop signals while a run lasts (runs inside one another count). Listeners stay for the whole
+ * run: one removed while a signal waits to be handled (a long render) would swallow it.
+ */
+function watchSignals(on: boolean): void {
+  watching += on ? 1 : -1;
+  if (on && watching === 1) {
+    stoppedBy = undefined;
+    for (const signal of SIGNALS) process.on(signal, interrupted);
+    process.on("exit", cleanUp);
+  } else if (!on && watching === 0) {
+    for (const signal of SIGNALS) process.off(signal, interrupted);
+    process.off("exit", cleanUp);
+  }
 }
 
 /** Run `cleanup` (synchronous) if the process ends before the returned release is called. */
 function removedOnExit(cleanup: () => void): () => void {
-  if (!cleanups.size) watchExit(true);
   cleanups.add(cleanup);
   return () => {
-    if (cleanups.delete(cleanup) && !cleanups.size) watchExit(false);
+    cleanups.delete(cleanup);
   };
 }
 
