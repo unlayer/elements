@@ -365,7 +365,7 @@ function cellsOf(doc: StyledDocument, rowElement: Element): Element[] {
 /**
  * A table row: each cell's width set (px or %); cells without one, beside others, as wide as the browser's
  * automatic table layout makes them (by their content), or unknown where their content can't be measured.
- * Then left to right.
+ * Then in the row's direction: left to right, or right to left.
  */
 function row(doc: StyledDocument, rowElement: Element, cells: Element[], box: Placement, blockAlign: Align | undefined, rtl: boolean, out: Map<Element, Placement>): void {
   if (!out.has(rowElement)) out.set(rowElement, box);
@@ -389,15 +389,16 @@ function row(doc: StyledDocument, rowElement: Element, cells: Element[], box: Pl
   const total = fixed + share * free;
   // (Content wider than the row runs over it: each column keeps its min-content.)
   const scale = !sized && total > box.width && total > 0 ? box.width / total : 1;
-  let x = box.x;
+  let x = rtl ? box.x + box.width : box.x;
   // A cell floated, or (beside other cells) displayed as something else, isn't a cell to the browser: cells
   // displayed as blocks share one anonymous cell and stack. One such cell alone lays out as a cell would.
   const broken = cells.some((c) => /^(left|right)$/i.test(doc.property(c, "float") ?? "")) || (cells.length > 1 && cells.some((c) => display(doc, c) !== "table-cell"));
   for (let i = 0; i < cells.length; i++) {
     const w = (widths[i] ?? share) * scale;
+    if (rtl) x -= w;
     place(doc, cells[i], x, w, box, blockAlign, rtl, out, false, w);
     if (broken || unmeasured) unknownWithin(cells[i], out);
-    x += w;
+    if (!rtl) x += w;
   }
 }
 
@@ -538,7 +539,7 @@ function line(doc: StyledDocument, items: Element[], box: Placement, blockAlign:
   if (flex && widths.every((w) => w === undefined) && items.every(grows)) {
     const share = box.width / items.length;
     items.forEach((element, i) => {
-      place(doc, element, box.x + i * share, share, box, blockAlign, rtl, out, false, share);
+      place(doc, element, rtl ? box.x + box.width - (i + 1) * share : box.x + i * share, share, box, blockAlign, rtl, out, false, share);
       shifted(element);
     });
     return;
@@ -550,13 +551,14 @@ function line(doc: StyledDocument, items: Element[], box: Placement, blockAlign:
     const justify = flex ? (doc.property(items[0].parentNode as Element, "justify-content") ?? "").toLowerCase() : "";
     items.forEach((element, i) => {
       const float = (doc.property(element, "float") ?? "").trim().toLowerCase();
+      const [start, end]: Align[] = rtl ? ["right", "left"] : ["left", "right"];
       const align: Align = !flex && (float === "left" || float === "right")
         ? float
         : !flex
         ? box.align
         : /space-between|space-around|space-evenly/.test(justify)
-          ? items.length === 1 ? "left" : i === 0 ? "left" : i === items.length - 1 ? "right" : "center"
-          : /center/.test(justify) ? "center" : /end|right/.test(justify) ? "right" : "left";
+          ? items.length === 1 ? start : i === 0 ? start : i === items.length - 1 ? end : "center"
+          : flexAlign(justify, rtl);
       // The box hugs its text: its own text-align doesn't move it, the line's does; unless the text fills
       // the line, which can't be told here.
       const own = textAlign(doc, element, { align }, rtl).align;
@@ -599,15 +601,25 @@ function line(doc: StyledDocument, items: Element[], box: Placement, blockAlign:
     const items_ = all.filter((item) => !floatsRight(item.element));
     const total = items_.reduce((a, it) => a + it.width, 0);
     const spare = Math.max(0, box.width - total);
-    const align = flex ? (/center/.test(justify) ? "center" : /end|right/.test(justify) ? "right" : "left") : box.align;
-    let x = box.x + (align === "center" ? spare / 2 : align === "right" ? spare : 0);
+    const align = flex ? flexAlign(justify, rtl) : box.align;
     const gap = flex && /space-between/.test(justify) && items_.length > 1 ? spare / (items_.length - 1) : 0;
-    for (const it of items_) {
+    // (Spread out, the items fill the row from edge to edge.)
+    let x = box.x + (gap ? 0 : align === "center" ? spare / 2 : align === "right" ? spare : 0);
+    // Right to left, the first box is the rightmost.
+    for (const it of rtl ? [...items_].reverse() : items_) {
       const margin = sides(doc, it.element, "margin", box.width);
       place(doc, it.element, x, it.width - margin.left - margin.right, box, blockAlign, rtl, out, false, it.width - margin.left - margin.right);
       x += it.width + gap;
     }
   }
+}
+
+/** Where a flex row's `justify-content` puts its items: its start and end are the right and left right to left. */
+function flexAlign(justify: string, rtl: boolean): Align {
+  if (/center/.test(justify)) return "center";
+  if (/\bleft\b/.test(justify)) return "left";
+  if (/\bright\b/.test(justify)) return "right";
+  return /end/.test(justify) !== rtl ? "right" : "left";
 }
 
 /** Where a line of text in `p` lines up: its left edge, center or right edge, by its alignment. */

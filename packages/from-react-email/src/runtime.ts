@@ -105,9 +105,12 @@ export async function convertElement(element: React.ReactElement, options: { mea
     }
     if (node.kind !== "host" || node.tag !== "style") return;
     // <Font> inside a rendered <head> arrives as its @font-face rule.
-    const css = String(node.props.dangerouslySetInnerHTML?.__html ?? textOf(node.children));
-    fontSpecs.push(...fontFaces(css));
-    linked.push(...importedStylesheets(css));
+    const text = String(node.props.dangerouslySetInnerHTML?.__html ?? textOf(node.children));
+    fontSpecs.push(...fontFaces(text));
+    linked.push(...importedStylesheets(text));
+    // A stylesheet for some media only (`media="print"`, a phone's width): its rules apply as in that query.
+    const media = typeof node.props.media === "string" ? node.props.media : "";
+    const css = media && !/^\s*(only\s+)?(all|screen)?\s*$/i.test(media) ? `@media ${media}{${text}}` : text;
     addRules(phone, phoneImportant, phoneRules(css));
     const rules = stylesheetRules(css);
     addRules(classes, classImportant, { styles: rules.classes, important: rules.important, order: rules.order }, classOrder);

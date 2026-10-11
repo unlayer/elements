@@ -43,6 +43,8 @@ export interface WordStyle {
   target?: string;
   /** Why each unknown property is unknown (the rule, query or value this couldn't read). */
   causes?: Partial<Record<(typeof STYLE_PROPERTIES)[number], string>>;
+  /** What the check doesn't model that shows on it (see `StyledDocument.look`): both sides must have the same. */
+  look?: Record<string, string>;
 }
 
 export const STYLE_PROPERTIES = ["size", "bold", "italic", "transform", "underline", "strike", "color", "background", "font", "target"] as const;
@@ -172,6 +174,15 @@ function fontSize(value: string, parent: number | undefined, root: number): numb
   }
 }
 
+/** `<font size="5">` (or `+2`, relative to 3) as the size keyword the HTML standard maps it to. */
+function fontSizeAttribute(value: string | undefined): string | undefined {
+  const m = /^\s*([+-]?)(\d+)/.exec(value ?? "");
+  if (!m) return undefined;
+  const n = parseInt(m[2], 10);
+  const size = Math.min(7, Math.max(1, m[1] === "+" ? 3 + n : m[1] === "-" ? 3 - n : n));
+  return ["x-small", "small", "medium", "large", "x-large", "xx-large", "xxx-large"][size - 1];
+}
+
 /** A font weight as a number, given the parent's. */
 function fontWeight(value: string, parent: number | undefined): number | undefined {
   const v = value.trim().toLowerCase();
@@ -213,6 +224,8 @@ interface Compound {
   maybe: boolean;
   /** It names `::first-line` or `::first-letter`: part of the element's text. */
   partial?: boolean;
+  /** It names `::before` or `::after`: content drawn in the element, not the element. */
+  generated?: "before" | "after";
   /** `:is(…)`/`:where(…)`: each group matches when one of its compounds does. */
   any?: Compound[][];
 }
@@ -222,6 +235,8 @@ interface Selector {
   specificity: [number, number, number];
   /** `::first-line`, `::first-letter`: it styles part of the element's text, whatever the element's own style says. */
   partial?: boolean;
+  /** `::before`, `::after`: what it sets is the content it draws in the element (see `generated`). */
+  generated?: "before" | "after";
 }
 
 interface Rule {
@@ -237,7 +252,7 @@ interface Rule {
 }
 
 const DYNAMIC_PSEUDO = /^(hover|focus|focus-within|focus-visible|active|visited|target|checked|disabled|placeholder-shown|autofill)$/;
-const IGNORED_PSEUDO_ELEMENT = /^(before|after|placeholder|selection|marker|-webkit-[\w-]+|-moz-[\w-]+)$/;
+const IGNORED_PSEUDO_ELEMENT = /^(placeholder|selection|marker|-webkit-[\w-]+|-moz-[\w-]+)$/;
 // Identifiers take any non-ASCII character too (`.sólo-móvil`), as CSS does.
 const SIMPLE = /\[[^\]]*\]|::?[\w-]+(?:\((?:[^()]|\([^)]*\))*\))?|[#.](?:[\w\u00a0-\uffff-]|\\.)+|(?:[\w\u00a0-\uffff-]|\\.)+|\*/g;
 
@@ -311,7 +326,10 @@ function parseSelector(text: string): Selector | null | "unknown" | "invalid" {
     if (compound === null || compound === "unknown" || compound === "invalid") return compound;
     parts.push({ compound, combinator: i > 0 ? (items[i - 1] as Combinator) : undefined });
   }
-  return { parts, specificity, ...(parts[0]?.compound.partial ? { partial: true } : {}) };
+  // A pseudo-element only ends a selector: the browser drops one that goes on (`p::before span`).
+  if (parts.slice(1).some((p) => p.compound.generated)) return "invalid";
+  const generated = parts[0]?.compound.generated;
+  return { parts, specificity, ...(parts[0]?.compound.partial ? { partial: true } : {}), ...(generated ? { generated } : {}) };
 }
 
 const STRUCTURAL = /^(first-child|last-child|only-child|first-of-type|last-of-type|only-of-type|root|empty|nth-child\(.*\)|nth-last-child\(.*\)|nth-of-type\(.*\)|nth-last-of-type\(.*\))$/;
@@ -325,7 +343,8 @@ function parseCompound(text: string, specificity: [number, number, number]): Com
     if (token === "*") continue;
     if (token.startsWith("::")) {
       if (IGNORED_PSEUDO_ELEMENT.test(token.slice(2))) return null;
-      if (/^first-(line|letter)$/i.test(token.slice(2))) compound.partial = true;
+      if (/^(before|after)$/i.test(token.slice(2))) compound.generated = token.slice(2).toLowerCase() as "before" | "after";
+      else if (/^first-(line|letter)$/i.test(token.slice(2))) compound.partial = true;
       else compound.maybe = true;
       continue;
     }
@@ -333,6 +352,12 @@ function parseCompound(text: string, specificity: [number, number, number]): Com
       const name = /^:([\w-]+)/.exec(token)![1].toLowerCase();
       const argument = /^:[\w-]+\((.*)\)$/s.exec(token)?.[1];
       if (DYNAMIC_PSEUDO.test(name)) return null;
+      // The old one-colon spelling of a pseudo-element.
+      if ((name === "before" || name === "after") && argument === undefined) {
+        compound.generated = name;
+        specificity[2]++;
+        continue;
+      }
       if (/^(is|where|matches|-webkit-any|-moz-any)$/.test(name) && argument !== undefined) {
         // Matches when one argument does; as specific as its most specific argument (`:where` adds nothing).
         // An argument the browser can't read is left out (these lists forgive it); one with a combinator may match.
@@ -452,7 +477,7 @@ function widthRange(feature: string, width: number): boolean | undefined {
 }
 
 /** Whether a media query list applies at `width` (desktop: 700px; phones: 375px). */
-function mediaApplies(query: string, width: number): "yes" | "no" | "unknown" {
+export function mediaApplies(query: string, width: number): "yes" | "no" | "unknown" {
   let any: "no" | "unknown" = "no";
   for (const single of query.toLowerCase().split(",")) {
     const q = single.trim();
@@ -461,8 +486,9 @@ function mediaApplies(query: string, width: number): "yes" | "no" | "unknown" {
       any = "unknown";
       continue;
     }
-    const type = /^(?:only\s+)?(all|screen|print|speech)\b/.exec(q)?.[1];
-    if (type === "print" || type === "speech") continue;
+    // A media type other than a screen (print, speech, or one no browser matches any more: tv, handheld).
+    const type = /^(?:only\s+)?([a-z-]+)/.exec(q)?.[1];
+    if (type !== undefined && type !== "all" && type !== "screen") continue;
     let result: "yes" | "no" | "unknown" = "yes";
     for (const [, feature] of q.matchAll(/\(([^)]*)\)/g)) {
       const [name, raw] = feature.split(":").map((s) => s.trim());
@@ -757,8 +783,15 @@ const UA: Record<string, Record<string, string>> = {
   ins: { "text-decoration": "underline" },
   small: { "font-size": "smaller" },
   big: { "font-size": "larger" },
-  sub: { "font-size": "smaller" },
-  sup: { "font-size": "smaller" },
+  sub: { "font-size": "smaller", "vertical-align": "sub" },
+  sup: { "font-size": "smaller", "vertical-align": "super" },
+  pre: { "white-space": "pre" },
+  listing: { "white-space": "pre" },
+  xmp: { "white-space": "pre" },
+  plaintext: { "white-space": "pre" },
+  textarea: { "white-space": "pre-wrap" },
+  nobr: { "white-space": "nowrap" },
+  bdo: { "unicode-bidi": "bidi-override" },
   head: { display: "none" },
   style: { display: "none" },
   script: { display: "none" },
@@ -884,7 +917,10 @@ export class StyledDocument {
     this.width = options.width ?? DESKTOP_WIDTH;
     for (const style of this.elements().filter((e) => e.tagName === "style")) {
       const text = style.childNodes.map((n) => ("value" in n ? (n as { value: string }).value : "")).join("");
-      parseStylesheet(text, this.rules, this.width);
+      // A stylesheet for other media (`media="print"`) doesn't apply on screen.
+      const media = (attr(style, "media") ?? "").trim();
+      const applies = media ? mediaApplies(media, this.width) : "yes";
+      if (applies !== "no") parseStylesheet(text, this.rules, this.width, applies);
     }
     const html_ = this.elements().find((e) => e.tagName === "html");
     this.rootSize = 16;
@@ -960,6 +996,15 @@ export class StyledDocument {
     const bgcolor = attr(element, "bgcolor");
     if (bgcolor && /^(body|table|tr|td|th)$/.test(element.tagName)) add("background-color", { value: bgcolor, important: false, level: 1, specificity: [0, 0, 0], order: 0, unknown: false });
     if (element.tagName === "font" && attr(element, "color")) add("color", { value: attr(element, "color")!, important: false, level: 1, specificity: [0, 0, 0], order: 0, unknown: false });
+    // The other attributes that set styles, as the HTML standard maps them.
+    const hint = (property: string, value: string) => add(property, { value, important: false, level: 1, specificity: [0, 0, 0], order: 0, unknown: false });
+    if (element.tagName === "font") {
+      const size = fontSizeAttribute(attr(element, "size"));
+      if (size) hint("font-size", size);
+      if (attr(element, "face")) hint("font-family", attr(element, "face")!);
+    }
+    if (element.tagName === "body" && attr(element, "text")) hint("color", attr(element, "text")!);
+    if (/^(td|th)$/.test(element.tagName) && attr(element, "nowrap") !== undefined) hint("white-space", "nowrap");
     for (const rule of this.rules) {
       // The selectors that match, and those that may: one this can't read may be as specific as any.
       let applies = false;
@@ -967,6 +1012,8 @@ export class StyledDocument {
       let mayApply = rule.unknownSelector;
       let maySpecificity: [number, number, number] = rule.unknownSelector ? [Number.MAX_SAFE_INTEGER, 0, 0] : [0, 0, 0];
       for (const selector of rule.selectors) {
+        // `::before`/`::after` style the content they draw, not the element (see `generated`).
+        if (selector.generated) continue;
         const m = matches(element, selector);
         if (m === "yes") {
           applies = true;
@@ -1382,6 +1429,127 @@ export class StyledDocument {
   }
 
   /** A word's style from the elements it's in, outermost first. */
+  private readonly looks = new Map<Element, Map<string, string>>();
+
+  /**
+   * What the check doesn't model that shows on the words in `element`: each
+   * property in doubt (not in MODELED or INERT) that a box around them sets
+   * to a value that changes something, the content drawn around them
+   * (`::before`, a list item's marker, `<q>`'s quotes). Keyed by property for
+   * those that inherit (the nearest box's value), else by the declaration
+   * (`transform: rotate(5deg)`), as every box's adds up.
+   */
+  look(element: Element): Map<string, string> {
+    const cached = this.looks.get(element);
+    if (cached) return cached;
+    const out = new Map(isElement(element.parentNode) ? this.look(element.parentNode) : []);
+    const size = this.style(element).size;
+    let clips = false;
+    for (const [property, d] of this.declared(element)) {
+      if (property.startsWith("--") || /^mso-/i.test(property)) continue;
+      const bare = bareProperty(property);
+      if (INERT.has(bare) || INERT_FAMILY.test(bare) || (MODELED.has(bare) && bare !== "display")) continue;
+      const inherited = INHERITED_LOOK.has(bare);
+      const resolved = this.property(element, property);
+      // (A display that can't be read is whether it's shown, which the check reads.)
+      if (resolved === "" || (resolved === null && bare === "display")) continue;
+      if (resolved === null) {
+        // Set by a rule or value this can't read: in doubt, whatever it is.
+        out.set(inherited ? bare : `${bare} (unread)`, `\u0000${d.cause ?? `${property}: ${d.value}`}`);
+        continue;
+      }
+      let v = resolved.trim().toLowerCase().replace(/\s+/g, " ");
+      if (/^(initial|unset|revert|revert-layer|inherit)$/.test(v)) {
+        if (inherited && v !== "inherit" && v !== "unset") out.delete(bare);
+        else if (!inherited && v === "inherit") out.set(`${bare}: inherit`, "");
+        continue;
+      }
+      if (bare === "display") {
+        if (!PLACED_DISPLAY.test(v)) out.set(`display: ${v}`, "");
+        continue;
+      }
+      if (/^overflow(-x|-y)?$/.test(bare)) {
+        clips ||= v !== "visible";
+        continue;
+      }
+      if (bare === "position") {
+        if (v === "static") continue;
+        // Moved from where it sits only by its offsets.
+        const offsets = ["top", "right", "bottom", "left", "inset"].flatMap((side) => {
+          const o = this.property(element, side);
+          return o === null || (o && !/^(auto|[+-]?0(\.0*)?([a-z]+|%)?)$/i.test(o.trim())) ? [`${side}: ${o ?? "?"}`] : [];
+        });
+        if (v !== "relative" || offsets.length) out.set(`position: ${[v, ...offsets].join("; ")}`, "");
+        continue;
+      }
+      if (/^(letter-spacing|word-spacing|text-indent)$/.test(bare)) v = lookLength(v, size);
+      if (NEUTRAL[bare]?.test(v)) {
+        if (inherited) out.delete(bare);
+        continue;
+      }
+      if (inherited) out.set(bare, v);
+      else out.set(`${bare}: ${v}`, "");
+    }
+    // Overflow cuts off only text that runs past the box: one with a set height, or lines that don't wrap.
+    if (clips) {
+      const height = ["height", "max-height"].some((name) => {
+        const h = this.property(element, name);
+        return h === null || (!!h && !/^(auto|none)$/i.test(h.trim()));
+      });
+      const unwrapped = /^(nowrap|pre)$/.test(out.get("white-space") ?? "") || out.get("text-wrap") === "nowrap" || out.get("text-wrap-mode") === "nowrap";
+      if (height || unwrapped) out.set(`overflow: ${["overflow", "overflow-x", "overflow-y"].map((n) => this.property(element, n)).filter(Boolean).join(" ")}`, "");
+    }
+    // The text direction its `dir` gives, where no CSS sets one.
+    if (!this.declared(element).has("direction")) {
+      const dir = (attr(element, "dir") ?? "").trim().toLowerCase();
+      if (dir === "rtl" || dir === "auto") out.set("direction", dir);
+      else if (dir === "ltr") out.delete("direction");
+    }
+    // Content drawn in it: before or after it, a list item's marker, quotes.
+    for (const rule of this.rules) {
+      for (const selector of rule.selectors) {
+        if (!selector.generated) continue;
+        const m = matches(element, selector);
+        if (m === "no") continue;
+        const content = [...rule.declarations].reverse().find((decl) => bareProperty(decl.property) === "content");
+        if (!content || /^(normal|none|""|'')$/i.test(content.value.trim())) continue;
+        out.set(`::${selector.generated} { content: ${content.value.trim()} }${m === "maybe" ? " (from a rule that may apply)" : ""}`, "");
+      }
+    }
+    if (element.tagName === "li" && /^(|list-item)$/i.test((this.property(element, "display") ?? "?").trim())) {
+      const marker = this.marker(element);
+      if (marker !== "none") out.set("list item", marker);
+    }
+    if (element.tagName === "q") out.set("<q> (quotes around it)", "");
+    if (element.tagName === "marquee" || element.tagName === "blink") out.set(`<${element.tagName}>`, "");
+    this.looks.set(element, out);
+    return out;
+  }
+
+  /** A list item's marker: its list's style type (`disc`, `decimal`, `none`), where it starts and counts. */
+  private marker(item: Element): string {
+    let type: string | undefined;
+    for (let e: Node | null = item; isElement(e) && !type; e = e.parentNode) {
+      const own = this.property(e, "list-style-type");
+      if (own === null) return "?";
+      if (own) type = own.trim().toLowerCase();
+      else {
+        const shorthand = this.property(e, "list-style");
+        if (shorthand === null) return "?";
+        const tokens = (shorthand ?? "").toLowerCase().split(/\s+/).filter((t) => t && !/^(inside|outside|url\(.*)$/.test(t));
+        if (tokens.length) type = tokens[tokens.length - 1];
+      }
+    }
+    const list = isElement(item.parentNode) ? item.parentNode : undefined;
+    const ordered = list?.tagName === "ol";
+    const typeAttribute = attr(item, "type") ?? (list ? attr(list, "type") : undefined);
+    type ??= typeAttribute ? `type ${typeAttribute}` : ordered ? "decimal" : "disc";
+    if (/^(inherit|initial|unset|revert|revert-layer)$/.test(type)) type = ordered ? "decimal" : "disc";
+    if (type === "none") return "none";
+    const start = list && attr(list, "start");
+    return [type, ...(start ? [`from ${start}`] : []), ...(list && attr(list, "reversed") !== undefined ? ["reversed"] : []), ...(attr(item, "value") ? [`value ${attr(item, "value")}`] : [])].join(" ");
+  }
+
   private wordStyle(chain: Element[]): WordStyle {
     const element = chain[chain.length - 1];
     const own = this.style(element);
@@ -1453,6 +1621,7 @@ export class StyledDocument {
     if (own.unknown.has("font-family")) why("font", own.causes.get("font-family"));
     if (underline === undefined) why("underline", underlineCause);
     if (background === undefined && !options) why("background", backgroundCause);
+    const look = this.look(element);
     return {
       size: known("font-size", own.size) as number | undefined,
       bold: own.weight === undefined || own.unknown.has("font-weight") ? undefined : own.weight >= 600,
@@ -1467,12 +1636,121 @@ export class StyledDocument {
       ...(options ? { backgrounds: options } : {}),
       ...(inLink ? { target } : {}),
       ...(Object.keys(causes).length ? { causes } : {}),
+      ...(look.size ? { look: Object.fromEntries(look) } : {}),
     };
   }
 }
 
 // Outlook's VML: not shown by other clients.
 const MSO_ONLY = /^(v:|o:|w:)/;
+
+// ============================================
+// What the check doesn't model
+// ============================================
+
+/**
+ * Properties the check reads itself: compared as a word's style (size, weight,
+ * color, …), or where it hides words or places them across the page.
+ */
+const MODELED = new Set([
+  "font", "font-size", "font-weight", "font-style", "font-family", "color", "text-transform", "text-decoration", "text-decoration-line",
+  "background", "background-color", "background-image", "opacity", "visibility", "display", "text-align", "float", "clear",
+  "width", "min-width", "max-width", "margin", "margin-left", "margin-right", "padding", "padding-left", "padding-right",
+  "flex", "flex-grow", "flex-shrink", "flex-basis", "justify-content",
+]);
+
+/**
+ * Properties that can't change the words the check compares, or how they show:
+ * each with why. Anything not here or in MODELED is in doubt by default.
+ */
+const INERT = new Set([
+  // Vertical layout and boxes' own drawing: the check verifies words, their styles and where they sit across,
+  // not how tall boxes are, their borders, corners or outer shadows.
+  "height", "min-height", "max-height", "line-height", "margin-top", "margin-bottom", "padding-top", "padding-bottom",
+  "margin-block", "margin-block-start", "margin-block-end", "padding-block", "padding-block-start", "padding-block-end",
+  "margin-inline", "margin-inline-start", "margin-inline-end", "padding-inline", "padding-inline-start", "padding-inline-end",
+  "border", "border-radius", "outline", "outline-color", "outline-style", "outline-width", "outline-offset", "box-sizing",
+  "box-decoration-break", "aspect-ratio", "align-items", "align-self", "align-content", "justify-items", "justify-self",
+  "place-items", "place-self", "place-content", "gap", "row-gap", "column-gap", "column-rule", "column-span", "column-fill",
+  "flex-wrap", "z-index", "inset", "top", "left", "right", "bottom",
+  // Tables: their cells are placed from their widths (`table-layout` within the distance the check allows).
+  "table-layout", "border-collapse", "border-spacing", "empty-cells", "caption-side",
+  // Where lines wrap (vertical layout).
+  "word-break", "overflow-wrap", "word-wrap", "hyphens", "line-break", "text-wrap-style", "tab-size", "orphans", "widows",
+  "page-break-before", "page-break-after", "page-break-inside", "break-before", "break-after", "break-inside",
+  // A background image's size and place: the image itself and the color under it are compared.
+  "background-size", "background-position", "background-position-x", "background-position-y", "background-repeat",
+  "background-attachment", "background-origin",
+  // Images: no words in them.
+  "object-fit", "object-position", "image-rendering", "interpolation-mode",
+  // Decoration details: whether a word is underlined or struck through is compared, not the line's own look.
+  "text-decoration-color", "text-decoration-style", "text-decoration-thickness", "text-decoration-skip", "text-decoration-skip-ink",
+  "text-underline-offset", "text-underline-position",
+  // Rendering hints, interaction, motion between states: what's drawn at rest is the same.
+  "font-smoothing", "osx-font-smoothing", "font-smooth", "text-rendering", "text-size-adjust", "font-kerning", "font-optical-sizing",
+  "font-synthesis", "font-synthesis-weight", "font-synthesis-style", "font-synthesis-small-caps", "font-display", "src", "unicode-range",
+  "cursor", "pointer-events", "user-select", "user-drag", "touch-callout", "touch-action", "tap-highlight-color", "caret-color",
+  "accent-color", "appearance", "resize", "scroll-behavior", "overscroll-behavior", "will-change", "contain", "isolation",
+  "backface-visibility", "transform-origin", "transform-style", "perspective", "perspective-origin", "transition",
+  "transition-property", "transition-duration", "transition-timing-function", "transition-delay", "color-scheme",
+  "print-color-adjust", "color-adjust", "forced-color-adjust", "speak", "behavior", "counter-reset", "counter-increment",
+  "counter-set", "box-orient", "box-pack", "box-align", "box-direction", "text-align-last", "text-justify",
+  // List markers: read from the list item (see `look`).
+  "list-style", "list-style-type", "list-style-position", "list-style-image",
+]);
+
+/**
+ * What a value that changes nothing is, for properties in doubt by default (anything else changes how text
+ * shows). Digits set tabular or proportional are the same glyphs, a little wider or narrower: within the
+ * distance the check allows across. `content` on an element (not `::before`) draws nothing unless it's an image.
+ */
+const NEUTRAL: Record<string, RegExp> = {
+  "white-space": /^normal$/, "white-space-collapse": /^collapse$/, "text-wrap": /^(wrap|balance|pretty|stable)$/, "text-wrap-mode": /^wrap$/,
+  "letter-spacing": /^(normal|[+-]?0(\.0*)?([a-z]+|%)?)$/, "word-spacing": /^(normal|[+-]?0(\.0*)?([a-z]+|%)?)$/, "text-indent": /^[+-]?0(\.0*)?([a-z]+|%)?$/,
+  direction: /^ltr$/, "unicode-bidi": /^normal$/, "writing-mode": /^horizontal-tb$/, "text-orientation": /^mixed$/,
+  "font-variant": /^normal$/, "font-variant-caps": /^normal$/, "font-variant-numeric": /^(normal|tabular-nums|proportional-nums|lining-nums)( (tabular-nums|proportional-nums|lining-nums))*$/, "font-variant-ligatures": /^normal$/,
+  "font-variant-east-asian": /^normal$/, "font-variant-position": /^normal$/, "font-variant-alternates": /^normal$/,
+  "font-feature-settings": /^normal$/, "font-variation-settings": /^normal$/, "font-stretch": /^(normal|100%)$/, "font-width": /^(normal|100%)$/,
+  "font-size-adjust": /^none$/, "font-language-override": /^normal$/, "text-shadow": /^none$/, "text-fill-color": /^currentcolor$/,
+  "text-stroke": /^(none|0(px)?)$/, "text-stroke-width": /^0(px)?$/, "text-stroke-color": /^currentcolor$/, "text-emphasis": /^none$/,
+  "text-emphasis-style": /^none$/, "text-emphasis-color": /^currentcolor$/, "text-emphasis-position": /.*/, quotes: /^auto$/,
+  transform: /^none$/, translate: /^none$/, rotate: /^none$/, scale: /^none$/, filter: /^none$/, "backdrop-filter": /^none$/,
+  "mix-blend-mode": /^normal$/, "background-blend-mode": /^normal$/, mask: /^none$/, "mask-image": /^none$/, "clip-path": /^none$/,
+  clip: /^auto$/, zoom: /^(normal|1|100%|reset)$/, "content-visibility": /^visible$/, animation: /^none$/, "animation-name": /^none$/,
+  content: /^(normal|none|""|'')$/, "box-reflect": /^none$/, position: /^static$/, "text-overflow": /^clip$/, "line-clamp": /^none$/,
+  "column-count": /^auto$/, "column-width": /^auto$/, columns: /^auto( auto)?$/, order: /^0$/, "flex-direction": /^(row|column)$/,
+  "flex-flow": /^(?!.*reverse).*$/, "vertical-align": /^(baseline|top|middle|bottom|text-top|text-bottom)$/,
+  "box-shadow": /^(?!.*\binset\b).*$/, "background-clip": /^(?!.*\btext\b).*$/, overflow: /^visible$/, "overflow-x": /^visible$/,
+  "overflow-y": /^visible$/, "overflow-clip-margin": /.*/,
+};
+
+/** Properties in doubt that inherit: the nearest box that sets one decides. Others add up from every box around the word. */
+const INHERITED_LOOK = new Set([
+  "white-space", "white-space-collapse", "text-wrap", "text-wrap-mode", "letter-spacing", "word-spacing", "text-indent", "direction",
+  "writing-mode", "text-orientation", "font-variant", "font-variant-caps", "font-variant-numeric", "font-variant-ligatures",
+  "font-variant-east-asian", "font-variant-position", "font-variant-alternates", "font-feature-settings", "font-variation-settings",
+  "font-stretch", "font-width", "font-size-adjust", "font-language-override", "text-shadow", "text-fill-color", "text-stroke",
+  "text-stroke-width", "text-stroke-color", "text-emphasis", "text-emphasis-style", "text-emphasis-color", "quotes",
+]);
+
+/** Display values the check places (or hides); others (grid, contents, a list item's marker) are in doubt. */
+const PLACED_DISPLAY = /^(none|block|inline|inline-block|flex|inline-flex|flow-root|table|inline-table|table-row|table-cell|table-row-group|table-header-group|table-footer-group|table-column|table-column-group|block flow|inline flow|inherit|initial|unset|revert|revert-layer)$/;
+
+/** Families of properties INERT holds (a box's borders, margins, grid placement, Outlook's own, motion). */
+const INERT_FAMILY = /^(border|outline|margin|padding|grid|scroll|overscroll|transition|animation-(?!name$)|mask-(?!image$)|column-rule|inset-|page-|break-|mso-)/;
+
+/** A property's name without a browser prefix (`-webkit-transform` is `transform`), Outlook's own kept. */
+function bareProperty(property: string): string {
+  return property.toLowerCase().replace(/^-(webkit|moz|ms|o)-/, "");
+}
+
+/** A length in px at a font size (`0.1em` at 20px is 2px), else the value as written. */
+function lookLength(value: string, size: number | undefined): string {
+  const m = /^([+-]?(?:\d+\.?\d*|\.\d+))(px|em|rem)?$/.exec(value);
+  if (!m) return value;
+  const n = parseFloat(m[1]) * (m[2] === "em" ? size ?? NaN : m[2] === "rem" ? 16 : 1);
+  return Number.isNaN(n) ? value : `${Math.round(n * 100) / 100}px`;
+}
 
 /** Longhands a shorthand sets; values this can't split are unknown. */
 function expand(property: string, value: string): Array<{ property: string; value: string; unknown: boolean }> {
@@ -1572,7 +1850,7 @@ export interface StyleDifference {
  */
 export interface Unverified {
   /** A style property, or whether the words are shown. */
-  what: (typeof STYLE_PROPERTIES)[number] | "shown" | "shown on phones" | "where it sits";
+  what: (typeof STYLE_PROPERTIES)[number] | "shown" | "shown on phones" | "where it sits" | "look";
   /** The original template, or the migration (a value the migrated template writes that this can't read). */
   side: "original" | "migrated";
   /** The rule, condition or value it couldn't read. */
@@ -1630,6 +1908,23 @@ function show(property: StyleDifference["property"], value: unknown): string {
   return String(value);
 }
 
+/** A look entry as written: `white-space: pre-line`, `transform: rotate(5deg)`, or what sets it when unread. */
+function showLook(key: string, value: string): string {
+  if (value.startsWith("\u0000")) return `\`${key}\` from ${value.slice(1)}`;
+  return value ? `\`${key}: ${value}\`` : `\`${key}\``;
+}
+
+/**
+ * Look values that show the same: equal (one unread the same way on both sides is the same markup kept),
+ * or lengths within a third of a pixel (`0.1em` at 15px, `1.5px`).
+ */
+function sameLook(a: string, b: string): boolean {
+  if (a === b) return true;
+  const px = /^([+-]?[\d.]+)px$/;
+  const x = px.exec(a), y = px.exec(b);
+  return !!x && !!y && Math.abs(parseFloat(x[1]) - parseFloat(y[1])) <= 0.34;
+}
+
 function same(property: StyleDifference["property"], a: unknown, b: unknown): boolean {
   if (property === "size") return Math.abs((a as number) - (b as number)) <= 1;
   if (property === "color" || property === "background") {
@@ -1676,6 +1971,15 @@ export function compareStyles(originalHtml: string | StyledDocument, convertedHt
     }
     if (!a[i].shown || !b[i].shown) continue;
     compared++;
+    // What the check doesn't model (`white-space`, a transform, content drawn before it): the same on both sides, or in doubt.
+    const la = a[i].style.look ?? {}, lb = b[i].style.look ?? {};
+    for (const key of new Set([...Object.keys(la), ...Object.keys(lb)])) {
+      const x = la[key], y = lb[key];
+      if (x !== undefined && y !== undefined && sameLook(x, y)) continue;
+      if (y === undefined) doubt("look", "original", `${showLook(key, x)}, a style the check doesn't verify`, a[i].word);
+      else if (x === undefined) doubt("look", "migrated", `${showLook(key, y)}, a style the check doesn't verify`, b[i].word);
+      else doubt("look", "original", `${showLook(key, x)}, where the migrated template has ${showLook(key, y)}`, a[i].word);
+    }
     // Where a line breaks: a word that starts a line on one side only (a `<br>` lost or added).
     if (!!a[i].lineStart !== !!b[i].lineStart && i > 0) {
       const where = (start: boolean | undefined) => (start ? "starts a line" : "continues the line");

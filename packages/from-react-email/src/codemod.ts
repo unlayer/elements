@@ -1043,9 +1043,13 @@ class Converter {
           }
           if (typeof css === "string") {
             linked.push(...importedStylesheets(css));
-            const rules = stylesheetRules(css);
+            // A stylesheet for some media only (`media="print"`, a phone's width): its rules apply as in that query.
+            const media = this.attr(jsx, "media");
+            if (media !== undefined && typeof media !== "string") throw new Error("Can't convert a <style> whose media comes from code: write the media query out in the template");
+            const sheet = media && !/^\s*(only\s+)?(all|screen)?\s*$/i.test(media) ? `@media ${media}{${css}}` : css;
+            const rules = stylesheetRules(sheet);
             addRules(this.headClasses, this.headImportant, { styles: rules.classes, important: rules.important, order: rules.order }, this.headOrder);
-            addRules(this.headPhone, this.headPhoneImportant, phoneRules(css));
+            addRules(this.headPhone, this.headPhoneImportant, phoneRules(sheet));
             for (const selector of rules.other) this.report.note("head style rule not converted", selector);
           }
         }

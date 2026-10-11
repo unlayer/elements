@@ -1053,6 +1053,27 @@ export default function Template() {
   });
 });
 
+describe("a stylesheet for some media only", () => {
+  it("applies as its media query does: a print stylesheet not on screen, a phone's on phones, in either mode", async () => {
+    const { result, runtime, Original, Migrated } = await bothModes(`import { Html, Head, Body, Text } from "@react-email/components";
+export default function Template() {
+  return <Html><Head>
+    <style media="print">{".no-print{display:none}"}</style>
+    <style media="(max-width: 600px)">{".desktop-only{display:none !important}"}</style>
+  </Head><Body>
+    <Text className="no-print">Shown on screen</Text>
+    <Text className="desktop-only">Not on phones</Text>
+  </Body></Html>;
+}`);
+    for (const html of [renderToHtml(Migrated({})), runtime.html()]) {
+      expect(htmlWords(html)).toEqual(["Shown", "on", "screen", "Not", "on", "phones"]);
+    }
+    const check = await verifyConversion(Original, Migrated);
+    expect([check.missing, check.added, check.phone.missing, check.phone.added]).toEqual([[], [], [], []]);
+    expect(result.code).not.toMatch(/Shown on screen[\s\S]{0,40}display/);
+  });
+});
+
 describe("styles objects", () => {
   it("write in a styles object's and a theme's values (`styles.body`, `theme.colors.primary`)", async () => {
     const { result, Migrated } = await bothModes(`import { Html, Body, Container, Heading, Text, Button } from "@react-email/components";

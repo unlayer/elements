@@ -275,10 +275,14 @@ Hooky.PreviewProps = { name: "Ada", items: ["a", "b", "c"] };`;
 export default function T() { return <Html><Head><style>{"p:has(b) { color: #ff0000 }"}</style></Head><Body><Text>Hello there</Text></Body></Html>; }`;
     const responsive = `import { Html, Head, Body, Text, Tailwind } from "@react-email/components";
 export default function T() { return <Html><Tailwind><Head /><Body><Text className="hidden sm:block">Desktop only</Text><Text>Always</Text></Body></Tailwind></Html>; }`;
-    const dir = project({ "emails/unreadable.tsx": unreadable, "emails/responsive.tsx": responsive });
+    const preserved = `import { Html, Body, Text } from "@react-email/components";
+export default function T() { return <Html><Body><Text style={{ whiteSpace: "pre-line" }}>Hello there</Text></Body></Html>; }`;
+    const dir = project({ "emails/unreadable.tsx": unreadable, "emails/responsive.tsx": responsive, "emails/preserved.tsx": preserved });
     const out = io(dir);
     expect(await main(["emails", "--out", "migrated"], out, lib), out.out + out.err).toBe(2);
     expect(out.out).toMatch(/✗ emails\/unreadable\.tsx: check failed \(couldn't verify: the color of "Hello", "there" \(the rule `p:has\(b\)`/);
+    // CSS the check doesn't model, that the migration doesn't keep.
+    expect(out.out).toContain('✗ emails/preserved.tsx: check failed (couldn\'t verify: the look of "Hello", "there" (`white-space: pre-line`, a style the check doesn\'t verify)');
     expect(out.out).toMatch(/✗ emails\/responsive\.tsx: check failed \(lost text: "Desktop", "only"/);
     expect(fs.existsSync(path.join(dir, "migrated/unreadable.tsx"))).toBe(false);
   });

@@ -818,7 +818,7 @@ function moves(layout: NonNullable<FileResult["layout"]>): string {
 
 /** What couldn't be verified, one line per cause: `the color of "Hello", "world" (the rule \`.x:has(b)\` …)`. */
 function unverifiedList(items: NonNullable<FileResult["unverified"]>): string {
-  const name: Record<string, string> = { shown: "whether it's shown", "shown on phones": "whether a phone shows it", "where it sits": "where it sits across the page", size: "the size", bold: "the weight", italic: "italics", transform: "letter case", underline: "underline", color: "the color", background: "the background", target: "the link target" };
+  const name: Record<string, string> = { shown: "whether it's shown", "shown on phones": "whether a phone shows it", "where it sits": "where it sits across the page", look: "the look", size: "the size", bold: "the weight", italic: "italics", transform: "letter case", underline: "underline", color: "the color", background: "the background", target: "the link target" };
   return items
     .map((u) => `${name[u.what] ?? u.what} of ${quote(u.words)}${wider(u.width)} (${u.side === "migrated" ? "the migrated template writes " : ""}${u.cause})`)
     .join("; ");

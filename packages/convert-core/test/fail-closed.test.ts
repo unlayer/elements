@@ -198,3 +198,93 @@ describe("screens wider than the desktop width read", () => {
   });
 });
 
+
+describe("styles the check doesn't model", () => {
+  // Each changes how words show (or which part of them): lost in the migration, the check fails; kept, it passes.
+  const cases: Array<[string, string, string?]> = [
+    ["gradient text", '<h1 style="background:linear-gradient(#f00,#00f);-webkit-background-clip:text;background-clip:text;color:transparent">Big sale</h1>'],
+    ["a text fill color", '<p style="-webkit-text-fill-color:#ff0000">Big sale</p>'],
+    ["lines kept as written", '<p style="white-space:pre-line">Big sale</p>'],
+    ["lines that don't wrap", '<p style="white-space:nowrap">Big sale</p>'],
+    ["text cut off at a width", '<p style="overflow:hidden;white-space:nowrap;text-overflow:ellipsis;width:40px">Big sale</p>'],
+    ["lines cut off at a height", '<div style="max-height:20px;overflow:hidden"><p>Big sale</p></div>'],
+    ["a line clamp", '<p style="display:-webkit-box;-webkit-line-clamp:1;-webkit-box-orient:vertical;overflow:hidden">Big sale</p>'],
+    ["a grid", '<div style="display:grid;grid-template-columns:1fr 1fr"><p>Big</p><p>sale</p></div>'],
+    ["a reversed row", '<div style="display:flex;flex-direction:row-reverse"><p>Big</p><p>sale</p></div>'],
+    ["an item moved in its row", '<div style="display:flex"><p style="order:2">Big</p><p>sale</p></div>'],
+    ["a box moved from where it sits", '<p style="position:relative;left:300px">Big sale</p>'],
+    ["a box taken out of the flow", '<p style="position:absolute;top:0;right:0">Big sale</p>'],
+    ["an indent", '<p style="text-indent:200px">Big sale</p>'],
+    ["text in columns", '<div style="column-count:2"><p>Big sale</p></div>'],
+    ["a transform", '<p style="transform:rotate(180deg)">Big sale</p>'],
+    ["a filter", '<p style="filter:invert(1)">Big sale</p>'],
+    ["small capitals", '<p style="font-variant:small-caps">Big sale</p>'],
+    ["an inset shadow (a fill behind the text)", '<p style="box-shadow:inset 0 0 0 100px #000;color:#fff">Big sale</p>'],
+    ["a text shadow", '<p style="text-shadow:0 0 2px #f00">Big sale</p>'],
+    ["letter spacing", '<p style="letter-spacing:0.5em">Big sale</p>'],
+    ["right to left text", '<p dir="rtl">Big sale</p>'],
+    ["superscript", "<p>Big <sup>sale</sup></p>"],
+    ["a list's numbers", "<ol><li>Big sale</li></ol>"],
+    ["quotes drawn around it", "<p><q>Big sale</q></p>"],
+    ["content drawn before it", '<p class="star">Big sale</p>', ".star::before{content:'★ '}"],
+    ["content drawn with the old one-colon spelling", '<p class="star">Big sale</p>', ".star:after{content:' →'}"],
+  ];
+  for (const [name, html, css] of cases) {
+    it(`fail on ${name} the migration doesn't have, and pass it kept`, () => {
+      const head = css ? style(css) : "";
+      const lost = compareText(page(html, head), page("<p>Big sale</p>"));
+      expect(checkFails(lost)).toBe(true);
+      expect(lost.unverified).toContainEqual(expect.objectContaining({ what: "look", side: "original" }));
+      expect(checkFails(compareText(page(html, head), page(html, head)))).toBe(false);
+    });
+  }
+
+  it("fail on a style the migration adds", () => {
+    const added = compareText(page("<p>Big sale</p>"), page('<p style="white-space:pre">Big sale</p>'));
+    expect(added.unverified).toEqual([expect.objectContaining({ what: "look", side: "migrated", cause: expect.stringContaining("white-space: pre") })]);
+  });
+
+  it("read sizes as HTML's presentational attributes set them", () => {
+    const font = compareText(page('<p><font size="5" face="Georgia">Big sale</font></p>'), page('<p style="font-size:24px;font-family:Georgia">Big sale</p>'));
+    expect(checkFails(font)).toBe(false);
+    const smaller = compareText(page('<p><font size="1">Big sale</font></p>'), page('<p style="font-size:16px">Big sale</p>'));
+    expect(smaller.styles).toEqual([expect.objectContaining({ property: "size", original: "10px", converted: "16px" })]);
+    expect(checkFails(compareText(page('<table><tr><td nowrap>Big sale</td></tr></table>'), page("<p>Big sale</p>")))).toBe(true);
+  });
+
+  it("pass what can't change the words: borders, corners, outer shadows, heights, Outlook's own, a relative box left in place", () => {
+    const decorated = '<div style="border:1px solid #ddd;border-radius:8px;box-shadow:0 1px 2px #0003;min-height:40px;mso-line-height-rule:exactly;-webkit-font-smoothing:antialiased;cursor:pointer;position:relative;word-break:break-word"><p>Big sale</p></div>';
+    expect(checkFails(compareText(page(decorated), page("<p>Big sale</p>")))).toBe(false);
+    // Overflow that clips nothing: no height, lines that wrap.
+    expect(checkFails(compareText(page('<div style="overflow:hidden"><p>Big sale</p></div>'), page("<p>Big sale</p>")))).toBe(false);
+    // Digits set tabular: the same glyphs, a little wider or narrower.
+    expect(checkFails(compareText(page('<p style="font-variant-numeric:tabular-nums">Total $14.99</p>'), page("<p>Total $14.99</p>")))).toBe(false);
+    // Letter spacing the same in other units.
+    expect(checkFails(compareText(page('<p style="font-size:20px;letter-spacing:0.1em">Big sale</p>'), page('<p style="font-size:20px;letter-spacing:2px">Big sale</p>')))).toBe(false);
+    // A list without markers, and content that draws nothing.
+    expect(checkFails(compareText(page('<ul style="list-style:none;padding:0"><li class="c">Big sale</li></ul>', style(".c::before{content:''}")), page("<p>Big sale</p>")))).toBe(false);
+  });
+
+  it("ignore a print stylesheet", () => {
+    const print = '<style media="print">.p{display:none}</style>';
+    expect(checkFails(compareText(page('<p class="p">Big sale</p>', print), page("<p>Big sale</p>")))).toBe(false);
+  });
+});
+
+describe("right to left", () => {
+  it("places a row's cells from the right", () => {
+    const cells = (dir: string) => page(`<table dir="${dir}" width="600" style="width:600px"><tr><td width="300" style="width:300px">First column</td><td width="300" style="width:300px">Second column</td></tr></table>`);
+    // The same columns, right to left: the first one sits on the right.
+    const swapped = '<table width="600" style="width:600px"><tr><td width="300" style="width:300px">First column</td><td width="300" style="width:300px">Second column</td></tr></table>';
+    const check = compareText(cells("rtl"), page(`<div dir="rtl">${swapped}</div>`));
+    expect(check.layout).toEqual([]);
+    expect(compareText(cells("rtl"), page(swapped.replace("<table", '<table dir="ltr"').replace("<tr>", '<tr dir="rtl">'))).layout.length).toBeGreaterThan(0);
+  });
+
+  it("places side-by-side boxes from the right", () => {
+    // Text aligned left on both sides: only the order of the boxes differs.
+    const columns = (dir: string) => page(`<div dir="${dir}" style="width:600px;text-align:left">${anchor}<div style="display:inline-block;width:300px;text-align:left">First column</div><div style="display:inline-block;width:300px;text-align:left">Second column</div></div>`);
+    const flipped = compareText(columns("rtl"), columns("ltr"));
+    expect(flipped.layout).toEqual([expect.objectContaining({ items: ["First", "column"] }), expect.objectContaining({ items: ["Second", "column"] })]);
+  });
+});

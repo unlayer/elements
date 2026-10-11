@@ -325,7 +325,11 @@ function lostOccurrences(original: string[], converted: string[]): string[] {
  */
 export function hiddenClasses(html: string): Map<string, { important: boolean }> {
   const out = new Map<string, { important: boolean }>();
-  for (const [, sheet] of html.matchAll(/<style\b[^>]*>([\s\S]*?)<\/style>/gi)) {
+  for (const [, attributes, sheet] of html.matchAll(/<style\b([^>]*)>([\s\S]*?)<\/style>/gi)) {
+    // A stylesheet for other media, or only some screens, isn't one that hides everywhere.
+    const media = /\bmedia\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s>]+))/i.exec(attributes);
+    const query = (media?.[1] ?? media?.[2] ?? media?.[3] ?? "").trim();
+    if (query && !/^(only\s+)?(all|screen)$/i.test(query)) continue;
     const css = withoutAtRules(sheet.replace(/\/\*[\s\S]*?\*\//g, ""));
     for (const [, selectors, body] of css.matchAll(/([^{}]+)\{([^{}]*)\}/g)) {
       const hide = /(?:^|;)\s*display\s*:\s*none\s*(!\s*important)?/i.exec(body);
