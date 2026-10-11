@@ -114,9 +114,12 @@ jobs:
       - name: Detect changes since each package's last release
         id: detect
         shell: bash
+        # The ref goes in through the environment, never into the script's text.
+        env:
+          REF: ${{ github.ref }}
         run: |
-          if [ "${{ github.ref }}" != "refs/heads/main" ]; then
-            echo "::error::Releases are made from main, not ${{ github.ref }}."
+          if [ "$REF" != "refs/heads/main" ]; then
+            echo "::error::Releases are made from main, not $REF."
             exit 1
           fi
           last() { git tag -l "$1" --sort=-v:refname | head -1; }
@@ -318,7 +321,7 @@ jobs:
       # Two-step publish: pnpm pack resolves catalog: protocol to real
       # version numbers, then npm publish handles OIDC trusted publishing.
       # npm publish alone does NOT understand catalog: and would ship broken deps.
-      # No --provenance flag — not supported for private source repos.
+      # No --provenance flag yet: the repository is public now, so it can be added.
       - name: Publish to npm (trusted publishing)
         working-directory: packages/react
         run: |
