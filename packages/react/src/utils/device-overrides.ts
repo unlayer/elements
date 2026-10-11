@@ -1,4 +1,5 @@
 import type { RenderMode } from "@unlayer-internal/shared-elements";
+import { safeName } from "./create-component";
 
 type DeviceStyles = Record<string, string[]>;
 type Collection = "rows" | "columns" | "contents";
@@ -41,7 +42,8 @@ function size(value: unknown): string | undefined {
 }
 
 export function collectDeviceStyles(values: Record<string, any>, collection: Collection, name: string, mode: RenderMode, styles: DeviceStyles): void {
-  const id = values._meta?.htmlID;
+  // The id the block's HTML has (only what an id can hold).
+  const id = safeName(values._meta?.htmlID);
   if (!id) return;
   const options = collection === "contents" ? ["containerPadding", ...(contentOptions[name] || [])] : collection === "columns" ? ["padding", "border"] : ["padding"];
   for (const device of mode === "document" ? ["desktop"] : ["desktop", "mobile"]) {

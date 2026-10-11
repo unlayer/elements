@@ -29,6 +29,9 @@ const content = (v: string) => <Row><Column><Paragraph>Hello</Paragraph></Column
 const CASES: Record<string, (v: string) => React.ReactElement> = {
   // An id or class name given in `values` (an escape hatch), on the block and its wrapper.
   blockHtmlId: (v) => <Row><Column><Paragraph values={{ _meta: { htmlID: `u_content_text_1${v}`, htmlClassNames: `u_content_text${v}` } } as never}>Hello</Paragraph></Column></Row>,
+  // The same with a phone setting: the head's CSS selects the block by its id.
+  blockHtmlIdPhone: (v) => <Row><Column><Paragraph mobile={{ fontSize: "12px" }} values={{ _meta: { htmlID: `u_content_text_1${v}` } } as never}>Hello</Paragraph></Column></Row>,
+  rowHtmlId: (v) => <Row values={{ _meta: { htmlID: `u_row_1${v}`, htmlClassNames: `u_row${v}` } } as never}><Column><Paragraph>Hello</Paragraph></Column></Row>,
   "Paragraph text": (v) => <Row><Column><Paragraph>{v}</Paragraph></Column></Row>,
   "Heading text": (v) => <Row><Column><Heading>{v}</Heading></Column></Row>,
   "Button text": (v) => <Row><Column><Button href="https://example.com">{v}</Button></Column></Row>,
@@ -85,6 +88,8 @@ describe("phone settings, written into the head's CSS", () => {
     "Row padding": (v) => <Row mobile={{ padding: v } as any}><Column><Paragraph>Hi</Paragraph></Column></Row>,
     "Column padding": (v) => <Row><Column mobile={{ padding: v } as any}><Paragraph>Hi</Paragraph></Column></Row>,
     "Column border": (v) => <Row><Column mobile={{ border: { borderTopWidth: "2px", borderTopStyle: "solid", borderTopColor: v } } as any}><Paragraph>Hi</Paragraph></Column></Row>,
+    // The block's id selects it there: one given in values is kept to what an id can hold.
+    "block id given in values": (v) => <Row><Column><Paragraph mobile={{ fontSize: "12px" }} values={{ _meta: { htmlID: `u_content_text_1${v}` } } as never}>Hi</Paragraph></Column></Row>,
   };
   it.each(Object.entries(ROOTS).flatMap(([mode, Root]) => Object.keys(PHONE).map((name) => [mode, name, Root] as const)))("%s: the %s can't end the style element or add rules", (_, name, Root) => {
     for (const payload of CSS_PAYLOADS) {
@@ -92,6 +97,12 @@ describe("phone settings, written into the head's CSS", () => {
       expect(injected(html), payload).toEqual([]);
       expect(html, payload).not.toMatch(/x-pwn\s*[{:]/);
     }
+  });
+
+  it("select the block by the id its HTML has, also when the id given in values had other characters", () => {
+    const html = renderToHtml(<Email><Row><Column><Paragraph mobile={{ fontSize: "12px" }} values={{ _meta: { htmlID: "u_content_título" } } as never}>Hi</Paragraph></Column></Row></Email>);
+    expect(html).toContain('id="u_content_ttulo"');
+    expect(html).toMatch(/#u_content_ttulo \.v-font-size/);
   });
 
   it("can't open a comment that hides the phone rules after it", () => {

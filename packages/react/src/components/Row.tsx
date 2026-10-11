@@ -4,7 +4,7 @@ import { validateColumnLayout } from "@unlayer-internal/shared-elements";
 import type { ColumnLayout } from "@unlayer-internal/shared-elements";
 import { RowExporters } from "@unlayer/exporters";
 import { mapSemanticProps, type SemanticProps } from "../utils/semantic-props";
-import { nextHtmlId } from "../utils/create-component";
+import { nextHtmlId, safeMeta } from "../utils/create-component";
 import { bodyContentWidthPx } from "../utils/image-sizing";
 import type { DeviceProps, SizeInput } from "../types";
 import { ROW_DEFAULTS, BODY_DEFAULTS } from "../utils/container-defaults";
@@ -275,15 +275,7 @@ function renderRow(props: RowProps): React.ReactElement | null {
     "Row"
   );
 
-  const valuesWithMeta = {
-    ...values,
-    cells,
-    _meta: {
-      htmlID: nextHtmlId(_config, "u_row"),
-      htmlClassNames: "u_row",
-      ...(values._meta || {})
-    }
-  };
+  const valuesWithMeta = { ...values, cells, _meta: safeMeta({ htmlID: nextHtmlId(_config, "u_row"), htmlClassNames: "u_row", ...(values._meta || {}) }) };
 
   // Process Column children
   const innerHTML = processChildren(

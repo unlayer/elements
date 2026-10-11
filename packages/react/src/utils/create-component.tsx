@@ -183,6 +183,9 @@ export function safeName(value: unknown, spaces = false): string {
   return String(value ?? "").replace(spaces ? /[^\w\s-]/g : /[^\w-]/g, "");
 }
 
+/** A block's or row's `_meta` with its id and class names kept to what they can hold (see `safeName`). */
+export const safeMeta = <T extends { htmlID?: unknown; htmlClassNames?: unknown }>(meta: T) => ({ ...meta, htmlID: safeName(meta.htmlID), htmlClassNames: safeName(meta.htmlClassNames, true) });
+
 /** Add _meta fields if not present. */
 function ensureMeta(values: any, type: string, index: number = 0): any {
   return {
@@ -333,7 +336,7 @@ export function createItemComponent<
       ...((finalValues as Record<string, any>)._meta || {}),
     };
     // An id or class name given in `values` reaches an attribute and the head's CSS selectors: only what they can hold.
-    const valuesWithMeta = { ...finalValues, _meta: { ...meta, htmlID: safeName(meta.htmlID), htmlClassNames: safeName(meta.htmlClassNames, true) } };
+    const valuesWithMeta = { ...finalValues, _meta: safeMeta(meta) };
 
     // 4. Ensure bodyValues has a contentWidth. Default to the schema-shaped
     //    "500px" (matches BodyDefaults.contentWidth and the exporter's image
