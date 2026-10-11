@@ -21,17 +21,14 @@ export function normalizeColor(value: string): string {
   const open = text.indexOf("(");
   if (!/^rgba?$/i.test(text.slice(0, open)) || !text.endsWith(")")) return value;
   // r g b, r, g, b, or either with an alpha after "/" or ",".
-  const inner = text.slice(open + 1, -1);
-  const slash = inner.split("/");
-  if (slash.length > 2) return value;
-  const rgb = slash[0].trim().split(/\s*,\s*|\s+/);
-  const channels = slash.length === 2 ? [...rgb, slash[1].trim()] : rgb;
-  if ((channels.length !== 3 && channels.length !== 4) || (slash.length === 2 && rgb.length !== 3) || !channels.every((c) => CHANNEL.test(c))) return value;
-  const match = [text, ...channels];
+  const [rgb, slashed, extra] = text.slice(open + 1, -1).split("/");
+  const channels = rgb.trim().split(/\s*,\s*|\s+/);
+  if (slashed !== undefined) channels.push(slashed.trim());
+  if (extra !== undefined || channels.length > 4 || channels.length < (slashed === undefined ? 3 : 4) || !channels.every((c) => CHANNEL.test(c))) return value;
   // A number, or a percentage of `full`.
-  const num = (text: string, full: number) => (text.endsWith("%") ? (Number.parseFloat(text) / 100) * full : Number.parseFloat(text));
-  const [r, g, b] = [match[1], match[2], match[3]].map((text) => Math.max(0, Math.min(255, Math.round(num(text, 255)))));
-  const alpha = match[4] === undefined ? 1 : num(match[4], 1);
+  const num = (text: string, full: number) => (text.endsWith("%") ? (parseFloat(text) / 100) * full : parseFloat(text));
+  const [r, g, b] = channels.slice(0, 3).map((text) => Math.max(0, Math.min(255, Math.round(num(text, 255)))));
+  const alpha = channels[3] === undefined ? 1 : num(channels[3], 1);
   if (alpha < 1) return `rgba(${r}, ${g}, ${b}, ${Math.max(0, alpha)})`;
   return `#${[r, g, b].map((n) => n.toString(16).padStart(2, "0")).join("")}`;
 }
