@@ -67,7 +67,7 @@ export default function Template() {
           />
         </Column>
       </Row>
-      <Row cells={[32, 184, 168, 184, 32]} noStackMobile={true}>
+      <Row cells={[32, 183, 134, 219, 32]} noStackMobile={true}>
         <Column backgroundColor="#ffffff">
           <Divider borderTopWidth="0px" containerPadding="0px" />
         </Column>
@@ -389,7 +389,7 @@ export default function Template() {
           />
         </Column>
       </Row>
-      <Row layout={ColumnLayouts.TwoEqual} noStackMobile={true}>
+      <Row cells={[352, 248]} noStackMobile={true}>
         <Column backgroundColor="#ffffff">
           <Paragraph
             color="#6b7280"
@@ -410,7 +410,7 @@ export default function Template() {
           />
         </Column>
       </Row>
-      <Row layout={ColumnLayouts.TwoEqual} noStackMobile={true}>
+      <Row cells={[371, 229]} noStackMobile={true}>
         <Column backgroundColor="#ffffff">
           <Paragraph
             color="#6b7280"
@@ -442,7 +442,7 @@ export default function Template() {
           />
         </Column>
       </Row>
-      <Row layout={ColumnLayouts.TwoEqual} noStackMobile={true}>
+      <Row cells={[245, 355]} noStackMobile={true}>
         <Column backgroundColor="#ffffff" padding="20px 0px 0px 0px">
           <Paragraph
             color="#111827"

@@ -49,7 +49,9 @@ function otherValue(value: string): string {
 }
 
 /** `props` with the chosen text props replaced by markers, or by `value(i)`. */
-function withMarkers(props: Record<string, unknown>, probes: TextProp[], chosen: number[], value = (i: number) => `${OPEN}uNlAyEr${i}${CLOSE}`): Record<string, unknown> {
+const marker = (i: number) => `${OPEN}uNlAyEr${i}${CLOSE}`;
+
+function withMarkers(props: Record<string, unknown>, probes: TextProp[], chosen: number[], value = marker): Record<string, unknown> {
   // Copies only the objects on each prop's path: props can hold functions and elements.
   const copy: Record<string, unknown> = { ...props };
   for (const i of chosen) {
@@ -74,7 +76,7 @@ function withMarkers(props: Record<string, unknown>, probes: TextProp[], chosen:
 export async function mergeTagged<T>(
   props: Record<string, unknown>,
   base: T,
-  render: (props: Record<string, unknown>) => T | Promise<T>,
+  render: (props: Record<string, unknown>, measured: (text: string) => string) => T | Promise<T>,
 ): Promise<{ result?: T; used: string[]; kept: string[] }> {
   // A prop written as HTML (`footerHtml`: its sample's markup is markup in the output) isn't
   // text: as a merge tag, its links would go. A prop shown as text (escaped) still is.
@@ -86,10 +88,14 @@ export async function mergeTagged<T>(
   const html = textProps(props).filter((p) => asHtml(p) || placeholder(p)).map((p) => p.path);
   const probes = textProps(props).filter((p) => !asHtml(p) && !placeholder(p));
   if (!probes.length) return { used: [], kept: html };
+  // Text is measured as the samples (a column sized by its content, a phone size its words fit): each
+  // value put in for a prop is read as the prop's sample value.
+  const asSamples = (chosen: number[], value: (i: number) => string) => (text: string) =>
+    chosen.reduce((out, i) => out.split(value(i)).join(probes[i].value), text);
   const attempt = async (chosen: number[]): Promise<T | undefined> => {
     let output: T;
     try {
-      output = await render(withMarkers(props, probes, chosen));
+      output = await render(withMarkers(props, probes, chosen), asSamples(chosen, marker));
     } catch {
       return undefined; // the template can't take a placeholder there
     }
@@ -98,7 +104,7 @@ export async function mergeTagged<T>(
     const others = probes.map((p) => otherValue(p.value));
     let other: T;
     try {
-      other = await render(withMarkers(props, probes, chosen, (i) => others[i]));
+      other = await render(withMarkers(props, probes, chosen, (i) => others[i]), asSamples(chosen, (i) => others[i]));
     } catch {
       return undefined;
     }

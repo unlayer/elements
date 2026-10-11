@@ -97,7 +97,7 @@ export async function convertReactEmail(Template: Template, options: RuntimeOpti
   report.layoutDifferences = check.layout;
   let tree = converted.tree;
   if (options.mergeTags !== false) {
-    const tagged = await mergeTagged(props, converted.tree, async (p) => (await convertElement(React.createElement(Template, p))).tree);
+    const tagged = await mergeTagged(props, converted.tree, async (p, measured) => (await convertElement(React.createElement(Template, p), { measured })).tree);
     if (tagged.result) tree = tagged.result;
     if (tagged.used.length) report.info.push({ reason: "text props became merge tags", detail: tagged.used.join(", ") });
     for (const path of tagged.kept) report.info.push({ reason: "text prop kept as its sample value (the template changes or tests it)", detail: path });

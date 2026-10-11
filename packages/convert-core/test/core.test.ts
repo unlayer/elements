@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { el, editorFonts, pinImageWidths, shareEditorFonts, expr, fallbackHtml, hole, printJsx, ReportBuilder, treeToDesign, treeToTsx, boxSides, toPx, SLOT_OPEN, SLOT_CLOSE } from "../src/index";
+import { autoTableWidths, el, editorFonts, pinImageWidths, shareEditorFonts, expr, fallbackHtml, hole, printJsx, ReportBuilder, treeToDesign, treeToTsx, boxSides, toPx, SLOT_OPEN, SLOT_CLOSE } from "../src/index";
 
 const tree = el("Email", { contentWidth: "600px" }, [
   el("Row", { layout: "TwoEqual" }, [
@@ -183,3 +183,16 @@ describe("code holes", () => {
     expect(jsx).toContain('legalRef === "§13" ? <Paragraph>Legal</Paragraph> : null');
   });
 });
+
+describe("autoTableWidths", () => {
+  it("gives columns that fit their max-content and the rest in proportion; an empty one none", () => {
+    expect(autoTableWidths([{ min: 40, max: 40 }, { min: 80, max: 360 }], 600).map(Math.round)).toEqual([60, 540]);
+    expect(autoTableWidths([{ min: 0, max: 0 }, { min: 50, max: 100 }], 600)).toEqual([0, 600]);
+  });
+
+  it("grows columns from their min-content toward their max-content when not all fit, and keeps a set width", () => {
+    expect(autoTableWidths([{ min: 100, max: 500 }, { min: 100, max: 300 }], 400).map(Math.round)).toEqual([233, 167]);
+    expect(autoTableWidths([{ min: 10, max: 10, set: 200 }, { min: 50, max: 100 }], 600)).toEqual([200, 400]);
+  });
+});
+

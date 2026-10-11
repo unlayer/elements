@@ -22,4 +22,5 @@ export { checkFails, phoneDiffers, PHONE_WIDTH, compareText, hiddenClasses, hide
 export { compareLayout, MOVED_PX, placements, type LayoutDifference, type Placement } from "./geometry";
 export { compareStyles, DESKTOP_WIDTH, normalizeWord, StyledDocument, type StyleCheck, type StyleDifference, type Unverified, type WordStyle, parseColor } from "./cascade";
 export { decodeHtmlEntities } from "./entities";
+export { autoTableWidths, htmlText, unbreakableWords, wordWidth, type TableColumn } from "./text-width";
 export { editorFonts, shareEditorFonts, type EditorFont } from "./fonts";

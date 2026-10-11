@@ -29,11 +29,11 @@
  * - Vertical margins collapse like CSS: siblings share the larger margin.
  */
 
-import { el, expr, hole, SLOT_CLOSE, SLOT_OPEN, type BoxSides, type ElementNode, type Expr, type ReportBuilder } from "@unlayer/convert-core";
+import { el, expr, hole, isExpr, SLOT_CLOSE, SLOT_OPEN, type BoxSides, type ElementNode, type Expr, type ReportBuilder } from "@unlayer/convert-core";
 import { borderProp } from "./boxes";
 import { cellsFrom, collapse, fill, LAYOUTS, type Block } from "./map";
 import { hexAlpha, px, sidesToCss, toPx, ZERO } from "./styles";
-import { htmlText, unbreakableWords, wordWidth } from "./text-width";
+import { autoTableWidths, htmlText, unbreakableWords, wordWidth, type TableColumn } from "./text-width";
 
 // ============================================
 // The tree front ends build
@@ -134,6 +134,13 @@ export interface LayoutOptions {
   report: ReportBuilder;
   /** The email's background color behind the rows, when it's a plain color (no image). */
   background?: string;
+  /** The text code shows with the preview props (`{orderId}` → "#A-1001"), where it can be told: to size columns by their content. */
+  textOf?: (code: Expr) => string | undefined;
+  /**
+   * The text whose width counts for a piece of text: rendered with other values for its props (finding
+   * merge tags), each read as the sample value it stands for, so columns and phone sizes come out the same.
+   */
+  measured?: (text: string) => string;
 }
 
 /** Lay out `flow` (the Body's children) as Elements Rows. */
@@ -340,7 +347,7 @@ class Engine {
           if (sideBySide && (item.type === "Paragraph" || item.type === "Heading")) {
             texts.push(item);
             position.set(item, index);
-            const size = fitPhoneWords(item, room, PHONE_WIDTH / this.options.contentWidth);
+            const size = fitPhoneWords(item, room, PHONE_WIDTH / this.options.contentWidth, this.options.measured);
             if (size) fitted.set(style(item), Math.min(size, fitted.get(style(item)) ?? size));
           }
           if (item.type !== "Image" || item.props?.mobile) continue;
@@ -891,6 +898,16 @@ class Engine {
       add(column(spec.node, paintAt(frames, depth), inset, phoneInset), depth);
       widths.push(widthOf(spec.node.width, available));
     });
+    // Columns without a width, beside others, are as wide as their content makes them in the browser's
+    // automatic table layout (a label beside its value isn't half the row). Content that can't be measured
+    // keeps an equal share: the check then says whether that's what the original shows.
+    if (!holes && !mapped && !optional && !options.branches && specs.length > 1 && widths.some((w) => w === undefined)) {
+      const needs = specs.map((spec, i): TableColumn | undefined => {
+        const content = spec.kind === "column" ? columnNeeds(spec.node, this.options) : undefined;
+        return content && { ...content, ...(widths[i] !== undefined ? { set: widths[i] } : {}) };
+      });
+      if (needs.every((n): n is TableColumn => n !== undefined)) autoTableWidths(needs, available).forEach((w, i) => (widths[i] = w));
+    }
     for (const s of right) add(el("Column", { backgroundColor: paintAt(frames, s.depth) }), s.depth);
 
     // Cells in px: spacers, then the columns (with the inset inside the first and last).
@@ -1322,14 +1339,79 @@ function phoneSides(value: unknown): BoxSides | undefined {
  * the row, as the original's would; if the longest word still doesn't fit, it gets a phone text
  * size it fits (10px at the least).
  */
-function fitPhoneWords(item: ElementNode, room: number, scale: number): number | undefined {
+/** What a column's content needs across (min-content, max-content), its padding in; undefined where it can't be told. */
+function columnNeeds(node: ColumnNode, options: LayoutOptions): { min: number; max: number } | undefined {
+  const around = node.style.padding.left + node.style.padding.right + edgeWidth(node.style.border?.left) + edgeWidth(node.style.border?.right);
+  let min = 0;
+  let max = 0;
+  for (const block of node.blocks) {
+    const needs = blockNeeds(block, options);
+    if (!needs) return undefined;
+    min = Math.max(min, needs.min);
+    max = Math.max(max, needs.max);
+  }
+  return { min: min + around, max: max + around };
+}
+
+/**
+ * What a block needs across: text (a paragraph, heading or button label) at its size and weight, unwrapped
+ * (max-content) and its widest unbreakable run (min-content); an image its px width. Undefined for what
+ * can't be measured: code the preview props don't give text for, markup kept as HTML, an image sized in %.
+ */
+function blockNeeds(block: Block, { textOf, measured = (text) => text }: LayoutOptions): { min: number; max: number } | undefined {
+  const node = block.node;
+  const props = node.props ?? {};
+  let around = block.margin.left + block.margin.right + block.padding.left + block.padding.right;
+  if (node.spacer || node.type === "Divider") return { min: around, max: around };
+  if (node.type === "Image") {
+    const width = typeof props.width === "number" ? props.width : typeof props.width === "string" && !props.width.trim().endsWith("%") ? toPx(props.width) : undefined;
+    return width !== undefined ? { min: width + around, max: width + around } : undefined;
+  }
+  if (node.type !== "Paragraph" && node.type !== "Heading" && node.type !== "Button") return undefined;
+  if (node.type === "Button") {
+    const inner = phoneSides(props.padding);
+    if (!inner) return undefined;
+    around += inner.left + inner.right;
+    const width = typeof props.width === "string" && !props.width.trim().endsWith("%") ? toPx(props.width) : undefined;
+    if (width !== undefined) return { min: width + around, max: width + around };
+  }
+  // Its text: markup (`html`, `text`) or children, code read as the preview props give it.
+  const read = (value: unknown): string | undefined => (typeof value === "string" ? value : isExpr(value) ? textOf?.(value) : undefined);
+  const markup = node.type === "Paragraph" ? props.html : props.text;
+  let lines: string[];
+  if (markup !== undefined) {
+    const html = read(markup);
+    // An image without a px width (its file's own size) or a table in it: what it needs can't be told.
+    if (html === undefined || /<(table|video|iframe|svg)\b/i.test(html) || (html.match(/<img\b[^>]*>/gi) ?? []).some((img) => !/\bwidth=["']?\d+(px)?["'\s>/]|width:\s*\d+(\.\d+)?px/i.test(img))) return undefined;
+    lines = html.split(/<br\s*\/?>/i).map(htmlText);
+  } else {
+    const parts = (node.children ?? []).map(read);
+    if (parts.some((p) => p === undefined)) return undefined;
+    lines = (parts as string[]).join("").split("\n");
+  }
+  const size = toPx(props.fontSize) ?? (node.type === "Heading" ? 22 : 14);
+  const upper = props.textTransform === "uppercase" || (typeof markup === "string" && /text-transform:\s*uppercase/i.test(markup));
+  const options = { bold: Number(props.fontWeight) >= 600, letterSpacing: toPx(props.letterSpacing, size), exact: true };
+  const measure = (text: string) => wordWidth(upper ? text.toUpperCase() : text, size, options);
+  let min = 0;
+  let max = 0;
+  for (const line of lines) {
+    const text = measured(line).replace(/[ \t\r\n]+/g, " ").trim();
+    max = Math.max(max, measure(text));
+    // A non-breaking space joins words; a line breaks at spaces and after hyphens.
+    for (const unit of text.split(" ").flatMap((w) => w.split(/(?<=-)/))) if (unit) min = Math.max(min, measure(unit));
+  }
+  return { min: min + around, max: max + around };
+}
+
+function fitPhoneWords(item: ElementNode, room: number, scale: number, measured: (text: string) => string = (text) => text): number | undefined {
   const props = item.props ?? {};
   const mobile = (props.mobile ?? {}) as Record<string, unknown>;
   const size = toPx(mobile.fontSize ?? props.fontSize ?? (item.type === "Heading" ? "22px" : "14px"));
   const inner = phoneSides(mobile.containerPadding ?? props.containerPadding);
   if (scale >= 1 || !size || !inner) return;
   const html = item.type === "Heading" ? props.text : props.html;
-  const text = typeof html === "string" ? htmlText(html) : (item.children ?? []).map((c) => (typeof c === "string" ? c : " ")).join("");
+  const text = measured(typeof html === "string" ? htmlText(html) : (item.children ?? []).map((c) => (typeof c === "string" ? c : " ")).join(""));
   const options = { bold: Number(props.fontWeight) >= 600, letterSpacing: toPx(props.letterSpacing, size) };
   const widest = Math.max(0, ...unbreakableWords(text).map((word) => wordWidth(word, size, options)));
   if (widest <= room - inner.left - inner.right) return undefined;

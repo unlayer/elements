@@ -573,6 +573,36 @@ class Converter {
     return found;
   }
 
+  private previewValues?: Map<string, string>;
+
+  /**
+   * The text code shows with the preview props: a prop (`orderId`, `props.user.name`) the preview gives a
+   * string or number. Undefined for anything else (a call, a condition, a prop the preview leaves out).
+   */
+  private previewText(code: Expr): string | undefined {
+    if (!this.previewValues) {
+      const values = new Map<string, string>();
+      const collect = (object: ts.ObjectLiteralExpression, prefix: string) => {
+        for (const prop of object.properties) {
+          if (!ts.isPropertyAssignment(prop) || !(ts.isIdentifier(prop.name) || ts.isStringLiteral(prop.name))) continue;
+          const value = unwrap(prop.initializer);
+          if (ts.isStringLiteral(value) || ts.isNoSubstitutionTemplateLiteral(value) || ts.isNumericLiteral(value)) values.set(prefix + prop.name.text, value.text);
+          else if (ts.isObjectLiteralExpression(value)) collect(value, `${prefix}${prop.name.text}.`);
+        }
+      };
+      const visit = (node: ts.Node) => {
+        if (ts.isBinaryExpression(node) && ts.isPropertyAccessExpression(node.left) && node.left.name.text === "PreviewProps" && ts.isObjectLiteralExpression(unwrap(node.right))) {
+          collect(unwrap(node.right) as ts.ObjectLiteralExpression, "");
+        }
+        ts.forEachChild(node, visit);
+      };
+      visit(this.file);
+      this.previewValues = values;
+    }
+    const path = code.$expr.trim().replace(/^props\./, "");
+    return /^[\w$]+(\.[\w$]+)*$/.test(path) ? this.previewValues.get(path) : undefined;
+  }
+
   /** Whether a value's declared type admits JSX (`ReactNode`, `ReactElement`, `JSX.Element`), whatever the preview gives. */
   private mayHoldJsx(expression: ts.Expression): boolean {
     const type = this.checker.typeToString(this.checker.getTypeAtLocation(expression));
@@ -988,7 +1018,7 @@ class Converter {
     const rtl = isExpr(dir) ? dir : /^rtl$/i.test(String(dir ?? "")) || undefined;
     const ctx: Ctx = { report: this.report, inherited: inherit({ fontSize: "16px", ...(rtl ? { rtl } : {}) }, bodyStyle), rootFont, ...(lastFont ? { universalFont: lastFont } : {}) };
     const page = pageColor(bodyStyle, this.report, document?.style);
-    const rows = layout(this.flow(content, ctx), { contentWidth, report: this.report, background: backgroundImage(bodyStyle, true) ? undefined : page });
+    const rows = layout(this.flow(content, ctx), { contentWidth, report: this.report, background: backgroundImage(bodyStyle, true) ? undefined : page, textOf: (code) => this.previewText(code) });
     return el(
       "Email",
       {

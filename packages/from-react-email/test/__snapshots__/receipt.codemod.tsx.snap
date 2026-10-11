@@ -105,7 +105,7 @@ export const ReceiptEmail = ({
           </Paragraph>
         </Column>
       </Row>
-      <Row cells={[32, 184, 168, 184, 32]} noStackMobile={true}>
+      <Row cells={[32, 183, 134, 219, 32]} noStackMobile={true}>
         <Column backgroundColor="#ffffff">
           <Divider borderTopWidth="0px" containerPadding="0px" />
         </Column>

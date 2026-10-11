@@ -72,7 +72,7 @@ const BOX_LIKE = new Set(["Section", "Container"]);
 const TABLES = new Set(["Section", "Container", "Row"]);
 const STRUCTURE = new Set(["Row", "Column", "Section", "Container"]);
 
-export async function convertElement(element: React.ReactElement): Promise<RuntimeResult> {
+export async function convertElement(element: React.ReactElement, options: { measured?: (text: string) => string } = {}): Promise<RuntimeResult> {
   const report = new ReportBuilder();
   const nodes = await expand(element);
 
@@ -152,7 +152,7 @@ export async function convertElement(element: React.ReactElement): Promise<Runti
 
   const fonts = fontStylesheets(fontSpecs, linked);
   const page = pageColor(bodyStyle, report, (document?.kind === "component" && document.props.style) || undefined);
-  const rows = layout(flowFrom(body ? children(body) : nodes, ctx), { contentWidth, report, background: backgroundImage(bodyStyle, true) ? undefined : page });
+  const rows = layout(flowFrom(body ? children(body) : nodes, ctx), { contentWidth, report, background: backgroundImage(bodyStyle, true) ? undefined : page, measured: options.measured });
   const rootProps: Record<string, unknown> = {
     backgroundColor: page,
     contentWidth: px(contentWidth),

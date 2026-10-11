@@ -10,6 +10,7 @@
 
 import type { DefaultTreeAdapterMap } from "parse5";
 import { attr, isElement, StyledDocument, type StyledWord } from "./cascade";
+import { autoTableWidths, wordWidth, type TableColumn } from "./text-width";
 
 type Element = DefaultTreeAdapterMap["element"];
 type Node = DefaultTreeAdapterMap["node"];
@@ -41,6 +42,11 @@ export interface Placement {
    * centered in a left-aligned cell): where the text sits depends on its length. Not compared.
    */
   loose?: boolean;
+  /**
+   * How far its anchor may be from `x`'s: a column its content sizes sits where text widths put it, and
+   * those are estimates (see `bandedPlacements`).
+   */
+  spread?: number;
 }
 
 const INLINE = new Set(["a", "span", "strong", "b", "em", "i", "u", "s", "small", "code", "sup", "sub", "font", "mark", "abbr", "label", "br", "big", "del", "ins", "kbd", "q", "samp", "tt", "var", "cite", "dfn", "time"]);
@@ -356,16 +362,33 @@ function cellsOf(doc: StyledDocument, rowElement: Element): Element[] {
   return children(doc, rowElement).filter((c) => display(doc, c) === "table-cell" || c.tagName === "td" || c.tagName === "th");
 }
 
-/** A table row: each cell's width set (px or %), the rest shared equally; then left to right. */
+/**
+ * A table row: each cell's width set (px or %); cells without one, beside others, as wide as the browser's
+ * automatic table layout makes them (by their content), or unknown where their content can't be measured.
+ * Then left to right.
+ */
 function row(doc: StyledDocument, rowElement: Element, cells: Element[], box: Placement, blockAlign: Align | undefined, rtl: boolean, out: Map<Element, Placement>): void {
   if (!out.has(rowElement)) out.set(rowElement, box);
   const widths = cells.map((c) => length(doc.property(c, "width"), box.width) ?? length(attr(c, "width"), box.width) ?? length(doc.property(c, "min-width"), box.width));
+  let unmeasured = false;
+  let sized = false;
+  if (cells.length > 1 && widths.some((w) => w === undefined)) {
+    const columns = cells.map((c, i): TableColumn | undefined => {
+      const needs = extent(doc, c);
+      return needs && { ...needs, ...(widths[i] !== undefined ? { set: widths[i] } : {}) };
+    });
+    if (columns.every((c): c is TableColumn => c !== undefined)) {
+      autoTableWidths(columns, box.width).forEach((w, i) => (widths[i] = w));
+      sized = true;
+    } else unmeasured = true;
+  }
   const fixed = widths.reduce<number>((a, w) => a + (w ?? 0), 0);
   const free = widths.filter((w) => w === undefined).length;
   const share = free ? Math.max(0, box.width - fixed) / free : 0;
   // Set widths that add up past the row share it out in proportion, as a 100%-wide table does.
   const total = fixed + share * free;
-  const scale = total > box.width && total > 0 ? box.width / total : 1;
+  // (Content wider than the row runs over it: each column keeps its min-content.)
+  const scale = !sized && total > box.width && total > 0 ? box.width / total : 1;
   let x = box.x;
   // A cell floated, or (beside other cells) displayed as something else, isn't a cell to the browser: cells
   // displayed as blocks share one anonymous cell and stack. One such cell alone lays out as a cell would.
@@ -373,9 +396,119 @@ function row(doc: StyledDocument, rowElement: Element, cells: Element[], box: Pl
   for (let i = 0; i < cells.length; i++) {
     const w = (widths[i] ?? share) * scale;
     place(doc, cells[i], x, w, box, blockAlign, rtl, out, false, w);
-    if (broken) unknownWithin(cells[i], out);
+    if (broken || unmeasured) unknownWithin(cells[i], out);
     x += w;
   }
+}
+
+/** Text widths are worked out at this scale: the check reads a page at a low and a high estimate too. */
+let textScale = 1;
+/**
+ * The width taken for an image without a px width (its file's own size, which the check doesn't fetch):
+ * the check reads a page with none and with one wider than any row, and passes what holds at both.
+ */
+let imageGuess = 0;
+const WIDEST = 2000;
+
+/**
+ * What a box's content needs across: its widest unbreakable run of text or
+ * box (min-content) and its widest line unwrapped (max-content), padding,
+ * borders and margins in. From the text (each piece at its font size and
+ * weight), boxes with a width in px, and images without one at `imageGuess`;
+ * undefined where it can't be told: a box sized in % (other than all of
+ * it), a flex or grid box.
+ */
+function extent(doc: StyledDocument, element: Element): { min: number; max: number } | undefined {
+  const kind = display(doc, element);
+  if (/flex|grid/.test(kind)) return undefined;
+  const margin = sides(doc, element, "margin", 0);
+  const padding = sides(doc, element, "padding", 0);
+  if (margin.unknown || padding.unknown || doc.property(element, "width") === null) return undefined;
+  const around = margin.left + margin.right + padding.left + padding.right + borderWidth(doc, element, "left") + borderWidth(doc, element, "right");
+  const declared = (doc.property(element, "width") || attr(element, "width") || "").trim().replace(/\s*!important$/i, "");
+  // An image sized in % of its cell gives way to the rest (as the browser's min-content does), up to its own size.
+  if (element.tagName === "img" && /%$/.test(declared)) return { min: around, max: imageGuess + around };
+  if (/%$/.test(declared) && parseFloat(declared) < 100) return undefined;
+  const px = /%$/.test(declared) ? undefined : length(declared, 0);
+  if (px !== undefined) return { min: px + margin.left + margin.right, max: px + margin.left + margin.right };
+  if (element.tagName === "img") return { min: imageGuess + around, max: imageGuess + around };
+  if (kind === "table-row") {
+    // Cells side by side: the row needs what they all need.
+    const cells = cellsOf(doc, element).map((c) => extent(doc, c));
+    if (cells.some((c) => !c)) return undefined;
+    return cells.reduce<{ min: number; max: number }>((a, c) => ({ min: a.min + c!.min, max: a.max + c!.max }), { min: around, max: around });
+  }
+  let min = 0;
+  let max = 0;
+  let line = 0;
+  const flush = () => {
+    max = Math.max(max, line);
+    line = 0;
+  };
+  for (const node of element.childNodes) {
+    if (node.nodeName === "#text") {
+      const text = ((node as { value?: string }).value ?? "").replace(/[ \t\r\n]+/g, " ");
+      const style = doc.style(element);
+      if (!text || style.hidden || style.visible === false) continue;
+      const measure = (t: string) => wordWidth(style.transform === "uppercase" ? t.toUpperCase() : t, style.size ?? 16, { bold: (style.weight ?? 400) >= 600, exact: true }) * textScale;
+      line += measure(text);
+      // A non-breaking space joins words; a line breaks at spaces and after hyphens.
+      for (const unit of text.split(" ").flatMap((w) => w.split(/(?<=-)/))) if (unit) min = Math.max(min, measure(unit));
+      continue;
+    }
+    if (!isElement(node) || /^none/i.test(doc.property(node, "display") ?? "")) continue;
+    if (node.tagName === "br") {
+      flush();
+      continue;
+    }
+    const inner = extent(doc, node);
+    if (!inner) return undefined;
+    min = Math.max(min, inner.min);
+    const k = display(doc, node);
+    if (k === "inline" || /^inline-/.test(k)) line += inner.max;
+    else {
+      flush();
+      max = Math.max(max, inner.max);
+    }
+  }
+  flush();
+  return { min: min + around, max: max + around };
+}
+
+/** How far the text-width estimates may be off, either way: the check passes a word only where it holds at both. */
+const LOW = 0.9;
+const HIGH = 1.12;
+const banded = new WeakMap<StyledDocument, Map<Element, Placement>>();
+
+/**
+ * Each element's placement at the middle estimate, with how far its anchor
+ * moves at the low and the high one (`spread`): where cells are sized by
+ * their content, what the check compares has to hold at either end.
+ */
+export function bandedPlacements(doc: StyledDocument): Map<Element, Placement> {
+  const cached = banded.get(doc);
+  if (cached) return cached;
+  const at = (scale: number, image: number) => {
+    textScale = scale;
+    imageGuess = image;
+    try {
+      return placements(doc);
+    } finally {
+      textScale = 1;
+      imageGuess = 0;
+    }
+  };
+  const mid = at(1, 0);
+  const others = [at(LOW, 0), at(HIGH, 0), at(LOW, WIDEST), at(HIGH, WIDEST)];
+  const out = new Map<Element, Placement>();
+  for (const [element, p] of mid) {
+    const ends = others.map((o) => o.get(element));
+    const spread = Math.max(0, ...ends.map((e) => (e ? Math.abs(anchor(e) - anchor(p)) : 0)));
+    const unknown = p.unknown || ends.some((e) => e?.unknown);
+    out.set(element, { ...p, ...(spread > 0.5 ? { spread } : {}), ...(unknown ? { unknown: true } : {}) });
+  }
+  banded.set(doc, out);
+  return out;
 }
 
 /**
@@ -505,8 +638,8 @@ export interface LayoutDifference {
  * unknown the same way (markup kept as it was) isn't listed.
  */
 export function unplaced(original: StyledDocument, converted: StyledDocument, a: StyledWord[], b: StyledWord[]): Array<{ side: "original" | "migrated"; words: string[] }> {
-  const pa = placements(original);
-  const pb = placements(converted);
+  const pa = bandedPlacements(original);
+  const pb = bandedPlacements(converted);
   const out = { original: [] as string[], migrated: [] as string[] };
   for (let i = 0; i < a.length && i < b.length; i++) {
     if (!a[i].shown || !a[i].at || !b[i].at) continue;
@@ -534,15 +667,15 @@ export const MOVED_PX = 120;
  * model infers from content (a flex item, a shrink-to-fit box).
  */
 export function compareLayout(original: StyledDocument, converted: StyledDocument, a: StyledWord[], b: StyledWord[]): LayoutDifference[] {
-  const pa = placements(original);
-  const pb = placements(converted);
-  const pairs: Array<{ item: string; x: number; y: number }> = [];
+  const pa = bandedPlacements(original);
+  const pb = bandedPlacements(converted);
+  const pairs: Array<{ item: string; x: number; y: number; spread: number }> = [];
   for (let i = 0; i < a.length && i < b.length; i++) {
     if (!a[i].shown || !a[i].at || !b[i].at) continue;
     const x = placementOf(pa, a[i].at!);
     const y = placementOf(pb, b[i].at!);
     if (!x || !y || x.loose || y.loose || x.unknown || y.unknown) continue;
-    pairs.push({ item: a[i].word, x: anchor(x), y: anchor(y) });
+    pairs.push({ item: a[i].word, x: anchor(x), y: anchor(y), spread: (x.spread ?? 0) + (y.spread ?? 0) });
   }
   if (!pairs.length) return [];
   const diffs = pairs.map((p) => p.y - p.x).sort((p, q) => p - q);
@@ -550,7 +683,8 @@ export function compareLayout(original: StyledDocument, converted: StyledDocumen
   const out: LayoutDifference[] = [];
   for (const p of pairs) {
     const by = Math.round(p.y - p.x - shift);
-    if (Math.abs(by) <= MOVED_PX) continue;
+    // Within the distance allowed wherever text widths put the columns its content sizes.
+    if (Math.abs(by) + p.spread <= MOVED_PX) continue;
     const last = out[out.length - 1];
     if (last && Math.abs(last.by - by) <= 10) last.items.push(p.item);
     else out.push({ items: [p.item], by });

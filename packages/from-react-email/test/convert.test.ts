@@ -608,6 +608,23 @@ export default function Template({ name = "Ada" }: { name?: string }) {
     expect([check.missing, check.added]).toEqual([[], []]);
   });
 
+  it("sizes columns without a width by their content, as the browser does (a label beside its value)", async () => {
+    const { result, Original, Migrated } = await migrate(`import { Html, Body, Container, Section, Row, Column, Text } from "@react-email/components";
+type Props = { orderId: string; date: string };
+export default function Receipt({ orderId, date }: Props) {
+  return (<Html><Body style={{ fontFamily: "Arial, sans-serif" }}><Container style={{ width: "600px" }}><Section><Row>
+    <Column><Text style={{ margin: 0 }}>Order</Text></Column>
+    <Column><Text style={{ margin: 0 }}>{orderId}, placed {date}, paid with Visa ending 4242</Text></Column>
+  </Row></Section></Container></Body></Html>);
+}
+Receipt.PreviewProps = { orderId: "#A-1001", date: "January 4, 2026" } satisfies Props;`);
+    // Chromium gives the label 54px of the 600: its value starts right after it, not halfway across.
+    const [label, value] = (/cells=\{\[(\d+), (\d+)\]\}/.exec(result.code) ?? []).slice(1).map(Number);
+    expect(label).toBeLessThan(80);
+    expect(label + value).toBe(600);
+    expect((await verifyConversion(Original, Migrated)).variants).toEqual([]);
+  });
+
   it("checks a template that renders nothing for some props", async () => {
     const { Original, Migrated } = await migrate(`import { Html, Body, Text } from "@react-email/components";
 export default function Template({ show = true, name = "Ada" }: { show?: boolean; name?: string }) {
