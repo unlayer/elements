@@ -27,6 +27,8 @@ function injected(html: string): string[] {
 
 const content = (v: string) => <Row><Column><Paragraph>Hello</Paragraph></Column></Row>;
 const CASES: Record<string, (v: string) => React.ReactElement> = {
+  // An id or class name given in `values` (an escape hatch), on the block and its wrapper.
+  blockHtmlId: (v) => <Row><Column><Paragraph values={{ _meta: { htmlID: `u_content_text_1${v}`, htmlClassNames: `u_content_text${v}` } } as never}>Hello</Paragraph></Column></Row>,
   "Paragraph text": (v) => <Row><Column><Paragraph>{v}</Paragraph></Column></Row>,
   "Heading text": (v) => <Row><Column><Heading>{v}</Heading></Column></Row>,
   "Button text": (v) => <Row><Column><Button href="https://example.com">{v}</Button></Column></Row>,

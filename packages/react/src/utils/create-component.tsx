@@ -178,6 +178,11 @@ export function nextHtmlId(config: any, prefix: string): string {
   return `${prefix}_${ids[prefix]}`;
 }
 
+/** An HTML id (or, with `spaces`, a list of class names): letters, digits, "_" and "-" only. */
+export function safeName(value: unknown, spaces = false): string {
+  return String(value ?? "").replace(spaces ? /[^\w\s-]/g : /[^\w-]/g, "");
+}
+
 /** Add _meta fields if not present. */
 function ensureMeta(values: any, type: string, index: number = 0): any {
   return {
@@ -322,14 +327,13 @@ export function createItemComponent<
     // 3. Ensure _meta is present. The Column-allocated id wins so every
     //    instance is unique; the index fallback covers standalone renders.
     const metaName = config.metaName ?? config.name.toLowerCase();
-    const valuesWithMeta = {
-      ...finalValues,
-      _meta: {
-        htmlID: _metaHtmlId ?? `u_content_${metaName}_${index + 1}`,
-        htmlClassNames: `u_content_${metaName}`,
-        ...((finalValues as Record<string, any>)._meta || {}),
-      },
+    const meta = {
+      htmlID: _metaHtmlId ?? `u_content_${metaName}_${index + 1}`,
+      htmlClassNames: `u_content_${metaName}`,
+      ...((finalValues as Record<string, any>)._meta || {}),
     };
+    // An id or class name given in `values` reaches an attribute and the head's CSS selectors: only what they can hold.
+    const valuesWithMeta = { ...finalValues, _meta: { ...meta, htmlID: safeName(meta.htmlID), htmlClassNames: safeName(meta.htmlClassNames, true) } };
 
     // 4. Ensure bodyValues has a contentWidth. Default to the schema-shaped
     //    "500px" (matches BodyDefaults.contentWidth and the exporter's image
