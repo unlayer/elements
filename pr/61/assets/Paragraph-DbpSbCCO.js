@@ -1,0 +1,1 @@
+import{c as p,m as e,a2 as o,a3 as s}from"./create-component-DaTA7xS7.js";const a={...o,color:"#000000"},m=p({name:"Paragraph",defaultValues:a,propMapper:r=>e(r,a,"Paragraph"),displayName:"Paragraph",exporters:s});export{m as P};

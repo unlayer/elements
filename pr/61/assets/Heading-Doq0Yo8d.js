@@ -1,0 +1,1 @@
+import{c as r,Z as s,m as p,$ as i}from"./create-component-DaTA7xS7.js";const t={...s,color:"#000000",fontWeight:400,text:"Heading"},d=r({name:"Heading",defaultValues:t,propMapper:n=>{const{level:a,...o}=n,e=p(o,t,"Heading");return a&&!e.headingType&&(e.headingType=a),e},displayName:"Heading",exporters:i});export{d as H};
