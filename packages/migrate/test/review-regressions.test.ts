@@ -1021,6 +1021,29 @@ describe("a run that checks nothing", () => {
   });
 });
 
+describe("--write never replaces an edit made during the run", () => {
+  // The template edits its own file when it's loaded to be checked: after the run read it to convert it.
+  const editsItself = `import fs from "node:fs";
+import { fileURLToPath } from "node:url";
+import { Html, Body, Text } from "@react-email/components";
+const self = fileURLToPath(import.meta.url);
+const mark = ["// edited", "during the run"].join(" ");
+if (!fs.readFileSync(self, "utf8").includes(mark)) fs.appendFileSync(self, \`\\n\${mark}\\n\`);
+export default function Welcome() { return <Html><Body><Text>Keep the edit</Text></Body></Html>; }
+`;
+  for (const flags of [[], ["--allow-dirty"]]) {
+    it(`keeps the edit and fails the template${flags.length ? " (with --allow-dirty too)" : ""}`, async () => {
+      const dir = project({ "emails/welcome.tsx": editsItself });
+      const out = io(dir);
+      expect(await main(["emails", "--write", ...flags], out, lib), out.out + out.err).toBe(2);
+      expect(out.out).toMatch(flags.length ? /it changed while the run converted it: not replaced/ : /it changed during the run, and git couldn't restore it \(changed since the last commit\): not replaced/);
+      const now = fs.readFileSync(path.join(dir, "emails/welcome.tsx"), "utf8");
+      expect(now).toContain("// edited during the run");
+      expect(now).toContain("@react-email/components");
+    });
+  }
+});
+
 describe("--write only replaces what git can restore", () => {
   it("refuses templates git was told not to look at (skip-worktree, assume-unchanged), changed or not", async () => {
     const dir = project({ "emails/welcome.tsx": good, "emails/other.tsx": good.replace("Keep the original", "Other") });

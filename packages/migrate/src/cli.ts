@@ -303,10 +303,22 @@ async function run(argv: string[], io: Io, library?: Library): Promise<number> {
       pending.push({ input, result, writes, code });
     }
     let wrote = false;
+    // A template edited since the run checked it with git: git couldn't give that edit back, so it isn't replaced.
+    const edited = new Map<string, string>();
+    if (options.write && !options.allowDirty) {
+      const inPlace = pending.flatMap(({ writes }) => writes.filter((w) => w.replaces).map((w) => w.path));
+      for (const { file, why } of inPlace.length ? await notRestorable(inPlace) : []) edited.set(file, why);
+    }
     for (const { result, writes } of pending) {
+      const changed = writes.find((w) => edited.has(w.path));
+      if (changed) {
+        result.status = "failed";
+        result.reason = `it changed during the run, and git couldn't restore it (${edited.get(changed.path)}): not replaced. Commit it, then run again`;
+        continue;
+      }
       try {
         for (const write of writes) {
-          await writeDestination(write.path, write.text, destinations);
+          await writeDestination(write.path, write.text, destinations, write.replaces);
           result[write.kind] = relative(io.cwd, write.path);
           wrote ||= write.kind === "output";
         }
@@ -478,7 +490,7 @@ async function writeExclusive(path: string, text: string, mode?: number): Promis
 }
 
 /** Replace the directory entry, rather than truncating a symlink/hard-link target. */
-async function writeDestination(path: string, text: string, destinations: Destinations): Promise<void> {
+async function writeDestination(path: string, text: string, destinations: Destinations, replaces?: Buffer): Promise<void> {
   if (stoppedBy) throw new Error(`the run was stopped (${stoppedBy}): nothing more is written`);
   await checkDestination(path, destinations);
   await mkdir(dirname(path), { recursive: true });
@@ -492,6 +504,8 @@ async function writeDestination(path: string, text: string, destinations: Destin
     if (existing && !destinations.get(path)?.replace) throw new Error(`${path} appeared during the run: pass --overwrite to replace it`);
     await writeExclusive(temporary, text, existing?.mode);
     await checkDestination(path, destinations);
+    // The template itself: only as it was converted (an edit made during the run isn't lost).
+    if (replaces && !(await readFile(path).catch(() => undefined))?.equals(replaces)) throw new Error("it changed while the run converted it: not replaced, run again");
     await rename(temporary, path);
   } finally {
     release();
@@ -559,6 +573,8 @@ interface PendingWrite {
   path: string;
   text: string;
   kind: "output" | "design";
+  /** Written in place of the template itself: what it held when it was converted, which it must still hold. */
+  replaces?: Buffer;
 }
 
 async function migrateFile(input: Input, options: Options, lib: Library, io: Io, destinations: Destinations): Promise<FileResult & { writes?: PendingWrite[]; code?: string }> {
@@ -697,7 +713,7 @@ async function migrateFile(input: Input, options: Options, lib: Library, io: Io,
 
     const writes: PendingWrite[] = [];
     if (writing && (result.status === "migrated" || options.force)) {
-      writes.push({ path: target, text: code, kind: "output" });
+      writes.push({ path: target, text: code, kind: "output", ...(resolve(target) === resolve(file) ? { replaces: bytes } : {}) });
       if (options.design) writes.push({ path: designPath(target), text: `${JSON.stringify(design, null, 2)}\n`, kind: "design" });
     }
     return { ...result, writes, code };
