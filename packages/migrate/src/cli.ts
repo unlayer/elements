@@ -1047,7 +1047,7 @@ async function collect(paths: string[], cwd: string): Promise<{ files: Input[]; 
 async function importsElements(path: string, source: string): Promise<boolean> {
   if (!source.includes("@unlayer/react-elements")) return false;
   const ts = (await import("typescript")).default;
-  const file = ts.createSourceFile(path, source, ts.ScriptTarget.Latest, false, /\.m?ts$/.test(path) ? ts.ScriptKind.TS : ts.ScriptKind.TSX);
+  const file = ts.createSourceFile(path, source, ts.ScriptTarget.Latest, true, /\.m?ts$/.test(path) ? ts.ScriptKind.TS : ts.ScriptKind.TSX);
   // Types only (`import type { EmailProps }`) don't make a template migrated: it still renders with React Email.
   const typesOnly = (s: import("typescript").ImportDeclaration | import("typescript").ExportDeclaration) => {
     if (ts.isExportDeclaration(s)) return s.isTypeOnly;
@@ -1055,14 +1055,38 @@ async function importsElements(path: string, source: string): Promise<boolean> {
     const named = clause?.namedBindings && ts.isNamedImports(clause.namedBindings) ? clause.namedBindings.elements : undefined;
     return !!clause && (clause.isTypeOnly || (!clause.name && !!named?.length && named.every((e) => e.isTypeOnly)));
   };
-  return file.statements.some(
-    (s) =>
+  const fromElements = file.statements.filter(
+    (s): s is import("typescript").ImportDeclaration | import("typescript").ExportDeclaration =>
       (ts.isImportDeclaration(s) || ts.isExportDeclaration(s)) &&
       !!s.moduleSpecifier &&
       ts.isStringLiteral(s.moduleSpecifier) &&
       s.moduleSpecifier.text === "@unlayer/react-elements" &&
       !typesOnly(s)
   );
+  // Re-exporting Elements (or importing it for its effects) counts as using it.
+  if (fromElements.some((s) => ts.isExportDeclaration(s) || !s.importClause)) return true;
+  // Otherwise a name it imports must be used as a value (a component, a call): a type imported without `type`
+  // (`import { EmailProps } from …` in a React Email template) doesn't make it migrated.
+  const names = new Set<string>();
+  for (const s of fromElements) {
+    const clause = (s as import("typescript").ImportDeclaration).importClause!;
+    if (clause.name) names.add(clause.name.text);
+    const bindings = clause.namedBindings;
+    if (bindings && ts.isNamespaceImport(bindings)) names.add(bindings.name.text);
+    else if (bindings) for (const e of bindings.elements) if (!e.isTypeOnly) names.add(e.name.text);
+  }
+  let used = false;
+  const visit = (node: import("typescript").Node): void => {
+    if (used || ts.isImportDeclaration(node) || ts.isTypeNode(node) || ts.isInterfaceDeclaration(node) || ts.isTypeAliasDeclaration(node)) return;
+    if (ts.isIdentifier(node) && names.has(node.text)) {
+      const parent = node.parent;
+      // Not a property's name (`a.Email`, `{ Email: 1 }`): the binding itself.
+      if (!((ts.isPropertyAccessExpression(parent) && parent.name === node) || (ts.isPropertyAssignment(parent) && parent.name === node) || (ts.isJsxAttribute(parent) && parent.name === node))) used = true;
+    }
+    ts.forEachChild(node, visit);
+  };
+  visit(file);
+  return used;
 }
 
 async function walk(dir: string): Promise<string[]> {
@@ -1452,8 +1476,11 @@ interface ModuleShape {
   refers: Map<string, { locals: Set<string>; imports: Set<string>; dynamic: string[]; computed: boolean }>;
   imports: Map<string, { specifier: string; imported: string }>;
   template: Set<string>;
-  /** The whole module's bare imports (`import "./x"`) and modules imported by `import()`/`require`, for a module used whole. */
-  whole: { bare: string[]; dynamic: string[]; computed: boolean };
+  /**
+   * The whole module's bare imports (`import "./x"`), modules imported by `import()`/`require`, and the
+   * imported names its code uses, for a module used whole.
+   */
+  whole: { bare: string[]; dynamic: string[]; computed: boolean; imports: Set<string> };
   /** Whether it has ES exports (a CommonJS module counts as using everything it imports). */
   esm: boolean;
 }
@@ -1513,7 +1540,9 @@ function shapeOf(ts: typeof import("typescript"), file: import("typescript").Sou
         const parent = node.parent;
         const property = (ts.isPropertyAccessExpression(parent) && parent.name === node) || (ts.isPropertyAssignment(parent) && parent.name === node) || (ts.isJsxAttribute(parent) && parent.name === node);
         if (!property && node.text !== name && declarations.has(node.text)) found.locals.add(node.text);
-        if (!property && imports.has(node.text)) found.imports.add(node.text);
+        // `Welcome.PreviewProps` reads its sample data: it doesn't render the template.
+        const preview = ts.isPropertyAccessExpression(parent) && parent.expression === node && parent.name.text === "PreviewProps";
+        if (!property && !preview && imports.has(node.text)) found.imports.add(node.text);
       }
       if (ts.isCallExpression(node) && (node.expression.kind === ts.SyntaxKind.ImportKeyword || (ts.isIdentifier(node.expression) && node.expression.text === "require"))) {
         const argument = node.arguments[0];
@@ -1541,7 +1570,7 @@ function shapeOf(ts: typeof import("typescript"), file: import("typescript").Sou
     }
   };
   reach(exports.get("default"));
-  return { exports, refers, imports, template, whole: { bare, dynamic: all.dynamic, computed: all.computed }, esm };
+  return { exports, refers, imports, template, whole: { bare, dynamic: all.dynamic, computed: all.computed, imports: all.imports }, esm };
 }
 
 /** The locals `names` (export names) stand for and every local their declarations use. */
@@ -1586,7 +1615,8 @@ async function importedInputs(inputs: Input[], overlay?: Map<string, string>, im
       if (name === "*" || known === "all") taken.set(specifier, "all");
       else taken.set(specifier, (known ?? new Set<string>()).add(name));
     };
-    const bindings = everything ? [...module.imports.keys()] : locals.flatMap((local) => [...(module.refers.get(local)?.imports ?? [])]);
+    // A module used whole uses the imports its code reads (a CommonJS one, all of them).
+    const bindings = everything ? (module.esm ? [...module.whole.imports] : [...module.imports.keys()]) : locals.flatMap((local) => [...(module.refers.get(local)?.imports ?? [])]);
     for (const binding of bindings) {
       const from = module.imports.get(binding);
       if (from) take(from.specifier, from.imported);
@@ -1866,8 +1896,15 @@ async function notATemplate(path: string, source: string): Promise<{ reason: str
     if (ts.isJsxElement(e) || ts.isJsxSelfClosingElement(e) || ts.isJsxFragment(e)) return true;
     if (ts.isIdentifier(e) && depth < 5 && locals.has(e.text)) return jsx(locals.get(e.text), depth + 1);
     if (ts.isConditionalExpression(e)) return jsx(e.whenTrue) || jsx(e.whenFalse);
+    // A call that wraps JSX (`shell(<Text>…</Text>)`): the email, made by a function of the template's own. A renderer's
+    // output (`render(<Welcome />)`, a string or a promise) isn't one.
+    if (ts.isCallExpression(e)) {
+      const callee = ts.isPropertyAccessExpression(e.expression) ? e.expression.name.text : ts.isIdentifier(e.expression) ? e.expression.text : "";
+      return !/^(render|renderAsync|renderToString|renderToStaticMarkup|renderToPipeableStream|renderToReadableStream|pretty|toPlainText|plainText)$/.test(callee) && e.arguments.some((a) => containsJsxNode(a));
+    }
     return ts.isBinaryExpression(e) && [ts.SyntaxKind.AmpersandAmpersandToken, ts.SyntaxKind.BarBarToken, ts.SyntaxKind.QuestionQuestionToken].includes(e.operatorToken.kind) && (jsx(e.left) || jsx(e.right));
   };
+  const containsJsxNode = (n: Node): boolean => ts.isJsxElement(n) || ts.isJsxSelfClosingElement(n) || ts.isJsxFragment(n) || !!ts.forEachChild(n, (c) => (containsJsxNode(c) ? true : undefined));
   const body = (node as import("typescript").FunctionLikeDeclaration).body;
   let returns = !!body && !ts.isBlock(body) && jsx(body);
   // Its own returns, not those of functions inside it.

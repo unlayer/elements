@@ -987,8 +987,11 @@ class Converter {
       !ts.isJsxSelfClosingElement(returned) &&
       !ts.isJsxFragment(returned)
     ) {
+      const call = ts.isCallExpression(returned) ? returned.expression.getText() : undefined;
       throw new Error(
-        "A template return must be JSX: return the JSX itself (not a variable holding it), with separate returns for conditional roots",
+        call
+          ? `A template return must be JSX: it returns what ${call}(…) builds, which can't be converted. Write that function as a component and return <${call.charAt(0).toUpperCase()}${call.slice(1)}>…</${call.charAt(0).toUpperCase()}${call.slice(1)}>`
+          : "A template return must be JSX: return the JSX itself (not a variable holding it), with separate returns for conditional roots",
       );
     }
     let previewText: unknown;

@@ -1027,6 +1027,50 @@ describe("a run that checks nothing", () => {
   });
 });
 
+describe("templates a run mustn't skip (it would end with 0, having checked nothing)", () => {
+  it("migrates a template another one only takes its PreviewProps from", async () => {
+    const digest = `import { Html, Body, Text } from "@react-email/components";
+import Welcome from "./welcome";
+export default function Digest() { return <Html><Body><Text>Your digest</Text></Body></Html>; }
+Digest.PreviewProps = { ...Welcome.PreviewProps };`;
+    const welcome = `${good}\nT.PreviewProps = { name: "Ana" };`;
+    const dir = project({ "emails/welcome.tsx": welcome, "emails/digest.tsx": digest });
+    // In place (a dry run says what --write does): a template another one renders is left as it is; one it
+    // only takes sample data from is migrated.
+    const out = io(dir);
+    expect(await main(["emails"], out, lib), out.out + out.err).toBe(0);
+    expect(out.out).toMatch(/✓ emails\/welcome\.tsx/);
+    expect(out.out).toMatch(/✓ emails\/digest\.tsx/);
+  });
+
+  it("loads a template that returns its email through a function of its own (`shell(<Text />)`), failing it with what to do, and leaves a renderer's helper", async () => {
+    const shell = `import * as React from "react";
+import { Html, Body, Text } from "@react-email/components";
+const shell = (content: React.ReactNode) => <Html><Body>{content}</Body></Html>;
+export default function Wrapped() { return shell(<Text>Wrapped in a shell</Text>); }`;
+    const helper = `import { render } from "@react-email/components";
+import Wrapped from "./wrapped";
+export default function html() { return render(<Wrapped />); }`;
+    const dir = project({ "emails/wrapped.tsx": shell, "emails/send.tsx": helper });
+    const out = io(dir);
+    // Not skipped as a helper (a run that ends with 0, having checked nothing): it fails, saying what to change.
+    expect(await main(["emails", "--out", "migrated"], out, lib), out.out + out.err).toBe(2);
+    expect(out.out).toMatch(/✗ emails\/wrapped\.tsx: couldn't convert it: A template return must be JSX: it returns what shell\(…\) builds/);
+    expect(out.out).toMatch(/- emails\/send\.tsx: skipped/);
+  });
+
+  it("migrates a React Email template that imports an Elements type without `type`", async () => {
+    const typed = `import { Html, Body, Text } from "@react-email/components";
+import { ButtonProps } from "@unlayer/react-elements";
+export default function T({ label = "Go" }: { label?: ButtonProps["children"] & string }) { return <Html><Body><Text>{label} there</Text></Body></Html>; }
+T.PreviewProps = { label: "Go" };`;
+    const dir = project({ "emails/typed.tsx": typed });
+    const out = io(dir);
+    expect(await main(["emails", "--out", "migrated"], out, lib), out.out + out.err).toBe(0);
+    expect(out.out).toMatch(/✓ emails\/typed\.tsx/);
+  });
+});
+
 describe("--write never replaces an edit made during the run", () => {
   // The template edits its own file when it's loaded to be checked: after the run read it to convert it.
   const editsItself = `import fs from "node:fs";
