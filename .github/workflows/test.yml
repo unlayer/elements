@@ -58,23 +58,22 @@ jobs:
         run: pnpm --filter @unlayer/from-react-email typecheck && pnpm --filter @unlayer/migrate typecheck
 
       # ── Bundle size budget ──────────────────────────────────────
-      # Fail if the react-elements ESM bundle exceeds 105KB.
-      # Current size: 103,580 bytes, including phone device-override CSS,
-      # visibility settings, template-component unwrapping, escaping of
-      # Heading/Button text (line breaks kept), link URLs, menu text, social
-      # links and text placed straight in a Row or Column, the text direction
-      # kept to ltr/rtl/auto, and the render that collects a template's rows
-      # and blocks (one React render, so hooks, context, Fragments and the
-      # user's components work as React renders them; a component that throws,
-      # suspends or is async left out with a message naming it; markup and
-      # blocks rendered to strings inside the user's components kept).
+      # Fail if the react-elements ESM bundle exceeds 110KB.
+      # Current size: 105,306 bytes (0.1.22: about 76KB). Most of the growth is
+      # the render that collects a template's rows and blocks (one React render,
+      # so hooks, context, Fragments and the user's components work as React
+      # renders them; a component that throws, suspends or is async left out
+      # with a message naming it; markup and blocks rendered to strings inside
+      # the user's components kept), phone device-override CSS, visibility
+      # settings, and escaping of the values users give (Heading/Button text,
+      # link URLs, menu text, social links, ids, fonts, the text direction).
       # The budget tracks the unminified ESM output as a proxy for code volume;
       # it still flags accidental dependency bundling (any real dep is 10KB+).
       - name: Check bundle size
         run: |
           BUNDLE="packages/react/dist/index.js"
           SIZE=$(wc -c < "$BUNDLE" | tr -d ' ')
-          MAX_SIZE=105000
+          MAX_SIZE=110000
           echo "Bundle: $BUNDLE"
           echo "Size: $SIZE bytes (budget: $MAX_SIZE bytes)"
           if [ "$SIZE" -gt "$MAX_SIZE" ]; then

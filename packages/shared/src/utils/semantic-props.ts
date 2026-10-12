@@ -455,10 +455,13 @@ export function normalizeLinkValue(value: unknown): Record<string, any> | undefi
 /**
  * A link whose URL the exporters write into an `href="…"` as it is: `"`, `<`
  * and `>`, which a URL can't hold unencoded, are percent-encoded (as a browser
- * would), so a URL can't end the attribute.
+ * would), so a URL can't end the attribute (or Outlook's conditional comment).
+ * An email service's placeholder in the form `<%name%>` (SendGrid's
+ * `<%asm_group_unsubscribe_raw_url%>`) is kept: the service fills it in as
+ * written, and it can end neither.
  */
 function safeLink(link: Record<string, any>): Record<string, any> {
-  return typeof link.url === "string" ? { ...link, url: link.url.replace(/["<>]/g, encodeURIComponent) } : link;
+  return typeof link.url === "string" ? { ...link, url: link.url.replace(/<%[\w.]+%>|["<>]/g, (c) => (c.length > 1 ? c : encodeURIComponent(c))) } : link;
 }
 
 /**

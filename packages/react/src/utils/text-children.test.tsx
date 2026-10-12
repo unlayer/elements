@@ -56,6 +56,17 @@ describe("link URLs", () => {
     expect(html).toContain('href="https://example.com/plain?a=1&b=2"');
   });
 
+  it.each([["email", Email], ["web", Page]] as const)("keep an email service's <%name%> placeholder as written, for it to fill in (%s)", (_, Root) => {
+    const unsubscribe = "<%asm_group_unsubscribe_raw_url%>";
+    const email = <Root><Row><Column><Button href={unsubscribe}>Unsubscribe</Button><Button href={`${unsubscribe}"><img src=x onerror="alert(1)">`}>Go</Button></Column></Row></Root>;
+    const html = renderToHtml(email);
+    expect(html).toContain(`href="${unsubscribe}"`);
+    // Anything else around it is still encoded.
+    expect(html).not.toContain("<img src=x");
+    expect(html).toContain(`${unsubscribe}%22%3E%3Cimg`);
+    expect(JSON.stringify(renderToJson(email))).toContain(unsubscribe);
+  });
+
   it("leave plain labels as they were", () => {
     const html = renderToHtml(<Email><Row><Column><Button href="#">Click me</Button><Heading>Welcome</Heading></Column></Row></Email>);
     expect(html).toMatch(/>Click me</);
