@@ -253,7 +253,7 @@ export default Exported;`;
     const source = `import { useId, useMemo, useState } from "react";
 import { Html, Body, Heading, Text } from "@react-email/components";
 function Count({ items }: { items: string[] }) { const [shown] = useState(items.length); return <Text>You have {shown} items</Text>; }
-export default function Hooky({ name = "Ada", items = ["a", "b"] }: { name?: string; items?: string[] }) {
+export default function Hooky({ name, items = ["a", "b"] }: { name: string; items?: string[] }) {
   const greeting = useMemo(() => "Hello " + name, [name]);
   useId();
   return <Html><Body><Heading>{greeting}</Heading><Count items={items} /></Body></Html>;

@@ -155,7 +155,8 @@ export async function mergeTagged<T>(
  * `const { name } = user`), a function of the file's own they're passed to (`pluralize(count, "item")`) or a
  * component of the file's own (`<Footer company={company} />`, `{...props}`). Names are resolved, so a helper's own
  * `name` isn't a prop. A prop passed to a function or component from elsewhere may be tested there: it counts as
- * tested; a comparison with `true` or `false` (which no text equals) doesn't. The codemod's helpers (`asGiven`) aren't
+ * tested, and so is one with a default (`{ name = "there" }`); a comparison with `true` or `false` (which no text
+ * equals) doesn't. The codemod's helpers (`asGiven`) aren't
  * read: they show what they're given as it is. The component is the
  * file's default export, or its first function (a component's own code).
  */
@@ -319,6 +320,8 @@ export function testedProps(source: string, asGiven: ReadonlySet<string> = new S
   const visit = (node: ts.Node): void => {
     // A helper the codemod added shows what it's given as it is (escaped): its own checks aren't the template's.
     if (ts.isFunctionDeclaration(node) && node.name && asGiven.has(node.name.text)) return;
+    // A default (`{ name = "there" }`): what shows when the prop is left out, which a merge tag can't know.
+    if (ts.isBindingElement(node) && node.initializer && ts.isIdentifier(node.name)) test(node.name);
     if (ts.isBinaryExpression(node) && COMPARE.has(node.operatorToken.kind)) {
       if (!textless(node.left) && !textless(node.right)) {
         test(node.left);

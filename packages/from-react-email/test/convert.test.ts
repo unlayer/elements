@@ -1336,7 +1336,7 @@ Template.PreviewProps = { wide: true };`);
 describe("merge tags", () => {
   it("leave a prop written as HTML as it is, so its links stay in the design", async () => {
     const { Original } = await bothModes(`import { Html, Body, Text } from "@react-email/components";
-export default function Template({ name = "Ada", footerHtml = "" }: { name?: string; footerHtml?: string }) {
+export default function Template({ name, footerHtml = "" }: { name: string; footerHtml?: string }) {
   return <Html><Body><Text>Hi {name}</Text><div dangerouslySetInnerHTML={{ __html: footerHtml }} /></Body></Html>;
 }
 Template.PreviewProps = { name: "Ada", footerHtml: '<a href="https://example.com/unsubscribe">Unsubscribe</a>' };`);
