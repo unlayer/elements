@@ -158,6 +158,19 @@ describe("a component that fails", () => {
     }
   });
 
+  it("give a template the context of a Provider around it (translations, a brand), as 0.1.22's HTML and plain text did (its renderToJson threw)", () => {
+    const Brand = React.createContext({ name: "Default Co" });
+    const Receipt = () => {
+      const { name } = React.useContext(Brand);
+      return <Email previewText={`Your ${name} receipt`}><Row><Column><Paragraph>{`Thanks for shopping at ${name}`}</Paragraph></Column></Row></Email>;
+    };
+    const wrapped = <Brand.Provider value={{ name: "Acme" }}><Receipt /></Brand.Provider>;
+    for (const output of [renderToHtml(wrapped), renderToPlainText(wrapped), JSON.stringify(renderToJson(wrapped))]) {
+      expect(output).toContain("Thanks for shopping at Acme");
+      expect(output).not.toContain("Default Co");
+    }
+  });
+
   it("fails on a component that's undefined (a broken import), in a Column or among the rows: a block missing shouldn't send", () => {
     const Missing = undefined as unknown as React.FC;
     for (const email of [

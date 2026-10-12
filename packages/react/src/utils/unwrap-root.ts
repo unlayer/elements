@@ -67,7 +67,7 @@ export function isAsyncComponent(type: any): boolean {
  * Components called in renders of their own each need their own `prefix`, or
  * their `useId()` values repeat in the document.
  */
-export function callIsolated(call: () => unknown, prefix?: string): unknown {
+export function callIsolated(call: () => unknown, prefix?: string, providers: React.ReactElement[] = []): unknown {
   let result: unknown;
   let error: unknown;
   let ran = false;
@@ -82,7 +82,9 @@ export function callIsolated(call: () => unknown, prefix?: string): unknown {
     }
     return null;
   };
-  renderToStaticMarkup(React.createElement(Probe), prefix ? { identifierPrefix: prefix } : undefined);
+  // Inside the context providers around it, so a template that reads their context gets their values.
+  const probe = providers.reduceRight<React.ReactElement>((inside, provider) => React.cloneElement(provider, undefined, inside), React.createElement(Probe));
+  renderToStaticMarkup(probe, prefix ? { identifierPrefix: prefix } : undefined);
   settle(error);
   settle(result);
   if (threw) throw isThenable(error) ? new Error(ASYNC_TEMPLATE) : error;
@@ -127,8 +129,8 @@ export function unwrapRoot(element: React.ReactElement): React.ReactElement {
     let produced: unknown;
     // Each wrapper renders on its own: one inside another gets its own `useId()` prefix (the first keeps React's).
     const prefix = depth ? `w${depth}-` : undefined;
-    if (type?.$$typeof === FORWARD_REF) produced = callIsolated(() => type.render({ ...props }, null), prefix);
-    else if (typeof type === "function" && !type.prototype?.isReactComponent) produced = callIsolated(() => type({ ...props }), prefix);
+    if (type?.$$typeof === FORWARD_REF) produced = callIsolated(() => type.render({ ...props }, null), prefix, providers);
+    else if (typeof type === "function" && !type.prototype?.isReactComponent) produced = callIsolated(() => type({ ...props }), prefix, providers);
     else break;
     if (!React.isValidElement(produced)) break;
     current = produced;
