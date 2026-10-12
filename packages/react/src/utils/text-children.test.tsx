@@ -195,3 +195,30 @@ describe("the text direction", () => {
   });
 });
 
+describe("ids and class names given in values._meta", () => {
+  // As 0.1.22 wrote them, but for what could end the attribute. A block's class names aren't in its HTML (as in 0.1.22).
+  it("keep letters of any script, dots, colons and slashes", () => {
+    for (const Root of [Email, Page]) {
+      const html = renderToHtml(
+        <Root>
+          <Row values={{ _meta: { htmlID: "סיכום.r", htmlClassNames: "sm:hidden promo" } } as never}>
+            <Column values={{ _meta: { htmlID: "c:1", htmlClassNames: "col/left x" } } as never}>
+              <Paragraph values={{ _meta: { htmlID: "section.2" } } as never}>A</Paragraph>
+              <Paragraph values={{ _meta: { htmlID: 'x" onclick="alert(1)' } } as never}>B</Paragraph>
+            </Column>
+          </Row>
+          <Row values={{ _meta: { htmlClassNames: "a<b>\"c" } } as never}><Column><Paragraph>C</Paragraph></Column></Row>
+        </Root>
+      );
+      expect(html).toContain('id="סיכום.r"');
+      expect(html).toContain("sm:hidden promo");
+      expect(html).toContain('id="c:1"');
+      expect(html).toContain("col/left x");
+      expect(html).toContain('id="section.2"');
+      expect(html).not.toContain('onclick="alert(1)');
+      expect(html).not.toContain("a<b>");
+      expect(html).toContain("abc");
+    }
+  });
+});
+

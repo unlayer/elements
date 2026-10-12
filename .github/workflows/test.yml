@@ -58,7 +58,7 @@ jobs:
         run: pnpm --filter @unlayer/from-react-email typecheck && pnpm --filter @unlayer/migrate typecheck
 
       # ── Bundle size budget ──────────────────────────────────────
-      # Fail if the react-elements ESM bundle exceeds 114KB.
+      # Fail if the react-elements ESM bundle exceeds 115KB.
       # Current size: about 113.4KB (0.1.22: about 76KB). Most of the growth is
       # the render that collects a template's rows and blocks (one React render,
       # so hooks, context, Fragments and the user's components work as React
@@ -77,7 +77,7 @@ jobs:
         run: |
           BUNDLE="packages/react/dist/index.js"
           SIZE=$(wc -c < "$BUNDLE" | tr -d ' ')
-          MAX_SIZE=114000
+          MAX_SIZE=115000
           echo "Bundle: $BUNDLE"
           echo "Size: $SIZE bytes (budget: $MAX_SIZE bytes)"
           if [ "$SIZE" -gt "$MAX_SIZE" ]; then

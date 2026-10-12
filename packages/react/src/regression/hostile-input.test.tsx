@@ -114,19 +114,29 @@ describe("phone settings, written into the head's CSS", () => {
     for (const payload of CSS_PAYLOADS) {
       const html = renderToHtml(<Root>{PHONE[name](payload)}</Root>);
       expect(injected(html), payload).toEqual([]);
-      expect(html, payload).not.toMatch(/x-pwn\s*[{:]/);
+      // The id given in values stays in its attribute (as 0.1.22 wrote it), where it adds no rule: the head's CSS is checked.
+      const css = name === "block id given in values" ? (html.match(/<style[^>]*>[\s\S]*?<\/style>/g) || []).join("") : html;
+      expect(css, payload).not.toMatch(/x-pwn\s*[{:]/);
     }
   });
 
-  it("select the block by the id its HTML has, also when the id given in values had other characters", () => {
-    const html = renderToHtml(<Email><Row><Column><Paragraph mobile={{ fontSize: "12px" }} values={{ _meta: { htmlID: "u_content_título" } } as never}>Hi</Paragraph></Column></Row></Email>);
-    expect(html).toContain('id="u_content_ttulo"');
-    expect(html).toMatch(/#u_content_ttulo \.v-font-size/);
-    // A column's too.
-    const column = renderToHtml(<Email><Row><Column mobile={{ padding: "4px" }} values={{ _meta: { htmlID: "u_column_título" } } as never}><Paragraph>Hi</Paragraph></Column></Row></Email>);
-    expect(column).toContain('id="u_column_ttulo"');
-    expect(column).toMatch(/#u_column_ttulo\b/);
-    expect(column).not.toContain("título");
+  it("select the block by the id its HTML has, also when the id given in values has a selector's characters", () => {
+    // The id is written as 0.1.22 wrote it, and the head's CSS escapes it: its selector finds the block in a browser.
+    const block = (htmlID: string) => <Row><Column><Paragraph mobile={{ fontSize: "12px" }} values={{ _meta: { htmlID } } as never}>Hi</Paragraph></Column></Row>;
+    const column = (htmlID: string) => <Row><Column mobile={{ padding: "4px" }} values={{ _meta: { htmlID } } as never}><Paragraph>Hi</Paragraph></Column></Row>;
+    // A leading digit is escaped as CSS.escape does (`#\31 st`), which browsers read and jsdom's selectors don't.
+    expect(renderToHtml(<Email>{block("1st")}</Email>)).toContain("#\\31 st .v-font-size { font-size: 12px !important; }");
+    for (const [htmlID, element] of [["u_content_tí.tulo", block], ["col:2#a", column]] as const) {
+      const html = renderToHtml(<Email>{element(htmlID)}</Email>);
+      expect(html).toContain(`id="${htmlID}"`);
+      const css = (html.match(/<style[^>]*>[\s\S]*?<\/style>/g) || []).join("");
+      const selector = css.match(/(#[^{}]+?) \{ (?:font-size: 12px|padding: 4px) !important/)?.[1];
+      expect(selector).toBeDefined();
+      const doc = new DOMParser().parseFromString(html, "text/html");
+      const found = doc.querySelector(selector!);
+      expect(found).not.toBeNull();
+      expect(doc.getElementById(htmlID)!.contains(found)).toBe(true);
+    }
   });
 
   it("can't open a comment that hides the phone rules after it", () => {

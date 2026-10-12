@@ -178,9 +178,12 @@ export function nextHtmlId(config: any, prefix: string): string {
   return `${prefix}_${ids[prefix]}`;
 }
 
-/** An HTML id (or, with `spaces`, a list of class names): letters, digits, "_" and "-" only. */
+/**
+ * An HTML id (or, with `spaces`, a list of class names) that can't end its attribute: all else stays as 0.1.22 wrote
+ * it (`סיכום`, `section.2`, `sm:hidden`). The head's CSS escapes the id it selects (see device-overrides.ts).
+ */
 export function safeName(value: unknown, spaces = false): string {
-  return String(value ?? "").replace(spaces ? /[^\w\s-]/g : /[^\w-]/g, "");
+  return String(value ?? "").replace(spaces ? /["'<>&`\u0000-\u001f\u007f]/g : /["'<>&`\s\u0000-\u001f\u007f]/g, "");
 }
 
 /** A block's or row's `_meta` with its id and class names kept to what they can hold (see `safeName`). */
