@@ -246,7 +246,7 @@ async function run(argv: string[], io: Io, library?: Library): Promise<number> {
       io.stdout(`${done} template${done === 1 ? "" : "s"} already migrated (importing @unlayer/react-elements): nothing to do.\n`);
       return 0;
     }
-    io.stderr("No React Email templates found (files that import @react-email/*, or the project's components that do).\n");
+    io.stderr("No React Email templates found (files that import react-email or @react-email/*, or the project's components that do).\n");
     return 1;
   }
 
