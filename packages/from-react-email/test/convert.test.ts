@@ -1087,6 +1087,9 @@ export default function Invite({ lang = "en", name, url, base = "https://example
     <Heading>{lang === "en" ? "Join the team" : "Únete al equipo"}</Heading>
     <Heading>{\`Hi \${name}\`}</Heading>
     <Heading>{name}</Heading>
+    <Heading>{name ?? "Friend"}</Heading>
+    <Heading>{name ?? url}</Heading>
+    <Heading>{name || "there"}</Heading>
     <Button href={url}>{"Open " + url}</Button>
     <Img src={\`\${base}/logo.png\`} alt="Logo" width="40" />
     <Text style={{ textAlign: "start" }}>Starts here</Text>
@@ -1100,10 +1103,12 @@ Invite.PreviewProps = { lang: "en", name: "Ana", url: "https://example.com/join"
       const { code } = await convertSource(source, { fileName: file });
       fs.writeFileSync(file, code);
       expect(code).toContain('{name ?? ""}');
+      // A fallback that's never missing needs none (prettier writes \`(a ?? "b") ?? ""\` as \`a ?? "b" ?? ""\`: TS2881).
+      expect(code).toContain('{name ?? "Friend"}');
       expect(code).not.toMatch(/"Únete al equipo"\) \?\? ""|`\) \?\? ""|url\) \?\? ""/);
       expect(code).toMatch(/textAlign="left"[^>]*>\s*Starts here/);
       expect(code).toMatch(/textAlign="right"[^>]*>\s*Ends here/);
-      // It compiles against Elements' own types (TS2869: `??` after a value never missing; TS2322: an alignment Elements doesn't take).
+      // It compiles against Elements' own types (TS2869/TS2881: `??` after a value never missing; TS2322: an alignment Elements doesn't take).
       const ts = (await import("typescript")).default;
       const program = ts.createProgram([file], { noEmit: true, jsx: ts.JsxEmit.ReactJSX, strict: true, module: ts.ModuleKind.ESNext, moduleResolution: ts.ModuleResolutionKind.Bundler, target: ts.ScriptTarget.ES2022, skipLibCheck: true, types: ["react"] });
       const errors = ts.getPreEmitDiagnostics(program).filter((d) => d.file?.fileName === file).map((d) => `TS${d.code}: ${ts.flattenDiagnosticMessageText(d.messageText, " ")}`);

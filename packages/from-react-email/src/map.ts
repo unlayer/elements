@@ -399,8 +399,8 @@ export function orEmpty<T>(value: T): T | Expr {
 
 /**
  * Whether code can give null or undefined, by its form, as TypeScript judges it for `??`: a name, a
- * property, a call, `&&`/`||`/`??` can; a literal, a template string, a sum or a comparison can't, and a
- * choice (`a ? b : c`) can when one of its branches can.
+ * property, a call, `&&`/`||` can; a literal, a template string, a sum or a comparison can't; a choice
+ * (`a ? b : c`) can when one of its branches can, and `a ?? b` when `b` can.
  */
 function mayBeNullish(code: string): boolean {
   const statement = ts.createSourceFile("value.tsx", `(${code});`, ts.ScriptTarget.Latest, false, ts.ScriptKind.TSX).statements[0];
@@ -410,8 +410,9 @@ function mayBeNullish(code: string): boolean {
     if (ts.isConditionalExpression(node)) return can(node.whenTrue) || can(node.whenFalse);
     if (ts.isBinaryExpression(node)) {
       const op = node.operatorToken.kind;
-      if (op === ts.SyntaxKind.CommaToken) return can(node.right);
-      return op === ts.SyntaxKind.EqualsToken || op === ts.SyntaxKind.QuestionQuestionToken || op === ts.SyntaxKind.QuestionQuestionEqualsToken ||
+      // `a ?? "b"` can't: `?? ""` after it is written `a ?? "b" ?? ""` (prettier drops the parentheses), which TypeScript rejects (TS2881).
+      if (op === ts.SyntaxKind.CommaToken || op === ts.SyntaxKind.QuestionQuestionToken) return can(node.right);
+      return op === ts.SyntaxKind.EqualsToken || op === ts.SyntaxKind.QuestionQuestionEqualsToken ||
         op === ts.SyntaxKind.BarBarToken || op === ts.SyntaxKind.BarBarEqualsToken || op === ts.SyntaxKind.AmpersandAmpersandToken || op === ts.SyntaxKind.AmpersandAmpersandEqualsToken;
     }
     return ts.isIdentifier(node) || ts.isPropertyAccessExpression(node) || ts.isElementAccessExpression(node) || ts.isCallExpression(node) ||
