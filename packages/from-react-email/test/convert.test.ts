@@ -1350,6 +1350,69 @@ Card.PreviewProps = { accent: "red", name: "Ada" };`;
   });
 });
 
+describe("what only a dropped style or attribute read", () => {
+  const compile = async (source: string) => {
+    const dir = fs.mkdtempSync(path.join(import.meta.dirname, ".tmp-"));
+    try {
+      const file = path.join(dir, "migrated.tsx");
+      const { code } = await convertSource(source, { fileName: file });
+      fs.writeFileSync(file, code);
+      const ts = (await import("typescript")).default;
+      const program = ts.createProgram([file], { noEmit: true, jsx: ts.JsxEmit.ReactJSX, strict: true, noUncheckedIndexedAccess: true, noUnusedLocals: true, noUnusedParameters: true, module: ts.ModuleKind.ESNext, moduleResolution: ts.ModuleResolutionKind.Bundler, target: ts.ScriptTarget.ES2022, skipLibCheck: true, types: ["react"] });
+      return { code, errors: ts.getPreEmitDiagnostics(program).filter((d) => d.file?.fileName === file).map((d) => `TS${d.code}: ${ts.flattenDiagnosticMessageText(d.messageText, " ")}`) };
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
+  };
+
+  it("goes, so the migration compiles with noUnusedLocals and noUnusedParameters (TS6133): a value a function of the file works out, a map's index", async () => {
+    const { code, errors } = await compile(`import { Body, Head, Html, Section, Text } from "@react-email/components";
+type Row = { id: string; label: string };
+function hexToRgba(hex: string, alpha: number): string {
+  const n = Number.parseInt(hex.slice(1), 16);
+  return \`rgba(\${(n >> 16) & 255}, \${(n >> 8) & 255}, \${n & 255}, \${alpha})\`;
+}
+export default function Rows({ rows, brand }: { rows: Row[]; brand: string }) {
+  const glow = hexToRgba(brand, 0.25);
+  return (
+    <Html><Head /><Body>
+      {rows.map((row, i) => (
+        <Section key={row.id} id={\`row-\${i}\`} style={{ boxShadow: \`0 0 8px \${glow}\` }}>
+          <Text>{row.label}</Text>
+        </Section>
+      ))}
+    </Body></Html>
+  );
+}
+Rows.PreviewProps = { rows: [{ id: "a", label: "First row" }, { id: "b", label: "Second row" }], brand: "#2563eb" };`);
+    expect(errors).toEqual([]);
+    expect(code).not.toMatch(/glow|hexToRgba/);
+    expect(code).toContain("rows.map((row) =>");
+  });
+
+  it("is named _item where a later parameter is still read, and a call that may do something still runs", async () => {
+    const { code, errors } = await compile(`import { Body, Html, Section, Text } from "@react-email/components";
+import { track } from "./analytics";
+type Item = { glow: string; label: string };
+export default function List({ items, name }: { items: Item[]; name: string }) {
+  const pixel = track(name);
+  return (
+    <Html><Body>
+      {items.map((item, i) => (
+        <Section key={i} style={{ boxShadow: item.glow, backgroundImage: \`url(\${pixel})\` }}>
+          <Text>{i + 1}. Item</Text>
+        </Section>
+      ))}
+    </Body></Html>
+  );
+}
+List.PreviewProps = { items: [{ glow: "0 0 4px red", label: "A" }], name: "Ada" };`.replace('import { track } from "./analytics";', "declare function track(name: string): string;"));
+    expect(errors).toEqual([]);
+    expect(code).toContain("items.map((_item, i) =>");
+    expect(code).toMatch(/^\s*track\(name\);$/m);
+  });
+});
+
 describe("an inlined component's conditions on the props it's given", () => {
   it("are written as what they give, so the migration compiles (TS2872/TS2873) and shows the same", async () => {
     const source = `import { Html, Body, Container, Section, Text, Link, Button } from "@react-email/components";

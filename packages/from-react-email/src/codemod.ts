@@ -2382,6 +2382,7 @@ function dropUnused(code: string, original: ts.SourceFile, javascript: boolean, 
   for (;;) {
     const file = ts.createSourceFile("migrated.tsx", code, ts.ScriptTarget.Latest, true, javascript ? ts.ScriptKind.JSX : ts.ScriptKind.TSX);
     const uses = references(file, helpers);
+    const computes = computing(file);
     // Read before (or added here), declared once and not read now.
     const unused = (name: ts.Identifier) => ((usedBefore.get(name.text) ?? 0) > 1 || helpers.has(name.text) || copied.has(name.text)) && uses.get(name.text) === 1;
     const cuts: Array<{ from: number; to: number; text: string }> = [];
@@ -2398,8 +2399,15 @@ function dropUnused(code: string, original: ts.SourceFile, javascript: boolean, 
           const flat = (name: ts.BindingName): ts.BindingElement[] | undefined =>
             ts.isObjectBindingPattern(name) && name.elements.every((e) => ts.isIdentifier(e.name) && !e.dotDotDotToken && (!e.initializer || pure(e.initializer))) ? [...name.elements] : undefined;
           const allUnused = (d: ts.VariableDeclaration) => (ts.isIdentifier(d.name) ? unused(d.name) : !!flat(d.name)?.every((e) => unused(e.name as ts.Identifier)));
-          if (declarations.every((d) => allUnused(d) && (!d.initializer || pure(d.initializer)))) {
+          // (A value worked out by a function of the file's own that only computes, `hexToRgba(brand, 0.25)`, too.)
+          if (declarations.every((d) => allUnused(d) && (!d.initializer || computes(d.initializer)))) {
             cut(statement);
+            continue;
+          }
+          // One that may do something besides (`track(name)`, a hook): it still runs, as a statement of its own.
+          const [only] = declarations;
+          if (declarations.length === 1 && ts.isIdentifier(only.name) && unused(only.name) && only.initializer) {
+            cuts.push({ from: statement.getStart(), to: statement.getEnd(), text: `${only.initializer.getText()};` });
             continue;
           }
           // `const { text, muted } = theme.colors` where only `text` is still read: `muted` goes (noUnusedLocals).
@@ -2450,6 +2458,19 @@ function dropUnused(code: string, original: ts.SourceFile, javascript: boolean, 
           const kept = pattern.elements.filter((e) => !unused(e.name as ts.Identifier));
           if (kept.length < pattern.elements.length) cuts.push({ from: pattern.getStart(), to: pattern.getEnd(), text: kept.length ? `{ ${kept.map((e) => e.getText()).join(", ")} }` : "{}" });
         }
+      // A parameter only what was dropped read (`(row, i) =>` with `id={`row-${i}`}` gone), or noUnusedParameters
+      // fails the build: the last ones of a callback go (its caller can always pass more), an earlier one is `_i`.
+      if (ts.isArrowFunction(node) || ts.isFunctionExpression(node)) {
+        const params = node.parameters;
+        const drops = (p: ts.ParameterDeclaration) => ts.isIdentifier(p.name) && !p.dotDotDotToken && unused(p.name) && (!p.initializer || pure(p.initializer));
+        let end = params.length;
+        if (ts.isCallExpression(node.parent) && node.parent.arguments.includes(node)) while (end > 0 && drops(params[end - 1])) end--;
+        if (end < params.length) {
+          const parenthesized = node.getText().replace(/^async\s*/, "").startsWith("(");
+          cuts.push(end ? { from: params[end - 1].getEnd(), to: params[params.length - 1].getEnd(), text: "" } : { from: params[0].getStart(), to: params[params.length - 1].getEnd(), text: parenthesized ? "" : "()" });
+        }
+        for (const p of params.slice(0, end)) if (drops(p)) cuts.push({ from: p.name.getStart(), to: p.name.getEnd(), text: `_${(p.name as ts.Identifier).text}` });
+      }
       ts.forEachChild(node, walk);
     };
     walk(file);
@@ -2486,11 +2507,61 @@ function references(file: ts.SourceFile, helpers: Set<string>): Map<string, numb
   return counts;
 }
 
-/** A value whose evaluation has no side effects: literals, objects, arrays, functions, JSX. */
-function pure(node: ts.Node): boolean {
-  if (ts.isArrowFunction(node) || ts.isFunctionExpression(node)) return true;
-  if (
-    ts.isCallExpression(node) ||
+/** Methods of strings and numbers that only compute a value. */
+const COMPUTING_METHODS = new Set(
+  "at charAt charCodeAt codePointAt concat endsWith includes indexOf lastIndexOf normalize padEnd padStart repeat replace replaceAll slice split startsWith substring toExponential toFixed toLocaleLowerCase toLocaleString toLocaleUpperCase toLowerCase toPrecision toString toUpperCase trim trimEnd trimStart".split(" ")
+);
+
+/**
+ * `pure`, and calls that only compute: to a function of the file's own whose body is declarations, conditions and
+ * returns of such values (`hexToRgba`, `formatPrice`), to `Math`, `Number` and `String`, and to the methods of
+ * strings and numbers that do.
+ */
+function computing(file: ts.SourceFile): (node: ts.Node) => boolean {
+  const functions = new Map<string, ts.SignatureDeclaration & { body?: ts.Node }>();
+  for (const statement of file.statements) {
+    if (ts.isFunctionDeclaration(statement) && statement.name && statement.body && !statement.asteriskToken) functions.set(statement.name.text, statement);
+    if (ts.isVariableStatement(statement) && statement.declarationList.flags & ts.NodeFlags.Const)
+      for (const d of statement.declarationList.declarations) {
+        const init = d.initializer && unwrap(d.initializer);
+        if (ts.isIdentifier(d.name) && init && (ts.isArrowFunction(init) || ts.isFunctionExpression(init)) && !init.asteriskToken) functions.set(d.name.text, init);
+      }
+  }
+  const asyncFunction = (f: ts.Node) => !!ts.getModifiers(f as ts.FunctionDeclaration)?.some((m) => m.kind === ts.SyntaxKind.AsyncKeyword);
+  const body = (f: ts.SignatureDeclaration & { body?: ts.Node }, seen: Set<ts.Node>): boolean => {
+    if (asyncFunction(f) || !f.parameters.every((p) => !p.initializer || value(p.initializer, seen))) return false;
+    const statements = (list: readonly ts.Statement[]): boolean =>
+      list.every((st) =>
+        ts.isVariableStatement(st)
+          ? st.declarationList.declarations.every((d) => !d.initializer || value(d.initializer, seen))
+          : ts.isReturnStatement(st)
+            ? !st.expression || value(st.expression, seen)
+            : ts.isIfStatement(st)
+              ? value(st.expression, seen) && statements([st.thenStatement]) && (!st.elseStatement || statements([st.elseStatement]))
+              : ts.isBlock(st) && statements(st.statements)
+      );
+    return !!f.body && (ts.isBlock(f.body) ? statements(f.body.statements) : value(f.body, seen));
+  };
+  const value = (node: ts.Node, seen: Set<ts.Node>): boolean => {
+    if (ts.isArrowFunction(node) || ts.isFunctionExpression(node)) return true;
+    if (ts.isCallExpression(node) && !node.questionDotToken) {
+      const callee = unwrap(node.expression);
+      const own = ts.isIdentifier(callee) ? functions.get(callee.text) : undefined;
+      const computes =
+        (own !== undefined && !seen.has(own) && body(own, new Set([...seen, own]))) ||
+        (ts.isPropertyAccessExpression(callee) &&
+          ((ts.isIdentifier(callee.expression) && ["Math", "Number", "String"].includes(callee.expression.text)) || (COMPUTING_METHODS.has(callee.name.text) && value(callee.expression, seen))));
+      return computes && node.arguments.every((a) => value(a, seen));
+    }
+    if (ts.isCallExpression(node) || !pureShallow(node)) return false;
+    return !ts.forEachChild(node, (child) => (value(child, seen) ? undefined : true));
+  };
+  return (node) => value(node, new Set());
+}
+
+/** `pure` for the node itself, not what's in it. */
+function pureShallow(node: ts.Node): boolean {
+  return !(
     ts.isNewExpression(node) ||
     ts.isTaggedTemplateExpression(node) ||
     ts.isAwaitExpression(node) ||
@@ -2500,8 +2571,13 @@ function pure(node: ts.Node): boolean {
     ts.isPostfixUnaryExpression(node) ||
     (ts.isPrefixUnaryExpression(node) && (node.operator === ts.SyntaxKind.PlusPlusToken || node.operator === ts.SyntaxKind.MinusMinusToken)) ||
     (ts.isBinaryExpression(node) && node.operatorToken.kind >= ts.SyntaxKind.FirstAssignment && node.operatorToken.kind <= ts.SyntaxKind.LastAssignment)
-  )
-    return false;
+  );
+}
+
+/** A value whose evaluation has no side effects: literals, objects, arrays, functions, JSX. */
+function pure(node: ts.Node): boolean {
+  if (ts.isArrowFunction(node) || ts.isFunctionExpression(node)) return true;
+  if (ts.isCallExpression(node) || !pureShallow(node)) return false;
   return !ts.forEachChild(node, (child) => (pure(child) ? undefined : true));
 }
 
