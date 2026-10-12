@@ -109,3 +109,14 @@ describe("an error of the template's own", () => {
     expect(() => renderToJson(<Row />)).toThrow(/Root element must be/);
   });
 });
+
+describe("a component that isn't one (undefined: a broken or circular import)", () => {
+  // React says so and the render fails, as an email missing a block shouldn't be sent: the plain text too (it was
+  // empty, without an error).
+  it("fails renderToHtml, renderToJson and renderToPlainText", async () => {
+    const { renderToPlainText } = await import("./render-to-html");
+    const Missing = undefined as unknown as React.ComponentType;
+    const email = <Email><Row><Column><Paragraph>Hi</Paragraph><Missing /></Column></Row></Email>;
+    for (const render of [renderToHtml, renderToJson, renderToPlainText]) expect(() => render(email)).toThrow(/Element type is invalid/);
+  });
+});

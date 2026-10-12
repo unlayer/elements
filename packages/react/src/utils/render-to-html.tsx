@@ -59,7 +59,8 @@ function resolveDisplayMode(
  */
 function renderBody(
   element: React.ReactElement,
-  config?: Partial<UnlayerConfig>
+  config?: Partial<UnlayerConfig>,
+  name = "renderToHtml"
 ): string {
   const mergedConfig = resolveConfig(element, config);
 
@@ -72,7 +73,7 @@ function renderBody(
     const message =
       error instanceof Error ? error.message : String(error);
     throw new Error(
-      `[Unlayer] renderToHtml failed: ${message}\n` +
+      `[Unlayer] ${name} failed: ${message}\n` +
         `Tip: Ensure your tree uses Body > Row > Column > Item structure.`
     );
   }
@@ -234,7 +235,7 @@ export function renderToPlainText(
   config?: Partial<UnlayerConfig>
 ): string {
   // A template component renders as its root, as in renderToHtml (context providers around it included).
-  const html = withRenderScope(() => renderBody(htmlRoot(element, "renderToPlainText"), config));
+  const html = withRenderScope(() => renderBody(htmlRoot(element, "renderToPlainText"), config, "renderToPlainText"));
   return htmlToPlainText(html);
 }
 
@@ -313,7 +314,7 @@ export function renderToHtmlParts(
 function htmlParts(element: React.ReactElement, config?: Partial<UnlayerConfig>): HtmlParts {
   element = htmlRoot(element, "renderToHtmlParts");
   // Render body markup
-  const body = renderBody(element, config);
+  const body = renderBody(element, config, "renderToHtmlParts");
 
   // Resolve display mode from the wrapper component, element props, or config
   const mergedConfig = resolveConfig(element, config);

@@ -6,7 +6,7 @@ import { mapSemanticProps, type SemanticProps } from "../utils/semantic-props";
 import { nextHtmlId } from "../utils/create-component";
 import type { SizeInput } from "../types";
 import { BODY_DEFAULTS } from "../utils/container-defaults";
-import { withRenderScope } from "../utils/render-scope";
+import { rendering, withRenderScope } from "../utils/render-scope";
 import { childrenHtml } from "../utils/normalize";
 
 export type BodyProps = Omit<SemanticProps<BodyValues>, "padding" | "borderRadius"> & {
@@ -187,6 +187,9 @@ const Body: React.FC<BodyProps> = (props) => {
   // Fragments and user components expanded: their rows get the context too.
   let innerHTML = "";
   if (children) {
+    // In renderToHtml or renderToPlainText, a render that fails fails it (an email missing what failed isn't sent);
+    // rendered straight through React (a live preview), the page goes on without it.
+    const called = rendering();
     try {
       // A render of its own when Body is rendered straight through React (not renderToHtml).
       innerHTML = withRenderScope(() => {
@@ -194,6 +197,7 @@ const Body: React.FC<BodyProps> = (props) => {
         return childrenHtml(children, (child) => React.cloneElement(child as React.ReactElement<any>, { _config, bodyValues: values }));
       });
     } catch (error) {
+      if (called) throw error;
       console.error("Body: Failed to render children:", error);
       innerHTML = "";
     }
