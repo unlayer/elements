@@ -139,14 +139,14 @@ Example: `<Button fontSize="16px">` → `{ style: { fontSize: "16px" } }` in the
 
 ## Review bar for the migration tool
 
-What blocks a merge of the converter, the check or the CLI (`packages/convert-core`, `packages/from-react-email`, `packages/migrate`), and of Elements changes made for them:
+The tool's goal is an editable Unlayer template with the same content, not pixel parity: every template is written, content that differs is flagged (`✗`, exit 2) and how it looks is listed ("looks different"). What blocks a merge of the converter, the check or the CLI (`packages/convert-core`, `packages/from-react-email`, `packages/migrate`), and of Elements changes made for them:
 
 1. **Elements regressions**: code that rendered with the last release renders differently (HTML, plain text, design) and the change isn't a documented fix.
-2. **Check false passes**: the check passes a migration a reader sees differently, within what it promises (words, links, images, the compared text styles, what shows on desktop, phones and wider screens, where lines sit beyond 120px).
-3. **Destructive writes**: the CLI changes a file it wasn't asked to, or one git can't restore (`--write` refuses those unless `--allow-dirty`).
-4. **Wrong exit codes**: a run that skipped, failed or checked nothing exits `0`.
+2. **Content the check misses**: it passes a migration whose content a reader gets differently: a word, link, image or alt text lost, added or out of order, or shown where the original hides it (or the other way round), on desktop, phones or wider screens.
+3. **Broken or destructive writes**: the CLI changes a file it wasn't asked to, or one git can't restore (`--write` refuses those unless `--allow-dirty`), or writes a migrated template that doesn't compile where the original did.
+4. **Wrong exit codes**: a run that skipped a real template, failed, or checked nothing exits `0`.
 
-Not blockers: a template the converter can't convert, or that the check fails (it fails closed: a refusal, with its reason, is the guarantee working); a check that fails a migration that looks the same (a false fail: worth fixing, not blocking); polish. Each blocker fix comes with a test that fails without it. A false pass found by the differential test (`pnpm --filter @unlayer/from-react-email test:differential`) is committed as a fixture it replays.
+Not blockers: how a migration looks. A look difference (a style, where words sit, CSS the check doesn't model or can't read) is listed for the user to fix in the editor, and one the check misses is a gap in that list: worth fixing, not blocking. Also not blockers: a template the converter can't map (it's kept as HTML that renders as before), a check that lists a difference where there is none (a false fail), polish. Each blocker fix comes with a test that fails without it. A false pass found by the differential test (`pnpm --filter @unlayer/from-react-email test:differential`) is committed as a fixture it replays.
 
 ## Common Gotchas
 
