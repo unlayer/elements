@@ -233,7 +233,8 @@ export function renderToPlainText(
   element: React.ReactElement,
   config?: Partial<UnlayerConfig>
 ): string {
-  const html = withRenderScope(() => renderBody(element, config));
+  // A template component renders as its root, as in renderToHtml (context providers around it included).
+  const html = withRenderScope(() => renderBody(htmlRoot(element, "renderToPlainText"), config));
   return htmlToPlainText(html);
 }
 

@@ -145,6 +145,19 @@ describe("a component that fails", () => {
     expect(html).toContain("Still here");
   });
 
+  it("reach the template's components from a context Provider around the root, as from one inside it", () => {
+    const Theme = React.createContext("default theme");
+    const Themed = () => <Paragraph>{`Theme: ${React.useContext(Theme)}`}</Paragraph>;
+    const around = <Theme.Provider value="dark"><Email><Row><Column><Themed /></Column></Row></Email></Theme.Provider>;
+    const inside = <Email><Theme.Provider value="dark"><Row><Column><Themed /></Column></Row></Theme.Provider></Email>;
+    const Template = () => around;
+    for (const element of [around, <Template />]) {
+      expect(renderToHtml(element)).toBe(renderToHtml(inside));
+      expect(renderToPlainText(element)).toContain("Theme: dark");
+      expect(JSON.stringify(renderToJson(element))).toBe(JSON.stringify(renderToJson(inside)));
+    }
+  });
+
   it("fails on a component that's undefined (a broken import), in a Column or among the rows: a block missing shouldn't send", () => {
     const Missing = undefined as unknown as React.FC;
     for (const email of [

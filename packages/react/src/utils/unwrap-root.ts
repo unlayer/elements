@@ -14,6 +14,9 @@ export const ROOT_NAMES = new Set(["Body", "Email", "Page", "Document"]);
 const CONTAINER_NAMES = new Set([...ROOT_NAMES, "Row", "Column"]);
 export const MEMO = Symbol.for("react.memo");
 export const FORWARD_REF = Symbol.for("react.forward_ref");
+/** A context's provider: `<Ctx.Provider>` in React 18, `<Ctx>` (and `<Ctx.Provider>`, the same) in React 19. */
+const PROVIDER = Symbol.for("react.provider");
+const CONTEXT = Symbol.for("react.context");
 
 /**
  * The Elements component an element is, by the `displayName` Elements gives
@@ -97,12 +100,21 @@ export function callIsolated(call: () => unknown, prefix?: string): unknown {
  */
 export function unwrapRoot(element: React.ReactElement): React.ReactElement {
   let current = element;
+  // Context providers around the root (`<Theme.Provider value="dark"><Email>…`): the root's content goes in them.
+  const providers: React.ReactElement[] = [];
   for (let depth = 0; depth < 20; depth++) {
     if (ROOT_NAMES.has(getDisplayName(current) ?? "")) break;
     const type = current.type as any;
     const props = current.props as Record<string, unknown>;
     if (type?.$$typeof === MEMO) {
       current = React.createElement(type.type, props);
+      continue;
+    }
+    if ((type?.$$typeof === PROVIDER || type?.$$typeof === CONTEXT) && "value" in props) {
+      const inside = React.Children.toArray(props.children as React.ReactNode);
+      if (inside.length !== 1 || !React.isValidElement(inside[0])) break;
+      providers.push(current);
+      current = inside[0];
       continue;
     }
     // A Fragment around the template (`<><Welcome /></>`): what's in it, when that's one element.
@@ -121,7 +133,9 @@ export function unwrapRoot(element: React.ReactElement): React.ReactElement {
     if (!React.isValidElement(produced)) break;
     current = produced;
   }
-  return current;
+  if (!providers.length || !ROOT_NAMES.has(getDisplayName(current) ?? "")) return current;
+  const children = providers.reduceRight<React.ReactNode>((inside, provider) => React.cloneElement(provider, undefined, inside), (current.props as { children?: React.ReactNode }).children);
+  return React.cloneElement(current, undefined, children);
 }
 
 /** The advice both render functions give when a wrapper can't be unwrapped. */
