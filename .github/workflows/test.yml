@@ -58,8 +58,8 @@ jobs:
         run: pnpm --filter @unlayer/from-react-email typecheck && pnpm --filter @unlayer/migrate typecheck
 
       # ── Bundle size budget ──────────────────────────────────────
-      # Fail if the react-elements ESM bundle exceeds 113KB.
-      # Current size: about 112.1KB (0.1.22: about 76KB). Most of the growth is
+      # Fail if the react-elements ESM bundle exceeds 114KB.
+      # Current size: about 113.4KB (0.1.22: about 76KB). Most of the growth is
       # the render that collects a template's rows and blocks (one React render,
       # so hooks, context, Fragments and the user's components work as React
       # renders them; a component that throws, suspends or is async left out
@@ -69,14 +69,15 @@ jobs:
       # link URLs, menu text, social links, ids, fonts, the text direction), and
       # rendering where a bundler gives Elements another copy of React than
       # react-dom's (Next.js's server layers), and loading a second module of
-      # react-dom's when Elements is called inside a renderToString it renders with.
+      # react-dom's when Elements is called inside a renderToString it renders with,
+      # and leaving out Columns inside markup in a Row, as 0.1.22 did.
       # The budget tracks the unminified ESM output as a proxy for code volume;
       # it still flags accidental dependency bundling (any real dep is 10KB+).
       - name: Check bundle size
         run: |
           BUNDLE="packages/react/dist/index.js"
           SIZE=$(wc -c < "$BUNDLE" | tr -d ' ')
-          MAX_SIZE=113000
+          MAX_SIZE=114000
           echo "Bundle: $BUNDLE"
           echo "Size: $SIZE bytes (budget: $MAX_SIZE bytes)"
           if [ "$SIZE" -gt "$MAX_SIZE" ]; then
