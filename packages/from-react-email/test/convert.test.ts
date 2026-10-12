@@ -1177,6 +1177,33 @@ Card.PreviewProps = { name: "Ada", avatarUrl: "https://example.com/a.png" };`;
   });
 });
 
+describe("an inline element hidden by props", () => {
+  it("keeps its hidden attribute and its condition: the migration hides what the original does, for every value", async () => {
+    const source = `import { Html, Body, Text } from "@react-email/components";
+export default function Total({ total, taxRate }: { total: string; taxRate: number }) {
+  return <Html><Body><Text>Total {total} <span hidden={taxRate === 0}>(includes {taxRate}% VAT)</span> <b hidden>never shown</b></Text></Body></Html>;
+}
+Total.PreviewProps = { total: "$84.00", taxRate: 20 };`;
+    const dir = fs.mkdtempSync(path.join(import.meta.dirname, ".tmp-"));
+    try {
+      const originalFile = path.join(dir, "original.tsx");
+      fs.writeFileSync(originalFile, source);
+      const file = path.join(dir, "migrated.tsx");
+      const { code } = await convertSource(source, { fileName: file });
+      fs.writeFileSync(file, code);
+      const { default: Original } = await import(originalFile);
+      const { default: Migrated } = await import(file);
+      expect(code).toMatch(/htmlAttribute\("hidden"/);
+      for (const taxRate of [20, 0]) {
+        const check = await verifyConversion(Original, Migrated, { props: { total: "$84.00", taxRate } });
+        expect([check.missing, check.added]).toEqual([[], []]);
+      }
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
+  });
+});
+
 describe("a prop only a dropped style read", () => {
   it("goes from the parameters, so a build with noUnusedLocals passes (TS6133)", async () => {
     const source = `import { Html, Body, Text } from "@react-email/components";

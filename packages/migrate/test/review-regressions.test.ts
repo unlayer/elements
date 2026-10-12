@@ -1092,6 +1092,7 @@ describe("content shown or hidden by props", () => {
   // The preview props show it; other props hide it. The migration can't keep the condition, so it shows it to everyone.
   const template = (name: string, section: string, props: string) => `import { Html, Head, Body, Container, Section, Text, Link, Tailwind } from "@react-email/components";
 const cn = (...classes: Array<string | false | undefined>) => classes.filter(Boolean).join(" ");
+const hiddenStyle = { display: "none" };
 export default function ${name}({ name, isGift, hideUpsell = false, plan }: { name: string; isGift?: boolean; hideUpsell?: boolean; plan?: string }) {
   return <Html><Head /><Tailwind><Body className="bg-white font-sans"><Container>
     <Text>Hi {name}, your order has shipped.</Text>
@@ -1106,6 +1107,7 @@ ${name}.PreviewProps = ${props};`;
     ["a class list", `<Section className={cn("p-4", isGift && "hidden")}>`],
     ["a style", `<Section style={{ display: hideUpsell ? "none" : "block" }}>`],
     ["a list item's style", `{[{ name: "total", hidden: isGift }].map((item) => <Section key={item.name} style={{ display: item.hidden ? "none" : "block" }}>`],
+    ["a style constant picked by a prop", `<Section style={isGift ? hiddenStyle : undefined}>`],
   ])("in %s, fails the template (its content differs), and writes it", async (_, section) => {
     const dir = project({ "emails/shipped.tsx": template("Shipped", section, `{ name: "Ada" }`) });
     const out = io(dir);

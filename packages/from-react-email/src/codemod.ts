@@ -740,7 +740,27 @@ class Converter {
   /** A value computed from props that the codemod can't keep: the check fails, naming it with its line. */
   private lose(part: ts.Node, text: string): void {
     const line = this.originalLine(part.getStart());
-    if (!this.droppedStyles.some((d) => d.from === part.getStart())) this.droppedStyles.push({ from: part.getStart(), to: part.getEnd(), detail: `line ${line}: ${text.replace(/\s+/g, " ").slice(0, 80)}`, text });
+    // What it reads too (`hasPaid ? hiddenStyle : undefined`, where hiddenStyle is `{ display: "none" }`), for whether it shows or hides.
+    const read = [text, ...this.namedValues(part)].join("\n");
+    if (!this.droppedStyles.some((d) => d.from === part.getStart())) this.droppedStyles.push({ from: part.getStart(), to: part.getEnd(), detail: `line ${line}: ${text.replace(/\s+/g, " ").slice(0, 80)}`, text: read });
+  }
+
+  /** The values the names in `node` stand for (constants, through each other, a few deep), as their text. */
+  private namedValues(node: ts.Node, depth = 0, seen = new Set<ts.Node>()): string[] {
+    const out: string[] = [];
+    const visit = (n: ts.Node) => {
+      if (ts.isIdentifier(n)) {
+        const decl = this.checker.getSymbolAtLocation(n)?.valueDeclaration;
+        const init = decl && ts.isVariableDeclaration(decl) ? decl.initializer : undefined;
+        if (init && !seen.has(init) && depth < 4) {
+          seen.add(init);
+          out.push(init.getText(), ...this.namedValues(init, depth + 1, seen));
+        }
+      }
+      ts.forEachChild(n, visit);
+    };
+    visit(node);
+    return out;
   }
 
   /** Values changed after they're declared (`theme.color = …`, `items.push(…)`), by symbol. */
@@ -1932,6 +1952,12 @@ class Converter {
           const css = cssText(jsx.name === "Link" ? { color: "#067df7", textDecorationLine: "none", ...jsx.style } : jsx.style);
           if (css) attrs.push({ text: `style="${escapeAttribute(css)}"` });
           // React Email's Link opens in a new tab unless it sets another target; a plain <a> keeps the target it has.
+          // `hidden`, fixed or from props (`hidden={taxRate === 0}`): kept, so the text hides when the original's does.
+          const hidden = this.attr(jsx, "hidden");
+          if (isExpr(hidden)) {
+            this.needsEscape = true;
+            attrs.push({ text: this.codeAttribute("hidden", `(${hidden.$expr}) || undefined`), code: true });
+          } else if (hidden === true || hidden === "" || hidden === "hidden" || hidden === "true") attrs.push({ text: "hidden" });
           if (jsx.name === "Link" || tag === "a") {
             const target = this.attr(jsx, "target");
             if (isExpr(target)) this.needsEscape = true;
