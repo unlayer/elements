@@ -27,7 +27,7 @@ Open <http://127.0.0.1:3002/editor.html> and pick a template. Every block is edi
 
 ## Your own templates
 
-Copy React Email templates into `emails/` (with the files they import) and run `migrate` again: they appear in the editor's list. A template that fails the check isn't written, and the report says why.
+Copy React Email templates into `emails/` (with the files they import) and run `migrate` again: they appear in the editor's list. Every template is written; one whose content differs is flagged in the run's output and in `report.json`, and what looks different is listed there, to fix in the editor.
 
 In your own project, the same command is:
 

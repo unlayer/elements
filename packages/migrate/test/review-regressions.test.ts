@@ -1027,6 +1027,21 @@ describe("a run that checks nothing", () => {
   });
 });
 
+describe("symbolic links in a folder", () => {
+  it("aren't followed, and are listed (a template there isn't left out without a word)", async () => {
+    const template = `import { Html, Body, Text } from "@react-email/components";
+export default function T() { return <Html><Body><Text>Hello there</Text></Body></Html>; }`;
+    const dir = project({ "shared/welcome.tsx": template, "emails/real.tsx": template });
+    fs.symlinkSync(path.join(dir, "shared"), path.join(dir, "emails/linked"));
+    fs.symlinkSync(path.join(dir, "shared/welcome.tsx"), path.join(dir, "emails/welcome.tsx"));
+    const out = io(dir);
+    expect(await main(["emails"], out, lib), out.out + out.err).toBe(0);
+    expect(out.out).toMatch(/- emails\/linked: skipped \(a symbolic link, not followed in a folder/);
+    expect(out.out).toMatch(/- emails\/welcome\.tsx: skipped \(a symbolic link, not followed in a folder/);
+    expect(out.out).toMatch(/✓ emails\/real\.tsx/);
+  });
+});
+
 describe("a phone width other than Elements'", () => {
   const template = (width: string) => `import { Html, Head, Body, Container, Text, Button } from "@react-email/components";
 export default function T() {

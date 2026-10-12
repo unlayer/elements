@@ -13,13 +13,18 @@ JavaScript templates keep JavaScript helpers. The document's `dir` and `lang` be
 
 ## What the check guarantees
 
-Before a template is written, the original and the migrated version are rendered with the template's `PreviewProps`, then again with each boolean prop flipped, and compared:
+The goal is an editable Unlayer template with the same content, not pixel parity. Every template is written; the original and the migrated version are rendered with the template's `PreviewProps`, then again with each boolean prop flipped, and compared.
 
-- every word, numeric value (including separators, signs, currencies and percentages), link, image and image `alt` text the original renders must be in the migrated template, with the words in the same order;
-- no new words may appear in the migrated template;
+**Content** must be the same, or the template is flagged `✗` and the command exits with code `2` (it's still written: content that differs is a converter bug, since anything it can't map is kept as HTML):
+
+- every word, numeric value (including separators, signs, currencies and percentages), link, image and image `alt` text the original renders must be in the migrated template, with the words in the same order, on desktop and on phones;
+- no new words, links or images may appear;
+- whether they show must be the same, including content the original shows or hides by its props (`isGift && "hidden"`), which the migration can't keep, and words CSS adds or hides (`::before` content, an ellipsis);
 - any block the visual editor can't represent (`renderToJson`) fails the check, including on each boolean variant.
 
-A template that fails isn't written (unless `--force`), and the command exits with code `2`. Code paths these props don't reach (a loop over an empty preview array, a condition on a non-boolean prop) are converted but not verified: extend `PreviewProps` to cover them. Without `--write` or `--out <dir>`, nothing is written: run it first to see the report. `--write` only replaces templates git can restore (committed, unchanged since), so commit before running it; `--allow-dirty` skips that check.
+**How it looks** (a style, where words sit, CSS the check doesn't read, a phone width other than Elements' 480px) is listed under "looks different", to fix in the editor; the command exits with `0`. With `--strict`, any difference fails a template and it isn't written (unless `--force`).
+
+Code paths these props don't reach (a loop over an empty preview array, a condition on a non-boolean prop) are converted but not verified: extend `PreviewProps` to cover them. Without `--write` or `--out <dir>`, nothing is written: run it first to see the report. `--write` only replaces templates git can restore (committed, unchanged since), so commit before running it; `--allow-dirty` skips that check. A run stopped with Ctrl-C cleans up after itself; one killed outright (`kill -9`) can leave a temporary copy next to a template (`.<name>.unlayer-migrate-<id>.tsx`), safe to delete.
 
 ## Reading the report
 
@@ -41,7 +46,7 @@ renderToPlainText(element); // the text part
 renderToJson(element); // open in the visual editor with loadDesign()
 ```
 
-`--out` refuses symlinked destinations and directories inside the output folder, and cannot replace input templates. Use `--write` to replace originals. It doesn't replace files already in the output folder that the run didn't produce either, unless you pass `--overwrite` (which still never writes a template that failed the check).
+`--out` refuses symlinked destinations and directories inside the output folder, and cannot replace input templates. Use `--write` to replace originals. It doesn't replace files already in the output folder that the run didn't produce either, unless you pass `--overwrite` (with `--strict`, it still never writes a template that failed the check).
 
 `--design` also writes each template's design JSON next to it, ready for `loadDesign()`. Text props become merge tags (`{{name}}`) where the template shows them as given; `--no-merge-tags` keeps the `PreviewProps` values. CSS, font URLs, backgrounds and all image sources retain sample values even when merge tags are enabled.
 
@@ -67,7 +72,7 @@ const editor = unlayer.createEditor({ id: "editor", displayMode: "email", fonts:
 
 From the library, `verifyConversion(...).editorFonts` and `convertReactEmail(...).editorFonts()` return the same list.
 
-The [react-email-in-editor example](../../../examples/react-email-in-editor) runs this end to end: it migrates two templates and opens them in the hosted editor, with a picker for every template that passed the check. Spacing between sections becomes padding, and a column that only holds space (around a card, beside an image) holds an invisible divider, so the editor shows the design as it looks rather than empty-column placeholders.
+The [react-email-in-editor example](../../../examples/react-email-in-editor) runs this end to end: it migrates two templates and opens them in the hosted editor, with a picker for every template it wrote. Spacing between sections becomes padding, and a column that only holds space (around a card, beside an image) holds an invisible divider, so the editor shows the design as it looks rather than empty-column placeholders.
 
 For a right-to-left design, call `unlayer.setTextDirection("rtl")` when loading it. The design keeps `body.values.textDirection`; `lang` belongs to the rendered document and is not stored in the editor's design JSON.
 

@@ -648,7 +648,7 @@ async function migrateFile(input: Input, options: Options, lib: Library, io: Io,
     const target = writing ? outputPath(input, options, io.cwd) : file;
     const code = lineEndings(target === file ? converted.code : lib.rebaseImports(converted.code, file, target), source);
     // The check runs with this CLI's packages: a React Email package the template's project lacks would pass it and crash there.
-    const missing = [...new Set([...code.matchAll(/from\s+["']((?:@react-email\/[^"'/]+|react-email))(?:\/[^"']*)?["']/g)].map((m) => m[1]))].filter((name) => !hasPackage(file, name));
+    const missing = [...new Set([...code.matchAll(/from\s+["']((?:@react-email\/[^"'/]+|react-email|react-dom))(?:\/[^"']*)?["']/g)].map((m) => m[1]))].filter((name) => !hasPackage(file, name));
     if (missing.length) return { file: name, status: "failed", reason: `the migrated template imports ${missing.join(", ")}, which this project doesn't have: install it (npm install ${missing.join(" ")})` };
     const extension = extname(file);
     // A new name each time: removing it never removes someone else's file.
@@ -1100,7 +1100,10 @@ async function collect(paths: string[], cwd: string): Promise<{ files: Input[]; 
       continue;
     }
     if ((await stat(path)).isDirectory()) {
-      for (const file of await walk(path)) await add(file, path);
+      const links: string[] = [];
+      for (const file of await walk(path, links)) await add(file, path);
+      // Listed, as a template there would otherwise be left out without a word.
+      for (const link of links) unreadable.push({ file: relative(cwd, link), status: "skipped", reason: "a symbolic link, not followed in a folder: give its target (or the link itself) to migrate it" });
     } else {
       await add(path, dirname(path));
     }
@@ -1154,12 +1157,18 @@ async function importsElements(path: string, source: string): Promise<boolean> {
   return used;
 }
 
-async function walk(dir: string): Promise<string[]> {
+/** The source files in a folder and the ones in it; symbolic links in it aren't followed, but go in `links`. */
+async function walk(dir: string, links: string[] = []): Promise<string[]> {
   const out: string[] = [];
   for (const entry of await readdir(dir, { withFileTypes: true })) {
     if (entry.name.startsWith(".") || IGNORED.has(entry.name)) continue;
     const path = join(dir, entry.name);
-    if (entry.isDirectory()) out.push(...(await walk(path)));
+    if (entry.isSymbolicLink()) {
+      // One that would be a source file or a folder of them (a link that's gone, or to anything else, isn't said).
+      const target = await stat(path).catch(() => undefined);
+      if (target?.isDirectory() || (target && SOURCE.test(entry.name))) links.push(path);
+    }
+    else if (entry.isDirectory()) out.push(...(await walk(path, links)));
     else if (SOURCE.test(entry.name) && !/\.(test|spec|stories)\.[^.]+$/.test(entry.name) && !entry.name.endsWith(".d.ts")) out.push(path);
   }
   return out;
