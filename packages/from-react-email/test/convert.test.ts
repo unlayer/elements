@@ -1152,6 +1152,24 @@ export default function Template() { return <Html><Body><Text style={styles.card
     }
   });
 
+  it("fail the check: a styles object passed to a call made for what it does (it may change it)", async () => {
+    const { result } = await bothModes(`import { Html, Body, Text } from "@react-email/components";
+const styles = { card: { color: "#ff0000" } };
+function applyTheme(s: typeof styles, dark: boolean) { if (dark) s.card.color = "#000000"; }
+export default function Template({ tone = "light" }: { tone?: string }) {
+  applyTheme(styles, tone === "dark");
+  return <Html><Body><Text style={styles.card}>Colored</Text></Body></Html>;
+}
+Template.PreviewProps = { tone: "light" };`);
+    expect(result.report.lostStyles).toEqual([expect.stringMatching(/style=\{styles\.card\}$/)]);
+    // A call whose result is used (a merge helper) leaves it as it is.
+    const merged = await bothModes(`import { Html, Body, Text } from "@react-email/components";
+const styles = { card: { color: "#ff0000" } };
+const merge = (a: object, b: object) => ({ ...a, ...b });
+export default function Template() { return <Html><Body><Text style={styles.card}>Colored {JSON.stringify(merge(styles, {}))}</Text></Body></Html>; }`);
+    expect(merged.result.code).toContain('color="#ff0000"');
+  });
+
   it("fail the check: a column's or a linked image's width computed from props", async () => {
     const { result } = await bothModes(`import { Html, Body, Section, Row, Column, Link, Img, Text } from "@react-email/components";
 export default function Template({ wide = true }: { wide?: boolean }) {
