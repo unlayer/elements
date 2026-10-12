@@ -138,12 +138,19 @@ export function escapeText(text: string, quotes?: boolean): string {
  * `escapeText`, keeping an email service's `<%name%>` tag (SendGrid's substitution tags) as written, as 0.1.22
  * did in this text: the service fills it in. `<%` can't start an element, so it adds no markup.
  */
-function escapeKeepingTags(text: string, quotes?: boolean): string {
+function escapeKeepingTags(text: string, quotes?: boolean, escape = (part: string) => escapeText(part, quotes)): string {
   return text
     .split(/(<%[\w.]+%>)/)
-    .map((part, i) => (i % 2 ? part : escapeText(part, quotes)))
+    .map((part, i) => (i % 2 ? part : escape(part)))
     .join("");
 }
+
+/**
+ * A Menu item's text in an email, which its exporter writes as HTML (0.1.22 wrote what it was given): markup escaped,
+ * an entity reference kept (`&rarr;`, `&nbsp;`), as a single quote (a Liquid filter's `default: 'you'`); a double
+ * quote escaped (the exporter also writes the text in an `aria-label`).
+ */
+const menuText = (text: string) => escapeKeepingTags(text, false, (part) => part.replace(/&(?!(?:#\d+|#x[\da-f]+|[a-z][\da-z]*);)|[<>"]/gi, (c) => ENTITIES[c]));
 
 /**
  * Flatten a JSX/ReactNode children tree to its plain text content.
@@ -522,7 +529,7 @@ export function normalizeValuesForExporter<T extends Record<string, any>>(
       ...out.menu,
       items: out.menu.items.map((item: any) => {
         if (!item) return item;
-        const next = mode === "email" && typeof item.text === "string" ? { ...item, text: escapeKeepingTags(item.text, true) } : item;
+        const next = mode === "email" && typeof item.text === "string" ? { ...item, text: menuText(item.text) } : item;
         if (next.link === undefined) return next;
         const normalized = normalizeLinkValue(next.link);
         if (normalized === undefined) return next;

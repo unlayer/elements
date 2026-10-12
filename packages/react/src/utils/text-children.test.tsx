@@ -60,6 +60,28 @@ describe("an email service's <%name%> tag in text", () => {
   });
 });
 
+describe("Menu item text in an email", () => {
+  // The email exporter writes it as HTML, as 0.1.22 wrote it as given: an entity and a Liquid filter's quotes stay
+  // as written; markup is escaped (and a double quote: it's also in an aria-label).
+  it("keeps entity references and single quotes, and escapes markup", () => {
+    const html = renderToHtml(
+      <Email><Row><Column>
+        <Menu items={[
+          { text: "Shop &rarr;", href: "https://a.example" },
+          { text: "Privacy&nbsp;Policy &#169; &#xA9;", href: "https://b.example" },
+          { text: "{{ name | default: 'you' }}", href: "https://c.example" },
+          { text: 'Tom & Jerry <b>"bold"</b> &bogus', href: "https://d.example" },
+        ]} />
+      </Column></Row></Email>
+    );
+    expect(html).toContain("Shop &rarr;");
+    expect(html).toContain("Privacy&nbsp;Policy &#169; &#xA9;");
+    expect(html).toContain("{{ name | default: 'you' }}");
+    expect(html).toContain("Tom &amp; Jerry &lt;b&gt;&quot;bold&quot;&lt;/b&gt; &amp;bogus");
+    expect(html).not.toContain("<b>");
+  });
+});
+
 describe("an email service's <%name%> tag in the preview text", () => {
   it("stays as written, for it to fill in, as in 0.1.22; markup around it is still escaped", () => {
     const html = renderToHtml(<Email previewText="Your <%subject%> receipt <b>now</b> & more"><Row><Column><Paragraph>Hi</Paragraph></Column></Row></Email>);
