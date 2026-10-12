@@ -4,7 +4,8 @@
  * by the next render (an element kept between renders may read other data).
  */
 import { escapeText } from "@unlayer-internal/shared-elements";
-import { within } from "./collect";
+import { collecting, within } from "./collect";
+import { nestedRender } from "./server-renderer";
 
 let scoped: WeakMap<object, unknown> | undefined;
 
@@ -20,7 +21,10 @@ export function scopeCache<T>(key: object, make: () => T): T {
  * collected: called inside a component of one (a block rendered to a string), it renders what it's given.
  */
 export function withRenderScope<T>(render: () => T): T {
-  return within(null, () => {
+  // Called from a component of the user's own while a template is collected (renderToJson in its useMemo): the
+  // render runs inside that one, with the other server build (see server-renderer.ts).
+  const nested = collecting() !== undefined;
+  const scope = () => {
     if (scoped) return render();
     scoped = new WeakMap();
     try {
@@ -28,7 +32,8 @@ export function withRenderScope<T>(render: () => T): T {
     } finally {
       scoped = undefined;
     }
-  });
+  };
+  return within(null, () => (nested ? nestedRender(scope) : scope()));
 }
 
 /**

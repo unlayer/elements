@@ -6,7 +6,7 @@
  */
 
 import React from "react";
-import { renderToStaticMarkup } from "react-dom/server";
+import { renderToStaticMarkup } from "./server-renderer";
 import { UNLAYER_RENDER_KEY } from "./create-component";
 
 /** The root components a design starts from. */

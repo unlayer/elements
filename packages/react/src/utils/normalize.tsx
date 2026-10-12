@@ -14,7 +14,7 @@
  * message, and the rest renders.
  */
 import React from "react";
-import { renderToStaticMarkup, renderToString } from "react-dom/server";
+import { renderToStaticMarkup, renderToString } from "./server-renderer";
 import { COLLECTING_ID, MARK, within, type Collection, type Recorded } from "./collect";
 import { guard } from "./record";
 import { callIsolated, FORWARD_REF, isAsyncComponent, isThenable, MEMO } from "./unwrap-root";

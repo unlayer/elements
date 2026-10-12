@@ -1,5 +1,5 @@
 import React from "react";
-import { renderToStaticMarkup } from "react-dom/server";
+import { renderToStaticMarkup } from "./server-renderer";
 import type { UnlayerConfig } from "@unlayer-internal/shared-elements";
 import { DEFAULT_CONFIG } from "@unlayer-internal/shared-elements";
 import { htmlToPlainText } from "@unlayer-internal/shared-elements";
