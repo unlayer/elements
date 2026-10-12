@@ -3,7 +3,7 @@ import React, { memo, useState } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { renderToHtml, renderToHtmlParts, renderToPlainText } from "./render-to-html";
 import { renderToJson } from "./render-to-json";
-import { Email, Page, Row, Column, Paragraph, Html, Button as ElementsButton } from "../index";
+import { Email, Page, Row, Column, Paragraph, Heading, Html, Button as ElementsButton } from "../index";
 
 const block = (text: string, props: Record<string, unknown> = {}) => <Row><Column><Paragraph {...props}>{text}</Paragraph></Column></Row>;
 const Header = () => block("Header");
@@ -244,6 +244,20 @@ describe("a block rendered to a string inside a component", () => {
     const html = renderToHtml(<Email>{block("Hello")}<Signature make={viaParts} /><Signature make={viaReactDom} /><Signature make={viaPlainText} /></Email>);
     for (const text of ["From parts", "From react-dom", "From plain text"]) expect(html).toContain(text);
     expect(html).not.toContain("unlayer-mark");
+  });
+
+  it("is what each block renders when react-dom gives them many ids (its own can read like the collecting render's)", () => {
+    // 85 groups of three blocks rendered by react-dom: its ids reach ones that hold "Rel" (`:Rel:`), none of them
+    // the collecting render's.
+    const items = Array.from({ length: 85 }, (_, i) => `item${i}`);
+    const markup = () => renderToStaticMarkup(<>{items.map((t) => <React.Fragment key={t}><Heading>{`H-${t}`}</Heading><Paragraph>{`P-${t}`}</Paragraph><ElementsButton href="https://example.com">{`B-${t}`}</ElementsButton></React.Fragment>)}</>);
+    // The string as markup of its own, and through an Html block after a change (quotes swapped).
+    const AsMarkup = () => <div dangerouslySetInnerHTML={{ __html: markup() }} />;
+    const Swapped = () => <Html html={markup().replace(/"/g, "'")} />;
+    for (const List of [AsMarkup, Swapped]) {
+      const html = renderToHtml(<Email><Row><Column><List /></Column></Row></Email>);
+      for (const t of items) for (const k of ["H", "P", "B"]) expect(html, List.name).toMatch(new RegExp(`${k}-${t}\\b`));
+    }
   });
 
   it("is what the block renders even when the string is changed before it's used (quotes swapped, tags filtered)", () => {

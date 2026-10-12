@@ -16,7 +16,6 @@ const CHANNEL = /^-?(?:\d+\.?\d*|\.\d+)%?$/;
  * Read in one pass, token by token (no pattern that could backtrack on a long value from data).
  */
 export function normalizeColor(value: string): string {
-  if (value.length > 200) return value;
   const text = value.trim();
   const open = text.indexOf("(");
   if (!/^rgba?$/i.test(text.slice(0, open)) || !text.endsWith(")")) return value;
@@ -33,9 +32,9 @@ export function normalizeColor(value: string): string {
   return `#${[r, g, b].map((n) => n.toString(16).padStart(2, "0")).join("")}`;
 }
 
-/** A font stack safe inside style="": family names quoted with ' instead of ". */
+/** A font stack safe inside style="": family names quoted with ' instead of " (an apostrophe in one escaped). */
 export function normalizeFontStack(value: string): string {
-  return value.replace(/"/g, "'");
+  return value.replace(/"([^"]*)"?/g, (_, name: string) => `'${name.replace(/'/g, "\\'")}'`);
 }
 
 /**

@@ -35,6 +35,11 @@ describe("normalizeFontStack", () => {
   it("quotes family names with ' so the stack fits in style=\"\"", () => {
     expect(normalizeFontStack('"Inter", "Helvetica Neue", sans-serif')).toBe("'Inter', 'Helvetica Neue', sans-serif");
   });
+
+  it("escapes an apostrophe in a name it quotes with ', so the name stays whole", () => {
+    expect(normalizeFontStack(`"O'Reilly Sans", serif`)).toBe(`'O\\'Reilly Sans', serif`);
+    expect(normalizeFontStack(`'Inter', "Brand's Font"`)).toBe(`'Inter', 'Brand\\'s Font'`);
+  });
 });
 
 describe("normalizeCssValues", () => {

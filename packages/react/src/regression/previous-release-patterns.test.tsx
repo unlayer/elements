@@ -18,7 +18,7 @@ const previousHasTheBugs = /^0\.1\./.test(previousPackage.version);
 const releases = { current, previous: previous as unknown as Lib };
 
 /** React's `useId()` values (`:R1:` in React 18, `«R1»` in 19). */
-const REACT_ID = /:R[\w-]*:|«R[\w-]*»/g;
+const REACT_ID = /:[\w-]*R[\w-]*:|«[\w-]*R[\w-]*»/g;
 
 /** What a reader sees: the body's text, tags and entities gone (React's ids as "‹id›", whatever their format). */
 function visible(html: string): string {

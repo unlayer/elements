@@ -43,11 +43,12 @@ export function within<T>(frame: Collection | null, run: () => T): T {
 export const MARK = "unlayer-mark";
 
 /**
- * The collecting render's `identifierPrefix`: React puts it in every `useId()` there, so a Row, Column or block
- * can tell that render from another one started inside it (a component rendering a block to a string with
- * react-dom), where it renders what it renders instead of a marker. Reserved: it shows in the user's own ids.
+ * The collecting render's `identifierPrefix`: React puts it at the start of every `useId()` there (after its
+ * opening `:` or `«`), so a Row, Column or block can tell that render from another one started inside it (a
+ * component rendering a block to a string with react-dom), where it renders what it renders instead of a
+ * marker. React's own ids never hold a "-", so none of them starts with it.
  */
-export const COLLECTING_ID = "Rel";
+export const COLLECTING_ID = "unlayer-collect-";
 
 /** A marker for what's recorded at `at`: its start ("o"), end ("c"), a component that failed ("f"), or a block. */
 export function marker(collection: Collection, at: number, edge?: "o" | "c" | "f"): React.ReactElement {

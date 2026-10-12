@@ -56,7 +56,7 @@ function hasComponent(children: React.ReactNode): boolean {
 function Sentinel({ record, real }: { record: () => React.ReactNode; real: () => React.ReactNode }): React.ReactNode {
   let collected = false;
   try {
-    collected = React.useId().includes(COLLECTING_ID);
+    collected = React.useId().slice(1).startsWith(COLLECTING_ID);
   } catch {
     // Not in a render React runs: what it renders.
   }
