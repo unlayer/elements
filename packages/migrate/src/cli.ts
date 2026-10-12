@@ -759,7 +759,7 @@ async function migrateFile(input: Input, options: Options, lib: Library, io: Io,
       changes: group([
         ...(report.info ?? []),
         ...(mergeTags?.used.length ? [{ reason: "text props became merge tags in the design JSON", detail: mergeTags.used.join(", ") }] : []),
-        ...(mergeTags?.kept ?? []).map((path) => ({ reason: "text prop kept as its sample value in the design JSON (the template changes or tests it)", detail: path })),
+        ...(mergeTags?.kept ?? []).map((path) => ({ reason: "text prop kept as its sample value in the design JSON (the template changes or tests it, or an image shows it)", detail: path })),
       ]),
       missingText: verification.missing,
       addedText: verification.added,

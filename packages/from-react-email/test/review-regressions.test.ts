@@ -132,6 +132,12 @@ describe("merge tags in HTML image sources", () => {
     expect(html).toContain("background-image:url('https://example.com/image.png?a=1&amp;label=&quot;A&quot;')");
     expect(html).toContain(">{{asset}}</table>");
     expect(html).toContain('href="{{asset}}"');
+    // Each image source tells which prop it shows.
+    const pictured: string[] = [];
+    replaceMarkers({ html: `<a href="${marker}">x</a>` }, [{ path: "asset", value: sample }], () => "{{asset}}", (p) => pictured.push(p.path));
+    expect(pictured).toEqual([]);
+    replaceMarkers(output, [{ path: "asset", value: sample }], () => "{{asset}}", (p) => pictured.push(p.path));
+    expect(new Set(pictured)).toEqual(new Set(["asset"]));
   });
 });
 
@@ -688,6 +694,48 @@ describe("merge tags", () => {
     const runtime = JSON.stringify((await convertReactEmail(Original)).design());
     expect(runtime).toContain("{{city}}");
     for (const path of ["name", "fullName", "title"]) expect(runtime).not.toContain(`{{${path}}}`);
+  });
+
+  it("aren't props the template pads, replaces in, or cuts longer than a sample shows", async () => {
+    const { Original, Migrated } = await templates(`import { Html, Body, Text } from "@react-email/components";
+      export default function T({ id, slug, title, city }: { id: string; slug: string; title: string; city: string }) {
+        return <Html><Body>
+          <Text>Order #{id.padStart(6, "0")}</Text>
+          <Text>Topic: {slug.replace(/-/g, " ")}</Text>
+          <Text>Re: {title.slice(0, 100)}</Text>
+          <Text>From {city}</Text>
+        </Body></Html>;
+      }
+      T.PreviewProps = { id: "1234567", slug: "news", title: "Your order", city: "Lisbon" };`);
+    const check = await verifyConversion(Original, Migrated);
+    const tagged = await mergeTagDesign(Migrated, Original.PreviewProps, check.design);
+    expect(tagged.used).toEqual(["city"]);
+    expect(tagged.kept.sort()).toEqual(["id", "slug", "title"]);
+    const runtime = JSON.stringify((await convertReactEmail(Original)).design());
+    expect(runtime).toContain("{{city}}");
+    for (const path of ["id", "slug", "title"]) expect(runtime).not.toContain(`{{${path}}}`);
+  });
+
+  it("aren't props an image shows: the text beside a QR code says the code in it", async () => {
+    const { Original, Migrated } = await templates(`import { Html, Body, Text, Img } from "@react-email/components";
+      export default function T({ code, name }: { code: string; name: string }) {
+        return <Html><Body>
+          <Img src={\`https://api.example.com/qr?data=\${code}\`} alt="Your ticket" width={120} height={120} />
+          <Text>Your code: {code}</Text>
+          <Text>Hi {name}</Text>
+        </Body></Html>;
+      }
+      T.PreviewProps = { code: "AB12CD", name: "Ada" };`);
+    const check = await verifyConversion(Original, Migrated);
+    const tagged = await mergeTagDesign(Migrated, Original.PreviewProps, check.design);
+    expect(tagged.used).toEqual(["name"]);
+    expect(tagged.kept).toEqual(["code"]);
+    for (const design of [JSON.stringify(tagged.design), JSON.stringify((await convertReactEmail(Original)).design())]) {
+      expect(design).toContain("Your code: AB12CD");
+      expect(design).toContain("qr?data=AB12CD");
+      expect(design).toContain("{{name}}");
+      expect(design).not.toContain("{{code}}");
+    }
   });
 
   it("aren't props the template compares or falls back on: as tags, 1 would read 1 items and no company an empty name", async () => {

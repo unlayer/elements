@@ -336,7 +336,7 @@ describe("merge tags (runtime mode)", () => {
     expect(runtime.html()).toContain(`https://example.com/coupon/${sample}`);
     expect(runtime.html()).not.toContain("{{code}}");
     expect(runtime.html()).toContain("{{name}}");
-    expect(runtime.report.info).toContainEqual({ reason: "text prop kept as its sample value (the template changes or tests it)", detail: "code" });
+    expect(runtime.report.info).toContainEqual({ reason: "text prop kept as its sample value (the template changes or tests it, or an image shows it)", detail: "code" });
   });
 
   const source = `${IMPORTS}
@@ -366,7 +366,7 @@ describe("merge tags (runtime mode)", () => {
       expect(html).toContain("https://example.com/logo.png");
       expect(html).toContain("PRO");
       expect(tagged.report.info).toContainEqual({ reason: "text props became merge tags", detail: "name, url" });
-      expect(tagged.report.info).toContainEqual({ reason: "text prop kept as its sample value (the template changes or tests it)", detail: "plan" });
+      expect(tagged.report.info).toContainEqual({ reason: "text prop kept as its sample value (the template changes or tests it, or an image shows it)", detail: "plan" });
       expect(tagged.report.missingText).toEqual([]);
       const plain = (await convertReactEmail(T, { mergeTags: false })).html();
       expect(plain).toContain("Hi Alex, thanks for joining.");

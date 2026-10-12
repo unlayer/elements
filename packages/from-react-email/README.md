@@ -36,7 +36,7 @@ conversion.report.addedText; // [] when no words were added
 conversion.report.styleDifferences; // [] when every word shows in the same style
 ```
 
-Text props the template shows as given become merge tags (`{{user.name}}`), which the editor keeps and email services fill in. Props the template changes or tests (a formatted date, `name.toUpperCase()`) keep their sample value, and `report.info` says which. CSS, font URLs, backgrounds and image sources (including images kept in HTML) keep sample values; text, image alt text and links can receive tags. Pass `{ mergeTags: false }` to keep every sample value. `mergeTagDesign(Migrated, props, design)` does the same for a migrated template's design JSON.
+Text props the template shows as given become merge tags (`{{user.name}}`), which the editor keeps and email services fill in. Props the template changes or tests (a formatted date, `name.toUpperCase()`, `id.padStart(6, "0")`) keep their sample value, as do props an image shows (a QR code of `code`: the text beside it says the code in the image), and `report.info` says which. CSS, font URLs, backgrounds and image sources (including images kept in HTML) keep sample values; text, image alt text and links can receive tags. Pass `{ mergeTags: false }` to keep every sample value. `mergeTagDesign(Migrated, props, design)` does the same for a migrated template's design JSON.
 
 Both modes share one mapping and one layout engine, so they convert styles the same way.
 

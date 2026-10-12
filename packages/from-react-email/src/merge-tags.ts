@@ -9,9 +9,13 @@
  * intact and, with the sample values put back, the conversion is the same:
  * a prop the template changes (`name.toUpperCase()`, a date it formats) or
  * tests keeps its sample value. It's rendered again with other values (a
- * lowercase first letter, more words, longer), which must show as given
- * too: a change a sample doesn't reveal (`name.split(" ")[0]` of "Alex",
- * `slice(0, 40)` of a short title) keeps the sample value as well.
+ * lowercase first letter, more words, punctuation, longer; a single
+ * character), which must show as given too: a change a sample doesn't
+ * reveal (`name.split(" ")[0]` of "Alex", `slice(0, 40)` of a short title,
+ * `id.padStart(6, "0")` of a long id, `slug.replace(/-/g, " ")` of one
+ * without dashes) keeps the sample value as well. So does a prop an image
+ * shows (`src={qr(code)}`): an image source keeps its sample value, and the
+ * text beside it must say the same.
  */
 
 import ts from "typescript";
@@ -42,11 +46,12 @@ export function textProps(props: Record<string, unknown>, prefix = ""): TextProp
 }
 
 /**
- * Another value for a text prop, that a change the template makes shows on: its first letter in
- * lowercase, more words, and longer than a title cut short.
+ * Other values for the `i`th text prop, that a change the template makes shows on: its first letter in lowercase,
+ * more words, the punctuation a `replace` swaps, and longer than a title cut short; and one character, shorter than
+ * what padding (`padStart(2, "0")`) pads to, its own for each prop (text is measured with each read as its sample).
  */
-function otherValue(value: string): string {
-  return `${value.charAt(0).toLowerCase()}${value.slice(1)} zQ mOrE wOrDs ${"x".repeat(48)}`;
+function otherValues(value: string, i: number): string[] {
+  return [`${value.charAt(0).toLowerCase()}${value.slice(1)} zQ mOrE-wOrDs_aNd.mArKs,tOo/ ${"x".repeat(160)}`, String.fromCharCode(0xe100 + i)];
 }
 
 /** `props` with the chosen text props replaced by markers, or by `value(i)`. */
@@ -109,14 +114,15 @@ export async function mergeTagged<T>(
     }
     if (hasBrokenMarkers(output) || !sameOutput(replaceMarkers(output, probes, (p) => p.value), base)) return undefined;
     // Shown as given: with other values in, the output is the marked one with them in place.
-    const others = probes.map((p) => otherValue(p.value));
-    let other: T;
-    try {
-      other = await render(withMarkers(props, probes, chosen, (i) => others[i]), asSamples(chosen, (i) => others[i]));
-    } catch {
-      return undefined;
+    for (const others of [0, 1].map((n) => probes.map((p, i) => otherValues(p.value, i)[n]))) {
+      let other: T;
+      try {
+        other = await render(withMarkers(props, probes, chosen, (i) => others[i]), asSamples(chosen, (i) => others[i]));
+      } catch {
+        return undefined;
+      }
+      if (!sameOutput(replaceMarkers(output, probes.map((p, i) => ({ ...p, value: others[i] })), (p) => p.value), other)) return undefined;
     }
-    if (!sameOutput(replaceMarkers(output, probes.map((p, i) => ({ ...p, value: others[i] })), (p) => p.value), other)) return undefined;
     return output;
   };
   const all = probes.map((_, i) => i);
@@ -128,8 +134,12 @@ export async function mergeTagged<T>(
     marked = chosen.length ? await attempt(chosen) : undefined;
   }
   if (!marked) return { used: [], kept: [...html, ...probes.filter(shown).map((p) => p.path)] };
+  // A prop an image shows keeps its sample value in the text too: tagged there, each recipient would read their own
+  // code under the same QR image.
+  const pictured = new Set<TextProp>();
+  replaceMarkers(marked, probes, (p) => p.value, (p) => pictured.add(p));
   const tag = (p: TextProp) => `{{${p.path}}}`;
-  const result = replaceMarkers(marked, probes, tag);
+  const result = replaceMarkers(marked, probes, (p) => (pictured.has(p) ? p.value : tag(p)));
   const text = JSON.stringify(result);
   return {
     result,
@@ -386,11 +396,15 @@ function mainFunction(file: ts.SourceFile, checker: ts.TypeChecker): ts.Signatur
   return undefined;
 }
 
-/** Replace markers only in text and links; styles and image sources keep samples. */
+/**
+ * Replace markers only in text and links; styles and image sources keep samples. `pictured` is told of each
+ * prop an image source holds (`src`, `srcset`, a `background`, CSS `url()`).
+ */
 export function replaceMarkers<T>(
   output: T,
   probes: TextProp[],
   tag: (prop: TextProp) => string,
+  pictured: (prop: TextProp) => void = () => {},
 ): T {
   type Context = "sample" | "text" | "html" | "richText";
   const escape = (value: string) =>
@@ -400,9 +414,15 @@ export function replaceMarkers<T>(
       .replace(/>/g, "&gt;")
       .replace(/"/g, "&quot;")
       .replace(/'/g, "&#39;");
-  const swap = (text: string, allowed: boolean, html = false) =>
-    text.replace(MARKER, (_, i: string) => {
+  /** Whether `offset` is in a CSS `url(…)` of `text`. */
+  const inUrl = (text: string, offset: number) => {
+    const open = text.toLowerCase().lastIndexOf("url(", offset);
+    return open >= 0 && !text.slice(open, offset).includes(")");
+  };
+  const swap = (text: string, allowed: boolean, html = false, image = false) =>
+    text.replace(MARKER, (_, i: string, offset: number) => {
       const p = probes[Number(i)];
+      if (image || inUrl(text, offset)) pictured(p);
       const value = allowed ? tag(p) : p.value;
       return html ? escape(value) : value;
     });
@@ -410,6 +430,7 @@ export function replaceMarkers<T>(
     // Source ranges preserve the markup verbatim while the parser identifies
     // text and attributes, including quoted '>' and embedded styles/images.
     const allowed: Array<{ start: number; end: number }> = [];
+    const images: Array<{ start: number; end: number }> = [];
     const visit = (
       node: DefaultTreeAdapterMap["node"],
       hidden = false,
@@ -434,6 +455,8 @@ export function replaceMarkers<T>(
               start: location.startOffset,
               end: location.endOffset,
             });
+          } else if (IMAGE_ATTRIBUTES.has(name)) {
+            images.push({ start: location.startOffset, end: location.endOffset });
           }
         }
         if ("content" in node) visit(node.content, blocked);
@@ -442,17 +465,18 @@ export function replaceMarkers<T>(
         for (const child of node.childNodes) visit(child, blocked);
     };
     visit(parseFragment(source, { sourceCodeLocationInfo: true }));
+    const within = (ranges: typeof allowed, offset: number, marker: string) =>
+      ranges.some((r) => offset >= r.start && offset + marker.length <= r.end);
     return source.replace(MARKER, (marker, i: string, offset: number) =>
       swap(
         marker,
-        allowed.some(
-          (r) => offset >= r.start && offset + marker.length <= r.end,
-        ),
+        within(allowed, offset, marker),
         true,
+        within(images, offset, marker) || inUrl(source, offset),
       ),
     );
   };
-  const walk = (value: unknown, context: Context = "sample"): unknown => {
+  const walk = (value: unknown, context: Context = "sample", image = false): unknown => {
     if (typeof value === "string") {
       if (context === "html") return html(value);
       if (context === "richText") {
@@ -462,9 +486,9 @@ export function replaceMarkers<T>(
           return swap(value, false);
         }
       }
-      return swap(value, context === "text");
+      return swap(value, context === "text", false, image && context === "sample");
     }
-    if (Array.isArray(value)) return value.map((item) => walk(item, context));
+    if (Array.isArray(value)) return value.map((item) => walk(item, context, image));
     if (value && typeof value === "object") {
       const node = value as Record<string, unknown>;
       const out: Record<string, unknown> = {};
@@ -488,7 +512,7 @@ export function replaceMarkers<T>(
                     : context === "richText"
                       ? "richText"
                       : "sample";
-        out[key] = walk(inner, field);
+        out[key] = walk(inner, field, image || IMAGE_KEYS.has(key));
       }
       return out;
     }
@@ -496,6 +520,10 @@ export function replaceMarkers<T>(
   };
   return walk(output) as T;
 }
+
+/** Attributes and design keys that hold an image's source. */
+const IMAGE_ATTRIBUTES = new Set(["src", "srcset", "background", "poster"]);
+const IMAGE_KEYS = new Set(["src", "srcSet", "srcset", "backgroundImage", "background", "poster", "image"]);
 
 function escapeAttribute(value: string): string {
   return value.replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/'/g, "&#x27;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
