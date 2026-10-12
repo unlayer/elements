@@ -47,6 +47,8 @@ function WelcomeEmail() {
 }
 ```
 
+**Try it in your browser:** the [Elements Playground](https://examples.unlayer.com/examples/elements-playground/) renders Elements code as an email, page, or document with nothing to install, and can open the result in the Unlayer builder.
+
 ## Using with AI agents (Claude, Cursor, etc.)
 
 Assembling these templates in code is something AI coding agents do well. The official **`unlayer-elements`** skill teaches them the strict structure, the canonical prop shapes, the image-sizing model, and the patterns that make generated emails actually look good:
@@ -56,6 +58,11 @@ npx skills add unlayer/unlayer-skills
 ```
 
 This installs the `unlayer-elements` skill (alongside the other Unlayer skills). Your agent then knows how to build emails, pages, and documents with these components and render them via `renderToHtml` / `renderToJson`. See [unlayer/unlayer-skills](https://github.com/unlayer/unlayer-skills).
+
+Agents can also preview Elements code without installing anything through the [Elements Playground](https://examples.unlayer.com/examples/elements-playground/):
+
+- Open `https://examples.unlayer.com/examples/elements-playground/#code=<base64url of the code>` to render a snippet. Add `&mode=email|page|document` to pick the output and `&view=preview` to hide the editor.
+- In browsers with [WebMCP](https://webmachinelearning.github.io/webmcp/), the page registers `render_elements` (code to HTML, design JSON, or plain text) and `show_elements_preview` tools.
 
 ## Task guides and runnable examples
 
