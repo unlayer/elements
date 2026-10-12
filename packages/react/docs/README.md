@@ -17,6 +17,7 @@ npm install @unlayer/react-elements react react-dom
 | Make AI-generated React content visually editable | [React to Unlayer design JSON](./visual-editing.md) | `renderToJson()` → `loadDesign()` → edited JSON and HTML |
 | Move React Email templates to Elements | [Migrate from React Email](./migrate-from-react-email.md) | `npx @unlayer/migrate`: converted templates, checked against the originals |
 | Open React Email templates in the Unlayer editor | [React Email in the editor](../../../examples/react-email-in-editor) | `npx @unlayer/migrate --design` → `loadDesign()` |
+| Try Elements or preview a snippet without installing | [Elements Playground](https://examples.unlayer.com/examples/elements-playground/) | Live email, page, or document preview, HTML and design JSON export, and the Unlayer builder |
 
 ## When to use Elements
 
@@ -32,5 +33,6 @@ Elements supplies components and renderers. Your email provider handles delivery
 - For reusable trees, use a plain synchronous factory returning the actual root, as in the [invoice example](../../../examples/content-workflows/src/invoice.tsx). Fetch data before building the tree.
 - Escape dynamic values placed into `html` props, validate link targets, and keep provider credentials on the server.
 - Read the [visual editing constraints](./visual-editing.md#constraints) before promising React-to-editor round trips. Edited JSON does not regenerate JSX.
+- To preview code without installing, open the [Elements Playground](https://examples.unlayer.com/examples/elements-playground/) with the source in the URL hash: `#code=<base64url of the code>`, optionally with `&mode=email|page|document`. The playground takes plain JSX with no imports. In browsers with WebMCP, call its `render_elements` tool to get the HTML.
 
 The [runnable example](../../../examples/content-workflows) backs these guides. The [React API reference](../README.md) covers component props; [Next.js App Router](../../../examples/nextjs-app-router) demonstrates framework integration.

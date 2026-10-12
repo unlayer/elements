@@ -87,6 +87,8 @@ function WelcomeEmail() {
 const html = renderToHtml(<WelcomeEmail />);
 ```
 
+**Try it in your browser:** the [Elements Playground](https://examples.unlayer.com/examples/elements-playground/) renders Elements code as an email, page, or document with nothing to install. Write plain JSX, export the HTML or design JSON, and open the result in the Unlayer builder.
+
 ## Email Client Compatibility Notes
 
 ### Targeted Clients
@@ -329,7 +331,7 @@ Yes. The package is MIT-licensed, makes no network calls, requires no API key or
 
 ### Is there a visual editor for Elements?
 
-Yes. Elements is fully compatible with the [Unlayer editor](https://unlayer.com), the drag-and-drop builder for emails, pages, and documents that you can embed in your own product. `renderToJson()` exports your component tree as Unlayer design JSON that loads directly into the editor, so developers can build templates in code and hand them off to non-technical teammates for visual editing. Custom Tools bridge the two as well: the same tool definition renders in the editor and in code.
+Yes. Elements is fully compatible with the [Unlayer editor](https://unlayer.com), the drag-and-drop builder for emails, pages, and documents that you can embed in your own product. `renderToJson()` exports your component tree as Unlayer design JSON that loads directly into the editor, so developers can build templates in code and hand them off to non-technical teammates for visual editing. Custom Tools bridge the two as well: the same tool definition renders in the editor and in code. To see it in action, write Elements code in the [Elements Playground](https://examples.unlayer.com/examples/elements-playground/) and switch to **Builder**.
 
 ### Can I create custom components?
 

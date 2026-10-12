@@ -33,6 +33,7 @@
     "For shared templates, pass an Email/Page/Document root, or a component that returns one, to the renderers. Your own components and Fragments inside it can return Rows, Columns and blocks.",
     "renderToHtml and renderToJson render the template once with React (hooks, Context and your own components work) and build the HTML and the design from the Rows, Columns and blocks it renders. A component that is async or suspends is left out: load data first. Raw HTML belongs in an Html block. Edited design JSON does not regenerate JSX; use editor.exportHtml for edited HTML.",
     "To move React Email templates to Elements, run `npx @unlayer/migrate <folder> --report migration.md`, read the report, then add `--write`. It keeps props, loops and conditions, checks every template against the original, and lists what differs. After converting a template by hand, check it with `npx @unlayer/migrate compare <original> <migrated>`. See packages/react/docs/migrate-from-react-email.md.",
-    "To open React Email templates in the Unlayer editor, run `npx @unlayer/migrate <folder> --out <dir> --design` and pass each `<name>.design.json` to `loadDesign()`. See examples/react-email-in-editor."
+    "To open React Email templates in the Unlayer editor, run `npx @unlayer/migrate <folder> --out <dir> --design` and pass each `<name>.design.json` to `loadDesign()`. See examples/react-email-in-editor.",
+    "To preview Elements code without installing, open https://examples.unlayer.com/examples/elements-playground/#code=<base64url of the code> (plain JSX, no imports; add &mode=email|page|document). In WebMCP browsers the page exposes a render_elements tool that returns the HTML."
   ]
 }
