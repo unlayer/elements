@@ -122,6 +122,8 @@ interface Collected {
   collection: Collection;
   /** The components left out that were said so (once: the HTML, the head and the design build from the same render). */
   told: Set<number>;
+  /** Each component's kept markup, worked out once (asking the component means calling it again). */
+  kept?: Map<number, React.ReactElement | undefined>;
 }
 
 const recorded = (c: Collected, node: { at: number }) => c.collection.recorded[node.at] as Recorded & Record<string, any>;
@@ -197,6 +199,12 @@ function markupOnly(c: Collected, nodes: Node[]): string | undefined {
  * other markup, which 0.1.22 left out (a link, a table, an image, elements side by side), is kept as it is.
  */
 function keptMarkup(c: Collected, node: Within): React.ReactElement | undefined {
+  c.kept ??= new Map();
+  if (!c.kept.has(node.at)) c.kept.set(node.at, keptMarkupOnce(c, node));
+  return c.kept.get(node.at);
+}
+
+function keptMarkupOnce(c: Collected, node: Within): React.ReactElement | undefined {
   const raw = markupOnly(c, node.children);
   if (raw === undefined) return undefined;
   const list = parts(raw);
@@ -206,12 +214,15 @@ function keptMarkup(c: Collected, node: Within): React.ReactElement | undefined 
   // One element (what's in it may not pair up as markup): React writes `dangerouslySetInnerHTML` and children
   // alike, so the component is asked which it gave (a <div> when it can't say, as most such are).
   const one = list.length === 1 || list.some((p) => "tag" in p && p.tag === "#") ? /^<([a-zA-Z][\w:-]*)\b[^>]*>([\s\S]*)<\/\1>$/.exec(raw) : null;
-  let given: boolean;
-  try {
-    const out = calledAgain(element)?.out as React.ReactElement<{ dangerouslySetInnerHTML?: unknown }> | undefined;
-    given = React.isValidElement(out) && typeof out.type === "string" && out.props.dangerouslySetInnerHTML != null;
-  } catch {
-    given = one?.[1].toLowerCase() === "div";
+  // Asked only when it matters (one element), as asking calls the component again.
+  let given = false;
+  if (one) {
+    try {
+      const out = calledAgain(element)?.out as React.ReactElement<{ dangerouslySetInnerHTML?: unknown }> | undefined;
+      given = React.isValidElement(out) && typeof out.type === "string" && out.props.dangerouslySetInnerHTML != null;
+    } catch {
+      given = one[1].toLowerCase() === "div";
+    }
   }
   const html = one && given ? one[2] : raw;
   const Rendered = () => React.createElement("div", { dangerouslySetInnerHTML: { __html: html } });
