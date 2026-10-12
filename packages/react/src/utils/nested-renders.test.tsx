@@ -7,7 +7,7 @@
 import { describe, it, expect, vi } from "vitest";
 import React, { useMemo, useState } from "react";
 import { renderToString } from "react-dom/server";
-/// <reference path="../types/react-dom-server-browser.d.ts" />
+// @ts-ignore react-dom/server.browser has no types of its own (the same API as react-dom/server).
 import { renderToString as renderToStringWithBrowserBuild } from "react-dom/server.browser";
 import { renderToHtml } from "./render-to-html";
 import { renderToJson } from "./render-to-json";
@@ -35,7 +35,7 @@ describe("a page that renders on the server", () => {
   });
 });
 
-describe("a page that renders with react-dom's browser build (react-dom/server.browser, as Elements' own render)", () => {
+describe("a page that renders with react-dom's browser build (react-dom/server.browser)", () => {
   it("can work out the template's design and HTML while it renders, and use hooks after (as 0.1.22 could)", () => {
     function EditorPage() {
       const design = useMemo(() => renderToJson(<Template />), []);
@@ -78,5 +78,34 @@ describe("a template's component", () => {
     } finally {
       error.mockRestore();
     }
+  });
+});
+
+describe("a page that renders on the server, with a template whose component works out another design", () => {
+  // Three renders: the page's (react-dom/server), Elements' (another module of react-dom's), and the component's
+  // call (none is left that isn't rendering). The component is left out, named; the page's hooks keep working.
+  it("keeps the page's hooks, and leaves that component out", () => {
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
+    try {
+      function Count() {
+        const design = renderToJson(<Template />);
+        return <div dangerouslySetInnerHTML={{ __html: `${design.body.rows.length} rows` }} />;
+      }
+      function PreviewPage() {
+        const html = useMemo(() => renderToHtml(<Email><Row><Column><Paragraph>Outer</Paragraph><Count /></Column></Row></Email>), []);
+        const [zoom] = useState(1);
+        return <pre>{`${html.includes("Outer")}, ${html.includes("1 rows")}, zoom=${zoom}`}</pre>;
+      }
+      expect(renderToString(<PreviewPage />)).toBe("<pre>true, false, zoom=1</pre>");
+      expect(error.mock.calls.some((call) => String(call[0]).includes("<Count>"))).toBe(true);
+    } finally {
+      error.mockRestore();
+    }
+  });
+});
+
+describe("an error of the template's own", () => {
+  it("is the error it throws (react-dom can render here)", () => {
+    expect(() => renderToJson(<Row />)).toThrow(/Root element must be/);
   });
 });

@@ -11,10 +11,12 @@ export default defineConfig({
   splitting: false,
   sourcemap: true,
   clean: true,
-  // The MessageChannel files around react-dom/server.browser's import stay files of their own, imported in order
-  // (see src/utils/server-renderer.ts): bundled, their code would run after it.
-  external: ['react', 'react-dom', /message-channel-(unref|restore)\.cjs$/],
-  onSuccess: 'cp src/utils/message-channel-unref.cjs src/utils/message-channel-restore.cjs dist/',
+  external: ['react', 'react-dom'],
+  // The CommonJS build can load another module of react-dom's with the `require` it's loaded with; the module build
+  // uses Node's (see src/utils/server-renderer.ts), so it has no stand-in for `require`.
+  esbuildOptions(options, { format }) {
+    options.define = { ...options.define, __UNLAYER_CJS__: String(format === 'cjs') };
+  },
   // Bundle @unlayer-internal/shared-elements into the output so consumers
   // don't need to install it separately (it's a private workspace package).
   // Its own deps (Lexical, exporters) stay external via our dependencies.

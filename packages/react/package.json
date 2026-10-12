@@ -27,10 +27,7 @@
     "landing-page",
     "nextjs"
   ],
-  "sideEffects": [
-    "./dist/message-channel-unref.cjs",
-    "./dist/message-channel-restore.cjs"
-  ],
+  "sideEffects": false,
   "peerDependencies": {
     "react": ">=18",
     "react-dom": ">=18"
