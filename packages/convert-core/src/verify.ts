@@ -96,6 +96,68 @@ function pairsOf(doc: StyledDocument): string[] {
   return out;
 }
 
+/** A link or image lost or added (`href …`, `src …`, `alt …`), with what it's on or why when it's still there elsewhere. */
+interface TargetChange {
+  item: string;
+  note?: string;
+}
+
+/**
+ * The links and images one document shows that the other doesn't, where the same destination is on other words, and
+ * images in another order: the same at any width or color scheme (a phone-only call link and text link swapped).
+ */
+function targetChanges(original: StyledDocument, converted: StyledDocument): { lost: TargetChange[]; added: TargetChange[] } {
+  const a = attributesOf(original);
+  const b = attributesOf(converted);
+  const lost: TargetChange[] = lostOccurrences(a, b).map((item) => ({ item }));
+  // Added ones as a set: a renderer may repeat a link (a button's fallback), but a new destination is new.
+  const inOriginal = new Set(a);
+  const added: TargetChange[] = [...new Set(b)].filter((item) => !inOriginal.has(item)).map((item) => ({ item }));
+  // A destination must also stay on the same link/image, even if every URL
+  // still appears elsewhere in the document.
+  const [pairsA, pairsB] = [pairsOf(original), pairsOf(converted)];
+  for (const pair of lostOccurrences(pairsA, pairsB)) {
+    const [kind, value, label] = JSON.parse(pair) as [string, string, string];
+    if (!lost.some((l) => l.item === `${kind} ${value}` && l.note === undefined)) lost.push({ item: `${kind} ${value}`, note: label });
+  }
+  // A link the original doesn't have on these words (the same URL on other words is another link). As a set:
+  // a renderer may repeat a link on the same words.
+  const originalPairs = new Set(pairsA);
+  for (const pair of new Set(pairsB.filter((p) => !originalPairs.has(p)))) {
+    const [kind, value, label] = JSON.parse(pair) as [string, string, string];
+    if (kind === "href" && !added.some((x) => x.item === `${kind} ${value}` && x.note === undefined)) added.push({ item: `${kind} ${value}`, note: label });
+  }
+  // Images in another order (two product photos swapped): the same images, but not where they were.
+  const images = (list: string[]) => list.filter((item) => item.startsWith("src "));
+  if (!lostOccurrences(images(a), images(b)).length) {
+    for (const item of outOfOrder(images(a), images(b))) {
+      lost.push({ item, note: "out of order" });
+      added.push({ item, note: "out of order" });
+    }
+  }
+  return { lost, added };
+}
+
+/** `change` as the check lists it, with where it differs (on phones, in dark mode) when it's not desktop. */
+function described(change: TargetChange, where?: string): string {
+  const notes = [change.note, where].filter((n) => n !== undefined);
+  return notes.length ? `${change.item} (${notes.join("; ")})` : change.item;
+}
+
+/** What's listed already, by link or image: one listed on desktop isn't listed again for a phone, a wider screen or dark mode. */
+interface ListedTargets {
+  lost: Set<string>;
+  added: Set<string>;
+}
+
+/** Adds the changes not listed yet to the lists, noting where they are. */
+function listTargets(changes: { lost: TargetChange[]; added: TargetChange[] }, listed: ListedTargets, missingAttributes: string[], addedAttributes: string[], where?: string): void {
+  for (const change of changes.lost) if (!listed.lost.has(change.item)) missingAttributes.push(described(change, where));
+  for (const change of changes.added) if (!listed.added.has(change.item)) addedAttributes.push(described(change, where));
+  for (const change of changes.lost) listed.lost.add(change.item);
+  for (const change of changes.added) listed.added.add(change.item);
+}
+
 /** Compare the words, links, images and text styles two HTML documents show. */
 export function compareText(originalHtml: string, convertedHtml: string): TextCheck {
   const originalDoc = new StyledDocument(originalHtml);
@@ -119,33 +181,10 @@ export function compareText(originalHtml: string, convertedHtml: string): TextCh
     added.push(...moved);
   }
   // Count visible occurrences; Outlook-only duplicates are already excluded.
-  const originalAttributeList = attributesOf(originalDoc);
-  const convertedAttributeList = attributesOf(convertedDoc);
-  const missingAttributes = lostOccurrences(originalAttributeList, convertedAttributeList);
-  // Added ones as a set: a renderer may repeat a link (a button's fallback), but a new destination is new.
-  const originalAttributes = new Set(originalAttributeList);
-  const addedAttributes = [...new Set(convertedAttributeList)].filter((item) => !originalAttributes.has(item));
-  // A destination must also stay on the same link/image, even if every URL
-  // still appears elsewhere in the document.
-  for (const item of lostOccurrences(pairsOf(originalDoc), pairsOf(convertedDoc))) {
-    const [kind, value, label] = JSON.parse(item) as [string, string, string];
-    if (!missingAttributes.includes(`${kind} ${value}`)) missingAttributes.push(`${kind} ${value} (${label})`);
-  }
-  // A link the original doesn't have on these words (the same URL on other words is another link). As a set:
-  // a renderer may repeat a link on the same words.
-  const originalPairs = new Set(pairsOf(originalDoc));
-  for (const item of new Set(pairsOf(convertedDoc).filter((pair) => !originalPairs.has(pair)))) {
-    const [kind, value, label] = JSON.parse(item) as [string, string, string];
-    if (kind === "href" && !addedAttributes.includes(`${kind} ${value}`)) addedAttributes.push(`${kind} ${value} (${label})`);
-  }
-  // Images in another order (two product photos swapped): the same images, but not where they were.
-  const images = (list: string[]) => list.filter((item) => item.startsWith("src "));
-  if (!lostOccurrences(images(originalAttributeList), images(convertedAttributeList)).length) {
-    for (const item of outOfOrder(images(originalAttributeList), images(convertedAttributeList))) {
-      missingAttributes.push(`${item} (out of order)`);
-      addedAttributes.push(`${item} (out of order)`);
-    }
-  }
+  const missingAttributes: string[] = [];
+  const addedAttributes: string[] = [];
+  const shownTargets: ListedTargets = { lost: new Set(), added: new Set() };
+  listTargets(targetChanges(originalDoc, convertedDoc), shownTargets, missingAttributes, addedAttributes);
   // Styles are compared word for word, so only when the words are the same.
   const same = !missing.length && !added.length;
   const style = same ? compareStyles(originalDoc, convertedDoc) : { differences: [], unverified: [], compared: 0, unknown: 0 };
@@ -168,15 +207,15 @@ export function compareText(originalHtml: string, convertedHtml: string): TextCh
     else phone.missing.push(word);
   }
   phone.added = [...phoneCounts].flatMap(([word, n]) => Array<string>(n).fill(word));
-  // Links and images too: one a phone shows or hides on one side only (a phone-only call link, a hero image).
-  const phoneAttributesA = attributesOf(originalPhone);
-  const phoneAttributesB = attributesOf(convertedPhone);
-  const phoneLost = lostOccurrences(phoneAttributesA, phoneAttributesB).filter((item) => !missingAttributes.some((m) => m.startsWith(item)));
-  const phoneAdded = [...new Set(phoneAttributesB)].filter((item) => !phoneAttributesA.includes(item) && !addedAttributes.some((a) => a.startsWith(item)));
+  // Links and images too: one a phone shows or hides on one side only (a phone-only call link, a hero image), or on
+  // other words there (two phone-only links swapped).
+  const phoneLost: string[] = [];
+  const phoneAdded: string[] = [];
+  listTargets(targetChanges(originalPhone, convertedPhone), { lost: new Set(shownTargets.lost), added: new Set(shownTargets.added) }, phoneLost, phoneAdded);
   const phoneWithAttributes = { ...phone, ...(phoneLost.length ? { missingAttributes: phoneLost } : {}), ...(phoneAdded.length ? { addedAttributes: phoneAdded } : {}) };
   const unverified = [...style.unverified, ...unread, ...targetDoubts(originalDoc, convertedDoc), ...phoneDoubts(originalPhone, convertedPhone, style.unverified)];
-  const wide = same ? widerDifferences(originalHtml, convertedHtml, style.differences, unverified, missingAttributes, addedAttributes) : { styles: [], unverified: [] };
-  const dark = same ? darkDifferences(originalHtml, convertedHtml, missingAttributes, addedAttributes) : [];
+  const wide = same ? widerDifferences(originalHtml, convertedHtml, style.differences, unverified, shownTargets, missingAttributes, addedAttributes) : { styles: [], unverified: [] };
+  const dark = same ? darkDifferences(originalHtml, convertedHtml, shownTargets, missingAttributes, addedAttributes) : [];
   // On phones, where the same words show: in the same styles (a phone rule's size or color), each not already listed for desktop.
   const listed = new Set(style.differences.map((d) => JSON.stringify(d)));
   const phoneStyles = same && !phoneDiffers(phoneWithAttributes)
@@ -191,7 +230,7 @@ export function compareText(originalHtml: string, convertedHtml: string): TextCh
  * the same links and images, in the same styles. Each difference names the
  * width it starts at; links and images are added to the lists given.
  */
-function widerDifferences(originalHtml: string, convertedHtml: string, desktopStyles: StyleDifference[], desktopUnverified: Unverified[], missingAttributes: string[], addedAttributes: string[]): { styles: StyleDifference[]; unverified: Unverified[] } {
+function widerDifferences(originalHtml: string, convertedHtml: string, desktopStyles: StyleDifference[], desktopUnverified: Unverified[], listed: ListedTargets, missingAttributes: string[], addedAttributes: string[]): { styles: StyleDifference[]; unverified: Unverified[] } {
   const styles: StyleDifference[] = [];
   const unverified: Unverified[] = [];
   // What the desktop width already shows isn't listed again.
@@ -205,9 +244,7 @@ function widerDifferences(originalHtml: string, convertedHtml: string, desktopSt
     const extra = lostOccurrences(b, a);
     if (lost.length) styles.push({ property: "shown", original: "shown", converted: "hidden", words: lost, width });
     if (extra.length) styles.push({ property: "shown", original: "hidden", converted: "shown", words: extra, width });
-    const [targetsA, targetsB] = [attributesOf(original), attributesOf(converted)];
-    for (const item of lostOccurrences(targetsA, targetsB)) if (!missingAttributes.some((m) => m.startsWith(item))) missingAttributes.push(`${item} (on screens ${width}px and wider)`);
-    for (const item of new Set(targetsB)) if (!targetsA.includes(item) && !addedAttributes.some((m) => m.startsWith(item))) addedAttributes.push(`${item} (on screens ${width}px and wider)`);
+    listTargets(targetChanges(original, converted), listed, missingAttributes, addedAttributes, `on screens ${width}px and wider`);
     if (lost.length || extra.length) continue;
     const check = compareStyles(original, converted);
     for (const difference of check.differences) if (!known.has(key(difference))) styles.push({ ...difference, width });
@@ -221,7 +258,7 @@ function widerDifferences(originalHtml: string, convertedHtml: string, desktopSt
  * the same links and images (a logo or text swapped for dark mode on one side only). Links and images are added to
  * the lists given.
  */
-function darkDifferences(originalHtml: string, convertedHtml: string, missingAttributes: string[], addedAttributes: string[]): StyleDifference[] {
+function darkDifferences(originalHtml: string, convertedHtml: string, listed: ListedTargets, missingAttributes: string[], addedAttributes: string[]): StyleDifference[] {
   if (![originalHtml, convertedHtml].some((html) => /prefers-color-scheme\s*:\s*dark/i.test(html))) return [];
   const original = new StyledDocument(originalHtml, { dark: true });
   const converted = new StyledDocument(convertedHtml, { dark: true });
@@ -231,9 +268,7 @@ function darkDifferences(originalHtml: string, convertedHtml: string, missingAtt
   const out: StyleDifference[] = [];
   if (lost.length) out.push({ property: "shown", original: "shown", converted: "hidden", words: lost, dark: true });
   if (extra.length) out.push({ property: "shown", original: "hidden", converted: "shown", words: extra, dark: true });
-  const [targetsA, targetsB] = [attributesOf(original), attributesOf(converted)];
-  for (const item of lostOccurrences(targetsA, targetsB)) if (!missingAttributes.some((m) => m.startsWith(item))) missingAttributes.push(`${item} (in dark mode)`);
-  for (const item of new Set(targetsB)) if (!targetsA.includes(item) && !addedAttributes.some((m) => m.startsWith(item))) addedAttributes.push(`${item} (in dark mode)`);
+  listTargets(targetChanges(original, converted), listed, missingAttributes, addedAttributes, "in dark mode");
   return out;
 }
 

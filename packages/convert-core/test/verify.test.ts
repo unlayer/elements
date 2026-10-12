@@ -144,3 +144,42 @@ describe("content the check reads beyond desktop text", () => {
     expect(check.styles).toEqual([expect.objectContaining({ property: "color", original: "#ff0000", converted: "#000000", phone: true })]);
   });
 });
+
+describe("links and images where only a phone, a wider screen or dark mode shows them", () => {
+  const page = (body: string, head = "") => `<html><head>${head}</head><body style="margin:0">${body}</body></html>`;
+  // Shown only where the condition holds, on both sides: the same words, links and images, so only where each one is tells.
+  const only = (condition: string) => `<style>.only{display:none} @media ${condition} { .only{display:block !important} }</style>`;
+  const links = (call: string, text: string) => `<p>Hello</p><div class="only"><a href="${call}">Call</a> <a href="${text}">Text</a></div>`;
+  const images = (first: [string, string], second: [string, string]) =>
+    `<p>Hello</p><div class="only"><img src="https://example.com/${first[0]}" alt="${first[1]}"><img src="https://example.com/${second[0]}" alt="${second[1]}"></div>`;
+  const conditions: Array<[string, string, (check: ReturnType<typeof compareText>) => string[]]> = [
+    ["on phones", "(max-width: 480px)", (check) => [...(check.phone.missingAttributes ?? []), ...(check.phone.addedAttributes ?? [])]],
+    ["on wider screens", "(min-width: 1200px)", (check) => [...check.missingAttributes, ...check.addedAttributes]],
+    ["in dark mode", "(prefers-color-scheme: dark)", (check) => [...check.missingAttributes, ...check.addedAttributes]],
+  ];
+
+  for (const [where, condition, listed] of conditions) {
+    it(`fails two links swapped ${where}`, () => {
+      const original = page(links("tel:+15550100", "sms:+15550199"), only(condition));
+      expect(listed(compareText(original, original))).toEqual([]);
+      const check = compareText(original, page(links("sms:+15550199", "tel:+15550100"), only(condition)));
+      expect([check.missing, check.added, check.phone.missing, check.phone.added]).toEqual([[], [], [], []]);
+      expect(listed(check)).toEqual(expect.arrayContaining([expect.stringContaining("href tel:+15550100 (Call"), expect.stringContaining("href sms:+15550199 (Text")]));
+    });
+
+    it(`fails two images swapped ${where}: under each other's text, or in another order`, () => {
+      const original = page(images(["front.png", "Front"], ["back.png", "Back"]), only(condition));
+      expect(listed(compareText(original, original))).toEqual([]);
+      const underOther = compareText(original, page(images(["back.png", "Front"], ["front.png", "Back"]), only(condition)));
+      expect(listed(underOther)).toEqual(expect.arrayContaining([expect.stringContaining("src https://example.com/front.png (Front")]));
+      const reordered = compareText(original, page(images(["back.png", "Back"], ["front.png", "Front"]), only(condition)));
+      expect(listed(reordered)).toEqual(expect.arrayContaining([expect.stringMatching(/^src https:\/\/example\.com\/(front|back)\.png \(out of order/)]));
+    });
+  }
+
+  it("lists a link once: one desktop lists isn't listed again for phones", () => {
+    const check = compareText(page('<a href="https://a.example">Shop</a>'), page('<a href="https://b.example">Shop</a>'));
+    expect(check.missingAttributes).toEqual(["href https://a.example"]);
+    expect(check.phone.missingAttributes).toBeUndefined();
+  });
+});
