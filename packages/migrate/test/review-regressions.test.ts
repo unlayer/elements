@@ -1027,6 +1027,37 @@ describe("a run that checks nothing", () => {
   });
 });
 
+describe("a phone width other than Elements'", () => {
+  const template = (width: string) => `import { Html, Head, Body, Container, Text, Button } from "@react-email/components";
+export default function T() {
+  return <Html><Head><style>{\`@media only screen and (max-width: ${width}) { .desktop-only { display: none !important; } .mobile-only { display: block !important; } }\`}</style></Head>
+    <Body style={{ backgroundColor: "#ffffff" }}><Container>
+      <Text>Hi Alex,</Text>
+      <Text className="desktop-only">Manage your subscription from the dashboard.</Text>
+      <Text className="mobile-only" style={{ display: "none" }}>Tap below to manage it in the app.</Text>
+      <Button href="https://example.com/manage" style={{ backgroundColor: "#111827", color: "#ffffff", padding: "12px 20px" }}>Manage</Button>
+    </Container></Body></Html>;
+}`;
+  const tailwind = `import { Html, Head, Body, Container, Text, Tailwind } from "@react-email/components";
+export default function T() {
+  return <Tailwind><Html><Head /><Body className="bg-white"><Container>
+    <Text className="text-base">Hi Alex,</Text>
+    <Text className="text-sm max-sm:hidden">Manage your subscription from the dashboard.</Text>
+    <Text className="text-sm hidden max-sm:block">Tap below to manage it in the app.</Text>
+  </Container></Body></Html></Tailwind>;
+}`;
+  it.each([
+    ["600px", template("600px"), /phone styles apply up to 600px, Elements' up to 480px: between 481px and 600px the migration shows the desktop version, with what shows only on desktop/],
+    ["414px", template("414px"), /phone styles apply up to 414px, Elements' up to 480px: between 415px and 480px the migration shows the phone version, with what shows only on phones/],
+    ["Tailwind's max-sm:", tailwind, /phone styles apply up to 6\d\dpx, Elements' up to 480px/],
+  ])("is listed as looking different: %s", async (_, source, said) => {
+    const dir = project({ "emails/t.tsx": source });
+    const out = io(dir);
+    expect(await main(["emails", "--out", "migrated"], out, lib), out.out + out.err).toBe(0);
+    expect(out.out).toMatch(said);
+  });
+});
+
 describe("words CSS adds or hides", () => {
   it.each([
     ["a label drawn before the text", `<Tailwind><Html><Head /><Body className="bg-white"><Container><Text className="text-sm before:content-['Sale:'] before:mr-1 before:font-bold">Everything 20% off this weekend</Text></Container></Body></Html></Tailwind>`],

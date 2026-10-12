@@ -710,6 +710,7 @@ async function migrateFile(input: Input, options: Options, lib: Library, io: Io,
     const lostLooks = (report.lostStyles ?? []).filter((style) => !lostShown.includes(style));
     const looks = [
       ...lookProblems(verification),
+      ...phoneWidths(verification.originalHtml),
       ...(lostLooks.length ? [`lost styles: ${lostLooks.join("; ")}`] : []),
       ...verification.variants.filter((v) => !v.error && !contentProblems(v).length).map((v) => `with ${v.change}: ${lookProblems(v).join("; ")}`),
     ];
@@ -810,7 +811,7 @@ async function compare(paths: string[], args: Args, io: Io, library?: Library): 
       ...(check.designWarnings.length ? check.designWarnings.map((w) => `the editor wouldn't get: ${w}`) : []),
       ...check.variants.filter((v) => v.error || contentProblems(v).length).map((v) => `with ${v.change}: ${variantProblems(v)}`),
     ];
-    const looks = [...lookProblems(check), ...check.variants.filter((v) => !v.error && !contentProblems(v).length).map((v) => `with ${v.change}: ${lookProblems(v).join("; ")}`)];
+    const looks = [...lookProblems(check), ...phoneWidths(check.originalHtml), ...check.variants.filter((v) => !v.error && !contentProblems(v).length).map((v) => `with ${v.change}: ${lookProblems(v).join("; ")}`)];
     const name = `${relative(io.cwd, migratedPath)} against ${relative(io.cwd, originalPath)}`;
     const strict = args.flag("strict");
     if (!found.length && !(strict && looks.length)) {
@@ -992,6 +993,46 @@ function contentProblems(check: CheckParts): string[] {
     ...(check.phone?.addedAttributes?.length ? [`on phones, extra links/images: ${quote(check.phone.addedAttributes)}`] : []),
     ...(check.lostShown?.length ? [`shown whatever the props, where the original shows or hides it by them: ${check.lostShown.join("; ")}`] : []),
   ];
+}
+
+/** Elements' phone settings (and what shows only on phones or only on desktop) apply at this width and under. */
+const ELEMENTS_PHONE = 480;
+
+/**
+ * The widths the original's phone styles apply under (`max-width: 600px`, Tailwind's `max-sm:`), where they aren't
+ * Elements': between the two, a reader gets the desktop version on one side and the phone one on the other. The check
+ * reads a phone at 375px and a desktop at 700px, so it doesn't compare them there: said, for the user to look at.
+ */
+function phoneWidths(html: string): string[] {
+  // Each width, and whether a rule under it shows or hides something.
+  const widths = new Map<number, boolean>();
+  const px = (n: string, unit: string) => Math.round(Number(n) * (/r?em/i.test(unit) ? 16 : 1));
+  for (const m of html.matchAll(/@media([^{]*)\{/gi)) {
+    const query = m[1].replace(/\s+/g, " ");
+    const upper =
+      /max-(?:device-)?width\s*:\s*([\d.]+)(px|r?em)/i.exec(query) ??
+      /\bwidth\s*<=?\s*([\d.]+)(px|r?em)/i.exec(query) ??
+      (/not all and/i.test(query) ? /min-width\s*:\s*([\d.]+)(px|r?em)/i.exec(query) : null);
+    if (!upper || (/min-(?:device-)?width/i.test(query) && !/not all and/i.test(query))) continue;
+    const width = px(upper[1], upper[2]);
+    if (Math.abs(width - ELEMENTS_PHONE) <= 1) continue;
+    // The block's rules, to its closing brace.
+    const from = (m.index ?? 0) + m[0].length;
+    let at = from;
+    for (let depth = 1; at < html.length && depth > 0; at++) {
+      if (html[at] === "{") depth++;
+      else if (html[at] === "}") depth--;
+    }
+    const shows = /\b(display|visibility|max-height|mso-hide)\s*:/i.test(html.slice(from, at));
+    widths.set(width, (widths.get(width) ?? false) || shows);
+  }
+  return [...widths]
+    .sort(([a], [b]) => a - b)
+    .map(([width, shows]) => {
+      const [low, high, version] = width > ELEMENTS_PHONE ? [ELEMENTS_PHONE + 1, width, "desktop"] : [width + 1, ELEMENTS_PHONE, "phone"];
+      const what = shows ? `the ${version} version, with what shows only on ${version === "phone" ? "phones" : "desktop"}` : `its ${version} styles`;
+      return `the original's phone styles apply up to ${width}px, Elements' up to ${ELEMENTS_PHONE}px: between ${low}px and ${high}px the migration shows ${what}`;
+    });
 }
 
 /** How it looks that differs: a style, where words sit, CSS the check doesn't model (or can't read). */
