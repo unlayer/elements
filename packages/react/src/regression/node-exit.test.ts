@@ -89,6 +89,45 @@ console.log(JSON.stringify({ atImport, reactDom, rendered: calls > 0 && html.inc
   }
 });
 
+describe("a template with a list written without keys (`items.map(…)`)", () => {
+  // React 19 warns about an element of such a list wherever it's rendered, on every render. 0.1.22 never rendered the
+  // template's lists, so it said nothing: the collecting render places copies of them, with the keys a list gives.
+  for (const [name, [react, reactDom]] of Object.entries(reacts)) {
+    it(`renders without React's key warning, as 0.1.22 did (${name})`, () => {
+      expect(fs.existsSync(path.join(dist, "index.cjs")), "build the package first (pnpm build)").toBe(true);
+      const dir = project(react, reactDom, "commonjs");
+      try {
+        fs.writeFileSync(
+          path.join(dir, "keys.js"),
+          `const React = require("react");
+const E = require("@unlayer/react-elements");
+const h = React.createElement;
+const items = ["Shoes", "Hat"];
+const Item = ({ t }) => h(E.Paragraph, null, t);
+const templates = [
+  h(E.Email, null, h(E.Row, null, h(E.Column, null, items.map((t) => h(E.Paragraph, null, t))))),
+  h(E.Email, null, h(E.Row, null, h(E.Column, null, items.map((t) => h(Item, { t }))))),
+  h(E.Email, null, h(E.Row, null, h(E.Column, null, items.map((t) => h("p", null, t)), h(E.Paragraph, null, "After")))),
+  h(E.Email, null, items.map((t) => h(E.Row, null, h(E.Column, null, h(E.Paragraph, null, t))))),
+  h(E.Email, null, h(E.Row, null, items.map((t) => h(E.Column, null, h(E.Paragraph, null, t))))),
+];
+// React 18 warns once, where the list is made (the template's own code, as with 0.1.22): only renders are counted.
+let warnings = 0;
+console.error = (message) => { if (/unique "key"/.test(String(message))) warnings++; };
+for (const template of templates) for (const render of [E.renderToHtml, E.renderToPlainText, E.renderToJson, E.renderToHtml]) render(template);
+console.log(JSON.stringify({ warnings }));
+`
+        );
+        const run = spawnSync(process.execPath, ["keys.js"], { cwd: dir, encoding: "utf8", timeout: 20_000 });
+        expect(run.status, run.stderr).toBe(0);
+        expect(JSON.parse(run.stdout.trim().split("\n").pop()!)).toEqual({ warnings: 0 });
+      } finally {
+        fs.rmSync(dir, { recursive: true, force: true });
+      }
+    }, 30_000);
+  }
+});
+
 describe("the built package's own requires", () => {
   // A bundler warns on a require of a path worked out when it runs (and the migration CLI can't follow one): the
   // build requires modules by name only. (The CommonJS build once wrote `import.meta.url` as `require('u' + 'rl')`.)

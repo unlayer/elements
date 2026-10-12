@@ -303,13 +303,17 @@ function markup(c: Collected, nodes: Node[], render: (element: React.ReactElemen
     .join("");
 }
 
+/** A list with keys, as React asks for one it renders (a Row or Column that fails renders its children as they are). */
+const keyed = (list: React.ReactNode[]): React.ReactNode[] =>
+  list.map((child, i) => (React.isValidElement(child) && child.key == null ? React.cloneElement(child, { key: `k${i}` }) : child));
+
 /** A recorded Row, Column or block, as the Elements component it was, with what React rendered in it. */
 function element(c: Collected, node: Extract<Node, { kind: "row" | "column" | "block" }>): React.ReactElement {
   const r = recorded(c, node);
   if (node.kind === "block") return React.createElement(r.type, resolvedProps(c, r.props));
-  if (node.kind === "column") return React.createElement(Column, { ...r.props, children: elements(c, node.children, "column") });
+  if (node.kind === "column") return React.createElement(Column, { ...r.props, children: keyed(elements(c, node.children, "column")) });
   const props = { ...r.props };
-  const children = elements(c, node.children, "row");
+  const children = keyed(elements(c, node.children, "row"));
   // A layout counts the Columns as written (a condition's place included) or as rendered (from Fragments and
   // components): either fits it. The rendered Row is then given its cells, which hold no condition's place.
   if (props.layout) {

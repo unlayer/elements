@@ -15,28 +15,37 @@ import { isAsyncComponent, isElementsType } from "./unwrap-root";
  */
 export function guard(children: React.ReactNode, collection: Collection, inContainer = false): React.ReactNode {
   return React.Children.toArray(children).map((child) => {
-    if (!React.isValidElement(child)) return child;
-    if (isElementsType(child.type)) {
-      if ((child.type as unknown as Record<symbol, unknown>)[RECORDS]) return child;
-      // A component of the user's own named Row or Column (its displayName): rendered as React renders it.
-      if (!olderContainer(child.type)) return bounded(child, collection);
-      return recordedForOlder(child, collection, inContainer);
-    }
-    // No component at all (`undefined` from a broken or circular import): React says so and the render fails, as an
-    // email missing a block shouldn't send. Only what can render gets a boundary that leaves it out.
-    if (!child.type || (typeof child.type === "object" && !("$$typeof" in child.type))) return child;
-    if (typeof child.type === "string") {
-      // Markup with a component of the user's own in it (`<div><Promo /></div>`): that component gets its own too.
-      const inside = (child.props as { children?: React.ReactNode }).children;
-      const element = inside !== undefined && hasComponent(inside) ? React.cloneElement(child, undefined, guard(inside, collection, inContainer)) : child;
-      // Markup React rejects (`<hr style="…">` as a string) throws out of the render: guarded too when it did.
-      return collection.markup ? bounded(element, collection) : element;
-    }
-    if (child.type === React.Fragment) {
-      return React.createElement(React.Fragment, { key: child.key }, guard((child.props as { children?: React.ReactNode }).children, collection, inContainer));
-    }
-    return bounded(child, collection);
+    const placed = guarded(child, collection, inContainer);
+    // The template's own element, placed in this list: a copy, with the key the list gave it. React 19 warns about an
+    // element of a list without keys (`items.map(…)`) wherever it's rendered, on every render, and 0.1.22 never
+    // rendered the template's lists: a static render has nothing to match keys for.
+    return placed === child && React.isValidElement(child) ? React.cloneElement(child) : placed;
   });
+}
+
+/** One child of `guard`'s list. */
+function guarded(child: React.ReactNode, collection: Collection, inContainer: boolean): React.ReactNode {
+  if (!React.isValidElement(child)) return child;
+  if (isElementsType(child.type)) {
+    if ((child.type as unknown as Record<symbol, unknown>)[RECORDS]) return child;
+    // A component of the user's own named Row or Column (its displayName): rendered as React renders it.
+    if (!olderContainer(child.type)) return bounded(child, collection);
+    return recordedForOlder(child, collection, inContainer);
+  }
+  // No component at all (`undefined` from a broken or circular import): React says so and the render fails, as an
+  // email missing a block shouldn't send. Only what can render gets a boundary that leaves it out.
+  if (!child.type || (typeof child.type === "object" && !("$$typeof" in child.type))) return child;
+  if (typeof child.type === "string") {
+    // Markup with a component of the user's own in it (`<div><Promo /></div>`): that component gets its own too.
+    const inside = (child.props as { children?: React.ReactNode }).children;
+    const element = inside !== undefined && hasComponent(inside) ? React.cloneElement(child, undefined, guard(inside, collection, inContainer)) : child;
+    // Markup React rejects (`<hr style="…">` as a string) throws out of the render: guarded too when it did.
+    return collection.markup ? bounded(element, collection) : element;
+  }
+  if (child.type === React.Fragment) {
+    return React.createElement(React.Fragment, { key: child.key }, guard((child.props as { children?: React.ReactNode }).children, collection, inContainer));
+  }
+  return bounded(child, collection);
 }
 
 /** `child` between markers, in a Suspense whose fallback (a marker) stands for it when it throws or suspends. */
