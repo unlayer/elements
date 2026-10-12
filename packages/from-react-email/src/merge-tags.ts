@@ -339,7 +339,9 @@ export function testedProps(source: string, asGiven: ReadonlySet<string> = new S
       const element =
         /(^|\.|\b)(_?jsxs?|_?jsxDEV|createElement)\)?$/.test(callee) ||
         (!!type && (ts.isStringLiteral(type) || /^[A-Z]/.test(type.getText().split(".").pop() ?? "")) && (!props || props.kind === ts.SyntaxKind.NullKeyword || ts.isObjectLiteralExpression(props)));
-      if (!element && !SAFE.has(callee) && !asGiven.has(callee) && !library.has(callee.split(".")[0]) && !callee.startsWith("console.")) node.arguments.forEach(passed);
+      // A hook (`useMemo(() => …, [name])`): what it's passed isn't shown (a comparison in its callback is read where it is).
+      const hook = /^use[A-Z]/.test(callee.split(".").pop() ?? "");
+      if (!element && !hook && !SAFE.has(callee) && !asGiven.has(callee) && !library.has(callee.split(".")[0]) && !callee.startsWith("console.")) node.arguments.forEach(passed);
     } else if ((ts.isJsxOpeningElement(node) || ts.isJsxSelfClosingElement(node)) && !localFunction(node.tagName as ts.Expression)) {
       // A component from elsewhere (not React Email's or Elements', nor an HTML tag): what it's passed.
       const tag = node.tagName.getText();
