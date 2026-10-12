@@ -1922,6 +1922,23 @@ function projectConfig(dir: string): string | undefined {
  * as loading a file runs its code. `fail` marks a template the check can't load
  * (one wrapped in another function), as opposed to a file that isn't one.
  */
+/**
+ * Which framework route file `path` is, if it's one: Next.js's app router files (a `page.tsx` under `app/`, a layout, an
+ * error page), its pages router (`pages/`, or `src/pages/`, beside a next.config), Remix's routes (`app/routes/`).
+ */
+function routeFile(path: string): string | undefined {
+  const parts = path.split(/[\\/]/);
+  const app = parts.lastIndexOf("app");
+  if (app >= 0 && parts[app + 1] === "routes") return "a Remix route";
+  if (app >= 0 && /^(page|layout|template|default|not-found|error|global-error|loading)\.[cm]?[jt]sx?$/.test(parts[parts.length - 1])) return "a Next.js route file";
+  for (let dir = dirname(path); dirname(dir) !== dir; dir = dirname(dir)) {
+    if (basename(dir) !== "pages") continue;
+    const roots = [dirname(dir), ...(basename(dirname(dir)) === "src" ? [dirname(dirname(dir))] : [])];
+    if (roots.some((root) => ["js", "mjs", "cjs", "ts", "mts"].some((ext) => existsSync(join(root, `next.config.${ext}`))))) return "a Next.js page";
+  }
+  return undefined;
+}
+
 async function notATemplate(path: string, source: string): Promise<{ reason: string; fail?: true } | undefined> {
   const ts = (await import("typescript")).default;
   type Node = import("typescript").Node;
@@ -1934,6 +1951,10 @@ async function notATemplate(path: string, source: string): Promise<{ reason: str
     const { line } = file.getLineAndCharacterOfPosition(broken.start);
     return { reason: `it doesn't parse (line ${line + 1}: ${ts.flattenDiagnosticMessageText(broken.messageText, " ")}): fix it, then run again`, fail: true };
   }
+  // A framework's route file is the app's own code: a page that renders an email shows it there. It's never rewritten
+  // as one, and the template it renders is migrated (the page then shows the migrated one).
+  const route = routeFile(path);
+  if (route) return skip(`${route}, not an email template: left as it is`);
   const declared = new Map<string, Node>();
   const previewed = new Set<string>();
   // React's functions by the names they're imported as (`memo as remember`, `React.memo`).

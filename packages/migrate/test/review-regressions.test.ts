@@ -1361,22 +1361,44 @@ export default function PreviewPage() { return <main className="preview"><h1>Ema
     expect(out.out).toMatch(/emails\/preview-page\.tsx: skipped \(it renders an email inside other markup/);
   });
 
-  it("doesn't end with 0 when a template is left unchecked for an app page that renders it, even as another is migrated (`migrate .`)", async () => {
+  it("doesn't end with 0 when a template is left unchecked for a preview that renders it, even as another is migrated (`migrate .`)", async () => {
     const receipt = `import { Html, Body, Text } from "@react-email/components";
 export default function Receipt() { return <Html><Body><Text>Your receipt</Text></Body></Html>; }
 Receipt.PreviewProps = {};
 `;
-    const page = `import Welcome from "../../emails/welcome";
-export default function Page() { return <main className="frame"><Welcome /></main>; }
+    const preview = `import Welcome from "../emails/welcome";
+export default function Preview() { return <main className="frame"><Welcome /></main>; }
 `;
-    const dir = project({ "emails/welcome.tsx": welcome, "emails/receipt.tsx": receipt, "app/preview/page.tsx": page });
+    const dir = project({ "emails/welcome.tsx": welcome, "emails/receipt.tsx": receipt, "previews/welcome.tsx": preview });
     const out = io(dir);
     expect(await main([".", "--write"], out, lib), out.out + out.err).toBe(1);
     expect(out.out).toMatch(/✓ emails\/receipt\.tsx/);
-    expect(out.out).toMatch(/- emails\/welcome\.tsx: skipped \(left as it is for app\/preview\/page\.tsx, which renders it and isn't migrated here/);
+    expect(out.out).toMatch(/- emails\/welcome\.tsx: skipped \(left as it is for previews\/welcome\.tsx, which renders it and isn't migrated here/);
     expect(out.err).toMatch(/Templates left as they are weren't checked/);
     expect(fs.readFileSync(path.join(dir, "emails/welcome.tsx"), "utf8")).toBe(welcome);
-    expect(fs.readFileSync(path.join(dir, "app/preview/page.tsx"), "utf8")).toBe(page);
+    expect(fs.readFileSync(path.join(dir, "previews/welcome.tsx"), "utf8")).toBe(preview);
+  });
+
+  it.each([
+    ["a Next.js app router page whose root is the template", "src/app/emails/welcome/page.tsx", "../../../emails/welcome", "<Welcome />", {}],
+    ["a Next.js app router page around it", "src/app/preview/page.tsx", "../../emails/welcome", '<main className="frame"><Welcome /></main>', {}],
+    ["a Next.js pages router page", "src/pages/preview.tsx", "../emails/welcome", "<Welcome />", { "next.config.js": "module.exports = {};\n" }],
+    ["a Remix route", "app/routes/preview.tsx", "../../src/emails/welcome", "<Welcome />", {}],
+  ])("leaves %s as it is, and migrates the template it renders (`migrate .`)", async (_kind, file, specifier, jsx, extra) => {
+    const page = `import Welcome from "${specifier}";
+// Shows the welcome email in the app.
+export default function Page() { return ${jsx}; }
+`;
+    const dir = project({ "src/emails/welcome.tsx": welcome, [file]: page, ...extra });
+    const out = io(dir);
+    expect(await main([".", "--write"], out, lib), out.out + out.err).toBe(0);
+    expect(out.out).toMatch(/✓ src\/emails\/welcome\.tsx/);
+    // It's named as a file that now renders the migrated template.
+    expect(out.out).toContain(`Still using a migrated template`);
+    expect(out.out).toContain(`  ${file} → src/emails/welcome.tsx`);
+    // The page isn't rewritten as an email (its copy of the template's markup would go stale): it renders the migrated one.
+    expect(fs.readFileSync(path.join(dir, file), "utf8")).toBe(page);
+    expect(fs.readFileSync(path.join(dir, "src/emails/welcome.tsx"), "utf8")).toContain("@unlayer/react-elements");
   });
 
   it("lists a template that requires React Email (not left out without a word)", async () => {
