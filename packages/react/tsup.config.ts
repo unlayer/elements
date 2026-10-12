@@ -16,6 +16,8 @@ export default defineConfig({
   // uses Node's (see src/utils/server-renderer.ts), so it has no stand-in for `require`.
   esbuildOptions(options, { format }) {
     options.define = { ...options.define, __UNLAYER_CJS__: String(format === 'cjs') };
+    // CommonJS has its own `require`: no module URL (otherwise written with a computed `require('u' + 'rl')`).
+    if (format === 'cjs') options.define['import.meta.url'] = 'undefined';
   },
   // Bundle @unlayer-internal/shared-elements into the output so consumers
   // don't need to install it separately (it's a private workspace package).

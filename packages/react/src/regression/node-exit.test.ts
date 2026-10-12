@@ -89,6 +89,17 @@ console.log(JSON.stringify({ atImport, reactDom, rendered: calls > 0 && html.inc
   }
 });
 
+describe("the built package's own requires", () => {
+  // A bundler warns on a require of a path worked out when it runs (and the migration CLI can't follow one): the
+  // build requires modules by name only. (The CommonJS build once wrote `import.meta.url` as `require('u' + 'rl')`.)
+  it("name the modules they load", () => {
+    for (const file of ["index.js", "index.cjs"]) {
+      const code = fs.readFileSync(path.join(dist, file), "utf8");
+      expect(code.match(/\brequire\((?!(?:"[^"]*"|'[^']*')\))[^)]*\)/g) ?? [], file).toEqual([]);
+    }
+  });
+});
+
 describe("a browser bundle that renders with react-dom/server", () => {
   // There react-dom/server is react-dom's browser build, and Elements has no other: called in a component that render
   // renders, it can't render, and says so (rendering would break the page's hooks).
