@@ -10,7 +10,7 @@
 import { describe, expect, it, vi } from "vitest";
 import React from "react";
 import { renderToHtml } from "../utils/render-to-html";
-import { Email, Page, Document, Row, Column, Paragraph, Heading, Button, Image, Menu, Social } from "../index";
+import { Email, Page, Document, Row, Column, Paragraph, Heading, Button, Image, Menu, Social, Html } from "../index";
 
 const PAYLOADS = ['"><x-pwn></x-pwn>', "'><x-pwn></x-pwn>", '" x-pwn="1', "' x-pwn='1", "</p></div></td></tr></table><x-pwn></x-pwn>"];
 
@@ -76,6 +76,19 @@ describe.each(Object.entries(ROOTS))("%s", (_, Root) => {
 
   it("the title option can't add markup", () => {
     for (const payload of PAYLOADS) expect(injected(renderToHtml(<Root>{content(payload)}</Root>, { title: payload, lang: payload })), payload).toEqual([]);
+  });
+});
+
+describe("HTML a sanitizer returned", () => {
+  // As DOMPurify on jsdom writes it: a "<" in an attribute stays as it is. Inert as given; nothing Elements does
+  // afterwards (taking out its own render markers) may move where an attribute ends.
+  const SANITIZED = '<p>Nice post!</p><img alt="<unlayer-mark" src="x"><img title="x src=//invalid.example/q onerror=alert(1) z=" src="y">';
+  it.each(Object.entries(ROOTS))("%s: stays inert", (_, Root) => {
+    const html = renderToHtml(<Root><Row><Column><Html values={{ html: SANITIZED } as never} /></Column></Row></Root>, { toSafeHtml: (value: string) => value } as never);
+    const doc = new DOMParser().parseFromString(html, "text/html");
+    const handlers = Array.from(doc.querySelectorAll("*")).flatMap((el) => Array.from(el.attributes).filter((attr) => /^on/i.test(attr.name)).map((attr) => `${el.tagName} ${attr.name}`));
+    expect(handlers).toEqual([]);
+    expect(html).toContain('alt="<unlayer-mark"');
   });
 });
 

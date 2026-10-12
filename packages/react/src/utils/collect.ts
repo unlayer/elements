@@ -50,7 +50,11 @@ export const MARK = "unlayer-mark";
  */
 export const COLLECTING_ID = "unlayer-collect-";
 
-/** A marker for what's recorded at `at`: its start ("o"), end ("c"), a component that failed ("f"), or a block. */
+/**
+ * A marker for what's recorded at `at`: its start ("o"), end ("c"), a component that failed ("f"), or a block.
+ * React writes its attributes in this order, which the patterns that find markers in HTML spell out exactly
+ * (normalize.tsx): nothing looser, as they run on HTML that holds the template's own.
+ */
 export function marker(collection: Collection, at: number, edge?: "o" | "c" | "f"): React.ReactElement {
   return React.createElement(MARK, { key: `${at}${edge ?? ""}`, "data-n": collection.nonce, "data-i": at, ...(edge ? { "data-e": edge } : {}) });
 }

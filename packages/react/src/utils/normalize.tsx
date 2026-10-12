@@ -240,20 +240,22 @@ function resolvedProps(c: Collected, props: Record<string, any>): Record<string,
       // Markers that don't pair up (part of a string): left for withoutMarkers.
     }
     out = out === props ? { ...props } : out;
-    out[key] = withoutMarkers(html);
+    out[key] = withoutMarkers(html, c.collection.nonce);
   }
   return out;
 }
 
 /**
  * A marker that got out of the collecting render (it can't, by the Sentinel: this is the net under it) is
- * taken out, and said, rather than sent in an email: what it stood for can't be told any more.
+ * taken out, and said, rather than sent in an email: what it stood for can't be told any more. Only this
+ * render's markers, whole, as React writes them: this runs on finished HTML, after `toSafeHtml`, and taking
+ * out anything else (text shaped like a marker in an attribute) could move where an attribute ends.
  */
-const LEFT_BEHIND = new RegExp(`</?${MARK}\\b[^>]*>`, "g");
-function withoutMarkers(html: string): string {
-  if (!html.includes(MARK) || !html.match(LEFT_BEHIND)) return html;
+function withoutMarkers(html: string, nonce: string): string {
+  const left = new RegExp(`<${MARK} data-n="${nonce}" data-i="\\d+"(?: data-e="[ocf]")?></${MARK}>`, "g");
+  if (!html.includes(nonce) || !html.match(left)) return html;
   console.error(`[Unlayer] an Elements block rendered inside a component left a marker behind; it's taken out, and the block it stood for is missing.`);
-  return html.replace(LEFT_BEHIND, "");
+  return html.replace(left, "");
 }
 
 /** Collected nodes as HTML: markup as it is, each row, column or block by `render`. */
@@ -323,9 +325,18 @@ function elements(c: Collected, nodes: Node[], inColumn: boolean, owner?: React.
 
 /** A render of `children` that collects them; `guarded`, a component in them that fails is left out. */
 function collected(children: React.ReactNode, guarded = true): Collected {
-  const collection: Collection = { nonce: Math.random().toString(36).slice(2, 10), recorded: [] };
+  const collection: Collection = { nonce: nonce(), recorded: [] };
   const html = within(collection, () => renderToStaticMarkup(<>{guarded ? guard(children, collection) : children}</>, { identifierPrefix: COLLECTING_ID }));
   return { nodes: parse(html, collection), collection, told: new Set() };
+}
+
+/**
+ * A collection's nonce: letters and digits, from the platform's cryptographic random numbers where there are any
+ * (Math.random's can be worked out from other values it gave), so markup a template's data holds can't name it.
+ */
+function nonce(): string {
+  const random = globalThis.crypto?.getRandomValues?.(new Uint32Array(2));
+  return random ? Array.from(random, (n) => n.toString(36)).join("") : `${Math.random().toString(36).slice(2)}${Math.random().toString(36).slice(2)}`;
 }
 
 /** `children` collected, once per render (the HTML, the head and the design ask for the same). */
@@ -338,7 +349,7 @@ const collect = (children: React.ReactNode): Collected =>
  */
 export function childrenHtml(children: React.ReactNode, place: (child: React.ReactElement) => React.ReactElement): string {
   const c = collect(children);
-  return withoutMarkers(markup(c, c.nodes, (child) => within(null, () => renderToString(place(child)))));
+  return withoutMarkers(markup(c, c.nodes, (child) => within(null, () => renderToString(place(child)))), c.collection.nonce);
 }
 
 /** Children (a root's, or a Row on its own) as Elements components only, for the head and the design. */
