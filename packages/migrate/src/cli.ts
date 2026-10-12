@@ -1896,13 +1896,31 @@ async function notATemplate(path: string, source: string): Promise<{ reason: str
     if (ts.isJsxElement(e) || ts.isJsxSelfClosingElement(e) || ts.isJsxFragment(e)) return true;
     if (ts.isIdentifier(e) && depth < 5 && locals.has(e.text)) return jsx(locals.get(e.text), depth + 1);
     if (ts.isConditionalExpression(e)) return jsx(e.whenTrue) || jsx(e.whenFalse);
-    // A call that wraps JSX (`shell(<Text>…</Text>)`): the email, made by a function of the template's own. A renderer's
-    // output (`render(<Welcome />)`, a string or a promise) isn't one.
+    // A call that wraps JSX (`shell(<Text>…</Text>)`) to a function of the file's own that returns JSX: the email. Any
+    // other call isn't read as one, as loading the file calls it: a renderer (`render(<Welcome />)`) or a sender
+    // (`resend.emails.send({ react: <Text /> })`, which would send the email).
     if (ts.isCallExpression(e)) {
-      const callee = ts.isPropertyAccessExpression(e.expression) ? e.expression.name.text : ts.isIdentifier(e.expression) ? e.expression.text : "";
-      return !/^(render|renderAsync|renderToString|renderToStaticMarkup|renderToPipeableStream|renderToReadableStream|pretty|toPlainText|plainText)$/.test(callee) && e.arguments.some((a) => containsJsxNode(a));
+      const fn = ts.isIdentifier(e.expression) ? declared.get(e.expression.text) : undefined;
+      return !!fn && ts.isFunctionLike(fn) && returnsJsx(fn as import("typescript").FunctionLikeDeclaration) && e.arguments.some((a) => containsJsxNode(a));
     }
     return ts.isBinaryExpression(e) && [ts.SyntaxKind.AmpersandAmpersandToken, ts.SyntaxKind.BarBarToken, ts.SyntaxKind.QuestionQuestionToken].includes(e.operatorToken.kind) && (jsx(e.left) || jsx(e.right));
+  };
+  /** A function whose own returns are JSX (or a choice between JSX). */
+  const returnsJsx = (fn: import("typescript").FunctionLikeDeclaration): boolean => {
+    const direct = (r: Node | undefined): boolean => {
+      while (r && (ts.isParenthesizedExpression(r) || ts.isAsExpression(r) || ts.isSatisfiesExpression(r))) r = r.expression;
+      return !!r && (ts.isJsxElement(r) || ts.isJsxSelfClosingElement(r) || ts.isJsxFragment(r) || (ts.isConditionalExpression(r) && (direct(r.whenTrue) || direct(r.whenFalse))));
+    };
+    if (!fn.body) return false;
+    if (!ts.isBlock(fn.body)) return direct(fn.body);
+    let found = false;
+    const own = (child: Node) => {
+      if (found || ts.isFunctionLike(child) || ts.isClassLike(child)) return;
+      if (ts.isReturnStatement(child) && direct(child.expression)) found = true;
+      else ts.forEachChild(child, own);
+    };
+    ts.forEachChild(fn.body, own);
+    return found;
   };
   const containsJsxNode = (n: Node): boolean => ts.isJsxElement(n) || ts.isJsxSelfClosingElement(n) || ts.isJsxFragment(n) || !!ts.forEachChild(n, (c) => (containsJsxNode(c) ? true : undefined));
   const body = (node as import("typescript").FunctionLikeDeclaration).body;

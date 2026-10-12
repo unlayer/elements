@@ -1059,6 +1059,24 @@ export default function html() { return render(<Wrapped />); }`;
     expect(out.out).toMatch(/- emails\/send\.tsx: skipped/);
   });
 
+  it("never loads a sender helper, whose call would send the email (a dry run calls the templates it loads)", async () => {
+    const dir = project({});
+    const marker = path.join(dir, "sent.txt");
+    const sender = (call: string, setup: string) => `import fs from "node:fs";
+import { Text } from "@react-email/components";
+${setup}
+export default function sendReceipt() { return ${call}; }`;
+    const send = `(options: { react: unknown }) => { fs.appendFileSync(${JSON.stringify(marker)}, "sent\\n"); return Promise.resolve(options); }`;
+    fs.mkdirSync(path.join(dir, "emails"), { recursive: true });
+    fs.writeFileSync(path.join(dir, "emails/resend.tsx"), sender(`resend.emails.send({ to: "a@example.com", react: <Text>Receipt</Text> })`, `const resend = { emails: { send: ${send} } };`));
+    fs.writeFileSync(path.join(dir, "emails/local.tsx"), sender(`sendEmail({ react: <Text>Receipt</Text> })`, `const sendEmail = ${send};`));
+    const out = io(dir);
+    await main(["emails"], out, lib);
+    expect(fs.existsSync(marker), out.out + out.err).toBe(false);
+    expect(out.out).toMatch(/- emails\/resend\.tsx: skipped/);
+    expect(out.out).toMatch(/- emails\/local\.tsx: skipped/);
+  });
+
   it("migrates a React Email template that imports an Elements type without `type`", async () => {
     const typed = `import { Html, Body, Text } from "@react-email/components";
 import { ButtonProps } from "@unlayer/react-elements";
