@@ -390,3 +390,26 @@ describe("the font shorthand", () => {
     expect(checkFails(compareText(page('<p style="font:italic bold 14px Georgia">Your order shipped</p>'), page('<p style="font-style:italic;font-weight:bold;font-size:14px;font-family:Georgia">Your order shipped</p>')))).toBe(false);
   });
 });
+
+describe("what shows, read as the browser does", () => {
+  it("applies a media query whose conditions are joined by `or` when one of them holds", () => {
+    const hidden = page('<p class="x">Hidden on phones</p>', style("@media (min-width: 1000px) or (max-width: 600px) { .x { display: none } }"));
+    const check = compareText(hidden, page("<p>Hidden on phones</p>"));
+    expect(check.phone.added).toEqual(["Hidden", "on", "phones"]);
+  });
+
+  it("hides a box scaled to nothing (`transform: scale(0)`, `scaleY(0)`, `scale: 0`)", () => {
+    for (const css of ["transform: scale(0)", "transform: translateX(4px) scaleY(0)", "scale: 0"]) {
+      const check = compareText(page('<p class="x">Hidden on phones</p>', style(`@media (max-width: 600px) { .x { ${css} } }`)), page("<p>Hidden on phones</p>"));
+      expect(check.phone.added, css).toEqual(["Hidden", "on", "phones"]);
+    }
+    // Scaled, not to nothing: shown.
+    expect(compareText(page('<p style="transform: scale(0.5)">Shown</p>'), page("<p>Shown</p>")).added).toEqual([]);
+  });
+
+  it("shows a closed <details>'s summary alone, and all of an open one", () => {
+    const closed = compareText(page("<details><summary>More</summary><p>Folded text</p>Loose words</details>"), page("<p>More</p><p>Folded text</p><p>Loose words</p>"));
+    expect(closed.added).toEqual(["Folded", "text", "Loose", "words"]);
+    expect(checkFails(compareText(page("<details open><summary>More</summary><p>Folded text</p></details>"), page("<p>More</p><p>Folded text</p>")))).toBe(false);
+  });
+});

@@ -183,6 +183,23 @@ function fontSizeAttribute(value: string | undefined): string | undefined {
   return ["x-small", "small", "medium", "large", "x-large", "xx-large", "xxx-large"][size - 1];
 }
 
+/**
+ * Whether a transform (or the `scale` property) scales a box to nothing across or down: a scale factor of 0
+ * (`scale(0)`, `scale(1, 0)`, `scaleX(0)`, `scale3d(0, 1, 1)`, `scale: 0`).
+ */
+function zeroScale(transform: string | undefined, scale: string | undefined): boolean {
+  const zero = (n: string | undefined) => n !== undefined && /^[+-]?0*(\.0*)?%?$/.test(n.trim()) && n.trim() !== "";
+  for (const [, name, args] of (transform ?? "").matchAll(/\b(scale3d|scaleX|scaleY|scale)\(([^)]*)\)/gi)) {
+    const factors = args.split(/[\s,]+/).filter(Boolean);
+    const lower = name.toLowerCase();
+    const across = lower === "scaley" ? undefined : factors[0];
+    const down = lower === "scalex" ? undefined : lower === "scaley" ? factors[0] : factors[1] ?? factors[0];
+    if (zero(across) || zero(down)) return true;
+  }
+  const parts = (scale ?? "").trim().split(/\s+/).filter(Boolean);
+  return parts.length > 0 && !/^none$/i.test(parts[0]) && (zero(parts[0]) || zero(parts[1] ?? parts[0]));
+}
+
 /** A font weight as a number, given the parent's. */
 function fontWeight(value: string, parent: number | undefined): number | undefined {
   const v = value.trim().toLowerCase();
@@ -479,7 +496,8 @@ function widthRange(feature: string, width: number): boolean | undefined {
 /** Whether a media query list applies at `width` (desktop: 700px; phones: 375px). */
 export function mediaApplies(query: string, width: number): "yes" | "no" | "unknown" {
   let any: "no" | "unknown" = "no";
-  for (const single of query.toLowerCase().split(",")) {
+  // A list (`a, b`) and conditions joined by `or` apply when one of them does.
+  for (const single of query.toLowerCase().split(",").flatMap((q) => q.split(/\)\s+or\s+\(/).map((part, i, all) => (all.length < 2 ? part : `${i ? "(" : ""}${part}${i < all.length - 1 ? ")" : ""}`)))) {
     const q = single.trim();
     if (!q) continue;
     if (/^not\b/.test(q)) {
@@ -1192,11 +1210,16 @@ export class StyledDocument {
           const v = value(p);
           return v !== undefined && (lengthPx(v) ?? 0) <= -999;
         }));
+    // Scaled to nothing across or down (`transform: scale(0)`, `scaleY(0)`, `scale: 0`).
+    const scaledAway = zeroScale(value("transform"), value("scale"));
+    // Inside a closed <details>: only its first <summary> shows.
+    const container = element.parentNode;
+    const folded = isElement(container) && container.tagName === "details" && attr(container, "open") === undefined && container.childNodes.find((n) => isElement(n) && n.tagName === "summary") !== element;
     // (A font size of 0 hides only the box's own text: a child with a size of its own shows.)
-    computed.hidden = (display !== undefined && /^none$/i.test(display)) || clipped || readerOnly || (opacity !== undefined && parseFloat(opacity) === 0);
+    computed.hidden = (display !== undefined && /^none$/i.test(display)) || clipped || readerOnly || scaledAway || folded || (opacity !== undefined && parseFloat(opacity) === 0);
     const fade = opacity === undefined ? 1 : /%\s*$/.test(opacity) ? parseFloat(opacity) / 100 : parseFloat(opacity);
     if (Number.isFinite(fade) && fade > 0 && fade < 1) computed.fade = fade;
-    const hiding = ["display", "overflow", "max-height", "height", "opacity", "position", "clip-path", "text-indent"].find((p) => unknown.has(p)) ?? (placed ? ["clip", "left", "top", "width"].find((p) => unknown.has(p)) : undefined);
+    const hiding = ["display", "overflow", "max-height", "height", "opacity", "position", "clip-path", "text-indent", "transform", "scale"].find((p) => unknown.has(p)) ?? (placed ? ["clip", "left", "top", "width"].find((p) => unknown.has(p)) : undefined);
     if (hiding) doubt("hides", causes.get(hiding));
     else if (clipUnknown) doubt("hides", `clip-path: ${clipPath}`);
     // As the word check reads tags: these don't break words unless styled as boxes; every other tag does.
@@ -1283,8 +1306,11 @@ export class StyledDocument {
         else if (style.block) flush();
         const outer = doubting;
         if (style.unknown.has("hides") && !skipInText) doubting ??= style.causes.get("hides") ?? "a rule that may hide it";
+        // A closed <details> shows its first <summary> alone (its own text too stays folded).
+        const folded = node.tagName === "details" && attr(node, "open") === undefined;
+        const summary = folded ? node.childNodes.find((n) => isElement(n) && n.tagName === "summary") : undefined;
         try {
-          for (const child of node.childNodes) visit(child, [...chain, node]);
+          for (const child of node.childNodes) if (!folded || child === summary) visit(child, [...chain, node]);
         } finally {
           doubting = outer;
         }
