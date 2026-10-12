@@ -102,9 +102,10 @@ describe("the built package's own requires", () => {
 
 describe("a browser bundle that renders with react-dom/server", () => {
   // There react-dom/server is react-dom's browser build, and Elements has no other: called in a component that render
-  // renders, it can't render, and says so (rendering would break the page's hooks).
+  // renders, it can't render, and says so (rendering would break the page's hooks). An email that render renders
+  // itself renders.
   for (const [name, [react, reactDom]] of Object.entries(reacts)) {
-    it(`gets a clear error where Elements is called in its render, and the page's hooks keep working (${name})`, () => {
+    it(`renders an email it renders, gets a clear error where Elements is called in its render, and the page's hooks keep working (${name})`, () => {
       expect(fs.existsSync(path.join(dist, "index.js")), "build the package first (pnpm build)").toBe(true);
       const dir = project(react, reactDom, "module");
       try {
@@ -112,16 +113,19 @@ describe("a browser bundle that renders with react-dom/server", () => {
           path.join(dir, "app.js"),
           `import * as E from "@unlayer/react-elements";
 import React from "react";
-import { renderToString } from "react-dom/server";
+import { renderToString, renderToStaticMarkup } from "react-dom/server";
 const h = React.createElement;
 const email = h(E.Email, null, h(E.Row, null, h(E.Column, null, h(E.Paragraph, null, "Hi there"))));
+// The email rendered with react-dom/server itself (an iframe preview, a bundled server's SSR): its body renders, as in
+// 0.1.22 (Body renders it with the module it's in).
+const direct = renderToStaticMarkup(email).includes("Hi there");
 const Page = () => {
   let design;
   try { design = E.renderToJson(email).body.rows.length + " rows"; } catch (error) { design = error.message; }
   const [open] = React.useState(false);
   return h("pre", null, design + ", open=" + open);
 };
-console.log(JSON.stringify({ html: E.renderToHtml(email).includes("Hi there"), page: renderToString(h(Page)) }));
+console.log(JSON.stringify({ html: E.renderToHtml(email).includes("Hi there"), direct, page: renderToString(h(Page)) }));
 // React 19's browser build, bundled for the app, keeps Node running (as without Elements): this is about the error.
 process.exit(0);
 `
@@ -131,6 +135,7 @@ process.exit(0);
         expect(run.status, run.stderr).toBe(0);
         const out = JSON.parse(run.stdout.trim().split("\n").pop()!);
         expect(out.html).toBe(true);
+        expect(out.direct).toBe(true);
         // (React writes the ' as &#x27;.)
         expect(out.page).toMatch(/can(&#x27;|')t run inside a react-dom\/server render it would render with.*, open=false/);
       } finally {

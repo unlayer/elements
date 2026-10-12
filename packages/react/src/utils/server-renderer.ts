@@ -102,10 +102,12 @@ const buildOf = (outer: unknown): Build | undefined => (outer === null ? undefin
  * the app's streaming render or a client one, or one of Elements' own renders, whose components call no hooks after)
  * it keeps the one it's in.
  */
-export function withBuild<T>(render: () => T): T {
-  const outer = dispatcher();
+export function withBuild<T>(render: () => T, own = false): T {
+  const outer = own ? null : dispatcher();
   let build = current();
-  const theirs = using.length === 0 || collecting() !== undefined ? buildOf(outer) : undefined;
+  // Elements' own component (Body, rendered by the app's react-dom/server), which calls no hooks after: the module
+  // it's in, as in 0.1.22 (a browser bundle has no other).
+  const theirs = !own && (using.length === 0 || collecting() !== undefined) ? buildOf(outer) : undefined;
   if (theirs) {
     const free = (b: Build) => !same(b, theirs) && !using.some((u) => same(u, b));
     const other = free(defaultBuild) ? defaultBuild : secondBuild(outer);

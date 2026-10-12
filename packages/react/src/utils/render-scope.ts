@@ -20,7 +20,7 @@ export function scopeCache<T>(key: object, make: () => T): T {
  * Runs one render with its own scope (a render inside another shares it), apart from a template being
  * collected: called inside a component of one (a block rendered to a string), it renders what it's given.
  */
-export function withRenderScope<T>(render: () => T): T {
+export function withRenderScope<T>(render: () => T, own = false): T {
   // Called in a render (a component of the user's own calling renderToJson in its useMemo, while Elements or the app
   // renders it), it renders with a server build that isn't rendering (see server-renderer.ts).
   const scope = () => {
@@ -33,7 +33,8 @@ export function withRenderScope<T>(render: () => T): T {
     }
   };
   // The build is chosen first: whether a template is being collected tells who calls it.
-  return withBuild(() => within(null, scope));
+  // `own`: from Elements' own component, which calls no hooks after (see withBuild).
+  return withBuild(() => within(null, scope), own);
 }
 
 /**

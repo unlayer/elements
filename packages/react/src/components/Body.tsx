@@ -192,7 +192,7 @@ const Body: React.FC<BodyProps> = (props) => {
       innerHTML = withRenderScope(() => {
         // One React render collects the rows and blocks; each is then rendered with Body's settings.
         return childrenHtml(children, (child) => React.cloneElement(child as React.ReactElement<any>, { _config, bodyValues: values }));
-      });
+      }, true);
     } catch (error) {
       console.error("Body: Failed to render children:", error);
       innerHTML = "";
