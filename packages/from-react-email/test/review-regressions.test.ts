@@ -141,6 +141,22 @@ describe("merge tags in HTML image sources", () => {
   });
 });
 
+describe("an image whose src is false (`vip && badgeUrl`)", () => {
+  it("shows no image, as React writes no src: not Elements' placeholder", async () => {
+    const { Migrated, conversion } = await templates(`${imports}
+      export default function T({ tier }: { tier: { vip: boolean; badgeUrl?: string } }) {
+        return <Html><Body><Img src={tier.vip && tier.badgeUrl} alt="" width="64" height="64" /><Text>Hi there</Text></Body></Html>;
+      }
+      T.PreviewProps = { tier: { vip: true, badgeUrl: "https://acme.com/gold.png" } };`);
+    expect(conversion.code).toContain('(tier.vip && tier.badgeUrl) || ""');
+    const { renderToHtml } = await import("@unlayer/react-elements");
+    const html = renderToHtml(Migrated({ tier: { vip: false, badgeUrl: "https://acme.com/gold.png" } }));
+    expect(html).toContain("Hi there");
+    expect(html).not.toMatch(/<img/);
+    expect(renderToHtml(Migrated({ tier: { vip: true, badgeUrl: "https://acme.com/gold.png" } }))).toContain('src="https://acme.com/gold.png"');
+  });
+});
+
 describe("buttons", () => {
   const html = async (Template: any) => {
     const { renderToHtml } = await import("@unlayer/react-elements");

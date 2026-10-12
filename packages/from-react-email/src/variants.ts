@@ -118,6 +118,14 @@ function isStateVariant(token: string): boolean {
   return /^(hover|focus|focus-within|focus-visible|active|visited|target|first|last|only|odd|even|empty|disabled|enabled|checked|required|invalid|placeholder|before|after|selection|marker|dark|print|motion-safe|motion-reduce|rtl|ltr|open|group(-[\w]+)?|peer(-[\w]+)?|aria-[\w-]+|data-[\w-]+|supports-[\w-]+):/.test(token);
 }
 
+/**
+ * A class that hides under a variant that can apply on a screen (`dark:hidden`, `sm:hidden`), not hover and the
+ * like (a static email never has them) or print: one branch with it shows less there than the other.
+ */
+function hidesUnderVariant(token: string): boolean {
+  return /^(?!.*(?:^|:)(?:hover|focus|focus-within|focus-visible|active|visited|disabled|group-[\w-]+|peer-[\w-]+|print):)(?:[\w-]+:)+!?(hidden|invisible|sr-only|collapse|opacity-0|max-h-0|h-0)$/.test(token);
+}
+
 function variantClasses(classes: string): string[] {
   return classes.split(/\s+/).filter((t) => t && isVariant(t));
 }
@@ -176,8 +184,12 @@ function rewrite(file: ts.SourceFile, node: ts.JsxElement | ts.JsxSelfClosingEle
   const inFalse = variantClasses(variants.whenFalse);
   // Phone classes other than spacing that one branch has (`hide ? "mobile:hidden" : ""`)
   // change what phones show: each branch keeps its own, so split.
-  const phoneOnlyIn = [...inTrue.filter((t) => !inFalse.includes(t)), ...inFalse.filter((t) => !inTrue.includes(t))].some((t) => !isSpacing(t) && !isStateVariant(t));
-  if (!phoneOnlyIn && a.length === b.length && a.every((t, i) => t === b[i])) {
+  const oneSided = [...inTrue.filter((t) => !inFalse.includes(t)), ...inFalse.filter((t) => !inTrue.includes(t))];
+  const phoneOnlyIn = oneSided.some((t) => !isSpacing(t) && !isStateVariant(t));
+  // A class that hides under a variant (`plan === "free" ? "dark:hidden" : ""`): kept apart too, so the branch
+  // that has it is converted and says what it can't keep (merged, it'd be gone without a word).
+  const hidingOnlyIn = oneSided.some(hidesUnderVariant);
+  if (!phoneOnlyIn && !hidingOnlyIn && a.length === b.length && a.every((t, i) => t === b[i])) {
     const shared = inTrue.filter((t) => inFalse.includes(t));
     // Spacing only one branch has (`isLast ? "" : " mobile:mb-8"`): kept, since a gap too many
     // reads closer to the original than every gap missing. Not when the other branch sets it too.

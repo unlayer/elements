@@ -91,7 +91,13 @@ const SKIP = new Set(["Head", "Font", "Preview", "head", "style", "meta", "title
  * A dropped style that can show or hide content: a property that does (`display`, `visibility`, `opacity`,
  * `max-height`, `overflow`, Outlook's `mso-hide`) or a class that does (`hidden`, `sm:hidden`, `invisible`, `sr-only`, …).
  */
-const SHOWS = /\b(display|visibility|opacity|max-?height|overflow|mso-?hide)\b|(^|["'`\s:])(hidden|invisible|sr-only|collapse|opacity-0|max-h-0|h-0|text-\[0px\])(?=$|["'`\s])/i;
+const SHOWS = /\b(display|visibility|opacity|max-?height|overflow|mso-?hide|text-?indent|clip-?path)\b|-\d{4,}px|font-?size["'`]?\s*:\s*["'`]?0(px)?(?![\d.])|(^|["'`\s:{(,])(hidden|invisible|sr-only|collapse|opacity-0|max-h-0|h-0|text-\[0px\])(?=$|["'`\s:,})])/i;
+/**
+ * A Tailwind class that hides, under a variant that can apply on a screen (`dark:hidden`, `sm:hidden`): one the
+ * codemod can't keep shows what the original hides there. Not hover and the like (a static email never has them),
+ * nor print.
+ */
+const HIDING_VARIANT = /^(?!.*(?:^|[:_])(?:hover|focus|focus-within|focus-visible|active|visited|disabled|group-[\w-]+|peer-[\w-]+|print)[:_])(?:[a-z0-9-]+[:_])+!?(hidden|invisible|sr-only|collapse|opacity-0|max-h-0|h-0)$/;
 const INLINE_TAGS = new Set(["span", "strong", "b", "em", "i", "br", "small", "u", "code", "sup", "sub"]);
 
 export interface CodemodOptions {
@@ -123,7 +129,7 @@ export async function convertSource(source: string, options: CodemodOptions = {}
   const constants = inlineLocalJsx(components.source, fileName);
   const variants = splitConditionalClasses(constants.source, fileName);
   const file = ts.createSourceFile(fileName, variants.source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
-  const converter = new Converter(file, options.tailwindConfig, /\.(?:jsx?|mjs|cjs)$/i.test(fileName), options.tailwind);
+  const converter = new Converter(file, options.tailwindConfig, /\.(?:jsx?|mjs|cjs)$/i.test(fileName), options.tailwind, options.loadModule);
   return converter.run({ components: components.inlined, constants: constants.inlined, variants: variants.split, copied: components.copied, original: named });
 }
 
@@ -232,15 +238,17 @@ class Converter {
     private readonly tailwindConfig?: Record<string, unknown>,
     private readonly javascript = false,
     private readonly tailwindComponent?: unknown,
+    private readonly loadModule?: ModuleLoader,
   ) {
     const names = new Set(file.getFullText().match(/\b[A-Za-z_$][\w$]*/g));
     while (names.has(this.plainTextName)) this.plainTextName = `_${this.plainTextName}`;
     for (const key of Object.keys(this.helper) as Array<keyof typeof this.helper>) while (names.has(this.helper[key])) this.helper[key] = `_${this.helper[key]}`;
     // Bind this source without resolving dependencies. The checker still
     // distinguishes module constants from parameters, locals and loop bindings.
-    const options: ts.CompilerOptions = { noLib: true, noResolve: true };
+    // Only this file: no @types packages either (handed this file too, the program would rename it after them).
+    const options: ts.CompilerOptions = { noLib: true, noResolve: true, types: [] };
     const host = ts.createCompilerHost(options);
-    host.getSourceFile = () => file;
+    host.getSourceFile = (name) => (name === file.fileName ? file : undefined);
     this.checker = ts.createProgram([file.fileName], options, host).getTypeChecker();
   }
 
@@ -454,7 +462,13 @@ class Converter {
     if (!usesTailwind) return NO_CLASSES;
     const resolved = await resolveTailwind(classes, this.tailwindConfig ?? config, this.tailwindComponent);
     for (const [list, rest] of resolved.leftover) {
-      for (const cls of rest) if (![...(classOwners.get(list) ?? [""])].every(name => handledPhoneClass(cls, resolved.phone, name))) this.report.note("tailwind class not inlined", cls);
+      for (const cls of rest) {
+        if ([...(classOwners.get(list) ?? [""])].every((name) => handledPhoneClass(cls, resolved.phone, name))) continue;
+        this.report.note("tailwind class not inlined", cls);
+        // In any class list, also one the preview props don't pick (`plan === "free" ? "dark:hidden" : …`), which the
+        // check doesn't see: what it hides shows in the migration.
+        if (HIDING_VARIANT.test(cls)) this.report.lostStyle(`className "${list}": ${cls}, which the migration doesn't keep`, true);
+      }
     }
     return resolved;
   }
@@ -746,22 +760,50 @@ class Converter {
     if (!this.droppedStyles.some((d) => d.from === part.getStart())) this.droppedStyles.push({ from: part.getStart(), to: part.getEnd(), detail: `line ${line}: ${text.replace(/\s+/g, " ").slice(0, 80)}`, text: read });
   }
 
-  /** The values the names in `node` stand for (constants, through each other, a few deep), as their text. */
+  /**
+   * The values the names in `node` stand for, as their text: constants and functions of the file (through each
+   * other, a few deep: `trackingStyle(status)`, whose body gives `{ display: "none" }`), and what another module
+   * exports under an imported name (`offscreen` from `./theme`).
+   */
   private namedValues(node: ts.Node, depth = 0, seen = new Set<ts.Node>()): string[] {
     const out: string[] = [];
     const visit = (n: ts.Node) => {
-      if (ts.isIdentifier(n)) {
-        const decl = this.checker.getSymbolAtLocation(n)?.valueDeclaration;
-        const init = decl && ts.isVariableDeclaration(decl) ? decl.initializer : undefined;
-        if (init && !seen.has(init) && depth < 4) {
-          seen.add(init);
-          out.push(init.getText(), ...this.namedValues(init, depth + 1, seen));
+      if (ts.isIdentifier(n) && depth < 4) {
+        const symbol = this.checker.getSymbolAtLocation(n);
+        const decl = symbol?.valueDeclaration ?? symbol?.declarations?.[0];
+        const value = decl && ts.isVariableDeclaration(decl) ? decl.initializer : decl && ts.isFunctionDeclaration(decl) ? decl : undefined;
+        if (value && !seen.has(value)) {
+          seen.add(value);
+          out.push(value.getText(), ...this.namedValues(value, depth + 1, seen));
+        } else if (decl && (ts.isImportSpecifier(decl) || ts.isImportClause(decl)) && !seen.has(decl)) {
+          seen.add(decl);
+          const text = this.importedValue(decl);
+          if (text !== undefined) out.push(text);
         }
       }
       ts.forEachChild(n, visit);
     };
     visit(node);
     return out;
+  }
+
+  /** What another module exports under a name this file imports, as its text (undefined when it can't be read). */
+  private importedValue(decl: ts.ImportSpecifier | ts.ImportClause): string | undefined {
+    const declaration = ts.isImportClause(decl) ? decl.parent : decl.parent.parent.parent;
+    if (!ts.isStringLiteral(declaration.moduleSpecifier) || !this.loadModule) return undefined;
+    const loaded = this.loadModule(declaration.moduleSpecifier.text, this.file.fileName);
+    if (!loaded) return undefined;
+    const module = ts.createSourceFile(loaded.fileName, loaded.source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
+    const name = ts.isImportClause(decl) ? "default" : (decl.propertyName ?? decl.name).text;
+    for (const statement of module.statements) {
+      if (name === "default" && ts.isExportAssignment(statement)) return statement.expression.getText(module);
+      if (ts.isFunctionDeclaration(statement) && (statement.name?.text === name || (name === "default" && statement.modifiers?.some((m) => m.kind === ts.SyntaxKind.DefaultKeyword)))) return statement.getText(module);
+      if (ts.isVariableStatement(statement)) {
+        for (const d of statement.declarationList.declarations) if (ts.isIdentifier(d.name) && d.name.text === name && d.initializer) return d.initializer.getText(module);
+      }
+    }
+    // Passed on from somewhere else (`export { offscreen } from "./styles"`): can't be told here, so it may hide.
+    return "display";
   }
 
   /** Values changed after they're declared (`theme.color = …`, `items.push(…)`), by symbol. */

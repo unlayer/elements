@@ -388,13 +388,15 @@ export function headingMarginProps(props: Record<string, any>): Style {
  * nothing then, so the migration writes `?? ""`: Elements would show its own default ("Heading", "Button",
  * a placeholder image).
  */
-export function orEmpty<T>(value: T): T | Expr {
+export function orEmpty<T>(value: T, falsy = false): T | Expr {
   if (!isExpr(value)) return value;
   const code = value.$expr.trim();
   // Only code that can give nothing: `?? ""` after a value that never does (a string, a sum, a choice
   // between strings) doesn't compile (TypeScript's TS2869).
   if (!mayBeNullish(code)) return value;
-  return expr(`${/^[\w$]+(\.[\w$]+)*$/.test(code) ? code : `(${code})`} ?? ""`);
+  // `falsy`: false is nothing too (an image's `src={vip && badgeUrl}`: React writes no src, so no image shows),
+  // where `?? ""` would hand Elements `false` and it'd show its placeholder.
+  return expr(`${/^[\w$]+(\.[\w$]+)*$/.test(code) ? code : `(${code})`} ${falsy ? "||" : "??"} ""`);
 }
 
 /**
@@ -492,7 +494,7 @@ export function imageBlock(
   if (height) ctx.report.note("image height not kept (the image keeps its file's aspect ratio)", `${width ? `${width}×` : ""}${height}px`);
   noteUnconverted(style, ctx, "image");
   const src = isExpr(attrs.src)
-    ? orEmpty(attrs.src)
+    ? orEmpty(attrs.src, true)
     : { url: String(attrs.src ?? ""), ...(width ? { width } : {}), ...(height ? { height } : {}) };
   return {
     node: el("Image", {

@@ -1125,7 +1125,12 @@ describe("content shown or hidden by props", () => {
   // The preview props show it; other props hide it. The migration can't keep the condition, so it shows it to everyone.
   const template = (name: string, section: string, props: string) => `import { Html, Head, Body, Container, Section, Text, Link, Tailwind } from "@react-email/components";
 const cn = (...classes: Array<string | false | undefined>) => classes.filter(Boolean).join(" ");
+// clsx's object form (\`{ hidden: isGift }\`).
+const cx = (...inputs: Array<string | Record<string, unknown> | undefined>) => inputs.flatMap((i) => (typeof i === "string" ? [i] : i ? Object.keys(i).filter((k) => i[k]) : [])).join(" ");
 const hiddenStyle = { display: "none" };
+function upsellStyle(hide?: boolean) {
+  return hide ? { display: "none" } : { padding: "8px" };
+}
 export default function ${name}({ name, isGift, hideUpsell = false, plan }: { name: string; isGift?: boolean; hideUpsell?: boolean; plan?: string }) {
   return <Html><Head /><Tailwind><Body className="bg-white font-sans"><Container>
     <Text>Hi {name}, your order has shipped.</Text>
@@ -1141,12 +1146,34 @@ ${name}.PreviewProps = ${props};`;
     ["a style", `<Section style={{ display: hideUpsell ? "none" : "block" }}>`],
     ["a list item's style", `{[{ name: "total", hidden: isGift }].map((item) => <Section key={item.name} style={{ display: item.hidden ? "none" : "block" }}>`],
     ["a style constant picked by a prop", `<Section style={isGift ? hiddenStyle : undefined}>`],
+    ["a class list's object (clsx)", `<Section className={cx("p-4", { hidden: isGift })}>`],
+    ["a style a function of the file gives", `<Section style={upsellStyle(hideUpsell)}>`],
   ])("in %s, fails the template (its content differs), and writes it", async (_, section) => {
     const dir = project({ "emails/shipped.tsx": template("Shipped", section, `{ name: "Ada" }`) });
     const out = io(dir);
     expect(await main(["emails", "--out", "migrated"], out, lib), out.out + out.err).toBe(2);
     expect(out.out).toMatch(/✗ emails\/shipped\.tsx: written, but its content differs \(shown whatever the props, where the original shows or hides it by them: line \d+/);
     expect(fs.existsSync(path.join(dir, "migrated/shipped.tsx"))).toBe(true);
+  });
+
+  it("in a style imported from another file, fails the template", async () => {
+    const dir = project({
+      "emails/theme.ts": `export const text = { fontSize: "14px" };\nexport const offscreen = { display: "none" };\n`,
+      "emails/shipped.tsx": template("Shipped", `<Section style={isGift ? offscreen : text}>`, `{ name: "Ada" }`).replace('const cn =', 'import { offscreen, text } from "./theme";\nconst cn ='),
+    });
+    const out = io(dir);
+    expect(await main(["emails", "--out", "migrated"], out, lib), out.out + out.err).toBe(2);
+    expect(out.out).toMatch(/✗ emails\/shipped\.tsx: written, but its content differs \(shown whatever the props, where the original shows or hides it by them: line \d+: style=\{isGift \? offscreen : text\}/);
+  });
+
+  it.each([
+    ["dark mode", `<Section className={plan === "free" ? "p-4 dark:hidden" : "p-4"}>`, "dark_hidden"],
+    ["wider screens", `<Section className={plan === "app" ? "sm:hidden" : undefined}>`, "sm_hidden"],
+  ])("in a Tailwind class that hides in %s, in a class list the preview props don't pick, fails the template", async (_, section, cls) => {
+    const dir = project({ "emails/shipped.tsx": template("Shipped", section, `{ name: "Ada", plan: "pro" }`) });
+    const out = io(dir);
+    expect(await main(["emails", "--out", "migrated"], out, lib), out.out + out.err).toBe(2);
+    expect(out.out).toContain(`${cls}, which the migration doesn't keep`);
   });
 
   it("passes a class chosen by a comparison: the migration keeps the condition (an element for each class list)", async () => {
