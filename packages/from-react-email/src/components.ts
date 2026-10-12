@@ -482,6 +482,7 @@ function substitute(usage: ts.JsxElement | ts.JsxSelfClosingElement, component: 
     if (ts.isIdentifier(e) && local.has(e.text) && isValueReference(e)) {
       const text = local.get(e.text)!().trim();
       if (/^"(?:[^"\\]|\\.)*"$/.test(text) || /^-?\d+(\.\d+)?$/.test(text) || /^(true|false|null)$/.test(text)) return { value: JSON.parse(text) };
+      if (text === "undefined") return { value: undefined };
       return undefined;
     }
     if (ts.isStringLiteral(e) || ts.isNoSubstitutionTemplateLiteral(e)) return { value: e.text };
@@ -507,6 +508,32 @@ function substitute(usage: ts.JsxElement | ts.JsxSelfClosingElement, component: 
     return String(negated ? !equal : equal);
   }
 
+  /**
+   * A condition on a prop given as a literal (or left out), written as what it gives: `{note && <Text>…}` with a
+   * note passed, or `{url && …}` with none, would be `{"…" && …}` and `{undefined && …}`, which TypeScript rejects
+   * as always truthy or always falsy (TS2872, TS2873). Undefined when the prop's value isn't a literal.
+   */
+  function foldedCondition(n: ts.Node, childrenInPlace: boolean): string | undefined {
+    const tested = ts.isBinaryExpression(n) ? n.left : ts.isConditionalExpression(n) ? n.condition : ts.isPrefixUnaryExpression(n) && n.operator === ts.SyntaxKind.ExclamationToken ? n.operand : undefined;
+    if (!tested || !ts.isIdentifier(unwrap(tested)) || !local.has((unwrap(tested) as ts.Identifier).text)) return undefined;
+    const literal = literalValue(tested);
+    if (!literal) return undefined;
+    const value = literal.value;
+    const written = `(${value === undefined ? "undefined" : JSON.stringify(value)})`;
+    if (ts.isPrefixUnaryExpression(n)) return String(!value);
+    if (ts.isConditionalExpression(n)) return `(${rewrite(value ? n.whenTrue : n.whenFalse, childrenInPlace)})`;
+    if (!ts.isBinaryExpression(n)) return undefined;
+    switch (n.operatorToken.kind) {
+      case ts.SyntaxKind.AmpersandAmpersandToken:
+        return value ? `(${rewrite(n.right, childrenInPlace)})` : written;
+      case ts.SyntaxKind.BarBarToken:
+        return value ? written : `(${rewrite(n.right, childrenInPlace)})`;
+      case ts.SyntaxKind.QuestionQuestionToken:
+        return value === undefined || value === null ? `(${rewrite(n.right, childrenInPlace)})` : written;
+    }
+    return undefined;
+  }
+
   /** `node`'s text with props and consts replaced. */
   function rewrite(node: ts.Node, childrenInPlace = false): string {
     const start = node.getStart();
@@ -527,7 +554,7 @@ function substitute(usage: ts.JsxElement | ts.JsxSelfClosingElement, component: 
       }
       if (ts.isIdentifier(n) && component.propsObject === n.text && isValueReference(n)) unknownProps = true;
       // `variant === "warning"` with "info" passed: written as its result, as `"info" === "warning"` doesn't type-check.
-      const folded = ts.isBinaryExpression(n) ? foldedComparison(n) : undefined;
+      const folded = (ts.isBinaryExpression(n) ? foldedComparison(n) : undefined) ?? foldedCondition(n, childrenInPlace);
       if (folded !== undefined) {
         edits.push({ from: n.getStart() - start, to: n.getEnd() - start, text: folded });
         return;

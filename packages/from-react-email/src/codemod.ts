@@ -2286,12 +2286,23 @@ function dropUnused(code: string, original: ts.SourceFile, javascript: boolean, 
       for (const statement of statements) {
         if (ts.isVariableStatement(statement)) {
           const declarations = statement.declarationList.declarations;
-          if (
-            !hasModifier(statement, ts.SyntaxKind.ExportKeyword) &&
-            !hasModifier(statement, ts.SyntaxKind.DeclareKeyword) &&
-            declarations.every((d) => ts.isIdentifier(d.name) && unused(d.name) && (!d.initializer || pure(d.initializer)))
-          )
+          if (hasModifier(statement, ts.SyntaxKind.ExportKeyword) || hasModifier(statement, ts.SyntaxKind.DeclareKeyword)) continue;
+          // The names a declaration binds: a name, or those of a flat `{ a, b: c = 1 }` (not one with `...rest`,
+          // which taking a name out would change).
+          const flat = (name: ts.BindingName): ts.BindingElement[] | undefined =>
+            ts.isObjectBindingPattern(name) && name.elements.every((e) => ts.isIdentifier(e.name) && !e.dotDotDotToken && (!e.initializer || pure(e.initializer))) ? [...name.elements] : undefined;
+          const allUnused = (d: ts.VariableDeclaration) => (ts.isIdentifier(d.name) ? unused(d.name) : !!flat(d.name)?.every((e) => unused(e.name as ts.Identifier)));
+          if (declarations.every((d) => allUnused(d) && (!d.initializer || pure(d.initializer)))) {
             cut(statement);
+            continue;
+          }
+          // `const { text, muted } = theme.colors` where only `text` is still read: `muted` goes (noUnusedLocals).
+          for (const d of declarations) {
+            const elements = flat(d.name);
+            if (!elements || !d.initializer || !pure(d.initializer)) continue;
+            const kept = elements.filter((e) => !unused(e.name as ts.Identifier));
+            if (kept.length && kept.length < elements.length) cuts.push({ from: d.name.getStart(), to: d.name.getEnd(), text: `{ ${kept.map((e) => e.getText()).join(", ")} }` });
+          }
         } else if (ts.isFunctionDeclaration(statement) && statement.name && statement.body && !hasModifier(statement, ts.SyntaxKind.ExportKeyword) && unused(statement.name)) {
           cut(statement);
         } else if ((ts.isTypeAliasDeclaration(statement) || ts.isInterfaceDeclaration(statement)) && !hasModifier(statement, ts.SyntaxKind.ExportKeyword) && unused(statement.name)) {

@@ -1119,6 +1119,78 @@ Invite.PreviewProps = { lang: "en", name: "Ana", url: "https://example.com/join"
   });
 });
 
+describe("names destructured for styles that are written in", () => {
+  it("go with them, so a build with noUnusedLocals passes (TS6198, TS6133)", async () => {
+    const source = `import { Html, Head, Body, Container, Img, Text } from "@react-email/components";
+const theme = { colors: { text: "#111827", muted: "#6b7280" }, space: { gap: 8, pad: 16 } };
+export default function Card({ name, avatarUrl }: { name: string; avatarUrl: string }) {
+  const { text, muted } = theme.colors;
+  const { gap, pad } = theme.space;
+  return <Html lang="en"><Head /><Body><Container>
+    <Img src={avatarUrl} width="64" height="64" alt={name} />
+    <Text style={{ color: text, marginBottom: gap }}>Hi {name},</Text>
+    <Text style={{ color: muted }}>Thanks for joining. {pad} points to start.</Text>
+  </Container></Body></Html>;
+}
+Card.PreviewProps = { name: "Ada", avatarUrl: "https://example.com/a.png" };`;
+    const dir = fs.mkdtempSync(path.join(import.meta.dirname, ".tmp-"));
+    try {
+      const file = path.join(dir, "migrated.tsx");
+      const { code } = await convertSource(source, { fileName: file });
+      fs.writeFileSync(file, code);
+      expect(code).not.toMatch(/const \{ text, muted \}/);
+      expect(code).toMatch(/const \{ pad \} = theme\.space/);
+      const ts = (await import("typescript")).default;
+      const program = ts.createProgram([file], { noEmit: true, jsx: ts.JsxEmit.ReactJSX, strict: true, noUnusedLocals: true, module: ts.ModuleKind.ESNext, moduleResolution: ts.ModuleResolutionKind.Bundler, target: ts.ScriptTarget.ES2022, skipLibCheck: true, types: ["react"] });
+      const errors = ts.getPreEmitDiagnostics(program).filter((d) => d.file?.fileName === file).map((d) => `TS${d.code}: ${ts.flattenDiagnosticMessageText(d.messageText, " ")}`);
+      expect(errors).toEqual([]);
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
+  });
+});
+
+describe("an inlined component's conditions on the props it's given", () => {
+  it("are written as what they give, so the migration compiles (TS2872/TS2873) and shows the same", async () => {
+    const source = `import { Html, Body, Container, Section, Text, Link, Button } from "@react-email/components";
+function Footer({ unsubscribeUrl, note, tone }: { unsubscribeUrl?: string; note?: string; tone?: string }) {
+  return (
+    <Section>
+      {note && <Text>{note}</Text>}
+      <Text>{tone ? "Acme Inc., 1 Market St" : "Acme"}</Text>
+      <Text>{note || "No note"}</Text>
+      {unsubscribeUrl && <Link href={unsubscribeUrl}>Unsubscribe</Link>}
+      {!unsubscribeUrl && <Text>Reply to stop these emails.</Text>}
+    </Section>
+  );
+}
+export default function Reset({ url }: { url: string }) {
+  return <Html><Body><Container>
+    <Text>Click below to reset your password.</Text>
+    <Button href={url}>Reset password</Button>
+    <Footer note="You received this because you asked for a reset." tone="formal" />
+  </Container></Body></Html>;
+}
+Reset.PreviewProps = { url: "https://acme.com/reset?t=1" };`;
+    const dir = fs.mkdtempSync(path.join(import.meta.dirname, ".tmp-"));
+    try {
+      const file = path.join(dir, "migrated.tsx");
+      const { code } = await convertSource(source, { fileName: file });
+      fs.writeFileSync(file, code);
+      const ts = (await import("typescript")).default;
+      const program = ts.createProgram([file], { noEmit: true, jsx: ts.JsxEmit.ReactJSX, strict: true, module: ts.ModuleKind.ESNext, moduleResolution: ts.ModuleResolutionKind.Bundler, target: ts.ScriptTarget.ES2022, skipLibCheck: true, types: ["react"] });
+      const errors = ts.getPreEmitDiagnostics(program).filter((d) => d.file?.fileName === file).map((d) => `TS${d.code}: ${ts.flattenDiagnosticMessageText(d.messageText, " ")}`);
+      expect(errors).toEqual([]);
+      const { default: Migrated } = await import(file);
+      const words = htmlWords(renderToHtml(Migrated(Migrated.PreviewProps)));
+      expect(words.join(" ")).toContain("You received this because you asked for a reset Acme Inc 1 Market St You received this because you asked for a reset Reply to stop these emails");
+      expect(words).not.toContain("Unsubscribe");
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
+  });
+});
+
 describe("a stylesheet for some media only", () => {
   it("applies as its media query does: a print stylesheet not on screen, a phone's on phones, in either mode", async () => {
     const { result, runtime, Original, Migrated } = await bothModes(`import { Html, Head, Body, Text } from "@react-email/components";
