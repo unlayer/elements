@@ -122,16 +122,17 @@ export function withBuild<T>(render: () => T): T {
     return render();
   } catch (error) {
     // React Server Components' React (Next.js's edge runtime), which react-dom can't render with at all.
-    if (!rendersHere()) throw Object.assign(new Error("[Unlayer] react-dom can't render with this React (React Server Components', as in Next.js's edge runtime): render emails in the Node.js runtime."), { cause: error });
+    if (!rendersHere(build)) throw Object.assign(new Error("[Unlayer] react-dom can't render with this React (React Server Components', as in Next.js's edge runtime): render emails in the Node.js runtime."), { cause: error });
     throw error;
   } finally {
     using.length -= theirs ? 2 : 1;
   }
 }
 
-function rendersHere(): boolean {
+/** Whether `build` can render a component here (one that isn't rendering, so its render disturbs none). */
+function rendersHere(build: Build): boolean {
   try {
-    defaultBuild.renderToStaticMarkup(React.createElement("i"));
+    build.renderToStaticMarkup(React.createElement(() => null));
     return true;
   } catch {
     return false;

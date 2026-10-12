@@ -177,8 +177,25 @@ jobs:
           npm install "$TARBALL"
           npm run build
           # An email rendered in a route handler and a Server Component comes out as one (tables, a design with
-          # its rows), with Elements bundled into Next's server layers (no serverExternalPackages).
+          # its rows), with Elements bundled into Next's server layers (no serverExternalPackages); an edge route
+          # builds (Turbopack) and renders or says to render in the Node.js runtime.
           npm run verify
+
+      # ── More consumers ──────────────────────────────────────────
+      # The packed package in Next.js 14 with React 18 (a route handler and a Server Component that render an
+      # email) and in Jest 30's jsdom environment with React 19 (importing it, and a design worked out inside a
+      # page's react-dom/server render). An early 0.2.0 build broke both where 0.1.22 worked.
+      - name: Next.js 14 and Jest 30 consumers
+        run: |
+          cd tests/next14-integration
+          npm install
+          npm install --no-save "$TARBALL"
+          npm run build
+          npm run verify
+          cd ../jest-integration
+          npm install
+          npm install --no-save "$TARBALL"
+          npm test
 
       - name: Upload coverage reports to Codecov
         uses: codecov/codecov-action@v4

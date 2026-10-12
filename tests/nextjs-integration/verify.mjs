@@ -1,9 +1,12 @@
 // Starts the built app and checks that an email rendered on the server is one: email tables, not a web layout,
-// and a design with its rows, from a route handler and from a Server Component. `next build` succeeding isn't
+// and a design with its rows, from a route handler and from a Server Component; and what an edge route gets. `next build` succeeding isn't
 // enough: Elements once rendered rows as a web page there, and an empty design, without an error.
 import { spawn } from "node:child_process";
 
-const port = 3765;
+// Run in the app's folder (tests/next14-integration runs it too, without an edge route: Next.js 14 can't bundle
+// Elements for the edge runtime, 0.1.22 neither), on a port of its own.
+const port = Number(process.argv[2] ?? 3765);
+const edgeRoute = !process.argv.includes("--no-edge");
 const server = spawn("npx", ["next", "start", "-p", String(port)], { stdio: "inherit" });
 const fail = (message) => {
   console.error(`✗ ${message}`);
@@ -34,5 +37,11 @@ const page = await get("/email-page");
 const json = /<pre id="counts">([^<]*)<\/pre>/.exec(page)?.[1]?.replace(/&quot;/g, '"');
 if (!json) fail("Server Component: no counts on the page");
 check("Server Component", JSON.parse(json));
+// An edge route: it renders the email, or (react-dom can't render with React Server Components' React) says where to.
+const edge = edgeRoute ? JSON.parse(await get("/edge")) : undefined;
+if (!edge);
+else if (edge.error === undefined) check("edge route", edge);
+else if (/render emails in the Node\.js runtime/.test(edge.error)) console.log(`✓ edge route: ${edge.error}`);
+else fail(`edge route: ${edge.error}`);
 server.kill();
 process.exit(0);
