@@ -752,9 +752,15 @@ class Converter {
         if (ts.isIdentifier(object) && object.text === "Object" && /^(assign|defineProperty|defineProperties|setPrototypeOf)$/.test(name.text)) mark(node.arguments[0], false);
         else if (/^(push|pop|shift|unshift|splice|sort|reverse|fill|copyWithin)$/.test(name.text)) mark(object, false);
       }
-      // A call made for what it does, not what it gives (`applyTheme(styles, dark)`): it may change what it's passed.
-      if (ts.isExpressionStatement(node) && ts.isCallExpression(unwrap(node.expression)) && !/^console\./.test((unwrap(node.expression) as ts.CallExpression).expression.getText())) {
-        for (const arg of (unwrap(node.expression) as ts.CallExpression).arguments) mark(arg, false);
+      // A call made for what it does, not what it gives (`applyTheme(styles, dark)`, also `dark && applyTheme(styles)`
+      // or in a choice): it may change what it's passed.
+      if (ts.isExpressionStatement(node)) {
+        const calls = (n: ts.Node): void => {
+          if (ts.isFunctionLike(n)) return;
+          if (ts.isCallExpression(n) && !/^console\./.test(n.expression.getText())) for (const arg of n.arguments) mark(arg, false);
+          ts.forEachChild(n, calls);
+        };
+        calls(node.expression);
       }
       ts.forEachChild(node, visit);
     };

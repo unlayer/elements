@@ -1053,6 +1053,19 @@ export default function Template() {
   });
 });
 
+describe("an inlined component's default children", () => {
+  it("apply when the children passed are one value left out (`<Cta>{label}</Cta>`), as they did", async () => {
+    const { result, Migrated } = await bothModes(`import * as React from "react";
+import { Html, Body, Button } from "@react-email/components";
+function Cta({ href, children = "Get started" }: { href: string; children?: React.ReactNode }) { return <Button href={href}>{children}</Button>; }
+export default function Template({ ctaLabel }: { ctaLabel?: string }) { return <Html><Body><Cta href="https://example.com">{ctaLabel}</Cta></Body></Html>; }
+Template.PreviewProps = { ctaLabel: "Shop now" };`);
+    expect(result.code).toContain('"Get started"');
+    expect(htmlWords(renderToHtml(Migrated({})))).toEqual(["Get", "started"]);
+    expect(htmlWords(renderToHtml(Migrated({ ctaLabel: "Shop now" })))).toEqual(["Shop", "now"]);
+  });
+});
+
 describe("migrated code that compiles", () => {
   it("writes `?? \"\"` only after a value that can be missing, and a line's start or end as its side", async () => {
     const source = `import { Html, Body, Heading, Button, Text, Img } from "@react-email/components";
@@ -1197,6 +1210,18 @@ export default function Template({ tone = "light" }: { tone?: string }) {
 }
 Template.PreviewProps = { tone: "light" };`);
     expect(result.report.lostStyles).toEqual([expect.stringMatching(/style=\{styles\.card\}$/)]);
+    // Called under a condition (`dark && applyTheme(styles)`) or in a choice, the same.
+    for (const call of ['tone === "dark" && applyTheme(styles, true);', 'tone === "dark" ? applyTheme(styles, true) : null;']) {
+      const conditional = await bothModes(`import { Html, Body, Text } from "@react-email/components";
+const styles = { card: { color: "#ff0000" } };
+function applyTheme(s: typeof styles, dark: boolean) { if (dark) s.card.color = "#000000"; }
+export default function Template({ tone = "light" }: { tone?: string }) {
+  ${call}
+  return <Html><Body><Text style={styles.card}>Colored</Text></Body></Html>;
+}
+Template.PreviewProps = { tone: "light" };`);
+      expect(conditional.result.report.lostStyles, call).toEqual([expect.stringMatching(/style=\{styles\.card\}$/)]);
+    }
     // A call whose result is used (a merge helper) leaves it as it is.
     const merged = await bothModes(`import { Html, Body, Text } from "@react-email/components";
 const styles = { card: { color: "#ff0000" } };

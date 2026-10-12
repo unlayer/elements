@@ -439,26 +439,36 @@ function substitute(usage: ts.JsxElement | ts.JsxSelfClosingElement, component: 
 
   // What each local becomes: props from the usage (or their defaults), consts from their initializers.
   const local = new Map<string, () => string>();
-  const valueOf = (prop: string, fallback?: ts.Expression) => {
-    if (prop === "children" && childrenText !== undefined) return `<>${childrenText}</>`;
-    const given = values.get(prop);
-    if (!given) return fallback ? rewrite(fallback) : "undefined";
-    if (!fallback || !given.node) return given.code;
-    const value = unwrap(given.node);
+  /**
+   * A value passed for a prop with a default: destructuring defaults also apply to supplied values that
+   * evaluate to undefined. Keep the component for dynamic arguments: substituting them would drop the
+   * default or change when the argument/default is evaluated.
+   */
+  const defaulted = (node: ts.Expression, code: string, fallback: ts.Expression): string => {
+    const value = unwrap(node);
     if (ts.isIdentifier(value) && value.text === "undefined" && !shadowedAt(usage, ["undefined"])) return rewrite(fallback);
-    // Destructuring defaults also apply to supplied values that evaluate to
-    // undefined. Keep the component for dynamic arguments: substituting them
-    // would drop the default or change when the argument/default is evaluated.
     if (
       ts.isStringLiteral(value) || ts.isNoSubstitutionTemplateLiteral(value) ||
       ts.isNumericLiteral(value) || ts.isBigIntLiteral(value) ||
       ts.isObjectLiteralExpression(value) || ts.isArrayLiteralExpression(value) ||
       value.kind === ts.SyntaxKind.NullKeyword || value.kind === ts.SyntaxKind.TrueKeyword || value.kind === ts.SyntaxKind.FalseKeyword
-    ) return given.code;
+    ) return code;
     // A name (`name`, `props.user.name`) reads the same twice: the default is written out, applying as it would.
     const plain = (n: ts.Expression): boolean => ts.isIdentifier(n) || (ts.isPropertyAccessExpression(n) && !n.questionDotToken && plain(n.expression));
-    if (plain(value)) return `(${given.code} === undefined ? ${rewrite(fallback)} : ${given.code})`;
+    if (plain(value)) return `(${code} === undefined ? ${rewrite(fallback)} : ${code})`;
     throw new Unsafe();
+  };
+  // Children passed as one expression (`<Cta>{label}</Cta>`) are undefined when it is: the default applies then.
+  const childrenFallback = component.props?.get("children")?.fallback;
+  const lone = children?.filter((c) => !(ts.isJsxText(c) && c.containsOnlyTriviaWhiteSpaces));
+  const loneChild = childrenFallback && lone?.length === 1 && ts.isJsxExpression(lone[0]) && lone[0].expression ? lone[0].expression : undefined;
+  const childrenValue = (): string | undefined => (loneChild && childrenFallback ? defaulted(loneChild, loneChild.getText(), childrenFallback) : undefined);
+  const valueOf = (prop: string, fallback?: ts.Expression) => {
+    if (prop === "children" && childrenText !== undefined) return childrenValue() ?? `<>${childrenText}</>`;
+    const given = values.get(prop);
+    if (!given) return fallback ? rewrite(fallback) : "undefined";
+    if (!fallback || !given.node) return given.code;
+    return defaulted(given.node, given.code, fallback);
   };
   if (component.props) {
     for (const [prop, { local: name, fallback }] of component.props) local.set(name, () => valueOf(prop, fallback));
@@ -508,7 +518,8 @@ function substitute(usage: ts.JsxElement | ts.JsxSelfClosingElement, component: 
         const prop = n.name.text;
         const child = ts.isJsxExpression(n.parent) && (ts.isJsxElement(n.parent.parent) || ts.isJsxFragment(n.parent.parent));
         if (prop === "children" && childrenInPlace && childrenText !== undefined && child) {
-          edits.push({ from: n.parent.getStart() - start, to: n.parent.getEnd() - start, text: childrenText });
+          const value = childrenValue();
+          edits.push({ from: n.parent.getStart() - start, to: n.parent.getEnd() - start, text: value === undefined ? childrenText : `{${value}}` });
         } else {
           edits.push({ from: n.getStart() - start, to: n.getEnd() - start, text: `(${valueOf(prop)})` });
         }
@@ -532,8 +543,9 @@ function substitute(usage: ts.JsxElement | ts.JsxSelfClosingElement, component: 
         const child = ts.isJsxExpression(n.parent) && (ts.isJsxElement(n.parent.parent) || ts.isJsxFragment(n.parent.parent));
         const isChildren = component.props?.get("children")?.local === n.text;
         if (isChildren && childrenInPlace && childrenText !== undefined && child) {
-          // `{children}` as a JSX child: the children go there as they are.
-          edits.push({ from: n.parent.getStart() - start, to: n.parent.getEnd() - start, text: childrenText });
+          // `{children}` as a JSX child: the children go there as they are (with its default, when they're one value).
+          const value = childrenValue();
+          edits.push({ from: n.parent.getStart() - start, to: n.parent.getEnd() - start, text: value === undefined ? childrenText : `{${value}}` });
         } else if (ts.isShorthandPropertyAssignment(n.parent)) {
           edits.push({ from: n.getStart() - start, to: n.getEnd() - start, text: `${n.text}: (${local.get(n.text)!()})` });
         } else {
