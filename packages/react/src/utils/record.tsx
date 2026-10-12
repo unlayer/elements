@@ -16,7 +16,12 @@ import { isAsyncComponent, isElementsType } from "./unwrap-root";
 export function guard(children: React.ReactNode, collection: Collection): React.ReactNode {
   return React.Children.toArray(children).map((child) => {
     if (!React.isValidElement(child)) return child;
-    if (isElementsType(child.type)) return (child.type as unknown as Record<symbol, unknown>)[RECORDS] ? child : recordedForOlder(child, collection);
+    if (isElementsType(child.type)) {
+      if ((child.type as unknown as Record<symbol, unknown>)[RECORDS]) return child;
+      // A component of the user's own named Row or Column (its displayName): rendered as React renders it.
+      if (!olderContainer(child.type)) return bounded(child, collection);
+      return recordedForOlder(child, collection);
+    }
     // No component at all (`undefined` from a broken or circular import): React says so and the render fails, as an
     // email missing a block shouldn't send. Only what can render gets a boundary that leaves it out.
     if (!child.type || (typeof child.type === "object" && !("$$typeof" in child.type))) return child;
@@ -54,6 +59,15 @@ function bounded(child: React.ReactElement, collection: Collection): React.React
  * instead of recording itself: recorded here as this copy's would, so it's in the HTML and the design (rendered by
  * this copy's Row and Column, and by the block's own exporter).
  */
+/**
+ * Whether a type named Row or Column is an older copy's (0.1.x marks them only by name): their code reads the
+ * config Body passes them (`_config`), which a component of the user's own named after one doesn't. Blocks and
+ * roots are marked otherwise (`__unlayerRender`, and roots aren't recorded).
+ */
+function olderContainer(type: unknown): boolean {
+  return !/^(Row|Column)$/.test((type as { displayName?: string } | null)?.displayName ?? "") || /\b_config\b/.test(String(type));
+}
+
 function recordedForOlder(child: React.ReactElement, collection: Collection): React.ReactNode {
   const type = child.type as unknown as { displayName?: string; __unlayerRender?: unknown };
   const props = child.props as Record<string, any>;

@@ -60,6 +60,13 @@ describe("an email service's <%name%> tag in text", () => {
   });
 });
 
+describe("an email service's <%name%> tag in the preview text", () => {
+  it("stays as written, for it to fill in, as in 0.1.22; markup around it is still escaped", () => {
+    const html = renderToHtml(<Email previewText="Your <%subject%> receipt <b>now</b> & more"><Row><Column><Paragraph>Hi</Paragraph></Column></Row></Email>);
+    expect(html).toContain("Your <%subject%> receipt &lt;b&gt;now&lt;/b&gt; &amp; more");
+  });
+});
+
 describe("link URLs", () => {
   it.each([["email", Email], ["web", Page]] as const)("can't end their href attribute (%s)", (_, Root) => {
     const html = renderToHtml(

@@ -80,4 +80,23 @@ describe("normalizeCssValues", () => {
     expect(normalizeColor(value)).toBe(value);
     expect(performance.now() - start).toBeLessThan(100);
   });
+
+  it.each([
+    ["digits", `rgb(${"1".repeat(40_000)}x, 1, 1)`],
+    ["a decimal", `rgb(${"1".repeat(20_000)}.${"1".repeat(20_000)}x, 1, 1)`],
+    ["spaces", `rgb(1${" ".repeat(40_000)}x, 1, 1)`],
+  ])("reads a long channel of %s in one pass (it took seconds, as 40,000 digits do in a pattern that backtracks)", (_, value) => {
+    const start = performance.now();
+    expect(normalizeColor(value)).toBe(value);
+    expect(performance.now() - start).toBeLessThan(100);
+  });
+
+  it("still reads the channel forms it did", () => {
+    expect(normalizeColor("rgb(1, 2, 3)")).toBe("#010203");
+    expect(normalizeColor("rgb(1 2 3)")).toBe("#010203");
+    expect(normalizeColor("rgb(1.5 .5 100%)")).toBe("#0201ff");
+    expect(normalizeColor("rgba(0, 0, 0, 0.5)")).toBe("rgba(0, 0, 0, 0.5)");
+    expect(normalizeColor("rgb(0 0 0 / 50%)")).toBe("rgba(0, 0, 0, 0.5)");
+    expect(normalizeColor("rgb(1,,3)")).toBe("rgb(1,,3)");
+  });
 });

@@ -53,7 +53,11 @@ const PADDING_CHARS = [
  * below, so it needs no entities.
  */
 function escapePreviewText(text: string): string {
-  return text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  // An email service's `<%name%>` tag (SendGrid's) stays as written, as in 0.1.22, for it to fill in: `<%` can't start an element.
+  return text
+    .split(/(<%[\w.]+%>)/)
+    .map((part, i) => (i % 2 ? part : part.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")))
+    .join("");
 }
 
 function generatePreviewHtml(text: string): string {

@@ -158,6 +158,19 @@ describe("a component that fails", () => {
     }
   });
 
+  it("render a component of the user's own named Row or Column (its displayName) as React renders it, keeping its own props", () => {
+    const BrandRow = ({ children }: { children?: React.ReactNode }) => <Row backgroundColor="#ff0000">{children}</Row>;
+    const Plain = ({ children }: { children?: React.ReactNode }) => <Row backgroundColor="#ff0000">{children}</Row>;
+    BrandRow.displayName = "Row";
+    const Half = ({ children }: { children?: React.ReactNode }) => <Column backgroundColor="#00ff00">{children}</Column>;
+    Half.displayName = "Column";
+    const named = <Email><BrandRow><Half><Paragraph>Hi</Paragraph></Half></BrandRow></Email>;
+    const plain = <Email><Plain><Column backgroundColor="#00ff00"><Paragraph>Hi</Paragraph></Column></Plain></Email>;
+    expect(renderToHtml(named)).toContain("#ff0000");
+    expect(renderToHtml(named)).toBe(renderToHtml(plain));
+    expect(JSON.stringify(renderToJson(named))).toBe(JSON.stringify(renderToJson(plain)));
+  });
+
   it("give a template the context of a Provider around it (translations, a brand), as 0.1.22's HTML and plain text did (its renderToJson threw)", () => {
     const Brand = React.createContext({ name: "Default Co" });
     const Receipt = () => {
