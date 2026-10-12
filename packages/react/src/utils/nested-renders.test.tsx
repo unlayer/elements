@@ -138,3 +138,51 @@ describe("a Row whose Columns don't fit its layout", () => {
     }
   });
 });
+
+describe("an app's own react-dom/server render of an email, with a Context Provider around it", () => {
+  // The web exporters of these blocks render with react-dom/server themselves: rendered with another module, the
+  // app's render couldn't restore its context ("Tried to pop a Context at the root of the app").
+  it("renders, as in 0.1.22", async () => {
+    const { Page, Divider, Html, Menu, Social } = await import("../index");
+    const Theme = React.createContext("light");
+    const html = renderToString(
+      <Theme.Provider value="dark">
+        <Page><Row><Column>
+          <Paragraph>Hello</Paragraph>
+          <Divider />
+          <Html html="<b>kept</b>" />
+          <Menu items={[{ text: "Home", href: "https://example.com" }]} />
+          <Social icons={{ iconType: "circle", icons: [{ name: "Facebook", url: "https://facebook.com" }] } as never} />
+        </Column></Row></Page>
+      </Theme.Provider>
+    );
+    expect(html).toContain("Hello");
+    expect(html).toContain("<b>kept</b>");
+    expect(html).toContain("Home");
+  });
+});
+
+describe("Columns inside markup in a Row (`<div><Column/></div>`)", () => {
+  // Not the Row's Columns, as 0.1.22 rendered them: the Row says so and renders none (they came out with NaN widths).
+  it("aren't its Columns, written or a component's, in the HTML and the design alike", () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    try {
+      const Wrapped = () => <div><Column><Paragraph>C</Paragraph></Column></div>;
+      for (const row of [
+        <Row><div><Column><Paragraph>A</Paragraph></Column><Column><Paragraph>B</Paragraph></Column></div></Row>,
+        <Row><Wrapped /></Row>,
+      ]) {
+        const email = <Email>{row}</Email>;
+        expect(renderToHtml(email)).not.toContain("NaN");
+        const design = renderToJson(email);
+        expect([design.body.rows[0].cells, design.body.rows[0].columns.length]).toEqual([[1], 0]);
+      }
+      expect(warn.mock.calls.some((call) => String(call[0]).includes("is not a valid Row child"))).toBe(true);
+      // In a Fragment they're its Columns.
+      const design = renderToJson(<Email><Row><><Column><Paragraph>A</Paragraph></Column><Column><Paragraph>B</Paragraph></Column></></Row></Email>);
+      expect(design.body.rows[0].cells).toEqual([1, 1]);
+    } finally {
+      warn.mockRestore();
+    }
+  });
+});

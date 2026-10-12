@@ -296,7 +296,7 @@ function element(c: Collected, node: Extract<Node, { kind: "row" | "column" | "b
   if (node.kind === "block") return React.createElement(r.type, resolvedProps(c, r.props));
   if (node.kind === "column") return React.createElement(Column, { ...r.props, children: elements(c, node.children, true) });
   const props = { ...r.props };
-  const children = elements(c, node.children, false);
+  const children = elements(c, outsideMarkup(node.children), false);
   // A layout counts the Columns as written (a condition's place included) or as rendered (from Fragments and
   // components): either fits it. The rendered Row is then given its cells, which hold no condition's place.
   if (props.layout) {
@@ -307,6 +307,25 @@ function element(c: Collected, node: Extract<Node, { kind: "row" | "column" | "b
     }
   }
   return React.createElement(Row, { ...props, children });
+}
+
+/**
+ * A Row's nodes without the Columns inside markup in it (`<div><Column/></div>`, written or a component's): they
+ * aren't its Columns, as 0.1.22 rendered them; the markup is, which the Row says isn't a Column (and leaves out).
+ */
+function outsideMarkup(nodes: Node[]): Node[] {
+  let depth = 0;
+  const walk = (list: Node[]): Node[] =>
+    list.flatMap((node): Node[] => {
+      if (node.kind === "raw") {
+        for (const [, close, name, self] of node.html.matchAll(/<(\/?)([a-zA-Z][\w:-]*)[^>]*?(\/?)>/g)) if (!self && !VOID.test(name)) depth += close ? -1 : 1;
+        // The end of markup said already (at its start).
+        return /^(\s*<\/[a-zA-Z][\w:-]*\s*>)+\s*$/.test(node.html) ? [] : [node];
+      }
+      if (node.kind === "boundary") return [{ ...node, children: walk(node.children) }];
+      return node.kind === "column" && depth > 0 ? [] : [node];
+    });
+  return walk(nodes);
 }
 
 /** What's among the rows, or in a Row or a Column, as Elements components. */
