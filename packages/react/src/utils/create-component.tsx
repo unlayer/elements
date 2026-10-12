@@ -405,7 +405,7 @@ export function createItemComponent<
   const ItemComponent: React.FC<ItemComponentProps<TSemanticProps>> = (
     props
   ) => {
-    if (collecting()) return whileCollecting(() => recordBlock(ItemComponent, props as Record<string, any>), () => renderFn(props));
+    if (collecting()) return whileCollecting(() => recordBlock(ItemComponent, props as Record<string, any>), () => renderFn(props), ItemComponent.displayName ?? "Block");
     return renderFn(props);
   };
 

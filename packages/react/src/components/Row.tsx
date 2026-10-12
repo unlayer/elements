@@ -310,7 +310,7 @@ function renderRow(props: RowProps): React.ReactElement | null {
 
 // While a template is collected, a Row records itself (see normalize.tsx); then it renders the collected tree.
 const Row: React.FC<RowProps> = (props) =>
-  collecting() ? whileCollecting(() => recordContainer("row", props), () => renderRow(props)) : renderRow(props);
+  collecting() ? whileCollecting(() => recordContainer("row", props), () => renderRow(props), "Row") : renderRow(props);
 
 Row.displayName = "Row";
 (Row as unknown as Record<symbol, boolean>)[RECORDS] = true;

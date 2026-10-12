@@ -82,7 +82,7 @@ export type ColumnProps = Omit<SemanticProps<ColumnValues>, "padding" | "border"
 };
 
 export const Column: React.FC<ColumnProps> = (props) => {
-  if (collecting()) return whileCollecting(() => recordContainer("column", props), () => Column(props));
+  if (collecting()) return whileCollecting(() => recordContainer("column", props), () => Column(props), "Column");
   const {
     children,
     index = 0,

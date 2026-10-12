@@ -115,9 +115,14 @@ function Sentinel({ record, real }: { record: () => React.ReactNode; real: () =>
   return collected ? record() : within(null, real);
 }
 
+/** Sentinel by the name of the component it stands for, which React's warnings name (`Check the render method of Column`). */
+const named = new Map<string, typeof Sentinel>();
+
 /** A Row, Column or block, while a template is collected (see Sentinel). */
-export function whileCollecting(record: () => React.ReactNode, real: () => React.ReactNode): React.ReactElement {
-  return React.createElement(Sentinel, { record, real });
+export function whileCollecting(record: () => React.ReactNode, real: () => React.ReactNode, name: string): React.ReactElement {
+  let type = named.get(name);
+  if (!type) named.set(name, (type = Object.assign((props: Parameters<typeof Sentinel>[0]) => Sentinel(props), { displayName: name })));
+  return React.createElement(type, { record, real });
 }
 
 /** A Row or Column while collecting: its props, and markers around its children. */

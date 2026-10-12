@@ -380,3 +380,13 @@ describe("an async component whose data load fails", () => {
     }
   });
 });
+
+describe("React's warnings about a template", () => {
+  // React 19 says where a list without keys is rendered: the Row, Column or block it's in, not Elements' own wrapper.
+  it("name the Elements component the list is in", async () => {
+    const { whileCollecting } = await import("./record");
+    for (const name of ["Row", "Column", "Paragraph"]) {
+      expect((whileCollecting(() => null, () => null, name).type as { displayName?: string }).displayName).toBe(name);
+    }
+  });
+});
