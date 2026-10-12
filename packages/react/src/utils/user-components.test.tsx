@@ -145,6 +145,17 @@ describe("a component that fails", () => {
     expect(html).toContain("Still here");
   });
 
+  it("fails on a component that's undefined (a broken import), in a Column or among the rows: a block missing shouldn't send", () => {
+    const Missing = undefined as unknown as React.FC;
+    for (const email of [
+      <Email><Row><Column><Paragraph>Hi</Paragraph><Missing /></Column></Row></Email>,
+      <Email><Row><Column><Paragraph>Hi</Paragraph></Column></Row><Missing /></Email>,
+    ]) {
+      expect(() => renderToHtml(email)).toThrow(/Element type is invalid/);
+      expect(() => renderToJson(email)).toThrow(/Element type is invalid/);
+    }
+  });
+
   it("names a component whose markup the design can't keep", () => {
     const Banner = () => <div dangerouslySetInnerHTML={{ __html: "<table><tr><td>Sale</td></tr></table>" }} />;
     expect(messages(() => renderToJson(<Email><Banner />{block("x")}</Email>))).toEqual([

@@ -16,6 +16,9 @@ import { isAsyncComponent, isElementsType } from "./unwrap-root";
 export function guard(children: React.ReactNode, collection: Collection): React.ReactNode {
   return React.Children.toArray(children).map((child) => {
     if (!React.isValidElement(child) || isElementsType(child.type)) return child;
+    // No component at all (`undefined` from a broken or circular import): React says so and the render fails, as an
+    // email missing a block shouldn't send. Only what can render gets a boundary that leaves it out.
+    if (!child.type || (typeof child.type === "object" && !("$$typeof" in child.type))) return child;
     if (typeof child.type === "string") {
       // Markup with a component of the user's own in it (`<div><Promo /></div>`): that component gets its own too.
       const inside = (child.props as { children?: React.ReactNode }).children;
