@@ -1177,6 +1177,39 @@ Card.PreviewProps = { name: "Ada", avatarUrl: "https://example.com/a.png" };`;
   });
 });
 
+describe("a list mapped with a function of the file's own, by name", () => {
+  it("converts what the function returns, as an inline callback's, so its links and images stay for any number of items", async () => {
+    const source = `import * as React from "react";
+import { Html, Body, Section, Text, Link, Img } from "@react-email/components";
+type Article = { title: string; url: string; image: string };
+function renderArticle(a: Article) {
+  return <Section key={a.url}><Img src={a.image} alt={a.title} width="80" /><Link href={a.url}>{a.title}</Link></Section>;
+}
+export default function Digest({ articles }: { articles: Article[] }) {
+  return <Html><Body><Text>This week</Text>{articles.map(renderArticle)}</Body></Html>;
+}
+Digest.PreviewProps = { articles: [{ title: "First", url: "https://example.com/1", image: "https://example.com/1.png" }] };`;
+    const dir = fs.mkdtempSync(path.join(import.meta.dirname, ".tmp-"));
+    try {
+      const originalFile = path.join(dir, "original.tsx");
+      fs.writeFileSync(originalFile, source);
+      const file = path.join(dir, "migrated.tsx");
+      const { code } = await convertSource(source, { fileName: file });
+      fs.writeFileSync(file, code);
+      expect(code).toContain("articles.map((a: Article) => (");
+      const { default: Original } = await import(originalFile);
+      const { default: Migrated } = await import(file);
+      const second = { title: "Second", url: "https://example.com/2", image: "https://example.com/2.png" };
+      for (const articles of [Original.PreviewProps.articles, [...Original.PreviewProps.articles, second]]) {
+        const check = await verifyConversion(Original, Migrated, { props: { articles } });
+        expect([check.missing, check.added, check.missingAttributes, check.addedAttributes]).toEqual([[], [], [], []]);
+      }
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
+  });
+});
+
 describe("an inline element hidden by props", () => {
   it("keeps its hidden attribute and its condition: the migration hides what the original does, for every value", async () => {
     const source = `import { Html, Body, Text } from "@react-email/components";

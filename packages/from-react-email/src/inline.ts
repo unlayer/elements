@@ -178,3 +178,60 @@ function unwrap(node: ts.Expression): ts.Expression {
   while (ts.isParenthesizedExpression(node) || ts.isAsExpression(node) || ts.isSatisfiesExpression(node)) node = node.expression;
   return node;
 }
+
+/**
+ * A list mapped with a function of the file's own given by name (`articles.map(renderArticle)`): the function is
+ * written in its place (`articles.map((a: Article) => <Section…>)`), so its JSX converts as a loop's does. Left as a
+ * name, it was code the converter can't see into, and its links and images were written as text.
+ */
+export function inlineMapCallbacks(source: string, fileName: string): { source: string; inlined: string[] } {
+  const file = ts.createSourceFile(fileName, source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
+  // The file's functions by name: `function f(…) {…}` and `const f = (…) => …`, declared once.
+  const functions = new Map<string, ts.FunctionDeclaration | ts.ArrowFunction | ts.FunctionExpression>();
+  const counts = new Map<string, number>();
+  const collect = (node: ts.Node): void => {
+    if (ts.isFunctionDeclaration(node) && node.name && node.body) functions.set(node.name.text, node);
+    if (ts.isVariableDeclaration(node) && ts.isIdentifier(node.name) && node.initializer && (ts.isArrowFunction(node.initializer) || ts.isFunctionExpression(node.initializer))) functions.set(node.name.text, node.initializer);
+    if ((ts.isFunctionDeclaration(node) || ts.isVariableDeclaration(node)) && node.name && ts.isIdentifier(node.name)) counts.set(node.name.text, (counts.get(node.name.text) ?? 0) + 1);
+    ts.forEachChild(node, collect);
+  };
+  collect(file);
+  const returnsJsx = (fn: ts.FunctionDeclaration | ts.ArrowFunction | ts.FunctionExpression): boolean => {
+    if (fn.asteriskToken || fn.modifiers?.some((m) => m.kind === ts.SyntaxKind.AsyncKeyword)) return false;
+    const isJsx = (e: ts.Node | undefined): boolean => {
+      while (e && ts.isParenthesizedExpression(e)) e = e.expression;
+      return !!e && (ts.isJsxElement(e) || ts.isJsxSelfClosingElement(e) || ts.isJsxFragment(e) || (ts.isConditionalExpression(e) && (isJsx(e.whenTrue) || isJsx(e.whenFalse))));
+    };
+    if (fn.body && !ts.isBlock(fn.body)) return isJsx(fn.body);
+    let found = false;
+    const own = (n: ts.Node): void => {
+      if (found || (n !== fn.body && ts.isFunctionLike(n))) return;
+      if (ts.isReturnStatement(n) && isJsx(n.expression)) found = true;
+      else ts.forEachChild(n, own);
+    };
+    if (fn.body) own(fn.body);
+    return found;
+  };
+  // The function as an expression: an arrow with its one returned JSX, else a function expression of its body.
+  const written = (fn: ts.FunctionDeclaration | ts.ArrowFunction | ts.FunctionExpression): string => {
+    const params = `(${fn.parameters.map((p) => p.getText(file)).join(", ")})`;
+    if (!fn.body) return fn.getText(file);
+    if (!ts.isBlock(fn.body)) return `${params} => (${fn.body.getText(file)})`;
+    const [only] = fn.body.statements;
+    if (fn.body.statements.length === 1 && ts.isReturnStatement(only) && only.expression) return `${params} => (${only.expression.getText(file)})`;
+    return `function ${params} ${fn.body.getText(file)}`;
+  };
+  const edits: Array<{ from: number; to: number; text: string; name: string }> = [];
+  const visit = (node: ts.Node): void => {
+    if (ts.isCallExpression(node) && ts.isPropertyAccessExpression(node.expression) && ["map", "flatMap"].includes(node.expression.name.text)) {
+      const [callback] = node.arguments;
+      const fn = callback && ts.isIdentifier(callback) && counts.get(callback.text) === 1 ? functions.get(callback.text) : undefined;
+      if (fn && callback && returnsJsx(fn) && !(callback.getStart(file) >= fn.getStart(file) && callback.getEnd() <= fn.getEnd()))
+        edits.push({ from: callback.getStart(file), to: callback.getEnd(), text: written(fn), name: (callback as ts.Identifier).text });
+    }
+    ts.forEachChild(node, visit);
+  };
+  visit(file);
+  for (const edit of edits.sort((a, b) => b.from - a.from)) source = source.slice(0, edit.from) + edit.text + source.slice(edit.to);
+  return { source, inlined: [...new Set(edits.map((e) => e.name))] };
+}

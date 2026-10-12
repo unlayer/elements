@@ -52,7 +52,7 @@ import {
 } from "./map";
 import { addSides, backgroundColor, backgroundImage, boxSides, color, fillColor, fontFamilyProp, fontSizePx, inherit, isHidden, margins, noteContainerWidth, pageColor, phoneOnly, px, shownOnPhones, toPx, ZERO, type Style } from "./styles";
 import { inlineLocalComponents, type ModuleLoader } from "./components";
-import { inlineLocalJsx } from "./inline";
+import { inlineLocalJsx, inlineMapCallbacks } from "./inline";
 import { splitConditionalClasses } from "./variants";
 import { phoneSides, withPhoneStyles, handledPhoneClass, unheldPhoneStyles } from "./phone-styles";
 import { addRules, classStyle, inlineKeys, NO_CLASSES, overInline, phoneRules, resolveTailwind, stacksOnPhones, stylesheetRules, underInline, underKeys, type ResolvedClasses, type RuleOrder } from "./tailwind";
@@ -118,7 +118,8 @@ export async function convertSource(source: string, options: CodemodOptions = {}
   // classNames as one element per class list.
   // (Same lines as the source: `Email.Text` → `Text`.)
   const named = nameNamespaces(source, fileName);
-  const components = inlineLocalComponents(named, fileName, options.loadModule);
+  const mapped = inlineMapCallbacks(named, fileName);
+  const components = inlineLocalComponents(mapped.source, fileName, options.loadModule);
   const constants = inlineLocalJsx(components.source, fileName);
   const variants = splitConditionalClasses(constants.source, fileName);
   const file = ts.createSourceFile(fileName, variants.source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
