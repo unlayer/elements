@@ -391,6 +391,13 @@ describe("React's warnings about a template", () => {
   });
 });
 
+describe("a root (Email, Page, Document) placed among another's rows", () => {
+  it("renders, as 0.1.22 rendered it (a shared layout's <Email> inside the template's)", () => {
+    const html = renderToHtml(<Email><Email><Row><Column><Paragraph>Inner content</Paragraph></Column></Row></Email></Email>);
+    expect(html).toContain("Inner content");
+  });
+});
+
 describe("a root (Email, Page, Document) placed in a Column", () => {
   it("is left out, saying so, as 0.1.22 said", () => {
     const warn = vi.spyOn(console, "warn").mockImplementation(() => {});

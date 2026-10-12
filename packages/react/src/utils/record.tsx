@@ -13,14 +13,14 @@ import { isAsyncComponent, isElementsType } from "./unwrap-root";
  * marker) stands for it when it throws, suspends or is async, so it's left
  * out and the rest renders. Fragments are kept, their children wrapped too.
  */
-export function guard(children: React.ReactNode, collection: Collection): React.ReactNode {
+export function guard(children: React.ReactNode, collection: Collection, inContainer = false): React.ReactNode {
   return React.Children.toArray(children).map((child) => {
     if (!React.isValidElement(child)) return child;
     if (isElementsType(child.type)) {
       if ((child.type as unknown as Record<symbol, unknown>)[RECORDS]) return child;
       // A component of the user's own named Row or Column (its displayName): rendered as React renders it.
       if (!olderContainer(child.type)) return bounded(child, collection);
-      return recordedForOlder(child, collection);
+      return recordedForOlder(child, collection, inContainer);
     }
     // No component at all (`undefined` from a broken or circular import): React says so and the render fails, as an
     // email missing a block shouldn't send. Only what can render gets a boundary that leaves it out.
@@ -28,12 +28,12 @@ export function guard(children: React.ReactNode, collection: Collection): React.
     if (typeof child.type === "string") {
       // Markup with a component of the user's own in it (`<div><Promo /></div>`): that component gets its own too.
       const inside = (child.props as { children?: React.ReactNode }).children;
-      const element = inside !== undefined && hasComponent(inside) ? React.cloneElement(child, undefined, guard(inside, collection)) : child;
+      const element = inside !== undefined && hasComponent(inside) ? React.cloneElement(child, undefined, guard(inside, collection, inContainer)) : child;
       // Markup React rejects (`<hr style="…">` as a string) throws out of the render: guarded too when it did.
       return collection.markup ? bounded(element, collection) : element;
     }
     if (child.type === React.Fragment) {
-      return React.createElement(React.Fragment, { key: child.key }, guard((child.props as { children?: React.ReactNode }).children, collection));
+      return React.createElement(React.Fragment, { key: child.key }, guard((child.props as { children?: React.ReactNode }).children, collection, inContainer));
     }
     return bounded(child, collection);
   });
@@ -68,7 +68,7 @@ function olderContainer(type: unknown): boolean {
   return !/^(Row|Column)$/.test((type as { displayName?: string } | null)?.displayName ?? "") || /\b_config\b/.test(String(type));
 }
 
-function recordedForOlder(child: React.ReactElement, collection: Collection): React.ReactNode {
+function recordedForOlder(child: React.ReactElement, collection: Collection, inContainer: boolean): React.ReactNode {
   const type = child.type as unknown as { displayName?: string; __unlayerRender?: unknown };
   const props = child.props as Record<string, any>;
   if (type.displayName === "Row" || type.displayName === "Column") {
@@ -76,12 +76,14 @@ function recordedForOlder(child: React.ReactElement, collection: Collection): Re
     return (
       <React.Fragment key={child.key ?? `r${at}`}>
         {marker(collection, at, "o")}
-        {guard(props.children, collection)}
+        {guard(props.children, collection, true)}
         {marker(collection, at, "c")}
       </React.Fragment>
     );
   }
-  // A root (Email, Page, Document) placed inside one: left out, as 0.1.22 left it out, saying so.
+  // A root (Email, Page, Document) placed in a Row or Column: left out, as 0.1.22 left it out, saying so. Among the
+  // rows (`<Email><Email>…</Email></Email>`) it renders as it renders, as 0.1.22 rendered it.
+  if (!type.__unlayerRender && !inContainer) return child;
   if (!type.__unlayerRender) {
     console.warn(`[Unlayer] <${type.displayName}> is a root: it can't be placed in a Row or Column, so it's left out.`);
     return null;
@@ -136,7 +138,7 @@ export function recordContainer(kind: "row" | "column", props: Record<string, an
   return (
     <>
       {marker(collection, at, "o")}
-      {guard(props.children, collection)}
+      {guard(props.children, collection, true)}
       {marker(collection, at, "c")}
     </>
   );

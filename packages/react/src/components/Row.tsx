@@ -184,8 +184,11 @@ function processChildren(
 
   let innerHTML = "";
   const childrenArray = React.Children.toArray(children);
+  // Each Column's place among the Columns: markup or text beside them (an Outlook comment, a wrapper the Row says
+  // isn't a Column) takes none, or the Columns after it got no cell (`width="NaN"`).
+  let index = 0;
 
-  childrenArray.forEach((child, index) => {
+  childrenArray.forEach((child) => {
     if (!React.isValidElement(child)) {
       if (typeof child === "string" || typeof child === "number") {
         innerHTML += looseText(child, "Row");
@@ -202,7 +205,7 @@ function processChildren(
       // Call Column component with context props
       const rendered = (child.type as Function)({
         ...child.props,
-        index,
+        index: index++,
         cells,
         bodyValues,
         rowValues,
