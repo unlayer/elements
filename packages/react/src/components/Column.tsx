@@ -197,16 +197,19 @@ export const Column: React.FC<ColumnProps> = (props) => {
                   ? `${rawContainerPadding}px`
                   : rawContainerPadding;
 
+              // A custom tool's props are its own values, as in 0.1.22: a `hideOnMobile` of its own isn't a device setting.
+              const device = ComponentType?.[UNLAYER_CONFIG_KEY]?.contentType === "custom" ? {} : childProps;
+
               // Wrap via the canonical content-container exporter for this mode.
               const contentValues = {
                 containerPadding,
                 _override: {
                   ...childProps.values?._override,
                   mobile: { ...childProps.values?._override?.mobile,
-                    ...(childProps.hideOnMobile !== undefined ? { hideMobile: childProps.hideOnMobile } : {}),
+                    ...(device.hideOnMobile !== undefined ? { hideMobile: device.hideOnMobile } : {}),
                   },
                   desktop: { ...childProps.values?._override?.desktop,
-                    ...(childProps.hideOnDesktop !== undefined ? { hideDesktop: childProps.hideOnDesktop } : {}),
+                    ...(device.hideOnDesktop !== undefined ? { hideDesktop: device.hideOnDesktop } : {}),
                   },
                 },
                 _meta: {

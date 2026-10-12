@@ -24,6 +24,7 @@ import type { ImageProps } from "./components/Image";
 import type { PageBreakProps } from "./components/PageBreak";
 import type { DocumentProps } from "./components/Document";
 import type { BorderInput } from "./types";
+import type { ElementsToolProps } from "./utils/register-tool";
 
 // ── border: THE regression this guard exists for ────────────────────────────
 // A reusable hairline object factored into a `const` (no `as const`) must satisfy
@@ -125,3 +126,6 @@ export const _phone_reject_align: MobileProps = { textAlign: "sideways" };
 export const _phone_reject_size: MobileProps = { fontSize: true };
 // @ts-expect-error device visibility must be boolean
 export const _phone_reject_visibility: RowProps = { hideOnMobile: "yes" };
+
+// A custom tool's props are its own values, whatever their names (as in 0.1.22): a phone number called `mobile`.
+export const _tool_own_values: ElementsToolProps = { name: "Ada", mobile: "+1 555", hideOnMobile: "yes", hideOnDesktop: 0 };
