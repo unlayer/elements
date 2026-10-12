@@ -1093,6 +1093,31 @@ export default function html() { return render(<Wrapped />); }`;
     expect(out.out).toMatch(/- emails\/send\.tsx: skipped/);
   });
 
+  const welcome = `import { Html, Body, Text } from "@react-email/components";
+export default function Welcome({ name }: { name: string }) { return <Html><Body><Text>Hello {name}, glad you are here.</Text></Body></Html>; }
+Welcome.PreviewProps = { name: "Ada" };`;
+  const migrated = (uses: string) => `import { Email, Row, Column, Paragraph } from "@unlayer/react-elements";
+import type { ComponentProps } from "react";
+import Welcome from "./welcome";
+${uses}
+export default function Reminder({ name }: Props) { return <Email><Row><Column><Paragraph>{name}, here's your code.</Paragraph></Column></Row></Email>; }`;
+
+  it("checks a template another file names only in a type (`ComponentProps<typeof Welcome>`)", async () => {
+    const dir = project({ "emails/welcome.tsx": welcome, "emails/reminder.tsx": migrated(`type Props = Pick<ComponentProps<typeof Welcome>, "name">;`) });
+    const out = io(dir);
+    expect(await main(["emails"], out, lib), out.out + out.err).toBe(0);
+    expect(out.out).toMatch(/✓ emails\/welcome\.tsx/);
+  });
+
+  it("doesn't end with 0 when the only template is left as it is for a file that imports it, beside one already migrated", async () => {
+    // The migrated template reads the React Email one as a value: it stays as it is, unchecked.
+    const dir = project({ "emails/welcome.tsx": welcome, "emails/reminder.tsx": migrated(`type Props = { name: string };\nexport const from = Welcome.name;`) });
+    const out = io(dir);
+    expect(await main(["emails"], out, lib), out.out + out.err).toBe(1);
+    expect(out.out).toMatch(/- emails\/welcome\.tsx: skipped \(imported by emails\/reminder\.tsx/);
+    expect(out.err).toMatch(/No email template was checked: the ones here are left as they are/);
+  });
+
   it("never loads a sender helper, whose call would send the email (a dry run calls the templates it loads)", async () => {
     const dir = project({});
     const marker = path.join(dir, "sent.txt");

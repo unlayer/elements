@@ -386,8 +386,14 @@ async function run(argv: string[], io: Io, library?: Library): Promise<number> {
   }
   if (results.some((r) => r.status === "failed" || r.status === "check-failed")) return 2;
   // A run ends with 0 only when it checked what it was given: a template migrated, or nothing left to migrate.
-  if (!results.some((r) => r.status === "migrated") && !results.some((r) => r.reason?.startsWith("already migrated"))) {
-    io.stderr("No email template was checked: nothing here renders React Email's <Html> (shared components and helpers are skipped).\n");
+  // A template left as it is because another file imports it wasn't checked either.
+  const unchecked = results.some((r) => r.status === "skipped" && /its markup is inlined/.test(r.reason ?? ""));
+  if (!results.some((r) => r.status === "migrated") && (unchecked || !results.some((r) => r.reason?.startsWith("already migrated")))) {
+    io.stderr(
+      unchecked
+        ? "No email template was checked: the ones here are left as they are, as other files import them (see above). Migrate them with --out <dir>, or with the files that import them.\n"
+        : "No email template was checked: nothing here renders React Email's <Html> (shared components and helpers are skipped).\n"
+    );
     return 1;
   }
   return 0;
@@ -1544,6 +1550,9 @@ function shapeOf(ts: typeof import("typescript"), file: import("typescript").Sou
   const read = (name: string, nodes: readonly import("typescript").Node[]) => {
     const found = { locals: new Set<string>(), imports: new Set<string>(), dynamic: [] as string[], computed: false };
     const visit = (node: import("typescript").Node) => {
+      // A type (`ComponentProps<typeof Welcome>`) renders nothing: a name read only there isn't used (a class's
+      // `extends Base` is a value).
+      if (ts.isTypeNode(node) && !ts.isExpressionWithTypeArguments(node)) return;
       if (ts.isIdentifier(node)) {
         // A property's name (`a.b`, `{ b: 1 }`) names no binding.
         const parent = node.parent;
