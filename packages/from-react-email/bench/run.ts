@@ -364,8 +364,10 @@ function sideBySide(...images: PNG[]): PNG {
 
 /**
  * Type-check every emitted TSX file, and the originals with the same flags:
- * a converted file "type-checks" when it has no more errors than its
- * original (the codemod keeps the template's own code, errors included).
+ * a converted file "type-checks" when each of its errors is one its original
+ * has too, by code (the codemod keeps the template's own code, errors
+ * included). Fewer errors overall isn't enough: one the migration fixed
+ * mustn't hide one it added.
  */
 function typecheck(results: Result[]) {
   const converted = results.filter((r) => r.converted).map((r) => path.join(out, r.template, `${r.mode}.tsx`));
@@ -373,11 +375,17 @@ function typecheck(results: Result[]) {
   const errors = errorCounts([...converted, ...originals]);
   for (const result of results) {
     if (!result.converted) continue;
-    const mine = errors.get(path.join(out, result.template, `${result.mode}.tsx`)) ?? 0;
-    const theirs = errors.get(originalFile(result.template) ?? "") ?? 0;
-    result.typechecks = mine <= theirs;
-    result.typeErrors = mine;
-    result.originalTypeErrors = theirs;
+    const mine = errors.get(path.join(out, result.template, `${result.mode}.tsx`)) ?? [];
+    const theirs = [...(errors.get(originalFile(result.template) ?? "") ?? [])];
+    // Each of the migration's error codes must be one the original has (as many times).
+    result.typechecks = mine.every((code) => {
+      const at = theirs.indexOf(code);
+      if (at < 0) return false;
+      theirs.splice(at, 1);
+      return true;
+    });
+    result.typeErrors = mine.length;
+    result.originalTypeErrors = (errors.get(originalFile(result.template) ?? "") ?? []).length;
   }
 }
 
@@ -386,7 +394,7 @@ function originalFile(template: string): string | undefined {
   return fs.existsSync(file) ? file : undefined;
 }
 
-function errorCounts(files: string[]): Map<string, number> {
+function errorCounts(files: string[]): Map<string, string[]> {
   let output = "";
   try {
     execFileSync(
@@ -397,12 +405,13 @@ function errorCounts(files: string[]): Map<string, number> {
   } catch (error: any) {
     output = String(error.stdout ?? "");
   }
-  const counts = new Map<string, number>();
+  // Each file's error codes (TS2869, …).
+  const counts = new Map<string, string[]>();
   for (const line of output.split("\n")) {
-    const match = /^(.+?)\(\d+,\d+\): error TS/.exec(line);
+    const match = /^(.+?)\(\d+,\d+\): error (TS\d+)/.exec(line);
     if (match) {
       const file = path.resolve(root, match[1]);
-      counts.set(file, (counts.get(file) ?? 0) + 1);
+      counts.set(file, [...(counts.get(file) ?? []), match[2]]);
     }
   }
   return counts;

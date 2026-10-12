@@ -4,6 +4,7 @@
  * be an Expr (code) in codemod mode; the mapping is the same.
  */
 
+import ts from "typescript";
 import { el, isExpr, expr, type BoxSides, type ElementNode, type Expr, type ReportBuilder } from "@unlayer/convert-core";
 import { phoneSides } from "./phone-styles";
 import { alignOf, borderProp, borders } from "./boxes";
@@ -102,6 +103,26 @@ function start(ctx: MapCtx): string | Expr {
   return expr(`${dir} === "rtl" ? "right" : "left"`);
 }
 
+/** The side a line ends on: the left in a right-to-left document. */
+function end(ctx: MapCtx): string | Expr {
+  const side = start(ctx);
+  return side === "left" ? "right" : side === "right" ? "left" : expr(`${(side as Expr).$expr.replace('? "right" : "left"', '? "left" : "right"')}`);
+}
+
+/**
+ * A text alignment as Elements takes it (left, center, right, justify): a line's `start` or `end` is the side
+ * it is in the document's direction; one Elements has no value for is left out (the alignment around applies).
+ */
+function physicalAlign(value: unknown, ctx: MapCtx): string | Expr | undefined {
+  if (value === undefined || value === null || value === "") return undefined;
+  if (isExpr(value)) return value;
+  const v = String(value).trim().toLowerCase().replace(/\s*!important$/, "");
+  if (v === "start" || v === "match-parent") return start(ctx);
+  if (v === "end") return end(ctx);
+  if (v === "-webkit-center" || v === "-moz-center") return "center";
+  return /^(left|center|right|justify)$/.test(v) ? v : undefined;
+}
+
 /** Text props, from the element's style and what it inherits. */
 export function textProps(
   style: Style,
@@ -115,7 +136,8 @@ export function textProps(
   const mobile: Record<string, unknown> = {};
   for (const key of ["fontSize", "lineHeight", "textAlign"] as const) {
     const value = style._phone?.[key] ?? (style[key] === undefined ? ctx.inherited.mobile?.[key] : undefined);
-    if (value !== undefined) mobile[key] = key === "fontSize" ? cssLength(value) : String(value);
+    const set = value === undefined ? undefined : key === "fontSize" ? cssLength(value) : key === "textAlign" ? physicalAlign(value, ctx) : String(value);
+    if (set !== undefined) mobile[key] = set;
   }
   return {
     ...(Object.keys(mobile).length ? { mobile } : {}),
@@ -125,7 +147,7 @@ export function textProps(
     color: color(ownColor(style.color, ctx.inherited.color)) ?? color(ctx.inherited.color) ?? "#000000",
     fontSize: cssLength(ownSize !== undefined ? px(ownSize) : style.fontSize ?? defaults.fontSize ?? ctx.inherited.fontSize),
     lineHeight: lineHeightValue(style.lineHeight ?? defaults.lineHeight ?? ctx.inherited.lineHeight),
-    textAlign: (style.textAlign ?? flexTextAlign(style) ?? ctx.inherited.textAlign ?? (ctx.inherited.rtl ? start(ctx) : undefined)) as string | undefined,
+    textAlign: (physicalAlign(style.textAlign, ctx) ?? flexTextAlign(style) ?? physicalAlign(ctx.inherited.textAlign, ctx) ?? (ctx.inherited.rtl ? start(ctx) : undefined)) as string | undefined,
     fontWeight: weight === undefined ? undefined : numericWeight(weight),
     letterSpacing: cssLength(style.letterSpacing ?? ctx.inherited.letterSpacing),
     fontFamily: font && font !== ctx.rootFont ? fontFamilyProp(String(font)) : undefined,
@@ -369,7 +391,33 @@ export function headingMarginProps(props: Record<string, any>): Style {
 export function orEmpty<T>(value: T): T | Expr {
   if (!isExpr(value)) return value;
   const code = value.$expr.trim();
+  // Only code that can give nothing: `?? ""` after a value that never does (a string, a sum, a choice
+  // between strings) doesn't compile (TypeScript's TS2869).
+  if (!mayBeNullish(code)) return value;
   return expr(`${/^[\w$]+(\.[\w$]+)*$/.test(code) ? code : `(${code})`} ?? ""`);
+}
+
+/**
+ * Whether code can give null or undefined, by its form, as TypeScript judges it for `??`: a name, a
+ * property, a call, `&&`/`||`/`??` can; a literal, a template string, a sum or a comparison can't, and a
+ * choice (`a ? b : c`) can when one of its branches can.
+ */
+function mayBeNullish(code: string): boolean {
+  const statement = ts.createSourceFile("value.tsx", `(${code});`, ts.ScriptTarget.Latest, false, ts.ScriptKind.TSX).statements[0];
+  if (!statement || !ts.isExpressionStatement(statement)) return true;
+  const can = (node: ts.Expression): boolean => {
+    while (ts.isParenthesizedExpression(node) || ts.isAsExpression(node) || ts.isSatisfiesExpression(node) || ts.isTypeAssertionExpression(node) || ts.isNonNullExpression(node)) node = node.expression;
+    if (ts.isConditionalExpression(node)) return can(node.whenTrue) || can(node.whenFalse);
+    if (ts.isBinaryExpression(node)) {
+      const op = node.operatorToken.kind;
+      if (op === ts.SyntaxKind.CommaToken) return can(node.right);
+      return op === ts.SyntaxKind.EqualsToken || op === ts.SyntaxKind.QuestionQuestionToken || op === ts.SyntaxKind.QuestionQuestionEqualsToken ||
+        op === ts.SyntaxKind.BarBarToken || op === ts.SyntaxKind.BarBarEqualsToken || op === ts.SyntaxKind.AmpersandAmpersandToken || op === ts.SyntaxKind.AmpersandAmpersandEqualsToken;
+    }
+    return ts.isIdentifier(node) || ts.isPropertyAccessExpression(node) || ts.isElementAccessExpression(node) || ts.isCallExpression(node) ||
+      ts.isTaggedTemplateExpression(node) || ts.isAwaitExpression(node) || ts.isNewExpression(node) || ts.isMetaProperty(node) || node.kind === ts.SyntaxKind.ThisKeyword;
+  };
+  return can(statement.expression);
 }
 
 /** Children that are code alone, as `orEmpty` writes them. */
@@ -398,7 +446,7 @@ export function buttonBlock(href: unknown, label: Content | Parts, style: Style,
         // the label takes that font, whatever the link sets.
         ...textProps(ctx.universalFont ? { ...style, fontFamily: undefined } : style, ctx, { lineHeight: "120%" }),
         // An inline-block link: placed by the parent's text-align (the start side by default).
-        textAlign: (block ? alignOf(style) ?? ctx.inherited.blockAlign ?? start(ctx) : ctx.inherited.blockAlign ?? ctx.inherited.textAlign ?? start(ctx)) as string,
+        textAlign: (block ? alignOf(style) ?? ctx.inherited.blockAlign ?? start(ctx) : ctx.inherited.blockAlign ?? physicalAlign(ctx.inherited.textAlign, ctx) ?? start(ctx)) as string,
         color: color(ownColor(style.color, ctx.inherited.color)) ?? "#0000ee",
         padding: sidesToCss(padding),
         ...(style._phone ? { mobile: { ...textProps(style, ctx, {}).mobile, ...(phoneSides(style, "padding", padding) ? { padding: sidesToCss(phoneSides(style, "padding", padding)!) } : {}) } } : {}),
@@ -448,7 +496,7 @@ export function imageBlock(
   return {
     node: el("Image", {
       src,
-      ...(style._phone ? { mobile: { ...(style._phone.width === "100%" || style._phone.maxWidth === "100%" ? { autoWidth: true } : {}), ...(style._phone.textAlign ? { textAlign: style._phone.textAlign } : {}) }, ...(style._phone.display === "none" ? { hideOnMobile: true } : {}) } : {}),
+      ...(style._phone ? { mobile: { ...(style._phone.width === "100%" || style._phone.maxWidth === "100%" ? { autoWidth: true } : {}), ...(physicalAlign(style._phone.textAlign, ctx) ? { textAlign: physicalAlign(style._phone.textAlign, ctx) } : {}) }, ...(style._phone.display === "none" ? { hideOnMobile: true } : {}) } : {}),
       ...(style._phone?.width === "100%" || style._phone?.maxWidth === "100%" ? { values: { _override: { mobile: { src: { width: 0 } } } } } : {}),
       ...(style._hideDesktop ? { hideOnDesktop: true } : {}),
       ...(width ? { width: `${width}px` } : percent ? { width: percent } : {}),

@@ -1053,6 +1053,41 @@ export default function Template() {
   });
 });
 
+describe("migrated code that compiles", () => {
+  it("writes `?? \"\"` only after a value that can be missing, and a line's start or end as its side", async () => {
+    const source = `import { Html, Body, Heading, Button, Text, Img } from "@react-email/components";
+export default function Invite({ lang = "en", name, url, base = "https://example.com" }: { lang?: string; name?: string; url: string; base?: string }) {
+  return <Html><Body>
+    <Heading>{lang === "en" ? "Join the team" : "Únete al equipo"}</Heading>
+    <Heading>{\`Hi \${name}\`}</Heading>
+    <Heading>{name}</Heading>
+    <Button href={url}>{"Open " + url}</Button>
+    <Img src={\`\${base}/logo.png\`} alt="Logo" width="40" />
+    <Text style={{ textAlign: "start" }}>Starts here</Text>
+    <Text style={{ textAlign: "end" }}>Ends here</Text>
+  </Body></Html>;
+}
+Invite.PreviewProps = { lang: "en", name: "Ana", url: "https://example.com/join" };`;
+    const dir = fs.mkdtempSync(path.join(import.meta.dirname, ".tmp-"));
+    try {
+      const file = path.join(dir, "migrated.tsx");
+      const { code } = await convertSource(source, { fileName: file });
+      fs.writeFileSync(file, code);
+      expect(code).toContain('{name ?? ""}');
+      expect(code).not.toMatch(/"Únete al equipo"\) \?\? ""|`\) \?\? ""|url\) \?\? ""/);
+      expect(code).toMatch(/textAlign="left"[^>]*>\s*Starts here/);
+      expect(code).toMatch(/textAlign="right"[^>]*>\s*Ends here/);
+      // It compiles against Elements' own types (TS2869: `??` after a value never missing; TS2322: an alignment Elements doesn't take).
+      const ts = (await import("typescript")).default;
+      const program = ts.createProgram([file], { noEmit: true, jsx: ts.JsxEmit.ReactJSX, strict: true, module: ts.ModuleKind.ESNext, moduleResolution: ts.ModuleResolutionKind.Bundler, target: ts.ScriptTarget.ES2022, skipLibCheck: true, types: ["react"] });
+      const errors = ts.getPreEmitDiagnostics(program).filter((d) => d.file?.fileName === file).map((d) => `TS${d.code}: ${ts.flattenDiagnosticMessageText(d.messageText, " ")}`);
+      expect(errors).toEqual([]);
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
+  });
+});
+
 describe("a stylesheet for some media only", () => {
   it("applies as its media query does: a print stylesheet not on screen, a phone's on phones, in either mode", async () => {
     const { result, runtime, Original, Migrated } = await bothModes(`import { Html, Head, Body, Text } from "@react-email/components";
