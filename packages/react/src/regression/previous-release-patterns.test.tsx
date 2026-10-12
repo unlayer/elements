@@ -65,6 +65,47 @@ const PATTERNS: Record<string, Pattern> = {
     shows: "Before the rule After the rule",
     json: false, // 0.1.22's renderToJson throws on markup in a Column: this build's design is checked in render-to-json.test
   },
+  // Markup written in a Row or Column is left out whole, as 0.1.22 left it out, also with a component or block in it.
+  "markup in a Column with a component of the user's own in it (a name in a sentence), between blocks": {
+    build: (L) => {
+      const Name = () => <b>Ada</b>;
+      return (
+        <L.Email><L.Row><L.Column>
+          <L.Paragraph>Before</L.Paragraph>
+          <p>Hello <Name />, welcome back</p>
+          <L.Paragraph>After</L.Paragraph>
+        </L.Column></L.Row></L.Email>
+      );
+    },
+    shows: "Before After",
+    json: false, // 0.1.22's renderToJson throws on markup in a Column
+  },
+  "a link written in a Column around a component's image, between blocks": {
+    build: (L) => {
+      const Logo = () => <img src="https://example.com/logo.png" alt="Logo" />;
+      return (
+        <L.Email><L.Row><L.Column>
+          <L.Paragraph>Before</L.Paragraph>
+          <a href="https://example.com">Visit <Logo /></a>
+          <L.Paragraph>After</L.Paragraph>
+        </L.Column></L.Row></L.Email>
+      );
+    },
+    shows: "Before After",
+    json: false, // 0.1.22's renderToJson throws on markup in a Column
+  },
+  "markup in a Row with a component of the user's own in it, beside a Column": {
+    build: (L) => {
+      const Name = () => <b>Ada</b>;
+      return (
+        <L.Email><L.Row>
+          <div>Hello <Name /> welcome back</div>
+          <L.Column><L.Paragraph>In the column</L.Paragraph></L.Column>
+        </L.Row></L.Email>
+      );
+    },
+    shows: "In the column",
+  },
   "a Row with a layout and a Column under a condition, rendered on its own": {
     build: (L) => (
       <L.Row layout={L.ColumnLayouts.TwoEqual}>

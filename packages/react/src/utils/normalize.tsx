@@ -307,9 +307,9 @@ function markup(c: Collected, nodes: Node[], render: (element: React.ReactElemen
 function element(c: Collected, node: Extract<Node, { kind: "row" | "column" | "block" }>): React.ReactElement {
   const r = recorded(c, node);
   if (node.kind === "block") return React.createElement(r.type, resolvedProps(c, r.props));
-  if (node.kind === "column") return React.createElement(Column, { ...r.props, children: elements(c, node.children, true) });
+  if (node.kind === "column") return React.createElement(Column, { ...r.props, children: elements(c, node.children, "column") });
   const props = { ...r.props };
-  const children = elements(c, node.children, false);
+  const children = elements(c, node.children, "row");
   // A layout counts the Columns as written (a condition's place included) or as rendered (from Fragments and
   // components): either fits it. The rendered Row is then given its cells, which hold no condition's place.
   if (props.layout) {
@@ -322,25 +322,81 @@ function element(c: Collected, node: Extract<Node, { kind: "row" | "column" | "b
   return React.createElement(Row, { ...props, children });
 }
 
-/** What's among the rows, or in a Row or a Column, as Elements components. */
-function elements(c: Collected, nodes: Node[], inColumn: boolean, owner?: React.FC): React.ReactNode[] {
-  return nodes.flatMap((node): React.ReactNode[] => {
+type Place = "root" | "row" | "column";
+
+/**
+ * Markup in a Row or Column that a marker cuts in two (`<p>Hello <Name />, welcome back</p>`, a `<div>` around a
+ * block): an element whose start and end tags are in different pieces. Each piece of `nodes`, raw HTML cut where
+ * such an element starts and ends, with whether it's in one. React writes each element whole, so one that isn't
+ * whole in its piece is cut by a marker.
+ */
+function spanned(nodes: Node[]): { node: Node; inside: boolean }[] {
+  const out: { node: Node; inside: boolean }[] = [];
+  let depth = 0;
+  for (const node of nodes) {
+    if (node.kind !== "raw") {
+      out.push({ node, inside: depth > 0 });
+      continue;
+    }
+    const html = node.html;
+    // Elements opened in this piece and not closed yet; one closed here that opened in another ends that one.
+    const open: { name: string; at: number }[] = [];
+    let closed = depth > 0 ? -1 : 0;
+    for (const m of html.matchAll(/<!--[\s\S]*?(?:-->|$)|<(\/?)([a-zA-Z][\w:-]*)\b[^>]*>/g)) {
+      if (!m[2]) continue;
+      const name = m[2].toLowerCase();
+      if (m[1]) {
+        const i = open.map((o) => o.name).lastIndexOf(name);
+        if (i >= 0) open.length = i;
+        else if (depth > 0 && --depth === 0) {
+          open.length = 0;
+          closed = m.index! + m[0].length;
+        } else if (depth > 0) open.length = 0;
+      } else if (!VOID.test(name) && !m[0].endsWith("/>")) open.push({ name, at: m.index! });
+    }
+    const piece = (from: number, to: number, inside: boolean) => {
+      if (to > from) out.push({ node: { kind: "raw", html: html.slice(from, to) }, inside });
+    };
+    if (closed < 0) piece(0, html.length, true);
+    else {
+      piece(0, closed, true);
+      piece(closed, open[0]?.at ?? html.length, false);
+      if (open.length) piece(open[0].at, html.length, true);
+    }
+    depth += open.length;
+  }
+  return out;
+}
+
+/**
+ * What's among the rows, or in a Row or a Column, as Elements components. In a Row or Column, markup a marker cuts
+ * (see `spanned`) is left out whole, as 0.1.22 left it out, with what's in it (text, markup a component renders
+ * there); a Row, Column or block in it is kept, as one beside it is.
+ */
+function elements(c: Collected, nodes: Node[], place: Place, owner?: React.FC, inMarkup = false): React.ReactNode[] {
+  const inColumn = place === "column";
+  return (place === "root" || inMarkup ? nodes.map((node) => ({ node, inside: inMarkup })) : spanned(nodes)).flatMap(({ node, inside }): React.ReactNode[] => {
     switch (node.kind) {
       case "failed":
         return leftOut(c, node);
       case "boundary": {
-        const kept = inColumn ? keptMarkup(c, node) : undefined;
+        const kept = inColumn && !inside ? keptMarkup(c, node) : undefined;
         if (kept) return [kept];
         // Markup it renders, where it isn't kept, is named after it in the messages that say so.
         const Named = () => null;
         Named.displayName = nameOf(recorded(c, node).element);
-        if (inColumn && !c.told.has(node.at) && node.children.some((n) => n.kind === "raw" && parts(n.html).some((p) => "tag" in p))) {
+        if (inColumn && !inside && !c.told.has(node.at) && node.children.some((n) => n.kind === "raw" && parts(n.html).some((p) => "tag" in p))) {
           c.told.add(node.at);
           console.warn(`Column: <${Named.displayName}> rendered markup that isn't a block, so it's left out. Put HTML in an <Html> block.`);
         }
-        return elements(c, node.children, inColumn, Named);
+        return elements(c, node.children, place, Named, inside);
       }
       case "raw":
+        // In markup a marker cuts, it's that markup's: a Row says where it starts isn't a Column.
+        if (inside) {
+          const name = /^<([a-zA-Z][\w:-]*)/.exec(node.html)?.[1];
+          return place === "row" && name && !inMarkup ? [React.createElement(owner ?? name)] : [];
+        }
         // Text shows as text. Other markup isn't a Column, which a Row says (and leaves it out); in a Column it's left out.
         return parts(node.html).flatMap((p): React.ReactNode[] => ("text" in p ? [p.text] : inColumn ? [] : [React.createElement(owner ?? (p.tag === "#" ? "div" : p.tag))]));
       default:
@@ -411,7 +467,7 @@ export function childrenHtml(children: React.ReactNode, place: (child: React.Rea
 /** Children (a root's, or a Row on its own) as Elements components only, for the head and the design. */
 export function normalizedChildren(children: React.ReactNode): React.ReactNode[] {
   const c = collect(children);
-  return elements(c, c.nodes, false);
+  return elements(c, c.nodes, "root");
 }
 
 /** `root` with its children as Elements components only. */

@@ -9,7 +9,7 @@ import React, { useMemo, useState } from "react";
 import { renderToString } from "react-dom/server";
 // @ts-ignore react-dom/server.browser has no types of its own (the same API as react-dom/server).
 import { renderToString as renderToStringWithBrowserBuild } from "react-dom/server.browser";
-import { renderToHtml } from "./render-to-html";
+import { renderToHtml, renderToPlainText } from "./render-to-html";
 import { renderToJson } from "./render-to-json";
 import { Email, Row, Column, Paragraph } from "../index";
 
@@ -224,3 +224,36 @@ describe("markup beside or around a Row's Columns", () => {
   });
 });
 
+describe("markup written in a Row or Column, with a block or a component of the user's own in it", () => {
+  // It's left out whole, as 0.1.22 left it out, with its text and the markup a component renders in it: React's
+  // render cuts it where a block or component is, and the pieces came out on their own ("Hello" left out, ", welcome
+  // back" shown as text straight in the Column, the name as an HTML block). A block, Column or Row in it is kept.
+  it("is left out whole, keeping a block in it, in the HTML, the plain text and the design alike", () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    try {
+      const Name = () => <b>Ada</b>;
+      const Logo = () => <img src="https://example.com/logo.png" alt="Logo" />;
+      const Promo = () => <div>Intro <Paragraph>Kept</Paragraph> outro</div>;
+      for (const [inColumn, shows] of [
+        [<p>Hello <Name />, welcome back</p>, []],
+        [<a href="https://example.com/visit">Visit <Logo /></a>, []],
+        [<div>Intro <Paragraph>Kept</Paragraph> outro</div>, ["Kept"]],
+        [<Promo />, ["Kept"]],
+      ] as const) {
+        const email = <Email><Row><Column><Paragraph>Before</Paragraph>{inColumn}<Paragraph>After</Paragraph></Column></Row></Email>;
+        const words = ["Before", ...shows, "After"];
+        expect(renderToPlainText(email).split(/\s+/).filter(Boolean)).toEqual(words);
+        const html = renderToHtml(email);
+        for (const gone of ["Hello", "welcome", "Ada", "Visit", "logo.png", "example.com/visit", "Intro", "outro"]) expect(html).not.toContain(gone);
+        const contents = renderToJson(email).body.rows[0].columns[0].contents as { type: string }[];
+        expect(contents.map((content) => content.type)).toEqual(words.map(() => "text"));
+      }
+      // In a Row too: the Row says it isn't a Column, and its Column renders.
+      const email = <Email><Row><div>Hello <Name /> welcome back</div><Column><Paragraph>In the column</Paragraph></Column></Row></Email>;
+      expect(renderToPlainText(email).trim()).toBe("In the column");
+      expect(renderToJson(email).body.rows[0].columns.length).toBe(1);
+    } finally {
+      warn.mockRestore();
+    }
+  });
+});
