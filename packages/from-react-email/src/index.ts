@@ -39,7 +39,20 @@ function rendersNothing(output: unknown): boolean {
  * Call a migrated template for its root element, unwrapping `memo` and
  * `forwardRef` as renderToHtml does, in a render of its own: its hooks work.
  */
-function callTemplate(Converted: MigratedTemplate, props: Record<string, unknown>): React.ReactElement {
+/**
+ * A render's own copy of props (arrays and plain objects; elements, functions and other values as they are): a
+ * template that changes what it's given (`events.reverse()`) would otherwise change it for the renders after it.
+ */
+function fresh<T>(value: T): T {
+  if (Array.isArray(value)) return value.map(fresh) as T;
+  if (value && typeof value === "object" && Object.getPrototypeOf(value) === Object.prototype && !("$$typeof" in value)) {
+    return Object.fromEntries(Object.entries(value).map(([key, inner]) => [key, fresh(inner)])) as T;
+  }
+  return value;
+}
+
+function callTemplate(Converted: MigratedTemplate, given: Record<string, unknown>): React.ReactElement {
+  const props = fresh(given);
   const type = Converted as any;
   if (type?.$$typeof === Symbol.for("react.memo")) return callTemplate(type.type, props);
   if (type?.$$typeof === Symbol.for("react.forward_ref")) return callInRender(() => type.render(props, null));
@@ -182,7 +195,7 @@ export async function verifyConversion(
   } = {},
 ): Promise<Verification> {
   const props = options.props ?? Original.PreviewProps ?? {};
-  const originalHtml = await render(React.createElement(Original, props));
+  const originalHtml = await render(React.createElement(Original, fresh(props)));
   // renderToHtml reads the root (Email) element, so call the component.
   const root = callTemplate(Converted, props);
   if (!React.isValidElement(root)) throw new Error("the template renders nothing with these props: give it PreviewProps it renders with");
@@ -205,7 +218,7 @@ export async function verifyConversion(
     const change = `${name}: ${!value}`;
     let original: string;
     try {
-      original = await render(React.createElement(Original, flipped));
+      original = await render(React.createElement(Original, fresh(flipped)));
     } catch {
       continue; // the original doesn't render this way either: nothing to compare
     }
@@ -249,7 +262,7 @@ export async function verifyConversion(
     const change = "text props with markup";
     let original: string | undefined;
     try {
-      original = await render(React.createElement(Original, marked));
+      original = await render(React.createElement(Original, fresh(marked)));
     } catch {
       original = undefined; // the original doesn't render this way either
     }

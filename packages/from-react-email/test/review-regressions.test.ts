@@ -688,6 +688,48 @@ export default function Welcome({ tone = "info" }: { tone?: "info" | "warn" }) {
   });
 });
 
+describe("columns from a list in a Row", () => {
+  it("keep the order a list reversed in place gives (its widths don't reverse it once more), and the check reads it", async () => {
+    const { Original, Migrated, conversion } = await templates(`import { Html, Body, Section, Row, Column, Text } from "@react-email/components";
+      export default function Timeline({ events }: { events: { time: string; label: string }[] }) {
+        return <Html><Body><Section><Row>
+          {events.reverse().map((e) => <Column key={e.time} align="center"><Text>{e.label}</Text></Column>)}
+        </Row></Section></Body></Html>;
+      }
+      Timeline.PreviewProps = { events: [{ time: "1", label: "Ordered" }, { time: "2", label: "Shipped" }, { time: "3", label: "Delivered" }] };`);
+    expect(conversion.code).not.toMatch(/cells=\{[^}]*reverse\(\)/);
+    const { renderToHtml } = await import("@unlayer/react-elements");
+    const events = () => [{ time: "1", label: "Ordered" }, { time: "2", label: "Shipped" }, { time: "3", label: "Delivered" }];
+    const html = renderToHtml(Migrated({ events: events() }));
+    expect(html.indexOf("Delivered")).toBeLessThan(html.indexOf("Shipped"));
+    expect(html.indexOf("Shipped")).toBeLessThan(html.indexOf("Ordered"));
+    const check = await verifyConversion(Original, Migrated);
+    expect([check.missing, check.added]).toEqual([[], []]);
+  });
+
+  it("render nothing for an optional list that's missing (`recs?.slice(0, 3).map(…)`), and compile", async () => {
+    const source = `import { Html, Body, Section, Row, Column, Text } from "@react-email/components";
+      type Product = { id: string; name: string };
+      export default function Cart({ recs }: { recs?: Product[] }) {
+        return <Html><Body><Text>Your cart</Text><Section><Row>
+          {recs?.slice(0, 3).map((p) => <Column key={p.id} align="center"><Text>{p.name}</Text></Column>)}
+        </Row></Section></Body></Html>;
+      }
+      Cart.PreviewProps = { recs: [{ id: "1", name: "Lamp" }, { id: "2", name: "Pad" }, { id: "3", name: "Arm" }, { id: "4", name: "Box" }] };`;
+    const { Migrated, conversion } = await templates(source);
+    expect(conversion.code).toContain("(recs?.slice(0, 3) ?? [])");
+    const { renderToHtml } = await import("@unlayer/react-elements");
+    expect(renderToHtml(Migrated({}))).toContain("Your cart");
+    // The migrated file compiles as the original does (strict).
+    const dir = fs.mkdtempSync(path.join(import.meta.dirname, ".tmp-"));
+    dirs.push(dir);
+    const file = path.join(dir, "cart.tsx");
+    fs.writeFileSync(file, conversion.code);
+    const program = ts.createProgram([file], { noEmit: true, jsx: ts.JsxEmit.ReactJSX, strict: true, module: ts.ModuleKind.ESNext, moduleResolution: ts.ModuleResolutionKind.Bundler, target: ts.ScriptTarget.ES2022, skipLibCheck: true, types: ["react"] });
+    expect(ts.getPreEmitDiagnostics(program).filter((d) => d.file?.fileName === file).map((d) => ts.flattenDiagnosticMessageText(d.messageText, " "))).toEqual([]);
+  });
+});
+
 describe("a list's numbering", () => {
   it("is kept in both modes: start, type and reversed on <ol>, value on <li>, written or from props", async () => {
     const { Original, Migrated, conversion } = await templates(`import { Html, Body, Text } from "@react-email/components";

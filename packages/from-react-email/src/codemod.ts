@@ -1462,9 +1462,30 @@ class Converter {
       body = last && ts.isReturnStatement(last) && last.expression ? last.expression : undefined;
     }
     if (!body || this.cellWidth(body as ts.Expression) === false) return undefined;
-    // `logos?.map(…)`: no list is no cells.
-    const optional = call.questionDotToken || call.expression.questionDotToken;
-    return optional ? `(${call.expression.expression.getText()} ?? [])` : call.expression.expression.getText();
+    // The widths are written from the list once more: only its length counts. So calls that change its order in place
+    // (`events.reverse()`) aren't written there (the columns would get it reversed twice), one that changes its length
+    // in place (`push`) means no widths, and a `?.` anywhere (`recs?.slice(0, 3)`, `logos?.map`) may give no list.
+    let optional = Boolean(call.questionDotToken || call.expression.questionDotToken);
+    const written = (node: ts.Expression): string | undefined => {
+      const n = unwrap(node);
+      if (ts.isCallExpression(n) && ts.isPropertyAccessExpression(n.expression)) {
+        const name = n.expression.name.text;
+        if (/^(push|pop|shift|unshift|splice)$/.test(name)) return undefined;
+        optional ||= Boolean(n.questionDotToken || n.expression.questionDotToken);
+        if (/^(reverse|sort|fill|copyWithin)$/.test(name)) return written(n.expression.expression);
+        const inner = written(n.expression.expression);
+        return inner === undefined ? undefined : `${inner}${n.expression.questionDotToken ? "?." : "."}${name}${n.questionDotToken ? "?." : ""}(${n.arguments.map((arg) => arg.getText()).join(", ")})`;
+      }
+      if ((ts.isPropertyAccessExpression(n) || ts.isElementAccessExpression(n)) && n.questionDotToken) optional = true;
+      if (ts.isPropertyAccessExpression(n) || ts.isElementAccessExpression(n)) {
+        const inner = written(n.expression);
+        return inner === undefined ? undefined : `${inner}${n.questionDotToken ? "?." : ts.isPropertyAccessExpression(n) ? "." : ""}${ts.isPropertyAccessExpression(n) ? n.name.text : `[${n.argumentExpression.getText()}]`}`;
+      }
+      return n.getText();
+    };
+    const list = written(call.expression.expression);
+    if (list === undefined) return undefined;
+    return optional ? `(${list} ?? [])` : list;
   }
 
   /** `cond ? <>…</> : <>…</>` where both branches are static cell lists: their widths. */
