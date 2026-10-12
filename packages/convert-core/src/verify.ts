@@ -207,6 +207,12 @@ export function compareText(originalHtml: string, convertedHtml: string): TextCh
     else phone.missing.push(word);
   }
   phone.added = [...phoneCounts].flatMap(([word, n]) => Array<string>(n).fill(word));
+  // In the same order, as on desktop: words only a phone shows, swapped ("Pay 10 today", "Pay today 10").
+  if (!phone.missing.length && !phone.added.length && !missing.length) {
+    const moved = outOfOrder(wordsOf(originalPhone), wordsOf(convertedPhone));
+    phone.missing.push(...moved);
+    phone.added.push(...moved);
+  }
   // Links and images too: one a phone shows or hides on one side only (a phone-only call link, a hero image), or on
   // other words there (two phone-only links swapped).
   const phoneLost: string[] = [];
@@ -244,8 +250,10 @@ function widerDifferences(originalHtml: string, convertedHtml: string, desktopSt
     const extra = lostOccurrences(b, a);
     if (lost.length) styles.push({ property: "shown", original: "shown", converted: "hidden", words: lost, width });
     if (extra.length) styles.push({ property: "shown", original: "hidden", converted: "shown", words: extra, width });
+    const moved = lost.length || extra.length ? [] : outOfOrder(a, b);
+    if (moved.length) styles.push({ property: "shown", original: "in this order", converted: "in another order", words: moved, width });
     listTargets(targetChanges(original, converted), listed, missingAttributes, addedAttributes, `on screens ${width}px and wider`);
-    if (lost.length || extra.length) continue;
+    if (lost.length || extra.length || moved.length) continue;
     const check = compareStyles(original, converted);
     for (const difference of check.differences) if (!known.has(key(difference))) styles.push({ ...difference, width });
     for (const doubt of check.unverified) if (!known.has(key(doubt))) unverified.push({ ...doubt, width });
@@ -268,6 +276,8 @@ function darkDifferences(originalHtml: string, convertedHtml: string, listed: Li
   const out: StyleDifference[] = [];
   if (lost.length) out.push({ property: "shown", original: "shown", converted: "hidden", words: lost, dark: true });
   if (extra.length) out.push({ property: "shown", original: "hidden", converted: "shown", words: extra, dark: true });
+  const moved = lost.length || extra.length ? [] : outOfOrder(a, b);
+  if (moved.length) out.push({ property: "shown", original: "in this order", converted: "in another order", words: moved, dark: true });
   listTargets(targetChanges(original, converted), listed, missingAttributes, addedAttributes, "in dark mode");
   return out;
 }

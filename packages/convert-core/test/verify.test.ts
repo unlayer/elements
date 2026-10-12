@@ -183,3 +183,24 @@ describe("links and images where only a phone, a wider screen or dark mode shows
     expect(check.phone.missingAttributes).toBeUndefined();
   });
 });
+
+describe("words in another order where only a phone, a wider screen or dark mode shows them", () => {
+  const page = (body: string, head = "") => `<html><head>${head}</head><body style="margin:0">${body}</body></html>`;
+  // Shown only where the condition holds, on both sides: the same words, so only their order tells.
+  const only = (condition: string) => `<style>.only{display:none} @media ${condition} { .only{display:block !important} }</style>`;
+  const words = (text: string) => `<p>Hello</p><p class="only">${text}</p>`;
+  const cases: Array<[string, string, (check: ReturnType<typeof compareText>) => string[]]> = [
+    ["on phones", "(max-width: 480px)", (check) => [...check.phone.missing, ...check.phone.added]],
+    ["on wider screens", "(min-width: 1200px)", (check) => check.styles.filter((s) => s.property === "shown").flatMap((s) => s.words)],
+    ["in dark mode", "(prefers-color-scheme: dark)", (check) => check.styles.filter((s) => s.property === "shown").flatMap((s) => s.words)],
+  ];
+  for (const [where, condition, listed] of cases) {
+    it(`fail the check ${where}`, () => {
+      const original = page(words("Pay 10 today"), only(condition));
+      expect(listed(compareText(original, original))).toEqual([]);
+      const check = compareText(original, page(words("Pay today 10"), only(condition)));
+      expect([check.missing, check.added]).toEqual([[], []]);
+      expect(listed(check).length).toBeGreaterThan(0);
+    });
+  }
+});
