@@ -11,7 +11,7 @@
  */
 
 import type { DeviceProps } from "../types";
-import { normalizeCssValues } from "./css-values";
+import { cssSafeValues, normalizeCssValues } from "./css-values";
 import { textToTextJson, htmlToTextJson } from "./lexical-helpers";
 
 /**
@@ -380,7 +380,7 @@ export function mapSemanticProps<T extends Record<string, any>>(
         const key = componentType === "Button" ? "size" : "width";
         mapped[key] = { autoWidth: autoWidth ?? false, ...(width !== undefined ? { width: typeof width === "number" ? `${width}px` : width } : {}) };
       }
-      overrides.mobile = { ...overrides.mobile, ...mapped, ...(hideOnMobile !== undefined ? { hideMobile: hideOnMobile } : {}) };
+      overrides.mobile = { ...overrides.mobile, ...cssSafeValues(mapped), ...(hideOnMobile !== undefined ? { hideMobile: hideOnMobile } : {}) };
     }
     if (hideOnDesktop !== undefined) overrides.desktop = { ...overrides.desktop, hideDesktop: hideOnDesktop };
     final._override = overrides;
@@ -461,7 +461,9 @@ export function normalizeLinkValue(value: unknown): Record<string, any> | undefi
  * written, and it can end neither.
  */
 function safeLink(link: Record<string, any>): Record<string, any> {
-  return typeof link.url === "string" ? { ...link, url: link.url.replace(/<%[\w.]+%>|["<>]/g, (c) => (c.length > 1 ? c : encodeURIComponent(c))) } : link;
+  // A URL that isn't a string (an array from a JSON body or `?url[]=`) is written as its text: escaped as one.
+  const url = link.url === undefined || link.url === null ? link.url : String(link.url);
+  return typeof url === "string" ? { ...link, url: url.replace(/<%[\w.]+%>|["<>]/g, (c) => (c.length > 1 ? c : encodeURIComponent(c))) } : link;
 }
 
 /**

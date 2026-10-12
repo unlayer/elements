@@ -1,4 +1,4 @@
-import type { RenderMode } from "@unlayer-internal/shared-elements";
+import { cssValueSafe, type RenderMode } from "@unlayer-internal/shared-elements";
 import { safeName } from "./create-component";
 
 type DeviceStyles = Record<string, string[]>;
@@ -23,14 +23,7 @@ const contentOptions: Record<string, string[]> = {
  */
 function css(value: unknown): string | undefined {
   const text = String(value).trim();
-  if (!text || /[<>{};!\\"'\n\r]|\/\*|\*\//.test(text)) return undefined;
-  let depth = 0;
-  for (const c of text) {
-    if (c === "(" || c === "[") depth++;
-    else if (c === ")" || c === "]") depth--;
-    if (depth < 0) return undefined;
-  }
-  return depth === 0 ? text : undefined;
+  return text && !/[!\\"'\n\r]/.test(text) && cssValueSafe(text) ? text : undefined;
 }
 
 function size(value: unknown): string | undefined {

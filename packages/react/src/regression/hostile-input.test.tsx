@@ -10,6 +10,7 @@
 import { describe, expect, it, vi } from "vitest";
 import React from "react";
 import { renderToHtml } from "../utils/render-to-html";
+import { renderToJson } from "../utils/render-to-json";
 import { Email, Page, Document, Row, Column, Paragraph, Heading, Button, Image, Menu, Social, Html } from "../index";
 
 const PAYLOADS = ['"><x-pwn></x-pwn>', "'><x-pwn></x-pwn>", '" x-pwn="1', "' x-pwn='1", "</p></div></td></tr></table><x-pwn></x-pwn>"];
@@ -37,6 +38,10 @@ const CASES: Record<string, (v: string) => React.ReactElement> = {
   "Heading text": (v) => <Row><Column><Heading>{v}</Heading></Column></Row>,
   "Button text": (v) => <Row><Column><Button href="https://example.com">{v}</Button></Column></Row>,
   "Button link": (v) => <Row><Column><Button href={`https://example.com/${v}`}>Go</Button></Column></Row>,
+  // A URL that isn't a string: an array, as a JSON body or `?url[]=` gives it.
+  "Button link as an array": (v) => <Row><Column><Button href={[`https://example.com/${v}`] as never}>Go</Button></Column></Row>,
+  "Image link as an array": (v) => <Row><Column><Image src="https://example.com/a.png" width="100px" alt="x" href={[`https://example.com/${v}`] as never} /></Column></Row>,
+  "Menu link as an array": (v) => <Row><Column><Menu items={[{ text: "Home", href: [`https://example.com/${v}`] as never }]} /></Column></Row>,
   "Image source": (v) => <Row><Column><Image src={`https://example.com/${v}.png`} width="100px" alt="x" /></Column></Row>,
   "Image text": (v) => <Row><Column><Image src="https://example.com/a.png" width="100px" alt={v} /></Column></Row>,
   "Image link": (v) => <Row><Column><Image src="https://example.com/a.png" width="100px" alt="x" href={`https://example.com/${v}`} /></Column></Row>,
@@ -128,5 +133,20 @@ describe("phone settings, written into the head's CSS", () => {
     const html = renderToHtml(<Email><Row><Column><Paragraph mobile={{ fontSize: "16px /*" } as any}>Hi</Paragraph><Paragraph mobile={{ fontSize: "20px" }}>There</Paragraph></Column></Row></Email>);
     expect(html).not.toContain("/*");
     expect(html).toMatch(/font-size:\s*20px !important/);
+  });
+
+  it("can't leave a bracket open with one of another kind (`16px (]`), which swallows the rules after it", () => {
+    const html = renderToHtml(<Email><Row><Column><Paragraph mobile={{ fontSize: "16px (]" } as any}>Hi</Paragraph><Paragraph mobile={{ fontSize: "20px" }}>There</Paragraph></Column></Row></Email>);
+    expect(html).not.toContain("16px (]");
+    expect(html).toMatch(/font-size:\s*20px !important/);
+  });
+
+  it("aren't kept in the design either, where the editor writes them into its export's <style> as they are", () => {
+    const values = ["16px</style><x-pwn></x-pwn><style>", "16px;} x-pwn { color: red", "16px /*", "16px (]"];
+    for (const value of values) {
+      const design = JSON.stringify(renderToJson(<Email><Row><Column><Paragraph mobile={{ fontSize: value, lineHeight: "20px" } as any}>Hi</Paragraph></Column></Row></Email>));
+      expect(design).not.toContain(value.slice(4, 12));
+      expect(design).toContain('"lineHeight":"20px"');
+    }
   });
 });

@@ -32,6 +32,37 @@ export function normalizeColor(value: string): string {
   return `#${[r, g, b].map((n) => n.toString(16).padStart(2, "0")).join("")}`;
 }
 
+/**
+ * Whether a value can be written into a CSS declaration as it is: nothing that ends the declaration, the rule or
+ * the `<style>` element (`16px</style><script>`, `;`, `}`), no comment that hides the rules after it (`/*`), and
+ * every bracket closed by its own kind (`calc(12px` or `16px (]` would swallow the rules after it).
+ */
+export function cssValueSafe(text: string): boolean {
+  if (/[<>{};]|\/\*|\*\//.test(text)) return false;
+  const open: string[] = [];
+  for (const c of text) {
+    if (c === "(" || c === "[") open.push(c === "(" ? ")" : "]");
+    else if ((c === ")" || c === "]") && open.pop() !== c) return false;
+  }
+  return !open.length;
+}
+
+/**
+ * A device's settings (`_override.mobile`) with each text value that isn't safe in CSS left out: the editor writes
+ * them into its export's `<style>` as they are, as Elements' head does with the ones it keeps.
+ */
+export function cssSafeValues<T>(value: T): T {
+  if (typeof value === "string") return (cssValueSafe(value) ? value : undefined) as T;
+  if (Array.isArray(value)) return value.map(cssSafeValues) as T;
+  if (!isPlainObject(value)) return value;
+  const out: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(value)) {
+    const safe = cssSafeValues(v);
+    if (safe !== undefined || v === undefined) out[k] = safe;
+  }
+  return out as T;
+}
+
 /** A font stack safe inside style="": family names quoted with ' instead of " (an apostrophe in one escaped). */
 export function normalizeFontStack(value: string): string {
   return value.replace(/"([^"]*)"?/g, (_, name: string) => `'${name.replace(/'/g, "\\'")}'`);
