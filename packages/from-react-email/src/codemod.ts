@@ -57,9 +57,14 @@ import { splitConditionalClasses } from "./variants";
 import { phoneSides, withPhoneStyles, handledPhoneClass, unheldPhoneStyles } from "./phone-styles";
 import { addRules, classStyle, inlineKeys, NO_CLASSES, overInline, phoneRules, resolveTailwind, stacksOnPhones, stylesheetRules, underInline, underKeys, type ResolvedClasses, type RuleOrder } from "./tailwind";
 
+/** The functions the codemod adds to a migration, by their usual names (another, `_name`, where the template has the name). */
+export const CODEMOD_HELPERS = ["escapeHtml", "htmlText", "htmlAttribute", "renderToStaticMarkup", "reactStaticMarkup", "plainText"];
+
 export interface CodemodResult {
   code: string;
   report: ConversionReport;
+  /** The functions the codemod added to `code` (escaping, a component's HTML): they show what they're given as it is. */
+  helpers: string[];
 }
 
 type Ctx = MapCtx;
@@ -218,6 +223,7 @@ class Converter {
   private readonly hoisted: Array<{ at: number; text: string }> = [];
   /** Style values computed at render time, by where they are in the source. */
   private readonly droppedStyles: Array<{ from: number; to: number; detail: string; text: string }> = [];
+  private generatedHelpers = new Set<string>();
 
 
   constructor(
@@ -274,7 +280,7 @@ class Converter {
       ),
     );
     const code = await this.emit(conversions);
-    return { code, report };
+    return { code, report, helpers: [...this.generatedHelpers] };
   }
 
   // ============================================
@@ -2212,13 +2218,13 @@ function renderToStaticMarkup(node${type(": Parameters<typeof reactStaticMarkup>
       );
       if (statement && (body.match(new RegExp(`\\b${name}\\b`, "g")) ?? []).length === 1) body = body.replace(statement.getText(), "");
     }
-    const generated = new Set([
+    const generated = (this.generatedHelpers = new Set([
       ...(this.needsEscape ? [this.helper.escapeHtml] : []),
       ...(this.needsStaticMarkup ? [this.helper.renderToStaticMarkup, this.helper.reactStaticMarkup] : []),
       ...(this.needsHtmlText ? [this.helper.htmlText] : []),
       ...(this.needsAttribute ? [this.helper.htmlAttribute] : []),
       ...(this.needsPlainText ? [this.plainTextName] : []),
-    ]);
+    ]));
     const original = this.original === undefined ? this.file : ts.createSourceFile(this.file.fileName, this.original, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
     const raw = dropUnused(`${header}\n${body}${helpers}`, original, javascript, generated, new Set(this.copied));
     try {

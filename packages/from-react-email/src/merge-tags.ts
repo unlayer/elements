@@ -91,8 +91,10 @@ export async function mergeTagged<T>(
   // A prop the template compares (`count === "1"`) or falls back on (`company || "Acme"`) shows another text for
   // other values than the ones tried here: as a merge tag, "1 items", an empty company. It keeps its sample value.
   const shown = (p: TextProp) => output.includes(JSON.stringify(p.value).slice(1, -1));
-  const html = textProps(props).filter((p) => asHtml(p) || placeholder(p) || (tested.has(p.path) && shown(p))).map((p) => p.path);
-  const probes = textProps(props).filter((p) => !asHtml(p) && !placeholder(p) && !tested.has(p.path));
+  // Tested itself, or under a path passed whole (`user.*`, `*`).
+  const isTested = (p: TextProp) => tested.has(p.path) || tested.has("*") || p.path.split(".").some((_, i, parts) => i > 0 && tested.has(`${parts.slice(0, i).join(".")}.*`));
+  const html = textProps(props).filter((p) => asHtml(p) || placeholder(p) || (isTested(p) && shown(p))).map((p) => p.path);
+  const probes = textProps(props).filter((p) => !asHtml(p) && !placeholder(p) && !isTested(p));
   if (!probes.length) return { used: [], kept: html };
   // Text is measured as the samples (a column sized by its content, a phone size its words fit): each
   // value put in for a prop is read as the prop's sample value.
@@ -147,13 +149,16 @@ export async function mergeTagged<T>(
 }
 
 /**
- * The props a template's code tests, by path (`count`, `user.name`, and each path above them): compared
- * (`===`, `<`, `in`), tested for truth (`a || b`, `a ?? b`, `a && b`, `!a`, a condition, `if`, `switch`),
- * directly or through a name given to them (`const n = Number(count)`, `const { name } = user`, a prop of a
- * component in the file: `<Footer company={company} />`). Names are resolved, so a helper's own `name` isn't a prop.
- * The component is the file's default export, or its first function (a component's own code).
+ * The props a template's code tests, by path (`count`, `user.name`, and each path above them; `user.*` for every
+ * prop under `user`, `*` for all of them): compared (`===`, `<`, `in`), tested for truth (`a || b`, `a ?? b`,
+ * `a && b`, `!a`, a condition, `if`, `switch`), directly or through a name given to them (`const n = Number(count)`,
+ * `const { name } = user`), a function of the file's own they're passed to (`pluralize(count, "item")`) or a
+ * component of the file's own (`<Footer company={company} />`, `{...props}`). Names are resolved, so a helper's own
+ * `name` isn't a prop. A prop passed to a function or component from elsewhere may be tested there: it counts as
+ * tested. A comparison no text can change (`=== undefined`, `typeof x === "string"`) doesn't. The component is the
+ * file's default export, or its first function (a component's own code).
  */
-export function testedProps(source: string): Set<string> {
+export function testedProps(source: string, asGiven: ReadonlySet<string> = new Set()): Set<string> {
   const NAME = "template.tsx";
   const file = ts.createSourceFile(NAME, source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
   const host = ts.createCompilerHost({});
@@ -165,7 +170,46 @@ export function testedProps(source: string): Set<string> {
   const checker = program.getTypeChecker();
   const component = mainFunction(file, checker);
   if (!component) return new Set();
-  // Where a name was declared, as the prop paths it stands for.
+  const unwrap = (node: ts.Expression): ts.Expression => {
+    while (ts.isParenthesizedExpression(node) || ts.isAsExpression(node) || ts.isSatisfiesExpression(node) || ts.isNonNullExpression(node) || ts.isTypeAssertionExpression(node)) node = node.expression;
+    return node;
+  };
+  /** The function a name declares in this file (`function f`, `const f = () => …`), if it does. */
+  const localFunction = (expression: ts.Expression): ts.SignatureDeclaration | undefined => {
+    const e = unwrap(expression);
+    if (!ts.isIdentifier(e)) return undefined;
+    const decl = checker.getSymbolAtLocation(e)?.valueDeclaration;
+    if (decl && (ts.isFunctionDeclaration(decl) || ts.isFunctionExpression(decl) || ts.isArrowFunction(decl))) return decl;
+    const init = decl && ts.isVariableDeclaration(decl) && decl.initializer ? unwrap(decl.initializer) : undefined;
+    return init && (ts.isArrowFunction(init) || ts.isFunctionExpression(init)) ? init : undefined;
+  };
+  // Where each function of the file is called or rendered: its calls' arguments, its elements' attributes and spreads.
+  const calls = new Map<ts.Node, ts.CallExpression[]>();
+  const elements = new Map<ts.Node, Array<ts.JsxOpeningElement | ts.JsxSelfClosingElement>>();
+  // Names imported from React, react-dom, React Email or Elements: their components and functions show text as given.
+  const library = new Set<string>();
+  for (const statement of file.statements)
+    if (ts.isImportDeclaration(statement) && ts.isStringLiteral(statement.moduleSpecifier) && /^(@react-email\/|react-email$|@unlayer\/react-elements$|react$|react-dom(\/|$))/.test(statement.moduleSpecifier.text)) {
+      const clause = statement.importClause;
+      if (clause?.name) library.add(clause.name.text);
+      const bindings = clause?.namedBindings;
+      if (bindings && ts.isNamespaceImport(bindings)) library.add(bindings.name.text);
+      else if (bindings) for (const e of bindings.elements) library.add(e.name.text);
+    }
+  const collect = (node: ts.Node): void => {
+    if (ts.isCallExpression(node)) {
+      const fn = localFunction(node.expression);
+      if (fn && !(ts.isFunctionDeclaration(fn) && fn.name && asGiven.has(fn.name.text))) calls.set(fn, [...(calls.get(fn) ?? []), node]);
+    }
+    if (ts.isJsxOpeningElement(node) || ts.isJsxSelfClosingElement(node)) {
+      const fn = localFunction(node.tagName as ts.Expression);
+      if (fn) elements.set(fn, [...(elements.get(fn) ?? []), node]);
+    }
+    ts.forEachChild(node, collect);
+  };
+  collect(file);
+  // Where a name was declared, as the prop paths it stands for ("…" + WHOLE: anything under that path).
+  const WHOLE = "\u0001";
   const seen = new Set<ts.Node>();
   const declared = (decl: ts.Node): string[] => {
     if (seen.has(decl)) return [];
@@ -174,10 +218,10 @@ export function testedProps(source: string): Set<string> {
       if (ts.isParameter(decl)) return parameterPaths(decl);
       if (ts.isBindingElement(decl)) {
         const key = decl.propertyName ? (ts.isIdentifier(decl.propertyName) || ts.isStringLiteral(decl.propertyName) ? decl.propertyName.text : undefined) : ts.isIdentifier(decl.name) ? decl.name.text : undefined;
-        if (key === undefined) return [];
         const pattern = decl.parent.parent; // ObjectBindingPattern → its declaration (or an outer BindingElement)
         const above = ts.isParameter(pattern) ? parameterPaths(pattern) : ts.isBindingElement(pattern) ? declared(pattern) : ts.isVariableDeclaration(pattern) && pattern.initializer ? paths(pattern.initializer) : [];
-        return above.map((path) => (path ? `${path}.${key}` : key));
+        // A key it can't name (`...rest`, a computed one) stands for all of what's above.
+        return above.map((path) => (path.endsWith(WHOLE) || key === undefined || decl.dotDotDotToken ? (path.endsWith(WHOLE) ? path : `${path}${WHOLE}`) : path ? `${path}.${key}` : key));
       }
       if (ts.isVariableDeclaration(decl) && decl.initializer) return paths(decl.initializer);
       return [];
@@ -185,34 +229,28 @@ export function testedProps(source: string): Set<string> {
       seen.delete(decl);
     }
   };
-  // A parameter's paths: the component's props, or a component's in this file, by what each place that renders it passes.
+  // A parameter's paths: the component's props; for a function of the file's own, what each call passes there, and for
+  // its first, the attributes each element of it passes (by name), or its spreads.
   const parameterPaths = (param: ts.ParameterDeclaration): string[] => {
     if (param === component.parameters[0]) return [""]; // props
     const fn = param.parent;
-    if (!ts.isFunctionLike(fn) || fn.parameters[0] !== param) return [];
-    const target = fn.name ?? (ts.isVariableDeclaration(fn.parent) ? fn.parent.name : undefined);
-    const symbol = target && ts.isIdentifier(target) ? checker.getSymbolAtLocation(target) : undefined;
-    if (!symbol) return [];
-    // Each attribute passed is read as the prop of the same name: `<Footer company={company} />`.
-    return [`\0${symbol.escapedName as string}`];
-  };
-  const attributeUses = new Map<string, Map<string, ts.Expression[]>>();
-  const collectUses = (node: ts.Node): void => {
-    if (ts.isJsxOpeningElement(node) || ts.isJsxSelfClosingElement(node)) {
-      const tag = ts.isIdentifier(node.tagName) ? node.tagName.text : undefined;
-      if (tag)
-        for (const attr of node.attributes.properties)
-          if (ts.isJsxAttribute(attr) && ts.isIdentifier(attr.name) && attr.initializer && ts.isJsxExpression(attr.initializer) && attr.initializer.expression) {
-            const uses = attributeUses.get(tag) ?? new Map<string, ts.Expression[]>();
-            attributeUses.set(tag, uses);
-            uses.set(attr.name.text, [...(uses.get(attr.name.text) ?? []), attr.initializer.expression]);
-          }
+    if (!ts.isFunctionLike(fn)) return [];
+    const at = fn.parameters.indexOf(param);
+    const out: string[] = [];
+    for (const call of calls.get(fn) ?? []) {
+      const argument = call.arguments[at];
+      // Passed whole: a destructured parameter reads parts of it, which a path can't follow through a literal.
+      if (argument) for (const path of paths(argument)) out.push(ts.isObjectBindingPattern(param.name) && !path.endsWith(WHOLE) ? `${path}${WHOLE}` : path);
     }
-    ts.forEachChild(node, collectUses);
+    if (at === 0) for (const element of elements.get(fn) ?? []) out.push(`\0${element.getStart()}`);
+    return out;
   };
-  collectUses(file);
-  // The prop paths an expression reads: `props.user.name` and `user?.name` read `user.name`.
-  const paths = (node: ts.Node, out: string[] = []): string[] => {
+  const elementAt = new Map<number, ts.JsxOpeningElement | ts.JsxSelfClosingElement>();
+  for (const list of elements.values()) for (const element of list) elementAt.set(element.getStart(), element);
+  // The prop paths an expression reads: `props.user.name` and `user?.name` read `user.name`. `shallow`: not inside a
+  // function or JSX in it (what a callback or an element reads isn't what's passed).
+  const paths = (node: ts.Node, out: string[] = [], shallow = false): string[] => {
+    if (shallow && (ts.isFunctionLike(node) || ts.isJsxElement(node) || ts.isJsxSelfClosingElement(node) || ts.isJsxFragment(node))) return out;
     if (ts.isIdentifier(node) || ts.isPropertyAccessExpression(node)) {
       const parts: string[] = [];
       let root: ts.Expression = node;
@@ -224,16 +262,23 @@ export function testedProps(source: string): Set<string> {
         const decl = checker.getSymbolAtLocation(root)?.valueDeclaration;
         for (const base of decl ? declared(decl) : []) {
           if (base.startsWith("\0")) {
-            // A prop of a component in this file: what's passed for it where it's rendered.
-            const [tag, ...rest] = base.slice(1).split(".");
+            // A prop of a component of the file's own: what each element of it passes, by name or in a spread.
+            const [where, ...rest] = base.slice(1).split(".");
             const [key, ...deeper] = [...rest, ...parts];
-            for (const passed of (key && attributeUses.get(tag)?.get(key)) || []) for (const path of paths(passed)) out.push([path, ...deeper].filter(Boolean).join("."));
-          } else out.push([base, ...parts].filter(Boolean).join("."));
+            const element = elementAt.get(Number(where));
+            for (const attr of element?.attributes.properties ?? []) {
+              if (ts.isJsxSpreadAttribute(attr)) for (const path of paths(attr.expression)) out.push(path.endsWith(WHOLE) ? path : [path, key, ...deeper].filter(Boolean).join("."));
+              else if (key && ts.isIdentifier(attr.name) && attr.name.text === key && attr.initializer && ts.isJsxExpression(attr.initializer) && attr.initializer.expression)
+                for (const path of paths(attr.initializer.expression)) out.push(path.endsWith(WHOLE) ? path : [path, ...deeper].filter(Boolean).join("."));
+            }
+            if (!key && element) out.push(...paths(element.attributes)); // the props object whole
+          } else if (base.endsWith(WHOLE)) out.push(base);
+          else out.push([base, ...parts].filter(Boolean).join("."));
         }
         return out;
       }
     }
-    ts.forEachChild(node, (child) => void paths(child, out));
+    ts.forEachChild(node, (child) => void paths(child, out, shallow));
     return out;
   };
   const COMPARE = new Set([
@@ -243,24 +288,68 @@ export function testedProps(source: string): Set<string> {
   ]);
   const TRUTH = new Set([ts.SyntaxKind.BarBarToken, ts.SyntaxKind.QuestionQuestionToken, ts.SyntaxKind.AmpersandAmpersandToken]);
   const out = new Set<string>();
-  const test = (node: ts.Node) => {
-    for (const path of paths(node)) {
-      const parts = path.split(".");
-      for (let i = 1; i <= parts.length; i++) out.add(parts.slice(0, i).join("."));
+  const add = (path: string) => {
+    if (path.endsWith(WHOLE)) {
+      const base = path.slice(0, -1);
+      out.add(base ? `${base}.*` : "*");
+      path = base;
     }
+    const parts = path.split(".");
+    for (let i = 1; i <= parts.length; i++) out.add(parts.slice(0, i).join("."));
   };
+  const test = (node: ts.Node, shallow = false) => paths(node, [], shallow).forEach(add);
+  // Passed where its code can't be read: everything under each path counts as tested.
+  const passed = (node: ts.Node) => paths(node, [], true).forEach((path) => add(path.endsWith(WHOLE) ? path : `${path}${WHOLE}`));
+  /** What a value's truth depends on: a comparison or a `!` inside is read where it is (visit). */
+  const truth = (node: ts.Expression): void => {
+    const e = unwrap(node);
+    if (ts.isBinaryExpression(e) && COMPARE.has(e.operatorToken.kind)) return;
+    if (ts.isBinaryExpression(e) && TRUTH.has(e.operatorToken.kind)) return void (truth(e.left), truth(e.right));
+    if (ts.isPrefixUnaryExpression(e) && e.operator === ts.SyntaxKind.ExclamationToken) return;
+    test(e);
+  };
+  // A side no text equals: `null`, `undefined`, `true`, `false`, or a `typeof` (the same for every text).
+  const textless = (e: ts.Expression) => {
+    const u = unwrap(e);
+    return u.kind === ts.SyntaxKind.NullKeyword || u.kind === ts.SyntaxKind.TrueKeyword || u.kind === ts.SyntaxKind.FalseKeyword || (ts.isIdentifier(u) && u.text === "undefined") || ts.isTypeOfExpression(u) || ts.isVoidExpression(u);
+  };
+  const SAFE = new Set(["String"]);
   const visit = (node: ts.Node): void => {
+    // A helper the codemod added shows what it's given as it is (escaped): its own checks aren't the template's.
+    if (ts.isFunctionDeclaration(node) && node.name && asGiven.has(node.name.text)) return;
     if (ts.isBinaryExpression(node) && COMPARE.has(node.operatorToken.kind)) {
-      test(node.left);
-      test(node.right);
+      if (!textless(node.left) && !textless(node.right)) {
+        test(node.left);
+        test(node.right);
+      }
     } else if (ts.isBinaryExpression(node) && TRUTH.has(node.operatorToken.kind)) {
       // `text ?? ""` and `text || ""` show any text as given.
       const empty = node.operatorToken.kind !== ts.SyntaxKind.AmpersandAmpersandToken && (ts.isStringLiteral(node.right) || ts.isNoSubstitutionTemplateLiteral(node.right)) && node.right.text === "";
-      if (!empty) test(node.left);
-    } else if (ts.isConditionalExpression(node)) test(node.condition);
-    else if (ts.isPrefixUnaryExpression(node) && node.operator === ts.SyntaxKind.ExclamationToken) test(node.operand);
-    else if (ts.isIfStatement(node) || ts.isWhileStatement(node) || ts.isSwitchStatement(node)) test(node.expression);
+      if (!empty) truth(node.left);
+    } else if (ts.isConditionalExpression(node)) truth(node.condition);
+    else if (ts.isPrefixUnaryExpression(node) && node.operator === ts.SyntaxKind.ExclamationToken) truth(node.operand);
+    else if (ts.isIfStatement(node) || ts.isWhileStatement(node) || ts.isDoStatement(node)) truth(node.expression);
+    else if (ts.isSwitchStatement(node)) test(node.expression);
     else if (ts.isCaseClause(node)) test(node.expression);
+    else if (ts.isCallExpression(node) && !localFunction(node.expression)) {
+      // A function from elsewhere: what it's passed (React's element functions, and String, read text as it is).
+      const callee = node.expression.getText();
+      // An element made by a call (`jsx(Text, { … })`, `h(Row, null, …)`): rendered, as JSX is.
+      const [type, props] = node.arguments.map(unwrap);
+      const element =
+        /(^|\.|\b)(_?jsxs?|_?jsxDEV|createElement)\)?$/.test(callee) ||
+        (!!type && (ts.isStringLiteral(type) || /^[A-Z]/.test(type.getText().split(".").pop() ?? "")) && (!props || props.kind === ts.SyntaxKind.NullKeyword || ts.isObjectLiteralExpression(props)));
+      if (!element && !SAFE.has(callee) && !asGiven.has(callee) && !library.has(callee.split(".")[0]) && !callee.startsWith("console.")) node.arguments.forEach(passed);
+    } else if ((ts.isJsxOpeningElement(node) || ts.isJsxSelfClosingElement(node)) && !localFunction(node.tagName as ts.Expression)) {
+      // A component from elsewhere (not React Email's or Elements', nor an HTML tag): what it's passed.
+      const tag = node.tagName.getText();
+      const root = tag.split(".")[0];
+      if (!/^[a-z]/.test(tag) && !library.has(root)) {
+        for (const attr of node.attributes.properties) passed(ts.isJsxSpreadAttribute(attr) ? attr.expression : attr.initializer ?? attr);
+        if (ts.isJsxOpeningElement(node) && ts.isJsxElement(node.parent))
+          for (const child of node.parent.children) if (ts.isJsxExpression(child) && child.expression) passed(child.expression);
+      }
+    }
     ts.forEachChild(node, visit);
   };
   visit(file);

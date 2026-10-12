@@ -689,7 +689,7 @@ async function migrateFile(input: Input, options: Options, lib: Library, io: Io,
       if (options.out === undefined && !previewed && (await rendersChildren(source))) return { file: name, status: "skipped", reason: "a layout (it renders its children), not an email template: a shared component, left as it is" };
       design = verification.design;
       if (options.design && options.mergeTags) {
-        const tagged = await lib.mergeTagDesign(Migrated as (props: unknown) => ReturnType<typeof Original>, designProps, verification.design, { source: code });
+        const tagged = await lib.mergeTagDesign(Migrated as (props: unknown) => ReturnType<typeof Original>, designProps, verification.design, { source: code, helpers: converted.helpers });
         design = tagged.design;
         mergeTags = tagged;
       }

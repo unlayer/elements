@@ -23,6 +23,7 @@ import {
 import { callInRender, findTailwind, findTailwindConfig } from "./expand";
 import { convertElement } from "./runtime";
 import { mergeTagged, testedProps } from "./merge-tags";
+import { CODEMOD_HELPERS } from "./codemod";
 
 type Template = React.ComponentType<any> & { PreviewProps?: Record<string, unknown> };
 /** A migrated template as its file exports it: a function, or one wrapped in `memo` or `forwardRef`. */
@@ -300,13 +301,18 @@ export async function mergeTagDesign(
   Converted: MigratedTemplate,
   props: Record<string, unknown>,
   design: Record<string, unknown>,
-  /** The template's source (by default the component's own code): a prop it compares or falls back on (`count === "1"`, `company || "Acme"`) keeps its sample value. */
-  options: { source?: string } = {}
+  /**
+   * The template's source (by default the component's own code): a prop it compares or falls back on (`count === "1"`,
+   * `company || "Acme"`) keeps its sample value. `helpers`: functions in it that show what they're given as it is (the
+   * codemod's, from `convertSource`).
+   */
+  options: { source?: string; helpers?: string[] } = {}
 ): Promise<{ design: Record<string, unknown>; used: string[]; kept: string[] }> {
   const warn = console.warn;
   console.warn = () => undefined; // the same warnings as the sample render, already reported
   try {
-    const tested = testedProps(options.source ?? String(Converted));
+    // Without the source, the component's own code calls the codemod's helpers it doesn't define: they show text as given.
+    const tested = testedProps(options.source ?? String(Converted), new Set(options.helpers ?? (options.source === undefined ? CODEMOD_HELPERS : [])));
     const tagged = await mergeTagged(props, design, (p) => pinImageWidths(renderToJson(callTemplate(Converted, p)) as unknown as Record<string, unknown>), tested);
     return { design: tagged.result ?? design, used: tagged.used, kept: tagged.kept };
   } finally {
