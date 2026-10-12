@@ -1027,6 +1027,21 @@ describe("a run that checks nothing", () => {
   });
 });
 
+describe("words CSS adds or hides", () => {
+  it.each([
+    ["a label drawn before the text", `<Tailwind><Html><Head /><Body className="bg-white"><Container><Text className="text-sm before:content-['Sale:'] before:mr-1 before:font-bold">Everything 20% off this weekend</Text></Container></Body></Html></Tailwind>`],
+    ["text cut to an ellipsis", `<Html><Head /><Body style={{ backgroundColor: "#ffffff" }}><Container style={{ width: "600px" }}><Text>Your order</Text><Text style={{ width: "220px", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", fontSize: "14px" }}>Organic cotton crew neck sweater in heather grey, size medium, gift wrapped</Text></Container></Body></Html>`],
+  ])("are content: %s fails the template, saying words are involved (it's written)", async (_, markup) => {
+    const source = `import { Html, Head, Body, Container, Text, Tailwind } from "@react-email/components";
+export default function T() { return ${markup}; }`;
+    const dir = project({ "emails/t.tsx": source });
+    const out = io(dir);
+    expect(await main(["emails", "--out", "migrated"], out, lib), out.out + out.err).toBe(2);
+    expect(out.out).toMatch(/✗ emails\/t\.tsx: written, but its content differs \(.*words CSS adds or hides, which the check doesn't read/);
+    expect(fs.existsSync(path.join(dir, "migrated/t.tsx"))).toBe(true);
+  });
+});
+
 describe("content shown or hidden by props", () => {
   // The preview props show it; other props hide it. The migration can't keep the condition, so it shows it to everyone.
   const template = (name: string, section: string, props: string) => `import { Html, Head, Body, Container, Section, Text, Link, Tailwind } from "@react-email/components";

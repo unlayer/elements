@@ -964,11 +964,19 @@ function problems(check: CheckParts): string[] {
 const SHOWN = new Set(["shown", "shown on phones"]);
 
 /**
+ * CSS the check doesn't read that adds words (`::before { content: "Sale:" }`) or hides them (an ellipsis, a line
+ * clamp, a clipping `overflow`): which words a reader gets, not how they look.
+ */
+const WORDS_LOOK = /::(before|after) \{ content|`content( \(unread\))?`|text-overflow|line-clamp|`overflow/;
+const wordsLook = (u: { what: string; cause: string }) => u.what === "look" && WORDS_LOOK.test(u.cause);
+
+/**
  * What the reader gets that differs: words, links and images lost or added (on desktop or phones, or out of
  * order), whether they show where that can't be told, and inbox-preview text shown in the email.
  */
 function contentProblems(check: CheckParts): string[] {
   const shown = check.unverified?.filter((u) => SHOWN.has(u.what)) ?? [];
+  const words = check.unverified?.filter(wordsLook) ?? [];
   const preview = check.styles?.filter((c) => c.property === "shown") ?? [];
   return [
     ...(check.missing?.length ? [`lost text: ${quote(check.missing)}`] : []),
@@ -977,6 +985,7 @@ function contentProblems(check: CheckParts): string[] {
     ...(check.addedAttributes?.length ? [`extra links/images: ${quote(check.addedAttributes)}`] : []),
     ...(preview.length ? [`shown in another place: ${styleChanges(preview)}`] : []),
     ...(shown.length ? [`couldn't verify: ${unverifiedList(shown)}`] : []),
+    ...(words.length ? [`words CSS adds or hides, which the check doesn't read: ${unverifiedList(words)}`] : []),
     ...(check.phone?.missing.length ? [`on phones, lost text: ${quote(check.phone.missing)}`] : []),
     ...(check.phone?.added.length ? [`on phones, extra text: ${quote(check.phone.added)}`] : []),
     ...(check.phone?.missingAttributes?.length ? [`on phones, lost links/images: ${quote(check.phone.missingAttributes)}`] : []),
@@ -988,7 +997,7 @@ function contentProblems(check: CheckParts): string[] {
 /** How it looks that differs: a style, where words sit, CSS the check doesn't model (or can't read). */
 function lookProblems(check: CheckParts): string[] {
   const styles = check.styles?.filter((c) => c.property !== "shown") ?? [];
-  const unverified = check.unverified?.filter((u) => !SHOWN.has(u.what)) ?? [];
+  const unverified = check.unverified?.filter((u) => !SHOWN.has(u.what) && !wordsLook(u)) ?? [];
   return [
     ...(styles.length ? [`shown in another style: ${styleChanges(styles)}`] : []),
     ...(unverified.length ? [`couldn't verify: ${unverifiedList(unverified)}`] : []),
