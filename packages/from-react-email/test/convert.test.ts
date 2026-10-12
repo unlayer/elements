@@ -1413,6 +1413,34 @@ List.PreviewProps = { items: [{ glow: "0 0 4px red", label: "A" }], name: "Ada" 
   });
 });
 
+describe("what only a dropped Tailwind config or style read", () => {
+  it("goes when the file's own functions only compute it; an object that may do something stays a statement that parses", async () => {
+    const dir = fs.mkdtempSync(path.join(import.meta.dirname, ".tmp-"));
+    try {
+      const file = path.join(dir, "migrated.tsx");
+      const source = `import { Html, Body, Section, Tailwind, Text } from "@react-email/components";
+declare function track(name: string): string;
+const parse = (input: string): number => { const m = input.match(/\\d+/); return m ? parseInt(m[0], 10) : 0; };
+const mix = (a: string, b: string) => { const round = (x: number) => Math.round(x); return \`rgb(\${round(parse(a))}, \${round(parse(b))}, 0)\`; };
+const config = { theme: { colors: { brand: mix("1", "2") } } };
+export default function Note({ name }: { name: string }) {
+  const shadow = { value: track(name) };
+  return <Html><Tailwind config={config}><Body><Section style={{ boxShadow: shadow.value }}><Text className="text-brand">Hi {name}</Text></Section></Body></Tailwind></Html>;
+}
+Note.PreviewProps = { name: "Ada" };`;
+      const { code } = await convertSource(source, { fileName: file });
+      fs.writeFileSync(file, code);
+      expect(code).not.toMatch(/\bconfig\b|\bmix\b|\bparse\b/);
+      expect(code).toMatch(/^\s*\(\{ value: track\(name\) \}\);$/m);
+      const ts = (await import("typescript")).default;
+      const program = ts.createProgram([file], { noEmit: true, jsx: ts.JsxEmit.ReactJSX, strict: true, noUnusedLocals: true, noUnusedParameters: true, module: ts.ModuleKind.ESNext, moduleResolution: ts.ModuleResolutionKind.Bundler, target: ts.ScriptTarget.ES2022, skipLibCheck: true, types: ["react"] });
+      expect(ts.getPreEmitDiagnostics(program).filter((d) => d.file?.fileName === file).map((d) => `TS${d.code}`)).toEqual([]);
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
+  });
+});
+
 describe("an inlined component's conditions on the props it's given", () => {
   it("are written as what they give, so the migration compiles (TS2872/TS2873) and shows the same", async () => {
     const source = `import { Html, Body, Container, Section, Text, Link, Button } from "@react-email/components";

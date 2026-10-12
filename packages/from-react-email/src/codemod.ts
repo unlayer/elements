@@ -2407,7 +2407,9 @@ function dropUnused(code: string, original: ts.SourceFile, javascript: boolean, 
           // One that may do something besides (`track(name)`, a hook): it still runs, as a statement of its own.
           const [only] = declarations;
           if (declarations.length === 1 && ts.isIdentifier(only.name) && unused(only.name) && only.initializer) {
-            cuts.push({ from: statement.getStart(), to: statement.getEnd(), text: `${only.initializer.getText()};` });
+            const value = unwrap(only.initializer);
+            const text = only.initializer.getText();
+            cuts.push({ from: statement.getStart(), to: statement.getEnd(), text: ts.isObjectLiteralExpression(value) || ts.isClassExpression(value) ? `(${text});` : `${text};` });
             continue;
           }
           // `const { text, muted } = theme.colors` where only `text` is still read: `muted` goes (noUnusedLocals).
@@ -2509,8 +2511,11 @@ function references(file: ts.SourceFile, helpers: Set<string>): Map<string, numb
 
 /** Methods of strings and numbers that only compute a value. */
 const COMPUTING_METHODS = new Set(
-  "at charAt charCodeAt codePointAt concat endsWith includes indexOf lastIndexOf normalize padEnd padStart repeat replace replaceAll slice split startsWith substring toExponential toFixed toLocaleLowerCase toLocaleString toLocaleUpperCase toLowerCase toPrecision toString toUpperCase trim trimEnd trimStart".split(" ")
+  "at charAt charCodeAt codePointAt concat endsWith includes indexOf lastIndexOf localeCompare match normalize padEnd padStart repeat replace replaceAll search slice split startsWith substring toExponential toFixed toLocaleLowerCase toLocaleString toLocaleUpperCase toLowerCase toPrecision toString toUpperCase trim trimEnd trimStart".split(" ")
 );
+
+/** Global functions that only compute a value from what they're given. */
+const COMPUTING_GLOBALS = new Set(["parseInt", "parseFloat", "isNaN", "isFinite", "Number", "String", "Boolean"]);
 
 /**
  * `pure`, and calls that only compute: to a function of the file's own whose body is declarations, conditions and
@@ -2518,15 +2523,21 @@ const COMPUTING_METHODS = new Set(
  * strings and numbers that do.
  */
 function computing(file: ts.SourceFile): (node: ts.Node) => boolean {
+  // The file's functions by name, at any depth (`const round = (x) => …` inside another), where a name is declared once.
   const functions = new Map<string, ts.SignatureDeclaration & { body?: ts.Node }>();
-  for (const statement of file.statements) {
-    if (ts.isFunctionDeclaration(statement) && statement.name && statement.body && !statement.asteriskToken) functions.set(statement.name.text, statement);
-    if (ts.isVariableStatement(statement) && statement.declarationList.flags & ts.NodeFlags.Const)
-      for (const d of statement.declarationList.declarations) {
-        const init = d.initializer && unwrap(d.initializer);
-        if (ts.isIdentifier(d.name) && init && (ts.isArrowFunction(init) || ts.isFunctionExpression(init)) && !init.asteriskToken) functions.set(d.name.text, init);
-      }
-  }
+  const declared = new Map<string, number>();
+  const collect = (node: ts.Node) => {
+    const name = (ts.isFunctionDeclaration(node) || ts.isVariableDeclaration(node) || ts.isParameter(node) || ts.isBindingElement(node)) && node.name && ts.isIdentifier(node.name) ? node.name.text : undefined;
+    if (name) declared.set(name, (declared.get(name) ?? 0) + 1);
+    if (ts.isFunctionDeclaration(node) && node.name && node.body && !node.asteriskToken) functions.set(node.name.text, node);
+    if (ts.isVariableDeclaration(node) && ts.isIdentifier(node.name) && ts.isVariableDeclarationList(node.parent) && node.parent.flags & ts.NodeFlags.Const) {
+      const init = node.initializer && unwrap(node.initializer);
+      if (init && (ts.isArrowFunction(init) || ts.isFunctionExpression(init)) && !init.asteriskToken) functions.set(node.name.text, init);
+    }
+    ts.forEachChild(node, collect);
+  };
+  collect(file);
+  for (const [name, count] of declared) if (count > 1) functions.delete(name);
   const asyncFunction = (f: ts.Node) => !!ts.getModifiers(f as ts.FunctionDeclaration)?.some((m) => m.kind === ts.SyntaxKind.AsyncKeyword);
   const body = (f: ts.SignatureDeclaration & { body?: ts.Node }, seen: Set<ts.Node>): boolean => {
     if (asyncFunction(f) || !f.parameters.every((p) => !p.initializer || value(p.initializer, seen))) return false;
@@ -2549,6 +2560,7 @@ function computing(file: ts.SourceFile): (node: ts.Node) => boolean {
       const own = ts.isIdentifier(callee) ? functions.get(callee.text) : undefined;
       const computes =
         (own !== undefined && !seen.has(own) && body(own, new Set([...seen, own]))) ||
+        (ts.isIdentifier(callee) && own === undefined && COMPUTING_GLOBALS.has(callee.text) && !declared.has(callee.text)) ||
         (ts.isPropertyAccessExpression(callee) &&
           ((ts.isIdentifier(callee.expression) && ["Math", "Number", "String"].includes(callee.expression.text)) || (COMPUTING_METHODS.has(callee.name.text) && value(callee.expression, seen))));
       return computes && node.arguments.every((a) => value(a, seen));
