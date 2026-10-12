@@ -130,6 +130,28 @@ describe("a component that isn't one (undefined: a broken or circular import)", 
     const email = <Email><Row><Column><Paragraph>Hi</Paragraph><Missing /></Column></Row></Email>;
     for (const render of [renderToHtml, renderToJson, renderToPlainText]) expect(() => render(email)).toThrow(/Element type is invalid/);
   });
+
+  // Inside a component of the user's own or a Provider (a layout around the rows), its boundary caught React's error,
+  // and the whole layout was left out: an email with an empty body, and the render succeeded.
+  it("fails them inside a layout or a Provider too, as an object or a Date as a child does", async () => {
+    const { renderToPlainText } = await import("./render-to-html");
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
+    try {
+      const Missing = undefined as unknown as React.ComponentType;
+      const Layout = ({ children }: { children?: React.ReactNode }) => <>{children}<Row><Column><Paragraph>Footer</Paragraph></Column></Row></>;
+      const Theme = React.createContext("light");
+      const rows = <><Row><Column><Paragraph>Order shipped</Paragraph><Missing /></Column></Row></>;
+      for (const [email, why] of [
+        [<Email><Layout>{rows}</Layout></Email>, /Element type is invalid/],
+        [<Email><Theme.Provider value="dark">{rows}</Theme.Provider></Email>, /Element type is invalid/],
+        [<Email><Layout><Row><Column>{["Shipped ", new Date(0) as unknown as string]}</Column></Row></Layout></Email>, /Objects are not valid as a React child/],
+      ] as const) {
+        for (const render of [renderToHtml, renderToJson, renderToPlainText]) expect(() => render(email)).toThrow(why);
+      }
+    } finally {
+      error.mockRestore();
+    }
+  });
 });
 
 describe("a Row whose Columns don't fit its layout", () => {

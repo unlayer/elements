@@ -124,6 +124,8 @@ interface Collected {
   told: Set<number>;
   /** Each component's kept markup, worked out once (asking the component means calling it again). */
   kept?: Map<number, React.ReactElement | undefined>;
+  /** A template that isn't one (see tell): every use of this render fails with it, the head's and the design's too. */
+  fatal?: unknown;
 }
 
 const recorded = (c: Collected, node: { at: number }) => c.collection.recorded[node.at] as Recorded & Record<string, any>;
@@ -136,9 +138,15 @@ const nameOf = (element: React.ReactElement): string => {
 
 /** A component that threw, suspended or is async, left out: said once per render. */
 function leftOut(c: Collected, node: { at: number }): [] {
+  if (c.fatal) throw c.fatal;
   if (!c.told.has(node.at)) {
     c.told.add(node.at);
-    tell(recorded(c, node).element);
+    try {
+      tell(recorded(c, node).element);
+    } catch (error) {
+      c.fatal = error;
+      throw error;
+    }
   }
   return [];
 }
@@ -171,8 +179,13 @@ function tell(element: React.ReactElement<any>): void {
     for (const node of found) tell(recorded(inner, node).element);
     if (!found.length) console.error(`[Unlayer] <${name}> failed while rendering, so it's left out.`);
   } catch (error) {
+    const message = String((error as Error)?.message);
+    // A template that isn't one (a component that's undefined, from a broken or circular import; an object or a Date
+    // as a child) fails the render, wherever it is, as without a component around it: an email missing a block
+    // shouldn't send. (React's production build names these by their error numbers, 130 and 31.)
+    if (/Element type is invalid|Objects are not valid as a React child|Minified React error #(130|31)\b/.test(message)) throw error;
     // (React's production build says "suspended" as its error #426.)
-    if (isThenable(error) || /async and suspending|suspended|Minified React error #426\b/.test(String((error as Error)?.message))) async();
+    if (isThenable(error) || /async and suspending|suspended|Minified React error #426\b/.test(message)) async();
     else console.error(`[Unlayer] <${name}> threw while rendering, so it's left out:`, error);
   }
 }
