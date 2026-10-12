@@ -12,6 +12,7 @@ import {
   compareText,
   convertReactEmail,
   convertSource,
+  htmlWords,
   mergeTagDesign,
   verifyConversion,
 } from "../src/index";
@@ -417,6 +418,62 @@ describe("returns that render nothing", () => {
       expect(codemod.code).toContain("null");
       expect(codemod.code).toContain('from "@unlayer/react-elements"');
       expect(check.missing).toEqual([]);
+    }
+  });
+});
+
+describe("the runtime converter and Context", () => {
+  const source = `${IMPORTS}import { Tailwind } from "@react-email/components";
+    import React, { createContext, useContext } from "react";
+    const Brand = createContext({ name: "Default Co", url: "https://default.example" });
+    function Signature() {
+      const brand = useContext(Brand);
+      return <Text>The {brand.name} team</Text>;
+    }
+    class Legal extends React.Component {
+      static contextType = Brand;
+      declare context: React.ContextType<typeof Brand>;
+      render() {
+        return <Text>{this.context.name} Inc, all rights reserved</Text>;
+      }
+    }
+    function Styled() {
+      return <Text className="font-bold">Styled for {useContext(Brand).name}</Text>;
+    }
+    export default function T({ company }: { company: string }) {
+      return (
+        <Html><Body><Container>
+          <Brand.Provider value={{ name: company, url: "https://acme.example" }}>
+            <Text>Hello</Text>
+            <Signature />
+            <Brand.Consumer>{(brand) => <Button href={brand.url}>Visit {brand.name}</Button>}</Brand.Consumer>
+            <Legal />
+            <Tailwind><Brand.Provider value={{ name: "Tailwind Co", url: "https://tw.example" }}><Styled /></Brand.Provider></Tailwind>
+          </Brand.Provider>
+        </Container></Body></Html>
+      );
+    }
+    T.PreviewProps = { company: "Acme" };`;
+
+  it("gives the components in a Provider its value (useContext, a Consumer, a class's contextType), as React Email does in <Tailwind>", async () => {
+    const dir = fs.mkdtempSync(path.join(import.meta.dirname, ".tmp-"));
+    try {
+      fs.writeFileSync(path.join(dir, "t.tsx"), source);
+      const { default: T } = await import(path.join(dir, "t.tsx"));
+      const conversion = await convertReactEmail(T, { mergeTags: false });
+      const words = htmlWords(conversion.html());
+      // <Tailwind> calls the components in it in its own render: they get the value around it (React Email shows the same).
+      expect(words.join(" ")).toContain("Hello The Acme team Visit Acme Acme Inc all rights reserved Styled for Acme");
+      expect(words).not.toContain("Default");
+      expect(conversion.html()).toContain('href="https://acme.example"');
+      expect([conversion.report.missingText, conversion.report.addedText, conversion.report.missingAttributes]).toEqual([[], [], []]);
+      // The Button and Text are blocks the editor gets, not HTML: in a Provider in <Tailwind> too.
+      const design = JSON.stringify(conversion.design());
+      expect(design).toContain('"type":"button"');
+      expect(design).toMatch(/"type":"(text|paragraph)"[^]*Styled for Acme/);
+      expect(design).not.toMatch(/"type":"html"[^]*Styled for/);
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true });
     }
   });
 });

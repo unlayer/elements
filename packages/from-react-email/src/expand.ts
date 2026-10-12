@@ -48,38 +48,68 @@ const FORWARD_REF = Symbol.for("react.forward_ref");
 const MEMO = Symbol.for("react.memo");
 const PROVIDER = Symbol.for("react.provider");
 const CONTEXT = Symbol.for("react.context");
+const CONSUMER = Symbol.for("react.consumer");
 
-export async function expand(node: React.ReactNode, depth = 0): Promise<Node[]> {
+/** The Context values the elements around a node provide, outermost first: a component called on its own reads them. */
+type Providers = ReadonlyArray<{ type: unknown; value: unknown }>;
+
+/** Whether an element type provides a Context value (React 18's `Ctx.Provider`, React 19's `<Ctx>`). */
+function isProvider(type: any): boolean {
+  return type?.$$typeof === PROVIDER || (type?.$$typeof === CONTEXT && type.Provider === type);
+}
+
+/** The Context an element type reads with a function child (`<Ctx.Consumer>{(value) => …}`), if it's a Consumer. */
+function consumed(type: any): React.Context<unknown> | undefined {
+  if (type?.$$typeof === CONSUMER) return type._context;
+  // React 18: the Consumer is the Context itself (or, in development, an object pointing to it).
+  if (type?.$$typeof === CONTEXT && type.Provider !== type) return type._context ?? type;
+  return undefined;
+}
+
+/** The value a Consumer, or a class component's `contextType`, reads under `providers`. */
+function contextValue(context: React.Context<unknown>, providers: Providers): unknown {
+  return callInRender(() => React.useContext(context), providers);
+}
+
+export async function expand(node: React.ReactNode, depth = 0, providers: Providers = []): Promise<Node[]> {
   if (depth > 200) throw new Error("Template nests too deeply to convert");
   if (node === null || node === undefined || typeof node === "boolean") return [];
   if (typeof node === "string" || typeof node === "number") return [{ kind: "text", text: String(node) }];
-  if (Array.isArray(node)) return (await Promise.all(node.map((child) => expand(child, depth + 1)))).flat();
+  if (Array.isArray(node)) return (await Promise.all(node.map((child) => expand(child, depth + 1, providers)))).flat();
   if (!React.isValidElement(node)) return [];
 
   const element = node as React.ReactElement<any>;
   const type: any = element.type;
   const props: Record<string, any> = element.props ?? {};
 
-  if (type === React.Fragment) return expand(props.children, depth + 1);
+  if (type === React.Fragment) return expand(props.children, depth + 1, providers);
   if (typeof type === "string") {
-    return [{ kind: "host", tag: type, props, children: await expand(props.children, depth + 1), element }];
+    return [{ kind: "host", tag: type, props, children: await expand(props.children, depth + 1, providers), element }];
   }
 
   const name = displayName(type);
-  if (name === "Tailwind") return expand(await runTailwind(type, props), depth + 1);
+  if (name === "Tailwind") return expand(await runTailwind(type, props, providers), depth + 1, providers);
   if (name && REACT_EMAIL_COMPONENTS.has(name) && (type?.$$typeof === FORWARD_REF || isFont(name, props))) {
-    return [{ kind: "component", name, props, children: await expand(props.children, depth + 1), element }];
+    return [{ kind: "component", name, props, children: await expand(props.children, depth + 1, providers), element }];
   }
 
   // Anything else renders like React would render it.
-  if (type?.$$typeof === MEMO) return expand(React.createElement(type.type, props), depth + 1);
-  if (type?.$$typeof === FORWARD_REF) return expand(await callSuspending(() => type.render(props, null)), depth + 1);
-  if (type?.$$typeof === PROVIDER || type?.$$typeof === CONTEXT) return expand(props.children, depth + 1);
+  if (type?.$$typeof === MEMO) return expand(React.createElement(type.type, props), depth + 1, providers);
+  if (type?.$$typeof === FORWARD_REF) return expand(await callSuspending(() => type.render(props, null), providers), depth + 1, providers);
+  // A Provider's value reaches the components in it (each called on its own: see callInRender), a Consumer's function
+  // is called with it.
+  if (isProvider(type)) return expand(props.children, depth + 1, [...providers, { type, value: props.value }]);
+  const context = consumed(type);
+  if (context && typeof props.children === "function") return expand(await callSuspending(() => props.children(React.useContext(context)), providers), depth + 1, providers);
   if (typeof type === "function") {
-    if (type.prototype?.isReactComponent) return expand(new type(props).render(), depth + 1);
-    return expand(await callSuspending(() => type(props)), depth + 1);
+    if (type.prototype?.isReactComponent) {
+      const instance = new type(props);
+      if (type.contextType) instance.context = contextValue(type.contextType, providers);
+      return expand(instance.render(), depth + 1, providers);
+    }
+    return expand(await callSuspending(() => type(props), providers), depth + 1, providers);
   }
-  return expand(props.children, depth + 1);
+  return expand(props.children, depth + 1, providers);
 }
 
 function displayName(type: any): string | undefined {
@@ -95,23 +125,25 @@ function displayName(type: any): string | undefined {
  * in as placeholder elements carrying the same props (Tailwind inlines styles
  * onto them without rendering them) and come back as themselves afterwards.
  */
-async function runTailwind(type: (props: any) => React.ReactNode, props: any): Promise<React.ReactNode> {
+async function runTailwind(type: (props: any) => React.ReactNode, props: any, providers: Providers): Promise<React.ReactNode> {
   const types = new Map<string, any>();
-  const marked = await toPlaceholders(props.children, types);
-  const styled = await callSuspending(() => type({ ...props, children: marked }));
+  const marked = await toPlaceholders(props.children, types, providers);
+  const styled = await callSuspending(() => type({ ...props, children: marked }), providers);
   return fromPlaceholders(styled, types);
 }
 
 const PLACEHOLDER = "x-react-email-";
 
-async function toPlaceholders(node: React.ReactNode, types: Map<string, any>): Promise<React.ReactNode> {
-  if (Array.isArray(node)) return Promise.all(node.map((child) => toPlaceholders(child, types)));
+async function toPlaceholders(node: React.ReactNode, types: Map<string, any>, providers: Providers): Promise<React.ReactNode> {
+  if (Array.isArray(node)) return Promise.all(node.map((child) => toPlaceholders(child, types, providers)));
   if (!React.isValidElement(node)) return node;
   const element = node as React.ReactElement<any>;
   const type: any = element.type;
   const props = element.props ?? {};
-  const kids = props.children === undefined ? undefined : await toPlaceholders(props.children, types);
-  if (type === React.Fragment || typeof type === "string") {
+  // <Tailwind> calls the components in it in its own render, as React Email's does: they get the values of the
+  // Providers around the <Tailwind>, not of one inside it. A Provider keeps what's in it, rendered and marked.
+  const kids = props.children === undefined ? undefined : await toPlaceholders(props.children, types, providers);
+  if (type === React.Fragment || typeof type === "string" || isProvider(type)) {
     return React.cloneElement(element, undefined, ...(kids === undefined ? [] : [kids]));
   }
   const name = displayName(type);
@@ -122,10 +154,10 @@ async function toPlaceholders(node: React.ReactNode, types: Map<string, any>): P
     return React.createElement(tag, { ...props, key: element.key, children: kids });
   }
   // User components render now, so Tailwind sees their output.
-  if (type?.$$typeof === MEMO) return toPlaceholders(React.createElement(type.type, props), types);
-  if (type?.$$typeof === FORWARD_REF) return toPlaceholders(await callSuspending(() => type.render(props, null)), types);
+  if (type?.$$typeof === MEMO) return toPlaceholders(React.createElement(type.type, props), types, providers);
+  if (type?.$$typeof === FORWARD_REF) return toPlaceholders(await callSuspending(() => type.render(props, null), providers), types, providers);
   if (typeof type === "function" && !type.prototype?.isReactComponent) {
-    return toPlaceholders(await callSuspending(() => type(props)), types);
+    return toPlaceholders(await callSuspending(() => type(props), providers), types, providers);
   }
   return node;
 }
@@ -148,7 +180,7 @@ function fromPlaceholders(node: React.ReactNode, types: Map<string, any>): React
  * hooks (useMemo, useId, useContext's default) work there, as they do when
  * Elements renders the migrated template.
  */
-export function callInRender<T>(fn: () => T): T {
+export function callInRender<T>(fn: () => T, providers: Providers = []): T {
   let result: T | undefined;
   let error: unknown;
   let threw = false;
@@ -163,17 +195,18 @@ export function callInRender<T>(fn: () => T): T {
     }
     return null;
   };
-  renderToStaticMarkup(React.createElement(Probe));
+  // Inside the Providers around it, outermost first: useContext reads their values.
+  renderToStaticMarkup(providers.reduceRight<React.ReactElement>((inner, p) => React.createElement(p.type as React.ElementType, { value: p.value }, inner), React.createElement(Probe)));
   if (threw) throw error;
   if (!ran) throw new Error("the component wasn't rendered");
   return result as T;
 }
 
 /** Call `fn` in a render of its own, waiting out any promise it throws (React suspense). */
-export async function callSuspending<T>(fn: () => T): Promise<T> {
+export async function callSuspending<T>(fn: () => T, providers: Providers = []): Promise<T> {
   for (let attempt = 0; attempt < 20; attempt++) {
     try {
-      return callInRender(fn);
+      return callInRender(fn, providers);
     } catch (thrown) {
       if (thrown && typeof (thrown as Promise<unknown>).then === "function") {
         await thrown;
@@ -199,11 +232,11 @@ export async function findTailwindConfig(node: React.ReactNode): Promise<Record<
  * with it: React Email releases render Tailwind differently (a phone variant
  * can come out unconditional), so the template's own is the one to match.
  */
-export async function findTailwind(node: React.ReactNode, depth = 0): Promise<{ config: Record<string, unknown>; component: unknown } | undefined> {
+export async function findTailwind(node: React.ReactNode, depth = 0, providers: Providers = []): Promise<{ config: Record<string, unknown>; component: unknown } | undefined> {
   if (depth > 200 || node === null || typeof node !== "object") return undefined;
   if (Array.isArray(node)) {
     for (const child of node) {
-      const found = await findTailwind(child, depth + 1);
+      const found = await findTailwind(child, depth + 1, providers);
       if (found) return found;
     }
     return undefined;
@@ -213,12 +246,15 @@ export async function findTailwind(node: React.ReactNode, depth = 0): Promise<{ 
   const type: any = element.type;
   const props = element.props ?? {};
   if (displayName(type) === "Tailwind") return { config: props.config ?? {}, component: type };
-  if (typeof type === "string" || type === React.Fragment) return findTailwind(props.children, depth + 1);
-  if (displayName(type) && REACT_EMAIL_COMPONENTS.has(displayName(type) as string)) return findTailwind(props.children, depth + 1);
-  if (type?.$$typeof === MEMO) return findTailwind(React.createElement(type.type, props), depth + 1);
-  if (type?.$$typeof === FORWARD_REF) return findTailwind(await callSuspending(() => type.render(props, null)), depth + 1);
+  if (typeof type === "string" || type === React.Fragment) return findTailwind(props.children, depth + 1, providers);
+  if (displayName(type) && REACT_EMAIL_COMPONENTS.has(displayName(type) as string)) return findTailwind(props.children, depth + 1, providers);
+  if (type?.$$typeof === MEMO) return findTailwind(React.createElement(type.type, props), depth + 1, providers);
+  if (type?.$$typeof === FORWARD_REF) return findTailwind(await callSuspending(() => type.render(props, null), providers), depth + 1, providers);
   if (typeof type === "function" && !type.prototype?.isReactComponent) {
-    return findTailwind(await callSuspending(() => type(props)), depth + 1);
+    return findTailwind(await callSuspending(() => type(props), providers), depth + 1, providers);
   }
-  return findTailwind(props.children, depth + 1);
+  if (isProvider(type)) return findTailwind(props.children, depth + 1, [...providers, { type, value: props.value }]);
+  const context = consumed(type);
+  if (context && typeof props.children === "function") return findTailwind(await callSuspending(() => props.children(React.useContext(context)), providers), depth + 1, providers);
+  return findTailwind(props.children, depth + 1, providers);
 }
