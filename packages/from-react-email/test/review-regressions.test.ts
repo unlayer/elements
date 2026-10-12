@@ -689,6 +689,33 @@ describe("merge tags", () => {
     expect(runtime).toContain("{{city}}");
     for (const path of ["name", "fullName", "title"]) expect(runtime).not.toContain(`{{${path}}}`);
   });
+
+  it("aren't props the template compares or falls back on: as tags, 1 would read 1 items and no company an empty name", async () => {
+    const source = `import { Html, Body, Text } from "@react-email/components";
+      export default function Cart({ name, count, company, plan }: { name: string; count: string; company: string; plan: string }) {
+        const tier = plan.trim();
+        return <Html><Body>
+          <Text>Hi {name},</Text>
+          <Text>You have {count} item{count === "1" ? "" : "s"} in your cart.</Text>
+          <Text>The {company || "Acme"} team</Text>
+          <Text>{tier === "pro" ? "Thanks for going Pro" : "Upgrade any time"}: {plan}</Text>
+        </Body></Html>;
+      }
+      Cart.PreviewProps = { name: "Ada", count: "3", company: "Globex", plan: "basic" };`;
+    const { Original, Migrated, conversion } = await templates(source);
+    const check = await verifyConversion(Original, Migrated);
+    const tagged = await mergeTagDesign(Migrated, Original.PreviewProps, check.design, { source: conversion.code });
+    expect(tagged.used).toEqual(["name"]);
+    expect(tagged.kept.sort()).toEqual(["company", "count", "plan"]);
+    const design = JSON.stringify(tagged.design);
+    expect(design).toContain("Hi {{name}},");
+    expect(design).toContain("You have 3 items");
+    expect(design).toContain("The Globex team");
+    // The runtime converter's design too, from the component's code.
+    const runtime = JSON.stringify((await convertReactEmail(Original)).design());
+    expect(runtime).toContain("Hi {{name}},");
+    for (const path of ["count", "company", "plan"]) expect(runtime).not.toContain(`{{${path}}}`);
+  });
 });
 
 describe("names the template already uses", () => {

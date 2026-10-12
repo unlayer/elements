@@ -14,6 +14,7 @@
  * `slice(0, 40)` of a short title) keeps the sample value as well.
  */
 
+import ts from "typescript";
 import { decodeHtmlEntities } from "@unlayer/convert-core";
 import { parseFragment, type DefaultTreeAdapterMap } from "parse5";
 
@@ -77,6 +78,8 @@ export async function mergeTagged<T>(
   props: Record<string, unknown>,
   base: T,
   render: (props: Record<string, unknown>, measured: (text: string) => string) => T | Promise<T>,
+  /** Props the template tests (compares, falls back on): they keep their sample value. */
+  tested: ReadonlySet<string> = new Set(),
 ): Promise<{ result?: T; used: string[]; kept: string[] }> {
   // A prop written as HTML (`footerHtml`: its sample's markup is markup in the output) isn't
   // text: as a merge tag, its links would go. A prop shown as text (escaped) still is.
@@ -85,8 +88,11 @@ export async function mergeTagged<T>(
   // A sample that's already an email service's placeholder (`{{ first_name }}`, `*|FNAME|*`, `{% if %}`) stays as
   // written: as a merge tag named after the prop, the service would get another name.
   const placeholder = (p: TextProp) => /\{\{|\{%|\*\|[^|]*\|\*|<%|%%[^%\s]+%%|\[\[[^\]]+\]\]/.test(p.value);
-  const html = textProps(props).filter((p) => asHtml(p) || placeholder(p)).map((p) => p.path);
-  const probes = textProps(props).filter((p) => !asHtml(p) && !placeholder(p));
+  // A prop the template compares (`count === "1"`) or falls back on (`company || "Acme"`) shows another text for
+  // other values than the ones tried here: as a merge tag, "1 items", an empty company. It keeps its sample value.
+  const shown = (p: TextProp) => output.includes(JSON.stringify(p.value).slice(1, -1));
+  const html = textProps(props).filter((p) => asHtml(p) || placeholder(p) || (tested.has(p.path) && shown(p))).map((p) => p.path);
+  const probes = textProps(props).filter((p) => !asHtml(p) && !placeholder(p) && !tested.has(p.path));
   if (!probes.length) return { used: [], kept: html };
   // Text is measured as the samples (a column sized by its content, a phone size its words fit): each
   // value put in for a prop is read as the prop's sample value.
@@ -119,7 +125,6 @@ export async function mergeTagged<T>(
     for (const i of all) if (await attempt([i])) chosen.push(i);
     marked = chosen.length ? await attempt(chosen) : undefined;
   }
-  const shown = (p: TextProp) => JSON.stringify(base).includes(JSON.stringify(p.value).slice(1, -1));
   if (!marked) return { used: [], kept: [...html, ...probes.filter(shown).map((p) => p.path)] };
   const tag = (p: TextProp) => `{{${p.path}}}`;
   const result = replaceMarkers(marked, probes, tag);
@@ -139,6 +144,150 @@ export async function mergeTagged<T>(
         .map((p) => p.path),
     ],
   };
+}
+
+/**
+ * The props a template's code tests, by path (`count`, `user.name`, and each path above them): compared
+ * (`===`, `<`, `in`), tested for truth (`a || b`, `a ?? b`, `a && b`, `!a`, a condition, `if`, `switch`),
+ * directly or through a name given to them (`const n = Number(count)`, `const { name } = user`, a prop of a
+ * component in the file: `<Footer company={company} />`). Names are resolved, so a helper's own `name` isn't a prop.
+ * The component is the file's default export, or its first function (a component's own code).
+ */
+export function testedProps(source: string): Set<string> {
+  const NAME = "template.tsx";
+  const file = ts.createSourceFile(NAME, source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
+  const host = ts.createCompilerHost({});
+  const program = ts.createProgram({
+    rootNames: [NAME],
+    options: { noLib: true, noResolve: true, types: [], jsx: ts.JsxEmit.Preserve },
+    host: { ...host, getSourceFile: (name) => (name === NAME ? file : undefined), fileExists: (name) => name === NAME, readFile: () => undefined },
+  });
+  const checker = program.getTypeChecker();
+  const component = mainFunction(file, checker);
+  if (!component) return new Set();
+  // Where a name was declared, as the prop paths it stands for.
+  const seen = new Set<ts.Node>();
+  const declared = (decl: ts.Node): string[] => {
+    if (seen.has(decl)) return [];
+    seen.add(decl);
+    try {
+      if (ts.isParameter(decl)) return parameterPaths(decl);
+      if (ts.isBindingElement(decl)) {
+        const key = decl.propertyName ? (ts.isIdentifier(decl.propertyName) || ts.isStringLiteral(decl.propertyName) ? decl.propertyName.text : undefined) : ts.isIdentifier(decl.name) ? decl.name.text : undefined;
+        if (key === undefined) return [];
+        const pattern = decl.parent.parent; // ObjectBindingPattern → its declaration (or an outer BindingElement)
+        const above = ts.isParameter(pattern) ? parameterPaths(pattern) : ts.isBindingElement(pattern) ? declared(pattern) : ts.isVariableDeclaration(pattern) && pattern.initializer ? paths(pattern.initializer) : [];
+        return above.map((path) => (path ? `${path}.${key}` : key));
+      }
+      if (ts.isVariableDeclaration(decl) && decl.initializer) return paths(decl.initializer);
+      return [];
+    } finally {
+      seen.delete(decl);
+    }
+  };
+  // A parameter's paths: the component's props, or a component's in this file, by what each place that renders it passes.
+  const parameterPaths = (param: ts.ParameterDeclaration): string[] => {
+    if (param === component.parameters[0]) return [""]; // props
+    const fn = param.parent;
+    if (!ts.isFunctionLike(fn) || fn.parameters[0] !== param) return [];
+    const target = fn.name ?? (ts.isVariableDeclaration(fn.parent) ? fn.parent.name : undefined);
+    const symbol = target && ts.isIdentifier(target) ? checker.getSymbolAtLocation(target) : undefined;
+    if (!symbol) return [];
+    // Each attribute passed is read as the prop of the same name: `<Footer company={company} />`.
+    return [`\0${symbol.escapedName as string}`];
+  };
+  const attributeUses = new Map<string, Map<string, ts.Expression[]>>();
+  const collectUses = (node: ts.Node): void => {
+    if (ts.isJsxOpeningElement(node) || ts.isJsxSelfClosingElement(node)) {
+      const tag = ts.isIdentifier(node.tagName) ? node.tagName.text : undefined;
+      if (tag)
+        for (const attr of node.attributes.properties)
+          if (ts.isJsxAttribute(attr) && ts.isIdentifier(attr.name) && attr.initializer && ts.isJsxExpression(attr.initializer) && attr.initializer.expression) {
+            const uses = attributeUses.get(tag) ?? new Map<string, ts.Expression[]>();
+            attributeUses.set(tag, uses);
+            uses.set(attr.name.text, [...(uses.get(attr.name.text) ?? []), attr.initializer.expression]);
+          }
+    }
+    ts.forEachChild(node, collectUses);
+  };
+  collectUses(file);
+  // The prop paths an expression reads: `props.user.name` and `user?.name` read `user.name`.
+  const paths = (node: ts.Node, out: string[] = []): string[] => {
+    if (ts.isIdentifier(node) || ts.isPropertyAccessExpression(node)) {
+      const parts: string[] = [];
+      let root: ts.Expression = node;
+      while (ts.isPropertyAccessExpression(root)) {
+        parts.unshift(root.name.text);
+        root = root.expression;
+      }
+      if (ts.isIdentifier(root)) {
+        const decl = checker.getSymbolAtLocation(root)?.valueDeclaration;
+        for (const base of decl ? declared(decl) : []) {
+          if (base.startsWith("\0")) {
+            // A prop of a component in this file: what's passed for it where it's rendered.
+            const [tag, ...rest] = base.slice(1).split(".");
+            const [key, ...deeper] = [...rest, ...parts];
+            for (const passed of (key && attributeUses.get(tag)?.get(key)) || []) for (const path of paths(passed)) out.push([path, ...deeper].filter(Boolean).join("."));
+          } else out.push([base, ...parts].filter(Boolean).join("."));
+        }
+        return out;
+      }
+    }
+    ts.forEachChild(node, (child) => void paths(child, out));
+    return out;
+  };
+  const COMPARE = new Set([
+    ts.SyntaxKind.EqualsEqualsEqualsToken, ts.SyntaxKind.ExclamationEqualsEqualsToken, ts.SyntaxKind.EqualsEqualsToken, ts.SyntaxKind.ExclamationEqualsToken,
+    ts.SyntaxKind.LessThanToken, ts.SyntaxKind.GreaterThanToken, ts.SyntaxKind.LessThanEqualsToken, ts.SyntaxKind.GreaterThanEqualsToken,
+    ts.SyntaxKind.InKeyword, ts.SyntaxKind.InstanceOfKeyword,
+  ]);
+  const TRUTH = new Set([ts.SyntaxKind.BarBarToken, ts.SyntaxKind.QuestionQuestionToken, ts.SyntaxKind.AmpersandAmpersandToken]);
+  const out = new Set<string>();
+  const test = (node: ts.Node) => {
+    for (const path of paths(node)) {
+      const parts = path.split(".");
+      for (let i = 1; i <= parts.length; i++) out.add(parts.slice(0, i).join("."));
+    }
+  };
+  const visit = (node: ts.Node): void => {
+    if (ts.isBinaryExpression(node) && COMPARE.has(node.operatorToken.kind)) {
+      test(node.left);
+      test(node.right);
+    } else if (ts.isBinaryExpression(node) && TRUTH.has(node.operatorToken.kind)) {
+      // `text ?? ""` and `text || ""` show any text as given.
+      const empty = node.operatorToken.kind !== ts.SyntaxKind.AmpersandAmpersandToken && (ts.isStringLiteral(node.right) || ts.isNoSubstitutionTemplateLiteral(node.right)) && node.right.text === "";
+      if (!empty) test(node.left);
+    } else if (ts.isConditionalExpression(node)) test(node.condition);
+    else if (ts.isPrefixUnaryExpression(node) && node.operator === ts.SyntaxKind.ExclamationToken) test(node.operand);
+    else if (ts.isIfStatement(node) || ts.isWhileStatement(node) || ts.isSwitchStatement(node)) test(node.expression);
+    else if (ts.isCaseClause(node)) test(node.expression);
+    ts.forEachChild(node, visit);
+  };
+  visit(file);
+  return out;
+}
+
+/** The template component in a file: its default export, or its first function. */
+function mainFunction(file: ts.SourceFile, checker: ts.TypeChecker): ts.SignatureDeclaration | undefined {
+  const fn = (node: ts.Node | undefined): ts.SignatureDeclaration | undefined => {
+    while (node && (ts.isParenthesizedExpression(node) || ts.isCallExpression(node))) node = ts.isCallExpression(node) ? node.arguments[0] : node.expression; // memo(), forwardRef()
+    if (!node) return undefined;
+    if (ts.isFunctionDeclaration(node) || ts.isFunctionExpression(node) || ts.isArrowFunction(node)) return node;
+    if (ts.isIdentifier(node)) {
+      const decl = checker.getSymbolAtLocation(node)?.valueDeclaration;
+      return decl && ts.isVariableDeclaration(decl) ? fn(decl.initializer) : decl && ts.isFunctionDeclaration(decl) ? decl : undefined;
+    }
+    return undefined;
+  };
+  for (const statement of file.statements) {
+    if (ts.isFunctionDeclaration(statement) && statement.modifiers?.some((m) => m.kind === ts.SyntaxKind.DefaultKeyword)) return statement;
+    if (ts.isExportAssignment(statement)) return fn(statement.expression);
+  }
+  for (const statement of file.statements) {
+    if (ts.isFunctionDeclaration(statement)) return statement;
+    if (ts.isExpressionStatement(statement) && fn(statement.expression)) return fn(statement.expression);
+  }
+  return undefined;
 }
 
 /** Replace markers only in text and links; styles and image sources keep samples. */

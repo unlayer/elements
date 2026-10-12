@@ -22,7 +22,7 @@ import {
 } from "@unlayer/convert-core";
 import { callInRender, findTailwind, findTailwindConfig } from "./expand";
 import { convertElement } from "./runtime";
-import { mergeTagged } from "./merge-tags";
+import { mergeTagged, testedProps } from "./merge-tags";
 
 type Template = React.ComponentType<any> & { PreviewProps?: Record<string, unknown> };
 /** A migrated template as its file exports it: a function, or one wrapped in `memo` or `forwardRef`. */
@@ -97,7 +97,9 @@ export async function convertReactEmail(Template: Template, options: RuntimeOpti
   report.layoutDifferences = check.layout;
   let tree = converted.tree;
   if (options.mergeTags !== false) {
-    const tagged = await mergeTagged(props, converted.tree, async (p, measured) => (await convertElement(React.createElement(Template, p), { measured })).tree);
+    // The component's code says which props it tests (a function's text: its own code, not what it imports).
+    const tested = testedProps(String(Template));
+    const tagged = await mergeTagged(props, converted.tree, async (p, measured) => (await convertElement(React.createElement(Template, p), { measured })).tree, tested);
     if (tagged.result) tree = tagged.result;
     if (tagged.used.length) report.info.push({ reason: "text props became merge tags", detail: tagged.used.join(", ") });
     for (const path of tagged.kept) report.info.push({ reason: "text prop kept as its sample value (the template changes or tests it)", detail: path });
@@ -297,12 +299,15 @@ function withMarkup(props: Record<string, unknown>): { value: Record<string, unk
 export async function mergeTagDesign(
   Converted: MigratedTemplate,
   props: Record<string, unknown>,
-  design: Record<string, unknown>
+  design: Record<string, unknown>,
+  /** The template's source (by default the component's own code): a prop it compares or falls back on (`count === "1"`, `company || "Acme"`) keeps its sample value. */
+  options: { source?: string } = {}
 ): Promise<{ design: Record<string, unknown>; used: string[]; kept: string[] }> {
   const warn = console.warn;
   console.warn = () => undefined; // the same warnings as the sample render, already reported
   try {
-    const tagged = await mergeTagged(props, design, (p) => pinImageWidths(renderToJson(callTemplate(Converted, p)) as unknown as Record<string, unknown>));
+    const tested = testedProps(options.source ?? String(Converted));
+    const tagged = await mergeTagged(props, design, (p) => pinImageWidths(renderToJson(callTemplate(Converted, p)) as unknown as Record<string, unknown>), tested);
     return { design: tagged.result ?? design, used: tagged.used, kept: tagged.kept };
   } finally {
     console.warn = warn;
