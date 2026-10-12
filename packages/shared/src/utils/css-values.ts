@@ -21,11 +21,7 @@ export function normalizeColor(value: string): string {
   if (!/^rgba?$/i.test(text.slice(0, open)) || !text.endsWith(")")) return value;
   // r g b, r, g, b, or either with an alpha after "/" or ",".
   const [rgb, slashed, extra] = text.slice(open + 1, -1).split("/");
-  const channels = rgb.split(",").flatMap((part, i, all) => {
-    const words = part.trim().split(/\s+/);
-    // `r, , b` (an empty part between commas) is no color.
-    return words.length === 1 && words[0] === "" && all.length > 1 ? [""] : words;
-  });
+  const channels = rgb.trim().split(/\s*,\s*|\s+/);
   if (slashed !== undefined) channels.push(slashed.trim());
   if (extra !== undefined || channels.length > 4 || channels.length < (slashed === undefined ? 3 : 4) || !channels.every((c) => CHANNEL.test(c))) return value;
   // A number, or a percentage of `full`.
