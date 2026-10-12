@@ -1150,6 +1150,92 @@ describe("the fixture templates, migrated", () => {
   });
 });
 
+describe("migrations that compile where the original does", () => {
+  const compileBoth = async (files: Record<string, string>, entry: string) => {
+    const dir = fs.mkdtempSync(path.join(import.meta.dirname, ".tmp-"));
+    try {
+      for (const [name, text] of Object.entries(files)) {
+        fs.mkdirSync(path.dirname(path.join(dir, name)), { recursive: true });
+        fs.writeFileSync(path.join(dir, name), text);
+      }
+      const original = path.join(dir, entry);
+      const file = original.replace(/\.tsx$/, ".migrated.tsx");
+      // Imports read from the folder, as the CLI reads them.
+      const loadModule = (specifier: string, from: string) => {
+        const target = path.resolve(path.dirname(from), specifier);
+        for (const candidate of [target, `${target}.tsx`, `${target}.ts`]) if (fs.existsSync(candidate) && fs.statSync(candidate).isFile()) return { fileName: candidate, source: fs.readFileSync(candidate, "utf8") };
+        return undefined;
+      };
+      const { code } = await convertSource(files[entry], { fileName: file, loadModule });
+      fs.writeFileSync(file, code);
+      const ts = (await import("typescript")).default;
+      const options = { noEmit: true, jsx: ts.JsxEmit.ReactJSX, strict: true, noUncheckedIndexedAccess: true, noUnusedLocals: true, noUnusedParameters: true, module: ts.ModuleKind.ESNext, moduleResolution: ts.ModuleResolutionKind.Bundler, target: ts.ScriptTarget.ES2022, skipLibCheck: true, types: ["react"] };
+      const program = ts.createProgram([original, file], options);
+      const errors = (of: string) => ts.getPreEmitDiagnostics(program).filter((d) => d.file?.fileName === of).map((d) => `TS${d.code}: ${ts.flattenDiagnosticMessageText(d.messageText, " ")}`);
+      expect(errors(original)).toEqual([]);
+      return { code, errors: errors(file) };
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
+  };
+
+  it("with a generic helper given to map (its type parameters come along)", async () => {
+    const { code, errors } = await compileBoth({ "invoice.tsx": `import { Html, Body, Container, Section, Row, Column, Text } from "@react-email/components";
+interface Line { id: string; label: string; amount: string }
+function renderLine<T extends Line>(line: T) {
+  return <Row key={line.id}><Column><Text>{line.label}</Text></Column><Column><Text>{line.amount}</Text></Column></Row>;
+}
+export default function Invoice({ lines }: { lines: Line[] }) {
+  return <Html><Body><Container><Text>Your invoice</Text><Section>{lines.map(renderLine)}</Section></Container></Body></Html>;
+}
+Invoice.PreviewProps = { lines: [{ id: "1", label: "Pro plan", amount: "$20.00" }] };
+` }, "invoice.tsx");
+    expect(code).toContain("<T extends Line>(line: T)");
+    expect(errors).toEqual([]);
+  });
+
+  it("with a prop given as a single-quoted string or a template literal, which a condition tests", async () => {
+    const { code, errors } = await compileBoth({ "welcome.tsx": `import { Html, Body, Container, Section, Text } from "@react-email/components";
+const Callout = ({ title, body }: { title: string; body?: string }) => (
+  <Section><Text>{title}</Text>{body && <Text>{body}</Text>}</Section>
+);
+export default function Welcome({ name }: { name: string }) {
+  return <Html><Body><Container><Text>Hi {name}</Text>
+    <Callout title={'Getting started'} body={'Invite your team from Settings.'} />
+    <Callout title="Tips" body={\`Read the guide.\`} />
+  </Container></Body></Html>;
+}
+Welcome.PreviewProps = { name: "Ana" };
+` }, "welcome.tsx");
+    expect(code).not.toMatch(/"Invite your team from Settings\." &&|"Read the guide\." &&/);
+    expect(errors).toEqual([]);
+  });
+
+  it("with an object or a list given to a component from another file, read for fields it may not have", async () => {
+    const { code, errors } = await compileBoth({
+      "components/footer.tsx": `import { Section, Row, Column, Link, Img, Text } from "@react-email/components";
+export interface SocialLink { href: string; icon: string; label?: string }
+export function Footer({ company, links }: { company: { name: string; address?: string }; links: SocialLink[] }) {
+  return <Section><Row>{links.map((l) => <Column key={l.href}><Link href={l.href}><Img src={l.icon} alt={l.label ?? "social"} width="24" height="24" /></Link></Column>)}</Row>
+    <Text>{company.name}{company.address ? \` · \${company.address}\` : ""}</Text></Section>;
+}
+`,
+      "newsletter.tsx": `import { Html, Body, Container, Text } from "@react-email/components";
+import { Footer } from "./components/footer";
+export default function Newsletter({ intro }: { intro: string }) {
+  return <Html><Body><Container><Text>{intro}</Text>
+    <Footer company={{ name: "Acme Inc." }} links={[{ href: "https://x.com/acme", icon: "https://acme.com/x.png" }]} />
+  </Container></Body></Html>;
+}
+Newsletter.PreviewProps = { intro: "This week: faster builds." };
+`,
+    }, "newsletter.tsx");
+    expect(code).toMatch(/as \{ name: string; address\?: string \}/);
+    expect(code).toMatch(/import type \{ SocialLink \} from "\.\/components\/footer"/);
+    expect(errors).toEqual([]);
+  });
+});
+
 describe("names destructured for styles that are written in", () => {
   it("go with them, so a build with noUnusedLocals passes (TS6198, TS6133)", async () => {
     const source = `import { Html, Head, Body, Container, Img, Text } from "@react-email/components";

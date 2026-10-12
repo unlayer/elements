@@ -214,7 +214,12 @@ export function inlineMapCallbacks(source: string, fileName: string): { source: 
   };
   // The function as an expression: an arrow with its one returned JSX, else a function expression of its body.
   const written = (fn: ts.FunctionDeclaration | ts.ArrowFunction | ts.FunctionExpression): string => {
-    const params = `(${fn.parameters.map((p) => p.getText(file)).join(", ")})`;
+    // Its type parameters too (`<T extends Line>(line: T)`): the types it names are declared there. A lone one
+    // without a constraint is written `<T,>`, which a .tsx file doesn't read as a tag.
+    const types = fn.typeParameters?.length
+      ? `<${fn.typeParameters.map((t) => t.getText(file)).join(", ")}${fn.typeParameters.length === 1 && !fn.typeParameters[0].constraint ? "," : ""}>`
+      : "";
+    const params = `${types}(${fn.parameters.map((p) => p.getText(file)).join(", ")})`;
     if (!fn.body) return fn.getText(file);
     if (!ts.isBlock(fn.body)) return `${params} => (${fn.body.getText(file)})`;
     const [only] = fn.body.statements;

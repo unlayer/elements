@@ -68,8 +68,8 @@ interface Component {
   returned: ts.Expression;
   /** `const x = …` before the return, in order: substituted like props. */
   consts: Array<{ name: string; init: ts.Expression }>;
-  /** Prop name → the local it binds and its default value. */
-  props?: Map<string, { local: string; fallback?: ts.Expression }>;
+  /** Prop name → the local it binds, its default value and its declared type (where the component declares it). */
+  props?: Map<string, { local: string; fallback?: ts.Expression; type?: ts.TypeNode }>;
   /** `(props) => …props.x…` */
   propsObject?: string;
 }
@@ -312,7 +312,13 @@ function requirements(component: Component, from: Imported, template: ts.SourceF
     return true;
   };
 
-  const parts: ts.Node[] = [...component.consts.map((c) => c.init), component.returned, ...[...(component.props?.values() ?? [])].flatMap((p) => (p.fallback ? [p.fallback] : []))];
+  const parts: ts.Node[] = [
+    ...component.consts.map((c) => c.init),
+    component.returned,
+    ...[...(component.props?.values() ?? [])].flatMap((p) => (p.fallback ? [p.fallback] : [])),
+    // The props' declared types: an object or array given for one is written with it.
+    ...[...(component.props?.values() ?? [])].flatMap((p) => (p.type ? [p.type] : [])),
+  ];
   const declaredInside = new Set(parts.flatMap((part) => [...declarations(part)]));
   const own = new Set([...component.consts.map((c) => c.name), ...[...(component.props?.values() ?? [])].map((p) => p.local), ...(component.propsObject ? [component.propsObject] : [])]);
   const free = new Set(parts.flatMap((part) => [...identifiersIn(part)]).filter((n) => !declaredInside.has(n) && !own.has(n)));
@@ -372,11 +378,12 @@ function componentFrom(name: string, declaration: ts.Node, fn: ts.FunctionLikeDe
   const param = fn.parameters[0];
   if (param) {
     if (ts.isObjectBindingPattern(param.name)) {
-      const props = new Map<string, { local: string; fallback?: ts.Expression }>();
+      const props = new Map<string, { local: string; fallback?: ts.Expression; type?: ts.TypeNode }>();
+      const types = propTypes(param.type, fn.getSourceFile());
       for (const element of param.name.elements) {
         if (element.dotDotDotToken || !ts.isIdentifier(element.name)) return undefined;
         const prop = element.propertyName ? element.propertyName.getText() : element.name.text;
-        props.set(prop, { local: element.name.text, fallback: element.initializer });
+        props.set(prop, { local: element.name.text, fallback: element.initializer, type: types.get(prop) });
       }
       component.props = props;
     } else if (ts.isIdentifier(param.name)) {
@@ -386,6 +393,27 @@ function componentFrom(name: string, declaration: ts.Node, fn: ts.FunctionLikeDe
     }
   }
   return component;
+}
+
+/**
+ * Each prop's declared type: the parameter's type written out (`{ company: {…}; links: SocialLink[] }`), or an
+ * interface or type of its module that it names (`Props`).
+ */
+function propTypes(type: ts.TypeNode | undefined, file: ts.SourceFile): Map<string, ts.TypeNode> {
+  const out = new Map<string, ts.TypeNode>();
+  let members: ts.NodeArray<ts.TypeElement> | undefined;
+  if (type && ts.isTypeLiteralNode(type)) members = type.members;
+  else if (type && ts.isTypeReferenceNode(type) && ts.isIdentifier(type.typeName) && !type.typeArguments) {
+    const name = type.typeName.text;
+    for (const statement of file.statements) {
+      if (ts.isInterfaceDeclaration(statement) && statement.name.text === name && !statement.heritageClauses && !statement.typeParameters) members = statement.members;
+      if (ts.isTypeAliasDeclaration(statement) && statement.name.text === name && !statement.typeParameters && ts.isTypeLiteralNode(statement.type)) members = statement.type.members;
+    }
+  }
+  for (const member of members ?? []) {
+    if (ts.isPropertySignature(member) && member.type && (ts.isIdentifier(member.name) || ts.isStringLiteral(member.name))) out.set(member.name.text, member.type);
+  }
+  return out;
 }
 
 /** The component's JSX with this usage's props filled in, or undefined when that isn't safe. */
@@ -463,12 +491,19 @@ function substitute(usage: ts.JsxElement | ts.JsxSelfClosingElement, component: 
   const lone = children?.filter((c) => !(ts.isJsxText(c) && c.containsOnlyTriviaWhiteSpaces));
   const loneChild = childrenFallback && lone?.length === 1 && ts.isJsxExpression(lone[0]) && lone[0].expression ? lone[0].expression : undefined;
   const childrenValue = (): string | undefined => (loneChild && childrenFallback ? defaulted(loneChild, loneChild.getText(), childrenFallback) : undefined);
+  // An object or array written for a prop has the prop's declared type (`company.address`, optional, is read on
+  // `{ name: "Acme" }` there): written in, it would have its own narrower one, which TypeScript holds it to.
+  const typed = (prop: string, node: ts.Expression | undefined, code: string) => {
+    const type = component.props?.get(prop)?.type;
+    const value = node && unwrap(node);
+    return type && value && (ts.isObjectLiteralExpression(value) || ts.isArrayLiteralExpression(value)) ? `(${code} as ${type.getText()})` : code;
+  };
   const valueOf = (prop: string, fallback?: ts.Expression) => {
     if (prop === "children" && childrenText !== undefined) return childrenValue() ?? `<>${childrenText}</>`;
     const given = values.get(prop);
     if (!given) return fallback ? rewrite(fallback) : "undefined";
-    if (!fallback || !given.node) return given.code;
-    return defaulted(given.node, given.code, fallback);
+    if (!fallback || !given.node) return typed(prop, given.node, given.code);
+    return typed(prop, given.node, defaulted(given.node, given.code, fallback));
   };
   if (component.props) {
     for (const [prop, { local: name, fallback }] of component.props) local.set(name, () => valueOf(prop, fallback));
@@ -480,13 +515,27 @@ function substitute(usage: ts.JsxElement | ts.JsxSelfClosingElement, component: 
   function literalValue(node: ts.Expression): { value: unknown } | undefined {
     const e = unwrap(node);
     if (ts.isIdentifier(e) && local.has(e.text) && isValueReference(e)) {
-      const text = local.get(e.text)!().trim();
-      if (/^"(?:[^"\\]|\\.)*"$/.test(text) || /^-?\d+(\.\d+)?$/.test(text) || /^(true|false|null)$/.test(text)) return { value: JSON.parse(text) };
-      if (text === "undefined") return { value: undefined };
-      return undefined;
+      return writtenLiteral(local.get(e.text)!().trim());
     }
     if (ts.isStringLiteral(e) || ts.isNoSubstitutionTemplateLiteral(e)) return { value: e.text };
     if (ts.isNumericLiteral(e)) return { value: Number(e.text) };
+    if (e.kind === ts.SyntaxKind.TrueKeyword) return { value: true };
+    if (e.kind === ts.SyntaxKind.FalseKeyword) return { value: false };
+    if (e.kind === ts.SyntaxKind.NullKeyword) return { value: null };
+    return undefined;
+  }
+
+  /** The value of a prop given as a literal, as written (`"a"`, `'a'`, `` `a` ``, `-1`, `true`, `undefined`). */
+  function writtenLiteral(text: string): { value: unknown } | undefined {
+    if (text === "undefined") return { value: undefined };
+    const statement = ts.createSourceFile("value.ts", `(${text});`, ts.ScriptTarget.Latest).statements[0];
+    if (!statement || !ts.isExpressionStatement(statement)) return undefined;
+    let e: ts.Expression = statement.expression;
+    while (ts.isParenthesizedExpression(e)) e = e.expression;
+    if (e.end !== text.length + 1) return undefined; // more than one value (`"a" + b`)
+    if (ts.isStringLiteral(e) || ts.isNoSubstitutionTemplateLiteral(e)) return { value: e.text };
+    if (ts.isNumericLiteral(e)) return { value: Number(e.text) };
+    if (ts.isPrefixUnaryExpression(e) && e.operator === ts.SyntaxKind.MinusToken && ts.isNumericLiteral(e.operand)) return { value: -Number(e.operand.text) };
     if (e.kind === ts.SyntaxKind.TrueKeyword) return { value: true };
     if (e.kind === ts.SyntaxKind.FalseKeyword) return { value: false };
     if (e.kind === ts.SyntaxKind.NullKeyword) return { value: null };
