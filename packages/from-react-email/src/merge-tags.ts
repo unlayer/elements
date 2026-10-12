@@ -155,7 +155,8 @@ export async function mergeTagged<T>(
  * `const { name } = user`), a function of the file's own they're passed to (`pluralize(count, "item")`) or a
  * component of the file's own (`<Footer company={company} />`, `{...props}`). Names are resolved, so a helper's own
  * `name` isn't a prop. A prop passed to a function or component from elsewhere may be tested there: it counts as
- * tested. A comparison no text can change (`=== undefined`, `typeof x === "string"`) doesn't. The component is the
+ * tested; a comparison with `true` or `false` (which no text equals) doesn't. The codemod's helpers (`asGiven`) aren't
+ * read: they show what they're given as it is. The component is the
  * file's default export, or its first function (a component's own code).
  */
 export function testedProps(source: string, asGiven: ReadonlySet<string> = new Set()): Set<string> {
@@ -308,10 +309,11 @@ export function testedProps(source: string, asGiven: ReadonlySet<string> = new S
     if (ts.isPrefixUnaryExpression(e) && e.operator === ts.SyntaxKind.ExclamationToken) return;
     test(e);
   };
-  // A side no text equals: `null`, `undefined`, `true`, `false`, or a `typeof` (the same for every text).
+  // A side neither a text nor a prop left out equals: `true`, `false`. (`=== undefined`, `== null` and `typeof` tell a
+  // prop left out from one given, as a merge tag can't: `name === undefined ? "Guest" : name`.)
   const textless = (e: ts.Expression) => {
     const u = unwrap(e);
-    return u.kind === ts.SyntaxKind.NullKeyword || u.kind === ts.SyntaxKind.TrueKeyword || u.kind === ts.SyntaxKind.FalseKeyword || (ts.isIdentifier(u) && u.text === "undefined") || ts.isTypeOfExpression(u) || ts.isVoidExpression(u);
+    return u.kind === ts.SyntaxKind.TrueKeyword || u.kind === ts.SyntaxKind.FalseKeyword;
   };
   const SAFE = new Set(["String"]);
   const visit = (node: ts.Node): void => {

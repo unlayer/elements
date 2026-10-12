@@ -722,15 +722,16 @@ describe("merge tags", () => {
 import { formatMoney } from "./money";
 const pluralize = (count: string, word: string) => (count === "1" ? word : \`\${word}s\`);
 function Greeting({ who }: { who?: string }) { return <Text>{who ? \`Hi \${who},\` : "Hi,"}</Text>; }
-export default function Shipped(props: { name: string; itemCount: string; total: string; city: string }) {
-  const { itemCount, total, city } = props;
+export default function Shipped(props: { name: string; itemCount: string; total: string; city: string; nick?: string }) {
+  const { itemCount, total, city, nick } = props;
   return <Html><Body>
     <Greeting who={props.name} />
+    <Text>Signed {nick === undefined ? "Guest" : nick}</Text>
     <Text>Your {itemCount} {pluralize(itemCount, "item")} shipped today, for {formatMoney(total)}.</Text>
     <Text>On its way to {city}.</Text>
   </Body></Html>;
 }
-Shipped.PreviewProps = { name: "Ada", itemCount: "3", total: "84.00", city: "Lisbon" };`;
+Shipped.PreviewProps = { name: "Ada", itemCount: "3", total: "84.00", city: "Lisbon", nick: "ada" };`;
     const dir = fs.mkdtempSync(path.join(import.meta.dirname, ".tmp-"));
     dirs.push(dir);
     fs.writeFileSync(path.join(dir, "money.ts"), `export const formatMoney = (amount: string) => (amount === "0" ? "free" : \`$\${amount}\`);`);
@@ -744,7 +745,8 @@ Shipped.PreviewProps = { name: "Ada", itemCount: "3", total: "84.00", city: "Lis
     const check = await verifyConversion(Original, Migrated);
     const tagged = await mergeTagDesign(Migrated, Original.PreviewProps, check.design, { source: conversion.code, helpers: conversion.helpers });
     expect(tagged.used).toEqual(["city"]);
-    expect(tagged.kept.sort()).toEqual(["itemCount", "name", "total"]);
+    // `nick === undefined ? "Guest" : nick`: as a tag, a reader without one would get an empty name, not "Guest".
+    expect(tagged.kept.sort()).toEqual(["itemCount", "name", "nick", "total"]);
     const design = JSON.stringify(tagged.design);
     expect(design).toContain("Your 3 items shipped today");
     expect(design).toContain("On its way to {{city}}.");
