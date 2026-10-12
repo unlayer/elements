@@ -6,8 +6,14 @@
  * with react-dom's browser build: another module than the app's own server render (Node's build, the edge's, or
  * the streaming APIs'), wherever that runs. A render called from a component Elements is rendering (renderToJson
  * inside a template's component) uses the other build; one more inside that can't render, and says so.
+ *
+ * React 19's browser build opens a MessageChannel when it loads, which would keep Node from exiting: the files
+ * around its import make the ports it opens not do that (see message-channel-unref.cjs). They stay files of their
+ * own in the package, imported in this order: code bundled into this module would run after its imports.
  */
+import "./message-channel-unref.cjs";
 import * as browserBuild from "react-dom/server.browser";
+import "./message-channel-restore.cjs";
 import * as defaultBuild from "react-dom/server";
 
 // Shared by every copy of Elements a process loads, as the collector is.
