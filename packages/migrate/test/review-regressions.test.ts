@@ -128,7 +128,7 @@ describe("destination safety", () => {
     expect(fs.readFileSync(path.join(dir, "existing/welcome.design.json"), "utf8")).toContain('"body"');
   });
 
-  it("with --overwrite, writes neither a template that fails the check nor its design: an earlier design stays", async () => {
+  it("with --strict and --overwrite, writes neither a template that fails the check nor its design: an earlier design stays", async () => {
     const failing = `import { Html, Body, Text } from "@react-email/components";
 export default function T() {
   const text = import.meta.url.includes(".unlayer-migrate-") ? "Changed" : "Keep this content";
@@ -136,7 +136,7 @@ export default function T() {
 }`;
     const dir = project({ "emails/t.tsx": failing, "emails/t.design.json": "EARLIER RUN" });
     const out = io(dir);
-    expect(await main(["emails", "--write", "--design", "--overwrite"], out, lib), out.out + out.err).toBe(2);
+    expect(await main(["emails", "--write", "--design", "--overwrite", "--strict"], out, lib), out.out + out.err).toBe(2);
     expect(out.out).toContain("lost text");
     expect(fs.readFileSync(path.join(dir, "emails/t.tsx"), "utf8")).toBe(failing);
     expect(fs.readFileSync(path.join(dir, "emails/t.design.json"), "utf8")).toBe("EARLIER RUN");
@@ -334,15 +334,19 @@ T.PreviewProps = { asset: "./logo.txt" };`;
     expect(fs.readFileSync(path.join(dir, "emails/a.tsx"), "utf8")).toBe(source);
   });
 
-  it("rejects a change that only occurs in the destination directory and cleans its probe", async () => {
+  it("finds a change that only occurs in the destination directory (flagged; not written with --strict) and cleans its probe", async () => {
     const source = `import { Html, Body, Text } from "@react-email/components";
 export default function T() {
   const text = import.meta.url.includes("/migrated/") ? "Lost" : "Keep the original";
   return <Html><Body><Text>{text}</Text></Body></Html>;
 }`;
+    const flaggedDir = project({ "emails/a.tsx": source });
+    const flagged = io(flaggedDir);
+    expect(await main(["emails", "--out", "migrated"], flagged, lib)).toBe(2);
+    expect(flagged.out).toContain("written, but its content differs");
     const dir = project({ "emails/a.tsx": source });
     const out = io(dir);
-    expect(await main(["emails", "--out", "migrated", "--design"], out, lib)).toBe(2);
+    expect(await main(["emails", "--out", "migrated", "--design", "--strict"], out, lib)).toBe(2);
     expect(out.out).toContain("check failed");
     expect(fs.existsSync(path.join(dir, "migrated"))).toBe(false);
     expect(fs.readFileSync(path.join(dir, "emails/a.tsx"), "utf8")).toBe(source);
@@ -663,10 +667,10 @@ export default Wrapped;`;
 describe("extra text", () => {
   const extra = good.replace('</Body>', '<Text>{import.meta.url.includes(".unlayer-migrate-") ? "Unexpected" : null}</Text></Body>');
 
-  it.each(["md", "json"])("fails without writing the template and includes added words in the %s report", async (extension) => {
+  it.each(["md", "json"])("with --strict, fails without writing the template and includes added words in the %s report", async (extension) => {
     const dir = project({ "welcome.tsx": extra });
     const out = io(dir);
-    expect(await main(["welcome.tsx", "--out", "converted", "--design", "--report", `report.${extension}`], out, lib), out.out + out.err).toBe(2);
+    expect(await main(["welcome.tsx", "--out", "converted", "--design", "--strict", "--report", `report.${extension}`], out, lib), out.out + out.err).toBe(2);
     expect(out.out).toContain('extra text: "Unexpected"');
     expect(fs.existsSync(path.join(dir, "converted/welcome.tsx"))).toBe(false);
     expect(fs.existsSync(path.join(dir, "converted/welcome.design.json"))).toBe(false);
@@ -676,7 +680,7 @@ describe("extra text", () => {
     else expect(report).toContain('**Extra text:** "Unexpected"');
   });
 
-  it("fails when only a flipped boolean prop adds text", async () => {
+  it("flags a template when only a flipped boolean prop adds text (written, exit 2)", async () => {
     const source = extra.replace('import.meta.url.includes', 'trial && import.meta.url.includes').replace('function T()', 'function T({trial})') + '\nT.PreviewProps = {trial:false};';
     const dir = project({ "welcome.tsx": source });
     const out = io(dir);
@@ -684,7 +688,7 @@ describe("extra text", () => {
     expect(out.out).toContain('with trial: true: extra text: "Unexpected"');
     const report = JSON.parse(fs.readFileSync(path.join(dir, "report.json"), "utf8"));
     expect(report[0]).toMatchObject({status:"check-failed",addedText:[],variants:[{change:"trial: true",added:["Unexpected"],missing:[]}]});
-    expect(fs.existsSync(path.join(dir, "converted/welcome.tsx"))).toBe(false);
+    expect(fs.existsSync(path.join(dir, "converted/welcome.tsx"))).toBe(true);
   });
 
   it("compare fails a template that writes a nested text prop into HTML as is", async () => {
@@ -911,15 +915,17 @@ export default function Later() { return <Html><Body><Text>Later</Text></Body></
 });
 
 describe("compare and the whole check", () => {
-  it("fails a hand migration that moves text across the page, as a run would", async () => {
+  it("lists a hand migration that moves text across the page, as a run would (and fails it with --strict)", async () => {
     const original = `import { Html, Body, Section, Row, Column, Text } from "@react-email/components";
 export default function T() { return <Html><Body><Section style={{ width: "600px" }}><Row><Column><Text>Thanks for your order, here is the summary</Text><Text style={{ textAlign: "right" }}>Total due: 40 dollars</Text></Column></Row></Section></Body></Html>; }`;
     const migrated = `import { Email, Row, Column, Paragraph } from "@unlayer/react-elements";
 export default function T() { return <Email backgroundColor="#ffffff" contentWidth="600px"><Row><Column><Paragraph>Thanks for your order, here is the summary</Paragraph><Paragraph textAlign="left">Total due: 40 dollars</Paragraph></Column></Row></Email>; }`;
     const dir = project({ "emails/t.tsx": original, "hand.tsx": migrated });
     const out = io(dir);
-    expect(await main(["compare", "emails/t.tsx", "hand.tsx"], out, lib), out.out + out.err).toBe(2);
-    expect(out.out).toMatch(/moved: "Total", "due", "40", "dollars" \d+px to the left/);
+    expect(await main(["compare", "emails/t.tsx", "hand.tsx"], out, lib), out.out + out.err).toBe(0);
+    expect(out.out).toMatch(/It looks different:\n {2}- moved: "Total", "due", "40", "dollars" \d+px to the left/);
+    const strict = io(dir);
+    expect(await main(["compare", "emails/t.tsx", "hand.tsx", "--strict"], strict, lib), strict.out + strict.err).toBe(2);
   });
 
   it("fails a hand migration that hides a linked image on phones, naming it", async () => {

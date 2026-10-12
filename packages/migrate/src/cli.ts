@@ -49,7 +49,10 @@ and the visual editor must get every block. Nothing is written unless you ask:
                    props shown as given become merge tags ({{name}}).
   --no-merge-tags  Keep the sample values in the design JSON instead.
   --report <file>  Write the migration report (.md or .json).
-  --force          Write templates even when the check finds a problem.
+  --strict         Fail (and don't write) a template the check finds any
+                   difference in, also in how it looks. Without it, every
+                   template is written, with what looks different listed.
+  --force          With --strict, write templates the check fails anyway.
   --overwrite      Replace files already at a destination that this run
                    didn't produce (a design file from an earlier run).
   --allow-dirty    With --write, replace templates git can't restore
@@ -66,9 +69,10 @@ must get every block.
 
 Run it from your project folder: templates load with your project's React,
 React Email and TypeScript paths. Exit code 0 when every template converted
-and passed the check, 1 for a usage error or when no templates were found,
-2 when a template failed to convert, the check found a problem, a file
-couldn't be read, or the run couldn't go on.`;
+with the same content (what looks different is listed), 1 for a usage error
+or when no templates were found, 2 when a template failed to convert, its
+content differs (with --strict, anything differs), a file couldn't be read,
+or the run couldn't go on.`;
 
 /** What happened to one file. */
 /** A style the migrated template shows differently, with the words it's on. */
@@ -112,6 +116,11 @@ export interface FileResult {
   addedAttributes?: string[];
   /** Style values computed from props that the migrated template drops: they change how it looks. */
   lostStyles?: string[];
+  /**
+   * How the migrated template looks different from the original, one line per kind (a style, where words
+   * sit, CSS the check doesn't verify): it's written anyway, to fix in the editor (with --strict, it fails).
+   */
+  looks?: string[];
   /** Text the migrated template shows in another style (size, bold, italics, letter case, underline, color, background, a link's target). */
   styles?: StyleChange[];
   /**
@@ -150,6 +159,8 @@ interface Options {
   design: boolean;
   mergeTags: boolean;
   force: boolean;
+  /** Fail (and don't write) a template the check finds any difference in, also one in how it looks. */
+  strict: boolean;
   /** Replace files at the destinations that this run didn't produce. */
   overwrite: boolean;
   /** With --write, replace templates git can't restore. */
@@ -196,6 +207,7 @@ async function run(argv: string[], io: Io, library?: Library): Promise<number> {
     design: args.flag("design"),
     mergeTags: !args.flag("no-merge-tags"),
     force: args.flag("force"),
+    strict: args.flag("strict"),
     overwrite: args.flag("overwrite"),
     allowDirty: args.flag("allow-dirty"),
   };
@@ -682,12 +694,18 @@ async function migrateFile(input: Input, options: Options, lib: Library, io: Io,
     }
 
     const report = converted.report;
+    // Content the migration lost or added (or the editor wouldn't get) fails it: that's a converter bug, as anything it
+    // can't map is kept as HTML. How it looks only differs: written and listed, to fix in the editor (not with --strict).
+    const failsContent = contentProblems(verification).length || verification.designWarnings.length || verification.variants.some((v) => v.error || contentProblems(v).length);
+    const looks = [
+      ...lookProblems(verification),
+      ...(report.lostStyles?.length ? [`lost styles: ${report.lostStyles.join("; ")}`] : []),
+      ...verification.variants.filter((v) => !v.error && !contentProblems(v).length).map((v) => `with ${v.change}: ${lookProblems(v).join("; ")}`),
+    ];
     const result: FileResult = {
       file: name,
-      status:
-        problems(verification).length || verification.designWarnings.length || verification.variants.length || report.lostStyles?.length
-          ? "check-failed"
-          : "migrated",
+      status: failsContent || (options.strict && looks.length) ? "check-failed" : "migrated",
+      ...(looks.length ? { looks } : {}),
       editable: report.nativeRatio,
       kept: report.fallbacks,
       differences: group(report.notes),
@@ -712,7 +730,9 @@ async function migrateFile(input: Input, options: Options, lib: Library, io: Io,
     };
 
     const writes: PendingWrite[] = [];
-    if (writing && (result.status === "migrated" || options.force)) {
+    // Every template is written: one whose content differs too, flagged (git or the original folder keeps it as it was).
+    // With --strict, only one with no difference (or any, with --force).
+    if (writing && (result.status === "migrated" || !options.strict || options.force)) {
       writes.push({ path: target, text: code, kind: "output", ...(resolve(target) === resolve(file) ? { replaces: bytes } : {}) });
       if (options.design) writes.push({ path: designPath(target), text: `${JSON.stringify(design, null, 2)}\n`, kind: "design" });
     }
@@ -772,18 +792,22 @@ async function compare(paths: string[], args: Args, io: Io, library?: Library): 
       io.stderr(original ? `The original template doesn't render: ${original}\n` : `The migrated template doesn't render: ${renderFailure(error)}\n`);
       return 2;
     }
+    // The content must be the same; how it looks is listed (with --strict, it must be the same too).
     const found = [
-      ...problems(check),
+      ...contentProblems(check),
       ...(check.designWarnings.length ? check.designWarnings.map((w) => `the editor wouldn't get: ${w}`) : []),
-      ...check.variants.map((v) => `with ${v.change}: ${variantProblems(v)}`),
+      ...check.variants.filter((v) => v.error || contentProblems(v).length).map((v) => `with ${v.change}: ${variantProblems(v)}`),
     ];
+    const looks = [...lookProblems(check), ...check.variants.filter((v) => !v.error && !contentProblems(v).length).map((v) => `with ${v.change}: ${lookProblems(v).join("; ")}`)];
     const name = `${relative(io.cwd, migratedPath)} against ${relative(io.cwd, originalPath)}`;
-    if (!found.length) {
+    const strict = args.flag("strict");
+    if (!found.length && !(strict && looks.length)) {
       const flipped = Object.values(props).filter((v) => typeof v === "boolean").length;
       io.stdout(`✓ ${name}: same words, links and images${flipped ? ` (also with each of ${flipped} true/false props flipped)` : ""}; the editor gets every block.\n`);
+      if (looks.length) io.stdout(`  It looks different:\n${looks.map((p) => `  - ${p}`).join("\n")}\n`);
       return 0;
     }
-    io.stdout(`✗ ${name}:\n${found.map((p) => `  - ${p}`).join("\n")}\n`);
+    io.stdout(`✗ ${name}:\n${[...found, ...looks].map((p) => `  - ${p}`).join("\n")}\n`);
     return 2;
   } finally {
     for (const unregister of release.reverse()) unregister();
@@ -815,14 +839,18 @@ function line(result: FileResult): string {
       const editable = `${Math.round((result.editable ?? 0) * 100)}% editable`;
       const differences = result.differences?.length ? `, ${result.differences.length} kind${result.differences.length > 1 ? "s" : ""} of difference` : "";
       const written = result.output ? ` → ${result.output}` : "";
-      if (result.status === "migrated") return `✓ ${result.file}: ${editable}${differences}${written}`;
+      // How it looks that differs: written anyway, listed to fix in the editor.
+      const looks = result.looks?.length ? `\n    looks different: ${result.looks.join("; ")}` : "";
+      if (result.status === "migrated") return `✓ ${result.file}: ${editable}${differences}${written}${looks}`;
       const found = [
-        ...problems({ ...result, missing: result.missingText, added: result.addedText }),
-        ...(result.lostStyles?.length ? [`lost styles: ${result.lostStyles.join("; ")}`] : []),
+        ...contentProblems({ ...result, missing: result.missingText, added: result.addedText }),
         ...(result.designWarnings?.length ? [`${result.designWarnings.length} block(s) the editor wouldn't get`] : []),
-        ...(result.variants ?? []).map((v) => `with ${v.change}: ${variantProblems(v)}`),
+        ...(result.variants ?? []).filter((v) => v.error || contentProblems(v).length).map((v) => `with ${v.change}: ${variantProblems(v)}`),
       ];
-      return `✗ ${result.file}: check failed (${found.join("; ")})${written}`;
+      // Its content differs (a converter bug: report it), or, with --strict, how it looks.
+      return found.length
+        ? `✗ ${result.file}: ${result.output ? "written, but its content differs" : "check failed"} (${found.join("; ")})${written}${looks}`
+        : `✗ ${result.file}: check failed (looks different, with --strict)${written}${looks}`;
     }
   }
 }
@@ -842,9 +870,10 @@ function unverifiedList(items: NonNullable<FileResult["unverified"]>): string {
 
 function summary(results: FileResult[], options: Options): string {
   const count = (status: FileResult["status"]) => results.filter((r) => r.status === status).length;
+  const looks = results.filter((r) => r.status === "migrated" && r.looks?.length).length;
   const parts = [
-    `${count("migrated")} migrated and checked`,
-    ...(count("check-failed") ? [`${count("check-failed")} failed the check`] : []),
+    `${count("migrated")} migrated and checked${looks ? ` (${looks} look${looks === 1 ? "s" : ""} different: see above)` : ""}`,
+    ...(count("check-failed") ? [options.strict ? `${count("check-failed")} failed the check` : `${count("check-failed")} with content that differs (a converter bug: please report it)`] : []),
     ...(count("failed") ? [`${count("failed")} failed`] : []),
     ...(count("skipped") ? [`${count("skipped")} skipped`] : []),
   ];
@@ -857,7 +886,7 @@ function markdownReport(results: FileResult[]): string {
   const lines = ["# React Email → Unlayer Elements migration", ""];
   lines.push("| Template | Result | Editable | Check | Differences |", "|---|---|---|---|---|");
   for (const r of results) {
-    const check = r.status === "migrated" ? "passed" : r.status === "check-failed" ? "failed" : "-";
+    const check = r.status === "migrated" ? (r.looks?.length ? "passed, looks different" : "passed") : r.status === "check-failed" ? "failed" : "-";
     const editable = r.editable === undefined ? "-" : `${Math.round(r.editable * 100)}%`;
     lines.push(`| ${r.file} | ${r.status}${r.reason ? `: ${r.reason}` : ""} | ${editable} | ${check} | ${r.differences?.length ?? 0} |`);
   }
@@ -871,9 +900,10 @@ function markdownReport(results: FileResult[]): string {
     if (r.addedText?.length) lines.push(`**Extra text:** ${quote(r.addedText)}`, "");
     if (r.missingAttributes?.length) lines.push(`**Lost links or images:** ${quote(r.missingAttributes)}`, "");
     if (r.addedAttributes?.length) lines.push(`**Extra links or images:** ${quote(r.addedAttributes)}`, "");
+    if (r.status === "migrated" && r.looks?.length) lines.push("Its content is the same; it looks different in the ways below. Written anyway: fix them in the editor.", "");
     if (r.lostStyles?.length) lines.push("**Lost styles** (change how it looks):", ...r.lostStyles.map((s) => `- ${s}`), "");
     if (r.styles?.length) lines.push("**Shown in another style:**", ...r.styles.map((c) => `- ${c.property}: ${c.original} → ${c.converted}, on ${quote(c.words)}${wider(c.width)}`), "");
-    if (r.unverified?.length) lines.push("**Couldn't verify** (the check fails on what it can't read):", ...unverifiedList(r.unverified).split("; ").map((line) => `- ${line}`), "");
+    if (r.unverified?.length) lines.push("**Couldn't verify** (what the check can't read):", ...unverifiedList(r.unverified).split("; ").map((line) => `- ${line}`), "");
     if (r.phone?.missing.length) lines.push(`**On phones, lost text:** ${quote(r.phone.missing)}`, "");
     if (r.phone?.added.length) lines.push(`**On phones, extra text:** ${quote(r.phone.added)}`, "");
     if (r.phone?.missingAttributes?.length) lines.push(`**On phones, lost links or images:** ${quote(r.phone.missingAttributes)}`, "");
@@ -913,17 +943,40 @@ function variantProblems(variant: NonNullable<FileResult["variants"]>[number]): 
  * place and missed in another.
  */
 function problems(check: CheckParts): string[] {
+  return [...contentProblems(check), ...lookProblems(check)];
+}
+
+/** Whether words show (or whether that can be told), as opposed to how they look. */
+const SHOWN = new Set(["shown", "shown on phones"]);
+
+/**
+ * What the reader gets that differs: words, links and images lost or added (on desktop or phones, or out of
+ * order), whether they show where that can't be told, and inbox-preview text shown in the email.
+ */
+function contentProblems(check: CheckParts): string[] {
+  const shown = check.unverified?.filter((u) => SHOWN.has(u.what)) ?? [];
+  const preview = check.styles?.filter((c) => c.property === "shown") ?? [];
   return [
     ...(check.missing?.length ? [`lost text: ${quote(check.missing)}`] : []),
     ...(check.added?.length ? [`extra text: ${quote(check.added)}`] : []),
     ...(check.missingAttributes?.length ? [`lost links/images: ${quote(check.missingAttributes)}`] : []),
     ...(check.addedAttributes?.length ? [`extra links/images: ${quote(check.addedAttributes)}`] : []),
-    ...(check.styles?.length ? [`shown in another style: ${styleChanges(check.styles)}`] : []),
-    ...(check.unverified?.length ? [`couldn't verify: ${unverifiedList(check.unverified)}`] : []),
+    ...(preview.length ? [`shown in another place: ${styleChanges(preview)}`] : []),
+    ...(shown.length ? [`couldn't verify: ${unverifiedList(shown)}`] : []),
     ...(check.phone?.missing.length ? [`on phones, lost text: ${quote(check.phone.missing)}`] : []),
     ...(check.phone?.added.length ? [`on phones, extra text: ${quote(check.phone.added)}`] : []),
     ...(check.phone?.missingAttributes?.length ? [`on phones, lost links/images: ${quote(check.phone.missingAttributes)}`] : []),
     ...(check.phone?.addedAttributes?.length ? [`on phones, extra links/images: ${quote(check.phone.addedAttributes)}`] : []),
+  ];
+}
+
+/** How it looks that differs: a style, where words sit, CSS the check doesn't model (or can't read). */
+function lookProblems(check: CheckParts): string[] {
+  const styles = check.styles?.filter((c) => c.property !== "shown") ?? [];
+  const unverified = check.unverified?.filter((u) => !SHOWN.has(u.what)) ?? [];
+  return [
+    ...(styles.length ? [`shown in another style: ${styleChanges(styles)}`] : []),
+    ...(unverified.length ? [`couldn't verify: ${unverifiedList(unverified)}`] : []),
     ...(check.layout?.length ? [`moved: ${moves(check.layout)}`] : []),
   ];
 }

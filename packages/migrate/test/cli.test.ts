@@ -270,7 +270,7 @@ Hooky.PreviewProps = { name: "Ada", items: ["a", "b", "c"] };`;
     expect(words).toContain("You have 3 items");
   });
 
-  it("fails what it can't verify, saying why, and what phones or Tailwind's sm: show differently", async () => {
+  it("writes what looks different or can't be verified, saying why; flags content that differs (what Tailwind's sm: shows)", async () => {
     const unreadable = `import { Html, Head, Body, Text } from "@react-email/components";
 export default function T() { return <Html><Head><style>{"p:has(b) { color: #ff0000 }"}</style></Head><Body><Text>Hello there</Text></Body></Html>; }`;
     const responsive = `import { Html, Head, Body, Text, Tailwind } from "@react-email/components";
@@ -279,15 +279,23 @@ export default function T() { return <Html><Tailwind><Head /><Body><Text classNa
 export default function T() { return <Html><Body><Text style={{ whiteSpace: "pre-line" }}>Hello there</Text></Body></Html>; }`;
     const dir = project({ "emails/unreadable.tsx": unreadable, "emails/responsive.tsx": responsive, "emails/preserved.tsx": preserved });
     const out = io(dir);
+    // The content differs in one (a converter bug, flagged): exit 2, though all three are written.
     expect(await main(["emails", "--out", "migrated"], out, lib), out.out + out.err).toBe(2);
-    expect(out.out).toMatch(/✗ emails\/unreadable\.tsx: check failed \(couldn't verify: the color of "Hello", "there" \(the rule `p:has\(b\)`/);
+    expect(out.out).toMatch(/✓ emails\/unreadable\.tsx: .*→ migrated\/unreadable\.tsx\n {4}looks different: couldn't verify: the color of "Hello", "there" \(the rule `p:has\(b\)`/);
     // CSS the check doesn't model, that the migration doesn't keep.
-    expect(out.out).toContain('✗ emails/preserved.tsx: check failed (couldn\'t verify: the look of "Hello", "there" (`white-space: pre-line`, a style the check doesn\'t verify)');
-    expect(out.out).toMatch(/✗ emails\/responsive\.tsx: check failed \(lost text: "Desktop", "only"/);
-    expect(fs.existsSync(path.join(dir, "migrated/unreadable.tsx"))).toBe(false);
+    expect(out.out).toContain('looks different: couldn\'t verify: the look of "Hello", "there" (`white-space: pre-line`, a style the check doesn\'t verify)');
+    expect(out.out).toMatch(/✗ emails\/responsive\.tsx: written, but its content differs \(lost text: "Desktop", "only"/);
+    expect(out.out).toContain("2 migrated and checked (2 look different: see above), 1 with content that differs");
+    for (const file of ["unreadable", "preserved", "responsive"]) expect(fs.existsSync(path.join(dir, `migrated/${file}.tsx`)), file).toBe(true);
+    // With --strict, any difference fails, and nothing that differs is written.
+    const strictDir = project({ "emails/unreadable.tsx": unreadable, "emails/preserved.tsx": preserved });
+    const strict = io(strictDir);
+    expect(await main(["emails", "--out", "migrated", "--strict"], strict, lib), strict.out + strict.err).toBe(2);
+    expect(strict.out).toMatch(/✗ emails\/unreadable\.tsx: check failed \(looks different, with --strict\)\n {4}looks different: couldn't verify: the color/);
+    expect(fs.existsSync(path.join(strictDir, "migrated/unreadable.tsx"))).toBe(false);
   });
 
-  it("fails a migration that moves text across the page: columns stacked into one", async () => {
+  it("lists a migration that moves text across the page (columns stacked into one), and fails it with --strict", async () => {
     const hybrid = `import { Html, Head, Body, Container, Section, Text } from "@react-email/components";
 export default function Hybrid() {
   return <Html><Head /><Body style={{ margin: 0 }}><Container style={{ width: "600px" }}>
@@ -299,11 +307,14 @@ export default function Hybrid() {
 }`;
     const dir = project({ "emails/hybrid.tsx": hybrid });
     const out = io(dir);
-    expect(await main(["emails", "--out", "migrated"], out, lib), out.out + out.err).toBe(2);
-    expect(out.out).toMatch(/✗ emails\/hybrid\.tsx: check failed \(moved: "Right", "hybrid", "column" 300px to the left\)/);
+    expect(await main(["emails", "--out", "migrated"], out, lib), out.out + out.err).toBe(0);
+    expect(out.out).toMatch(/✓ emails\/hybrid\.tsx: .*\n {4}looks different: moved: "Right", "hybrid", "column" 300px to the left/);
+    const strict = io(dir);
+    expect(await main(["emails", "--out", "strict", "--strict"], strict, lib), strict.out + strict.err).toBe(2);
+    expect(strict.out).toMatch(/✗ emails\/hybrid\.tsx: check failed \(looks different, with --strict\)/);
   });
 
-  it("fails the check when a style computed from props would be dropped, naming it", async () => {
+  it("names a style computed from props that would be dropped: written, and failed with --strict", async () => {
     const source = `import { Html, Body, Text } from "@react-email/components";
 export default function Code({ code, color, size }: { code: string; color: string; size: number }) {
   return <Html><Body style={{ backgroundColor: "#000000" }}><Text style={{ color, fontSize: size, margin: 0 }}>{code}</Text></Body></Html>;
@@ -311,12 +322,16 @@ export default function Code({ code, color, size }: { code: string; color: strin
 Code.PreviewProps = { code: "482913", color: "#ffffff", size: 24 };`;
     const dir = project({ "emails/code.tsx": source });
     const out = io(dir);
-    expect(await main(["emails", "--out", "migrated", "--report", "report.json"], out, lib)).toBe(2);
-    expect(out.out).toContain("lost styles");
-    expect(fs.existsSync(path.join(dir, "migrated/code.tsx"))).toBe(false);
+    expect(await main(["emails", "--out", "migrated", "--report", "report.json"], out, lib)).toBe(0);
+    expect(out.out).toMatch(/looks different: .*lost styles: line 3: color; line 3: fontSize: size/);
+    expect(fs.existsSync(path.join(dir, "migrated/code.tsx"))).toBe(true);
     const [result] = JSON.parse(fs.readFileSync(path.join(dir, "report.json"), "utf8"));
-    expect(result.status).toBe("check-failed");
+    expect(result.status).toBe("migrated");
     expect(result.lostStyles).toEqual(["line 3: color", "line 3: fontSize: size"]);
+    const strict = io(dir);
+    expect(await main(["emails", "--out", "strict", "--strict", "--report", "strict.json"], strict, lib)).toBe(2);
+    expect(fs.existsSync(path.join(dir, "strict/code.tsx"))).toBe(false);
+    expect(JSON.parse(fs.readFileSync(path.join(dir, "strict.json"), "utf8"))[0].status).toBe("check-failed");
   });
 
   it("migrates, checks and writes templates to --out, with design JSON and a report", async () => {
@@ -690,10 +705,12 @@ export default function Hi({ name }: { name: string }) {
     const bad = io(dir);
     expect(await main(["compare", "emails/hi.tsx", "migrated/bad.tsx"], bad, lib)).toBe(2);
     expect(bad.out).toContain('lost text: "aboard"');
-    // The same words, with Elements' own button colors: shown in another style.
+    // The same words, with Elements' own button colors: the same content, which looks different (with --strict, it fails).
     const styled = io(dir);
-    expect(await main(["compare", "emails/hi.tsx", "migrated/styled.tsx"], styled, lib)).toBe(2);
-    expect(styled.out).toMatch(/shown in another style: .*color #0000ee → #ffffff on "Start"/);
+    expect(await main(["compare", "emails/hi.tsx", "migrated/styled.tsx"], styled, lib)).toBe(0);
+    expect(styled.out).toMatch(/It looks different:\n {2}- shown in another style: .*color #0000ee → #ffffff on "Start"/);
+    const strict = io(dir);
+    expect(await main(["compare", "emails/hi.tsx", "migrated/styled.tsx", "--strict"], strict, lib)).toBe(2);
     const usage = io(dir);
     expect(await main(["compare", "emails/hi.tsx"], usage, lib)).toBe(1);
   });
@@ -810,23 +827,29 @@ export default function T() { return <Email><Row><Column><Paragraph>Pay $100 tod
 });
 
 describe("failed verification writes", () => {
-  it("leaves originals and outputs untouched unless --force is requested, and cleans probes", async () => {
+  it("writes a template whose content differs, flagged; with --strict leaves originals and outputs untouched unless --force, and cleans probes", async () => {
     const source = `import { Html, Body, Text } from "@react-email/components";
 export default function T() {
   const text = import.meta.url.includes(".unlayer-migrate-") ? "Changed" : "Keep this content";
   return <Html><Body><Text>{text}</Text></Body></Html>;
 }`;
+    // By default it's written, flagged as a converter bug (exit 2).
+    const flaggedDir = project({ "emails/t.tsx": source });
+    const flagged = io(flaggedDir);
+    expect(await main(["emails", "--out", "migrated"], flagged, lib), flagged.out + flagged.err).toBe(2);
+    expect(flagged.out).toMatch(/✗ emails\/t\.tsx: written, but its content differs \(lost text: "Keep", "this", "content"/);
+    expect(fs.existsSync(path.join(flaggedDir, "migrated/t.tsx"))).toBe(true);
     const dir = project({ "emails/t.tsx": source });
     for (const flags of [["--write"], ["--out", "migrated", "--design"]]) {
       const out = io(dir);
-      expect(await main(["emails", ...flags], out, lib), out.out + out.err).toBe(2);
+      expect(await main(["emails", "--strict", ...flags], out, lib), out.out + out.err).toBe(2);
       expect(out.out).toContain("lost text");
       expect(fs.readFileSync(path.join(dir, "emails/t.tsx"), "utf8")).toBe(source);
       expect(fs.existsSync(path.join(dir, "migrated"))).toBe(false);
       expect(fs.readdirSync(path.join(dir, "emails"))).toEqual(["t.tsx"]);
     }
     const forced = io(dir);
-    expect(await main(["emails", "--out", "forced", "--design", "--force"], forced, lib), forced.out + forced.err).toBe(2);
+    expect(await main(["emails", "--out", "forced", "--design", "--strict", "--force"], forced, lib), forced.out + forced.err).toBe(2);
     expect(fs.readdirSync(path.join(dir, "forced"))).toEqual(["t.design.json", "t.tsx"]);
     expect(fs.readdirSync(path.join(dir, "emails"))).toEqual(["t.tsx"]);
   });
