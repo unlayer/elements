@@ -9,6 +9,7 @@ import Paragraph from "./components/Paragraph";
 import PageBreak from "./components/PageBreak";
 import Social from "./components/Social";
 import Table from "./components/Table";
+import Timer from "./components/Timer";
 import Video from "./components/Video";
 import Row from "./components/Row";
 import Column from "./components/Column";
@@ -43,6 +44,7 @@ export type {
   PageBreakValues,
   SocialValues,
   TableValues,
+  TimerValues,
   VideoValues,
   // Container value types
   BodyValues,
@@ -89,6 +91,7 @@ export type { ParagraphProps } from "./components/Paragraph";
 export type { PageBreakProps } from "./components/PageBreak";
 export type { SocialProps } from "./components/Social";
 export type { TableProps } from "./components/Table";
+export type { TimerProps } from "./components/Timer";
 export type { VideoProps } from "./components/Video";
 export type { RowProps } from "./components/Row";
 export type { EmailProps } from "./components/Email";
@@ -115,6 +118,7 @@ export {
   PageBreak,
   Social,
   Table,
+  Timer,
   Video,
   Row,
   Column,

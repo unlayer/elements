@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
   Button, Divider, Heading, Html, Image, Menu, Paragraph,
-  Social, Table, Video, Row, Column, Body, Email, Page, Document,
+  Social, Table, Timer, Video, Row, Column, Body, Email, Page, Document,
   ColumnLayouts, validateColumnLayout,
   UnlayerProvider, useUnlayerConfig, DEFAULT_CONFIG,
   renderToHtml, renderToPlainText, renderToHtmlParts,
@@ -10,7 +10,7 @@ import {
 
 describe("@unlayer/react-elements exports", () => {
   it("exports all item components as functions with displayNames", () => {
-    const items = { Button, Divider, Heading, Html, Image, Menu, Paragraph, Social, Table, Video };
+    const items = { Button, Divider, Heading, Html, Image, Menu, Paragraph, Social, Table, Timer, Video };
     for (const [name, component] of Object.entries(items)) {
       expect(component, `${name} should be exported`).toBeTypeOf("function");
       expect((component as any).displayName, `${name} should have displayName`).toBe(name);
