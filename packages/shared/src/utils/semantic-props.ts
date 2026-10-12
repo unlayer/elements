@@ -135,6 +135,17 @@ export function escapeText(text: string, quotes?: boolean): string {
 }
 
 /**
+ * `escapeText`, keeping an email service's `<%name%>` tag (SendGrid's substitution tags) as written, as 0.1.22
+ * did in this text: the service fills it in. `<%` can't start an element, so it adds no markup.
+ */
+function escapeKeepingTags(text: string, quotes?: boolean): string {
+  return text
+    .split(/(<%[\w.]+%>)/)
+    .map((part, i) => (i % 2 ? part : escapeText(part, quotes)))
+    .join("");
+}
+
+/**
  * Flatten a JSX/ReactNode children tree to its plain text content.
  * Text components store a string (or Lexical JSON derived from one); a raw React
  * element passed as children would otherwise stringify to "[object Object]".
@@ -160,7 +171,7 @@ function flattenChildrenText(node: any, breaks?: boolean): string {
 function childrenHtml(children: any): string {
   return flattenChildrenText(children, true)
     .split(/(<br\s*\/?>)/i)
-    .map((part, i) => (i % 2 ? "<br/>" : escapeText(part)))
+    .map((part, i) => (i % 2 ? "<br/>" : escapeKeepingTags(part)))
     .join("");
 }
 
@@ -501,7 +512,7 @@ export function normalizeValuesForExporter<T extends Record<string, any>>(
   // editor's canvas shows the text as the HTML it is. Escaping it once here
   // gives it back as stored: `&lt;b&gt;` shows as text, `<b>` as bold.
   if (componentName === "Button" && typeof out.text === "string") {
-    out.text = escapeText(out.text, true);
+    out.text = escapeKeepingTags(out.text, true);
   }
 
   // Menu items each carry a `link` field, and text the email exporter writes
@@ -511,7 +522,7 @@ export function normalizeValuesForExporter<T extends Record<string, any>>(
       ...out.menu,
       items: out.menu.items.map((item: any) => {
         if (!item) return item;
-        const next = mode === "email" && typeof item.text === "string" ? { ...item, text: escapeText(item.text, true) } : item;
+        const next = mode === "email" && typeof item.text === "string" ? { ...item, text: escapeKeepingTags(item.text, true) } : item;
         if (next.link === undefined) return next;
         const normalized = normalizeLinkValue(next.link);
         if (normalized === undefined) return next;

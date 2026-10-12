@@ -2,7 +2,7 @@ import { describe, it, expect, vi } from "vitest";
 import React from "react";
 import { renderToHtml } from "./render-to-html";
 import { renderToJson } from "./render-to-json";
-import { Email, Page, Document, Row, Column, Heading, Button, Paragraph } from "../index";
+import { Email, Page, Document, Row, Column, Heading, Button, Paragraph, Menu } from "../index";
 
 // A value such as a user's name, with markup in it.
 const name = '<img src=x onerror="alert(1)"> & Co';
@@ -39,6 +39,24 @@ describe("text children of Heading and Button", () => {
     const [heading, button] = design.body.rows[0].columns[0].contents as Array<{ values: { text: string } }>;
     expect(heading.values.text).toBe("&lt;img src=x onerror=\"alert(1)\"&gt; &amp; Co");
     expect(button.values.text).toBe(heading.values.text);
+  });
+});
+
+describe("an email service's <%name%> tag in text", () => {
+  it.each([["email", Email], ["web", Page]] as const)("stays as written in Heading and Button text and Menu items, for it to fill in, as in 0.1.22 (%s)", (mode, Root) => {
+    const html = renderToHtml(
+      <Root><Row><Column>
+        <Heading>{"Hi <%first_name%>"}</Heading>
+        <Button href="https://example.com">{"Open <%first_name%>'s plan"}</Button>
+        <Menu items={[{ text: "<%company%> home", href: "https://example.com" }]} />
+      </Column></Row></Root>
+    );
+    expect(html).toContain("Hi <%first_name%>");
+    expect(html).toContain("<%first_name%>");
+    // Menu text: the email exporter writes it as it is (0.1.22 too); the web and document ones escape it.
+    if (mode === "email") expect(html).toContain("<%company%>");
+    // Markup around it is still escaped.
+    expect(renderToHtml(<Root><Row><Column><Heading>{"<%name%><b>bold</b>"}</Heading></Column></Row></Root>)).toContain("<%name%>&lt;b&gt;bold&lt;/b&gt;");
   });
 });
 
