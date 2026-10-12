@@ -1413,6 +1413,31 @@ List.PreviewProps = { items: [{ glow: "0 0 4px red", label: "A" }], name: "Ada" 
   });
 });
 
+describe("an import only the migrated default export read", () => {
+  it("goes, though a parameter of the same name is still read (noUnusedLocals, TS6133)", async () => {
+    const dir = fs.mkdtempSync(path.join(import.meta.dirname, ".tmp-"));
+    try {
+      const file = path.join(dir, "migrated.tsx");
+      const source = `import { Html, Body, Tailwind, Text } from "@react-email/components";
+export const Note = ({ Tailwind }: { Tailwind: React.FC<any> }) => (
+  <Tailwind><Html><Body><Text className="font-bold">Hi</Text></Body></Html></Tailwind>
+);
+export default function NoteDefault() {
+  return <Note Tailwind={Tailwind} />;
+}`;
+      const { code } = await convertSource(source, { fileName: file });
+      fs.writeFileSync(file, code);
+      expect(code).not.toMatch(/import \{[^}]*\bTailwind\b[^}]*\} from "@react-email\/components"/);
+      expect(code).toContain("export const Note = ({ Tailwind }");
+      const ts = (await import("typescript")).default;
+      const program = ts.createProgram([file], { noEmit: true, jsx: ts.JsxEmit.ReactJSX, strict: true, noUnusedLocals: true, noUnusedParameters: true, module: ts.ModuleKind.ESNext, moduleResolution: ts.ModuleResolutionKind.Bundler, target: ts.ScriptTarget.ES2022, skipLibCheck: true, types: ["react"] });
+      expect(ts.getPreEmitDiagnostics(program).filter((d) => d.file?.fileName === file).map((d) => `TS${d.code}`)).toEqual([]);
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
+  });
+});
+
 describe("what only a dropped Tailwind config or style read", () => {
   it("goes when the file's own functions only compute it; an object that may do something stays a statement that parses", async () => {
     const dir = fs.mkdtempSync(path.join(import.meta.dirname, ".tmp-"));

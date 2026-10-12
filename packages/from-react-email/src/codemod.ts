@@ -2428,9 +2428,12 @@ function dropUnused(code: string, original: ts.SourceFile, javascript: boolean, 
           const clause = statement.importClause;
           const bindings = clause.namedBindings;
           const named = bindings && ts.isNamedImports(bindings) ? bindings.elements : [];
-          const keptNamed = named.filter((e) => !unused(e.name));
-          const keepDefault = clause.name && !unused(clause.name);
-          const keepNamespace = bindings && ts.isNamespaceImport(bindings) && !unused(bindings.name);
+          // Read before and not now, counting only reads of the import itself: a parameter of the same name
+          // (`({ Tailwind }) => <Tailwind>`, passed the import by the default export the migration rewrote) isn't.
+          const gone = (name: ts.Identifier) => unused(name) || ((usedBefore.get(name.text) ?? 0) > 1 && !readsImport(file, name));
+          const keptNamed = named.filter((e) => !gone(e.name));
+          const keepDefault = clause.name && !gone(clause.name);
+          const keepNamespace = bindings && ts.isNamespaceImport(bindings) && !gone(bindings.name);
           if (keptNamed.length === named.length && (!clause.name || keepDefault) && (!bindings || ts.isNamedImports(bindings) || keepNamespace)) continue;
           if (!keepDefault && !keepNamespace && keptNamed.length === 0) {
             // TypeScript drops an import none of whose names are read, too.
@@ -2481,6 +2484,43 @@ function dropUnused(code: string, original: ts.SourceFile, javascript: boolean, 
     const ordered = cuts.sort((x, y) => y.from - x.from).filter((c, i, all) => !all.some((o, j) => j !== i && o.from <= c.from && c.to <= o.to && (o.from !== c.from || o.to !== c.to)));
     for (const c of ordered) code = code.slice(0, c.from) + c.text + code.slice(c.to);
   }
+}
+
+/** Whether `file` reads the import `binding` somewhere a declaration of the same name doesn't shadow it. */
+function readsImport(file: ts.SourceFile, binding: ts.Identifier): boolean {
+  const name = binding.text;
+  const binds = (node: ts.BindingName): boolean =>
+    ts.isIdentifier(node) ? node.text === name : node.elements.some((e) => !ts.isOmittedExpression(e) && binds(e.name));
+  const declares = (statements: readonly ts.Statement[]) =>
+    statements.some(
+      (st) =>
+        (ts.isVariableStatement(st) && st.declarationList.declarations.some((d) => binds(d.name))) ||
+        ((ts.isFunctionDeclaration(st) || ts.isClassDeclaration(st)) && st.name?.text === name)
+    );
+  const shadowed = (node: ts.Node): boolean => {
+    for (let p = node.parent; p && !ts.isSourceFile(p); p = p.parent) {
+      if (ts.isFunctionLike(p) && p.parameters.some((param) => binds(param.name))) return true;
+      if (ts.isBlock(p) && declares(p.statements)) return true;
+      if ((ts.isForStatement(p) || ts.isForOfStatement(p) || ts.isForInStatement(p)) && p.initializer && ts.isVariableDeclarationList(p.initializer) && p.initializer.declarations.some((d) => binds(d.name))) return true;
+      if (ts.isCatchClause(p) && p.variableDeclaration && binds(p.variableDeclaration.name)) return true;
+    }
+    return false;
+  };
+  const reads = (node: ts.Node): boolean => {
+    if (ts.isImportDeclaration(node)) return false;
+    if (ts.isIdentifier(node) && node.text === name) {
+      const parent = node.parent;
+      const notARead =
+        (ts.isPropertyAccessExpression(parent) && parent.name === node) ||
+        ((ts.isPropertyAssignment(parent) || ts.isPropertySignature(parent) || ts.isBindingElement(parent) || ts.isParameter(parent) || ts.isVariableDeclaration(parent)) && parent.name === node) ||
+        (ts.isBindingElement(parent) && parent.propertyName === node) ||
+        (ts.isJsxAttribute(parent) && parent.name === node) ||
+        (ts.isQualifiedName(parent) && parent.right === node);
+      if (!notARead && !shadowed(node)) return true;
+    }
+    return !!ts.forEachChild(node, (child) => (reads(child) ? true : undefined));
+  };
+  return reads(file);
 }
 
 /**
