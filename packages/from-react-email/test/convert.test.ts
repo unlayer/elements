@@ -1026,7 +1026,7 @@ export default function Template() {
     expect(result.code).toMatch(/style=\{\{ display: "none" \}\}/);
   });
 
-  it("keeps a dark-mode logo pair's light logo only, as the original shows it, and reports the dark-mode rule", async () => {
+  it("keeps a dark-mode logo pair's light logo only, as the original shows it in light mode, and the check says dark mode differs", async () => {
     const css = ".dark-img{display:none !important} @media (prefers-color-scheme: dark) { .dark-img{display:block !important} .light-img{display:none !important} }";
     const { result, runtime, Original, Migrated } = await bothModes(`import { Html, Head, Body, Text, Img } from "@react-email/components";
 export default function Template() {
@@ -1037,7 +1037,11 @@ export default function Template() {
 }`);
     for (const html of [renderToHtml(Migrated({})), runtime.html()]) expect(htmlAttributes(html)).toEqual(["src https://example.com/light.png", "alt Light logo"]);
     const check = await verifyConversion(Original, Migrated);
-    expect([check.missingAttributes, check.addedAttributes]).toEqual([[], []]);
+    // In dark mode the original shows the dark logo, the migration the light one.
+    expect([check.missingAttributes, check.addedAttributes]).toEqual([
+      ["src https://example.com/dark.png (in dark mode)", "alt Dark logo (in dark mode)"],
+      ["src https://example.com/light.png (in dark mode)", "alt Light logo (in dark mode)"],
+    ]);
     expect(result.report.notes).toContainEqual({ reason: "head style rule not converted", detail: ".dark-img @media (prefers-color-scheme: dark)" });
   });
 });

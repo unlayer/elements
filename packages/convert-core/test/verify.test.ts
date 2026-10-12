@@ -101,3 +101,46 @@ describe("elements a stylesheet class hides", () => {
   });
 });
 
+
+describe("content the check reads beyond desktop text", () => {
+  const page = (body: string, head = "") => `<html><head>${head}</head><body style="margin:0">${body}</body></html>`;
+
+  it("reads text moved far off the page by a transform as hidden, as text-indent: -9999px", () => {
+    for (const css of ["transform:translateX(-9999px)", "transform:translate(-5000px, 0)", "transform:translate3d(0,-2000px,0)", "translate:-9999px"]) {
+      const check = compareText(page(`<p>Hi</p><p style="${css}">Secret coupon</p>`), page("<p>Hi</p><p>Secret coupon</p>"));
+      expect(check.added, css).toEqual(["Secret", "coupon"]);
+    }
+    // A small shift moves it, and doesn't hide it.
+    expect(compareText(page('<p style="transform:translateX(-4px)">Hi</p>'), page("<p>Hi</p>")).added).toEqual([]);
+  });
+
+  it("reads text ::before and ::after draw as words, on an empty element too", () => {
+    const css = '<style>.badge::before{content:"NEW"} .q::after{content:" by \\41 da"} .clear::after{content:"";display:table}</style>';
+    const original = page('<p>Hello</p><span class="badge"></span><p class="q">Quote</p><div class="clear"></div>', css);
+    expect(htmlWords(original)).toEqual(["Hello", "NEW", "Quote", "by", "Ada"]);
+    expect(compareText(original, page("<p>Hello</p><p>Quote</p>")).missing).toEqual(["NEW", "by", "Ada"]);
+    // A rule that hides what it draws draws nothing; React's escaped quotes (`content: &quot;x&quot;`) aren't a string.
+    expect(htmlWords(page('<span class="b"></span>', '<style>.b::before{content:"NEW";display:none}</style>'))).toEqual([]);
+    expect(htmlWords(page('<span class="b"></span>', "<style>.b::before{content:&quot;NEW&quot;}</style>"))).toEqual([]);
+  });
+
+  it("compares what dark mode shows, where either side has a rule for it", () => {
+    const head = "<style>.dark{display:none} @media (prefers-color-scheme: dark) { .light{display:none !important} .dark{display:block !important} }</style>";
+    const original = page('<p class="light">Good morning</p><p class="dark">Good night</p><img class="dark" src="https://example.com/dark.png" alt="Logo">', head);
+    const check = compareText(original, page("<p>Good morning</p>"));
+    expect([check.missing, check.added]).toEqual([[], []]);
+    expect(check.styles).toEqual([
+      { property: "shown", original: "shown", converted: "hidden", words: ["night"], dark: true },
+      { property: "shown", original: "hidden", converted: "shown", words: ["morning"], dark: true },
+    ]);
+    expect(check.missingAttributes).toEqual(["src https://example.com/dark.png (in dark mode)", "alt Logo (in dark mode)"]);
+    // Kept on both sides: the same.
+    expect(compareText(original, original).styles).toEqual([]);
+  });
+
+  it("compares styles on phones, where the same words show", () => {
+    const head = "<style>@media (max-width: 480px) { .big { color: #ff0000 !important } }</style>";
+    const check = compareText(page('<p class="big">Huge on phones</p>', head), page("<p>Huge on phones</p>"));
+    expect(check.styles).toEqual([expect.objectContaining({ property: "color", original: "#ff0000", converted: "#000000", phone: true })]);
+  });
+});

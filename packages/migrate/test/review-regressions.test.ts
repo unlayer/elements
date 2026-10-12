@@ -1278,6 +1278,44 @@ T.PreviewProps = { label: "Go" };`;
   });
 });
 
+describe("content the check reads beyond desktop text (compare)", () => {
+  const elements = (body: string) => `import { Column, Email, Image, Paragraph, Row } from "@unlayer/react-elements";
+export default function T() { return <Email backgroundColor="#ffffff"><Row><Column>${body}</Column></Row></Email>; }
+`;
+  const p = (text: string) => `<Paragraph color="#000000" fontSize="14px" lineHeight="24px" containerPadding="0px 0px 16px 0px">${text}</Paragraph>`;
+  const original = (head: string, body: string) => `import { Html, Head, Body, Text, Img } from "@react-email/components";
+export default function T() { return <Html><Head>${head ? `<style dangerouslySetInnerHTML={{ __html: ${JSON.stringify(head)} }} />` : ""}</Head><Body>${body}</Body></Html>; }
+`;
+  it("fails a list's numbering, dark-mode content or text hidden off the page the migration lost; lists phone styles as looks", async () => {
+    const dir = project({
+      "emails/steps.tsx": original("", `<Text>Next steps</Text><ol start={3}><li>Verify email</li></ol>`),
+      "migrated/steps.tsx": elements(`${p("Next steps")}<Paragraph fontSize="16px" color="#000000" html="<ol><li>Verify email</li></ol>" containerPadding="0px 0px 16px 0px" />`),
+      "emails/dark.tsx": original(".night{display:none} @media (prefers-color-scheme: dark) { .day{display:none !important} .night{display:block !important} }", `<Text className="day">Good morning</Text><Text className="night">Good night</Text>`),
+      "migrated/dark.tsx": elements(p("Good morning")),
+      "emails/away.tsx": original("", `<Text>Hi</Text><Text style={{ transform: "translateX(-9999px)" }}>Secret coupon</Text>`),
+      "migrated/away.tsx": elements(`${p("Hi")}${p("Secret coupon")}`),
+      "emails/phone.tsx": original("@media (max-width: 480px) { .big { color: #ff0000 !important } }", `<Text className="big">Red on phones</Text>`),
+      "migrated/phone.tsx": elements(p("Red on phones")),
+    });
+    const compare = async (name: string) => {
+      const out = io(dir);
+      return { code: await main(["compare", `emails/${name}.tsx`, `migrated/${name}.tsx`], out, lib), out: out.out + out.err };
+    };
+    const steps = await compare("steps");
+    expect(steps.code, steps.out).toBe(2);
+    expect(steps.out).toMatch(/words CSS adds or hides.*list item: decimal from 3/);
+    const dark = await compare("dark");
+    expect(dark.code, dark.out).toBe(2);
+    expect(dark.out).toMatch(/"night" in dark mode/);
+    const away = await compare("away");
+    expect(away.code, away.out).toBe(2);
+    expect(away.out).toContain('extra text: "Secret", "coupon"');
+    const phone = await compare("phone");
+    expect(phone.code, phone.out).toBe(0);
+    expect(phone.out).toMatch(/It looks different:\n {2}- shown in another style: color #ff0000 → #000000 on "Red", "on", "phones" on phones/);
+  });
+});
+
 describe("a design file that can't be written", () => {
   // The template puts a file where its design goes when it's loaded to be checked: after the run reserved that path.
   const makesDesign = `import fs from "node:fs";

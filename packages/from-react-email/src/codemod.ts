@@ -1959,6 +1959,16 @@ class Converter {
             this.needsEscape = true;
             attrs.push({ text: this.codeAttribute("hidden", `(${hidden.$expr}) || undefined`), code: true });
           } else if (hidden === true || hidden === "" || hidden === "hidden" || hidden === "true") attrs.push({ text: "hidden" });
+          // A list's numbering (`<ol start={3} type="a" reversed>`, `<li value={5}>`): what a reader reads before each item.
+          for (const name of tag === "ol" ? ["start", "type", "reversed"] : tag === "ul" ? ["type"] : tag === "li" ? ["value", "type"] : []) {
+            const value = this.attr(jsx, name);
+            if (value === undefined || value === null || value === false) continue;
+            if (isExpr(value)) {
+              this.needsEscape = true;
+              attrs.push({ text: this.codeAttribute(name, name === "reversed" ? `(${value.$expr}) || undefined` : value.$expr), code: true });
+            } else if (name !== "reversed") attrs.push({ text: `${name}="${escapeAttribute(String(value))}"` });
+            else if (value === true || value === "" || value === "reversed" || value === "true") attrs.push({ text: "reversed" });
+          }
           if (jsx.name === "Link" || tag === "a") {
             const target = this.attr(jsx, "target");
             if (isExpr(target)) this.needsEscape = true;

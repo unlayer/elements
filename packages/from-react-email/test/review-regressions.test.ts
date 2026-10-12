@@ -672,6 +672,27 @@ export default function Welcome({ tone = "info" }: { tone?: "info" | "warn" }) {
   });
 });
 
+describe("a list's numbering", () => {
+  it("is kept in both modes: start, type and reversed on <ol>, value on <li>, written or from props", async () => {
+    const { Original, Migrated, conversion } = await templates(`import { Html, Body, Text } from "@react-email/components";
+      export default function T({ from, flip }: { from: number; flip: boolean }) {
+        return <Html><Body><Text>Steps</Text>
+          <ol start={3} type="a"><li>Verify</li><li value={9}>Pay</li></ol>
+          <ol start={from} reversed={flip}><li>One</li><li>Two</li></ol>
+        </Body></Html>;
+      }
+      T.PreviewProps = { from: 5, flip: true };`);
+    expect(conversion.code).toContain('<ol start="3" type="a">');
+    const check = await verifyConversion(Original, Migrated);
+    expect([check.unverified, check.styles, check.variants]).toEqual([[], [], []]);
+    for (const html of [check.convertedHtml, (await convertReactEmail(Original)).html()]) {
+      expect(html).toMatch(/<ol start="3" type="a"[^>]*>/);
+      expect(html).toMatch(/<li value="9"[^>]*>/);
+      expect(html).toMatch(/<ol start="5" reversed(="[^"]*")?[ >]/);
+    }
+  });
+});
+
 describe("merge tags", () => {
   it("only stand for props the template shows as given, not ones it cuts, splits or capitalizes", async () => {
     const { Original, Migrated } = await templates(`import { Html, Body, Text } from "@react-email/components";

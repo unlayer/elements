@@ -237,7 +237,9 @@ describe("styles the check doesn't model", () => {
       const head = css ? style(css) : "";
       const lost = compareText(page(html, head), page("<p>Big sale</p>"));
       expect(checkFails(lost)).toBe(true);
-      expect(lost.unverified).toContainEqual(expect.objectContaining({ what: unplaced.has(name) ? expect.stringMatching(/^(look|where it sits)$/) : "look", side: "original" }));
+      // Text drawn before or after it is read as words: lost ones are lost words.
+      if (/^content drawn/.test(name)) expect(lost.missing).toEqual([name.includes("one-colon") ? "→" : "★"]);
+      else expect(lost.unverified).toContainEqual(expect.objectContaining({ what: unplaced.has(name) ? expect.stringMatching(/^(look|where it sits)$/) : "look", side: "original" }));
       const kept = compareText(page(html, head), page(html, head));
       if (unplaced.has(name)) expect(kept.unverified).toEqual([expect.objectContaining({ what: "where it sits" })]);
       else expect(checkFails(kept)).toBe(false);

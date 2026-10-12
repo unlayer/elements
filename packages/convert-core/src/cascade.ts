@@ -200,6 +200,30 @@ function zeroScale(transform: string | undefined, scale: string | undefined): bo
   return parts.length > 0 && !/^none$/i.test(parts[0]) && (zero(parts[0]) || zero(parts[1] ?? parts[0]));
 }
 
+/**
+ * Moved far up or to the left (`transform: translateX(-9999px)`, `translate: -9999px`): off the page, where no one
+ * can scroll to it, as `text-indent: -9999px`.
+ */
+function translatedAway(transform: string | undefined, translate: string | undefined): boolean {
+  const away = (n: string | undefined) => n !== undefined && (lengthPx(n.trim()) ?? 0) <= -999;
+  for (const [, name, args] of (transform ?? "").matchAll(/\b(translate3d|translateX|translateY|translate)\(([^)]*)\)/gi)) {
+    const [first, second] = args.split(/[\s,]+/).filter(Boolean);
+    const lower = name.toLowerCase();
+    if (lower === "translatey" ? away(first) : away(first) || (lower !== "translatex" && away(second))) return true;
+  }
+  const [x, y] = (translate ?? "").trim().split(/\s+/);
+  return away(x) || away(y);
+}
+
+/** The text a `content` value draws: its strings, CSS escapes read (`"\201C"`); what isn't a string draws no words here. */
+function contentText(value: string): string {
+  let out = "";
+  for (const m of value.matchAll(/"((?:[^"\\]|\\.)*)"|'((?:[^'\\]|\\.)*)'/g)) {
+    out += (m[1] ?? m[2] ?? "").replace(/\\([0-9a-f]{1,6})\s?|\\(.)/gi, (_, hex: string | undefined, char: string | undefined) => (hex ? String.fromCodePoint(parseInt(hex, 16)) : char ?? ""));
+  }
+  return out;
+}
+
 /** A font weight as a number, given the parent's. */
 function fontWeight(value: string, parent: number | undefined): number | undefined {
   const v = value.trim().toLowerCase();
@@ -494,7 +518,7 @@ function widthRange(feature: string, width: number): boolean | undefined {
 }
 
 /** Whether a media query list applies at `width` (desktop: 700px; phones: 375px). */
-export function mediaApplies(query: string, width: number): "yes" | "no" | "unknown" {
+export function mediaApplies(query: string, width: number, dark = false): "yes" | "no" | "unknown" {
   let any: "no" | "unknown" = "no";
   // A list (`a, b`) and conditions joined by `or` apply when one of them does.
   for (const single of query.toLowerCase().split(",").flatMap((q) => q.split(/\)\s+or\s+\(/).map((part, i, all) => (all.length < 2 ? part : `${i ? "(" : ""}${part}${i < all.length - 1 ? ")" : ""}`)))) {
@@ -513,7 +537,8 @@ export function mediaApplies(query: string, width: number): "yes" | "no" | "unkn
       const px = raw === undefined ? undefined : queryPx(raw);
       const range = raw === undefined ? widthRange(feature, width) : undefined;
       if (name === "prefers-color-scheme") {
-        if (raw === "dark") result = "no";
+        // Read in light mode, and in dark mode where a template has rules for it.
+        if (raw === (dark ? "light" : "dark")) result = "no";
       } else if (/^(min|max)-(device-)?width$/.test(name) && px !== undefined) {
         // The device's width is read as the window's: a phone's screen, or a desktop at least this wide.
         if (name.startsWith("min") ? width < px : width > px) result = "no";
@@ -560,7 +585,7 @@ const NOT_STYLING = /^(font-face|keyframes|-webkit-keyframes|-moz-keyframes|page
  * The rules of a stylesheet that may apply at `width`, in order. Each records
  * where it's written; what this can't read applies "unknown" (it may or may not).
  */
-function parseStylesheet(css: string, rules: Rule[], width: number, media: "yes" | "unknown" = "yes", context = ""): void {
+function parseStylesheet(css: string, rules: Rule[], width: number, media: "yes" | "unknown" = "yes", context = "", dark = false): void {
   const text = css.replace(/\/\*[\s\S]*?\*\//g, "");
   for (const block of blocks(text)) {
     // `<!--` and `-->` between a stylesheet's rules are ignored (old pages hid CSS from browsers that showed it).
@@ -570,11 +595,11 @@ function parseStylesheet(css: string, rules: Rule[], width: number, media: "yes"
       const at = /^@([\w-]+)\s*(.*)$/s.exec(prelude);
       const name = at?.[1].toLowerCase() ?? "";
       if (name === "media") {
-        const applies = mediaApplies(at![2], width);
-        if (applies !== "no") parseStylesheet(body, rules, width, applies === "unknown" || media === "unknown" ? "unknown" : "yes", `${context}@media ${at![2].trim()} `);
+        const applies = mediaApplies(at![2], width, dark);
+        if (applies !== "no") parseStylesheet(body, rules, width, applies === "unknown" || media === "unknown" ? "unknown" : "yes", `${context}@media ${at![2].trim()} `, dark);
       } else if (!NOT_STYLING.test(name)) {
         // `@supports`, `@layer`, `@container`, …: their rules may or may not apply.
-        parseStylesheet(body, rules, width, "unknown", `${context}@${name} ${at?.[2].trim() ?? ""} `);
+        parseStylesheet(body, rules, width, "unknown", `${context}@${name} ${at?.[2].trim() ?? ""} `, dark);
       }
       continue;
     }
@@ -595,7 +620,7 @@ function parseStylesheet(css: string, rules: Rule[], width: number, media: "yes"
     for (const inner of nested) {
       const at = /^@media\s*(.*)$/is.exec(inner.prelude);
       if (at) {
-        const applies = mediaApplies(at[1], width);
+        const applies = mediaApplies(at[1], width, dark);
         if (applies === "no") continue;
         const both = applies === "unknown" || media === "unknown" ? "unknown" : "yes";
         rules.push({ selectors, unknownSelector, media: both, declarations: parseDeclarations(splitBody(inner.body).declarations), order: rules.length, source: `${context}${prelude} @media ${at[1].trim()}` });
@@ -929,16 +954,19 @@ export class StyledDocument {
 
   /** The viewport width media queries are read at. */
   readonly width: number;
+  /** Whether it's read in dark mode (`prefers-color-scheme: dark`). */
+  readonly dark: boolean;
 
-  constructor(html: string, options: { width?: number } = {}) {
+  constructor(html: string, options: { width?: number; dark?: boolean } = {}) {
     this.root = parse(html);
     this.width = options.width ?? DESKTOP_WIDTH;
+    this.dark = options.dark ?? false;
     for (const style of this.elements().filter((e) => e.tagName === "style")) {
       const text = style.childNodes.map((n) => ("value" in n ? (n as { value: string }).value : "")).join("");
       // A stylesheet for other media (`media="print"`) doesn't apply on screen.
       const media = (attr(style, "media") ?? "").trim();
-      const applies = media ? mediaApplies(media, this.width) : "yes";
-      if (applies !== "no") parseStylesheet(text, this.rules, this.width, applies);
+      const applies = media ? mediaApplies(media, this.width, this.dark) : "yes";
+      if (applies !== "no") parseStylesheet(text, this.rules, this.width, applies, "", this.dark);
     }
     const html_ = this.elements().find((e) => e.tagName === "html");
     this.rootSize = 16;
@@ -1211,7 +1239,7 @@ export class StyledDocument {
           return v !== undefined && (lengthPx(v) ?? 0) <= -999;
         }));
     // Scaled to nothing across or down (`transform: scale(0)`, `scaleY(0)`, `scale: 0`).
-    const scaledAway = zeroScale(value("transform"), value("scale"));
+    const scaledAway = zeroScale(value("transform"), value("scale")) || translatedAway(value("transform"), value("translate"));
     // Inside a closed <details>: only its first <summary> shows.
     const container = element.parentNode;
     const folded = isElement(container) && container.tagName === "details" && attr(container, "open") === undefined && container.childNodes.find((n) => isElement(n) && n.tagName === "summary") !== element;
@@ -1219,7 +1247,7 @@ export class StyledDocument {
     computed.hidden = (display !== undefined && /^none$/i.test(display)) || clipped || readerOnly || scaledAway || folded || (opacity !== undefined && parseFloat(opacity) === 0);
     const fade = opacity === undefined ? 1 : /%\s*$/.test(opacity) ? parseFloat(opacity) / 100 : parseFloat(opacity);
     if (Number.isFinite(fade) && fade > 0 && fade < 1) computed.fade = fade;
-    const hiding = ["display", "overflow", "max-height", "height", "opacity", "position", "clip-path", "text-indent", "transform", "scale"].find((p) => unknown.has(p)) ?? (placed ? ["clip", "left", "top", "width"].find((p) => unknown.has(p)) : undefined);
+    const hiding = ["display", "overflow", "max-height", "height", "opacity", "position", "clip-path", "text-indent", "transform", "translate", "scale"].find((p) => unknown.has(p)) ?? (placed ? ["clip", "left", "top", "width"].find((p) => unknown.has(p)) : undefined);
     if (hiding) doubt("hides", causes.get(hiding));
     else if (clipUnknown) doubt("hides", `clip-path: ${clipPath}`);
     // As the word check reads tags: these don't break words unless styled as boxes; every other tag does.
@@ -1309,8 +1337,12 @@ export class StyledDocument {
         // A closed <details> shows its first <summary> alone (its own text too stays folded).
         const folded = node.tagName === "details" && attr(node, "open") === undefined;
         const summary = folded ? node.childNodes.find((n) => isElement(n) && n.tagName === "summary") : undefined;
+        // Text `::before` and `::after` draw in it is read with its own (`.badge::before { content: "NEW" }`).
+        const drawn = this.drawn(node);
         try {
+          if (drawn.before) visitText({ nodeName: "#text", value: drawn.before } as unknown as Node, [...chain, node]);
           for (const child of node.childNodes) if (!folded || child === summary) visit(child, [...chain, node]);
+          if (drawn.after) visitText({ nodeName: "#text", value: drawn.after } as unknown as Node, [...chain, node]);
         } finally {
           doubting = outer;
         }
@@ -1557,6 +1589,28 @@ export class StyledDocument {
     if (element.tagName === "q") out.set("<q> (quotes around it)", "");
     if (element.tagName === "marquee" || element.tagName === "blink") out.set(`<${element.tagName}>`, "");
     this.looks.set(element, out);
+    return out;
+  }
+
+  /**
+   * The text `::before` and `::after` draw in an element: the `content` of the rule that applies last (by
+   * specificity, then order), unless it hides the box it draws. Rules that may apply are left to the look.
+   */
+  private drawn(element: Element): { before?: string; after?: string } {
+    const out: { before?: string; after?: string } = {};
+    const best: { before?: [number, number, number]; after?: [number, number, number] } = {};
+    for (const rule of this.rules) {
+      const content = [...rule.declarations].reverse().find((decl) => bareProperty(decl.property) === "content");
+      if (!content) continue;
+      const display = [...rule.declarations].reverse().find((decl) => bareProperty(decl.property) === "display");
+      for (const selector of rule.selectors) {
+        if (!selector.generated || matches(element, selector) !== "yes") continue;
+        const which = selector.generated;
+        if (best[which] && compare(selector.specificity, best[which]!) < 0) continue;
+        best[which] = selector.specificity;
+        out[which] = display && /^none$/i.test(display.value.trim()) ? undefined : contentText(content.value);
+      }
+    }
     return out;
   }
 
@@ -1884,6 +1938,10 @@ export interface StyleDifference {
   words: string[];
   /** Only on screens at least this wide, where a rule for wider screens than the desktop width applies (Tailwind's `md:`). */
   width?: number;
+  /** Only in dark mode (a rule for `prefers-color-scheme: dark`). */
+  dark?: true;
+  /** Only on phones (at the width phones are read at). */
+  phone?: true;
 }
 
 /**

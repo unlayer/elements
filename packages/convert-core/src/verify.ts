@@ -176,7 +176,13 @@ export function compareText(originalHtml: string, convertedHtml: string): TextCh
   const phoneWithAttributes = { ...phone, ...(phoneLost.length ? { missingAttributes: phoneLost } : {}), ...(phoneAdded.length ? { addedAttributes: phoneAdded } : {}) };
   const unverified = [...style.unverified, ...unread, ...targetDoubts(originalDoc, convertedDoc), ...phoneDoubts(originalPhone, convertedPhone, style.unverified)];
   const wide = same ? widerDifferences(originalHtml, convertedHtml, style.differences, unverified, missingAttributes, addedAttributes) : { styles: [], unverified: [] };
-  return { missing, added, missingAttributes, addedAttributes, styles: [...style.differences, ...wide.styles], unverified: [...unverified, ...wide.unverified], phone: phoneWithAttributes, layout, styleCoverage: { words: style.compared, unknown: style.unknown } };
+  const dark = same ? darkDifferences(originalHtml, convertedHtml, missingAttributes, addedAttributes) : [];
+  // On phones, where the same words show: in the same styles (a phone rule's size or color), each not already listed for desktop.
+  const listed = new Set(style.differences.map((d) => JSON.stringify(d)));
+  const phoneStyles = same && !phoneDiffers(phoneWithAttributes)
+    ? compareStyles(originalPhone, convertedPhone).differences.filter((d) => !listed.has(JSON.stringify(d))).map((d): StyleDifference => ({ ...d, phone: true }))
+    : [];
+  return { missing, added, missingAttributes, addedAttributes, styles: [...style.differences, ...wide.styles, ...dark, ...phoneStyles], unverified: [...unverified, ...wide.unverified], phone: phoneWithAttributes, layout, styleCoverage: { words: style.compared, unknown: style.unknown } };
 }
 
 /**
@@ -208,6 +214,27 @@ function widerDifferences(originalHtml: string, convertedHtml: string, desktopSt
     for (const doubt of check.unverified) if (!known.has(key(doubt))) unverified.push({ ...doubt, width });
   }
   return { styles, unverified };
+}
+
+/**
+ * In dark mode, where either side has a rule for it (`prefers-color-scheme: dark`): the same words must show, with
+ * the same links and images (a logo or text swapped for dark mode on one side only). Links and images are added to
+ * the lists given.
+ */
+function darkDifferences(originalHtml: string, convertedHtml: string, missingAttributes: string[], addedAttributes: string[]): StyleDifference[] {
+  if (![originalHtml, convertedHtml].some((html) => /prefers-color-scheme\s*:\s*dark/i.test(html))) return [];
+  const original = new StyledDocument(originalHtml, { dark: true });
+  const converted = new StyledDocument(convertedHtml, { dark: true });
+  const [a, b] = [wordsOf(original), wordsOf(converted)];
+  const lost = lostOccurrences(a, b);
+  const extra = lostOccurrences(b, a);
+  const out: StyleDifference[] = [];
+  if (lost.length) out.push({ property: "shown", original: "shown", converted: "hidden", words: lost, dark: true });
+  if (extra.length) out.push({ property: "shown", original: "hidden", converted: "shown", words: extra, dark: true });
+  const [targetsA, targetsB] = [attributesOf(original), attributesOf(converted)];
+  for (const item of lostOccurrences(targetsA, targetsB)) if (!missingAttributes.some((m) => m.startsWith(item))) missingAttributes.push(`${item} (in dark mode)`);
+  for (const item of new Set(targetsB)) if (!targetsA.includes(item) && !addedAttributes.some((m) => m.startsWith(item))) addedAttributes.push(`${item} (in dark mode)`);
+  return out;
 }
 
 /**

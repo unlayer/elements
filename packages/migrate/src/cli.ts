@@ -84,6 +84,10 @@ export interface StyleChange {
   words: string[];
   /** Only on screens at least this wide (a rule for wider screens than the desktop width checked, as `md:`). */
   width?: number;
+  /** Only in dark mode. */
+  dark?: true;
+  /** Only on phones. */
+  phone?: true;
 }
 
 export interface FileResult {
@@ -1003,7 +1007,8 @@ const SHOWN = new Set(["shown", "shown on phones"]);
  * CSS the check doesn't read that adds words (`::before { content: "Sale:" }`) or hides them (an ellipsis, a line
  * clamp, a clipping `overflow`): which words a reader gets, not how they look.
  */
-const WORDS_LOOK = /::(before|after) \{ content|`content( \(unread\))?`|text-overflow|line-clamp|`overflow/;
+// A list's numbering (`list item: decimal from 3` where the other side has `disc`) is words a reader reads too.
+const WORDS_LOOK = /::(before|after) \{ content|`content( \(unread\))?`|text-overflow|line-clamp|`overflow|`list item: [^`]*\b(decimal|alpha|roman|latin|greek|armenian|georgian|hebrew|cjk|type [aAiI1]|from|reversed|value)\b/;
 const wordsLook = (u: { what: string; cause: string }) => u.what === "look" && WORDS_LOOK.test(u.cause);
 
 /**
@@ -1083,7 +1088,7 @@ function lookProblems(check: CheckParts): string[] {
 
 /** Style changes in a line: "color #e11d48 → #000000 on "Hello", "world"". */
 function styleChanges(changes: StyleChange[]): string {
-  return changes.map((c) => `${c.property} ${c.original} → ${c.converted} on ${quote(c.words)}${wider(c.width)}`).join("; ");
+  return changes.map((c) => `${c.property} ${c.original} → ${c.converted} on ${quote(c.words)}${wider(c.width)}${c.dark ? " in dark mode" : ""}${c.phone ? " on phones" : ""}`).join("; ");
 }
 
 /** " on screens 768px and wider", for a difference only wider screens than the desktop width show. */
