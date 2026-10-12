@@ -1,0 +1,1 @@
+import{c as p,m as e,a3 as o,a4 as s}from"./create-component-DOg212ck.js";const a={...o,color:"#000000"},m=p({name:"Paragraph",defaultValues:a,propMapper:r=>e(r,a,"Paragraph"),displayName:"Paragraph",exporters:s});export{m as P};
