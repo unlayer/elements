@@ -18,24 +18,26 @@ const reacts = {
   "React 19": [path.join(root, "../migrate/node_modules/react19"), path.join(root, "../migrate/node_modules/react-dom19")],
 };
 
-const script = (format: "module" | "commonjs") => {
-  const load = format === "module"
+const script = (format: "module" | "commonjs", noChannel = false) => {
+  // No MessageChannel at all (Jest's jsdom environment): React 19's browser build would throw when it loads.
+  const before = noChannel ? "delete globalThis.MessageChannel;\n" : "";
+  const load = before + (format === "module"
     ? `import React from "react"; import { renderToString } from "react-dom/server"; import * as E from "@unlayer/react-elements";`
-    : `const React = require("react"); const { renderToString } = require("react-dom/server"); const E = require("@unlayer/react-elements");`;
+    : `const React = require("react"); const { renderToString } = require("react-dom/server"); const E = require("@unlayer/react-elements");`);
   return `${load}
 const h = React.createElement;
 const email = h(E.Email, null, h(E.Row, null, h(E.Column, null, h(E.Paragraph, null, "Hi there"))));
 const html = E.renderToHtml(email);
 // In an app's own render: the design worked out in a component, then a hook.
 const Page = () => { const rows = React.useMemo(() => E.renderToJson(email).body.rows.length, []); const [open] = React.useState(false); return h("pre", null, rows + " rows, open=" + open); };
-console.log(JSON.stringify({ react: React.version, html: html.includes("Hi there"), page: renderToString(h(Page)) }));
+console.log(JSON.stringify({ react: React.version, html: html.includes("Hi there"), page: renderToString(h(Page)), channel: typeof globalThis.MessageChannel }));
 `;
 };
 
 describe("a Node script that renders with the built package", () => {
   for (const [name, [react, reactDom]] of Object.entries(reacts)) {
-    for (const format of ["module", "commonjs"] as const) {
-      it(`exits when it's done (${name}, ${format})`, () => {
+    for (const [format, noChannel] of [["module", false], ["commonjs", false], ["commonjs", true]] as const) {
+      it(`exits when it's done (${name}, ${format}${noChannel ? ", where there's no MessageChannel" : ""})`, () => {
         expect(fs.existsSync(path.join(dist, "index.js")), "build the package first (pnpm build)").toBe(true);
         const dir = fs.mkdtempSync(path.join(os.tmpdir(), "elements-exit-"));
         try {
@@ -49,13 +51,15 @@ describe("a Node script that renders with the built package", () => {
           fs.copyFileSync(path.join(root, "package.json"), path.join(elements, "package.json"));
           for (const dependency of ["exporters", "types"]) fs.symlinkSync(fs.realpathSync(path.join(root, "node_modules/@unlayer", dependency)), path.join(modules, "@unlayer", dependency), "dir");
           fs.writeFileSync(path.join(dir, "package.json"), JSON.stringify({ type: format }));
-          fs.writeFileSync(path.join(dir, "render.js"), script(format));
+          fs.writeFileSync(path.join(dir, "render.js"), script(format, noChannel));
           const run = spawnSync(process.execPath, ["render.js"], { cwd: dir, encoding: "utf8", timeout: 20_000 });
           expect(run.error, "still running after 20s: something keeps Node alive").toBeUndefined();
           expect(run.status, run.stderr).toBe(0);
           const out = JSON.parse(run.stdout.trim().split("\n").pop()!);
           expect(out.react.split(".")[0]).toBe(name.split(" ")[1]);
           expect(out).toMatchObject({ html: true, page: "<pre>1 rows, open=false</pre>" });
+          // The stand-in is gone again, and the real one is back.
+          expect(out.channel).toBe(noChannel ? "undefined" : "function");
         } finally {
           fs.rmSync(dir, { recursive: true, force: true });
         }

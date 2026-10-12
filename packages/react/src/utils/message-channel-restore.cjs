@@ -2,8 +2,10 @@
 (function () {
   var g = globalThis;
   var key = Symbol.for("@unlayer/react-elements/message-channel");
-  if (g[key]) {
-    g.MessageChannel = g[key];
+  if (key in g) {
+    // null: there was none (a stand-in was put there).
+    if (g[key] === null) delete g.MessageChannel;
+    else g.MessageChannel = g[key];
     delete g[key];
   }
 })();
