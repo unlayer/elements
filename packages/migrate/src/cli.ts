@@ -368,6 +368,15 @@ async function run(argv: string[], io: Io, library?: Library): Promise<number> {
       }
     }
     if (options.out !== undefined || !wrote || !left.length) {
+      // Still left: a file that renders them wasn't migrated (an app page or a preview around one, a file that failed).
+      for (const { result } of left) {
+        const importer = /^imported by (.+?): /.exec(result.reason ?? "")?.[1];
+        if (!importer) continue;
+        const migratedHere = results.some((r) => r.file === importer && r.status === "migrated");
+        result.reason = migratedHere
+          ? `left as it is for ${importer}, which still uses it. Not checked: migrate it with --out <dir>`
+          : `left as it is for ${importer}, which renders it and isn't migrated here: replacing it would change what that file shows. Not checked: migrate it with --out <dir>`;
+      }
       results.push(...left.map((l) => l.result));
       break;
     }
@@ -404,14 +413,15 @@ async function run(argv: string[], io: Io, library?: Library): Promise<number> {
   }
   if (results.some((r) => r.status === "failed" || r.status === "check-failed")) return 2;
   // A run ends with 0 only when it checked what it was given: a template migrated, or nothing left to migrate.
-  // A template left as it is because another file imports it wasn't checked either.
-  const unchecked = results.some((r) => r.status === "skipped" && /its markup is inlined/.test(r.reason ?? ""));
-  if (!results.some((r) => r.status === "migrated") && (unchecked || !results.some((r) => r.reason?.startsWith("already migrated")))) {
-    io.stderr(
-      unchecked
-        ? "No email template was checked: the ones here are left as they are, as other files import them (see above). Migrate them with --out <dir>, or with the files that import them.\n"
-        : "No email template was checked: nothing here renders React Email's <Html> (shared components and helpers are skipped).\n"
-    );
+  // A template left as it is because a file that renders it wasn't migrated (an app page, a preview) wasn't checked:
+  // the run says so, whatever else it migrated.
+  const unchecked = results.some((r) => r.status === "skipped" && /^left as it is for /.test(r.reason ?? ""));
+  if (unchecked) {
+    io.stderr("Templates left as they are weren't checked: files that render them weren't migrated (see above). Migrate them with --out <dir>, or with the files that render them.\n");
+    return 1;
+  }
+  if (!results.some((r) => r.status === "migrated") && !results.some((r) => r.reason?.startsWith("already migrated"))) {
+    io.stderr("No email template was checked: nothing here renders React Email's <Html> (shared components and helpers are skipped).\n");
     return 1;
   }
   return 0;

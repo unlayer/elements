@@ -439,7 +439,7 @@ export default function Promo() { const settings = {}; return <Html><Body {...se
     const imported = specifier.startsWith("#") ? "emails/base.tsx" : "packages/emails/src/base.tsx";
     const out = io(dir);
     expect(await main(["emails", "packages", "--write"], out, lib)).toBe(2);
-    expect(out.out).toContain(`- ${imported}: skipped (imported by emails/promo.tsx`);
+    expect(out.out).toContain(`- ${imported}: skipped (left as it is for emails/promo.tsx`);
     expect(fs.readFileSync(path.join(dir, imported), "utf8")).toBe(base);
     expect(fs.readFileSync(path.join(dir, "emails/promo.tsx"), "utf8")).toBe(promo);
   });
@@ -1237,8 +1237,8 @@ export default function Reminder({ name }: Props) { return <Email><Row><Column><
     const dir = project({ "emails/welcome.tsx": welcome, "emails/reminder.tsx": migrated(`type Props = { name: string };\nexport const from = Welcome.name;`) });
     const out = io(dir);
     expect(await main(["emails"], out, lib), out.out + out.err).toBe(1);
-    expect(out.out).toMatch(/- emails\/welcome\.tsx: skipped \(imported by emails\/reminder\.tsx/);
-    expect(out.err).toMatch(/No email template was checked: the ones here are left as they are/);
+    expect(out.out).toMatch(/- emails\/welcome\.tsx: skipped \(left as it is for emails\/reminder\.tsx/);
+    expect(out.err).toMatch(/Templates left as they are weren't checked/);
   });
 
   it.each([
@@ -1359,6 +1359,24 @@ export default function PreviewPage() { return <main className="preview"><h1>Ema
     expect(fs.readFileSync(path.join(dir, "emails/preview-page.tsx"), "utf8")).toBe(page);
     expect(fs.readFileSync(path.join(dir, "emails/welcome.tsx"), "utf8")).toBe(welcome);
     expect(out.out).toMatch(/emails\/preview-page\.tsx: skipped \(it renders an email inside other markup/);
+  });
+
+  it("doesn't end with 0 when a template is left unchecked for an app page that renders it, even as another is migrated (`migrate .`)", async () => {
+    const receipt = `import { Html, Body, Text } from "@react-email/components";
+export default function Receipt() { return <Html><Body><Text>Your receipt</Text></Body></Html>; }
+Receipt.PreviewProps = {};
+`;
+    const page = `import Welcome from "../../emails/welcome";
+export default function Page() { return <main className="frame"><Welcome /></main>; }
+`;
+    const dir = project({ "emails/welcome.tsx": welcome, "emails/receipt.tsx": receipt, "app/preview/page.tsx": page });
+    const out = io(dir);
+    expect(await main([".", "--write"], out, lib), out.out + out.err).toBe(1);
+    expect(out.out).toMatch(/✓ emails\/receipt\.tsx/);
+    expect(out.out).toMatch(/- emails\/welcome\.tsx: skipped \(left as it is for app\/preview\/page\.tsx, which renders it and isn't migrated here/);
+    expect(out.err).toMatch(/Templates left as they are weren't checked/);
+    expect(fs.readFileSync(path.join(dir, "emails/welcome.tsx"), "utf8")).toBe(welcome);
+    expect(fs.readFileSync(path.join(dir, "app/preview/page.tsx"), "utf8")).toBe(page);
   });
 
   it("lists a template that requires React Email (not left out without a word)", async () => {
@@ -1538,7 +1556,7 @@ export default function Base({ heading = "Notice", content }: { heading?: string
     const out = io(dir);
     expect(await main(["emails", "--write"], out, lib), out.out + out.err).toBe(2);
     expect(out.out).toMatch(/✗ emails\/alert\.tsx/);
-    expect(out.out).toMatch(/- emails\/components\/base\.tsx: skipped \(imported by emails\/alert\.tsx/);
+    expect(out.out).toMatch(/- emails\/components\/base\.tsx: skipped \(left as it is for emails\/alert\.tsx/);
     expect(read(dir, "emails/components/base.tsx")).toBe(base);
     expect(read(dir, "emails/welcome.tsx")).toContain("@unlayer/react-elements");
   });

@@ -498,7 +498,7 @@ export default function Receipt() { return <Parts.default><Text>Your receipt</Te
     const out = io(dir);
     await main(["emails", "--write"], out, lib);
     expect(out.out).toMatch(/- emails\/Shell\.tsx: skipped \(a layout/);
-    expect(out.out).toMatch(/- emails\/Footer\.tsx: skipped \(imported by emails\/receipt\.tsx/);
+    expect(out.out).toMatch(/- emails\/Footer\.tsx: skipped \(left as it is for emails\/receipt\.tsx/);
     expect(fs.readFileSync(path.join(dir, "emails/Shell.tsx"), "utf8")).toBe(shell);
   });
 
@@ -529,7 +529,7 @@ export default function Layout({ children }: { children?: React.ReactNode }) { r
     fs.symlinkSync(path.join(dir, "packages/email-ui"), path.join(dir, "node_modules/@acme/email-ui"), "dir");
     const out = io(dir);
     await main([".", "--write"], out, lib);
-    expect(out.out).toMatch(/- packages\/email-ui\/Layout\.tsx: skipped \(imported by apps\/web\/emails\/welcome\.tsx/);
+    expect(out.out).toMatch(/- packages\/email-ui\/Layout\.tsx: skipped \(left as it is for apps\/web\/emails\/welcome\.tsx/);
     expect(fs.readFileSync(path.join(dir, "packages/email-ui/Layout.tsx"), "utf8")).toBe(layout);
   });
 
