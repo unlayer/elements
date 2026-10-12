@@ -91,6 +91,9 @@ These props have non-obvious shapes that **must** be followed exactly:
 - **Heading level**: `headingType` (or its alias `level`) accepts `h1`–`h6`.
 - **children**: Text components accept children as shorthand. `<Heading>Hello</Heading>` sets the heading text. `<Paragraph>` supports children for plain text.
 - **Paragraph text**: Use `html` prop for text content (supports inline formatting like `<b>`, `<a>`). Use children for plain text.
+- **Text shows as typed**: Heading and Button children, Button's `text`, Menu item text and text placed straight in a Row or Column show markup and entities as written, as React shows text (`{"Terms &amp; Conditions"}` shows `&amp;`; in JSX text, `Terms &amp; Conditions` is already `&`). Put markup in Paragraph's `html` prop or an `<Html>` block. An email service's `<%name%>` tag stays as written, for it to fill in.
+- **Link URLs**: `"`, `<` and `>` are percent-encoded, so a URL can't end its attribute. Fill template tags that contain them (a Liquid filter with quotes) in before rendering; a `<%name%>` tag stays as written.
+- **Your own components** render as React renders them: hooks, Context (also from a Provider around the root) and Fragments work. One that's async, suspends or throws is left out with a console message, and the rest renders. Elements may call a component again to take its HTML or say why it failed (up to a few times per render), so keep side effects, like creating a coupon code, out of rendering.
 
 ## Structure: Email/Page/Document > Row > Column > Items
 
