@@ -338,7 +338,7 @@ function elements(c: Collected, nodes: Node[], inColumn: boolean, owner?: React.
 /** A render of `children` that collects them; `guarded`, a component in them that fails is left out. */
 function collected(children: React.ReactNode, guarded = true): Collected {
   const once = (markup: boolean): Collected => {
-    const collection: Collection = { nonce: nonce(), recorded: [], ...(markup ? { markup } : {}) };
+    const collection: Collection = { nonce: nonce(), recorded: [], ...(markup ? { markup } : {}), ...(idsSeen() ? {} : { blind: true }) };
     const html = within(collection, () => renderToStaticMarkup(<>{guarded ? guard(children, collection) : children}</>, { identifierPrefix: COLLECTING_ID }));
     return { nodes: parse(html, collection), collection, told: new Set() };
   };
@@ -351,6 +351,25 @@ function collected(children: React.ReactNode, guarded = true): Collected {
     if (!guarded) throw error;
     return once(true);
   }
+}
+
+/**
+ * Whether the React Elements' components call gives them the ids of the render Elements starts (see Sentinel):
+ * not where a bundler gave them another copy than react-dom's (Next.js's server layers), where `useId()` throws or
+ * gives an outer render's ids.
+ */
+function idsSeen(): boolean {
+  let seen = false;
+  const Probe = () => {
+    try {
+      seen = React.useId().slice(1).startsWith(COLLECTING_ID);
+    } catch {
+      // another copy: no render it can see
+    }
+    return null;
+  };
+  renderToStaticMarkup(<Probe />, { identifierPrefix: COLLECTING_ID });
+  return seen;
 }
 
 /**

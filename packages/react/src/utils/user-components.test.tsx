@@ -3,7 +3,7 @@ import React, { memo, useState } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { renderToHtml, renderToHtmlParts, renderToPlainText } from "./render-to-html";
 import { renderToJson } from "./render-to-json";
-import { Email, Page, Row, Column, Paragraph, Heading, Html, Button as ElementsButton } from "../index";
+import { Email, Page, Row, Column, Paragraph, Heading, Html, Button as ElementsButton, ColumnLayouts } from "../index";
 
 const block = (text: string, props: Record<string, unknown> = {}) => <Row><Column><Paragraph {...props}>{text}</Paragraph></Column></Row>;
 const Header = () => block("Header");
@@ -155,6 +155,22 @@ describe("a component that fails", () => {
       expect(renderToHtml(element)).toBe(renderToHtml(inside));
       expect(renderToPlainText(element)).toContain("Theme: dark");
       expect(JSON.stringify(renderToJson(element))).toBe(JSON.stringify(renderToJson(inside)));
+    }
+  });
+
+  it.each([
+    ["throws (no render it can see)", () => { throw new Error("Invalid hook call"); }],
+    ["gives an outer render's ids", () => "«R1»"],
+  ])("collect an email where React's useId %s: the React Elements calls isn't the renderer's, as in Next.js's server layers", (_, useId) => {
+    const email = <Email><Row><Column><Paragraph>Hello</Paragraph></Column></Row><Row layout={ColumnLayouts.TwoEqual}><Column><Paragraph>Left</Paragraph></Column><Column><Paragraph>Right</Paragraph></Column></Row></Email>;
+    const html = renderToHtml(email);
+    const design = JSON.stringify(renderToJson(email));
+    const spy = vi.spyOn(React, "useId").mockImplementation(useId as () => string);
+    try {
+      expect(renderToHtml(email)).toBe(html);
+      expect(JSON.stringify(renderToJson(email))).toBe(design);
+    } finally {
+      spy.mockRestore();
     }
   });
 

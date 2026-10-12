@@ -20,6 +20,12 @@ export interface Collection {
   recorded: Recorded[];
   /** Markup is guarded too, as components are (a render once more after one threw: see normalize.tsx's `collected`). */
   markup?: boolean;
+  /**
+   * The React Elements' components call isn't the renderer's (a bundler gave them other copies, as Next.js's
+   * server layers can): `useId()` can't tell this render from one inside it, so Rows, Columns and blocks record
+   * while it's collecting.
+   */
+  blind?: boolean;
 }
 
 // Shared by every copy of Elements a process loads (a project's ESM and CommonJS builds, a tool's own): a render one

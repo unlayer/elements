@@ -102,11 +102,15 @@ function hasComponent(children: React.ReactNode): boolean {
  * collecting render.
  */
 function Sentinel({ record, real }: { record: () => React.ReactNode; real: () => React.ReactNode }): React.ReactNode {
-  let collected = false;
-  try {
-    collected = React.useId().slice(1).startsWith(COLLECTING_ID);
-  } catch {
-    // Not in a render React runs: what it renders.
+  // Where ids can't tell (another copy of React: see Collection.blind), it records while collecting: a marker in a
+  // render started inside the collecting one is then rendered in its place (normalize.tsx).
+  let collected = !!collecting()?.blind;
+  if (!collected) {
+    try {
+      collected = React.useId().slice(1).startsWith(COLLECTING_ID);
+    } catch {
+      // Not in a render React runs: what it renders.
+    }
   }
   return collected ? record() : within(null, real);
 }
