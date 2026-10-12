@@ -119,8 +119,9 @@ export function unwrapRoot(element: React.ReactElement): React.ReactElement {
       current = inside[0];
       continue;
     }
-    // A Fragment around the template (`<><Welcome /></>`): what's in it, when that's one element.
-    if (type === React.Fragment) {
+    // A Fragment, StrictMode or Profiler around the template (`<><Welcome /></>`): what's in it, when that's one
+    // element. They add nothing to a server render.
+    if (type === React.Fragment || type === React.StrictMode || type === React.Profiler) {
       const inside = React.Children.toArray(props.children as React.ReactNode);
       if (inside.length !== 1 || !React.isValidElement(inside[0])) break;
       current = inside[0];
@@ -155,6 +156,7 @@ export function htmlRoot(element: React.ReactElement, api: string): React.ReactE
   try {
     const root = unwrapRoot(element);
     if (ROOT_NAMES.has(getDisplayName(root) ?? "")) return root;
+    if ((root.type as any)?.prototype?.isReactComponent) reason = `<${componentName(root)}> is a class component, which isn't called to find it`;
   } catch (cause) {
     // An async template can't be rendered through React either: say why.
     if (cause instanceof Error && cause.message === ASYNC_TEMPLATE) throw new Error(`[Unlayer] ${api}: ${ASYNC_TEMPLATE}.`);

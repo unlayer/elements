@@ -370,6 +370,25 @@ describe("renderToHtml with a template component", () => {
     expect(warnings.join()).toContain("couldn't unwrap");
   });
 
+  it("unwraps StrictMode and Profiler, keeping the root's settings; says why a class template isn't unwrapped", () => {
+    const warnings: string[] = [];
+    const warn = console.warn;
+    console.warn = (message: string) => void warnings.push(message);
+    class Template extends React.Component<{ name: string }> {
+      render() { return root(this.props); }
+    }
+    try {
+      expect(renderToHtml(<React.StrictMode><Welcome name="Ada" /></React.StrictMode>)).toBe(direct);
+      expect(renderToHtml(<React.Profiler id="email" onRender={() => {}}><Welcome name="Ada" /></React.Profiler>)).toBe(direct);
+      expect(warnings).toEqual([]);
+      // A class renders through React, as in 0.1.22, and the message says why its root's settings aren't read.
+      expect(renderToHtml(<Template name="Ada" />)).toContain("Hello Ada");
+    } finally {
+      console.warn = warn;
+    }
+    expect(warnings.join()).toContain("couldn't unwrap <Template> (<Template> is a class component");
+  });
+
   it("says an async template isn't supported", () => {
     const Async = (async () => root({ name: "Ada" })) as unknown as React.ComponentType;
     expect(() => renderToHtml(<Async />)).toThrow("async and suspending templates aren't supported");
