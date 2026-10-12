@@ -56,7 +56,7 @@ function dispatcherOf(build: Build): unknown {
   return dispatchers.get(build);
 }
 
-declare const require: ((id: string) => unknown) | undefined;
+declare const module: { require(id: string): unknown } | undefined;
 /** Whether this is the CommonJS build (set when it's built; undefined in the sources). */
 declare const __UNLAYER_CJS__: boolean | undefined;
 
@@ -72,10 +72,16 @@ function secondBuild(outer: unknown): Build | undefined {
   if (second === undefined) {
     second = null;
     const requirers = [
-      () => ((typeof __UNLAYER_CJS__ === "boolean" ? __UNLAYER_CJS__ : true) && typeof require === "function" ? require : undefined),
+      // (`module`'s, read so that a bundler doesn't take it for a require of a path worked out when it runs.)
+      () => {
+        const own = (typeof __UNLAYER_CJS__ === "boolean" ? __UNLAYER_CJS__ : true) && typeof module === "object" ? Reflect.get(module ?? {}, "require") : undefined;
+        return typeof own === "function" ? (id: string) => own.call(module, id) : undefined;
+      },
       () => (globalThis as any).process?.getBuiltinModule?.("module")?.createRequire(import.meta.url),
     ];
-    search: for (const id of ["react-dom/server.bun", "react-dom/server.browser", "react-dom/server.node"]) {
+    // React 19's browser build opens a MessageChannel when it loads, which keeps Node running: its Bun build instead.
+    const ids = ["react-dom/server.bun", ...(Number.parseInt(React.version) >= 19 ? [] : ["react-dom/server.browser"]), "react-dom/server.node"];
+    search: for (const id of ids) {
       for (const requirer of requirers) {
         try {
           const build = requirer()?.(id) as Build | undefined;
@@ -108,26 +114,28 @@ export function withBuild<T>(render: () => T, own = false): T {
   // Elements' own component (Body, rendered by the app's react-dom/server), which calls no hooks after: the module
   // it's in, as in 0.1.22 (a browser bundle has no other).
   const theirs = !own && (using.length === 0 || collecting() !== undefined) ? buildOf(outer) : undefined;
+  const busy: Build[] = [];
   if (theirs) {
     const free = (b: Build) => !same(b, theirs) && !using.some((u) => same(u, b));
     const other = free(defaultBuild) ? defaultBuild : secondBuild(outer);
-    if (!other || !free(other)) {
-      throw new Error(
-        "[Unlayer] renderToHtml, renderToJson or renderToPlainText can't run inside a react-dom/server render it would render with: call it before rendering, and pass the result as a prop."
-      );
-    }
-    using.push(theirs);
-    build = other;
+    // Where none renders with this React (a bundle, Next.js's own react-dom, a test runner's module registry): the
+    // module it's in, as 0.1.22 rendered there. The component calling it then can't call a hook after the call
+    // (React throws, as it did with 0.1.22's renderToHtml).
+    if (other && free(other)) {
+      busy.push(theirs);
+      build = other;
+    } else build = theirs;
   }
-  using.push(build);
+  using.push(...busy, build);
   try {
     return render();
   } catch (error) {
-    // React Server Components' React (Next.js's edge runtime), which react-dom can't render with at all.
-    if (!rendersHere(build)) throw Object.assign(new Error("[Unlayer] react-dom can't render with this React (React Server Components', as in Next.js's edge runtime): render emails in the Node.js runtime."), { cause: error });
+    // React Server Components' React (Next.js's edge runtime), which react-dom can't render with at all. (Not checked
+    // in a render of the same module, whose hooks a check would disturb.)
+    if (build !== theirs && !rendersHere(build)) throw Object.assign(new Error("[Unlayer] react-dom can't render with this React (React Server Components', as in Next.js's edge runtime): render emails in the Node.js runtime."), { cause: error });
     throw error;
   } finally {
-    using.length -= theirs ? 2 : 1;
+    using.length -= busy.length + 1;
   }
 }
 

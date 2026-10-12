@@ -59,22 +59,27 @@ describe("a template's component", () => {
     expect(html).toContain("1 rows");
   });
 
-  it("can't nest one more: that component is left out, named, and the rest renders", () => {
+  it("can nest one more, in the module it's in, as 0.1.22 did: a component calling a hook after the call is left out, named", () => {
     const error = vi.spyOn(console, "error").mockImplementation(() => {});
     try {
       function Deepest() {
+        const design = renderToJson(<Template />);
+        return <div dangerouslySetInnerHTML={{ __html: `deepest ${design.body.rows.length} rows` }} />;
+      }
+      function DeepestWithHook() {
         renderToJson(<Template />);
-        return <div>never shown</div>;
+        const [label] = useState("never shown");
+        return <div dangerouslySetInnerHTML={{ __html: label }} />;
       }
       function Deeper() {
-        const html = renderToHtml(<Email><Row><Column><Deepest /></Column></Row></Email>);
-        return <div dangerouslySetInnerHTML={{ __html: html.includes("never shown") ? "shown" : "left out" }} />;
+        const html = renderToHtml(<Email><Row><Column><Deepest /><DeepestWithHook /></Column></Row></Email>);
+        return <div dangerouslySetInnerHTML={{ __html: `${html.includes("deepest 1 rows") ? "deepest shown" : "deepest left out"}, ${html.includes("never shown") ? "hook shown" : "hook left out"}` }} />;
       }
       const html = renderToHtml(<Email><Row><Column><Paragraph>Outer</Paragraph><Deeper /></Column></Row></Email>);
       expect(html).toContain("Outer");
-      expect(html).toContain("left out");
+      expect(html).toContain("deepest shown, hook left out");
       // Named (the render that explains why calls it once more on its own, where it renders).
-      expect(error.mock.calls.some((call) => String(call[0]).includes("<Deepest>"))).toBe(true);
+      expect(error.mock.calls.some((call) => String(call[0]).includes("<DeepestWithHook>"))).toBe(true);
     } finally {
       error.mockRestore();
     }
@@ -82,22 +87,28 @@ describe("a template's component", () => {
 });
 
 describe("a page that renders on the server, with a template whose component works out another design", () => {
-  // Three renders: the page's (react-dom/server), Elements' (another module of react-dom's), and the component's
-  // call (none is left that isn't rendering). The component is left out, named; the page's hooks keep working.
-  it("keeps the page's hooks, and leaves that component out", () => {
+  // Three renders: the page's (react-dom/server), Elements' (another module of react-dom's), and the component's call
+  // (none is left that isn't rendering: Elements' module, as 0.1.22 rendered). The page's hooks keep working; the
+  // component renders, unless it calls a hook after the call (it's left out, named).
+  it("keeps the page's hooks, and renders that component unless it calls a hook after", () => {
     const error = vi.spyOn(console, "error").mockImplementation(() => {});
     try {
       function Count() {
         const design = renderToJson(<Template />);
         return <div dangerouslySetInnerHTML={{ __html: `${design.body.rows.length} rows` }} />;
       }
-      function PreviewPage() {
-        const html = useMemo(() => renderToHtml(<Email><Row><Column><Paragraph>Outer</Paragraph><Count /></Column></Row></Email>), []);
-        const [zoom] = useState(1);
-        return <pre>{`${html.includes("Outer")}, ${html.includes("1 rows")}, zoom=${zoom}`}</pre>;
+      function CountWithHook() {
+        const design = renderToJson(<Template />);
+        const [label] = useState("labelled rows");
+        return <div dangerouslySetInnerHTML={{ __html: `${design.body.rows.length} ${label}` }} />;
       }
-      expect(renderToString(<PreviewPage />)).toBe("<pre>true, false, zoom=1</pre>");
-      expect(error.mock.calls.some((call) => String(call[0]).includes("<Count>"))).toBe(true);
+      function PreviewPage() {
+        const html = useMemo(() => renderToHtml(<Email><Row><Column><Paragraph>Outer</Paragraph><Count /><CountWithHook /></Column></Row></Email>), []);
+        const [zoom] = useState(1);
+        return <pre>{`${html.includes("Outer")}, ${html.includes("1 rows")}, ${html.includes("labelled")}, zoom=${zoom}`}</pre>;
+      }
+      expect(renderToString(<PreviewPage />)).toBe("<pre>true, true, false, zoom=1</pre>");
+      expect(error.mock.calls.some((call) => String(call[0]).includes("<CountWithHook>"))).toBe(true);
     } finally {
       error.mockRestore();
     }

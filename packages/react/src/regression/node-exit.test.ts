@@ -100,18 +100,19 @@ describe("the built package's own requires", () => {
   });
 });
 
-describe("a browser bundle that renders with react-dom/server", () => {
-  // There react-dom/server is react-dom's browser build, and Elements has no other: called in a component that render
-  // renders, it can't render, and says so (rendering would break the page's hooks). An email that render renders
-  // itself renders.
+describe("a bundle with React in it, which renders with react-dom/server", () => {
+  // There Elements has no other module of react-dom's that renders with that React (a browser bundle, a bundled
+  // server): called in a component that render renders, it renders with the module it's in, as 0.1.22 did (it threw,
+  // and React 19 kept Node running). An email that render renders itself renders too.
   for (const [name, [react, reactDom]] of Object.entries(reacts)) {
-    it(`renders an email it renders, gets a clear error where Elements is called in its render, and the page's hooks keep working (${name})`, () => {
-      expect(fs.existsSync(path.join(dist, "index.js")), "build the package first (pnpm build)").toBe(true);
-      const dir = project(react, reactDom, "module");
-      try {
-        fs.writeFileSync(
-          path.join(dir, "app.js"),
-          `import * as E from "@unlayer/react-elements";
+    for (const platform of ["browser", "node"] as const) {
+      it(`renders an email it renders, and Elements called in its components (${name}, ${platform} bundle)`, () => {
+        expect(fs.existsSync(path.join(dist, "index.js")), "build the package first (pnpm build)").toBe(true);
+        const dir = project(react, reactDom, "module");
+        try {
+          fs.writeFileSync(
+            path.join(dir, "app.js"),
+            `import * as E from "@unlayer/react-elements";
 import React from "react";
 import { renderToString, renderToStaticMarkup } from "react-dom/server";
 const h = React.createElement;
@@ -119,29 +120,27 @@ const email = h(E.Email, null, h(E.Row, null, h(E.Column, null, h(E.Paragraph, n
 // The email rendered with react-dom/server itself (an iframe preview, a bundled server's SSR): its body renders, as in
 // 0.1.22 (Body renders it with the module it's in).
 const direct = renderToStaticMarkup(email).includes("Hi there");
-const Page = () => {
-  let design;
-  try { design = E.renderToJson(email).body.rows.length + " rows"; } catch (error) { design = error.message; }
-  const [open] = React.useState(false);
-  return h("pre", null, design + ", open=" + open);
-};
-console.log(JSON.stringify({ html: E.renderToHtml(email).includes("Hi there"), direct, page: renderToString(h(Page)) }));
-// React 19's browser build, bundled for the app, keeps Node running (as without Elements): this is about the error.
-process.exit(0);
-`
-        );
-        esbuild.buildSync({ absWorkingDir: dir, entryPoints: ["app.js"], bundle: true, platform: "browser", format: "esm", outfile: "out.mjs", define: { "process.env.NODE_ENV": '"production"' }, logLevel: "error" });
-        const run = spawnSync(process.execPath, ["out.mjs"], { cwd: dir, encoding: "utf8", timeout: 20_000 });
-        expect(run.status, run.stderr).toBe(0);
-        const out = JSON.parse(run.stdout.trim().split("\n").pop()!);
-        expect(out.html).toBe(true);
-        expect(out.direct).toBe(true);
-        // (React writes the ' as &#x27;.)
-        expect(out.page).toMatch(/can(&#x27;|')t run inside a react-dom\/server render it would render with.*, open=false/);
-      } finally {
-        fs.rmSync(dir, { recursive: true, force: true });
-      }
-    }, 30_000);
+// Elements called in components the app's render renders (a preview, a design worked out there).
+const Preview = () => h("iframe", { srcDoc: E.renderToHtml(email) });
+const Rows = () => h("pre", null, E.renderToJson(email).body.rows.length + " rows");
+const page = renderToString(h("main", null, h(Preview), h(Rows)));
+console.log(JSON.stringify({ html: E.renderToHtml(email).includes("Hi there"), direct, preview: page.includes("Hi there"), rows: page.includes("1 rows") }));
+${platform === "browser" ? "// React 19's browser build, bundled for the app, keeps Node running (as without Elements).\nprocess.exit(0);\n" : ""}`
+          );
+          // A Node bundle is CommonJS (an ES module bundle can't require Node's own modules, which react-dom's Node build
+          // does), with one React: the project's, also for the packages linked in from the workspace.
+          const out = platform === "node" ? "out.cjs" : "out.mjs";
+          const alias = platform === "node" ? { react: path.join(dir, "node_modules/react"), "react-dom": path.join(dir, "node_modules/react-dom") } : {};
+          esbuild.buildSync({ absWorkingDir: dir, entryPoints: ["app.js"], bundle: true, platform, format: platform === "node" ? "cjs" : "esm", outfile: out, alias, define: { "process.env.NODE_ENV": '"production"' }, logLevel: "error" });
+          const run = spawnSync(process.execPath, [out], { cwd: dir, encoding: "utf8", timeout: 20_000 });
+          expect(run.error, "still running after 20s: something keeps Node alive").toBeUndefined();
+          expect(run.status, run.stderr).toBe(0);
+          expect(JSON.parse(run.stdout.trim().split("\n").pop()!)).toEqual({ html: true, direct: true, preview: true, rows: true });
+        } finally {
+          fs.rmSync(dir, { recursive: true, force: true });
+        }
+      }, 30_000);
+    }
   }
 });
 

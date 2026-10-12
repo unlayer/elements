@@ -33,10 +33,14 @@ const check = (where, counts) => {
   console.log(`✓ ${where}: ${counts.tables} tables, design rows ${JSON.stringify(counts.columns)}`);
 };
 check("route handler", JSON.parse(await get("/email")));
-const page = await get("/email-page");
-const json = /<pre id="counts">([^<]*)<\/pre>/.exec(page)?.[1]?.replace(/&quot;/g, '"');
-if (!json) fail("Server Component: no counts on the page");
-check("Server Component", JSON.parse(json));
+const counts = async (path, where) => {
+  const json = /<pre id="counts">([^<]*)<\/pre>/.exec(await get(path))?.[1]?.replace(/&quot;/g, '"');
+  if (!json) fail(`${where}: no counts on the page`);
+  check(where, JSON.parse(json));
+};
+await counts("/email-page", "Server Component");
+// A Client Component working the email out in useMemo, in its server render.
+await counts("/client-email", "Client Component");
 // An edge route: it renders the email, or (react-dom can't render with React Server Components' React) says where to.
 const edge = edgeRoute ? JSON.parse(await get("/edge")) : undefined;
 if (!edge);
