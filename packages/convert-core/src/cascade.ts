@@ -1416,18 +1416,26 @@ export class StyledDocument {
   /** The links (href), images (src) and image text (alt) a reader gets, in order. */
   targets(): Target[] {
     const out: Target[] = [];
+    // `visibility: hidden` (inherited, and undone by `visible` inside) hides a box's own image; doubt about it is showDoubt's.
+    const invisible = (e: Element) => {
+      const s = this.style(e);
+      return s.visible === false && !s.unknown.has("visibility");
+    };
     for (const e of this.elements()) {
       const background = this.style(e).imageUrl;
-      if (background && this.shows(e)) out.push({ kind: "src", value: background, ...(this.showDoubt(e) ? { doubt: this.showDoubt(e) } : {}) });
+      if (background && this.shows(e) && !invisible(e)) out.push({ kind: "src", value: background, ...(this.showDoubt(e) ? { doubt: this.showDoubt(e) } : {}) });
       if (e.tagName !== "a" && e.tagName !== "img") continue;
       if (!this.shows(e)) continue;
+      if (e.tagName === "img" && invisible(e)) continue;
       const doubt = this.showDoubt(e);
       const doubted = doubt ? { doubt } : {};
       if (e.tagName === "a") {
         const href = attr(e, "href")?.trim();
         if (!href) continue;
         const words = this.words(e).map((w) => w.word).join(" ");
-        const images = this.elements(e).filter((i) => i.tagName === "img").flatMap((i) => [attr(i, "src"), attr(i, "alt")].filter((v): v is string => !!v?.trim()).map((v) => v.trim()));
+        const images = this.elements(e).filter((i) => i.tagName === "img" && this.shows(i) && !invisible(i)).flatMap((i) => [attr(i, "src"), attr(i, "alt")].filter((v): v is string => !!v?.trim()).map((v) => v.trim()));
+        // A link with nothing in it that shows can't be seen or followed.
+        if (invisible(e) && !words && !images.length) continue;
         out.push({ kind: "href", value: href.replace(/%22/gi, '"').replace(/%3C/gi, "<").replace(/%3E/gi, ">"), label: words || images.join(", "), ...doubted });
       } else {
         const src = attr(e, "src")?.trim();

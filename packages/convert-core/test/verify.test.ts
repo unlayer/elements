@@ -44,6 +44,20 @@ describe("strict content check", () => {
     expect(compareText("<p>Balance &minus; 100 USD</p>", "<p>Balance - 100 USD</p>").missing).toEqual([]);
   });
 
+  it("reads an image or a link hidden with visibility as not shown (visible inside it undoes it)", () => {
+    const logo = '<img src="https://example.com/logo.png" alt="Logo">';
+    // Hidden in the original, shown in the migration: an image added.
+    const shown = compareText(`<p>Hi</p><img style="visibility:hidden" src="https://example.com/logo.png" alt="Logo">`, `<p>Hi</p>${logo}`);
+    expect(shown.addedAttributes).toEqual(["src https://example.com/logo.png", "alt Logo"]);
+    // Inherited from a box around it, and a background image too.
+    expect(compareText(`<p>Hi</p><div style="visibility:hidden">${logo}<div style="background-image:url(https://example.com/bg.png)">x</div></div>`, "<p>Hi</p>").missingAttributes).toEqual([]);
+    // Undone inside: the image shows.
+    expect(compareText(`<p>Hi</p><div style="visibility:hidden"><img style="visibility:visible" src="https://example.com/logo.png" alt="Logo"></div>`, `<p>Hi</p>${logo}`).addedAttributes).toEqual([]);
+    // A link with nothing that shows can't be seen; one whose text shows can.
+    expect(compareText('<p>Hi</p><a style="visibility:hidden" href="/pay">Pay</a>', "<p>Hi</p>").missingAttributes).toEqual([]);
+    expect(compareText('<p>Hi</p><a style="visibility:hidden" href="/pay"><span style="visibility:visible">Pay</span></a>', '<p>Hi</p><a href="/pay">Pay</a>').addedAttributes).toEqual([]);
+  });
+
   it("finds links and images only the conversion has, but not a repeated one", () => {
     const original = '<a href="https://example.com/a">Go</a>';
     expect(compareText(original, `${original}<img src="https://example.com/x.png" alt="">`).addedAttributes).toEqual(["src https://example.com/x.png"]);
