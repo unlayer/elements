@@ -4,8 +4,8 @@
  * by the next render (an element kept between renders may read other data).
  */
 import { escapeText } from "@unlayer-internal/shared-elements";
-import { collecting, within } from "./collect";
-import { nestedRender } from "./server-renderer";
+import { within } from "./collect";
+import { withBuild } from "./server-renderer";
 
 let scoped: WeakMap<object, unknown> | undefined;
 
@@ -21,9 +21,8 @@ export function scopeCache<T>(key: object, make: () => T): T {
  * collected: called inside a component of one (a block rendered to a string), it renders what it's given.
  */
 export function withRenderScope<T>(render: () => T): T {
-  // Called from a component of the user's own while a template is collected (renderToJson in its useMemo): the
-  // render runs inside that one, with the other server build (see server-renderer.ts).
-  const nested = collecting() !== undefined;
+  // Called in a render (a component of the user's own calling renderToJson in its useMemo, while Elements or the app
+  // renders it), it renders with a server build that isn't rendering (see server-renderer.ts).
   const scope = () => {
     if (scoped) return render();
     scoped = new WeakMap();
@@ -33,7 +32,8 @@ export function withRenderScope<T>(render: () => T): T {
       scoped = undefined;
     }
   };
-  return within(null, () => (nested ? nestedRender(scope) : scope()));
+  // The build is chosen first: whether a template is being collected tells who calls it.
+  return withBuild(() => within(null, scope));
 }
 
 /**

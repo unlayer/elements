@@ -7,6 +7,8 @@
 import { describe, it, expect, vi } from "vitest";
 import React, { useMemo, useState } from "react";
 import { renderToString } from "react-dom/server";
+/// <reference path="../types/react-dom-server-browser.d.ts" />
+import { renderToString as renderToStringWithBrowserBuild } from "react-dom/server.browser";
 import { renderToHtml } from "./render-to-html";
 import { renderToJson } from "./render-to-json";
 import { Email, Row, Column, Paragraph } from "../index";
@@ -30,6 +32,18 @@ describe("a page that renders on the server", () => {
       return <pre>{`${html.includes("Hello from the template")}, zoom=${zoom}`}</pre>;
     }
     expect(renderToString(<PreviewPage />)).toBe("<pre>true, zoom=1</pre>");
+  });
+});
+
+describe("a page that renders with react-dom's browser build (react-dom/server.browser, as Elements' own render)", () => {
+  it("can work out the template's design and HTML while it renders, and use hooks after (as 0.1.22 could)", () => {
+    function EditorPage() {
+      const design = useMemo(() => renderToJson(<Template />), []);
+      const html = useMemo(() => renderToHtml(<Template />), []);
+      const [open] = useState(false);
+      return <pre>{`${design.body.rows.length} rows, ${html.includes("Hello from the template")}, open=${open}`}</pre>;
+    }
+    expect(renderToStringWithBrowserBuild(<EditorPage />)).toBe("<pre>1 rows, true, open=false</pre>");
   });
 });
 
