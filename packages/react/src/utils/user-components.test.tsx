@@ -390,3 +390,19 @@ describe("React's warnings about a template", () => {
     }
   });
 });
+
+describe("a root (Email, Page, Document) placed in a Column", () => {
+  it("is left out, saying so, as 0.1.22 said", () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    try {
+      const email = <Email><Row><Column><Paragraph>Outer</Paragraph><Email><Row><Column><Paragraph>Inner</Paragraph></Column></Row></Email></Column></Row></Email>;
+      const html = renderToHtml(email);
+      expect(html).toContain("Outer");
+      expect(html).not.toContain("Inner");
+      expect(JSON.stringify(renderToJson(email))).not.toContain("Inner");
+      expect(warn).toHaveBeenCalledWith(expect.stringContaining("<Email> is a root: it can't be placed in a Row or Column"));
+    } finally {
+      warn.mockRestore();
+    }
+  });
+});

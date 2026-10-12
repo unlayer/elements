@@ -81,7 +81,11 @@ function recordedForOlder(child: React.ReactElement, collection: Collection): Re
       </React.Fragment>
     );
   }
-  if (!type.__unlayerRender) return child; // a root (Email, Page, Document) placed inside one
+  // A root (Email, Page, Document) placed inside one: left out, as 0.1.22 left it out, saying so.
+  if (!type.__unlayerRender) {
+    console.warn(`[Unlayer] <${type.displayName}> is a root: it can't be placed in a Row or Column, so it's left out.`);
+    return null;
+  }
   const at = collection.recorded.push({ kind: "block", type: child.type as React.ComponentType<any>, props }) - 1;
   return React.cloneElement(marker(collection, at), { key: child.key ?? `b${at}` });
 }
