@@ -348,6 +348,18 @@ async function run(argv: string[], io: Io, library?: Library): Promise<number> {
         result.reason = `it changed during the run, and git couldn't restore it (${edited.get(changed.path)}): not replaced. Commit it, then run again`;
         continue;
       }
+      // A design git can't restore that isn't the one this run writes (made or edited in the editor): kept, and the
+      // template with it (the two stay a pair).
+      const kept: string[] = [];
+      for (const w of writes) {
+        const why = destinations.get(w.path)?.keepUnlessSame;
+        if (why !== undefined && (await readFile(w.path, "utf8").catch(() => undefined)) !== w.text) kept.push(`${relative(io.cwd, w.path)} (${why})`);
+      }
+      if (kept.length) {
+        result.status = "failed";
+        result.reason = `--overwrite would replace ${kept.join(", ")}, a design that isn't the one this run writes (made or edited in the editor since a run wrote it), which git can't restore: neither it nor the template written. Commit it, or pass --allow-dirty`;
+        continue;
+      }
       try {
         // The template replaced last: a design file that can't be written leaves it as it was.
         for (const write of [...writes].sort((a, b) => Number(a.kind === "output") - Number(b.kind === "output"))) {
@@ -450,7 +462,7 @@ function designPath(target: string): string {
 }
 
 /** Each output, and whether a file already there may be replaced (the template itself with --write, the report, or --overwrite). */
-type Destinations = Map<string, { canonical: string; root?: string; replace: boolean }>;
+type Destinations = Map<string, { canonical: string; root?: string; replace: boolean; design?: boolean; keepUnlessSame?: string }>;
 
 /** Resolve existing ancestors too, including symlinked directories. */
 async function canonicalPath(path: string): Promise<string> {
@@ -498,7 +510,7 @@ async function reserveDestinations(inputs: Input[], candidates: Input[], options
   const destinations: Destinations = new Map();
   const owners = new Map<string, string>();
   const root = options.out !== undefined ? resolve(cwd, options.out) : undefined;
-  const reserve = async (path: string, owner: string, outputRoot?: string, ownSource = false, replace = ownSource || options.overwrite) => {
+  const reserve = async (path: string, owner: string, outputRoot?: string, ownSource = false, replace = ownSource || options.overwrite, design = false) => {
     const canonical = await safeDestination(path, outputRoot);
     if (sources.has(canonical) && !ownSource) throw new Error(`Output would overwrite a source input: ${relative(cwd, path)}. Use --write to replace a template itself.`);
     // A file this run didn't scan or produce is someone's work: never replaced silently.
@@ -506,13 +518,13 @@ async function reserveDestinations(inputs: Input[], candidates: Input[], options
     const previous = owners.get(canonical);
     if (previous !== undefined) throw new Error(`${previous} and ${owner} have the same output: ${relative(cwd, path)}. Use separate destinations.`);
     owners.set(canonical, owner);
-    destinations.set(path, { canonical, root: outputRoot, replace });
+    destinations.set(path, { canonical, root: outputRoot, replace, ...(design ? { design } : {}) });
   };
   if (options.write || options.out !== undefined) {
     for (const input of candidates) {
       const target = outputPath(input, options, cwd);
       await reserve(target, relative(cwd, input.path), root, options.write && target === input.path);
-      if (options.design) await reserve(designPath(target), relative(cwd, input.path), root);
+      if (options.design) await reserve(designPath(target), relative(cwd, input.path), root, false, options.overwrite, true);
     }
   }
   // A report replaces the one a run wrote before; any other file only with --overwrite (it's someone's work).
@@ -520,32 +532,32 @@ async function reserveDestinations(inputs: Input[], candidates: Input[], options
   // --overwrite replaces what a run wrote before, or what git can restore: never someone's work it can't (`--out .`
   // over an uncommitted welcome.tsx), unless --allow-dirty.
   const atRisk: string[] = [];
-  // Next to the templates (--write), an earlier run's design may have been edited in the editor since: only what git
-  // can restore. In a folder of its own (--out), an earlier run's output is replaced.
+  // In a folder of its own (--out), an earlier run's template (its header) is replaced. A design can't be told from
+  // one made in the editor, or edited there since a run wrote it: one git can't restore is replaced only by the same
+  // design (a run again from the same template), checked when it's written.
   // A report a run wrote is replaced as it is (see above).
   const reportPath = report ? resolve(cwd, report) : undefined;
   if (!options.allowDirty) {
     for (const [path, d] of destinations) {
       if (!d.replace || sources.has(d.canonical) || !existsSync(path)) continue;
-      if ((d.root !== undefined && (await isOutput(path))) || (path === reportPath && (await isReport(path)))) continue;
+      if ((d.root !== undefined && !d.design && (await isOutput(path))) || (path === reportPath && (await isReport(path)))) continue;
       atRisk.push(path);
     }
   }
-  const unsafe = atRisk.length ? await notRestorable(atRisk) : [];
+  const unsafe: Array<{ file: string; why: string }> = [];
+  for (const u of atRisk.length ? await notRestorable(atRisk) : []) {
+    const design = destinations.get(u.file);
+    if (design?.design) design.keepUnlessSame = u.why;
+    else unsafe.push(u);
+  }
   if (unsafe.length) throw new Error(`--overwrite would replace ${unsafe.map((u) => `${relative(cwd, u.file)} (${u.why})`).join(", ")}, which git can't restore. Commit it, choose a folder of its own for --out, or pass --allow-dirty.`);
   return destinations;
 }
 
-/** Whether a file is one a run wrote: a migrated template (its header) or a design (its rows and counters). */
+/** Whether a file is a template a run wrote (its header). */
 async function isOutput(path: string): Promise<boolean> {
   const text = await readFile(path, "utf8").catch(() => "");
-  if (/^\/\*\* @jsxRuntime automatic \*\/\r?\n\/\/ Migrated from React Email by @unlayer\/migrate/.test(text)) return true;
-  try {
-    const parsed = JSON.parse(text);
-    return Array.isArray(parsed?.body?.rows) && typeof parsed?.counters === "object";
-  } catch {
-    return false;
-  }
+  return /^\/\*\* @jsxRuntime automatic \*\/\r?\n\/\/ Migrated from React Email by @unlayer\/migrate/.test(text);
 }
 
 /** Whether a file is a report this CLI wrote (Markdown with its title, or JSON with its results), or nothing yet. */

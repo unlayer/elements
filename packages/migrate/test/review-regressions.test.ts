@@ -1410,12 +1410,49 @@ Notice.PreviewProps = {};
     // Edited in the editor since: not committed.
     fs.writeFileSync(path.join(dir, "emails/welcome.design.json"), "{\"body\":{\"rows\":[\"edited\"]},\"counters\":{}}\n");
     const out = io(dir);
-    expect(await main(["emails", "--write", "--design", "--overwrite"], out, lib), out.out + out.err).toBe(1);
-    expect(out.err).toContain("--overwrite would replace emails/welcome.design.json");
+    expect(await main(["emails", "--write", "--design", "--overwrite"], out, lib), out.out + out.err).toBe(2);
+    expect(out.out).toContain("--overwrite would replace emails/welcome.design.json (");
     expect(fs.readFileSync(path.join(dir, "emails/welcome.design.json"), "utf8")).toContain("edited");
     expect(fs.readFileSync(path.join(dir, "emails/welcome.tsx"), "utf8")).toBe(welcome);
     expect(await main(["emails", "--write", "--design", "--overwrite", "--allow-dirty"], io(dir), lib)).toBe(0);
     expect(fs.readFileSync(path.join(dir, "emails/welcome.design.json"), "utf8")).not.toContain("edited");
+  });
+
+  it("doesn't replace a design in the --out folder that a run didn't write as it is (made or edited in the editor) when git can't restore it", async () => {
+    const dir = project({ "emails/welcome.tsx": welcome });
+    // A run wrote the template and its design; then the design was made again in the editor, saved over it, not committed.
+    expect(await main(["emails", "--out", "migrated", "--design"], io(dir), lib)).toBe(0);
+    const written = fs.readFileSync(path.join(dir, "migrated/welcome.design.json"), "utf8");
+    const mine = `${JSON.stringify({ counters: { u_row: 1 }, body: { id: "mine", rows: [{ id: "edited-in-the-editor" }] }, schemaVersion: 16 })}\n`;
+    fs.writeFileSync(path.join(dir, "migrated/welcome.design.json"), mine);
+    fs.writeFileSync(path.join(dir, "migrated/welcome.tsx"), "/** @jsxRuntime automatic */\n// Migrated from React Email by @unlayer/migrate (codemod mode).\nexport const earlier = 1;\n");
+    const out = io(dir);
+    expect(await main(["emails", "--out", "migrated", "--design", "--overwrite"], out, lib), out.out + out.err).toBe(2);
+    expect(out.out).toMatch(/--overwrite would replace migrated\/welcome\.design\.json \(not (committed|in a git repository)\), a design that isn't the one this run writes/);
+    expect(fs.readFileSync(path.join(dir, "migrated/welcome.design.json"), "utf8")).toBe(mine);
+    // The template with it isn't written either: the two stay a pair.
+    expect(fs.readFileSync(path.join(dir, "migrated/welcome.tsx"), "utf8")).toContain("export const earlier = 1;");
+    // Committed, git can restore it: replaced.
+    commit(dir);
+    expect(await main(["emails", "--out", "migrated", "--design", "--overwrite"], io(dir), lib)).toBe(0);
+    expect(fs.readFileSync(path.join(dir, "migrated/welcome.design.json"), "utf8")).toBe(written);
+    // The same design a run writes again isn't someone's work: replaced, committed or not.
+    fs.writeFileSync(path.join(dir, "migrated/welcome.design.json"), written);
+    fs.writeFileSync(path.join(dir, "migrated/welcome.tsx"), "/** @jsxRuntime automatic */\n// Migrated from React Email by @unlayer/migrate (codemod mode).\nexport const earlier = 2;\n");
+    expect(await main(["emails", "--out", "migrated", "--design", "--overwrite"], io(dir), lib)).toBe(0);
+    expect(fs.readFileSync(path.join(dir, "migrated/welcome.tsx"), "utf8")).toContain("@unlayer/react-elements");
+    // Not one a run wrote at all, with no template next to it: kept the same way.
+    fs.rmSync(path.join(dir, "migrated"), { recursive: true });
+    fs.mkdirSync(path.join(dir, "migrated"));
+    // (Another one than the design committed above: git can't restore it.)
+    const theirs = mine.replace("edited-in-the-editor", "made-in-the-editor");
+    fs.writeFileSync(path.join(dir, "migrated/welcome.design.json"), theirs);
+    const again = io(dir);
+    expect(await main(["emails", "--out", "migrated", "--design", "--overwrite"], again, lib), again.out + again.err).toBe(2);
+    expect(fs.readFileSync(path.join(dir, "migrated/welcome.design.json"), "utf8")).toBe(theirs);
+    expect(fs.existsSync(path.join(dir, "migrated/welcome.tsx"))).toBe(false);
+    expect(await main(["emails", "--out", "migrated", "--design", "--overwrite", "--allow-dirty"], io(dir), lib)).toBe(0);
+    expect(fs.readFileSync(path.join(dir, "migrated/welcome.design.json"), "utf8")).toBe(written);
   });
 });
 
