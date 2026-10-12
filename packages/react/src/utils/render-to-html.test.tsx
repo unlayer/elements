@@ -389,6 +389,28 @@ describe("renderToHtml with a template component", () => {
     expect(warnings.join()).toContain("couldn't unwrap <Template> (<Template> is a class component");
   });
 
+  it("says nothing when the template has no root whose settings go unread (Rows, nothing, a list), as 0.1.22", () => {
+    const warnings: string[] = [];
+    const warn = console.warn;
+    console.warn = (message: string) => void warnings.push(message);
+    const Theme = React.createContext("light");
+    const Banner = () => <Row><Column><Paragraph>Hi</Paragraph></Column></Row>;
+    const Nothing = () => null;
+    const List = () => [<Banner key="a" />, <Banner key="b" />] as unknown as React.ReactElement;
+    const InMarkup = () => <div>{root({ name: "Ada" })}</div>;
+    try {
+      for (const template of [<Banner />, <Nothing />, <List />, <Theme.Provider value="dark"><Row><Column><Paragraph>Hi</Paragraph></Column></Row></Theme.Provider>]) {
+        renderToHtml(template);
+      }
+      expect(warnings).toEqual([]);
+      // A root inside other markup: its settings go unread, which the message says.
+      expect(renderToHtml(<InMarkup />)).toContain("Hello Ada");
+    } finally {
+      console.warn = warn;
+    }
+    expect(warnings.join()).toContain("couldn't unwrap <InMarkup> (its root is inside other markup)");
+  });
+
   it("says an async template isn't supported", () => {
     const Async = (async () => root({ name: "Ada" })) as unknown as React.ComponentType;
     expect(() => renderToHtml(<Async />)).toThrow("async and suspending templates aren't supported");

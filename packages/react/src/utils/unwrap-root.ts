@@ -100,12 +100,18 @@ export function callIsolated(call: () => unknown, prefix?: string, providers: Re
  * wrapper can't be called (a class) or doesn't return an element (null, an
  * array). Throws what a wrapper throws, and for an async template.
  */
-export function unwrapRoot(element: React.ReactElement): React.ReactElement {
+export function unwrapRoot(element: React.ReactElement, why: { unread?: string } = {}): React.ReactElement {
   let current = element;
   // Context providers around the root (`<Theme.Provider value="dark"><Email>…`): the root's content goes in them.
   const providers: React.ReactElement[] = [];
-  for (let depth = 0; depth < 20; depth++) {
+  for (let depth = 0; ; depth++) {
     if (ROOT_NAMES.has(getDisplayName(current) ?? "")) break;
+    // A Row or block: what it renders is Elements' own, never a root.
+    if (isElementsComponent(current)) break;
+    if (depth === 20) {
+      why.unread = "it wraps more than 20 components";
+      break;
+    }
     const type = current.type as any;
     const props = current.props as Record<string, unknown>;
     if (type?.$$typeof === MEMO) {
@@ -132,13 +138,26 @@ export function unwrapRoot(element: React.ReactElement): React.ReactElement {
     const prefix = depth ? `w${depth}-` : undefined;
     if (type?.$$typeof === FORWARD_REF) produced = callIsolated(() => type.render({ ...props }, null), prefix, providers);
     else if (typeof type === "function" && !type.prototype?.isReactComponent) produced = callIsolated(() => type({ ...props }), prefix, providers);
-    else break;
-    if (!React.isValidElement(produced)) break;
+    else {
+      if (type?.prototype?.isReactComponent) why.unread = `<${componentName(current)}> is a class component, which isn't called to find it`;
+      break;
+    }
+    if (!React.isValidElement(produced)) {
+      if (holdsRoot(produced as React.ReactNode)) why.unread = "it doesn't return a root element";
+      break;
+    }
     current = produced;
   }
   if (!providers.length || !ROOT_NAMES.has(getDisplayName(current) ?? "")) return current;
   const children = providers.reduceRight<React.ReactNode>((inside, provider) => React.cloneElement(provider, undefined, inside), (current.props as { children?: React.ReactNode }).children);
   return React.cloneElement(current, undefined, children);
+}
+
+/** Whether a root element is somewhere in `node` (markup, Fragments, arrays, providers), whose settings would go unread. */
+function holdsRoot(node: React.ReactNode): boolean {
+  if (Array.isArray(node)) return node.some(holdsRoot);
+  if (!React.isValidElement(node)) return false;
+  return ROOT_NAMES.has(getDisplayName(node) ?? "") || (!isElementsComponent(node) && holdsRoot((node.props as { children?: React.ReactNode }).children));
 }
 
 /** The advice both render functions give when a wrapper can't be unwrapped. */
@@ -152,11 +171,14 @@ export const UNWRAP_ADVICE = "Pass the root element (<Email>…</Email>), or a f
  */
 export function htmlRoot(element: React.ReactElement, api: string): React.ReactElement {
   if (typeof element.type === "string" || isElementsComponent(element)) return element;
-  let reason = "it doesn't return a root element";
+  let reason: string;
   try {
-    const root = unwrapRoot(element);
+    const why: { unread?: string } = {};
+    const root = unwrapRoot(element, why);
     if (ROOT_NAMES.has(getDisplayName(root) ?? "")) return root;
-    if ((root.type as any)?.prototype?.isReactComponent) reason = `<${componentName(root)}> is a class component, which isn't called to find it`;
+    // A template of Rows, or nothing: there's no root whose settings go unread.
+    if (!why.unread && !holdsRoot(root)) return element;
+    reason = why.unread ?? "its root is inside other markup";
   } catch (cause) {
     // An async template can't be rendered through React either: say why.
     if (cause instanceof Error && cause.message === ASYNC_TEMPLATE) throw new Error(`[Unlayer] ${api}: ${ASYNC_TEMPLATE}.`);
