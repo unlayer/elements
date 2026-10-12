@@ -6,7 +6,7 @@ import { mapSemanticProps, type SemanticProps } from "../utils/semantic-props";
 import type { DeviceProps, SizeInput, BorderInput } from "../types";
 import { COLUMN_DEFAULTS } from "../utils/container-defaults";
 import { looseText } from "../utils/render-scope";
-import { collecting } from "../utils/collect";
+import { collecting, RECORDS } from "../utils/collect";
 import { recordContainer, whileCollecting } from "../utils/record";
 import { DEFAULT_CONTAINER_PADDING } from "../utils/image-sizing";
 
@@ -258,5 +258,6 @@ export const Column: React.FC<ColumnProps> = (props) => {
 };
 
 Column.displayName = "Column";
+(Column as unknown as Record<symbol, boolean>)[RECORDS] = true;
 
 export default Column;

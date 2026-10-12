@@ -4,7 +4,7 @@
  * renders inside them.
  */
 import React, { Suspense } from "react";
-import { collecting, COLLECTING_ID, marker, within, type Collection } from "./collect";
+import { collecting, COLLECTING_ID, marker, RECORDS, within, type Collection } from "./collect";
 import { isAsyncComponent, isElementsType } from "./unwrap-root";
 
 /**
@@ -15,7 +15,8 @@ import { isAsyncComponent, isElementsType } from "./unwrap-root";
  */
 export function guard(children: React.ReactNode, collection: Collection): React.ReactNode {
   return React.Children.toArray(children).map((child) => {
-    if (!React.isValidElement(child) || isElementsType(child.type)) return child;
+    if (!React.isValidElement(child)) return child;
+    if (isElementsType(child.type)) return (child.type as unknown as Record<symbol, unknown>)[RECORDS] ? child : recordedForOlder(child, collection);
     // No component at all (`undefined` from a broken or circular import): React says so and the render fails, as an
     // email missing a block shouldn't send. Only what can render gets a boundary that leaves it out.
     if (!child.type || (typeof child.type === "object" && !("$$typeof" in child.type))) return child;
@@ -46,6 +47,29 @@ function bounded(child: React.ReactElement, collection: Collection): React.React
     child,
     marker(collection, at, "c")
   );
+}
+
+/**
+ * A Row, Column or block of an older copy of Elements (0.1.x, from a package still on it), which renders its HTML
+ * instead of recording itself: recorded here as this copy's would, so it's in the HTML and the design (rendered by
+ * this copy's Row and Column, and by the block's own exporter).
+ */
+function recordedForOlder(child: React.ReactElement, collection: Collection): React.ReactNode {
+  const type = child.type as unknown as { displayName?: string; __unlayerRender?: unknown };
+  const props = child.props as Record<string, any>;
+  if (type.displayName === "Row" || type.displayName === "Column") {
+    const at = collection.recorded.push({ kind: type.displayName === "Row" ? "row" : "column", props }) - 1;
+    return (
+      <React.Fragment key={child.key ?? `r${at}`}>
+        {marker(collection, at, "o")}
+        {guard(props.children, collection)}
+        {marker(collection, at, "c")}
+      </React.Fragment>
+    );
+  }
+  if (!type.__unlayerRender) return child; // a root (Email, Page, Document) placed inside one
+  const at = collection.recorded.push({ kind: "block", type: child.type as React.ComponentType<any>, props }) - 1;
+  return React.cloneElement(marker(collection, at), { key: child.key ?? `b${at}` });
 }
 
 /** Whether there's a component of the user's own in `children`, in markup or Fragments (not in Elements' own). */

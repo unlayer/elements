@@ -9,7 +9,7 @@ import { bodyContentWidthPx } from "../utils/image-sizing";
 import type { DeviceProps, SizeInput } from "../types";
 import { ROW_DEFAULTS, BODY_DEFAULTS } from "../utils/container-defaults";
 import { looseText } from "../utils/render-scope";
-import { collecting } from "../utils/collect";
+import { collecting, RECORDS } from "../utils/collect";
 import { recordContainer, whileCollecting } from "../utils/record";
 
 /**
@@ -313,5 +313,6 @@ const Row: React.FC<RowProps> = (props) =>
   collecting() ? whileCollecting(() => recordContainer("row", props), () => renderRow(props)) : renderRow(props);
 
 Row.displayName = "Row";
+(Row as unknown as Record<symbol, boolean>)[RECORDS] = true;
 
 export default Row;

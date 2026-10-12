@@ -194,6 +194,27 @@ describe.each(Object.entries(CASES))("%s", (_, build) => {
   }
 });
 
+describe("blocks and Rows of the previous release inside this one's (a package still on it, in a monorepo)", () => {
+  const P = releases.previous;
+  const C = releases.current;
+  const build = (B: Lib, R: Lib) => (
+    <C.Email>
+      <R.Row><R.Column>
+        <B.Paragraph color="#ff0000">Same text</B.Paragraph>
+        <B.Button href="https://example.com">Go</B.Button>
+        <B.Image src="https://example.com/a.png" alt="A" width="120px" />
+      </R.Column></R.Row>
+    </C.Email>
+  );
+  it.each([
+    ["its blocks in this release's Row", P, C],
+    ["its Row, Column and blocks", P, P],
+  ] as const)("render as this release's do: %s", (_, blocks, rows) => {
+    expect(C.renderToHtml(build(blocks, rows))).toBe(C.renderToHtml(build(C, C)));
+    expect(JSON.stringify(C.renderToJson(build(blocks, rows)))).toBe(JSON.stringify(C.renderToJson(build(C, C))));
+  });
+});
+
 describe("in the browser (a live preview)", () => {
   (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
   it("renders the email, and works out its design and HTML while rendering, as the previous release did", async () => {

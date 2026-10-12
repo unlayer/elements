@@ -45,6 +45,12 @@ export function within<T>(frame: Collection | null, run: () => T): T {
 export const MARK = "unlayer-mark";
 
 /**
+ * On the Rows, Columns and blocks that record themselves while a template is collected (0.2 and later). One of an
+ * older copy (0.1.x, from a package still on it) doesn't, and guard records it in its place (see record.tsx).
+ */
+export const RECORDS = Symbol.for("@unlayer/react-elements/records");
+
+/**
  * The collecting render's `identifierPrefix`: React puts it at the start of every `useId()` there (after its
  * opening `:` or `«`), so a Row, Column or block can tell that render from another one started inside it (a
  * component rendering a block to a string with react-dom), where it renders what it renders instead of a
