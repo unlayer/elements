@@ -1179,6 +1179,40 @@ export default function Reminder({ name }: Props) { return <Email><Row><Column><
     expect(out.err).toMatch(/No email template was checked: the ones here are left as they are/);
   });
 
+  it.each([
+    [
+      "picks its email with a condition (`locale === \"es\" ? Spanish(props) : English(props)`)",
+      `import { Html, Body, Text } from "@react-email/components";
+const English = (p: { name: string }) => <Html><Body><Text>Hello {p.name}</Text></Body></Html>;
+const Spanish = (p: { name: string }) => <Html><Body><Text>Hola {p.name}</Text></Body></Html>;
+export default function Welcome(props: { name: string; locale: string }) { return props.locale === "es" ? Spanish(props) : English(props); }`,
+    ],
+    [
+      "returns what a function of its own builds (`return renderBody(p)`)",
+      `import { Html, Body, Text } from "@react-email/components";
+function renderBody(p: { name: string }) { return <Html><Body><Text>Thanks {p.name}</Text></Body></Html>; }
+export default function Thanks(p: { name: string }) { return renderBody(p); }`,
+    ],
+  ])("doesn't skip a template that %s: it's loaded, and fails saying what to change", async (_, source) => {
+    const dir = project({ "emails/t.tsx": source, "emails/real.tsx": `import { Html, Body, Text } from "@react-email/components";
+export default function Real() { return <Html><Body><Text>Real one</Text></Body></Html>; }` });
+    const out = io(dir);
+    expect(await main(["emails"], out, lib), out.out + out.err).toBe(2);
+    expect(out.out).toMatch(/✗ emails\/t\.tsx/);
+  });
+
+  it("fails a template that doesn't parse, saying where (it isn't skipped as a helper)", async () => {
+    const dir = project({
+      "emails/broken.tsx": `import { Html, Body, Text } from "@react-email/components";
+export default function Broken() { return <Html><Body><Text>Hi</Text></Body></Html>;`,
+      "emails/real.tsx": `import { Html, Body, Text } from "@react-email/components";
+export default function Real() { return <Html><Body><Text>Real one</Text></Body></Html>; }`,
+    });
+    const out = io(dir);
+    expect(await main(["emails"], out, lib), out.out + out.err).toBe(2);
+    expect(out.out).toMatch(/✗ emails\/broken\.tsx: .*it doesn't parse \(line \d+/);
+  });
+
   it("never loads a sender helper, whose call would send the email (a dry run calls the templates it loads)", async () => {
     const dir = project({});
     const marker = path.join(dir, "sent.txt");

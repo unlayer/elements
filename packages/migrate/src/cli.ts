@@ -1841,6 +1841,12 @@ async function notATemplate(path: string, source: string): Promise<{ reason: str
   // A .ts file has no JSX: read as TSX, `<T>value` would be misread.
   const file = ts.createSourceFile(path, source, ts.ScriptTarget.Latest, true, /\.m?ts$/.test(path) ? ts.ScriptKind.TS : ts.ScriptKind.TSX);
   const skip = (reason: string) => ({ reason });
+  // A file that doesn't parse can't be told apart from a template: it fails, saying where (never a helper, skipped).
+  const broken = (file as unknown as { parseDiagnostics?: import("typescript").DiagnosticWithLocation[] }).parseDiagnostics?.[0];
+  if (broken) {
+    const { line } = file.getLineAndCharacterOfPosition(broken.start);
+    return { reason: `it doesn't parse (line ${line + 1}: ${ts.flattenDiagnosticMessageText(broken.messageText, " ")}): fix it, then run again`, fail: true };
+  }
   const declared = new Map<string, Node>();
   const previewed = new Set<string>();
   // React's functions by the names they're imported as (`memo as remember`, `React.memo`).
@@ -1973,8 +1979,9 @@ async function notATemplate(path: string, source: string): Promise<{ reason: str
     // other call isn't read as one, as loading the file calls it: a renderer (`render(<Welcome />)`) or a sender
     // (`resend.emails.send({ react: <Text /> })`, which would send the email).
     if (ts.isCallExpression(e)) {
+      // (`Spanish(props)` in `locale === "es" ? Spanish(props) : English(props)`, `renderBody(p)`: the same.)
       const fn = ts.isIdentifier(e.expression) ? declared.get(e.expression.text) : undefined;
-      return !!fn && ts.isFunctionLike(fn) && returnsJsx(fn as import("typescript").FunctionLikeDeclaration) && e.arguments.some((a) => containsJsxNode(a));
+      return !!fn && ts.isFunctionLike(fn) && returnsJsx(fn as import("typescript").FunctionLikeDeclaration);
     }
     return ts.isBinaryExpression(e) && [ts.SyntaxKind.AmpersandAmpersandToken, ts.SyntaxKind.BarBarToken, ts.SyntaxKind.QuestionQuestionToken].includes(e.operatorToken.kind) && (jsx(e.left) || jsx(e.right));
   };
@@ -1995,7 +2002,6 @@ async function notATemplate(path: string, source: string): Promise<{ reason: str
     ts.forEachChild(fn.body, own);
     return found;
   };
-  const containsJsxNode = (n: Node): boolean => ts.isJsxElement(n) || ts.isJsxSelfClosingElement(n) || ts.isJsxFragment(n) || !!ts.forEachChild(n, (c) => (containsJsxNode(c) ? true : undefined));
   const body = (node as import("typescript").FunctionLikeDeclaration).body;
   let returns = !!body && !ts.isBlock(body) && jsx(body);
   // Its own returns, not those of functions inside it.
@@ -2005,7 +2011,9 @@ async function notATemplate(path: string, source: string): Promise<{ reason: str
     else ts.forEachChild(child, visit);
   };
   if (body && ts.isBlock(body)) ts.forEachChild(body, visit);
-  return returns || previewProps ? undefined : skip("not loaded: its default export doesn't return JSX (a helper, not a template)");
+  return returns || previewProps
+    ? undefined
+    : helperOrFail("not loaded: its default export doesn't return JSX (a helper, not a template)", "its default export renders an email in a way the check can't load: return the email's JSX (<Html>…</Html>) from a component");
 }
 
 /**
