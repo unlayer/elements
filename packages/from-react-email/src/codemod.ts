@@ -2166,7 +2166,7 @@ function renderToStaticMarkup(node${type(": Parameters<typeof reactStaticMarkup>
   const color = /^<div style="(?:[^"]*;)?\s*color:\s*([^;"]+)/.exec(html)?.[1]?.trim();
   return html.replace(/<(table|td|p)\b([^>]*)>/g, (tag${type(": string")}, name${type(": string")}, attrs${type(": string")}) => {
     const style = /\sstyle="([^"]*)"/.exec(attrs);
-    const css = style ? style[1] : "";
+    const css = style?.[1] ?? "";
     const sets = (property${type(": string")}) => new RegExp("(^|;)\\s*(" + property + ")\\s*:", "i").test(css);
     const add${type(": string[]")} = [];
     if (color && name !== "p" && !sets("color")) add.push("color:" + color);
@@ -2341,6 +2341,15 @@ function dropUnused(code: string, original: ts.SourceFile, javascript: boolean, 
     const walk = (node: ts.Node) => {
       if (ts.isFunctionDeclaration(node) && node.name && helpers.has(node.name.text)) return;
       if (ts.isSourceFile(node) || ts.isBlock(node)) visit(node.statements);
+      // A prop destructured in the parameters that only a dropped style read (`{ accent, name }` with
+      // `color: accent === "red" ? …` lost): it goes, or noUnusedLocals fails the build (not with `...rest`).
+      if (ts.isFunctionLike(node))
+        for (const param of node.parameters) {
+          const pattern = param.name;
+          if (!ts.isObjectBindingPattern(pattern) || pattern.elements.some((e) => e.dotDotDotToken || !ts.isIdentifier(e.name))) continue;
+          const kept = pattern.elements.filter((e) => !unused(e.name as ts.Identifier));
+          if (kept.length < pattern.elements.length) cuts.push({ from: pattern.getStart(), to: pattern.getEnd(), text: kept.length ? `{ ${kept.map((e) => e.getText()).join(", ")} }` : "{}" });
+        }
       ts.forEachChild(node, walk);
     };
     walk(file);

@@ -1119,6 +1119,33 @@ Invite.PreviewProps = { lang: "en", name: "Ana", url: "https://example.com/join"
   });
 });
 
+describe("the fixture templates, migrated", () => {
+  it.each(["welcome", "receipt", "weekly-digest", "phone-variants"])("%s compiles wherever the original does, with the strictest common settings (noUncheckedIndexedAccess, noUnusedLocals)", async (name) => {
+    const dir = fs.mkdtempSync(path.join(import.meta.dirname, ".tmp-"));
+    try {
+      const original = path.join(fixtures, `${name}.tsx`);
+      const file = path.join(dir, `${name}.tsx`);
+      const { code } = await convertSource(fs.readFileSync(original, "utf8"), { fileName: file });
+      fs.writeFileSync(file, code);
+      const ts = (await import("typescript")).default;
+      const options = { noEmit: true, jsx: ts.JsxEmit.ReactJSX, strict: true, noUncheckedIndexedAccess: true, noUnusedLocals: true, noUnusedParameters: true, module: ts.ModuleKind.ESNext, moduleResolution: ts.ModuleResolutionKind.Bundler, target: ts.ScriptTarget.ES2022, skipLibCheck: true, types: ["react"] };
+      const program = ts.createProgram([original, file], options);
+      const errors = (of: string) => ts.getPreEmitDiagnostics(program).filter((d) => d.file?.fileName === of).map((d) => `TS${d.code}: ${ts.flattenDiagnosticMessageText(d.messageText, " ")}`);
+      // Each error the migration has, the original has too (an unused `React` import in both, say).
+      const left = [...errors(original)];
+      const added = errors(file).filter((e) => {
+        const at = left.indexOf(e);
+        if (at < 0) return true;
+        left.splice(at, 1);
+        return false;
+      });
+      expect(added).toEqual([]);
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
+  });
+});
+
 describe("names destructured for styles that are written in", () => {
   it("go with them, so a build with noUnusedLocals passes (TS6198, TS6133)", async () => {
     const source = `import { Html, Head, Body, Container, Img, Text } from "@react-email/components";
@@ -1144,6 +1171,29 @@ Card.PreviewProps = { name: "Ada", avatarUrl: "https://example.com/a.png" };`;
       const program = ts.createProgram([file], { noEmit: true, jsx: ts.JsxEmit.ReactJSX, strict: true, noUnusedLocals: true, module: ts.ModuleKind.ESNext, moduleResolution: ts.ModuleResolutionKind.Bundler, target: ts.ScriptTarget.ES2022, skipLibCheck: true, types: ["react"] });
       const errors = ts.getPreEmitDiagnostics(program).filter((d) => d.file?.fileName === file).map((d) => `TS${d.code}: ${ts.flattenDiagnosticMessageText(d.messageText, " ")}`);
       expect(errors).toEqual([]);
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
+  });
+});
+
+describe("a prop only a dropped style read", () => {
+  it("goes from the parameters, so a build with noUnusedLocals passes (TS6133)", async () => {
+    const source = `import { Html, Body, Text } from "@react-email/components";
+export default function Card({ accent, name }: { accent: string; name: string }) {
+  return <Html><Body><Text style={{ color: accent === "red" ? "#ff0000" : "#0000ff" }}>Hi {name}</Text></Body></Html>;
+}
+Card.PreviewProps = { accent: "red", name: "Ada" };`;
+    const dir = fs.mkdtempSync(path.join(import.meta.dirname, ".tmp-"));
+    try {
+      const file = path.join(dir, "migrated.tsx");
+      const { code, report } = await convertSource(source, { fileName: file });
+      fs.writeFileSync(file, code);
+      expect(report.lostStyles?.[0]).toContain("accent");
+      expect(code).toContain("function Card({ name }:");
+      const ts = (await import("typescript")).default;
+      const program = ts.createProgram([file], { noEmit: true, jsx: ts.JsxEmit.ReactJSX, strict: true, noUnusedLocals: true, noUnusedParameters: true, module: ts.ModuleKind.ESNext, moduleResolution: ts.ModuleResolutionKind.Bundler, target: ts.ScriptTarget.ES2022, skipLibCheck: true, types: ["react"] });
+      expect(ts.getPreEmitDiagnostics(program).filter((d) => d.file?.fileName === file).map((d) => `TS${d.code}`)).toEqual([]);
     } finally {
       fs.rmSync(dir, { recursive: true, force: true });
     }

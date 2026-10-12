@@ -201,7 +201,7 @@ function renderToStaticMarkup(node: Parameters<typeof reactStaticMarkup>[0]): st
   const color = /^<div style="(?:[^"]*;)?\s*color:\s*([^;"]+)/.exec(html)?.[1]?.trim();
   return html.replace(/<(table|td|p)\b([^>]*)>/g, (tag: string, name: string, attrs: string) => {
     const style = /\sstyle="([^"]*)"/.exec(attrs);
-    const css = style ? style[1] : "";
+    const css = style?.[1] ?? "";
     const sets = (property: string) =>
       new RegExp("(^|;)\\s*(" + property + ")\\s*:", "i").test(css);
     const add: string[] = [];
