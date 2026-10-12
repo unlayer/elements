@@ -421,6 +421,58 @@ describe("returns that render nothing", () => {
   });
 });
 
+describe("merge tags for a template in memo() or forwardRef()", () => {
+  // `company || "Acme"`: a merge tag would lose the fallback when the value sent is empty. Only the code tells.
+  const source = `${IMPORTS}import { forwardRef, memo } from "react";
+    function T({ name, company }: { name: string; company: string }) {
+      return (
+        <Html><Body><Container>
+          <Text>Hi {name}, welcome to {company || "Acme"}.</Text>
+        </Container></Body></Html>
+      );
+    }
+    T.PreviewProps = { name: "Alex", company: "Globex" };
+    export const Memo = Object.assign(memo(T), { PreviewProps: T.PreviewProps });
+    export const Forwarded = Object.assign(forwardRef((props: { name: string; company: string }, _ref) => T(props)), { PreviewProps: T.PreviewProps });
+    export const Both = Object.assign(memo(forwardRef(function Inner({ name, company }: { name: string; company: string }, _ref) {
+      return <Html><Body><Container><Text>Hi {name}, welcome to {company || "Acme"}.</Text></Container></Body></Html>;
+    })), { PreviewProps: T.PreviewProps });
+    export default T;`;
+
+  it("reads the component's own code: a prop it falls back on keeps its sample value, as without the wrapper", async () => {
+    const dir = fs.mkdtempSync(path.join(import.meta.dirname, ".tmp-"));
+    try {
+      fs.writeFileSync(path.join(dir, "t.tsx"), source);
+      const module = await import(path.join(dir, "t.tsx"));
+      const kept = { reason: "text prop kept as its sample value (the template changes or tests it, or an image shows it)", detail: "company" };
+      expect((await convertReactEmail(module.default)).report.info).toContainEqual(kept);
+      for (const wrapped of [module.Memo, module.Both]) {
+        const conversion = await convertReactEmail(wrapped);
+        expect(conversion.report.info).toContainEqual(kept);
+        expect(conversion.html()).toContain("Globex");
+        expect(conversion.html()).toContain("{{name}}");
+      }
+      // forwardRef around a call: what the arrow function's code passes on (to T) counts as tested.
+      expect((await convertReactEmail(module.Forwarded)).html()).not.toContain("{{company}}");
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("reads a migrated template's code through memo() for its design JSON", async () => {
+    const { Email, Row, Column, Paragraph } = await import("@unlayer/react-elements");
+    const React = (await import("react")).default;
+    const h = React.createElement;
+    const Migrated = ({ name, company }: { name: string; company: string }) =>
+      h(Email, null, h(Row, null, h(Column, null, h(Paragraph, null, `Hi ${name}, welcome to ${company || "Acme"}.`))));
+    const props = { name: "Alex", company: "Globex" };
+    const design = renderToJson(Migrated(props)) as unknown as Record<string, unknown>;
+    const tagged = await mergeTagDesign(React.memo(Migrated) as never, props, design);
+    expect(tagged.used).toEqual(["name"]);
+    expect(tagged.kept).toContain("company");
+  });
+});
+
 describe("merge tags in a migrated template's design JSON", () => {
   it("tags the preview text (preheaderText) as well as the body", async () => {
     const { Email, Row, Column, Paragraph } = await import("@unlayer/react-elements");

@@ -59,6 +59,23 @@ function callTemplate(Converted: MigratedTemplate, given: Record<string, unknown
   return callInRender(() => type(props));
 }
 
+/**
+ * A component's own code, through `memo()` and `forwardRef()` (the text of an object is `[object Object]`): what tells
+ * which props it tests. Undefined when there's no function to read.
+ */
+function componentCode(component: unknown): string | undefined {
+  let type = component as { $$typeof?: symbol; type?: unknown; render?: unknown } | undefined;
+  for (let depth = 0; depth < 10 && type && typeof type === "object"; depth++) {
+    if (type.$$typeof === Symbol.for("react.memo")) type = type.type as typeof type;
+    else if (type.$$typeof === Symbol.for("react.forward_ref")) type = type.render as typeof type;
+    else break;
+  }
+  return typeof type === "function" ? String(type) : undefined;
+}
+
+/** Why text props stay their sample values when the component's code can't be read. */
+const CODE_UNREAD = "text props kept as their sample values: the template's code can't be read to tell which props it tests (pass its source)";
+
 export interface RuntimeOptions {
   /** Props to render the template with. Defaults to its `PreviewProps`. */
   props?: Record<string, unknown>;
@@ -110,9 +127,11 @@ export async function convertReactEmail(Template: Template, options: RuntimeOpti
   report.phoneDifferences = check.phone;
   report.layoutDifferences = check.layout;
   let tree = converted.tree;
-  if (options.mergeTags !== false) {
+  const code = componentCode(Template);
+  if (options.mergeTags !== false && code === undefined) report.info.push({ reason: CODE_UNREAD });
+  else if (options.mergeTags !== false) {
     // The component's code says which props it tests (a function's text: its own code, not what it imports).
-    const tested = testedProps(String(Template));
+    const tested = testedProps(code!);
     const tagged = await mergeTagged(props, converted.tree, async (p, measured) => (await convertElement(React.createElement(Template, p), { measured })).tree, tested);
     if (tagged.result) tree = tagged.result;
     if (tagged.used.length) report.info.push({ reason: "text props became merge tags", detail: tagged.used.join(", ") });
@@ -325,7 +344,9 @@ export async function mergeTagDesign(
   console.warn = () => undefined; // the same warnings as the sample render, already reported
   try {
     // Without the source, the component's own code calls the codemod's helpers it doesn't define: they show text as given.
-    const tested = testedProps(options.source ?? String(Converted), new Set(options.helpers ?? (options.source === undefined ? CODEMOD_HELPERS : [])));
+    const source = options.source ?? componentCode(Converted);
+    if (source === undefined) return { design, used: [], kept: [] };
+    const tested = testedProps(source, new Set(options.helpers ?? (options.source === undefined ? CODEMOD_HELPERS : [])));
     const tagged = await mergeTagged(props, design, (p) => pinImageWidths(renderToJson(callTemplate(Converted, p)) as unknown as Record<string, unknown>), tested);
     return { design: tagged.result ?? design, used: tagged.used, kept: tagged.kept };
   } finally {
