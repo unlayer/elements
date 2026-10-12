@@ -1027,8 +1027,8 @@ describe("a run that checks nothing", () => {
   });
 });
 
-describe("symbolic links in a folder", () => {
-  it("aren't followed, and are listed (a template there isn't left out without a word)", async () => {
+describe("a symbolic link to a folder, in a folder", () => {
+  it("isn't followed, and is listed (the templates there aren't left out without a word); one to a file is migrated", async () => {
     const template = `import { Html, Body, Text } from "@react-email/components";
 export default function T() { return <Html><Body><Text>Hello there</Text></Body></Html>; }`;
     const dir = project({ "shared/welcome.tsx": template, "emails/real.tsx": template });
@@ -1036,8 +1036,8 @@ export default function T() { return <Html><Body><Text>Hello there</Text></Body>
     fs.symlinkSync(path.join(dir, "shared/welcome.tsx"), path.join(dir, "emails/welcome.tsx"));
     const out = io(dir);
     expect(await main(["emails"], out, lib), out.out + out.err).toBe(0);
-    expect(out.out).toMatch(/- emails\/linked: skipped \(a symbolic link, not followed in a folder/);
-    expect(out.out).toMatch(/- emails\/welcome\.tsx: skipped \(a symbolic link, not followed in a folder/);
+    expect(out.out).toMatch(/- emails\/linked: skipped \(a symbolic link to a folder, not followed/);
+    expect(out.out).toMatch(/✓ emails\/welcome\.tsx/);
     expect(out.out).toMatch(/✓ emails\/real\.tsx/);
   });
 });

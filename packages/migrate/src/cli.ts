@@ -1103,7 +1103,7 @@ async function collect(paths: string[], cwd: string): Promise<{ files: Input[]; 
       const links: string[] = [];
       for (const file of await walk(path, links)) await add(file, path);
       // Listed, as a template there would otherwise be left out without a word.
-      for (const link of links) unreadable.push({ file: relative(cwd, link), status: "skipped", reason: "a symbolic link, not followed in a folder: give its target (or the link itself) to migrate it" });
+      for (const link of links) unreadable.push({ file: relative(cwd, link), status: "skipped", reason: "a symbolic link to a folder, not followed: give the folder (or the link itself) to migrate what's in it" });
     } else {
       await add(path, dirname(path));
     }
@@ -1157,17 +1157,13 @@ async function importsElements(path: string, source: string): Promise<boolean> {
   return used;
 }
 
-/** The source files in a folder and the ones in it; symbolic links in it aren't followed, but go in `links`. */
+/** The source files in a folder and the ones in it; a symbolic link to a folder isn't followed, but goes in `links`. */
 async function walk(dir: string, links: string[] = []): Promise<string[]> {
   const out: string[] = [];
   for (const entry of await readdir(dir, { withFileTypes: true })) {
     if (entry.name.startsWith(".") || IGNORED.has(entry.name)) continue;
     const path = join(dir, entry.name);
-    if (entry.isSymbolicLink()) {
-      // One that would be a source file or a folder of them (a link that's gone, or to anything else, isn't said).
-      const target = await stat(path).catch(() => undefined);
-      if (target?.isDirectory() || (target && SOURCE.test(entry.name))) links.push(path);
-    }
+    if (entry.isSymbolicLink() && (await stat(path).catch(() => undefined))?.isDirectory()) links.push(path);
     else if (entry.isDirectory()) out.push(...(await walk(path, links)));
     else if (SOURCE.test(entry.name) && !/\.(test|spec|stories)\.[^.]+$/.test(entry.name) && !entry.name.endsWith(".d.ts")) out.push(path);
   }
