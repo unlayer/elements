@@ -1,7 +1,7 @@
 import React from "react";
 import type { RenderMode, UnlayerConfig, ColumnValues } from "@unlayer-internal/shared-elements";
 import { ColumnExporters, ContentExporters } from "@unlayer/exporters";
-import { UNLAYER_RENDER_KEY, UNLAYER_CONFIG_KEY, nextHtmlId, safeName } from "../utils/create-component";
+import { UNLAYER_RENDER_KEY, UNLAYER_CONFIG_KEY, nextHtmlId, safeName, safeMeta } from "../utils/create-component";
 import { mapSemanticProps, type SemanticProps } from "../utils/semantic-props";
 import type { DeviceProps, SizeInput, BorderInput } from "../types";
 import { COLUMN_DEFAULTS } from "../utils/container-defaults";
@@ -106,15 +106,8 @@ export const Column: React.FC<ColumnProps> = (props) => {
     "Column"
   );
 
-  // Add _meta
-  const valuesWithMeta = {
-    ...values,
-    _meta: {
-      htmlID: nextHtmlId(_config, "u_column"),
-      htmlClassNames: "u_column",
-      ...(values._meta || {})
-    }
-  };
+  // Add _meta (an id or class names given in values kept to what they can hold, as for rows and blocks)
+  const valuesWithMeta = { ...values, _meta: safeMeta({ htmlID: nextHtmlId(_config, "u_column"), htmlClassNames: "u_column", ...(values._meta || {}) }) };
 
   // Render children to HTML - extract from dangerouslySetInnerHTML
   let innerHTML = "";

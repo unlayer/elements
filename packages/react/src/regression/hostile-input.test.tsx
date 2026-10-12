@@ -31,6 +31,7 @@ const CASES: Record<string, (v: string) => React.ReactElement> = {
   blockHtmlId: (v) => <Row><Column><Paragraph values={{ _meta: { htmlID: `u_content_text_1${v}`, htmlClassNames: `u_content_text${v}` } } as never}>Hello</Paragraph></Column></Row>,
   // The same with a phone setting: the head's CSS selects the block by its id.
   blockHtmlIdPhone: (v) => <Row><Column><Paragraph mobile={{ fontSize: "12px" }} values={{ _meta: { htmlID: `u_content_text_1${v}` } } as never}>Hello</Paragraph></Column></Row>,
+  columnHtmlId: (v) => <Row><Column values={{ _meta: { htmlID: `u_column_1${v}`, htmlClassNames: `u_column${v}` } } as never}><Paragraph>Hello</Paragraph></Column></Row>,
   rowHtmlId: (v) => <Row values={{ _meta: { htmlID: `u_row_1${v}`, htmlClassNames: `u_row${v}` } } as never}><Column><Paragraph>Hello</Paragraph></Column></Row>,
   "Paragraph text": (v) => <Row><Column><Paragraph>{v}</Paragraph></Column></Row>,
   "Heading text": (v) => <Row><Column><Heading>{v}</Heading></Column></Row>,
@@ -103,6 +104,11 @@ describe("phone settings, written into the head's CSS", () => {
     const html = renderToHtml(<Email><Row><Column><Paragraph mobile={{ fontSize: "12px" }} values={{ _meta: { htmlID: "u_content_título" } } as never}>Hi</Paragraph></Column></Row></Email>);
     expect(html).toContain('id="u_content_ttulo"');
     expect(html).toMatch(/#u_content_ttulo \.v-font-size/);
+    // A column's too.
+    const column = renderToHtml(<Email><Row><Column mobile={{ padding: "4px" }} values={{ _meta: { htmlID: "u_column_título" } } as never}><Paragraph>Hi</Paragraph></Column></Row></Email>);
+    expect(column).toContain('id="u_column_ttulo"');
+    expect(column).toMatch(/#u_column_ttulo\b/);
+    expect(column).not.toContain("título");
   });
 
   it("can't open a comment that hides the phone rules after it", () => {
