@@ -54,8 +54,8 @@ and the visual editor must get every block. Nothing is written unless you ask:
                    template is written, with what looks different listed.
   --force          With --strict, write templates the check fails anyway.
   --overwrite      Replace files already at a destination that this run
-                   didn't produce: what an earlier run wrote, or files
-                   git can restore.
+                   didn't produce: what an earlier run wrote in an --out
+                   folder, or files git can restore.
   --allow-dirty    Replace files git can't restore (changed since the last
                    commit, not committed, or not in a repository) with
                    --write, or with --overwrite. Without it, they're
@@ -234,6 +234,18 @@ async function run(argv: string[], io: Io, library?: Library): Promise<number> {
     if (!input.reactEmail && !input.migrated) input.reactEmail = await reactEmailThroughProject(input.path);
   }
   const candidates = inputs.files.filter((f) => f.reactEmail);
+  // A file with React Email's preview props whose React Email the run can't find (its components from a package
+  // the run doesn't follow): a template left out without a word otherwise.
+  for (const input of inputs.files) {
+    if (input.reactEmail || input.migrated) continue;
+    if (/\b[A-Za-z_$][\w$]*\.PreviewProps\s*=/.test(await readFile(input.path, "utf8").catch(() => ""))) {
+      inputs.unreadable.push({
+        file: relative(io.cwd, input.path),
+        status: "failed",
+        reason: "it has PreviewProps, as a React Email template does, but the run can't find its React Email: it doesn't import it, or the project's files that do (one from a package isn't followed). Not checked",
+      });
+    }
+  }
   if (!candidates.length && inputs.unreadable.length) {
     for (const result of inputs.unreadable) io.stdout(`${line(result)}\n`);
     io.stdout(`\n${summary(inputs.unreadable, options)}\n`);
@@ -498,9 +510,19 @@ async function reserveDestinations(inputs: Input[], candidates: Input[], options
   // --overwrite replaces what a run wrote before, or what git can restore: never someone's work it can't (`--out .`
   // over an uncommitted welcome.tsx), unless --allow-dirty.
   const atRisk: string[] = [];
-  if (!options.allowDirty) for (const [path, d] of destinations) if (d.replace && d.root !== undefined && !sources.has(d.canonical) && existsSync(path) && !(await isOutput(path))) atRisk.push(path);
+  // Next to the templates (--write), an earlier run's design may have been edited in the editor since: only what git
+  // can restore. In a folder of its own (--out), an earlier run's output is replaced.
+  // A report a run wrote is replaced as it is (see above).
+  const reportPath = report ? resolve(cwd, report) : undefined;
+  if (!options.allowDirty) {
+    for (const [path, d] of destinations) {
+      if (!d.replace || sources.has(d.canonical) || !existsSync(path)) continue;
+      if ((d.root !== undefined && (await isOutput(path))) || (path === reportPath && (await isReport(path)))) continue;
+      atRisk.push(path);
+    }
+  }
   const unsafe = atRisk.length ? await notRestorable(atRisk) : [];
-  if (unsafe.length) throw new Error(`--overwrite would replace ${unsafe.map((u) => `${relative(cwd, u.file)} (${u.why})`).join(", ")}, which a run didn't write and git can't restore. Commit it, choose a folder of its own for --out, or pass --allow-dirty.`);
+  if (unsafe.length) throw new Error(`--overwrite would replace ${unsafe.map((u) => `${relative(cwd, u.file)} (${u.why})`).join(", ")}, which git can't restore. Commit it, choose a folder of its own for --out, or pass --allow-dirty.`);
   return destinations;
 }
 
@@ -722,6 +744,9 @@ async function migrateFile(input: Input, options: Options, lib: Library, io: Io,
       // replacing it would turn it into a whole email inside the templates that use it.
       // A dry run says what --write does; --out writes copies of them too.
       if (options.out === undefined && !/<html[\s>]/i.test(verification.originalHtml)) return { file: name, status: "skipped", reason: "not an email template (it doesn't render <Html>): a shared component, left as it is" };
+      // Nor is one that renders an email inside other markup (an app page or a preview around a template): replacing
+      // it would turn the page into an email.
+      if (options.out === undefined && !/^\s*(<!doctype[^>]*>\s*)?(<!--[\s\S]*?-->\s*)*<html[\s>]/i.test(verification.originalHtml)) return { file: name, status: "skipped", reason: "it renders an email inside other markup (an app page or a preview), not an email of its own: left as it is" };
       // Nor is a layout templates wrap: one that renders its children, or takes content in props typed to hold JSX
       // (`content: ReactNode`). This holds when an import of it can't be followed.
       // One with PreviewProps is an email of its own (React Email previews it), with optional content passed in.
@@ -1110,7 +1135,7 @@ function message(error: unknown): string {
 // ============================================
 
 const SOURCE = /\.(tsx|jsx|ts|js|mts|mjs)$/;
-const REACT_EMAIL_IMPORT = /from\s+["'](@react-email\/[^"']+|react-email)["']/;
+const REACT_EMAIL_IMPORT = /(?:\bfrom\s+|\brequire\s*\(\s*|\bimport\s*\(\s*)["'](@react-email\/[^"']+|react-email)["']/;
 const IGNORED = new Set(["node_modules", ".git", ".next", "dist", "build", "out", ".turbo", "coverage"]);
 
 async function collect(paths: string[], cwd: string): Promise<{ files: Input[]; missing: string[]; unreadable: FileResult[] }> {

@@ -1343,6 +1343,64 @@ export default function T() { return <Html><Head>${head ? `<style dangerouslySet
   });
 });
 
+describe("files a run reads that aren't email templates of their own, or whose React Email it can't follow", () => {
+  const welcome = `import { Html, Body, Text } from "@react-email/components";
+export default function Welcome() { return <Html><Body><Text>Welcome aboard</Text></Body></Html>; }
+Welcome.PreviewProps = {};
+`;
+  it("doesn't rewrite an app page that renders an email inside its own markup (--write)", async () => {
+    const page = `import Welcome from "./welcome";
+export default function PreviewPage() { return <main className="preview"><h1>Email preview</h1><Welcome /></main>; }
+`;
+    const dir = project({ "emails/welcome.tsx": welcome, "emails/preview-page.tsx": page });
+    const out = io(dir);
+    // Nothing to migrate that wouldn't change the page: the run says so (1).
+    expect(await main(["emails", "--write"], out, lib), out.out + out.err).toBe(1);
+    expect(fs.readFileSync(path.join(dir, "emails/preview-page.tsx"), "utf8")).toBe(page);
+    expect(fs.readFileSync(path.join(dir, "emails/welcome.tsx"), "utf8")).toBe(welcome);
+    expect(out.out).toMatch(/emails\/preview-page\.tsx: skipped \(it renders an email inside other markup/);
+  });
+
+  it("lists a template that requires React Email (not left out without a word)", async () => {
+    const required = `const { Html, Body, Text } = require("@react-email/components");
+export default function Welcome() { return <Html><Body><Text>Welcome aboard</Text></Body></Html>; }
+Welcome.PreviewProps = {};
+`;
+    const dir = project({ "emails/welcome.tsx": required });
+    const out = io(dir);
+    expect(await main(["emails", "--out", "migrated"], out, lib), out.out + out.err).toBe(2);
+    expect(out.out).toMatch(/✗ emails\/welcome\.tsx: couldn't load it/);
+  });
+
+  it("lists a template whose React Email comes from a package the run doesn't follow, and fails the run", async () => {
+    const dir = project({
+      "node_modules/@acme/emails/package.json": JSON.stringify({ name: "@acme/emails", main: "index.js" }),
+      "node_modules/@acme/emails/index.js": `export { Html, Body, Text } from "@react-email/components";\n`,
+      "emails/welcome.tsx": welcome,
+      "emails/notice.tsx": `import { Html, Body, Text } from "@acme/emails";
+export default function Notice() { return <Html><Body><Text>Heads up</Text></Body></Html>; }
+Notice.PreviewProps = {};
+`,
+    });
+    const out = io(dir);
+    expect(await main(["emails", "--out", "migrated"], out, lib), out.out + out.err).toBe(2);
+    expect(out.out).toMatch(/emails\/notice\.tsx: .*it has PreviewProps, as a React Email template does, but the run can't find its React Email/);
+  });
+
+  it("asks for --allow-dirty to replace a design next to a template (--write --overwrite) that git can't restore", async () => {
+    const dir = project({ "emails/welcome.tsx": welcome, "emails/welcome.design.json": "{\"body\":{\"rows\":[]},\"counters\":{}}\n" });
+    // Edited in the editor since: not committed.
+    fs.writeFileSync(path.join(dir, "emails/welcome.design.json"), "{\"body\":{\"rows\":[\"edited\"]},\"counters\":{}}\n");
+    const out = io(dir);
+    expect(await main(["emails", "--write", "--design", "--overwrite"], out, lib), out.out + out.err).toBe(1);
+    expect(out.err).toContain("--overwrite would replace emails/welcome.design.json");
+    expect(fs.readFileSync(path.join(dir, "emails/welcome.design.json"), "utf8")).toContain("edited");
+    expect(fs.readFileSync(path.join(dir, "emails/welcome.tsx"), "utf8")).toBe(welcome);
+    expect(await main(["emails", "--write", "--design", "--overwrite", "--allow-dirty"], io(dir), lib)).toBe(0);
+    expect(fs.readFileSync(path.join(dir, "emails/welcome.design.json"), "utf8")).not.toContain("edited");
+  });
+});
+
 describe("a design file that can't be written", () => {
   // The template puts a file where its design goes when it's loaded to be checked: after the run reserved that path.
   const makesDesign = `import fs from "node:fs";
