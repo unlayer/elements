@@ -77,6 +77,10 @@ describe("Menu item text in an email", () => {
     expect(html).toContain("Shop &rarr;");
     expect(html).toContain("Privacy&nbsp;Policy &#169; &#xA9;");
     expect(html).toContain("{{ name | default: 'you' }}");
+    // A Liquid output tag keeps its double quotes too; with an `=` (which could add an attribute), it's escaped.
+    const liquid = renderToHtml(<Email><Row><Column><Menu items={[{ text: '{{ name | default: "Shop" }}', href: "https://e.example" }, { text: '{{ x" onmouseover="alert(1) }}', href: "https://f.example" }]} /></Column></Row></Email>);
+    expect(liquid).toContain('{{ name | default: "Shop" }}');
+    expect(liquid).not.toContain('onmouseover="alert(1)');
     expect(html).toContain("Tom &amp; Jerry &lt;b&gt;&quot;bold&quot;&lt;/b&gt; &amp;bogus");
     expect(html).not.toContain("<b>");
   });
@@ -144,8 +148,10 @@ describe("line breaks in Heading and Button text", () => {
 
 describe("text placed straight in a Row or Column", () => {
   const Name = () => name;
+  // Said once per container in a process, not on every render.
+  const warned: string[] = [];
   it.each([["email", Email], ["web", Page], ["document", Document]] as const)("shows as text, from a Fragment, a component or written there (%s)", (_, Root) => {
-    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const warn = vi.spyOn(console, "warn").mockImplementation((message) => void warned.push(String(message)));
     try {
       const html = renderToHtml(
         <Root>
@@ -157,10 +163,15 @@ describe("text placed straight in a Row or Column", () => {
       expect(html).not.toContain("<img src=x");
       expect(html.match(/&lt;img src=x onerror=&quot;alert\(1\)&quot;&gt; &amp; Co/g)).toHaveLength(4);
       expect(html).toContain("&amp; Co7");
-      expect(warn).toHaveBeenCalledWith(expect.stringContaining("Put it in a <Paragraph>"));
+      expect(warned.filter((m) => m.includes("Put it in a <Paragraph>"))).toHaveLength(2);
     } finally {
       warn.mockRestore();
     }
+  });
+
+  it("keeps an email service's <%name%> tag as written, as other text does", () => {
+    const html = renderToHtml(<Email><Row><Column>{"Hi <%first_name%> <b>"}</Column></Row></Email>);
+    expect(html).toContain("Hi <%first_name%> &lt;b&gt;");
   });
 
   it("doesn't warn about whitespace between blocks", () => {

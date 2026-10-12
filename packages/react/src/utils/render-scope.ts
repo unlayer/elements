@@ -3,7 +3,7 @@
  * like a template's collected render, is reused for the rest of it and never
  * by the next render (an element kept between renders may read other data).
  */
-import { escapeText } from "@unlayer-internal/shared-elements";
+import { escapeKeepingTags } from "@unlayer-internal/shared-elements";
 import { within } from "./collect";
 import { withBuild } from "./server-renderer";
 
@@ -42,10 +42,15 @@ export function withRenderScope<T>(render: () => T, own = false): T {
  * text (raw HTML goes in an Html block). The editor has no place for it, so
  * the warning says where it belongs.
  */
+const warnedLoose = new Set<string>();
+
 export function looseText(child: string | number, container: string): string {
   const text = String(child);
-  if (text.trim()) {
+  // Said once per container, not on every render.
+  if (text.trim() && !warnedLoose.has(container)) {
+    warnedLoose.add(container);
     console.warn(`${container}: text placed straight in a ${container} shows as text and isn't kept in the editor's design. Put it in a <Paragraph>, or HTML in an <Html> block.`);
   }
-  return escapeText(text, true);
+  // An email service's `<%name%>` tag stays as written, as in other text.
+  return escapeKeepingTags(text, true);
 }

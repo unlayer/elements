@@ -98,6 +98,11 @@ describe("the built package's own requires", () => {
       expect(code.match(/\brequire\((?!(?:"[^"]*"|'[^']*')\))[^)]*\)/g) ?? [], file).toEqual([]);
     }
   });
+
+  // webpack 4 (Create React App 4, Storybook 6), which 0.1.22 built with, can't parse `import.meta`.
+  it("use no syntax webpack 4 can't parse (import.meta)", () => {
+    for (const file of ["index.js", "index.cjs"]) expect(fs.readFileSync(path.join(dist, file), "utf8"), file).not.toMatch(/import\.meta/);
+  });
 });
 
 describe("a bundle with React in it, which renders with react-dom/server", () => {

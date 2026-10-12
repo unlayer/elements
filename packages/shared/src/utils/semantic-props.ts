@@ -138,7 +138,7 @@ export function escapeText(text: string, quotes?: boolean): string {
  * `escapeText`, keeping an email service's `<%name%>` tag (SendGrid's substitution tags) as written, as 0.1.22
  * did in this text: the service fills it in. `<%` can't start an element, so it adds no markup.
  */
-function escapeKeepingTags(text: string, quotes?: boolean, escape = (part: string) => escapeText(part, quotes)): string {
+export function escapeKeepingTags(text: string, quotes?: boolean, escape = (part: string) => escapeText(part, quotes)): string {
   return text
     .split(/(<%[\w.]+%>)/)
     .map((part, i) => (i % 2 ? part : escape(part)))
@@ -150,7 +150,15 @@ function escapeKeepingTags(text: string, quotes?: boolean, escape = (part: strin
  * an entity reference kept (`&rarr;`, `&nbsp;`), as a single quote (a Liquid filter's `default: 'you'`); a double
  * quote escaped (the exporter also writes the text in an `aria-label`).
  */
-const menuText = (text: string) => escapeKeepingTags(text, false, (part) => part.replace(/&(?!(?:#\d+|#x[\da-f]+|[a-z][\da-z]*);)|[<>"]/gi, (c) => ENTITIES[c]));
+const menuText = (text: string) =>
+  escapeKeepingTags(text, false, (part) =>
+    part
+      // A Liquid output tag (`{{ name | default: "Shop" }}`) keeps its quotes for the service to read: with no `<`, `>`
+      // or `=` in it, a quote can only end the aria-label, not add an attribute that runs anything.
+      .split(/(\{\{[^{}<>=]*\}\})/)
+      .map((piece, i) => (i % 2 ? piece : piece.replace(/&(?!(?:#\d+|#x[\da-f]+|[a-z][\da-z]*);)|[<>"]/gi, (c) => ENTITIES[c])))
+      .join("")
+  );
 
 /**
  * Flatten a JSX/ReactNode children tree to its plain text content.

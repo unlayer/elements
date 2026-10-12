@@ -74,6 +74,7 @@ export { cssValueSafe, normalizeColor, normalizeCssValues, normalizeFontStack } 
 // Utils - Semantic props
 export {
   escapeText,
+  escapeKeepingTags,
   mapSemanticProps,
   normalizeLinkValue,
   normalizeValuesForExporter,
