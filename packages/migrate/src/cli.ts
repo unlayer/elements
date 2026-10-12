@@ -54,11 +54,12 @@ and the visual editor must get every block. Nothing is written unless you ask:
                    template is written, with what looks different listed.
   --force          With --strict, write templates the check fails anyway.
   --overwrite      Replace files already at a destination that this run
-                   didn't produce (a design file from an earlier run).
-  --allow-dirty    With --write, replace templates git can't restore
-                   (changed since the last commit, not committed, or not
-                   in a repository). Without it, --write refuses them, so
-                   git can always undo a migration.
+                   didn't produce: what an earlier run wrote, or files
+                   git can restore.
+  --allow-dirty    Replace files git can't restore (changed since the last
+                   commit, not committed, or not in a repository) with
+                   --write, or with --overwrite. Without it, they're
+                   refused, so git can always undo a migration.
   --from <source>  What to migrate from (default and only: react-email).
   -h, --help       Show this help.
 
@@ -332,7 +333,8 @@ async function run(argv: string[], io: Io, library?: Library): Promise<number> {
         continue;
       }
       try {
-        for (const write of writes) {
+        // The template replaced last: a design file that can't be written leaves it as it was.
+        for (const write of [...writes].sort((a, b) => Number(a.kind === "output") - Number(b.kind === "output"))) {
           await writeDestination(write.path, write.text, destinations, write.replaces);
           result[write.kind] = relative(io.cwd, write.path);
           wrote ||= write.kind === "output";
@@ -487,8 +489,40 @@ async function reserveDestinations(inputs: Input[], candidates: Input[], options
       if (options.design) await reserve(designPath(target), relative(cwd, input.path), root);
     }
   }
-  if (report) await reserve(resolve(cwd, report), "--report", undefined, false, true);
+  // A report replaces the one a run wrote before; any other file only with --overwrite (it's someone's work).
+  if (report) await reserve(resolve(cwd, report), "--report", undefined, false, options.overwrite || (await isReport(resolve(cwd, report))));
+  // --overwrite replaces what a run wrote before, or what git can restore: never someone's work it can't (`--out .`
+  // over an uncommitted welcome.tsx), unless --allow-dirty.
+  const atRisk: string[] = [];
+  if (!options.allowDirty) for (const [path, d] of destinations) if (d.replace && d.root !== undefined && !sources.has(d.canonical) && existsSync(path) && !(await isOutput(path))) atRisk.push(path);
+  const unsafe = atRisk.length ? await notRestorable(atRisk) : [];
+  if (unsafe.length) throw new Error(`--overwrite would replace ${unsafe.map((u) => `${relative(cwd, u.file)} (${u.why})`).join(", ")}, which a run didn't write and git can't restore. Commit it, choose a folder of its own for --out, or pass --allow-dirty.`);
   return destinations;
+}
+
+/** Whether a file is one a run wrote: a migrated template (its header) or a design (its rows and counters). */
+async function isOutput(path: string): Promise<boolean> {
+  const text = await readFile(path, "utf8").catch(() => "");
+  if (/^\/\*\* @jsxRuntime automatic \*\/\r?\n\/\/ Migrated from React Email by @unlayer\/migrate/.test(text)) return true;
+  try {
+    const parsed = JSON.parse(text);
+    return Array.isArray(parsed?.body?.rows) && typeof parsed?.counters === "object";
+  } catch {
+    return false;
+  }
+}
+
+/** Whether a file is a report this CLI wrote (Markdown with its title, or JSON with its results), or nothing yet. */
+async function isReport(path: string): Promise<boolean> {
+  const text = await readFile(path, "utf8").catch(() => undefined);
+  if (text === undefined) return true;
+  if (text.startsWith("# React Email → Unlayer Elements migration")) return true;
+  try {
+    const parsed = JSON.parse(text);
+    return Array.isArray(parsed) && parsed.every((r) => r && typeof r.file === "string" && typeof r.status === "string");
+  } catch {
+    return false;
+  }
 }
 
 async function checkDestination(path: string, destinations: Destinations): Promise<void> {

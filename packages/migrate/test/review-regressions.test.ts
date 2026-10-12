@@ -143,13 +143,14 @@ export default function T() {
   });
 
   it("does not truncate an outside file hard-linked to an existing output", async () => {
-    const dir = project({ "emails/a.tsx": good, "outside/keep.tsx": "OUTSIDE" });
+    // The linked file is one an earlier run wrote (its header): --overwrite replaces it.
+    const dir = project({ "emails/a.tsx": good, "outside/keep.tsx": "/** @jsxRuntime automatic */\n// Migrated from React Email by @unlayer/migrate\nOUTSIDE" });
     fs.mkdirSync(path.join(dir, "migrated"));
     fs.linkSync(path.join(dir, "outside/keep.tsx"), path.join(dir, "migrated/a.tsx"));
     const out = io(dir);
     // Replacing a file that's already there needs --overwrite.
     expect(await main(["emails", "--out", "migrated", "--overwrite"], out, lib), out.out + out.err).toBe(0);
-    expect(fs.readFileSync(path.join(dir, "outside/keep.tsx"), "utf8")).toBe("OUTSIDE");
+    expect(fs.readFileSync(path.join(dir, "outside/keep.tsx"), "utf8")).toContain("OUTSIDE");
     expect(fs.readFileSync(path.join(dir, "migrated/a.tsx"), "utf8")).toContain("@unlayer/react-elements");
   });
 });
@@ -1027,6 +1028,38 @@ describe("a run that checks nothing", () => {
   });
 });
 
+describe("files the run didn't write", () => {
+  const template = `import { Html, Body, Text } from "@react-email/components";
+export default function Welcome() { return <Html><Body><Text>Hello there</Text></Body></Html>; }`;
+
+  it("aren't replaced by --report, even on a dry run, unless it's a report a run wrote (or --overwrite)", async () => {
+    const dir = project({ "emails/welcome.tsx": template, "notes.md": "# My notes\n\nKeep these.\n" });
+    const out = io(dir);
+    expect(await main(["emails", "--report", "notes.md"], out, lib), out.out + out.err).toBe(1);
+    expect(out.err).toContain("Output already exists: notes.md");
+    expect(fs.readFileSync(path.join(dir, "notes.md"), "utf8")).toBe("# My notes\n\nKeep these.\n");
+    // A report a run wrote is replaced; so is anything with --overwrite.
+    expect(await main(["emails", "--report", "report.md"], io(dir), lib)).toBe(0);
+    expect(await main(["emails", "--report", "report.md"], io(dir), lib)).toBe(0);
+    expect(await main(["emails", "--report", "notes.md", "--overwrite"], io(dir), lib)).toBe(0);
+    expect(fs.readFileSync(path.join(dir, "notes.md"), "utf8")).toMatch(/^# React Email → Unlayer Elements migration/);
+  });
+
+  it("aren't replaced by --out with --overwrite when a run didn't write them and git can't restore them", async () => {
+    const dir = project({ "emails/welcome.tsx": template, "welcome.tsx": "export const mine = 1;\n" });
+    fs.writeFileSync(path.join(dir, "welcome.tsx"), "export const mine = 2; // edited, not committed\n");
+    const out = io(dir);
+    expect(await main(["emails", "--out", ".", "--overwrite"], out, lib), out.out + out.err).toBe(1);
+    expect(out.err).toContain("--overwrite would replace welcome.tsx");
+    expect(fs.readFileSync(path.join(dir, "welcome.tsx"), "utf8")).toContain("edited, not committed");
+    expect(await main(["emails", "--out", ".", "--overwrite", "--allow-dirty"], io(dir), lib)).toBe(0);
+    expect(fs.readFileSync(path.join(dir, "welcome.tsx"), "utf8")).toContain("@unlayer/react-elements");
+    // What a run wrote before is replaced, committed or not.
+    expect(await main(["emails", "--out", "migrated", "--design"], io(dir), lib)).toBe(0);
+    expect(await main(["emails", "--out", "migrated", "--design", "--overwrite"], io(dir), lib)).toBe(0);
+  });
+});
+
 describe("a symbolic link to a folder, in a folder", () => {
   it("isn't followed, and is listed (the templates there aren't left out without a word); one to a file is migrated", async () => {
     const template = `import { Html, Body, Text } from "@react-email/components";
@@ -1242,6 +1275,24 @@ T.PreviewProps = { label: "Go" };`;
     const out = io(dir);
     expect(await main(["emails", "--out", "migrated"], out, lib), out.out + out.err).toBe(0);
     expect(out.out).toMatch(/✓ emails\/typed\.tsx/);
+  });
+});
+
+describe("a design file that can't be written", () => {
+  // The template puts a file where its design goes when it's loaded to be checked: after the run reserved that path.
+  const makesDesign = `import fs from "node:fs";
+import { fileURLToPath } from "node:url";
+import { Html, Body, Text } from "@react-email/components";
+fs.writeFileSync(fileURLToPath(import.meta.url).replace(/\\.tsx$/, ".design.json"), "MINE");
+export default function Welcome() { return <Html><Body><Text>Keep the template</Text></Body></Html>; }
+`;
+  it("leaves the template as it was with --write", async () => {
+    const dir = project({ "emails/welcome.tsx": makesDesign });
+    const out = io(dir);
+    expect(await main(["emails", "--write", "--design"], out, lib), out.out + out.err).not.toBe(0);
+    expect(out.out).toMatch(/couldn't write output: .*appeared during the run/);
+    expect(fs.readFileSync(path.join(dir, "emails/welcome.tsx"), "utf8")).toBe(makesDesign);
+    expect(fs.readFileSync(path.join(dir, "emails/welcome.design.json"), "utf8")).toBe("MINE");
   });
 });
 
