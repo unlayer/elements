@@ -6,6 +6,7 @@ import { htmlToPlainText } from "@unlayer-internal/shared-elements";
 import type { RenderMode } from "@unlayer-internal/shared-elements";
 import { extractHeadFromTree } from "./extract-head";
 import { htmlRoot } from "./unwrap-root";
+import { normalizedRoot } from "./normalize";
 import { withRenderScope } from "./render-scope";
 import { textDirectionOf } from "./create-component";
 import {
@@ -235,7 +236,13 @@ export function renderToPlainText(
   config?: Partial<UnlayerConfig>
 ): string {
   // A template component renders as its root, as in renderToHtml (context providers around it included).
-  const html = withRenderScope(() => renderBody(htmlRoot(element, "renderToPlainText"), config, "renderToPlainText"));
+  const html = withRenderScope(() => {
+    const root = htmlRoot(element, "renderToPlainText");
+    // Collected first, as renderToHtml's head is: it fails where that does (a component that isn't one), not with
+    // empty text (Body leaves out what fails, for a live preview).
+    normalizedRoot(root);
+    return renderBody(root, config, "renderToPlainText");
+  });
   return htmlToPlainText(html);
 }
 

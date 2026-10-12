@@ -16,9 +16,6 @@ export function scopeCache<T>(key: object, make: () => T): T {
   return scoped.get(key) as T;
 }
 
-/** Whether one of Elements' renders (renderToHtml, renderToJson, …) is under way. */
-export const rendering = (): boolean => scoped !== undefined;
-
 /**
  * Runs one render with its own scope (a render inside another shares it), apart from a template being
  * collected: called inside a component of one (a block rendered to a string), it renders what it's given.

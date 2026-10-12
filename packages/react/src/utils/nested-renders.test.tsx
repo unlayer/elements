@@ -120,3 +120,21 @@ describe("a component that isn't one (undefined: a broken or circular import)", 
     for (const render of [renderToHtml, renderToJson, renderToPlainText]) expect(() => render(email)).toThrow(/Element type is invalid/);
   });
 });
+
+describe("a Row whose Columns don't fit its layout", () => {
+  // As in 0.1.22: the body says so (console.error) and renders without its rows; renderToHtml and renderToPlainText
+  // don't throw (a mailer that never expected them to would fail).
+  it("renders without its rows, in the HTML and the plain text alike", async () => {
+    const { renderToPlainText } = await import("./render-to-html");
+    const { ColumnLayouts } = await import("../index");
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
+    try {
+      const email = <Email><Row><Column><Paragraph>Kept?</Paragraph></Column></Row><Row layout={ColumnLayouts.TwoEqual}><Column><Paragraph>One</Paragraph></Column></Row></Email>;
+      expect(renderToHtml(email)).toMatch(/^<!DOCTYPE/);
+      expect(renderToPlainText(email)).toBe("");
+      expect(error.mock.calls.some((call) => String(call[0]).includes("Body: Failed to render children"))).toBe(true);
+    } finally {
+      error.mockRestore();
+    }
+  });
+});
