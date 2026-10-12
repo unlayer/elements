@@ -82,6 +82,11 @@ interface Jsx {
 }
 
 const SKIP = new Set(["Head", "Font", "Preview", "head", "style", "meta", "title", "link", "script"]);
+/**
+ * A dropped style that can show or hide content: a property that does (`display`, `visibility`, `opacity`,
+ * `max-height`, `overflow`, Outlook's `mso-hide`) or a class that does (`hidden`, `sm:hidden`, `invisible`, `sr-only`, …).
+ */
+const SHOWS = /\b(display|visibility|opacity|max-?height|overflow|mso-?hide)\b|(^|["'`\s:])(hidden|invisible|sr-only|collapse|opacity-0|max-h-0|h-0|text-\[0px\])(?=$|["'`\s])/i;
 const INLINE_TAGS = new Set(["span", "strong", "b", "em", "i", "br", "small", "u", "code", "sup", "sub"]);
 
 export interface CodemodOptions {
@@ -212,7 +217,7 @@ class Converter {
   /** Statements added before a return (a `dir` worked out once): where, and the code. */
   private readonly hoisted: Array<{ at: number; text: string }> = [];
   /** Style values computed at render time, by where they are in the source. */
-  private readonly droppedStyles: Array<{ from: number; to: number; detail: string }> = [];
+  private readonly droppedStyles: Array<{ from: number; to: number; detail: string; text: string }> = [];
 
 
   constructor(
@@ -259,7 +264,7 @@ class Converter {
     }));
     // A computed style is lost where its element became Elements; one kept as HTML keeps it.
     for (const dropped of this.droppedStyles) {
-      if (!this.fallbackRanges.some((r) => dropped.from >= r.from && dropped.to <= r.to)) this.report.lostStyle(dropped.detail);
+      if (!this.fallbackRanges.some((r) => dropped.from >= r.from && dropped.to <= r.to)) this.report.lostStyle(dropped.detail, SHOWS.test(dropped.text));
     }
     const report = this.report.finish(
       el(
@@ -729,7 +734,7 @@ class Converter {
   /** A value computed from props that the codemod can't keep: the check fails, naming it with its line. */
   private lose(part: ts.Node, text: string): void {
     const line = this.originalLine(part.getStart());
-    if (!this.droppedStyles.some((d) => d.from === part.getStart())) this.droppedStyles.push({ from: part.getStart(), to: part.getEnd(), detail: `line ${line}: ${text.replace(/\s+/g, " ").slice(0, 80)}` });
+    if (!this.droppedStyles.some((d) => d.from === part.getStart())) this.droppedStyles.push({ from: part.getStart(), to: part.getEnd(), detail: `line ${line}: ${text.replace(/\s+/g, " ").slice(0, 80)}`, text });
   }
 
   /** Values changed after they're declared (`theme.color = …`, `items.push(…)`), by symbol. */

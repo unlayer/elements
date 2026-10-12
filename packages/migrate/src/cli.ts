@@ -116,6 +116,8 @@ export interface FileResult {
   addedAttributes?: string[];
   /** Style values computed from props that the migrated template drops: they change how it looks. */
   lostStyles?: string[];
+  /** Those of them that show or hide content: the migrated template shows it whatever the props (content). */
+  lostShown?: string[];
   /**
    * How the migrated template looks different from the original, one line per kind (a style, where words
    * sit, CSS the check doesn't verify): it's written anyway, to fix in the editor (with --strict, it fails).
@@ -151,6 +153,7 @@ interface CheckParts {
   unverified?: FileResult["unverified"];
   phone?: FileResult["phone"];
   layout?: FileResult["layout"];
+  lostShown?: string[];
 }
 
 interface Options {
@@ -696,10 +699,12 @@ async function migrateFile(input: Input, options: Options, lib: Library, io: Io,
     const report = converted.report;
     // Content the migration lost or added (or the editor wouldn't get) fails it: that's a converter bug, as anything it
     // can't map is kept as HTML. How it looks only differs: written and listed, to fix in the editor (not with --strict).
-    const failsContent = contentProblems(verification).length || verification.designWarnings.length || verification.variants.some((v) => v.error || contentProblems(v).length);
+    const lostShown = report.lostShown ?? [];
+    const failsContent = contentProblems({ ...verification, lostShown }).length || verification.designWarnings.length || verification.variants.some((v) => v.error || contentProblems(v).length);
+    const lostLooks = (report.lostStyles ?? []).filter((style) => !lostShown.includes(style));
     const looks = [
       ...lookProblems(verification),
-      ...(report.lostStyles?.length ? [`lost styles: ${report.lostStyles.join("; ")}`] : []),
+      ...(lostLooks.length ? [`lost styles: ${lostLooks.join("; ")}`] : []),
       ...verification.variants.filter((v) => !v.error && !contentProblems(v).length).map((v) => `with ${v.change}: ${lookProblems(v).join("; ")}`),
     ];
     const result: FileResult = {
@@ -719,6 +724,7 @@ async function migrateFile(input: Input, options: Options, lib: Library, io: Io,
       missingAttributes: verification.missingAttributes,
       addedAttributes: verification.addedAttributes,
       ...(report.lostStyles?.length ? { lostStyles: report.lostStyles } : {}),
+      ...(lostShown.length ? { lostShown } : {}),
       ...(verification.styles.length ? { styles: verification.styles } : {}),
       ...(verification.unverified.length ? { unverified: verification.unverified } : {}),
       ...(lib.phoneDiffers(verification.phone) ? { phone: verification.phone } : {}),
@@ -901,7 +907,9 @@ function markdownReport(results: FileResult[]): string {
     if (r.missingAttributes?.length) lines.push(`**Lost links or images:** ${quote(r.missingAttributes)}`, "");
     if (r.addedAttributes?.length) lines.push(`**Extra links or images:** ${quote(r.addedAttributes)}`, "");
     if (r.status === "migrated" && r.looks?.length) lines.push("Its content is the same; it looks different in the ways below. Written anyway: fix them in the editor.", "");
-    if (r.lostStyles?.length) lines.push("**Lost styles** (change how it looks):", ...r.lostStyles.map((s) => `- ${s}`), "");
+    if (r.lostShown?.length) lines.push("**Shown whatever the props** (the original shows or hides it by them):", ...r.lostShown.map((s) => `- ${s}`), "");
+    const lostLooks = (r.lostStyles ?? []).filter((style) => !r.lostShown?.includes(style));
+    if (lostLooks.length) lines.push("**Lost styles** (change how it looks):", ...lostLooks.map((s) => `- ${s}`), "");
     if (r.styles?.length) lines.push("**Shown in another style:**", ...r.styles.map((c) => `- ${c.property}: ${c.original} → ${c.converted}, on ${quote(c.words)}${wider(c.width)}`), "");
     if (r.unverified?.length) lines.push("**Couldn't verify** (what the check can't read):", ...unverifiedList(r.unverified).split("; ").map((line) => `- ${line}`), "");
     if (r.phone?.missing.length) lines.push(`**On phones, lost text:** ${quote(r.phone.missing)}`, "");
@@ -967,6 +975,7 @@ function contentProblems(check: CheckParts): string[] {
     ...(check.phone?.added.length ? [`on phones, extra text: ${quote(check.phone.added)}`] : []),
     ...(check.phone?.missingAttributes?.length ? [`on phones, lost links/images: ${quote(check.phone.missingAttributes)}`] : []),
     ...(check.phone?.addedAttributes?.length ? [`on phones, extra links/images: ${quote(check.phone.addedAttributes)}`] : []),
+    ...(check.lostShown?.length ? [`shown whatever the props, where the original shows or hides it by them: ${check.lostShown.join("; ")}`] : []),
   ];
 }
 

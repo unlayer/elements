@@ -1027,6 +1027,40 @@ describe("a run that checks nothing", () => {
   });
 });
 
+describe("content shown or hidden by props", () => {
+  // The preview props show it; other props hide it. The migration can't keep the condition, so it shows it to everyone.
+  const template = (name: string, section: string, props: string) => `import { Html, Head, Body, Container, Section, Text, Link, Tailwind } from "@react-email/components";
+const cn = (...classes: Array<string | false | undefined>) => classes.filter(Boolean).join(" ");
+export default function ${name}({ name, isGift, hideUpsell = false, plan }: { name: string; isGift?: boolean; hideUpsell?: boolean; plan?: string }) {
+  return <Html><Head /><Tailwind><Body className="bg-white font-sans"><Container>
+    <Text>Hi {name}, your order has shipped.</Text>
+    ${section}
+      <Text>Your receipt total is $84.00.</Text>
+      <Link href="https://acme.com/receipt">View receipt</Link>
+    </Section>${section.startsWith("{") ? ")}" : ""}
+  </Container></Body></Tailwind></Html>;
+}
+${name}.PreviewProps = ${props};`;
+  it.each([
+    ["a class list", `<Section className={cn("p-4", isGift && "hidden")}>`],
+    ["a style", `<Section style={{ display: hideUpsell ? "none" : "block" }}>`],
+    ["a list item's style", `{[{ name: "total", hidden: isGift }].map((item) => <Section key={item.name} style={{ display: item.hidden ? "none" : "block" }}>`],
+  ])("in %s, fails the template (its content differs), and writes it", async (_, section) => {
+    const dir = project({ "emails/shipped.tsx": template("Shipped", section, `{ name: "Ada" }`) });
+    const out = io(dir);
+    expect(await main(["emails", "--out", "migrated"], out, lib), out.out + out.err).toBe(2);
+    expect(out.out).toMatch(/✗ emails\/shipped\.tsx: written, but its content differs \(shown whatever the props, where the original shows or hides it by them: line \d+/);
+    expect(fs.existsSync(path.join(dir, "migrated/shipped.tsx"))).toBe(true);
+  });
+
+  it("passes a class chosen by a comparison: the migration keeps the condition (an element for each class list)", async () => {
+    const dir = project({ "emails/shipped.tsx": template("Shipped", `<Section className={plan === "pro" ? "hidden" : "block"}>`, `{ name: "Ada" }`) });
+    const out = io(dir);
+    expect(await main(["emails", "--out", "migrated"], out, lib), out.out + out.err).toBe(0);
+    expect(fs.readFileSync(path.join(dir, "migrated/shipped.tsx"), "utf8")).toContain('plan === "pro"');
+  });
+});
+
 describe("templates a run mustn't skip (it would end with 0, having checked nothing)", () => {
   it("migrates a template another one only takes its PreviewProps from", async () => {
     const digest = `import { Html, Body, Text } from "@react-email/components";
