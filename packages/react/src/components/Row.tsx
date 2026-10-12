@@ -257,7 +257,8 @@ function renderRow(props: RowProps): React.ReactElement | null {
   ).length;
   let cells: number[];
   if (layout) {
-    validateColumnLayout(layout, columnCount);
+    // The Columns as rendered, or as written (a condition's place included, as 0.1.22 counted them): either fits it.
+    if (columnCount !== layout.expectedColumns) validateColumnLayout(layout, React.Children.count(children));
     cells = layout.cells;
   } else if (propsCells) {
     cells = propsCells;

@@ -18,6 +18,8 @@ export interface Collection {
   /** In each marker, so markup a template writes can't pass for one. */
   nonce: string;
   recorded: Recorded[];
+  /** Markup is guarded too, as components are (a render once more after one threw: see normalize.tsx's `collected`). */
+  markup?: boolean;
 }
 
 // Shared by every copy of Elements a process loads (a project's ESM and CommonJS builds, a tool's own): a render one

@@ -19,23 +19,30 @@ export function guard(children: React.ReactNode, collection: Collection): React.
     if (typeof child.type === "string") {
       // Markup with a component of the user's own in it (`<div><Promo /></div>`): that component gets its own too.
       const inside = (child.props as { children?: React.ReactNode }).children;
-      return inside !== undefined && hasComponent(inside) ? React.cloneElement(child, undefined, guard(inside, collection)) : child;
+      const element = inside !== undefined && hasComponent(inside) ? React.cloneElement(child, undefined, guard(inside, collection)) : child;
+      // Markup React rejects (`<hr style="…">` as a string) throws out of the render: guarded too when it did.
+      return collection.markup ? bounded(element, collection) : element;
     }
     if (child.type === React.Fragment) {
       return React.createElement(React.Fragment, { key: child.key }, guard((child.props as { children?: React.ReactNode }).children, collection));
     }
-    const at = collection.recorded.push({ kind: "boundary", element: child }) - 1;
-    // An async component is left out without calling it: it can't render synchronously, and React 18 leaves
-    // the promise it gives back unhandled (its rejection would end the process).
-    if (isAsyncComponent(child.type)) return marker(collection, at, "f");
-    return React.createElement(
-      Suspense,
-      { key: child.key ?? `b${at}`, fallback: marker(collection, at, "f") },
-      marker(collection, at, "o"),
-      child,
-      marker(collection, at, "c")
-    );
+    return bounded(child, collection);
   });
+}
+
+/** `child` between markers, in a Suspense whose fallback (a marker) stands for it when it throws or suspends. */
+function bounded(child: React.ReactElement, collection: Collection): React.ReactNode {
+  const at = collection.recorded.push({ kind: "boundary", element: child }) - 1;
+  // An async component is left out without calling it: it can't render synchronously, and React 18 leaves
+  // the promise it gives back unhandled (its rejection would end the process).
+  if (isAsyncComponent(child.type)) return marker(collection, at, "f");
+  return React.createElement(
+    Suspense,
+    { key: child.key ?? `b${at}`, fallback: marker(collection, at, "f") },
+    marker(collection, at, "o"),
+    child,
+    marker(collection, at, "c")
+  );
 }
 
 /** Whether there's a component of the user's own in `children`, in markup or Fragments (not in Elements' own). */

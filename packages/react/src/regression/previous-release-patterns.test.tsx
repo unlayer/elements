@@ -53,6 +53,28 @@ type Pattern = {
 };
 
 const PATTERNS: Record<string, Pattern> = {
+  "markup React rejects in a Column (a string style, as a JavaScript template can write it), between blocks": {
+    build: (L) => (
+      <L.Email><L.Row><L.Column>
+        <L.Paragraph>Before the rule</L.Paragraph>
+        {React.createElement("hr", { style: "border-top:1px solid #eee" } as never)}
+        <L.Paragraph>After the rule</L.Paragraph>
+      </L.Column></L.Row></L.Email>
+    ),
+    // The element is left out (with a message); the rest renders.
+    shows: "Before the rule After the rule",
+    json: false, // 0.1.22's renderToJson throws on markup in a Column: this build's design is checked in render-to-json.test
+  },
+  "a Row with a layout and a Column under a condition, rendered on its own": {
+    build: (L) => (
+      <L.Row layout={L.ColumnLayouts.TwoEqual}>
+        {false && <L.Column><L.Paragraph>Hidden column</L.Paragraph></L.Column>}
+        <L.Column><L.Paragraph>Shown column</L.Paragraph></L.Column>
+      </L.Row>
+    ),
+    shows: "Shown column",
+    json: false, // a Row on its own isn't a design
+  },
   "a component with a hook that renders plain HTML, in a Column next to blocks": {
     build: (L) => {
       function Signature({ name }: { name: string }) {

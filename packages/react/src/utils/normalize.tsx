@@ -127,6 +127,7 @@ interface Collected {
 const recorded = (c: Collected, node: { at: number }) => c.collection.recorded[node.at] as Recorded & Record<string, any>;
 
 const nameOf = (element: React.ReactElement): string => {
+  if (typeof element.type === "string") return element.type;
   const type = innerType(element.type);
   return type?.displayName || type?.name || "component";
 };
@@ -325,9 +326,20 @@ function elements(c: Collected, nodes: Node[], inColumn: boolean, owner?: React.
 
 /** A render of `children` that collects them; `guarded`, a component in them that fails is left out. */
 function collected(children: React.ReactNode, guarded = true): Collected {
-  const collection: Collection = { nonce: nonce(), recorded: [] };
-  const html = within(collection, () => renderToStaticMarkup(<>{guarded ? guard(children, collection) : children}</>, { identifierPrefix: COLLECTING_ID }));
-  return { nodes: parse(html, collection), collection, told: new Set() };
+  const once = (markup: boolean): Collected => {
+    const collection: Collection = { nonce: nonce(), recorded: [], ...(markup ? { markup } : {}) };
+    const html = within(collection, () => renderToStaticMarkup(<>{guarded ? guard(children, collection) : children}</>, { identifierPrefix: COLLECTING_ID }));
+    return { nodes: parse(html, collection), collection, told: new Set() };
+  };
+  try {
+    return once(false);
+  } catch (error) {
+    // Markup React rejects (`<hr style="…">` with a string style, in a JavaScript template) isn't a component, so no
+    // boundary catches it and it ends the render. Once more with markup guarded too: it's left out, with a message,
+    // and the rest renders, as in 0.1.22. A template that renders doesn't get here, so nothing else changes.
+    if (!guarded) throw error;
+    return once(true);
+  }
 }
 
 /**

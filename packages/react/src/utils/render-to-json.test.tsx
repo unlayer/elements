@@ -550,6 +550,26 @@ describe("renderToJson", () => {
   });
 });
 
+describe("renderToJson with markup React rejects in a Column", () => {
+  it("leaves it out, with a message, and keeps the blocks around it", () => {
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
+    try {
+      const design = renderToJson(
+        <Email><Row><Column>
+          <Paragraph>Before the rule</Paragraph>
+          {React.createElement("hr", { style: "border-top:1px solid #eee" } as never)}
+          <Paragraph>After the rule</Paragraph>
+        </Column></Row></Email>
+      );
+      const text = JSON.stringify(design.body.rows[0].columns[0].contents.map((c: any) => c.type));
+      expect(text).toBe('["text","text"]');
+      expect(error.mock.calls.some((call) => String(call[0]).includes("<hr>"))).toBe(true);
+    } finally {
+      error.mockRestore();
+    }
+  });
+});
+
 describe("renderRowToJson", () => {
   it("produces a valid DesignRow structure", () => {
     const row = renderRowToJson(
