@@ -171,7 +171,8 @@ function tell(element: React.ReactElement<any>): void {
     for (const node of found) tell(recorded(inner, node).element);
     if (!found.length) console.error(`[Unlayer] <${name}> failed while rendering, so it's left out.`);
   } catch (error) {
-    if (isThenable(error) || /async and suspending|suspended/.test(String((error as Error)?.message))) async();
+    // (React's production build says "suspended" as its error #426.)
+    if (isThenable(error) || /async and suspending|suspended|Minified React error #426\b/.test(String((error as Error)?.message))) async();
     else console.error(`[Unlayer] <${name}> threw while rendering, so it's left out:`, error);
   }
 }

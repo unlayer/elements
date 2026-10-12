@@ -145,6 +145,18 @@ describe("a component that fails", () => {
     expect(html).toContain("Still here");
   });
 
+  it("says one suspends in React's production build, which names it by its error number (#426)", () => {
+    // What React's production build throws where a component suspends in a synchronous render.
+    const Later = () => {
+      throw new Error("Minified React error #426; visit https://react.dev/errors/426 for the full message");
+    };
+    let html = "";
+    expect(messages(() => (html = renderToHtml(<Email><Row><Column><Later /><Paragraph>Still here</Paragraph></Column></Row></Email>)))).toEqual([
+      "[Unlayer] <Later> is async or suspends: Elements renders synchronously, so it's left out. Load its data first and pass it as props.",
+    ]);
+    expect(html).toContain("Still here");
+  });
+
   it("reach the template's components from a context Provider around the root, as from one inside it", () => {
     const Theme = React.createContext("default theme");
     const Themed = () => <Paragraph>{`Theme: ${React.useContext(Theme)}`}</Paragraph>;
