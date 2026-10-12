@@ -236,6 +236,8 @@ function LAYOUT_OF(cells: number[]): Record<string, unknown> {
 class Engine {
   private readonly report: ReportBuilder;
   private readonly info = new WeakMap<ElementNode, RowInfo>();
+  /** A list's key for each item of code producing rows, put on the row the item becomes once rows are merged. */
+  private readonly listKeys = new WeakMap<ElementNode, Array<Expr | undefined>>();
   private out: ElementNode[] = [];
   private pending: Array<{ height: number; mobileHeight?: number; frame: Frame }> = [];
 
@@ -260,7 +262,21 @@ class Engine {
     this.pinPhoneSizes(rows);
     this.foldGutters(rows);
     fillEmptyColumns(rows);
+    this.keyItems(rows);
     return rows;
+  }
+
+  /** Each list item that became one row carries the list's key (several rows get index keys when printed). */
+  private keyItems(rows: ElementNode[]): void {
+    for (const row of rows) {
+      if (row.type !== "#expr") continue;
+      const keys = this.listKeys.get(row);
+      row.slots?.forEach((slot, i) => {
+        const only = slot.length === 1 && typeof slot[0] !== "string" ? (slot[0] as ElementNode) : undefined;
+        if (keys?.[i] && only && only.type !== "#expr" && !only.fallback) only.props = { key: keys[i], ...only.props };
+        this.keyItems(slot.filter((n): n is ElementNode => typeof n !== "string"));
+      });
+    }
   }
 
   /**
@@ -785,14 +801,13 @@ class Engine {
       this.out = [];
       this.flow(slot, ctx);
       this.settle(ctx.frame);
-      const rows = this.out;
-      // The list key moves to what the item became (several rows get index keys when printed).
-      const key = slot.length === 1 && slot[0].kind !== "rows" ? slot[0].key : undefined;
-      if (key && rows.length === 1) rows[0].props = { key, ...rows[0].props };
-      return rows;
+      return this.out;
     });
     this.out = outer;
-    this.push(hole(node.code, slots), ctx.frame);
+    const code = hole(node.code, slots);
+    // The list key moves to what the item became, once its rows are merged (see keyItems).
+    this.listKeys.set(code, node.slots.map((slot) => (slot.length === 1 && slot[0].kind !== "rows" ? slot[0].key : undefined)));
+    this.push(code, ctx.frame);
   }
 
   /**

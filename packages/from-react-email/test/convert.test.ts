@@ -50,6 +50,19 @@ describe("codemod keeps logic", () => {
     expect(result.code).toContain("ReceiptEmail.PreviewProps");
   });
 
+  it("keeps a list's key on the row an item becomes when its space folds into that row", async () => {
+    const result = await convertSource(`import { Html, Body, Container, Section, Text } from "@react-email/components";
+const items = ["one", "two"];
+export default function T() {
+  return <Html><Body><Container><Section style={{ backgroundColor: "#fff", padding: "0 40px" }}>
+    <Text>Hi there,</Text>
+    {items.map((p, i) => <Text key={i} style={{ marginTop: "32px", maxWidth: "430px" }}>{p}</Text>)}
+    <Text>Bye</Text>
+  </Section></Container></Body></Html>;
+}`);
+    expect(result.code).toMatch(/items\.map\(\(p, i\) => \(\s*<Row key=\{i\}/);
+  });
+
   it("inlines same-file components, and keeps what it can't map as HTML, reported", async () => {
     const source = `
       import { Html, Body, Container, Text } from "@react-email/components";
