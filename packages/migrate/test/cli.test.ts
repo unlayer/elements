@@ -557,10 +557,30 @@ export default function Layout(props: { children?: React.ReactNode }) { return <
     });
     const out = io(dir);
     await main(["emails", "--write"], out, lib);
-    expect(out.out).toMatch(/- emails\/layout\.tsx: skipped \(a layout \(it renders its children\)/);
+    expect(out.out).toMatch(/- emails\/layout\.tsx: skipped \(a layout \(it renders content passed to it\)/);
     expect(fs.readFileSync(path.join(dir, "emails/layout.tsx"), "utf8")).toBe(layout);
     // A template whose props happen to include a `children` default, or whose text says "children", is still an email.
     expect(out.out).toMatch(/✓ emails\/receipt\.tsx/);
+  });
+
+  it("leaves a layout alone with --write when it's exported in a list, or takes its content in a prop typed to hold JSX", async () => {
+    const listed = `import { Html, Body, Container } from "@react-email/components";
+function Layout({ children }: { children?: React.ReactNode }) { return <Html><Body><Container>{children}</Container></Body></Html>; }
+export { Layout as default };`;
+    const content = `import type { ReactNode } from "react";
+import { Html, Body, Container } from "@react-email/components";
+export default function Shell({ content }: { content: ReactNode }) { return <Html><Body><Container>{content}</Container></Body></Html>; }`;
+    const dir = project({
+      "emails/listed.tsx": listed,
+      "emails/shell.tsx": content,
+      "emails/welcome.tsx": `import { Text } from "@react-email/components";\n// @ts-ignore\nimport Shell from "unknown-alias/shell";\nexport default function Welcome() { return <Shell content={<Text>Welcome aboard</Text>} />; }`,
+    });
+    const out = io(dir);
+    await main(["emails", "--write"], out, lib);
+    expect(out.out).toMatch(/- emails\/listed\.tsx: skipped \(a layout/);
+    expect(out.out).toMatch(/- emails\/shell\.tsx: skipped \(a layout/);
+    expect(fs.readFileSync(path.join(dir, "emails/listed.tsx"), "utf8")).toBe(listed);
+    expect(fs.readFileSync(path.join(dir, "emails/shell.tsx"), "utf8")).toBe(content);
   });
 
   it("writes a template that renders optional children but has PreviewProps: an email of its own", async () => {

@@ -718,9 +718,10 @@ async function migrateFile(input: Input, options: Options, lib: Library, io: Io,
       // replacing it would turn it into a whole email inside the templates that use it.
       // A dry run says what --write does; --out writes copies of them too.
       if (options.out === undefined && !/<html[\s>]/i.test(verification.originalHtml)) return { file: name, status: "skipped", reason: "not an email template (it doesn't render <Html>): a shared component, left as it is" };
-      // Nor is one that renders its children: a layout templates wrap. This holds when an import of it can't be followed.
+      // Nor is a layout templates wrap: one that renders its children, or takes content in props typed to hold JSX
+      // (`content: ReactNode`). This holds when an import of it can't be followed.
       // One with PreviewProps is an email of its own (React Email previews it), with optional content passed in.
-      if (options.out === undefined && !previewed && (await rendersChildren(source))) return { file: name, status: "skipped", reason: "a layout (it renders its children), not an email template: a shared component, left as it is" };
+      if (options.out === undefined && !previewed && (await sharedPiece(source)) === "shared") return { file: name, status: "skipped", reason: "a layout (it renders content passed to it), not an email template: a shared component, left as it is" };
       design = verification.design;
       if (options.design && options.mergeTags) {
         const tagged = await lib.mergeTagDesign(Migrated as (props: unknown) => ReturnType<typeof Original>, designProps, verification.design, { source: code, helpers: converted.helpers });
@@ -2050,6 +2051,14 @@ async function notATemplate(path: string, source: string): Promise<{ reason: str
     : helperOrFail("not loaded: its default export doesn't return JSX (a helper, not a template)", "its default export renders an email in a way the check can't load: return the email's JSX (<Html>…</Html>) from a component");
 }
 
+/** The local a statement exports as the default (`export { Layout as default }`). */
+function exportedAsDefault(ts: typeof import("typescript"), statement: import("typescript").Statement): import("typescript").Identifier | undefined {
+  if (!ts.isExportDeclaration(statement) || statement.moduleSpecifier || statement.isTypeOnly || !statement.exportClause || !ts.isNamedExports(statement.exportClause)) return undefined;
+  const named = statement.exportClause.elements.find((e) => e.name.text === "default");
+  const local = named && (named.propertyName ?? named.name);
+  return local && ts.isIdentifier(local) ? local : undefined;
+}
+
 /**
  * Whether a module's default-exported component renders its `children`
  * (`({ children }) =>`, `props.children`): a layout that templates wrap.
@@ -2067,6 +2076,7 @@ async function rendersChildren(source: string): Promise<boolean> {
     } else if (ts.isVariableStatement(statement)) {
       for (const d of statement.declarationList.declarations) if (ts.isIdentifier(d.name) && d.initializer) declared.set(d.name.text, d.initializer);
     } else if (ts.isExportAssignment(statement) && !statement.isExportEquals) exported = statement.expression;
+    else exported = exportedAsDefault(ts, statement) ?? exported;
   }
   // Through a name, parentheses, `memo(…)` and `forwardRef(…)`, to the function.
   let fn = exported;
@@ -2144,6 +2154,7 @@ async function sharedPiece(source: string): Promise<"shared" | "email" | "unknow
       }
     } else if (ts.isExportAssignment(statement) && !statement.isExportEquals) exported = statement.expression;
     else if (ts.isInterfaceDeclaration(statement) || ts.isTypeAliasDeclaration(statement)) types.set(statement.name.text, statement);
+    else exported = exportedAsDefault(ts, statement) ?? exported;
   }
   // A template React Email previews (`PreviewProps`) is an email of its own, whatever its props hold.
   const name = exported && (ts.isFunctionDeclaration(exported) ? exported.name?.text : ts.isIdentifier(exported) ? exported.text : undefined);
