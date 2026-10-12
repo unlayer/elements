@@ -180,7 +180,14 @@ try {
     await page.setViewportSize(viewport);
     for (const id of storyIds) {
       await page.goto(`http://127.0.0.1:${PORT}/iframe.html?viewMode=story&id=${id}`, { waitUntil: "load" });
-      await page.waitForSelector("#storybook-root", { state: "attached", timeout: 10_000 });
+      // #storybook-root is static markup in iframe.html, so it exists before
+      // the story renders; wait for rendered children or a cold first load
+      // fingerprints an empty root.
+      await page.waitForFunction(
+        () => document.querySelector("#storybook-root")?.childElementCount > 0,
+        null,
+        { timeout: 10_000 }
+      );
       const fp = await fingerprint(page);
       current[`${id}@${viewportName}`] = fp ?? ["(no root)"];
     }
