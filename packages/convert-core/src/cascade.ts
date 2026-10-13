@@ -2146,8 +2146,9 @@ export function normalizeWord(word: string): string {
   const w = word.normalize("NFC").replace(/[​-‍⁠﻿]/g, "").replace(/[-−－﹣]/g, "−");
   if (/\p{N}/u.test(w)) return w.replace(/[^\p{L}\p{N}\p{Sc}.,/:'’+−%‰]/gu, "").replace(/[.,]+$/g, "");
   if (/^[+−±]$/.test(w)) return w;
-  // Letters, or else the symbols a reader reads (✓ ✗ ★ © → &): punctuation alone ("—", "·", "|") isn't a word.
-  if (/\p{L}/u.test(w)) return w.replace(/[^\p{L}\p{Sc}%‰]/gu, "");
+  // Letters, or else the symbols a reader reads (✓ ✗ ★ © → &): punctuation alone ("—", "·", "|") isn't a word. An
+  // apostrophe inside a word stays (as reports show it: "You're"), the same whichever one was typed; quotes around it go.
+  if (/\p{L}/u.test(w)) return w.replace(/[’‘ʼ`´]/g, "'").replace(/[^\p{L}\p{Sc}%‰']/gu, "").replace(/^'+|'+$/g, "");
   return w.replace(/[^\p{Sc}\p{So}\p{Sm}%‰&]|[|¦]/gu, "");
 }
 

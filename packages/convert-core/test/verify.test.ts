@@ -375,3 +375,14 @@ describe("the page's background, around the email", () => {
     expect(compareText(reactEmail("#ffffff"), elements("#ffffff")).styles).toEqual([]);
   });
 });
+
+describe("words with an apostrophe", () => {
+  it("keep it inside the word, whichever apostrophe was typed, and drop quotes around it", async () => {
+    const { normalizeWord } = await import("../src/cascade");
+    expect(normalizeWord("You're")).toBe("You're");
+    expect(normalizeWord("You’re")).toBe("You're");
+    expect(normalizeWord("'quoted'")).toBe("quoted");
+    expect(normalizeWord("users'")).toBe("users");
+    expect(normalizeWord("don't,")).toBe("don't");
+  });
+});
