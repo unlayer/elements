@@ -779,6 +779,18 @@ export default function Hi({ name }: { name: string }) {
     expect(fs.readFileSync(path.join(dir, "emails/welcome.tsx"), "utf8")).toBe(WELCOME);
   });
 
+  it("says --design writes nothing without --write or --out", async () => {
+    const dir = project({ "emails/welcome.tsx": `import { Html, Body, Text } from "@react-email/components";
+export default function Welcome() { return <Html><Body><Text>Welcome aboard</Text></Body></Html>; }` });
+    const out = io(dir);
+    expect(await main(["emails", "--design"], out, lib), out.out + out.err).toBe(0);
+    expect(out.err).toBe("--design writes design JSON with --write or --out: this run writes nothing.\n");
+    expect(fs.readdirSync(path.join(dir, "emails"))).toEqual(["welcome.tsx"]);
+    const written = io(dir);
+    expect(await main(["emails", "--design", "--out", "migrated"], written, lib)).toBe(0);
+    expect(written.err).toBe("");
+  });
+
   it("explains usage mistakes", async () => {
     const dir = project({});
     const mistakes: Array<[string[], string]> = [

@@ -226,6 +226,8 @@ async function run(argv: string[], io: Io, library?: Library): Promise<number> {
     io.stderr("Use --write or --out, not both.\n");
     return 1;
   }
+  // A dry run writes nothing: --design alone would do nothing without a word.
+  if (options.design && !options.write && options.out === undefined) io.stderr("--design writes design JSON with --write or --out: this run writes nothing.\n");
 
   const inputs = await collect(args.positional, io.cwd);
   if (inputs.missing.length) {
