@@ -671,3 +671,25 @@ Mixed.PreviewProps = { plan: "pro", accent: "#f9fafb" };
     ]);
   });
 });
+
+describe("tidy code from inlining", () => {
+  it("writes a block a folded condition gives without braces around it", async () => {
+    const { conversion, Original, Migrated } = await migrate({
+      "header.tsx": `import { Section, Text } from "@react-email/components";
+export function Header({ tagline }: { tagline?: string }) {
+  return <Section>{tagline && <Text style={{ color: "#64748b" }}>{tagline}</Text>}</Section>;
+}
+`,
+      "digest.tsx": `import { Html, Body, Text } from "@react-email/components";
+import { Header } from "./header";
+export default function Digest({ date }: { date: string }) {
+  return <Html><Body><Header tagline={\`Daily digest · \${date}\`} /><Text>Hello</Text></Body></Html>;
+}
+Digest.PreviewProps = { date: "Tue" };
+`,
+    }, "digest.tsx");
+    expect(conversion.code).not.toMatch(/\{\s*<Paragraph/);
+    const check = await verifyConversion(Original, Migrated);
+    expect([check.missing, check.added]).toEqual([[], []]);
+  });
+});

@@ -10,6 +10,7 @@
  *   render(children)                             given `{message}`: render(<>{message}</>)  (an element, not the text)
  *   {secondary ? <Link href={secondary.href} /> : null}  given `cond ? {…} : undefined`: no narrowing (TS2532)
  *   {title ? <Text>{title}</Text> : null}       given `plan ? "Pro" : "Free"`: always truthy (TS2872)
+ *   {tagline && <Text>{tagline}</Text>}          given text: `{(<Text>…</Text>)}`, JSX in braces for nothing
  *
  * So, wherever it is (inlining leaves no trace of where it wrote), code whose value is known is written as it:
  * conditions on literals, JSX or objects (`&&`, `||`, `??`, `? :`, `!`, comparisons), an empty array literal's
@@ -105,6 +106,11 @@ function firstFold(file: ts.SourceFile): { from: number; to: number; text: strin
     if (found) return;
     // Inner code first: what it folds to can fold what's around it.
     ts.forEachChild(node, visit);
+    // JSX alone in braces among JSX children (`{(<Text>…</Text>)}`, what a condition folds to): the JSX itself.
+    if (!found && ts.isJsxExpression(node) && node.expression && !node.dotDotDotToken && (ts.isJsxElement(node.parent) || ts.isJsxFragment(node.parent))) {
+      const inner = unwrapParens(node.expression);
+      if (ts.isJsxElement(inner) || ts.isJsxSelfClosingElement(inner) || ts.isJsxFragment(inner)) return void replace(node, inner.getText());
+    }
     if (found || !ts.isExpression(node)) return;
     if (ts.isBinaryExpression(node)) {
       const op = node.operatorToken.kind;
