@@ -318,6 +318,8 @@ export function testedProps(source: string, asGiven: ReadonlySet<string> = new S
     if (ts.isBinaryExpression(e) && COMPARE.has(e.operatorToken.kind)) return;
     if (ts.isBinaryExpression(e) && TRUTH.has(e.operatorToken.kind)) return void (truth(e.left), truth(e.right));
     if (ts.isPrefixUnaryExpression(e) && e.operator === ts.SyntaxKind.ExclamationToken) return;
+    // A codemod helper's test (`holdsElements(note)`: whether it's React elements) is false for any text, a merge tag's too.
+    if (ts.isCallExpression(e) && asGiven.has(e.expression.getText())) return;
     test(e);
   };
   // A side neither a text nor a prop left out equals: `true`, `false`. (`=== undefined`, `== null` and `typeof` tell a
@@ -551,7 +553,8 @@ function sameOutput(a: unknown, b: unknown): boolean {
 }
 
 function isPlainObject(value: unknown): value is Record<string, unknown> {
-  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
+  // A React element (`note: <em>…</em>`) is an object too, but its type and props aren't text the template shows.
+  if (!value || typeof value !== "object" || Array.isArray(value) || "$$typeof" in value) return false;
   const proto = Object.getPrototypeOf(value);
   return proto === Object.prototype || proto === null;
 }

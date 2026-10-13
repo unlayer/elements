@@ -1,5 +1,5 @@
 /**
- * The command's arguments. Read by the CLI, and by bin.ts first, to know
+ * The command's arguments. Read by the CLI, and by start.ts first, to know
  * where the templates are before anything else loads.
  */
 

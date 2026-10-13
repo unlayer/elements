@@ -84,7 +84,8 @@ export default function T() {
     // Badge returns plain JSX: inlined. Stamp uses a hook: kept, rendered to HTML.
     expect(result.report.info).toContainEqual({ reason: "local component inlined where it's used", detail: "Badge" });
     expect(result.report.fallbacks).toEqual([{ reason: "custom component", detail: "Stamp" }]);
-    expect(result.code).toMatch(/renderToStaticMarkup\(\s*<div style=\{\{ fontSize: "medium" \}\}>\s*<Stamp label="paid" \/>/);
+    expect(result.code).toMatch(/<KeptHtml[^>]*>\s*<div style=\{\{ fontSize: "medium" \}\}>\s*<Stamp label="paid" \/>/);
+    expect(result.code).not.toContain("react-dom");
     expect(result.code).toMatch(/<span>\$\{escapeHtml\(String\("new"\)\)\}<\/span>|<span>new<\/span>/);
     expect(result.code).not.toContain("const Badge");
   });
@@ -147,13 +148,13 @@ const level = "h2";
 export default function Template({ tone }: { tone: string }) {
   return <Html><Body>
     <Text style={{ fontSize: level === "h1" ? 24 : 20, lineHeight: undefined ? "14px" : "26px" }}>Known</Text>
-    <Text style={{ color: tone, margin: 0 }}>Computed</Text>
+    <Text style={{ letterSpacing: tone, margin: 0 }}>Computed</Text>
   </Body></Html>;
 }`;
     const result = await convertSource(source);
     expect(result.code).toContain('fontSize="20px"');
     expect(result.code).toContain('lineHeight="26px"');
-    expect(result.report.lostStyles).toEqual(["line 6: color: tone"]);
+    expect(result.report.lostStyles).toEqual(["line 6: letterSpacing: tone"]);
   });
 
   it("treats a spread of undefined (an optional style prop left out) as nothing", async () => {
@@ -573,7 +574,7 @@ describe("lost style lines", () => {
     const source = `import { Html, Body, Section, Text } from "@react-email/components";
 const Card = ({ title, tone }: { title: string; tone: string }) => (
   <Section>
-    <Text style={{ color: tone }}>{title}</Text>
+    <Text style={{ letterSpacing: tone }}>{title}</Text>
   </Section>
 );
 export default function Template({ tone = "red", size = "14px" }: { tone?: string; size?: string }) {
@@ -588,7 +589,7 @@ export default function Template({ tone = "red", size = "14px" }: { tone?: strin
 }`;
     const result = await convertSource(source);
     // Inside the component: where it's used. In the template: its own line.
-    expect(result.report.lostStyles).toEqual([expect.stringMatching(/^line 11: color/), "line 12: fontSize: size"]);
+    expect(result.report.lostStyles).toEqual([expect.stringMatching(/^line 11: letterSpacing/), "line 12: fontSize: size"]);
   });
 });
 
@@ -1255,7 +1256,9 @@ Card.PreviewProps = { name: "Ada", avatarUrl: "https://example.com/a.png" };`;
       const file = path.join(dir, "migrated.tsx");
       const { code } = await convertSource(source, { fileName: file });
       fs.writeFileSync(file, code);
-      expect(code).not.toMatch(/const \{ text, muted \}/);
+      // The colors are written as the code they're read from; the gap, lost, goes with its name.
+      expect(code).toMatch(/const \{ text, muted \} = theme\.colors/);
+      expect(code).toContain('color={text || "#000000"}');
       expect(code).toMatch(/const \{ pad \} = theme\.space/);
       const ts = (await import("typescript")).default;
       const program = ts.createProgram([file], { noEmit: true, jsx: ts.JsxEmit.ReactJSX, strict: true, noUnusedLocals: true, module: ts.ModuleKind.ESNext, moduleResolution: ts.ModuleResolutionKind.Bundler, target: ts.ScriptTarget.ES2022, skipLibCheck: true, types: ["react"] });
@@ -1331,7 +1334,7 @@ describe("a prop only a dropped style read", () => {
   it("goes from the parameters, so a build with noUnusedLocals passes (TS6133)", async () => {
     const source = `import { Html, Body, Text } from "@react-email/components";
 export default function Card({ accent, name }: { accent: string; name: string }) {
-  return <Html><Body><Text style={{ color: accent === "red" ? "#ff0000" : "#0000ff" }}>Hi {name}</Text></Body></Html>;
+  return <Html><Body><Text style={{ letterSpacing: accent === "red" ? "1px" : "2px" }}>Hi {name}</Text></Body></Html>;
 }
 Card.PreviewProps = { accent: "red", name: "Ada" };`;
     const dir = fs.mkdtempSync(path.join(import.meta.dirname, ".tmp-"));

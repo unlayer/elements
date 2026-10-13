@@ -24,7 +24,7 @@ describe("the Elements version migrations render with", () => {
   it("stops on a version older than the supported range, with the install command", () => {
     const { error } = elementsMismatch(project("0.1.22"), "^0.2.0");
     expect(error).toContain("this project has 0.1.22");
-    expect(error).toContain('npm install @unlayer/react-elements@"^0.2.0"');
+    expect(error).toContain('npm install "@unlayer/react-elements@^0.2.0"');
   });
 
   it("accepts a version in the range", () => {
@@ -36,7 +36,7 @@ describe("the Elements version migrations render with", () => {
     for (const [version, range] of [["0.3.0", "^0.2.0"], ["1.0.0", "^0.2.0"], ["2.0.0", "^1.2.0"], ["0.0.4", "^0.0.3"]]) {
       const { error } = elementsMismatch(project(version), range);
       expect(error, version).toContain(`this project has ${version}`);
-      expect(error, version).toContain(`npm install @unlayer/react-elements@"${range}"`);
+      expect(error, version).toContain(`npm install "@unlayer/react-elements@${range}"`);
     }
   });
 

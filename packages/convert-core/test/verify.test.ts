@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { compareText, hiddenClasses, hideClasses, htmlAttributes, htmlWords } from "../src/verify";
+import { checkFails, compareText, hiddenClasses, hideClasses, htmlAttributes, htmlWords, imagePreloads } from "../src/verify";
 
 describe("link and image occurrences", () => {
   it("detects reordered values even when the conversion adds words", () => {
@@ -203,4 +203,218 @@ describe("words in another order where only a phone, a wider screen or dark mode
       expect(listed(check).length).toBeGreaterThan(0);
     });
   }
+});
+
+describe("inline SVG icons", () => {
+  const page = (body: string) => `<html><head></head><body style="margin:0">${body}</body></html>`;
+  // A download arrow drawn from scratch: a tray, an arrow head and its shaft.
+  const icon = (attributes: string, shapes: string) => `<svg ${attributes}>${shapes}</svg>`;
+  const arrow = icon(
+    'xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2"',
+    '<path d="M3 13v3a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-3"></path><polyline points="6 8 10 12 14 8"></polyline><line x1="10" y1="2" x2="10" y2="12"></line>'
+  );
+  const button = (svg: string) => page(`<p>Your report is ready.</p><a href="https://example.com/report" style="display:inline-block">${svg}Download</a>`);
+
+  it("lists an icon whose shapes lost what draws them as lost, like an image", () => {
+    const stripped = '<svg style="width:20px;height:20px"><path></path><polyline></polyline><line></line></svg>';
+    const check = compareText(button(arrow), button(stripped));
+    expect([check.missing, check.added]).toEqual([[], []]);
+    expect(check.missingAttributes).toEqual([expect.stringMatching(/^svg path, polyline, line in viewBox 0 0 20 20 \(drawing [0-9a-f]{8}\)$/)]);
+    // Lost entirely, too.
+    expect(compareText(button(arrow), button("")).missingAttributes).toHaveLength(1);
+  });
+
+  it("lists an icon drawn differently as lost and added", () => {
+    const other = arrow.replace('points="6 8 10 12 14 8"', 'points="6 12 10 8 14 12"');
+    const check = compareText(button(arrow), button(other));
+    expect(check.missingAttributes).toHaveLength(1);
+    expect(check.addedAttributes).toHaveLength(1);
+  });
+
+  it("reads the same drawing written another way as the same: attribute order and case, number formatting, a size", () => {
+    const rewritten = icon(
+      'stroke-width="2.0" STROKE="currentcolor" fill="none" viewBox="0,0,20,20" style="width:1rem;height:1rem" class="icon"',
+      '<path d="M3,13 v3 a1,1 0 0,0 1,1 h12 a1 1 0 0 0 1-1 v-3"/><polyline points="6,8 10,12 14,8"/><line x2="10" y2="12" x1="10" y1="2" />'
+    );
+    const check = compareText(button(arrow), button(rewritten));
+    expect([check.missingAttributes, check.addedAttributes]).toEqual([[], []]);
+  });
+
+  it("doesn't count an SVG that draws nothing, or one hidden", () => {
+    // A sprite of definitions, a spacer: nothing drawn, so nothing to lose.
+    const sprite = '<svg width="0" height="0"><defs><symbol id="i"><path d="M0 0h4"></path></symbol></defs></svg>';
+    expect(compareText(page(`<p>Hi</p>${sprite}`), page("<p>Hi</p>")).missingAttributes).toEqual([]);
+    expect(compareText(page(`<p>Hi</p><div style="display:none">${arrow}</div>`), page("<p>Hi</p>")).missingAttributes).toEqual([]);
+    // A <use> draws what it refers to: the definition lost is the drawing lost.
+    const used = '<svg viewBox="0 0 4 4"><use href="#dot"></use></svg>';
+    const defined = '<svg width="0" height="0" style="position:absolute"><defs><circle id="dot" cx="2" cy="2" r="2"></circle></defs></svg>';
+    const check = compareText(page(`<p>Hi</p>${defined}${used}`), page(`<p>Hi</p>${used}`));
+    expect(check.missingAttributes).toHaveLength(1);
+    expect(check.addedAttributes).toHaveLength(1);
+  });
+});
+
+describe("the preview text without data-skip-in-text", () => {
+  const page = (body: string) => `<html><head></head><body style="margin:0">${body}</body></html>`;
+  // Older React Email (and hand-written emails) hide the preheader with styles only, wherever <Preview> is put.
+  const hiddenPreheader = (text: string) => `<div style="display:none;overflow:hidden;line-height:1px;opacity:0;max-height:0;max-width:0">${text}<div> ‌​‍‎‏﻿</div></div>`;
+  const elementsPreheader = (text: string) => `<div data-skip-in-text="true" style="display:none;font-size:1px;color:#ffffff;line-height:1px;max-height:0px;max-width:0px;opacity:0;overflow:hidden;">${text}</div>`;
+  const content = "<h1>Storage almost full</h1><p>You have used 90% of your plan.</p>";
+  const card = (inside: string) => `<table width="100%"><tr><td><table style="max-width:600px;margin:0 auto"><tr><td>${inside}</td></tr></table></td></tr></table>`;
+
+  it("reads a hidden preheader before any text shown as the preview, as data-skip-in-text is", () => {
+    const original = page(card(hiddenPreheader("Upgrade before uploads stop") + content));
+    const check = compareText(original, page(elementsPreheader("Upgrade before uploads stop") + card(content)));
+    expect([check.missing, check.added, check.styles]).toEqual([[], [], []]);
+    expect(checkFails(check)).toBe(false);
+  });
+
+  it("finds that preview lost, or shown in the email", () => {
+    const original = page(card(hiddenPreheader("Upgrade before uploads stop") + content));
+    expect(compareText(original, page(card(content))).missing).toEqual(["Upgrade", "before", "uploads", "stop"]);
+    const shown = compareText(original, page(card("<p>Upgrade before uploads stop</p>" + content)));
+    expect(shown.styles).toContainEqual(expect.objectContaining({ property: "shown", original: "the inbox preview only", converted: "in the email" }));
+  });
+
+  it("doesn't read hidden text as the preview after text shown, or a block hidden only with display:none", () => {
+    const after = page(card(content + hiddenPreheader("Upgrade before uploads stop")));
+    expect(compareText(after, page(elementsPreheader("Upgrade before uploads stop") + card(content))).added).toEqual(["Upgrade", "before", "uploads", "stop"]);
+    const phoneOnly = page(card('<div style="display:none">Upgrade before uploads stop</div>' + content));
+    expect(compareText(phoneOnly, page(elementsPreheader("Upgrade before uploads stop") + card(content))).added).toEqual(["Upgrade", "before", "uploads", "stop"]);
+  });
+});
+
+describe("text that can't be made out on one side", () => {
+  const page = (body: string) => `<html><head></head><body style="margin:0">${body}</body></html>`;
+  // A calendar badge drawn from scratch: the month in white on a colored band, the day below.
+  const badge = (band: string) => page(`<table width="80"><tr><td style="text-align:center"><p style="${band}color:#ffffff;font-size:12px;margin:0">DEC</p><p style="font-size:28px;margin:0">03</p></td></tr></table><p>Doors open at 7pm.</p>`);
+
+  it("is content: white on a band the migration lost reads as nothing", () => {
+    const check = compareText(badge("background-color:#0f766e;"), badge(""));
+    expect(check.styles).toContainEqual({ property: "shown", original: "shown", converted: "invisible (#ffffff on #ffffff)", words: ["DEC"] });
+    // The background itself is still a style difference.
+    expect(check.styles).toContainEqual(expect.objectContaining({ property: "background", original: "#0f766e", converted: "#ffffff", words: ["DEC"] }));
+    // Nearly the same color is as unreadable (white on #f4f4f4), and translucent text on its own color too.
+    expect(compareText(badge("background-color:#0f766e;"), badge("background-color:#f4f4f4;")).styles).toContainEqual(expect.objectContaining({ property: "shown", converted: "invisible (#ffffff on #f4f4f4)" }));
+    const translucent = badge("background-color:#0f766e;").replace("color:#ffffff", "color:rgba(255,255,255,0.05)");
+    expect(compareText(badge("background-color:#0f766e;"), translucent).styles).toContainEqual(expect.objectContaining({ property: "shown", converted: expect.stringMatching(/^invisible/) }));
+  });
+
+  it("is content the other way too: text the original's reader can't make out, shown", () => {
+    const check = compareText(page('<p>Hi</p><p style="color:#ffffff">Internal reference 4471</p>'), page('<p>Hi</p><p style="color:#333333">Internal reference 4471</p>'));
+    expect(check.styles).toContainEqual({ property: "shown", original: "invisible (#ffffff on #ffffff)", converted: "shown", words: ["Internal", "reference", "4471"] });
+  });
+
+  it("isn't listed where it reads the same, faint on both sides, or on an image", () => {
+    expect(compareText(badge("background-color:#0f766e;"), badge("background-color:#115e59;")).styles.filter((s) => s.property === "shown")).toEqual([]);
+    // A faint watermark kept as faint.
+    const faint = page('<p style="color:#eeeeee">Draft</p>');
+    expect(compareText(faint, page('<p style="color:#f2f2f2">Draft</p>')).styles.filter((s) => s.property === "shown")).toEqual([]);
+    // On an image, what's behind the text isn't known: not claimed either way.
+    const hero = (bg: string) => page(`<div style="${bg}"><p style="color:#ffffff">Summer sale</p></div>`);
+    expect(compareText(hero("background-image:url(https://example.com/hero.jpg)"), hero("background-image:url(https://example.com/hero.jpg)")).styles).toEqual([]);
+    // An email table's background attribute too: white text on it isn't white on white.
+    const cell = '<table width="600"><tr><td background="https://example.com/hero.jpg"><p style="color:#ffffff">Summer sale</p></td></tr></table>';
+    const darkCell = '<table width="600"><tr><td background="https://example.com/hero.jpg" style="background-color:#1f2937"><p style="color:#ffffff">Summer sale</p></td></tr></table>';
+    expect(compareText(page(cell), page(darkCell)).styles.filter((s) => s.property === "shown")).toEqual([]);
+  });
+});
+
+describe("a second document inside the body", () => {
+  // A one-time code email drawn from scratch, as a renderer writes a whole document.
+  const head = '<meta name="color-scheme" content="light only"><title>Your sign-in code</title>';
+  const content = '<table width="100%"><tr><td style="background-color:#eef2f7;padding:24px 12px"><table style="max-width:560px;margin:0 auto;background-color:#ffffff"><tr><td><h1>Sign in</h1><p>Your code is 482913.</p></td></tr></table></td></tr></table>';
+  const original = `<!DOCTYPE html><html lang="en"><head>${head}</head><body style="background-color:#eef2f7;margin:0">${content}</body></html>`;
+  // Kept whole as markup in a block of the migration's own page.
+  const kept = (markup: string) => `<!DOCTYPE html><html><head><meta charset="utf-8"></head><body style="background-color:#ffffff;margin:0"><table width="100%" style="background-color:#ffffff"><tr><td><div style="max-width:600px;margin:0 auto"><div>${markup}</div></div></td></tr></table></body></html>`;
+
+  it("is listed when only the migration has one: its title, head content and tags, with the words they carry", () => {
+    const check = compareText(original, kept(`${head}<div><html lang="en"><head></head><body style="background-color:#eef2f7;margin:0">${content}</body></html></div>`));
+    expect([check.missing, check.added]).toEqual([[], []]);
+    expect(check.unverified).toContainEqual({ what: "shown", side: "migrated", cause: expect.stringContaining("`<title>Your sign-in code</title>` in the email's body"), words: ["Your", "signin", "code"] });
+    expect(check.unverified).toContainEqual({
+      what: "shown",
+      side: "migrated",
+      cause: expect.stringMatching(/^head content inside the email's body, a second document's `<meta name="color-scheme" content="light only">`, `<html lang="en">`, `<body style="background-color:#eef2f7;margin:0">`: email clients/),
+      words: ["Sign", "in", "Your", "code", "is", "482913"],
+    });
+    expect(checkFails(check)).toBe(true);
+  });
+
+  it("is a look where it's only a second document's <html> or <body>: the words in it show either way", () => {
+    const check = compareText(original, kept(`<div><html dir="ltr" lang="en"><body>${content}</body></html></div>`));
+    expect(check.unverified).toEqual([{ what: "look", side: "migrated", cause: expect.stringMatching(/^a second document's `<html dir="ltr" lang="en">`, `<body>` inside the email's body/), words: ["Sign", "in", "Your", "code", "is", "482913"] }]);
+  });
+
+  it("isn't listed for the page's own head, or the same markup on both sides", () => {
+    expect(compareText(original, kept(content)).unverified).toEqual([]);
+    const both = kept(`<div><html lang="en"><body style="color:#111111">${content}</body></html></div>`);
+    expect(compareText(both, both).unverified).toEqual([]);
+  });
+});
+
+describe("the image preloads React 19 writes itself", () => {
+  // React Email's render puts them in the head; Elements leaves them among the rows, in the email's body.
+  const logo = "https://example.com/logo.png";
+  const original = `<!DOCTYPE html><html><head><link rel="preload" as="image" href="${logo}"></head><body><table width="100%"><tr><td><img src="${logo}" alt="Acme" width="120"><p>Your code is 482913.</p></td></tr></table></body></html>`;
+  const migrated = (links: string, src = logo) => `<!DOCTYPE html><html><head><meta charset="utf-8"></head><body><table width="100%"><tr><td>${links}<div><img src="${src}" alt="Acme" width="120"><p>Your code is 482913.</p></div></td></tr></table></body></html>`;
+
+  it("aren't content: a preload of an image the email shows, as React writes it", () => {
+    for (const link of [`<link rel="preload" as="image" href="${logo}">`, `<link rel="preload" as="image" href="${logo}" fetchPriority="high">`]) {
+      const check = compareText(original, migrated(link));
+      expect(check.unverified).toEqual([]);
+      expect(checkFails(check)).toBe(false);
+    }
+    expect(imagePreloads(migrated(`<link rel="preload" as="image" href="${logo}">`))).toBe(1);
+  });
+
+  it("fail closed on any other link: another image's, another kind, or more than React writes", () => {
+    const others = [
+      `<link rel="preload" as="image" href="https://example.com/banner.png">`,
+      `<link rel="stylesheet" href="${logo}">`,
+      `<link rel="preload" as="font" href="${logo}">`,
+      `<link rel="preload" as="image" href="${logo}" media="(max-width: 600px)">`,
+    ];
+    for (const link of others) {
+      const check = compareText(original, migrated(link));
+      expect(check.unverified).toEqual([expect.objectContaining({ what: "shown", side: "migrated", cause: expect.stringContaining("head content inside the email's body") })]);
+      expect(imagePreloads(migrated(link))).toBe(0);
+    }
+    // Nor where the image isn't in the email.
+    expect(checkFails(compareText(original.replace(`<img src="${logo}" alt="Acme" width="120">`, ""), migrated(`<link rel="preload" as="image" href="${logo}">`, "https://example.com/other.png")))).toBe(true);
+  });
+});
+
+describe("the page's background, around the email", () => {
+  const card = '<table style="max-width:560px;margin:0 auto;background-color:#ffffff"><tr><td><h1>Sign in</h1><p>Your code is 482913.</p></td></tr></table>';
+  // As React Email writes it: the body's color, and a full-width table whose cell repeats it with padding.
+  const reactEmail = (color: string) => `<html><body style="background-color:${color};margin:0"><table width="100%"><tr><td style="background-color:${color};padding:24px 12px">${card}</td></tr></table></body></html>`;
+  // As Elements writes it: the body's color, a full-width body table, then rows as wide as the email.
+  const elements = (page: string, row = "") => `<html><body style="margin:0;background-color:${page}"><table style="width:100%;background-color:${page}"><tr><td><div><style>.u-row{}</style><div class="u-row-container" style="${row}"><div class="u-row" style="max-width:600px;margin:0 auto">${card}</div></div></div></td></tr></table></body></html>`;
+
+  it("is a look difference where the migration lost it", () => {
+    const check = compareText(reactEmail("#eef2f7"), elements("#ffffff"));
+    expect(check.styles).toEqual([{ property: "background", original: "#eef2f7", converted: "#ffffff", words: [], page: true }]);
+    expect(compareText(reactEmail("#15171a"), elements("#ffffff")).styles).toContainEqual(expect.objectContaining({ original: "#15171a", converted: "#ffffff", page: true }));
+  });
+
+  it("is the same however each side sets it: the body, a wrapper as wide as the page, a full-width row", () => {
+    expect(compareText(reactEmail("#eef2f7"), elements("#eef2f7")).styles).toEqual([]);
+    expect(compareText(reactEmail("#eef2f7"), elements("#ffffff", "background-color:#eef2f7")).styles).toEqual([]);
+    const wrapper = `<html><body style="margin:0"><table width="100%" bgcolor="#eef2f7"><tr><td>${card}</td></tr></table></body></html>`;
+    expect(compareText(wrapper, elements("#eef2f7")).styles).toEqual([]);
+    // A box narrower than the page doesn't color it: the card's white isn't the page's.
+    expect(compareText(reactEmail("#ffffff"), elements("#ffffff")).styles).toEqual([]);
+  });
+});
+
+describe("words with an apostrophe", () => {
+  it("keep it inside the word, whichever apostrophe was typed, and drop quotes around it", async () => {
+    const { normalizeWord } = await import("../src/cascade");
+    expect(normalizeWord("You're")).toBe("You're");
+    expect(normalizeWord("You’re")).toBe("You're");
+    expect(normalizeWord("'quoted'")).toBe("quoted");
+    expect(normalizeWord("users'")).toBe("users");
+    expect(normalizeWord("don't,")).toBe("don't");
+  });
 });

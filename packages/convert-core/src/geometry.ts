@@ -172,15 +172,17 @@ function display(doc: StyledDocument, element: Element): string {
 /**
  * How a box aligns what's inline in it: its text-align, an `align` attribute (legacy, inherited as
  * text-align; a table's only places the table), or <center>'s own. Unset, it's what's above it: the
- * text's start or end where that's what's above, in this box's own direction.
+ * text's start or end where that's what's above, in this box's own direction. With `ownAlign` false, what
+ * the element sets itself is left out (an inline box's own text-align aligns no line: its block's does).
  */
-function textAlign(doc: StyledDocument, element: Element, inherited: Flow, rtl: boolean): Flow {
+function textAlign(doc: StyledDocument, element: Element, inherited: Flow, rtl: boolean, ownAlign = true): Flow {
   const start: Flow = { align: rtl ? "right" : "left", logical: "start" };
   const end: Flow = { align: rtl ? "left" : "right", logical: "end" };
   // The browser resets an alignment that comes from an `align` attribute or <center> at a table.
   const reset = element.tagName === "table" && inherited.legacy;
   const unread = inherited.unknown ? { unknown: true } : {};
   const above: Flow = reset ? start : inherited.logical === "start" ? { ...start, ...unread } : inherited.logical === "end" ? { ...end, ...unread } : { align: inherited.align, ...(inherited.legacy ? { legacy: true } : {}), ...unread };
+  if (!ownAlign) return above;
   const css = doc.property(element, "text-align");
   if (css === null) return { ...above, unknown: true };
   const own = css || (element.tagName === "table" || element.tagName === "img" ? "" : attr(element, "align")) || (element.tagName === "center" ? "center" : "");
@@ -427,7 +429,8 @@ function placeChildren(doc: StyledDocument, element: Element, kind: string, box:
     flush();
     const inline = display(doc, kid) === "inline";
     place(doc, kid, box.x, box.width, box, blockAlign, rtl, out, inline);
-    if (inline) out.set(kid, { ...box, ...textAlign(doc, kid, box, direction(doc, kid, rtl) ?? rtl) });
+    // Its text is on its block's lines, aligned as they are: its own text-align reaches only blocks inside it.
+    if (inline) out.set(kid, { ...box, ...textAlign(doc, kid, box, direction(doc, kid, rtl) ?? rtl, false) });
     if (/^(both|left|right)$/i.test(doc.property(kid, "clear") ?? "")) afterFloat = false;
     if (afterFloat) unknownWithin(kid, out);
   }

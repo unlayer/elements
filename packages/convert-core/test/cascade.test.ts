@@ -184,7 +184,8 @@ describe("compareStyles", () => {
   it("reports light text whose gradient or image behind it was lost, and nothing when it's kept or filled with the gradient's color", () => {
     const card = (bg: string) => `<table><tr><td style="${bg}"><p style="color:#ffffff">Welcome aboard</p></td></tr></table>`;
     const changes = (original: string, converted: string) => compareStyles(card(original), card(converted)).differences.map((d) => `${d.property}: ${d.original} → ${d.converted}`);
-    expect(changes("background:linear-gradient(135deg,#1e3a8a,#312e81)", "")).toEqual(["background: #1e3a8a → #ffffff"]);
+    // White on white: the words can't be read either.
+    expect(changes("background:linear-gradient(135deg,#1e3a8a,#312e81)", "")).toEqual(["shown: shown → invisible (#ffffff on #ffffff)", "background: #1e3a8a → #ffffff"]);
     expect(changes("background:linear-gradient(135deg,#1e3a8a,#312e81)", "background-color:#1e3a8a")).toEqual([]);
     expect(changes("background:#0b1020 url(https://x.com/night.jpg)", "")).toEqual(["background: an image on #0b1020 → #ffffff"]);
     // No color under the image: white text on it is lost on white.
@@ -201,7 +202,7 @@ describe("compareStyles", () => {
     const glow = (bg: string) => `<div style="background-color:#111111"><div style="${bg}"><p style="color:#ffffff">Glow</p></div></div>`;
     const fades = "background-image:radial-gradient(circle at bottom right, rgb(251,122,0) 0%, transparent 60%)";
     expect(compareStyles(glow(fades), glow("")).differences).toEqual([]);
-    expect(compareStyles(glow(fades), `<p style="color:#ffffff">Glow</p>`).differences.map((d) => d.property)).toEqual(["background"]);
+    expect(compareStyles(glow(fades), `<p style="color:#ffffff">Glow</p>`).differences.map((d) => d.property)).toEqual(["shown", "background"]);
   });
 
   it("says what it couldn't verify, on which side and why, and nothing when both sides are unknown the same way", () => {

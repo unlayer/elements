@@ -10,7 +10,7 @@
 import { isUtf8 } from "node:buffer";
 import { existsSync, readFileSync, realpathSync, rmSync, rmdirSync } from "node:fs";
 import { lstat, mkdir, open, readFile, readdir, realpath, rename, rm, stat } from "node:fs/promises";
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import Module, { createRequire } from "node:module";
 import { tmpdir } from "node:os";
 import { basename, dirname, extname, isAbsolute, join, relative, resolve, sep } from "node:path";
@@ -22,7 +22,7 @@ export interface Io {
   cwd: string;
   /**
    * The folder the converter's React, React Email and Elements resolve from
-   * (the command sets it up before the CLI loads: see bin.ts). Without it, the
+   * (the command sets it up before the CLI loads: see start.ts). Without it, the
    * current folder.
    */
   project?: string;
@@ -48,14 +48,16 @@ and the visual editor must get every block. Nothing is written unless you ask:
                    template, for the visual editor's loadDesign(). Text
                    props shown as given become merge tags ({{name}}).
   --no-merge-tags  Keep the sample values in the design JSON instead.
-  --report <file>  Write the migration report (.md or .json).
-  --strict         Fail (and don't write) a template the check finds any
-                   difference in, also in how it looks. Without it, every
+  --report <file>  Write the migration report: JSON for a .json file,
+                   Markdown for any other.
+  --strict         Fail (and don't write) a template with any difference:
+                   in its content, in how it looks, or one the migration
+                   lists (a style it couldn't keep). Without it, every
                    template is written, with what looks different listed.
   --force          With --strict, write templates the check fails anyway.
   --overwrite      Replace files already at a destination that this run
                    didn't produce: what an earlier run wrote in an --out
-                   folder, or files git can restore.
+                   folder (not once it's edited), or files git can restore.
   --allow-dirty    Replace files git can't restore (changed since the last
                    commit, not committed, or not in a repository) with
                    --write, or with --overwrite. Without it, they're
@@ -88,6 +90,8 @@ export interface StyleChange {
   dark?: true;
   /** Only on phones. */
   phone?: true;
+  /** The page's own style (its background), on no words in particular: `words` is empty. */
+  page?: true;
 }
 
 export interface FileResult {
@@ -223,21 +227,32 @@ async function run(argv: string[], io: Io, library?: Library): Promise<number> {
     io.stderr("Use --write or --out, not both.\n");
     return 1;
   }
+  // A dry run writes nothing: --design alone would do nothing without a word.
+  if (options.design && !options.write && options.out === undefined) io.stderr("--design writes design JSON with --write or --out: this run writes nothing.\n");
 
   const inputs = await collect(args.positional, io.cwd);
   if (inputs.missing.length) {
     io.stderr(`Not found: ${inputs.missing.join(", ")}\n`);
     return 1;
   }
-  // A template can use React Email only through the project's own components (a ui file).
+  // A template can use React Email only through the project's own components (a ui file). A file that does and isn't
+  // a template (no default export, a helper) is listed as skipped, as one that imports React Email itself is.
+  const listed: FileResult[] = [];
+  const skipped = new Set<string>();
   for (const input of inputs.files) {
-    if (!input.reactEmail && !input.migrated) input.reactEmail = await reactEmailThroughProject(input.path);
+    if (input.reactEmail || input.migrated) continue;
+    const through = await reactEmailThroughProject(input.path);
+    if (through === true) input.reactEmail = true;
+    else if (through) {
+      listed.push({ file: relative(io.cwd, input.path), status: "skipped", reason: through.reason });
+      skipped.add(input.path);
+    }
   }
   const candidates = inputs.files.filter((f) => f.reactEmail);
   // A file with React Email's preview props whose React Email the run can't find (its components from a package
   // the run doesn't follow): a template left out without a word otherwise.
   for (const input of inputs.files) {
-    if (input.reactEmail || input.migrated) continue;
+    if (input.reactEmail || input.migrated || skipped.has(input.path)) continue;
     if (/\b[A-Za-z_$][\w$]*\.PreviewProps\s*=/.test(await readFile(input.path, "utf8").catch(() => ""))) {
       inputs.unreadable.push({
         file: relative(io.cwd, input.path),
@@ -247,16 +262,23 @@ async function run(argv: string[], io: Io, library?: Library): Promise<number> {
     }
   }
   if (!candidates.length && inputs.unreadable.length) {
-    for (const result of inputs.unreadable) io.stdout(`${line(result)}\n`);
-    io.stdout(`\n${summary(inputs.unreadable, options)}\n`);
+    const shown = [...inputs.unreadable, ...listed];
+    io.stdout(lines(shown));
+    io.stdout(`\n${summary(shown, options)}\n`);
     return 2;
   }
   if (!candidates.length) {
+    io.stdout(lines(listed));
     // Run again after --write (in CI): the templates are done.
     const done = inputs.files.filter((f) => f.migrated).length;
     if (done) {
-      io.stdout(`${done} template${done === 1 ? "" : "s"} already migrated (importing @unlayer/react-elements): nothing to do.\n`);
+      io.stdout(`${listed.length ? "\n" : ""}${done} template${done === 1 ? "" : "s"} already migrated (importing @unlayer/react-elements): nothing to do.\n`);
       return 0;
+    }
+    if (listed.length) {
+      io.stdout(`\n${summary(listed, options)}\n`);
+      io.stderr("No email template was checked: nothing here renders React Email's <Html> (shared components and helpers are skipped).\n");
+      return 1;
     }
     io.stderr("No React Email templates found (files that import react-email or @react-email/*, or the project's components that do).\n");
     return 1;
@@ -279,11 +301,13 @@ async function run(argv: string[], io: Io, library?: Library): Promise<number> {
   try {
     destinations = await reserveDestinations(inputs.files, candidates, options, reportFile, io.cwd);
   } catch (error) {
-    io.stderr(`${message(error)}\n`);
+    // A refusal lists the files it's about, one per line.
+    io.stderr(`${error instanceof Refusal ? error.message : message(error)}\n`);
     return 1;
   }
 
-  if (!supportedElements(io, candidates.map((input) => input.path))) return 1;
+  // Where the templates load Elements from, and where their migrated copies will.
+  if (!supportedElements(io, candidates.flatMap((input) => [input.path, outputPath(input, options, io.cwd)]))) return 1;
   // Checked where each template and its migrated copy load their packages from.
   const copies = otherCopies(io, candidates.flatMap((input) => [input.path, outputPath(input, options, io.cwd)]));
   if (copies) {
@@ -291,7 +315,7 @@ async function run(argv: string[], io: Io, library?: Library): Promise<number> {
     return 1;
   }
   const lib = library ?? ((await import("@unlayer/from-react-email")) as Library);
-  const results: FileResult[] = [...inputs.unreadable];
+  const results: FileResult[] = [...inputs.unreadable, ...listed];
   // Templates another one renders are left for now. With --write, a pass that writes the templates using one may
   // free it (the migrated ones render their own markup): it's tried again, until a pass writes nothing more.
   let todo = candidates;
@@ -400,19 +424,41 @@ async function run(argv: string[], io: Io, library?: Library): Promise<number> {
   // In the templates' order (a later pass's after the first's otherwise), files it couldn't read first.
   const read = results.splice(inputs.unreadable.length).sort((a, b) => a.file.localeCompare(b.file));
   results.push(...read);
-  for (const result of results) io.stdout(`${line(result)}\n`);
-  io.stdout(`\n${summary(results, options)}\n`);
-  // Files the run left that use a template it replaced (a component file, a helper that sends it): they now get Elements'.
+  io.stdout(lines(results));
+  // Templates an earlier run wrote, beside files still to look at (a shared component left behind): said, so a run
+  // again after --write (in CI) doesn't read as finding nothing. Only the run's own: a route that renders with
+  // Elements isn't a template done.
+  const done = inputs.files.filter((f) => f.written).length;
+  io.stdout(`\n${summary(results, options).replace(/^No email templates\./, done ? "No email templates left to migrate." : "$&")}\n`);
+  if (done) io.stdout(`${done} template${done === 1 ? "" : "s"} already migrated (importing @unlayer/react-elements).\n`);
+  // The project's files that use a template it replaced (a route or a helper that sends it, a component file): they
+  // now get Elements', whose markup React Email's render() gives without <html> and <head>. Looked for in the whole
+  // project, not only the folder given (`migrate emails --write` from a Next.js app: its routes send them).
   if (options.write) {
-    const written = new Set(results.filter((r) => r.output).map((r) => resolve(io.cwd, r.file)));
-    const left = new Set(inputs.files.filter((f) => !written.has(f.path)).map((f) => f.path));
-    if (written.size && left.size) {
-      const stale = [...(await importedInputs(inputs.files, undefined, left)).uses].filter(([file, use]) => written.has(file) && !use.through);
-      if (stale.length) {
-        io.stdout(`\nStill using a migrated template (send it with renderToHtml from @unlayer/react-elements, or render it in an Elements template):\n${stale.map(([file, use]) => `  ${relative(io.cwd, use.importer)} → ${relative(io.cwd, file)}`).join("\n")}\n`);
-      }
+    const written = results.filter((r) => r.output).map((r) => resolve(io.cwd, r.output!));
+    const users = written.length ? await templateUsers(written, inputs.files.map((f) => f.base), io.cwd) : [];
+    if (users.length) {
+      io.stdout(
+        `\nStill using a migrated template: render it with renderToHtml() from @unlayer/react-elements, not React Email's render() (nor a sender's \`react:\` option), which gives its markup without <html> and <head>; or render it in an Elements template:\n` +
+          `${users.map((u) => `  ${relative(io.cwd, u.file)} → ${u.templates.map((t) => relative(io.cwd, t)).join(", ")}`).join("\n")}\n`
+      );
     }
   }
+  // Files the run left as they were that still import React Email (a shared component, a helper the templates inlined):
+  // React Email can go only once nothing imports them, so they're named.
+  if (options.write && results.some((r) => r.output)) {
+    const reactEmail = new Set(inputs.files.filter((f) => f.reactEmail).map((f) => resolve(f.path)));
+    const left = results.filter((r) => r.status === "skipped" && !r.output && reactEmail.has(resolve(io.cwd, r.file)));
+    if (left.length) {
+      io.stdout(
+        `\nStill importing React Email, as they were (the migrated templates have what they used written in): delete the ones nothing imports any more before you remove React Email:\n` +
+          `${left.map((r) => `  ${r.file}`).join("\n")}\n`
+      );
+    }
+  }
+  // The migrated templates import Elements: say how to install it where it isn't (tsc fails until then).
+  const install = installElements(results.flatMap((r) => (r.output ? [resolve(io.cwd, r.output)] : [])), io.cwd);
+  if (install.length) io.stdout(`\n${install.join("\n")}\n`);
   if (reportFile) {
     const target = resolve(io.cwd, reportFile);
     try {
@@ -421,7 +467,9 @@ async function run(argv: string[], io: Io, library?: Library): Promise<number> {
       io.stderr(`Couldn't write report: ${message(error)}\n`);
       return 2;
     }
-    io.stdout(`Report: ${relative(io.cwd, target)}\n`);
+    // Any name but .json gets Markdown: said when the name doesn't say it.
+    const format = reportFile.endsWith(".json") || /\.(md|markdown)$/i.test(reportFile) ? "" : " (written as Markdown: name it .json for JSON)";
+    io.stdout(`Report: ${relative(io.cwd, target)}${format}\n`);
   }
   if (results.some((r) => r.status === "failed" || r.status === "check-failed")) return 2;
   // A run ends with 0 only when it checked what it was given: a template migrated, or nothing left to migrate.
@@ -432,7 +480,7 @@ async function run(argv: string[], io: Io, library?: Library): Promise<number> {
     io.stderr("Templates left as they are weren't checked: files that render them weren't migrated (see above). Migrate them with --out <dir>, or with the files that render them.\n");
     return 1;
   }
-  if (!results.some((r) => r.status === "migrated") && !results.some((r) => r.reason?.startsWith("already migrated"))) {
+  if (!done && !results.some((r) => r.status === "migrated") && !results.some((r) => r.reason?.startsWith("already migrated"))) {
     io.stderr("No email template was checked: nothing here renders React Email's <Html> (shared components and helpers are skipped).\n");
     return 1;
   }
@@ -451,6 +499,8 @@ interface Input {
   reactEmail: boolean;
   /** Imports @unlayer/react-elements: migrated already. */
   migrated: boolean;
+  /** A template a run wrote (its header says so) that imports @unlayer/react-elements. */
+  written: boolean;
 }
 
 function outputPath(input: Input, options: Options, cwd: string): string {
@@ -462,7 +512,15 @@ function designPath(target: string): string {
 }
 
 /** Each output, and whether a file already there may be replaced (the template itself with --write, the report, or --overwrite). */
-type Destinations = Map<string, { canonical: string; root?: string; replace: boolean; design?: boolean; keepUnlessSame?: string }>;
+type Destinations = Map<string, {
+  canonical: string;
+  root?: string;
+  replace: boolean;
+  design?: boolean;
+  keepUnlessSame?: string;
+  /** What a destination the run may replace held when the run decided it could (null: nothing), which it must still hold. */
+  before?: Buffer | null;
+}>;
 
 /** Resolve existing ancestors too, including symlinked directories. */
 async function canonicalPath(path: string): Promise<string> {
@@ -530,17 +588,23 @@ async function reserveDestinations(inputs: Input[], candidates: Input[], options
   // A report replaces the one a run wrote before; any other file only with --overwrite (it's someone's work).
   if (report) await reserve(resolve(cwd, report), "--report", undefined, false, options.overwrite || (await isReport(resolve(cwd, report))));
   // --overwrite replaces what a run wrote before, or what git can restore: never someone's work it can't (`--out .`
-  // over an uncommitted welcome.tsx), unless --allow-dirty.
+  // over an uncommitted welcome.tsx, or a migrated template edited since), unless --allow-dirty.
   const atRisk: string[] = [];
-  // In a folder of its own (--out), an earlier run's template (its header) is replaced. A design can't be told from
-  // one made in the editor, or edited there since a run wrote it: one git can't restore is replaced only by the same
-  // design (a run again from the same template), checked when it's written.
+  // In a folder of its own (--out), an earlier run's template is replaced while it's as that run wrote it (the hash in
+  // its header). A design can't be told from one made in the editor, or edited there since a run wrote it: one git
+  // can't restore is replaced only by the same design (a run again from the same template), checked when it's written.
   // A report a run wrote is replaced as it is (see above).
   const reportPath = report ? resolve(cwd, report) : undefined;
+  const earlier = new Map<string, "edited" | "unhashed">();
   if (!options.allowDirty) {
     for (const [path, d] of destinations) {
       if (!d.replace || sources.has(d.canonical) || !existsSync(path)) continue;
-      if ((d.root !== undefined && !d.design && (await isOutput(path))) || (path === reportPath && (await isReport(path)))) continue;
+      if (path === reportPath && (await isReport(path))) continue;
+      if (d.root !== undefined && !d.design) {
+        const state = earlierOutput(await readFile(path, "utf8").catch(() => ""));
+        if (state === "intact") continue;
+        if (state) earlier.set(path, state);
+      }
       atRisk.push(path);
     }
   }
@@ -548,16 +612,76 @@ async function reserveDestinations(inputs: Input[], candidates: Input[], options
   for (const u of atRisk.length ? await notRestorable(atRisk) : []) {
     const design = destinations.get(u.file);
     if (design?.design) design.keepUnlessSame = u.why;
-    else unsafe.push(u);
+    else {
+      const state = earlier.get(u.file);
+      const how = state === "edited" ? "edited since a run wrote it, " : state === "unhashed" ? "written by an earlier version, which didn't record whether it's edited since, " : "";
+      unsafe.push({ file: u.file, why: `${how}${u.why}` });
+    }
   }
-  if (unsafe.length) throw new Error(`--overwrite would replace ${unsafe.map((u) => `${relative(cwd, u.file)} (${u.why})`).join(", ")}, which git can't restore. Commit it, choose a folder of its own for --out, or pass --allow-dirty.`);
+  if (unsafe.length) throw new Refusal(overwriteRefusal(unsafe.map((u) => `${relative(cwd, u.file)} (${u.why})`)));
+  // What each one holds now: an edit made while templates load (after this decided it could be replaced) is kept. A
+  // template replaced in place checks what it was converted from instead.
+  for (const [path, d] of destinations) {
+    if (!d.replace || sources.has(d.canonical)) continue;
+    d.before = await readFile(path).catch((error) => {
+      if ((error as NodeJS.ErrnoException).code === "ENOENT") return null;
+      throw error;
+    });
+  }
   return destinations;
 }
 
-/** Whether a file is a template a run wrote (its header). */
-async function isOutput(path: string): Promise<boolean> {
-  const text = await readFile(path, "utf8").catch(() => "");
-  return /^\/\*\* @jsxRuntime automatic \*\/\r?\n\/\/ Migrated from React Email by @unlayer\/migrate/.test(text);
+/** Why a run stops before it starts: said as it is, over several lines when it lists files. */
+class Refusal extends Error {}
+
+/** How many files a refusal lists before it counts the rest. */
+const LISTED_FILES = 10;
+
+/** Why --overwrite won't replace `files` (each with why git can't restore it): one, in a line; several, one per line. */
+function overwriteRefusal(files: string[]): string {
+  if (files.length === 1) return `--overwrite would replace ${files[0]}, which git can't restore. Commit it, choose a folder of its own for --out, or pass --allow-dirty.`;
+  const listed = files.slice(0, LISTED_FILES).map((file) => `  ${file}`);
+  if (files.length > LISTED_FILES) listed.push(`  and ${files.length - LISTED_FILES} more`);
+  return `--overwrite would replace ${files.length} files git can't restore:\n${listed.join("\n")}\nCommit them, choose a folder of its own for --out, or pass --allow-dirty.`;
+}
+
+/** The header the converter starts a migrated template with: its first two lines. */
+const OUTPUT_HEADER = /^﻿?\/\*\* @jsxRuntime automatic \*\/[ \t]*\r?\n\/\/ Migrated from React Email by @unlayer\/migrate[^\r\n]*(?:\r?\n|$)/;
+/** The line after it where a run records what it wrote (a hash of the file without this line). */
+const HASH_LINE = /^\/\/ @unlayer\/migrate hash ([0-9a-f]{16})\b[^\r\n]*(?:\r?\n|$)/;
+
+/**
+ * A hash of a migrated template as written: LF line endings, no trailing whitespace or blank lines at the end, so an
+ * editor that changes only those (or adds a byte order mark) doesn't make it an edit.
+ */
+function contentHash(text: string): string {
+  const normalized = text.replace(/^﻿/, "").replace(/\r\n?/g, "\n").split("\n").map((line) => line.trimEnd()).join("\n").replace(/\n+$/, "");
+  return createHash("sha256").update(normalized).digest("hex").slice(0, 16);
+}
+
+/**
+ * The migrated template with the hash of its content after its header: a later run with --overwrite replaces the
+ * file only while it still matches (an edit made since is kept).
+ */
+export function withContentHash(code: string): string {
+  const header = OUTPUT_HEADER.exec(code);
+  if (!header) return code;
+  const eol = header[0].endsWith("\r\n") ? "\r\n" : "\n";
+  return `${header[0]}// @unlayer/migrate hash ${contentHash(code)}: a run with --overwrite replaces this file only while it's unchanged.${eol}${code.slice(header[0].length)}`;
+}
+
+/**
+ * Whether a file is a template a run wrote, and whether it's as written: "intact" (its hash matches), "edited" (it
+ * doesn't), "unhashed" (an earlier version wrote it without one: whether it was edited can't be told), or undefined
+ * (it isn't one).
+ */
+function earlierOutput(text: string): "intact" | "edited" | "unhashed" | undefined {
+  const header = OUTPUT_HEADER.exec(text);
+  if (!header) return undefined;
+  const rest = text.slice(header[0].length);
+  const hash = HASH_LINE.exec(rest);
+  if (!hash) return "unhashed";
+  return contentHash(header[0] + rest.slice(hash[0].length)) === hash[1] ? "intact" : "edited";
 }
 
 /** Whether a file is a report this CLI wrote (Markdown with its title, or JSON with its results), or nothing yet. */
@@ -609,7 +733,14 @@ async function writeDestination(path: string, text: string, destinations: Destin
     await checkDestination(path, destinations);
     // The template itself: only as it was converted (an edit made during the run isn't lost).
     if (replaces && !(await readFile(path).catch(() => undefined))?.equals(replaces)) throw new Error("it changed while the run converted it: not replaced, run again");
+    // Another file: only as it was when the run decided to replace it.
+    const destination = destinations.get(path);
+    if (destination?.before !== undefined) {
+      const now = await readFile(path).catch(() => null);
+      if (now === null ? destination.before !== null : !destination.before?.equals(now)) throw new Error(`${basename(path)} changed during the run: not replaced (the edit is kept), run again`);
+    }
     await rename(temporary, path);
+    if (destination?.before !== undefined) destination.before = Buffer.from(text);
   } finally {
     release();
     remove();
@@ -721,7 +852,7 @@ async function migrateFile(input: Input, options: Options, lib: Library, io: Io,
     try {
       converted = await lib.convertSource(source, { fileName: file, tailwindConfig: tailwind?.config, tailwind: tailwind?.component, loadModule: await moduleLoader(file) });
     } catch (error) {
-      return { file: name, status: "failed", reason: `couldn't convert it: ${message(error)}` };
+      return { file: name, status: "failed", reason: convertFailure(message(error)) };
     }
 
     // Verify the final rebased source in its destination directory before writing
@@ -800,13 +931,15 @@ async function migrateFile(input: Input, options: Options, lib: Library, io: Io,
       ...(lostLooks.length ? [`lost styles: ${lostLooks.join("; ")}`] : []),
       ...verification.variants.filter((v) => !v.error && !contentProblems(v).length).map((v) => `with ${v.change}: ${lookProblems(v).join("; ")}`),
     ];
+    // What the migration lists as different (a style it couldn't keep): with --strict, any difference fails.
+    const differences = group(report.notes);
     const result: FileResult = {
       file: name,
-      status: failsContent || (options.strict && looks.length) ? "check-failed" : "migrated",
+      status: failsContent || (options.strict && (looks.length || differences.length)) ? "check-failed" : "migrated",
       ...(looks.length ? { looks } : {}),
       editable: report.nativeRatio,
       kept: report.fallbacks,
-      differences: group(report.notes),
+      differences,
       changes: group([
         ...(report.info ?? []),
         ...(mergeTags?.used.length ? [{ reason: "text props became merge tags in the design JSON", detail: mergeTags.used.join(", ") }] : []),
@@ -832,7 +965,8 @@ async function migrateFile(input: Input, options: Options, lib: Library, io: Io,
     // Every template is written: one whose content differs too, flagged (git or the original folder keeps it as it was).
     // With --strict, only one with no difference (or any, with --force).
     if (writing && (result.status === "migrated" || !options.strict || options.force)) {
-      writes.push({ path: target, text: code, kind: "output", ...(resolve(target) === resolve(file) ? { replaces: bytes } : {}) });
+      // With the hash of what's written: a later --overwrite keeps the file once it's edited.
+      writes.push({ path: target, text: withContentHash(code), kind: "output", ...(resolve(target) === resolve(file) ? { replaces: bytes } : {}) });
       if (options.design) writes.push({ path: designPath(target), text: `${JSON.stringify(design, null, 2)}\n`, kind: "design" });
     }
     return { ...result, writes, code };
@@ -866,23 +1000,31 @@ async function compare(paths: string[], args: Args, io: Io, library?: Library): 
   const lib = library ?? ((await import("@unlayer/from-react-email")) as Library);
   const release: Array<() => void> = [];
   try {
-    let Original: any;
-    let Migrated: any;
-    let props: Record<string, unknown>;
-    try {
-      const original = templateComponent(defaultExport(await importFile(originalPath, io, release)));
-      const migrated = templateComponent(defaultExport(await importFile(migratedPath, io, release)));
-      if (!original || !migrated) {
-        io.stderr("Both files need a default-exported template component.\n");
-        return 1;
+    // Each file loads with its imports resolved from where it is: one that fails is named, with what to do (null).
+    const load = async (path: string, which: string) => {
+      try {
+        return templateComponent(defaultExport(await importFile(path, io, release)));
+      } catch (error) {
+        const code = (error as NodeJS.ErrnoException).code;
+        const missing = code === "ERR_MODULE_NOT_FOUND" || code === "MODULE_NOT_FOUND" || /Cannot find (module|package)/.test(message(error));
+        io.stderr(
+          `Couldn't load the ${which}, ${relative(io.cwd, path)}: ${message(error)}\n` +
+            (missing ? "Its imports resolve from its own folder, where they aren't installed: put it in the project that has its dependencies (or install them there), then run compare from that project.\n" : "")
+        );
+        return null;
       }
-      Original = original.component;
-      Migrated = migrated.exported;
-      props = original.props;
-    } catch (error) {
-      io.stderr(`Couldn't load the templates: ${message(error)}\n`);
-      return 2;
+    };
+    const original = await load(originalPath, "original template");
+    if (original === null) return 2;
+    const migrated = await load(migratedPath, "migrated template");
+    if (migrated === null) return 2;
+    if (!original || !migrated) {
+      io.stderr("Both files need a default-exported template component.\n");
+      return 1;
     }
+    const Original: any = original.component;
+    const Migrated: any = migrated.exported;
+    const props: Record<string, unknown> = original.props;
     let check: Awaited<ReturnType<Library["verifyConversion"]>>;
     try {
       check = await lib.verifyConversion(Original, Migrated, { props });
@@ -913,6 +1055,18 @@ async function compare(paths: string[], args: Args, io: Io, library?: Library): 
   }
 }
 
+/**
+ * Why the converter couldn't convert a template, said once: its own "Can't convert …" already says it can't
+ * ("can't convert a <style> whose CSS comes from code: …"), and "Can't convert this template: " before why is
+ * "couldn't convert it: " here.
+ */
+function convertFailure(why: string): string {
+  const template = /^Can't convert this template:\s*/.exec(why);
+  if (template) return `couldn't convert it: ${why.slice(template[0].length)}`;
+  if (/^Can't (safely )?convert /.test(why)) return `c${why.slice(1)}`;
+  return `couldn't convert it: ${why}`;
+}
+
 function group(notes: Array<{ reason: string; detail?: string }>): Array<{ reason: string; count: number; examples: string[] }> {
   const byReason = new Map<string, { count: number; examples: string[] }>();
   for (const note of notes) {
@@ -931,27 +1085,47 @@ function group(notes: Array<{ reason: string; detail?: string }>): Array<{ reaso
 function line(result: FileResult): string {
   switch (result.status) {
     case "skipped":
-      return `- ${result.file}: skipped (${result.reason})`;
+      // After a colon: a reason has asides in parentheses of its own.
+      return `- ${result.file}: skipped: ${result.reason}`;
     case "failed":
       return `✗ ${result.file}: ${result.reason}`;
     default: {
       const editable = `${Math.round((result.editable ?? 0) * 100)}% editable`;
-      const differences = result.differences?.length ? `, ${result.differences.length} kind${result.differences.length > 1 ? "s" : ""} of difference` : "";
+      const differences = result.differences?.length ? `${result.differences.length} kind${result.differences.length > 1 ? "s" : ""} of difference (${kinds(result.differences)})` : "";
       const written = result.output ? ` → ${result.output}` : "";
       // How it looks that differs: written anyway, listed to fix in the editor.
       const looks = result.looks?.length ? `\n    looks different: ${result.looks.join("; ")}` : "";
-      if (result.status === "migrated") return `✓ ${result.file}: ${editable}${differences}${written}${looks}`;
+      if (result.status === "migrated") return `✓ ${result.file}: ${editable}${differences ? `, ${differences}` : ""}${written}${looks}`;
       const found = [
         ...contentProblems({ ...result, missing: result.missingText, added: result.addedText }),
-        ...(result.designWarnings?.length ? [`${result.designWarnings.length} block(s) the editor wouldn't get`] : []),
+        ...(result.designWarnings?.length ? [blocksLost(result.designWarnings.length)] : []),
         ...(result.variants ?? []).filter((v) => v.error || contentProblems(v).length).map((v) => `with ${v.change}: ${variantProblems(v)}`),
       ];
-      // Its content differs (a converter bug: report it), or, with --strict, how it looks.
+      // Its content differs (a converter bug: report it), something else failed the check (what it couldn't verify, a
+      // block the editor wouldn't get), or, with --strict, how it looks. After a colon: what's listed has asides in
+      // parentheses of its own.
+      const failure = lostContent(result) ? "its content differs" : "it failed the check";
       return found.length
-        ? `✗ ${result.file}: ${result.output ? "written, but its content differs" : "check failed"} (${found.join("; ")})${written}${looks}`
-        : `✗ ${result.file}: check failed (looks different, with --strict)${written}${looks}`;
+        ? `✗ ${result.file}: ${result.output ? `written, but ${failure}` : "check failed"}: ${found.join("; ")}${written}${looks}`
+        : `✗ ${result.file}: check failed with --strict: ${[...(result.looks?.length ? ["looks different"] : []), ...(differences ? [differences] : [])].join(", ")}${written}${looks}`;
     }
   }
+}
+
+/**
+ * What the migration lists as different, by kind, in short (the report has each one): "image border radius dropped;
+ * style not converted: box-shadow, opacity".
+ */
+function kinds(differences: NonNullable<FileResult["differences"]>): string {
+  return differences
+    .map((d) => {
+      const kind = d.reason.replace(/\s*\([^)]*\)/g, "").trim();
+      // A kind that's a list of its own: what it is, from each example ("box-shadow (Section)").
+      if (!/^((phone )?style not converted|attribute not kept)$/.test(kind) || !d.examples.length) return kind;
+      const what = [...new Set(d.examples.map((example) => example.replace(/\s*\(.*$/, "").trim()))];
+      return `${kind}: ${what.join(", ")}${d.examples.length >= 5 && d.count > 5 ? ", …" : ""}`;
+    })
+    .join("; ");
 }
 
 /** Moved text and images: `"Order", "Status" 149px to the left`. */
@@ -961,24 +1135,52 @@ function moves(layout: NonNullable<FileResult["layout"]>): string {
 
 /** What couldn't be verified, one line per cause: `the color of "Hello", "world" (the rule \`.x:has(b)\` …)`. */
 function unverifiedList(items: NonNullable<FileResult["unverified"]>): string {
-  const name: Record<string, string> = { shown: "whether it's shown", "shown on phones": "whether a phone shows it", "where it sits": "where it sits across the page", look: "the look", size: "the size", bold: "the weight", italic: "italics", transform: "letter case", underline: "underline", color: "the color", background: "the background", target: "the link target" };
-  return items
-    .map((u) => `${name[u.what] ?? u.what} of ${quote(u.words)}${wider(u.width)} (${u.side === "migrated" ? "the migrated template writes " : ""}${u.cause})`)
-    .join("; ");
+  return items.map((u) => `${unverifiedWhat(u.what, u.words)}${wider(u.width)} (${u.side === "migrated" ? "the migrated template writes " : ""}${u.cause})`).join("; ");
 }
 
-function summary(results: FileResult[], options: Options): string {
+/** What couldn't be verified, on the words it's about (none: a part of the page, as head content). */
+function unverifiedWhat(what: string, words: string[]): string {
+  const one = words.length === 1;
+  const them = words.length ? quote(words) : "";
+  if (what === "shown") return words.length ? `whether ${them} show${one ? "s" : ""}` : "whether it shows";
+  if (what === "shown on phones") return `whether a phone shows ${words.length ? them : "it"}`;
+  if (what === "where it sits") return words.length ? `where ${them} sit${one ? "s" : ""} across the page` : "where it sits across the page";
+  const name: Record<string, string> = { look: "the look", size: "the size", bold: "the weight", italic: "italics", transform: "letter case", underline: "underline", color: "the color", background: "the background", target: "the link target" };
+  return `${name[what] ?? what}${words.length ? ` of ${them}` : ""}`;
+}
+
+/**
+ * Whether a result is an email template's (one migrated, failed, already migrated or left for a file that renders
+ * it), not another file's the run skipped (a shared component, a helper, a route, a folder link not followed).
+ */
+function isTemplate(result: FileResult): boolean {
+  return result.status !== "skipped" || /^(already migrated|left as it is for |imported by )/.test(result.reason ?? "");
+}
+
+/** Each result's line: the templates first, then the other files the run skipped. */
+function lines(results: FileResult[]): string {
+  return [...results.filter(isTemplate), ...results.filter((r) => !isTemplate(r))].map((result) => `${line(result)}\n`).join("");
+}
+
+/** The run in a line: what happened to the templates, then how many other files it skipped (listed above). */
+function summary(all: FileResult[], options: Options): string {
+  const results = all.filter(isTemplate);
+  const others = all.length - results.length;
   const count = (status: FileResult["status"]) => results.filter((r) => r.status === status).length;
   const looks = results.filter((r) => r.status === "migrated" && r.looks?.length).length;
+  // Only content lost or added is a converter bug; what else fails the check is said above.
+  const failedCheck = count("check-failed");
+  const bugs = results.filter((r) => r.status === "check-failed" && lostContent(r)).length;
   const parts = [
     `${count("migrated")} migrated and checked${looks ? ` (${looks} look${looks === 1 ? "s" : ""} different: see above)` : ""}`,
-    ...(count("check-failed") ? [options.strict ? `${count("check-failed")} failed the check` : `${count("check-failed")} with content that differs (a converter bug: please report it)`] : []),
+    ...(failedCheck ? [bugs === failedCheck ? `${failedCheck} with content that differs (a converter bug: please report it)` : `${failedCheck} failed the check${bugs ? ` (${bugs} with content that differs: a converter bug, please report it)` : ""}`] : []),
     ...(count("failed") ? [`${count("failed")} failed`] : []),
     ...(count("skipped") ? [`${count("skipped")} skipped`] : []),
   ];
   const written = results.filter((r) => r.output).length;
   const next = options.write || options.out !== undefined ? `${written} written.` : "Nothing written: pass --write or --out <dir> to write the migrated templates.";
-  return `${results.length} template${results.length > 1 ? "s" : ""}: ${parts.join(", ")}. ${next}`;
+  const templates = results.length ? `${results.length} template${results.length > 1 ? "s" : ""}: ${parts.join(", ")}.` : "No email templates.";
+  return `${templates}${others ? ` ${others} other file${others > 1 ? "s" : ""} skipped (see above).` : ""} ${next}`;
 }
 
 function markdownReport(results: FileResult[]): string {
@@ -1003,14 +1205,20 @@ function markdownReport(results: FileResult[]): string {
     if (r.lostShown?.length) lines.push("**Shown whatever the props** (the original shows or hides it by them):", ...r.lostShown.map((s) => `- ${s}`), "");
     const lostLooks = (r.lostStyles ?? []).filter((style) => !r.lostShown?.includes(style));
     if (lostLooks.length) lines.push("**Lost styles** (change how it looks):", ...lostLooks.map((s) => `- ${s}`), "");
-    if (r.styles?.length) lines.push("**Shown in another style:**", ...r.styles.map((c) => `- ${c.property}: ${c.original} → ${c.converted}, on ${quote(c.words)}${wider(c.width)}`), "");
+    const shown = r.styles?.filter((c) => c.property === "shown") ?? [];
+    const styled = r.styles?.filter((c) => c.property !== "shown") ?? [];
+    if (shown.length) lines.push("**Shown elsewhere, or not at all:**", ...shown.map((c) => `- ${shownChange(c)}`), "");
+    if (styled.length) lines.push("**Shown in another style:**", ...styled.map((c) => `- ${styleChange(c, true)}${wider(c.width)}${c.dark ? " in dark mode" : ""}${c.phone ? " on phones" : ""}`), "");
     if (r.unverified?.length) lines.push("**Couldn't verify** (what the check can't read):", ...unverifiedList(r.unverified).split("; ").map((line) => `- ${line}`), "");
     if (r.phone?.missing.length) lines.push(`**On phones, lost text:** ${quote(r.phone.missing)}`, "");
     if (r.phone?.added.length) lines.push(`**On phones, extra text:** ${quote(r.phone.added)}`, "");
     if (r.phone?.missingAttributes?.length) lines.push(`**On phones, lost links or images:** ${quote(r.phone.missingAttributes)}`, "");
     if (r.phone?.addedAttributes?.length) lines.push(`**On phones, extra links or images:** ${quote(r.phone.addedAttributes)}`, "");
     if (r.layout?.length) lines.push(`**Moved across the page:** ${moves(r.layout)}`, "");
-    if (r.styleCoverage?.words) lines.push(`Styles compared on ${r.styleCoverage.words} words${r.styleCoverage.unknown ? ` (${r.styleCoverage.unknown} values couldn't be worked out, and were left out)` : ""}.`, "");
+    if (r.styleCoverage?.words) {
+      const { words, unknown } = r.styleCoverage;
+      lines.push(`Styles compared on ${words} word${words === 1 ? "" : "s"}${unknown ? ` (${unknown} value${unknown === 1 ? " couldn't be worked out, and was" : "s couldn't be worked out, and were"} left out)` : ""}.`, "");
+    }
     if (r.designWarnings?.length) lines.push("**The editor wouldn't get:**", ...r.designWarnings.map((w) => `- ${w}`), "");
     if (r.variants?.length) {
       lines.push("**With a prop flipped:**", ...r.variants.map((v) => `- \`${v.change}\`: ${variantProblems(v)}`), "");
@@ -1071,7 +1279,7 @@ function contentProblems(check: CheckParts): string[] {
     ...(check.added?.length ? [`extra text: ${quote(check.added)}`] : []),
     ...(check.missingAttributes?.length ? [`lost links/images: ${quote(check.missingAttributes)}`] : []),
     ...(check.addedAttributes?.length ? [`extra links/images: ${quote(check.addedAttributes)}`] : []),
-    ...(preview.length ? [`shown in another place: ${styleChanges(preview)}`] : []),
+    ...preview.map(shownChange),
     ...(shown.length ? [`couldn't verify: ${unverifiedList(shown)}`] : []),
     ...(words.length ? [`words CSS adds or hides, which the check doesn't read: ${unverifiedList(words)}`] : []),
     ...(check.phone?.missing.length ? [`on phones, lost text: ${quote(check.phone.missing)}`] : []),
@@ -1133,9 +1341,62 @@ function lookProblems(check: CheckParts): string[] {
   ];
 }
 
-/** Style changes in a line: "color #e11d48 → #000000 on "Hello", "world"". */
+/**
+ * Where text shows that differs, as a reader finds it: "text no longer visible: "Watch update" is #000000 on #15171a",
+ * "text in the inbox preview only, no longer in the email: …", "text no longer shown on screens 768px and wider: …".
+ */
+function shownChange(c: StyleChange): string {
+  const where = `${wider(c.width)}${c.dark ? " in dark mode" : ""}${c.phone ? " on phones" : ""}`;
+  const text = phrase(c.words);
+  const invisible = (value: string) => /^invisible \((.*)\)$/.exec(value)?.[1];
+  const [was, is] = [invisible(c.original), invisible(c.converted)];
+  if (c.original === "shown" && is !== undefined) return `text no longer visible${where}: ${text} is ${is}`;
+  if (was !== undefined && c.converted === "shown") return `text now visible${where}: ${text} was ${was} in the original`;
+  if (c.original === "in the email" && c.converted === "the inbox preview only") return `text in the inbox preview only, no longer in the email${where}: ${text}`;
+  if (c.original === "the inbox preview only" && c.converted === "in the email") return `inbox preview text now shown in the email${where}: ${text}`;
+  if (c.original === "shown" && c.converted === "hidden") return `text no longer shown${where}: ${text}`;
+  if (c.original === "hidden" && c.converted === "shown") return `text shown${where} that the original hides: ${text}`;
+  if (c.original === "in this order" && c.converted === "in another order") return `text in another order${where}: ${text}`;
+  return `text ${c.converted}${where}, where the original has it ${c.original}: ${text}`;
+}
+
+/** Words as the text they make: `"Watch update"`, then how many more past 12. */
+function phrase(words: string[]): string {
+  const shown = `"${words.slice(0, 12).join(" ")}"`;
+  return words.length > 12 ? `${shown} and ${words.length - 12} more` : shown;
+}
+
+/** Blocks the visual editor wouldn't get: "1 block the editor wouldn't get". */
+function blocksLost(count: number): string {
+  return `${count} block${count === 1 ? "" : "s"} the editor wouldn't get`;
+}
+
+/**
+ * Whether the migration lost or added content, a converter bug: words, links or images (on any screen, in dark mode,
+ * with a prop flipped), text moved between the inbox preview and the email, shown or hidden at some width, or shown
+ * whatever the props. Not what the check couldn't verify (`font: inherit`, an ellipsis), a block the editor wouldn't
+ * get (Elements' warning), or a style that leaves text unreadable.
+ */
+function lostContent(result: FileResult): boolean {
+  const lost = (c: CheckParts) =>
+    Boolean(
+      c.missing?.length || c.added?.length || c.missingAttributes?.length || c.addedAttributes?.length ||
+      c.phone?.missing.length || c.phone?.added.length || c.phone?.missingAttributes?.length || c.phone?.addedAttributes?.length ||
+      c.lostShown?.length || c.styles?.some((s) => s.property === "shown" && !/^invisible/.test(s.original) && !/^invisible/.test(s.converted))
+    );
+  return lost({ ...result, missing: result.missingText, added: result.addedText }) || (result.variants ?? []).some(lost);
+}
+
+/** Style changes in a line: "color #e11d48 → #000000 on "Hello", "world"", "the page's background #f4f4f5 → #ffffff". */
 function styleChanges(changes: StyleChange[]): string {
-  return changes.map((c) => `${c.property} ${c.original} → ${c.converted} on ${quote(c.words)}${wider(c.width)}${c.dark ? " in dark mode" : ""}${c.phone ? " on phones" : ""}`).join("; ");
+  return changes.map((c) => `${styleChange(c)}${wider(c.width)}${c.dark ? " in dark mode" : ""}${c.phone ? " on phones" : ""}`).join("; ");
+}
+
+/** One style change and what it's on (words, or the page itself), in a line or in the Markdown report. */
+function styleChange(c: StyleChange, markdown = false): string {
+  const change = `${c.original} → ${c.converted}`;
+  if (c.page) return `the page's ${c.property}${markdown ? ":" : ""} ${change}`;
+  return markdown ? `${c.property}: ${change}, on ${quote(c.words)}` : `${c.property} ${change} on ${quote(c.words)}`;
 }
 
 /** " on screens 768px and wider", for a difference only wider screens than the desktop width show. */
@@ -1178,7 +1439,12 @@ async function collect(paths: string[], cwd: string): Promise<{ files: Input[]; 
       unreadable.push({ file: relative(cwd, path), status: "failed", reason: `couldn't read it: ${why}` });
       return;
     }
-    files.push({ path, base, reactEmail: REACT_EMAIL_IMPORT.test(text), migrated: await importsElements(path, text) });
+    const migrated = await importsElements(path, text);
+    // A template a run wrote (its header, and Elements imported) is done, though a block it keeps as HTML may still
+    // import React Email: not a template to migrate, nor one --write would replace. A file of the project's own that
+    // imports both, without that header, still is.
+    const written = migrated && earlierOutput(text) !== undefined;
+    files.push({ path, base, reactEmail: !written && REACT_EMAIL_IMPORT.test(text), migrated, written });
   };
   for (const given of paths) {
     const path = resolve(cwd, given);
@@ -1245,14 +1511,15 @@ async function importsElements(path: string, source: string): Promise<boolean> {
 }
 
 /** The source files in a folder and the ones in it; a symbolic link to a folder isn't followed, but goes in `links`. */
-async function walk(dir: string, links: string[] = []): Promise<string[]> {
+async function walk(dir: string, links: string[] = [], all = false): Promise<string[]> {
   const out: string[] = [];
   for (const entry of await readdir(dir, { withFileTypes: true })) {
     if (entry.name.startsWith(".") || IGNORED.has(entry.name)) continue;
     const path = join(dir, entry.name);
     if (entry.isSymbolicLink() && (await stat(path).catch(() => undefined))?.isDirectory()) links.push(path);
-    else if (entry.isDirectory()) out.push(...(await walk(path, links)));
-    else if (SOURCE.test(entry.name) && !/\.(test|spec|stories)\.[^.]+$/.test(entry.name) && !entry.name.endsWith(".d.ts")) out.push(path);
+    else if (entry.isDirectory()) out.push(...(await walk(path, links, all)));
+    // `all`: every module, tests and CommonJS (.cjs, .cts) too.
+    else if ((all ? /\.[cm]?[jt]sx?$/ : SOURCE).test(entry.name) && (all || !/\.(test|spec|stories)\.[^.]+$/.test(entry.name)) && !/\.d\.[cm]?ts$/.test(entry.name)) out.push(path);
   }
   return out;
 }
@@ -1313,6 +1580,17 @@ function lineEndings(code: string, source: string): string {
   return crlf && crlf * 2 >= (source.match(/\n/g)?.length ?? 0) ? code.replace(/\r?\n/g, "\r\n") : code;
 }
 
+/**
+ * Whether `name` is installed where a module in `folder` would find it: a node_modules folder above it (or, in a Yarn
+ * Plug'n'Play project, which has none, assumed so).
+ */
+function installed(folder: string, name: string): boolean {
+  for (let dir = folder; ; dir = dirname(dir)) {
+    if (existsSync(join(dir, "node_modules", name, "package.json")) || existsSync(join(dir, ".pnp.cjs"))) return true;
+    if (dirname(dir) === dir) return false;
+  }
+}
+
 /** Whether `name` is installed where `file` would find it (a node_modules folder above it). */
 function hasPackage(file: string, name: string): boolean {
   for (let dir = dirname(file); ; dir = dirname(dir)) {
@@ -1321,34 +1599,50 @@ function hasPackage(file: string, name: string): boolean {
   }
 }
 
-/** CommonJS requires bypass the module hooks: they need the same order as hooks.ts. */
+/** The projects whose templates are loading, the latest last: CommonJS requires resolve as theirs (see below). */
+const cjsProjects: NodeJS.Require[] = [];
+let cjsResolution = false;
+
+/**
+ * CommonJS requires bypass the module hooks: they need the same order as hooks.ts, while a template of `projectFolder`
+ * loads (until the returned release). Node's resolver is wrapped once for the process, as the TypeScript loader wraps
+ * it again on top: one wrapped per load could never be taken out, and every load would add a layer that each require
+ * goes through (and through again from each layer's own resolution), slowing every load after it.
+ */
 function sharedCjsPackages(projectFolder: string): () => void {
   type Resolve = (request: string, parent: NodeJS.Module | undefined, isMain?: boolean, options?: unknown) => string;
-  const api = Module as typeof Module & { _resolveFilename: Resolve };
-  const previous = api._resolveFilename;
+  if (!cjsResolution) {
+    cjsResolution = true;
+    const api = Module as typeof Module & { _resolveFilename: Resolve };
+    const previous = api._resolveFilename;
+    const self = createRequire(import.meta.url);
+    let resolving = false;
+    api._resolveFilename = (request, parent, isMain, options) => {
+      const project = cjsProjects[cjsProjects.length - 1];
+      // A require never comes from the converter, which is an ES module.
+      const order = !project || resolving ? undefined : resolutionOrder(request, false);
+      if (!order) return previous(request, parent, isMain, options);
+      resolving = true;
+      try {
+        const from: Record<Origin, () => string> = {
+          project: () => project.resolve(request),
+          importer: () => previous(request, parent, isMain, options),
+          self: () => self.resolve(request),
+        };
+        let failure: unknown;
+        for (const origin of order) {
+          try { return from[origin](); } catch (error) { failure ??= error; }
+        }
+        throw failure;
+      } finally { resolving = false; }
+    };
+  }
   const project = createRequire(pathToFileURL(join(projectFolder, "noop.js")));
-  const self = createRequire(import.meta.url);
-  let resolving = false;
-  const resolvePackage: Resolve = (request, parent, isMain, options) => {
-    // A require never comes from the converter, which is an ES module.
-    const order = resolving ? undefined : resolutionOrder(request, false);
-    if (!order) return previous(request, parent, isMain, options);
-    resolving = true;
-    try {
-      const from: Record<Origin, () => string> = {
-        project: () => project.resolve(request),
-        importer: () => previous(request, parent, isMain, options),
-        self: () => self.resolve(request),
-      };
-      let failure: unknown;
-      for (const origin of order) {
-        try { return from[origin](); } catch (error) { failure ??= error; }
-      }
-      throw failure;
-    } finally { resolving = false; }
+  cjsProjects.push(project);
+  return () => {
+    const at = cjsProjects.lastIndexOf(project);
+    if (at >= 0) cjsProjects.splice(at, 1);
   };
-  api._resolveFilename = resolvePackage;
-  return () => { if (api._resolveFilename === resolvePackage) api._resolveFilename = previous; };
 }
 
 /** Where `name` resolves from `folder` (its real path), or undefined when it isn't installed there. */
@@ -1516,6 +1810,17 @@ async function importFile(
  */
 async function moduleLoader(file: string): Promise<(specifier: string, fromFile: string) => { fileName: string; source: string } | undefined> {
   const ts = (await import("typescript")).default;
+  const resolveModule = await moduleResolver(file);
+  return (specifier, fromFile) => {
+    const target = resolveModule(specifier, fromFile);
+    const text = target === undefined ? undefined : ts.sys.readFile(target);
+    return text === undefined ? undefined : { fileName: target!, source: text };
+  };
+}
+
+/** Where an import leads among the project's files (its real path), as moduleLoader reads them; undefined outside them. */
+async function moduleResolver(file: string): Promise<(specifier: string, fromFile: string) => string | undefined> {
+  const ts = (await import("typescript")).default;
   const configFile = projectConfig(dirname(file));
   const options = configFile
     ? ts.parseJsonConfigFileContent(ts.readConfigFile(configFile, ts.sys.readFile).config ?? {}, ts.sys, dirname(configFile)).options
@@ -1535,9 +1840,145 @@ async function moduleLoader(file: string): Promise<(specifier: string, fromFile:
       // a file that's gone: as resolved
     }
     if (target.includes(`${sep}node_modules${sep}`) || target.endsWith(".d.ts")) return undefined;
-    const text = ts.sys.readFile(target);
-    return text === undefined ? undefined : { fileName: target, source: text };
+    return target;
   };
+}
+
+/**
+ * The project's files that use one of `templates` (migrated ones, by path): they import it, or a name an index passes
+ * it on as (`export { default as Welcome } from "./welcome"`), and use it in their code (not only its PreviewProps or
+ * type). Looked for from the nearest package.json above each folder given (that folder without one), outside
+ * node_modules and build output, tests included; the templates themselves aren't listed.
+ */
+async function templateUsers(templates: string[], given: string[], cwd: string): Promise<Array<{ file: string; templates: string[] }>> {
+  const { ts, parse, importsOf, reExports } = await moduleSyntax();
+  // The folders given are looked in too: a project's walk leaves out folders whose name starts with a dot.
+  const roots = [...new Set(given.flatMap((dir) => { const pkg = findUp("package.json", dir); return pkg ? [dirname(pkg), dir] : [dir]; }))];
+  const files = [...new Set((await Promise.all(roots.map((root) => walk(root, [], true)))).flat())];
+  const texts = new Map<string, Promise<string>>();
+  const textOf = (file: string) => {
+    if (!texts.has(file)) texts.set(file, readFile(file, "utf8").catch(() => ""));
+    return texts.get(file)!;
+  };
+  const written = new Set(await Promise.all(templates.map((t) => canonicalPath(t))));
+  // A resolver per tsconfig (each one reads and parses it).
+  const resolvers = new Map<string, Promise<(specifier: string, fromFile: string) => string | undefined>>();
+  const resolverOf = (file: string) => {
+    const key = projectConfig(dirname(file)) ?? "";
+    if (!resolvers.has(key)) resolvers.set(key, moduleResolver(file));
+    return resolvers.get(key)!;
+  };
+  // What leads to a template: a module's export names, each to the templates it is (the template's own file: its
+  // default export and the names it's exported as too).
+  const leads = new Map<string, Map<string, Set<string>>>();
+  const lead = (module: string, name: string, template: string) => {
+    const names = leads.get(module) ?? new Map<string, Set<string>>();
+    leads.set(module, names);
+    const known = names.get(name) ?? new Set<string>();
+    names.set(name, known);
+    if (known.has(template)) return false;
+    known.add(template);
+    return true;
+  };
+  for (const template of templates) {
+    const canonical = await canonicalPath(template);
+    lead(canonical, "default", template);
+    const file = await parse(template).catch(() => undefined);
+    if (!file) continue;
+    const shape = shapeOf(ts, file, importsOf(file));
+    for (const [name, local] of shape.exports) if (shape.template.has(local)) lead(canonical, name, template);
+  }
+  // An import worth resolving: one that names a module that leads to a template (a file's name, an index's folder), or
+  // an index nearby (`.`, `..`).
+  const stems = () => new Set([...leads.keys()].map((path) => (basename(path, extname(path)) === "index" ? basename(dirname(path)) : basename(path, extname(path)))));
+  let named = stems();
+  const resolved = new Map<string, string | undefined>();
+  const target = async (specifier: string, from: string) => {
+    if (![...named].some((stem) => specifier.includes(stem)) && !/^\.\.?\/?$/.test(specifier)) return undefined;
+    const key = `${from}\0${specifier}`;
+    if (!resolved.has(key)) {
+      const path = (await resolverOf(from))(specifier, from);
+      resolved.set(key, path === undefined ? undefined : await canonicalPath(path));
+    }
+    return resolved.get(key);
+  };
+  /** A module's imports, the import names its code uses (not as a type, nor only for PreviewProps), and import()/require. */
+  const modules = new Map<string, Promise<{ imports: Map<string, { specifier: string; imported: string }>; used: Set<string>; dynamic: string[]; forwards: Array<{ specifier: string; exported: string; imported: string }> } | undefined>>();
+  const moduleOf = (path: string) => {
+    if (!modules.has(path)) {
+      modules.set(path, (async () => {
+        const file = await parse(path).catch(() => undefined);
+        if (!file) return undefined;
+        const imports = importsOf(file);
+        const used = new Set<string>();
+        const dynamic: string[] = [];
+        const visit = (node: import("typescript").Node): void => {
+          if (ts.isImportDeclaration(node) || ts.isExportSpecifier(node) || (ts.isTypeNode(node) && !ts.isExpressionWithTypeArguments(node))) return;
+          // `export default Welcome` passes it on (as an index does): followed as one.
+          if (ts.isExportAssignment(node) && ts.isIdentifier(node.expression)) return;
+          if (ts.isIdentifier(node) && imports.has(node.text)) {
+            const parent = node.parent;
+            const property = (ts.isPropertyAccessExpression(parent) && parent.name === node) || (ts.isPropertyAssignment(parent) && parent.name === node) || (ts.isJsxAttribute(parent) && parent.name === node);
+            const preview = ts.isPropertyAccessExpression(parent) && parent.expression === node && parent.name.text === "PreviewProps";
+            if (!property && !preview) used.add(node.text);
+          }
+          if (ts.isCallExpression(node) && (node.expression.kind === ts.SyntaxKind.ImportKeyword || (ts.isIdentifier(node.expression) && node.expression.text === "require"))) {
+            const argument = node.arguments[0];
+            if (argument && (ts.isStringLiteral(argument) || ts.isNoSubstitutionTemplateLiteral(argument))) dynamic.push(argument.text);
+          }
+          ts.forEachChild(node, visit);
+        };
+        visit(file);
+        return { imports, used, dynamic, forwards: await reExports(path).catch(() => []) };
+      })());
+    }
+    return modules.get(path)!;
+  };
+  // Only a file that names a module leading to a template (or an index nearby) is read as code.
+  const mentions = async (file: string) => {
+    const text = await textOf(file);
+    return [...named].some((stem) => text.includes(stem)) || /["'`]\.\.?\/?["'`]/.test(text);
+  };
+  // Indexes that pass a template on, then indexes that pass those on, until none is new.
+  for (let added = true; added; ) {
+    added = false;
+    for (const file of files) {
+      if (!(await mentions(file))) continue;
+      const module = await moduleOf(file);
+      const canonical = await canonicalPath(file);
+      for (const f of module?.forwards ?? []) {
+        const names = leads.get((await target(f.specifier, file)) ?? "");
+        if (!names) continue;
+        // `export *` passes every name but the default as it is; `export * as Emails` passes them all as one name, and
+        // `export { default as Welcome }` one.
+        const passed: Array<[string, Set<string>]> =
+          f.exported === "*" ? [...names].filter(([name]) => name !== "default")
+          : f.imported === "*" ? [[f.exported, new Set([...names.values()].flatMap((templates) => [...templates]))]]
+          : names.has(f.imported) ? [[f.exported, names.get(f.imported)!]]
+          : [];
+        for (const [name, templates] of passed) for (const template of templates) if (lead(canonical, name, template)) added = true;
+      }
+    }
+    named = stems();
+  }
+  const users: Array<{ file: string; templates: string[] }> = [];
+  for (const file of files) {
+    if (!(await mentions(file))) continue;
+    const canonical = await canonicalPath(file);
+    if (written.has(canonical)) continue;
+    const module = await moduleOf(file);
+    if (!module) continue;
+    const found = new Set<string>();
+    for (const local of module.used) {
+      const from = module.imports.get(local)!;
+      const names = leads.get((await target(from.specifier, file)) ?? "");
+      if (!names) continue;
+      for (const [name, templates] of names) if (from.imported === "*" || name === from.imported) templates.forEach((t) => found.add(t));
+    }
+    for (const specifier of module.dynamic) for (const templates of leads.get((await target(specifier, file)) ?? "")?.values() ?? []) templates.forEach((t) => found.add(t));
+    if (found.size) users.push({ file, templates: [...found].sort() });
+  }
+  return users.sort((a, b) => a.file.localeCompare(b.file));
 }
 
 /** Reading what a module imports and passes on, to follow imports between the project's files. */
@@ -1596,14 +2037,13 @@ async function moduleSyntax(overlay?: Map<string, string>) {
 }
 
 /**
- * Whether a template uses React Email through the project's own files: it
- * imports one that imports React Email (a ui file that wraps it or passes it
- * on), directly or through files that pass that one on.
+ * Whether a file uses React Email through the project's own files: it imports one that imports React Email (a ui file
+ * that wraps it or passes it on), directly or through files that pass that one on. True for a template (one the check
+ * can't load, a wrapped one, is still one: it fails, saying why); for another file, why it isn't one (it's listed as
+ * skipped, as a file that imports React Email itself is).
  */
-async function reactEmailThroughProject(path: string): Promise<boolean> {
-  // A template the check can't load (a wrapped one) is still one: it fails, saying why.
+async function reactEmailThroughProject(path: string): Promise<boolean | { reason: string }> {
   const not = await notATemplate(path, await readFile(path, "utf8"));
-  if (not && !not.fail) return false;
   const { parse, importsOf, reExports } = await moduleSyntax();
   const load = await moduleLoader(path);
   const seen = new Set<string>();
@@ -1615,7 +2055,7 @@ async function reactEmailThroughProject(path: string): Promise<boolean> {
     for (const next of await reExports(loaded.fileName).catch(() => [])) if (await reaches(loaded.fileName, next.specifier, depth + 1)) return true;
     return false;
   };
-  for (const { specifier } of importsOf(await parse(path)).values()) if (await reaches(path, specifier)) return true;
+  for (const { specifier } of importsOf(await parse(path)).values()) if (await reaches(path, specifier)) return not && !not.fail ? { reason: not.reason } : true;
   return false;
 }
 
@@ -1752,7 +2192,7 @@ function closureOf(shape: ModuleShape, names: string[]): Set<string> {
  * Keep shared source files available to importers that aren't migrated.
  * `overlay`: files a dry run would write, by real path, read in their place.
  */
-async function importedInputs(inputs: Input[], overlay?: Map<string, string>, importers?: Set<string>): Promise<{ uses: Uses; computed: string[] }> {
+async function importedInputs(inputs: Input[], overlay?: Map<string, string>): Promise<{ uses: Uses; computed: string[] }> {
   const { ts, parse, text, importsOf, reExports } = await moduleSyntax(overlay);
   const scanned = new Map(await Promise.all(inputs.map(async (input) => [await canonicalPath(input.path), input.path] as const)));
   const uses: Uses = new Map();
@@ -1818,8 +2258,7 @@ async function importedInputs(inputs: Input[], overlay?: Map<string, string>, im
     };
     // Only a template keeps what it imports: an index that lists the templates, or a route or helper that sends them,
     // doesn't. A template the check can't load (a wrapped one) still uses what it imports.
-    // `importers`: the files to follow from instead, whatever they are.
-    if (importers ? !importers.has(input.path) : await notATemplate(input.path, await text(input.path)).then((not) => not && !not.fail)) continue;
+    if (await notATemplate(input.path, await text(input.path)).then((not) => not && !not.fail)) continue;
     const own = await shape(input.path);
     if (!own) continue;
     for (const next of usedImports(own, "all", input.path)) await follow(input.path, next.specifier, next.names);
@@ -1859,9 +2298,49 @@ export function elementsMismatch(cwd: string, range = ownPackage().peerDependenc
     if (!found) return {};
     if (satisfiesCaret(found, minimum)) return {};
     const newer = compareVersions(found, minimum) > 0 ? ", or update @unlayer/migrate" : "";
-    return { error: `@unlayer/migrate needs @unlayer/react-elements ${range}, but ${where} ${version}. Install a supported version: npm install @unlayer/react-elements@"${range}"${newer}` };
+    return { error: `@unlayer/migrate needs @unlayer/react-elements ${range}, but ${where} ${version}. Install a supported version: ${addCommand(cwd)} ${packageSpec("@unlayer/react-elements", range!)}${newer}` };
   }
   return {};
+}
+
+/**
+ * A package at a version range, to paste after the add command: in double quotes, which zsh, bash, PowerShell and
+ * cmd all read as written (a bare `^` is a glob in zsh with extendedglob, and an escape in cmd).
+ */
+function packageSpec(name: string, range: string): string {
+  return `"${name}@${range}"`;
+}
+
+/** The command that adds a package with the project's package manager, by the nearest lockfile (npm without one). */
+function addCommand(folder: string): string {
+  const managers: Array<[string[], string]> = [
+    [["pnpm-lock.yaml"], "pnpm add"],
+    [["yarn.lock"], "yarn add"],
+    [["bun.lock", "bun.lockb"], "bun add"],
+    [["package-lock.json", "npm-shrinkwrap.json"], "npm install"],
+  ];
+  for (let dir = folder; ; dir = dirname(dir)) {
+    for (const [lockfiles, command] of managers) if (lockfiles.some((name) => existsSync(join(dir, name)))) return command;
+    if (dirname(dir) === dir) return "npm install";
+  }
+}
+
+/**
+ * What to install where migrated templates were written and their import of @unlayer/react-elements doesn't resolve:
+ * one line per project (the nearest package.json). An Elements outside the supported range stopped the run before.
+ */
+function installElements(written: string[], cwd: string): string[] {
+  const range = ownPackage().peerDependencies?.["@unlayer/react-elements"] ?? "^0.2.0";
+  const lines = new Set<string>();
+  for (const folder of new Set(written.map((file) => dirname(file)))) {
+    // In the node_modules folders above it, as the project's own build finds it (require.resolve here would also read
+    // the NODE_PATH a package manager's script sets).
+    if (installed(folder, "@unlayer/react-elements")) continue;
+    const root = findUp("package.json", folder);
+    const where = root && dirname(root) !== cwd ? ` in ${relative(cwd, dirname(root)) || "."}` : "";
+    lines.add(`Install Elements${where}: ${addCommand(folder)} ${packageSpec("@unlayer/react-elements", range)}`);
+  }
+  return [...lines];
 }
 
 interface Version {

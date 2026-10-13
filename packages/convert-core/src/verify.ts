@@ -1,4 +1,4 @@
-import { compareStyles, normalizeWord, StyledDocument, styledWords, widerScreens, type StyleDifference, type Unverified } from "./cascade";
+import { comparePageBackground, compareStyles, normalizeWord, StyledDocument, styledWords, widerScreens, type StyleDifference, type Unverified } from "./cascade";
 import { compareLayout, unplaced, type LayoutDifference } from "./geometry";
 
 /**
@@ -61,7 +61,7 @@ export function phoneDiffers(phone: TextCheck["phone"]): boolean {
  * and lone signs preserved, in order. Hidden text isn't read: display:none (inline,
  * or from a rule that applies at desktop width), the `hidden` attribute, a box that
  * clips to nothing (`max-height:0;overflow:hidden`), visibility:hidden, opacity 0.
- * The preview text (`data-skip-in-text`) is read: inboxes show it.
+ * The preview text (`data-skip-in-text`, or a hidden preheader before any text shown) is read: inboxes show it.
  */
 export function htmlWords(html: string): string[] {
   return wordsOf(new StyledDocument(html));
@@ -69,6 +69,14 @@ export function htmlWords(html: string): string[] {
 
 function wordsOf(doc: StyledDocument, within?: Parameters<StyledDocument["words"]>[0]): string[] {
   return doc.words(within).flatMap((w) => w.word.split(/\s+/)).map(normalizeWord).filter(Boolean);
+}
+
+/**
+ * How many image preloads React 19 wrote itself into `html`'s body: `<link rel="preload" as="image">` for an image
+ * the same document shows (see `StyledDocument.imagePreloads`). They aren't content.
+ */
+export function imagePreloads(html: string): number {
+  return new StyledDocument(html).imagePreloads().length;
 }
 
 /**
@@ -188,6 +196,8 @@ export function compareText(originalHtml: string, convertedHtml: string): TextCh
   // Styles are compared word for word, so only when the words are the same.
   const same = !missing.length && !added.length;
   const style = same ? compareStyles(originalDoc, convertedDoc) : { differences: [], unverified: [], compared: 0, unknown: 0 };
+  // The color around the email (the page's, a full-width wrapper's): where it differs, a look with no words on it.
+  const page = same ? comparePageBackground(originalDoc, convertedDoc) : [];
   const originalStyled = same ? styledWords(originalDoc) : [];
   const convertedStyled = same ? styledWords(convertedDoc) : [];
   const layout = same ? compareLayout(originalDoc, convertedDoc, originalStyled, convertedStyled) : [];
@@ -219,7 +229,7 @@ export function compareText(originalHtml: string, convertedHtml: string): TextCh
   const phoneAdded: string[] = [];
   listTargets(targetChanges(originalPhone, convertedPhone), { lost: new Set(shownTargets.lost), added: new Set(shownTargets.added) }, phoneLost, phoneAdded);
   const phoneWithAttributes = { ...phone, ...(phoneLost.length ? { missingAttributes: phoneLost } : {}), ...(phoneAdded.length ? { addedAttributes: phoneAdded } : {}) };
-  const unverified = [...style.unverified, ...unread, ...targetDoubts(originalDoc, convertedDoc), ...phoneDoubts(originalPhone, convertedPhone, style.unverified)];
+  const unverified = [...style.unverified, ...unread, ...targetDoubts(originalDoc, convertedDoc), ...phoneDoubts(originalPhone, convertedPhone, style.unverified), ...documentDoubts(originalDoc, convertedDoc)];
   const wide = same ? widerDifferences(originalHtml, convertedHtml, style.differences, unverified, shownTargets, missingAttributes, addedAttributes) : { styles: [], unverified: [] };
   const dark = same ? darkDifferences(originalHtml, convertedHtml, shownTargets, missingAttributes, addedAttributes) : [];
   // On phones, where the same words show: in the same styles (a phone rule's size or color), each not already listed for desktop.
@@ -227,7 +237,7 @@ export function compareText(originalHtml: string, convertedHtml: string): TextCh
   const phoneStyles = same && !phoneDiffers(phoneWithAttributes)
     ? compareStyles(originalPhone, convertedPhone).differences.filter((d) => !listed.has(JSON.stringify(d))).map((d): StyleDifference => ({ ...d, phone: true }))
     : [];
-  return { missing, added, missingAttributes, addedAttributes, styles: [...style.differences, ...wide.styles, ...dark, ...phoneStyles], unverified: [...unverified, ...wide.unverified], phone: phoneWithAttributes, layout, styleCoverage: { words: style.compared, unknown: style.unknown } };
+  return { missing, added, missingAttributes, addedAttributes, styles: [...style.differences, ...page, ...wide.styles, ...dark, ...phoneStyles], unverified: [...unverified, ...wide.unverified], phone: phoneWithAttributes, layout, styleCoverage: { words: style.compared, unknown: style.unknown } };
 }
 
 /**
@@ -312,6 +322,33 @@ function targetDoubts(original: StyledDocument, converted: StyledDocument): Unve
 }
 
 const counts = (list: string[]) => list.reduce((m, x) => m.set(x, (m.get(x) ?? 0) + 1), new Map<string, number>());
+
+/**
+ * A second document inside the migration's body that the original's doesn't have (a whole rendered email kept as
+ * markup). Its title and head content (`<meta>`, `<link>`, `<base>`) are in the email now: a browser hides a title,
+ * but email clients keep, drop or show such parts each their own way (the title's text shown by one that drops the
+ * tag), so whether a reader gets them can't be told, and the check fails on it. Its own `<html>` and `<body>` tags
+ * alone are a look: the browser folds them into the page's (keeping attributes the page's lack, dropping a style
+ * when the page's body has one), clients drop them, and the words in them show either way.
+ */
+function documentDoubts(original: StyledDocument, converted: StyledDocument): Unverified[] {
+  const left = counts(original.documentParts().map((p) => p.part));
+  const extra = converted.documentParts().filter(({ part }) => {
+    const n = left.get(part) ?? 0;
+    if (n) left.set(part, n - 1);
+    return !n;
+  });
+  const listed = (parts: typeof extra) => parts.map((p) => `\`${p.part.length > 120 ? `${p.part.slice(0, 117)}…>` : p.part}\``).join(", ");
+  const longest = (parts: typeof extra) => parts.map((p) => p.words).reduce((a, b) => (b.length > a.length ? b : a), [] as string[]);
+  const out: Unverified[] = [];
+  const titles = extra.filter((p) => p.part.startsWith("<title>"));
+  if (titles.length) out.push({ what: "shown", side: "migrated", cause: `${listed(titles)} in the email's body: the page's title (head content), which an email client that drops the tag but keeps its text shows`, words: titles.flatMap((p) => p.words) });
+  const others = extra.filter((p) => !p.part.startsWith("<title>"));
+  const head = others.some((p) => /^<(meta|link|base)\b/.test(p.part));
+  if (head) out.push({ what: "shown", side: "migrated", cause: `head content inside the email's body, a second document's ${listed(others)}: email clients keep, drop or show its parts each their own way`, words: longest(others) });
+  else if (others.length) out.push({ what: "look", side: "migrated", cause: `a second document's ${listed(others)} inside the email's body: the browser folds it into the page's own, email clients drop it`, words: longest(others) });
+  return out;
+}
 
 /**
  * Words whether a phone shows can't be told on one side only (a phone rule

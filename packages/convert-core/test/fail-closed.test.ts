@@ -32,7 +32,11 @@ describe("rules the check can't evaluate", () => {
     expect(hidden.unverified).toContainEqual(expect.objectContaining({ what: "shown", side: "original", words: ["Secret", "offer"] }));
     // `:is()` is read: as specific as its argument (an id here), so the white wins.
     const white = compareText(page('<p id="x" class="a">Faint words</p>', style(".a.b{color:#000} p:is(#x){color:#fff}").replace('class="a"', 'class="a b"')), page('<p style="color:#000">Faint words</p>'));
-    expect(white.styles).toEqual([expect.objectContaining({ property: "color", original: "#ffffff", converted: "#000000" })]);
+    // (White on the white page: words the migration shows that the original's reader can't make out.)
+    expect(white.styles).toEqual([
+      expect.objectContaining({ property: "shown", original: "invisible (#ffffff on #ffffff)", converted: "shown" }),
+      expect.objectContaining({ property: "color", original: "#ffffff", converted: "#000000" }),
+    ]);
     // `:has()` isn't: it counts as specific as its argument, so the rule it may apply is in doubt.
     const has = compareText(page('<p id="x" class="a b">Faint words</p>', style(".a.b{color:#000} p:has(#y, .c){color:#fff}")), page('<p style="color:#000">Faint words</p>'));
     expect(has.unverified).toEqual([expect.objectContaining({ what: "color", side: "original" })]);

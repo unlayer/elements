@@ -215,7 +215,11 @@ export const LIST_DEFAULTS = { fontSize: "16px" };
  *   and a paragraph's 1em margins (it sets `p { margin: 0 }`).
  */
 export function keptMarkup(html: string): string {
-  const color = /^<div style="(?:[^"]*;)?\s*color:\s*([^;"]+)/.exec(html)?.[1]?.trim();
+  return withBrowserDefaults(html, /^<div style="(?:[^"]*;)?\s*color:\s*([^;"]+)/.exec(html)?.[1]?.trim());
+}
+
+/** `keptMarkup`'s styles on each table, cell and paragraph of `html`, with `color` the text color around it (if any). */
+export function withBrowserDefaults(html: string, color?: string): string {
   return html.replace(/<(table|td|p)\b([^>]*)>/g, (tag, name: string, attrs: string) => {
     const style = /\sstyle="([^"]*)"/.exec(attrs);
     const css = style?.[1] ?? "";
