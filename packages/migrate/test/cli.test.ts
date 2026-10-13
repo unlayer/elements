@@ -885,6 +885,15 @@ export default function Welcome() { return <Html><Body><Text>Welcome aboard</Tex
     expect(await main(["--help"], help, lib)).toBe(0);
     expect(help.out).toContain("npx @unlayer/migrate");
   });
+
+  it("prints its version", async () => {
+    const { version } = JSON.parse(fs.readFileSync(path.join(import.meta.dirname, "../package.json"), "utf8"));
+    for (const flag of ["--version", "-v"]) {
+      const out = io(process.cwd());
+      expect(await main([flag], out, lib), flag).toBe(0);
+      expect([out.out, out.err]).toEqual([`${version}\n`, ""]);
+    }
+  });
 });
 
 describe("destination safety and content checks", () => {

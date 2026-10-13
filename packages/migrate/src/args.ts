@@ -10,8 +10,8 @@ export interface Args {
 }
 
 const VALUE_OPTIONS = new Set(["out", "report", "from"]);
-const FLAGS = new Set(["write", "design", "no-merge-tags", "force", "strict", "overwrite", "allow-dirty", "help"]);
-const ALIASES: Record<string, string> = { h: "help", o: "out" };
+const FLAGS = new Set(["write", "design", "no-merge-tags", "force", "strict", "overwrite", "allow-dirty", "help", "version"]);
+const ALIASES: Record<string, string> = { h: "help", o: "out", v: "version" };
 
 export function parseArgs(argv: string[]): Args {
   const positional: string[] = [];

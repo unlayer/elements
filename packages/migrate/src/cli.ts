@@ -64,6 +64,7 @@ and the visual editor must get every block. Nothing is written unless you ask:
                    refused, so git can always undo a migration.
   --from <source>  What to migrate from (default and only: react-email).
   -h, --help       Show this help.
+  -v, --version    Show the version.
 
 compare checks a template you migrated yourself against the original in the
 same way: rendered with the original's PreviewProps (and each true/false prop
@@ -201,6 +202,10 @@ async function run(argv: string[], io: Io, library?: Library): Promise<number> {
   }
   if (args.flag("help")) {
     io.stdout(`${USAGE}\n`);
+    return 0;
+  }
+  if (args.flag("version")) {
+    io.stdout(`${ownPackage().version}\n`);
     return 0;
   }
   if (args.positional[0] === "compare") return compare(args.positional.slice(1), args, io, library);
@@ -2388,7 +2393,7 @@ function satisfiesCaret(version: Version, minimum: Version): boolean {
   return !version.pre.length || (minimum.pre.length > 0 && version.release.every((n, i) => n === minimum.release[i]));
 }
 
-function ownPackage(): { peerDependencies?: Record<string, string> } {
+function ownPackage(): { version: string; peerDependencies?: Record<string, string> } {
   return createRequire(import.meta.url)("../package.json");
 }
 
