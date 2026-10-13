@@ -492,11 +492,13 @@ function substitute(usage: ts.JsxElement | ts.JsxSelfClosingElement, component: 
   const loneChild = childrenFallback && lone?.length === 1 && ts.isJsxExpression(lone[0]) && lone[0].expression ? lone[0].expression : undefined;
   const childrenValue = (): string | undefined => (loneChild && childrenFallback ? defaulted(loneChild, loneChild.getText(), childrenFallback) : undefined);
   // An object or array written for a prop has the prop's declared type (`company.address`, optional, is read on
-  // `{ name: "Acme" }` there): written in, it would have its own narrower one, which TypeScript holds it to.
+  // `{ name: "Acme" }` there): written in, it would have its own narrower one, which TypeScript holds it to. So has
+  // a list or an object a call gives (`rows={items.map((i) => ({ label: i.name }))}`, where the component reads `row.hint`).
   const typed = (prop: string, node: ts.Expression | undefined, code: string) => {
     const type = component.props?.get(prop)?.type;
     const value = node && unwrap(node);
-    return type && value && (ts.isObjectLiteralExpression(value) || ts.isArrayLiteralExpression(value)) ? `(${code} as ${type.getText()})` : code;
+    const shaped = !!type && (ts.isArrayTypeNode(type) || ts.isTypeLiteralNode(type) || (ts.isTypeReferenceNode(type) && /^(Readonly)?Array$/.test(type.typeName.getText())));
+    return type && value && (ts.isObjectLiteralExpression(value) || ts.isArrayLiteralExpression(value) || (shaped && (ts.isCallExpression(value) || ts.isNewExpression(value)))) ? `(${code} as ${type.getText()})` : code;
   };
   const valueOf = (prop: string, fallback?: ts.Expression) => {
     if (prop === "children" && childrenText !== undefined) return childrenValue() ?? `<>${childrenText}</>`;

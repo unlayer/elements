@@ -57,6 +57,7 @@ import {
 import { addSides, backgroundColor, backgroundImage, boxSides, color, fillColor, fontFamilyProp, fontSizePx, inherit, isHidden, margins, noteContainerWidth, pageColor, phoneOnly, px, shownOnPhones, toPx, ZERO, type Style } from "./styles";
 import { inlineLocalComponents, type ModuleLoader } from "./components";
 import { inlineLocalJsx, inlineMapCallbacks } from "./inline";
+import { normalizeInlined } from "./normalize";
 import { splitConditionalClasses } from "./variants";
 import { phoneSides, withPhoneStyles, handledPhoneClass, unheldPhoneStyles } from "./phone-styles";
 import { addRules, classStyle, inlineKeys, NO_CLASSES, overInline, phoneRules, resolveTailwind, stacksOnPhones, stylesheetRules, underInline, underKeys, type ResolvedClasses, type RuleOrder } from "./tailwind";
@@ -155,7 +156,8 @@ export async function convertSource(source: string, options: CodemodOptions = {}
   const mapped = inlineMapCallbacks(named, fileName);
   const components = inlineLocalComponents(mapped.source, fileName, options.loadModule);
   const constants = inlineLocalJsx(components.source, fileName);
-  const variants = splitConditionalClasses(constants.source, fileName);
+  // What inlining wrote, as code the template could have written (`{undefined && …}` folded, …).
+  const variants = splitConditionalClasses(normalizeInlined(constants.source, fileName), fileName);
   const file = ts.createSourceFile(fileName, variants.source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
   const converter = new Converter(file, options.tailwindConfig, /\.(?:jsx?|mjs|cjs)$/i.test(fileName), options.tailwind, options.loadModule);
   return converter.run({ components: components.inlined, constants: constants.inlined, variants: variants.split, copied: components.copied, original: named });
@@ -1080,13 +1082,13 @@ class Converter {
     };
   }
 
-  /** Children with fragments flattened and empty text dropped. */
+  /** Children with fragments flattened, and empty text and code that shows nothing (`{undefined}`, `{false}`, `{[]}`) dropped. */
   private flatten(children: readonly ts.JsxChild[]): ts.JsxChild[] {
     const out: ts.JsxChild[] = [];
     for (const child of children) {
       if (ts.isJsxFragment(child)) out.push(...this.flatten(child.children));
       else if (ts.isJsxText(child) && !jsxText(child.text)) continue;
-      else if (ts.isJsxExpression(child) && !child.expression) continue;
+      else if (ts.isJsxExpression(child) && (!child.expression || showsNothing(child.expression))) continue;
       else out.push(child);
     }
     return out;
@@ -2971,6 +2973,16 @@ function rendersNothing(value: ts.Expression): boolean {
   if (ts.isJsxFragment(value) && value.children.every((child) => ts.isJsxText(child) && !child.text.trim())) return true;
   if (ts.isIdentifier(value) && value.text === "undefined") return true;
   return (ts.isStringLiteral(value) || ts.isNoSubstitutionTemplateLiteral(value)) && value.text === "";
+}
+
+/** A value React shows nothing for, written as one: `undefined`, `null`, a boolean, `""`, `[]`. */
+function showsNothing(expression: ts.Expression): boolean {
+  const value = unwrap(expression);
+  return (
+    rendersNothing(value) ||
+    value.kind === ts.SyntaxKind.TrueKeyword ||
+    (ts.isArrayLiteralExpression(value) && value.elements.length === 0)
+  );
 }
 
 /** JSX (converted) or an empty value: what a branch of a hole may render. */
