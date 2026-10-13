@@ -418,3 +418,30 @@ Weekly.PreviewProps = { count: 1200 };
     expect([check.missing, check.added, check.styles]).toEqual([[], [], []]);
   });
 });
+
+describe("a prop given one of two object literals", () => {
+  it("keeps the prop's declared type, so a literal type in it still type-checks", async () => {
+    const { added, originalErrors, Original, Migrated } = await migrate({
+      "status.tsx": `import { Html, Body, Section, Text } from "@react-email/components";
+const palette = { good: { color: "#16a34a" }, bad: { color: "#dc2626" } };
+function Tag({ tone, children }: { tone: "good" | "bad"; children: string }) {
+  const { color } = palette[tone];
+  return <span style={{ color }}>{children}</span>;
+}
+function Header({ pill }: { pill: { tone: "good" | "bad"; label: string } }) {
+  return <Section><Text>Status: <Tag tone={pill.tone}>{pill.label}</Tag></Text></Section>;
+}
+export default function Status({ down }: { down: boolean }) {
+  return <Html><Body><Header pill={down ? { tone: "bad", label: "Down" } : { tone: "good", label: "Up" }} /></Body></Html>;
+}
+Status.PreviewProps = { down: true };
+`,
+    }, "status.tsx");
+    expect(originalErrors).toEqual([]);
+    expect(added).toEqual([]);
+    for (const props of [Original.PreviewProps, { down: false }]) {
+      const check = await verifyConversion(Original, Migrated, { props });
+      expect([check.missing, check.added]).toEqual([[], []]);
+    }
+  });
+});

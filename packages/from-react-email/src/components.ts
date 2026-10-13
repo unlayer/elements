@@ -568,7 +568,13 @@ function substitute(usage: ts.JsxElement | ts.JsxSelfClosingElement, component: 
     const type = component.props?.get(prop)?.type;
     const value = node && unwrap(node);
     const shaped = !!type && (ts.isArrayTypeNode(type) || ts.isTypeLiteralNode(type) || (ts.isTypeReferenceNode(type) && /^(Readonly)?Array$/.test(type.typeName.getText())));
-    return type && value && (ts.isObjectLiteralExpression(value) || ts.isArrayLiteralExpression(value) || (shaped && (ts.isCallExpression(value) || ts.isNewExpression(value)))) ? `(${code} as ${type.getText()})` : code;
+    // `cond ? { tone: "danger" } : { tone: "success" }`: a literal either way (not `undefined` on one side, which a cast would hide).
+    const literal = (n: ts.Expression): boolean => {
+      const e = unwrap(n);
+      return ts.isObjectLiteralExpression(e) || ts.isArrayLiteralExpression(e) || (ts.isConditionalExpression(e) && literal(e.whenTrue) && literal(e.whenFalse));
+    };
+    if (!type || !value || !(literal(value) || (shaped && (ts.isCallExpression(value) || ts.isNewExpression(value))))) return code;
+    return ts.isConditionalExpression(value) ? `((${code}) as ${type.getText()})` : `(${code} as ${type.getText()})`;
   };
   const valueOf = (prop: string, fallback?: ts.Expression) => {
     if (prop === "children" && childrenText !== undefined) return childrenValue() ?? `<>${childrenText}</>`;
