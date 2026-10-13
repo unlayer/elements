@@ -2129,4 +2129,19 @@ export default function T() { return <Email backgroundColor="#ffffff"><Row><Colu
     expect(out.out).toContain('extra text: "ref", "B‑7", "from", "the", "U.S."');
     expect(out.out).not.toMatch(/−|sarahexamplecom/);
   });
+
+  it("are quoted without the characters that can't be seen in them", async () => {
+    // Zero-width joiners and spaces a code block puts between its tokens, a byte order mark, a soft hyphen.
+    const original = `import { Html, Body, Text } from "@react-email/components";
+export default function T() { return <Html><Body><Text>{"Run \u200d\u200bclient.\u2060connect() on \ufeffstart\u00adup."}</Text></Body></Html>; }
+`;
+    const migrated = `import { Column, Email, Paragraph, Row } from "@unlayer/react-elements";
+export default function T() { return <Email backgroundColor="#ffffff"><Row><Column><Paragraph color="#000000" fontSize="14px" lineHeight="24px" containerPadding="0px 0px 16px 0px">Run it</Paragraph></Column></Row></Email>; }
+`;
+    const dir = project({ "emails/code.tsx": original, "migrated/code.tsx": migrated });
+    const out = io(dir);
+    expect(await main(["compare", "emails/code.tsx", "migrated/code.tsx"], out, lib), out.out + out.err).toBe(2);
+    expect(out.out).toContain('lost text: "client.connect()", "on", "startup"');
+    expect(out.out).not.toMatch(/\p{Cf}/u);
+  });
 });

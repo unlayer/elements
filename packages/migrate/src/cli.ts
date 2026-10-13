@@ -1133,13 +1133,23 @@ function wordsAsWritten(html: string): Map<string, string> {
   const out = new Map<string, string>();
   try {
     for (const { word } of new StyledDocument(html).words()) {
-      for (const part of word.split(/\s+/)) {
-        const read = normalizeWord(part);
+      for (const written of word.split(/\s+/)) {
+        const read = normalizeWord(written);
         if (!read || out.has(read)) continue;
-        // What closes a sentence or an aside goes too, but an abbreviation's last period stays ("U.S.").
-        let bare = part.replace(/^[("'“‘[{<«]+/, "").replace(/[)"'”’\]}>»,;:!?.]+$/, "");
+        // Without what can't be seen (a zero-width space or joiner, a byte order mark: Unicode's format characters),
+        // which a quote would carry along unseen.
+        const part = written.replace(/\p{Cf}/gu, "");
+        // What closes a sentence or an aside goes too, but a bracket the word opens itself stays ("connect()"), and an
+        // abbreviation's last period ("U.S.").
+        let bare = part.replace(/^[("'“‘[{<«]+/, "");
+        const opener: Record<string, string> = { ")": "(", "]": "[", "}": "{" };
+        while (/[)"'”’\]}>»,;:!?.]$/.test(bare)) {
+          const last = bare.slice(-1);
+          if (opener[last] && bare.split(opener[last]).length > bare.split(last).length - 1) break;
+          bare = bare.slice(0, -1);
+        }
         if (/\p{L}\.\p{L}+$/u.test(bare) && /\.$/.test(part.replace(/[)"'”’\]}>»,;:!?]+$/, ""))) bare += ".";
-        out.set(read, bare && normalizeWord(bare) === read ? bare : part);
+        out.set(read, bare && normalizeWord(bare) === read ? bare : part || read);
       }
     }
   } catch {
