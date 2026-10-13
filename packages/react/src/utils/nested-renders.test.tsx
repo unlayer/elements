@@ -154,6 +154,49 @@ describe("a component that isn't one (undefined: a broken or circular import)", 
   });
 });
 
+describe("a component of the user's own that calls a hook, in React's development build", () => {
+  // React 18's development build calls a component once more, with hooks off, to say where a warning came from (an
+  // undefined component, a list without keys). Elements took that call's failure for the component's own: a layout
+  // with a hook around an undefined component gave a blank email, blamed on the layout; a template with a hook and a
+  // list without keys rendered as a web document, with a warning, the first time only.
+  it("fails the render for an undefined component in a layout with a hook, as without the hook", async () => {
+    const { renderToPlainText } = await import("./render-to-html");
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
+    try {
+      const Missing = undefined as unknown as React.ComponentType;
+      const Theme = React.createContext("light");
+      const HookedLayout = ({ children }: { children?: React.ReactNode }) => {
+        React.useContext(Theme);
+        return <>{children}<Missing /></>;
+      };
+      const email = <Email><HookedLayout><Row><Column><Paragraph>Order shipped</Paragraph></Column></Row></HookedLayout></Email>;
+      for (const render of [renderToHtml, renderToJson, renderToPlainText]) expect(() => render(email)).toThrow(/Element type is invalid/);
+    } finally {
+      error.mockRestore();
+    }
+  });
+
+  it("renders a template with a hook and a list without keys the same every time", () => {
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    try {
+      const OrderTemplate = ({ items }: { items: string[] }) => {
+        const [title] = useState("Your order");
+        return <Email><Row><Column><Paragraph>{title}</Paragraph>{items.map((item) => <Paragraph>{item}</Paragraph>)}</Column></Row></Email>;
+      };
+      const template = <OrderTemplate items={["Shoes", "Hat"]} />;
+      const [first, second] = [renderToHtml(template), renderToHtml(template)];
+      expect(first).toBe(second);
+      expect(first.startsWith("<!DOCTYPE HTML PUBLIC")).toBe(true);
+      expect(warn).not.toHaveBeenCalled();
+      expect(JSON.stringify(renderToJson(template))).toContain("Hat");
+    } finally {
+      error.mockRestore();
+      warn.mockRestore();
+    }
+  });
+});
+
 describe("a Row whose Columns don't fit its layout", () => {
   // As in 0.1.22: the body says so (console.error) and renders without its rows; renderToHtml and renderToPlainText
   // don't throw (a mailer that never expected them to would fail).

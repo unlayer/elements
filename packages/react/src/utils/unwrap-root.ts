@@ -73,6 +73,9 @@ export function callIsolated(call: () => unknown, prefix?: string, providers: Re
   let ran = false;
   let threw = false;
   const Probe = () => {
+    // Only React's render: its development build calls a component again, with hooks off, to say where a warning
+    // came from (an undefined component, a list without keys), and that call fails where the render didn't.
+    if (ran) return null;
     ran = true;
     try {
       result = call();
