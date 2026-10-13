@@ -15,6 +15,7 @@ import Module, { createRequire } from "node:module";
 import { tmpdir } from "node:os";
 import { basename, dirname, extname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
+import { normalizeWord, StyledDocument } from "@unlayer/convert-core";
 import { parseArgs, type Args } from "./args";
 import { resolutionOrder, type Origin } from "./resolution";
 
@@ -64,6 +65,7 @@ and the visual editor must get every block. Nothing is written unless you ask:
                    refused, so git can always undo a migration.
   --from <source>  What to migrate from (default and only: react-email).
   -h, --help       Show this help.
+  -v, --version    Show the version.
 
 compare checks a template you migrated yourself against the original in the
 same way: rendered with the original's PreviewProps (and each true/false prop
@@ -191,16 +193,23 @@ export async function main(argv: string[], io: Io, library?: Library): Promise<n
   }
 }
 
+/** After a usage mistake: where the options are, in a line (the help itself would push the mistake off the screen). */
+const SEE_HELP = "Run npx @unlayer/migrate --help to see the options.";
+
 async function run(argv: string[], io: Io, library?: Library): Promise<number> {
   let args: Args;
   try {
     args = parseArgs(argv);
   } catch (error) {
-    io.stderr(`${(error as Error).message}\n\n${USAGE}\n`);
+    io.stderr(`${(error as Error).message}\n${SEE_HELP}\n`);
     return 1;
   }
   if (args.flag("help")) {
     io.stdout(`${USAGE}\n`);
+    return 0;
+  }
+  if (args.flag("version")) {
+    io.stdout(`${ownPackage().version}\n`);
     return 0;
   }
   if (args.positional[0] === "compare") return compare(args.positional.slice(1), args, io, library);
@@ -210,7 +219,8 @@ async function run(argv: string[], io: Io, library?: Library): Promise<number> {
     return 1;
   }
   if (!args.positional.length) {
-    io.stderr(`Pass the templates to migrate (files or folders).\n\n${USAGE}\n`);
+    // Run with nothing at all, it says how it's used; with options but no templates, what's missing.
+    io.stderr(`Pass the templates to migrate (files or folders).\n${argv.length ? SEE_HELP : `\n${USAGE}`}\n`);
     return 1;
   }
   const options: Options = {
@@ -232,7 +242,7 @@ async function run(argv: string[], io: Io, library?: Library): Promise<number> {
 
   const inputs = await collect(args.positional, io.cwd);
   if (inputs.missing.length) {
-    io.stderr(`Not found: ${inputs.missing.join(", ")}\n`);
+    io.stderr(`Not found: ${inputs.missing.join(", ")}\n${SEE_HELP}\n`);
     return 1;
   }
   // A template can use React Email only through the project's own components (a ui file). A file that does and isn't
@@ -335,6 +345,13 @@ async function run(argv: string[], io: Io, library?: Library): Promise<number> {
     const pending: Array<{ input: Input; result: FileResult; writes: PendingWrite[]; code?: string }> = [];
     for (const input of todo) {
       const use = used.uses.get(input.path);
+      // A file whose default export isn't a component (a Tailwind config templates import, plain data, a helper) isn't
+      // a template left as it is for them: it's skipped as what it is, as it would be on its own.
+      const not = use ? await notATemplate(input.path, await readFile(input.path, "utf8")) : undefined;
+      if (not && !not.fail) {
+        results.push({ file: relative(io.cwd, input.path), status: "skipped", reason: not.reason });
+        continue;
+      }
       if (use && !use.through) {
         left.push({ input, result: { file: relative(io.cwd, input.path), status: "skipped", reason: `imported by ${relative(io.cwd, use.importer)}: its markup is inlined into the templates that use it` } });
         continue;
@@ -445,8 +462,10 @@ async function run(argv: string[], io: Io, library?: Library): Promise<number> {
     }
   }
   // Files the run left as they were that still import React Email (a shared component, a helper the templates inlined):
-  // React Email can go only once nothing imports them, so they're named.
-  if (options.write && results.some((r) => r.output)) {
+  // React Email can go only once nothing imports them, so they're named. Only once every template is migrated: one left
+  // unwritten (it failed, or failed the check with --strict) may still import them, and React Email can't go anyway.
+  const allWritten = results.filter(isTemplate).every((r) => r.output || r.reason?.startsWith("already migrated"));
+  if (options.write && results.some((r) => r.output) && allWritten) {
     const reactEmail = new Set(inputs.files.filter((f) => f.reactEmail).map((f) => resolve(f.path)));
     const left = results.filter((r) => r.status === "skipped" && !r.output && reactEmail.has(resolve(io.cwd, r.file)));
     if (left.length) {
@@ -572,7 +591,7 @@ async function reserveDestinations(inputs: Input[], candidates: Input[], options
     const canonical = await safeDestination(path, outputRoot);
     if (sources.has(canonical) && !ownSource) throw new Error(`Output would overwrite a source input: ${relative(cwd, path)}. Use --write to replace a template itself.`);
     // A file this run didn't scan or produce is someone's work: never replaced silently.
-    if (!replace && (await fileInfo(path))) throw new Error(`Output already exists: ${relative(cwd, path)}. This run didn't produce it: choose an empty folder, or pass --overwrite to replace it.`);
+    if (!replace && (await fileInfo(path))) throw new Error(`Output already exists: ${relative(cwd, path)} (${await whoWrote(path, design)}). Choose an empty folder, or pass --overwrite to replace it.`);
     const previous = owners.get(canonical);
     if (previous !== undefined) throw new Error(`${previous} and ${owner} have the same output: ${relative(cwd, path)}. Use separate destinations.`);
     owners.set(canonical, owner);
@@ -682,6 +701,28 @@ function earlierOutput(text: string): "intact" | "edited" | "unhashed" | undefin
   const hash = HASH_LINE.exec(rest);
   if (!hash) return "unhashed";
   return contentHash(header[0] + rest.slice(hash[0].length)) === hash[1] ? "intact" : "edited";
+}
+
+/**
+ * Who wrote a file already at a destination, as far as can be told: an earlier run (a template with its header), the
+ * editor or an earlier run (a design JSON, which says neither), or not this tool.
+ */
+async function whoWrote(path: string, design: boolean): Promise<string> {
+  const text = await readFile(path, "utf8").catch(() => "");
+  const earlier = earlierOutput(text);
+  if (earlier === "intact") return "written by an earlier run";
+  if (earlier === "edited") return "written by an earlier run, and edited since";
+  // Without the hash a run now records: 0.1.0's, which can't say whether it's edited since.
+  if (earlier === "unhashed") return "written by an earlier version of @unlayer/migrate, which didn't record whether it's edited since";
+  if (design) {
+    try {
+      const parsed = JSON.parse(text);
+      if (parsed?.body && Array.isArray(parsed.body.rows)) return "a design, written by an earlier run or the editor";
+    } catch {
+      // Not a design: someone's file.
+    }
+  }
+  return "not written by @unlayer/migrate";
 }
 
 /** Whether a file is a report this CLI wrote (Markdown with its title, or JSON with its results), or nothing yet. */
@@ -892,7 +933,7 @@ async function migrateFile(input: Input, options: Options, lib: Library, io: Io,
       if (!Migrated) throw new Error("the migrated file has no default export");
       // The migrated preview props are the original's with their JSX converted (classes become styles): the design uses them.
       const designProps = Object.keys(migrated.props).length ? migrated.props : props;
-      verification = await lib.verifyConversion(Original, Migrated as (props: unknown) => ReturnType<typeof Original>, { props, designProps });
+      verification = writtenWords(await lib.verifyConversion(Original, Migrated as (props: unknown) => ReturnType<typeof Original>, { props, designProps }));
       // A component that doesn't render <Html> is a shared piece (a footer, a button), not an email:
       // replacing it would turn it into a whole email inside the templates that use it.
       // A dry run says what --write does; --out writes copies of them too.
@@ -937,7 +978,8 @@ async function migrateFile(input: Input, options: Options, lib: Library, io: Io,
       file: name,
       status: failsContent || (options.strict && (looks.length || differences.length)) ? "check-failed" : "migrated",
       ...(looks.length ? { looks } : {}),
-      editable: report.nativeRatio,
+      // As the design gets it: a block written both ways counts by the branch the preview props render.
+      editable: verification.editable,
       kept: report.fallbacks,
       differences,
       changes: group([
@@ -981,13 +1023,13 @@ async function migrateFile(input: Input, options: Options, lib: Library, io: Io,
 
 async function compare(paths: string[], args: Args, io: Io, library?: Library): Promise<number> {
   if (paths.length !== 2) {
-    io.stderr(`compare needs the original template and the migrated one.\n\n${USAGE}\n`);
+    io.stderr(`compare needs the original template and the migrated one: npx @unlayer/migrate compare <original> <migrated>\n${SEE_HELP}\n`);
     return 1;
   }
   const [originalPath, migratedPath] = paths.map((p) => resolve(io.cwd, p));
   for (const [given, path] of [[paths[0], originalPath], [paths[1], migratedPath]]) {
     if (!existsSync(path)) {
-      io.stderr(`Not found: ${given}\n`);
+      io.stderr(`Not found: ${given}\n${SEE_HELP}\n`);
       return 1;
     }
   }
@@ -1027,7 +1069,7 @@ async function compare(paths: string[], args: Args, io: Io, library?: Library): 
     const props: Record<string, unknown> = original.props;
     let check: Awaited<ReturnType<Library["verifyConversion"]>>;
     try {
-      check = await lib.verifyConversion(Original, Migrated, { props });
+      check = writtenWords(await lib.verifyConversion(Original, Migrated, { props }));
     } catch (error) {
       const original = await originalFailure(Original, props, io.cwd);
       io.stderr(original ? `The original template doesn't render: ${original}\n` : `The migrated template doesn't render: ${renderFailure(error)}\n`);
@@ -1065,6 +1107,61 @@ function convertFailure(why: string): string {
   if (template) return `couldn't convert it: ${why.slice(template[0].length)}`;
   if (/^Can't (safely )?convert /.test(why)) return `c${why.slice(1)}`;
   return `couldn't convert it: ${why}`;
+}
+
+/**
+ * A check with its words as the templates write them: the check reads each word as a reader would (`A-10293` and
+ * `A−10293` are the same, `sarah@example.com` is `sarahexamplecom`), and says it as the source has it. A word lost is
+ * the original's, one added the migrated template's; one neither shows (a flipped prop's) stays as the check reads it.
+ */
+function writtenWords<T extends CheckParts & { originalHtml: string; convertedHtml: string; variants: Array<CheckParts> }>(check: T): T {
+  let maps: [Map<string, string>, Map<string, string>] | undefined;
+  const written = (side: "original" | "migrated") => (words: string[]): string[] => {
+    maps ??= [wordsAsWritten(check.originalHtml), wordsAsWritten(check.convertedHtml)];
+    const [first, second] = side === "original" ? maps : [maps[1], maps[0]];
+    return words.map((word) => first.get(word) ?? second.get(word) ?? word);
+  };
+  const [original, migrated] = [written("original"), written("migrated")];
+  const parts = <P extends CheckParts>(c: P): P => ({
+    ...c,
+    ...(c.missing ? { missing: original(c.missing) } : {}),
+    ...(c.added ? { added: migrated(c.added) } : {}),
+    ...(c.styles ? { styles: c.styles.map((s) => ({ ...s, words: original(s.words) })) } : {}),
+    ...(c.unverified ? { unverified: c.unverified.map((u) => ({ ...u, words: (u.side === "migrated" ? migrated : original)(u.words) })) } : {}),
+    ...(c.phone ? { phone: { ...c.phone, missing: original(c.phone.missing), added: migrated(c.phone.added) } } : {}),
+    ...(c.layout ? { layout: c.layout.map((m) => ({ ...m, items: original(m.items) })) } : {}),
+  });
+  return { ...parts(check), variants: check.variants.map(parts) };
+}
+
+/** Each word of `html` as the check reads it, and as the page writes it (the first time), without the quotes or brackets around it. */
+function wordsAsWritten(html: string): Map<string, string> {
+  const out = new Map<string, string>();
+  try {
+    for (const { word } of new StyledDocument(html).words()) {
+      for (const written of word.split(/\s+/)) {
+        const read = normalizeWord(written);
+        if (!read || out.has(read)) continue;
+        // Without what can't be seen (a zero-width space or joiner, a byte order mark: Unicode's format characters),
+        // which a quote would carry along unseen.
+        const part = written.replace(/\p{Cf}/gu, "");
+        // What closes a sentence or an aside goes too, but a bracket the word opens itself stays ("connect()"), and an
+        // abbreviation's last period ("U.S.").
+        let bare = part.replace(/^[("'“‘[{<«]+/, "");
+        const opener: Record<string, string> = { ")": "(", "]": "[", "}": "{" };
+        while (/[)"'”’\]}>»,;:!?.]$/.test(bare)) {
+          const last = bare.slice(-1);
+          if (opener[last] && bare.split(opener[last]).length > bare.split(last).length - 1) break;
+          bare = bare.slice(0, -1);
+        }
+        if (/\p{L}\.\p{L}+$/u.test(bare) && /\.$/.test(part.replace(/[)"'”’\]}>»,;:!?]+$/, ""))) bare += ".";
+        out.set(read, bare && normalizeWord(bare) === read ? bare : part || read);
+      }
+    }
+  } catch {
+    // Words as the check reads them.
+  }
+  return out;
 }
 
 function group(notes: Array<{ reason: string; detail?: string }>): Array<{ reason: string; count: number; examples: string[] }> {
@@ -1178,7 +1275,10 @@ function summary(all: FileResult[], options: Options): string {
     ...(count("skipped") ? [`${count("skipped")} skipped`] : []),
   ];
   const written = results.filter((r) => r.output).length;
-  const next = options.write || options.out !== undefined ? `${written} written.` : "Nothing written: pass --write or --out <dir> to write the migrated templates.";
+  // A dry run says how to write what it migrated (what failed the check is written too, unless --strict): only when
+  // there's something to write.
+  const writable = results.some((r) => r.status === "migrated" || (r.status === "check-failed" && (!options.strict || options.force)));
+  const next = options.write || options.out !== undefined ? `${written} written.` : writable ? "Nothing written: pass --write or --out <dir> to write the migrated templates." : "Nothing to write.";
   const templates = results.length ? `${results.length} template${results.length > 1 ? "s" : ""}: ${parts.join(", ")}.` : "No email templates.";
   return `${templates}${others ? ` ${others} other file${others > 1 ? "s" : ""} skipped (see above).` : ""} ${next}`;
 }
@@ -2381,7 +2481,7 @@ function satisfiesCaret(version: Version, minimum: Version): boolean {
   return !version.pre.length || (minimum.pre.length > 0 && version.release.every((n, i) => n === minimum.release[i]));
 }
 
-function ownPackage(): { peerDependencies?: Record<string, string> } {
+function ownPackage(): { version: string; peerDependencies?: Record<string, string> } {
   return createRequire(import.meta.url)("../package.json");
 }
 

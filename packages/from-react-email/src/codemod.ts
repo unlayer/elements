@@ -341,7 +341,7 @@ class Converter {
   /** Source kept as the alternative of a block written both ways (its React Email components keep their import). */
   private readonly switchRanges: Array<{ from: number; to: number }> = [];
   private needsHoldsElements = false;
-  /** Backgrounds computed from props, by the color standing in for each until it's printed (see `computedBackground`). */
+  /** Backgrounds computed from props, by the color (or image URL) standing in for each until it's printed (see `computedBackground`, `computedImage`). */
   private readonly computedBackgrounds = new Map<string, { code: string; always: boolean; at: number }>();
   /** Where each computed background is written in the source, to its stand-in. */
   private readonly backgroundAt = new Map<number, string>();
@@ -688,10 +688,11 @@ class Converter {
     for (const [list, rest] of resolved.leftover) {
       for (const cls of rest) {
         if ([...(classOwners.get(list) ?? [""])].every((name) => handledPhoneClass(cls, resolved.phone, name))) continue;
-        this.report.note("tailwind class not inlined", cls);
+        const name = resolved.written?.get(cls) ?? cls;
+        this.report.note("tailwind class not inlined", name);
         // In any class list, also one the preview props don't pick (`plan === "free" ? "dark:hidden" : …`), which the
         // check doesn't see: what it hides shows in the migration.
-        if (HIDING_VARIANT.test(cls)) this.report.lostStyle(`className "${list}": ${cls}, which the migration doesn't keep`, true);
+        if (HIDING_VARIANT.test(cls)) this.report.lostStyle(`className "${list}": ${name}, which the migration doesn't keep`, true);
       }
     }
     return resolved;
@@ -953,6 +954,9 @@ class Converter {
     if (parts.some((t) => elementish(t) || (this.checker.isArrayType(t) && (this.checker.getTypeArguments(t as ts.TypeReference) ?? []).some(elementish)))) return true;
     // Without the project's types: a value that can be a constant written as JSX, on any path of the condition.
     if (this.yieldsJsxConstant(expression)) return true;
+    // A variable given JSX after it's declared (`message = <>…<br />…</>` in one branch), or what a function of the file's
+    // own that returns JSX gives (`renderGuests(guests)`).
+    if (this.assignedJsx(expression) || this.returnsJsx(expression)) return true;
     // An array JSX is pushed into (`rows.push(<Text>…</Text>)`).
     if (ts.isIdentifier(expression)) {
       let pushed = false;
@@ -978,6 +982,46 @@ class Converter {
       ts.forEachChild(node, visit);
     };
     visit(this.file);
+    return found;
+  }
+
+  /**
+   * Whether a variable is given JSX after it's declared (`let message: string | ReactNode = ""; if (…) message = <>…</>`):
+   * shown in text, it may be elements (links, line breaks) that plain text would lose.
+   */
+  private assignedJsx(expression: ts.Expression): boolean {
+    const node = unwrap(expression);
+    if (!ts.isIdentifier(node)) return false;
+    const symbol = this.checker.getSymbolAtLocation(node);
+    if (!symbol) return false;
+    let found = false;
+    const visit = (n: ts.Node) => {
+      if (found) return;
+      if (ts.isBinaryExpression(n) && n.operatorToken.kind === ts.SyntaxKind.EqualsToken && ts.isIdentifier(unwrap(n.left)) && this.checker.getSymbolAtLocation(unwrap(n.left)) === symbol && containsJsx(n.right)) found = true;
+      else ts.forEachChild(n, visit);
+    };
+    visit(this.file);
+    return found;
+  }
+
+  /** Whether code calls a function of the file's own that returns JSX (`renderGuests(guests)`): it gives elements. */
+  private returnsJsx(expression: ts.Expression): boolean {
+    const node = unwrap(expression);
+    if (!ts.isCallExpression(node)) return false;
+    const callee = unwrap(node.expression);
+    const declaration = ts.isIdentifier(callee) ? this.checker.getSymbolAtLocation(callee)?.valueDeclaration : undefined;
+    const fn = declaration && ts.isFunctionDeclaration(declaration) ? declaration
+      : declaration && ts.isVariableDeclaration(declaration) && declaration.initializer && (ts.isArrowFunction(unwrap(declaration.initializer)) || ts.isFunctionExpression(unwrap(declaration.initializer))) ? (unwrap(declaration.initializer) as ts.ArrowFunction | ts.FunctionExpression)
+      : undefined;
+    if (!fn?.body) return false;
+    if (!ts.isBlock(fn.body)) return containsJsx(fn.body);
+    let found = false;
+    const visit = (n: ts.Node) => {
+      if (found || (ts.isFunctionLike(n) && n !== fn && !ts.isArrowFunction(n))) return;
+      if (ts.isReturnStatement(n) && n.expression && containsJsx(n.expression)) found = true;
+      else ts.forEachChild(n, visit);
+    };
+    visit(fn.body);
     return found;
   }
 
@@ -1235,6 +1279,7 @@ class Converter {
       const value = key === undefined ? undefined : this.evaluate(ts.isPropertyAssignment(prop) ? prop.initializer : (prop as ts.ShorthandPropertyAssignment).name);
       if (key !== undefined && (typeof value === "string" || typeof value === "number")) (style as Record<string, unknown>)[key] = value;
       else if (box && key === "backgroundColor" && ts.isPropertyAssignment(prop) && this.computedBackground(prop)) style.backgroundColor = this.computedBackground(prop);
+      else if (box && key === "backgroundImage" && ts.isPropertyAssignment(prop) && this.computedImage(prop)) style.backgroundImage = `url(${this.computedImage(prop)})`;
       else lose(prop, prop.getText());
     }
     return style;
@@ -1256,6 +1301,28 @@ class Converter {
     const type = this.checker.getTypeAtLocation(prop.initializer);
     const always = (type.isUnion() ? type.types : [type]).every((t) => t.isStringLiteral() && t.value !== "");
     this.computedBackgrounds.set(stand, { code: prop.initializer.getText(), always, at });
+    this.backgroundAt.set(at, stand);
+    return stand;
+  }
+
+  /**
+   * A box's background image whose URL is computed (`url(${baseUrl}/static/hero.png)`): a URL standing in for it while
+   * the box is converted, written as the template's code for the URL (`` `${baseUrl}/static/hero.png` ``) where it lands
+   * (see `withComputedBackgrounds`), with its size, repeat and position as written. Only a template literal that is one
+   * `url(…)`; undefined otherwise, or where it can't be written (see convertSource).
+   */
+  private computedImage(prop: ts.PropertyAssignment): string | undefined {
+    const at = prop.getStart();
+    const value = unwrap(prop.initializer);
+    if (this.unwritten.has(at) || !ts.isTemplateExpression(value)) return undefined;
+    const match = /^`url\((['"]?)([\s\S]*)\1\)`$/.exec(value.getText());
+    if (!match || /^\s|\s$/.test(match[2]) || /[()]/.test(match[2].replace(/\$\{[^}]*\}/g, ""))) return undefined;
+    const known = this.backgroundAt.get(at);
+    if (known) return known;
+    const text = this.file.getFullText().toLowerCase();
+    let stand = "";
+    for (let n = this.computedBackgrounds.size + 1; !stand || text.includes(stand) || this.computedBackgrounds.has(stand); n++) stand = `https://computed.invalid/c0d${n.toString(16).padStart(3, "0")}.png`;
+    this.computedBackgrounds.set(stand, { code: `\`${match[2]}\``, always: true, at });
     this.backgroundAt.set(at, stand);
     return stand;
   }
@@ -3035,7 +3102,7 @@ class Converter {
         const value = this.evaluate(child.expression);
         // A value typed to hold JSX (`message: ReactNode`) may get a link or bold text where the preview
         // gives text: not plain text, but rendered as React would (inlineContent's htmlText).
-        if (!textOnly && value === undefined && this.mayHoldJsx(child.expression)) return undefined;
+        if (!textOnly && value === undefined && (this.mayHoldJsx(child.expression) || this.assignedJsx(child.expression) || this.returnsJsx(child.expression))) return undefined;
         parts.push(typeof value === "string" || typeof value === "number" ? String(value) : expr(child.expression.getText()));
       } else return undefined;
     }

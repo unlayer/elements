@@ -1031,3 +1031,115 @@ Note.PreviewProps = { name: "Ana", note: <em>your trial ends soon</em> };
     }
   });
 });
+
+describe("a box's background image with a computed URL", () => {
+  it.each([undefined, "shop.example.com"])("is written with the template's code for the URL (VERCEL_URL %s), in the email and the design", async (host) => {
+    const before = process.env.VERCEL_URL;
+    if (host === undefined) delete process.env.VERCEL_URL;
+    else process.env.VERCEL_URL = host;
+    try {
+      const { conversion, added, Original, Migrated } = await migrate({
+        "hero.tsx": `import { Html, Body, Container, Section, Text } from "@react-email/components";
+const assets = process.env.VERCEL_URL ? \`https://\${process.env.VERCEL_URL}\` : "https://assets.example.com";
+export default function Hero({ code }: { code: string }) {
+  return <Html><Body><Container>
+    <Section style={{ backgroundColor: "#2b1a3d", backgroundImage: \`url('\${assets}/static/hero-art.png')\`, backgroundSize: "cover", backgroundPosition: "center", padding: "40px 24px" }}>
+      <Text style={{ color: "#ffffff", fontSize: "32px" }}>Use code {code}</Text>
+    </Section>
+  </Container></Body></Html>;
+}
+Hero.PreviewProps = { code: "SPRING15" };
+`,
+      }, "hero.tsx");
+      expect(added).toEqual([]);
+      expect(conversion.code).toContain("url: `${assets}/static/hero-art.png`");
+      expect(conversion.report.lostStyles ?? []).toEqual([]);
+      const check = await verifyConversion(Original, Migrated);
+      expect([check.missing, check.added, check.missingAttributes, check.addedAttributes]).toEqual([[], [], [], []]);
+      const url = `${host ? `https://${host}` : "https://assets.example.com"}/static/hero-art.png`;
+      const images = (check.design as any).body.rows.map((row: any) => row.values.backgroundImage?.url).filter(Boolean);
+      expect(images).toEqual([url]);
+    } finally {
+      if (before === undefined) delete process.env.VERCEL_URL;
+      else process.env.VERCEL_URL = before;
+    }
+  });
+});
+
+describe("Tailwind classes the migration doesn't keep", () => {
+  it("are named as the template writes them, not as <Tailwind> renames them", async () => {
+    const { conversion } = await migrate({
+      "promo.tsx": `import { Html, Body, Tailwind, Text } from "@react-email/components";
+export default function Promo() {
+  return <Tailwind><Html><Body><Text className="text-sm md:text-base lg:!text-[18px] hover:underline">Hello</Text></Body></Html></Tailwind>;
+}
+`,
+    }, "promo.tsx");
+    const notes = conversion.report.notes.filter((n) => n.reason === "tailwind class not inlined").map((n) => n.detail);
+    expect(notes).toEqual(expect.arrayContaining(["md:text-base", "lg:!text-[18px]", "hover:underline"]));
+    expect(notes.filter((n) => /_/.test(String(n)))).toEqual([]);
+  });
+});
+
+describe("a variable given JSX in one branch, shown in text", () => {
+  it("keeps its line breaks and links (no words run together)", async () => {
+    const { conversion, added, Original, Migrated } = await migrate({
+      "payout.tsx": `import * as React from "react";
+import { Html, Body, Text } from "@react-email/components";
+export default function Payout({ small, fee }: { small: boolean; fee: string }) {
+  let message: string | React.ReactNode = "";
+  if (small) {
+    message = (
+      <>
+        It will stay in <code>processed</code> status.
+        <br />
+        <br />
+        If you want it now, <a href="https://example.com/payouts">pay out</a> for a {fee} fee.
+      </>
+    );
+  } else {
+    message = "Your funds are on their way.";
+  }
+  return <Html><Body><Text>{message}</Text></Body></Html>;
+}
+Payout.PreviewProps = { small: true, fee: "$2" };
+`,
+    }, "payout.tsx");
+    expect(added).toEqual([]);
+    for (const small of [true, false]) {
+      const check = await verifyConversion(Original, Migrated, { props: { small, fee: "$2" } });
+      expect([check.missing, check.added, check.missingAttributes]).toEqual([[], [], []]);
+    }
+    expect(conversion.code).toMatch(/holdsElements\(message\)/);
+  });
+});
+
+describe("a call to a function of the file's own that returns JSX", () => {
+  it("is shown as the elements it gives, not as plain text (no words run together)", async () => {
+    const { added, Original, Migrated } = await migrate({
+      "recap.tsx": `import { Html, Body, Section, Text } from "@react-email/components";
+function bulletList(title: string, items: string[]) {
+  if (!items.length) return null;
+  return (
+    <div>
+      <Text style={{ fontWeight: 700, margin: 0 }}>{title}</Text>
+      {items.map((item, i) => <Text key={i} style={{ margin: 0 }}>- {item}</Text>)}
+    </div>
+  );
+}
+export default function Recap({ decisions, steps }: { decisions: string[]; steps: string[] }) {
+  return <Html><Body><Section>
+    {bulletList("Decisions", decisions)}
+    {bulletList("Next steps", steps)}
+  </Section></Body></Html>;
+}
+Recap.PreviewProps = { decisions: ["Ship in June", "Hire two engineers"], steps: ["Draft the checklist"] };
+`,
+    }, "recap.tsx");
+    expect(added).toEqual([]);
+    for (const props of [Original.PreviewProps, { decisions: [], steps: ["Review", "Send"] }]) {
+      const check = await verifyConversion(Original, Migrated, { props });
+      expect([check.missing, check.added]).toEqual([[], []]);
+    }
+  });
+});

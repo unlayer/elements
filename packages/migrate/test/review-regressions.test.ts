@@ -102,13 +102,36 @@ describe("destination safety", () => {
     expect(fs.readFileSync(path.join(dir, "outside/keep.txt"), "utf8")).toBe("OUTSIDE");
   });
 
+  it("says a file in the output folder is an earlier run's, where it is, when it won't replace it", async () => {
+    const dir = project({ "emails/welcome.tsx": good });
+    expect(await main(["emails", "--out", "migrated", "--design"], io(dir), lib)).toBe(0);
+    const again = io(dir);
+    expect(await main(["emails", "--out", "migrated", "--design"], again, lib), again.out + again.err).toBe(1);
+    expect(again.err).toBe("Output already exists: migrated/welcome.tsx (written by an earlier run). Choose an empty folder, or pass --overwrite to replace it.\n");
+    fs.appendFileSync(path.join(dir, "migrated/welcome.tsx"), "export const mine = 1;\n");
+    const edited = io(dir);
+    expect(await main(["emails", "--out", "migrated", "--design"], edited, lib)).toBe(1);
+    expect(edited.err).toContain("Output already exists: migrated/welcome.tsx (written by an earlier run, and edited since).");
+    // Written by 0.1.0, with no hash line: an earlier version's, not an earlier run's.
+    const written = fs.readFileSync(path.join(dir, "migrated/welcome.tsx"), "utf8");
+    fs.writeFileSync(path.join(dir, "migrated/welcome.tsx"), written.replace(/^\/\/ @unlayer\/migrate hash [^\n]*\n/m, ""));
+    const older = io(dir);
+    expect(await main(["emails", "--out", "migrated", "--design"], older, lib)).toBe(1);
+    expect(older.err).toBe("Output already exists: migrated/welcome.tsx (written by an earlier version of @unlayer/migrate, which didn't record whether it's edited since). Choose an empty folder, or pass --overwrite to replace it.\n");
+    // A design can't be told from one made in the editor.
+    fs.rmSync(path.join(dir, "migrated/welcome.tsx"));
+    const design = io(dir);
+    expect(await main(["emails", "--out", "migrated", "--design"], design, lib)).toBe(1);
+    expect(design.err).toContain("Output already exists: migrated/welcome.design.json (a design, written by an earlier run or the editor).");
+    expect(again.err + edited.err + design.err).not.toContain("didn't produce");
+  });
+
   it("refuses to replace a file in the output folder that this run didn't produce, unless --overwrite", async () => {
     const dir = project({ "emails/welcome.tsx": good, "existing/welcome.tsx": "MINE", "existing/welcome.design.json": "MINE TOO" });
     for (const keep of ["welcome.tsx", "welcome.design.json"]) {
       const out = io(dir);
       expect(await main(["emails", "--out", "existing", "--design"], out, lib), out.out + out.err).toBe(1);
-      expect(out.err).toContain(`Output already exists: existing/${keep}`);
-      expect(out.err).toContain("pass --overwrite to replace it");
+      expect(out.err).toContain(`Output already exists: existing/${keep} (not written by @unlayer/migrate). Choose an empty folder, or pass --overwrite to replace it.`);
       expect(out.out).toBe("");
       expect(fs.readFileSync(path.join(dir, "existing/welcome.design.json"), "utf8")).toBe("MINE TOO");
       // Then only the design JSON is someone's: still refused.
@@ -174,6 +197,20 @@ describe("a Node.js older than the CLI needs (built CLI)", () => {
     expect(supported.stdout).toContain("Migrate React Email templates to Unlayer Elements.");
   }, 90_000);
 
+  it("says which version it is on any Node.js", async () => {
+    const { version } = JSON.parse(fs.readFileSync(path.resolve(import.meta.dirname, "../package.json"), "utf8"));
+    for (const node of ["18.20.4", "20.6.0"]) {
+      for (const flag of ["--version", "-v"]) {
+        const result = await run(process.execPath, [...reporting(node), bin, flag], process.cwd());
+        expect(result.code ?? 0, `${node} ${flag}: ${result.stderr}`).toBe(0);
+        expect([result.stdout, result.stderr]).toEqual([`${version}\n`, ""]);
+      }
+    }
+    // Anything else on an older one still stops at the check.
+    const other = await run(process.execPath, [...reporting("18.20.4"), bin, "emails", "--version"], process.cwd());
+    expect(other.stderr).toBe("@unlayer/migrate needs Node.js 20.6 or later (you have 18.20.4).\n");
+  }, 90_000);
+
   // On Node 18 itself when it's installed (with nvm): nothing it lacks loads before the check.
   const home = process.env.HOME ?? "";
   const installed = fs.existsSync(path.join(home, ".nvm/versions/node")) ? fs.readdirSync(path.join(home, ".nvm/versions/node")).filter((v) => /^v(1[0-9]|20\.[0-5])\./.test(v)) : [];
@@ -183,6 +220,8 @@ describe("a Node.js older than the CLI needs (built CLI)", () => {
       const result = await run(path.join(home, ".nvm/versions/node", version, "bin/node"), [bin, "emails"], dir);
       expect(result.code, result.stdout + result.stderr).toBe(1);
       expect(result.stderr).toBe(`@unlayer/migrate needs Node.js 20.6 or later (you have ${version.slice(1)}).\n`);
+      const asked = await run(path.join(home, ".nvm/versions/node", version, "bin/node"), [bin, "--version"], dir);
+      expect([asked.stdout, asked.stderr]).toEqual([`${JSON.parse(fs.readFileSync(path.resolve(import.meta.dirname, "../package.json"), "utf8")).version}\n`, ""]);
     }
   }, 90_000);
 });
@@ -1284,8 +1323,8 @@ ${name}.PreviewProps = ${props};`;
   });
 
   it.each([
-    ["dark mode", `<Section className={plan === "free" ? "p-4 dark:hidden" : "p-4"}>`, "dark_hidden"],
-    ["wider screens", `<Section className={plan === "app" ? "sm:hidden" : undefined}>`, "sm_hidden"],
+    ["dark mode", `<Section className={plan === "free" ? "p-4 dark:hidden" : "p-4"}>`, "dark:hidden"],
+    ["wider screens", `<Section className={plan === "app" ? "sm:hidden" : undefined}>`, "sm:hidden"],
   ])("in a Tailwind class that hides in %s, in a class list the preview props don't pick, fails the template", async (_, section, cls) => {
     const dir = project({ "emails/shipped.tsx": template("Shipped", section, `{ name: "Ada", plan: "pro" }`) });
     const out = io(dir);
@@ -2068,5 +2107,63 @@ export const divider = Divider;`;
     const out = io(dir);
     expect(await main(["emails", "--write"], out, lib), out.out + out.err).toBe(1);
     expect(out.err).toContain("--write replaces templates in place, and git couldn't restore these:\n  emails/mixed.tsx (changed since the last commit)");
+  });
+});
+
+describe("a Tailwind config the templates share", () => {
+  it("is skipped as a file that isn't a template, not left as it is for them: a dry run and --write end with exit 0", async () => {
+    const config = `import type { TailwindConfig } from "@react-email/components";
+export default { theme: { extend: { colors: { brand: "#2250f4" } } } } satisfies TailwindConfig;
+`;
+    const template = (name: string) => `import { Html, Body, Tailwind, Text } from "@react-email/components";
+import tailwindConfig from "./tailwind.config";
+export default function ${name}() { return <Html><Tailwind config={tailwindConfig}><Body><Text className="text-brand">Hello from ${name}</Text></Body></Tailwind></Html>; }
+${name}.tailwindConfig = tailwindConfig;
+`;
+    const dir = project({ "emails/tailwind.config.ts": config, "emails/welcome.tsx": template("Welcome"), "emails/reset.tsx": template("Reset") });
+    const skipped = "- emails/tailwind.config.ts: skipped: not loaded: its default export isn't a component (a helper, or a file that passes one on)\n";
+    const dry = io(dir);
+    expect(await main(["emails"], dry, lib), dry.out + dry.err).toBe(0);
+    expect(dry.out).toContain(skipped);
+    expect(dry.out).toContain("2 templates: 2 migrated and checked");
+    expect(dry.err).toBe("");
+    const write = io(dir);
+    expect(await main(["emails", "--write"], write, lib), write.out + write.err).toBe(0);
+    expect(write.out).toContain(skipped);
+    expect(write.err).toBe("");
+    expect(fs.readFileSync(path.join(dir, "emails/tailwind.config.ts"), "utf8")).toBe(config);
+    expect(fs.readFileSync(path.join(dir, "emails/welcome.tsx"), "utf8")).toContain("@unlayer/react-elements");
+  });
+});
+
+describe("words in what the run says", () => {
+  it("are written as the templates write them, not as the check reads them", async () => {
+    const original = `import { Html, Body, Text } from "@react-email/components";
+export default function T() { return <Html><Body><Text>Order A-10293 for (sarah@example.com) shipped.</Text></Body></Html>; }
+`;
+    const migrated = `import { Column, Email, Paragraph, Row } from "@unlayer/react-elements";
+export default function T() { return <Email backgroundColor="#ffffff"><Row><Column><Paragraph color="#000000" fontSize="14px" lineHeight="24px" containerPadding="0px 0px 16px 0px">Order shipped, ref “B‑7”, from the U.S.</Paragraph></Column></Row></Email>; }
+`;
+    const dir = project({ "emails/order.tsx": original, "migrated/order.tsx": migrated });
+    const out = io(dir);
+    expect(await main(["compare", "emails/order.tsx", "migrated/order.tsx"], out, lib), out.out + out.err).toBe(2);
+    expect(out.out).toContain('lost text: "A-10293", "for", "sarah@example.com"');
+    expect(out.out).toContain('extra text: "ref", "B‑7", "from", "the", "U.S."');
+    expect(out.out).not.toMatch(/−|sarahexamplecom/);
+  });
+
+  it("are quoted without the characters that can't be seen in them", async () => {
+    // Zero-width joiners and spaces a code block puts between its tokens, a byte order mark, a soft hyphen.
+    const original = `import { Html, Body, Text } from "@react-email/components";
+export default function T() { return <Html><Body><Text>{"Run \u200d\u200bclient.\u2060connect() on \ufeffstart\u00adup."}</Text></Body></Html>; }
+`;
+    const migrated = `import { Column, Email, Paragraph, Row } from "@unlayer/react-elements";
+export default function T() { return <Email backgroundColor="#ffffff"><Row><Column><Paragraph color="#000000" fontSize="14px" lineHeight="24px" containerPadding="0px 0px 16px 0px">Run it</Paragraph></Column></Row></Email>; }
+`;
+    const dir = project({ "emails/code.tsx": original, "migrated/code.tsx": migrated });
+    const out = io(dir);
+    expect(await main(["compare", "emails/code.tsx", "migrated/code.tsx"], out, lib), out.out + out.err).toBe(2);
+    expect(out.out).toContain('lost text: "client.connect()", "on", "startup"');
+    expect(out.out).not.toMatch(/\p{Cf}/u);
   });
 });

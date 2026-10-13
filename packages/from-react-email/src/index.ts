@@ -160,6 +160,12 @@ export interface Verification extends TextCheck {
   designWarnings: string[];
   /** The design JSON the visual editor opens (`loadDesign`), rendered with the same props. */
   design: Record<string, unknown>;
+  /**
+   * The share of the design's blocks the editor can edit (not Html blocks; spacers, invisible dividers standing for
+   * space, aren't counted): what it gets, with a block written both ways (`holdsElements(…) ? … : …`) as the props
+   * render it.
+   */
+  editable: number;
   /** The web fonts the design uses, to register with the editor (`fonts.customFonts`) so it shows and exports them. */
   editorFonts: EditorFont[];
   /**
@@ -331,7 +337,7 @@ export async function verifyConversion(
     }
   }
   const stylesheets = (designRoot.props as { fonts?: Array<{ url: string }> } | null)?.fonts;
-  return { ...compareText(originalHtml, convertedHtml), originalHtml, convertedHtml, designWarnings, design, editorFonts: editorFonts(design, stylesheets), variants };
+  return { ...compareText(originalHtml, convertedHtml), originalHtml, convertedHtml, designWarnings, design, editable: designEditable(design), editorFonts: editorFonts(design, stylesheets), variants };
 }
 
 /** Elements' warning for a `<link>` among the email's rows. */
@@ -352,6 +358,15 @@ function withoutImagePreloads(warnings: string[], html: () => string): string[] 
     return warnings;
   }
   return warnings.filter((warning) => !(warning === LINK_AMONG_ROWS && preloads-- > 0));
+}
+
+/** The share of a design's content blocks that aren't Html blocks, spacers (a divider with no line) not counted. */
+export function designEditable(design: Record<string, unknown>): number {
+  type Content = { type?: string; values?: { border?: { borderTopWidth?: string } } };
+  const rows = ((design.body as { rows?: Array<{ columns?: Array<{ contents?: Content[] }> }> } | undefined)?.rows ?? []);
+  const blocks = rows.flatMap((row) => (row.columns ?? []).flatMap((column) => column.contents ?? []))
+    .filter((block) => !(block.type === "divider" && /^0(px)?$/.test(String(block.values?.border?.borderTopWidth ?? "").trim())));
+  return blocks.length ? blocks.filter((block) => block.type !== "html").length / blocks.length : 1;
 }
 
 /**

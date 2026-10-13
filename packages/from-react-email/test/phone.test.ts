@@ -68,7 +68,8 @@ describe("phone styles", () => {
     for (const output of html) expect(output).toContain(".v-src-max-width { max-width: 100% !important; }");
     expect(codemod.code).toContain("mobile={{");
     expect(codemod.code).toContain("hideOnMobile={true}");
-    expect(codemod.report.notes.filter(n => n.reason === "tailwind class not inlined").map(n => n.detail)).toEqual([expect.stringContaining("hover")]);
+    // Named as the template writes it, not as <Tailwind> renames it (`hover_text-red-500`).
+    expect(codemod.report.notes.filter(n => n.reason === "tailwind class not inlined").map(n => n.detail)).toEqual(["hover:text-red-500"]);
     for (const design of designs) {
       const rows = design.body.rows;
       const stacked = rows.find((r: any) => r.columns.some((c: any) => c.contents.some((item: any) => item.values.text?.includes("First phone text"))));

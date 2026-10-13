@@ -1402,7 +1402,7 @@ export default function List({ items, name }: { items: Item[]; name: string }) {
   return (
     <Html><Body>
       {items.map((item, i) => (
-        <Section key={i} style={{ boxShadow: item.glow, backgroundImage: \`url(\${pixel})\` }}>
+        <Section key={i} style={{ boxShadow: item.glow, outlineColor: pixel }}>
           <Text>{i + 1}. Item</Text>
         </Section>
       ))}
