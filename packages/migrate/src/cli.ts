@@ -973,7 +973,8 @@ async function migrateFile(input: Input, options: Options, lib: Library, io: Io,
       file: name,
       status: failsContent || (options.strict && (looks.length || differences.length)) ? "check-failed" : "migrated",
       ...(looks.length ? { looks } : {}),
-      editable: report.nativeRatio,
+      // As the design gets it: a block written both ways counts by the branch the preview props render.
+      editable: verification.editable,
       kept: report.fallbacks,
       differences,
       changes: group([

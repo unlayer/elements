@@ -1021,3 +1021,28 @@ export default function T() {
     expect(fs.readdirSync(path.join(dir, "emails"))).toEqual(["t.tsx"]);
   });
 });
+
+describe("editability in the report", () => {
+  it("is what the design gets: a block written both ways counts by the branch its preview render takes", async () => {
+    const dir = project({
+      "emails/withdrawal.tsx": `import * as React from "react";
+import { Html, Body, Text } from "@react-email/components";
+export default function Withdrawal({ crypto, amount }: { crypto: boolean; amount: string }) {
+  let message: string | React.ReactNode = "";
+  if (crypto) message = <>After a small fee, <strong>{amount}</strong> goes to your wallet.</>;
+  else message = <>After a small fee, <strong>{amount}</strong> goes to your bank.</>;
+  return <Html><Body><Text>Your withdrawal started.</Text><Text>{message}</Text></Body></Html>;
+}
+Withdrawal.PreviewProps = { crypto: false, amount: "$12.50" };
+`,
+    });
+    const out = io(dir);
+    expect(await main(["emails", "--out", "migrated", "--design", "--report", "report.json"], out, lib)).toBe(0);
+    const [result] = JSON.parse(fs.readFileSync(path.join(dir, "report.json"), "utf8"));
+    const design = JSON.parse(fs.readFileSync(path.join(dir, "migrated/withdrawal.design.json"), "utf8"));
+    const types = design.body.rows.flatMap((row: any) => row.columns.flatMap((column: any) => column.contents.map((content: any) => content.type)));
+    expect(types).toEqual(["text", "html"]);
+    expect(result.editable).toBe(0.5);
+    expect(out.out).toContain("50% editable");
+  });
+});
