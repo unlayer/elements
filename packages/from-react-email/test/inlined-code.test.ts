@@ -1031,3 +1031,37 @@ Note.PreviewProps = { name: "Ana", note: <em>your trial ends soon</em> };
     }
   });
 });
+
+describe("a box's background image with a computed URL", () => {
+  it.each([undefined, "shop.example.com"])("is written with the template's code for the URL (VERCEL_URL %s), in the email and the design", async (host) => {
+    const before = process.env.VERCEL_URL;
+    if (host === undefined) delete process.env.VERCEL_URL;
+    else process.env.VERCEL_URL = host;
+    try {
+      const { conversion, added, Original, Migrated } = await migrate({
+        "hero.tsx": `import { Html, Body, Container, Section, Text } from "@react-email/components";
+const assets = process.env.VERCEL_URL ? \`https://\${process.env.VERCEL_URL}\` : "https://assets.example.com";
+export default function Hero({ code }: { code: string }) {
+  return <Html><Body><Container>
+    <Section style={{ backgroundColor: "#2b1a3d", backgroundImage: \`url('\${assets}/static/hero-art.png')\`, backgroundSize: "cover", backgroundPosition: "center", padding: "40px 24px" }}>
+      <Text style={{ color: "#ffffff", fontSize: "32px" }}>Use code {code}</Text>
+    </Section>
+  </Container></Body></Html>;
+}
+Hero.PreviewProps = { code: "SPRING15" };
+`,
+      }, "hero.tsx");
+      expect(added).toEqual([]);
+      expect(conversion.code).toContain("url: `${assets}/static/hero-art.png`");
+      expect(conversion.report.lostStyles ?? []).toEqual([]);
+      const check = await verifyConversion(Original, Migrated);
+      expect([check.missing, check.added, check.missingAttributes, check.addedAttributes]).toEqual([[], [], [], []]);
+      const url = `${host ? `https://${host}` : "https://assets.example.com"}/static/hero-art.png`;
+      const images = (check.design as any).body.rows.map((row: any) => row.values.backgroundImage?.url).filter(Boolean);
+      expect(images).toEqual([url]);
+    } finally {
+      if (before === undefined) delete process.env.VERCEL_URL;
+      else process.env.VERCEL_URL = before;
+    }
+  });
+});

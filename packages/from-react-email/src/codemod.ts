@@ -341,7 +341,7 @@ class Converter {
   /** Source kept as the alternative of a block written both ways (its React Email components keep their import). */
   private readonly switchRanges: Array<{ from: number; to: number }> = [];
   private needsHoldsElements = false;
-  /** Backgrounds computed from props, by the color standing in for each until it's printed (see `computedBackground`). */
+  /** Backgrounds computed from props, by the color (or image URL) standing in for each until it's printed (see `computedBackground`, `computedImage`). */
   private readonly computedBackgrounds = new Map<string, { code: string; always: boolean; at: number }>();
   /** Where each computed background is written in the source, to its stand-in. */
   private readonly backgroundAt = new Map<number, string>();
@@ -1235,6 +1235,7 @@ class Converter {
       const value = key === undefined ? undefined : this.evaluate(ts.isPropertyAssignment(prop) ? prop.initializer : (prop as ts.ShorthandPropertyAssignment).name);
       if (key !== undefined && (typeof value === "string" || typeof value === "number")) (style as Record<string, unknown>)[key] = value;
       else if (box && key === "backgroundColor" && ts.isPropertyAssignment(prop) && this.computedBackground(prop)) style.backgroundColor = this.computedBackground(prop);
+      else if (box && key === "backgroundImage" && ts.isPropertyAssignment(prop) && this.computedImage(prop)) style.backgroundImage = `url(${this.computedImage(prop)})`;
       else lose(prop, prop.getText());
     }
     return style;
@@ -1256,6 +1257,28 @@ class Converter {
     const type = this.checker.getTypeAtLocation(prop.initializer);
     const always = (type.isUnion() ? type.types : [type]).every((t) => t.isStringLiteral() && t.value !== "");
     this.computedBackgrounds.set(stand, { code: prop.initializer.getText(), always, at });
+    this.backgroundAt.set(at, stand);
+    return stand;
+  }
+
+  /**
+   * A box's background image whose URL is computed (`url(${baseUrl}/static/hero.png)`): a URL standing in for it while
+   * the box is converted, written as the template's code for the URL (`` `${baseUrl}/static/hero.png` ``) where it lands
+   * (see `withComputedBackgrounds`), with its size, repeat and position as written. Only a template literal that is one
+   * `url(…)`; undefined otherwise, or where it can't be written (see convertSource).
+   */
+  private computedImage(prop: ts.PropertyAssignment): string | undefined {
+    const at = prop.getStart();
+    const value = unwrap(prop.initializer);
+    if (this.unwritten.has(at) || !ts.isTemplateExpression(value)) return undefined;
+    const match = /^`url\((['"]?)([\s\S]*)\1\)`$/.exec(value.getText());
+    if (!match || /^\s|\s$/.test(match[2]) || /[()]/.test(match[2].replace(/\$\{[^}]*\}/g, ""))) return undefined;
+    const known = this.backgroundAt.get(at);
+    if (known) return known;
+    const text = this.file.getFullText().toLowerCase();
+    let stand = "";
+    for (let n = this.computedBackgrounds.size + 1; !stand || text.includes(stand) || this.computedBackgrounds.has(stand); n++) stand = `https://computed.invalid/c0d${n.toString(16).padStart(3, "0")}.png`;
+    this.computedBackgrounds.set(stand, { code: `\`${match[2]}\``, always: true, at });
     this.backgroundAt.set(at, stand);
     return stand;
   }
