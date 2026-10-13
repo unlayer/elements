@@ -791,6 +791,20 @@ export default function Welcome() { return <Html><Body><Text>Welcome aboard</Tex
     expect(written.err).toBe("");
   });
 
+  it("says a report whose name isn't .md or .json is written as Markdown", async () => {
+    const dir = project({ "emails/welcome.tsx": `import { Html, Body, Text } from "@react-email/components";
+export default function Welcome() { return <Html><Body><Text>Welcome aboard</Text></Body></Html>; }` });
+    const out = io(dir);
+    expect(await main(["emails", "--report", "report.txt"], out, lib), out.out + out.err).toBe(0);
+    expect(out.out).toContain("Report: report.txt (written as Markdown: name it .json for JSON)\n");
+    expect(fs.readFileSync(path.join(dir, "report.txt"), "utf8")).toMatch(/^# React Email → Unlayer Elements migration/);
+    for (const name of ["report.md", "report.json"]) {
+      const named = io(dir);
+      expect(await main(["emails", "--report", name], named, lib)).toBe(0);
+      expect(named.out).toContain(`Report: ${name}\n`);
+    }
+  });
+
   it("explains usage mistakes", async () => {
     const dir = project({});
     const mistakes: Array<[string[], string]> = [

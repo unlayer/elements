@@ -48,7 +48,8 @@ and the visual editor must get every block. Nothing is written unless you ask:
                    template, for the visual editor's loadDesign(). Text
                    props shown as given become merge tags ({{name}}).
   --no-merge-tags  Keep the sample values in the design JSON instead.
-  --report <file>  Write the migration report (.md or .json).
+  --report <file>  Write the migration report: JSON for a .json file,
+                   Markdown for any other.
   --strict         Fail (and don't write) a template with any difference:
                    in its content, in how it looks, or one the migration
                    lists (a style it couldn't keep). Without it, every
@@ -448,7 +449,9 @@ async function run(argv: string[], io: Io, library?: Library): Promise<number> {
       io.stderr(`Couldn't write report: ${message(error)}\n`);
       return 2;
     }
-    io.stdout(`Report: ${relative(io.cwd, target)}\n`);
+    // Any name but .json gets Markdown: said when the name doesn't say it.
+    const format = reportFile.endsWith(".json") || /\.(md|markdown)$/i.test(reportFile) ? "" : " (written as Markdown: name it .json for JSON)";
+    io.stdout(`Report: ${relative(io.cwd, target)}${format}\n`);
   }
   if (results.some((r) => r.status === "failed" || r.status === "check-failed")) return 2;
   // A run ends with 0 only when it checked what it was given: a template migrated, or nothing left to migrate.
