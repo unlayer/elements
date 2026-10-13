@@ -1343,3 +1343,23 @@ T.PreviewProps = { url: "https://example.com/next" };`);
     expect(svg(check.convertedHtml)).toContain('<line x1="4" x2="4" y1="6" y2="18"></line>');
   });
 });
+
+describe("bare text in a box whose style needs a span", () => {
+  it("keeps the text (uppercase, italics, underline), from props too", async () => {
+    const { Original, Migrated } = await templates(`import { Html, Body, Section, Row, Column } from "@react-email/components";
+export default function T({ plan }: { plan: string }) {
+  return <Html><Body>
+    <Section style={{ textTransform: "uppercase", letterSpacing: "1px" }}>Order summary</Section>
+    <Section><Row>
+      <Column style={{ fontStyle: "italic" }}>Plan</Column>
+      <Column style={{ textDecoration: "underline" }}>{plan}</Column>
+    </Row></Section>
+  </Body></Html>;
+}
+T.PreviewProps = { plan: "Team" };`);
+    for (const props of [Original.PreviewProps, { plan: "Enterprise" }]) {
+      const check = await verifyConversion(Original, Migrated, { props });
+      expect([check.missing, check.added, check.styles]).toEqual([[], [], []]);
+    }
+  });
+});

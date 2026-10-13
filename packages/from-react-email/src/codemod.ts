@@ -1774,7 +1774,8 @@ class Converter {
       if (inline.length) {
         const parts = this.plainParts(inline);
         try {
-          out.push({ block: paragraphBlock(parts ? "" : this.inlineContent(inline), {}, ctx, ZERO, parts, INHERITED) });
+          // Text whose style around it has no Paragraph prop (uppercase, italics) goes in a span: as HTML then, as for a Text.
+          out.push({ block: paragraphBlock(parts && !needsHtml(spanStyle({}, ctx)) ? "" : this.inlineContent(inline), {}, ctx, ZERO, parts, INHERITED) });
         } catch (error) {
           if (!(error instanceof KeepBlock)) throw error;
           out.push({ block: { node: this.keepChildren(inline, ctx, error.message), margin: ZERO, padding: ZERO } });
