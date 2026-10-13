@@ -187,11 +187,15 @@ function escapeHtml(text: string): string {
     .replace(/"/g, "&quot;");
 }
 
-/** A value in text as React shows it: text and numbers escaped, nothing for null, undefined or a boolean. */
+/** A value in text as React shows it: text and numbers escaped, lists one item after another (at any depth), nothing for null, undefined or a boolean. */
 function htmlText(value: unknown): string {
-  const text = (item: unknown) =>
-    typeof item === "string" || typeof item === "number" ? escapeHtml(String(item)) : "";
-  return Array.isArray(value) ? value.map(text).join("") : text(value);
+  const text = (item: unknown): string =>
+    Array.isArray(item)
+      ? item.map(text).join("")
+      : typeof item === "string" || typeof item === "number"
+        ? escapeHtml(String(item))
+        : "";
+  return text(value);
 }
 
 /** An attribute as React renders it: left out when its value is missing. */

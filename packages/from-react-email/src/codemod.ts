@@ -3744,8 +3744,9 @@ class Converter {
       helpers +=
         `\n/** A value in text as React shows it: text and numbers escaped, lists one item after another (at any depth), nothing for null, undefined or a boolean. */\n` +
         `function htmlText(value${javascript ? "" : ": unknown"})${javascript ? "" : ": string"} {\n` +
-        `  if (Array.isArray(value)) return value.map(htmlText).join("");\n` +
-        `  return typeof value === "string" || typeof value === "number" ? escapeHtml(String(value)) : "";\n` +
+        `  const text = (item${javascript ? "" : ": unknown"})${javascript ? "" : ": string"} =>\n` +
+        `    Array.isArray(item) ? item.map(text).join("") : typeof item === "string" || typeof item === "number" ? escapeHtml(String(item)) : "";\n` +
+        `  return text(value);\n` +
         `}\n`;
     }
     if (this.needsHoldsElements) {
