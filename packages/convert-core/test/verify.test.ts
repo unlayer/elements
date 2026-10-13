@@ -343,3 +343,26 @@ describe("a second document inside the body", () => {
     expect(compareText(both, both).unverified).toEqual([]);
   });
 });
+
+describe("the page's background, around the email", () => {
+  const card = '<table style="max-width:560px;margin:0 auto;background-color:#ffffff"><tr><td><h1>Sign in</h1><p>Your code is 482913.</p></td></tr></table>';
+  // As React Email writes it: the body's color, and a full-width table whose cell repeats it with padding.
+  const reactEmail = (color: string) => `<html><body style="background-color:${color};margin:0"><table width="100%"><tr><td style="background-color:${color};padding:24px 12px">${card}</td></tr></table></body></html>`;
+  // As Elements writes it: the body's color, a full-width body table, then rows as wide as the email.
+  const elements = (page: string, row = "") => `<html><body style="margin:0;background-color:${page}"><table style="width:100%;background-color:${page}"><tr><td><div><style>.u-row{}</style><div class="u-row-container" style="${row}"><div class="u-row" style="max-width:600px;margin:0 auto">${card}</div></div></div></td></tr></table></body></html>`;
+
+  it("is a look difference where the migration lost it", () => {
+    const check = compareText(reactEmail("#eef2f7"), elements("#ffffff"));
+    expect(check.styles).toEqual([{ property: "background", original: "#eef2f7", converted: "#ffffff", words: [], page: true }]);
+    expect(compareText(reactEmail("#15171a"), elements("#ffffff")).styles).toContainEqual(expect.objectContaining({ original: "#15171a", converted: "#ffffff", page: true }));
+  });
+
+  it("is the same however each side sets it: the body, a wrapper as wide as the page, a full-width row", () => {
+    expect(compareText(reactEmail("#eef2f7"), elements("#eef2f7")).styles).toEqual([]);
+    expect(compareText(reactEmail("#eef2f7"), elements("#ffffff", "background-color:#eef2f7")).styles).toEqual([]);
+    const wrapper = `<html><body style="margin:0"><table width="100%" bgcolor="#eef2f7"><tr><td>${card}</td></tr></table></body></html>`;
+    expect(compareText(wrapper, elements("#eef2f7")).styles).toEqual([]);
+    // A box narrower than the page doesn't color it: the card's white isn't the page's.
+    expect(compareText(reactEmail("#ffffff"), elements("#ffffff")).styles).toEqual([]);
+  });
+});

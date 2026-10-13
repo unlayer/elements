@@ -1555,6 +1555,53 @@ export class StyledDocument {
     return out;
   }
 
+  /**
+   * The color around the email, at the page's sides: the page's own (`<html>`'s, then `<body>`'s), under each box
+   * that spans the page from side to side and holds all of it (a wrapper table at width 100%, Elements' body
+   * table), down to one that's narrower, holds more than one box, or has padding at its sides. Where images don't
+   * load: an image's box counts by the color under it. Undefined where a color can't be read (or a gradient).
+   */
+  pageBackground(): Rgba | undefined {
+    const html = this.elements().find((e) => e.tagName === "html");
+    const body = this.elements().find((e) => e.tagName === "body");
+    if (!body) return undefined;
+    let color: Rgba = [255, 255, 255, 1];
+    const paint = (e: Element): boolean => {
+      const s = this.style(e);
+      if (s.unknown.has("background") && !s.image) return false;
+      const own = s.image ? s.under : s.gradient ? undefined : s.background;
+      if (!own) return false;
+      color = over(own, color);
+      return true;
+    };
+    if ((html && !paint(html)) || !paint(body)) return undefined;
+    const ignored = /^(style|script|meta|title|link|base|head|template|noscript)$/;
+    const text = (n: Node) => n.nodeName === "#text" && /[^\s\u200b-\u200f\u2060\ufeff\u00a0\u034f\u00ad]/.test((n as { value: string }).value);
+    // A side the box itself takes (padding) or leaves (margin): what's around it shows there.
+    const side = (e: Element, name: "padding" | "margin") => {
+      const all = (this.property(e, name) ?? "?").trim().split(/\s+/);
+      return [this.property(e, `${name}-left`) || all[3] || all[1] || all[0] || "", this.property(e, `${name}-right`) || all[1] || all[0] || ""].some((v) => !/^(0+(\.0*)?([a-z]+|%)?|auto)?$/i.test(v.trim().replace(/\s*!important$/i, "")));
+    };
+    const full = (e: Element) => {
+      const width = [this.property(e, "width"), e.tagName === "table" ? attr(e, "width") ?? "" : ""].find((v) => v !== "") ?? "";
+      const max = (this.property(e, "max-width") ?? "?").trim().replace(/\s*!important$/i, "");
+      const display = (this.property(e, "display") ?? "?").trim().toLowerCase() || (/^(td|th|tr|tbody|thead|tfoot)$/.test(e.tagName) ? "table-part" : e.tagName === "table" ? "table" : INLINE_TAGS.has(e.tagName) ? "inline" : "block");
+      if (/^(td|th|tr|tbody|thead|tfoot)$/.test(e.tagName) && /^(table-part|table-cell|table-row|table-row-group|table-header-group|table-footer-group)$/.test(display)) return true;
+      if (!/^(block|table|flow-root|list-item|flex)$/.test(display)) return false;
+      if (/^(left|right)$/i.test((this.property(e, "float") ?? "?").trim()) || /^(absolute|fixed)$/i.test((this.property(e, "position") ?? "?").trim())) return false;
+      const fills = (v: string | null) => v !== null && (/^(|auto|none|100%)$/i.test(v.trim().replace(/\s*!important$/i, "")) || (lengthPx(v.replace(/\s*!important$/i, "")) ?? 0) >= this.width);
+      return fills(width) && fills(max) && (display !== "table" || width !== "") && !side(e, "margin");
+    };
+    for (let box = body; ; ) {
+      if (side(box, "padding")) return color;
+      if (box.childNodes.some(text)) return color;
+      const kids = box.childNodes.filter((n): n is Element => isElement(n) && !ignored.test(n.tagName) && !MSO_ONLY.test(n.tagName) && !(this.style(n).hidden && !this.style(n).unknown.has("hides")));
+      if (kids.length !== 1 || !full(kids[0])) return color;
+      if (!paint(kids[0])) return undefined;
+      box = kids[0];
+    }
+  }
+
   private ids?: Map<string, Element>;
 
   /** The element with this id (the first, as the browser finds it). */
@@ -2052,6 +2099,8 @@ export interface StyleDifference {
   dark?: true;
   /** Only on phones (at the width phones are read at). */
   phone?: true;
+  /** The page's own background, around the email (see `StyledDocument.pageBackground`): no words are on it. */
+  page?: true;
 }
 
 /**
@@ -2190,6 +2239,13 @@ function same(property: StyleDifference["property"], a: unknown, b: unknown): bo
  * words it affects. Nothing is compared when the words differ (the content
  * check reports that).
  */
+/** The color around the email, where it differs (a page background lost): a look, with no words on it. */
+export function comparePageBackground(original: StyledDocument, converted: StyledDocument): StyleDifference[] {
+  const [a, b] = [original.pageBackground(), converted.pageBackground()];
+  if (!a || !b || same("background", a, b)) return [];
+  return [{ property: "background", original: show("background", a), converted: show("background", b), words: [], page: true }];
+}
+
 export function compareStyles(originalHtml: string | StyledDocument, convertedHtml: string | StyledDocument): StyleCheck {
   const a = styledWords(originalHtml);
   const b = styledWords(convertedHtml);

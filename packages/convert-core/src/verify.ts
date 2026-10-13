@@ -1,4 +1,4 @@
-import { compareStyles, normalizeWord, StyledDocument, styledWords, widerScreens, type StyleDifference, type Unverified } from "./cascade";
+import { comparePageBackground, compareStyles, normalizeWord, StyledDocument, styledWords, widerScreens, type StyleDifference, type Unverified } from "./cascade";
 import { compareLayout, unplaced, type LayoutDifference } from "./geometry";
 
 /**
@@ -188,6 +188,8 @@ export function compareText(originalHtml: string, convertedHtml: string): TextCh
   // Styles are compared word for word, so only when the words are the same.
   const same = !missing.length && !added.length;
   const style = same ? compareStyles(originalDoc, convertedDoc) : { differences: [], unverified: [], compared: 0, unknown: 0 };
+  // The color around the email (the page's, a full-width wrapper's): where it differs, a look with no words on it.
+  const page = same ? comparePageBackground(originalDoc, convertedDoc) : [];
   const originalStyled = same ? styledWords(originalDoc) : [];
   const convertedStyled = same ? styledWords(convertedDoc) : [];
   const layout = same ? compareLayout(originalDoc, convertedDoc, originalStyled, convertedStyled) : [];
@@ -227,7 +229,7 @@ export function compareText(originalHtml: string, convertedHtml: string): TextCh
   const phoneStyles = same && !phoneDiffers(phoneWithAttributes)
     ? compareStyles(originalPhone, convertedPhone).differences.filter((d) => !listed.has(JSON.stringify(d))).map((d): StyleDifference => ({ ...d, phone: true }))
     : [];
-  return { missing, added, missingAttributes, addedAttributes, styles: [...style.differences, ...wide.styles, ...dark, ...phoneStyles], unverified: [...unverified, ...wide.unverified], phone: phoneWithAttributes, layout, styleCoverage: { words: style.compared, unknown: style.unknown } };
+  return { missing, added, missingAttributes, addedAttributes, styles: [...style.differences, ...page, ...wide.styles, ...dark, ...phoneStyles], unverified: [...unverified, ...wide.unverified], phone: phoneWithAttributes, layout, styleCoverage: { words: style.compared, unknown: style.unknown } };
 }
 
 /**
