@@ -1793,3 +1793,50 @@ export default function Base({ heading = "Notice", content }: { heading?: string
   });
 });
 
+
+describe("installing Elements, which the migrated templates import", () => {
+  /** A project outside the workspace (no Elements there), with these files. */
+  function outside(files: Record<string, string>): string {
+    const app = fs.mkdtempSync(path.join(tmpdir(), "unlayer-install-"));
+    dirs.push(app);
+    for (const [file, text] of Object.entries(files)) {
+      fs.mkdirSync(path.dirname(path.join(app, file)), { recursive: true });
+      fs.writeFileSync(path.join(app, file), text);
+    }
+    return app;
+  }
+
+  it("is said after a run writes where the import doesn't resolve, with the project's package manager", async () => {
+    const dir = project({ "emails/welcome.tsx": good });
+    // In the workspace, it resolves: nothing to install.
+    const inside = io(dir);
+    expect(await main(["emails", "--out", "migrated"], inside, lib), inside.out + inside.err).toBe(0);
+    expect(inside.out).not.toContain("Install Elements");
+    for (const [lockfile, command] of [["pnpm-lock.yaml", "pnpm add"], ["yarn.lock", "yarn add"], ["bun.lock", "bun add"], ["package-lock.json", "npm install"], [undefined, "npm install"]] as const) {
+      const app = outside({ "package.json": "{}", ...(lockfile ? { [lockfile]: "" } : {}) });
+      const out = io(dir);
+      expect(await main(["emails", "--out", path.join(app, "emails")], out, lib), out.out + out.err).toBe(0);
+      expect(out.out, command).toContain(`\nInstall Elements in ${path.relative(dir, app)}: ${command} @unlayer/react-elements@^0.2.0\n`);
+      // A dry run writes nothing: nothing to install yet.
+      const dry = io(app);
+      fs.mkdirSync(path.join(app, "drafts"));
+      fs.writeFileSync(path.join(app, "drafts/welcome.tsx"), good);
+      expect(await main([path.join(dir, "emails")], dry, lib)).toBe(0);
+      expect(dry.out).not.toContain("Install Elements");
+    }
+  });
+
+  it("stops the run before anything is written where the migrated templates would get an Elements older than they need", async () => {
+    const dir = project({ "emails/welcome.tsx": good });
+    const app = outside({
+      "package.json": "{}",
+      "yarn.lock": "",
+      "node_modules/@unlayer/react-elements/package.json": JSON.stringify({ name: "@unlayer/react-elements", version: "0.1.22", exports: { "./package.json": "./package.json" } }),
+    });
+    const out = io(dir);
+    expect(await main(["emails", "--out", path.join(app, "emails")], out, lib), out.out + out.err).toBe(1);
+    expect(out.err).toContain("needs @unlayer/react-elements ^0.2.0, but this project has 0.1.22");
+    expect(out.err).toContain('yarn add @unlayer/react-elements@"^0.2.0"');
+    expect(fs.existsSync(path.join(app, "emails"))).toBe(false);
+  });
+});

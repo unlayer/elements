@@ -283,7 +283,8 @@ async function run(argv: string[], io: Io, library?: Library): Promise<number> {
     return 1;
   }
 
-  if (!supportedElements(io, candidates.map((input) => input.path))) return 1;
+  // Where the templates load Elements from, and where their migrated copies will.
+  if (!supportedElements(io, candidates.flatMap((input) => [input.path, outputPath(input, options, io.cwd)]))) return 1;
   // Checked where each template and its migrated copy load their packages from.
   const copies = otherCopies(io, candidates.flatMap((input) => [input.path, outputPath(input, options, io.cwd)]));
   if (copies) {
@@ -413,6 +414,9 @@ async function run(argv: string[], io: Io, library?: Library): Promise<number> {
       }
     }
   }
+  // The migrated templates import Elements: say how to install it where it isn't (tsc fails until then).
+  const install = installElements(results.flatMap((r) => (r.output ? [resolve(io.cwd, r.output)] : [])), io.cwd);
+  if (install.length) io.stdout(`\n${install.join("\n")}\n`);
   if (reportFile) {
     const target = resolve(io.cwd, reportFile);
     try {
@@ -1357,6 +1361,17 @@ function lineEndings(code: string, source: string): string {
   return crlf && crlf * 2 >= (source.match(/\n/g)?.length ?? 0) ? code.replace(/\r?\n/g, "\r\n") : code;
 }
 
+/**
+ * Whether `name` is installed where a module in `folder` would find it: a node_modules folder above it (or, in a Yarn
+ * Plug'n'Play project, which has none, assumed so).
+ */
+function installed(folder: string, name: string): boolean {
+  for (let dir = folder; ; dir = dirname(dir)) {
+    if (existsSync(join(dir, "node_modules", name, "package.json")) || existsSync(join(dir, ".pnp.cjs"))) return true;
+    if (dirname(dir) === dir) return false;
+  }
+}
+
 /** Whether `name` is installed where `file` would find it (a node_modules folder above it). */
 function hasPackage(file: string, name: string): boolean {
   for (let dir = dirname(file); ; dir = dirname(dir)) {
@@ -1919,9 +1934,41 @@ export function elementsMismatch(cwd: string, range = ownPackage().peerDependenc
     if (!found) return {};
     if (satisfiesCaret(found, minimum)) return {};
     const newer = compareVersions(found, minimum) > 0 ? ", or update @unlayer/migrate" : "";
-    return { error: `@unlayer/migrate needs @unlayer/react-elements ${range}, but ${where} ${version}. Install a supported version: npm install @unlayer/react-elements@"${range}"${newer}` };
+    return { error: `@unlayer/migrate needs @unlayer/react-elements ${range}, but ${where} ${version}. Install a supported version: ${addCommand(cwd)} @unlayer/react-elements@"${range}"${newer}` };
   }
   return {};
+}
+
+/** The command that adds a package with the project's package manager, by the nearest lockfile (npm without one). */
+function addCommand(folder: string): string {
+  const managers: Array<[string[], string]> = [
+    [["pnpm-lock.yaml"], "pnpm add"],
+    [["yarn.lock"], "yarn add"],
+    [["bun.lock", "bun.lockb"], "bun add"],
+    [["package-lock.json", "npm-shrinkwrap.json"], "npm install"],
+  ];
+  for (let dir = folder; ; dir = dirname(dir)) {
+    for (const [lockfiles, command] of managers) if (lockfiles.some((name) => existsSync(join(dir, name)))) return command;
+    if (dirname(dir) === dir) return "npm install";
+  }
+}
+
+/**
+ * What to install where migrated templates were written and their import of @unlayer/react-elements doesn't resolve:
+ * one line per project (the nearest package.json). An Elements outside the supported range stopped the run before.
+ */
+function installElements(written: string[], cwd: string): string[] {
+  const range = ownPackage().peerDependencies?.["@unlayer/react-elements"] ?? "^0.2.0";
+  const lines = new Set<string>();
+  for (const folder of new Set(written.map((file) => dirname(file)))) {
+    // In the node_modules folders above it, as the project's own build finds it (require.resolve here would also read
+    // the NODE_PATH a package manager's script sets).
+    if (installed(folder, "@unlayer/react-elements")) continue;
+    const root = findUp("package.json", folder);
+    const where = root && dirname(root) !== cwd ? ` in ${relative(cwd, dirname(root)) || "."}` : "";
+    lines.add(`Install Elements${where}: ${addCommand(folder)} @unlayer/react-elements@${range}`);
+  }
+  return [...lines];
 }
 
 interface Version {

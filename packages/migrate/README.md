@@ -65,10 +65,12 @@ Renders both with the original's `PreviewProps`, then with each true/false prop 
 ## After migrating
 
 ```bash
-npm install @unlayer/react-elements
+npm install @unlayer/react-elements@^0.2.0
 ```
 
-Migrations render with the `@unlayer/react-elements` installed where your templates are (in a monorepo, the app's), so it must be a version this package supports (its peer dependency range). One outside it (older, a newer line, or a prerelease the range doesn't name) would handle the settings the converter writes, such as phone layout, differently, so the command stops with exit code `1` and the install command to run.
+The migrated templates import `@unlayer/react-elements`: until it's installed, they don't compile. When a run writes them where it isn't installed, it ends with this command, for the project's package manager (by its lockfile: npm, pnpm, yarn or bun).
+
+Migrations render with the `@unlayer/react-elements` installed where your templates are (in a monorepo, the app's), and where `--out` writes them, so it must be a version this package supports (its peer dependency range). One outside it (older, a newer line, or a prerelease the range doesn't name) would handle the settings the converter writes, such as phone layout, differently, so the command stops with exit code `1` before writing anything, with the install command to run.
 
 ```tsx
 import { renderToHtml, renderToJson } from "@unlayer/react-elements";
