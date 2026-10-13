@@ -218,8 +218,17 @@ export async function convertSource(source: string, options: CodemodOptions = {}
   const constants = inlineLocalJsx(components.source, fileName);
   // What inlining wrote, as code the template could have written (`{undefined && …}` folded, …).
   const variants = splitConditionalClasses(normalizeInlined(constants.source, fileName), fileName);
-  const file = ts.createSourceFile(fileName, variants.source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
-  const converter = new Converter(file, options.tailwindConfig, /\.(?:jsx?|mjs|cjs)$/i.test(fileName), options.tailwind, options.loadModule);
+  const javascript = /\.(?:jsx?|mjs|cjs)$/i.test(fileName);
+  let file = ts.createSourceFile(fileName, variants.source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
+  let converter = new Converter(file, options.tailwindConfig, javascript, options.tailwind, options.loadModule);
+  // A prop's default written where it's read (`name === undefined ? "Acme" : name`) as `name ?? "Acme"` where that's the same.
+  const nullish = converter.nullishDefaults();
+  if (nullish.length) {
+    let text = variants.source;
+    for (const edit of nullish.sort((a, b) => b.from - a.from)) text = text.slice(0, edit.from) + edit.text + text.slice(edit.to);
+    file = ts.createSourceFile(fileName, text, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
+    converter = new Converter(file, options.tailwindConfig, javascript, options.tailwind, options.loadModule);
+  }
   return converter.run({ components: components.inlined, constants: constants.inlined, variants: variants.split, copied: components.copied, original: named });
 }
 
@@ -2285,6 +2294,38 @@ class Converter {
       return target ? this.exportRendersTailwind(local, target, loaded.fileName, depth + 1, seen) : this.componentRendersTailwind(local, module, depth + 1, seen);
     }
     return name !== "default" && this.componentRendersTailwind(name, module, depth + 1, seen);
+  }
+
+  /**
+   * Edits writing `value === undefined ? fallback : value` (how inlining writes a prop's default where it's given a
+   * value it reads, see components.ts) as `value ?? fallback` where that's the same: the value is known and isn't null
+   * (a constant, data from a JSON file).
+   */
+  nullishDefaults(): Array<{ from: number; to: number; text: string }> {
+    const edits: Array<{ from: number; to: number; text: string }> = [];
+    const read = (n: ts.Expression): boolean => ts.isIdentifier(n) || (ts.isPropertyAccessExpression(n) && !n.questionDotToken && read(n.expression));
+    const visit = (node: ts.Node) => {
+      if (ts.isConditionalExpression(node)) {
+        const test = unwrap(node.condition);
+        const value = ts.isBinaryExpression(test) ? unwrap(test.left) : undefined;
+        if (ts.isBinaryExpression(test) && value && test.operatorToken.kind === ts.SyntaxKind.EqualsEqualsEqualsToken && unwrap(test.right).getText() === "undefined" && read(value) && unwrap(node.whenFalse).getText().replace(/\s+/g, "") === value.getText().replace(/\s+/g, "")) {
+          const known = this.styleValue(() => this.evaluate(value));
+          if (known !== undefined && known !== null) {
+            const fallback = unwrap(node.whenTrue);
+            const right = ts.isBinaryExpression(fallback) || ts.isConditionalExpression(fallback) ? `(${fallback.getText()})` : fallback.getText();
+            let parent = node.parent;
+            while (ts.isParenthesizedExpression(parent)) parent = parent.parent;
+            const bare = ts.isJsxExpression(parent) || ts.isTemplateSpan(parent) || ts.isVariableDeclaration(parent) || ts.isPropertyAssignment(parent) || ts.isCallExpression(parent) || ts.isArrayLiteralExpression(parent) || ts.isReturnStatement(parent);
+            const text = `${value.getText()} ?? ${right}`;
+            edits.push({ from: node.getStart(), to: node.getEnd(), text: bare ? text : `(${text})` });
+            return;
+          }
+        }
+      }
+      ts.forEachChild(node, visit);
+    };
+    visit(this.file);
+    return edits;
   }
 
   /** A block kept as React: what it renders, and the text color around it, for its components (see `keptComponentColors`). */

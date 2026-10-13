@@ -692,4 +692,31 @@ Digest.PreviewProps = { date: "Tue" };
     const check = await verifyConversion(Original, Migrated);
     expect([check.missing, check.added]).toEqual([[], []]);
   });
+
+  it("writes a prop's default as `?? fallback` where the value given is known and isn't null", async () => {
+    const { conversion, added, Original, Migrated } = await migrate({
+      "brand.json": `{ "name": "Northwind" }\n`,
+      "footer.tsx": `import { Text } from "@react-email/components";
+export function Footer({ company = "Acme Inc." }: { company?: string }) {
+  return <Text>{company} · 1 Main St</Text>;
+}
+`,
+      "news.tsx": `import { Html, Body, Text } from "@react-email/components";
+import brand from "./brand.json";
+import { Footer } from "./footer";
+export default function News({ who }: { who?: string }) {
+  return <Html><Body><Text>News</Text><Footer company={brand.name} /><Footer company={who} /></Body></Html>;
+}
+News.PreviewProps = { who: "Globex" };
+`,
+    }, "news.tsx");
+    expect(added).toEqual([]);
+    expect(conversion.code).toContain('{brand.name ?? "Acme Inc."}');
+    // A prop that may be null keeps the default's own test (`??` would also replace null).
+    expect(conversion.code).toMatch(/who === undefined \? "Acme Inc\." : who/);
+    for (const props of [Original.PreviewProps, {}]) {
+      const check = await verifyConversion(Original, Migrated, { props });
+      expect([check.missing, check.added]).toEqual([[], []]);
+    }
+  });
 });
