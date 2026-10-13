@@ -335,6 +335,13 @@ async function run(argv: string[], io: Io, library?: Library): Promise<number> {
     const pending: Array<{ input: Input; result: FileResult; writes: PendingWrite[]; code?: string }> = [];
     for (const input of todo) {
       const use = used.uses.get(input.path);
+      // A file whose default export isn't a component (a Tailwind config templates import, plain data, a helper) isn't
+      // a template left as it is for them: it's skipped as what it is, as it would be on its own.
+      const not = use ? await notATemplate(input.path, await readFile(input.path, "utf8")) : undefined;
+      if (not && !not.fail) {
+        results.push({ file: relative(io.cwd, input.path), status: "skipped", reason: not.reason });
+        continue;
+      }
       if (use && !use.through) {
         left.push({ input, result: { file: relative(io.cwd, input.path), status: "skipped", reason: `imported by ${relative(io.cwd, use.importer)}: its markup is inlined into the templates that use it` } });
         continue;

@@ -2070,3 +2070,29 @@ export const divider = Divider;`;
     expect(out.err).toContain("--write replaces templates in place, and git couldn't restore these:\n  emails/mixed.tsx (changed since the last commit)");
   });
 });
+
+describe("a Tailwind config the templates share", () => {
+  it("is skipped as a file that isn't a template, not left as it is for them: a dry run and --write end with exit 0", async () => {
+    const config = `import type { TailwindConfig } from "@react-email/components";
+export default { theme: { extend: { colors: { brand: "#2250f4" } } } } satisfies TailwindConfig;
+`;
+    const template = (name: string) => `import { Html, Body, Tailwind, Text } from "@react-email/components";
+import tailwindConfig from "./tailwind.config";
+export default function ${name}() { return <Html><Tailwind config={tailwindConfig}><Body><Text className="text-brand">Hello from ${name}</Text></Body></Tailwind></Html>; }
+${name}.tailwindConfig = tailwindConfig;
+`;
+    const dir = project({ "emails/tailwind.config.ts": config, "emails/welcome.tsx": template("Welcome"), "emails/reset.tsx": template("Reset") });
+    const skipped = "- emails/tailwind.config.ts: skipped: not loaded: its default export isn't a component (a helper, or a file that passes one on)\n";
+    const dry = io(dir);
+    expect(await main(["emails"], dry, lib), dry.out + dry.err).toBe(0);
+    expect(dry.out).toContain(skipped);
+    expect(dry.out).toContain("2 templates: 2 migrated and checked");
+    expect(dry.err).toBe("");
+    const write = io(dir);
+    expect(await main(["emails", "--write"], write, lib), write.out + write.err).toBe(0);
+    expect(write.out).toContain(skipped);
+    expect(write.err).toBe("");
+    expect(fs.readFileSync(path.join(dir, "emails/tailwind.config.ts"), "utf8")).toBe(config);
+    expect(fs.readFileSync(path.join(dir, "emails/welcome.tsx"), "utf8")).toContain("@unlayer/react-elements");
+  });
+});
