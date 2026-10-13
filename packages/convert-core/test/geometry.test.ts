@@ -29,6 +29,16 @@ describe("where text sits across the page", () => {
     expect(boxes(page('<div style="text-align:center"><a style="display:inline-block;text-align:left;max-width:100%">Go</a></div>'))[0]).toMatch(/:center$/);
   });
 
+  it("lines up an inline link's text by its block, not by the link's own text-align (which only blocks inside it inherit)", () => {
+    // A button written as a plain link in a cell, with text-align:center on the link: its text starts at the cell's left.
+    const link = '<table width="600" cellpadding="0" cellspacing="0"><tr><td><a href="https://example.com" style="text-align:center;padding:12px 24px">Open dashboard</a></td></tr></table>';
+    expect(boxes(page(link))).toEqual(["Open@0+600:left", "dashboard@0+600:left"]);
+    expect(boxes(page('<div><span style="text-align:right"><div>Inside</div></span></div>'))).toEqual(["Inside@0+700:right"]);
+    // Against a button that shrinks to its text, at the left of the same width: not moved.
+    const button = '<div style="width:600px"><a href="https://example.com" style="display:inline-block;text-align:center"><span style="display:block;padding:12px 24px">Open dashboard</span></a></div>';
+    expect(moved(link, button)).toEqual([]);
+  });
+
   it("places a block by its auto margins: one side auto puts it on the other", () => {
     expect(boxes(page('<div style="width:200px;margin-left:auto;margin-right:0">Right</div>'))).toEqual(["Right@500+200:left"]);
   });
