@@ -1301,6 +1301,27 @@ T.PreviewProps = { name: "Ana", note: "Thanks!", stars: ["https://example.com/s1
     }
   });
 
+  it("tests and shows a value beside markup once: a call's is kept as React renders it", async () => {
+    const source = `import { Html, Body, Section, Text } from "@react-email/components";
+function greeting() { return "Hi"; }
+export default function T({ name }: { name?: string }) {
+  return <Html><Body><Section>
+    <Text>{greeting() || <b>Hey</b>} there</Text>
+    <Text>Dear {name || <em>friend</em>},</Text>
+  </Section></Body></Html>;
+}
+T.PreviewProps = { name: "Ana" };`;
+    const { Original, Migrated, conversion } = await templates(source);
+    // \`greeting()\` runs once a render, as in the original (its declaration and its one use).
+    expect(conversion.code.replace(/\{\/\*[\s\S]*?\*\/\}/g, "").match(/greeting\(\)/g)).toHaveLength(source.match(/greeting\(\)/g)!.length);
+    for (const props of [Original.PreviewProps, {}]) {
+      const check = await verifyConversion(Original, Migrated, { props });
+      expect([check.missing, check.added, check.designWarnings]).toEqual([[], [], []]);
+      // A name that's only read stays editable text.
+      expect(blockTypes(check.design)).toEqual(["html", "text"]);
+    }
+  });
+
   it("keeps markup in a list's items with what each item reads", async () => {
     const { Original, Migrated, conversion } = await templates(`import { Html, Body, Section, Text } from "@react-email/components";
 function Badge({ label }: { label: string }) {

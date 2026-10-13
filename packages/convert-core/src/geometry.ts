@@ -186,7 +186,7 @@ function textAlign(doc: StyledDocument, element: Element, inherited: Flow, rtl: 
   const css = doc.property(element, "text-align");
   if (css === null) return { ...above, unknown: true };
   const own = css || (element.tagName === "table" || element.tagName === "img" ? "" : attr(element, "align")) || (element.tagName === "center" ? "center" : "");
-  if (!ownAlign) return above;
+  if (!own) return above;
   const v = own.trim().toLowerCase().replace(/\s*!important$/, "");
   const legacy = !css || /^-webkit-/.test(v) ? { legacy: true } : {};
   if (/center/.test(v)) return { align: "center", ...legacy };

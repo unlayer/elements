@@ -2483,7 +2483,9 @@ class Converter {
       out.push(expr(`(${node.condition.getText()}) ? ${this.markupCode(node.whenTrue)} : ${this.markupCode(node.whenFalse)}`));
       return;
     }
-    if (ts.isBinaryExpression(node) && !containsJsx(node.left)) {
+    // The value on the left is written twice (tested, then shown): only one that reads, with no call (`label()`
+    // could give other text the second time); anything else keeps the block, as React renders it.
+    if (ts.isBinaryExpression(node) && !containsJsx(node.left) && pure(node.left)) {
       const left = node.left.getText();
       const op = node.operatorToken.kind;
       this.needsEscape = true;
