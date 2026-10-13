@@ -219,7 +219,7 @@ export function compareText(originalHtml: string, convertedHtml: string): TextCh
   const phoneAdded: string[] = [];
   listTargets(targetChanges(originalPhone, convertedPhone), { lost: new Set(shownTargets.lost), added: new Set(shownTargets.added) }, phoneLost, phoneAdded);
   const phoneWithAttributes = { ...phone, ...(phoneLost.length ? { missingAttributes: phoneLost } : {}), ...(phoneAdded.length ? { addedAttributes: phoneAdded } : {}) };
-  const unverified = [...style.unverified, ...unread, ...targetDoubts(originalDoc, convertedDoc), ...phoneDoubts(originalPhone, convertedPhone, style.unverified)];
+  const unverified = [...style.unverified, ...unread, ...targetDoubts(originalDoc, convertedDoc), ...phoneDoubts(originalPhone, convertedPhone, style.unverified), ...documentDoubts(originalDoc, convertedDoc)];
   const wide = same ? widerDifferences(originalHtml, convertedHtml, style.differences, unverified, shownTargets, missingAttributes, addedAttributes) : { styles: [], unverified: [] };
   const dark = same ? darkDifferences(originalHtml, convertedHtml, shownTargets, missingAttributes, addedAttributes) : [];
   // On phones, where the same words show: in the same styles (a phone rule's size or color), each not already listed for desktop.
@@ -312,6 +312,28 @@ function targetDoubts(original: StyledDocument, converted: StyledDocument): Unve
 }
 
 const counts = (list: string[]) => list.reduce((m, x) => m.set(x, (m.get(x) ?? 0) + 1), new Map<string, number>());
+
+/**
+ * A second document inside the migration's body that the original's doesn't have (a whole rendered email kept as
+ * markup): its title, head content and `<html>`/`<body>` tags are in the email now. A browser hides a title and
+ * folds the tags into the page's own, but email clients keep, drop or show such parts each their own way (the
+ * title's text shown by one that drops the tag): whether a reader gets them, and the words of that document, can't
+ * be told, so the check fails on it.
+ */
+function documentDoubts(original: StyledDocument, converted: StyledDocument): Unverified[] {
+  const left = counts(original.documentParts().map((p) => p.part));
+  const extra = converted.documentParts().filter(({ part }) => {
+    const n = left.get(part) ?? 0;
+    if (n) left.set(part, n - 1);
+    return !n;
+  });
+  const out: Unverified[] = [];
+  const titles = extra.filter((p) => p.part.startsWith("<title>"));
+  if (titles.length) out.push({ what: "shown", side: "migrated", cause: `${titles.map((p) => `\`${p.part}\``).join(", ")} in the email's body: the page's title (head content), which an email client that drops the tag but keeps its text shows`, words: titles.flatMap((p) => p.words) });
+  const others = extra.filter((p) => !p.part.startsWith("<title>"));
+  if (others.length) out.push({ what: "shown", side: "migrated", cause: `a second document inside the email's body (${others.map((p) => `\`${p.part.length > 120 ? `${p.part.slice(0, 117)}…>` : p.part}\``).join(", ")}): email clients keep, drop or show its parts each their own way`, words: others.map((p) => p.words).reduce((a, b) => (b.length > a.length ? b : a)) });
+  return out;
+}
 
 /**
  * Words whether a phone shows can't be told on one side only (a phone rule

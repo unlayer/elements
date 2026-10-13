@@ -8,7 +8,7 @@
  * selector or value it doesn't know) is unknown, never different: a style
  * difference it reports is one a browser shows.
  */
-import { parse, type DefaultTreeAdapterMap } from "parse5";
+import { defaultTreeAdapter, parse, type DefaultTreeAdapterMap } from "parse5";
 import { isInvalid } from "./validity";
 import { SVG_NAMESPACE, svgDrawing } from "./drawing";
 
@@ -959,8 +959,32 @@ export class StyledDocument {
   /** Whether it's read in dark mode (`prefers-color-scheme: dark`). */
   readonly dark: boolean;
 
+  /**
+   * A second document's `<html>` and `<body>` start tags inside the body: the parser folds them into the page's own
+   * (keeping only attributes it lacks), so they're no element. With how many elements were made before each.
+   */
+  private readonly folded: Array<{ tag: string; attributes: Array<{ name: string; value: string }>; after: number }> = [];
+  /** The order the parser made each element in. */
+  private readonly made = new Map<Element, number>();
+
   constructor(html: string, options: { width?: number; dark?: boolean } = {}) {
-    this.root = parse(html);
+    let count = 0;
+    let inBody = false;
+    this.root = parse(html, {
+      treeAdapter: {
+        ...defaultTreeAdapter,
+        createElement: (tagName, namespaceURI, attrs) => {
+          const element = defaultTreeAdapter.createElement(tagName, namespaceURI, attrs);
+          if (tagName === "body") inBody = true;
+          this.made.set(element, count++);
+          return element;
+        },
+        adoptAttributes: (recipient, attrs) => {
+          if (inBody) this.folded.push({ tag: recipient.tagName, attributes: attrs.map(({ name, value }) => ({ name, value })), after: count });
+          defaultTreeAdapter.adoptAttributes(recipient, attrs);
+        },
+      },
+    });
     this.width = options.width ?? DESKTOP_WIDTH;
     this.dark = options.dark ?? false;
     for (const style of this.elements().filter((e) => e.tagName === "style")) {
@@ -1501,6 +1525,32 @@ export class StyledDocument {
         if (src) out.push({ kind: "src", value: src, ...doubted });
         if (alt) out.push({ kind: "alt", value: alt, ...doubted });
       }
+    }
+    return out;
+  }
+
+  /**
+   * What a second document inside the body brings into it: head content (`<title>`, `<meta>`, `<link>`, `<base>`)
+   * and its own `<html>` and `<body>` start tags, each as written (`<meta name="color-scheme" content="light only">`),
+   * with the words it carries: a title's text, the words of the document a start tag begins (as far as what holds it).
+   */
+  documentParts(): Array<{ part: string; words: string[] }> {
+    const body = this.elements().find((e) => e.tagName === "body");
+    if (!body) return [];
+    const written = (tag: string, attributes: Array<{ name: string; value: string }>) => `<${tag}${attributes.map(({ name, value }) => ` ${name}="${value}"`).join("")}>`;
+    const wordsOf = (words: StyledWord[]) => words.flatMap((w) => w.word.split(/\s+/)).map(normalizeWord).filter(Boolean);
+    const out: Array<{ part: string; words: string[] }> = [];
+    for (const e of this.elements(body)) {
+      if (!/^(title|meta|link|base)$/.test(e.tagName) || e.namespaceURI !== "http://www.w3.org/1999/xhtml") continue;
+      const text = e.tagName === "title" ? e.childNodes.map((n) => ("value" in n ? (n as { value: string }).value : "")).join("") : "";
+      out.push({ part: e.tagName === "title" ? `<title>${text.trim()}</title>` : written(e.tagName, e.attrs), words: text.split(/\s+/).map(normalizeWord).filter(Boolean) });
+    }
+    for (const { tag, attributes, after } of this.folded) {
+      // What it starts: the elements made after it, in what holds the first of them.
+      const first = this.elements(body).find((e) => (this.made.get(e) ?? -1) >= after);
+      const holder = first && isElement(first.parentNode) ? first.parentNode : undefined;
+      const words = holder ? this.words(holder).filter((w) => w.shown && w.at && (this.made.get(w.at) ?? -1) >= after) : [];
+      out.push({ part: written(tag, attributes), words: wordsOf(words) });
     }
     return out;
   }

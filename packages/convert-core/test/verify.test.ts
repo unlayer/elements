@@ -315,3 +315,31 @@ describe("text that can't be made out on one side", () => {
     expect(compareText(hero("background-image:url(https://example.com/hero.jpg)"), hero("background-image:url(https://example.com/hero.jpg)")).styles).toEqual([]);
   });
 });
+
+describe("a second document inside the body", () => {
+  // A one-time code email drawn from scratch, as a renderer writes a whole document.
+  const head = '<meta name="color-scheme" content="light only"><title>Your sign-in code</title>';
+  const content = '<table width="100%"><tr><td style="background-color:#eef2f7;padding:24px 12px"><table style="max-width:560px;margin:0 auto;background-color:#ffffff"><tr><td><h1>Sign in</h1><p>Your code is 482913.</p></td></tr></table></td></tr></table>';
+  const original = `<!DOCTYPE html><html lang="en"><head>${head}</head><body style="background-color:#eef2f7;margin:0">${content}</body></html>`;
+  // Kept whole as markup in a block of the migration's own page.
+  const kept = (markup: string) => `<!DOCTYPE html><html><head><meta charset="utf-8"></head><body style="background-color:#ffffff;margin:0"><table width="100%" style="background-color:#ffffff"><tr><td><div style="max-width:600px;margin:0 auto"><div>${markup}</div></div></td></tr></table></body></html>`;
+
+  it("is listed when only the migration has one: its title, head content and tags, with the words they carry", () => {
+    const check = compareText(original, kept(`${head}<div><html lang="en"><head></head><body style="background-color:#eef2f7;margin:0">${content}</body></html></div>`));
+    expect([check.missing, check.added]).toEqual([[], []]);
+    expect(check.unverified).toContainEqual({ what: "shown", side: "migrated", cause: expect.stringContaining("`<title>Your sign-in code</title>` in the email's body"), words: ["Your", "signin", "code"] });
+    expect(check.unverified).toContainEqual({
+      what: "shown",
+      side: "migrated",
+      cause: expect.stringMatching(/^a second document inside the email's body \(`<meta name="color-scheme" content="light only">`, `<html lang="en">`, `<body style="background-color:#eef2f7;margin:0">`\)/),
+      words: ["Sign", "in", "Your", "code", "is", "482913"],
+    });
+    expect(checkFails(check)).toBe(true);
+  });
+
+  it("isn't listed for the page's own head, or the same markup on both sides", () => {
+    expect(compareText(original, kept(content)).unverified).toEqual([]);
+    const both = kept(`<div><html lang="en"><body style="color:#111111">${content}</body></html></div>`);
+    expect(compareText(both, both).unverified).toEqual([]);
+  });
+});
