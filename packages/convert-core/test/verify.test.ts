@@ -313,6 +313,10 @@ describe("text that can't be made out on one side", () => {
     // On an image, what's behind the text isn't known: not claimed either way.
     const hero = (bg: string) => page(`<div style="${bg}"><p style="color:#ffffff">Summer sale</p></div>`);
     expect(compareText(hero("background-image:url(https://example.com/hero.jpg)"), hero("background-image:url(https://example.com/hero.jpg)")).styles).toEqual([]);
+    // An email table's background attribute too: white text on it isn't white on white.
+    const cell = '<table width="600"><tr><td background="https://example.com/hero.jpg"><p style="color:#ffffff">Summer sale</p></td></tr></table>';
+    const darkCell = '<table width="600"><tr><td background="https://example.com/hero.jpg" style="background-color:#1f2937"><p style="color:#ffffff">Summer sale</p></td></tr></table>';
+    expect(compareText(page(cell), page(darkCell)).styles.filter((s) => s.property === "shown")).toEqual([]);
   });
 });
 

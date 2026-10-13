@@ -40,6 +40,8 @@ export interface WordStyle {
   backgrounds?: Rgba[];
   /** Behind an image: the color its box sets under it, what shows where images don't load (none set: unknown). */
   underImage?: Rgba;
+  /** An image is behind it from a box's `background` attribute (email tables): what it's on where images load isn't known. */
+  backgroundAttribute?: true;
   /** The target of the link the word is in ("_self" when the link sets none); absent outside links. */
   target?: string;
   /** Why each unknown property is unknown (the rule, query or value this couldn't read). */
@@ -1792,8 +1794,10 @@ export class StyledDocument {
     let under: Rgba | undefined;
     // Faint text: each box's opacity, multiplied.
     let fade = 1;
+    let backgroundAttribute = false;
     for (const e of chain) {
       const s = this.style(e);
+      if (s.imageUrl && !s.image) backgroundAttribute = true;
       fade *= s.fade ?? 1;
       if (s.image) {
         image = true;
@@ -1858,6 +1862,7 @@ export class StyledDocument {
       color: own.color && fade < 1 && !own.unknown.has("color") ? [own.color[0], own.color[1], own.color[2], own.color[3] * fade] : (known("color", own.color) as Rgba | undefined),
       background,
       ...(image ? { image, ...(under ? { underImage: under } : {}) } : {}),
+      ...(backgroundAttribute ? { backgroundAttribute: true as const } : {}),
       ...(options ? { backgrounds: options } : {}),
       ...(inLink ? { target } : {}),
       ...(Object.keys(causes).length ? { causes } : {}),
@@ -2207,7 +2212,7 @@ const READABLE = 1.5;
 function contrast(style: WordStyle): number | undefined {
   const color = style.color;
   const behind = style.backgrounds ?? (style.background ? [style.background] : undefined);
-  if (!color || !behind?.length || style.image) return undefined;
+  if (!color || !behind?.length || style.image || style.backgroundAttribute) return undefined;
   return Math.min(
     ...behind.map((back) => {
       const page = over(back, [255, 255, 255, 1]);
