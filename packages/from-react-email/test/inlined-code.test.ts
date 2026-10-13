@@ -2,7 +2,8 @@ import { afterEach, describe, expect, it } from "vitest";
 import fs from "node:fs";
 import path from "node:path";
 import ts from "typescript";
-import { convertSource, verifyConversion } from "../src/index";
+import React from "react";
+import { convertSource, mergeTagDesign, verifyConversion } from "../src/index";
 
 const dirs: string[] = [];
 afterEach(() => {
@@ -547,5 +548,76 @@ export default function Promo() {
     expect(conversion.report.lostStyles).toEqual(expect.arrayContaining([expect.stringContaining("color: palette.brand"), expect.stringContaining("display: palette.hidden")]));
     // `display` from code can hide content: still counted; `color` can't.
     expect(conversion.report.lostShown).toEqual([expect.stringContaining("display: palette.hidden")]);
+  });
+});
+
+describe("values in text that may be React elements", () => {
+  const blockTypes = (design: any): string[] => design.body.rows.flatMap((row: any) => row.columns.flatMap((column: any) => column.contents.map((content: any) => content.type)));
+  const link = React.createElement("a", { href: "https://example.com/help" }, "the help center");
+
+  it.each([
+    ["an imported props type", "note.tsx", `import type { Props } from "./types";\nexport default function Note({ name, footer }: Props) {`],
+    ["a ReactNode", "note.tsx", `import type { ReactNode } from "react";\nexport default function Note({ name, footer }: { name: string; footer?: ReactNode }) {`],
+    ["a .jsx template", "note.jsx", `export default function Note({ name, footer }) {`],
+  ])("are written both ways, chosen when it renders (%s): text stays an editable block, an element keeps its markup", async (_, file, head) => {
+    const { conversion, added, Original, Migrated } = await migrate({
+      "types.ts": `export interface Props { name: string; footer?: unknown }\n`,
+      [file]: `import { Html, Body, Section, Text } from "@react-email/components";
+${head}
+  return <Html><Body><Section>
+    <Text>Hi {name}, thanks for writing.</Text>
+    <Text>Questions? <b>Help:</b> {footer}</Text>
+  </Section></Body></Html>;
+}
+Note.PreviewProps = { name: "Ana", footer: "reply to this email" };
+`,
+    }, file);
+    expect(added).toEqual([]);
+    expect(conversion.code).toMatch(/holdsElements\(footer\) \?/);
+    expect(conversion.code).not.toContain("react-dom");
+    // The plain-children block stays as it was.
+    expect(conversion.code).not.toMatch(/holdsElements\(name\)/);
+    const text = await verifyConversion(Original, Migrated);
+    expect([text.missing, text.added, text.variants]).toEqual([[], [], []]);
+    expect(blockTypes(text.design)).toEqual(["text", "text"]);
+    // In the design, the text a value gives is a merge tag, as for any text (its test for elements is false for one).
+    const tagged = await mergeTagDesign(Migrated, Original.PreviewProps, text.design, { source: conversion.code, helpers: conversion.helpers });
+    expect(tagged.used).toContain("footer");
+    const element = await verifyConversion(Original, Migrated, { props: { name: "Ana", footer: link } });
+    expect([element.missing, element.added, element.missingAttributes]).toEqual([[], [], []]);
+    expect(element.convertedHtml).toContain('<a href="https://example.com/help">the help center</a>');
+  });
+
+  it("stay text where their type says they're text", async () => {
+    const { conversion } = await migrate({
+      "note.tsx": `import { Html, Body, Text } from "@react-email/components";
+export default function Note({ name, count }: { name: string; count?: number }) {
+  return <Html><Body><Text>Hi <b>{name}</b>, {count} new</Text></Body></Html>;
+}
+Note.PreviewProps = { name: "Ana", count: 3 };
+`,
+    }, "note.tsx");
+    expect(conversion.code).not.toContain("holdsElements");
+  });
+
+  it("are checked given an element, so a migration that loses one fails", async () => {
+    const { Original } = await migrate({
+      "note.tsx": `import { Html, Body, Text } from "@react-email/components";
+export default function Note({ footer }: { footer?: any }) {
+  return <Html><Body><Text>Questions? <b>Help:</b> {footer}</Text></Body></Html>;
+}
+Note.PreviewProps = { footer: "reply to this email" };
+`,
+    }, "note.tsx");
+    const { Email, Row, Column, Paragraph } = await import("@unlayer/react-elements");
+    // A migration whose text is right and whose kept branch (for elements) loses the value.
+    function holdsElements(...values: unknown[]): boolean {
+      return values.some((value) => React.isValidElement(value));
+    }
+    const Migrated = ({ footer }: { footer?: unknown }) =>
+      React.createElement(Email, null, React.createElement(Row, null, React.createElement(Column, null,
+        holdsElements(footer) ? React.createElement(Paragraph, { html: "Questions? <b>Help:</b>" }) : React.createElement(Paragraph, { html: `Questions? <b>Help:</b> ${String(footer ?? "")}` }))));
+    const check = await verifyConversion(Original, Migrated);
+    expect(check.variants.find((v) => v.change === "footer: an element")?.missing).toEqual(["given", "as", "an", "element"]);
   });
 });

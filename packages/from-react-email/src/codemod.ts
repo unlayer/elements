@@ -14,6 +14,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import * as ReactEmail from "@react-email/components";
 import {
   decodeHtmlEntities,
+  SLOT,
   SLOT_CLOSE,
   SLOT_OPEN,
   el,
@@ -64,7 +65,7 @@ import { phoneSides, withPhoneStyles, handledPhoneClass, unheldPhoneStyles } fro
 import { addRules, classStyle, inlineKeys, NO_CLASSES, overInline, phoneRules, resolveTailwind, stacksOnPhones, stylesheetRules, underInline, underKeys, type ResolvedClasses, type RuleOrder } from "./tailwind";
 
 /** The functions the codemod adds to a migration, by their usual names (another, `_name`, where the template has the name). */
-export const CODEMOD_HELPERS = ["escapeHtml", "htmlText", "htmlAttribute", "KeptHtml", "tailwindStyle", "plainText"];
+export const CODEMOD_HELPERS = ["escapeHtml", "htmlText", "htmlAttribute", "KeptHtml", "tailwindStyle", "holdsElements", "plainText"];
 
 /**
  * Where a kept block's JSX goes in the printed tree (see `keep`): private-use characters, which a template's own code
@@ -73,6 +74,59 @@ export const CODEMOD_HELPERS = ["escapeHtml", "htmlText", "htmlAttribute", "Kept
 const KEPT_OPEN = "\uE002";
 const KEPT_CLOSE = "\uE003";
 const KEPT = /\{\uE002(\d+)\uE003\}/g;
+
+/**
+ * The library types the converter's program has (it has no others, so it never reads the project's or Node's): lists
+ * and the global types TypeScript needs, written with only what tells an item's type and what a list's methods give.
+ */
+const LISTS_FILE = "\u0000lists.d.ts";
+const LISTS = `
+interface Array<T> {
+  length: number;
+  [n: number]: T;
+  map<U>(callbackfn: (value: T, index: number, array: T[]) => U, thisArg?: any): U[];
+  flatMap<U>(callbackfn: (value: T, index: number, array: T[]) => U | ReadonlyArray<U>, thisArg?: any): U[];
+  filter(predicate: (value: T, index: number, array: T[]) => unknown, thisArg?: any): T[];
+  find(predicate: (value: T, index: number, array: T[]) => unknown, thisArg?: any): T | undefined;
+  forEach(callbackfn: (value: T, index: number, array: T[]) => void, thisArg?: any): void;
+  some(predicate: (value: T, index: number, array: T[]) => unknown, thisArg?: any): boolean;
+  every(predicate: (value: T, index: number, array: T[]) => unknown, thisArg?: any): boolean;
+  slice(start?: number, end?: number): T[];
+  concat(...items: Array<T | ReadonlyArray<T>>): T[];
+  reverse(): T[];
+  sort(compareFn?: (a: T, b: T) => number): this;
+  at(index: number): T | undefined;
+  includes(searchElement: T, fromIndex?: number): boolean;
+  indexOf(searchElement: T, fromIndex?: number): number;
+  join(separator?: string): string;
+}
+interface ReadonlyArray<T> {
+  readonly length: number;
+  readonly [n: number]: T;
+  map<U>(callbackfn: (value: T, index: number, array: readonly T[]) => U, thisArg?: any): U[];
+  flatMap<U>(callbackfn: (value: T, index: number, array: readonly T[]) => U | ReadonlyArray<U>, thisArg?: any): U[];
+  filter(predicate: (value: T, index: number, array: readonly T[]) => unknown, thisArg?: any): T[];
+  find(predicate: (value: T, index: number, array: readonly T[]) => unknown, thisArg?: any): T | undefined;
+  forEach(callbackfn: (value: T, index: number, array: readonly T[]) => void, thisArg?: any): void;
+  slice(start?: number, end?: number): T[];
+  at(index: number): T | undefined;
+  join(separator?: string): string;
+}
+interface Boolean {}
+interface Function {}
+interface CallableFunction extends Function {}
+interface NewableFunction extends Function {}
+interface IArguments {}
+interface Number {}
+interface Object {}
+interface RegExp {}
+interface String {}
+`;
+let listsFile: ts.SourceFile | undefined;
+const lists = (): ts.SourceFile => (listsFile ??= ts.createSourceFile(LISTS_FILE, LISTS, ts.ScriptTarget.Latest, true, ts.ScriptKind.TS));
+
+/** The prop a block written both ways carries until it's printed (see `switched`). */
+const SWITCH = "\uE004switch";
 
 /** The props an Html block takes from a component of the template's own that Elements keeps as one (as KeptHtml is). */
 const KEPT_PROPS = new Set(["key", "containerPadding", "hideOnMobile", "hideOnDesktop"]);
@@ -245,9 +299,17 @@ class Converter {
   private needsPlainText = false;
   private plainTextName = "plainText";
   /** The functions the migrated file gets, by names the template doesn't use already. */
-  private readonly helper = { escapeHtml: "escapeHtml", htmlText: "htmlText", htmlAttribute: "htmlAttribute", KeptHtml: "KeptHtml", tailwindStyle: "tailwindStyle", TAILWIND_CLASSES: "TAILWIND_CLASSES" };
+  private readonly helper = { escapeHtml: "escapeHtml", htmlText: "htmlText", htmlAttribute: "htmlAttribute", KeptHtml: "KeptHtml", tailwindStyle: "tailwindStyle", TAILWIND_CLASSES: "TAILWIND_CLASSES", holdsElements: "holdsElements", isValidElement: "isValidElement" };
   /** Each kept block's JSX (see `keep`). */
   private readonly kept: string[] = [];
+  /**
+   * The block being converted (its source range), and the values in its text that may be React elements (see
+   * `textOf`): such a block is written both ways, chosen when it renders (see `withKeptHtml`).
+   */
+  private switching?: { from: number; to: number; values: string[] };
+  /** Source kept as the alternative of a block written both ways (its React Email components keep their import). */
+  private readonly switchRanges: Array<{ from: number; to: number }> = [];
+  private needsHoldsElements = false;
   /** The style each Tailwind class a string of the file holds gives, for classes worked out at render time (see `tailwindStyle`). */
   private readonly classTable = new Map<string, Style>();
   private needsTailwindStyle = false;
@@ -292,10 +354,12 @@ class Converter {
     // Only this file: no @types packages either (handed this file too, the program would rename it after them).
     // A JavaScript template (`.jsx`) is in the program too: without `allowJs` it isn't, and the checker has no symbols
     // for it (its module constants aren't read) and crashes on its JSX attributes.
+    // With the few library types a template's values go through (see LISTS): a list's item in `items.map((item) => …)`
+    // has its type then, so text read from it is known to be text (see `provablyText`).
     const options: ts.CompilerOptions = { noLib: true, noResolve: true, types: [], allowJs: true };
     const host = ts.createCompilerHost(options);
-    host.getSourceFile = (name) => (name === file.fileName ? file : undefined);
-    this.checker = ts.createProgram([file.fileName], options, host).getTypeChecker();
+    host.getSourceFile = (name) => (name === file.fileName ? file : name === LISTS_FILE ? lists() : undefined);
+    this.checker = ts.createProgram([file.fileName, LISTS_FILE], options, host).getTypeChecker();
   }
 
   async run(prepared: {
@@ -1830,12 +1894,20 @@ class Converter {
     const flushInline = () => {
       if (inline.length) {
         const parts = this.plainParts(inline);
+        const outer = this.switching;
+        this.switching = { from: inline[0].getStart(), to: inline[inline.length - 1].getEnd(), values: [] };
         try {
           // Text whose style around it has no Paragraph prop (uppercase, italics) goes in a span: as HTML then, as for a Text.
-          out.push({ block: paragraphBlock(parts && !needsHtml(spanStyle({}, ctx)) ? "" : this.inlineContent(inline), {}, ctx, ZERO, parts, INHERITED) });
+          const block = paragraphBlock(parts && !needsHtml(spanStyle({}, ctx)) ? "" : this.inlineContent(inline), {}, ctx, ZERO, parts, INHERITED);
+          // Values alone (`{note}`): no block when they show nothing (null, false, ""), as React shows nothing.
+          const alone = inline.every((child) => ts.isJsxExpression(child));
+          const blocks = this.switched([block], inline, ctx, false, alone);
+          out.push({ block: blocks ? blocks[0] : { node: this.keepChildren(inline, ctx, "text from values that may hold elements"), margin: ZERO, padding: ZERO } });
         } catch (error) {
           if (!(error instanceof KeepBlock)) throw error;
           out.push({ block: { node: this.keepChildren(inline, ctx, error.message), margin: ZERO, padding: ZERO } });
+        } finally {
+          this.switching = outer;
         }
       }
       inline = [];
@@ -1912,12 +1984,35 @@ class Converter {
 
   /** An element as blocks; one whose text only rendering the template can show (see KeepBlock) is kept as it renders. */
   private block(jsx: Jsx, ctx: Ctx): Block[] {
+    const outer = this.switching;
+    this.switching = { from: jsx.node.getStart(), to: jsx.node.getEnd(), values: [] };
     try {
-      return this.blockOf(jsx, ctx);
+      const blocks = this.blockOf(jsx, ctx);
+      return this.switched(blocks, [jsx.node], ctx, true) ?? [{ node: this.fallback(jsx, ctx, "text from values that may hold elements"), margin: ZERO, padding: ZERO }];
     } catch (error) {
       if (!(error instanceof KeepBlock)) throw error;
       return [{ node: this.fallback(jsx, ctx, error.message), margin: ZERO, padding: ZERO }];
+    } finally {
+      this.switching = outer;
     }
+  }
+
+  /**
+   * A block whose text has values that may be React elements (see `textOf`): written as it is for text, and also as the
+   * JSX it came from, kept as it renders (`holdsElements(note) ? <KeptHtml>…</KeptHtml> : <Paragraph html={…} />`).
+   * `blocks` as they are when there are none; undefined when it isn't one block that can be written so.
+   */
+  private switched(blocks: Block[], source: readonly ts.Node[], ctx: Ctx, element: boolean, alone = false): Block[] | undefined {
+    const values = [...new Set(this.switching?.values ?? [])];
+    if (!values.length) return blocks;
+    const [only] = blocks;
+    if (blocks.length !== 1 || only.node.type === "#expr" || only.node.fallback) return undefined;
+    for (const node of source) this.refuseTailwind(node);
+    for (const node of source) this.switchRanges.push({ from: node.getStart(), to: node.getEnd() });
+    const color = this.keptColor(ctx);
+    const kept = this.keep(source.map((node) => this.keptText(node, color)).join(""), ctx, "", element);
+    this.needsHoldsElements = true;
+    return [{ ...only, node: { ...only.node, props: { ...only.node.props, [SWITCH]: { test: values, kept: (kept.props!.html as Expr).$expr, alone } } } }];
   }
 
   private blockOf(jsx: Jsx, ctx: Ctx): Block[] {
@@ -2472,10 +2567,42 @@ class Converter {
 
   /** A value shown in text, as HTML code: text and numbers escaped (`htmlText`); one that may hold React elements keeps its block. */
   private textOf(expression: ts.Expression): Expr {
-    if (this.mayHoldJsx(expression) || this.jsxValued(expression)) throw new KeepBlock(`text from a value that may hold elements: ${expression.getText().slice(0, 40)}`);
+    // A value that may be React elements (typed to hold them, or its type can't be read: `any`, an imported type, a
+    // .jsx template): its block is also written as it renders, used when it holds one (see `switched`). Only a value
+    // read where the block is (not a loop's item inside it), with no call, as it's read twice (tested, then shown).
+    if (!this.provablyText(expression)) {
+      if (this.switching && this.readHere(expression, this.switching)) this.switching.values.push(expression.getText().replace(/\s+/g, ""));
+      else if (this.mayHoldJsx(expression) || this.jsxValued(expression)) throw new KeepBlock(`text from a value that may hold elements: ${expression.getText().slice(0, 40)}`);
+    }
     this.needsEscape = true;
     this.needsHtmlText = true;
     return expr(`${this.helper.htmlText}(${expression.getText()})`);
+  }
+
+  /**
+   * Whether a value shown in text is text whatever it's given: its type is made only of strings, numbers, booleans,
+   * `null`, `undefined` (and lists of them). Not when the type can't be read (`any`, a type from another file), nor
+   * React's node types.
+   */
+  private provablyText(expression: ts.Expression): boolean {
+    if (this.mayHoldJsx(expression)) return false;
+    const text = (type: ts.Type, depth: number): boolean => {
+      if (depth > 5) return false;
+      if (type.isUnion()) return type.types.every((t) => text(t, depth + 1));
+      if (this.checker.isArrayType(type)) return (this.checker.getTypeArguments(type as ts.TypeReference) ?? []).every((t) => text(t, depth + 1));
+      const flags = ts.TypeFlags.StringLike | ts.TypeFlags.NumberLike | ts.TypeFlags.BooleanLike | ts.TypeFlags.BigIntLike | ts.TypeFlags.EnumLike | ts.TypeFlags.Null | ts.TypeFlags.Undefined | ts.TypeFlags.Void | ts.TypeFlags.Never;
+      return (type.flags & flags) !== 0;
+    };
+    return text(this.checker.getTypeAtLocation(expression), 0);
+  }
+
+  /** Whether `expression` only reads values (`note`, `props.user.name`) declared outside `range` (not a loop's item in it). */
+  private readHere(expression: ts.Expression, range: { from: number; to: number }): boolean {
+    let node = unwrap(expression);
+    while (ts.isPropertyAccessExpression(node) || (ts.isElementAccessExpression(node) && (ts.isStringLiteral(node.argumentExpression) || ts.isNumericLiteral(node.argumentExpression)))) node = unwrap(node.expression);
+    if (!ts.isIdentifier(node)) return false;
+    const declarations = this.checker.getSymbolAtLocation(node)?.declarations ?? [];
+    return declarations.length > 0 && declarations.every((d) => d.getStart() < range.from || d.getStart() >= range.to);
   }
 
   /**
@@ -2770,10 +2897,49 @@ class Converter {
       return { type: this.helper.KeptHtml, props, children: [html], fallback: node.fallback };
     }
     const each = <T extends ElementNode | string | Expr>(child: T): T => (typeof child === "string" || isExpr(child) ? child : (this.withKeptHtml(child) as T));
+    // A block written both ways (see `switched`): `holdsElements(…) ? <KeptHtml>…</KeptHtml> : <Paragraph … />`.
+    const either = (child: ElementNode, key?: number): ElementNode => {
+      const choice = this.switchOf(child, key);
+      return choice ? { type: "#expr", code: `${choice.test} ? ${SLOT_OPEN}0${SLOT_CLOSE} : ${choice.shown}${SLOT_OPEN}1${SLOT_CLOSE}${choice.shown ? " : null" : ""}`, slots: [[choice.kept], [choice.text]] } : child;
+    };
+    let code = node.code;
+    let slots = node.slots?.map((slot) => slot.map(each));
+    if (slots && code !== undefined) {
+      // As a slot's only node, the choice goes in the code around it (a node there prints as an expression, not `{…}`).
+      const replaced = new Map<number, string>();
+      slots = slots.map((slot, i) => {
+        if (slot.length === 1 && typeof slot[0] !== "string") {
+          const choice = this.switchOf(slot[0]);
+          if (!choice) return slot;
+          slots!.push([choice.kept]);
+          replaced.set(i, `(${choice.test} ? ${SLOT_OPEN}${slots!.length - 1}${SLOT_CLOSE} : ${choice.shown}${SLOT_OPEN}${i}${SLOT_CLOSE}${choice.shown ? " : null" : ""})`);
+          return [choice.text];
+        }
+        let n = 0;
+        return slot.map((child) => (typeof child === "string" ? child : either(child, n++)));
+      });
+      code = code.replace(SLOT, (marker, i: string) => replaced.get(Number(i)) ?? marker);
+    }
     return {
       ...node,
-      ...(node.children ? { children: node.children.map(each) } : {}),
-      ...(node.slots ? { slots: node.slots.map((slot) => slot.map(each)) } : {}),
+      ...(node.children ? { children: node.children.map((child) => (typeof child === "string" || isExpr(child) ? child : either(this.withKeptHtml(child)))) } : {}),
+      ...(slots ? { slots, code } : {}),
+    };
+  }
+
+  /** A block written both ways (see `switched`): its test, the block for text, and the KeptHtml for elements. */
+  private switchOf(node: ElementNode, key?: number): { test: string; shown: string; text: ElementNode; kept: ElementNode } | undefined {
+    const choice = node.props?.[SWITCH] as { test: string[]; kept: string; alone: boolean } | undefined;
+    if (!choice) return undefined;
+    const { [SWITCH]: _, ...props } = node.props!;
+    const withKey = (p: Record<string, unknown>) => (key === undefined ? p : { key, ...p });
+    const keptProps = Object.fromEntries(Object.entries(props).filter(([name]) => KEPT_PROPS.has(name)));
+    return {
+      test: `${this.helper.holdsElements}(${choice.test.join(", ")})`,
+      // Values alone show nothing for null, false or "": the text block only when they show text.
+      shown: choice.alone ? `${choice.test.map((value) => `${this.helper.htmlText}(${value})`).join(" || ")} ? ` : "",
+      text: { ...node, props: withKey(props) },
+      kept: { type: this.helper.KeptHtml, props: withKey(keptProps), children: [expr(choice.kept)] },
     };
   }
 
@@ -2827,7 +2993,7 @@ class Converter {
       returned.some(
         (r) => node.getStart() >= r.getStart() && node.getEnd() <= r.getEnd(),
       );
-    const kept = (node: ts.Node) => this.fallbackRanges.some((r) => node.getStart() >= r.from && node.getEnd() <= r.to);
+    const kept = (node: ts.Node) => [...this.fallbackRanges, ...this.switchRanges].some((r) => node.getStart() >= r.from && node.getEnd() <= r.to);
     const visit = (node: ts.Node) => {
       if (ts.isImportDeclaration(node)) return;
       if (ts.isIdentifier(node) && this.components.has(node.text) && (!inside(node) || kept(node))) names.add(node.text);
@@ -2878,6 +3044,7 @@ class Converter {
         return `import { ${names.join(", ")} } from "${from}";`;
       }),
       `import { ${elementNames.join(", ")} } from "@unlayer/react-elements";`,
+      ...(this.needsHoldsElements ? [`import { isValidElement${this.helper.isValidElement === "isValidElement" ? "" : ` as ${this.helper.isValidElement}`} } from "react";`] : []),
     ].join("\n");
 
     // Rebuild the file: imports out, the converted JSX in.
@@ -2929,6 +3096,13 @@ class Converter {
         `function htmlText(value${javascript ? "" : ": unknown"})${javascript ? "" : ": string"} {\n` +
         `  const text = (item${javascript ? "" : ": unknown"}) => (typeof item === "string" || typeof item === "number" ? escapeHtml(String(item)) : "");\n` +
         `  return Array.isArray(value) ? value.map(text).join("") : text(value);\n` +
+        `}\n`;
+    }
+    if (this.needsHoldsElements) {
+      helpers +=
+        `\n/** Whether values shown in text hold React elements (a link given for a note): those blocks are kept as they render. */\n` +
+        `function holdsElements(...values${javascript ? "" : ": unknown[]"})${javascript ? "" : ": boolean"} {\n` +
+        `  return values.some((value) => isValidElement(value) || (Array.isArray(value) ? holdsElements(...value) : typeof value === "object" && value !== null && "$$typeof" in value));\n` +
         `}\n`;
     }
     if (this.needsTailwindStyle) {
@@ -2986,6 +3160,7 @@ class Converter {
       ...(this.needsEscape ? [this.helper.escapeHtml] : []),
       ...(this.needsHtmlText ? [this.helper.htmlText] : []),
       ...(this.kept.length ? [this.helper.KeptHtml] : []),
+      ...(this.needsHoldsElements ? [this.helper.holdsElements] : []),
       ...(this.needsTailwindStyle ? [this.helper.tailwindStyle, this.helper.TAILWIND_CLASSES] : []),
       ...(this.needsAttribute ? [this.helper.htmlAttribute] : []),
       ...(this.needsPlainText ? [this.plainTextName] : []),

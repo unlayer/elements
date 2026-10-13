@@ -274,6 +274,26 @@ export async function verifyConversion(
       variants.push({ change, missing: [], added: [], missingAttributes: [], error: (error as Error).message.split("\n")[0] });
     }
   }
+  // Values the migration shows as text, or as they render where they hold React elements (`holdsElements(note) ? …`):
+  // each given an element (a link), which the preview props may not, so the branch that keeps them is checked too.
+  for (const path of elementValued(componentCode(Converted))) {
+    const change = `${path}: an element`;
+    const given = withValue(fresh(props), path, React.createElement("a", { href: "https://example.com/given-as-an-element" }, "given as an element"));
+    if (!given) continue;
+    let original: string;
+    try {
+      original = await render(React.createElement(Original, fresh(given)));
+    } catch {
+      continue; // the original doesn't render this way either
+    }
+    try {
+      const migrated = callTemplate(Converted, given);
+      const check = compareText(original, rendersNothing(migrated) ? "" : renderToHtml(migrated));
+      if (check.missing.length || check.added.length || check.missingAttributes.length || check.addedAttributes.length) variants.push({ change, missing: check.missing, added: [...check.added, ...check.addedAttributes], missingAttributes: check.missingAttributes });
+    } catch (error) {
+      variants.push({ change, missing: [], added: [], missingAttributes: [], error: (error as Error).message.split("\n")[0] });
+    }
+  }
   // Text props with markup and `&"` in them, nested ones too (`user.city`, `items[0].name`):
   // React Email shows them as text, and so must the migrated template (no text or link turned into markup).
   const { value: marked, strings } = withMarkup(props);
@@ -297,6 +317,34 @@ export async function verifyConversion(
   }
   const stylesheets = (designRoot.props as { fonts?: Array<{ url: string }> } | null)?.fonts;
   return { ...compareText(originalHtml, convertedHtml), originalHtml, convertedHtml, designWarnings, design, editorFonts: editorFonts(design, stylesheets), variants };
+}
+
+/**
+ * The props a migrated template tests for React elements (`holdsElements(note, props.user.bio)`, the codemod's helper):
+ * their paths (`note`, `user.bio`). Values it reads that aren't props are listed too (giving them changes nothing).
+ */
+function elementValued(code: string | undefined): string[] {
+  const paths = new Set<string>();
+  for (const call of (code ?? "").matchAll(/\b_*holdsElements\(([^()]*)\)/g)) {
+    for (const arg of call[1].split(",")) {
+      const path = arg.replace(/\s+/g, "").replace(/\?\./g, ".").replace(/^props\./, "");
+      if (/^[A-Za-z_$][\w$]*(\.[A-Za-z_$][\w$]*)*$/.test(path)) paths.add(path);
+    }
+  }
+  return [...paths];
+}
+
+/** `props` with `value` at `path` (`user.bio`), where what holds it is there (undefined when it isn't). */
+function withValue(props: Record<string, unknown>, path: string, value: unknown): Record<string, unknown> | undefined {
+  const keys = path.split(".");
+  let holder: Record<string, unknown> = props;
+  for (const key of keys.slice(0, -1)) {
+    const next = holder[key];
+    if (!next || typeof next !== "object") return undefined;
+    holder = next as Record<string, unknown>;
+  }
+  holder[keys[keys.length - 1]] = value;
+  return props;
 }
 
 /**
