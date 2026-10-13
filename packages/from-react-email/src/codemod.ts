@@ -954,8 +954,9 @@ class Converter {
     if (parts.some((t) => elementish(t) || (this.checker.isArrayType(t) && (this.checker.getTypeArguments(t as ts.TypeReference) ?? []).some(elementish)))) return true;
     // Without the project's types: a value that can be a constant written as JSX, on any path of the condition.
     if (this.yieldsJsxConstant(expression)) return true;
-    // A variable given JSX after it's declared (`message = <>…<br />…</>` in one branch).
-    if (this.assignedJsx(expression)) return true;
+    // A variable given JSX after it's declared (`message = <>…<br />…</>` in one branch), or what a function of the file's
+    // own that returns JSX gives (`renderGuests(guests)`).
+    if (this.assignedJsx(expression) || this.returnsJsx(expression)) return true;
     // An array JSX is pushed into (`rows.push(<Text>…</Text>)`).
     if (ts.isIdentifier(expression)) {
       let pushed = false;
@@ -1000,6 +1001,27 @@ class Converter {
       else ts.forEachChild(n, visit);
     };
     visit(this.file);
+    return found;
+  }
+
+  /** Whether code calls a function of the file's own that returns JSX (`renderGuests(guests)`): it gives elements. */
+  private returnsJsx(expression: ts.Expression): boolean {
+    const node = unwrap(expression);
+    if (!ts.isCallExpression(node)) return false;
+    const callee = unwrap(node.expression);
+    const declaration = ts.isIdentifier(callee) ? this.checker.getSymbolAtLocation(callee)?.valueDeclaration : undefined;
+    const fn = declaration && ts.isFunctionDeclaration(declaration) ? declaration
+      : declaration && ts.isVariableDeclaration(declaration) && declaration.initializer && (ts.isArrowFunction(unwrap(declaration.initializer)) || ts.isFunctionExpression(unwrap(declaration.initializer))) ? (unwrap(declaration.initializer) as ts.ArrowFunction | ts.FunctionExpression)
+      : undefined;
+    if (!fn?.body) return false;
+    if (!ts.isBlock(fn.body)) return containsJsx(fn.body);
+    let found = false;
+    const visit = (n: ts.Node) => {
+      if (found || (ts.isFunctionLike(n) && n !== fn && !ts.isArrowFunction(n))) return;
+      if (ts.isReturnStatement(n) && n.expression && containsJsx(n.expression)) found = true;
+      else ts.forEachChild(n, visit);
+    };
+    visit(fn.body);
     return found;
   }
 
@@ -3080,7 +3102,7 @@ class Converter {
         const value = this.evaluate(child.expression);
         // A value typed to hold JSX (`message: ReactNode`) may get a link or bold text where the preview
         // gives text: not plain text, but rendered as React would (inlineContent's htmlText).
-        if (!textOnly && value === undefined && (this.mayHoldJsx(child.expression) || this.assignedJsx(child.expression))) return undefined;
+        if (!textOnly && value === undefined && (this.mayHoldJsx(child.expression) || this.assignedJsx(child.expression) || this.returnsJsx(child.expression))) return undefined;
         parts.push(typeof value === "string" || typeof value === "number" ? String(value) : expr(child.expression.getText()));
       } else return undefined;
     }

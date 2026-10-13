@@ -1113,3 +1113,33 @@ Payout.PreviewProps = { small: true, fee: "$2" };
     expect(conversion.code).toMatch(/holdsElements\(message\)/);
   });
 });
+
+describe("a call to a function of the file's own that returns JSX", () => {
+  it("is shown as the elements it gives, not as plain text (no words run together)", async () => {
+    const { added, Original, Migrated } = await migrate({
+      "recap.tsx": `import { Html, Body, Section, Text } from "@react-email/components";
+function bulletList(title: string, items: string[]) {
+  if (!items.length) return null;
+  return (
+    <div>
+      <Text style={{ fontWeight: 700, margin: 0 }}>{title}</Text>
+      {items.map((item, i) => <Text key={i} style={{ margin: 0 }}>- {item}</Text>)}
+    </div>
+  );
+}
+export default function Recap({ decisions, steps }: { decisions: string[]; steps: string[] }) {
+  return <Html><Body><Section>
+    {bulletList("Decisions", decisions)}
+    {bulletList("Next steps", steps)}
+  </Section></Body></Html>;
+}
+Recap.PreviewProps = { decisions: ["Ship in June", "Hire two engineers"], steps: ["Draft the checklist"] };
+`,
+    }, "recap.tsx");
+    expect(added).toEqual([]);
+    for (const props of [Original.PreviewProps, { decisions: [], steps: ["Review", "Send"] }]) {
+      const check = await verifyConversion(Original, Migrated, { props });
+      expect([check.missing, check.added]).toEqual([[], []]);
+    }
+  });
+});
