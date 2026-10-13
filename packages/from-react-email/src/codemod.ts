@@ -486,14 +486,14 @@ class Converter {
     const visit = (node: ts.Node) => {
       // A class list in an object spread onto an element (`const shared = { className: "…" }`) is resolved too.
       if (ts.isPropertyAssignment(node) && node.name.getText() === "className") {
-        const value = this.evaluate(node.initializer);
+        const value = this.styleValue(() => this.evaluate(node.initializer));
         if (typeof value === "string") classes.push(value);
       }
       if (ts.isJsxAttribute(node) && node.name.getText() === "className") {
-        const value = this.attrValue(node.initializer) ?? this.classList(node.initializer);
+        const value = this.styleValue(() => this.attrValue(node.initializer) ?? this.classList(node.initializer));
         // A class-list call's classes picked from values (`active && "font-bold"`) can't be kept: lost.
         const call = node.initializer && ts.isJsxExpression(node.initializer) ? node.initializer.expression : undefined;
-        if (call && this.classListCall(call) && call.arguments.some((arg) => typeof this.evaluate(arg) !== "string" && !nothing(arg))) this.lose(node, node.getText());
+        if (call && this.classListCall(call) && call.arguments.some((arg) => typeof this.styleValue(() => this.evaluate(arg)) !== "string" && !nothing(arg))) this.lose(node, node.getText());
         const owner = node.parent.parent;
         if (typeof value === "string") {
           classes.push(value);
@@ -527,7 +527,7 @@ class Converter {
       if ((ts.isJsxOpeningElement(node) || ts.isJsxSelfClosingElement(node)) && this.components.get(node.tagName.getText()) === "Tailwind") {
         const attr = node.attributes.properties.find((p) => ts.isJsxAttribute(p) && p.name.getText() === "config") as ts.JsxAttribute | undefined;
         usesTailwind = true;
-        const value = attr ? this.attrValue(attr.initializer) : undefined;
+        const value = attr ? this.styleValue(() => this.attrValue(attr.initializer)) : undefined;
         // A config built from props or the component's own values differs from one render to the next: it can't be frozen.
         const configCode = attr?.initializer && ts.isJsxExpression(attr.initializer) ? attr.initializer.expression : undefined;
         if (configCode && value === undefined && component && this.declaredInside(configCode, component)) {
@@ -587,6 +587,23 @@ class Converter {
     return false;
   }
 
+  /**
+   * Whether a constant imported from the project's files is read as its value (see `importedConstant`): only for a
+   * style or a class list, which the codemod writes as values. Text, links and conditions keep the import, as written.
+   */
+  private importsRead = false;
+
+  /** `read()`'s value, with constants imported from the project's files read (see `importsRead`). */
+  private styleValue<T>(read: () => T): T {
+    const was = this.importsRead;
+    this.importsRead = true;
+    try {
+      return read();
+    } finally {
+      this.importsRead = was;
+    }
+  }
+
   private evaluate(node: ts.Expression | undefined, depth = 0): unknown {
     if (!node || depth > 20) return undefined;
     node = unwrap(node);
@@ -616,7 +633,7 @@ class Converter {
     }
     if (ts.isIdentifier(node)) {
       const value = this.constantValue(node);
-      return value ? this.evaluate(value, depth + 1) : this.importedConstant(node, depth + 1);
+      return value ? this.evaluate(value, depth + 1) : this.importsRead ? this.importedConstant(node, depth + 1) : undefined;
     }
     // A property of a constant (`styles.body`, `theme.colors.primary`, `sizes["lg"]`): read from the
     // literal that sets it, so the constant's other properties (a function, a prop) don't matter.
@@ -699,6 +716,7 @@ class Converter {
       } else {
         const file = ts.createSourceFile(loaded.fileName, loaded.source, ts.ScriptTarget.Latest, true, /\.(jsx?|mjs|cjs)$/i.test(loaded.fileName) ? ts.ScriptKind.JSX : ts.ScriptKind.TSX);
         const reader = new Converter(file, undefined, /\.(jsx?|mjs|cjs)$/i.test(loaded.fileName), undefined, this.loadModule, this.modules);
+        reader.importsRead = true; // read only for a style: what it imports is too
         reader.readModule();
         module = reader;
       }
@@ -881,7 +899,7 @@ class Converter {
   /** The classes a class-list call always gives (its string arguments); the ones it picks from values are left out. */
   private classListOf(node: ts.Expression): string | undefined {
     const call = unwrap(node) as ts.CallExpression;
-    const fixed = call.arguments.map((arg) => this.evaluate(arg)).filter((v): v is string => typeof v === "string");
+    const fixed = call.arguments.map((arg) => this.styleValue(() => this.evaluate(arg))).filter((v): v is string => typeof v === "string");
     return fixed.length ? fixed.join(" ") : undefined;
   }
 
@@ -1060,8 +1078,10 @@ class Converter {
    */
   /** An element's `style` prop: its value, or what it sets that can be read without running it. */
   private inlineStyle(expression: ts.Expression | undefined): Style {
-    const value = this.evaluate(expression);
-    return value && typeof value === "object" ? (value as Style) : this.staticStyle(expression);
+    return this.styleValue(() => {
+      const value = this.evaluate(expression);
+      return value && typeof value === "object" ? (value as Style) : this.staticStyle(expression);
+    });
   }
 
   private staticStyle(expression: ts.Expression | undefined): Style {
@@ -1186,7 +1206,7 @@ class Converter {
     const inline = attrs.has("style") ? this.inlineStyle(attrs.get("style")) : undefined;
     const className = attrs.get("className");
     if (className) {
-      const value = this.evaluate(className) ?? (this.classListCall(className) ? this.classListOf(className) : undefined);
+      const value = this.styleValue(() => this.evaluate(className)) ?? (this.classListCall(className) ? this.classListOf(className) : undefined);
       if (typeof value === "string") style = withPhoneStyles({ ...(this.tailwind.styles.get(value) ?? {}) }, this.tailwind.leftover.get(value) ?? [], this.tailwind.phone);
       // Head <style> rules on these classes sit under Tailwind's inline styles, as in the browser.
       if (typeof value === "string" && (this.headClasses.size || this.headPhone.size)) {
@@ -1576,7 +1596,7 @@ class Converter {
   /** Whether the column's classes make it full width on phones (`mobile:!block`). */
   private stacksOnPhones(col: Jsx): boolean {
     const className = col.attrs.get("className");
-    const value = className ? this.evaluate(className) : undefined;
+    const value = className ? this.styleValue(() => this.evaluate(className)) : undefined;
     // Tailwind's phone classes (`mobile:!block`), or a class a head <style> stacks on phones.
     return typeof value === "string" && (stacksOnPhones(this.tailwind.leftover.get(value) ?? [], this.tailwind.phone) || stacksOnPhones(value.split(/\s+/), this.headPhone));
   }
@@ -2223,7 +2243,7 @@ class Converter {
         const kept_ = kept && !kept.except?.(node) ? kept : undefined;
         const attrs = node.attributes.properties;
         const className = attrs.find((a): a is ts.JsxAttribute => ts.isJsxAttribute(a) && a.name.getText() === "className");
-        const value = className ? this.attrValue(className.initializer) : undefined;
+        const value = className ? this.styleValue(() => this.attrValue(className.initializer)) : undefined;
         const classes = typeof value === "string" ? this.classStyles(value) : { before: {}, after: {}, drop: false };
         // Classes worked out at render time, in markup kept as React: looked up then (see `tailwindStyle`).
         const classCode = kept_ && value === undefined && this.classTable.size && className?.initializer && ts.isJsxExpression(className.initializer) && className.initializer.expression ? className.initializer.expression : undefined;
@@ -2231,7 +2251,7 @@ class Converter {
         const styleAttr = attrs.find((a): a is ts.JsxAttribute => ts.isJsxAttribute(a) && a.name.getText() === "style");
         const ownCode = styleAttr?.initializer && ts.isJsxExpression(styleAttr.initializer) ? styleAttr.initializer.expression : undefined;
         // What its own style sets: from its value, or the names an object literal of it writes out.
-        const own = ownCode && this.evaluate(ownCode);
+        const own = ownCode && this.styleValue(() => this.evaluate(ownCode));
         const literal = ownCode && unwrap(ownCode);
         const ownKeys = own && typeof own === "object" ? new Set(Object.keys(own))
           : literal && ts.isObjectLiteralExpression(literal) && literal.properties.every((p) => (ts.isPropertyAssignment(p) || ts.isShorthandPropertyAssignment(p)) && (ts.isIdentifier(p.name) || ts.isStringLiteral(p.name))) ? new Set(literal.properties.map((p) => (p.name as ts.Identifier).text))
@@ -2568,7 +2588,7 @@ class Converter {
       else if (ts.isStringLiteral(init)) props[attrName] = decodeHtmlEntities(init.text);
       else if (!expression || nothing(expression)) props[attrName] = undefined;
       else {
-        const value = this.evaluate(expression);
+        const value = attrName === "style" || attrName === "className" ? this.styleValue(() => this.evaluate(expression)) : this.evaluate(expression);
         if (value !== undefined) props[attrName] = value;
         else if (["style", "dangerouslySetInnerHTML", "children"].includes(attrName) || containsJsx(expression)) throw new KeepBlock(`${attrName} from code in text: ${tag}`);
         else code.push({ name: attrName, code: expression.getText() });

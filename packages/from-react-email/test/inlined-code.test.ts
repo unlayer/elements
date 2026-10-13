@@ -358,6 +358,34 @@ Status.PreviewProps = { url: "https://status.example.com" };
   });
 });
 
+describe("text and links from another file of the project", () => {
+  it("keep their import, as the template writes them: only a style or a class list is written as its value", async () => {
+    const { conversion, added, Original, Migrated } = await migrate({
+      "brand.ts": `export const brand = "Acme";
+export const siteUrl = "https://acme.example.com";
+export const accent = "#22d3ee";
+`,
+      "notice.tsx": `import { Html, Body, Container, Text, Link, Button } from "@react-email/components";
+import { brand, siteUrl, accent } from "./brand";
+export default function Notice() {
+  return <Html><Body><Container>
+    <Text style={{ color: accent }}>Thanks for using {brand}. <Link href={siteUrl} style={{ color: accent }}>Visit us</Link></Text>
+    <Button href={siteUrl} style={{ backgroundColor: accent, padding: "12px 20px" }}>Open {brand}</Button>
+  </Container></Body></Html>;
+}
+`,
+    }, "notice.tsx");
+    expect(added).toEqual([]);
+    expect(conversion.report.lostStyles ?? []).toEqual([]);
+    expect(conversion.code).toContain('from "./brand"');
+    expect(conversion.code).not.toContain("Acme");
+    expect(conversion.code).not.toContain("acme.example.com");
+    expect(conversion.code).toContain("#22d3ee");
+    const check = await verifyConversion(Original, Migrated);
+    expect([check.missing, check.added, check.styles]).toEqual([[], [], []]);
+  });
+});
+
 describe("markup kept as React that renders React Email's <Tailwind>", () => {
   const files = {
     "shell.tsx": `import type { ReactNode } from "react";
