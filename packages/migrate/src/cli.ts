@@ -15,6 +15,7 @@ import Module, { createRequire } from "node:module";
 import { tmpdir } from "node:os";
 import { basename, dirname, extname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
+import { normalizeWord, StyledDocument } from "@unlayer/convert-core";
 import { parseArgs, type Args } from "./args";
 import { resolutionOrder, type Origin } from "./resolution";
 
@@ -927,7 +928,7 @@ async function migrateFile(input: Input, options: Options, lib: Library, io: Io,
       if (!Migrated) throw new Error("the migrated file has no default export");
       // The migrated preview props are the original's with their JSX converted (classes become styles): the design uses them.
       const designProps = Object.keys(migrated.props).length ? migrated.props : props;
-      verification = await lib.verifyConversion(Original, Migrated as (props: unknown) => ReturnType<typeof Original>, { props, designProps });
+      verification = writtenWords(await lib.verifyConversion(Original, Migrated as (props: unknown) => ReturnType<typeof Original>, { props, designProps }));
       // A component that doesn't render <Html> is a shared piece (a footer, a button), not an email:
       // replacing it would turn it into a whole email inside the templates that use it.
       // A dry run says what --write does; --out writes copies of them too.
@@ -1062,7 +1063,7 @@ async function compare(paths: string[], args: Args, io: Io, library?: Library): 
     const props: Record<string, unknown> = original.props;
     let check: Awaited<ReturnType<Library["verifyConversion"]>>;
     try {
-      check = await lib.verifyConversion(Original, Migrated, { props });
+      check = writtenWords(await lib.verifyConversion(Original, Migrated, { props }));
     } catch (error) {
       const original = await originalFailure(Original, props, io.cwd);
       io.stderr(original ? `The original template doesn't render: ${original}\n` : `The migrated template doesn't render: ${renderFailure(error)}\n`);
@@ -1100,6 +1101,51 @@ function convertFailure(why: string): string {
   if (template) return `couldn't convert it: ${why.slice(template[0].length)}`;
   if (/^Can't (safely )?convert /.test(why)) return `c${why.slice(1)}`;
   return `couldn't convert it: ${why}`;
+}
+
+/**
+ * A check with its words as the templates write them: the check reads each word as a reader would (`A-10293` and
+ * `A−10293` are the same, `sarah@example.com` is `sarahexamplecom`), and says it as the source has it. A word lost is
+ * the original's, one added the migrated template's; one neither shows (a flipped prop's) stays as the check reads it.
+ */
+function writtenWords<T extends CheckParts & { originalHtml: string; convertedHtml: string; variants: Array<CheckParts> }>(check: T): T {
+  let maps: [Map<string, string>, Map<string, string>] | undefined;
+  const written = (side: "original" | "migrated") => (words: string[]): string[] => {
+    maps ??= [wordsAsWritten(check.originalHtml), wordsAsWritten(check.convertedHtml)];
+    const [first, second] = side === "original" ? maps : [maps[1], maps[0]];
+    return words.map((word) => first.get(word) ?? second.get(word) ?? word);
+  };
+  const [original, migrated] = [written("original"), written("migrated")];
+  const parts = <P extends CheckParts>(c: P): P => ({
+    ...c,
+    ...(c.missing ? { missing: original(c.missing) } : {}),
+    ...(c.added ? { added: migrated(c.added) } : {}),
+    ...(c.styles ? { styles: c.styles.map((s) => ({ ...s, words: original(s.words) })) } : {}),
+    ...(c.unverified ? { unverified: c.unverified.map((u) => ({ ...u, words: (u.side === "migrated" ? migrated : original)(u.words) })) } : {}),
+    ...(c.phone ? { phone: { ...c.phone, missing: original(c.phone.missing), added: migrated(c.phone.added) } } : {}),
+    ...(c.layout ? { layout: c.layout.map((m) => ({ ...m, items: original(m.items) })) } : {}),
+  });
+  return { ...parts(check), variants: check.variants.map(parts) };
+}
+
+/** Each word of `html` as the check reads it, and as the page writes it (the first time), without the quotes or brackets around it. */
+function wordsAsWritten(html: string): Map<string, string> {
+  const out = new Map<string, string>();
+  try {
+    for (const { word } of new StyledDocument(html).words()) {
+      for (const part of word.split(/\s+/)) {
+        const read = normalizeWord(part);
+        if (!read || out.has(read)) continue;
+        // What closes a sentence or an aside goes too, but an abbreviation's last period stays ("U.S.").
+        let bare = part.replace(/^[("'“‘[{<«]+/, "").replace(/[)"'”’\]}>»,;:!?.]+$/, "");
+        if (/\p{L}\.\p{L}+$/u.test(bare) && /\.$/.test(part.replace(/[)"'”’\]}>»,;:!?]+$/, ""))) bare += ".";
+        out.set(read, bare && normalizeWord(bare) === read ? bare : part);
+      }
+    }
+  } catch {
+    // Words as the check reads them.
+  }
+  return out;
 }
 
 function group(notes: Array<{ reason: string; detail?: string }>): Array<{ reason: string; count: number; examples: string[] }> {

@@ -2113,3 +2113,20 @@ ${name}.tailwindConfig = tailwindConfig;
     expect(fs.readFileSync(path.join(dir, "emails/welcome.tsx"), "utf8")).toContain("@unlayer/react-elements");
   });
 });
+
+describe("words in what the run says", () => {
+  it("are written as the templates write them, not as the check reads them", async () => {
+    const original = `import { Html, Body, Text } from "@react-email/components";
+export default function T() { return <Html><Body><Text>Order A-10293 for (sarah@example.com) shipped.</Text></Body></Html>; }
+`;
+    const migrated = `import { Column, Email, Paragraph, Row } from "@unlayer/react-elements";
+export default function T() { return <Email backgroundColor="#ffffff"><Row><Column><Paragraph color="#000000" fontSize="14px" lineHeight="24px" containerPadding="0px 0px 16px 0px">Order shipped, ref “B‑7”, from the U.S.</Paragraph></Column></Row></Email>; }
+`;
+    const dir = project({ "emails/order.tsx": original, "migrated/order.tsx": migrated });
+    const out = io(dir);
+    expect(await main(["compare", "emails/order.tsx", "migrated/order.tsx"], out, lib), out.out + out.err).toBe(2);
+    expect(out.out).toContain('lost text: "A-10293", "for", "sarah@example.com"');
+    expect(out.out).toContain('extra text: "ref", "B‑7", "from", "the", "U.S."');
+    expect(out.out).not.toMatch(/−|sarahexamplecom/);
+  });
+});
