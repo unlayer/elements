@@ -462,8 +462,10 @@ async function run(argv: string[], io: Io, library?: Library): Promise<number> {
     }
   }
   // Files the run left as they were that still import React Email (a shared component, a helper the templates inlined):
-  // React Email can go only once nothing imports them, so they're named.
-  if (options.write && results.some((r) => r.output)) {
+  // React Email can go only once nothing imports them, so they're named. Only once every template is migrated: one left
+  // unwritten (it failed, or failed the check with --strict) may still import them, and React Email can't go anyway.
+  const allWritten = results.filter(isTemplate).every((r) => r.output || r.reason?.startsWith("already migrated"));
+  if (options.write && results.some((r) => r.output) && allWritten) {
     const reactEmail = new Set(inputs.files.filter((f) => f.reactEmail).map((f) => resolve(f.path)));
     const left = results.filter((r) => r.status === "skipped" && !r.output && reactEmail.has(resolve(io.cwd, r.file)));
     if (left.length) {
