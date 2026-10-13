@@ -231,7 +231,7 @@ class Converter {
   private readonly report = new ReportBuilder();
   private readonly components = new Map<string, string>();
   /** Where each React Email import comes from (`react-email`, `@react-email/components`, …), and which are types. */
-  private readonly componentSources = new Map<string, { from: string; type: boolean }>();
+  private readonly componentSources = new Map<string, { from: string; type: boolean; barrel?: boolean }>();
   private readonly constants = new Map<string, ts.Expression>();
   private readonly checker: ts.TypeChecker;
   private tailwind: ResolvedClasses = NO_CLASSES;
@@ -335,12 +335,15 @@ class Converter {
     for (const statement of this.file.statements) {
       if (ts.isImportDeclaration(statement) && ts.isStringLiteral(statement.moduleSpecifier)) {
         const from = statement.moduleSpecifier.text;
-        if (!isReactEmailModule(from)) continue;
         const bindings = statement.importClause?.namedBindings;
         if (bindings && ts.isNamedImports(bindings)) {
           for (const spec of bindings.elements) {
-            this.components.set(spec.name.text, (spec.propertyName ?? spec.name).text);
-            this.componentSources.set(spec.name.text, { from, type: !!statement.importClause?.isTypeOnly || spec.isTypeOnly });
+            const imported = (spec.propertyName ?? spec.name).text;
+            // From React Email, or from a file of the project's that passes React Email's on (`export { Text } from "react-email"`).
+            const name = isReactEmailModule(from) ? imported : this.reactEmailExport(from, imported, this.file.fileName);
+            if (name === undefined) continue;
+            this.components.set(spec.name.text, name);
+            this.componentSources.set(spec.name.text, { from, type: !!statement.importClause?.isTypeOnly || spec.isTypeOnly, ...(isReactEmailModule(from) ? {} : { barrel: true }) });
           }
         }
       }
@@ -350,6 +353,41 @@ class Converter {
         }
       }
     }
+  }
+
+  /**
+   * The React Email component a file of the project's exports as `name`, passing it on (`export { Text } from
+   * "react-email"`, `export * from "@react-email/components"`, or an import exported again), through other such files.
+   */
+  private reactEmailExport(specifier: string, name: string, fromFile: string, depth = 0): string | undefined {
+    if (!this.loadModule || depth > 8 || !/^[./]/.test(specifier)) return undefined;
+    const loaded = this.loadModule(specifier, fromFile);
+    if (!loaded) return undefined;
+    const module = ts.createSourceFile(loaded.fileName, loaded.source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
+    const follow = (target: string, imported: string): string | undefined =>
+      isReactEmailModule(target) ? (Object.prototype.hasOwnProperty.call(ReactEmail, imported) ? imported : undefined) : this.reactEmailExport(target, imported, loaded.fileName, depth + 1);
+    for (const statement of module.statements) {
+      if (!ts.isExportDeclaration(statement) || statement.isTypeOnly) continue;
+      const target = statement.moduleSpecifier && ts.isStringLiteral(statement.moduleSpecifier) ? statement.moduleSpecifier.text : undefined;
+      if (!statement.exportClause) {
+        const found = target && follow(target, name);
+        if (found) return found;
+        continue;
+      }
+      if (!ts.isNamedExports(statement.exportClause)) continue;
+      for (const element of statement.exportClause.elements) {
+        if (element.isTypeOnly || element.name.text !== name) continue;
+        const local = (element.propertyName ?? element.name).text;
+        if (target) return follow(target, local);
+        // `import { Text } from "react-email"; export { Text };`
+        for (const st of module.statements) {
+          const bindings = ts.isImportDeclaration(st) && ts.isStringLiteral(st.moduleSpecifier) && !st.importClause?.isTypeOnly ? st.importClause?.namedBindings : undefined;
+          const spec = bindings && ts.isNamedImports(bindings) ? bindings.elements.find((e) => e.name.text === local && !e.isTypeOnly) : undefined;
+          if (spec) return follow((st as ts.ImportDeclaration).moduleSpecifier.getText().slice(1, -1), (spec.propertyName ?? spec.name).text);
+        }
+      }
+    }
+    return undefined;
   }
 
   private findComponent(): ts.FunctionLikeDeclaration | undefined {
@@ -2541,7 +2579,8 @@ class Converter {
         const clause = statement.importClause;
         if (clause?.name) names.push(clause.name.text);
         const bindings = clause?.namedBindings;
-        if (bindings && ts.isNamedImports(bindings)) bindings.elements.forEach((e) => names.push(e.name.text));
+        // (React Email's components passed on by a file of the project's are React Email's.)
+        if (bindings && ts.isNamedImports(bindings)) bindings.elements.forEach((e) => this.componentSources.get(e.name.text)?.barrel || names.push(e.name.text));
         if (bindings && ts.isNamespaceImport(bindings)) names.push(bindings.name.text);
       }
     }
@@ -2572,11 +2611,13 @@ class Converter {
     // components, fallbacks) keep their import; Elements names that clash
     // with them get an alias.
     const returned = conversions.map((c) => c.expression);
-    const stillUsed = this.reactEmailNamesUsedOutside(returned);
+    const used_ = this.reactEmailNamesUsedOutside(returned);
+    // Those from a file of the project's keep the template's own import of them (what it doesn't read any more goes).
+    const stillUsed = new Set([...used_].filter((name) => !this.componentSources.get(name)?.barrel));
     const rename: Record<string, string> = {};
     // Names the file already uses for something else (React Email imports it
     // keeps, its own components) get an alias on the Elements import.
-    for (const name of [...stillUsed, ...this.localNames()]) rename[name] = `Unlayer${name}`;
+    for (const name of [...used_, ...this.localNames()]) rename[name] = `Unlayer${name}`;
     const keptHtml = this.helper.KeptHtml;
     const printed = conversions.map((c) => {
       const { jsx, used } = printJsx(this.withKeptHtml(c.tree), rename);
@@ -2612,6 +2653,18 @@ class Converter {
       to: imp.getEnd(),
       text: i === 0 ? newImports : "",
     }));
+    // React Email's components from a file of the project's: those the converted JSX replaced go from its import.
+    for (const statement of this.file.statements) {
+      const bindings = ts.isImportDeclaration(statement) ? statement.importClause?.namedBindings : undefined;
+      if (!bindings || !ts.isNamedImports(bindings)) continue;
+      const gone = bindings.elements.filter((e) => this.componentSources.get(e.name.text)?.barrel && !used_.has(e.name.text));
+      if (!gone.length) continue;
+      const kept = bindings.elements.filter((e) => !gone.includes(e));
+      const clause = (statement as ts.ImportDeclaration).importClause!;
+      if (!kept.length && !clause.name) edits.push({ from: statement.getStart(), to: statement.getEnd(), text: "" });
+      else if (kept.length) edits.push({ from: bindings.getStart(), to: bindings.getEnd(), text: `{ ${kept.map((e) => e.getText()).join(", ")} }` });
+      else edits.push({ from: clause.name!.getEnd(), to: bindings.getEnd(), text: "" });
+    }
     for (const { expression, jsx } of printed)
       edits.push({
         from: expression.getStart(),

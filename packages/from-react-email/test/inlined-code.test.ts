@@ -24,7 +24,7 @@ async function migrate(files: Record<string, string>, entry: string) {
   const file = original.replace(/\.tsx$/, ".migrated.tsx");
   const loadModule = (specifier: string, from: string) => {
     const target = path.resolve(path.dirname(from), specifier);
-    for (const candidate of [target, `${target}.tsx`, `${target}.ts`]) if (fs.existsSync(candidate) && fs.statSync(candidate).isFile()) return { fileName: candidate, source: fs.readFileSync(candidate, "utf8") };
+    for (const candidate of [target, `${target}.tsx`, `${target}.ts`, path.join(target, "index.ts")]) if (fs.existsSync(candidate) && fs.statSync(candidate).isFile()) return { fileName: candidate, source: fs.readFileSync(candidate, "utf8") };
     return undefined;
   };
   const conversion = await convertSource(files[entry], { fileName: file, loadModule });
@@ -263,5 +263,36 @@ Notice.PreviewProps = { page: "Acme", note: "All systems normal." };
       const check = await verifyConversion(Original, Migrated, { props });
       expect([check.missing, check.added, check.missingAttributes, check.designWarnings]).toEqual([[], [], [], []]);
     }
+  });
+});
+
+describe("React Email's components imported through a file of the project's", () => {
+  it("are read as React Email's (`export { … } from`, `export *`, an import exported again), and the import keeps the rest", async () => {
+    const { conversion, added, Original, Migrated } = await migrate({
+      "ui/index.ts": `export { Html, Body, Container } from "@react-email/components";
+import { Text, Heading } from "@react-email/components";
+export { Text, Heading as Title };
+export * from "./more";
+`,
+      "ui/more.ts": `export { Button } from "@react-email/components";
+export const company = "Acme Inc.";
+`,
+      "invite.tsx": `import { Html, Body, Container, Text, Title, Button, company } from "./ui";
+export default function Invite({ url }: { url: string }) {
+  return <Html><Body><Container>
+    <Title>You're invited</Title>
+    <Text>Join {company} today.</Text>
+    <Button href={url} style={{ backgroundColor: "#111827", color: "#ffffff", padding: "12px 20px" }}>Accept</Button>
+  </Container></Body></Html>;
+}
+Invite.PreviewProps = { url: "https://example.com/accept" };
+`,
+    }, "invite.tsx");
+    expect(added).toEqual([]);
+    expect(conversion.report.fallbacks).toEqual([]);
+    expect(conversion.report.nativeRatio).toBe(1);
+    expect(conversion.code).toMatch(/import \{ company \} from "\.\/ui";/);
+    const check = await verifyConversion(Original, Migrated);
+    expect([check.missing, check.added, check.missingAttributes, check.designWarnings]).toEqual([[], [], [], []]);
   });
 });
