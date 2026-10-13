@@ -220,16 +220,25 @@ export async function convertSource(source: string, options: CodemodOptions = {}
   const variants = splitConditionalClasses(normalizeInlined(constants.source, fileName), fileName);
   const javascript = /\.(?:jsx?|mjs|cjs)$/i.test(fileName);
   let file = ts.createSourceFile(fileName, variants.source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
-  let converter = new Converter(file, options.tailwindConfig, javascript, options.tailwind, options.loadModule);
+  const converter = (unwritten = new Set<number>()) => new Converter(file, options.tailwindConfig, javascript, options.tailwind, options.loadModule, undefined, unwritten);
   // A prop's default written where it's read (`name === undefined ? "Acme" : name`) as `name ?? "Acme"` where that's the same.
-  const nullish = converter.nullishDefaults();
+  const nullish = converter().nullishDefaults();
   if (nullish.length) {
     let text = variants.source;
     for (const edit of nullish.sort((a, b) => b.from - a.from)) text = text.slice(0, edit.from) + edit.text + text.slice(edit.to);
     file = ts.createSourceFile(fileName, text, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
-    converter = new Converter(file, options.tailwindConfig, javascript, options.tailwind, options.loadModule);
   }
-  return converter.run({ components: components.inlined, constants: constants.inlined, variants: variants.split, copied: components.copied, original: named });
+  // Backgrounds computed from props are written as that code where the box's background goes (see `computedBackground`);
+  // one that couldn't be (the box flattened, its color in HTML) is converted again as before: lost, with the colors
+  // computed under it (see `computedColors`).
+  const unwritten = new Set<number>();
+  for (;;) {
+    const run = converter(unwritten);
+    const result = await run.run({ components: components.inlined, constants: constants.inlined, variants: variants.split, copied: components.copied, original: named });
+    const failed = [...run.unwrittenBackgrounds].filter((at) => !unwritten.has(at));
+    if (!failed.length) return result;
+    for (const at of failed) unwritten.add(at);
+  }
 }
 
 /**
@@ -319,6 +328,12 @@ class Converter {
   /** Source kept as the alternative of a block written both ways (its React Email components keep their import). */
   private readonly switchRanges: Array<{ from: number; to: number }> = [];
   private needsHoldsElements = false;
+  /** Backgrounds computed from props, by the color standing in for each until it's printed (see `computedBackground`). */
+  private readonly computedBackgrounds = new Map<string, { code: string; always: boolean; at: number }>();
+  /** Where each computed background is written in the source, to its stand-in. */
+  private readonly backgroundAt = new Map<number, string>();
+  /** Computed backgrounds this conversion couldn't write as code (see convertSource). */
+  readonly unwrittenBackgrounds = new Set<number>();
   /** Each block kept as React: its source, and the text color around it (`known`: none above it is computed). */
   private readonly keptUses: Array<{ nodes: readonly ts.Node[]; color: string | undefined; known: boolean }> = [];
   /** The text color the tables and cells of each component of the file kept as React take (see `keptComponentColors`). */
@@ -360,6 +375,8 @@ class Converter {
     private readonly loadModule?: ModuleLoader,
     /** The project's modules read for values the template imports (see `importedConstant`), shared with theirs. */
     private readonly modules = new Map<string, Converter | { json: unknown } | null>(),
+    /** Computed backgrounds (by where they're written) that can't be written as code: lost, as before. */
+    private readonly unwritten = new Set<number>(),
   ) {
     const names = new Set(file.getFullText().match(/\b[A-Za-z_$][\w$]*/g));
     while (names.has(this.plainTextName)) this.plainTextName = `_${this.plainTextName}`;
@@ -1183,14 +1200,14 @@ class Converter {
    * props or state are recorded as lost (unless the element is kept as HTML).
    */
   /** An element's `style` prop: its value, or what it sets that can be read without running it. */
-  private inlineStyle(expression: ts.Expression | undefined): Style {
+  private inlineStyle(expression: ts.Expression | undefined, box = false): Style {
     return this.styleValue(() => {
       const value = this.evaluate(expression);
-      return value && typeof value === "object" ? (value as Style) : this.staticStyle(expression);
+      return value && typeof value === "object" ? (value as Style) : this.staticStyle(expression, box);
     });
   }
 
-  private staticStyle(expression: ts.Expression | undefined): Style {
+  private staticStyle(expression: ts.Expression | undefined, box = false): Style {
     const style: Style = {};
     const node = expression && unwrap(expression);
     const lose = (part: ts.Node, text: string) => this.lose(part, text);
@@ -1203,9 +1220,30 @@ class Converter {
       const key = (ts.isPropertyAssignment(prop) || ts.isShorthandPropertyAssignment(prop)) && (ts.isIdentifier(prop.name) || ts.isStringLiteral(prop.name)) ? prop.name.text : undefined;
       const value = key === undefined ? undefined : this.evaluate(ts.isPropertyAssignment(prop) ? prop.initializer : (prop as ts.ShorthandPropertyAssignment).name);
       if (key !== undefined && (typeof value === "string" || typeof value === "number")) (style as Record<string, unknown>)[key] = value;
+      else if (box && key === "backgroundColor" && ts.isPropertyAssignment(prop) && this.computedBackground(prop)) style.backgroundColor = this.computedBackground(prop);
       else lose(prop, prop.getText());
     }
     return style;
+  }
+
+  /**
+   * A box's background computed from props (`backgroundColor: dark ? "#000000" : "#ffffff"`): a color standing in for it
+   * while the box is converted, written as that code where it lands (see `withComputedBackgrounds`), so text whose
+   * color is computed with it stays readable. Undefined where it can't be (see convertSource).
+   */
+  private computedBackground(prop: ts.PropertyAssignment): string | undefined {
+    const at = prop.getStart();
+    if (this.unwritten.has(at) || containsJsx(prop.initializer)) return undefined;
+    const known = this.backgroundAt.get(at);
+    if (known) return known;
+    const text = this.file.getFullText().toLowerCase();
+    let stand = "";
+    for (let n = this.computedBackgrounds.size + 1; !stand || text.includes(stand) || this.computedBackgrounds.has(stand); n++) stand = `#c0d${n.toString(16).padStart(3, "0")}`;
+    const type = this.checker.getTypeAtLocation(prop.initializer);
+    const always = (type.isUnion() ? type.types : [type]).every((t) => t.isStringLiteral() && t.value !== "");
+    this.computedBackgrounds.set(stand, { code: prop.initializer.getText(), always, at });
+    this.backgroundAt.set(at, stand);
+    return stand;
   }
 
   /** Whether a condition is true, when it's known (`undefined`, a constant, `a === b` of known values). */
@@ -1309,7 +1347,9 @@ class Converter {
     let style: Style = {};
     // Head rules marked !important: they win over the element's own style too.
     let important: { rules: Style; names: Set<string> } | undefined;
-    const inline = attrs.has("style") ? this.inlineStyle(attrs.get("style")) : undefined;
+    // A box's background from props is kept as code (see `computedBackground`).
+    const box = /^(Body|Container|Section|Row|Column)$/.test(this.components.get(tag) ?? "") || /^(div|table|tbody|tr|td|center|section)$/.test(tag);
+    const inline = attrs.has("style") ? this.inlineStyle(attrs.get("style"), box) : undefined;
     const className = attrs.get("className");
     if (className) {
       const value = this.styleValue(() => this.evaluate(className)) ?? (this.classListCall(className) ? this.classListOf(className) : undefined);
@@ -2068,12 +2108,34 @@ class Converter {
     }
   }
 
+  /** Whether an element of the template around `node` has a background computed from props that isn't written as code. */
+  private underUnwrittenBackground(node: ts.Node): boolean {
+    for (let n: ts.Node | undefined = node.parent; n && !ts.isSourceFile(n); n = n.parent) {
+      if (!ts.isJsxElement(n)) continue;
+      const style = n.openingElement.attributes.properties.find((a): a is ts.JsxAttribute => ts.isJsxAttribute(a) && a.name.getText() === "style");
+      const code = style?.initializer && ts.isJsxExpression(style.initializer) ? style.initializer.expression : undefined;
+      const literal = code && unwrap(code);
+      if (!literal || !ts.isObjectLiteralExpression(literal) || this.styleValue(() => this.evaluate(literal)) !== undefined) continue;
+      for (const prop of literal.properties) {
+        const key = (ts.isPropertyAssignment(prop) || ts.isShorthandPropertyAssignment(prop)) && (ts.isIdentifier(prop.name) || ts.isStringLiteral(prop.name)) ? prop.name.text : undefined;
+        if (key !== "backgroundColor" && key !== "background") continue;
+        const value = ts.isPropertyAssignment(prop) ? prop.initializer : (prop as ts.ShorthandPropertyAssignment).name;
+        if (this.styleValue(() => this.evaluate(value)) !== undefined) continue;
+        if (key === "background" || !this.backgroundAt.has(prop.getStart())) return true;
+      }
+    }
+    return false;
+  }
+
   /**
    * A text color (or a button's background) an element's style computes (`style={{ color: accent }}`, a tone picked from
    * props): written on its block as that code, with the color it would have without one after `||` (an empty or missing
    * value takes the color around it, as in the browser), instead of a fixed color that can make its text unreadable.
    */
   private computedColors(jsx: Jsx, node: ElementNode): ElementNode {
+    // Under a box whose background is computed too and can't be written, a computed color could make text unreadable
+    // (white on the white the box falls back to): it's lost then, as before.
+    if (this.underUnwrittenBackground(jsx.node)) return node;
     const code = jsx.attrs.get("style");
     const literal = code && unwrap(code);
     const props: Record<string, string> = node.type === "Button" ? { color: "color", backgroundColor: "backgroundColor" } : node.type === "Paragraph" || node.type === "Heading" ? { color: "color" } : {};
@@ -3172,6 +3234,34 @@ class Converter {
   // ============================================
 
   /**
+   * `tree` with each computed background's stand-in (see `computedBackground`) as its code, in any prop it went to:
+   * `x || "#ffffff"` on the Email (no background shows white), `x || undefined` on a box, or `x` where it's always a
+   * color. `written`: the stand-ins found.
+   */
+  private withComputedBackgrounds(node: ElementNode, written: Set<string>): ElementNode {
+    if (!this.computedBackgrounds.size) return node;
+    const value = (v: unknown): unknown => {
+      if (typeof v === "string") {
+        const found = this.computedBackgrounds.get(v.trim().toLowerCase());
+        if (!found) return v;
+        written.add(v.trim().toLowerCase());
+        const code = /^[\w$.]+$/.test(found.code) ? found.code : `(${found.code})`;
+        return expr(found.always ? found.code : `${code} || ${node.type === "Email" ? '"#ffffff"' : "undefined"}`);
+      }
+      if (Array.isArray(v)) return v.map(value);
+      if (v && typeof v === "object" && !isExpr(v)) return Object.fromEntries(Object.entries(v).map(([k, inner]) => [k, value(inner)]));
+      return v;
+    };
+    const each = <T extends ElementNode | string | Expr>(child: T): T => (typeof child === "string" || isExpr(child) ? child : (this.withComputedBackgrounds(child, written) as T));
+    return {
+      ...node,
+      ...(node.props ? { props: value(node.props) as Record<string, unknown> } : {}),
+      ...(node.children ? { children: node.children.map(each) } : {}),
+      ...(node.slots ? { slots: node.slots.map((slot) => slot.map(each)) } : {}),
+    };
+  }
+
+  /**
    * `tree` with each kept block (see `keep`) as a KeptHtml holding its JSX's place: the props Elements reads from it for
    * the Html block (its padding, where it hides) are kept.
    */
@@ -3303,8 +3393,9 @@ class Converter {
     // keeps, its own components) get an alias on the Elements import.
     for (const name of [...used_, ...this.localNames()]) rename[name] = `Unlayer${name}`;
     const keptHtml = this.helper.KeptHtml;
+    const written = new Set<string>();
     const printed = conversions.map((c) => {
-      const { jsx, used } = printJsx(this.withKeptHtml(c.tree), rename);
+      const { jsx, used } = printJsx(this.withKeptHtml(this.withComputedBackgrounds(c.tree, written)), rename);
       // Each kept block's JSX in its KeptHtml.
       return { ...c, jsx: jsx.replace(KEPT, (_, i: string) => this.kept[Number(i)]), used };
     });
@@ -3453,6 +3544,8 @@ class Converter {
     ]));
     const original = this.original === undefined ? this.file : ts.createSourceFile(this.file.fileName, this.original, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
     const raw = dropUnused(`${header}\n${body}${helpers}`, original, javascript, generated, new Set(this.copied));
+    // A computed background left out (its box flattened) or in a place it can't be code (HTML text): see convertSource.
+    for (const [stand, { at }] of this.computedBackgrounds) if (!written.has(stand) || raw.toLowerCase().includes(stand)) this.unwrittenBackgrounds.add(at);
     try {
       return await formatTsx(raw);
     } catch (error) {

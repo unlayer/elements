@@ -815,3 +815,39 @@ Team.PreviewProps = { team: "Acme", members: ["Ana", "Bo"] };
     expect([check.missing, check.added, check.variants]).toEqual([[], [], []]);
   });
 });
+
+describe("backgrounds computed from props", () => {
+  const theme = (box: string) => `import { Html, Body, Container, Section, Row, Column, Text } from "@react-email/components";
+export default function Theme({ dark = false }: { dark?: boolean }) {
+  const fg = dark ? "#ffffff" : "#111111";
+  return <Html>${box}</Html>;
+}
+Theme.PreviewProps = { dark: false };
+`;
+  const shown = (check: Awaited<ReturnType<typeof verifyConversion>>) => check.styles.filter((s) => s.property === "shown");
+
+  it.each([
+    ["a Body", `<Body style={{ backgroundColor: dark ? "#000000" : "#ffffff" }}><Text style={{ color: fg }}>Plain text</Text></Body>`],
+    ["a Container", `<Body><Container style={{ backgroundColor: dark ? "#000000" : "#ffffff" }}><Text style={{ color: fg }}>Plain text</Text></Container></Body>`],
+    ["a Section", `<Body><Container><Section style={{ backgroundColor: dark ? "#000000" : "#ffffff", padding: "8px" }}><Text style={{ color: fg }}>Plain text</Text></Section></Container></Body>`],
+    ["a Column of several", `<Body><Container><Section><Row><Column style={{ backgroundColor: dark ? "#000000" : "#ffffff" }}><Text style={{ color: fg }}>Left</Text></Column><Column><Text>Right</Text></Column></Row></Section></Container></Body>`],
+  ])("are written as code on the box (%s), so text colored with them stays readable", async (_, box) => {
+    const { conversion, added, Original, Migrated } = await migrate({ "theme.tsx": theme(box) }, "theme.tsx");
+    expect(added).toEqual([]);
+    expect(conversion.report.lostStyles ?? []).toEqual([]);
+    for (const dark of [false, true]) {
+      const check = await verifyConversion(Original, Migrated, { props: { dark } });
+      expect([check.missing, check.added, shown(check)]).toEqual([[], [], []]);
+      expect(check.styles.filter((s) => s.property === "color" || s.property === "background")).toEqual([]);
+    }
+  });
+
+  it("where one can't be written as code, leave the color computed under it too (as before: a look, never unreadable)", async () => {
+    const { conversion, Original, Migrated } = await migrate({ "theme.tsx": theme(`<Body><Container style={{ background: dark ? "#000000" : "#ffffff" }}><Text style={{ color: fg }}>Plain text</Text></Container></Body>`) }, "theme.tsx");
+    expect(conversion.code).not.toContain("color={fg}");
+    for (const dark of [false, true]) {
+      const check = await verifyConversion(Original, Migrated, { props: { dark } });
+      expect([check.missing, check.added, shown(check)]).toEqual([[], [], []]);
+    }
+  });
+});
