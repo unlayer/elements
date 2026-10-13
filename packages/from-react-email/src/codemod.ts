@@ -954,6 +954,8 @@ class Converter {
     if (parts.some((t) => elementish(t) || (this.checker.isArrayType(t) && (this.checker.getTypeArguments(t as ts.TypeReference) ?? []).some(elementish)))) return true;
     // Without the project's types: a value that can be a constant written as JSX, on any path of the condition.
     if (this.yieldsJsxConstant(expression)) return true;
+    // A variable given JSX after it's declared (`message = <>…<br />…</>` in one branch).
+    if (this.assignedJsx(expression)) return true;
     // An array JSX is pushed into (`rows.push(<Text>…</Text>)`).
     if (ts.isIdentifier(expression)) {
       let pushed = false;
@@ -977,6 +979,25 @@ class Converter {
         }
       }
       ts.forEachChild(node, visit);
+    };
+    visit(this.file);
+    return found;
+  }
+
+  /**
+   * Whether a variable is given JSX after it's declared (`let message: string | ReactNode = ""; if (…) message = <>…</>`):
+   * shown in text, it may be elements (links, line breaks) that plain text would lose.
+   */
+  private assignedJsx(expression: ts.Expression): boolean {
+    const node = unwrap(expression);
+    if (!ts.isIdentifier(node)) return false;
+    const symbol = this.checker.getSymbolAtLocation(node);
+    if (!symbol) return false;
+    let found = false;
+    const visit = (n: ts.Node) => {
+      if (found) return;
+      if (ts.isBinaryExpression(n) && n.operatorToken.kind === ts.SyntaxKind.EqualsToken && ts.isIdentifier(unwrap(n.left)) && this.checker.getSymbolAtLocation(unwrap(n.left)) === symbol && containsJsx(n.right)) found = true;
+      else ts.forEachChild(n, visit);
     };
     visit(this.file);
     return found;
@@ -3059,7 +3080,7 @@ class Converter {
         const value = this.evaluate(child.expression);
         // A value typed to hold JSX (`message: ReactNode`) may get a link or bold text where the preview
         // gives text: not plain text, but rendered as React would (inlineContent's htmlText).
-        if (!textOnly && value === undefined && this.mayHoldJsx(child.expression)) return undefined;
+        if (!textOnly && value === undefined && (this.mayHoldJsx(child.expression) || this.assignedJsx(child.expression))) return undefined;
         parts.push(typeof value === "string" || typeof value === "number" ? String(value) : expr(child.expression.getText()));
       } else return undefined;
     }

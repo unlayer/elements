@@ -1080,3 +1080,36 @@ export default function Promo() {
     expect(notes.filter((n) => /_/.test(String(n)))).toEqual([]);
   });
 });
+
+describe("a variable given JSX in one branch, shown in text", () => {
+  it("keeps its line breaks and links (no words run together)", async () => {
+    const { conversion, added, Original, Migrated } = await migrate({
+      "payout.tsx": `import * as React from "react";
+import { Html, Body, Text } from "@react-email/components";
+export default function Payout({ small, fee }: { small: boolean; fee: string }) {
+  let message: string | React.ReactNode = "";
+  if (small) {
+    message = (
+      <>
+        It will stay in <code>processed</code> status.
+        <br />
+        <br />
+        If you want it now, <a href="https://example.com/payouts">pay out</a> for a {fee} fee.
+      </>
+    );
+  } else {
+    message = "Your funds are on their way.";
+  }
+  return <Html><Body><Text>{message}</Text></Body></Html>;
+}
+Payout.PreviewProps = { small: true, fee: "$2" };
+`,
+    }, "payout.tsx");
+    expect(added).toEqual([]);
+    for (const small of [true, false]) {
+      const check = await verifyConversion(Original, Migrated, { props: { small, fee: "$2" } });
+      expect([check.missing, check.added, check.missingAttributes]).toEqual([[], [], []]);
+    }
+    expect(conversion.code).toMatch(/holdsElements\(message\)/);
+  });
+});
