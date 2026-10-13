@@ -1365,34 +1365,50 @@ function hasPackage(file: string, name: string): boolean {
   }
 }
 
-/** CommonJS requires bypass the module hooks: they need the same order as hooks.ts. */
+/** The projects whose templates are loading, the latest last: CommonJS requires resolve as theirs (see below). */
+const cjsProjects: NodeJS.Require[] = [];
+let cjsResolution = false;
+
+/**
+ * CommonJS requires bypass the module hooks: they need the same order as hooks.ts, while a template of `projectFolder`
+ * loads (until the returned release). Node's resolver is wrapped once for the process, as the TypeScript loader wraps
+ * it again on top: one wrapped per load could never be taken out, and every load would add a layer that each require
+ * goes through (and through again from each layer's own resolution), slowing every load after it.
+ */
 function sharedCjsPackages(projectFolder: string): () => void {
   type Resolve = (request: string, parent: NodeJS.Module | undefined, isMain?: boolean, options?: unknown) => string;
-  const api = Module as typeof Module & { _resolveFilename: Resolve };
-  const previous = api._resolveFilename;
+  if (!cjsResolution) {
+    cjsResolution = true;
+    const api = Module as typeof Module & { _resolveFilename: Resolve };
+    const previous = api._resolveFilename;
+    const self = createRequire(import.meta.url);
+    let resolving = false;
+    api._resolveFilename = (request, parent, isMain, options) => {
+      const project = cjsProjects[cjsProjects.length - 1];
+      // A require never comes from the converter, which is an ES module.
+      const order = !project || resolving ? undefined : resolutionOrder(request, false);
+      if (!order) return previous(request, parent, isMain, options);
+      resolving = true;
+      try {
+        const from: Record<Origin, () => string> = {
+          project: () => project.resolve(request),
+          importer: () => previous(request, parent, isMain, options),
+          self: () => self.resolve(request),
+        };
+        let failure: unknown;
+        for (const origin of order) {
+          try { return from[origin](); } catch (error) { failure ??= error; }
+        }
+        throw failure;
+      } finally { resolving = false; }
+    };
+  }
   const project = createRequire(pathToFileURL(join(projectFolder, "noop.js")));
-  const self = createRequire(import.meta.url);
-  let resolving = false;
-  const resolvePackage: Resolve = (request, parent, isMain, options) => {
-    // A require never comes from the converter, which is an ES module.
-    const order = resolving ? undefined : resolutionOrder(request, false);
-    if (!order) return previous(request, parent, isMain, options);
-    resolving = true;
-    try {
-      const from: Record<Origin, () => string> = {
-        project: () => project.resolve(request),
-        importer: () => previous(request, parent, isMain, options),
-        self: () => self.resolve(request),
-      };
-      let failure: unknown;
-      for (const origin of order) {
-        try { return from[origin](); } catch (error) { failure ??= error; }
-      }
-      throw failure;
-    } finally { resolving = false; }
+  cjsProjects.push(project);
+  return () => {
+    const at = cjsProjects.lastIndexOf(project);
+    if (at >= 0) cjsProjects.splice(at, 1);
   };
-  api._resolveFilename = resolvePackage;
-  return () => { if (api._resolveFilename === resolvePackage) api._resolveFilename = previous; };
 }
 
 /** Where `name` resolves from `folder` (its real path), or undefined when it isn't installed there. */

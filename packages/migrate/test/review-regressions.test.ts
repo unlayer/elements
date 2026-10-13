@@ -5,6 +5,7 @@ import path from "node:path";
 import { execFile, spawn } from "node:child_process";
 import { promisify } from "node:util";
 import { tmpdir } from "node:os";
+import Module, { createRequire } from "node:module";
 import * as lib from "@unlayer/from-react-email";
 import { main, withContentHash, type Io } from "../src/cli";
 import { resolutionOrder } from "../src/resolution";
@@ -636,6 +637,28 @@ export default function T() { return <Email><Row><Column><Paragraph>Hello</Parag
       expect(resolutionOrder(name, true), name).toEqual(["project", "importer", "self"]);
     }
     expect(resolutionOrder("lodash", false)).toBeUndefined();
+  });
+});
+
+describe("the CommonJS resolution a run sets up while templates load", () => {
+  it("is taken out when the run ends, whatever loaded since: a require afterwards resolves once, as usual", async () => {
+    const dir = project({ "emails/a.tsx": good, "emails/b.tsx": good.replace("Keep the original", "Hold the original") });
+    for (const out of ["first", "second"]) expect(await main(["emails", "--out", out], io(dir), lib)).toBe(0);
+    // Counts the resolutions that reach the resolver Node has now, those a wrapper below makes on its own too (one
+    // the runs left in place would resolve again from its project). Left in place: it only counts.
+    type Resolve = (...args: unknown[]) => string;
+    const api = Module as unknown as { _resolveFilename: Resolve };
+    const current = api._resolveFilename;
+    let counting = false;
+    let calls = 0;
+    api._resolveFilename = function (this: unknown, ...args: unknown[]) {
+      if (counting) calls++;
+      return current.apply(this, args);
+    };
+    counting = true;
+    createRequire(path.join(dir, "noop.js")).resolve("react");
+    counting = false;
+    expect(calls).toBe(1);
   });
 });
 
