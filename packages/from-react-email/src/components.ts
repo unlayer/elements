@@ -971,7 +971,7 @@ function removeUnused(source: string, fileName: string, names: Set<string>): str
     ts.forEachChild(node, visit);
   };
   visit(file);
-  const edits: Array<{ from: number; to: number }> = [];
+  const edits: Array<{ from: number; to: number; text?: string }> = [];
   for (const [name, node] of declared) {
     if (used.has(name)) continue;
     if (ts.isStatement(node)) {
@@ -992,11 +992,10 @@ function removeUnused(source: string, fileName: string, names: Set<string>): str
     ];
     if (!others.length) edits.push({ from: declaration.getFullStart(), to: declaration.getEnd() });
     else if (ts.isImportSpecifier(node)) {
+      // The list rewritten with what stays (several names going from one list can't be cut one by one: the cuts overlap).
       const list = node.parent;
-      const index = list.elements.indexOf(node);
-      const next = list.elements[index + 1];
-      const previous = list.elements[index - 1];
-      edits.push(next ? { from: node.getStart(), to: next.getStart() } : previous ? { from: previous.getEnd(), to: node.getEnd() } : { from: node.getStart(), to: node.getEnd() });
+      const kept = list.elements.filter((e) => !(names.has(e.name.text) && !used.has(e.name.text)));
+      edits.push(kept.length ? { from: list.getStart(), to: list.getEnd(), text: `{ ${kept.map((e) => e.getText()).join(", ")} }` } : clause.name ? { from: clause.name.getEnd(), to: list.getEnd() } : { from: list.getStart(), to: list.getEnd() });
     }
   }
   // An import emptied by several edits is removed once.
@@ -1006,7 +1005,7 @@ function removeUnused(source: string, fileName: string, names: Set<string>): str
     const id = `${edit.from}:${edit.to}`;
     if (seen.has(id)) continue;
     seen.add(id);
-    source = source.slice(0, edit.from) + source.slice(edit.to);
+    source = source.slice(0, edit.from) + (edit.text ?? "") + source.slice(edit.to);
   }
   return source;
 }

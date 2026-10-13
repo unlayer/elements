@@ -390,3 +390,31 @@ export default function Notice() { return <Inner name="Ada" note="Bye" />; }
     expect(conversion.report.fallbacks).toEqual([{ reason: "custom component", detail: "Inner" }]);
   });
 });
+
+describe("several components inlined from one import", () => {
+  it("leave the import's other names as written (the names going aren't cut one by one)", async () => {
+    const { conversion, added, Original, Migrated } = await migrate({
+      "parts.tsx": `import { Text } from "@react-email/components";
+export function formatCount(count: number) { return count.toLocaleString("en-US"); }
+export function Title({ children }: { children: string }) { return <Text style={{ fontSize: "20px" }}>{children}</Text>; }
+export function Note({ children }: { children: string }) { return <Text style={{ color: "#6b7280" }}>{children}</Text>; }
+`,
+      "weekly.tsx": `import { Html, Body, Text } from "@react-email/components";
+import {
+  formatCount,
+  Note,
+  Title,
+} from "./parts";
+export default function Weekly({ count }: { count: number }) {
+  return <Html><Body><Title>Your week</Title><Text>{formatCount(count)} emails archived</Text><Note>See you next week</Note></Body></Html>;
+}
+Weekly.PreviewProps = { count: 1200 };
+`,
+    }, "weekly.tsx");
+    expect(added).toEqual([]);
+    expect(conversion.report.info.filter((i) => i.reason === "local component inlined where it's used").map((i) => i.detail).sort()).toEqual(["Note", "Title"]);
+    expect(conversion.code).toMatch(/import \{ formatCount \} from "\.\/parts";/);
+    const check = await verifyConversion(Original, Migrated);
+    expect([check.missing, check.added, check.styles]).toEqual([[], [], []]);
+  });
+});
