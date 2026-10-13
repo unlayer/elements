@@ -405,15 +405,17 @@ async function run(argv: string[], io: Io, library?: Library): Promise<number> {
   results.push(...read);
   for (const result of results) io.stdout(`${line(result)}\n`);
   io.stdout(`\n${summary(results, options)}\n`);
-  // Files the run left that use a template it replaced (a component file, a helper that sends it): they now get Elements'.
+  // The project's files that use a template it replaced (a route or a helper that sends it, a component file): they
+  // now get Elements', whose markup React Email's render() gives without <html> and <head>. Looked for in the whole
+  // project, not only the folder given (`migrate emails --write` from a Next.js app: its routes send them).
   if (options.write) {
-    const written = new Set(results.filter((r) => r.output).map((r) => resolve(io.cwd, r.file)));
-    const left = new Set(inputs.files.filter((f) => !written.has(f.path)).map((f) => f.path));
-    if (written.size && left.size) {
-      const stale = [...(await importedInputs(inputs.files, undefined, left)).uses].filter(([file, use]) => written.has(file) && !use.through);
-      if (stale.length) {
-        io.stdout(`\nStill using a migrated template (send it with renderToHtml from @unlayer/react-elements, or render it in an Elements template):\n${stale.map(([file, use]) => `  ${relative(io.cwd, use.importer)} → ${relative(io.cwd, file)}`).join("\n")}\n`);
-      }
+    const written = results.filter((r) => r.output).map((r) => resolve(io.cwd, r.output!));
+    const users = written.length ? await templateUsers(written, inputs.files.map((f) => f.base), io.cwd) : [];
+    if (users.length) {
+      io.stdout(
+        `\nStill using a migrated template: render it with renderToHtml() from @unlayer/react-elements, not React Email's render() (nor a sender's \`react:\` option), which gives its markup without <html> and <head>; or render it in an Elements template:\n` +
+          `${users.map((u) => `  ${relative(io.cwd, u.file)} → ${u.templates.map((t) => relative(io.cwd, t)).join(", ")}`).join("\n")}\n`
+      );
     }
   }
   // The migrated templates import Elements: say how to install it where it isn't (tsc fails until then).
@@ -1302,14 +1304,15 @@ async function importsElements(path: string, source: string): Promise<boolean> {
 }
 
 /** The source files in a folder and the ones in it; a symbolic link to a folder isn't followed, but goes in `links`. */
-async function walk(dir: string, links: string[] = []): Promise<string[]> {
+async function walk(dir: string, links: string[] = [], all = false): Promise<string[]> {
   const out: string[] = [];
   for (const entry of await readdir(dir, { withFileTypes: true })) {
     if (entry.name.startsWith(".") || IGNORED.has(entry.name)) continue;
     const path = join(dir, entry.name);
     if (entry.isSymbolicLink() && (await stat(path).catch(() => undefined))?.isDirectory()) links.push(path);
-    else if (entry.isDirectory()) out.push(...(await walk(path, links)));
-    else if (SOURCE.test(entry.name) && !/\.(test|spec|stories)\.[^.]+$/.test(entry.name) && !entry.name.endsWith(".d.ts")) out.push(path);
+    else if (entry.isDirectory()) out.push(...(await walk(path, links, all)));
+    // `all`: every module, tests and CommonJS (.cjs, .cts) too.
+    else if ((all ? /\.[cm]?[jt]sx?$/ : SOURCE).test(entry.name) && (all || !/\.(test|spec|stories)\.[^.]+$/.test(entry.name)) && !/\.d\.[cm]?ts$/.test(entry.name)) out.push(path);
   }
   return out;
 }
@@ -1600,6 +1603,17 @@ async function importFile(
  */
 async function moduleLoader(file: string): Promise<(specifier: string, fromFile: string) => { fileName: string; source: string } | undefined> {
   const ts = (await import("typescript")).default;
+  const resolveModule = await moduleResolver(file);
+  return (specifier, fromFile) => {
+    const target = resolveModule(specifier, fromFile);
+    const text = target === undefined ? undefined : ts.sys.readFile(target);
+    return text === undefined ? undefined : { fileName: target!, source: text };
+  };
+}
+
+/** Where an import leads among the project's files (its real path), as moduleLoader reads them; undefined outside them. */
+async function moduleResolver(file: string): Promise<(specifier: string, fromFile: string) => string | undefined> {
+  const ts = (await import("typescript")).default;
   const configFile = projectConfig(dirname(file));
   const options = configFile
     ? ts.parseJsonConfigFileContent(ts.readConfigFile(configFile, ts.sys.readFile).config ?? {}, ts.sys, dirname(configFile)).options
@@ -1619,9 +1633,145 @@ async function moduleLoader(file: string): Promise<(specifier: string, fromFile:
       // a file that's gone: as resolved
     }
     if (target.includes(`${sep}node_modules${sep}`) || target.endsWith(".d.ts")) return undefined;
-    const text = ts.sys.readFile(target);
-    return text === undefined ? undefined : { fileName: target, source: text };
+    return target;
   };
+}
+
+/**
+ * The project's files that use one of `templates` (migrated ones, by path): they import it, or a name an index passes
+ * it on as (`export { default as Welcome } from "./welcome"`), and use it in their code (not only its PreviewProps or
+ * type). Looked for from the nearest package.json above each folder given (that folder without one), outside
+ * node_modules and build output, tests included; the templates themselves aren't listed.
+ */
+async function templateUsers(templates: string[], given: string[], cwd: string): Promise<Array<{ file: string; templates: string[] }>> {
+  const { ts, parse, importsOf, reExports } = await moduleSyntax();
+  // The folders given are looked in too: a project's walk leaves out folders whose name starts with a dot.
+  const roots = [...new Set(given.flatMap((dir) => { const pkg = findUp("package.json", dir); return pkg ? [dirname(pkg), dir] : [dir]; }))];
+  const files = [...new Set((await Promise.all(roots.map((root) => walk(root, [], true)))).flat())];
+  const texts = new Map<string, Promise<string>>();
+  const textOf = (file: string) => {
+    if (!texts.has(file)) texts.set(file, readFile(file, "utf8").catch(() => ""));
+    return texts.get(file)!;
+  };
+  const written = new Set(await Promise.all(templates.map((t) => canonicalPath(t))));
+  // A resolver per tsconfig (each one reads and parses it).
+  const resolvers = new Map<string, Promise<(specifier: string, fromFile: string) => string | undefined>>();
+  const resolverOf = (file: string) => {
+    const key = projectConfig(dirname(file)) ?? "";
+    if (!resolvers.has(key)) resolvers.set(key, moduleResolver(file));
+    return resolvers.get(key)!;
+  };
+  // What leads to a template: a module's export names, each to the templates it is (the template's own file: its
+  // default export and the names it's exported as too).
+  const leads = new Map<string, Map<string, Set<string>>>();
+  const lead = (module: string, name: string, template: string) => {
+    const names = leads.get(module) ?? new Map<string, Set<string>>();
+    leads.set(module, names);
+    const known = names.get(name) ?? new Set<string>();
+    names.set(name, known);
+    if (known.has(template)) return false;
+    known.add(template);
+    return true;
+  };
+  for (const template of templates) {
+    const canonical = await canonicalPath(template);
+    lead(canonical, "default", template);
+    const file = await parse(template).catch(() => undefined);
+    if (!file) continue;
+    const shape = shapeOf(ts, file, importsOf(file));
+    for (const [name, local] of shape.exports) if (shape.template.has(local)) lead(canonical, name, template);
+  }
+  // An import worth resolving: one that names a module that leads to a template (a file's name, an index's folder), or
+  // an index nearby (`.`, `..`).
+  const stems = () => new Set([...leads.keys()].map((path) => (basename(path, extname(path)) === "index" ? basename(dirname(path)) : basename(path, extname(path)))));
+  let named = stems();
+  const resolved = new Map<string, string | undefined>();
+  const target = async (specifier: string, from: string) => {
+    if (![...named].some((stem) => specifier.includes(stem)) && !/^\.\.?\/?$/.test(specifier)) return undefined;
+    const key = `${from}\0${specifier}`;
+    if (!resolved.has(key)) {
+      const path = (await resolverOf(from))(specifier, from);
+      resolved.set(key, path === undefined ? undefined : await canonicalPath(path));
+    }
+    return resolved.get(key);
+  };
+  /** A module's imports, the import names its code uses (not as a type, nor only for PreviewProps), and import()/require. */
+  const modules = new Map<string, Promise<{ imports: Map<string, { specifier: string; imported: string }>; used: Set<string>; dynamic: string[]; forwards: Array<{ specifier: string; exported: string; imported: string }> } | undefined>>();
+  const moduleOf = (path: string) => {
+    if (!modules.has(path)) {
+      modules.set(path, (async () => {
+        const file = await parse(path).catch(() => undefined);
+        if (!file) return undefined;
+        const imports = importsOf(file);
+        const used = new Set<string>();
+        const dynamic: string[] = [];
+        const visit = (node: import("typescript").Node): void => {
+          if (ts.isImportDeclaration(node) || ts.isExportSpecifier(node) || (ts.isTypeNode(node) && !ts.isExpressionWithTypeArguments(node))) return;
+          // `export default Welcome` passes it on (as an index does): followed as one.
+          if (ts.isExportAssignment(node) && ts.isIdentifier(node.expression)) return;
+          if (ts.isIdentifier(node) && imports.has(node.text)) {
+            const parent = node.parent;
+            const property = (ts.isPropertyAccessExpression(parent) && parent.name === node) || (ts.isPropertyAssignment(parent) && parent.name === node) || (ts.isJsxAttribute(parent) && parent.name === node);
+            const preview = ts.isPropertyAccessExpression(parent) && parent.expression === node && parent.name.text === "PreviewProps";
+            if (!property && !preview) used.add(node.text);
+          }
+          if (ts.isCallExpression(node) && (node.expression.kind === ts.SyntaxKind.ImportKeyword || (ts.isIdentifier(node.expression) && node.expression.text === "require"))) {
+            const argument = node.arguments[0];
+            if (argument && (ts.isStringLiteral(argument) || ts.isNoSubstitutionTemplateLiteral(argument))) dynamic.push(argument.text);
+          }
+          ts.forEachChild(node, visit);
+        };
+        visit(file);
+        return { imports, used, dynamic, forwards: await reExports(path).catch(() => []) };
+      })());
+    }
+    return modules.get(path)!;
+  };
+  // Only a file that names a module leading to a template (or an index nearby) is read as code.
+  const mentions = async (file: string) => {
+    const text = await textOf(file);
+    return [...named].some((stem) => text.includes(stem)) || /["'`]\.\.?\/?["'`]/.test(text);
+  };
+  // Indexes that pass a template on, then indexes that pass those on, until none is new.
+  for (let added = true; added; ) {
+    added = false;
+    for (const file of files) {
+      if (!(await mentions(file))) continue;
+      const module = await moduleOf(file);
+      const canonical = await canonicalPath(file);
+      for (const f of module?.forwards ?? []) {
+        const names = leads.get((await target(f.specifier, file)) ?? "");
+        if (!names) continue;
+        // `export *` passes every name but the default as it is; `export * as Emails` passes them all as one name, and
+        // `export { default as Welcome }` one.
+        const passed: Array<[string, Set<string>]> =
+          f.exported === "*" ? [...names].filter(([name]) => name !== "default")
+          : f.imported === "*" ? [[f.exported, new Set([...names.values()].flatMap((templates) => [...templates]))]]
+          : names.has(f.imported) ? [[f.exported, names.get(f.imported)!]]
+          : [];
+        for (const [name, templates] of passed) for (const template of templates) if (lead(canonical, name, template)) added = true;
+      }
+    }
+    named = stems();
+  }
+  const users: Array<{ file: string; templates: string[] }> = [];
+  for (const file of files) {
+    if (!(await mentions(file))) continue;
+    const canonical = await canonicalPath(file);
+    if (written.has(canonical)) continue;
+    const module = await moduleOf(file);
+    if (!module) continue;
+    const found = new Set<string>();
+    for (const local of module.used) {
+      const from = module.imports.get(local)!;
+      const names = leads.get((await target(from.specifier, file)) ?? "");
+      if (!names) continue;
+      for (const [name, templates] of names) if (from.imported === "*" || name === from.imported) templates.forEach((t) => found.add(t));
+    }
+    for (const specifier of module.dynamic) for (const templates of leads.get((await target(specifier, file)) ?? "")?.values() ?? []) templates.forEach((t) => found.add(t));
+    if (found.size) users.push({ file, templates: [...found].sort() });
+  }
+  return users.sort((a, b) => a.file.localeCompare(b.file));
 }
 
 /** Reading what a module imports and passes on, to follow imports between the project's files. */
@@ -1836,7 +1986,7 @@ function closureOf(shape: ModuleShape, names: string[]): Set<string> {
  * Keep shared source files available to importers that aren't migrated.
  * `overlay`: files a dry run would write, by real path, read in their place.
  */
-async function importedInputs(inputs: Input[], overlay?: Map<string, string>, importers?: Set<string>): Promise<{ uses: Uses; computed: string[] }> {
+async function importedInputs(inputs: Input[], overlay?: Map<string, string>): Promise<{ uses: Uses; computed: string[] }> {
   const { ts, parse, text, importsOf, reExports } = await moduleSyntax(overlay);
   const scanned = new Map(await Promise.all(inputs.map(async (input) => [await canonicalPath(input.path), input.path] as const)));
   const uses: Uses = new Map();
@@ -1902,8 +2052,7 @@ async function importedInputs(inputs: Input[], overlay?: Map<string, string>, im
     };
     // Only a template keeps what it imports: an index that lists the templates, or a route or helper that sends them,
     // doesn't. A template the check can't load (a wrapped one) still uses what it imports.
-    // `importers`: the files to follow from instead, whatever they are.
-    if (importers ? !importers.has(input.path) : await notATemplate(input.path, await text(input.path)).then((not) => not && !not.fail)) continue;
+    if (await notATemplate(input.path, await text(input.path)).then((not) => not && !not.fail)) continue;
     const own = await shape(input.path);
     if (!own) continue;
     for (const next of usedImports(own, "all", input.path)) await follow(input.path, next.specifier, next.names);

@@ -1783,6 +1783,39 @@ export default function Base({ heading = "Notice", content }: { heading?: string
     expect(out.out).toMatch(/Still using a migrated template[^\n]*\n  emails\/send\.tsx → emails\/welcome\.tsx/);
   });
 
+  it("lists the project's files that use a template it replaced, outside the folder given too (`migrate emails --write`)", async () => {
+    const welcome = `import { Html, Body, Text } from "@react-email/components";\nexport function Welcome() { return <Html><Body><Text>Welcome aboard</Text></Body></Html>; }\nexport default Welcome;\n`;
+    const dir = project({
+      "package.json": JSON.stringify({ name: "app", private: true, type: "module" }),
+      "tsconfig.json": JSON.stringify({ compilerOptions: { jsx: "react-jsx", baseUrl: ".", paths: { "@/*": ["./*"] } } }),
+      "emails/welcome.tsx": welcome,
+      // A route that renders it with React Email (through an alias), and one that sends it with a sender's `react:`.
+      "app/api/send/route.ts": `import { render } from "@react-email/components";\nimport * as React from "react";\nimport WelcomeEmail from "@/emails/welcome";\nexport async function GET() { return new Response(await render(React.createElement(WelcomeEmail))); }\n`,
+      "lib/send.tsx": `import { Welcome } from "../emails/welcome";\nexport const send = (resend: any) => resend.emails.send({ react: <Welcome /> });\n`,
+      // Through an index that passes it on, and with require.
+      "lib/emails.ts": `export { default as WelcomeEmail } from "../emails/welcome";\n`,
+      "lib/mailer.ts": `import { WelcomeEmail } from "./emails";\nexport const mail = () => WelcomeEmail({});\n`,
+      "scripts/preview.cjs": `const welcome = require("../emails/welcome");\nmodule.exports = welcome;\n`,
+      "emails/welcome.test.tsx": `import Welcome from "./welcome";\nexport const rendered = <Welcome />;\n`,
+      // Not users: only its sample data or its type, build output and packages.
+      "lib/sample.ts": `import Welcome from "../emails/welcome";\nexport const sample = Welcome.PreviewProps;\n`,
+      "lib/types.ts": `import type Welcome from "../emails/welcome";\nexport type Props = Parameters<typeof Welcome>[0];\n`,
+      ".next/server/route.js": `import Welcome from "../../emails/welcome";\nexport default Welcome;\nWelcome();\n`,
+      "dist/route.js": `import Welcome from "../emails/welcome";\nWelcome();\n`,
+    });
+    const out = io(dir);
+    expect(await main(["emails", "--write"], out, lib), out.out + out.err).toBe(0);
+    const listed = /Still using a migrated template: render it with renderToHtml\(\) from @unlayer\/react-elements[^\n]*\n((?:  [^\n]*\n)*)/.exec(out.out)?.[1];
+    expect(listed, out.out).toBe(
+      ["app/api/send/route.ts", "emails/welcome.test.tsx", "lib/mailer.ts", "lib/send.tsx", "scripts/preview.cjs"].map((file) => `  ${file} → emails/welcome.tsx\n`).join("")
+    );
+    // Run from the folder itself, the same files (named from there).
+    const again = project({ "package.json": JSON.stringify({ name: "app", private: true, type: "module" }), "emails/welcome.tsx": welcome, "lib/send.tsx": `import { Welcome } from "../emails/welcome";\nexport const send = () => <Welcome />;\n` });
+    const inside = io(path.join(again, "emails"));
+    expect(await main([".", "--write"], inside, lib), inside.out + inside.err).toBe(0);
+    expect(inside.out).toContain("\n  ../lib/send.tsx → welcome.tsx\n");
+  });
+
   it("refuses --write when a template imports a module by a computed path", async () => {
     const welcome = `import { Html, Body, Text } from "@react-email/components";\nconst theme = (name: string) => require(\`./themes/\${name}\`);\nexport default function Welcome() { return <Html><Body><Text>Welcome {String(Boolean(theme))}</Text></Body></Html>; }`;
     const dir = project({ "emails/welcome.tsx": welcome });
