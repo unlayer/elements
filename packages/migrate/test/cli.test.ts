@@ -805,6 +805,21 @@ export default function Welcome() { return <Html><Body><Text>Welcome aboard</Tex
     }
   });
 
+  it("counts only templates in the summary, and lists the other files it skipped after them", async () => {
+    const dir = project({
+      "emails/components/button.tsx": SHARED,
+      "emails/welcome.tsx": `import { Html, Body, Text } from "@react-email/components";
+export default function Welcome() { return <Html><Body><Text>Welcome aboard</Text></Body></Html>; }`,
+    });
+    const out = io(dir);
+    expect(await main(["emails"], out, lib), out.out + out.err).toBe(0);
+    expect(out.out).toMatch(/^✓ emails\/welcome\.tsx: 100% editable\n- emails\/components\/button\.tsx: skipped \(no default-exported component[^\n]*\n\n1 template: 1 migrated and checked\. 1 other file skipped \(see above\)\. Nothing written/);
+    // Only files that aren't templates: none counted as one.
+    const shared = io(dir);
+    expect(await main(["emails/components"], shared, lib), shared.out + shared.err).toBe(1);
+    expect(shared.out).toContain("\nNo email templates. 1 other file skipped (see above).");
+  });
+
   it("explains usage mistakes", async () => {
     const dir = project({});
     const mistakes: Array<[string[], string]> = [

@@ -14,7 +14,7 @@ Run it from your project folder, with Node.js 20.6 or later (an older one stops 
    - **Look**, which is listed under "looks different", to fix in the editor: each word's text style at a desktop width (700px), meaning size, bold, italics, letter case, underline, color, the background behind it and a link's target; where each line of text sits across the page (a column stacked into one, a block moved to the other side); CSS the check doesn't model that can change how words show (`white-space`, letter spacing, a transform or filter, a text shadow, a list's markers, a box moved with `position`, right-to-left text, …), unless both sides have the same; phone styles the original applies up to another width than Elements' 480px (`max-width: 600px`, Tailwind's `max-sm:`), where the migration shows the other version between the two; layouts it doesn't place (a grid, columns of text, a box taken out of the flow, flex items that wrap or, in a column, aren't stretched), where their words sit depending on sizes it doesn't read; and what it can't read on one side (a selector, condition or value it doesn't evaluate), naming the rule. CSS that can't change the words (borders, rounded corners, outer shadows, heights, Outlook-only properties, rendering hints) isn't compared.
 
    With `--strict`, any difference fails a template, and it isn't written unless you pass `--force`. All of this holds for each flipped prop and for `compare` as well. The check is tested against Chromium: thousands of generated pairs, each with one side's look changed (or the same look written another way), must be found different whenever Chromium shows them differently. Not verified: vertical spacing, exact positions (under about 120px), where images sit and an image's `srcset`, fonts as drawn, borders, corners and outer shadows, styles in dark mode (what shows there is compared), hover, and how each email client renders. Code paths these props don't reach (a loop over an empty preview array, a condition on a non-boolean prop) are converted but not verified: extend `PreviewProps` to cover them.
-3. **Reported.** How much is editable in the visual editor, what was kept as HTML, and every visual difference (a dropped hover style, a `mobile:` class, a radius).
+3. **Reported.** How much is editable in the visual editor, what was kept as HTML, and every visual difference (a dropped hover style, a `mobile:` class, a radius). The summary counts the email templates; files that aren't one (shared components, helpers, a framework's routes) are listed after them as skipped, with why.
 
 ```text
 ✓ emails/welcome.tsx: 100% editable, 1 kind of difference (image border radius dropped)
@@ -22,7 +22,7 @@ Run it from your project folder, with Node.js 20.6 or later (an older one stops 
     looks different: couldn't verify: the look of "Alex", "can", "you" (`white-space: pre-wrap`, a style the check doesn't verify)
 - emails/components/layout.tsx: skipped (no default-exported component)
 
-2 templates: 2 migrated and checked (1 looks different: see above). 2 written.
+2 templates: 2 migrated and checked (1 looks different: see above). 1 other file skipped (see above). 2 written.
 ```
 
 ## Options

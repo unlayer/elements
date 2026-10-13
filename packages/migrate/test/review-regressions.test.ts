@@ -854,7 +854,7 @@ export default withLocale("en")(Receipt);`,
     expect(out.out).toContain("✗ emails/welcome.tsx: its default export is wrapped in withTracking(…), which the check can't unwrap: export the component itself");
     expect(out.out).toContain('✗ emails/receipt.tsx: its default export is wrapped in withLocale("en")(…)');
     expect(out.out).toMatch(/- emails\/send\.ts: skipped \(not loaded/);
-    expect(out.out).toContain("0 migrated and checked, 2 failed, 1 skipped");
+    expect(out.out).toContain("2 templates: 0 migrated and checked, 2 failed. 1 other file skipped (see above).");
   });
 
   it("never pass a run that checked nothing: a wrapped template whose <Html> is in a layout fails, one that returns a JSX value is loaded (and refused, saying why)", async () => {

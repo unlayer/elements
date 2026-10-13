@@ -263,12 +263,12 @@ async function run(argv: string[], io: Io, library?: Library): Promise<number> {
   }
   if (!candidates.length && inputs.unreadable.length) {
     const shown = [...inputs.unreadable, ...listed];
-    for (const result of shown) io.stdout(`${line(result)}\n`);
+    io.stdout(lines(shown));
     io.stdout(`\n${summary(shown, options)}\n`);
     return 2;
   }
   if (!candidates.length) {
-    for (const result of listed) io.stdout(`${line(result)}\n`);
+    io.stdout(lines(listed));
     // Run again after --write (in CI): the templates are done.
     const done = inputs.files.filter((f) => f.migrated).length;
     if (done) {
@@ -423,7 +423,7 @@ async function run(argv: string[], io: Io, library?: Library): Promise<number> {
   // In the templates' order (a later pass's after the first's otherwise), files it couldn't read first.
   const read = results.splice(inputs.unreadable.length).sort((a, b) => a.file.localeCompare(b.file));
   results.push(...read);
-  for (const result of results) io.stdout(`${line(result)}\n`);
+  io.stdout(lines(results));
   io.stdout(`\n${summary(results, options)}\n`);
   // The project's files that use a template it replaced (a route or a helper that sends it, a component file): they
   // now get Elements', whose markup React Email's render() gives without <html> and <head>. Looked for in the whole
@@ -1059,7 +1059,23 @@ function unverifiedList(items: NonNullable<FileResult["unverified"]>): string {
     .join("; ");
 }
 
-function summary(results: FileResult[], options: Options): string {
+/**
+ * Whether a result is an email template's (one migrated, failed, already migrated or left for a file that renders
+ * it), not another file's the run skipped (a shared component, a helper, a route, a folder link not followed).
+ */
+function isTemplate(result: FileResult): boolean {
+  return result.status !== "skipped" || /^(already migrated|left as it is for |imported by )/.test(result.reason ?? "");
+}
+
+/** Each result's line: the templates first, then the other files the run skipped. */
+function lines(results: FileResult[]): string {
+  return [...results.filter(isTemplate), ...results.filter((r) => !isTemplate(r))].map((result) => `${line(result)}\n`).join("");
+}
+
+/** The run in a line: what happened to the templates, then how many other files it skipped (listed above). */
+function summary(all: FileResult[], options: Options): string {
+  const results = all.filter(isTemplate);
+  const others = all.length - results.length;
   const count = (status: FileResult["status"]) => results.filter((r) => r.status === status).length;
   const looks = results.filter((r) => r.status === "migrated" && r.looks?.length).length;
   const parts = [
@@ -1070,7 +1086,8 @@ function summary(results: FileResult[], options: Options): string {
   ];
   const written = results.filter((r) => r.output).length;
   const next = options.write || options.out !== undefined ? `${written} written.` : "Nothing written: pass --write or --out <dir> to write the migrated templates.";
-  return `${results.length} template${results.length > 1 ? "s" : ""}: ${parts.join(", ")}. ${next}`;
+  const templates = results.length ? `${results.length} template${results.length > 1 ? "s" : ""}: ${parts.join(", ")}.` : "No email templates.";
+  return `${templates}${others ? ` ${others} other file${others > 1 ? "s" : ""} skipped (see above).` : ""} ${next}`;
 }
 
 function markdownReport(results: FileResult[]): string {
