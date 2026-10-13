@@ -878,3 +878,34 @@ Greet.PreviewProps = { name: "Ana" };
     expect([check.missing, check.added]).toEqual([[], []]);
   });
 });
+
+describe("values read through TypeScript's utility types", () => {
+  it("are known to be text (a Record of messages by locale): no switch, no React Email left", async () => {
+    const { conversion, added, Original, Migrated } = await migrate({
+      "notice.tsx": `import { Html, Body, Text, Link } from "@react-email/components";
+type Locale = "en" | "es";
+const messages: Record<Locale, { help: string; helpLink: string }> = {
+  en: { help: "Need help?", helpLink: "Contact support" },
+  es: { help: "¿Necesitas ayuda?", helpLink: "Contacta con soporte" },
+};
+const extra: Partial<Record<Locale, Pick<{ note: string; skip: number }, "note">>> = { en: { note: "Thanks" } };
+export default function Notice({ locale = "en" }: { locale?: Locale }) {
+  const t = messages[locale] ?? messages.en;
+  const n = extra[locale];
+  return <Html><Body>
+    <Text>{t.help} <Link href={\`https://example.com/\${locale}/support\`}>{t.helpLink}</Link></Text>
+    <Text>Signed: <b>{n?.note}</b></Text>
+  </Body></Html>;
+}
+Notice.PreviewProps = { locale: "en" };
+`,
+    }, "notice.tsx");
+    expect(added).toEqual([]);
+    expect(conversion.code).not.toContain("holdsElements");
+    expect(conversion.code).not.toContain("@react-email");
+    for (const locale of ["en", "es"]) {
+      const check = await verifyConversion(Original, Migrated, { props: { locale } });
+      expect([check.missing, check.added]).toEqual([[], []]);
+    }
+  });
+});

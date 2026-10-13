@@ -77,7 +77,8 @@ const KEPT = /\{\uE002(\d+)\uE003\}/g;
 
 /**
  * The library types the converter's program has (it has no others, so it never reads the project's or Node's): lists
- * and the global types TypeScript needs, written with only what tells an item's type and what a list's methods give.
+ * and the global types TypeScript needs, written with only what tells an item's type and what a list's methods give,
+ * and the utility types (as lib.es5.d.ts writes them), so `Record<Locale, { help: string }>` gives its values' types.
  */
 const LISTS_FILE = "\u0000lists.d.ts";
 const LISTS = `
@@ -112,6 +113,17 @@ interface ReadonlyArray<T> {
   at(index: number): T | undefined;
   join(separator?: string): string;
 }
+type Partial<T> = { [P in keyof T]?: T[P] };
+type Required<T> = { [P in keyof T]-?: T[P] };
+type Readonly<T> = { readonly [P in keyof T]: T[P] };
+type Pick<T, K extends keyof T> = { [P in K]: T[P] };
+type Record<K extends keyof any, T> = { [P in K]: T };
+type Exclude<T, U> = T extends U ? never : T;
+type Extract<T, U> = T extends U ? T : never;
+type Omit<T, K extends keyof any> = Pick<T, Exclude<keyof T, K>>;
+type NonNullable<T> = T & {};
+type Parameters<T extends (...args: any) => any> = T extends (...args: infer P) => any ? P : never;
+type ReturnType<T extends (...args: any) => any> = T extends (...args: any) => infer R ? R : any;
 interface Boolean {}
 interface Function {}
 interface CallableFunction extends Function {}
