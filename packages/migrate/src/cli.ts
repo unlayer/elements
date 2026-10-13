@@ -588,7 +588,7 @@ async function reserveDestinations(inputs: Input[], candidates: Input[], options
     const canonical = await safeDestination(path, outputRoot);
     if (sources.has(canonical) && !ownSource) throw new Error(`Output would overwrite a source input: ${relative(cwd, path)}. Use --write to replace a template itself.`);
     // A file this run didn't scan or produce is someone's work: never replaced silently.
-    if (!replace && (await fileInfo(path))) throw new Error(`Output already exists: ${relative(cwd, path)}. This run didn't produce it: choose an empty folder, or pass --overwrite to replace it.`);
+    if (!replace && (await fileInfo(path))) throw new Error(`Output already exists: ${relative(cwd, path)} (${await whoWrote(path, design)}). Choose an empty folder, or pass --overwrite to replace it.`);
     const previous = owners.get(canonical);
     if (previous !== undefined) throw new Error(`${previous} and ${owner} have the same output: ${relative(cwd, path)}. Use separate destinations.`);
     owners.set(canonical, owner);
@@ -698,6 +698,25 @@ function earlierOutput(text: string): "intact" | "edited" | "unhashed" | undefin
   const hash = HASH_LINE.exec(rest);
   if (!hash) return "unhashed";
   return contentHash(header[0] + rest.slice(hash[0].length)) === hash[1] ? "intact" : "edited";
+}
+
+/**
+ * Who wrote a file already at a destination, as far as can be told: an earlier run (a template with its header), the
+ * editor or an earlier run (a design JSON, which says neither), or not this tool.
+ */
+async function whoWrote(path: string, design: boolean): Promise<string> {
+  const text = await readFile(path, "utf8").catch(() => "");
+  const earlier = earlierOutput(text);
+  if (earlier) return earlier === "edited" ? "written by an earlier run, and edited since" : "written by an earlier run";
+  if (design) {
+    try {
+      const parsed = JSON.parse(text);
+      if (parsed?.body && Array.isArray(parsed.body.rows)) return "a design, written by an earlier run or the editor";
+    } catch {
+      // Not a design: someone's file.
+    }
+  }
+  return "not written by @unlayer/migrate";
 }
 
 /** Whether a file is a report this CLI wrote (Markdown with its title, or JSON with its results), or nothing yet. */

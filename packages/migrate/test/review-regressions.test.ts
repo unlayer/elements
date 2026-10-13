@@ -102,13 +102,30 @@ describe("destination safety", () => {
     expect(fs.readFileSync(path.join(dir, "outside/keep.txt"), "utf8")).toBe("OUTSIDE");
   });
 
+  it("says a file in the output folder is an earlier run's, where it is, when it won't replace it", async () => {
+    const dir = project({ "emails/welcome.tsx": good });
+    expect(await main(["emails", "--out", "migrated", "--design"], io(dir), lib)).toBe(0);
+    const again = io(dir);
+    expect(await main(["emails", "--out", "migrated", "--design"], again, lib), again.out + again.err).toBe(1);
+    expect(again.err).toBe("Output already exists: migrated/welcome.tsx (written by an earlier run). Choose an empty folder, or pass --overwrite to replace it.\n");
+    fs.appendFileSync(path.join(dir, "migrated/welcome.tsx"), "export const mine = 1;\n");
+    const edited = io(dir);
+    expect(await main(["emails", "--out", "migrated", "--design"], edited, lib)).toBe(1);
+    expect(edited.err).toContain("Output already exists: migrated/welcome.tsx (written by an earlier run, and edited since).");
+    // A design can't be told from one made in the editor.
+    fs.rmSync(path.join(dir, "migrated/welcome.tsx"));
+    const design = io(dir);
+    expect(await main(["emails", "--out", "migrated", "--design"], design, lib)).toBe(1);
+    expect(design.err).toContain("Output already exists: migrated/welcome.design.json (a design, written by an earlier run or the editor).");
+    expect(again.err + edited.err + design.err).not.toContain("didn't produce");
+  });
+
   it("refuses to replace a file in the output folder that this run didn't produce, unless --overwrite", async () => {
     const dir = project({ "emails/welcome.tsx": good, "existing/welcome.tsx": "MINE", "existing/welcome.design.json": "MINE TOO" });
     for (const keep of ["welcome.tsx", "welcome.design.json"]) {
       const out = io(dir);
       expect(await main(["emails", "--out", "existing", "--design"], out, lib), out.out + out.err).toBe(1);
-      expect(out.err).toContain(`Output already exists: existing/${keep}`);
-      expect(out.err).toContain("pass --overwrite to replace it");
+      expect(out.err).toContain(`Output already exists: existing/${keep} (not written by @unlayer/migrate). Choose an empty folder, or pass --overwrite to replace it.`);
       expect(out.out).toBe("");
       expect(fs.readFileSync(path.join(dir, "existing/welcome.design.json"), "utf8")).toBe("MINE TOO");
       // Then only the design JSON is someone's: still refused.
