@@ -331,10 +331,15 @@ describe("a second document inside the body", () => {
     expect(check.unverified).toContainEqual({
       what: "shown",
       side: "migrated",
-      cause: expect.stringMatching(/^a second document inside the email's body \(`<meta name="color-scheme" content="light only">`, `<html lang="en">`, `<body style="background-color:#eef2f7;margin:0">`\)/),
+      cause: expect.stringMatching(/^head content inside the email's body, a second document's \(`<meta name="color-scheme" content="light only">`, `<html lang="en">`, `<body style="background-color:#eef2f7;margin:0">`\)/),
       words: ["Sign", "in", "Your", "code", "is", "482913"],
     });
     expect(checkFails(check)).toBe(true);
+  });
+
+  it("is a look where it's only a second document's <html> or <body>: the words in it show either way", () => {
+    const check = compareText(original, kept(`<div><html dir="ltr" lang="en"><body>${content}</body></html></div>`));
+    expect(check.unverified).toEqual([{ what: "look", side: "migrated", cause: expect.stringMatching(/^a second document's `<html dir="ltr" lang="en">`, `<body>` inside the email's body/), words: ["Sign", "in", "Your", "code", "is", "482913"] }]);
   });
 
   it("isn't listed for the page's own head, or the same markup on both sides", () => {

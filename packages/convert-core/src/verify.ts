@@ -317,10 +317,11 @@ const counts = (list: string[]) => list.reduce((m, x) => m.set(x, (m.get(x) ?? 0
 
 /**
  * A second document inside the migration's body that the original's doesn't have (a whole rendered email kept as
- * markup): its title, head content and `<html>`/`<body>` tags are in the email now. A browser hides a title and
- * folds the tags into the page's own, but email clients keep, drop or show such parts each their own way (the
- * title's text shown by one that drops the tag): whether a reader gets them, and the words of that document, can't
- * be told, so the check fails on it.
+ * markup). Its title and head content (`<meta>`, `<link>`, `<base>`) are in the email now: a browser hides a title,
+ * but email clients keep, drop or show such parts each their own way (the title's text shown by one that drops the
+ * tag), so whether a reader gets them can't be told, and the check fails on it. Its own `<html>` and `<body>` tags
+ * alone are a look: the browser folds them into the page's (keeping attributes the page's lack, dropping a style
+ * when the page's body has one), clients drop them, and the words in them show either way.
  */
 function documentDoubts(original: StyledDocument, converted: StyledDocument): Unverified[] {
   const left = counts(original.documentParts().map((p) => p.part));
@@ -329,11 +330,15 @@ function documentDoubts(original: StyledDocument, converted: StyledDocument): Un
     if (n) left.set(part, n - 1);
     return !n;
   });
+  const listed = (parts: typeof extra) => parts.map((p) => `\`${p.part.length > 120 ? `${p.part.slice(0, 117)}…>` : p.part}\``).join(", ");
+  const longest = (parts: typeof extra) => parts.map((p) => p.words).reduce((a, b) => (b.length > a.length ? b : a), [] as string[]);
   const out: Unverified[] = [];
   const titles = extra.filter((p) => p.part.startsWith("<title>"));
-  if (titles.length) out.push({ what: "shown", side: "migrated", cause: `${titles.map((p) => `\`${p.part}\``).join(", ")} in the email's body: the page's title (head content), which an email client that drops the tag but keeps its text shows`, words: titles.flatMap((p) => p.words) });
+  if (titles.length) out.push({ what: "shown", side: "migrated", cause: `${listed(titles)} in the email's body: the page's title (head content), which an email client that drops the tag but keeps its text shows`, words: titles.flatMap((p) => p.words) });
   const others = extra.filter((p) => !p.part.startsWith("<title>"));
-  if (others.length) out.push({ what: "shown", side: "migrated", cause: `a second document inside the email's body (${others.map((p) => `\`${p.part.length > 120 ? `${p.part.slice(0, 117)}…>` : p.part}\``).join(", ")}): email clients keep, drop or show its parts each their own way`, words: others.map((p) => p.words).reduce((a, b) => (b.length > a.length ? b : a)) });
+  const head = others.some((p) => /^<(meta|link|base)\b/.test(p.part));
+  if (head) out.push({ what: "shown", side: "migrated", cause: `head content inside the email's body, a second document's (${listed(others)}): email clients keep, drop or show its parts each their own way`, words: longest(others) });
+  else if (others.length) out.push({ what: "look", side: "migrated", cause: `a second document's ${listed(others)} inside the email's body: the browser folds it into the page's own, email clients drop it`, words: longest(others) });
   return out;
 }
 
