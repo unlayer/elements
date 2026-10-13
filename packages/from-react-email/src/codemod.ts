@@ -3334,6 +3334,23 @@ class Converter {
     });
   }
 
+  /** The template's value import of React: a namespace or default name (`React`), or its named imports to add to. */
+  private reactImport(): { namespace?: string; named?: ts.NamedImports } {
+    for (const statement of this.file.statements) {
+      if (!ts.isImportDeclaration(statement) || !ts.isStringLiteral(statement.moduleSpecifier) || statement.moduleSpecifier.text !== "react") continue;
+      const clause = statement.importClause;
+      if (!clause || clause.isTypeOnly) continue;
+      if (clause.name) return { namespace: clause.name.text };
+      if (clause.namedBindings && ts.isNamespaceImport(clause.namedBindings)) return { namespace: clause.namedBindings.name.text };
+    }
+    for (const statement of this.file.statements) {
+      if (!ts.isImportDeclaration(statement) || !ts.isStringLiteral(statement.moduleSpecifier) || statement.moduleSpecifier.text !== "react") continue;
+      const bindings = statement.importClause?.namedBindings;
+      if (!statement.importClause?.isTypeOnly && bindings && ts.isNamedImports(bindings)) return { named: bindings };
+    }
+    return {};
+  }
+
   /** Top-level names the file declares itself (not React Email imports). */
   private localNames(): string[] {
     const names: string[] = [];
@@ -3407,6 +3424,10 @@ class Converter {
         ts.isImportDeclaration(s) && ts.isStringLiteral(s.moduleSpecifier) && isReactEmailModule(s.moduleSpecifier.text)
     );
     const elementNames = [...used].sort().map((name) => (rename[name] ? `${name} as ${rename[name]}` : name));
+    // holdsElements reads React's isValidElement: through the template's own React import where it has one.
+    const react = this.reactImport();
+    const elementImport = `isValidElement${this.helper.isValidElement === "isValidElement" ? "" : ` as ${this.helper.isValidElement}`}`;
+    const isElement = react.namespace ? `${react.namespace}.isValidElement` : this.helper.isValidElement;
     const newImports = [
       // Each kept React Email name comes from the package the template imported it from.
       ...[...new Set([...stillUsed].map((local) => this.componentSources.get(local)?.from ?? "@react-email/components"))].sort().map((from) => {
@@ -3420,7 +3441,7 @@ class Converter {
         return `import { ${names.join(", ")} } from "${from}";`;
       }),
       `import { ${elementNames.join(", ")} } from "@unlayer/react-elements";`,
-      ...(this.needsHoldsElements ? [`import { isValidElement${this.helper.isValidElement === "isValidElement" ? "" : ` as ${this.helper.isValidElement}`} } from "react";`] : []),
+      ...(this.needsHoldsElements && !react.namespace && !react.named ? [`import { ${elementImport} } from "react";`] : []),
     ].join("\n");
 
     // Rebuild the file: imports out, the converted JSX in.
@@ -3429,6 +3450,11 @@ class Converter {
       to: imp.getEnd(),
       text: i === 0 ? newImports : "",
     }));
+    if (this.needsHoldsElements && !react.namespace && react.named) {
+      const last = react.named.elements[react.named.elements.length - 1];
+      const at = last ? last.getEnd() : react.named.getStart() + 1;
+      edits.push({ from: at, to: at, text: last ? `, ${elementImport}` : ` ${elementImport} ` });
+    }
     // React Email's components from a file of the project's: those the converted JSX replaced go from its import.
     for (const statement of this.file.statements) {
       const bindings = ts.isImportDeclaration(statement) ? statement.importClause?.namedBindings : undefined;
@@ -3479,7 +3505,7 @@ class Converter {
       helpers +=
         `\n/** Whether values shown in text hold React elements (a link given for a note): those blocks are kept as they render. */\n` +
         `function holdsElements(...values${javascript ? "" : ": unknown[]"})${javascript ? "" : ": boolean"} {\n` +
-        `  return values.some((value) => isValidElement(value) || (Array.isArray(value) ? holdsElements(...value) : typeof value === "object" && value !== null && "$$typeof" in value));\n` +
+        `  return values.some((value) => \u0000isElement(value) || (Array.isArray(value) ? holdsElements(...value) : typeof value === "object" && value !== null && "$$typeof" in value));\n` +
         `}\n`;
     }
     if (this.needsTailwindStyle) {
@@ -3515,6 +3541,7 @@ class Converter {
     }
     // The helpers by the names chosen for them (the template may use these names already).
     for (const [name, chosen] of Object.entries(this.helper)) if (name !== chosen) helpers = helpers.replace(new RegExp(`\\b${name}\\b`, "g"), chosen);
+    helpers = helpers.split("\u0000isElement").join(isElement);
     if (this.needsPlainText) {
       helpers +=
         `\nfunction ${this.plainTextName}(value${javascript ? "" : ": unknown"})${javascript ? "" : ": string"} {\n` +
@@ -3543,7 +3570,9 @@ class Converter {
       ...(this.needsPlainText ? [this.plainTextName] : []),
     ]));
     const original = this.original === undefined ? this.file : ts.createSourceFile(this.file.fileName, this.original, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
-    const raw = dropUnused(`${header}\n${body}${helpers}`, original, javascript, generated, new Set(this.copied));
+    // (The template's React import, read by holdsElements, counts as read there.)
+    const read = react.namespace && this.needsHoldsElements ? new Set([...generated, react.namespace]) : generated;
+    const raw = dropUnused(`${header}\n${body}${helpers}`, original, javascript, read, new Set(this.copied));
     // A computed background left out (its box flattened) or in a place it can't be code (HTML text): see convertSource.
     for (const [stand, { at }] of this.computedBackgrounds) if (!written.has(stand) || raw.toLowerCase().includes(stand)) this.unwrittenBackgrounds.add(at);
     try {

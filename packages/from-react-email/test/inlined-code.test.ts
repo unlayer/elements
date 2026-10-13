@@ -851,3 +851,30 @@ Theme.PreviewProps = { dark: false };
     }
   });
 });
+
+describe("holdsElements' isValidElement", () => {
+  it.each([
+    ["a namespace import", `import * as React from "react";`, /React\.isValidElement\(value\)/],
+    ["a default import", `import React from "react";`, /React\.isValidElement\(value\)/],
+    ["named imports", `import { useMemo, } from "react";`, /import \{ useMemo, isValidElement \} from "react";/],
+    ["a type import only", `import type { ReactNode } from "react";`, /import \{ isValidElement \} from "react";/],
+  ])("comes through the template's own React import (%s): one import of react", async (_, line, expected) => {
+    const { conversion, added, Original, Migrated } = await migrate({
+      "greet.tsx": `${line}
+import { Html, Body, Text } from "@react-email/components";
+import type { Props } from "./props";
+export default function Greet({ name }: Props) {
+  ${line.includes("useMemo") ? "const shown = useMemo(() => name, [name]);" : "const shown = name;"}
+  return <Html><Body><Text>Hi <b>{shown}</b></Text></Body></Html>;
+}
+Greet.PreviewProps = { name: "Ana" };
+`,
+      "props.ts": `export interface Props { name: string }\n`,
+    }, "greet.tsx");
+    expect(added).toEqual([]);
+    expect(conversion.code).toMatch(expected);
+    expect(conversion.code.match(/^import [^;]*from "react";/gm)?.filter((l) => !l.startsWith("import type"))).toHaveLength(1);
+    const check = await verifyConversion(Original, Migrated);
+    expect([check.missing, check.added]).toEqual([[], []]);
+  });
+});
