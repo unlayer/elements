@@ -198,6 +198,18 @@ jobs:
           npm install --no-save "$TARBALL"
           npm test
 
+      # ── Next.js 16 with Cache Components ────────────────────────
+      # create-next-app's setup since Next.js 16: a route handler, a Server Component and a Client Component that
+      # render an email are prerendered when the app builds, and the build fails if a render reads a random number
+      # or the date. 0.2.0's did (crypto.getRandomValues() for each render's nonce), so no new app could build.
+      - name: Next.js 16 consumer (Cache Components)
+        run: |
+          cd tests/next16-integration
+          npm install
+          npm install --no-save "$TARBALL"
+          npm run build
+          npm run verify
+
       - name: Upload coverage reports to Codecov
         uses: codecov/codecov-action@v4
         with:
