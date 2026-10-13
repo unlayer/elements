@@ -684,7 +684,8 @@ class Converter {
 
   /**
    * Whether a constant imported from the project's files is read as its value (see `importedConstant`): only for a
-   * style or a class list, which the codemod writes as values. Text, links and conditions keep the import, as written.
+   * style or a class list, which the codemod writes as values, and to tell a value shown in text is text
+   * (`provablyText`). Text, links and conditions keep the import, as written.
    */
   private importsRead = false;
 
@@ -2861,6 +2862,10 @@ class Converter {
    */
   private provablyText(expression: ts.Expression): boolean {
     if (this.mayHoldJsx(expression)) return false;
+    // A constant of the project's whose value is text (`import { POSTAL_ADDRESS } from "./config"`, typed `any` here as
+    // its file isn't read for types) is text; it's still written as the code that reads it.
+    const value = this.styleValue(() => this.evaluate(expression));
+    if (typeof value === "string" || typeof value === "number") return true;
     const text = (type: ts.Type, depth: number): boolean => {
       if (depth > 5) return false;
       if (type.isUnion()) return type.types.every((t) => text(t, depth + 1));

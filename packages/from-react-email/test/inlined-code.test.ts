@@ -416,6 +416,30 @@ export default function Notice() {
   });
 });
 
+describe("a text constant from another file of the project beside markup", () => {
+  it("is text: written as its import, with no branch for React elements", async () => {
+    const { conversion, added, Original, Migrated } = await migrate({
+      "config.ts": `export const POSTAL_ADDRESS = "1 Main St, Springfield";
+`,
+      "notice.tsx": `import { Html, Body, Container, Text } from "@react-email/components";
+import { POSTAL_ADDRESS } from "./config";
+export default function Notice() {
+  return <Html><Body><Container>
+    <Text>Sent by <b>Acme</b>, {POSTAL_ADDRESS}</Text>
+  </Container></Body></Html>;
+}
+`,
+    }, "notice.tsx");
+    expect(added).toEqual([]);
+    expect(conversion.code).toContain('from "./config"');
+    expect(conversion.code).not.toContain("holdsElements");
+    expect(conversion.code).not.toContain("Springfield");
+    const check = await verifyConversion(Original, Migrated);
+    expect([check.missing, check.added, check.designWarnings]).toEqual([[], [], []]);
+    expect(conversion.report.nativeRatio).toBe(1);
+  });
+});
+
 describe("markup kept as React that renders React Email's <Tailwind>", () => {
   const files = {
     "shell.tsx": `import type { ReactNode } from "react";
