@@ -3742,10 +3742,10 @@ class Converter {
       : "";
     if (this.needsHtmlText) {
       helpers +=
-        `\n/** A value in text as React shows it: text and numbers escaped, nothing for null, undefined or a boolean. */\n` +
+        `\n/** A value in text as React shows it: text and numbers escaped, lists one item after another (at any depth), nothing for null, undefined or a boolean. */\n` +
         `function htmlText(value${javascript ? "" : ": unknown"})${javascript ? "" : ": string"} {\n` +
-        `  const text = (item${javascript ? "" : ": unknown"}) => (typeof item === "string" || typeof item === "number" ? escapeHtml(String(item)) : "");\n` +
-        `  return Array.isArray(value) ? value.map(text).join("") : text(value);\n` +
+        `  if (Array.isArray(value)) return value.map(htmlText).join("");\n` +
+        `  return typeof value === "string" || typeof value === "number" ? escapeHtml(String(value)) : "";\n` +
         `}\n`;
     }
     if (this.needsHoldsElements) {

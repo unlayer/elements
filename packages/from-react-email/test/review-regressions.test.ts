@@ -1362,6 +1362,21 @@ T.PreviewProps = { name: "Ana" };`;
     }
   });
 
+  it("shows text in lists of lists beside markup, as React does", async () => {
+    const { Original, Migrated, conversion } = await templates(`import { Html, Body, Section, Text } from "@react-email/components";
+export default function T({ rows }: { rows: string[][] }) {
+  return <Html><Body><Section>
+    <Text>Items: <b>{rows.length}</b> {rows}</Text>
+  </Section></Body></Html>;
+}
+T.PreviewProps = { rows: [["Apples ", "Pears "], ["Plums"]] };`);
+    expect(conversion.code).not.toContain("holdsElements");
+    for (const props of [Original.PreviewProps, { rows: [["Figs ", ["Dates"]]] as unknown }]) {
+      const check = await verifyConversion(Original, Migrated, { props });
+      expect([check.missing, check.added, check.designWarnings]).toEqual([[], [], []]);
+    }
+  });
+
   it("keeps markup in a list's items with what each item reads", async () => {
     const { Original, Migrated, conversion } = await templates(`import { Html, Body, Section, Text } from "@react-email/components";
 function Badge({ label }: { label: string }) {
