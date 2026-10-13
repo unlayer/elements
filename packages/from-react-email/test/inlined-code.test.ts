@@ -621,3 +621,53 @@ Note.PreviewProps = { footer: "reply to this email" };
     expect(check.variants.find((v) => v.change === "footer: an element")?.missing).toEqual(["given", "as", "an", "element"]);
   });
 });
+
+describe("components kept as React under a text color", () => {
+  const badge = `function Badge({ label }: { label: string }) {
+  const text = useMemo(() => label.toUpperCase(), [label]);
+  return <table><tbody><tr><td style={{ padding: "4px" }}>{text}</td></tr></tbody></table>;
+}
+function Card({ title }: { title: string }) {
+  const [shown] = useState(title);
+  return <Section><Text>{shown}</Text><Badge label="new" /></Section>;
+}
+`;
+  const head = `import { useMemo, useState } from "react";\nimport { Html, Body, Section, Text } from "@react-email/components";\n`;
+
+  it("give their tables and cells the color around them, through the components that use them", async () => {
+    const { conversion, added, Original, Migrated } = await migrate({
+      "dark.tsx": `${head}${badge}
+export default function Dark({ plan }: { plan: string }) {
+  return <Html><Body><Section style={{ backgroundColor: "#1f2937", color: "#ffffff" }}>
+    <Badge label={plan} />
+    <Card title="Your plan" />
+  </Section></Body></Html>;
+}
+Dark.PreviewProps = { plan: "pro" };
+`,
+    }, "dark.tsx");
+    expect(added).toEqual([]);
+    expect(conversion.report.lostShown ?? []).toEqual([]);
+    const check = await verifyConversion(Original, Migrated);
+    expect([check.missing, check.added, check.styles]).toEqual([[], [], []]);
+  });
+
+  it("are reported as content where their uses are under different colors, or one computed from code", async () => {
+    const { conversion } = await migrate({
+      "mixed.tsx": `${head}${badge}
+export default function Mixed({ plan, accent }: { plan: string; accent: string }) {
+  return <Html><Body>
+    <Section style={{ backgroundColor: "#1f2937", color: "#ffffff" }}><Badge label={plan} /></Section>
+    <Section><Badge label="free" /></Section>
+    <Section style={{ backgroundColor: "#111827", color: accent }}><Card title="Plan" /></Section>
+  </Body></Html>;
+}
+Mixed.PreviewProps = { plan: "pro", accent: "#f9fafb" };
+`,
+    }, "mixed.tsx");
+    expect(conversion.report.lostShown).toEqual([
+      expect.stringMatching(/<Badge>, kept as React, renders tables or cells without a text color of its own, under/),
+      expect.stringMatching(/<Card>, kept as React, .* under a text color computed from code/),
+    ]);
+  });
+});

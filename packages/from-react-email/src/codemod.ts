@@ -310,6 +310,10 @@ class Converter {
   /** Source kept as the alternative of a block written both ways (its React Email components keep their import). */
   private readonly switchRanges: Array<{ from: number; to: number }> = [];
   private needsHoldsElements = false;
+  /** Each block kept as React: its source, and the text color around it (`known`: none above it is computed). */
+  private readonly keptUses: Array<{ nodes: readonly ts.Node[]; color: string | undefined; known: boolean }> = [];
+  /** The text color the tables and cells of each component of the file kept as React take (see `keptComponentColors`). */
+  private readonly componentColors = new Map<ts.Node, string | undefined>();
   /** The style each Tailwind class a string of the file holds gives, for classes worked out at render time (see `tailwindStyle`). */
   private readonly classTable = new Map<string, Style>();
   private needsTailwindStyle = false;
@@ -387,6 +391,7 @@ class Converter {
       expression,
       tree: this.root(expression),
     }));
+    this.keptComponentColors();
     // A computed style is lost where its element became Elements; one kept as HTML keeps it.
     for (const dropped of this.droppedStyles) {
       if (![...this.fallbackRanges, ...this.renderedRanges].some((r) => dropped.from >= r.from && dropped.to <= r.to)) this.report.lostStyle(dropped.detail, SHOWS.test(dropped.text));
@@ -2009,6 +2014,7 @@ class Converter {
     if (blocks.length !== 1 || only.node.type === "#expr" || only.node.fallback) return undefined;
     for (const node of source) this.refuseTailwind(node);
     for (const node of source) this.switchRanges.push({ from: node.getStart(), to: node.getEnd() });
+    this.noteKeptUse(source, ctx);
     const color = this.keptColor(ctx);
     const kept = this.keep(source.map((node) => this.keptText(node, color)).join(""), ctx, "", element);
     this.needsHoldsElements = true;
@@ -2192,6 +2198,7 @@ class Converter {
     const reason = why ?? (jsx.name ? `unsupported component: ${jsx.name}` : /^[A-Z]/.test(jsx.tag) ? `custom component: ${jsx.tag}` : `unsupported element: ${jsx.tag}`);
     // An HTML element or a React Email component renders an element; a component of the template's own may render text only.
     const element = jsx.name !== undefined || /^[a-z][\w-]*$/.test(jsx.tag);
+    this.noteKeptUse([jsx.node], ctx);
     return this.keep(this.keptText(jsx.node, this.keptColor(ctx)), ctx, reason, element);
   }
 
@@ -2280,10 +2287,132 @@ class Converter {
     return name !== "default" && this.componentRendersTailwind(name, module, depth + 1, seen);
   }
 
+  /** A block kept as React: what it renders, and the text color around it, for its components (see `keptComponentColors`). */
+  private noteKeptUse(nodes: readonly ts.Node[], ctx?: Ctx): void {
+    this.keptUses.push({ nodes, color: this.keptColor(ctx), known: !nodes.length || this.colorKnownAbove(nodes[0]) });
+  }
+
+  /**
+   * Whether the text color a node of the template inherits is known: no element around it sets one from code
+   * (`style={{ color: accent }}`, a spread that can't be read), which the conversion couldn't follow.
+   */
+  private colorKnownAbove(node: ts.Node): boolean {
+    for (let n: ts.Node | undefined = node.parent; n && !ts.isSourceFile(n); n = n.parent) {
+      if (ts.isFunctionLike(n) && !ts.isArrowFunction(n.parent) && n === this.findComponent()) break;
+      if (!ts.isJsxElement(n)) continue;
+      const style = n.openingElement.attributes.properties.find((a): a is ts.JsxAttribute => ts.isJsxAttribute(a) && a.name.getText() === "style");
+      const code = style?.initializer && ts.isJsxExpression(style.initializer) ? style.initializer.expression : undefined;
+      if (!code) continue;
+      const value = this.styleValue(() => this.evaluate(code));
+      if (value && typeof value === "object") {
+        if ("color" in value) return true;
+        continue;
+      }
+      const literal = unwrap(code);
+      if (!ts.isObjectLiteralExpression(literal)) return false;
+      for (const prop of literal.properties) {
+        if (ts.isSpreadAssignment(prop)) {
+          const spread = this.styleValue(() => this.evaluate(prop.expression));
+          if (!spread || typeof spread !== "object") return false;
+        } else if (prop.name && prop.name.getText().replace(/^["']|["']$/g, "") === "color") {
+          return this.styleValue(() => this.evaluate(ts.isPropertyAssignment(prop) ? prop.initializer : (prop.name as ts.Identifier))) !== undefined;
+        }
+      }
+    }
+    return true;
+  }
+
+  /**
+   * Components of the file kept as React (a hook, a spread) render their own tables and cells, which the email's
+   * `table, td { color: #000000 }` turns black where the original's text took the color around them. Each is given the
+   * text color of where it's used (through the components that use it), written on its tables and cells as on kept
+   * markup. Where its uses are under different colors, under one computed from code, or it's exported (other templates
+   * render it), the color can't be written: its text would show in another color than the original's, which can make it
+   * unreadable (white on white), so that's reported as content.
+   */
+  private keptComponentColors(): void {
+    const template = this.findComponent();
+    const declarations = new Map<ts.Symbol, ts.Node>();
+    for (const statement of this.file.statements) {
+      const named = ts.isFunctionDeclaration(statement) && statement.name ? [statement.name]
+        : ts.isVariableStatement(statement) ? statement.declarationList.declarations.filter((d) => d.initializer && (ts.isArrowFunction(unwrap(d.initializer)) || ts.isFunctionExpression(unwrap(d.initializer)))).map((d) => d.name)
+        : [];
+      for (const name of named) {
+        const symbol = ts.isIdentifier(name) ? this.checker.getSymbolAtLocation(name) : undefined;
+        if (symbol && !(template && statement.getStart() <= template.getStart() && statement.getEnd() >= template.getEnd())) declarations.set(symbol, statement);
+      }
+    }
+    if (!declarations.size) return;
+    const used = (nodes: readonly ts.Node[]): Set<ts.Node> => {
+      const out = new Set<ts.Node>();
+      const visit = (n: ts.Node) => {
+        if (ts.isIdentifier(n)) {
+          const declaration = declarations.get(this.checker.getSymbolAtLocation(n) as ts.Symbol);
+          if (declaration && !(n.getStart() >= declaration.getStart() && n.getEnd() <= declaration.getEnd())) out.add(declaration);
+        }
+        ts.forEachChild(n, visit);
+      };
+      nodes.forEach(visit);
+      return out;
+    };
+    const UNKNOWN = "\u0000computed";
+    const colors = new Map<ts.Node, Set<string>>();
+    const add = (declaration: ts.Node, color: string): boolean => {
+      const set = colors.get(declaration) ?? new Set<string>();
+      colors.set(declaration, set);
+      if (set.has(color)) return false;
+      set.add(color);
+      return true;
+    };
+    // No color around is the browser's black, as `td { color: #000000 }` gives.
+    const normal = (color: string | undefined) => (color ?? "#000000").trim().toLowerCase().replace(/^#000$|^black$|^rgb\(0,\s*0,\s*0\)$/, "#000000");
+    for (const use of this.keptUses) for (const declaration of used(use.nodes)) add(declaration, use.known ? normal(use.color) : UNKNOWN);
+    for (let changed = true; changed; ) {
+      changed = false;
+      for (const [declaration, set] of colors) for (const inner of used([declaration])) for (const color of [...set]) changed = add(inner, color) || changed;
+    }
+    const exported = new Set(this.exportedStatements());
+    for (const [declaration, set] of colors) {
+      if (!this.cellsWithoutColor(declaration)) continue;
+      const [only] = set;
+      if (set.size === 1 && only !== UNKNOWN && (only === "#000000" || !exported.has(declaration as ts.Statement))) {
+        if (only !== "#000000") this.componentColors.set(declaration, only);
+        continue;
+      }
+      const name = (ts.isFunctionDeclaration(declaration) ? declaration.name?.text : ts.isVariableStatement(declaration) ? declaration.declarationList.declarations[0].name.getText() : undefined) ?? "component";
+      const why = set.has(UNKNOWN) ? "under a text color computed from code" : set.size > 1 ? `under different text colors (${[...set].join(", ")})` : "exported, so other templates may render it";
+      this.report.lostStyle(`line ${this.originalLine(declaration.getStart())}: <${name}>, kept as React, renders tables or cells without a text color of its own, ${why}: the email's "table, td { color: #000000 }" shows their text in black there`, true);
+    }
+  }
+
+  /** Whether `node` renders a table or cell (an HTML one, or React Email's) whose style doesn't set a text color. */
+  private cellsWithoutColor(node: ts.Node): boolean {
+    let found = false;
+    const visit = (n: ts.Node) => {
+      if (found) return;
+      if (ts.isJsxOpeningElement(n) || ts.isJsxSelfClosingElement(n)) {
+        const tag = n.tagName.getText();
+        const kind = /^[a-z]/.test(tag) ? tag : { Section: "table", Container: "table", Row: "table", Column: "td" }[this.components.get(tag) ?? ""];
+        if (kind === "table" || kind === "td") {
+          const style = n.attributes.properties.find((a): a is ts.JsxAttribute => ts.isJsxAttribute(a) && a.name.getText() === "style");
+          const code = style?.initializer && ts.isJsxExpression(style.initializer) ? style.initializer.expression : undefined;
+          const value = code && this.styleValue(() => this.evaluate(code));
+          // React Email's Section and Container hold a cell of their own that no style reaches.
+          const inner = kind === "table" && /^(Section|Container)$/.test(this.components.get(tag) ?? "");
+          if (inner || !(value && typeof value === "object" && "color" in value)) found = true;
+        }
+      }
+      ts.forEachChild(n, visit);
+    };
+    visit(node);
+    return found;
+  }
+
   /** Children kept as they render (text, code, a value holding JSX), in a div. */
   private keepChildren(children: readonly ts.JsxChild[], ctx: Ctx, reason: string): ElementNode {
     for (const child of children) this.refuseTailwind(child);
     for (const child of children) this.fallbackRanges.push({ from: child.getStart(), to: child.getEnd() });
+    this.noteKeptUse(children, ctx);
     const color = this.keptColor(ctx);
     return this.keep(children.map((child) => this.keptText(child, color)).join(""), ctx, reason, false);
   }
@@ -2343,13 +2472,13 @@ class Converter {
    * Edits to each element under `root`: its static className as the styles it gives (see `classStyles`), and with
    * `kept`, the browser's defaults the email's head styles would change on it (see `browserDefaults`).
    */
-  private styleEdits(root: ts.Node, kept?: { color?: string; except?: (node: ts.Node) => boolean }): Array<{ from: number; to: number; text: string }> {
+  private styleEdits(root: ts.Node, kept?: { color?: string; except?: (node: ts.Node) => boolean; colorAt?: (node: ts.Node) => string | undefined }): Array<{ from: number; to: number; text: string }> {
     const edits: Array<{ from: number; to: number; text: string }> = [];
     const visit = (node: ts.Node) => {
       // A component of the template's own that takes no `style` keeps its className: a style would be a prop it
       // doesn't have (a type error), and do nothing either way.
       if ((ts.isJsxOpeningElement(node) || ts.isJsxSelfClosingElement(node)) && (/^[a-z][\w-]*$/.test(node.tagName.getText()) || this.components.has(node.tagName.getText()) || this.takesStyle(node.tagName.getText()))) {
-        const kept_ = kept && !kept.except?.(node) ? kept : undefined;
+        const kept_ = kept && !kept.except?.(node) ? { ...kept, color: kept.colorAt?.(node) ?? kept.color } : undefined;
         const attrs = node.attributes.properties;
         const className = attrs.find((a): a is ts.JsxAttribute => ts.isJsxAttribute(a) && a.name.getText() === "className");
         const value = className ? this.styleValue(() => this.attrValue(className.initializer)) : undefined;
@@ -2374,6 +2503,14 @@ class Converter {
         // say otherwise.
         const image = kept_ && (node.tagName.getText() === "img" || this.components.get(node.tagName.getText()) === "Img") && !attrs.some((a) => ts.isJsxAttribute(a) && a.name.getText() === "loading");
         if (image) edits.push({ from: node.tagName.getEnd(), to: node.tagName.getEnd(), text: ` loading="lazy"` });
+        // React Email's Section and Container put what they hold in a cell of their own, which no style reaches: under the
+        // email's `td { color: #000000 }` it would lose the text color they set or take: a div in it says it again.
+        const box = this.components.get(node.tagName.getText());
+        const inner = kept_ && (box === "Section" || box === "Container") && ts.isJsxOpeningElement(node) && sets ? (ownKeys?.has("color") ? (own as Style | undefined)?.color : kept_.color) : undefined;
+        if (inner && ts.isJsxElement(node.parent) && node.parent.children.some((c) => !(ts.isJsxText(c) && !c.text.trim()))) {
+          edits.push({ from: node.getEnd(), to: node.getEnd(), text: `<div style={{ color: ${JSON.stringify(inner)} }}>` });
+          edits.push({ from: node.parent.closingElement.getStart(), to: node.parent.closingElement.getStart(), text: "</div>" });
+        }
         if (Object.keys(classes.before).length || Object.keys(classes.after).length || Object.keys(defaults).length || classCode) {
           // Under its own style when what that sets can't be told (so it wins), else after it. What it sets itself isn't
           // written before it; under a style that can't be read, the rest is written as one object spread first, as
@@ -2874,6 +3011,7 @@ class Converter {
   private codeFallback(expression: ts.Expression, cells = false, ctx?: Ctx): ElementNode {
     this.refuseTailwind(expression);
     this.fallbackRanges.push({ from: expression.getStart(), to: expression.getEnd() });
+    this.noteKeptUse([expression], ctx);
     const color = this.keptColor(ctx);
     const code = `{${this.keptText(expression, color)}}`;
     if (!cells) return this.keep(code, ctx, "code that couldn't be converted", false);
@@ -3079,7 +3217,8 @@ class Converter {
     // except in what else the file exports, which other templates may render in other emails.
     const template = this.findComponent();
     const exported = this.exportedStatements().filter((st) => !template || template.getStart() < st.getStart() || template.getEnd() > st.getEnd());
-    edits.push(...this.styleEdits(this.file, { except: (node) => exported.some((st) => node.getStart() >= st.getStart() && node.getEnd() <= st.getEnd()) }).filter((e) => !inside(e)));
+    const colorAt = (node: ts.Node) => [...this.componentColors].find(([declaration]) => node.getStart() >= declaration.getStart() && node.getEnd() <= declaration.getEnd())?.[1];
+    edits.push(...this.styleEdits(this.file, { except: (node) => exported.some((st) => node.getStart() >= st.getStart() && node.getEnd() <= st.getEnd()), colorAt }).filter((e) => !inside(e)));
     edits.push(...this.hoisted.map(({ at, text }) => ({ from: at, to: at, text })));
     edits.sort((a, b) => b.from - a.from);
     let body = source;
