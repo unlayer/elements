@@ -336,26 +336,30 @@ type Place = "root" | "row" | "column";
  */
 function spanned(nodes: Node[]): { node: Node; inside: boolean }[] {
   const out: { node: Node; inside: boolean }[] = [];
-  let depth = 0;
+  // The elements open across pieces, outermost first.
+  const spans: string[] = [];
   for (const node of nodes) {
     if (node.kind !== "raw") {
-      out.push({ node, inside: depth > 0 });
+      out.push({ node, inside: spans.length > 0 });
       continue;
     }
     const html = node.html;
-    // Elements opened in this piece and not closed yet; one closed here that opened in another ends that one.
+    // Elements opened in this piece and not closed yet; an end tag of one opened in another ends it (and what's open
+    // in it); one that ends nothing open is passed over, as the browser does.
     const open: { name: string; at: number }[] = [];
-    let closed = depth > 0 ? -1 : 0;
+    let closed = spans.length ? -1 : 0;
     for (const m of html.matchAll(/<!--[\s\S]*?(?:-->|$)|<(\/?)([a-zA-Z][\w:-]*)\b[^>]*>/g)) {
       if (!m[2]) continue;
       const name = m[2].toLowerCase();
       if (m[1]) {
         const i = open.map((o) => o.name).lastIndexOf(name);
+        const across = spans.lastIndexOf(name);
         if (i >= 0) open.length = i;
-        else if (depth > 0 && --depth === 0) {
+        else if (across >= 0) {
+          spans.length = across;
           open.length = 0;
-          closed = m.index! + m[0].length;
-        } else if (depth > 0) open.length = 0;
+          if (!spans.length) closed = m.index! + m[0].length;
+        }
       } else if (!VOID.test(name) && !m[0].endsWith("/>")) open.push({ name, at: m.index! });
     }
     const piece = (from: number, to: number, inside: boolean) => {
@@ -367,7 +371,7 @@ function spanned(nodes: Node[]): { node: Node; inside: boolean }[] {
       piece(closed, open[0]?.at ?? html.length, false);
       if (open.length) piece(open[0].at, html.length, true);
     }
-    depth += open.length;
+    spans.push(...open.map((o) => o.name));
   }
   return out;
 }

@@ -306,6 +306,10 @@ describe("markup written in a Row or Column, with a block or a component of the 
         const contents = renderToJson(email).body.rows[0].columns[0].contents as { type: string }[];
         expect(contents.map((content) => content.type)).toEqual(words.map(() => "text"));
       }
+      // An end tag that ends nothing open (`</b>` in a component's HTML) doesn't end the markup, as in the browser.
+      const stray = <Email><Row><Column><Paragraph>Before</Paragraph><div><Name /><span dangerouslySetInnerHTML={{ __html: "</b>Hidden</p>" }} /> too</div><Paragraph>After</Paragraph></Column></Row></Email>;
+      expect(renderToPlainText(stray).split(/\s+/).filter(Boolean)).toEqual(["Before", "After"]);
+      expect(renderToHtml(stray)).not.toMatch(/Hidden|too/);
       // In a Row too: the Row says it isn't a Column, and its Column renders.
       const email = <Email><Row><div>Hello <Name /> welcome back</div><Column><Paragraph>In the column</Paragraph></Column></Row></Email>;
       expect(renderToPlainText(email).trim()).toBe("In the column");
