@@ -61,8 +61,8 @@ describe("an email service's <%name%> tag in text", () => {
 });
 
 describe("Menu item text in an email", () => {
-  // The email exporter writes it as HTML, as 0.1.22 wrote it as given: an entity and a Liquid filter's quotes stay
-  // as written; markup is escaped (and a double quote: it's also in an aria-label).
+  // The email exporter writes it as HTML, as 0.1.22 wrote it as given: an entity and a single quote (a template's
+  // string) stay as written; markup is escaped, and a double quote, also in a template tag: it's in an aria-label too.
   it("keeps entity references and single quotes, and escapes markup", () => {
     const html = renderToHtml(
       <Email><Row><Column>
@@ -77,10 +77,11 @@ describe("Menu item text in an email", () => {
     expect(html).toContain("Shop &rarr;");
     expect(html).toContain("Privacy&nbsp;Policy &#169; &#xA9;");
     expect(html).toContain("{{ name | default: 'you' }}");
-    // A Liquid output tag keeps its double quotes too; with an `=` (which could add an attribute), it's escaped.
-    const liquid = renderToHtml(<Email><Row><Column><Menu items={[{ text: '{{ name | default: "Shop" }}', href: "https://e.example" }, { text: '{{ x" onmouseover="alert(1) }}', href: "https://f.example" }]} /></Column></Row></Email>);
-    expect(liquid).toContain('{{ name | default: "Shop" }}');
-    expect(liquid).not.toContain('onmouseover="alert(1)');
+    // A template tag's double quote ends the aria-label as well as any (`{{ " }} onmouseover=…` adds a handler).
+    const liquid = renderToHtml(<Email><Row><Column><Menu items={[{ text: '{{ " }} onmouseover=alert(1) x', href: "https://e.example" }, { text: '{{ x" hidden }}', href: "https://f.example" }]} /></Column></Row></Email>);
+    const links = Array.from(new DOMParser().parseFromString(liquid, "text/html").querySelectorAll("a"));
+    expect(links.map((a) => a.getAttributeNames().sort())).toEqual(links.map(() => ["aria-label", "class", "href", "style", "target"]));
+    expect(liquid).toContain("{{ &quot; }} onmouseover=alert(1) x");
     expect(html).toContain("Tom &amp; Jerry &lt;b&gt;&quot;bold&quot;&lt;/b&gt; &amp;bogus");
     expect(html).not.toContain("<b>");
   });

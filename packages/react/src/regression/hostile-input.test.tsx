@@ -13,7 +13,11 @@ import { renderToHtml } from "../utils/render-to-html";
 import { renderToJson } from "../utils/render-to-json";
 import { Email, Page, Document, Row, Column, Paragraph, Heading, Button, Image, Menu, Social, Html } from "../index";
 
-const PAYLOADS = ['"><x-pwn></x-pwn>', "'><x-pwn></x-pwn>", '" x-pwn="1', "' x-pwn='1", "</p></div></td></tr></table><x-pwn></x-pwn>"];
+const PAYLOADS = [
+  '"><x-pwn></x-pwn>', "'><x-pwn></x-pwn>", '" x-pwn="1', "' x-pwn='1", "</p></div></td></tr></table><x-pwn></x-pwn>",
+  // A template tag's quote ends an attribute as well as any (Menu text is in an aria-label too), with or without `=`.
+  '{{ " }} x-pwn=1 y', '{{ x" x-pwn }}', '{{ "x" x-pwn }}', '<%a%>" x-pwn="1',
+];
 
 /** Elements or attributes named x-pwn: what a payload adds if it gets out. */
 function injected(html: string): string[] {

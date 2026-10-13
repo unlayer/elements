@@ -147,18 +147,12 @@ export function escapeKeepingTags(text: string, quotes?: boolean, escape = (part
 
 /**
  * A Menu item's text in an email, which its exporter writes as HTML (0.1.22 wrote what it was given): markup escaped,
- * an entity reference kept (`&rarr;`, `&nbsp;`), as a single quote (a Liquid filter's `default: 'you'`); a double
- * quote escaped (the exporter also writes the text in an `aria-label`).
+ * an entity reference kept (`&rarr;`, `&nbsp;`), as a single quote (a template's string: `{{ name | default: 'you' }}`);
+ * a double quote escaped, also in a template tag: the exporter writes the text in a double-quoted `aria-label` too,
+ * which a raw one would end (`{{ " }} onmouseover=…`).
  */
 const menuText = (text: string) =>
-  escapeKeepingTags(text, false, (part) =>
-    part
-      // A Liquid output tag (`{{ name | default: "Shop" }}`) keeps its quotes for the service to read: with no `<`, `>`
-      // or `=` in it, a quote can only end the aria-label, not add an attribute that runs anything.
-      .split(/(\{\{[^{}<>=]*\}\})/)
-      .map((piece, i) => (i % 2 ? piece : piece.replace(/&(?!(?:#\d+|#x[\da-f]+|[a-z][\da-z]*);)|[<>"]/gi, (c) => ENTITIES[c])))
-      .join("")
-  );
+  escapeKeepingTags(text, false, (part) => part.replace(/&(?!(?:#\d+|#x[\da-f]+|[a-z][\da-z]*);)|[<>"]/gi, (c) => ENTITIES[c]));
 
 /**
  * Flatten a JSX/ReactNode children tree to its plain text content.
