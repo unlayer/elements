@@ -112,6 +112,12 @@ describe("destination safety", () => {
     const edited = io(dir);
     expect(await main(["emails", "--out", "migrated", "--design"], edited, lib)).toBe(1);
     expect(edited.err).toContain("Output already exists: migrated/welcome.tsx (written by an earlier run, and edited since).");
+    // Written by 0.1.0, with no hash line: an earlier version's, not an earlier run's.
+    const written = fs.readFileSync(path.join(dir, "migrated/welcome.tsx"), "utf8");
+    fs.writeFileSync(path.join(dir, "migrated/welcome.tsx"), written.replace(/^\/\/ @unlayer\/migrate hash [^\n]*\n/m, ""));
+    const older = io(dir);
+    expect(await main(["emails", "--out", "migrated", "--design"], older, lib)).toBe(1);
+    expect(older.err).toBe("Output already exists: migrated/welcome.tsx (written by an earlier version of @unlayer/migrate, which didn't record whether it's edited since). Choose an empty folder, or pass --overwrite to replace it.\n");
     // A design can't be told from one made in the editor.
     fs.rmSync(path.join(dir, "migrated/welcome.tsx"));
     const design = io(dir);

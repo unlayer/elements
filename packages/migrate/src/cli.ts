@@ -708,7 +708,10 @@ function earlierOutput(text: string): "intact" | "edited" | "unhashed" | undefin
 async function whoWrote(path: string, design: boolean): Promise<string> {
   const text = await readFile(path, "utf8").catch(() => "");
   const earlier = earlierOutput(text);
-  if (earlier) return earlier === "edited" ? "written by an earlier run, and edited since" : "written by an earlier run";
+  if (earlier === "intact") return "written by an earlier run";
+  if (earlier === "edited") return "written by an earlier run, and edited since";
+  // Without the hash a run now records: 0.1.0's, which can't say whether it's edited since.
+  if (earlier === "unhashed") return "written by an earlier version of @unlayer/migrate, which didn't record whether it's edited since";
   if (design) {
     try {
       const parsed = JSON.parse(text);
