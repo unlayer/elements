@@ -438,11 +438,12 @@ class Converter {
       if (this.keptStyleParts.has(dropped.from)) continue;
       if (![...this.fallbackRanges, ...this.renderedRanges].some((r) => dropped.from >= r.from && dropped.to <= r.to)) this.report.lostStyle(dropped.detail, SHOWS.test(dropped.text));
     }
+    // Counted as the design gets it: a block written both ways is the kept markup where the preview props give elements.
     const report = this.report.finish(
       el(
         "Email",
         {},
-        conversions.map((c) => c.tree),
+        conversions.map((c) => this.asPreviewed(c.tree)),
       ),
     );
     const code = await this.emit(conversions);
@@ -2119,6 +2120,44 @@ class Converter {
     } finally {
       this.switching = outer;
     }
+  }
+
+  /**
+   * `tree` as the design gets it with the preview props: a block written both ways (see `switched`) whose values the
+   * preview props give as elements (JSX) is its kept markup there, counted as kept.
+   */
+  private asPreviewed(node: ElementNode): ElementNode {
+    const choice = node.props?.[SWITCH] as { test: string[] } | undefined;
+    if (choice?.test.some((value) => this.previewGivesJsx(value))) return { ...node, fallback: `text from a value the preview props give as elements: ${choice.test.join(", ")}` };
+    const each = <T extends ElementNode | string | Expr>(child: T): T => (typeof child === "string" || isExpr(child) ? child : (this.asPreviewed(child) as T));
+    return {
+      ...node,
+      ...(node.children ? { children: node.children.map(each) } : {}),
+      ...(node.slots ? { slots: node.slots.map((slot) => slot.map(each)) } : {}),
+    };
+  }
+
+  /** Whether the preview props give JSX for a value read from props (`note`, `props.user.bio`). */
+  private previewGivesJsx(value: string): boolean {
+    const keys = value.replace(/\?\./g, ".").replace(/^props\./, "").split(".");
+    if (!keys.every((k) => /^[A-Za-z_$][\w$]*$/.test(k))) return false;
+    let found = false;
+    const visit = (n: ts.Node) => {
+      if (found) return;
+      if (ts.isBinaryExpression(n) && n.operatorToken.kind === ts.SyntaxKind.EqualsToken && ts.isPropertyAccessExpression(n.left) && n.left.name.text === "PreviewProps") {
+        let object: ts.Expression | undefined = unwrap(n.right);
+        for (const key of keys) {
+          if (!object || !ts.isObjectLiteralExpression(object)) return;
+          const prop: ts.PropertyAssignment | undefined = object.properties.find((p): p is ts.PropertyAssignment => ts.isPropertyAssignment(p) && p.name.getText().replace(/^["']|["']$/g, "") === key);
+          object = prop ? unwrap(prop.initializer) : undefined;
+        }
+        if (object && containsJsx(object)) found = true;
+        return;
+      }
+      ts.forEachChild(n, visit);
+    };
+    visit(this.file);
+    return found;
   }
 
   /** Whether an element of the template around `node` has a background computed from props that isn't written as code. */

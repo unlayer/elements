@@ -972,3 +972,22 @@ Note.PreviewProps = { footer: "reply", url: "https://example.com" };
     expect(conversion.code).toContain("@react-email/components");
   });
 });
+
+describe("editability counted as the design gets it", () => {
+  it("counts a block written both ways as kept where the preview props give its value as an element", async () => {
+    const files = (preview: string) => ({
+      "note.tsx": `import type { ReactNode } from "react";
+import { Html, Body, Text } from "@react-email/components";
+export default function Note({ name, note }: { name: string; note: ReactNode }) {
+  return <Html><Body><Text>Hi <strong>{name}</strong>, <b>{note}</b>.</Text><Text>Bye</Text></Body></Html>;
+}
+Note.PreviewProps = { name: "Ana", note: ${preview} };
+`,
+    });
+    const element = await migrate(files(`<em>your trial ends soon</em>`), "note.tsx");
+    expect(element.conversion.report.nativeRatio).toBe(0.5);
+    expect(element.conversion.report.fallbacks).toEqual([{ reason: "text from a value the preview props give as elements", detail: "note" }]);
+    const text = await migrate(files(`"your trial ends soon"`), "note.tsx");
+    expect(text.conversion.report.nativeRatio).toBe(1);
+  });
+});
