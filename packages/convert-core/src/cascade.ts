@@ -10,6 +10,7 @@
  */
 import { parse, type DefaultTreeAdapterMap } from "parse5";
 import { isInvalid } from "./validity";
+import { SVG_NAMESPACE, svgDrawing } from "./drawing";
 
 type Node = DefaultTreeAdapterMap["node"];
 type Element = DefaultTreeAdapterMap["element"];
@@ -64,7 +65,8 @@ export interface StyledWord {
 
 /** A link or image a reader gets, with the words or image text it carries (for links). */
 export interface Target {
-  kind: "href" | "src" | "alt";
+  /** A link, an image, an image's text, or what an inline SVG draws (see `svgDrawing`). */
+  kind: "href" | "src" | "alt" | "svg";
   value: string;
   /** For a link: the words in it, or its images' URLs and text when it has no words. */
   label?: string;
@@ -1456,6 +1458,14 @@ export class StyledDocument {
     for (const e of this.elements()) {
       const background = this.style(e).imageUrl;
       if (background && this.shows(e) && !invisible(e)) out.push({ kind: "src", value: background, ...(this.showDoubt(e) ? { doubt: this.showDoubt(e) } : {}) });
+      // An inline SVG (an icon) is content like an image: what it draws (one inside another is part of it).
+      if (e.tagName === "svg" && e.namespaceURI === SVG_NAMESPACE && !(isElement(e.parentNode) && e.parentNode.namespaceURI === SVG_NAMESPACE)) {
+        if (!this.shows(e) || invisible(e)) continue;
+        const drawing = svgDrawing(e, (id) => this.byId(id), parseColor);
+        const doubt = this.showDoubt(e);
+        if (drawing) out.push({ kind: "svg", value: drawing, ...(doubt ? { doubt } : {}) });
+        continue;
+      }
       if (e.tagName !== "a" && e.tagName !== "img") continue;
       if (!this.shows(e)) continue;
       if (e.tagName === "img" && invisible(e)) continue;
@@ -1477,6 +1487,20 @@ export class StyledDocument {
       }
     }
     return out;
+  }
+
+  private ids?: Map<string, Element>;
+
+  /** The element with this id (the first, as the browser finds it). */
+  private byId(id: string): Element | undefined {
+    if (!this.ids) {
+      this.ids = new Map();
+      for (const e of this.elements()) {
+        const own = attr(e, "id");
+        if (own !== undefined && !this.ids.has(own)) this.ids.set(own, e);
+      }
+    }
+    return this.ids.get(id);
   }
 
   /** Whether a box starts a line of its own: a block (a paragraph, a list item, a table, a row, a cell), not an inline box. */

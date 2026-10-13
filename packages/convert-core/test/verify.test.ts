@@ -204,3 +204,52 @@ describe("words in another order where only a phone, a wider screen or dark mode
     });
   }
 });
+
+describe("inline SVG icons", () => {
+  const page = (body: string) => `<html><head></head><body style="margin:0">${body}</body></html>`;
+  // A download arrow drawn from scratch: a tray, an arrow head and its shaft.
+  const icon = (attributes: string, shapes: string) => `<svg ${attributes}>${shapes}</svg>`;
+  const arrow = icon(
+    'xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2"',
+    '<path d="M3 13v3a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-3"></path><polyline points="6 8 10 12 14 8"></polyline><line x1="10" y1="2" x2="10" y2="12"></line>'
+  );
+  const button = (svg: string) => page(`<p>Your report is ready.</p><a href="https://example.com/report" style="display:inline-block">${svg}Download</a>`);
+
+  it("lists an icon whose shapes lost what draws them as lost, like an image", () => {
+    const stripped = '<svg style="width:20px;height:20px"><path></path><polyline></polyline><line></line></svg>';
+    const check = compareText(button(arrow), button(stripped));
+    expect([check.missing, check.added]).toEqual([[], []]);
+    expect(check.missingAttributes).toEqual([expect.stringMatching(/^svg path, polyline, line in viewBox 0 0 20 20 \(drawing [0-9a-f]{8}\)$/)]);
+    // Lost entirely, too.
+    expect(compareText(button(arrow), button("")).missingAttributes).toHaveLength(1);
+  });
+
+  it("lists an icon drawn differently as lost and added", () => {
+    const other = arrow.replace('points="6 8 10 12 14 8"', 'points="6 12 10 8 14 12"');
+    const check = compareText(button(arrow), button(other));
+    expect(check.missingAttributes).toHaveLength(1);
+    expect(check.addedAttributes).toHaveLength(1);
+  });
+
+  it("reads the same drawing written another way as the same: attribute order and case, number formatting, a size", () => {
+    const rewritten = icon(
+      'stroke-width="2.0" STROKE="currentcolor" fill="none" viewBox="0,0,20,20" style="width:1rem;height:1rem" class="icon"',
+      '<path d="M3,13 v3 a1,1 0 0,0 1,1 h12 a1 1 0 0 0 1-1 v-3"/><polyline points="6,8 10,12 14,8"/><line x2="10" y2="12" x1="10" y1="2" />'
+    );
+    const check = compareText(button(arrow), button(rewritten));
+    expect([check.missingAttributes, check.addedAttributes]).toEqual([[], []]);
+  });
+
+  it("doesn't count an SVG that draws nothing, or one hidden", () => {
+    // A sprite of definitions, a spacer: nothing drawn, so nothing to lose.
+    const sprite = '<svg width="0" height="0"><defs><symbol id="i"><path d="M0 0h4"></path></symbol></defs></svg>';
+    expect(compareText(page(`<p>Hi</p>${sprite}`), page("<p>Hi</p>")).missingAttributes).toEqual([]);
+    expect(compareText(page(`<p>Hi</p><div style="display:none">${arrow}</div>`), page("<p>Hi</p>")).missingAttributes).toEqual([]);
+    // A <use> draws what it refers to: the definition lost is the drawing lost.
+    const used = '<svg viewBox="0 0 4 4"><use href="#dot"></use></svg>';
+    const defined = '<svg width="0" height="0" style="position:absolute"><defs><circle id="dot" cx="2" cy="2" r="2"></circle></defs></svg>';
+    const check = compareText(page(`<p>Hi</p>${defined}${used}`), page(`<p>Hi</p>${used}`));
+    expect(check.missingAttributes).toHaveLength(1);
+    expect(check.addedAttributes).toHaveLength(1);
+  });
+});
