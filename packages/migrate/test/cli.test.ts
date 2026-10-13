@@ -707,6 +707,19 @@ export default function Welcome() { return <Html><Body><Text>Welcome aboard frie
     expect(again.err).not.toContain("No email template was checked");
   });
 
+  it("doesn't count a file of the project's that renders with Elements as a template already migrated", async () => {
+    // A route that renders with Elements, and a React Email file with no default export: no template was checked.
+    const route = `import { renderToHtml } from "@unlayer/react-elements";
+export function render(node: unknown) { return renderToHtml(node as never); }`;
+    const named = `import { Html, Body, Text } from "@react-email/components";
+export function Welcome() { return <Html><Body><Text>Welcome aboard friend</Text></Body></Html>; }`;
+    const dir = project({ "src/route.ts": route, "src/welcome.tsx": named });
+    const out = io(dir);
+    expect(await main(["src"], out, lib), out.out + out.err).toBe(1);
+    expect(out.out).not.toContain("already migrated");
+    expect(out.err).toContain("No email template was checked");
+  });
+
   it("migrates a template that takes only types from Elements", async () => {
     const source = `import { Html, Body, Text } from "@react-email/components";
 import type { EmailProps } from "@unlayer/react-elements";

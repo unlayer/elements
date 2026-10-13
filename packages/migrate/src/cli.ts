@@ -425,9 +425,10 @@ async function run(argv: string[], io: Io, library?: Library): Promise<number> {
   const read = results.splice(inputs.unreadable.length).sort((a, b) => a.file.localeCompare(b.file));
   results.push(...read);
   io.stdout(lines(results));
-  // Templates an earlier run migrated, beside files still to look at (a shared component left behind): said, so a run
-  // again after --write (in CI) doesn't read as finding nothing.
-  const done = inputs.files.filter((f) => f.migrated).length;
+  // Templates an earlier run wrote, beside files still to look at (a shared component left behind): said, so a run
+  // again after --write (in CI) doesn't read as finding nothing. Only the run's own: a route that renders with
+  // Elements isn't a template done.
+  const done = inputs.files.filter((f) => f.written).length;
   io.stdout(`\n${summary(results, options).replace(/^No email templates\./, done ? "No email templates left to migrate." : "$&")}\n`);
   if (done) io.stdout(`${done} template${done === 1 ? "" : "s"} already migrated (importing @unlayer/react-elements).\n`);
   // The project's files that use a template it replaced (a route or a helper that sends it, a component file): they
@@ -486,6 +487,8 @@ interface Input {
   reactEmail: boolean;
   /** Imports @unlayer/react-elements: migrated already. */
   migrated: boolean;
+  /** A template a run wrote (its header says so) that imports @unlayer/react-elements. */
+  written: boolean;
 }
 
 function outputPath(input: Input, options: Options, cwd: string): string {
@@ -1429,7 +1432,7 @@ async function collect(paths: string[], cwd: string): Promise<{ files: Input[]; 
     // import React Email: not a template to migrate, nor one --write would replace. A file of the project's own that
     // imports both, without that header, still is.
     const written = migrated && earlierOutput(text) !== undefined;
-    files.push({ path, base, reactEmail: !written && REACT_EMAIL_IMPORT.test(text), migrated });
+    files.push({ path, base, reactEmail: !written && REACT_EMAIL_IMPORT.test(text), migrated, written });
   };
   for (const given of paths) {
     const path = resolve(cwd, given);
