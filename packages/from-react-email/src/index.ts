@@ -289,7 +289,10 @@ export async function verifyConversion(
     try {
       const migrated = callTemplate(Converted, given);
       const check = compareText(original, rendersNothing(migrated) ? "" : renderToHtml(migrated));
-      if (check.missing.length || check.added.length || check.missingAttributes.length || check.addedAttributes.length) variants.push({ change, missing: check.missing, added: [...check.added, ...check.addedAttributes], missingAttributes: check.missingAttributes });
+      // An attribute the element was turned into text for (`alt="[object Object]"`) isn't content either side means.
+      const meant = (attributes: string[]) => attributes.filter((a) => !a.includes("[object Object]"));
+      const missingAttributes = meant(check.missingAttributes), addedAttributes = meant(check.addedAttributes);
+      if (check.missing.length || check.added.length || missingAttributes.length || addedAttributes.length) variants.push({ change, missing: check.missing, added: [...check.added, ...addedAttributes], missingAttributes });
     } catch (error) {
       variants.push({ change, missing: [], added: [], missingAttributes: [], error: (error as Error).message.split("\n")[0] });
     }
@@ -338,9 +341,11 @@ function elementValued(code: string | undefined): string[] {
 function withValue(props: Record<string, unknown>, path: string, value: unknown): Record<string, unknown> | undefined {
   const keys = path.split(".");
   let holder: Record<string, unknown> = props;
+  // Only in plain objects (not a list's `length`, a Date's field).
+  const plain = (v: unknown) => !!v && typeof v === "object" && [Object.prototype, null].includes(Object.getPrototypeOf(v));
   for (const key of keys.slice(0, -1)) {
     const next = holder[key];
-    if (!next || typeof next !== "object") return undefined;
+    if (!plain(next)) return undefined;
     holder = next as Record<string, unknown>;
   }
   holder[keys[keys.length - 1]] = value;

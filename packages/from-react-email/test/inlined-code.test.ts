@@ -771,3 +771,22 @@ Invite.PreviewProps = { month: "Nov", day: "14", title: "Design night" };
     expect(check.styles.filter((s) => s.property === "background" || s.property === "color")).toEqual([]);
   });
 });
+
+describe("the check's element given for a value that may be one", () => {
+  it("isn't given for a list's length, and an attribute it's turned into text for isn't content", async () => {
+    const { conversion, Original, Migrated } = await migrate({
+      "team.jsx": `import { Html, Body, Text, Img } from "@react-email/components";
+export default function Team({ team, members }) {
+  return <Html><Body>
+    <Img src="https://example.com/team.png" width="64" height="64" alt={team} />
+    <Text>Join <b>{team}</b>: {members.length} members</Text>
+  </Body></Html>;
+}
+Team.PreviewProps = { team: "Acme", members: ["Ana", "Bo"] };
+`,
+    }, "team.jsx");
+    expect(conversion.code).toMatch(/holdsElements\(team, members\.length\)/);
+    const check = await verifyConversion(Original, Migrated);
+    expect([check.missing, check.added, check.variants]).toEqual([[], [], []]);
+  });
+});
