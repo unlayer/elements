@@ -61,7 +61,7 @@ export function phoneDiffers(phone: TextCheck["phone"]): boolean {
  * and lone signs preserved, in order. Hidden text isn't read: display:none (inline,
  * or from a rule that applies at desktop width), the `hidden` attribute, a box that
  * clips to nothing (`max-height:0;overflow:hidden`), visibility:hidden, opacity 0.
- * The preview text (`data-skip-in-text`) is read: inboxes show it.
+ * The preview text (`data-skip-in-text`, or a hidden preheader before any text shown) is read: inboxes show it.
  */
 export function htmlWords(html: string): string[] {
   return wordsOf(new StyledDocument(html));

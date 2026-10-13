@@ -1285,10 +1285,22 @@ export class StyledDocument {
     return computed;
   }
 
+  /** The preview text's boxes (see `words`): found reading the whole body, where what comes before them is known. */
+  private previews?: Set<Element>;
+
+  private previewBoxes(): Set<Element> {
+    if (!this.previews) this.words();
+    return this.previews!;
+  }
+
   /** The words a reader sees, each with its style; hidden text is left out. */
   words(within?: Element): StyledWord[] {
     const out: StyledWord[] = [];
     const body = within ?? this.elements().find((e) => e.tagName === "body") ?? this.root;
+    // The preview text's boxes, found here when reading the whole body; else as that found them.
+    const previews = within ? this.previewBoxes() : new Set<Element>();
+    // Whether text a reader sees came before: a hidden preheader after it isn't what the inbox lists first.
+    let shownBefore = false;
     let buffer = "";
     let bufferStyle: WordStyle | undefined;
     let bufferShown = true;
@@ -1309,14 +1321,16 @@ export class StyledDocument {
       flush();
       pieces.push({ text: "\n", style: {}, shown: true });
     };
-    // Inside the preview text (`data-skip-in-text`): inboxes list it, but it isn't shown, so its styles aren't compared.
+    // Inside the preview text (`data-skip-in-text`, or a hidden preheader before any text shown): inboxes list it, but
+    // it isn't shown, so its styles aren't compared.
     let preview = 0;
     const visit = (node: Node, chain: Element[]) => {
       if (isElement(node)) {
         const style = this.style(node);
         if (MSO_ONLY.test(node.tagName)) return;
         // The preview text: inboxes list it, the email doesn't show it. Shown in the email, it's text like any other.
-        const skipInText = attr(node, "data-skip-in-text") !== undefined && !!style.hidden;
+        const skipInText = !!style.hidden && (attr(node, "data-skip-in-text") !== undefined || (within ? previews.has(node) : !shownBefore && !preview && !style.unknown.has("hides") && preheader(node)));
+        if (skipInText && !within) previews.add(node);
         if (skipInText) preview++;
         try {
           visitElement(node, chain, style, skipInText);
@@ -1379,6 +1393,7 @@ export class StyledDocument {
           bufferDoubt = preview ? undefined : doubt;
           bufferAt = element;
         }
+        if (!preview && normalizeWord(part)) shownBefore = true;
         buffer += part;
       }
     };
@@ -1422,13 +1437,14 @@ export class StyledDocument {
       word += piece.text;
     }
     if (word) push();
+    if (!within) this.previews = previews;
     return out;
   }
 
   /** Whether the element and everything around it show (the preview text counts as shown). */
   private shows(element: Element): boolean {
     for (let e: Node | null = element; isElement(e); e = e.parentNode) {
-      if (attr(e, "data-skip-in-text") !== undefined) return true;
+      if (attr(e, "data-skip-in-text") !== undefined || this.previewBoxes().has(e)) return true;
       if (MSO_ONLY.test(e.tagName)) return false;
       const s = this.style(e);
       if (s.hidden && !s.unknown.has("hides")) return false;
@@ -1439,7 +1455,7 @@ export class StyledDocument {
   /** Why whether an element shows can't be told (a rule or value around it this can't read), if it can't. */
   private showDoubt(element: Element): string | undefined {
     for (let e: Node | null = element; isElement(e); e = e.parentNode) {
-      if (attr(e, "data-skip-in-text") !== undefined) return undefined;
+      if (attr(e, "data-skip-in-text") !== undefined || this.previewBoxes().has(e)) return undefined;
       const s = this.style(e);
       if (s.unknown.has("hides")) return s.causes.get("hides") ?? "a rule that may hide it";
       if (s.unknown.has("visibility")) return s.causes.get("visibility") ?? "a rule that may hide it";
@@ -1755,6 +1771,23 @@ export class StyledDocument {
 
 // Outlook's VML: not shown by other clients.
 const MSO_ONLY = /^(v:|o:|w:)/;
+
+/**
+ * A hidden preheader, as older React Email (`@react-email/preview` before `data-skip-in-text`) and hand-written
+ * emails write the preview text: hidden by its own style with `display: none` and, as preheaders are, shrunk to
+ * nothing too (`max-height: 0`, `opacity: 0`, a 1px font or line). Read before any text a reader sees, it's the
+ * text inboxes list first. A block only `display: none` (shown on phones, say) isn't one.
+ */
+function preheader(element: Element): boolean {
+  const own = new Map(parseDeclarations(attr(element, "style") ?? "").map((d) => [d.property, d.value.trim().toLowerCase()]));
+  if (own.get("display") !== "none") return false;
+  const zero = (property: string, most = 0) => {
+    const value = own.get(property);
+    const px = value === undefined ? undefined : lengthPx(value);
+    return px !== undefined && px <= most;
+  };
+  return zero("max-height") || zero("max-width") || own.get("opacity") === "0" || zero("font-size", 1) || zero("line-height", 1);
+}
 
 // ============================================
 // What the check doesn't model

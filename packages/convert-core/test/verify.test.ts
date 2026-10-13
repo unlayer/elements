@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { compareText, hiddenClasses, hideClasses, htmlAttributes, htmlWords } from "../src/verify";
+import { checkFails, compareText, hiddenClasses, hideClasses, htmlAttributes, htmlWords } from "../src/verify";
 
 describe("link and image occurrences", () => {
   it("detects reordered values even when the conversion adds words", () => {
@@ -251,5 +251,35 @@ describe("inline SVG icons", () => {
     const check = compareText(page(`<p>Hi</p>${defined}${used}`), page(`<p>Hi</p>${used}`));
     expect(check.missingAttributes).toHaveLength(1);
     expect(check.addedAttributes).toHaveLength(1);
+  });
+});
+
+describe("the preview text without data-skip-in-text", () => {
+  const page = (body: string) => `<html><head></head><body style="margin:0">${body}</body></html>`;
+  // Older React Email (and hand-written emails) hide the preheader with styles only, wherever <Preview> is put.
+  const hiddenPreheader = (text: string) => `<div style="display:none;overflow:hidden;line-height:1px;opacity:0;max-height:0;max-width:0">${text}<div> ‌​‍‎‏﻿</div></div>`;
+  const elementsPreheader = (text: string) => `<div data-skip-in-text="true" style="display:none;font-size:1px;color:#ffffff;line-height:1px;max-height:0px;max-width:0px;opacity:0;overflow:hidden;">${text}</div>`;
+  const content = "<h1>Storage almost full</h1><p>You have used 90% of your plan.</p>";
+  const card = (inside: string) => `<table width="100%"><tr><td><table style="max-width:600px;margin:0 auto"><tr><td>${inside}</td></tr></table></td></tr></table>`;
+
+  it("reads a hidden preheader before any text shown as the preview, as data-skip-in-text is", () => {
+    const original = page(card(hiddenPreheader("Upgrade before uploads stop") + content));
+    const check = compareText(original, page(elementsPreheader("Upgrade before uploads stop") + card(content)));
+    expect([check.missing, check.added, check.styles]).toEqual([[], [], []]);
+    expect(checkFails(check)).toBe(false);
+  });
+
+  it("finds that preview lost, or shown in the email", () => {
+    const original = page(card(hiddenPreheader("Upgrade before uploads stop") + content));
+    expect(compareText(original, page(card(content))).missing).toEqual(["Upgrade", "before", "uploads", "stop"]);
+    const shown = compareText(original, page(card("<p>Upgrade before uploads stop</p>" + content)));
+    expect(shown.styles).toContainEqual(expect.objectContaining({ property: "shown", original: "the inbox preview only", converted: "in the email" }));
+  });
+
+  it("doesn't read hidden text as the preview after text shown, or a block hidden only with display:none", () => {
+    const after = page(card(content + hiddenPreheader("Upgrade before uploads stop")));
+    expect(compareText(after, page(elementsPreheader("Upgrade before uploads stop") + card(content))).added).toEqual(["Upgrade", "before", "uploads", "stop"]);
+    const phoneOnly = page(card('<div style="display:none">Upgrade before uploads stop</div>' + content));
+    expect(compareText(phoneOnly, page(elementsPreheader("Upgrade before uploads stop") + card(content))).added).toEqual(["Upgrade", "before", "uploads", "stop"]);
   });
 });
