@@ -3,7 +3,8 @@
 Migrate React Email templates to [Unlayer Elements](https://github.com/unlayer/elements). Your templates keep their props, loops and conditions; they become Elements components that render email-safe HTML, web pages and print documents, and open in the Unlayer visual editor.
 
 ```bash
-npx @unlayer/migrate emails --write
+npx @unlayer/migrate emails           # converts and checks your templates, and writes nothing
+npx @unlayer/migrate emails --write   # then replaces them (committed in git first, so git can undo it)
 ```
 
 Run it from your project folder, with Node.js 20.6 or later (an older one stops with exit code `1`, saying so). Each template is:
@@ -80,7 +81,7 @@ const html = renderToHtml(<Welcome name="Alex" />); // send with any provider
 const design = renderToJson(<Welcome name="Alex" />); // open in the visual editor
 ```
 
-React Email (`react-email` or `@react-email/components`) can be removed once no template imports it. Templates with blocks kept as HTML still import React Email components for those blocks, from the same package the template used; the report lists them.
+React Email (`react-email` or `@react-email/components`) can be removed once no file imports it. The shared components and helpers your templates used are written into the migrated templates, and their own files stay as they are: after `--write`, the run lists the files that still import React Email, so delete the ones nothing imports any more before you remove it. Templates with blocks kept as HTML still import React Email components for those blocks, from the same package the template used; the report lists them. React Email's own scripts (`email dev`, `email export`) render React Email templates: preview a migrated template with `renderToHtml()`.
 
 A template that calls React hooks (`useMemo`, `useId`, …) migrates like any other: the check calls it in a render of its own, and Elements renders it with React.
 
@@ -118,4 +119,4 @@ The report lists every difference for each template. The common ones:
 
 The conversion runs in your project, with your project's React, React Email and TypeScript paths (`tsconfig` and `jsconfig` aliases work, imports TypeScript can't follow are resolved as Node does, and workspace packages are followed to their source). Templates are the files that import React Email, or that import your own components that do (a `ui` file that wraps or re-exports it). The automatic JSX runtime applies to templates and imported helpers in ESM and CommonJS projects, including helpers outside the input folder and workspace packages. React Email and Elements load from each template's own folder, as where it runs, and React is one copy, the project's: in a monorepo, an app's templates use the app's packages. Pass one app's templates per run; a run whose templates would load different copies stops and says which folder to migrate on its own. It reads your templates and executes them to check the result: a template's module code runs, and its component is rendered, as React Email's preview does. Only files whose default export is a component (a function or a React `Component` class, not async, returning JSX or with `PreviewProps`) are loaded; others, like a helper that sends an email, are reported as skipped and never run. A template wrapped in another function (`export default withTracking(Welcome)`) fails: export the component itself. A template that calls `process.exit` fails instead of ending the run; one that throws later, from a timer or a promise, makes the run exit with `2` after its summary. A template that isn't saved as UTF-8 fails instead of being written back with replaced characters; CRLF line endings are kept. Run it only on code you trust. It makes no network requests: rendering produces HTML, and nothing is fetched.
 
-For the full `@unlayer/migrate/react-email` API, see the [React Email converter documentation](../from-react-email).
+For the full `@unlayer/migrate/react-email` API, see the [React Email converter documentation](https://github.com/unlayer/elements/tree/main/packages/from-react-email#readme).
