@@ -425,10 +425,10 @@ async function run(argv: string[], io: Io, library?: Library): Promise<number> {
   const read = results.splice(inputs.unreadable.length).sort((a, b) => a.file.localeCompare(b.file));
   results.push(...read);
   io.stdout(lines(results));
-  io.stdout(`\n${summary(results, options)}\n`);
   // Templates an earlier run migrated, beside files still to look at (a shared component left behind): said, so a run
   // again after --write (in CI) doesn't read as finding nothing.
   const done = inputs.files.filter((f) => f.migrated).length;
+  io.stdout(`\n${summary(results, options).replace(/^No email templates\./, done ? "No email templates left to migrate." : "$&")}\n`);
   if (done) io.stdout(`${done} template${done === 1 ? "" : "s"} already migrated (importing @unlayer/react-elements).\n`);
   // The project's files that use a template it replaced (a route or a helper that sends it, a component file): they
   // now get Elements', whose markup React Email's render() gives without <html> and <head>. Looked for in the whole

@@ -703,7 +703,7 @@ export default function Welcome() { return <Html><Body><Text>Welcome aboard frie
     expect(await main(["emails", "--write"], first, lib), first.out + first.err).toBe(0);
     const again = io(dir);
     expect(await main(["emails", "--write"], again, lib), again.out + again.err).toBe(0);
-    expect(again.out).toContain("1 template already migrated (importing @unlayer/react-elements).");
+    expect(again.out).toContain("\nNo email templates left to migrate. 1 other file skipped (see above). 0 written.\n1 template already migrated (importing @unlayer/react-elements).\n");
     expect(again.err).not.toContain("No email template was checked");
   });
 
