@@ -72,6 +72,14 @@ function wordsOf(doc: StyledDocument, within?: Parameters<StyledDocument["words"
 }
 
 /**
+ * How many image preloads React 19 wrote itself into `html`'s body: `<link rel="preload" as="image">` for an image
+ * the same document shows (see `StyledDocument.imagePreloads`). They aren't content.
+ */
+export function imagePreloads(html: string): number {
+  return new StyledDocument(html).imagePreloads().length;
+}
+
+/**
  * The links, images and image text a reader gets: `href=` of links, `src=`
  * and `alt=` of images (alt shows when images are blocked, common in email).
  * Hidden elements and Outlook-only markup aren't counted.
