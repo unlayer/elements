@@ -59,6 +59,7 @@ import { addSides, backgroundColor, backgroundImage, boxSides, color, fillColor,
 import { inlineLocalComponents, type ModuleLoader } from "./components";
 import { inlineLocalJsx, inlineMapCallbacks } from "./inline";
 import { normalizeInlined } from "./normalize";
+import { htmlToJsx, slot, Unwritable } from "./plain-jsx";
 import { jsxText } from "./jsx-text";
 import { splitConditionalClasses } from "./variants";
 import { phoneSides, withPhoneStyles, handledPhoneClass, unheldPhoneStyles } from "./phone-styles";
@@ -2198,13 +2199,208 @@ class Converter {
     if (!values.length) return blocks;
     const [only] = blocks;
     if (blocks.length !== 1 || only.node.type === "#expr" || only.node.fallback) return undefined;
-    for (const node of source) this.refuseTailwind(node);
-    for (const node of source) this.switchRanges.push({ from: node.getStart(), to: node.getEnd() });
-    this.noteKeptUse(source, ctx);
     const color = this.keptColor(ctx);
-    const kept = this.keep(source.map((node) => this.keptText(node, color)).join(""), ctx, "", element);
+    let kept: ElementNode;
+    try {
+      // As HTML elements, as React Email renders them: the migration doesn't need its components for the block.
+      kept = this.keep(this.plainJsx(source, color, true).jsx, ctx, "", element);
+    } catch (error) {
+      if (!(error instanceof Unwritable)) throw error;
+      const components = [...new Set(source.flatMap((node) => this.reactEmailTags(node)))];
+      this.report.info("keeps @react-email/components", `${error.message.startsWith("<") ? error.message : components.map((c) => `<${c}>`).join(", ") || error.message} in the block for ${values.join(", ")} couldn't be rewritten`);
+      for (const node of source) this.refuseTailwind(node);
+      for (const node of source) this.switchRanges.push({ from: node.getStart(), to: node.getEnd() });
+      this.noteKeptUse(source, ctx);
+      kept = this.keep(source.map((node) => this.keptText(node, color)).join(""), ctx, "", element);
+    }
     this.needsHoldsElements = true;
     return [{ ...only, node: { ...only.node, props: { ...only.node.props, [SWITCH]: { test: values, kept: (kept.props!.html as Expr).$expr, alone } } } }];
+  }
+
+  /** The React Email components a node holds, by the names the template gives them. */
+  private reactEmailTags(node: ts.Node): string[] {
+    const out: string[] = [];
+    const visit = (n: ts.Node) => {
+      if ((ts.isJsxOpeningElement(n) || ts.isJsxSelfClosingElement(n)) && this.components.has(n.tagName.getText())) out.push(n.tagName.getText());
+      ts.forEachChild(n, visit);
+    };
+    visit(node);
+    return out;
+  }
+
+  /**
+   * JSX as the HTML elements React renders for it, written back as JSX (see plain-jsx.ts): React Email's components are
+   * rendered here, with markers standing for what comes from code (a value shown, an attribute or a style property from
+   * code, a condition or a list of JSX, written back as code), so the block keeps what it shows without them. Rendered
+   * twice with different markers: a component that does more with a value than show it can't be written so. `root`: the
+   * block itself, whose paragraph or heading margins its block's padding holds, as the Paragraph's does. Unwritable
+   * (naming what) where it can't be.
+   */
+  private plainJsx(nodes: readonly ts.Node[], color: string | undefined, root: boolean): { jsx: string; roots: number } {
+    const slots: Array<{ code: string; read: boolean }> = [];
+    const build = (set: number): React.ReactNode[] => {
+      let n = 0;
+      const take = (code: string, read: boolean) => {
+        const i = n++;
+        if (set === 0) slots.push({ code, read });
+        return slot(i, set);
+      };
+      const reads = (e: ts.Expression) => {
+        let x = unwrap(e);
+        while (ts.isPropertyAccessExpression(x) || (ts.isElementAccessExpression(x) && (ts.isStringLiteral(x.argumentExpression) || ts.isNumericLiteral(x.argumentExpression)))) x = unwrap(x.expression);
+        return ts.isIdentifier(x);
+      };
+      const child = (c: ts.Node): React.ReactNode => {
+        if (ts.isJsxText(c)) return jsxText(c.text) || null;
+        if (ts.isJsxExpression(c)) {
+          const e = c.expression;
+          if (!e) return null;
+          if (containsJsx(e)) return take(this.jsxCode(e, color), false);
+          const value = this.evaluate(e);
+          if (typeof value === "string" || typeof value === "number") return String(value);
+          if (value === null || typeof value === "boolean" || nothing(e)) return null;
+          return take(e.getText(), reads(e));
+        }
+        if (ts.isJsxFragment(c)) return React.createElement(React.Fragment, null, ...c.children.map(child));
+        if (ts.isJsxElement(c) || ts.isJsxSelfClosingElement(c)) return element(c);
+        throw new Unwritable("code in text");
+      };
+      const element = (node: ts.JsxElement | ts.JsxSelfClosingElement): React.ReactElement => {
+        const opening = ts.isJsxElement(node) ? node.openingElement : node;
+        const tag = opening.tagName.getText();
+        const name = this.components.get(tag);
+        const type: unknown = /^[a-z][\w-]*$/.test(tag) ? tag
+          : /^(React\.)?Fragment$/.test(tag) && this.isReactFragment(tag) ? React.Fragment
+          // React Email's CodeInline renders a <style> and the text twice (for one mail client): a <code>, as the text block has it.
+          : name === "CodeInline" ? "code"
+          : name !== undefined && !this.componentSources.get(tag)?.type ? (ReactEmail as Record<string, unknown>)[name]
+          : undefined;
+        if (!type) throw new Unwritable(`<${tag}>`);
+        const props: Record<string, unknown> = {};
+        for (const attr of opening.attributes.properties) {
+          if (ts.isJsxSpreadAttribute(attr)) {
+            const value = this.styleValue(() => this.evaluate(attr.expression));
+            if (!value || typeof value !== "object" || Array.isArray(value)) throw new Unwritable(`<${tag}>`);
+            Object.assign(props, value);
+            continue;
+          }
+          const attrName = attr.name.getText();
+          if (/^(key|ref|style|className)$/.test(attrName)) continue;
+          const init = attr.initializer;
+          if (!init) props[attrName] = true;
+          else if (ts.isStringLiteral(init)) props[attrName] = decodeHtmlEntities(init.text);
+          else if (ts.isJsxExpression(init) && init.expression) {
+            const e = init.expression;
+            if (containsJsx(e)) throw new Unwritable(`<${tag}>`);
+            const value = this.evaluate(e);
+            if (value !== undefined && (typeof value !== "object" || attrName === "dangerouslySetInnerHTML")) props[attrName] = value;
+            else if (attrName === "dangerouslySetInnerHTML") throw new Unwritable(`<${tag}>`);
+            else props[attrName] = take(e.getText(), reads(e));
+          }
+        }
+        // Its classes and head rules as styles (the migrated email has neither), its own style, and what its style
+        // computes from code as markers.
+        const read = this.read(node);
+        const className = opening.attributes.properties.find((a): a is ts.JsxAttribute => ts.isJsxAttribute(a) && a.name.getText() === "className");
+        const classes = className ? this.styleValue(() => this.attrValue(className.initializer)) : undefined;
+        if (className && typeof classes !== "string") throw new Unwritable(`<${tag}>`);
+        if (typeof classes === "string" && !this.classStyles(classes).drop) props.className = classes;
+        const style: Record<string, unknown> = Object.fromEntries(Object.entries(read.style).filter(([k]) => !k.startsWith("_")));
+        const styleAttr = opening.attributes.properties.find((a): a is ts.JsxAttribute => ts.isJsxAttribute(a) && a.name.getText() === "style");
+        const styleCode = styleAttr?.initializer && ts.isJsxExpression(styleAttr.initializer) ? styleAttr.initializer.expression : undefined;
+        if (styleCode && this.styleValue(() => this.evaluate(styleCode)) === undefined) {
+          const literal = unwrap(styleCode);
+          if (!ts.isObjectLiteralExpression(literal)) throw new Unwritable(`<${tag}>`);
+          for (const prop of literal.properties) {
+            if (ts.isSpreadAssignment(prop)) {
+              if (nothing(prop.expression)) continue;
+              const value = this.styleValue(() => this.evaluate(prop.expression));
+              if (!value || typeof value !== "object") throw new Unwritable(`<${tag}>`);
+              continue;
+            }
+            const key = (ts.isPropertyAssignment(prop) || ts.isShorthandPropertyAssignment(prop)) && (ts.isIdentifier(prop.name) || ts.isStringLiteral(prop.name)) ? prop.name.text : undefined;
+            if (key === undefined) throw new Unwritable(`<${tag}>`);
+            const value = ts.isPropertyAssignment(prop) ? prop.initializer : (prop as ts.ShorthandPropertyAssignment).name;
+            if (this.styleValue(() => this.evaluate(value)) === undefined) style[key] = take(value.getText(), reads(value));
+          }
+        }
+        for (const [key, value] of Object.entries(style)) {
+          // A computed background standing in as a color (see computedBackground): its code.
+          const stand = typeof value === "string" ? this.computedBackgrounds.get(value.trim().toLowerCase()) : undefined;
+          if (stand) style[key] = take(stand.code, false);
+        }
+        if (Object.keys(style).length) props.style = style;
+        const children = ts.isJsxElement(node) ? node.children.map(child) : [];
+        return React.createElement(type as React.ElementType, props, ...children);
+      };
+      return nodes.map(child);
+    };
+    const single = nodes.length === 1 && (ts.isJsxElement(nodes[0]) || ts.isJsxSelfClosingElement(nodes[0])) ? this.read(nodes[0] as ts.JsxElement) : undefined;
+    const block = root && single && /^(Text|Heading)$/.test(single.name ?? hostAlias(single.tag) ?? "");
+    const render = (set: number) => {
+      const html = withBrowserDefaults(renderToStaticMarkup(React.createElement(React.Fragment, null, ...build(set))).replace(/<link rel="preload" as="image"[^>]*>/g, ""), color);
+      return block ? withoutMargins(html) : html;
+    };
+    let first: string;
+    let second: string;
+    try {
+      first = render(0);
+      second = render(1);
+    } catch (error) {
+      if (error instanceof Unwritable) throw error;
+      throw new Unwritable(single ? `<${single.tag}>` : "markup that doesn't render on its own");
+    }
+    if (first.replace(/(\d+)/g, "\0$1\0") !== second.replace(/(\d+)/g, "\0$1\0")) throw new Unwritable(single ? `<${single.tag}>` : "markup that changes what it's given");
+    // A value shown twice is read twice: only one that only reads.
+    slots.forEach((s, i) => {
+      if (!s.read && first.split(slot(i)).length > 2) throw new Unwritable(single ? `<${single.tag}>` : "markup that shows a value twice");
+    });
+    return htmlToJsx(first, (i) => slots[i].code);
+  }
+
+  /** Code with JSX in text (a condition, a list) with its JSX as HTML elements (see `plainJsx`). */
+  private jsxCode(expression: ts.Expression, color: string | undefined): string {
+    const node = unwrap(expression);
+    const branch = (b: ts.Expression) => (containsJsx(b) ? `(${this.jsxCode(b, color)})` : b.getText());
+    if (ts.isJsxElement(node) || ts.isJsxSelfClosingElement(node) || ts.isJsxFragment(node)) return `<>${this.plainJsx([node], color, false).jsx}</>`;
+    if (ts.isConditionalExpression(node) && !containsJsx(node.condition)) return `(${node.condition.getText()}) ? ${branch(node.whenTrue)} : ${branch(node.whenFalse)}`;
+    if (ts.isBinaryExpression(node) && !containsJsx(node.left) && [ts.SyntaxKind.AmpersandAmpersandToken, ts.SyntaxKind.BarBarToken, ts.SyntaxKind.QuestionQuestionToken].includes(node.operatorToken.kind)) {
+      return `(${node.left.getText()}) ${node.operatorToken.getText()} ${branch(node.right)}`;
+    }
+    const callback = ts.isCallExpression(node) && node.arguments.length === 1 ? unwrap(node.arguments[0]) : undefined;
+    if (ts.isCallExpression(node) && ts.isPropertyAccessExpression(node.expression) && node.expression.name.text === "map" && !containsJsx(node.expression.expression) && callback && (ts.isArrowFunction(callback) || ts.isFunctionExpression(callback))) {
+      const start = callback.getStart();
+      // Each item's JSX, its key on the element it gives.
+      const item = (e: ts.Expression) => {
+        const value = unwrap(e);
+        if (!containsJsx(value)) return e.getText();
+        const keyed = (ts.isJsxElement(value) || ts.isJsxSelfClosingElement(value)) ? this.read(value).attrs.get("key") : undefined;
+        const out = this.plainJsx([value], color, false);
+        if (keyed && out.roots === 1 && /^<[a-z]/.test(out.jsx)) return `(${out.jsx.replace(/^<([a-z][\w-]*)/, `<$1 key={${keyed.getText()}}`)})`;
+        return `(<>${out.jsx}</>)`;
+      };
+      let text = callback.getText();
+      if (!ts.isBlock(callback.body)) text = `${text.slice(0, callback.body.getStart() - start)}${item(callback.body)}`;
+      else {
+        const edits: Array<{ from: number; to: number; text: string }> = [];
+        const visit = (n: ts.Node): void => {
+          if (ts.isFunctionLike(n)) {
+            if (containsJsx(n)) throw new Unwritable("code in text");
+            return;
+          }
+          if (ts.isReturnStatement(n)) {
+            if (n.expression) edits.push({ from: n.expression.getStart() - start, to: n.expression.getEnd() - start, text: item(n.expression) });
+            return;
+          }
+          if (ts.isJsxElement(n) || ts.isJsxSelfClosingElement(n) || ts.isJsxFragment(n)) throw new Unwritable("code in text");
+          ts.forEachChild(n, visit);
+        };
+        callback.body.statements.forEach(visit);
+        for (const edit of edits.sort((a, b) => b.from - a.from)) text = text.slice(0, edit.from) + edit.text + text.slice(edit.to);
+      }
+      return `${node.expression.expression.getText()}${node.expression.questionDotToken ? "?." : "."}map(${text})`;
+    }
+    throw new Unwritable("code in text");
   }
 
   private blockOf(jsx: Jsx, ctx: Ctx): Block[] {
@@ -4008,6 +4204,16 @@ function oneTemplate(code: string): boolean {
   if (!statement || !ts.isExpressionStatement(statement) || !ts.isParenthesizedExpression(statement.expression)) return false;
   const node = statement.expression.expression;
   return (ts.isTemplateExpression(node) || ts.isNoSubstitutionTemplateLiteral(node)) && node.getText().length === code.trim().length;
+}
+
+/** HTML with its first element's margins set to 0 (its block's padding holds them, as a Paragraph's does). */
+function withoutMargins(html: string): string {
+  return html.replace(/^<([a-z][\w-]*)\b([^>]*)>/, (tag, name: string, attrs: string) => {
+    const style = /\sstyle="([^"]*)"/.exec(attrs);
+    const css = (style?.[1] ?? "").split(";").filter((d) => d.trim() && !/^\s*margin(-[a-z-]+)?\s*:/i.test(d));
+    const value = [...css, "margin:0"].join(";");
+    return style ? tag.replace(style[0], ` style="${value}"`) : `<${name} style="${value}"${tag.slice(name.length + 1)}`;
+  });
 }
 
 /** HTML in parts (fixed HTML, and code giving HTML) as a string expression: a template literal, or `""`. */

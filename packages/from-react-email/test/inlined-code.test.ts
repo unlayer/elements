@@ -909,3 +909,66 @@ Notice.PreviewProps = { locale: "en" };
     }
   });
 });
+
+describe("a block written both ways, kept as HTML elements", () => {
+  const blockHtml = (html: string) => {
+    // The Html block's markup (Elements writes it in a div of its own).
+    const at = html.indexOf("Questions");
+    return at < 0 ? "" : html.slice(html.lastIndexOf("<p", at), html.indexOf("</p>", at) + 4);
+  };
+  const link = React.createElement("a", { href: "https://example.com/help" }, "the help center");
+
+  it("needs no React Email component (a link from a prop, a style object, a value from props), and shows an element as the original does", async () => {
+    const { conversion, added, Original, Migrated } = await migrate({
+      "types.ts": `export interface Props { name: string; url: string; footer?: unknown }\n`,
+      "note.jsx": `import { Html, Body, Section, Text, Link, CodeInline } from "@react-email/components";
+const copy = { color: "#334155", fontSize: "15px", lineHeight: "22px" };
+export default function Note({ name, url, footer }) {
+  return <Html><Body><Section>
+    <Text style={copy}>Hi <b>{name}</b>, questions? <Link href={url} style={{ color: "#2563eb" }}>Help</Link> {footer} from <CodeInline>{name}</CodeInline></Text>
+  </Section></Body></Html>;
+}
+Note.PreviewProps = { name: "Ana", url: "https://example.com/support", footer: "Reply anytime." };
+`,
+    }, "note.jsx");
+    expect(added).toEqual([]);
+    expect(conversion.code).toMatch(/holdsElements\(/);
+    expect(conversion.code).not.toContain("@react-email");
+    expect(conversion.code).toMatch(/<a\s+href=\{url\}/);
+    expect(conversion.report.info.filter((i) => i.reason === "keeps @react-email/components")).toEqual([]);
+    for (const footer of ["Reply anytime.", link]) {
+      const check = await verifyConversion(Original, Migrated, { props: { name: "Ana", url: "https://example.com/x", footer } });
+      expect([check.missing, check.added, check.missingAttributes, check.addedAttributes, check.styles]).toEqual([[], [], [], [], []]);
+    }
+  });
+
+  it("is the markup React Email renders for the block, with the block's margins in its padding as the Paragraph's", async () => {
+    const { Original, Migrated } = await migrate({
+      "note.jsx": `import { Html, Body, Text } from "@react-email/components";
+export default function Note({ footer }) {
+  return <Html><Body><Text style={{ color: "#334155" }}>Questions? <b>Help:</b> {footer}</Text></Body></Html>;
+}
+Note.PreviewProps = { footer: "reply" };
+`,
+    }, "note.jsx");
+    const { renderToHtml } = await import("@unlayer/react-elements");
+    const { render } = await import("@react-email/components");
+    const kept = blockHtml(renderToHtml(React.createElement(Migrated, { footer: link })));
+    const original = blockHtml(await render(React.createElement(Original, { footer: link })));
+    // The same paragraph, but its 16px margins: the block's padding holds them, as it does the Paragraph's.
+    expect(kept.replace(/margin:0/, "")).toBe(original.replace(/margin-top:16px;margin-bottom:16px/, ""));
+  });
+
+  it("keeps React Email where a component can't be written as HTML, and says so", async () => {
+    const { conversion } = await migrate({
+      "note.jsx": `import { Html, Body, Text, Button } from "@react-email/components";
+export default function Note({ footer, url }) {
+  return <Html><Body><Text>Questions? {footer} <Button href={url} style={{ padding: "8px 12px" }}>Help</Button></Text></Body></Html>;
+}
+Note.PreviewProps = { footer: "reply", url: "https://example.com" };
+`,
+    }, "note.jsx");
+    expect(conversion.report.info).toContainEqual({ reason: "keeps @react-email/components", detail: expect.stringMatching(/<Button>.* in the block for footer couldn't be rewritten/) });
+    expect(conversion.code).toContain("@react-email/components");
+  });
+});

@@ -1031,8 +1031,11 @@ describe("props typed to hold JSX", () => {
 import { Html, Body, Text } from "@react-email/components";
 export default function T({ message }: { message: ReactNode }) { return <Html><Body><Text>{message}, soon.</Text></Body></Html>; }
 T.PreviewProps = { message: "Track it here" };`);
-    // Its text can't be written as HTML without rendering it (no react-dom in the migration): the block is kept as it renders.
-    expect(conversion.code).toMatch(/<KeptHtml[^>]*>\s*<div[^>]*>\s*<Text>\{message\}, soon.<\/Text>/);
+    // Its text can't be written as HTML without rendering it (no react-dom in the migration): the block is also written
+    // as the HTML elements React Email renders, used when the value holds elements.
+    expect(conversion.code).toMatch(/holdsElements\(message\) \?/);
+    expect(conversion.code).toMatch(/<KeptHtml[^>]*>\s*<div[^>]*>\s*<p style=\{\{[^}]*\}\}>\s*\{message\}, soon.\s*<\/p>/);
+    expect(conversion.code).not.toContain("@react-email");
     expect(conversion.code).not.toContain("react-dom");
     const { renderToHtml } = await import("@unlayer/react-elements");
     const withLink = renderToHtml(React.createElement(Migrated, { message: React.createElement(React.Fragment, null, "Track it ", React.createElement("a", { href: "https://example.com/track" }, "here")) }));
