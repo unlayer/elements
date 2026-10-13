@@ -323,11 +323,12 @@ Code.PreviewProps = { code: "482913", color: "#e11d48", size: 24 };`;
     const dir = project({ "emails/code.tsx": source });
     const out = io(dir);
     expect(await main(["emails", "--out", "migrated", "--report", "report.json"], out, lib)).toBe(0);
-    expect(out.out).toMatch(/looks different: .*lost styles: line 3: color; line 3: fontSize: size/);
+    // The color is written as the code it comes from; the size can't be.
+    expect(out.out).toMatch(/looks different: .*lost styles: line 3: fontSize: size/);
     expect(fs.existsSync(path.join(dir, "migrated/code.tsx"))).toBe(true);
     const [result] = JSON.parse(fs.readFileSync(path.join(dir, "report.json"), "utf8"));
     expect(result.status).toBe("migrated");
-    expect(result.lostStyles).toEqual(["line 3: color", "line 3: fontSize: size"]);
+    expect(result.lostStyles).toEqual(["line 3: fontSize: size"]);
     const strict = io(dir);
     expect(await main(["emails", "--out", "strict", "--strict", "--report", "strict.json"], strict, lib)).toBe(2);
     expect(fs.existsSync(path.join(dir, "strict/code.tsx"))).toBe(false);

@@ -534,19 +534,19 @@ Trial.PreviewProps = { paid: true };
 describe("a style value from a file the codemod can't read", () => {
   it("is a lost style, not content shown or hidden, when no value of its property can hide anything", async () => {
     const { conversion } = await migrate({
-      "palette.ts": `export let palette = { brand: "#2563eb", hidden: "none" };
+      "palette.ts": `export let palette = { weight: 700, hidden: "none" };
 `,
       "theme.ts": `export { palette } from "./palette";
 `,
       "promo.tsx": `import { Html, Body, Text } from "@react-email/components";
 import { palette } from "./theme";
 export default function Promo() {
-  return <Html><Body><Text style={{ color: palette.brand }}>Spring sale</Text><Text style={{ display: palette.hidden }}>Secret</Text></Body></Html>;
+  return <Html><Body><Text style={{ fontWeight: palette.weight }}>Spring sale</Text><Text style={{ display: palette.hidden }}>Secret</Text></Body></Html>;
 }
 `,
     }, "promo.tsx");
-    expect(conversion.report.lostStyles).toEqual(expect.arrayContaining([expect.stringContaining("color: palette.brand"), expect.stringContaining("display: palette.hidden")]));
-    // `display` from code can hide content: still counted; `color` can't.
+    expect(conversion.report.lostStyles).toEqual(expect.arrayContaining([expect.stringContaining("fontWeight: palette.weight"), expect.stringContaining("display: palette.hidden")]));
+    // `display` from code can hide content: still counted; `fontWeight` can't.
     expect(conversion.report.lostShown).toEqual([expect.stringContaining("display: palette.hidden")]);
   });
 });
@@ -717,6 +717,31 @@ News.PreviewProps = { who: "Globex" };
     for (const props of [Original.PreviewProps, {}]) {
       const check = await verifyConversion(Original, Migrated, { props });
       expect([check.missing, check.added]).toEqual([[], []]);
+    }
+  });
+});
+
+describe("colors computed from props", () => {
+  it("are written on the text and buttons that set them, as code", async () => {
+    const { conversion, added, Original, Migrated } = await migrate({
+      "watch.tsx": `import { Html, Body, Container, Text, Button } from "@react-email/components";
+const TONE: Record<string, string> = { good: "#a8ff53", bad: "#ff5353" };
+export default function Watch({ tone = "good", url }: { tone?: string; url: string }) {
+  const accent = TONE[tone] ?? TONE.good;
+  return <Html><Body style={{ backgroundColor: "#15171a" }}><Container>
+    <Text style={{ color: accent, fontSize: "11px" }}>Watch update</Text>
+    <Text style={{ color: "#d7d9dd" }}>Body copy</Text>
+    <Button href={url} style={{ backgroundColor: accent, color: "#15171a", padding: "10px 16px" }}>Open</Button>
+  </Container></Body></Html>;
+}
+Watch.PreviewProps = { tone: "good", url: "https://example.com/watch" };
+`,
+    }, "watch.tsx");
+    expect(added).toEqual([]);
+    expect(conversion.report.lostStyles ?? []).toEqual([]);
+    for (const tone of ["good", "bad"]) {
+      const check = await verifyConversion(Original, Migrated, { props: { tone, url: "https://example.com/watch" } });
+      expect([check.missing, check.added, check.styles]).toEqual([[], [], []]);
     }
   });
 });

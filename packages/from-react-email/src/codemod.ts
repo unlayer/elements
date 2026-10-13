@@ -326,6 +326,8 @@ class Converter {
   /** The style each Tailwind class a string of the file holds gives, for classes worked out at render time (see `tailwindStyle`). */
   private readonly classTable = new Map<string, Style>();
   private needsTailwindStyle = false;
+  /** Style properties written as code on the block they set (see `computedColors`): not lost. */
+  private readonly keptStyleParts = new Set<number>();
   /** Source ranges written into text as the HTML they render (see `markupElement`): their computed styles are kept. */
   private readonly renderedRanges: Array<{ from: number; to: number }> = [];
   /** Module constants copied in with imported components: dropped if the output doesn't use them. */
@@ -403,6 +405,7 @@ class Converter {
     this.keptComponentColors();
     // A computed style is lost where its element became Elements; one kept as HTML keeps it.
     for (const dropped of this.droppedStyles) {
+      if (this.keptStyleParts.has(dropped.from)) continue;
       if (![...this.fallbackRanges, ...this.renderedRanges].some((r) => dropped.from >= r.from && dropped.to <= r.to)) this.report.lostStyle(dropped.detail, SHOWS.test(dropped.text));
     }
     const report = this.report.finish(
@@ -2001,7 +2004,7 @@ class Converter {
     const outer = this.switching;
     this.switching = { from: jsx.node.getStart(), to: jsx.node.getEnd(), values: [] };
     try {
-      const blocks = this.blockOf(jsx, ctx);
+      const blocks = this.blockOf(jsx, ctx).map((block) => (block.node.type === "#expr" || block.node.fallback ? block : { ...block, node: this.computedColors(jsx, block.node) }));
       return this.switched(blocks, [jsx.node], ctx, true) ?? [{ node: this.fallback(jsx, ctx, "text from values that may hold elements"), margin: ZERO, padding: ZERO }];
     } catch (error) {
       if (!(error instanceof KeepBlock)) throw error;
@@ -2009,6 +2012,29 @@ class Converter {
     } finally {
       this.switching = outer;
     }
+  }
+
+  /**
+   * A text color (or a button's background) an element's style computes (`style={{ color: accent }}`, a tone picked from
+   * props): written on its block as that code, with the color it would have without one after `||` (an empty or missing
+   * value takes the color around it, as in the browser), instead of a fixed color that can make its text unreadable.
+   */
+  private computedColors(jsx: Jsx, node: ElementNode): ElementNode {
+    const code = jsx.attrs.get("style");
+    const literal = code && unwrap(code);
+    const props: Record<string, string> = node.type === "Button" ? { color: "color", backgroundColor: "backgroundColor" } : node.type === "Paragraph" || node.type === "Heading" ? { color: "color" } : {};
+    if (!literal || !ts.isObjectLiteralExpression(literal) || !Object.keys(props).length) return node;
+    let out = node;
+    for (const prop of literal.properties) {
+      if (!(ts.isPropertyAssignment(prop) || ts.isShorthandPropertyAssignment(prop)) || !(ts.isIdentifier(prop.name) || ts.isStringLiteral(prop.name))) continue;
+      const name = props[prop.name.text];
+      const value = ts.isPropertyAssignment(prop) ? prop.initializer : prop.name;
+      if (!name || containsJsx(value) || this.styleValue(() => this.evaluate(value)) !== undefined) continue;
+      const fallback = out.props?.[name];
+      out = { ...out, props: { ...out.props, [name]: expr(typeof fallback === "string" ? `(${value.getText()}) || ${JSON.stringify(fallback)}` : value.getText()) } };
+      this.keptStyleParts.add(prop.getStart());
+    }
+    return out;
   }
 
   /**
