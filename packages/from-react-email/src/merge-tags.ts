@@ -553,7 +553,8 @@ function sameOutput(a: unknown, b: unknown): boolean {
 }
 
 function isPlainObject(value: unknown): value is Record<string, unknown> {
-  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
+  // A React element (`note: <em>…</em>`) is an object too, but its type and props aren't text the template shows.
+  if (!value || typeof value !== "object" || Array.isArray(value) || "$$typeof" in value) return false;
   const proto = Object.getPrototypeOf(value);
   return proto === Object.prototype || proto === null;
 }

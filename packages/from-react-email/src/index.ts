@@ -223,12 +223,20 @@ export async function verifyConversion(
   const designRoot = options.designProps ? callTemplate(Converted, options.designProps) : root;
   const warnings: string[] = [];
   const warn = console.warn;
+  const error = console.error;
   console.warn = (...args: unknown[]) => void warnings.push(args.map(String).join(" "));
+  // A block Elements leaves out of the design because it threw (`[Unlayer] <p> threw while rendering`) is missing too.
+  console.error = (...args: unknown[]) => {
+    const message = args.map(String).join(" ");
+    if (message.startsWith("[Unlayer]")) warnings.push(message);
+    else error(...args);
+  };
   let design: Record<string, unknown>;
   try {
     design = pinImageWidths(renderToJson(designRoot) as unknown as Record<string, unknown>);
   } finally {
     console.warn = warn;
+    console.error = error;
   }
   const designWarnings = withoutImagePreloads(warnings, () => (designRoot === root ? convertedHtml : renderToHtml(designRoot)));
 
@@ -418,16 +426,31 @@ export async function mergeTagDesign(
   options: { source?: string; helpers?: string[] } = {}
 ): Promise<{ design: Record<string, unknown>; used: string[]; kept: string[] }> {
   const warn = console.warn;
+  const error = console.error;
   console.warn = () => undefined; // the same warnings as the sample render, already reported
+  // A render with a placeholder in that leaves a block out (Elements says so: `[Unlayer] <p> threw while rendering`):
+  // that placeholder can't be used. What React says of it (`<uNlAyEr1 /> is using incorrect casing`) isn't the
+  // template's either: the sample render already said what the template's own renders do.
+  let failed: string | undefined;
+  console.error = (...args: unknown[]) => {
+    const message = args.map(String).join(" ");
+    if (message.startsWith("[Unlayer]")) failed ??= message;
+  };
   try {
     // Without the source, the component's own code calls the codemod's helpers it doesn't define: they show text as given.
     const source = options.source ?? componentCode(Converted);
     if (source === undefined) return { design, used: [], kept: [] };
     const tested = testedProps(source, new Set(options.helpers ?? (options.source === undefined ? CODEMOD_HELPERS : [])));
-    const tagged = await mergeTagged(props, design, (p) => pinImageWidths(renderToJson(callTemplate(Converted, p)) as unknown as Record<string, unknown>), tested);
+    const tagged = await mergeTagged(props, design, (p) => {
+      failed = undefined;
+      const out = pinImageWidths(renderToJson(callTemplate(Converted, p)) as unknown as Record<string, unknown>);
+      if (failed !== undefined) throw new Error(failed);
+      return out;
+    }, tested);
     return { design: tagged.result ?? design, used: tagged.used, kept: tagged.kept };
   } finally {
     console.warn = warn;
+    console.error = error;
   }
 }
 

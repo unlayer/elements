@@ -991,3 +991,43 @@ Note.PreviewProps = { name: "Ana", note: ${preview} };
     expect(text.conversion.report.nativeRatio).toBe(1);
   });
 });
+
+describe("the design of a template whose preview props give an element", () => {
+  it("has no merge tag from the element's insides, and a block left out of a design fails the check", async () => {
+    const { conversion, Original, Migrated } = await migrate({
+      "note.tsx": `import type { ReactNode } from "react";
+import { Html, Body, Text } from "@react-email/components";
+export default function Note({ name, note }: { name: string; note: ReactNode }) {
+  return <Html><Body><Text>Hi <strong>{name}</strong>, <b>{note}</b>.</Text></Body></Html>;
+}
+Note.PreviewProps = { name: "Ana", note: <em>your trial ends soon</em> };
+`,
+    }, "note.tsx");
+    const errors: string[] = [];
+    const error = console.error;
+    console.error = (...args: unknown[]) => void errors.push(args.map(String).join(" "));
+    try {
+      const check = await verifyConversion(Original, Migrated);
+      expect(check.designWarnings).toEqual([]);
+      const tagged = await mergeTagDesign(Migrated, Original.PreviewProps, check.design, { source: conversion.code, helpers: conversion.helpers });
+      expect(tagged.used).toEqual(["name"]);
+      expect(JSON.stringify(tagged.design)).not.toMatch(/note\.props|uNlAyEr/);
+      expect(errors.filter((e) => /uNlAyEr|Invalid tag/.test(e))).toEqual([]);
+    } finally {
+      console.error = error;
+    }
+    // A component that throws in the design's render is a block the editor doesn't get.
+    const Broken = () => {
+      throw new Error("no data");
+    };
+    const { Email, Row, Column } = await import("@unlayer/react-elements");
+    const Leaves = () => React.createElement(Email, null, React.createElement(Row, null, React.createElement(Column, null, React.createElement(Broken))));
+    console.error = () => undefined;
+    try {
+      const check = await verifyConversion(Original, Leaves);
+      expect(check.designWarnings).toEqual([expect.stringMatching(/^\[Unlayer\] <Broken> threw while rendering/)]);
+    } finally {
+      console.error = error;
+    }
+  });
+});
