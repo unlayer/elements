@@ -691,6 +691,22 @@ export default function Footer() { return <Section><Text>Sent by Acme</Text></Se
     expect(fs.readFileSync(path.join(dir, "emails/welcome.tsx"), "utf8")).toBe(migrated);
   });
 
+  it("says templates are already migrated on a run again after --write, beside a shared component left behind", async () => {
+    // A Next.js app's emails folder: the template's footer is inlined, and its file (still React Email's) stays.
+    const footer = `import { Text } from "@react-email/components";
+export function Footer() { return <Text>Sent by Acme</Text>; }`;
+    const welcome = `import { Html, Body, Text } from "@react-email/components";
+import { Footer } from "./components/footer";
+export default function Welcome() { return <Html><Body><Text>Welcome aboard friend</Text><Footer /></Body></Html>; }`;
+    const dir = project({ "emails/welcome.tsx": welcome, "emails/components/footer.tsx": footer });
+    const first = io(dir);
+    expect(await main(["emails", "--write"], first, lib), first.out + first.err).toBe(0);
+    const again = io(dir);
+    expect(await main(["emails", "--write"], again, lib), again.out + again.err).toBe(0);
+    expect(again.out).toContain("1 template already migrated (importing @unlayer/react-elements).");
+    expect(again.err).not.toContain("No email template was checked");
+  });
+
   it("migrates a template that takes only types from Elements", async () => {
     const source = `import { Html, Body, Text } from "@react-email/components";
 import type { EmailProps } from "@unlayer/react-elements";

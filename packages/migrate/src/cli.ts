@@ -426,6 +426,10 @@ async function run(argv: string[], io: Io, library?: Library): Promise<number> {
   results.push(...read);
   io.stdout(lines(results));
   io.stdout(`\n${summary(results, options)}\n`);
+  // Templates an earlier run migrated, beside files still to look at (a shared component left behind): said, so a run
+  // again after --write (in CI) doesn't read as finding nothing.
+  const done = inputs.files.filter((f) => f.migrated).length;
+  if (done) io.stdout(`${done} template${done === 1 ? "" : "s"} already migrated (importing @unlayer/react-elements).\n`);
   // The project's files that use a template it replaced (a route or a helper that sends it, a component file): they
   // now get Elements', whose markup React Email's render() gives without <html> and <head>. Looked for in the whole
   // project, not only the folder given (`migrate emails --write` from a Next.js app: its routes send them).
@@ -463,7 +467,7 @@ async function run(argv: string[], io: Io, library?: Library): Promise<number> {
     io.stderr("Templates left as they are weren't checked: files that render them weren't migrated (see above). Migrate them with --out <dir>, or with the files that render them.\n");
     return 1;
   }
-  if (!results.some((r) => r.status === "migrated") && !results.some((r) => r.reason?.startsWith("already migrated"))) {
+  if (!done && !results.some((r) => r.status === "migrated") && !results.some((r) => r.reason?.startsWith("already migrated"))) {
     io.stderr("No email template was checked: nothing here renders React Email's <Html> (shared components and helpers are skipped).\n");
     return 1;
   }
