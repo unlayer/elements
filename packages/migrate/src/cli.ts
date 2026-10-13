@@ -1259,7 +1259,10 @@ function summary(all: FileResult[], options: Options): string {
     ...(count("skipped") ? [`${count("skipped")} skipped`] : []),
   ];
   const written = results.filter((r) => r.output).length;
-  const next = options.write || options.out !== undefined ? `${written} written.` : "Nothing written: pass --write or --out <dir> to write the migrated templates.";
+  // A dry run says how to write what it migrated (what failed the check is written too, unless --strict): only when
+  // there's something to write.
+  const writable = results.some((r) => r.status === "migrated" || (r.status === "check-failed" && (!options.strict || options.force)));
+  const next = options.write || options.out !== undefined ? `${written} written.` : writable ? "Nothing written: pass --write or --out <dir> to write the migrated templates." : "Nothing to write.";
   const templates = results.length ? `${results.length} template${results.length > 1 ? "s" : ""}: ${parts.join(", ")}.` : "No email templates.";
   return `${templates}${others ? ` ${others} other file${others > 1 ? "s" : ""} skipped (see above).` : ""} ${next}`;
 }

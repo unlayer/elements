@@ -706,6 +706,11 @@ export default function Welcome() { return <Html><Body><Text>Welcome aboard frie
     expect(first.out).toContain("\nStill importing React Email, as they were (the migrated templates have what they used written in): delete the ones nothing imports any more before you remove React Email:\n  emails/components/footer.tsx\n");
     expect(again.out).toContain("\nNo email templates left to migrate. 1 other file skipped (see above). 0 written.\n1 template already migrated (importing @unlayer/react-elements).\n");
     expect(again.err).not.toContain("No email template was checked");
+    // A dry run has nothing to write either: it doesn't say how to write it.
+    const dry = io(dir);
+    expect(await main(["emails"], dry, lib), dry.out + dry.err).toBe(0);
+    expect(dry.out).toContain("\nNo email templates left to migrate. 1 other file skipped (see above). Nothing to write.\n1 template already migrated (importing @unlayer/react-elements).\n");
+    expect(dry.out).not.toContain("pass --write");
   });
 
   it("doesn't count a file of the project's that renders with Elements as a template already migrated", async () => {
