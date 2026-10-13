@@ -357,3 +357,36 @@ Status.PreviewProps = { url: "https://status.example.com" };
     expect([check.missing, check.added, check.styles]).toEqual([[], [], []]);
   });
 });
+
+describe("markup kept as React that renders React Email's <Tailwind>", () => {
+  const files = {
+    "shell.tsx": `import type { ReactNode } from "react";
+import { Html, Body, Container, Tailwind } from "@react-email/components";
+export function Shell({ children, note }: { children: ReactNode; note?: string }) {
+  return <Html><Tailwind><Body className="bg-slate-50"><Container className="p-4">{children}{note}</Container></Body></Tailwind></Html>;
+}
+`,
+    "plain-shell.tsx": `import type { ReactNode } from "react";
+import { Html, Body, Container } from "@react-email/components";
+export function PlainShell({ children, note }: { children: ReactNode; note?: string }) {
+  return <Html><Body style={{ backgroundColor: "#f8fafc" }}><Container>{children}{note}</Container></Body></Html>;
+}
+`,
+  };
+  const template = (shell: string) => `import { Text } from "@react-email/components";
+import { ${shell} as Shell } from "./${shell === "Shell" ? "shell" : "plain-shell"}";
+function Inner({ name, ...rest }: { name: string; note?: string }) {
+  return <Shell {...rest}><Text>Hi {name}</Text></Shell>;
+}
+export default function Notice() { return <Inner name="Ada" note="Bye" />; }
+`;
+
+  it("is refused, saying why (<Tailwind> suspends on its first render, Elements renders synchronously)", async () => {
+    await expect(migrate({ ...files, "notice.tsx": template("Shell") }, "notice.tsx")).rejects.toThrow(/<Inner> is kept as React .* renders React Email's <Tailwind>, which suspends/);
+  });
+
+  it("isn't refused without <Tailwind>", async () => {
+    const { conversion } = await migrate({ ...files, "notice.tsx": template("PlainShell") }, "notice.tsx");
+    expect(conversion.report.fallbacks).toEqual([{ reason: "custom component", detail: "Inner" }]);
+  });
+});

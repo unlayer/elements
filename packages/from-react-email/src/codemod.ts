@@ -2035,6 +2035,7 @@ class Converter {
 
   /** Something Elements can't express: kept as it renders (see `keep`). */
   private fallback(jsx: Jsx, ctx?: Ctx, why?: string): ElementNode {
+    this.refuseTailwind(jsx.node);
     this.fallbackRanges.push({ from: jsx.node.getStart(), to: jsx.node.getEnd() });
     const reason = why ?? (jsx.name ? `unsupported component: ${jsx.name}` : /^[A-Z]/.test(jsx.tag) ? `custom component: ${jsx.tag}` : `unsupported element: ${jsx.tag}`);
     // An HTML element or a React Email component renders an element; a component of the template's own may render text only.
@@ -2042,8 +2043,94 @@ class Converter {
     return this.keep(this.keptText(jsx.node, this.keptColor(ctx)), ctx, reason, element);
   }
 
+  /**
+   * Markup kept as React that renders React Email's <Tailwind> (directly, or in a component that couldn't be inlined,
+   * through the components it renders): <Tailwind> suspends the first time it renders a config, and Elements renders
+   * synchronously, so a fresh process would leave that content out of the email. Such a template is refused, saying so.
+   */
+  private refuseTailwind(node: ts.Node): void {
+    const found = this.tailwindIn(node, this.file, 0, new Set());
+    if (!found) return;
+    throw new Error(
+      `Can't convert this template: ${found} is kept as React (it couldn't be inlined: a spread prop, a hook, …) and renders React Email's <Tailwind>, which suspends on its first render; Elements renders synchronously, so that content would be left out of the email. Make it inlinable (props without a spread), or put <Tailwind> in the template itself`
+    );
+  }
+
+  /** The component in `node` (JSX in `file`) that renders React Email's <Tailwind> (`<Tailwind>` itself), or undefined. */
+  private tailwindIn(node: ts.Node, file: ts.SourceFile, depth: number, seen: Set<string>): string | undefined {
+    let found: string | undefined;
+    const visit = (n: ts.Node) => {
+      if (found) return;
+      if ((ts.isJsxOpeningElement(n) || ts.isJsxSelfClosingElement(n)) && ts.isIdentifier(n.tagName) && /^[A-Z]/.test(n.tagName.text)) {
+        const tag = n.tagName.text;
+        if (this.reactEmailName(tag, file) === "Tailwind") found = "<Tailwind>";
+        else if (this.componentRendersTailwind(tag, file, depth + 1, seen)) found = `<${tag}>`;
+      }
+      if (!found) ts.forEachChild(n, visit);
+    };
+    visit(node);
+    return found;
+  }
+
+  /** The React Email component `name` is in `file` (imported from React Email, or through a project file), if it's one. */
+  private reactEmailName(name: string, file: ts.SourceFile): string | undefined {
+    if (file === this.file) return this.components.get(name);
+    for (const statement of file.statements) {
+      const bindings = ts.isImportDeclaration(statement) && ts.isStringLiteral(statement.moduleSpecifier) ? statement.importClause?.namedBindings : undefined;
+      const spec = bindings && ts.isNamedImports(bindings) ? bindings.elements.find((e) => e.name.text === name) : undefined;
+      if (!spec) continue;
+      const from = ((statement as ts.ImportDeclaration).moduleSpecifier as ts.StringLiteral).text;
+      const imported = (spec.propertyName ?? spec.name).text;
+      return isReactEmailModule(from) ? imported : this.reactEmailExport(from, imported, file.fileName);
+    }
+    return undefined;
+  }
+
+  /** Whether the component `name` of `file` (its own, or one it imports from the project) renders <Tailwind> (see `refuseTailwind`). */
+  private componentRendersTailwind(name: string, file: ts.SourceFile, depth: number, seen: Set<string>): boolean {
+    const key = `${file.fileName}#${name}`;
+    if (depth > 6 || seen.has(key)) return false;
+    seen.add(key);
+    for (const statement of file.statements) {
+      const own = (ts.isFunctionDeclaration(statement) && statement.name?.text === name) || (ts.isVariableStatement(statement) && statement.declarationList.declarations.some((d) => ts.isIdentifier(d.name) && d.name.text === name));
+      if (own) return !!this.tailwindIn(statement, file, depth, seen);
+    }
+    for (const statement of file.statements) {
+      const clause = ts.isImportDeclaration(statement) && ts.isStringLiteral(statement.moduleSpecifier) ? statement.importClause : undefined;
+      const named = clause?.namedBindings && ts.isNamedImports(clause.namedBindings) ? clause.namedBindings.elements.find((e) => e.name.text === name) : undefined;
+      const imported = named ? (named.propertyName ?? named.name).text : clause?.name?.text === name ? "default" : undefined;
+      if (imported) return this.exportRendersTailwind(imported, ((statement as ts.ImportDeclaration).moduleSpecifier as ts.StringLiteral).text, file.fileName, depth + 1, seen);
+    }
+    return false;
+  }
+
+  /** Whether what the project file `specifier` (from `from`) exports as `name` renders <Tailwind>: its own, or passed on. */
+  private exportRendersTailwind(name: string, specifier: string, from: string, depth: number, seen: Set<string>): boolean {
+    if (depth > 6 || !/^[./]/.test(specifier) || !this.loadModule) return false;
+    const loaded = this.loadModule(specifier, from);
+    if (!loaded) return false;
+    const module = ts.createSourceFile(loaded.fileName, loaded.source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
+    for (const st of module.statements) {
+      if (name === "default" && ts.isExportAssignment(st)) return ts.isIdentifier(st.expression) ? this.componentRendersTailwind(st.expression.text, module, depth + 1, seen) : !!this.tailwindIn(st, module, depth, seen);
+      if (name === "default" && ts.isFunctionDeclaration(st) && hasModifier(st, ts.SyntaxKind.DefaultKeyword)) return !!this.tailwindIn(st, module, depth, seen);
+      if (!ts.isExportDeclaration(st) || st.isTypeOnly) continue;
+      const target = st.moduleSpecifier && ts.isStringLiteral(st.moduleSpecifier) ? st.moduleSpecifier.text : undefined;
+      if (!st.exportClause) {
+        if (target && name !== "default" && this.exportRendersTailwind(name, target, loaded.fileName, depth + 1, seen)) return true;
+        continue;
+      }
+      if (!ts.isNamedExports(st.exportClause)) continue;
+      const element = st.exportClause.elements.find((e) => e.name.text === name && !e.isTypeOnly);
+      if (!element) continue;
+      const local = (element.propertyName ?? element.name).text;
+      return target ? this.exportRendersTailwind(local, target, loaded.fileName, depth + 1, seen) : this.componentRendersTailwind(local, module, depth + 1, seen);
+    }
+    return name !== "default" && this.componentRendersTailwind(name, module, depth + 1, seen);
+  }
+
   /** Children kept as they render (text, code, a value holding JSX), in a div. */
   private keepChildren(children: readonly ts.JsxChild[], ctx: Ctx, reason: string): ElementNode {
+    for (const child of children) this.refuseTailwind(child);
     for (const child of children) this.fallbackRanges.push({ from: child.getStart(), to: child.getEnd() });
     const color = this.keptColor(ctx);
     return this.keep(children.map((child) => this.keptText(child, color)).join(""), ctx, reason, false);
@@ -2595,6 +2682,7 @@ class Converter {
 
   /** Code kept as it is, its JSX rendered to HTML at run time (`cells`: inside a table row). */
   private codeFallback(expression: ts.Expression, cells = false, ctx?: Ctx): ElementNode {
+    this.refuseTailwind(expression);
     this.fallbackRanges.push({ from: expression.getStart(), to: expression.getEnd() });
     const color = this.keptColor(ctx);
     const code = `{${this.keptText(expression, color)}}`;
