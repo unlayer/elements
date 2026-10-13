@@ -1982,25 +1982,41 @@ class Converter {
    * Edits to each element under `root`: its static className as the styles it gives (see `classStyles`), and with
    * `kept`, the browser's defaults the email's head styles would change on it (see `browserDefaults`).
    */
-  private styleEdits(root: ts.Node, kept?: { color?: string }): Array<{ from: number; to: number; text: string }> {
+  private styleEdits(root: ts.Node, kept?: { color?: string; except?: (node: ts.Node) => boolean }): Array<{ from: number; to: number; text: string }> {
     const edits: Array<{ from: number; to: number; text: string }> = [];
     const visit = (node: ts.Node) => {
       if (ts.isJsxOpeningElement(node) || ts.isJsxSelfClosingElement(node)) {
+        const kept_ = kept && !kept.except?.(node) ? kept : undefined;
         const attrs = node.attributes.properties;
         const className = attrs.find((a): a is ts.JsxAttribute => ts.isJsxAttribute(a) && a.name.getText() === "className");
         const value = className ? this.attrValue(className.initializer) : undefined;
         const classes = typeof value === "string" ? this.classStyles(value) : { before: {}, after: {}, drop: false };
         const styleAttr = attrs.find((a): a is ts.JsxAttribute => ts.isJsxAttribute(a) && a.name.getText() === "style");
         const ownCode = styleAttr?.initializer && ts.isJsxExpression(styleAttr.initializer) ? styleAttr.initializer.expression : undefined;
-        // The defaults it doesn't set (all of them, under its own, when its style can't be read here).
+        // What its own style sets: from its value, or the names an object literal of it writes out.
         const own = ownCode && this.evaluate(ownCode);
-        const sets = own && typeof own === "object" ? new Set([...Object.keys(classes.before), ...Object.keys(own), ...Object.keys(classes.after)]) : ownCode ? undefined : new Set(Object.keys(classes.before));
-        const defaults = kept ? this.browserDefaults(node.tagName.getText(), sets, kept.color) : {};
+        const literal = ownCode && unwrap(ownCode);
+        const ownKeys = own && typeof own === "object" ? new Set(Object.keys(own))
+          : literal && ts.isObjectLiteralExpression(literal) && literal.properties.every((p) => (ts.isPropertyAssignment(p) || ts.isShorthandPropertyAssignment(p)) && (ts.isIdentifier(p.name) || ts.isStringLiteral(p.name))) ? new Set(literal.properties.map((p) => (p.name as ts.Identifier).text))
+          : undefined;
+        // The defaults it doesn't set (all of them, under its own, when what it sets can't be told).
+        const sets = ownCode ? (ownKeys && new Set([...Object.keys(classes.before), ...ownKeys, ...Object.keys(classes.after)])) : new Set(Object.keys(classes.before));
+        const defaults = kept_ ? this.browserDefaults(node.tagName.getText(), sets, kept_.color) : {};
         const entries = (style: Style) => Object.entries(style).map(([k, v]) => `${/^[a-zA-Z_$][\w$]*$/.test(k) ? k : JSON.stringify(k)}: ${JSON.stringify(v)}`);
+        // An image Elements renders in a component of the template's own: React 19 would add a preload link for it
+        // before the email's rows (which the design can't hold), except for one loaded lazily. First, so a spread can
+        // say otherwise.
+        const image = kept_ && (node.tagName.getText() === "img" || this.components.get(node.tagName.getText()) === "Img") && !attrs.some((a) => ts.isJsxAttribute(a) && a.name.getText() === "loading");
+        if (image) edits.push({ from: node.tagName.getEnd(), to: node.tagName.getEnd(), text: ` loading="lazy"` });
         if (Object.keys(classes.before).length || Object.keys(classes.after).length || Object.keys(defaults).length) {
-          // Under its own style when what that sets can't be read here (so it wins), else after it.
+          // Under its own style when what that sets can't be told (so it wins), else after it. What it sets itself isn't
+          // written before it; under a style that can't be read, the rest is written as one object spread first, as
+          // TypeScript rejects a property its spread always overwrites (TS2783).
           const [under, over] = sets ? [{}, defaults] : [defaults, {}];
-          const merged = `style={{ ${[...entries(under), ...entries(classes.before), ...(ownCode ? [`...(${ownCode.getText()})`] : []), ...entries(over), ...entries(classes.after)].join(", ")} }}`;
+          const leading: Style = { ...under, ...classes.before };
+          for (const key of ownKeys ?? []) delete leading[key];
+          const first = ownCode && !ownKeys ? (Object.keys(leading).length ? [`...{ ${entries(leading).join(", ")} }`] : []) : entries(leading);
+          const merged = `style={{ ${[...first, ...(ownCode ? [`...(${ownCode.getText()})`] : []), ...entries(over), ...entries(classes.after)].join(", ")} }}`;
           if (className && classes.drop) edits.push({ from: className.getStart(), to: className.getEnd(), text: "" });
           if (styleAttr) edits.push({ from: styleAttr.getStart(), to: styleAttr.getEnd(), text: merged });
           else {
@@ -2464,6 +2480,22 @@ class Converter {
     };
   }
 
+  /** The file's statements that declare what it exports (`export function …`, and what `export { … }` names). */
+  private exportedStatements(): ts.Statement[] {
+    const names = new Set<string>();
+    for (const statement of this.file.statements) {
+      if (ts.isExportDeclaration(statement) && !statement.moduleSpecifier && statement.exportClause && ts.isNamedExports(statement.exportClause)) {
+        for (const element of statement.exportClause.elements) names.add((element.propertyName ?? element.name).text);
+      }
+      if (ts.isExportAssignment(statement) && ts.isIdentifier(statement.expression)) names.add(statement.expression.text);
+    }
+    return this.file.statements.filter((statement) => {
+      if (hasModifier(statement, ts.SyntaxKind.ExportKeyword)) return true;
+      if ((ts.isFunctionDeclaration(statement) || ts.isClassDeclaration(statement)) && statement.name) return names.has(statement.name.text);
+      return ts.isVariableStatement(statement) && statement.declarationList.declarations.some((d) => ts.isIdentifier(d.name) && names.has(d.name.text));
+    });
+  }
+
   /** Top-level names the file declares itself (not React Email imports). */
   private localNames(): string[] {
     const names: string[] = [];
@@ -2564,8 +2596,11 @@ class Converter {
     // JSX constants) no longer renders inside <Tailwind>: its classes become styles.
     const inside = (e: { from: number }) =>
       returned.some((r) => e.from >= r.getStart() && e.from < r.getEnd());
-    // It renders only where it's kept as HTML: the browser's defaults the email's head styles change are stated too.
-    edits.push(...this.styleEdits(this.file, {}).filter((e) => !inside(e)));
+    // It renders only where it's kept as HTML: the browser's defaults the email's head styles change are stated too,
+    // except in what else the file exports, which other templates may render in other emails.
+    const template = this.findComponent();
+    const exported = this.exportedStatements().filter((st) => !template || template.getStart() < st.getStart() || template.getEnd() > st.getEnd());
+    edits.push(...this.styleEdits(this.file, { except: (node) => exported.some((st) => node.getStart() >= st.getStart() && node.getEnd() <= st.getEnd()) }).filter((e) => !inside(e)));
     edits.push(...this.hoisted.map(({ at, text }) => ({ from: at, to: at, text })));
     edits.sort((a, b) => b.from - a.from);
     let body = source;

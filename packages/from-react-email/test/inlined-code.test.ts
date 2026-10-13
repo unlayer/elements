@@ -136,3 +136,34 @@ Digest.PreviewProps = { name: "Ana", accountId: "42", message: "Big news", items
     }
   });
 });
+
+describe("markup kept as it renders", () => {
+  it("states the browser's defaults under a style it can't read without type errors, and loads its images lazily (no React 19 preload links)", async () => {
+    const { conversion, added, originalErrors, Original, Migrated } = await migrate({
+      "styles.ts": `export const table = { borderCollapse: "collapse" as const, width: "100%" };
+`,
+      "receipt.tsx": `import { Html, Body, Section, Img } from "@react-email/components";
+import { table } from "./styles";
+function Badge({ src }: { src: string }) {
+  const [shown] = [src];
+  return <img src={shown} alt="Badge" width={20} />;
+}
+export default function Receipt({ logo }: { logo: string }) {
+  return <Html><Body><Section>
+    <table style={table}><tbody><tr><td>Total</td></tr></tbody></table>
+    <Img src={logo} alt="Logo" />
+    <Badge src={logo} />
+  </Section></Body></Html>;
+}
+Receipt.PreviewProps = { logo: "https://example.com/logo.png" };
+`,
+    }, "receipt.tsx");
+    expect(originalErrors).toEqual([]);
+    expect(added).toEqual([]);
+    // React 19 writes a preload link before the email's rows for each image a component renders, unless it's lazy:
+    // the design can't hold one ("<link> is not a valid Body child").
+    expect(conversion.code.match(/loading="lazy"/g)).toHaveLength(2);
+    const check = await verifyConversion(Original, Migrated);
+    expect([check.missing, check.added, check.missingAttributes, check.designWarnings]).toEqual([[], [], [], []]);
+  });
+});
