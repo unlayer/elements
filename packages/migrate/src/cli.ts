@@ -192,12 +192,15 @@ export async function main(argv: string[], io: Io, library?: Library): Promise<n
   }
 }
 
+/** After a usage mistake: where the options are, in a line (the help itself would push the mistake off the screen). */
+const SEE_HELP = "Run npx @unlayer/migrate --help to see the options.";
+
 async function run(argv: string[], io: Io, library?: Library): Promise<number> {
   let args: Args;
   try {
     args = parseArgs(argv);
   } catch (error) {
-    io.stderr(`${(error as Error).message}\n\n${USAGE}\n`);
+    io.stderr(`${(error as Error).message}\n${SEE_HELP}\n`);
     return 1;
   }
   if (args.flag("help")) {
@@ -215,7 +218,8 @@ async function run(argv: string[], io: Io, library?: Library): Promise<number> {
     return 1;
   }
   if (!args.positional.length) {
-    io.stderr(`Pass the templates to migrate (files or folders).\n\n${USAGE}\n`);
+    // Run with nothing at all, it says how it's used; with options but no templates, what's missing.
+    io.stderr(`Pass the templates to migrate (files or folders).\n${argv.length ? SEE_HELP : `\n${USAGE}`}\n`);
     return 1;
   }
   const options: Options = {
@@ -993,7 +997,7 @@ async function migrateFile(input: Input, options: Options, lib: Library, io: Io,
 
 async function compare(paths: string[], args: Args, io: Io, library?: Library): Promise<number> {
   if (paths.length !== 2) {
-    io.stderr(`compare needs the original template and the migrated one.\n\n${USAGE}\n`);
+    io.stderr(`compare needs the original template and the migrated one: npx @unlayer/migrate compare <original> <migrated>\n${SEE_HELP}\n`);
     return 1;
   }
   const [originalPath, migratedPath] = paths.map((p) => resolve(io.cwd, p));
