@@ -5,6 +5,7 @@ import fs from "node:fs";
 import { createRequire } from "node:module";
 import os from "node:os";
 import path from "node:path";
+import { pathToFileURL } from "node:url";
 
 /**
  * The built package in a Node script of its own: it must exit when it's done, on React 18 and 19, imported as a
@@ -116,10 +117,22 @@ console.log(JSON.stringify({ react: React.version, page: renderToString(h(Page))
       const body = spawnSync(process.execPath, [path.join(app, "body.js")], { cwd: parent, encoding: "utf8", timeout: 20_000 });
       expect(body.error, "still running after 20s: something keeps Node alive").toBeUndefined();
       expect(JSON.parse(body.stdout.trim().split("\n").pop()!)).toEqual({ react: "18.3.1", page: "<pre>1 rows, open=false, true</pre>" });
-      for (const cwd of [parent, elsewhere]) {
-        const run = spawnSync(process.execPath, [path.join(app, "page.js")], { cwd, encoding: "utf8", timeout: 20_000 });
-        expect(run.error, `still running after 20s, started from ${cwd === parent ? "the folder above" : "another folder"}`).toBeUndefined();
-        expect(run.status, run.stderr).toBe(0);
+      // Run as its folder (its package's `main`), through a link to it elsewhere, imported by a script elsewhere, and
+      // from `node -e`: Node's script isn't the app's, but Elements is where it is.
+      fs.writeFileSync(path.join(app, "package.json"), JSON.stringify({ type: "module", main: "page.js" }));
+      fs.symlinkSync(path.join(app, "page.js"), path.join(elsewhere, "link.js"));
+      fs.writeFileSync(path.join(elsewhere, "launch.mjs"), `await import(${JSON.stringify(pathToFileURL(path.join(app, "page.js")).href)});`);
+      const runs: [string, string[]][] = [
+        ...[parent, elsewhere].map((cwd): [string, string[]] => [cwd, [path.join(app, "page.js")]]),
+        [elsewhere, [app]],
+        [elsewhere, [path.join(elsewhere, "link.js")]],
+        [elsewhere, [path.join(elsewhere, "launch.mjs")]],
+        [elsewhere, ["--input-type=module", "-e", `await import(${JSON.stringify(pathToFileURL(path.join(app, "page.js")).href)});`]],
+      ];
+      for (const [cwd, args] of runs) {
+        const run = spawnSync(process.execPath, args, { cwd, encoding: "utf8", timeout: 20_000 });
+        expect(run.error, `still running after 20s: node ${args.join(" ")}`).toBeUndefined();
+        expect(run.status, `node ${args.join(" ")}: ${run.stderr}`).toBe(0);
         expect(JSON.parse(run.stdout.trim().split("\n").pop()!)).toEqual({ react: "18.3.1", page: "<pre>1 rows, open=false, true</pre>" });
       }
     } finally {

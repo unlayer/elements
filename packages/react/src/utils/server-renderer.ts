@@ -78,10 +78,10 @@ function secondBuild(outer: unknown): Build | undefined {
         const own = (typeof __UNLAYER_CJS__ === "boolean" ? __UNLAYER_CJS__ : true) && typeof module === "object" ? Reflect.get(module ?? {}, "require") : undefined;
         return typeof own === "function" ? (id: string) => own.call(module, id) : undefined;
       },
-      // From the app's script, then the folder it was started in (a module's own URL is written in syntax webpack 4
-      // doesn't parse): only where `react` is this React, so react-dom there renders with it. Another React's isn't
-      // loaded at all (React 19's browser build, from a folder above a React 18 app, would keep Node running).
-      ...[node?.argv?.[1], `${node?.cwd?.()}/`].map((from) => () => {
+      // From this module's URL (as a stack names it: webpack 4 can't parse the syntax for it), the app's script, then
+      // the folder Node started in; only where `react` is this React. Another React's isn't loaded (React 19's browser
+      // build keeps Node running).
+      ...[/file:\/\/\S+?(?=:\d+:\d+)/.exec(String(new Error().stack))?.[0], node?.argv?.[1], `${node?.cwd?.()}/`].map((from) => () => {
         const required = node?.getBuiltinModule?.("module")?.createRequire(from);
         return (required?.("react") as typeof React | undefined)?.createElement === React.createElement ? required : undefined;
       }),
