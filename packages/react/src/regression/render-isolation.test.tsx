@@ -150,3 +150,30 @@ describe("an email rendered inside a component", () => {
     }
   });
 });
+
+describe("a render", () => {
+  // A prerendered page that reads one of these changes with each build: Next.js's Cache Components (its new apps'
+  // default since 16) fail the build on one. 0.2.0 asked crypto.getRandomValues() for each render's nonce, so no
+  // email could be rendered in a page Next.js prerenders.
+  it("reads no random numbers and not the date", () => {
+    const sources: Array<[object, string]> = [[globalThis.crypto, "getRandomValues"], [globalThis.crypto, "randomUUID"], [Math, "random"], [Date, "now"]];
+    const spies = sources.filter(([owner, name]) => typeof (owner as Record<string, unknown>)?.[name] === "function").map(([owner, name]) => vi.spyOn(owner as any, name as any));
+    expect(spies).toHaveLength(4);
+    try {
+      const email = () => (
+        <Email previewText="Hi">
+          {kept.hooks}
+          <Row><Column><Paragraph>Text</Paragraph><Html html="<p>Kept</p>" /></Column></Row>
+        </Email>
+      );
+      renderToHtml(email());
+      renderToHtmlParts(email());
+      renderToPlainText(email());
+      renderToJson(email());
+      renderRowToJson(<Row><Column><Paragraph>Row</Paragraph></Column></Row>);
+      for (const spy of spies) expect(spy).not.toHaveBeenCalled();
+    } finally {
+      for (const spy of spies) spy.mockRestore();
+    }
+  });
+});
