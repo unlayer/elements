@@ -17,8 +17,8 @@ type Lib = typeof current;
 const previousHasTheBugs = /^0\.1\./.test(previousPackage.version);
 const releases = { current, previous: previous as unknown as Lib };
 
-/** React's `useId()` values (`:R1:` in React 18, `«R1»` in 19). */
-const REACT_ID = /:[\w-]*R[\w-]*:|«[\w-]*R[\w-]*»/g;
+/** React's `useId()` values (`:R1:` in React 18, `«R1»` in 19.0 and 19.1, `_R_1_` from 19.2). */
+const REACT_ID = /:[\w-]*R[\w-]*:|«[\w-]*R[\w-]*»|_[\w-]*?R_[\dA-Za-z]+_/g;
 
 /** What a reader sees: the body's text, tags and entities gone (React's ids as "‹id›", whatever their format). */
 function visible(html: string): string {
@@ -251,7 +251,8 @@ const PATTERNS: Record<string, Pattern> = {
       const MemoBanner = memo(Banner);
       return <L.Email><MemoBanner /><L.Row><L.Column><L.Paragraph>Footer</L.Paragraph></L.Column></L.Row></L.Email>;
     },
-    shows: "Banner: default title Footer",
+    // React 19 no longer applies a function component's defaultProps (React shows them as given).
+    shows: Number.parseInt(React.version) >= 19 ? "Banner: undefined Footer" : "Banner: default title Footer",
     json: false, // 0.1.22's design left out components among the rows
   },
   "headings, buttons and text with &, < and quotes": {
