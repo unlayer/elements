@@ -1337,6 +1337,28 @@ T.PreviewProps = {};`);
     }
   });
 
+  it("tests a condition with a call once beside markup when it can't be a number, so the text stays editable", async () => {
+    const source = `import { Html, Body, Section, Text } from "@react-email/components";
+function unread(): number { return 0; }
+export default function T({ name }: { name?: string }) {
+  return <Html><Body><Section>
+    <Text>{name && !name.includes("@") && <>Hi {name}, </>}welcome to <b>Acme</b>.</Text>
+    <Text>{unread() && <b>new</b>} messages</Text>
+  </Section></Body></Html>;
+}
+T.PreviewProps = { name: "Ana" };`;
+    const { Original, Migrated, conversion } = await templates(source);
+    const code = conversion.code.replace(/\{\/\*[\s\S]*?\*\/\}/g, "");
+    expect(code.match(/name\.includes\("@"\)/g)).toHaveLength(1);
+    expect(code.match(/unread\(\)/g)).toHaveLength(source.match(/unread\(\)/g)!.length);
+    for (const props of [Original.PreviewProps, { name: "ana@example.com" }, {}]) {
+      const check = await verifyConversion(Original, Migrated, { props });
+      expect([check.missing, check.added, check.designWarnings]).toEqual([[], [], []]);
+      // The greeting stays editable text; a count that's 0 shows "0", as React shows it, in its kept block.
+      expect(blockTypes(check.design)).toEqual(["text", "html"]);
+    }
+  });
+
   it("keeps markup in a list's items with what each item reads", async () => {
     const { Original, Migrated, conversion } = await templates(`import { Html, Body, Section, Text } from "@react-email/components";
 function Badge({ label }: { label: string }) {

@@ -980,6 +980,16 @@ class Converter {
   }
 
   /** Whether a value's declared type admits JSX (`ReactNode`, `ReactElement`, `JSX.Element`), whatever the preview gives. */
+  /**
+   * Whether a value may be a number, as far as its type tells (one that can't be read may): React shows a number
+   * that's false (`0`), and nothing for false, null, undefined or "".
+   */
+  private mayBeNumber(expression: ts.Expression): boolean {
+    const type = this.checker.getTypeAtLocation(expression);
+    const may = ts.TypeFlags.NumberLike | ts.TypeFlags.BigIntLike | ts.TypeFlags.Any | ts.TypeFlags.Unknown | ts.TypeFlags.TypeParameter | ts.TypeFlags.Intersection | ts.TypeFlags.Index | ts.TypeFlags.IndexedAccess | ts.TypeFlags.Conditional | ts.TypeFlags.Substitution;
+    return (type.isUnion() ? type.types : [type]).some((part) => (part.flags & may) !== 0);
+  }
+
   private mayHoldJsx(expression: ts.Expression): boolean {
     const type = this.checker.typeToString(this.checker.getTypeAtLocation(expression));
     return /\b(ReactNode|ReactElement|JSX\.Element|ReactPortal|ReactChild|ReactFragment)\b/.test(type);
@@ -2890,7 +2900,11 @@ class Converter {
       return;
     }
     // The value on the left is written twice (tested, then shown): only one that reads, with no call (`label()`
-    // could give other text the second time); anything else keeps the block, as React renders it.
+    // could give other text the second time); anything else keeps the block, as React renders it. A test whose value
+    // can't be a number shows nothing when it fails, so it's written once (`name && !name.includes("@")`).
+    if (ts.isBinaryExpression(node) && !containsJsx(node.left) && node.operatorToken.kind === ts.SyntaxKind.AmpersandAmpersandToken && !pure(node.left) && !this.mayBeNumber(node.left)) {
+      return void out.push(expr(`(${node.left.getText()}) ? ${this.markupCode(node.right)} : ""`));
+    }
     if (ts.isBinaryExpression(node) && !containsJsx(node.left) && pure(node.left)) {
       const left = node.left.getText();
       const op = node.operatorToken.kind;
