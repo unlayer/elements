@@ -445,3 +445,31 @@ Status.PreviewProps = { down: true };
     }
   });
 });
+
+describe("a component from another file used twice", () => {
+  it("is inlined both times, sharing the copy of its file's constant", async () => {
+    const { conversion, added, Original, Migrated } = await migrate({
+      "frame.tsx": `import type { ReactNode } from "react";
+import { Html, Body, Container, Text } from "@react-email/components";
+const footerStyle = { color: "#6b7280", fontSize: "12px" };
+export function Frame({ children }: { children: ReactNode }) {
+  return <Html><Body><Container>{children}<Text style={footerStyle}>Acme, 1 Main St</Text></Container></Body></Html>;
+}
+`,
+      "trial.tsx": `import { Text } from "@react-email/components";
+import { Frame } from "./frame";
+export default function Trial({ paid }: { paid: boolean }) {
+  if (paid) return <Frame><Text>Your plan continues.</Text></Frame>;
+  return <Frame><Text>Add a card to keep your plan.</Text></Frame>;
+}
+Trial.PreviewProps = { paid: true };
+`,
+    }, "trial.tsx");
+    expect(added).toEqual([]);
+    expect(conversion.report.fallbacks).toEqual([]);
+    for (const props of [Original.PreviewProps, { paid: false }]) {
+      const check = await verifyConversion(Original, Migrated, { props });
+      expect([check.missing, check.added, check.styles]).toEqual([[], [], []]);
+    }
+  });
+});

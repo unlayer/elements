@@ -348,7 +348,9 @@ function requirements(component: Component, from: Imported, template: ts.SourceF
       } else if (declared && isExported(declared)) {
         wanted = { specifier: from.specifier, imported: name, type: isType };
       } else if (declared) {
-        // Not exported: a copy of its declaration (a const, function, type or enum), and what it needs in turn.
+        // Not exported: a copy of its declaration (a const, function, type or enum), and what it needs in turn. Copied
+        // already (the component is used twice): that copy.
+        if (template.statements.some((st) => st.getText() === declared.getText())) continue;
         if (depth > 5 || templateBindings.has(name)) return false;
         const copyable = (ts.isVariableStatement(declared) && declared.declarationList.flags & ts.NodeFlags.Const && declared.declarationList.declarations.length === 1) || ts.isFunctionDeclaration(declared) || isType || ts.isEnumDeclaration(declared);
         if (!copyable) return false;
