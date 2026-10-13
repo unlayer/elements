@@ -301,7 +301,8 @@ async function run(argv: string[], io: Io, library?: Library): Promise<number> {
   try {
     destinations = await reserveDestinations(inputs.files, candidates, options, reportFile, io.cwd);
   } catch (error) {
-    io.stderr(`${message(error)}\n`);
+    // A refusal lists the files it's about, one per line.
+    io.stderr(`${error instanceof Refusal ? error.message : message(error)}\n`);
     return 1;
   }
 
@@ -598,7 +599,7 @@ async function reserveDestinations(inputs: Input[], candidates: Input[], options
       unsafe.push({ file: u.file, why: `${how}${u.why}` });
     }
   }
-  if (unsafe.length) throw new Error(`--overwrite would replace ${unsafe.map((u) => `${relative(cwd, u.file)} (${u.why})`).join(", ")}, which git can't restore. Commit it, choose a folder of its own for --out, or pass --allow-dirty.`);
+  if (unsafe.length) throw new Refusal(overwriteRefusal(unsafe.map((u) => `${relative(cwd, u.file)} (${u.why})`)));
   // What each one holds now: an edit made while templates load (after this decided it could be replaced) is kept. A
   // template replaced in place checks what it was converted from instead.
   for (const [path, d] of destinations) {
@@ -609,6 +610,20 @@ async function reserveDestinations(inputs: Input[], candidates: Input[], options
     });
   }
   return destinations;
+}
+
+/** Why a run stops before it starts: said as it is, over several lines when it lists files. */
+class Refusal extends Error {}
+
+/** How many files a refusal lists before it counts the rest. */
+const LISTED_FILES = 10;
+
+/** Why --overwrite won't replace `files` (each with why git can't restore it): one, in a line; several, one per line. */
+function overwriteRefusal(files: string[]): string {
+  if (files.length === 1) return `--overwrite would replace ${files[0]}, which git can't restore. Commit it, choose a folder of its own for --out, or pass --allow-dirty.`;
+  const listed = files.slice(0, LISTED_FILES).map((file) => `  ${file}`);
+  if (files.length > LISTED_FILES) listed.push(`  and ${files.length - LISTED_FILES} more`);
+  return `--overwrite would replace ${files.length} files git can't restore:\n${listed.join("\n")}\nCommit them, choose a folder of its own for --out, or pass --allow-dirty.`;
 }
 
 /** The header the converter starts a migrated template with: its first two lines. */
@@ -818,7 +833,7 @@ async function migrateFile(input: Input, options: Options, lib: Library, io: Io,
     try {
       converted = await lib.convertSource(source, { fileName: file, tailwindConfig: tailwind?.config, tailwind: tailwind?.component, loadModule: await moduleLoader(file) });
     } catch (error) {
-      return { file: name, status: "failed", reason: `couldn't convert it: ${message(error)}` };
+      return { file: name, status: "failed", reason: convertFailure(message(error)) };
     }
 
     // Verify the final rebased source in its destination directory before writing
@@ -1021,6 +1036,18 @@ async function compare(paths: string[], args: Args, io: Io, library?: Library): 
   }
 }
 
+/**
+ * Why the converter couldn't convert a template, said once: its own "Can't convert …" already says it can't
+ * ("can't convert a <style> whose CSS comes from code: …"), and "Can't convert this template: " before why is
+ * "couldn't convert it: " here.
+ */
+function convertFailure(why: string): string {
+  const template = /^Can't convert this template:\s*/.exec(why);
+  if (template) return `couldn't convert it: ${why.slice(template[0].length)}`;
+  if (/^Can't (safely )?convert /.test(why)) return `c${why.slice(1)}`;
+  return `couldn't convert it: ${why}`;
+}
+
 function group(notes: Array<{ reason: string; detail?: string }>): Array<{ reason: string; count: number; examples: string[] }> {
   const byReason = new Map<string, { count: number; examples: string[] }>();
   for (const note of notes) {
@@ -1039,7 +1066,8 @@ function group(notes: Array<{ reason: string; detail?: string }>): Array<{ reaso
 function line(result: FileResult): string {
   switch (result.status) {
     case "skipped":
-      return `- ${result.file}: skipped (${result.reason})`;
+      // After a colon: a reason has asides in parentheses of its own.
+      return `- ${result.file}: skipped: ${result.reason}`;
     case "failed":
       return `✗ ${result.file}: ${result.reason}`;
     default: {
@@ -1051,13 +1079,16 @@ function line(result: FileResult): string {
       if (result.status === "migrated") return `✓ ${result.file}: ${editable}${differences ? `, ${differences}` : ""}${written}${looks}`;
       const found = [
         ...contentProblems({ ...result, missing: result.missingText, added: result.addedText }),
-        ...(result.designWarnings?.length ? [`${result.designWarnings.length} block(s) the editor wouldn't get`] : []),
+        ...(result.designWarnings?.length ? [blocksLost(result.designWarnings.length)] : []),
         ...(result.variants ?? []).filter((v) => v.error || contentProblems(v).length).map((v) => `with ${v.change}: ${variantProblems(v)}`),
       ];
-      // Its content differs (a converter bug: report it), or, with --strict, how it looks.
+      // Its content differs (a converter bug: report it), something else failed the check (what it couldn't verify, a
+      // block the editor wouldn't get), or, with --strict, how it looks. After a colon: what's listed has asides in
+      // parentheses of its own.
+      const failure = lostContent(result) ? "its content differs" : "it failed the check";
       return found.length
-        ? `✗ ${result.file}: ${result.output ? "written, but its content differs" : "check failed"} (${found.join("; ")})${written}${looks}`
-        : `✗ ${result.file}: check failed (${[...(result.looks?.length ? ["looks different"] : []), ...(differences ? [differences] : [])].join(", ")}, with --strict)${written}${looks}`;
+        ? `✗ ${result.file}: ${result.output ? `written, but ${failure}` : "check failed"}: ${found.join("; ")}${written}${looks}`
+        : `✗ ${result.file}: check failed with --strict: ${[...(result.looks?.length ? ["looks different"] : []), ...(differences ? [differences] : [])].join(", ")}${written}${looks}`;
     }
   }
 }
@@ -1085,10 +1116,18 @@ function moves(layout: NonNullable<FileResult["layout"]>): string {
 
 /** What couldn't be verified, one line per cause: `the color of "Hello", "world" (the rule \`.x:has(b)\` …)`. */
 function unverifiedList(items: NonNullable<FileResult["unverified"]>): string {
-  const name: Record<string, string> = { shown: "whether it's shown", "shown on phones": "whether a phone shows it", "where it sits": "where it sits across the page", look: "the look", size: "the size", bold: "the weight", italic: "italics", transform: "letter case", underline: "underline", color: "the color", background: "the background", target: "the link target" };
-  return items
-    .map((u) => `${name[u.what] ?? u.what} of ${quote(u.words)}${wider(u.width)} (${u.side === "migrated" ? "the migrated template writes " : ""}${u.cause})`)
-    .join("; ");
+  return items.map((u) => `${unverifiedWhat(u.what, u.words)}${wider(u.width)} (${u.side === "migrated" ? "the migrated template writes " : ""}${u.cause})`).join("; ");
+}
+
+/** What couldn't be verified, on the words it's about (none: a part of the page, as head content). */
+function unverifiedWhat(what: string, words: string[]): string {
+  const one = words.length === 1;
+  const them = words.length ? quote(words) : "";
+  if (what === "shown") return words.length ? `whether ${them} show${one ? "s" : ""}` : "whether it shows";
+  if (what === "shown on phones") return `whether a phone shows ${words.length ? them : "it"}`;
+  if (what === "where it sits") return words.length ? `where ${them} sit${one ? "s" : ""} across the page` : "where it sits across the page";
+  const name: Record<string, string> = { look: "the look", size: "the size", bold: "the weight", italic: "italics", transform: "letter case", underline: "underline", color: "the color", background: "the background", target: "the link target" };
+  return `${name[what] ?? what}${words.length ? ` of ${them}` : ""}`;
 }
 
 /**
@@ -1110,9 +1149,12 @@ function summary(all: FileResult[], options: Options): string {
   const others = all.length - results.length;
   const count = (status: FileResult["status"]) => results.filter((r) => r.status === status).length;
   const looks = results.filter((r) => r.status === "migrated" && r.looks?.length).length;
+  // Only content lost or added is a converter bug; what else fails the check is said above.
+  const failedCheck = count("check-failed");
+  const bugs = results.filter((r) => r.status === "check-failed" && lostContent(r)).length;
   const parts = [
     `${count("migrated")} migrated and checked${looks ? ` (${looks} look${looks === 1 ? "s" : ""} different: see above)` : ""}`,
-    ...(count("check-failed") ? [options.strict ? `${count("check-failed")} failed the check` : `${count("check-failed")} with content that differs (a converter bug: please report it)`] : []),
+    ...(failedCheck ? [bugs === failedCheck ? `${failedCheck} with content that differs (a converter bug: please report it)` : `${failedCheck} failed the check${bugs ? ` (${bugs} with content that differs: a converter bug, please report it)` : ""}`] : []),
     ...(count("failed") ? [`${count("failed")} failed`] : []),
     ...(count("skipped") ? [`${count("skipped")} skipped`] : []),
   ];
@@ -1144,7 +1186,10 @@ function markdownReport(results: FileResult[]): string {
     if (r.lostShown?.length) lines.push("**Shown whatever the props** (the original shows or hides it by them):", ...r.lostShown.map((s) => `- ${s}`), "");
     const lostLooks = (r.lostStyles ?? []).filter((style) => !r.lostShown?.includes(style));
     if (lostLooks.length) lines.push("**Lost styles** (change how it looks):", ...lostLooks.map((s) => `- ${s}`), "");
-    if (r.styles?.length) lines.push("**Shown in another style:**", ...r.styles.map((c) => `- ${styleChange(c, true)}${wider(c.width)}`), "");
+    const shown = r.styles?.filter((c) => c.property === "shown") ?? [];
+    const styled = r.styles?.filter((c) => c.property !== "shown") ?? [];
+    if (shown.length) lines.push("**Shown elsewhere, or not at all:**", ...shown.map((c) => `- ${shownChange(c)}`), "");
+    if (styled.length) lines.push("**Shown in another style:**", ...styled.map((c) => `- ${styleChange(c, true)}${wider(c.width)}${c.dark ? " in dark mode" : ""}${c.phone ? " on phones" : ""}`), "");
     if (r.unverified?.length) lines.push("**Couldn't verify** (what the check can't read):", ...unverifiedList(r.unverified).split("; ").map((line) => `- ${line}`), "");
     if (r.phone?.missing.length) lines.push(`**On phones, lost text:** ${quote(r.phone.missing)}`, "");
     if (r.phone?.added.length) lines.push(`**On phones, extra text:** ${quote(r.phone.added)}`, "");
@@ -1215,7 +1260,7 @@ function contentProblems(check: CheckParts): string[] {
     ...(check.added?.length ? [`extra text: ${quote(check.added)}`] : []),
     ...(check.missingAttributes?.length ? [`lost links/images: ${quote(check.missingAttributes)}`] : []),
     ...(check.addedAttributes?.length ? [`extra links/images: ${quote(check.addedAttributes)}`] : []),
-    ...(preview.length ? [`shown in another place: ${styleChanges(preview)}`] : []),
+    ...preview.map(shownChange),
     ...(shown.length ? [`couldn't verify: ${unverifiedList(shown)}`] : []),
     ...(words.length ? [`words CSS adds or hides, which the check doesn't read: ${unverifiedList(words)}`] : []),
     ...(check.phone?.missing.length ? [`on phones, lost text: ${quote(check.phone.missing)}`] : []),
@@ -1275,6 +1320,52 @@ function lookProblems(check: CheckParts): string[] {
     ...(unverified.length ? [`couldn't verify: ${unverifiedList(unverified)}`] : []),
     ...(check.layout?.length ? [`moved: ${moves(check.layout)}`] : []),
   ];
+}
+
+/**
+ * Where text shows that differs, as a reader finds it: "text no longer visible: "Watch update" is #000000 on #15171a",
+ * "text in the inbox preview only, no longer in the email: …", "text no longer shown on screens 768px and wider: …".
+ */
+function shownChange(c: StyleChange): string {
+  const where = `${wider(c.width)}${c.dark ? " in dark mode" : ""}${c.phone ? " on phones" : ""}`;
+  const text = phrase(c.words);
+  const invisible = (value: string) => /^invisible \((.*)\)$/.exec(value)?.[1];
+  const [was, is] = [invisible(c.original), invisible(c.converted)];
+  if (c.original === "shown" && is !== undefined) return `text no longer visible${where}: ${text} is ${is}`;
+  if (was !== undefined && c.converted === "shown") return `text now visible${where}: ${text} was ${was} in the original`;
+  if (c.original === "in the email" && c.converted === "the inbox preview only") return `text in the inbox preview only, no longer in the email${where}: ${text}`;
+  if (c.original === "the inbox preview only" && c.converted === "in the email") return `inbox preview text now shown in the email${where}: ${text}`;
+  if (c.original === "shown" && c.converted === "hidden") return `text no longer shown${where}: ${text}`;
+  if (c.original === "hidden" && c.converted === "shown") return `text shown${where} that the original hides: ${text}`;
+  if (c.original === "in this order" && c.converted === "in another order") return `text in another order${where}: ${text}`;
+  return `text ${c.converted}${where}, where the original has it ${c.original}: ${text}`;
+}
+
+/** Words as the text they make: `"Watch update"`, then how many more past 12. */
+function phrase(words: string[]): string {
+  const shown = `"${words.slice(0, 12).join(" ")}"`;
+  return words.length > 12 ? `${shown} and ${words.length - 12} more` : shown;
+}
+
+/** Blocks the visual editor wouldn't get: "1 block the editor wouldn't get". */
+function blocksLost(count: number): string {
+  return `${count} block${count === 1 ? "" : "s"} the editor wouldn't get`;
+}
+
+/**
+ * Whether the migration lost or added content, a converter bug: words, links or images (on any screen, in dark mode,
+ * with a prop flipped), text moved between the inbox preview and the email, shown or hidden at some width, or shown
+ * whatever the props. Not what the check couldn't verify (`font: inherit`, an ellipsis), a block the editor wouldn't
+ * get (Elements' warning), or a style that leaves text unreadable.
+ */
+function lostContent(result: FileResult): boolean {
+  const lost = (c: CheckParts) =>
+    Boolean(
+      c.missing?.length || c.added?.length || c.missingAttributes?.length || c.addedAttributes?.length ||
+      c.phone?.missing.length || c.phone?.added.length || c.phone?.missingAttributes?.length || c.phone?.addedAttributes?.length ||
+      c.lostShown?.length || c.styles?.some((s) => s.property === "shown" && !/^invisible/.test(s.original) && !/^invisible/.test(s.converted))
+    );
+  return lost({ ...result, missing: result.missingText, added: result.addedText }) || (result.variants ?? []).some(lost);
 }
 
 /** Style changes in a line: "color #e11d48 → #000000 on "Hello", "world"", "the page's background #f4f4f5 → #ffffff". */
@@ -2183,9 +2274,17 @@ export function elementsMismatch(cwd: string, range = ownPackage().peerDependenc
     if (!found) return {};
     if (satisfiesCaret(found, minimum)) return {};
     const newer = compareVersions(found, minimum) > 0 ? ", or update @unlayer/migrate" : "";
-    return { error: `@unlayer/migrate needs @unlayer/react-elements ${range}, but ${where} ${version}. Install a supported version: ${addCommand(cwd)} @unlayer/react-elements@"${range}"${newer}` };
+    return { error: `@unlayer/migrate needs @unlayer/react-elements ${range}, but ${where} ${version}. Install a supported version: ${addCommand(cwd)} ${packageSpec("@unlayer/react-elements", range!)}${newer}` };
   }
   return {};
+}
+
+/**
+ * A package at a version range, to paste after the add command: in double quotes, which zsh, bash, PowerShell and
+ * cmd all read as written (a bare `^` is a glob in zsh with extendedglob, and an escape in cmd).
+ */
+function packageSpec(name: string, range: string): string {
+  return `"${name}@${range}"`;
 }
 
 /** The command that adds a package with the project's package manager, by the nearest lockfile (npm without one). */
@@ -2215,7 +2314,7 @@ function installElements(written: string[], cwd: string): string[] {
     if (installed(folder, "@unlayer/react-elements")) continue;
     const root = findUp("package.json", folder);
     const where = root && dirname(root) !== cwd ? ` in ${relative(cwd, dirname(root)) || "."}` : "";
-    lines.add(`Install Elements${where}: ${addCommand(folder)} @unlayer/react-elements@${range}`);
+    lines.add(`Install Elements${where}: ${addCommand(folder)} ${packageSpec("@unlayer/react-elements", range)}`);
   }
   return [...lines];
 }

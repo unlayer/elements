@@ -335,7 +335,7 @@ describe("a second document inside the body", () => {
     expect(check.unverified).toContainEqual({
       what: "shown",
       side: "migrated",
-      cause: expect.stringMatching(/^head content inside the email's body, a second document's \(`<meta name="color-scheme" content="light only">`, `<html lang="en">`, `<body style="background-color:#eef2f7;margin:0">`\)/),
+      cause: expect.stringMatching(/^head content inside the email's body, a second document's `<meta name="color-scheme" content="light only">`, `<html lang="en">`, `<body style="background-color:#eef2f7;margin:0">`: email clients/),
       words: ["Sign", "in", "Your", "code", "is", "482913"],
     });
     expect(checkFails(check)).toBe(true);

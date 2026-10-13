@@ -284,14 +284,14 @@ export default function T() { return <Html><Body><Text style={{ whiteSpace: "pre
     expect(out.out).toMatch(/✓ emails\/unreadable\.tsx: .*→ migrated\/unreadable\.tsx\n {4}looks different: couldn't verify: the color of "Hello", "there" \(the rule `p:has\(b\)`/);
     // CSS the check doesn't model, that the migration doesn't keep.
     expect(out.out).toContain('looks different: couldn\'t verify: the look of "Hello", "there" (`white-space: pre-line`, a style the check doesn\'t verify)');
-    expect(out.out).toMatch(/✗ emails\/responsive\.tsx: written, but its content differs \(lost text: "Desktop", "only"/);
+    expect(out.out).toMatch(/✗ emails\/responsive\.tsx: written, but its content differs: lost text: "Desktop", "only"/);
     expect(out.out).toContain("2 migrated and checked (2 look different: see above), 1 with content that differs");
     for (const file of ["unreadable", "preserved", "responsive"]) expect(fs.existsSync(path.join(dir, `migrated/${file}.tsx`)), file).toBe(true);
     // With --strict, any difference fails, and nothing that differs is written.
     const strictDir = project({ "emails/unreadable.tsx": unreadable, "emails/preserved.tsx": preserved });
     const strict = io(strictDir);
     expect(await main(["emails", "--out", "migrated", "--strict"], strict, lib), strict.out + strict.err).toBe(2);
-    expect(strict.out).toMatch(/✗ emails\/unreadable\.tsx: check failed \(looks different, 1 kind of difference \(head style rule not converted\), with --strict\)\n {4}looks different: couldn't verify: the color/);
+    expect(strict.out).toMatch(/✗ emails\/unreadable\.tsx: check failed with --strict: looks different, 1 kind of difference \(head style rule not converted\)\n {4}looks different: couldn't verify: the color/);
     expect(fs.existsSync(path.join(strictDir, "migrated/unreadable.tsx"))).toBe(false);
   });
 
@@ -311,7 +311,7 @@ export default function Hybrid() {
     expect(out.out).toMatch(/✓ emails\/hybrid\.tsx: .*\n {4}looks different: moved: "Right", "hybrid", "column" 300px to the left/);
     const strict = io(dir);
     expect(await main(["emails", "--out", "strict", "--strict"], strict, lib), strict.out + strict.err).toBe(2);
-    expect(strict.out).toMatch(/✗ emails\/hybrid\.tsx: check failed \(looks different, with --strict\)/);
+    expect(strict.out).toMatch(/✗ emails\/hybrid\.tsx: check failed with --strict: looks different/);
   });
 
   it("names a style computed from props that would be dropped: written, and failed with --strict", async () => {
@@ -363,7 +363,7 @@ export default function Welcome() {
     // With --strict, any difference fails, those the migration lists too: not written unless --force.
     const strict = io(dir);
     expect(await main(["emails", "--out", "strict", "--strict"], strict, lib), strict.out + strict.err).toBe(2);
-    expect(strict.out).toContain("✗ emails/welcome.tsx: check failed (3 kinds of difference (image border radius dropped; image height not kept; style not converted: box-shadow), with --strict)\n");
+    expect(strict.out).toContain("✗ emails/welcome.tsx: check failed with --strict: 3 kinds of difference (image border radius dropped; image height not kept; style not converted: box-shadow)\n");
     expect(fs.existsSync(path.join(dir, "strict/welcome.tsx"))).toBe(false);
     expect(await main(["emails", "--out", "forced", "--strict", "--force"], io(dir), lib)).toBe(2);
     expect(fs.existsSync(path.join(dir, "forced/welcome.tsx"))).toBe(true);
@@ -392,7 +392,7 @@ export default function Welcome() { return <Html><Body><Text>Welcome</Text></Bod
     expect(out.err).toBe("");
     expect(code, out.out + out.err).toBe(0);
     expect(out.out).toMatch(/✓ emails\/welcome\.tsx: 100% editable/);
-    expect(out.out).toMatch(/- emails\/components\/button\.tsx: skipped \(no default-exported component/);
+    expect(out.out).toMatch(/- emails\/components\/button\.tsx: skipped: no default-exported component/);
 
     const migrated = fs.readFileSync(path.join(dir, "migrated/welcome.tsx"), "utf8");
     expect(migrated).toContain('from "@unlayer/react-elements"');
@@ -486,7 +486,7 @@ export default function Receipt() { return <Html><Body><Text>Your receipt</Text>
     expect(out.out).toMatch(/✓ emails\/activation\.tsx/);
     expect(out.out).toMatch(/✓ emails\/welcome\.tsx/);
     // It has no default export, so migrating never rewrites it: what the receipt takes from it stays as it is.
-    expect(out.out).toMatch(/- emails\/components\/footer\.tsx: skipped \(no default-exported component/);
+    expect(out.out).toMatch(/- emails\/components\/footer\.tsx: skipped: no default-exported component/);
     expect(fs.readFileSync(path.join(dir, "emails/components/footer.tsx"), "utf8")).toBe(footer);
     expect(fs.readFileSync(path.join(dir, "emails/activation.tsx"), "utf8")).toContain("@unlayer/react-elements");
   });
@@ -507,7 +507,7 @@ export default function Receipt() { return <Html><Body><Text>Your receipt</Text>
     const out = io(dir);
     expect(await main(["emails", "--write"], out, lib), out.out + out.err).toBe(0);
     expect(out.out).toMatch(/✓ emails\/welcome\.tsx/);
-    expect(out.out).toMatch(/- emails\/footer\.tsx: skipped \(no default-exported component/);
+    expect(out.out).toMatch(/- emails\/footer\.tsx: skipped: no default-exported component/);
   });
 
   it("follows a barrel that imports a layout and exports it again: --write leaves the layout alone and inlines it", async () => {
@@ -521,7 +521,7 @@ export default function Welcome() { return <Shell><Text>Welcome aboard</Text></S
       const out = io(dir);
       expect(await main(["emails", "--write"], out, lib), out.out + out.err).toBe(0);
       // Left while the template uses it; once the migrated template no longer does, it's left as the layout it is.
-      expect(out.out, barrel).toMatch(/- emails\/Shell\.tsx: skipped \(a layout/);
+      expect(out.out, barrel).toMatch(/- emails\/Shell\.tsx: skipped: a layout/);
       expect(fs.readFileSync(path.join(dir, "emails/Shell.tsx"), "utf8")).toBe(shell);
       // The layout's markup is in the migrated template, which no longer needs the barrel.
       expect(out.out, barrel).toMatch(/✓ emails\/welcome\.tsx: 100% editable/);
@@ -548,8 +548,8 @@ export default function Receipt() { return <Parts.default><Text>Your receipt</Te
     });
     const out = io(dir);
     await main(["emails", "--write"], out, lib);
-    expect(out.out).toMatch(/- emails\/Shell\.tsx: skipped \(a layout/);
-    expect(out.out).toMatch(/- emails\/Footer\.tsx: skipped \(left as it is for emails\/receipt\.tsx/);
+    expect(out.out).toMatch(/- emails\/Shell\.tsx: skipped: a layout/);
+    expect(out.out).toMatch(/- emails\/Footer\.tsx: skipped: left as it is for emails\/receipt\.tsx/);
     expect(fs.readFileSync(path.join(dir, "emails/Shell.tsx"), "utf8")).toBe(shell);
   });
 
@@ -563,7 +563,7 @@ export default function Layout({ children }) { return <Html><Body><Container>{ch
     });
     const out = io(dir);
     expect(await main(["emails", "--write"], out, lib), out.out + out.err).toBe(0);
-    expect(out.out).toMatch(/- emails\/layout\.jsx: skipped \(a layout/);
+    expect(out.out).toMatch(/- emails\/layout\.jsx: skipped: a layout/);
     expect(out.out).toMatch(/✓ emails\/welcome\.jsx: 100% editable/);
     expect(fs.readFileSync(path.join(dir, "emails/layout.jsx"), "utf8")).toBe(layout);
   });
@@ -580,7 +580,7 @@ export default function Layout({ children }: { children?: React.ReactNode }) { r
     fs.symlinkSync(path.join(dir, "packages/email-ui"), path.join(dir, "node_modules/@acme/email-ui"), "dir");
     const out = io(dir);
     await main([".", "--write"], out, lib);
-    expect(out.out).toMatch(/- packages\/email-ui\/Layout\.tsx: skipped \(left as it is for apps\/web\/emails\/welcome\.tsx/);
+    expect(out.out).toMatch(/- packages\/email-ui\/Layout\.tsx: skipped: left as it is for apps\/web\/emails\/welcome\.tsx/);
     expect(fs.readFileSync(path.join(dir, "packages/email-ui/Layout.tsx"), "utf8")).toBe(layout);
   });
 
@@ -594,7 +594,7 @@ export default function Base({ content }: { content?: React.ReactNode }) { retur
     });
     const out = io(dir);
     await main(["emails", "--write"], out, lib);
-    expect(out.out).toMatch(/- emails\/layouts\/base\.tsx: skipped \(a shared piece .* that src\/shell\.tsx \(outside the folder\) may render for emails\/promo\.tsx: left as it is\)/);
+    expect(out.out).toMatch(/- emails\/layouts\/base\.tsx: skipped: a shared piece .* that src\/shell\.tsx \(outside the folder\) may render for emails\/promo\.tsx: left as it is/);
     expect(fs.readFileSync(path.join(dir, "emails/layouts/base.tsx"), "utf8")).toBe(base);
   });
 
@@ -608,7 +608,7 @@ export default function Layout(props: { children?: React.ReactNode }) { return <
     });
     const out = io(dir);
     await main(["emails", "--write"], out, lib);
-    expect(out.out).toMatch(/- emails\/layout\.tsx: skipped \(a layout \(it renders content passed to it\)/);
+    expect(out.out).toMatch(/- emails\/layout\.tsx: skipped: a layout \(it renders content passed to it\)/);
     expect(fs.readFileSync(path.join(dir, "emails/layout.tsx"), "utf8")).toBe(layout);
     // A template whose props happen to include a `children` default, or whose text says "children", is still an email.
     expect(out.out).toMatch(/✓ emails\/receipt\.tsx/);
@@ -628,8 +628,8 @@ export default function Shell({ content }: { content: ReactNode }) { return <Htm
     });
     const out = io(dir);
     await main(["emails", "--write"], out, lib);
-    expect(out.out).toMatch(/- emails\/listed\.tsx: skipped \(a layout/);
-    expect(out.out).toMatch(/- emails\/shell\.tsx: skipped \(a layout/);
+    expect(out.out).toMatch(/- emails\/listed\.tsx: skipped: a layout/);
+    expect(out.out).toMatch(/- emails\/shell\.tsx: skipped: a layout/);
     expect(fs.readFileSync(path.join(dir, "emails/listed.tsx"), "utf8")).toBe(listed);
     expect(fs.readFileSync(path.join(dir, "emails/shell.tsx"), "utf8")).toBe(content);
   });
@@ -829,7 +829,7 @@ export default function Welcome() { return <Html><Body><Text>Welcome aboard</Tex
     });
     const out = io(dir);
     expect(await main(["emails"], out, lib), out.out + out.err).toBe(0);
-    expect(out.out).toMatch(/^✓ emails\/welcome\.tsx: 100% editable\n- emails\/components\/button\.tsx: skipped \(no default-exported component[^\n]*\n\n1 template: 1 migrated and checked\. 1 other file skipped \(see above\)\. Nothing written/);
+    expect(out.out).toMatch(/^✓ emails\/welcome\.tsx: 100% editable\n- emails\/components\/button\.tsx: skipped: no default-exported component[^\n]*\n\n1 template: 1 migrated and checked\. 1 other file skipped \(see above\)\. Nothing written/);
     // Only files that aren't templates: none counted as one.
     const shared = io(dir);
     expect(await main(["emails/components"], shared, lib), shared.out + shared.err).toBe(1);
@@ -949,7 +949,7 @@ export default function T() {
     const flaggedDir = project({ "emails/t.tsx": source });
     const flagged = io(flaggedDir);
     expect(await main(["emails", "--out", "migrated"], flagged, lib), flagged.out + flagged.err).toBe(2);
-    expect(flagged.out).toMatch(/✗ emails\/t\.tsx: written, but its content differs \(lost text: "Keep", "this", "content"/);
+    expect(flagged.out).toMatch(/✗ emails\/t\.tsx: written, but its content differs: lost text: "Keep", "this", "content"/);
     expect(fs.existsSync(path.join(flaggedDir, "migrated/t.tsx"))).toBe(true);
     const dir = project({ "emails/t.tsx": source });
     for (const flags of [["--write"], ["--out", "migrated", "--design"]]) {
