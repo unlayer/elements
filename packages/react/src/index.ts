@@ -60,6 +60,8 @@ export type {
   MenuItem,
   // Agent-friendly input building blocks — exported so authors can annotate
   // their own factored-out helpers/consts (e.g. a shared border or text style).
+  MobileProps,
+  DeviceProps,
   SizeInput,
   BorderInput,
   TextStyleProps,

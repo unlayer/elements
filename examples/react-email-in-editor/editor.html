@@ -1,0 +1,89 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>React Email templates in the Unlayer editor</title>
+  <style>
+    body { margin: 0; font: 14px/1.4 system-ui, sans-serif; }
+    header { display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: center; padding: 10px 16px; border-bottom: 1px solid #e2e8f0; }
+    #editor { height: calc(100vh - 56px); }
+  </style>
+</head>
+<body>
+  <header>
+    <label>Template <select id="template" disabled></select></label>
+    <button id="save" disabled>Download edited design and HTML</button>
+    <span id="status" role="status">Loading editor…</span>
+  </header>
+  <div id="editor"></div>
+  <script src="https://editor.unlayer.com/embed.js"></script>
+  <script>
+    const status = document.getElementById("status");
+    const save = document.getElementById("save");
+    const select = document.getElementById("template");
+    // `pnpm migrate` writes one design JSON per React Email template and a report listing them.
+    async function templates() {
+      const response = await fetch("./output/report.json");
+      if (!response.ok) throw new Error("Run the migrate script first: output/report.json is missing.");
+      return (await response.json()).filter((result) => result.design);
+    }
+
+    let editor;
+    async function open(path) {
+      save.disabled = true;
+      status.textContent = `Loading ${path}…`;
+      const response = await fetch(`./${path}`);
+      if (!response.ok) throw new Error(`Design request failed: ${response.status}`);
+      editor.loadDesign(await response.json());
+    }
+
+    templates().then((results) => {
+      if (!results.length) throw new Error("No template passed the migration check: see output/report.json.");
+      // The editor loads and exports web fonts it was created with: register the templates' fonts.
+      const customFonts = [];
+      for (const font of results.flatMap((result) => result.fonts ?? [])) {
+        if (!customFonts.some((f) => f.value === font.value)) customFonts.push(font);
+      }
+      editor = unlayer.createEditor({
+        id: "editor",
+        displayMode: "email",
+        fonts: { showDefaultFonts: true, customFonts },
+        // Add your projectId and allowed domain for your deployed integration.
+      });
+      editor.addEventListener("design:loaded", () => {
+        save.disabled = false;
+        status.textContent = "Loaded. Edit it here, then download your changes.";
+      });
+      editor.addEventListener("editor:ready", () => {
+        for (const result of results) {
+          const option = document.createElement("option");
+          option.value = result.design;
+          option.textContent = `${result.file.split("/").pop()} (${Math.round(result.editable * 100)}% editable)`;
+          select.append(option);
+        }
+        select.disabled = false;
+        open(select.value).catch((error) => { status.textContent = error.message; });
+      });
+    }).catch((error) => { status.textContent = error.message; });
+    select.addEventListener("change", () => open(select.value).catch((error) => { status.textContent = error.message; }));
+
+    function download(name, contents, type) {
+      const url = URL.createObjectURL(new Blob([contents], { type }));
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = name;
+      link.click();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+    }
+    save.addEventListener("click", () => {
+      editor.exportHtml(({ design, html }) => {
+        const name = select.value.split("/").pop().replace(".design.json", "");
+        download(`${name}.edited.design.json`, JSON.stringify(design, null, 2), "application/json");
+        download(`${name}.edited.html`, html, "text/html");
+        status.textContent = "Exported design JSON and HTML. Allow multiple downloads if prompted.";
+      });
+    });
+  </script>
+</body>
+</html>

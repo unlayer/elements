@@ -25,7 +25,7 @@ import {
   createItemComponent,
   type BaseItemComponentProps,
 } from "./create-component";
-import type { RenderMode } from "@unlayer-internal/shared-elements";
+import type { DeviceProps, RenderMode } from "@unlayer-internal/shared-elements";
 import { normalizeLinkValue } from "@unlayer-internal/shared-elements";
 
 /** Exporter: `(values) => html`. Extra args mirror built-in exporters and can be ignored. */
@@ -79,8 +79,11 @@ export interface ElementsToolConfig {
   [editorOnly: string]: unknown;
 }
 
-/** Props: the tool's values as flat props, plus a `values` escape hatch. */
-export type ElementsToolProps = BaseItemComponentProps &
+/**
+ * Props: the tool's values as flat props, plus a `values` escape hatch. Every prop is the tool's own, as in 0.1.22:
+ * a `mobile` or `hideOnMobile` value isn't a device setting (`values._override` sets those).
+ */
+export type ElementsToolProps = Omit<BaseItemComponentProps, keyof DeviceProps> &
   Record<string, any> & { values?: Record<string, any> };
 
 /**

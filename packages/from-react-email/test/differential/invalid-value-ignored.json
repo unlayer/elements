@@ -1,0 +1,5 @@
+{
+  "why": "An invalid value is dropped and the earlier one applies: the words stay faint.",
+  "original": "<!doctype html><html><head><style>.f { opacity: 40%; opacity: not-a-value }</style></head><body style=\"margin:0;font-family:Arial\"><p class=\"f\">Faint footer words</p></body></html>",
+  "migrated": "<!doctype html><html><head><style></style></head><body style=\"margin:0;font-family:Arial\"><p>Faint footer words</p></body></html>"
+}

@@ -1,6 +1,6 @@
 # Make React and AI-generated email templates visually editable with renderToJson
 
-Use `@unlayer/react-elements` when a developer or AI agent writes a template in React and another person needs to edit its content in Unlayer's visual editor. `renderToJson()` creates design data; `loadDesign()` opens it; the editor's `exportHtml()` callback returns the updated design and HTML.
+Use `@unlayer/react-elements` when a developer or AI agent writes a template in React and another person needs to edit its content in Unlayer's visual editor. Templates already written with React Email open the same way: see [Open React Email templates in the Unlayer editor](./migrate-from-react-email.md#open-react-email-templates-in-the-unlayer-editor). `renderToJson()` creates design data; `loadDesign()` opens it; the editor's `exportHtml()` callback returns the updated design and HTML.
 
 ## Generate Unlayer design JSON from React
 
@@ -102,8 +102,8 @@ Expected: the editor loads the invoice after `editor:ready`; after `design:loade
 
 ## Constraints
 
-- `renderToJson()` is synchronous and statically walks `root > Row > Column > content`. It does not run a full React render. Plain synchronous root wrappers can be unwrapped, but hooks, async components, class components, `memo`, and `forwardRef` wrappers are not supported by that unwrapping path.
-- Nested custom layout components or fragments hiding Row/Column nodes are not expanded by the walker; they can be skipped. Return the actual Elements nodes as in the [shared invoice factory](../../../examples/content-workflows/src/invoice.tsx). Fetch data before building the tree.
+- `renderToJson()` is synchronous. It renders the template once with React, as `renderToHtml()` does, so hooks, Context, Fragments and your own layout components work, and the design keeps the Rows, Columns and blocks they render. Root wrappers are unwrapped, including `memo`, `forwardRef` and wrappers that use hooks; a class component as the root is not.
+- A component that is async, suspends or throws is left out with a console message, and the rest renders: fetch data before building the tree, as in the [shared invoice factory](../../../examples/content-workflows/src/invoice.tsx). A component of your own that returns plain markup (a `<div>`) in a Column is kept as it is: in the HTML, and in the design as an HTML block (edited as HTML in the editor, not as text or images). Outside a Row, the design leaves it out with a console message naming it: put it in a Column, or use an `<Html>` block for raw HTML.
 - A hand-written content wrapper is not a registered Elements item. Custom items must use [the custom tool API](../README.md#custom-tools) and need matching tool registration in the hosted editor.
 - Match the editor's `displayMode` to the design (`email` in this example). Preserve the generated schema version and counters rather than constructing guessed design JSON. Editor support for individual tools/features depends on its version and project configuration.
 - Exported JSON preserves design content and settings; it does not preserve React functions, business logic, hooks, or event handlers. There is no JSON-to-JSX or JSON-to-React renderer in this package. `renderToHtml()` takes a React element, not saved design JSON. Use the editor's `exportHtml()` for the edited design's HTML.

@@ -1,5 +1,4 @@
 import React from "react";
-import ReactDOMServer from "react-dom/server";
 import type { RenderMode, UnlayerConfig, BodyValues } from "@unlayer-internal/shared-elements";
 import { DEFAULT_CONFIG, mergeValues } from "@unlayer-internal/shared-elements";
 import { BodyExporters } from "@unlayer/exporters";
@@ -7,6 +6,8 @@ import { mapSemanticProps, type SemanticProps } from "../utils/semantic-props";
 import { nextHtmlId } from "../utils/create-component";
 import type { SizeInput } from "../types";
 import { BODY_DEFAULTS } from "../utils/container-defaults";
+import { withRenderScope } from "../utils/render-scope";
+import { childrenHtml } from "../utils/normalize";
 
 export type BodyProps = Omit<SemanticProps<BodyValues>, "padding" | "borderRadius"> & {
   children?: React.ReactNode;
@@ -18,6 +19,15 @@ export type BodyProps = Omit<SemanticProps<BodyValues>, "padding" | "borderRadiu
   config?: Partial<UnlayerConfig>;
   /** Preview text shown in email client inboxes (email mode only) */
   previewText?: string;
+  /** Document text direction, also kept in the design JSON. Renderer options can override it. */
+  textDirection?: string;
+  /** Language of the rendered document (for example, "ar"). */
+  lang?: string;
+  /**
+   * Web font stylesheets the content uses (e.g. a Google Fonts CSS URL).
+   * renderToHtml links them in the document head, with any `fonts` option.
+   */
+  fonts?: Array<{ url: string }>;
   /** Padding — a CSS string ("0 48px", "20px") or a number (px). */
   padding?: SizeInput;
   /** Corner radius — a number (→ px) or CSS string ("8px"). */
@@ -36,6 +46,20 @@ const PADDING_CHARS = [
   "\u00A0", "\u200C", "\u200B", "\u200D", "\u200E", "\u200F", "\uFEFF",
 ];
 
+/**
+ * previewText is text, as React treats text (it often carries user data, like
+ * a name), so it's escaped: markup like `</div>` would end the hidden preview
+ * and show whatever follows. The preview is padded with invisible characters
+ * below, so it needs no entities.
+ */
+function escapePreviewText(text: string): string {
+  // An email service's `<%name%>` tag (SendGrid's) stays as written, as in 0.1.22, for it to fill in: `<%` can't start an element.
+  return text
+    .split(/(<%[\w.]+%>)/)
+    .map((part, i) => (i % 2 ? part : part.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")))
+    .join("");
+}
+
 function generatePreviewHtml(text: string): string {
   if (!text || text.trim().length === 0) return "";
 
@@ -51,7 +75,7 @@ function generatePreviewHtml(text: string): string {
 
   return (
     `<div data-skip-in-text="true" style="display:none;font-size:1px;color:#ffffff;line-height:1px;max-height:0px;max-width:0px;opacity:0;overflow:hidden;">` +
-    truncated +
+    escapePreviewText(truncated) +
     padding +
     `</div>`
   );
@@ -121,7 +145,7 @@ function renderBodyToHtml(innerHTML: string, values: any, mode: RenderMode, prev
  * ```
  */
 const Body: React.FC<BodyProps> = (props) => {
-  const { children, mode: modeProp, className, style, index = 0, config: configProp, previewText, ...semanticProps } = props;
+  const { children, mode: modeProp, className, style, index = 0, config: configProp, previewText, fonts: _fonts, lang: _lang, ...semanticProps } = props;
 
   // Resolve config: explicit prop > default (no hooks, Server Component safe)
   const resolvedConfig: UnlayerConfig = { ...DEFAULT_CONFIG, ...configProp };
@@ -160,24 +184,15 @@ const Body: React.FC<BodyProps> = (props) => {
   // row container max-width (and therefore each column's width) in web mode.
   // Without this, Row falls back to BODY_DEFAULTS.contentWidth ("500px") and
   // <Body contentWidth="…"> is silently ignored for layout.
-  let enrichedChildren = children;
-  if (children) {
-    enrichedChildren = React.Children.map(children, (child) => {
-      if (React.isValidElement(child)) {
-        return React.cloneElement(child as React.ReactElement<any>, {
-          _config,
-          bodyValues: values,
-        });
-      }
-      return child;
-    });
-  }
-
-  // Process children to innerHTML
+  // Fragments and user components expanded: their rows get the context too.
   let innerHTML = "";
-  if (enrichedChildren) {
+  if (children) {
     try {
-      innerHTML = ReactDOMServer.renderToString(enrichedChildren as React.ReactElement);
+      // A render of its own when Body is rendered straight through React (not renderToHtml).
+      innerHTML = withRenderScope(() => {
+        // One React render collects the rows and blocks; each is then rendered with Body's settings.
+        return childrenHtml(children, (child) => React.cloneElement(child as React.ReactElement<any>, { _config, bodyValues: values }));
+      }, true);
     } catch (error) {
       console.error("Body: Failed to render children:", error);
       innerHTML = "";

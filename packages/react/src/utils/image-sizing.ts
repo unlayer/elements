@@ -77,7 +77,7 @@ function fixedContentWidth(contentWidth: unknown): number | undefined {
 /** Unlayer's body content width fallback when `contentWidth` isn't fixed px. */
 const FALLBACK_BODY_CONTENT_WIDTH = 500;
 /** Unlayer's default content-block padding when a block sets none. */
-const DEFAULT_CONTAINER_PADDING = "10px";
+export const DEFAULT_CONTAINER_PADDING = "10px";
 
 /**
  * A body `contentWidth` resolved to px: the fixed px value, or `fallback`

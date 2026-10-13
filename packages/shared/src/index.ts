@@ -40,6 +40,8 @@ export type {
   MenuItem,
   // Utility types
   RenderMode,
+  MobileProps,
+  DeviceProps,
   // Design JSON types
   DesignContent,
   DesignColumn,
@@ -67,9 +69,12 @@ export {
 
 // Utils - Value merging
 export { mergeValues } from "./utils/merge-values";
+export { cssValueSafe, normalizeColor, normalizeCssValues, normalizeFontStack } from "./utils/css-values";
 
 // Utils - Semantic props
 export {
+  escapeText,
+  escapeKeepingTags,
   mapSemanticProps,
   normalizeLinkValue,
   normalizeValuesForExporter,

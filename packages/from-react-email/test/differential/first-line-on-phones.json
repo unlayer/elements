@@ -1,0 +1,5 @@
+{
+  "why": "A ::first-line size this can't read may be 0: whether a phone shows the line can't be told.",
+  "original": "<!doctype html><html><head><style>@media (max-width: 600px) { .x::first-line { font-size: var(--undefined-size, 0) } }</style></head><body style=\"margin:0;font-family:Arial\"><p style=\"margin:0\">Thanks for your order, here is the summary</p><p class=\"x\" style=\"margin:0\">Plain line outside</p></body></html>",
+  "migrated": "<!doctype html><html><head><style></style></head><body style=\"margin:0;font-family:Arial\"><p style=\"margin:0\">Thanks for your order, here is the summary</p><p style=\"margin:0\">Plain line outside</p></body></html>"
+}

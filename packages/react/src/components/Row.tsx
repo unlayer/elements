@@ -4,10 +4,13 @@ import { validateColumnLayout } from "@unlayer-internal/shared-elements";
 import type { ColumnLayout } from "@unlayer-internal/shared-elements";
 import { RowExporters } from "@unlayer/exporters";
 import { mapSemanticProps, type SemanticProps } from "../utils/semantic-props";
-import { nextHtmlId } from "../utils/create-component";
+import { nextHtmlId, safeMeta } from "../utils/create-component";
 import { bodyContentWidthPx } from "../utils/image-sizing";
-import type { SizeInput } from "../types";
+import type { DeviceProps, SizeInput } from "../types";
 import { ROW_DEFAULTS, BODY_DEFAULTS } from "../utils/container-defaults";
+import { looseText } from "../utils/render-scope";
+import { collecting, RECORDS } from "../utils/collect";
+import { recordContainer, whileCollecting } from "../utils/record";
 
 /**
  * Row - Container for columns in a layout
@@ -28,7 +31,7 @@ const DEFAULT_VALUES = ROW_DEFAULTS;
 
 const DEFAULT_BODY_VALUES = BODY_DEFAULTS;
 
-export type RowProps = Omit<SemanticProps<RowValues>, "padding"> & {
+export type RowProps = Omit<SemanticProps<RowValues>, "padding" | keyof DeviceProps> & DeviceProps & {
   children?: React.ReactNode;
   layout?: ColumnLayout;
   cells?: number[];
@@ -70,6 +73,9 @@ function generateGridCSS(cells: number[], mode: RenderMode, contentWidth: number
   if (mode === 'email') {
     const minQuery = `@media only screen and (min-width: ${contentWidth + 20}px)`;
     const maxQuery = `@media only screen and (max-width: ${contentWidth + 20}px)`;
+    // Every Row writes this block, so a later row's `.u-row .u-col` rules
+    // would override an earlier row's `.no-stack` ones of equal specificity:
+    // `.u-row.no-stack` outranks them wherever it comes.
 
     return `
 ${minQuery} {
@@ -83,8 +89,8 @@ ${maxQuery} {
   .u-row { width: 100% !important; }
   .u-row .u-col { display: block !important; width: 100% !important; min-width: 320px !important; max-width: 100% !important; }
   .u-row .u-col > div { margin: 0 auto; }
-  .no-stack .u-col { min-width: 0 !important; display: table-cell !important; }
-${widths.map(({ value, className }) => `  .no-stack .u-col-${className} { width: ${value}% !important; }`).join('\n')}
+  .u-row.no-stack .u-col { min-width: 0 !important; display: table-cell !important; }
+${widths.map(({ value, className }) => `  .u-row.no-stack .u-col-${className} { width: ${value}% !important; }`).join('\n')}
 }`;
   }
 
@@ -178,11 +184,14 @@ function processChildren(
 
   let innerHTML = "";
   const childrenArray = React.Children.toArray(children);
+  // Each Column's place among the Columns: markup or text beside them (an Outlook comment, a wrapper the Row says
+  // isn't a Column) takes none, or the Columns after it got no cell (`width="NaN"`).
+  let index = 0;
 
-  childrenArray.forEach((child, index) => {
+  childrenArray.forEach((child) => {
     if (!React.isValidElement(child)) {
       if (typeof child === "string" || typeof child === "number") {
-        innerHTML += String(child);
+        innerHTML += looseText(child, "Row");
       }
       return;
     }
@@ -196,7 +205,7 @@ function processChildren(
       // Call Column component with context props
       const rendered = (child.type as Function)({
         ...child.props,
-        index,
+        index: index++,
         cells,
         bodyValues,
         rowValues,
@@ -224,7 +233,7 @@ function processChildren(
 // Component
 // ============================================
 
-const Row: React.FC<RowProps> = (props) => {
+function renderRow(props: RowProps): React.ReactElement | null {
   const {
     layout,
     cells: propsCells,
@@ -245,16 +254,18 @@ const Row: React.FC<RowProps> = (props) => {
   // Determine cells from layout or props. With neither, default to one equal
   // cell PER <Column> child (mirroring renderToJson) — `[1]` regardless of column
   // count left the 2nd/3rd column with no cell, rendering width="NaN".
+  // Its Columns, as React rendered them (see normalize.tsx).
+  const columnCount = React.Children.toArray(children).filter(
+    (c) => React.isValidElement(c) && /^Column$/.test((c.type as any)?.displayName || (c.type as any)?.name || "")
+  ).length;
   let cells: number[];
   if (layout) {
-    validateColumnLayout(layout, React.Children.count(children));
+    // The Columns as rendered, or as written (a condition's place included, as 0.1.22 counted them): either fits it.
+    if (columnCount !== layout.expectedColumns) validateColumnLayout(layout, React.Children.count(children));
     cells = layout.cells;
   } else if (propsCells) {
     cells = propsCells;
   } else {
-    const columnCount = React.Children.toArray(children).filter(
-      (c) => React.isValidElement(c) && /^Column$/.test((c.type as any)?.displayName || (c.type as any)?.name || "")
-    ).length;
     cells = Array(Math.max(1, columnCount)).fill(1);
   }
 
@@ -268,15 +279,7 @@ const Row: React.FC<RowProps> = (props) => {
     "Row"
   );
 
-  const valuesWithMeta = {
-    ...values,
-    cells,
-    _meta: {
-      htmlID: nextHtmlId(_config, "u_row"),
-      htmlClassNames: "u_row",
-      ...(values._meta || {})
-    }
-  };
+  const valuesWithMeta = { ...values, cells, _meta: safeMeta({ htmlID: nextHtmlId(_config, "u_row"), htmlClassNames: "u_row", ...(values._meta || {}) }) };
 
   // Process Column children
   const innerHTML = processChildren(
@@ -306,8 +309,13 @@ const Row: React.FC<RowProps> = (props) => {
       </div>
     );
   }
-};
+}
+
+// While a template is collected, a Row records itself (see normalize.tsx); then it renders the collected tree.
+const Row: React.FC<RowProps> = (props) =>
+  collecting() ? whileCollecting(() => recordContainer("row", props), () => renderRow(props), "Row") : renderRow(props);
 
 Row.displayName = "Row";
+(Row as unknown as Record<symbol, boolean>)[RECORDS] = true;
 
 export default Row;

@@ -24,6 +24,36 @@ describe("Body previewText prop", () => {
     expect(container.innerHTML).toContain("display:none");
   });
 
+  it("escapes markup in the preview text (it's text, often with user data)", () => {
+    const { container } = render(
+      <Body mode="email" previewText={'Hi </div><a href="https://x.test">Tom & Jerry</a>'}>
+        <Row>
+          <Column>
+            <Paragraph>Hello</Paragraph>
+          </Column>
+        </Row>
+      </Body>
+    );
+    expectNoRenderError(container);
+    const preview = container.querySelector('[data-skip-in-text="true"]');
+    expect(preview?.textContent).toContain('Hi </div><a href="https://x.test">Tom & Jerry</a>');
+    expect(container.querySelector('a[href="https://x.test"]')).toBeNull();
+  });
+
+  it("shows entities in the preview text as typed (it's text)", () => {
+    const { container } = render(
+      <Body mode="email" previewText={"Don&apos;t miss &nbsp;this"}>
+        <Row>
+          <Column>
+            <Paragraph>Hello</Paragraph>
+          </Column>
+        </Row>
+      </Body>
+    );
+    const preview = container.querySelector('[data-skip-in-text="true"]');
+    expect(preview?.textContent).toContain("Don&apos;t miss &nbsp;this");
+  });
+
   it("does not render preview div in web mode", () => {
     const { container } = render(
       <Body mode="web" previewText="This should not appear">

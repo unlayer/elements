@@ -54,17 +54,30 @@ jobs:
       - name: Type contract
         run: pnpm --filter @unlayer/react-elements typecheck
 
+      - name: Converter typechecks
+        run: pnpm --filter @unlayer/from-react-email typecheck && pnpm --filter @unlayer/migrate typecheck
+
       # ── Bundle size budget ──────────────────────────────────────
-      # Fail if the react-elements ESM bundle exceeds 76KB.
-      # Current size: ~76KB (15 components + image width-pinning geometry
-      # + per-mode full-document shells for renderToHtml).
+      # Fail if the react-elements ESM bundle exceeds 118KB.
+      # Current size: about 113.4KB (0.1.22: about 76KB). Most of the growth is
+      # the render that collects a template's rows and blocks (one React render,
+      # so hooks, context, Fragments and the user's components work as React
+      # renders them; a component that throws, suspends or is async left out
+      # with a message naming it; markup and blocks rendered to strings inside
+      # the user's components kept), phone device-override CSS, visibility
+      # settings, escaping of the values users give (Heading/Button text,
+      # link URLs, menu text, social links, ids, fonts, the text direction), and
+      # rendering where a bundler gives Elements another copy of React than
+      # react-dom's (Next.js's server layers), and loading a second module of
+      # react-dom's when Elements is called inside a renderToString it renders with,
+      # and leaving out Columns inside markup in a Row, as 0.1.22 did.
       # The budget tracks the unminified ESM output as a proxy for code volume;
       # it still flags accidental dependency bundling (any real dep is 10KB+).
       - name: Check bundle size
         run: |
           BUNDLE="packages/react/dist/index.js"
           SIZE=$(wc -c < "$BUNDLE" | tr -d ' ')
-          MAX_SIZE=76000
+          MAX_SIZE=118000
           echo "Bundle: $BUNDLE"
           echo "Size: $SIZE bytes (budget: $MAX_SIZE bytes)"
           if [ "$SIZE" -gt "$MAX_SIZE" ]; then
@@ -117,15 +130,34 @@ jobs:
       - name: Browser E2E gate
         run: pnpm --filter @unlayer/react-elements test:e2e
 
+      # ── Migration fidelity smoke test ───────────────────────────
+      # Converts the committed fixture templates both ways (codemod and
+      # runtime) and renders them next to their React Email originals in
+      # Chromium at desktop and phone widths. Fails on lost or added content,
+      # a word shown at another size on desktop, or words moved (on phones,
+      # only for the fixtures that match there).
+      - name: Migration fidelity smoke test
+        run: pnpm --filter @unlayer/from-react-email test:fidelity
+
+      # ── Migration check vs Chromium (differential) ──────────────
+      # 400 fixed seeds: one side of a base (hand-written documents and the
+      # fixture templates' renders) is mutated, Chromium decides whether a
+      # reader sees the two differently, and the check must fail every pair
+      # it does. Committed fixtures (test/differential/) must still differ in
+      # Chromium and fail the check. A false pass writes its pair to
+      # .bench-out/differential/ and fails the job.
+      - name: Migration check vs Chromium
+        run: pnpm --filter @unlayer/from-react-email test:differential
+
       - name: Storybook smoke test
         run: pnpm --filter @unlayer/react-elements test-storybook:ci
 
       # ── Storybook visual-drift gate ─────────────────────────────
-      # Fingerprints the computed styles of every story at desktop and
-      # mobile widths (reusing the static build from the smoke test) and
-      # diffs against the committed baseline. Fails naming the exact
-      # stories and properties that changed — answers "did any story
-      # change visually?" without paging through them by hand.
+      # Fingerprints the computed styles and the visible text of every story
+      # at desktop and mobile widths (reusing the static build from the smoke
+      # test) and diffs against the committed baseline. Fails naming the
+      # exact stories and properties (or lines of text) that changed —
+      # answers "did any story change?" without paging through them by hand.
       - name: Storybook visual-drift gate
         run: pnpm --filter @unlayer/react-elements test:visual
 
@@ -145,6 +177,26 @@ jobs:
           cd tests/nextjs-integration
           npm install "$TARBALL"
           npm run build
+          # An email rendered in a route handler and a Server Component comes out as one (tables, a design with
+          # its rows), with Elements bundled into Next's server layers (no serverExternalPackages); an edge route
+          # builds (Turbopack) and renders or says to render in the Node.js runtime.
+          npm run verify
+
+      # ── More consumers ──────────────────────────────────────────
+      # The packed package in Next.js 14 with React 18 (a route handler and a Server Component that render an
+      # email) and in Jest 30's jsdom environment with React 19 (importing it, and a design worked out inside a
+      # page's react-dom/server render). An early 0.2.0 build broke both where 0.1.22 worked.
+      - name: Next.js 14 and Jest 30 consumers
+        run: |
+          cd tests/next14-integration
+          npm install
+          npm install --no-save "$TARBALL"
+          npm run build
+          npm run verify
+          cd ../jest-integration
+          npm install
+          npm install --no-save "$TARBALL"
+          npm test
 
       - name: Upload coverage reports to Codecov
         uses: codecov/codecov-action@v4

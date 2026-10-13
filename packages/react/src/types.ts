@@ -42,6 +42,8 @@ export type {
   MenuItem,
   // Utility types
   RenderMode,
+  MobileProps,
+  DeviceProps,
 } from "@unlayer-internal/shared-elements";
 
 // ============================================

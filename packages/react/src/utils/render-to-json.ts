@@ -25,9 +25,12 @@ import { mergeValues } from "@unlayer-internal/shared-elements";
 import { schemaVersion as _schemaVersion } from "@unlayer/exporters";
 const schemaVersion: number = _schemaVersion ?? 24;
 import { mapSemanticProps } from "./semantic-props";
-import { UNLAYER_CONFIG_KEY } from "./create-component";
+import { componentName, getDisplayName, ROOT_NAMES, unwrapRoot, UNWRAP_ADVICE } from "./unwrap-root";
 import { BODY_DEFAULTS, ROW_DEFAULTS, COLUMN_DEFAULTS } from "./container-defaults";
 import { contentSlotWidth, pinImageSrc, type SlotContext } from "./image-sizing";
+import { withRenderScope } from "./render-scope";
+import { KEPT, normalizedChildren, normalizedRoot } from "./normalize";
+import { textDirectionOf, UNLAYER_CONFIG_KEY } from "./create-component";
 
 /** Layout context threaded down the walk so an image can be sized against the
  *  real column slot (contentWidth × column share, minus paddings/borders). */
@@ -40,69 +43,33 @@ type LayoutContext = Pick<
 // Tree helpers (inlined)
 // ============================================
 
-/** Get the displayName of a React element's component type. */
-function getDisplayName(element: React.ReactElement): string | undefined {
-  const type = element.type as any;
-  return type?.displayName || type?.name;
-}
 
-/** The root components renderToJson understands. */
-const VALID_ROOTS = new Set(["Body", "Email", "Page", "Document"]);
 
 /**
- * Unwrap a user wrapper component down to the underlying root element.
- * `renderToHtml` renders wrappers through React; `renderToJson` walks the element
- * tree, so a custom component that *returns* <Email>/<Body>/<Page>/<Document>
- * (e.g. `renderToJson(<MyEmail/>)`) must be invoked first. Only plain function
- * components are unwrapped — anything else (class / forwardRef / memo) falls
- * through to the clear root-type error.
+ * Unwrap a user wrapper component (e.g. `renderToJson(<MyEmail/>)`) down to
+ * its root element: renderToJson walks the element tree, so the wrapper must
+ * be called first. A wrapper that throws (React hooks aren't valid outside a
+ * render) gets an actionable message instead of a bare "Invalid hook call".
  */
-function unwrapRoot(element: React.ReactElement): React.ReactElement {
-  let current = element;
-  for (let depth = 0; depth < 10; depth++) {
-    const name = getDisplayName(current);
-    if (name && VALID_ROOTS.has(name)) break;
-    const type = current.type as any;
-    const isPlainFunctionComponent =
-      typeof type === "function" && !type.prototype?.isReactComponent;
-    if (!isPlainFunctionComponent) break;
-    // Invoking the wrapper can throw (e.g. it uses React hooks, which aren't
-    // valid when called outside React's render). Turn that into an actionable
-    // message instead of a bare "Invalid hook call".
-    let produced: unknown;
-    try {
-      produced = type({ ...(current.props as Record<string, unknown>) });
-    } catch (cause) {
-      const detail = cause instanceof Error ? cause.message : String(cause);
-      throw new Error(
-        `[Unlayer] renderToJson: could not unwrap <${name || "wrapper"}>. A wrapper must ` +
-          `be a plain component that synchronously returns a root (<Email>, <Page>, ` +
-          `<Document>, or <Body>) and uses no React hooks. Pass the root element directly — ` +
-          `e.g. renderToJson(<Email>…</Email>). (${detail})`
-      );
-    }
-    if (!React.isValidElement(produced)) break;
-    current = produced;
+function unwrapForJson(element: React.ReactElement): React.ReactElement {
+  try {
+    return unwrapRoot(element);
+  } catch (cause) {
+    const detail = cause instanceof Error ? cause.message : String(cause);
+    throw new Error(
+      `[Unlayer] renderToJson: could not unwrap <${componentName(element) || "wrapper"}>. ${UNWRAP_ADVICE} (${detail})`
+    );
   }
-  return current;
 }
 
-/** Collect valid React element children from a node. */
-function collectChildren(node: React.ReactNode): React.ReactElement[] {
-  const result: React.ReactElement[] = [];
-  React.Children.forEach(node, (child) => {
-    if (React.isValidElement(child)) {
-      result.push(child);
-    }
-  });
-  return result;
-}
+/** The element children of a collected (Elements-only) tree. */
+const collectChildren = (node: React.ReactNode): React.ReactElement[] => React.Children.toArray(node).filter(React.isValidElement);
 
 /**
  * Strip internal/base props from an element's props,
  * returning only the semantic props that should be mapped to values.
  */
-function extractSemanticProps(
+export function extractSemanticProps(
   props: Record<string, any>,
   extraKeys: string[] = []
 ): Record<string, any> {
@@ -119,6 +86,8 @@ function extractSemanticProps(
     "_config",
     "config",
     "previewText",
+    "fonts",
+    "lang",
     "layout",
     "collection",
     ...extraKeys,
@@ -134,7 +103,7 @@ function extractSemanticProps(
 }
 
 /** Increment and return counter for a given key. */
-function nextCounter(counters: Record<string, number>, key: string): number {
+export function nextCounter(counters: Record<string, number>, key: string): number {
   counters[key] = (counters[key] || 0) + 1;
   return counters[key];
 }
@@ -195,13 +164,19 @@ function extractTextFromTextJson(textJson: string): string {
 function processItem(
   element: React.ReactElement,
   counters: Record<string, number>,
-  layout: LayoutContext = {}
+  layout: LayoutContext = {},
+  /** The id and class base, when not the item's own (markup kept as an HTML block, named after its component). */
+  metaName?: string
 ): DesignContent {
   const componentType = element.type as any;
   const config = componentType[UNLAYER_CONFIG_KEY];
 
+  if (!config && componentType?.[KEPT]) {
+    // Markup a component of the user's own rendered in a Column: an HTML block, numbered as the HTML numbers it.
+    return processItem(componentType[KEPT], counters, layout, (componentType.displayName || componentType.name || "component").toLowerCase());
+  }
   if (!config) {
-    const name = getDisplayName(element) || "Unknown";
+    const name = componentName(element) || "Unknown";
     throw new Error(
       `[Unlayer] renderToJson: <${name}> is not a recognized Unlayer item component. ` +
         `Only components created with createItemComponent are supported.`
@@ -211,7 +186,7 @@ function processItem(
   const { name, defaultValues, propMapper, slug } = config;
   const contentType = config.contentType ?? toContentType(name);
   // Custom tools use u_content_custom_<slug> as their id/class base
-  const metaBase = `u_content_${config.metaName ?? contentType}`;
+  const metaBase = `u_content_${metaName ?? config.metaName ?? contentType}`;
   const count = nextCounter(counters, metaBase);
   const id = makeId(metaBase, count);
 
@@ -363,7 +338,7 @@ function processRow(
       columnIndex += 1;
     } else {
       console.warn(
-        `[Unlayer] renderToJson: <${name}> is not a valid Row child. Only <Column> is allowed.`
+        `[Unlayer] renderToJson: <${componentName(child) ?? String(child.type)}> is not a valid Row child. Only <Column> is allowed.`
       );
     }
   }
@@ -381,6 +356,12 @@ function processBody(
   const semanticProps = extractSemanticProps(element.props);
   const mapped = mapSemanticProps(semanticProps, BODY_DEFAULTS, "Body");
   const values = mergeValues(BODY_DEFAULTS, mapped);
+  // Only ltr, rtl or auto, as in the HTML (a value from a request could carry anything).
+  if ("textDirection" in values) {
+    const direction = textDirectionOf((values as Record<string, unknown>).textDirection);
+    if (direction) (values as Record<string, unknown>).textDirection = direction;
+    else delete (values as Record<string, unknown>).textDirection;
+  }
 
   // `previewText` is the React alias for the schema's `preheaderText`. It is
   // excluded from the mapped values (it drives the email preview HTML at render
@@ -410,7 +391,7 @@ function processBody(
       rows.push(processRow(child, counters, { bodyValues: valuesWithMeta }));
     } else {
       console.warn(
-        `[Unlayer] renderToJson: <${name}> is not a valid Body child. Only <Row> is allowed.`
+        `[Unlayer] renderToJson: <${componentName(child) ?? String(child.type)}> is not a valid Body child. Only <Row> is allowed.`
       );
     }
   }
@@ -479,25 +460,32 @@ export function renderRowToJson(element: React.ReactElement): DesignRow {
   if (displayName !== "Row") {
     throw new Error(
       `[Unlayer] renderRowToJson: Element must be <Row>, ` +
-        `but got <${displayName || "unknown"}>. ` +
+        `but got <${componentName(element) || "unknown"}>. ` +
         `For full designs, use renderToJson instead.`
     );
   }
 
   const counters: Record<string, number> = {};
-  return processRow(element, counters);
+  // A render of its own, as renderToJson's: the same row gives the same ids every time. React renders what's in it.
+  return withRenderScope(() => processRow(normalizedChildren(element).find((c): c is React.ReactElement => React.isValidElement(c)) ?? element, counters));
 }
 
 export function renderToJson(element: React.ReactElement): DesignJSON {
+  return withRenderScope(() => designJson(element));
+}
+
+function designJson(element: React.ReactElement): DesignJSON {
   // Accept a user wrapper component (e.g. <MyEmail/>) by unwrapping to its root,
   // matching renderToHtml which renders wrappers through React.
-  element = unwrapRoot(element);
+  element = unwrapForJson(element);
   const displayName = getDisplayName(element);
+  // One React render collects the rows and blocks (as the HTML does).
+  if (displayName && ROOT_NAMES.has(displayName)) element = normalizedRoot(element);
 
-  if (!displayName || !VALID_ROOTS.has(displayName)) {
+  if (!displayName || !ROOT_NAMES.has(displayName)) {
     throw new Error(
       `[Unlayer] renderToJson: Root element must be <Body>, <Email>, <Page>, or <Document>, ` +
-        `but got <${displayName || "unknown"}>. ` +
+        `but got <${componentName(element) || "unknown"}>. ` +
         `Wrap your content: <Body><Row><Column>...</Column></Row></Body>`
     );
   }

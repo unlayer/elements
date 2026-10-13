@@ -152,3 +152,23 @@ export interface DesignJSON {
   body: DesignBody;
   schemaVersion: number;
 }
+
+/** Phone settings use the same flat CSS inputs as desktop props. */
+export interface MobileProps {
+  padding?: number | string;
+  containerPadding?: number | string;
+  fontSize?: number | string;
+  lineHeight?: number | string;
+  textAlign?: TextAlign;
+  width?: number | string;
+  maxWidth?: number | string;
+  autoWidth?: boolean;
+  /** Column border on this device (per side, as the desktop `border`). */
+  border?: Partial<Record<`border${"Top" | "Right" | "Bottom" | "Left"}${"Width" | "Style" | "Color"}`, number | string>>;
+}
+
+export interface DeviceProps {
+  mobile?: MobileProps;
+  hideOnMobile?: boolean;
+  hideOnDesktop?: boolean;
+}

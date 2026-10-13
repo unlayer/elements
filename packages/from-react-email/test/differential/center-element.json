@@ -1,0 +1,5 @@
+{
+  "why": "Text in <center> is centered (its -webkit-center), not left-aligned.",
+  "original": "<!doctype html><html><head><style></style></head><body style=\"margin:0;font-family:Arial\"><p style=\"margin:0\">Thanks for your order, here is the summary</p><center><p style=\"margin:0\">Centered words here</p></center></body></html>",
+  "migrated": "<!doctype html><html><head><style></style></head><body style=\"margin:0;font-family:Arial\"><p style=\"margin:0\">Thanks for your order, here is the summary</p><p style=\"margin:0\">Centered words here</p></body></html>"
+}

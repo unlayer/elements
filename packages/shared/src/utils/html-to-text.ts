@@ -135,10 +135,15 @@ export function htmlToPlainText(html: string): string {
   text = text.replace(/<style[\s\S]*?<\/style>/gi, "");
   text = text.replace(/<script[\s\S]*?<\/script>/gi, "");
 
+  // A line break, first: headings, links and list items keep theirs ("WELCOME BACK,<br>ADA").
+  text = text.replace(/<br\s*\/?>/gi, "\n");
+
   // 3. Convert headings: h1-h2 → UPPERCASE, h3-h6 → as-is
   text = text.replace(/<h[12][^>]*>([\s\S]*?)<\/h[12]>/gi, (_, content) => {
     const clean = content.replace(/<[^>]+>/g, "").trim();
-    return "\n" + clean.toUpperCase() + "\n";
+    // Entities stay as written, to decode below (`&amp;` uppercased wouldn't).
+    const upper = clean.replace(/&#?\w+;|[^&]+|&/g, (part: string) => (/^&#?\w+;$/.test(part) ? part : part.toUpperCase()));
+    return "\n" + upper + "\n";
   });
   text = text.replace(/<h[3-6][^>]*>([\s\S]*?)<\/h[3-6]>/gi, (_, content) => {
     const clean = content.replace(/<[^>]+>/g, "").trim();
@@ -170,9 +175,6 @@ export function htmlToPlainText(html: string): string {
     const clean = content.replace(/<[^>]+>/g, "").trim();
     return "- " + clean + "\n";
   });
-
-  // 8. Convert <br> tags
-  text = text.replace(/<br\s*\/?>/gi, "\n");
 
   // 9. Convert block-level closing tags to newlines
   text = text.replace(/<\/(?:p|div|tr|blockquote|section|article|header|footer|main|nav|aside)>/gi, "\n");

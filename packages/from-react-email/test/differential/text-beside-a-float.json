@@ -1,0 +1,5 @@
+{
+  "why": "Text after a float flows beside it.",
+  "original": "<!doctype html><html><head><style></style></head><body style=\"margin:0;font-family:Arial\"><p style=\"margin:0\">Thanks for your order, here is the summary</p><div style=\"width:600px\"><p style=\"float:left;width:300px;margin:0;height:80px\">Floated block</p><p style=\"margin:0\">Read the words beside it</p></div></body></html>",
+  "migrated": "<!doctype html><html><head><style></style></head><body style=\"margin:0;font-family:Arial\"><p style=\"margin:0\">Thanks for your order, here is the summary</p><div style=\"width:600px\"><p style=\"width:300px;margin:0;height:80px\">Floated block</p><p style=\"margin:0\">Read the words beside it</p></div></body></html>"
+}

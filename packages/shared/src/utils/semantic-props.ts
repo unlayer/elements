@@ -10,6 +10,8 @@
  * - TypeScript provides autocomplete for ALL properties (flat and nested)
  */
 
+import type { DeviceProps } from "../types";
+import { cssSafeValues, normalizeCssValues } from "./css-values";
 import { textToTextJson, htmlToTextJson } from "./lexical-helpers";
 
 /**
@@ -35,7 +37,7 @@ type FlattenObjectProps<T> = T extends object
  * Semantic props type for any component.
  * Generic TChildren parameter allows each framework to supply its own child type.
  */
-export type SemanticProps<T, TChildren = any> = FlattenObjectProps<T> & {
+export type SemanticProps<T, TChildren = any> = Omit<FlattenObjectProps<T>, keyof DeviceProps> & DeviceProps & {
   children?: TChildren;
   values?: T; // Escape hatch for full control
   /** HTML string with inline formatting for Paragraph (e.g. `'Hello <b>bold</b>'`) */
@@ -125,6 +127,33 @@ function normalizeCssProps(props: Record<string, any>): void {
   }
 }
 
+const ENTITIES: Record<string, string> = { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" };
+
+/** Text as HTML: `&`, `<` and `>` escaped (and quotes, with `quotes`). */
+export function escapeText(text: string, quotes?: boolean): string {
+  return text.replace(quotes ? /[&<>"']/g : /[&<>]/g, (c) => ENTITIES[c]);
+}
+
+/**
+ * `escapeText`, keeping an email service's `<%name%>` tag (SendGrid's substitution tags) as written, as 0.1.22
+ * did in this text: the service fills it in. `<%` can't start an element, so it adds no markup.
+ */
+export function escapeKeepingTags(text: string, quotes?: boolean, escape = (part: string) => escapeText(part, quotes)): string {
+  return text
+    .split(/(<%[\w.]+%>)/)
+    .map((part, i) => (i % 2 ? part : escape(part)))
+    .join("");
+}
+
+/**
+ * A Menu item's text in an email, which its exporter writes as HTML (0.1.22 wrote what it was given): markup escaped,
+ * an entity reference kept (`&rarr;`, `&nbsp;`), as a single quote (a template's string: `{{ name | default: 'you' }}`);
+ * a double quote escaped, also in a template tag: the exporter writes the text in a double-quoted `aria-label` too,
+ * which a raw one would end (`{{ " }} onmouseover=…`).
+ */
+const menuText = (text: string) =>
+  escapeKeepingTags(text, false, (part) => part.replace(/&(?!(?:#\d+|#x[\da-f]+|[a-z][\da-z]*);)|[<>"]/gi, (c) => ENTITIES[c]));
+
 /**
  * Flatten a JSX/ReactNode children tree to its plain text content.
  * Text components store a string (or Lexical JSON derived from one); a raw React
@@ -132,15 +161,27 @@ function normalizeCssProps(props: Record<string, any>): void {
  * Duck-types the element shape (`.props.children`) so this stays framework-free.
  * Inline formatting is not preserved — use the `html` prop for rich text.
  */
-function flattenChildrenText(node: any): string {
+function flattenChildrenText(node: any, breaks?: boolean): string {
   if (node == null || typeof node === "boolean") return "";
   if (typeof node === "string") return node;
   if (typeof node === "number") return String(node);
-  if (Array.isArray(node)) return node.map(flattenChildrenText).join("");
+  if (Array.isArray(node)) return node.map((child) => flattenChildrenText(child, breaks)).join("");
   if (typeof node === "object" && "props" in node) {
-    return flattenChildrenText(node.props?.children);
+    return breaks && node.type === "br" ? "<br/>" : flattenChildrenText(node.props?.children, breaks);
   }
   return "";
+}
+
+/**
+ * Heading and Button children as HTML: text, with markup escaped, so a
+ * value like a user's name can't inject HTML. A line break stays one,
+ * written `<br>` in a string (as it worked before) or as a JSX `<br />`.
+ */
+function childrenHtml(children: any): string {
+  return flattenChildrenText(children, true)
+    .split(/(<br\s*\/?>)/i)
+    .map((part, i) => (i % 2 ? "<br/>" : escapeKeepingTags(part)))
+    .join("");
 }
 
 /**
@@ -157,7 +198,10 @@ export function mapSemanticProps<T extends Record<string, any>>(
   defaultValues: T,
   componentType: string
 ): T {
-  const { children, values, ...restProps } = props;
+  const { children, values, mobile, hideOnMobile: hideMobileProp, hideOnDesktop: hideDesktopProp, ...restProps } = props;
+  // The editor hides rows and content on a device, never a column.
+  const hideOnMobile = componentType === "Column" ? undefined : hideMobileProp;
+  const hideOnDesktop = componentType === "Column" ? undefined : hideDesktopProp;
   const userProps: any = { ...restProps };
 
   // Start with escape hatch if provided
@@ -172,6 +216,11 @@ export function mapSemanticProps<T extends Record<string, any>>(
       typeof children === "string" ? children : flattenChildrenText(children);
     if (componentType === "Paragraph") {
       result.textJson = textToTextJson(textContent);
+    } else if (componentType === "Heading" || componentType === "Button") {
+      // Children are text, as in React (and as Paragraph's are): markup in them
+      // shows as typed, so a value like a user's name can't inject HTML, but a
+      // line break stays one. The `text` prop still takes HTML.
+      result.text = childrenHtml(children);
     } else {
       result.text = textContent;
     }
@@ -336,7 +385,36 @@ export function mapSemanticProps<T extends Record<string, any>>(
     }
   }
 
-  return final as T;
+  if (mobile || hideOnMobile !== undefined || hideOnDesktop !== undefined) {
+    const overrides = { ...final._override };
+    if (mobile || hideOnMobile !== undefined) {
+      const { width, maxWidth, autoWidth, ...phone } = mobile || {};
+      const mapped = mapSemanticProps(phone as SemanticProps<T>, defaultValues, componentType) as Record<string, any>;
+      if (componentType === "Image" && (width !== undefined || maxWidth !== undefined || autoWidth !== undefined)) {
+        mapped.src = {
+          ...(overrides.mobile?.src || {}),
+          ...(autoWidth !== undefined ? { autoWidth } : { autoWidth: false }),
+          ...(width !== undefined || maxWidth !== undefined ? { maxWidth: width ?? maxWidth } : {}),
+        };
+      } else if (width !== undefined || autoWidth !== undefined) {
+        const key = componentType === "Button" ? "size" : "width";
+        mapped[key] = { autoWidth: autoWidth ?? false, ...(width !== undefined ? { width: typeof width === "number" ? `${width}px` : width } : {}) };
+      }
+      overrides.mobile = { ...overrides.mobile, ...cssSafeValues(mapped), ...(hideOnMobile !== undefined ? { hideMobile: hideOnMobile } : {}) };
+    }
+    if (hideOnDesktop !== undefined) overrides.desktop = { ...overrides.desktop, hideDesktop: hideOnDesktop };
+    final._override = overrides;
+  }
+
+  // "Do not stack on mobile" is a mobile override, as the editor saves it:
+  // the exporters read it only there.
+  if (componentType === "Row" && final.noStackMobile === true) {
+    final._override = { ...final._override, mobile: { ...final._override?.mobile, noStackMobile: true } };
+    final.noStackMobile = false;
+  }
+
+  // Colors and font stacks in forms the exporters write correctly.
+  return normalizeCssValues(final) as T;
 }
 
 /**
@@ -395,20 +473,36 @@ export function normalizeLinkValue(value: unknown): Record<string, any> | undefi
 }
 
 /**
+ * A link whose URL the exporters write into an `href="…"` as it is: `"`, `<`
+ * and `>`, which a URL can't hold unencoded, are percent-encoded (as a browser
+ * would), so a URL can't end the attribute (or Outlook's conditional comment).
+ * An email service's placeholder in the form `<%name%>` (SendGrid's
+ * `<%asm_group_unsubscribe_raw_url%>`) is kept: the service fills it in as
+ * written, and it can end neither.
+ */
+function safeLink(link: Record<string, any>): Record<string, any> {
+  // A URL that isn't a string (an array from a JSON body or `?url[]=`) is written as its text: escaped as one.
+  const url = link.url === undefined || link.url === null ? link.url : String(link.url);
+  return typeof url === "string" ? { ...link, url: url.replace(/<%[\w.]+%>|["<>]/g, (c) => (c.length > 1 ? c : encodeURIComponent(c))) } : link;
+}
+
+/**
  * Normalize all link/action fields on an item's values to the render-value
  * shape the exporter reads. Returns a shallow clone — does not mutate.
  *
  * Knows about the link-bearing paths per component:
  * - top-level `href` (Button, Video)
  * - top-level `action` (Image, Timer)
- * - `menu.items[].link` (Menu)
+ * - `menu.items[].link` (Menu), and its items' text
+ * - `icons.icons[].url` (Social)
  *
  * Only the bridge between mapper and exporter should call this; renderToJson
  * must NOT, because JSON output preserves storage shape.
  */
 export function normalizeValuesForExporter<T extends Record<string, any>>(
   values: T,
-  componentName: string
+  componentName: string,
+  mode?: string
 ): T {
   if (values == null || typeof values !== "object") return values;
 
@@ -419,21 +513,38 @@ export function normalizeValuesForExporter<T extends Record<string, any>>(
   for (const key of ["href", "action"]) {
     if (out[key] !== undefined) {
       const normalized = normalizeLinkValue(out[key]);
-      if (normalized !== undefined) out[key] = normalized;
+      if (normalized !== undefined) out[key] = safeLink(normalized);
     }
   }
 
-  // Menu items each carry a `link` field.
+  // The Button exporter unescapes its text before writing it, where the
+  // editor's canvas shows the text as the HTML it is. Escaping it once here
+  // gives it back as stored: `&lt;b&gt;` shows as text, `<b>` as bold.
+  if (componentName === "Button" && typeof out.text === "string") {
+    out.text = escapeKeepingTags(out.text, true);
+  }
+
+  // Menu items each carry a `link` field, and text the email exporter writes
+  // as it is (the web and document exporters escape it).
   if (componentName === "Menu" && out.menu && Array.isArray(out.menu.items)) {
     out.menu = {
       ...out.menu,
       items: out.menu.items.map((item: any) => {
-        if (!item || item.link === undefined) return item;
-        const normalized = normalizeLinkValue(item.link);
-        if (normalized === undefined) return item;
-        return { ...item, link: normalized };
+        if (!item) return item;
+        const next = mode === "email" && typeof item.text === "string" ? { ...item, text: menuText(item.text) } : item;
+        if (next.link === undefined) return next;
+        const normalized = normalizeLinkValue(next.link);
+        if (normalized === undefined) return next;
+        return { ...next, link: safeLink(normalized) };
       }),
     };
+  }
+
+  // Social icons each carry a `url`, written into an href as it is, and a `name`, which an email writes into its
+  // `title`, `alt` and image URL as it is too (a web page or a document escapes it).
+  if (componentName === "Social" && out.icons && Array.isArray(out.icons.icons)) {
+    const named = (icon: any) => (mode === "email" && typeof icon.name === "string" ? { ...icon, name: escapeText(icon.name, true) } : icon);
+    out.icons = { ...out.icons, icons: out.icons.icons.map((icon: any) => (icon && typeof icon === "object" ? named(safeLink(icon)) : icon)) };
   }
 
   return out as T;

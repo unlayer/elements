@@ -1,13 +1,16 @@
 import React from "react";
 import type { RenderMode, UnlayerConfig, ColumnValues } from "@unlayer-internal/shared-elements";
 import { ColumnExporters, ContentExporters } from "@unlayer/exporters";
-import { UNLAYER_RENDER_KEY, UNLAYER_CONFIG_KEY, nextHtmlId } from "../utils/create-component";
+import { UNLAYER_RENDER_KEY, UNLAYER_CONFIG_KEY, nextHtmlId, safeName, safeMeta } from "../utils/create-component";
 import { mapSemanticProps, type SemanticProps } from "../utils/semantic-props";
-import type { SizeInput, BorderInput } from "../types";
+import type { DeviceProps, SizeInput, BorderInput } from "../types";
 import { COLUMN_DEFAULTS } from "../utils/container-defaults";
+import { looseText } from "../utils/render-scope";
+import { collecting, RECORDS } from "../utils/collect";
+import { recordContainer, whileCollecting } from "../utils/record";
+import { DEFAULT_CONTAINER_PADDING } from "../utils/image-sizing";
 
 /** Unlayer's default content-block padding when a block sets none. */
-const DEFAULT_CONTAINER_PADDING = "10px";
 
 /**
  * Column - Single column in a Row layout
@@ -56,7 +59,8 @@ function renderContentToHtml(innerHTML: string, values: any, bodyValues: any, mo
 // Component
 // ============================================
 
-export type ColumnProps = Omit<SemanticProps<ColumnValues>, "padding" | "border" | "borderRadius"> & {
+// The editor hides rows and content on a device, never a column: no hideOnMobile/hideOnDesktop here.
+export type ColumnProps = Omit<SemanticProps<ColumnValues>, "padding" | "border" | "borderRadius" | keyof DeviceProps> & Omit<DeviceProps, "hideOnMobile" | "hideOnDesktop"> & {
   children?: React.ReactNode;
   // Internal props (provided by Row)
   index?: number;
@@ -78,6 +82,7 @@ export type ColumnProps = Omit<SemanticProps<ColumnValues>, "padding" | "border"
 };
 
 export const Column: React.FC<ColumnProps> = (props) => {
+  if (collecting()) return whileCollecting(() => recordContainer("column", props), () => Column(props), "Column");
   const {
     children,
     index = 0,
@@ -101,15 +106,8 @@ export const Column: React.FC<ColumnProps> = (props) => {
     "Column"
   );
 
-  // Add _meta
-  const valuesWithMeta = {
-    ...values,
-    _meta: {
-      htmlID: nextHtmlId(_config, "u_column"),
-      htmlClassNames: "u_column",
-      ...(values._meta || {})
-    }
-  };
+  // Add _meta (an id or class names given in values kept to what they can hold, as for rows and blocks)
+  const valuesWithMeta = { ...values, _meta: safeMeta({ htmlID: nextHtmlId(_config, "u_column"), htmlClassNames: "u_column", ...(values._meta || {}) }) };
 
   // Render children to HTML - extract from dangerouslySetInnerHTML
   let innerHTML = "";
@@ -119,7 +117,7 @@ export const Column: React.FC<ColumnProps> = (props) => {
 
       childrenArray.forEach((child, childIndex) => {
         if (typeof child === "string" || typeof child === "number") {
-          innerHTML += String(child);
+          innerHTML += looseText(child, "Column");
         } else if (React.isValidElement(child)) {
           // Call component function to get rendered result
           if (typeof child.type === "function") {
@@ -184,7 +182,10 @@ export const Column: React.FC<ColumnProps> = (props) => {
               // for the flat-prop API, so every block collapsed to 0px padding.)
               const childProps = child.props as {
                 containerPadding?: string | number;
-                values?: { containerPadding?: string | number };
+                mobile?: { containerPadding?: string | number };
+                hideOnMobile?: boolean;
+                hideOnDesktop?: boolean;
+                values?: { containerPadding?: string | number; _override?: Record<string, any>; _meta?: Record<string, any> };
               };
               const rawContainerPadding =
                 childProps.containerPadding ??
@@ -196,12 +197,25 @@ export const Column: React.FC<ColumnProps> = (props) => {
                   ? `${rawContainerPadding}px`
                   : rawContainerPadding;
 
+              // A custom tool's props are its own values, as in 0.1.22: a `hideOnMobile` of its own isn't a device setting.
+              const device = ComponentType?.[UNLAYER_CONFIG_KEY]?.contentType === "custom" ? {} : childProps;
+
               // Wrap via the canonical content-container exporter for this mode.
               const contentValues = {
                 containerPadding,
+                _override: {
+                  ...childProps.values?._override,
+                  mobile: { ...childProps.values?._override?.mobile,
+                    ...(device.hideOnMobile !== undefined ? { hideMobile: device.hideOnMobile } : {}),
+                  },
+                  desktop: { ...childProps.values?._override?.desktop,
+                    ...(device.hideOnDesktop !== undefined ? { hideDesktop: device.hideOnDesktop } : {}),
+                  },
+                },
                 _meta: {
                   htmlID: contentHtmlId,
                   htmlClassNames: `u_content_${componentName}`,
+                  ...(childProps.values?._meta?.htmlID ? { htmlID: safeName(childProps.values._meta.htmlID) } : {}),
                 },
               };
               innerHTML += renderContentToHtml(
@@ -247,5 +261,6 @@ export const Column: React.FC<ColumnProps> = (props) => {
 };
 
 Column.displayName = "Column";
+(Column as unknown as Record<symbol, boolean>)[RECORDS] = true;
 
 export default Column;

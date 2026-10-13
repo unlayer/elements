@@ -1,0 +1,5 @@
+{
+  "why": "Cells displayed as blocks share one anonymous cell and stack.",
+  "original": "<!doctype html><html><head><style></style></head><body style=\"margin:0;font-family:Arial\"><p style=\"margin:0\">Thanks for your order, here is the summary</p><table width=\"600\"><tr><td style=\"display:block;width:300px\">Left column words</td><td style=\"display:block;width:300px\">Right column words</td></tr></table></body></html>",
+  "migrated": "<!doctype html><html><head><style></style></head><body style=\"margin:0;font-family:Arial\"><p style=\"margin:0\">Thanks for your order, here is the summary</p><table width=\"600\"><tr><td style=\"width:300px\">Left column words</td><td style=\"width:300px\">Right column words</td></tr></table></body></html>"
+}

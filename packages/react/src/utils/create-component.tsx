@@ -7,12 +7,14 @@
  */
 
 import React from "react";
+import { collecting, RECORDS } from "./collect";
+import { recordBlock, whileCollecting } from "./record";
 import type { ExporterName } from "@unlayer/types";
 
 /** Exporter map keyed by display mode. Defined locally until added to @unlayer/types. */
 type ItemExporters = Partial<Record<ExporterName, (...args: any[]) => string>>;
 import type { RenderMode, UnlayerConfig } from "@unlayer-internal/shared-elements";
-import type { SizeInput } from "../types";
+import type { DeviceProps, SizeInput } from "../types";
 import { contentSlotWidth, pinImageSrc } from "./image-sizing";
 import {
   mergeValues,
@@ -38,7 +40,7 @@ export const UNLAYER_CONFIG_KEY = "__unlayerItemConfig";
 /**
  * Base props that all item components support
  */
-export interface BaseItemComponentProps {
+export interface BaseItemComponentProps extends DeviceProps {
   children?: React.ReactNode;
   className?: string;
   style?: React.CSSProperties;
@@ -110,7 +112,7 @@ export interface ItemComponentConfig<TValues, TSemanticProps> {
  * Props type that combines base props with semantic props
  */
 export type ItemComponentProps<TSemanticProps> = BaseItemComponentProps &
-  TSemanticProps;
+  Omit<TSemanticProps, keyof DeviceProps>;
 
 // ============================================
 // Internal: rendering helpers (merged from render-component.tsx)
@@ -176,6 +178,19 @@ export function nextHtmlId(config: any, prefix: string): string {
   return `${prefix}_${ids[prefix]}`;
 }
 
+/**
+ * An HTML id (or, with `spaces`, a list of class names) that can't end its attribute: all else stays as 0.1.22 wrote
+ * it (`סיכום`, `section.2`, `sm:hidden`). The head's CSS escapes the id it selects (see device-overrides.ts).
+ */
+export function safeName(value: unknown, spaces = false): string {
+  const text = String(value ?? "");
+  // Class names apart on lines or by tabs stay apart, as the browser reads them.
+  return spaces ? text.replace(/[\t\n\f\r]/g, " ").replace(/["'<>&`\u0000-\u001f\u007f]/g, "") : text.replace(/["'<>&`\s\u0000-\u001f\u007f]/g, "");
+}
+
+/** A block's or row's `_meta` with its id and class names kept to what they can hold (see `safeName`). */
+export const safeMeta = <T extends { htmlID?: unknown; htmlClassNames?: unknown }>(meta: T) => ({ ...meta, htmlID: safeName(meta.htmlID), htmlClassNames: safeName(meta.htmlClassNames, true) });
+
 /** Add _meta fields if not present. */
 function ensureMeta(values: any, type: string, index: number = 0): any {
   return {
@@ -192,6 +207,12 @@ function ensureMeta(values: any, type: string, index: number = 0): any {
  * Render a component by calling its exporter and wrapping the HTML output.
  * Handles error boundaries, exporterConfig construction, and container vs item calling conventions.
  */
+/** A direction the `dir` attribute takes (ltr, rtl, auto). Anything else is dropped: it's written into markup. */
+export function textDirectionOf(value: unknown): "ltr" | "rtl" | "auto" | undefined {
+  const dir = typeof value === "string" ? value.trim().toLowerCase() : "";
+  return dir === "ltr" || dir === "rtl" || dir === "auto" ? dir : undefined;
+}
+
 function renderComponent<T = any>(config: RenderConfig<T>): JSX.Element {
   const { type, values, mode, className, style, args = [], innerHTML, _config, exporter, metaContext } = config;
 
@@ -201,7 +222,7 @@ function renderComponent<T = any>(config: RenderConfig<T>): JSX.Element {
     const exporterConfig = {
       generateHtmlFromTextJson,
       toSafeHtml: cfg.toSafeHtml,
-      textDirection: cfg.textDirection,
+      textDirection: textDirectionOf(cfg.textDirection),
       cdnBaseUrl: cfg.cdnBaseUrl,
     };
 
@@ -314,14 +335,13 @@ export function createItemComponent<
     // 3. Ensure _meta is present. The Column-allocated id wins so every
     //    instance is unique; the index fallback covers standalone renders.
     const metaName = config.metaName ?? config.name.toLowerCase();
-    const valuesWithMeta = {
-      ...finalValues,
-      _meta: {
-        htmlID: _metaHtmlId ?? `u_content_${metaName}_${index + 1}`,
-        htmlClassNames: `u_content_${metaName}`,
-        ...((finalValues as Record<string, any>)._meta || {}),
-      },
+    const meta = {
+      htmlID: _metaHtmlId ?? `u_content_${metaName}_${index + 1}`,
+      htmlClassNames: `u_content_${metaName}`,
+      ...((finalValues as Record<string, any>)._meta || {}),
     };
+    // An id or class name given in `values` reaches an attribute and the head's CSS selectors: only what they can hold.
+    const valuesWithMeta = { ...finalValues, _meta: safeMeta(meta) };
 
     // 4. Ensure bodyValues has a contentWidth. Default to the schema-shaped
     //    "500px" (matches BodyDefaults.contentWidth and the exporter's image
@@ -337,7 +357,8 @@ export function createItemComponent<
     //    so JSON output preserves the schema's storage shape.
     const valuesForExporter = normalizeValuesForExporter(
       valuesWithMeta as Record<string, any>,
-      config.name
+      config.name,
+      mode
     );
 
     // 5b. Convert a fixed (px) image pin to the editor's canonical percent now
@@ -389,6 +410,7 @@ export function createItemComponent<
   const ItemComponent: React.FC<ItemComponentProps<TSemanticProps>> = (
     props
   ) => {
+    if (collecting()) return whileCollecting(() => recordBlock(ItemComponent, props as Record<string, any>), () => renderFn(props), ItemComponent.displayName ?? "Block");
     return renderFn(props);
   };
 
@@ -397,6 +419,7 @@ export function createItemComponent<
 
   // Expose hook-free render for Column to call directly
   (ItemComponent as any)[UNLAYER_RENDER_KEY] = renderFn;
+  (ItemComponent as any)[RECORDS] = true;
 
   // Expose config for renderToJson to extract values without HTML rendering
   (ItemComponent as any)[UNLAYER_CONFIG_KEY] = {

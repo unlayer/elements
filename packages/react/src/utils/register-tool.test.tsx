@@ -103,6 +103,24 @@ describe("registerElementsTool: rendering", () => {
     const html2 = renderToHtml(inEmail(<Countdown />));
     expect(html2).toContain("2026-01-01"); // default value
   });
+
+  it("gives the tool its own `mobile`, `hideOnMobile` and `hideOnDesktop` values, as 0.1.22 did, not device settings", () => {
+    const show = (v: any) => `<p>${v.name}: ${v.mobile} / ${v.hideOnMobile} / ${v.hideOnDesktop}</p>`;
+    const Card = registerElementsTool({ name: "contact_card", values: { name: "", mobile: "" }, renderer: { exporters: { web: show, email: show } } });
+    const body = (html: string) => html.slice(html.indexOf("<body"));
+    for (const Root of [Email, Page]) {
+      const template = <Root><Row><Column><Card name="Ada" mobile="+1 555" hideOnMobile="yes" hideOnDesktop="no" /></Column></Row></Root>;
+      const html = renderToHtml(template);
+      expect(html).toContain("Ada: +1 555 / yes / no");
+      expect(body(html)).not.toMatch(/hide-(mobile|desktop)/);
+      const values = (renderToJson(template) as any).body.rows[0].columns[0].contents[0].values;
+      expect(values).toMatchObject({ mobile: "+1 555", hideOnMobile: "yes", hideOnDesktop: "no" });
+      expect(values._override).toBeUndefined();
+      // A device setting goes in `values._override`, as the editor saves it.
+      const hidden = renderToHtml(<Root><Row><Column><Card name="Ada" values={{ _override: { mobile: { hideMobile: true } } }} /></Column></Row></Root>);
+      expect(body(hidden)).toMatch(/hide-mobile/);
+    }
+  });
 });
 
 describe("registerElementsTool: head + document integration", () => {

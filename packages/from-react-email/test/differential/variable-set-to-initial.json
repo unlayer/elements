@@ -1,0 +1,5 @@
+{
+  "why": "A variable set to `initial` is unset: `font-weight: var(--w)` is invalid, so the paragraph inherits the bold around it.",
+  "original": "<!doctype html><html><head><style></style></head><body style=\"margin:0;font-family:Arial\"><p style=\"margin:0\">Thanks for your order, here is the summary</p><div><p style=\"margin:0\">Second half words here</p></div></body></html>",
+  "migrated": "<!doctype html><html><head><style>.b { font-weight: 700 } .w { --w: initial; font-weight: var(--w) }</style></head><body style=\"margin:0;font-family:Arial\"><p style=\"margin:0\">Thanks for your order, here is the summary</p><div class=\"b\"><p class=\"w\" style=\"margin:0\">Second half words here</p></div></body></html>"
+}

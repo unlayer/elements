@@ -1,0 +1,200 @@
+{
+ "counters": {
+  "u_row": 1,
+  "u_column": 1,
+  "u_content_heading": 1,
+  "u_content_text": 1,
+  "u_content_button": 1
+ },
+ "body": {
+  "rows": [
+   {
+    "cells": [
+     1
+    ],
+    "columns": [
+     {
+      "contents": [
+       {
+        "type": "heading",
+        "values": {
+         "containerPadding": "10px",
+         "headingType": "h1",
+         "fontSize": "22px",
+         "textAlign": "left",
+         "lineHeight": "140%",
+         "linkStyle": {
+          "inherit": true,
+          "linkColor": "#0000ee",
+          "linkHoverColor": "#0000ee",
+          "linkUnderline": true,
+          "linkHoverUnderline": true
+         },
+         "color": "#000000",
+         "fontWeight": 400,
+         "text": "مرحبا",
+         "_meta": {
+          "htmlID": "u_content_heading_1",
+          "htmlClassNames": "u_content_heading"
+         },
+         "selectable": true,
+         "draggable": true,
+         "duplicatable": true,
+         "deletable": true,
+         "hideable": true
+        }
+       },
+       {
+        "type": "text",
+        "values": {
+         "containerPadding": "10px",
+         "fontSize": "14px",
+         "textAlign": "left",
+         "lineHeight": "140%",
+         "linkStyle": {
+          "inherit": true,
+          "linkColor": "#0000ee",
+          "linkHoverColor": "#0000ee",
+          "linkUnderline": true,
+          "linkHoverUnderline": true
+         },
+         "color": "#000000",
+         "text": "نص",
+         "_meta": {
+          "htmlID": "u_content_text_1",
+          "htmlClassNames": "u_content_text"
+         },
+         "selectable": true,
+         "draggable": true,
+         "duplicatable": true,
+         "deletable": true,
+         "hideable": true
+        }
+       },
+       {
+        "type": "button",
+        "values": {
+         "containerPadding": "10px",
+         "href": {
+          "name": "web",
+          "values": {
+           "href": "https://example.com",
+           "target": "_blank"
+          }
+         },
+         "buttonColors": {
+          "color": "#FFFFFF",
+          "backgroundColor": "#0879A1",
+          "hoverColor": "#FFFFFF",
+          "hoverBackgroundColor": "#0879A1"
+         },
+         "size": {
+          "autoWidth": true,
+          "width": "100%"
+         },
+         "fontSize": "14px",
+         "lineHeight": "120%",
+         "textAlign": "center",
+         "padding": "10px 20px",
+         "border": {},
+         "borderRadius": "4px",
+         "text": "زر",
+         "_meta": {
+          "htmlID": "u_content_button_1",
+          "htmlClassNames": "u_content_button"
+         },
+         "selectable": true,
+         "draggable": true,
+         "duplicatable": true,
+         "deletable": true,
+         "hideable": true
+        }
+       }
+      ],
+      "values": {
+       "backgroundColor": "",
+       "padding": "0px",
+       "border": {},
+       "borderRadius": "0px",
+       "_meta": {
+        "htmlID": "u_column_1",
+        "htmlClassNames": "u_column"
+       },
+       "deletable": true,
+       "locked": false
+      }
+     }
+    ],
+    "values": {
+     "displayCondition": null,
+     "columns": false,
+     "_styleGuide": null,
+     "backgroundColor": "",
+     "columnsBackgroundColor": "",
+     "backgroundImage": {
+      "url": "",
+      "fullWidth": true,
+      "repeat": "no-repeat",
+      "size": "custom",
+      "position": "center"
+     },
+     "padding": "0px",
+     "anchor": "",
+     "noStackMobile": false,
+     "_meta": {
+      "htmlID": "u_row_1",
+      "htmlClassNames": "u_row"
+     },
+     "selectable": true,
+     "draggable": true,
+     "duplicatable": true,
+     "deletable": true,
+     "hideable": true,
+     "locked": false,
+     "cells": [
+      1
+     ]
+    }
+   }
+  ],
+  "values": {
+   "_styleGuide": null,
+   "borderRadius": "10px",
+   "contentAlign": "center",
+   "contentVerticalAlign": "middle",
+   "contentWidth": "500px",
+   "fontFamily": {
+    "label": "Arial",
+    "value": "arial,helvetica,sans-serif"
+   },
+   "textColor": "#000000",
+   "language": {},
+   "backgroundColor": "#F7F8F9",
+   "documentSize": "A4",
+   "documentOrientation": "portrait",
+   "documentMargin": "96px",
+   "preheaderText": "",
+   "linkStyle": {
+    "body": true,
+    "linkColor": "#0000ee",
+    "linkHoverColor": "#0000ee",
+    "linkUnderline": true,
+    "linkHoverUnderline": true
+   },
+   "backgroundImage": {
+    "url": "",
+    "fullWidth": true,
+    "repeat": "no-repeat",
+    "size": "custom",
+    "position": "center"
+   },
+   "accessibilityTitle": "",
+   "_meta": {
+    "htmlID": "u_body",
+    "htmlClassNames": "u_body"
+   },
+   "textDirection": "rtl"
+  }
+ },
+ "schemaVersion": 27
+}

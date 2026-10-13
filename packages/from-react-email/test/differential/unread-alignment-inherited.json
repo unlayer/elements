@@ -1,0 +1,5 @@
+{
+  "why": "An alignment the check can't read on a cell is unknown for the paragraphs that inherit it too.",
+  "original": "<!doctype html><html><head><style>@supports (display: block) { .c { text-align: end } }</style></head><body style=\"margin:0;font-family:Arial\"><p style=\"margin:0\">Thanks for your order, here is the summary</p><table width=\"600\"><tr><td class=\"c\"><p style=\"margin:0\">Read more about it</p></td></tr></table></body></html>",
+  "migrated": "<!doctype html><html><head><style></style></head><body style=\"margin:0;font-family:Arial\"><p style=\"margin:0\">Thanks for your order, here is the summary</p><table width=\"600\"><tr><td><p style=\"margin:0\">Read more about it</p></td></tr></table></body></html>"
+}
