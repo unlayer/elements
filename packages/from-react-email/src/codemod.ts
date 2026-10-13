@@ -121,6 +121,9 @@ const SKIP = new Set(["Head", "Font", "Preview", "head", "style", "meta", "title
  * `max-height`, `overflow`, Outlook's `mso-hide`) or a class that does (`hidden`, `sm:hidden`, `invisible`, `sr-only`, …).
  */
 const SHOWS = /\b(display|visibility|opacity|max-?height|overflow|mso-?hide|text-?indent|clip-?path)\b|-\d{4,}px|font-?size["'`]?\s*:\s*["'`]?0(px)?(?![\d.])|(^|["'`\s:{(,])(hidden|invisible|sr-only|collapse|opacity-0|max-h-0|h-0|text-\[0px\])(?=$|["'`\s:,})])/i;
+/** Style properties no value of which hides content (unlike `display`, `fontSize: 0`, a far negative margin or an indent). */
+const CANT_HIDE = new Set(["color", "backgroundColor", "borderColor", "borderRadius", "fontFamily", "fontWeight", "fontStyle", "textAlign", "textDecoration", "textTransform", "lineHeight", "padding", "paddingTop", "paddingRight", "paddingBottom", "paddingLeft"]);
+
 /**
  * A Tailwind class that hides, under a variant that can apply on a screen (`dark:hidden`, `sm:hidden`): one the
  * codemod can't keep shows what the original hides there. Not hover and the like (a static email never has them),
@@ -925,8 +928,10 @@ class Converter {
   /** A value computed from props that the codemod can't keep: the check fails, naming it with its line. */
   private lose(part: ts.Node, text: string): void {
     const line = this.originalLine(part.getStart());
-    // What it reads too (`hasPaid ? hiddenStyle : undefined`, where hiddenStyle is `{ display: "none" }`), for whether it shows or hides.
-    const read = [text, ...this.namedValues(part)].join("\n");
+    // What it reads too (`hasPaid ? hiddenStyle : undefined`, where hiddenStyle is `{ display: "none" }`), for whether it shows or hides;
+    // not for a property no value of which can hide anything (`color: theme.brand`, read from a file that can't be read).
+    const property = (ts.isPropertyAssignment(part) || ts.isShorthandPropertyAssignment(part)) && (ts.isIdentifier(part.name) || ts.isStringLiteral(part.name)) ? part.name.text : undefined;
+    const read = property && CANT_HIDE.has(property) ? text : [text, ...this.namedValues(part)].join("\n");
     if (!this.droppedStyles.some((d) => d.from === part.getStart())) this.droppedStyles.push({ from: part.getStart(), to: part.getEnd(), detail: `line ${line}: ${text.replace(/\s+/g, " ").slice(0, 80)}`, text: read });
   }
 

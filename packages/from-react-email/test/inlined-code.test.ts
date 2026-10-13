@@ -473,3 +473,23 @@ Trial.PreviewProps = { paid: true };
     }
   });
 });
+
+describe("a style value from a file the codemod can't read", () => {
+  it("is a lost style, not content shown or hidden, when no value of its property can hide anything", async () => {
+    const { conversion } = await migrate({
+      "palette.ts": `export let palette = { brand: "#2563eb", hidden: "none" };
+`,
+      "theme.ts": `export { palette } from "./palette";
+`,
+      "promo.tsx": `import { Html, Body, Text } from "@react-email/components";
+import { palette } from "./theme";
+export default function Promo() {
+  return <Html><Body><Text style={{ color: palette.brand }}>Spring sale</Text><Text style={{ display: palette.hidden }}>Secret</Text></Body></Html>;
+}
+`,
+    }, "promo.tsx");
+    expect(conversion.report.lostStyles).toEqual(expect.arrayContaining([expect.stringContaining("color: palette.brand"), expect.stringContaining("display: palette.hidden")]));
+    // `display` from code can hide content: still counted; `color` can't.
+    expect(conversion.report.lostShown).toEqual([expect.stringContaining("display: palette.hidden")]);
+  });
+});
