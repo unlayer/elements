@@ -63,7 +63,7 @@ import { phoneSides, withPhoneStyles, handledPhoneClass, unheldPhoneStyles } fro
 import { addRules, classStyle, inlineKeys, NO_CLASSES, overInline, phoneRules, resolveTailwind, stacksOnPhones, stylesheetRules, underInline, underKeys, type ResolvedClasses, type RuleOrder } from "./tailwind";
 
 /** The functions the codemod adds to a migration, by their usual names (another, `_name`, where the template has the name). */
-export const CODEMOD_HELPERS = ["escapeHtml", "htmlText", "htmlAttribute", "KeptHtml", "plainText"];
+export const CODEMOD_HELPERS = ["escapeHtml", "htmlText", "htmlAttribute", "KeptHtml", "tailwindStyle", "plainText"];
 
 /**
  * Where a kept block's JSX goes in the printed tree (see `keep`): private-use characters, which a template's own code
@@ -241,9 +241,12 @@ class Converter {
   private needsPlainText = false;
   private plainTextName = "plainText";
   /** The functions the migrated file gets, by names the template doesn't use already. */
-  private readonly helper = { escapeHtml: "escapeHtml", htmlText: "htmlText", htmlAttribute: "htmlAttribute", KeptHtml: "KeptHtml" };
+  private readonly helper = { escapeHtml: "escapeHtml", htmlText: "htmlText", htmlAttribute: "htmlAttribute", KeptHtml: "KeptHtml", tailwindStyle: "tailwindStyle", TAILWIND_CLASSES: "TAILWIND_CLASSES" };
   /** Each kept block's JSX (see `keep`). */
   private readonly kept: string[] = [];
+  /** The style each Tailwind class a string of the file holds gives, for classes worked out at render time (see `tailwindStyle`). */
+  private readonly classTable = new Map<string, Style>();
+  private needsTailwindStyle = false;
   /** Source ranges written into text as the HTML they render (see `markupElement`): their computed styles are kept. */
   private readonly renderedRanges: Array<{ from: number; to: number }> = [];
   /** Module constants copied in with imported components: dropped if the output doesn't use them. */
@@ -475,6 +478,7 @@ class Converter {
     // Each <Tailwind>'s config (or none): classes are resolved with one, so different ones can't be kept.
     const configs = new Set<string>();
     let usesTailwind = false;
+    let dynamicClasses = false;
     const component = this.findComponent();
     const visit = (node: ts.Node) => {
       // A class list in an object spread onto an element (`const shared = { className: "…" }`) is resolved too.
@@ -496,6 +500,7 @@ class Converter {
             classOwners.set(value, names);
           }
         } else if (node.initializer) {
+          dynamicClasses = true;
           // Classes built from values (`text-${tone}-500`), or picked by a value (`plan === "pro" ? "…" : undefined`,
           // `active && "…"`, `tones[level]`), can't be kept: lost, the check fails. One that comes to nothing
           // (`(true) ? undefined : "mb-9"` once inlined) has none; a component's own prop passed on is noted.
@@ -538,6 +543,19 @@ class Converter {
     // Without <Tailwind>, class names are plain CSS classes: nothing to resolve.
     if (!usesTailwind) return NO_CLASSES;
     const resolved = await resolveTailwind(classes, this.tailwindConfig ?? config, this.tailwindComponent);
+    // Classes worked out at render time (`rounded px-1 ${tone}`): each class a string of the file holds, resolved on its
+    // own, for markup kept as React to look them up (see `tailwindStyle`).
+    if (dynamicClasses) {
+      const tokens = new Set<string>();
+      const collect = (node: ts.Node) => {
+        const text = ts.isStringLiteral(node) || ts.isNoSubstitutionTemplateLiteral(node) || ts.isTemplateHead(node) || ts.isTemplateMiddle(node) || ts.isTemplateTail(node) ? node.text : undefined;
+        if (text !== undefined && !ts.isImportDeclaration(node.parent) && !ts.isExternalModuleReference(node.parent)) for (const token of text.split(/\s+/)) if (/^!?-?[a-z][\w:/.[\]#%()-]*$/.test(token)) tokens.add(token);
+        ts.forEachChild(node, collect);
+      };
+      collect(this.file);
+      const each = await resolveTailwind([...tokens], this.tailwindConfig ?? config, this.tailwindComponent);
+      for (const [token, style] of each.styles) if (Object.keys(style).length && !each.leftover.has(token)) this.classTable.set(token, style);
+    }
     for (const [list, rest] of resolved.leftover) {
       for (const cls of rest) {
         if ([...(classOwners.get(list) ?? [""])].every((name) => handledPhoneClass(cls, resolved.phone, name))) continue;
@@ -2202,6 +2220,9 @@ class Converter {
         const className = attrs.find((a): a is ts.JsxAttribute => ts.isJsxAttribute(a) && a.name.getText() === "className");
         const value = className ? this.attrValue(className.initializer) : undefined;
         const classes = typeof value === "string" ? this.classStyles(value) : { before: {}, after: {}, drop: false };
+        // Classes worked out at render time, in markup kept as React: looked up then (see `tailwindStyle`).
+        const classCode = kept_ && value === undefined && this.classTable.size && className?.initializer && ts.isJsxExpression(className.initializer) && className.initializer.expression ? className.initializer.expression : undefined;
+        if (classCode) this.needsTailwindStyle = true;
         const styleAttr = attrs.find((a): a is ts.JsxAttribute => ts.isJsxAttribute(a) && a.name.getText() === "style");
         const ownCode = styleAttr?.initializer && ts.isJsxExpression(styleAttr.initializer) ? styleAttr.initializer.expression : undefined;
         // What its own style sets: from its value, or the names an object literal of it writes out.
@@ -2219,7 +2240,7 @@ class Converter {
         // say otherwise.
         const image = kept_ && (node.tagName.getText() === "img" || this.components.get(node.tagName.getText()) === "Img") && !attrs.some((a) => ts.isJsxAttribute(a) && a.name.getText() === "loading");
         if (image) edits.push({ from: node.tagName.getEnd(), to: node.tagName.getEnd(), text: ` loading="lazy"` });
-        if (Object.keys(classes.before).length || Object.keys(classes.after).length || Object.keys(defaults).length) {
+        if (Object.keys(classes.before).length || Object.keys(classes.after).length || Object.keys(defaults).length || classCode) {
           // Under its own style when what that sets can't be told (so it wins), else after it. What it sets itself isn't
           // written before it; under a style that can't be read, the rest is written as one object spread first, as
           // TypeScript rejects a property its spread always overwrites (TS2783).
@@ -2227,7 +2248,8 @@ class Converter {
           const leading: Style = { ...under, ...classes.before };
           for (const key of ownKeys ?? []) delete leading[key];
           const first = ownCode && !ownKeys ? (Object.keys(leading).length ? [`...{ ${entries(leading).join(", ")} }`] : []) : entries(leading);
-          const merged = `style={{ ${[...first, ...(ownCode ? [`...(${ownCode.getText()})`] : []), ...entries(over), ...entries(classes.after)].join(", ")} }}`;
+          const looked = classCode ? [`...${this.helper.tailwindStyle}(${classCode.getText()})`] : [];
+          const merged = `style={{ ${[...first, ...looked, ...(ownCode ? [`...(${ownCode.getText()})`] : []), ...entries(over), ...entries(classes.after)].join(", ")} }}`;
           if (className && classes.drop) edits.push({ from: className.getStart(), to: className.getEnd(), text: "" });
           if (styleAttr) edits.push({ from: styleAttr.getStart(), to: styleAttr.getEnd(), text: merged });
           else {
@@ -2868,6 +2890,16 @@ class Converter {
         `  return Array.isArray(value) ? value.map(text).join("") : text(value);\n` +
         `}\n`;
     }
+    if (this.needsTailwindStyle) {
+      const table = [...this.classTable].map(([name, style]) => `  ${JSON.stringify(name)}: { ${Object.entries(style).filter(([k]) => !k.startsWith("_")).map(([k, v]) => `${/^[a-zA-Z_$][\w$]*$/.test(k) ? k : JSON.stringify(k)}: ${JSON.stringify(v)}`).join(", ")} },`);
+      helpers +=
+        `\n/** The styles the template's Tailwind classes gave, for classes markup kept as React works out at render time. */\n` +
+        `const TAILWIND_CLASSES${javascript ? "" : ": Record<string, React.CSSProperties>"} = {\n${table.join("\n")}\n};\n` +
+        `\n/** The styles of a class list worked out at render time (\`rounded \${tone}\`), from the template's Tailwind classes. */\n` +
+        `function tailwindStyle(classes${javascript ? "" : ": unknown"})${javascript ? "" : ": React.CSSProperties"} {\n` +
+        `  return Object.assign({}, ...String(classes ?? "").split(/\\s+/).map((name) => TAILWIND_CLASSES[name]));\n` +
+        `}\n`;
+    }
     if (this.kept.length) {
       helpers +=
         `\n/**\n` +
@@ -2913,6 +2945,7 @@ class Converter {
       ...(this.needsEscape ? [this.helper.escapeHtml] : []),
       ...(this.needsHtmlText ? [this.helper.htmlText] : []),
       ...(this.kept.length ? [this.helper.KeptHtml] : []),
+      ...(this.needsTailwindStyle ? [this.helper.tailwindStyle, this.helper.TAILWIND_CLASSES] : []),
       ...(this.needsAttribute ? [this.helper.htmlAttribute] : []),
       ...(this.needsPlainText ? [this.plainTextName] : []),
     ]));

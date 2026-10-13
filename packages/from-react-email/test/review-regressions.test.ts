@@ -1363,3 +1363,24 @@ T.PreviewProps = { plan: "Team" };`);
     }
   });
 });
+
+describe("Tailwind classes worked out at render time in markup kept as React", () => {
+  it("are looked up in the template's classes, so they keep their styles", async () => {
+    const { Original, Migrated, conversion } = await templates(`import { Html, Body, Tailwind, Section, Text } from "@react-email/components";
+const tones = { up: "bg-green-100 text-green-700", down: "bg-red-100 text-red-700" };
+function toneOf(change: number) { return change >= 0 ? tones.up : tones.down; }
+function Badge({ change }: { change: number }) {
+  const { label } = { label: \`\${change}%\` };
+  return <span className={\`rounded px-1 font-medium \${toneOf(change)}\`}>{label}</span>;
+}
+export default function T({ change }: { change: number }) {
+  return <Tailwind><Html><Body><Section><Text>Revenue <Badge change={change} /> this month</Text></Section></Body></Html></Tailwind>;
+}
+T.PreviewProps = { change: 12 };`);
+    expect(conversion.code).toMatch(/tailwindStyle\(`rounded px-1 font-medium \$\{toneOf\(change\)\}`\)/);
+    for (const props of [Original.PreviewProps, { change: -3 }]) {
+      const check = await verifyConversion(Original, Migrated, { props });
+      expect([check.missing, check.added, check.styles]).toEqual([[], [], []]);
+    }
+  });
+});
