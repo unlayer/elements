@@ -242,7 +242,7 @@ async function run(argv: string[], io: Io, library?: Library): Promise<number> {
 
   const inputs = await collect(args.positional, io.cwd);
   if (inputs.missing.length) {
-    io.stderr(`Not found: ${inputs.missing.join(", ")}\n`);
+    io.stderr(`Not found: ${inputs.missing.join(", ")}\n${SEE_HELP}\n`);
     return 1;
   }
   // A template can use React Email only through the project's own components (a ui file). A file that does and isn't
@@ -1026,7 +1026,7 @@ async function compare(paths: string[], args: Args, io: Io, library?: Library): 
   const [originalPath, migratedPath] = paths.map((p) => resolve(io.cwd, p));
   for (const [given, path] of [[paths[0], originalPath], [paths[1], migratedPath]]) {
     if (!existsSync(path)) {
-      io.stderr(`Not found: ${given}\n`);
+      io.stderr(`Not found: ${given}\n${SEE_HELP}\n`);
       return 1;
     }
   }

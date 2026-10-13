@@ -887,7 +887,7 @@ export default function Welcome() { return <Html><Body><Text>Welcome aboard</Tex
       expect(out.err, argv.join(" ")).toContain(message);
     }
     // The mistake, and where the options are: not the whole help, which would push it off the screen.
-    for (const [argv, message] of [[["--bogus"], "Unknown option: --bogus"], [["--write"], "Pass the templates to migrate (files or folders)."], [["--report"], "--report needs a value."], [["compare", "a.tsx"], "compare needs the original template and the migrated one: npx @unlayer/migrate compare <original> <migrated>"]] as const) {
+    for (const [argv, message] of [[["--bogus"], "Unknown option: --bogus"], [["--write"], "Pass the templates to migrate (files or folders)."], [["--report"], "--report needs a value."], [["compare", "a.tsx"], "compare needs the original template and the migrated one: npx @unlayer/migrate compare <original> <migrated>"], [["nope-dir"], "Not found: nope-dir"], [["compare", "a.tsx", "b.tsx"], "Not found: a.tsx"]] as const) {
       const out = io(dir);
       expect(await main([...argv], out, lib)).toBe(1);
       expect(out.err, argv.join(" ")).toBe(`${message}\nRun npx @unlayer/migrate --help to see the options.\n`);
