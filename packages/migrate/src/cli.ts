@@ -1420,7 +1420,12 @@ async function collect(paths: string[], cwd: string): Promise<{ files: Input[]; 
       unreadable.push({ file: relative(cwd, path), status: "failed", reason: `couldn't read it: ${why}` });
       return;
     }
-    files.push({ path, base, reactEmail: REACT_EMAIL_IMPORT.test(text), migrated: await importsElements(path, text) });
+    const migrated = await importsElements(path, text);
+    // A template a run wrote (its header, and Elements imported) is done, though a block it keeps as HTML may still
+    // import React Email: not a template to migrate, nor one --write would replace. A file of the project's own that
+    // imports both, without that header, still is.
+    const written = migrated && earlierOutput(text) !== undefined;
+    files.push({ path, base, reactEmail: !written && REACT_EMAIL_IMPORT.test(text), migrated });
   };
   for (const given of paths) {
     const path = resolve(cwd, given);

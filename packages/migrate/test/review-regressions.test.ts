@@ -2031,3 +2031,43 @@ export default function Styled({ accent = "#e11d48" }: { accent?: string }) {
     for (const name of names) expect(fs.readFileSync(path.join(dir, `${name}.tsx`), "utf8")).toContain("edited, not committed");
   });
 });
+
+describe("a second --write", () => {
+  it("is done where a template it wrote keeps a block as HTML that imports React Email, even uncommitted", async () => {
+    // Text and a link from a lookup by a prop: kept as React Email's markup where it holds elements.
+    const help = `import { Html, Body, Text, Link } from "@react-email/components";
+const copy: Record<string, { help: string; helpLink: string }> = { en: { help: "Need help?", helpLink: "Contact support" } };
+export default function Help({ locale = "en" }: { locale?: string }) {
+  const t = copy[locale] ?? copy.en;
+  return <Html><Body><Text>{t.help} <Link href={\`https://acme.example.com/\${locale}/support\`}>{t.helpLink}</Link></Text></Body></Html>;
+}
+Help.PreviewProps = { locale: "en" };`;
+    const dir = project({ "emails/help.tsx": help });
+    const first = io(dir);
+    expect(await main(["emails", "--write"], first, lib), first.out + first.err).toBe(0);
+    const written = fs.readFileSync(path.join(dir, "emails/help.tsx"), "utf8");
+    expect(written).toMatch(/^\/\*\* @jsxRuntime automatic \*\/\n\/\/ Migrated from React Email by @unlayer\/migrate[^\n]*\n\/\/ @unlayer\/migrate hash /);
+    expect(written).toMatch(/from "@react-email\/components"/);
+    expect(written).toMatch(/from "@unlayer\/react-elements"/);
+    // Not committed: git can't restore it, but nothing replaces it.
+    for (const flags of [["--write"], []]) {
+      const again = io(dir);
+      expect(await main(["emails", ...flags], again, lib), again.out + again.err).toBe(0);
+      expect(again.out).toContain("1 template already migrated (importing @unlayer/react-elements): nothing to do.");
+      expect(again.err).toBe("");
+    }
+    expect(fs.readFileSync(path.join(dir, "emails/help.tsx"), "utf8")).toBe(written);
+  });
+
+  it("still checks a template of the project's own that imports both React Email and Elements, without a run's header", async () => {
+    const mixed = `import { Html, Body, Text } from "@react-email/components";
+import { Divider } from "@unlayer/react-elements";
+export default function T() { return <Html><Body><Text>Hello there</Text></Body></Html>; }
+export const divider = Divider;`;
+    const dir = project({ "emails/mixed.tsx": mixed });
+    fs.appendFileSync(path.join(dir, "emails/mixed.tsx"), "// edited, not committed\n");
+    const out = io(dir);
+    expect(await main(["emails", "--write"], out, lib), out.out + out.err).toBe(1);
+    expect(out.err).toContain("--write replaces templates in place, and git couldn't restore these:\n  emails/mixed.tsx (changed since the last commit)");
+  });
+});
