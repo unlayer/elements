@@ -5,8 +5,9 @@ import path from "node:path";
 import { execFile, spawn } from "node:child_process";
 import { promisify } from "node:util";
 import { tmpdir } from "node:os";
+import Module, { createRequire } from "node:module";
 import * as lib from "@unlayer/from-react-email";
-import { main, type Io } from "../src/cli";
+import { main, withContentHash, type Io } from "../src/cli";
 import { resolutionOrder } from "../src/resolution";
 
 const dirs: string[] = [];
@@ -144,7 +145,7 @@ export default function T() {
 
   it("does not truncate an outside file hard-linked to an existing output", async () => {
     // The linked file is one an earlier run wrote (its header): --overwrite replaces it.
-    const dir = project({ "emails/a.tsx": good, "outside/keep.tsx": "/** @jsxRuntime automatic */\n// Migrated from React Email by @unlayer/migrate\nOUTSIDE" });
+    const dir = project({ "emails/a.tsx": good, "outside/keep.tsx": withContentHash("/** @jsxRuntime automatic */\n// Migrated from React Email by @unlayer/migrate\nOUTSIDE") });
     fs.mkdirSync(path.join(dir, "migrated"));
     fs.linkSync(path.join(dir, "outside/keep.tsx"), path.join(dir, "migrated/a.tsx"));
     const out = io(dir);
@@ -153,6 +154,37 @@ export default function T() {
     expect(fs.readFileSync(path.join(dir, "outside/keep.tsx"), "utf8")).toContain("OUTSIDE");
     expect(fs.readFileSync(path.join(dir, "migrated/a.tsx"), "utf8")).toContain("@unlayer/react-elements");
   });
+});
+
+describe("a Node.js older than the CLI needs (built CLI)", () => {
+  const bin = path.resolve(import.meta.dirname, "../dist/bin.js");
+  // The version the check reads, as an older Node.js reports it.
+  const reporting = (version: string) => ["--import", `data:text/javascript,Object.defineProperty(process.versions,"node",{value:"${version}"})`];
+  const run = (node: string, args: string[], cwd: string) => promisify(execFile)(node, args, { cwd, timeout: 60_000 }).catch((error) => error);
+
+  it("stops with exit 1, saying which version it needs, before loading anything", async () => {
+    const dir = project({ "emails/welcome.tsx": good });
+    for (const version of ["18.20.4", "20.5.1"]) {
+      const result = await run(process.execPath, [...reporting(version), bin, "emails"], dir);
+      expect(result.code, result.stdout + result.stderr).toBe(1);
+      expect(result.stderr).toBe(`@unlayer/migrate needs Node.js 20.6 or later (you have ${version}).\n`);
+      expect(result.stdout).toBe("");
+    }
+    const supported = await run(process.execPath, [...reporting("20.6.0"), bin, "--help"], dir);
+    expect(supported.stdout).toContain("Migrate React Email templates to Unlayer Elements.");
+  }, 90_000);
+
+  // On Node 18 itself when it's installed (with nvm): nothing it lacks loads before the check.
+  const home = process.env.HOME ?? "";
+  const installed = fs.existsSync(path.join(home, ".nvm/versions/node")) ? fs.readdirSync(path.join(home, ".nvm/versions/node")).filter((v) => /^v(1[0-9]|20\.[0-5])\./.test(v)) : [];
+  it.skipIf(!installed.length)("stops the same way on an older Node.js itself", async () => {
+    const dir = project({ "emails/welcome.tsx": good });
+    for (const version of installed) {
+      const result = await run(path.join(home, ".nvm/versions/node", version, "bin/node"), [bin, "emails"], dir);
+      expect(result.code, result.stdout + result.stderr).toBe(1);
+      expect(result.stderr).toBe(`@unlayer/migrate needs Node.js 20.6 or later (you have ${version.slice(1)}).\n`);
+    }
+  }, 90_000);
 });
 
 describe("files the run can't read (built CLI)", () => {
@@ -608,6 +640,28 @@ export default function T() { return <Email><Row><Column><Paragraph>Hello</Parag
   });
 });
 
+describe("the CommonJS resolution a run sets up while templates load", () => {
+  it("is taken out when the run ends, whatever loaded since: a require afterwards resolves once, as usual", async () => {
+    const dir = project({ "emails/a.tsx": good, "emails/b.tsx": good.replace("Keep the original", "Hold the original") });
+    for (const out of ["first", "second"]) expect(await main(["emails", "--out", out], io(dir), lib)).toBe(0);
+    // Counts the resolutions that reach the resolver Node has now, those a wrapper below makes on its own too (one
+    // the runs left in place would resolve again from its project). Left in place: it only counts.
+    type Resolve = (...args: unknown[]) => string;
+    const api = Module as unknown as { _resolveFilename: Resolve };
+    const current = api._resolveFilename;
+    let counting = false;
+    let calls = 0;
+    api._resolveFilename = function (this: unknown, ...args: unknown[]) {
+      if (counting) calls++;
+      return current.apply(this, args);
+    };
+    counting = true;
+    createRequire(path.join(dir, "noop.js")).resolve("react");
+    counting = false;
+    expect(calls).toBe(1);
+  });
+});
+
 describe("wrapped templates", () => {
   it.each([
     ['import { memo } from "react";', 'memo(Welcome)'],
@@ -800,7 +854,7 @@ export default withLocale("en")(Receipt);`,
     expect(out.out).toContain("✗ emails/welcome.tsx: its default export is wrapped in withTracking(…), which the check can't unwrap: export the component itself");
     expect(out.out).toContain('✗ emails/receipt.tsx: its default export is wrapped in withLocale("en")(…)');
     expect(out.out).toMatch(/- emails\/send\.ts: skipped \(not loaded/);
-    expect(out.out).toContain("0 migrated and checked, 2 failed, 1 skipped");
+    expect(out.out).toContain("2 templates: 0 migrated and checked, 2 failed. 1 other file skipped (see above).");
   });
 
   it("never pass a run that checked nothing: a wrapped template whose <Html> is in a layout fails, one that returns a JSX value is loaded (and refused, saying why)", async () => {
@@ -916,6 +970,20 @@ export default function Later() { return <Html><Body><Text>Later</Text></Body></
 });
 
 describe("compare and the whole check", () => {
+  it("names an original it can't load, outside the project, and says where to run it", async () => {
+    const dir = project({ "emails/welcome.tsx": good });
+    expect(await main(["emails", "--out", "migrated"], io(dir), lib)).toBe(0);
+    // A copy of the original outside the project, whose imports aren't installed where it is.
+    const elsewhere = fs.mkdtempSync(path.join(tmpdir(), "unlayer-elsewhere-"));
+    dirs.push(elsewhere);
+    fs.writeFileSync(path.join(elsewhere, "welcome.tsx"), good.replace("@react-email/components", "react-email"));
+    const out = io(dir);
+    expect(await main(["compare", path.join(elsewhere, "welcome.tsx"), "migrated/welcome.tsx"], out, lib), out.out + out.err).toBe(2);
+    expect(out.err).toContain(`Couldn't load the original template, ${path.relative(dir, path.join(elsewhere, "welcome.tsx"))}: Cannot find`);
+    expect(out.err).toContain("'react-email'");
+    expect(out.err).toContain("put it in the project that has its dependencies (or install them there), then run compare from that project.");
+  });
+
   it("lists a hand migration that moves text across the page, as a run would (and fails it with --strict)", async () => {
     const original = `import { Html, Body, Section, Row, Column, Text } from "@react-email/components";
 export default function T() { return <Html><Body><Section style={{ width: "600px" }}><Row><Column><Text>Thanks for your order, here is the summary</Text><Text style={{ textAlign: "right" }}>Total due: 40 dollars</Text></Column></Row></Section></Body></Html>; }`;
@@ -1057,6 +1125,55 @@ export default function Welcome() { return <Html><Body><Text>Hello there</Text><
     // What a run wrote before is replaced, committed or not.
     expect(await main(["emails", "--out", "migrated", "--design"], io(dir), lib)).toBe(0);
     expect(await main(["emails", "--out", "migrated", "--design", "--overwrite"], io(dir), lib)).toBe(0);
+  });
+
+  it("aren't replaced by --out with --overwrite when edited while the run loads the templates, after it decided it could replace them", async () => {
+    // The template edits the output an earlier run wrote when it's loaded to be checked.
+    const editsOutput = `import fs from "node:fs";
+import { fileURLToPath } from "node:url";
+import { Html, Body, Text } from "@react-email/components";
+const output = fileURLToPath(new URL("../migrated/welcome.tsx", import.meta.url));
+const mark = ["// edited", "during the run"].join(" ");
+if (fs.existsSync(output) && !fs.readFileSync(output, "utf8").includes(mark)) fs.appendFileSync(output, \`\${mark}\\n\`);
+export default function Welcome() { return <Html><Body><Text>Hello there</Text></Body></Html>; }
+`;
+    const dir = project({ "emails/welcome.tsx": editsOutput });
+    expect(await main(["emails", "--out", "migrated"], io(dir), lib)).toBe(0);
+    const out = io(dir);
+    expect(await main(["emails", "--out", "migrated", "--overwrite"], out, lib), out.out + out.err).toBe(2);
+    expect(out.out).toContain("✗ emails/welcome.tsx: couldn't write output: welcome.tsx changed during the run: not replaced (the edit is kept), run again");
+    expect(fs.readFileSync(path.join(dir, "migrated/welcome.tsx"), "utf8")).toContain("// edited during the run");
+  });
+
+  it("aren't replaced by --out with --overwrite once a template a run wrote is edited (its hash), unless git can restore it or --allow-dirty", async () => {
+    const dir = project({ "emails/welcome.tsx": template });
+    expect(await main(["emails", "--out", "migrated"], io(dir), lib)).toBe(0);
+    const output = path.join(dir, "migrated/welcome.tsx");
+    const written = fs.readFileSync(output, "utf8");
+    expect(written).toMatch(/^\/\*\* @jsxRuntime automatic \*\/\n\/\/ Migrated from React Email by @unlayer\/migrate[^\n]*\n\/\/ @unlayer\/migrate hash [0-9a-f]{16}: /);
+    // As written, or with only what an editor changes on save (line endings, trailing whitespace): replaced.
+    fs.writeFileSync(output, `${written.replace(/\n/g, "  \r\n")}\r\n`);
+    expect(await main(["emails", "--out", "migrated", "--overwrite"], io(dir), lib)).toBe(0);
+    expect(fs.readFileSync(output, "utf8")).toBe(written);
+    // Edited since, and git can't restore it (not committed): kept, naming it.
+    fs.appendFileSync(output, "export const mine = 1;\n");
+    const edited = io(dir);
+    expect(await main(["emails", "--out", "migrated", "--overwrite"], edited, lib), edited.out + edited.err).toBe(1);
+    expect(edited.err).toContain("--overwrite would replace migrated/welcome.tsx (edited since a run wrote it, not committed)");
+    expect(fs.readFileSync(output, "utf8")).toContain("export const mine = 1;");
+    // Written by 0.1.0, without a hash: whether it's edited can't be told, so it's kept the same way.
+    fs.writeFileSync(output, written.replace(/^\/\/ @unlayer\/migrate hash [^\n]*\n/m, ""));
+    const unhashed = io(dir);
+    expect(await main(["emails", "--out", "migrated", "--overwrite"], unhashed, lib), unhashed.out + unhashed.err).toBe(1);
+    expect(unhashed.err).toContain("--overwrite would replace migrated/welcome.tsx (written by an earlier version, which didn't record whether it's edited since, not committed)");
+    // An edit git can restore is replaced; so is one with --allow-dirty.
+    fs.writeFileSync(output, `${written}export const mine = 2;\n`);
+    commit(dir);
+    expect(await main(["emails", "--out", "migrated", "--overwrite"], io(dir), lib)).toBe(0);
+    expect(fs.readFileSync(output, "utf8")).toBe(written);
+    fs.appendFileSync(output, "export const mine = 3;\n");
+    expect(await main(["emails", "--out", "migrated", "--overwrite", "--allow-dirty"], io(dir), lib)).toBe(0);
+    expect(fs.readFileSync(output, "utf8")).toBe(written);
   });
 });
 
@@ -1412,6 +1529,30 @@ Welcome.PreviewProps = {};
     expect(out.out).toMatch(/✗ emails\/welcome\.tsx: couldn't load it/);
   });
 
+  it("lists a file with no default export as skipped, saying why, whether it imports React Email or the project's file that does", async () => {
+    const named = (from: string, name: string) => `import { Html, Body, Text } from "${from}";\nexport const ${name} = ({ count }: { count: number }) => <Html><Body><Text>{count} sent</Text></Body></Html>;\n${name}.PreviewProps = { count: 3 };\n`;
+    const dir = project({
+      "components/ui.ts": `export * from "@react-email/components";\n`,
+      "emails/welcome.tsx": `import { Html, Body, Text } from "../components/ui";\nexport default function Welcome() { return <Html><Body><Text>Welcome aboard</Text></Body></Html>; }\n`,
+      "emails/bulk.tsx": named("../components/ui", "BulkEmail"),
+      "emails/direct.tsx": named("@react-email/components", "DirectEmail"),
+    });
+    const skipped = (file: string) => new RegExp(`- emails/${file}: skipped \\(no default-exported component \\(a shared component or helper file\\)\\)`);
+    for (const flags of [[], ["--out", "migrated"]]) {
+      const out = io(dir);
+      expect(await main(["emails", ...flags], out, lib), out.out + out.err).toBe(0);
+      expect(out.out).toMatch(skipped("bulk.tsx"));
+      expect(out.out).toMatch(skipped("direct.tsx"));
+    }
+    // On its own, it's listed the same way, and the run says it checked nothing.
+    for (const file of ["bulk.tsx", "direct.tsx"]) {
+      const out = io(dir);
+      expect(await main([`emails/${file}`], out, lib), out.out + out.err).toBe(1);
+      expect(out.out).toMatch(skipped(file));
+      expect(out.err).toContain("No email template was checked");
+    }
+  });
+
   it("lists a template whose React Email comes from a package the run doesn't follow, and fails the run", async () => {
     const dir = project({
       "node_modules/@acme/emails/package.json": JSON.stringify({ name: "@acme/emails", main: "index.js" }),
@@ -1447,7 +1588,7 @@ Notice.PreviewProps = {};
     const written = fs.readFileSync(path.join(dir, "migrated/welcome.design.json"), "utf8");
     const mine = `${JSON.stringify({ counters: { u_row: 1 }, body: { id: "mine", rows: [{ id: "edited-in-the-editor" }] }, schemaVersion: 16 })}\n`;
     fs.writeFileSync(path.join(dir, "migrated/welcome.design.json"), mine);
-    fs.writeFileSync(path.join(dir, "migrated/welcome.tsx"), "/** @jsxRuntime automatic */\n// Migrated from React Email by @unlayer/migrate (codemod mode).\nexport const earlier = 1;\n");
+    fs.writeFileSync(path.join(dir, "migrated/welcome.tsx"), withContentHash("/** @jsxRuntime automatic */\n// Migrated from React Email by @unlayer/migrate (codemod mode).\nexport const earlier = 1;\n"));
     const out = io(dir);
     expect(await main(["emails", "--out", "migrated", "--design", "--overwrite"], out, lib), out.out + out.err).toBe(2);
     expect(out.out).toMatch(/--overwrite would replace migrated\/welcome\.design\.json \(not (committed|in a git repository)\), a design that isn't the one this run writes/);
@@ -1460,7 +1601,7 @@ Notice.PreviewProps = {};
     expect(fs.readFileSync(path.join(dir, "migrated/welcome.design.json"), "utf8")).toBe(written);
     // The same design a run writes again isn't someone's work: replaced, committed or not.
     fs.writeFileSync(path.join(dir, "migrated/welcome.design.json"), written);
-    fs.writeFileSync(path.join(dir, "migrated/welcome.tsx"), "/** @jsxRuntime automatic */\n// Migrated from React Email by @unlayer/migrate (codemod mode).\nexport const earlier = 2;\n");
+    fs.writeFileSync(path.join(dir, "migrated/welcome.tsx"), withContentHash("/** @jsxRuntime automatic */\n// Migrated from React Email by @unlayer/migrate (codemod mode).\nexport const earlier = 2;\n"));
     expect(await main(["emails", "--out", "migrated", "--design", "--overwrite"], io(dir), lib)).toBe(0);
     expect(fs.readFileSync(path.join(dir, "migrated/welcome.tsx"), "utf8")).toContain("@unlayer/react-elements");
     // Not one a run wrote at all, with no template next to it: kept the same way.
@@ -1698,6 +1839,39 @@ export default function Base({ heading = "Notice", content }: { heading?: string
     expect(out.out).toMatch(/Still using a migrated template[^\n]*\n  emails\/send\.tsx → emails\/welcome\.tsx/);
   });
 
+  it("lists the project's files that use a template it replaced, outside the folder given too (`migrate emails --write`)", async () => {
+    const welcome = `import { Html, Body, Text } from "@react-email/components";\nexport function Welcome() { return <Html><Body><Text>Welcome aboard</Text></Body></Html>; }\nexport default Welcome;\n`;
+    const dir = project({
+      "package.json": JSON.stringify({ name: "app", private: true, type: "module" }),
+      "tsconfig.json": JSON.stringify({ compilerOptions: { jsx: "react-jsx", baseUrl: ".", paths: { "@/*": ["./*"] } } }),
+      "emails/welcome.tsx": welcome,
+      // A route that renders it with React Email (through an alias), and one that sends it with a sender's `react:`.
+      "app/api/send/route.ts": `import { render } from "@react-email/components";\nimport * as React from "react";\nimport WelcomeEmail from "@/emails/welcome";\nexport async function GET() { return new Response(await render(React.createElement(WelcomeEmail))); }\n`,
+      "lib/send.tsx": `import { Welcome } from "../emails/welcome";\nexport const send = (resend: any) => resend.emails.send({ react: <Welcome /> });\n`,
+      // Through an index that passes it on, and with require.
+      "lib/emails.ts": `export { default as WelcomeEmail } from "../emails/welcome";\n`,
+      "lib/mailer.ts": `import { WelcomeEmail } from "./emails";\nexport const mail = () => WelcomeEmail({});\n`,
+      "scripts/preview.cjs": `const welcome = require("../emails/welcome");\nmodule.exports = welcome;\n`,
+      "emails/welcome.test.tsx": `import Welcome from "./welcome";\nexport const rendered = <Welcome />;\n`,
+      // Not users: only its sample data or its type, build output and packages.
+      "lib/sample.ts": `import Welcome from "../emails/welcome";\nexport const sample = Welcome.PreviewProps;\n`,
+      "lib/types.ts": `import type Welcome from "../emails/welcome";\nexport type Props = Parameters<typeof Welcome>[0];\n`,
+      ".next/server/route.js": `import Welcome from "../../emails/welcome";\nexport default Welcome;\nWelcome();\n`,
+      "dist/route.js": `import Welcome from "../emails/welcome";\nWelcome();\n`,
+    });
+    const out = io(dir);
+    expect(await main(["emails", "--write"], out, lib), out.out + out.err).toBe(0);
+    const listed = /Still using a migrated template: render it with renderToHtml\(\) from @unlayer\/react-elements[^\n]*\n((?:  [^\n]*\n)*)/.exec(out.out)?.[1];
+    expect(listed, out.out).toBe(
+      ["app/api/send/route.ts", "emails/welcome.test.tsx", "lib/mailer.ts", "lib/send.tsx", "scripts/preview.cjs"].map((file) => `  ${file} → emails/welcome.tsx\n`).join("")
+    );
+    // Run from the folder itself, the same files (named from there).
+    const again = project({ "package.json": JSON.stringify({ name: "app", private: true, type: "module" }), "emails/welcome.tsx": welcome, "lib/send.tsx": `import { Welcome } from "../emails/welcome";\nexport const send = () => <Welcome />;\n` });
+    const inside = io(path.join(again, "emails"));
+    expect(await main([".", "--write"], inside, lib), inside.out + inside.err).toBe(0);
+    expect(inside.out).toContain("\n  ../lib/send.tsx → welcome.tsx\n");
+  });
+
   it("refuses --write when a template imports a module by a computed path", async () => {
     const welcome = `import { Html, Body, Text } from "@react-email/components";\nconst theme = (name: string) => require(\`./themes/\${name}\`);\nexport default function Welcome() { return <Html><Body><Text>Welcome {String(Boolean(theme))}</Text></Body></Html>; }`;
     const dir = project({ "emails/welcome.tsx": welcome });
@@ -1708,3 +1882,50 @@ export default function Base({ heading = "Notice", content }: { heading?: string
   });
 });
 
+
+describe("installing Elements, which the migrated templates import", () => {
+  /** A project outside the workspace (no Elements there), with these files. */
+  function outside(files: Record<string, string>): string {
+    const app = fs.mkdtempSync(path.join(tmpdir(), "unlayer-install-"));
+    dirs.push(app);
+    for (const [file, text] of Object.entries(files)) {
+      fs.mkdirSync(path.dirname(path.join(app, file)), { recursive: true });
+      fs.writeFileSync(path.join(app, file), text);
+    }
+    return app;
+  }
+
+  it("is said after a run writes where the import doesn't resolve, with the project's package manager", async () => {
+    const dir = project({ "emails/welcome.tsx": good });
+    // In the workspace, it resolves: nothing to install.
+    const inside = io(dir);
+    expect(await main(["emails", "--out", "migrated"], inside, lib), inside.out + inside.err).toBe(0);
+    expect(inside.out).not.toContain("Install Elements");
+    for (const [lockfile, command] of [["pnpm-lock.yaml", "pnpm add"], ["yarn.lock", "yarn add"], ["bun.lock", "bun add"], ["package-lock.json", "npm install"], [undefined, "npm install"]] as const) {
+      const app = outside({ "package.json": "{}", ...(lockfile ? { [lockfile]: "" } : {}) });
+      const out = io(dir);
+      expect(await main(["emails", "--out", path.join(app, "emails")], out, lib), out.out + out.err).toBe(0);
+      expect(out.out, command).toContain(`\nInstall Elements in ${path.relative(dir, app)}: ${command} @unlayer/react-elements@^0.2.0\n`);
+      // A dry run writes nothing: nothing to install yet.
+      const dry = io(app);
+      fs.mkdirSync(path.join(app, "drafts"));
+      fs.writeFileSync(path.join(app, "drafts/welcome.tsx"), good);
+      expect(await main([path.join(dir, "emails")], dry, lib)).toBe(0);
+      expect(dry.out).not.toContain("Install Elements");
+    }
+  });
+
+  it("stops the run before anything is written where the migrated templates would get an Elements older than they need", async () => {
+    const dir = project({ "emails/welcome.tsx": good });
+    const app = outside({
+      "package.json": "{}",
+      "yarn.lock": "",
+      "node_modules/@unlayer/react-elements/package.json": JSON.stringify({ name: "@unlayer/react-elements", version: "0.1.22", exports: { "./package.json": "./package.json" } }),
+    });
+    const out = io(dir);
+    expect(await main(["emails", "--out", path.join(app, "emails")], out, lib), out.out + out.err).toBe(1);
+    expect(out.err).toContain("needs @unlayer/react-elements ^0.2.0, but this project has 0.1.22");
+    expect(out.err).toContain('yarn add @unlayer/react-elements@"^0.2.0"');
+    expect(fs.existsSync(path.join(app, "emails"))).toBe(false);
+  });
+});
