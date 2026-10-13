@@ -706,6 +706,19 @@ export default function Welcome() { return <Html><Body><Text>Welcome aboard frie
     expect(first.out).toContain("\nStill importing React Email, as they were (the migrated templates have what they used written in): delete the ones nothing imports any more before you remove React Email:\n  emails/components/footer.tsx\n");
     expect(again.out).toContain("\nNo email templates left to migrate. 1 other file skipped (see above). 0 written.\n1 template already migrated (importing @unlayer/react-elements).\n");
     expect(again.err).not.toContain("No email template was checked");
+    // With a template left unwritten (it fails the check, --strict), React Email can't go: no files to delete are named.
+    const failing = `import { Html, Body, Text } from "@react-email/components";
+import { Footer } from "./components/footer";
+export default function Notice() {
+  const text = import.meta.url.includes(".unlayer-migrate-") ? "Changed" : "Keep this content";
+  return <Html><Body><Text>{text}</Text><Footer /></Body></Html>;
+}`;
+    const strictDir = project({ "emails/welcome.tsx": welcome, "emails/notice.tsx": failing, "emails/components/footer.tsx": footer });
+    const strict = io(strictDir);
+    expect(await main(["emails", "--write", "--strict"], strict, lib), strict.out + strict.err).toBe(2);
+    expect(strict.out).toMatch(/✓ emails\/welcome\.tsx: .*→ emails\/welcome\.tsx/);
+    expect(fs.readFileSync(path.join(strictDir, "emails/notice.tsx"), "utf8")).toBe(failing);
+    expect(strict.out).not.toContain("Still importing React Email");
     // A dry run has nothing to write either: it doesn't say how to write it.
     const dry = io(dir);
     expect(await main(["emails"], dry, lib), dry.out + dry.err).toBe(0);
@@ -887,7 +900,7 @@ export default function Welcome() { return <Html><Body><Text>Welcome aboard</Tex
       expect(out.err, argv.join(" ")).toContain(message);
     }
     // The mistake, and where the options are: not the whole help, which would push it off the screen.
-    for (const [argv, message] of [[["--bogus"], "Unknown option: --bogus"], [["--write"], "Pass the templates to migrate (files or folders)."], [["--report"], "--report needs a value."], [["compare", "a.tsx"], "compare needs the original template and the migrated one: npx @unlayer/migrate compare <original> <migrated>"]] as const) {
+    for (const [argv, message] of [[["--bogus"], "Unknown option: --bogus"], [["--write"], "Pass the templates to migrate (files or folders)."], [["--report"], "--report needs a value."], [["compare", "a.tsx"], "compare needs the original template and the migrated one: npx @unlayer/migrate compare <original> <migrated>"], [["nope-dir"], "Not found: nope-dir"], [["compare", "a.tsx", "b.tsx"], "Not found: a.tsx"]] as const) {
       const out = io(dir);
       expect(await main([...argv], out, lib)).toBe(1);
       expect(out.err, argv.join(" ")).toBe(`${message}\nRun npx @unlayer/migrate --help to see the options.\n`);

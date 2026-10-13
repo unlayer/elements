@@ -242,7 +242,7 @@ async function run(argv: string[], io: Io, library?: Library): Promise<number> {
 
   const inputs = await collect(args.positional, io.cwd);
   if (inputs.missing.length) {
-    io.stderr(`Not found: ${inputs.missing.join(", ")}\n`);
+    io.stderr(`Not found: ${inputs.missing.join(", ")}\n${SEE_HELP}\n`);
     return 1;
   }
   // A template can use React Email only through the project's own components (a ui file). A file that does and isn't
@@ -462,8 +462,10 @@ async function run(argv: string[], io: Io, library?: Library): Promise<number> {
     }
   }
   // Files the run left as they were that still import React Email (a shared component, a helper the templates inlined):
-  // React Email can go only once nothing imports them, so they're named.
-  if (options.write && results.some((r) => r.output)) {
+  // React Email can go only once nothing imports them, so they're named. Only once every template is migrated: one left
+  // unwritten (it failed, or failed the check with --strict) may still import them, and React Email can't go anyway.
+  const allWritten = results.filter(isTemplate).every((r) => r.output || r.reason?.startsWith("already migrated"));
+  if (options.write && results.some((r) => r.output) && allWritten) {
     const reactEmail = new Set(inputs.files.filter((f) => f.reactEmail).map((f) => resolve(f.path)));
     const left = results.filter((r) => r.status === "skipped" && !r.output && reactEmail.has(resolve(io.cwd, r.file)));
     if (left.length) {
@@ -708,7 +710,10 @@ function earlierOutput(text: string): "intact" | "edited" | "unhashed" | undefin
 async function whoWrote(path: string, design: boolean): Promise<string> {
   const text = await readFile(path, "utf8").catch(() => "");
   const earlier = earlierOutput(text);
-  if (earlier) return earlier === "edited" ? "written by an earlier run, and edited since" : "written by an earlier run";
+  if (earlier === "intact") return "written by an earlier run";
+  if (earlier === "edited") return "written by an earlier run, and edited since";
+  // Without the hash a run now records: 0.1.0's, which can't say whether it's edited since.
+  if (earlier === "unhashed") return "written by an earlier version of @unlayer/migrate, which didn't record whether it's edited since";
   if (design) {
     try {
       const parsed = JSON.parse(text);
@@ -1024,7 +1029,7 @@ async function compare(paths: string[], args: Args, io: Io, library?: Library): 
   const [originalPath, migratedPath] = paths.map((p) => resolve(io.cwd, p));
   for (const [given, path] of [[paths[0], originalPath], [paths[1], migratedPath]]) {
     if (!existsSync(path)) {
-      io.stderr(`Not found: ${given}\n`);
+      io.stderr(`Not found: ${given}\n${SEE_HELP}\n`);
       return 1;
     }
   }
@@ -1134,13 +1139,23 @@ function wordsAsWritten(html: string): Map<string, string> {
   const out = new Map<string, string>();
   try {
     for (const { word } of new StyledDocument(html).words()) {
-      for (const part of word.split(/\s+/)) {
-        const read = normalizeWord(part);
+      for (const written of word.split(/\s+/)) {
+        const read = normalizeWord(written);
         if (!read || out.has(read)) continue;
-        // What closes a sentence or an aside goes too, but an abbreviation's last period stays ("U.S.").
-        let bare = part.replace(/^[("'“‘[{<«]+/, "").replace(/[)"'”’\]}>»,;:!?.]+$/, "");
+        // Without what can't be seen (a zero-width space or joiner, a byte order mark: Unicode's format characters),
+        // which a quote would carry along unseen.
+        const part = written.replace(/\p{Cf}/gu, "");
+        // What closes a sentence or an aside goes too, but a bracket the word opens itself stays ("connect()"), and an
+        // abbreviation's last period ("U.S.").
+        let bare = part.replace(/^[("'“‘[{<«]+/, "");
+        const opener: Record<string, string> = { ")": "(", "]": "[", "}": "{" };
+        while (/[)"'”’\]}>»,;:!?.]$/.test(bare)) {
+          const last = bare.slice(-1);
+          if (opener[last] && bare.split(opener[last]).length > bare.split(last).length - 1) break;
+          bare = bare.slice(0, -1);
+        }
         if (/\p{L}\.\p{L}+$/u.test(bare) && /\.$/.test(part.replace(/[)"'”’\]}>»,;:!?]+$/, ""))) bare += ".";
-        out.set(read, bare && normalizeWord(bare) === read ? bare : part);
+        out.set(read, bare && normalizeWord(bare) === read ? bare : part || read);
       }
     }
   } catch {

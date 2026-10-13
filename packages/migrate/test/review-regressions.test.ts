@@ -112,6 +112,12 @@ describe("destination safety", () => {
     const edited = io(dir);
     expect(await main(["emails", "--out", "migrated", "--design"], edited, lib)).toBe(1);
     expect(edited.err).toContain("Output already exists: migrated/welcome.tsx (written by an earlier run, and edited since).");
+    // Written by 0.1.0, with no hash line: an earlier version's, not an earlier run's.
+    const written = fs.readFileSync(path.join(dir, "migrated/welcome.tsx"), "utf8");
+    fs.writeFileSync(path.join(dir, "migrated/welcome.tsx"), written.replace(/^\/\/ @unlayer\/migrate hash [^\n]*\n/m, ""));
+    const older = io(dir);
+    expect(await main(["emails", "--out", "migrated", "--design"], older, lib)).toBe(1);
+    expect(older.err).toBe("Output already exists: migrated/welcome.tsx (written by an earlier version of @unlayer/migrate, which didn't record whether it's edited since). Choose an empty folder, or pass --overwrite to replace it.\n");
     // A design can't be told from one made in the editor.
     fs.rmSync(path.join(dir, "migrated/welcome.tsx"));
     const design = io(dir);
@@ -191,6 +197,20 @@ describe("a Node.js older than the CLI needs (built CLI)", () => {
     expect(supported.stdout).toContain("Migrate React Email templates to Unlayer Elements.");
   }, 90_000);
 
+  it("says which version it is on any Node.js", async () => {
+    const { version } = JSON.parse(fs.readFileSync(path.resolve(import.meta.dirname, "../package.json"), "utf8"));
+    for (const node of ["18.20.4", "20.6.0"]) {
+      for (const flag of ["--version", "-v"]) {
+        const result = await run(process.execPath, [...reporting(node), bin, flag], process.cwd());
+        expect(result.code ?? 0, `${node} ${flag}: ${result.stderr}`).toBe(0);
+        expect([result.stdout, result.stderr]).toEqual([`${version}\n`, ""]);
+      }
+    }
+    // Anything else on an older one still stops at the check.
+    const other = await run(process.execPath, [...reporting("18.20.4"), bin, "emails", "--version"], process.cwd());
+    expect(other.stderr).toBe("@unlayer/migrate needs Node.js 20.6 or later (you have 18.20.4).\n");
+  }, 90_000);
+
   // On Node 18 itself when it's installed (with nvm): nothing it lacks loads before the check.
   const home = process.env.HOME ?? "";
   const installed = fs.existsSync(path.join(home, ".nvm/versions/node")) ? fs.readdirSync(path.join(home, ".nvm/versions/node")).filter((v) => /^v(1[0-9]|20\.[0-5])\./.test(v)) : [];
@@ -200,6 +220,8 @@ describe("a Node.js older than the CLI needs (built CLI)", () => {
       const result = await run(path.join(home, ".nvm/versions/node", version, "bin/node"), [bin, "emails"], dir);
       expect(result.code, result.stdout + result.stderr).toBe(1);
       expect(result.stderr).toBe(`@unlayer/migrate needs Node.js 20.6 or later (you have ${version.slice(1)}).\n`);
+      const asked = await run(path.join(home, ".nvm/versions/node", version, "bin/node"), [bin, "--version"], dir);
+      expect([asked.stdout, asked.stderr]).toEqual([`${JSON.parse(fs.readFileSync(path.resolve(import.meta.dirname, "../package.json"), "utf8")).version}\n`, ""]);
     }
   }, 90_000);
 });
@@ -2128,5 +2150,20 @@ export default function T() { return <Email backgroundColor="#ffffff"><Row><Colu
     expect(out.out).toContain('lost text: "A-10293", "for", "sarah@example.com"');
     expect(out.out).toContain('extra text: "ref", "B‑7", "from", "the", "U.S."');
     expect(out.out).not.toMatch(/−|sarahexamplecom/);
+  });
+
+  it("are quoted without the characters that can't be seen in them", async () => {
+    // Zero-width joiners and spaces a code block puts between its tokens, a byte order mark, a soft hyphen.
+    const original = `import { Html, Body, Text } from "@react-email/components";
+export default function T() { return <Html><Body><Text>{"Run \u200d\u200bclient.\u2060connect() on \ufeffstart\u00adup."}</Text></Body></Html>; }
+`;
+    const migrated = `import { Column, Email, Paragraph, Row } from "@unlayer/react-elements";
+export default function T() { return <Email backgroundColor="#ffffff"><Row><Column><Paragraph color="#000000" fontSize="14px" lineHeight="24px" containerPadding="0px 0px 16px 0px">Run it</Paragraph></Column></Row></Email>; }
+`;
+    const dir = project({ "emails/code.tsx": original, "migrated/code.tsx": migrated });
+    const out = io(dir);
+    expect(await main(["compare", "emails/code.tsx", "migrated/code.tsx"], out, lib), out.out + out.err).toBe(2);
+    expect(out.out).toContain('lost text: "client.connect()", "on", "startup"');
+    expect(out.out).not.toMatch(/\p{Cf}/u);
   });
 });
