@@ -1497,6 +1497,30 @@ Welcome.PreviewProps = {};
     expect(out.out).toMatch(/✗ emails\/welcome\.tsx: couldn't load it/);
   });
 
+  it("lists a file with no default export as skipped, saying why, whether it imports React Email or the project's file that does", async () => {
+    const named = (from: string, name: string) => `import { Html, Body, Text } from "${from}";\nexport const ${name} = ({ count }: { count: number }) => <Html><Body><Text>{count} sent</Text></Body></Html>;\n${name}.PreviewProps = { count: 3 };\n`;
+    const dir = project({
+      "components/ui.ts": `export * from "@react-email/components";\n`,
+      "emails/welcome.tsx": `import { Html, Body, Text } from "../components/ui";\nexport default function Welcome() { return <Html><Body><Text>Welcome aboard</Text></Body></Html>; }\n`,
+      "emails/bulk.tsx": named("../components/ui", "BulkEmail"),
+      "emails/direct.tsx": named("@react-email/components", "DirectEmail"),
+    });
+    const skipped = (file: string) => new RegExp(`- emails/${file}: skipped \\(no default-exported component \\(a shared component or helper file\\)\\)`);
+    for (const flags of [[], ["--out", "migrated"]]) {
+      const out = io(dir);
+      expect(await main(["emails", ...flags], out, lib), out.out + out.err).toBe(0);
+      expect(out.out).toMatch(skipped("bulk.tsx"));
+      expect(out.out).toMatch(skipped("direct.tsx"));
+    }
+    // On its own, it's listed the same way, and the run says it checked nothing.
+    for (const file of ["bulk.tsx", "direct.tsx"]) {
+      const out = io(dir);
+      expect(await main([`emails/${file}`], out, lib), out.out + out.err).toBe(1);
+      expect(out.out).toMatch(skipped(file));
+      expect(out.err).toContain("No email template was checked");
+    }
+  });
+
   it("lists a template whose React Email comes from a package the run doesn't follow, and fails the run", async () => {
     const dir = project({
       "node_modules/@acme/emails/package.json": JSON.stringify({ name: "@acme/emails", main: "index.js" }),

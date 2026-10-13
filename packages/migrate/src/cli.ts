@@ -231,15 +231,24 @@ async function run(argv: string[], io: Io, library?: Library): Promise<number> {
     io.stderr(`Not found: ${inputs.missing.join(", ")}\n`);
     return 1;
   }
-  // A template can use React Email only through the project's own components (a ui file).
+  // A template can use React Email only through the project's own components (a ui file). A file that does and isn't
+  // a template (no default export, a helper) is listed as skipped, as one that imports React Email itself is.
+  const listed: FileResult[] = [];
+  const skipped = new Set<string>();
   for (const input of inputs.files) {
-    if (!input.reactEmail && !input.migrated) input.reactEmail = await reactEmailThroughProject(input.path);
+    if (input.reactEmail || input.migrated) continue;
+    const through = await reactEmailThroughProject(input.path);
+    if (through === true) input.reactEmail = true;
+    else if (through) {
+      listed.push({ file: relative(io.cwd, input.path), status: "skipped", reason: through.reason });
+      skipped.add(input.path);
+    }
   }
   const candidates = inputs.files.filter((f) => f.reactEmail);
   // A file with React Email's preview props whose React Email the run can't find (its components from a package
   // the run doesn't follow): a template left out without a word otherwise.
   for (const input of inputs.files) {
-    if (input.reactEmail || input.migrated) continue;
+    if (input.reactEmail || input.migrated || skipped.has(input.path)) continue;
     if (/\b[A-Za-z_$][\w$]*\.PreviewProps\s*=/.test(await readFile(input.path, "utf8").catch(() => ""))) {
       inputs.unreadable.push({
         file: relative(io.cwd, input.path),
@@ -249,16 +258,23 @@ async function run(argv: string[], io: Io, library?: Library): Promise<number> {
     }
   }
   if (!candidates.length && inputs.unreadable.length) {
-    for (const result of inputs.unreadable) io.stdout(`${line(result)}\n`);
-    io.stdout(`\n${summary(inputs.unreadable, options)}\n`);
+    const shown = [...inputs.unreadable, ...listed];
+    for (const result of shown) io.stdout(`${line(result)}\n`);
+    io.stdout(`\n${summary(shown, options)}\n`);
     return 2;
   }
   if (!candidates.length) {
+    for (const result of listed) io.stdout(`${line(result)}\n`);
     // Run again after --write (in CI): the templates are done.
     const done = inputs.files.filter((f) => f.migrated).length;
     if (done) {
-      io.stdout(`${done} template${done === 1 ? "" : "s"} already migrated (importing @unlayer/react-elements): nothing to do.\n`);
+      io.stdout(`${listed.length ? "\n" : ""}${done} template${done === 1 ? "" : "s"} already migrated (importing @unlayer/react-elements): nothing to do.\n`);
       return 0;
+    }
+    if (listed.length) {
+      io.stdout(`\n${summary(listed, options)}\n`);
+      io.stderr("No email template was checked: nothing here renders React Email's <Html> (shared components and helpers are skipped).\n");
+      return 1;
     }
     io.stderr("No React Email templates found (files that import react-email or @react-email/*, or the project's components that do).\n");
     return 1;
@@ -294,7 +310,7 @@ async function run(argv: string[], io: Io, library?: Library): Promise<number> {
     return 1;
   }
   const lib = library ?? ((await import("@unlayer/from-react-email")) as Library);
-  const results: FileResult[] = [...inputs.unreadable];
+  const results: FileResult[] = [...inputs.unreadable, ...listed];
   // Templates another one renders are left for now. With --write, a pass that writes the templates using one may
   // free it (the migrated ones render their own markup): it's tried again, until a pass writes nothing more.
   let todo = candidates;
@@ -1830,14 +1846,13 @@ async function moduleSyntax(overlay?: Map<string, string>) {
 }
 
 /**
- * Whether a template uses React Email through the project's own files: it
- * imports one that imports React Email (a ui file that wraps it or passes it
- * on), directly or through files that pass that one on.
+ * Whether a file uses React Email through the project's own files: it imports one that imports React Email (a ui file
+ * that wraps it or passes it on), directly or through files that pass that one on. True for a template (one the check
+ * can't load, a wrapped one, is still one: it fails, saying why); for another file, why it isn't one (it's listed as
+ * skipped, as a file that imports React Email itself is).
  */
-async function reactEmailThroughProject(path: string): Promise<boolean> {
-  // A template the check can't load (a wrapped one) is still one: it fails, saying why.
+async function reactEmailThroughProject(path: string): Promise<boolean | { reason: string }> {
   const not = await notATemplate(path, await readFile(path, "utf8"));
-  if (not && !not.fail) return false;
   const { parse, importsOf, reExports } = await moduleSyntax();
   const load = await moduleLoader(path);
   const seen = new Set<string>();
@@ -1849,7 +1864,7 @@ async function reactEmailThroughProject(path: string): Promise<boolean> {
     for (const next of await reExports(loaded.fileName).catch(() => [])) if (await reaches(loaded.fileName, next.specifier, depth + 1)) return true;
     return false;
   };
-  for (const { specifier } of importsOf(await parse(path)).values()) if (await reaches(path, specifier)) return true;
+  for (const { specifier } of importsOf(await parse(path)).values()) if (await reaches(path, specifier)) return not && !not.fail ? { reason: not.reason } : true;
   return false;
 }
 
