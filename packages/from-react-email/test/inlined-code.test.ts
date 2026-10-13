@@ -722,7 +722,7 @@ News.PreviewProps = { who: "Globex" };
 });
 
 describe("colors computed from props", () => {
-  it("are written on the text and buttons that set them, as code", async () => {
+  it("are written on the text and buttons that set them, as code (a text's background behind its words, as its color may need it)", async () => {
     const { conversion, added, Original, Migrated } = await migrate({
       "watch.tsx": `import { Html, Body, Container, Text, Button } from "@react-email/components";
 const TONE: Record<string, string> = { good: "#a8ff53", bad: "#ff5353" };
@@ -732,6 +732,7 @@ export default function Watch({ tone = "good", url }: { tone?: string; url: stri
     <Text style={{ color: accent, fontSize: "11px" }}>Watch update</Text>
     <Text style={{ color: "#d7d9dd" }}>Body copy</Text>
     <Button href={url} style={{ backgroundColor: accent, color: "#15171a", padding: "10px 16px" }}>Open</Button>
+    <Text style={{ color: tone === "good" ? "#ffffff" : "#94a3b8", backgroundColor: tone === "good" ? "#16a34a" : "#e2e8f0" }}>{tone === "good" ? "Done" : 2}</Text>
   </Container></Body></Html>;
 }
 Watch.PreviewProps = { tone: "good", url: "https://example.com/watch" };
@@ -743,5 +744,30 @@ Watch.PreviewProps = { tone: "good", url: "https://example.com/watch" };
       const check = await verifyConversion(Original, Migrated, { props: { tone, url: "https://example.com/watch" } });
       expect([check.missing, check.added, check.styles]).toEqual([[], [], []]);
     }
+  });
+});
+
+describe("a text's own background where its box can't be drawn", () => {
+  it("goes behind its words, so light text on it stays readable (a date card in a column)", async () => {
+    const { added, Original, Migrated } = await migrate({
+      "invite.tsx": `import { Html, Body, Container, Section, Row, Column, Text } from "@react-email/components";
+export default function Invite({ month, day, title }: { month: string; day: string; title: string }) {
+  return <Html><Body><Container style={{ backgroundColor: "#ffffff" }}><Section><Row>
+    <Column style={{ width: "84px" }}>
+      <Section style={{ border: "1px solid #e0e7ff", borderRadius: "8px", textAlign: "center" }}>
+        <Text style={{ backgroundColor: "#4338ca", color: "#ffffff", fontSize: "12px", textTransform: "uppercase", margin: 0, padding: "4px 0" }}>{month}</Text>
+        <Text style={{ fontSize: "28px", margin: 0 }}>{day}</Text>
+      </Section>
+    </Column>
+    <Column><Text style={{ backgroundColor: "#fef3c7", color: "#92400e", margin: 0 }}>{title}</Text></Column>
+  </Row></Section></Container></Body></Html>;
+}
+Invite.PreviewProps = { month: "Nov", day: "14", title: "Design night" };
+`,
+    }, "invite.tsx");
+    expect(added).toEqual([]);
+    const check = await verifyConversion(Original, Migrated);
+    expect([check.missing, check.added]).toEqual([[], []]);
+    expect(check.styles.filter((s) => s.property === "background" || s.property === "color")).toEqual([]);
   });
 });

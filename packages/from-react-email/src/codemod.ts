@@ -1681,11 +1681,54 @@ class Converter {
       style: { ...look, margin: ZERO, width: undefined, align: undefined },
       width: this.columnWidth(col),
       stacks: this.stacksOnPhones(col),
-      blocks: this.blocks(content, colCtx).map((entry) => {
-        if (entry.style) noteTextBox(entry.style, ctx);
-        return entry.block;
-      }),
+      blocks: this.blocks(content, colCtx).map((entry) => this.boxless(entry, ctx)),
     };
+  }
+
+  /**
+   * A text block where its own box can't be drawn (in a column of several, in code, in a box flattened into a column):
+   * its background goes behind its words (a span in its HTML), so text set light on it stays readable; the box's
+   * width, padding, border and corners are listed as lost.
+   */
+  private boxless(entry: { block: Block; style?: Style }, ctx: Ctx): Block {
+    if (!entry.style) return entry.block;
+    const background = fillColor(entry.style);
+    const { backgroundColor: _, background: __, backgroundImage: ___, ...rest } = entry.style;
+    noteTextBox(background ? rest : entry.style, ctx);
+    const node = entry.block.node;
+    if (!background || /[<>"'`\\{};$]/.test(background)) return entry.block;
+    const wrapped = this.withBackground(node, background);
+    if (!wrapped) return entry.block;
+    ctx.report.note("text background kept behind its words only (its box can't be drawn here)", background);
+    return { ...entry.block, node: wrapped };
+  }
+
+  /**
+   * A Paragraph or Heading with its text in a span with this background (a color, or code giving one, written escaped
+   * when it renders). Undefined for another block.
+   */
+  private withBackground(node: ElementNode, background: string | Expr): ElementNode | undefined {
+    const key = node.type === "Paragraph" ? "html" : node.type === "Heading" ? "text" : undefined;
+    if (!key) return undefined;
+    let html = node.props?.[key] as Content | undefined;
+    if (html === undefined) {
+      // Children (text and values) as HTML.
+      const parts = (node.children ?? []).filter((c): c is string | Expr => typeof c === "string" || isExpr(c));
+      if (parts.length !== (node.children ?? []).length) return undefined;
+      if (parts.some(isExpr)) {
+        this.needsEscape = true;
+        this.needsHtmlText = true;
+      }
+      html = parts.every((p) => typeof p === "string")
+        ? escapeHtml((parts as string[]).join(""))
+        : expr(templateCode(parts.map((p) => (typeof p === "string" ? escapeHtml(p) : expr(`${this.helper.htmlText}(${p.$expr})`)))));
+    }
+    if (isExpr(background)) this.needsEscape = true;
+    const open = isExpr(background) ? `<span style="background-color:\${${this.helper.escapeHtml}(String(${background.$expr}))}">` : escapeTemplate(`<span style="background-color:${background}">`);
+    const inner = isExpr(html) ? (oneTemplate(html.$expr) ? html.$expr.slice(1, -1) : `\${${html.$expr}}`) : escapeTemplate(html);
+    const wrapped: Content = isExpr(html) || isExpr(background) ? expr(`\`${open}${inner}</span>\``) : `<span style="background-color:${background}">${html}</span>`;
+    const { children: _, ...without } = node;
+    return { ...without, props: { ...node.props, [key]: wrapped } };
   }
 
   /** Whether the column's classes make it full width on phones (`mobile:!block`). */
@@ -1956,7 +1999,7 @@ class Converter {
         const expression = child.expression;
         const items: Block[][] = [];
         const parts = this.holeParts(expression, (jsx, key) => {
-          const blocks = this.blocks([jsx], ctx).map((entry) => entry.block);
+          const blocks = this.blocks([jsx], ctx).map((entry) => this.boxless(entry, ctx));
           items.push(blocks);
           const nodes = blocks.map((block) => block.node);
           if (key && nodes.length === 1 && nodes[0].type !== "#expr") nodes[0].props = { key, ...nodes[0].props };
@@ -2024,14 +2067,37 @@ class Converter {
     const literal = code && unwrap(code);
     const props: Record<string, string> = node.type === "Button" ? { color: "color", backgroundColor: "backgroundColor" } : node.type === "Paragraph" || node.type === "Heading" ? { color: "color" } : {};
     if (!literal || !ts.isObjectLiteralExpression(literal) || !Object.keys(props).length) return node;
+    const computed = (value: ts.Expression) => !containsJsx(value) && this.styleValue(() => this.evaluate(value)) === undefined;
     let out = node;
+    // A text's background from code (`done ? "#16a34a" : "#e2e8f0"`) goes behind its words, as the color written with
+    // it may only be readable on it (white on that green). Where it can't be, the text keeps its color's fallback.
+    let background = true;
+    if (node.type === "Paragraph" || node.type === "Heading") {
+      for (const prop of literal.properties) {
+        const key = (ts.isPropertyAssignment(prop) || ts.isShorthandPropertyAssignment(prop)) && (ts.isIdentifier(prop.name) || ts.isStringLiteral(prop.name)) ? prop.name.text : undefined;
+        if (key !== "backgroundColor" && key !== "background") continue;
+        const value = ts.isPropertyAssignment(prop) ? prop.initializer : (prop as ts.ShorthandPropertyAssignment).name;
+        if (!computed(value)) continue;
+        const wrapped = key === "backgroundColor" ? this.withBackground(out, expr(value.getText())) : undefined;
+        if (!wrapped) {
+          background = false;
+          continue;
+        }
+        out = wrapped;
+        this.keptStyleParts.add(prop.getStart());
+      }
+    }
+    if (!background) return out;
     for (const prop of literal.properties) {
       if (!(ts.isPropertyAssignment(prop) || ts.isShorthandPropertyAssignment(prop)) || !(ts.isIdentifier(prop.name) || ts.isStringLiteral(prop.name))) continue;
       const name = props[prop.name.text];
       const value = ts.isPropertyAssignment(prop) ? prop.initializer : prop.name;
-      if (!name || containsJsx(value) || this.styleValue(() => this.evaluate(value)) !== undefined) continue;
+      if (!name || !computed(value)) continue;
       const fallback = out.props?.[name];
-      out = { ...out, props: { ...out.props, [name]: expr(typeof fallback === "string" ? `(${value.getText()}) || ${JSON.stringify(fallback)}` : value.getText()) } };
+      // (No fallback for a value that's always text: `done ? "#fff" : "#94a3b8" || …` is always truthy, TS2872.)
+      const type = this.checker.getTypeAtLocation(value);
+      const always = (type.isUnion() ? type.types : [type]).every((t) => (t.isStringLiteral() && t.value !== "") || (t.isNumberLiteral() && t.value !== 0));
+      out = { ...out, props: { ...out.props, [name]: expr(typeof fallback === "string" && !always ? `(${value.getText()}) || ${JSON.stringify(fallback)}` : value.getText()) } };
       this.keptStyleParts.add(prop.getStart());
     }
     return out;
@@ -2117,7 +2183,7 @@ class Converter {
         if (!column || this.hasColumns(this.flatten(column.children))) return [{ node: this.fallback(jsx, ctx), margin: ZERO, padding: ZERO }];
         // A box it draws (a background, a border) can't nest in a column: kept as HTML, as it renders.
         if (drawsBox(style) || drawsBox(column.style)) return [{ node: this.fallback(jsx, ctx, "box with a background or border inside a column"), margin: ZERO, padding: ZERO }];
-        const inside = this.blocks(column.children, { ...ctx, inherited: inherit(inherit(ctx.inherited, style), column.style) }).map((entry) => entry.block);
+        const inside = this.blocks(column.children, { ...ctx, inherited: inherit(inherit(ctx.inherited, style), column.style) }).map((entry) => this.boxless(entry, ctx));
         return wrapPadding(inside, addSides(boxSides(style, "padding"), boxSides(column.style, "padding")), ctx, style._phone || column.style._phone ? addSides(phoneSides(style, "padding", boxSides(style, "padding")) ?? boxSides(style, "padding"), phoneSides(column.style, "padding", boxSides(column.style, "padding")) ?? boxSides(column.style, "padding")) : undefined, style._phone?.display === "none" || column.style._phone?.display === "none");
       }
       case "Section":
@@ -2128,13 +2194,13 @@ class Converter {
         if (this.hasColumns(this.flatten(jsx.children))) return [{ node: this.fallback(jsx, ctx), margin: ZERO, padding: ZERO }];
         // A box it draws (a background, a border) can't nest in a column: kept as HTML, as it renders.
         if (drawsBox(style)) return [{ node: this.fallback(jsx, ctx, "box with a background or border inside a column"), margin: ZERO, padding: ZERO }];
-        const inside = this.blocks(jsx.children, { ...ctx, inherited: inherit(ctx.inherited, style) }).map((entry) => entry.block);
+        const inside = this.blocks(jsx.children, { ...ctx, inherited: inherit(ctx.inherited, style) }).map((entry) => this.boxless(entry, ctx));
         return wrapPadding(inside, boxSides(style, "padding"), ctx, phoneSides(style, "padding", boxSides(style, "padding")), style._phone?.display === "none");
       }
       default:
         if (this.isWrapper(jsx)) {
           this.report.note("wrapper element flattened", jsx.tag);
-          const inside = this.blocks(jsx.children, { ...ctx, inherited: inherit(ctx.inherited, style) }).map((entry) => entry.block);
+          const inside = this.blocks(jsx.children, { ...ctx, inherited: inherit(ctx.inherited, style) }).map((entry) => this.boxless(entry, ctx));
           return wrapPadding(inside, boxSides(style, "padding"), ctx, phoneSides(style, "padding", boxSides(style, "padding")), style._phone?.display === "none");
         }
         return [{ node: this.fallback(jsx, ctx), margin: ZERO, padding: ZERO }];
@@ -3786,6 +3852,14 @@ function escapeHtml(text: string): string {
 /** A value for a double-quoted attribute: a quote in it (`font-family:"Inter"`) can't end the attribute. */
 function escapeAttribute(text: string): string {
   return escapeHtml(text).replace(/"/g, "&quot;");
+}
+
+/** Whether code is one template literal (`` `a${b}c` ``), whose text can go inside another. */
+function oneTemplate(code: string): boolean {
+  const statement = ts.createSourceFile("value.ts", `(${code});`, ts.ScriptTarget.Latest, true).statements[0];
+  if (!statement || !ts.isExpressionStatement(statement) || !ts.isParenthesizedExpression(statement.expression)) return false;
+  const node = statement.expression.expression;
+  return (ts.isTemplateExpression(node) || ts.isNoSubstitutionTemplateLiteral(node)) && node.getText().length === code.trim().length;
 }
 
 /** HTML in parts (fixed HTML, and code giving HTML) as a string expression: a template literal, or `""`. */
