@@ -1985,7 +1985,9 @@ class Converter {
   private styleEdits(root: ts.Node, kept?: { color?: string; except?: (node: ts.Node) => boolean }): Array<{ from: number; to: number; text: string }> {
     const edits: Array<{ from: number; to: number; text: string }> = [];
     const visit = (node: ts.Node) => {
-      if (ts.isJsxOpeningElement(node) || ts.isJsxSelfClosingElement(node)) {
+      // A component of the template's own that takes no `style` keeps its className: a style would be a prop it
+      // doesn't have (a type error), and do nothing either way.
+      if ((ts.isJsxOpeningElement(node) || ts.isJsxSelfClosingElement(node)) && (/^[a-z][\w-]*$/.test(node.tagName.getText()) || this.components.has(node.tagName.getText()) || this.takesStyle(node.tagName.getText()))) {
         const kept_ = kept && !kept.except?.(node) ? kept : undefined;
         const attrs = node.attributes.properties;
         const className = attrs.find((a): a is ts.JsxAttribute => ts.isJsxAttribute(a) && a.name.getText() === "className");
@@ -2029,6 +2031,24 @@ class Converter {
     };
     visit(root);
     return edits;
+  }
+
+  /**
+   * Whether a component of the file's own takes a `style` (destructures it, or passes its props on): one that doesn't, or
+   * one from another file, isn't given one.
+   */
+  private takesStyle(tag: string): boolean {
+    for (const statement of this.file.statements) {
+      const fn = ts.isFunctionDeclaration(statement) && statement.name?.text === tag ? statement
+        : ts.isVariableStatement(statement) ? statement.declarationList.declarations.map((d) => (ts.isIdentifier(d.name) && d.name.text === tag && d.initializer ? unwrap(d.initializer) : undefined)).find((init): init is ts.ArrowFunction | ts.FunctionExpression => !!init && (ts.isArrowFunction(init) || ts.isFunctionExpression(init)))
+        : undefined;
+      if (!fn) continue;
+      const param = fn.parameters[0];
+      if (!param) return false;
+      if (ts.isObjectBindingPattern(param.name)) return param.name.elements.some((e) => !!e.dotDotDotToken || (e.propertyName ?? e.name).getText() === "style");
+      return ts.isIdentifier(param.name) && new RegExp(`\\b${param.name.text}\\.style\\b|\\.\\.\\.${param.name.text}\\b`).test(fn.getText());
+    }
+    return false;
   }
 
   /**

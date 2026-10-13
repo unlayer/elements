@@ -167,3 +167,25 @@ Receipt.PreviewProps = { logo: "https://example.com/logo.png" };
     expect([check.missing, check.added, check.missingAttributes, check.designWarnings]).toEqual([[], [], [], []]);
   });
 });
+
+describe("a component of the template's own kept with a className", () => {
+  it("keeps its className when it takes no style (a style prop would be a type error)", async () => {
+    const { conversion, added, originalErrors, Original, Migrated } = await migrate({
+      "summary.tsx": `import { Html, Body, Tailwind, Section, Text } from "@react-email/components";
+function Badge({ value, className }: { value: number; className?: string }) {
+  const { sign } = { sign: value > 0 ? "+" : "" };
+  return <span className={\`rounded px-1 \${className ?? ""}\`}>{sign}{value}%</span>;
+}
+export default function Summary({ change }: { change: number }) {
+  return <Tailwind><Html><Body><Section><Text className="text-sm">Revenue <Badge value={change} className="ml-1" /></Text></Section></Body></Html></Tailwind>;
+}
+Summary.PreviewProps = { change: 12 };
+`,
+    }, "summary.tsx");
+    expect(originalErrors).toEqual([]);
+    expect(added).toEqual([]);
+    expect(conversion.code).toMatch(/<Badge value=\{change\} className="ml-1" \/>/);
+    const check = await verifyConversion(Original, Migrated);
+    expect([check.missing, check.added]).toEqual([[], []]);
+  });
+});
