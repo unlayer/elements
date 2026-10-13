@@ -139,7 +139,7 @@ Digest.PreviewProps = { name: "Ana", accountId: "42", message: "Big news", items
 });
 
 describe("markup kept as it renders", () => {
-  it("states the browser's defaults under a style it can't read without type errors, and loads its images lazily (no React 19 preload links)", async () => {
+  it("states the browser's defaults under a style it can't read without type errors, and writes its images as the original does", async () => {
     const { conversion, added, originalErrors, Original, Migrated } = await migrate({
       "styles.ts": `export const table = { borderCollapse: "collapse" as const, width: "100%" };
 `,
@@ -161,11 +161,12 @@ Receipt.PreviewProps = { logo: "https://example.com/logo.png" };
     }, "receipt.tsx");
     expect(originalErrors).toEqual([]);
     expect(added).toEqual([]);
-    // React 19 writes a preload link before the email's rows for each image a component renders, unless it's lazy:
-    // the design can't hold one ("<link> is not a valid Body child").
-    expect(conversion.code.match(/loading="lazy"/g)).toHaveLength(2);
+    // No `loading` the original doesn't have: lazy images can wait until they're scrolled to (a tracking pixel too).
+    // React 19's preload links for them aren't content to the check.
+    expect(conversion.code).not.toContain("loading=");
     const check = await verifyConversion(Original, Migrated);
     expect([check.missing, check.added, check.missingAttributes, check.designWarnings]).toEqual([[], [], [], []]);
+    expect(check.convertedHtml).not.toContain("loading=");
   });
 });
 

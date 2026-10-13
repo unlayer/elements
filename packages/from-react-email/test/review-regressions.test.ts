@@ -1420,3 +1420,41 @@ T.PreviewProps = { change: 12 };`);
     }
   });
 });
+
+describe("the image preloads React 19 adds to Elements' render", () => {
+  // Under React 19, an image a component renders makes React start Elements' render with
+  // `<link rel="preload" as="image" href="<src>">`, which Elements leaves among the rows: written here as it lands.
+  const source = `import { Html, Body, Section, Img, Text } from "@react-email/components";
+export default function Code({ logo, dark }: { logo: string; dark: boolean }) {
+  return <Html><Body><Section><Img src={logo} alt="Acme" width="120" /><Text>{dark ? "Dark" : "Light"} code 482913.</Text></Section></Body></Html>;
+}
+Code.PreviewProps = { logo: "https://example.com/logo.png", dark: false };
+`;
+  async function withLink(link: string) {
+    const dir = fs.mkdtempSync(path.join(import.meta.dirname, ".tmp-"));
+    dirs.push(dir);
+    const original = path.join(dir, "original.tsx");
+    fs.writeFileSync(original, source);
+    const { code } = await convertSource(source, { fileName: original });
+    expect(code).toContain("      <Row>");
+    const migrated = path.join(dir, "migrated.tsx");
+    fs.writeFileSync(migrated, code.replace("      <Row>", `      ${link}\n      <Row>`));
+    return { Original: (await import(original)).default, Migrated: (await import(migrated)).default };
+  }
+
+  it("aren't content: the check passes and the editor gets every block, with each prop flipped too", async () => {
+    const { Original, Migrated } = await withLink(`<link rel="preload" as="image" href={logo} />`);
+    const check = await verifyConversion(Original, Migrated);
+    expect(check.convertedHtml).toContain('<link rel="preload" as="image" href="https://example.com/logo.png"');
+    expect([check.missing, check.added, check.missingAttributes, check.addedAttributes, check.unverified, check.designWarnings, check.variants]).toEqual([[], [], [], [], [], [], []]);
+    expect(JSON.stringify(check.design)).toContain("482913");
+  });
+
+  it("are the only links left out: another image's preload is still what the editor wouldn't get", async () => {
+    const { Original, Migrated } = await withLink(`<link rel="preload" as="image" href="https://example.com/banner.png" />`);
+    const check = await verifyConversion(Original, Migrated);
+    expect(check.designWarnings).toEqual(["[Unlayer] renderToJson: <link> is not a valid Body child. Only <Row> is allowed."]);
+    expect(check.unverified).toEqual([expect.objectContaining({ what: "shown", side: "migrated" })]);
+    expect(check.variants).toEqual([expect.objectContaining({ change: "dark: true", error: expect.stringContaining("is not a valid Body child") })]);
+  });
+});

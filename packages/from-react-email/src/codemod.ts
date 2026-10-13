@@ -2631,11 +2631,6 @@ class Converter {
         const sets = ownCode ? (ownKeys && new Set([...Object.keys(classes.before), ...ownKeys, ...Object.keys(classes.after)])) : new Set(Object.keys(classes.before));
         const defaults = kept_ ? this.browserDefaults(node.tagName.getText(), sets, kept_.color) : {};
         const entries = (style: Style) => Object.entries(style).map(([k, v]) => `${/^[a-zA-Z_$][\w$]*$/.test(k) ? k : JSON.stringify(k)}: ${JSON.stringify(v)}`);
-        // An image Elements renders in a component of the template's own: React 19 would add a preload link for it
-        // before the email's rows (which the design can't hold), except for one loaded lazily. First, so a spread can
-        // say otherwise.
-        const image = kept_ && (node.tagName.getText() === "img" || this.components.get(node.tagName.getText()) === "Img") && !attrs.some((a) => ts.isJsxAttribute(a) && a.name.getText() === "loading");
-        if (image) edits.push({ from: node.tagName.getEnd(), to: node.tagName.getEnd(), text: ` loading="lazy"` });
         // React Email's Section and Container put what they hold in a cell of their own, which no style reaches: under the
         // email's `td { color: #000000 }` it would lose the text color they set or take: a div in it says it again.
         const box = this.components.get(node.tagName.getText());

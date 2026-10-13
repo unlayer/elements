@@ -72,6 +72,14 @@ function wordsOf(doc: StyledDocument, within?: Parameters<StyledDocument["words"
 }
 
 /**
+ * How many image preloads React 19 wrote itself into `html`'s body: `<link rel="preload" as="image">` for an image
+ * the same document shows (see `StyledDocument.imagePreloads`). They aren't content.
+ */
+export function imagePreloads(html: string): number {
+  return new StyledDocument(html).imagePreloads().length;
+}
+
+/**
  * The links, images and image text a reader gets: `href=` of links, `src=`
  * and `alt=` of images (alt shows when images are blocked, common in email).
  * Hidden elements and Outlook-only markup aren't counted.
@@ -337,7 +345,7 @@ function documentDoubts(original: StyledDocument, converted: StyledDocument): Un
   if (titles.length) out.push({ what: "shown", side: "migrated", cause: `${listed(titles)} in the email's body: the page's title (head content), which an email client that drops the tag but keeps its text shows`, words: titles.flatMap((p) => p.words) });
   const others = extra.filter((p) => !p.part.startsWith("<title>"));
   const head = others.some((p) => /^<(meta|link|base)\b/.test(p.part));
-  if (head) out.push({ what: "shown", side: "migrated", cause: `head content inside the email's body, a second document's (${listed(others)}): email clients keep, drop or show its parts each their own way`, words: longest(others) });
+  if (head) out.push({ what: "shown", side: "migrated", cause: `head content inside the email's body, a second document's ${listed(others)}: email clients keep, drop or show its parts each their own way`, words: longest(others) });
   else if (others.length) out.push({ what: "look", side: "migrated", cause: `a second document's ${listed(others)} inside the email's body: the browser folds it into the page's own, email clients drop it`, words: longest(others) });
   return out;
 }

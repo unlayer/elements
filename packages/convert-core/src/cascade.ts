@@ -703,6 +703,9 @@ function splitTopLevel(text: string): string[] {
 // Matching
 // ============================================
 
+/** The attributes React 19 writes on the preload link it adds for an image (see `StyledDocument.imagePreloads`). */
+const REACT_IMAGE_PRELOAD = new Set(["rel", "as", "href", "fetchpriority", "crossorigin", "referrerpolicy"]);
+
 export function attr(element: Element, name: string): string | undefined {
   return element.attrs.find((a) => a.name === name)?.value;
 }
@@ -1532,6 +1535,24 @@ export class StyledDocument {
   }
 
   /**
+   * The image preloads React 19 writes itself, in the body: a server render starts with `<link rel="preload"
+   * as="image" href="<src>">` for each image a component renders (with the image's `fetchpriority`, `crossorigin` and
+   * `referrerpolicy`), and Elements leaves it among the email's rows. Only a link of exactly that shape counts, and
+   * only where an `<img>` in the same document has that `src`: it loads nothing the email doesn't show anyway.
+   */
+  imagePreloads(): Element[] {
+    const body = this.elements().find((e) => e.tagName === "body");
+    if (!body) return [];
+    const sources = new Set(this.elements().filter((e) => e.tagName === "img").flatMap((e) => attr(e, "src")?.trim() || []));
+    return this.elements(body).filter((e) => {
+      if (e.tagName !== "link" || e.namespaceURI !== "http://www.w3.org/1999/xhtml") return false;
+      if (!e.attrs.every((a) => REACT_IMAGE_PRELOAD.has(a.name))) return false;
+      const href = attr(e, "href")?.trim();
+      return attr(e, "rel")?.trim().toLowerCase() === "preload" && attr(e, "as")?.trim().toLowerCase() === "image" && !!href && sources.has(href);
+    });
+  }
+
+  /**
    * What a second document inside the body brings into it: head content (`<title>`, `<meta>`, `<link>`, `<base>`)
    * and its own `<html>` and `<body>` start tags, each as written (`<meta name="color-scheme" content="light only">`),
    * with the words it carries: a title's text, the words of the document a start tag begins (as far as what holds it).
@@ -1542,8 +1563,10 @@ export class StyledDocument {
     const written = (tag: string, attributes: Array<{ name: string; value: string }>) => `<${tag}${attributes.map(({ name, value }) => ` ${name}="${value}"`).join("")}>`;
     const wordsOf = (words: StyledWord[]) => words.flatMap((w) => w.word.split(/\s+/)).map(normalizeWord).filter(Boolean);
     const out: Array<{ part: string; words: string[] }> = [];
+    const preloads = new Set(this.imagePreloads());
     for (const e of this.elements(body)) {
       if (!/^(title|meta|link|base)$/.test(e.tagName) || e.namespaceURI !== "http://www.w3.org/1999/xhtml") continue;
+      if (preloads.has(e)) continue;
       const text = e.tagName === "title" ? e.childNodes.map((n) => ("value" in n ? (n as { value: string }).value : "")).join("") : "";
       out.push({ part: e.tagName === "title" ? `<title>${text.trim()}</title>` : written(e.tagName, e.attrs), words: text.split(/\s+/).map(normalizeWord).filter(Boolean) });
     }

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { checkFails, compareText, hiddenClasses, hideClasses, htmlAttributes, htmlWords } from "../src/verify";
+import { checkFails, compareText, hiddenClasses, hideClasses, htmlAttributes, htmlWords, imagePreloads } from "../src/verify";
 
 describe("link and image occurrences", () => {
   it("detects reordered values even when the conversion adds words", () => {
@@ -335,7 +335,7 @@ describe("a second document inside the body", () => {
     expect(check.unverified).toContainEqual({
       what: "shown",
       side: "migrated",
-      cause: expect.stringMatching(/^head content inside the email's body, a second document's \(`<meta name="color-scheme" content="light only">`, `<html lang="en">`, `<body style="background-color:#eef2f7;margin:0">`\)/),
+      cause: expect.stringMatching(/^head content inside the email's body, a second document's `<meta name="color-scheme" content="light only">`, `<html lang="en">`, `<body style="background-color:#eef2f7;margin:0">`: email clients/),
       words: ["Sign", "in", "Your", "code", "is", "482913"],
     });
     expect(checkFails(check)).toBe(true);
@@ -350,6 +350,38 @@ describe("a second document inside the body", () => {
     expect(compareText(original, kept(content)).unverified).toEqual([]);
     const both = kept(`<div><html lang="en"><body style="color:#111111">${content}</body></html></div>`);
     expect(compareText(both, both).unverified).toEqual([]);
+  });
+});
+
+describe("the image preloads React 19 writes itself", () => {
+  // React Email's render puts them in the head; Elements leaves them among the rows, in the email's body.
+  const logo = "https://example.com/logo.png";
+  const original = `<!DOCTYPE html><html><head><link rel="preload" as="image" href="${logo}"></head><body><table width="100%"><tr><td><img src="${logo}" alt="Acme" width="120"><p>Your code is 482913.</p></td></tr></table></body></html>`;
+  const migrated = (links: string, src = logo) => `<!DOCTYPE html><html><head><meta charset="utf-8"></head><body><table width="100%"><tr><td>${links}<div><img src="${src}" alt="Acme" width="120"><p>Your code is 482913.</p></div></td></tr></table></body></html>`;
+
+  it("aren't content: a preload of an image the email shows, as React writes it", () => {
+    for (const link of [`<link rel="preload" as="image" href="${logo}">`, `<link rel="preload" as="image" href="${logo}" fetchPriority="high">`]) {
+      const check = compareText(original, migrated(link));
+      expect(check.unverified).toEqual([]);
+      expect(checkFails(check)).toBe(false);
+    }
+    expect(imagePreloads(migrated(`<link rel="preload" as="image" href="${logo}">`))).toBe(1);
+  });
+
+  it("fail closed on any other link: another image's, another kind, or more than React writes", () => {
+    const others = [
+      `<link rel="preload" as="image" href="https://example.com/banner.png">`,
+      `<link rel="stylesheet" href="${logo}">`,
+      `<link rel="preload" as="font" href="${logo}">`,
+      `<link rel="preload" as="image" href="${logo}" media="(max-width: 600px)">`,
+    ];
+    for (const link of others) {
+      const check = compareText(original, migrated(link));
+      expect(check.unverified).toEqual([expect.objectContaining({ what: "shown", side: "migrated", cause: expect.stringContaining("head content inside the email's body") })]);
+      expect(imagePreloads(migrated(link))).toBe(0);
+    }
+    // Nor where the image isn't in the email.
+    expect(checkFails(compareText(original.replace(`<img src="${logo}" alt="Acme" width="120">`, ""), migrated(`<link rel="preload" as="image" href="${logo}">`, "https://example.com/other.png")))).toBe(true);
   });
 });
 

@@ -9,6 +9,7 @@ import {
   checkFails,
   compareText,
   editorFonts,
+  imagePreloads,
   phoneDiffers,
   pinImageWidths,
   treeToDesign,
@@ -220,15 +221,16 @@ export async function verifyConversion(
   if (!React.isValidElement(root)) throw new Error("the template renders nothing with these props: give it PreviewProps it renders with");
   const convertedHtml = renderToHtml(root);
   const designRoot = options.designProps ? callTemplate(Converted, options.designProps) : root;
-  const designWarnings: string[] = [];
+  const warnings: string[] = [];
   const warn = console.warn;
-  console.warn = (...args: unknown[]) => void designWarnings.push(args.map(String).join(" "));
+  console.warn = (...args: unknown[]) => void warnings.push(args.map(String).join(" "));
   let design: Record<string, unknown>;
   try {
     design = pinImageWidths(renderToJson(designRoot) as unknown as Record<string, unknown>);
   } finally {
     console.warn = warn;
   }
+  const designWarnings = withoutImagePreloads(warnings, () => (designRoot === root ? convertedHtml : renderToHtml(designRoot)));
 
   const variants: Verification["variants"] = [];
   for (const [name, value] of Object.entries(props)) {
@@ -249,16 +251,18 @@ export async function verifyConversion(
         if (check.missing.length || check.missingAttributes.length) variants.push({ change, missing: check.missing, added: [], missingAttributes: check.missingAttributes });
         continue;
       }
-      const check = compareText(original, renderToHtml(migrated));
-      const warnings: string[] = [];
+      const html = renderToHtml(migrated);
+      const check = compareText(original, html);
+      const logged: string[] = [];
       const previousWarn = console.warn;
       console.warn = (...args: unknown[]) =>
-        void warnings.push(args.map(String).join(" "));
+        void logged.push(args.map(String).join(" "));
       try {
         renderToJson(migrated);
       } finally {
         console.warn = previousWarn;
       }
+      const warnings = withoutImagePreloads(logged, () => html);
       if (warnings.length) {
         variants.push({
           change,
@@ -320,6 +324,26 @@ export async function verifyConversion(
   }
   const stylesheets = (designRoot.props as { fonts?: Array<{ url: string }> } | null)?.fonts;
   return { ...compareText(originalHtml, convertedHtml), originalHtml, convertedHtml, designWarnings, design, editorFonts: editorFonts(design, stylesheets), variants };
+}
+
+/** Elements' warning for a `<link>` among the email's rows. */
+const LINK_AMONG_ROWS = "[Unlayer] renderToJson: <link> is not a valid Body child. Only <Row> is allowed.";
+
+/**
+ * renderToJson's warnings, less one about a `<link>` among the rows for each image preload React 19 wrote itself into
+ * the same render (`html`, see `imagePreloads`). Under React 19, an image a component renders makes React start
+ * Elements' render with `<link rel="preload" as="image">` for it, which Elements leaves among the rows: the editor
+ * still gets every block. Any other warning, and a link that isn't such a preload, is kept.
+ */
+function withoutImagePreloads(warnings: string[], html: () => string): string[] {
+  if (!warnings.includes(LINK_AMONG_ROWS)) return warnings;
+  let preloads: number;
+  try {
+    preloads = imagePreloads(html());
+  } catch {
+    return warnings;
+  }
+  return warnings.filter((warning) => !(warning === LINK_AMONG_ROWS && preloads-- > 0));
 }
 
 /**
