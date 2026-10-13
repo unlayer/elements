@@ -8,6 +8,7 @@
 import React from "react";
 import { renderToStaticMarkup } from "./server-renderer";
 import { UNLAYER_RENDER_KEY } from "./create-component";
+import { RECORDS } from "./collect";
 
 /** The root components a design starts from. */
 export const ROOT_NAMES = new Set(["Body", "Email", "Page", "Document"]);
@@ -115,7 +116,7 @@ export function unwrapRoot(element: React.ReactElement, why: { unread?: string }
   for (let depth = 0; ; depth++) {
     if (ROOT_NAMES.has(getDisplayName(current) ?? "")) break;
     // A Row or block: what it renders is Elements' own, never a root.
-    if (isElementsComponent(current)) break;
+    if (elementsOwn(current)) break;
     if (depth === 20) {
       why.unread = "it wraps more than 20 components";
       break;
@@ -161,11 +162,17 @@ export function unwrapRoot(element: React.ReactElement, why: { unread?: string }
   return React.cloneElement(current, undefined, children);
 }
 
+/** Elements' own Row, Column or block (not a component of the user's own named like one, which is called). */
+const elementsOwn = (element: React.ReactElement): boolean => {
+  const type = element.type as any;
+  return !!(type?.[UNLAYER_RENDER_KEY] || type?.[RECORDS]);
+};
+
 /** Whether a root element is somewhere in `node` (markup, Fragments, arrays, providers), whose settings would go unread. */
 function holdsRoot(node: React.ReactNode): boolean {
   if (Array.isArray(node)) return node.some(holdsRoot);
   if (!React.isValidElement(node)) return false;
-  return ROOT_NAMES.has(getDisplayName(node) ?? "") || (!isElementsComponent(node) && holdsRoot((node.props as { children?: React.ReactNode }).children));
+  return ROOT_NAMES.has(getDisplayName(node) ?? "") || (!elementsOwn(node) && holdsRoot((node.props as { children?: React.ReactNode }).children));
 }
 
 /** The advice both render functions give when a wrapper can't be unwrapped. */

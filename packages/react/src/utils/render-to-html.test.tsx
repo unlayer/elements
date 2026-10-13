@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import React from "react";
 import { renderToHtml } from "./render-to-html";
+import { renderToJson } from "./render-to-json";
 import Body from "../components/Body";
 import Row from "../components/Row";
 import Column from "../components/Column";
@@ -409,6 +410,12 @@ describe("renderToHtml with a template component", () => {
       console.warn = warn;
     }
     expect(warnings.join()).toContain("couldn't unwrap <InMarkup> (its root is inside other markup)");
+  });
+
+  it("gives the design of a template named like an Elements component (`displayName = \"Row\"`), as 0.1.22 did", () => {
+    const Layout = (props: { name: string }) => root(props);
+    Layout.displayName = "Row";
+    expect(JSON.stringify(renderToJson(<Layout name="Ada" />))).toContain("Hello Ada");
   });
 
   it("says an async template isn't supported", () => {
