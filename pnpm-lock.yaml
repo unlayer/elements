@@ -334,8 +334,8 @@ importers:
         specifier: workspace:*
         version: link:../shared
       '@unlayer/react-elements-previous':
-        specifier: npm:@unlayer/react-elements@0.1.22
-        version: '@unlayer/react-elements@0.1.22(react-dom@18.3.1(react@18.3.1))(react@18.3.1)'
+        specifier: npm:@unlayer/react-elements@0.2.0
+        version: '@unlayer/react-elements@0.2.0(react-dom@18.3.1(react@18.3.1))(react@18.3.1)'
       '@vitejs/plugin-react':
         specifier: ^4.2.0
         version: 4.7.0(vite@7.1.12(@types/node@24.9.1)(jiti@2.6.1)(less@4.4.2)(lightningcss@1.31.1)(sass@1.93.2)(terser@5.44.0)(tsx@4.21.0))
@@ -2008,8 +2008,8 @@ packages:
     peerDependencies:
       '@unlayer/types': '>=1.497.0'
 
-  '@unlayer/react-elements@0.1.22':
-    resolution: {integrity: sha512-WP4+6WPs9gxptcKGOQf3RsxqPhtUZBiurvxohUnVove83PLbSyK36b4b8ej9zO+lQRXcfELF766kPgh9EgRNVQ==}
+  '@unlayer/react-elements@0.2.0':
+    resolution: {integrity: sha512-nUcJqi84y/XloTdUTileZsmHydzxUTI/HQlhxVe3YeDk2QyLLef5NsdnvQI3XzfM2D94skvP2cz/hcNjfVH+pQ==}
     peerDependencies:
       react: '>=18'
       react-dom: '>=18'
@@ -6341,7 +6341,7 @@ snapshots:
       - bufferutil
       - utf-8-validate
 
-  '@unlayer/react-elements@0.1.22(react-dom@18.3.1(react@18.3.1))(react@18.3.1)':
+  '@unlayer/react-elements@0.2.0(react-dom@18.3.1(react@18.3.1))(react@18.3.1)':
     dependencies:
       '@unlayer/exporters': 1.497.0(@unlayer/types@1.497.0)
       '@unlayer/types': 1.497.0
