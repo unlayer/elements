@@ -369,6 +369,22 @@ export default function Welcome() {
     expect(fs.existsSync(path.join(dir, "forced/welcome.tsx"))).toBe(true);
   });
 
+  it("says how many words and values the styles were compared on in the report, one or more", async () => {
+    const dir = project({ "emails/welcome.tsx": `import { Html, Body, Text } from "@react-email/components";
+export default function Welcome() { return <Html><Body><Text>Welcome</Text></Body></Html>; }` });
+    for (const [coverage, said] of [
+      [{ words: 1, unknown: 1 }, "Styles compared on 1 word (1 value couldn't be worked out, and was left out)."],
+      [{ words: 3, unknown: 2 }, "Styles compared on 3 words (2 values couldn't be worked out, and were left out)."],
+    ] as const) {
+      const library = {
+        ...lib,
+        verifyConversion: async (...args: Parameters<typeof lib.verifyConversion>) => ({ ...(await lib.verifyConversion(...args)), styleCoverage: coverage }),
+      } as typeof lib;
+      expect(await main(["emails", "--report", "report.md"], io(dir), library)).toBe(0);
+      expect(fs.readFileSync(path.join(dir, "report.md"), "utf8")).toContain(`\n${said}\n`);
+    }
+  });
+
   it("migrates, checks and writes templates to --out, with design JSON and a report", async () => {
     const dir = project({ "emails/welcome.tsx": WELCOME, "emails/components/button.tsx": SHARED, "lib/format.ts": FORMAT });
     const out = io(dir);

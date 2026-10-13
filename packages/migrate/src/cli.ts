@@ -1127,7 +1127,10 @@ function markdownReport(results: FileResult[]): string {
     if (r.phone?.missingAttributes?.length) lines.push(`**On phones, lost links or images:** ${quote(r.phone.missingAttributes)}`, "");
     if (r.phone?.addedAttributes?.length) lines.push(`**On phones, extra links or images:** ${quote(r.phone.addedAttributes)}`, "");
     if (r.layout?.length) lines.push(`**Moved across the page:** ${moves(r.layout)}`, "");
-    if (r.styleCoverage?.words) lines.push(`Styles compared on ${r.styleCoverage.words} words${r.styleCoverage.unknown ? ` (${r.styleCoverage.unknown} values couldn't be worked out, and were left out)` : ""}.`, "");
+    if (r.styleCoverage?.words) {
+      const { words, unknown } = r.styleCoverage;
+      lines.push(`Styles compared on ${words} word${words === 1 ? "" : "s"}${unknown ? ` (${unknown} value${unknown === 1 ? " couldn't be worked out, and was" : "s couldn't be worked out, and were"} left out)` : ""}.`, "");
+    }
     if (r.designWarnings?.length) lines.push("**The editor wouldn't get:**", ...r.designWarnings.map((w) => `- ${w}`), "");
     if (r.variants?.length) {
       lines.push("**With a prop flipped:**", ...r.variants.map((v) => `- \`${v.change}\`: ${variantProblems(v)}`), "");
