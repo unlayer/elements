@@ -1065,3 +1065,18 @@ Hero.PreviewProps = { code: "SPRING15" };
     }
   });
 });
+
+describe("Tailwind classes the migration doesn't keep", () => {
+  it("are named as the template writes them, not as <Tailwind> renames them", async () => {
+    const { conversion } = await migrate({
+      "promo.tsx": `import { Html, Body, Tailwind, Text } from "@react-email/components";
+export default function Promo() {
+  return <Tailwind><Html><Body><Text className="text-sm md:text-base lg:!text-[18px] hover:underline">Hello</Text></Body></Html></Tailwind>;
+}
+`,
+    }, "promo.tsx");
+    const notes = conversion.report.notes.filter((n) => n.reason === "tailwind class not inlined").map((n) => n.detail);
+    expect(notes).toEqual(expect.arrayContaining(["md:text-base", "lg:!text-[18px]", "hover:underline"]));
+    expect(notes.filter((n) => /_/.test(String(n)))).toEqual([]);
+  });
+});

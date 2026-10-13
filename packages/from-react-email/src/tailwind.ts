@@ -14,6 +14,8 @@ export interface ResolvedClasses {
   leftover: Map<string, string[]>;
   /** What leftover classes do on small screens (`mobile:!block` → display: block), by class. */
   phone: Map<string, Style>;
+  /** Each leftover class (as <Tailwind> renames it: `md_text-base`) as the template wrote it (`md:text-base`). */
+  written?: Map<string, string>;
 }
 
 export const NO_CLASSES: ResolvedClasses = { styles: new Map(), leftover: new Map(), phone: new Map() };
@@ -22,8 +24,9 @@ export async function resolveTailwind(classNames: string[], config?: Record<stri
   const unique = [...new Set(classNames)];
   const styles = new Map<string, Style>();
   const leftover = new Map<string, string[]>();
+  const written = new Map<string, string>();
   let css = "";
-  if (unique.length === 0) return { styles, leftover, phone: new Map() };
+  if (unique.length === 0) return { styles, leftover, phone: new Map(), written };
   const children = [
     React.createElement("head", { key: "head" }),
     ...unique.map((className, i) => React.createElement("div", { key: i, className, "data-tw": i })),
@@ -36,8 +39,21 @@ export async function resolveTailwind(classNames: string[], config?: Record<stri
     styles.set(unique[index], child.props.style ?? {});
     const rest = String(child.props.className ?? "").split(/\s+/).filter(Boolean);
     if (rest.length) leftover.set(unique[index], rest);
+    // Each left as the template wrote it (`md:text-base`), for what says which: <Tailwind> renames it (`md_text-base`).
+    const tokens = unique[index].split(/\s+/).filter(Boolean);
+    for (const name of rest) written.set(name, tokens.find((token) => token === name) ?? tokens.find((token) => sanitizedClass(token) === name) ?? name);
   });
-  return { styles, leftover, phone: phoneStyles(css) };
+  return { styles, leftover, phone: phoneStyles(css), written };
+}
+
+/** A class name as React Email's <Tailwind> renames a class it can't inline (its `sanitizeClassName`). */
+export function sanitizedClass(className: string): string {
+  const digits: Record<string, string> = { 0: "zero", 1: "one", 2: "two", 3: "three", 4: "four", 5: "five", 6: "six", 7: "seven", 8: "eight", 9: "nine" };
+  return className
+    .replace(/\+/g, "plus").replace(/\[/g, "").replace(/%/g, "pc").replace(/\]/g, "").replace(/[()]/g, "")
+    .replace(/!/g, "imprtnt").replace(/>/g, "gt").replace(/</g, "lt").replace(/=/g, "eq")
+    .replace(/^[0-9]/, (digit: string) => digits[digit])
+    .replace(/[^a-zA-Z0-9\-_]/g, "_");
 }
 
 /**

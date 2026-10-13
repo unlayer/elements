@@ -1301,8 +1301,8 @@ ${name}.PreviewProps = ${props};`;
   });
 
   it.each([
-    ["dark mode", `<Section className={plan === "free" ? "p-4 dark:hidden" : "p-4"}>`, "dark_hidden"],
-    ["wider screens", `<Section className={plan === "app" ? "sm:hidden" : undefined}>`, "sm_hidden"],
+    ["dark mode", `<Section className={plan === "free" ? "p-4 dark:hidden" : "p-4"}>`, "dark:hidden"],
+    ["wider screens", `<Section className={plan === "app" ? "sm:hidden" : undefined}>`, "sm:hidden"],
   ])("in a Tailwind class that hides in %s, in a class list the preview props don't pick, fails the template", async (_, section, cls) => {
     const dir = project({ "emails/shipped.tsx": template("Shipped", section, `{ name: "Ada", plan: "pro" }`) });
     const out = io(dir);

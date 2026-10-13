@@ -688,10 +688,11 @@ class Converter {
     for (const [list, rest] of resolved.leftover) {
       for (const cls of rest) {
         if ([...(classOwners.get(list) ?? [""])].every((name) => handledPhoneClass(cls, resolved.phone, name))) continue;
-        this.report.note("tailwind class not inlined", cls);
+        const name = resolved.written?.get(cls) ?? cls;
+        this.report.note("tailwind class not inlined", name);
         // In any class list, also one the preview props don't pick (`plan === "free" ? "dark:hidden" : …`), which the
         // check doesn't see: what it hides shows in the migration.
-        if (HIDING_VARIANT.test(cls)) this.report.lostStyle(`className "${list}": ${cls}, which the migration doesn't keep`, true);
+        if (HIDING_VARIANT.test(cls)) this.report.lostStyle(`className "${list}": ${name}, which the migration doesn't keep`, true);
       }
     }
     return resolved;
