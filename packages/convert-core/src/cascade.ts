@@ -1987,7 +1987,10 @@ function compareArrays(a: number[], b: number[]): number {
 // ============================================
 
 export interface StyleDifference {
-  /** A style; "shown": text that is only the inbox preview on one side and in the email on the other; "line": a line break moved. */
+  /**
+   * A style; "shown": text that is only the inbox preview on one side and in the email on the other, or that can't
+   * be made out on one side (its color on what's behind it: white on white); "line": a line break moved.
+   */
   property: (typeof STYLE_PROPERTIES)[number] | "shown" | "line";
   original: string;
   converted: string;
@@ -2083,6 +2086,44 @@ function sameLook(a: string, b: string): boolean {
   return !!x && !!y && Math.abs(parseFloat(x[1]) - parseFloat(y[1])) <= 0.34;
 }
 
+/** WCAG's relative luminance of an opaque color. */
+function luminance([r, g, b]: Rgba): number {
+  const channel = (c: number) => {
+    const v = c / 255;
+    return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4;
+  };
+  return 0.2126 * channel(r) + 0.7152 * channel(g) + 0.0722 * channel(b);
+}
+
+/** Below this contrast with what's behind it, text can't be read (white on #f4f4f4 is 1.1). */
+const INVISIBLE = 1.2;
+/** At or above this, text can be read, if faintly (#cccccc on white is 1.6). */
+const READABLE = 1.5;
+
+/**
+ * How text in a style stands out from what's behind it: the lowest WCAG contrast ratio over the colors it may be
+ * on (its color, faded or translucent, painted over each). Undefined when its color or background is unknown (an
+ * image behind it).
+ */
+function contrast(style: WordStyle): number | undefined {
+  const color = style.color;
+  const behind = style.backgrounds ?? (style.background ? [style.background] : undefined);
+  if (!color || !behind?.length || style.image) return undefined;
+  return Math.min(
+    ...behind.map((back) => {
+      const page = over(back, [255, 255, 255, 1]);
+      const [a, b] = [luminance(over(color, page)), luminance(page)];
+      return (Math.max(a, b) + 0.05) / (Math.min(a, b) + 0.05);
+    })
+  );
+}
+
+/** "#ffffff on #ffffff": the color of text and what's behind it. */
+function onBackground(style: WordStyle): string {
+  const behind = style.backgrounds ?? (style.background ? [style.background] : []);
+  return `${show("color", style.color)} on ${[...new Set(behind.map((b) => show("background", b)))].join(" … ")}`;
+}
+
 function same(property: StyleDifference["property"], a: unknown, b: unknown): boolean {
   if (property === "size") return Math.abs((a as number) - (b as number)) <= 1;
   if (property === "color" || property === "background") {
@@ -2131,6 +2172,16 @@ export function compareStyles(originalHtml: string | StyledDocument, convertedHt
     }
     if (!a[i].shown || !b[i].shown) continue;
     compared++;
+    // Text a reader can't make out on one side only (white on white: a background lost): not the same words read.
+    const [ca, cb] = [contrast(a[i].style), contrast(b[i].style)];
+    if (ca !== undefined && cb !== undefined && ((ca >= READABLE && cb < INVISIBLE) || (ca < INVISIBLE && cb >= READABLE))) {
+      const original = ca < INVISIBLE ? `invisible (${onBackground(a[i].style)})` : "shown";
+      const converted = cb < INVISIBLE ? `invisible (${onBackground(b[i].style)})` : "shown";
+      const key = `shown\u0000${original}\u0000${converted}`;
+      const group = groups.get(key) ?? { property: "shown" as const, original, converted, words: [] };
+      group.words.push(a[i].word);
+      groups.set(key, group);
+    }
     // What the check doesn't model (`white-space`, a transform, content drawn before it): the same on both sides, or in doubt.
     const la = a[i].style.look ?? {}, lb = b[i].style.look ?? {};
     for (const key of new Set([...Object.keys(la), ...Object.keys(lb)])) {

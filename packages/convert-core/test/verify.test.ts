@@ -283,3 +283,35 @@ describe("the preview text without data-skip-in-text", () => {
     expect(compareText(phoneOnly, page(elementsPreheader("Upgrade before uploads stop") + card(content))).added).toEqual(["Upgrade", "before", "uploads", "stop"]);
   });
 });
+
+describe("text that can't be made out on one side", () => {
+  const page = (body: string) => `<html><head></head><body style="margin:0">${body}</body></html>`;
+  // A calendar badge drawn from scratch: the month in white on a colored band, the day below.
+  const badge = (band: string) => page(`<table width="80"><tr><td style="text-align:center"><p style="${band}color:#ffffff;font-size:12px;margin:0">DEC</p><p style="font-size:28px;margin:0">03</p></td></tr></table><p>Doors open at 7pm.</p>`);
+
+  it("is content: white on a band the migration lost reads as nothing", () => {
+    const check = compareText(badge("background-color:#0f766e;"), badge(""));
+    expect(check.styles).toContainEqual({ property: "shown", original: "shown", converted: "invisible (#ffffff on #ffffff)", words: ["DEC"] });
+    // The background itself is still a style difference.
+    expect(check.styles).toContainEqual(expect.objectContaining({ property: "background", original: "#0f766e", converted: "#ffffff", words: ["DEC"] }));
+    // Nearly the same color is as unreadable (white on #f4f4f4), and translucent text on its own color too.
+    expect(compareText(badge("background-color:#0f766e;"), badge("background-color:#f4f4f4;")).styles).toContainEqual(expect.objectContaining({ property: "shown", converted: "invisible (#ffffff on #f4f4f4)" }));
+    const translucent = badge("background-color:#0f766e;").replace("color:#ffffff", "color:rgba(255,255,255,0.05)");
+    expect(compareText(badge("background-color:#0f766e;"), translucent).styles).toContainEqual(expect.objectContaining({ property: "shown", converted: expect.stringMatching(/^invisible/) }));
+  });
+
+  it("is content the other way too: text the original's reader can't make out, shown", () => {
+    const check = compareText(page('<p>Hi</p><p style="color:#ffffff">Internal reference 4471</p>'), page('<p>Hi</p><p style="color:#333333">Internal reference 4471</p>'));
+    expect(check.styles).toContainEqual({ property: "shown", original: "invisible (#ffffff on #ffffff)", converted: "shown", words: ["Internal", "reference", "4471"] });
+  });
+
+  it("isn't listed where it reads the same, faint on both sides, or on an image", () => {
+    expect(compareText(badge("background-color:#0f766e;"), badge("background-color:#115e59;")).styles.filter((s) => s.property === "shown")).toEqual([]);
+    // A faint watermark kept as faint.
+    const faint = page('<p style="color:#eeeeee">Draft</p>');
+    expect(compareText(faint, page('<p style="color:#f2f2f2">Draft</p>')).styles.filter((s) => s.property === "shown")).toEqual([]);
+    // On an image, what's behind the text isn't known: not claimed either way.
+    const hero = (bg: string) => page(`<div style="${bg}"><p style="color:#ffffff">Summer sale</p></div>`);
+    expect(compareText(hero("background-image:url(https://example.com/hero.jpg)"), hero("background-image:url(https://example.com/hero.jpg)")).styles).toEqual([]);
+  });
+});
