@@ -220,6 +220,10 @@ describe("ids and class names given in values._meta", () => {
       expect(html).not.toContain("a<b>");
       expect(html).toContain("abc");
     }
+    // Class names on lines of their own, or apart by a tab, stay apart (as 0.1.22 wrote them).
+    const classes = renderToHtml(<Email><Row values={{ _meta: { htmlClassNames: "hero\ndark\tpromo\r\nwide" } } as never}><Column><Paragraph>A</Paragraph></Column></Row></Email>);
+    const row = new DOMParser().parseFromString(classes, "text/html").querySelector(".hero")!;
+    expect(["dark", "promo", "wide"].every((name) => row.classList.contains(name))).toBe(true);
   });
 });
 

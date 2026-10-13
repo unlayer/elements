@@ -183,7 +183,9 @@ export function nextHtmlId(config: any, prefix: string): string {
  * it (`סיכום`, `section.2`, `sm:hidden`). The head's CSS escapes the id it selects (see device-overrides.ts).
  */
 export function safeName(value: unknown, spaces = false): string {
-  return String(value ?? "").replace(spaces ? /["'<>&`\u0000-\u001f\u007f]/g : /["'<>&`\s\u0000-\u001f\u007f]/g, "");
+  const text = String(value ?? "");
+  // Class names apart on lines or by tabs stay apart, as the browser reads them.
+  return spaces ? text.replace(/[\t\n\f\r]/g, " ").replace(/["'<>&`\u0000-\u001f\u007f]/g, "") : text.replace(/["'<>&`\s\u0000-\u001f\u007f]/g, "");
 }
 
 /** A block's or row's `_meta` with its id and class names kept to what they can hold (see `safeName`). */
