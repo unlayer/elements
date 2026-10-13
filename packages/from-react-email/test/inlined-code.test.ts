@@ -21,7 +21,7 @@ async function migrate(files: Record<string, string>, entry: string) {
     fs.writeFileSync(path.join(dir, name), text);
   }
   const original = path.join(dir, entry);
-  const file = original.replace(/\.tsx$/, ".migrated.tsx");
+  const file = original.replace(/\.(tsx|jsx)$/, ".migrated.$1");
   const loadModule = (specifier: string, from: string) => {
     const target = path.resolve(path.dirname(from), specifier);
     for (const candidate of [target, `${target}.tsx`, `${target}.ts`, path.join(target, "index.ts")]) if (fs.existsSync(candidate) && fs.statSync(candidate).isFile()) return { fileName: candidate, source: fs.readFileSync(candidate, "utf8") };
@@ -29,7 +29,7 @@ async function migrate(files: Record<string, string>, entry: string) {
   };
   const conversion = await convertSource(files[entry], { fileName: file, loadModule });
   fs.writeFileSync(file, conversion.code);
-  const options = { noEmit: true, jsx: ts.JsxEmit.ReactJSX, strict: true, noUnusedLocals: true, module: ts.ModuleKind.ESNext, moduleResolution: ts.ModuleResolutionKind.Bundler, target: ts.ScriptTarget.ES2022, skipLibCheck: true, types: ["react"] };
+  const options = { noEmit: true, allowJs: true, jsx: ts.JsxEmit.ReactJSX, strict: true, noUnusedLocals: true, module: ts.ModuleKind.ESNext, moduleResolution: ts.ModuleResolutionKind.Bundler, target: ts.ScriptTarget.ES2022, skipLibCheck: true, types: ["react"] };
   const program = ts.createProgram([original, file], options);
   const errors = (of: string) => ts.getPreEmitDiagnostics(program).filter((d) => d.file?.fileName === of).map((d) => `TS${d.code}: ${ts.flattenDiagnosticMessageText(d.messageText, " ")}`);
   const left = errors(original);
@@ -294,5 +294,34 @@ Invite.PreviewProps = { url: "https://example.com/accept" };
     expect(conversion.code).toMatch(/import \{ company \} from "\.\/ui";/);
     const check = await verifyConversion(Original, Migrated);
     expect([check.missing, check.added, check.missingAttributes, check.designWarnings]).toEqual([[], [], [], []]);
+  });
+});
+
+describe("a JavaScript template (.jsx)", () => {
+  it("reads its module constants (styles) and converts a heading whose text is a condition over lines", async () => {
+    const { conversion, Original, Migrated } = await migrate({
+      "receipt.jsx": `import { Html, Body, Container, Heading, Text } from "@react-email/components";
+const main = { backgroundColor: "#0f172a" };
+const title = { color: "#f8fafc", fontSize: "26px" };
+export default function Receipt({ firstName }) {
+  return (
+    <Html><Body style={main}><Container>
+      <Heading style={{ textAlign: "center", ...title }}>
+        {firstName ? \`\${firstName}, your order shipped\` : "Your order shipped"}
+      </Heading>
+      <Text style={title}>Thanks for shopping.</Text>
+    </Container></Body></Html>
+  );
+}
+Receipt.PreviewProps = { firstName: "Leo" };
+`,
+    }, "receipt.jsx");
+    expect(conversion.report.lostStyles ?? []).toEqual([]);
+    expect(conversion.code).toMatch(/<Email[^>]*backgroundColor="#0f172a"/);
+    expect(conversion.code).toMatch(/color="#f8fafc"/);
+    for (const props of [Original.PreviewProps, {}]) {
+      const check = await verifyConversion(Original, Migrated, { props });
+      expect([check.missing, check.added, check.styles]).toEqual([[], [], []]);
+    }
   });
 });

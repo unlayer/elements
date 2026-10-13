@@ -281,7 +281,9 @@ class Converter {
     // Bind this source without resolving dependencies. The checker still
     // distinguishes module constants from parameters, locals and loop bindings.
     // Only this file: no @types packages either (handed this file too, the program would rename it after them).
-    const options: ts.CompilerOptions = { noLib: true, noResolve: true, types: [] };
+    // A JavaScript template (`.jsx`) is in the program too: without `allowJs` it isn't, and the checker has no symbols
+    // for it (its module constants aren't read) and crashes on its JSX attributes.
+    const options: ts.CompilerOptions = { noLib: true, noResolve: true, types: [], allowJs: true };
     const host = ts.createCompilerHost(options);
     host.getSourceFile = (name) => (name === file.fileName ? file : undefined);
     this.checker = ts.createProgram([file.fileName], options, host).getTypeChecker();
