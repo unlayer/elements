@@ -20,6 +20,7 @@
  */
 
 import ts from "typescript";
+import { jsxLines, jsxText } from "./jsx-text";
 
 export function normalizeInlined(source: string, fileName: string): string {
   for (let round = 0; round < 1000; round++) {
@@ -96,21 +97,6 @@ function unwrapParens(node: ts.Expression): ts.Expression {
   return node;
 }
 
-/** JSX text the way React reads it: lines trimmed and joined by a space, whitespace-only lines with a break dropped. */
-function jsxText(text: string): string {
-  const lines = text.split(/\r\n|\n|\r/);
-  if (lines.length === 1) return text;
-  return lines
-    .map((line, i) => {
-      let t = line.replace(/\t/g, " ");
-      if (i > 0) t = t.replace(/^ +/, "");
-      if (i < lines.length - 1) t = t.replace(/ +$/, "");
-      return t;
-    })
-    .filter(Boolean)
-    .join(" ");
-}
-
 /** The one edit to make next, or undefined when there's nothing to fold. */
 function firstFold(file: ts.SourceFile): { from: number; to: number; text: string } | undefined {
   let found: { from: number; to: number; text: string } | undefined;
@@ -175,7 +161,7 @@ function firstFold(file: ts.SourceFile): { from: number; to: number; text: strin
     }
     // One child in a fragment used as a value (passed to a function, tested, read): the child, as React passes one child.
     if (ts.isJsxFragment(node) && usedAsValue(node)) {
-      const children = node.children.filter((child) => !(ts.isJsxText(child) && !jsxText(child.text).trim() && /[\r\n]/.test(child.text)));
+      const children = node.children.filter((child) => !(ts.isJsxText(child) && !jsxLines(child.text).trim() && /[\r\n]/.test(child.text)));
       const [only] = children;
       if (children.length !== 1) return;
       if (ts.isJsxExpression(only) && only.expression) return void replace(node, `(${only.expression.getText()})`);

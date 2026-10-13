@@ -1322,6 +1322,21 @@ T.PreviewProps = { name: "Ana" };`;
     }
   });
 
+  it("shows a fragment's entities beside a condition as React does, not as written", async () => {
+    const { Original, Migrated } = await templates(`import { Html, Body, Section, Text, Link } from "@react-email/components";
+export default function T({ second, note }: { second?: string; note?: string }) {
+  return <Html><Body><Section>
+    <Text><Link href="https://example.com/account">Account</Link>{second && <>&nbsp;&middot;&nbsp;</>}{second}</Text>
+    <Text>{note || <>Terms &amp; conditions</>}</Text>
+  </Section></Body></Html>;
+}
+T.PreviewProps = {};`);
+    for (const props of [{}, { second: "Billing", note: "Read me" }]) {
+      const check = await verifyConversion(Original, Migrated, { props });
+      expect([check.missing, check.added, check.designWarnings]).toEqual([[], [], []]);
+    }
+  });
+
   it("keeps markup in a list's items with what each item reads", async () => {
     const { Original, Migrated, conversion } = await templates(`import { Html, Body, Section, Text } from "@react-email/components";
 function Badge({ label }: { label: string }) {
