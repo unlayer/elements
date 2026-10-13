@@ -71,18 +71,20 @@ let second: Build | null | undefined;
 function secondBuild(outer: unknown): Build | undefined {
   if (second === undefined) {
     second = null;
+    const node = (globalThis as any).process;
     const requirers = [
       // (`module`'s, read so that a bundler doesn't take it for a require of a path worked out when it runs.)
       () => {
         const own = (typeof __UNLAYER_CJS__ === "boolean" ? __UNLAYER_CJS__ : true) && typeof module === "object" ? Reflect.get(module ?? {}, "require") : undefined;
         return typeof own === "function" ? (id: string) => own.call(module, id) : undefined;
       },
-      // (From the app's folder: a module's own URL is written in syntax webpack 4 doesn't parse. One that loads another
-      // React than this one's is passed over.)
-      () => {
-        const node = (globalThis as any).process;
-        return node?.getBuiltinModule?.("module")?.createRequire(`${node.cwd()}/`);
-      },
+      // From the app's script, then the folder it was started in (a module's own URL is written in syntax webpack 4
+      // doesn't parse): only where `react` is this React, so react-dom there renders with it. Another React's isn't
+      // loaded at all (React 19's browser build, from a folder above a React 18 app, would keep Node running).
+      ...[node?.argv?.[1], `${node?.cwd?.()}/`].map((from) => () => {
+        const required = node?.getBuiltinModule?.("module")?.createRequire(from);
+        return (required?.("react") as typeof React | undefined)?.createElement === React.createElement ? required : undefined;
+      }),
     ];
     // React 19's browser build opens a MessageChannel when it loads, which keeps Node running: its Bun build instead.
     const ids = ["react-dom/server.bun", ...(Number.parseInt(React.version) >= 19 ? [] : ["react-dom/server.browser"]), "react-dom/server.node"];

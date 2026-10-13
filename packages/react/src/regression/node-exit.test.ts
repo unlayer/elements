@@ -42,8 +42,7 @@ console.log(JSON.stringify({ react: React.version, html: html.includes("Hi there
 };
 
 /** A project in a temporary folder with the built package and `react`/`react-dom` copied in (links would resolve back into the workspace). */
-function project(react: string, reactDom: string, type: "module" | "commonjs"): string {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "elements-exit-"));
+function project(react: string, reactDom: string, type: "module" | "commonjs", dir = fs.mkdtempSync(path.join(os.tmpdir(), "elements-exit-"))): string {
   const modules = path.join(dir, "node_modules");
   fs.cpSync(fs.realpathSync(react), path.join(modules, "react"), { recursive: true });
   fs.cpSync(fs.realpathSync(reactDom), path.join(modules, "react-dom"), { recursive: true });
@@ -87,6 +86,47 @@ console.log(JSON.stringify({ atImport, reactDom, rendered: calls > 0 && html.inc
       }
     }, 30_000);
   }
+});
+
+describe("an app that's a module, started from another folder than its own", () => {
+  // The second react-dom module was looked for from the folder Node was started in: from a folder whose React is 19,
+  // a React 18 app loaded React 19's browser build (rejected, but its MessageChannel kept Node running), and from one
+  // with no React, none was found (a design worked out in `useMemo`, then a hook, failed). 0.1.22 did neither.
+  const [react18, reactDom18] = reacts["React 18"];
+  const [react19, reactDom19] = reacts["React 19"];
+  const page = `import React from "react";
+import { renderToString } from "react-dom/server";
+import * as E from "@unlayer/react-elements";
+const h = React.createElement;
+const email = h(E.Email, null, h(E.Row, null, h(E.Column, null, h(E.Paragraph, null, "Hi there"))));
+const Page = () => { const rows = React.useMemo(() => E.renderToJson(email).body.rows.length, []); const [open] = React.useState(false); return h("pre", { dangerouslySetInnerHTML: { __html: rows + " rows, open=" + open + ", " + E.renderToHtml(email).includes("Hi there") } }); };
+console.log(JSON.stringify({ react: React.version, page: renderToString(h(Page)) }));
+`;
+  it("exits, and renders with hooks after, from a folder whose React is another", () => {
+    expect(fs.existsSync(path.join(dist, "index.js")), "build the package first (pnpm build)").toBe(true);
+    const parent = fs.mkdtempSync(path.join(os.tmpdir(), "elements-exit-"));
+    const elsewhere = fs.mkdtempSync(path.join(os.tmpdir(), "elements-exit-"));
+    try {
+      fs.cpSync(fs.realpathSync(react19), path.join(parent, "node_modules/react"), { recursive: true });
+      fs.cpSync(fs.realpathSync(reactDom19), path.join(parent, "node_modules/react-dom"), { recursive: true });
+      const app = project(react18, reactDom18, "module", path.join(parent, "app"));
+      fs.writeFileSync(path.join(app, "page.js"), page);
+      // The email in the page's body (no hook after it): it rendered, and then Node kept running.
+      fs.writeFileSync(path.join(app, "body.js"), page.replace(/const Page = .*\n/, 'const Page = () => h("pre", { dangerouslySetInnerHTML: { __html: "1 rows, open=false, " + E.renderToHtml(email).includes("Hi there") } });\n'));
+      const body = spawnSync(process.execPath, [path.join(app, "body.js")], { cwd: parent, encoding: "utf8", timeout: 20_000 });
+      expect(body.error, "still running after 20s: something keeps Node alive").toBeUndefined();
+      expect(JSON.parse(body.stdout.trim().split("\n").pop()!)).toEqual({ react: "18.3.1", page: "<pre>1 rows, open=false, true</pre>" });
+      for (const cwd of [parent, elsewhere]) {
+        const run = spawnSync(process.execPath, [path.join(app, "page.js")], { cwd, encoding: "utf8", timeout: 20_000 });
+        expect(run.error, `still running after 20s, started from ${cwd === parent ? "the folder above" : "another folder"}`).toBeUndefined();
+        expect(run.status, run.stderr).toBe(0);
+        expect(JSON.parse(run.stdout.trim().split("\n").pop()!)).toEqual({ react: "18.3.1", page: "<pre>1 rows, open=false, true</pre>" });
+      }
+    } finally {
+      fs.rmSync(parent, { recursive: true, force: true });
+      fs.rmSync(elsewhere, { recursive: true, force: true });
+    }
+  }, 60_000);
 });
 
 describe("a template with a list written without keys (`items.map(…)`)", () => {
