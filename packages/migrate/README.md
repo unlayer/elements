@@ -17,7 +17,7 @@ Run it from your project folder, with Node.js 20.6 or later (an older one stops 
 3. **Reported.** How much is editable in the visual editor, what was kept as HTML, and every visual difference (a dropped hover style, a `mobile:` class, a radius).
 
 ```text
-✓ emails/welcome.tsx: 100% editable, 1 kind of difference
+✓ emails/welcome.tsx: 100% editable, 1 kind of difference (image border radius dropped)
 ✓ emails/comment.tsx: 100% editable
     looks different: couldn't verify: the look of "Alex", "can", "you" (`white-space: pre-wrap`, a style the check doesn't verify)
 - emails/components/layout.tsx: skipped (no default-exported component)

@@ -1004,7 +1004,7 @@ function line(result: FileResult): string {
       return `✗ ${result.file}: ${result.reason}`;
     default: {
       const editable = `${Math.round((result.editable ?? 0) * 100)}% editable`;
-      const differences = result.differences?.length ? `, ${result.differences.length} kind${result.differences.length > 1 ? "s" : ""} of difference` : "";
+      const differences = result.differences?.length ? `, ${result.differences.length} kind${result.differences.length > 1 ? "s" : ""} of difference (${kinds(result.differences)})` : "";
       const written = result.output ? ` → ${result.output}` : "";
       // How it looks that differs: written anyway, listed to fix in the editor.
       const looks = result.looks?.length ? `\n    looks different: ${result.looks.join("; ")}` : "";
@@ -1020,6 +1020,22 @@ function line(result: FileResult): string {
         : `✗ ${result.file}: check failed (looks different, with --strict)${written}${looks}`;
     }
   }
+}
+
+/**
+ * What the migration lists as different, by kind, in short (the report has each one): "image border radius dropped;
+ * style not converted: box-shadow, opacity".
+ */
+function kinds(differences: NonNullable<FileResult["differences"]>): string {
+  return differences
+    .map((d) => {
+      const kind = d.reason.replace(/\s*\([^)]*\)/g, "").trim();
+      // A kind that's a list of its own: what it is, from each example ("box-shadow (Section)").
+      if (!/^((phone )?style not converted|attribute not kept)$/.test(kind) || !d.examples.length) return kind;
+      const what = [...new Set(d.examples.map((example) => example.replace(/\s*\(.*$/, "").trim()))];
+      return `${kind}: ${what.join(", ")}${d.examples.length >= 5 && d.count > 5 ? ", …" : ""}`;
+    })
+    .join("; ");
 }
 
 /** Moved text and images: `"Order", "Status" 149px to the left`. */

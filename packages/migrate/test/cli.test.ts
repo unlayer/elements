@@ -352,6 +352,16 @@ export default function Welcome() { return <Html><Body><Text>Welcome aboard</Tex
     expect(fs.readFileSync(path.join(dir, "report.md"), "utf8")).toContain("**Shown in another style:**\n- the page's background: #f4f4f5 → #ffffff\n");
   });
 
+  it("names the kinds of difference the migration lists, in short (the report has each one)", async () => {
+    const dir = project({ "emails/welcome.tsx": `import { Html, Body, Section, Img, Text } from "@react-email/components";
+export default function Welcome() {
+  return <Html><Body><Section style={{ boxShadow: "0 1px 4px #0003", padding: 16 }}><Img src="https://example.com/logo.png" width="64" height="64" alt="Logo" style={{ borderRadius: 8 }} /><Text>Welcome aboard</Text></Section></Body></Html>;
+}` });
+    const out = io(dir);
+    expect(await main(["emails"], out, lib), out.out + out.err).toBe(0);
+    expect(out.out).toContain("✓ emails/welcome.tsx: 100% editable, 3 kinds of difference (image border radius dropped; image height not kept; style not converted: box-shadow)\n");
+  });
+
   it("migrates, checks and writes templates to --out, with design JSON and a report", async () => {
     const dir = project({ "emails/welcome.tsx": WELCOME, "emails/components/button.tsx": SHARED, "lib/format.ts": FORMAT });
     const out = io(dir);
