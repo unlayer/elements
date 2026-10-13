@@ -1031,7 +1031,9 @@ describe("props typed to hold JSX", () => {
 import { Html, Body, Text } from "@react-email/components";
 export default function T({ message }: { message: ReactNode }) { return <Html><Body><Text>{message}, soon.</Text></Body></Html>; }
 T.PreviewProps = { message: "Track it here" };`);
-    expect(conversion.code).toContain("htmlText(message)");
+    // Its text can't be written as HTML without rendering it (no react-dom in the migration): the block is kept as it renders.
+    expect(conversion.code).toMatch(/<KeptHtml[^>]*>\s*<div[^>]*>\s*<Text>\{message\}, soon.<\/Text>/);
+    expect(conversion.code).not.toContain("react-dom");
     const { renderToHtml } = await import("@unlayer/react-elements");
     const withLink = renderToHtml(React.createElement(Migrated, { message: React.createElement(React.Fragment, null, "Track it ", React.createElement("a", { href: "https://example.com/track" }, "here")) }));
     expect(withLink).toContain('<a href="https://example.com/track">here</a>');
@@ -1264,5 +1266,54 @@ export default function T() {
     expect(conversion.code).not.toMatch(/Georgia/);
     const check = await verifyConversion(Original, Migrated);
     expect(check.styles).toEqual([]);
+  });
+});
+
+describe("migrated code without react-dom", () => {
+  // Next.js refuses app code that imports react-dom/server ("You're importing a component that imports
+  // react-dom/server"): what the migration keeps as HTML renders through Elements instead.
+  const blockTypes = (design: any) => design.body.rows.flatMap((row: any) => row.columns.flatMap((column: any) => column.contents.map((content: any) => content.type)));
+
+  it("writes text with images, conditions and lists as HTML text, and keeps a component of the template's own as an Html block", async () => {
+    const { Original, Migrated, conversion } = await templates(`import { Html, Body, Section, Text, Link, Img } from "@react-email/components";
+const base = process.env.ASSETS_URL ?? "https://example.com";
+function Stamp({ label }: { label: string }) {
+  const [shown] = [label.toUpperCase()];
+  return <table><tbody><tr><td><p>Stamp: {shown}</p></td></tr></tbody></table>;
+}
+export default function T({ name, note, stars, lines, plan }: { name: string; note?: string; stars: string[]; lines: string[]; plan: string }) {
+  return <Html><Body><Section>
+    <Text>Follow us <Link href="https://example.com/x"><Img src={\`\${base}/x.png\`} alt="X" width={18} /></Link> {name}</Text>
+    <Text>{note ? <><b>{note}</b><br /></> : null}Rated {stars.map((star, i) => <Img key={i} src={star} alt="star" width={12} style={{ display: "inline-block" }} />)}</Text>
+    <Text>{lines.map((line, i) => <span key={i}>{line}{i < lines.length - 1 && <br />}</span>)}</Text>
+    <Stamp label={plan} />
+  </Section></Body></Html>;
+}
+T.PreviewProps = { name: "Ana", note: "Thanks!", stars: ["https://example.com/s1.png", "https://example.com/s2.png"], lines: ["Line one", "Line two"], plan: "pro" };`);
+    expect(conversion.code).not.toContain("react-dom");
+    expect(conversion.code).not.toContain("renderToStaticMarkup");
+    expect(conversion.code).toMatch(/<KeptHtml[^>]*>\s*<div[^>]*>\s*<Stamp label=\{plan\} \/>/);
+    for (const props of [Original.PreviewProps, { name: "Bo", stars: [], lines: ["Only"], plan: "team" }]) {
+      const check = await verifyConversion(Original, Migrated, { props });
+      expect([check.missing, check.added, check.missingAttributes, check.addedAttributes, check.designWarnings]).toEqual([[], [], [], [], []]);
+      // The text stays editable text; the component of the template's own is an Html block.
+      expect(blockTypes(check.design)).toEqual(["text", "text", "text", "html"]);
+    }
+  });
+
+  it("keeps markup in a list's items with what each item reads", async () => {
+    const { Original, Migrated, conversion } = await templates(`import { Html, Body, Section, Text } from "@react-email/components";
+function Badge({ label }: { label: string }) {
+  const text = label.trim();
+  return <div style={{ border: "1px solid #ccc" }}>{text}</div>;
+}
+export default function T({ items }: { items: Array<{ id: string; label: string }> }) {
+  return <Html><Body><Section>{items.map((item) => <Badge key={item.id} label={item.label} />)}</Section></Body></Html>;
+}
+T.PreviewProps = { items: [{ id: "a", label: "First" }, { id: "b", label: "Second" }] };`);
+    expect(conversion.code).not.toContain("react-dom");
+    const check = await verifyConversion(Original, Migrated, { props: { items: [{ id: "c", label: "Third" }, { id: "d", label: "Fourth" }, { id: "e", label: "Fifth" }] } });
+    expect([check.missing, check.added, check.designWarnings]).toEqual([[], [], []]);
+    expect(blockTypes(check.design).filter((type: string) => type === "html")).toHaveLength(3);
   });
 });

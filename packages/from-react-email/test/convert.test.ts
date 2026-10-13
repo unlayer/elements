@@ -84,7 +84,8 @@ export default function T() {
     // Badge returns plain JSX: inlined. Stamp uses a hook: kept, rendered to HTML.
     expect(result.report.info).toContainEqual({ reason: "local component inlined where it's used", detail: "Badge" });
     expect(result.report.fallbacks).toEqual([{ reason: "custom component", detail: "Stamp" }]);
-    expect(result.code).toMatch(/renderToStaticMarkup\(\s*<div style=\{\{ fontSize: "medium" \}\}>\s*<Stamp label="paid" \/>/);
+    expect(result.code).toMatch(/<KeptHtml[^>]*>\s*<div style=\{\{ fontSize: "medium" \}\}>\s*<Stamp label="paid" \/>/);
+    expect(result.code).not.toContain("react-dom");
     expect(result.code).toMatch(/<span>\$\{escapeHtml\(String\("new"\)\)\}<\/span>|<span>new<\/span>/);
     expect(result.code).not.toContain("const Badge");
   });

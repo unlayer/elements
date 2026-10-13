@@ -585,11 +585,10 @@ describe("migration review regressions", () => {
     const same = await verifyConversion(Original, Migrated, { props: { sequence: ["A", "A", "A"] } });
     expect(same.missing).toEqual([]);
     expect(same.designWarnings).toEqual([]);
-    // Label's render consumes the template's sequence, which React's purity
-    // rule forbids: the kept components render in another order, and the
-    // values that changed places fail the check.
+    // Label's render consumes the template's sequence, which React's purity rule forbids: the kept components
+    // render when React renders them (in their KeptHtml), after the template made its elements, as in the original.
     const distinct = await verifyConversion(Original, Migrated, { props: { sequence: ["A", "B", "C"] } });
-    expect(distinct.missing).not.toEqual([]);
+    expect([distinct.missing, distinct.added]).toEqual([[], []]);
   });
 
   it("converts early returns, including nested switch branches, but leaves helper returns alone", async () => {
