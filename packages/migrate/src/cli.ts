@@ -492,7 +492,15 @@ function designPath(target: string): string {
 }
 
 /** Each output, and whether a file already there may be replaced (the template itself with --write, the report, or --overwrite). */
-type Destinations = Map<string, { canonical: string; root?: string; replace: boolean; design?: boolean; keepUnlessSame?: string }>;
+type Destinations = Map<string, {
+  canonical: string;
+  root?: string;
+  replace: boolean;
+  design?: boolean;
+  keepUnlessSame?: string;
+  /** What a destination the run may replace held when the run decided it could (null: nothing), which it must still hold. */
+  before?: Buffer | null;
+}>;
 
 /** Resolve existing ancestors too, including symlinked directories. */
 async function canonicalPath(path: string): Promise<string> {
@@ -591,6 +599,15 @@ async function reserveDestinations(inputs: Input[], candidates: Input[], options
     }
   }
   if (unsafe.length) throw new Error(`--overwrite would replace ${unsafe.map((u) => `${relative(cwd, u.file)} (${u.why})`).join(", ")}, which git can't restore. Commit it, choose a folder of its own for --out, or pass --allow-dirty.`);
+  // What each one holds now: an edit made while templates load (after this decided it could be replaced) is kept. A
+  // template replaced in place checks what it was converted from instead.
+  for (const [path, d] of destinations) {
+    if (!d.replace || sources.has(d.canonical)) continue;
+    d.before = await readFile(path).catch((error) => {
+      if ((error as NodeJS.ErrnoException).code === "ENOENT") return null;
+      throw error;
+    });
+  }
   return destinations;
 }
 
@@ -682,7 +699,14 @@ async function writeDestination(path: string, text: string, destinations: Destin
     await checkDestination(path, destinations);
     // The template itself: only as it was converted (an edit made during the run isn't lost).
     if (replaces && !(await readFile(path).catch(() => undefined))?.equals(replaces)) throw new Error("it changed while the run converted it: not replaced, run again");
+    // Another file: only as it was when the run decided to replace it.
+    const destination = destinations.get(path);
+    if (destination?.before !== undefined) {
+      const now = await readFile(path).catch(() => null);
+      if (now === null ? destination.before !== null : !destination.before?.equals(now)) throw new Error(`${basename(path)} changed during the run: not replaced (the edit is kept), run again`);
+    }
     await rename(temporary, path);
+    if (destination?.before !== undefined) destination.before = Buffer.from(text);
   } finally {
     release();
     remove();

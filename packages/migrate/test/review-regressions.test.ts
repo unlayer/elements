@@ -1127,6 +1127,24 @@ export default function Welcome() { return <Html><Body><Text>Hello there</Text><
     expect(await main(["emails", "--out", "migrated", "--design", "--overwrite"], io(dir), lib)).toBe(0);
   });
 
+  it("aren't replaced by --out with --overwrite when edited while the run loads the templates, after it decided it could replace them", async () => {
+    // The template edits the output an earlier run wrote when it's loaded to be checked.
+    const editsOutput = `import fs from "node:fs";
+import { fileURLToPath } from "node:url";
+import { Html, Body, Text } from "@react-email/components";
+const output = fileURLToPath(new URL("../migrated/welcome.tsx", import.meta.url));
+const mark = ["// edited", "during the run"].join(" ");
+if (fs.existsSync(output) && !fs.readFileSync(output, "utf8").includes(mark)) fs.appendFileSync(output, \`\${mark}\\n\`);
+export default function Welcome() { return <Html><Body><Text>Hello there</Text></Body></Html>; }
+`;
+    const dir = project({ "emails/welcome.tsx": editsOutput });
+    expect(await main(["emails", "--out", "migrated"], io(dir), lib)).toBe(0);
+    const out = io(dir);
+    expect(await main(["emails", "--out", "migrated", "--overwrite"], out, lib), out.out + out.err).toBe(2);
+    expect(out.out).toContain("✗ emails/welcome.tsx: couldn't write output: welcome.tsx changed during the run: not replaced (the edit is kept), run again");
+    expect(fs.readFileSync(path.join(dir, "migrated/welcome.tsx"), "utf8")).toContain("// edited during the run");
+  });
+
   it("aren't replaced by --out with --overwrite once a template a run wrote is edited (its hash), unless git can restore it or --allow-dirty", async () => {
     const dir = project({ "emails/welcome.tsx": template });
     expect(await main(["emails", "--out", "migrated"], io(dir), lib)).toBe(0);
