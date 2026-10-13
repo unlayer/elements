@@ -127,6 +127,8 @@ const SHOWS = /\b(display|visibility|opacity|max-?height|overflow|mso-?hide|text
  * nor print.
  */
 const HIDING_VARIANT = /^(?!.*(?:^|[:_])(?:hover|focus|focus-within|focus-visible|active|visited|disabled|group-[\w-]+|peer-[\w-]+|print)[:_])(?:[a-z0-9-]+[:_])+!?(hidden|invisible|sr-only|collapse|opacity-0|max-h-0|h-0)$/;
+/** HTML elements of text (formatting, lists, paragraphs) that inline content writes itself, with the attributes text needs. */
+const TEXT_TAGS = new Set("a abbr b big blockquote br center cite code del dfn div em font h1 h2 h3 h4 h5 h6 i ins kbd label li mark ol p pre q s samp small span strike strong sub sup time u ul var".split(" "));
 const INLINE_TAGS = new Set(["span", "strong", "b", "em", "i", "br", "small", "u", "code", "sup", "sub"]);
 
 export interface CodemodOptions {
@@ -2133,10 +2135,14 @@ class Converter {
             : jsx.name ? undefined
             // A component the codemod doesn't convert (`<Trans>`) is rendered where the template renders, not written as a tag.
             : /^[A-Z]|\./.test(jsx.tag) ? undefined
-            : jsx.tag;
+            // Text markup is written with the attributes text needs; anything else (an inline <svg> icon, an <img>) as it
+            // renders, with all of its attributes.
+            : TEXT_TAGS.has(jsx.tag) ? jsx.tag
+            : undefined;
           if (jsx.opaqueProps) throw new KeepBlock(`dynamic spread or content props in text: ${jsx.tag}`);
           if (!tag) {
-            // A React Email component (an image in a link) as the HTML it renders; one of the template's own keeps the block.
+            // A React Email component (an image in a link), or an element that isn't text markup, as the HTML it renders;
+            // a component of the template's own keeps the block.
             this.renderedRanges.push({ from: child.getStart(), to: child.getEnd() });
             this.markupElement(child, parts);
             continue;

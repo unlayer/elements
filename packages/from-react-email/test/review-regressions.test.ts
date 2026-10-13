@@ -1317,3 +1317,29 @@ T.PreviewProps = { items: [{ id: "a", label: "First" }, { id: "b", label: "Secon
     expect(blockTypes(check.design).filter((type: string) => type === "html")).toHaveLength(3);
   });
 });
+
+describe("an inline SVG icon in a button", () => {
+  it("keeps the SVG's attributes, with their SVG names", async () => {
+    const { Original, Migrated, conversion } = await templates(`import { Html, Body, Section, Link } from "@react-email/components";
+export default function T({ url }: { url: string }) {
+  return <Html><Body><Section>
+    <Link href={url} style={{ display: "inline-block", padding: "12px 24px", backgroundColor: "#111827", color: "#ffffff" }}>
+      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: "8px" }}>
+        <path d="M4 12h16" />
+        <polyline points="14 6 20 12 14 18" />
+        <line x1="4" x2="4" y1="6" y2="18" />
+      </svg>
+      Continue
+    </Link>
+  </Section></Body></Html>;
+}
+T.PreviewProps = { url: "https://example.com/next" };`);
+    expect(conversion.code).not.toContain("react-dom");
+    const check = await verifyConversion(Original, Migrated);
+    expect([check.missing, check.added, check.missingAttributes]).toEqual([[], [], []]);
+    const svg = (html: string) => /<svg[\s\S]*?<\/svg>/.exec(html.replace(/&quot;/g, '"'))?.[0];
+    expect(svg(check.convertedHtml)).toBe(svg(check.originalHtml));
+    expect(svg(check.convertedHtml)).toMatch(/viewBox="0 0 24 24"[^>]*stroke-width="2"/);
+    expect(svg(check.convertedHtml)).toContain('<line x1="4" x2="4" y1="6" y2="18"></line>');
+  });
+});
