@@ -49,8 +49,9 @@ and the visual editor must get every block. Nothing is written unless you ask:
                    props shown as given become merge tags ({{name}}).
   --no-merge-tags  Keep the sample values in the design JSON instead.
   --report <file>  Write the migration report (.md or .json).
-  --strict         Fail (and don't write) a template the check finds any
-                   difference in, also in how it looks. Without it, every
+  --strict         Fail (and don't write) a template with any difference:
+                   in its content, in how it looks, or one the migration
+                   lists (a style it couldn't keep). Without it, every
                    template is written, with what looks different listed.
   --force          With --strict, write templates the check fails anyway.
   --overwrite      Replace files already at a destination that this run
@@ -867,13 +868,15 @@ async function migrateFile(input: Input, options: Options, lib: Library, io: Io,
       ...(lostLooks.length ? [`lost styles: ${lostLooks.join("; ")}`] : []),
       ...verification.variants.filter((v) => !v.error && !contentProblems(v).length).map((v) => `with ${v.change}: ${lookProblems(v).join("; ")}`),
     ];
+    // What the migration lists as different (a style it couldn't keep): with --strict, any difference fails.
+    const differences = group(report.notes);
     const result: FileResult = {
       file: name,
-      status: failsContent || (options.strict && looks.length) ? "check-failed" : "migrated",
+      status: failsContent || (options.strict && (looks.length || differences.length)) ? "check-failed" : "migrated",
       ...(looks.length ? { looks } : {}),
       editable: report.nativeRatio,
       kept: report.fallbacks,
-      differences: group(report.notes),
+      differences,
       changes: group([
         ...(report.info ?? []),
         ...(mergeTags?.used.length ? [{ reason: "text props became merge tags in the design JSON", detail: mergeTags.used.join(", ") }] : []),
@@ -1004,11 +1007,11 @@ function line(result: FileResult): string {
       return `✗ ${result.file}: ${result.reason}`;
     default: {
       const editable = `${Math.round((result.editable ?? 0) * 100)}% editable`;
-      const differences = result.differences?.length ? `, ${result.differences.length} kind${result.differences.length > 1 ? "s" : ""} of difference (${kinds(result.differences)})` : "";
+      const differences = result.differences?.length ? `${result.differences.length} kind${result.differences.length > 1 ? "s" : ""} of difference (${kinds(result.differences)})` : "";
       const written = result.output ? ` → ${result.output}` : "";
       // How it looks that differs: written anyway, listed to fix in the editor.
       const looks = result.looks?.length ? `\n    looks different: ${result.looks.join("; ")}` : "";
-      if (result.status === "migrated") return `✓ ${result.file}: ${editable}${differences}${written}${looks}`;
+      if (result.status === "migrated") return `✓ ${result.file}: ${editable}${differences ? `, ${differences}` : ""}${written}${looks}`;
       const found = [
         ...contentProblems({ ...result, missing: result.missingText, added: result.addedText }),
         ...(result.designWarnings?.length ? [`${result.designWarnings.length} block(s) the editor wouldn't get`] : []),
@@ -1017,7 +1020,7 @@ function line(result: FileResult): string {
       // Its content differs (a converter bug: report it), or, with --strict, how it looks.
       return found.length
         ? `✗ ${result.file}: ${result.output ? "written, but its content differs" : "check failed"} (${found.join("; ")})${written}${looks}`
-        : `✗ ${result.file}: check failed (looks different, with --strict)${written}${looks}`;
+        : `✗ ${result.file}: check failed (${[...(result.looks?.length ? ["looks different"] : []), ...(differences ? [differences] : [])].join(", ")}, with --strict)${written}${looks}`;
     }
   }
 }

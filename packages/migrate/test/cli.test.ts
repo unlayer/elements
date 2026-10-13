@@ -291,7 +291,7 @@ export default function T() { return <Html><Body><Text style={{ whiteSpace: "pre
     const strictDir = project({ "emails/unreadable.tsx": unreadable, "emails/preserved.tsx": preserved });
     const strict = io(strictDir);
     expect(await main(["emails", "--out", "migrated", "--strict"], strict, lib), strict.out + strict.err).toBe(2);
-    expect(strict.out).toMatch(/✗ emails\/unreadable\.tsx: check failed \(looks different, with --strict\)\n {4}looks different: couldn't verify: the color/);
+    expect(strict.out).toMatch(/✗ emails\/unreadable\.tsx: check failed \(looks different, 1 kind of difference \(head style rule not converted\), with --strict\)\n {4}looks different: couldn't verify: the color/);
     expect(fs.existsSync(path.join(strictDir, "migrated/unreadable.tsx"))).toBe(false);
   });
 
@@ -352,7 +352,7 @@ export default function Welcome() { return <Html><Body><Text>Welcome aboard</Tex
     expect(fs.readFileSync(path.join(dir, "report.md"), "utf8")).toContain("**Shown in another style:**\n- the page's background: #f4f4f5 → #ffffff\n");
   });
 
-  it("names the kinds of difference the migration lists, in short (the report has each one)", async () => {
+  it("names the kinds of difference the migration lists, in short (the report has each one), and fails them with --strict", async () => {
     const dir = project({ "emails/welcome.tsx": `import { Html, Body, Section, Img, Text } from "@react-email/components";
 export default function Welcome() {
   return <Html><Body><Section style={{ boxShadow: "0 1px 4px #0003", padding: 16 }}><Img src="https://example.com/logo.png" width="64" height="64" alt="Logo" style={{ borderRadius: 8 }} /><Text>Welcome aboard</Text></Section></Body></Html>;
@@ -360,6 +360,13 @@ export default function Welcome() {
     const out = io(dir);
     expect(await main(["emails"], out, lib), out.out + out.err).toBe(0);
     expect(out.out).toContain("✓ emails/welcome.tsx: 100% editable, 3 kinds of difference (image border radius dropped; image height not kept; style not converted: box-shadow)\n");
+    // With --strict, any difference fails, those the migration lists too: not written unless --force.
+    const strict = io(dir);
+    expect(await main(["emails", "--out", "strict", "--strict"], strict, lib), strict.out + strict.err).toBe(2);
+    expect(strict.out).toContain("✗ emails/welcome.tsx: check failed (3 kinds of difference (image border radius dropped; image height not kept; style not converted: box-shadow), with --strict)\n");
+    expect(fs.existsSync(path.join(dir, "strict/welcome.tsx"))).toBe(false);
+    expect(await main(["emails", "--out", "forced", "--strict", "--force"], io(dir), lib)).toBe(2);
+    expect(fs.existsSync(path.join(dir, "forced/welcome.tsx"))).toBe(true);
   });
 
   it("migrates, checks and writes templates to --out, with design JSON and a report", async () => {
