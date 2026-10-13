@@ -444,6 +444,18 @@ async function run(argv: string[], io: Io, library?: Library): Promise<number> {
       );
     }
   }
+  // Files the run left as they were that still import React Email (a shared component, a helper the templates inlined):
+  // React Email can go only once nothing imports them, so they're named.
+  if (options.write && results.some((r) => r.output)) {
+    const reactEmail = new Set(inputs.files.filter((f) => f.reactEmail).map((f) => resolve(f.path)));
+    const left = results.filter((r) => r.status === "skipped" && !r.output && reactEmail.has(resolve(io.cwd, r.file)));
+    if (left.length) {
+      io.stdout(
+        `\nStill importing React Email, as they were (the migrated templates have what they used written in): delete the ones nothing imports any more before you remove React Email:\n` +
+          `${left.map((r) => `  ${r.file}`).join("\n")}\n`
+      );
+    }
+  }
   // The migrated templates import Elements: say how to install it where it isn't (tsc fails until then).
   const install = installElements(results.flatMap((r) => (r.output ? [resolve(io.cwd, r.output)] : [])), io.cwd);
   if (install.length) io.stdout(`\n${install.join("\n")}\n`);
