@@ -317,9 +317,9 @@ export default function Hybrid() {
   it("names a style computed from props that would be dropped: written, and failed with --strict", async () => {
     const source = `import { Html, Body, Text } from "@react-email/components";
 export default function Code({ code, color, size }: { code: string; color: string; size: number }) {
-  return <Html><Body style={{ backgroundColor: "#000000" }}><Text style={{ color, fontSize: size, margin: 0 }}>{code}</Text></Body></Html>;
+  return <Html><Body style={{ backgroundColor: "#ffffff" }}><Text style={{ color, fontSize: size, margin: 0 }}>{code}</Text></Body></Html>;
 }
-Code.PreviewProps = { code: "482913", color: "#ffffff", size: 24 };`;
+Code.PreviewProps = { code: "482913", color: "#e11d48", size: 24 };`;
     const dir = project({ "emails/code.tsx": source });
     const out = io(dir);
     expect(await main(["emails", "--out", "migrated", "--report", "report.json"], out, lib)).toBe(0);
