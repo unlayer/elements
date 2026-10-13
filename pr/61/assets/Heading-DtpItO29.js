@@ -1,1 +1,0 @@
-import{c as r,a3 as s,m as p,a4 as i}from"./create-component-Ddsw_zd9.js";const t={...s,color:"#000000",fontWeight:400,text:"Heading"},d=r({name:"Heading",defaultValues:t,propMapper:n=>{const{level:a,...o}=n,e=p(o,t,"Heading");return a&&!e.headingType&&(e.headingType=a),e},displayName:"Heading",exporters:i});export{d as H};
