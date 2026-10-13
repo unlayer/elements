@@ -295,6 +295,34 @@ Invite.PreviewProps = { url: "https://example.com/accept" };
     const check = await verifyConversion(Original, Migrated);
     expect([check.missing, check.added, check.missingAttributes, check.designWarnings]).toEqual([[], [], [], []]);
   });
+
+  it("leave a component the file exports itself as the project's, though `export *` passes on React Email's of that name", async () => {
+    const { conversion, Original, Migrated } = await migrate({
+      "ui/index.ts": `export * from "@react-email/components";
+export { Button } from "./button";
+`,
+      "ui/button.tsx": `import { useMemo } from "react";
+import { Button as Base } from "@react-email/components";
+export function Button({ href, children }: { href: string; children: string }) {
+  const label = useMemo(() => children.toUpperCase(), [children]);
+  return <Base href={href} style={{ backgroundColor: "#4f46e5", color: "#ffffff", padding: "12px 20px" }}>{label}</Base>;
+}
+`,
+      "invite.tsx": `import { Html, Body, Container, Text, Button } from "./ui";
+export default function Invite({ url }: { url: string }) {
+  return <Html><Body><Container>
+    <Text>You're invited.</Text>
+    <Button href={url}>Accept</Button>
+  </Container></Body></Html>;
+}
+Invite.PreviewProps = { url: "https://example.com/accept" };
+`,
+    }, "invite.tsx");
+    // The project's Button isn't Elements' Button with React Email's defaults: it renders as the project wrote it.
+    expect(conversion.code).toMatch(/<Button href=\{url\}>Accept<\/Button>/);
+    const check = await verifyConversion(Original, Migrated);
+    expect([check.missing, check.added, check.missingAttributes, check.styles]).toEqual([[], [], [], []]);
+  });
 });
 
 describe("a JavaScript template (.jsx)", () => {

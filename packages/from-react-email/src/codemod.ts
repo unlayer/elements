@@ -58,6 +58,7 @@ import { addSides, backgroundColor, backgroundImage, boxSides, color, fillColor,
 import { inlineLocalComponents, type ModuleLoader } from "./components";
 import { inlineLocalJsx, inlineMapCallbacks } from "./inline";
 import { normalizeInlined } from "./normalize";
+import { jsxText } from "./jsx-text";
 import { splitConditionalClasses } from "./variants";
 import { phoneSides, withPhoneStyles, handledPhoneClass, unheldPhoneStyles } from "./phone-styles";
 import { addRules, classStyle, inlineKeys, NO_CLASSES, overInline, phoneRules, resolveTailwind, stacksOnPhones, stylesheetRules, underInline, underKeys, type ResolvedClasses, type RuleOrder } from "./tailwind";
@@ -376,12 +377,20 @@ class Converter {
     const module = ts.createSourceFile(loaded.fileName, loaded.source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
     const follow = (target: string, imported: string): string | undefined =>
       isReactEmailModule(target) ? (Object.prototype.hasOwnProperty.call(ReactEmail, imported) ? imported : undefined) : this.reactEmailExport(target, imported, loaded.fileName, depth + 1);
+    // A name the module declares and exports itself is its own, whatever an `export *` passes on (an explicit export wins).
+    const declares = (st: ts.Statement) =>
+      hasModifier(st, ts.SyntaxKind.ExportKeyword) &&
+      (ts.isVariableStatement(st)
+        ? st.declarationList.declarations.some((d) => ts.isIdentifier(d.name) && d.name.text === name)
+        : (ts.isFunctionDeclaration(st) || ts.isClassDeclaration(st)) && st.name?.text === name);
+    if (module.statements.some(declares)) return undefined;
+    // Names it exports explicitly (`export { Button } from "./button"`) before what `export *` passes on.
+    const stars: string[] = [];
     for (const statement of module.statements) {
       if (!ts.isExportDeclaration(statement) || statement.isTypeOnly) continue;
       const target = statement.moduleSpecifier && ts.isStringLiteral(statement.moduleSpecifier) ? statement.moduleSpecifier.text : undefined;
       if (!statement.exportClause) {
-        const found = target && follow(target, name);
-        if (found) return found;
+        if (target) stars.push(target);
         continue;
       }
       if (!ts.isNamedExports(statement.exportClause)) continue;
@@ -395,7 +404,12 @@ class Converter {
           const spec = bindings && ts.isNamedImports(bindings) ? bindings.elements.find((e) => e.name.text === local && !e.isTypeOnly) : undefined;
           if (spec) return follow((st as ts.ImportDeclaration).moduleSpecifier.getText().slice(1, -1), (spec.propertyName ?? spec.name).text);
         }
+        return undefined;
       }
+    }
+    for (const target of stars) {
+      const found = follow(target, name);
+      if (found) return found;
     }
     return undefined;
   }
@@ -3347,55 +3361,6 @@ function containsJsx(node: ts.Node): boolean {
     ts.forEachChild(node, (child) => (containsJsx(child) ? true : undefined)) ??
     false
   );
-}
-
-/** JSX text the way React sees it: lines trimmed and joined by spaces, entities decoded. */
-function jsxText(text: string): string {
-  return jsxLines(text).replace(
-    /&(#x[0-9a-f]+|#\d+|[a-z][a-z0-9]+);/gi,
-    (reference, name: string) => {
-      if (name.startsWith("#")) return decodeHtmlEntities(reference);
-      let decoded = JSX_ENTITIES.get(name);
-      if (decoded === undefined) {
-        // JSX uses the React/TypeScript entity set, not every HTML5 name.
-        // Ask our parser rather than maintaining a second, incomplete table.
-        const emitted = ts.transpileModule(
-          `const text = <span>${reference}</span>;`,
-          { compilerOptions: { jsx: ts.JsxEmit.React } },
-        ).outputText;
-        const file = ts.createSourceFile(
-          "entity.js",
-          emitted,
-          ts.ScriptTarget.Latest,
-          true,
-          ts.ScriptKind.JS,
-        );
-        const statement = file.statements[0];
-        const init = ts.isVariableStatement(statement)
-          ? statement.declarationList.declarations[0].initializer
-          : undefined;
-        const child =
-          init && ts.isCallExpression(init) ? init.arguments[2] : undefined;
-        decoded = child && ts.isStringLiteral(child) ? child.text : reference;
-        JSX_ENTITIES.set(name, decoded);
-      }
-      return decoded;
-    },
-  );
-}
-
-const JSX_ENTITIES = new Map<string, string>();
-
-function jsxLines(text: string): string {
-  const lines = text.split(/\r\n|\n|\r/);
-  let out = "";
-  lines.forEach((line, i) => {
-    let t = line.replace(/\t/g, " ");
-    if (i > 0) t = t.replace(/^ +/, "");
-    if (i < lines.length - 1) t = t.replace(/ +$/, "");
-    if (t) out += (out && lines.length > 1 && i > 0 ? " " : "") + t;
-  });
-  return out;
 }
 
 function inlineDisplay(style: Style): boolean {
