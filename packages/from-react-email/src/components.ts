@@ -46,6 +46,17 @@ export function inlineLocalComponents(source: string, fileName: string, load?: M
       skipped.add(next.skip);
       continue;
     }
+    if (next.edits) {
+      // Values written into consts first (see `hoisted`): the usages skipped so far, where they are now.
+      const moved = [...skipped].flatMap((at) => {
+        if (next.edits!.some((e) => at >= e.from && at < e.to)) return [];
+        return [at + next.edits!.filter((e) => e.to <= at).reduce((sum, e) => sum + e.text.length - (e.to - e.from), 0)];
+      });
+      skipped.clear();
+      for (const at of moved) skipped.add(at);
+      source = next.source;
+      continue;
+    }
     source = next.source;
     inlined.add(next.name);
     for (const name of next.copied ?? []) copied.add(name);
@@ -78,7 +89,7 @@ function inlineOne(
   file: ts.SourceFile,
   skipped: Set<number>,
   foreign: (specifier: string, from?: string) => ts.SourceFile | undefined
-): { source: string; name: string; copied?: string[]; skip?: undefined } | { skip: number } | undefined {
+): { source: string; name: string; copied?: string[]; skip?: undefined; edits?: undefined } | { skip: number } | { source: string; edits: Edit[]; skip?: undefined } | undefined {
   const components = localComponents(file);
   const imports = importedBindings(file);
   let found: { usage: ts.JsxElement | ts.JsxSelfClosingElement; component: Component; from?: Imported } | undefined;
@@ -106,7 +117,13 @@ function inlineOne(
   visit(file);
   if (!found) return undefined;
   const text = substitute(found.usage, found.component);
-  if (text === undefined) return { skip: found.usage.getStart() };
+  if (text === undefined) {
+    const edits = hoisted(found.usage);
+    if (!edits) return { skip: found.usage.getStart() };
+    let source = file.getFullText();
+    for (const edit of [...edits].sort((a, b) => b.from - a.from)) source = source.slice(0, edit.from) + edit.text + source.slice(edit.to);
+    return { source, edits };
+  }
   // An imported component's own imports and constants come along.
   const needs = found.from ? requirements(found.component, found.from, file) : { imports: [], declarations: [], copied: [] };
   if (!needs) return { skip: found.usage.getStart() };
@@ -124,6 +141,56 @@ function inlineOne(
   // Imported: reported by the name the template uses.
   const name = found.from ? (ts.isJsxElement(usage) ? usage.openingElement : usage).tagName.getText() : found.component.name;
   return { source: next, name, copied: needs.copied };
+}
+
+type Edit = { from: number; to: number; text: string };
+
+/**
+ * A component the template returns (`return <Layout brand={pageBrand(page)} …>`) whose props run code (a call): what
+ * the call gives can't be written where the component reads the prop, which may be more than once, or under a default
+ * (`brand = defaultBrand`). Each such value goes in a const before the return, in the order the props are written
+ * (so before the element's children, as JSX evaluates them), and the prop reads it: then the component can be inlined.
+ * Only where nothing between them runs code (a prop holding JSX whose own props call something): moving a call past
+ * it would change what each sees. Undefined when there's nothing to move.
+ */
+function hoisted(usage: ts.JsxElement | ts.JsxSelfClosingElement): Edit[] | undefined {
+  let node: ts.Node = usage;
+  while (ts.isParenthesizedExpression(node.parent)) node = node.parent;
+  const statement = node.parent;
+  if (!ts.isReturnStatement(statement) || !ts.isBlock(statement.parent)) return undefined;
+  const file = usage.getSourceFile();
+  const opening = ts.isJsxElement(usage) ? usage.openingElement : usage;
+  const mutable = mutableNames(file);
+  const moves: Array<{ attr: ts.JsxAttribute; value: ts.Expression }> = [];
+  let blocked = false;
+  for (const attr of opening.attributes.properties) {
+    const value = ts.isJsxAttribute(attr) && attr.initializer && ts.isJsxExpression(attr.initializer) ? attr.initializer.expression : ts.isJsxSpreadAttribute(attr) ? attr.expression : undefined;
+    if (!value) continue;
+    const effect = effects(value, mutable);
+    if (effect === 3) return undefined;
+    if (effect === 1) continue;
+    if (ts.isJsxAttribute(attr) && !containsJsx(value) && !blocked) moves.push({ attr, value });
+    else {
+      // Runs code it can't move: no later value moves past it.
+      blocked = true;
+    }
+  }
+  if (!moves.length) return undefined;
+  const taken = new Set(file.getFullText().match(/\b[A-Za-z_$][\w$]*/g));
+  const tag = opening.tagName.getText().replace(/\W/g, "");
+  const indent = /[ \t]*$/.exec(file.getFullText().slice(0, statement.getStart()))?.[0] ?? "";
+  const consts: string[] = [];
+  const edits: Edit[] = [];
+  for (const { attr, value } of moves) {
+    const prop = attr.name.getText().replace(/\W/g, "");
+    let name = `${tag.charAt(0).toLowerCase()}${tag.slice(1)}${prop.charAt(0).toUpperCase()}${prop.slice(1)}`;
+    for (let n = 2; taken.has(name); n++) name = `${tag.charAt(0).toLowerCase()}${tag.slice(1)}${prop.charAt(0).toUpperCase()}${prop.slice(1)}${n}`;
+    taken.add(name);
+    consts.push(`const ${name} = ${value.getText()};\n${indent}`);
+    edits.push({ from: value.getStart(), to: value.getEnd(), text: name });
+  }
+  edits.push({ from: statement.getStart(), to: statement.getStart(), text: consts.join("") });
+  return edits;
 }
 
 function isPackage(specifier: string): boolean {
@@ -479,7 +546,10 @@ function substitute(usage: ts.JsxElement | ts.JsxSelfClosingElement, component: 
       ts.isStringLiteral(value) || ts.isNoSubstitutionTemplateLiteral(value) ||
       ts.isNumericLiteral(value) || ts.isBigIntLiteral(value) ||
       ts.isObjectLiteralExpression(value) || ts.isArrayLiteralExpression(value) ||
-      value.kind === ts.SyntaxKind.NullKeyword || value.kind === ts.SyntaxKind.TrueKeyword || value.kind === ts.SyntaxKind.FalseKeyword
+      value.kind === ts.SyntaxKind.NullKeyword || value.kind === ts.SyntaxKind.TrueKeyword || value.kind === ts.SyntaxKind.FalseKeyword ||
+      // Never undefined either: JSX (`footer={<Footer />}` over `footer = <Footer />`), a function, a template, `new`.
+      ts.isJsxElement(value) || ts.isJsxSelfClosingElement(value) || ts.isJsxFragment(value) ||
+      ts.isArrowFunction(value) || ts.isFunctionExpression(value) || ts.isTemplateExpression(value) || ts.isNewExpression(value)
     ) return code;
     // A name (`name`, `props.user.name`) reads the same twice: the default is written out, applying as it would.
     const plain = (n: ts.Expression): boolean => ts.isIdentifier(n) || (ts.isPropertyAccessExpression(n) && !n.questionDotToken && plain(n.expression));
@@ -1065,6 +1135,10 @@ function contains(outer: ts.Node, inner: ts.Node): boolean {
 
 function isJsx(node: ts.Node): boolean {
   return ts.isJsxElement(node) || ts.isJsxSelfClosingElement(node) || ts.isJsxFragment(node);
+}
+
+function containsJsx(node: ts.Node): boolean {
+  return isJsx(node) || !!ts.forEachChild(node, (child) => (containsJsx(child) ? true : undefined));
 }
 
 function unwrap(node: ts.Expression): ts.Expression {

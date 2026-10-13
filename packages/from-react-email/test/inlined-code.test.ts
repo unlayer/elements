@@ -189,3 +189,79 @@ Summary.PreviewProps = { change: 12 };
     expect([check.missing, check.added]).toEqual([[], []]);
   });
 });
+
+describe("a layout component around <Html>, <Head> and <Body>", () => {
+  it("is inlined, so its Body is the template's and the content converts (a default JSX prop given another)", async () => {
+    const { conversion, added, Original, Migrated } = await migrate({
+      "layout.tsx": `import type { ReactNode } from "react";
+import { Html, Head, Body, Container, Preview, Text } from "@react-email/components";
+const page = { backgroundColor: "#f4f4f5", fontFamily: "Arial, sans-serif" };
+export function Layout({ preview, footer = <Text>Sent by Acme</Text>, children }: { preview: string; footer?: ReactNode; children?: ReactNode }) {
+  return (
+    <Html lang="en">
+      <Head><meta name="color-scheme" content="light only" /></Head>
+      <Preview>{preview}</Preview>
+      <Body style={page}>
+        <Container style={{ backgroundColor: "#ffffff", padding: "24px" }}>{children}{footer}</Container>
+      </Body>
+    </Html>
+  );
+}
+`,
+      "welcome.tsx": `import { Text } from "@react-email/components";
+import { Layout } from "./layout";
+export default function Welcome({ name }: { name: string }) {
+  return (
+    <Layout preview="Welcome aboard" footer={<Text>You signed up at acme.example.</Text>}>
+      <Text>Hi {name}, thanks for joining.</Text>
+    </Layout>
+  );
+}
+Welcome.PreviewProps = { name: "Ana" };
+`,
+    }, "welcome.tsx");
+    expect(added).toEqual([]);
+    expect(conversion.report.fallbacks).toEqual([]);
+    expect(conversion.code).toMatch(/<Email[^>]*backgroundColor="#f4f4f5"/);
+    const check = await verifyConversion(Original, Migrated);
+    expect([check.missing, check.added, check.designWarnings]).toEqual([[], [], []]);
+    expect(check.convertedHtml.match(/<html/g)).toHaveLength(1);
+  });
+
+  it("is inlined when the template gives it a call's value (a brand worked out from props), which goes in a const first", async () => {
+    const { conversion, added, Original, Migrated } = await migrate({
+      "layout.tsx": `import type { ReactNode } from "react";
+import { Html, Body, Container, Link, Text } from "@react-email/components";
+export interface Brand { name: string; href: string }
+const acme: Brand = { name: "Acme", href: "https://acme.example" };
+export function pageBrand(page: string): Brand {
+  return { name: \`\${page} Status\`, href: \`https://status.example/\${page}\` };
+}
+export function Layout({ brand = acme, children }: { brand?: Brand; children?: ReactNode }) {
+  return (
+    <Html><Body style={{ backgroundColor: "#eef2ff" }}><Container>
+      <Link href={brand.href}>{brand.name}</Link>
+      {children}
+      <Text>Sent by {brand.name}</Text>
+    </Container></Body></Html>
+  );
+}
+`,
+      "notice.tsx": `import { Text } from "@react-email/components";
+import { Layout, pageBrand } from "./layout";
+export default function Notice({ page, note }: { page: string; note: string }) {
+  return <Layout brand={pageBrand(page)}><Text>{note}</Text></Layout>;
+}
+Notice.PreviewProps = { page: "Acme", note: "All systems normal." };
+`,
+    }, "notice.tsx");
+    expect(added).toEqual([]);
+    expect(conversion.report.fallbacks).toEqual([]);
+    expect(conversion.code).toMatch(/const layoutBrand = pageBrand\(page\);/);
+    expect(conversion.code).toMatch(/<Email[^>]*backgroundColor="#eef2ff"/);
+    for (const props of [Original.PreviewProps, { page: "Globex", note: "Degraded." }]) {
+      const check = await verifyConversion(Original, Migrated, { props });
+      expect([check.missing, check.added, check.missingAttributes, check.designWarnings]).toEqual([[], [], [], []]);
+    }
+  });
+});
