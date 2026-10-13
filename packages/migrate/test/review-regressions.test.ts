@@ -197,6 +197,20 @@ describe("a Node.js older than the CLI needs (built CLI)", () => {
     expect(supported.stdout).toContain("Migrate React Email templates to Unlayer Elements.");
   }, 90_000);
 
+  it("says which version it is on any Node.js", async () => {
+    const { version } = JSON.parse(fs.readFileSync(path.resolve(import.meta.dirname, "../package.json"), "utf8"));
+    for (const node of ["18.20.4", "20.6.0"]) {
+      for (const flag of ["--version", "-v"]) {
+        const result = await run(process.execPath, [...reporting(node), bin, flag], process.cwd());
+        expect(result.code ?? 0, `${node} ${flag}: ${result.stderr}`).toBe(0);
+        expect([result.stdout, result.stderr]).toEqual([`${version}\n`, ""]);
+      }
+    }
+    // Anything else on an older one still stops at the check.
+    const other = await run(process.execPath, [...reporting("18.20.4"), bin, "emails", "--version"], process.cwd());
+    expect(other.stderr).toBe("@unlayer/migrate needs Node.js 20.6 or later (you have 18.20.4).\n");
+  }, 90_000);
+
   // On Node 18 itself when it's installed (with nvm): nothing it lacks loads before the check.
   const home = process.env.HOME ?? "";
   const installed = fs.existsSync(path.join(home, ".nvm/versions/node")) ? fs.readdirSync(path.join(home, ".nvm/versions/node")).filter((v) => /^v(1[0-9]|20\.[0-5])\./.test(v)) : [];
@@ -206,6 +220,8 @@ describe("a Node.js older than the CLI needs (built CLI)", () => {
       const result = await run(path.join(home, ".nvm/versions/node", version, "bin/node"), [bin, "emails"], dir);
       expect(result.code, result.stdout + result.stderr).toBe(1);
       expect(result.stderr).toBe(`@unlayer/migrate needs Node.js 20.6 or later (you have ${version.slice(1)}).\n`);
+      const asked = await run(path.join(home, ".nvm/versions/node", version, "bin/node"), [bin, "--version"], dir);
+      expect([asked.stdout, asked.stderr]).toEqual([`${JSON.parse(fs.readFileSync(path.resolve(import.meta.dirname, "../package.json"), "utf8")).version}\n`, ""]);
     }
   }, 90_000);
 });
