@@ -8,8 +8,9 @@
  * selector or value it doesn't know) is unknown, never different: a style
  * difference it reports is one a browser shows.
  */
-import { parse, type DefaultTreeAdapterMap } from "parse5";
+import { defaultTreeAdapter, parse, type DefaultTreeAdapterMap } from "parse5";
 import { isInvalid } from "./validity";
+import { SVG_NAMESPACE, svgDrawing } from "./drawing";
 
 type Node = DefaultTreeAdapterMap["node"];
 type Element = DefaultTreeAdapterMap["element"];
@@ -39,6 +40,8 @@ export interface WordStyle {
   backgrounds?: Rgba[];
   /** Behind an image: the color its box sets under it, what shows where images don't load (none set: unknown). */
   underImage?: Rgba;
+  /** An image is behind it from a box's `background` attribute (email tables): what it's on where images load isn't known. */
+  backgroundAttribute?: true;
   /** The target of the link the word is in ("_self" when the link sets none); absent outside links. */
   target?: string;
   /** Why each unknown property is unknown (the rule, query or value this couldn't read). */
@@ -64,7 +67,8 @@ export interface StyledWord {
 
 /** A link or image a reader gets, with the words or image text it carries (for links). */
 export interface Target {
-  kind: "href" | "src" | "alt";
+  /** A link, an image, an image's text, or what an inline SVG draws (see `svgDrawing`). */
+  kind: "href" | "src" | "alt" | "svg";
   value: string;
   /** For a link: the words in it, or its images' URLs and text when it has no words. */
   label?: string;
@@ -957,8 +961,32 @@ export class StyledDocument {
   /** Whether it's read in dark mode (`prefers-color-scheme: dark`). */
   readonly dark: boolean;
 
+  /**
+   * A second document's `<html>` and `<body>` start tags inside the body: the parser folds them into the page's own
+   * (keeping only attributes it lacks), so they're no element. With how many elements were made before each.
+   */
+  private readonly folded: Array<{ tag: string; attributes: Array<{ name: string; value: string }>; after: number }> = [];
+  /** The order the parser made each element in. */
+  private readonly made = new Map<Element, number>();
+
   constructor(html: string, options: { width?: number; dark?: boolean } = {}) {
-    this.root = parse(html);
+    let count = 0;
+    let inBody = false;
+    this.root = parse(html, {
+      treeAdapter: {
+        ...defaultTreeAdapter,
+        createElement: (tagName, namespaceURI, attrs) => {
+          const element = defaultTreeAdapter.createElement(tagName, namespaceURI, attrs);
+          if (tagName === "body") inBody = true;
+          this.made.set(element, count++);
+          return element;
+        },
+        adoptAttributes: (recipient, attrs) => {
+          if (inBody) this.folded.push({ tag: recipient.tagName, attributes: attrs.map(({ name, value }) => ({ name, value })), after: count });
+          defaultTreeAdapter.adoptAttributes(recipient, attrs);
+        },
+      },
+    });
     this.width = options.width ?? DESKTOP_WIDTH;
     this.dark = options.dark ?? false;
     for (const style of this.elements().filter((e) => e.tagName === "style")) {
@@ -1283,10 +1311,22 @@ export class StyledDocument {
     return computed;
   }
 
+  /** The preview text's boxes (see `words`): found reading the whole body, where what comes before them is known. */
+  private previews?: Set<Element>;
+
+  private previewBoxes(): Set<Element> {
+    if (!this.previews) this.words();
+    return this.previews!;
+  }
+
   /** The words a reader sees, each with its style; hidden text is left out. */
   words(within?: Element): StyledWord[] {
     const out: StyledWord[] = [];
     const body = within ?? this.elements().find((e) => e.tagName === "body") ?? this.root;
+    // The preview text's boxes, found here when reading the whole body; else as that found them.
+    const previews = within ? this.previewBoxes() : new Set<Element>();
+    // Whether text a reader sees came before: a hidden preheader after it isn't what the inbox lists first.
+    let shownBefore = false;
     let buffer = "";
     let bufferStyle: WordStyle | undefined;
     let bufferShown = true;
@@ -1307,14 +1347,16 @@ export class StyledDocument {
       flush();
       pieces.push({ text: "\n", style: {}, shown: true });
     };
-    // Inside the preview text (`data-skip-in-text`): inboxes list it, but it isn't shown, so its styles aren't compared.
+    // Inside the preview text (`data-skip-in-text`, or a hidden preheader before any text shown): inboxes list it, but
+    // it isn't shown, so its styles aren't compared.
     let preview = 0;
     const visit = (node: Node, chain: Element[]) => {
       if (isElement(node)) {
         const style = this.style(node);
         if (MSO_ONLY.test(node.tagName)) return;
         // The preview text: inboxes list it, the email doesn't show it. Shown in the email, it's text like any other.
-        const skipInText = attr(node, "data-skip-in-text") !== undefined && !!style.hidden;
+        const skipInText = !!style.hidden && (attr(node, "data-skip-in-text") !== undefined || (within ? previews.has(node) : !shownBefore && !preview && !style.unknown.has("hides") && preheader(node)));
+        if (skipInText && !within) previews.add(node);
         if (skipInText) preview++;
         try {
           visitElement(node, chain, style, skipInText);
@@ -1377,6 +1419,7 @@ export class StyledDocument {
           bufferDoubt = preview ? undefined : doubt;
           bufferAt = element;
         }
+        if (!preview && normalizeWord(part)) shownBefore = true;
         buffer += part;
       }
     };
@@ -1420,13 +1463,14 @@ export class StyledDocument {
       word += piece.text;
     }
     if (word) push();
+    if (!within) this.previews = previews;
     return out;
   }
 
   /** Whether the element and everything around it show (the preview text counts as shown). */
   private shows(element: Element): boolean {
     for (let e: Node | null = element; isElement(e); e = e.parentNode) {
-      if (attr(e, "data-skip-in-text") !== undefined) return true;
+      if (attr(e, "data-skip-in-text") !== undefined || this.previewBoxes().has(e)) return true;
       if (MSO_ONLY.test(e.tagName)) return false;
       const s = this.style(e);
       if (s.hidden && !s.unknown.has("hides")) return false;
@@ -1437,7 +1481,7 @@ export class StyledDocument {
   /** Why whether an element shows can't be told (a rule or value around it this can't read), if it can't. */
   private showDoubt(element: Element): string | undefined {
     for (let e: Node | null = element; isElement(e); e = e.parentNode) {
-      if (attr(e, "data-skip-in-text") !== undefined) return undefined;
+      if (attr(e, "data-skip-in-text") !== undefined || this.previewBoxes().has(e)) return undefined;
       const s = this.style(e);
       if (s.unknown.has("hides")) return s.causes.get("hides") ?? "a rule that may hide it";
       if (s.unknown.has("visibility")) return s.causes.get("visibility") ?? "a rule that may hide it";
@@ -1456,6 +1500,14 @@ export class StyledDocument {
     for (const e of this.elements()) {
       const background = this.style(e).imageUrl;
       if (background && this.shows(e) && !invisible(e)) out.push({ kind: "src", value: background, ...(this.showDoubt(e) ? { doubt: this.showDoubt(e) } : {}) });
+      // An inline SVG (an icon) is content like an image: what it draws (one inside another is part of it).
+      if (e.tagName === "svg" && e.namespaceURI === SVG_NAMESPACE && !(isElement(e.parentNode) && e.parentNode.namespaceURI === SVG_NAMESPACE)) {
+        if (!this.shows(e) || invisible(e)) continue;
+        const drawing = svgDrawing(e, (id) => this.byId(id), parseColor);
+        const doubt = this.showDoubt(e);
+        if (drawing) out.push({ kind: "svg", value: drawing, ...(doubt ? { doubt } : {}) });
+        continue;
+      }
       if (e.tagName !== "a" && e.tagName !== "img") continue;
       if (!this.shows(e)) continue;
       if (e.tagName === "img" && invisible(e)) continue;
@@ -1477,6 +1529,93 @@ export class StyledDocument {
       }
     }
     return out;
+  }
+
+  /**
+   * What a second document inside the body brings into it: head content (`<title>`, `<meta>`, `<link>`, `<base>`)
+   * and its own `<html>` and `<body>` start tags, each as written (`<meta name="color-scheme" content="light only">`),
+   * with the words it carries: a title's text, the words of the document a start tag begins (as far as what holds it).
+   */
+  documentParts(): Array<{ part: string; words: string[] }> {
+    const body = this.elements().find((e) => e.tagName === "body");
+    if (!body) return [];
+    const written = (tag: string, attributes: Array<{ name: string; value: string }>) => `<${tag}${attributes.map(({ name, value }) => ` ${name}="${value}"`).join("")}>`;
+    const wordsOf = (words: StyledWord[]) => words.flatMap((w) => w.word.split(/\s+/)).map(normalizeWord).filter(Boolean);
+    const out: Array<{ part: string; words: string[] }> = [];
+    for (const e of this.elements(body)) {
+      if (!/^(title|meta|link|base)$/.test(e.tagName) || e.namespaceURI !== "http://www.w3.org/1999/xhtml") continue;
+      const text = e.tagName === "title" ? e.childNodes.map((n) => ("value" in n ? (n as { value: string }).value : "")).join("") : "";
+      out.push({ part: e.tagName === "title" ? `<title>${text.trim()}</title>` : written(e.tagName, e.attrs), words: text.split(/\s+/).map(normalizeWord).filter(Boolean) });
+    }
+    for (const { tag, attributes, after } of this.folded) {
+      // What it starts: the elements made after it, in what holds the first of them.
+      const first = this.elements(body).find((e) => (this.made.get(e) ?? -1) >= after);
+      const holder = first && isElement(first.parentNode) ? first.parentNode : undefined;
+      const words = holder ? this.words(holder).filter((w) => w.shown && w.at && (this.made.get(w.at) ?? -1) >= after) : [];
+      out.push({ part: written(tag, attributes), words: wordsOf(words) });
+    }
+    return out;
+  }
+
+  /**
+   * The color around the email, at the page's sides: the page's own (`<html>`'s, then `<body>`'s), under each box
+   * that spans the page from side to side and holds all of it (a wrapper table at width 100%, Elements' body
+   * table), down to one that's narrower, holds more than one box, or has padding at its sides. Where images don't
+   * load: an image's box counts by the color under it. Undefined where a color can't be read (or a gradient).
+   */
+  pageBackground(): Rgba | undefined {
+    const html = this.elements().find((e) => e.tagName === "html");
+    const body = this.elements().find((e) => e.tagName === "body");
+    if (!body) return undefined;
+    let color: Rgba = [255, 255, 255, 1];
+    const paint = (e: Element): boolean => {
+      const s = this.style(e);
+      if (s.unknown.has("background") && !s.image) return false;
+      const own = s.image ? s.under : s.gradient ? undefined : s.background;
+      if (!own) return false;
+      color = over(own, color);
+      return true;
+    };
+    if ((html && !paint(html)) || !paint(body)) return undefined;
+    const ignored = /^(style|script|meta|title|link|base|head|template|noscript)$/;
+    const text = (n: Node) => n.nodeName === "#text" && /[^\s\u200b-\u200f\u2060\ufeff\u00a0\u034f\u00ad]/.test((n as { value: string }).value);
+    // A side the box itself takes (padding) or leaves (margin): what's around it shows there.
+    const side = (e: Element, name: "padding" | "margin") => {
+      const all = (this.property(e, name) ?? "?").trim().split(/\s+/);
+      return [this.property(e, `${name}-left`) || all[3] || all[1] || all[0] || "", this.property(e, `${name}-right`) || all[1] || all[0] || ""].some((v) => !/^(0+(\.0*)?([a-z]+|%)?|auto)?$/i.test(v.trim().replace(/\s*!important$/i, "")));
+    };
+    const full = (e: Element) => {
+      const width = [this.property(e, "width"), e.tagName === "table" ? attr(e, "width") ?? "" : ""].find((v) => v !== "") ?? "";
+      const max = (this.property(e, "max-width") ?? "?").trim().replace(/\s*!important$/i, "");
+      const display = (this.property(e, "display") ?? "?").trim().toLowerCase() || (/^(td|th|tr|tbody|thead|tfoot)$/.test(e.tagName) ? "table-part" : e.tagName === "table" ? "table" : INLINE_TAGS.has(e.tagName) ? "inline" : "block");
+      if (/^(td|th|tr|tbody|thead|tfoot)$/.test(e.tagName) && /^(table-part|table-cell|table-row|table-row-group|table-header-group|table-footer-group)$/.test(display)) return true;
+      if (!/^(block|table|flow-root|list-item|flex)$/.test(display)) return false;
+      if (/^(left|right)$/i.test((this.property(e, "float") ?? "?").trim()) || /^(absolute|fixed)$/i.test((this.property(e, "position") ?? "?").trim())) return false;
+      const fills = (v: string | null) => v !== null && (/^(|auto|none|100%)$/i.test(v.trim().replace(/\s*!important$/i, "")) || (lengthPx(v.replace(/\s*!important$/i, "")) ?? 0) >= this.width);
+      return fills(width) && fills(max) && (display !== "table" || width !== "") && !side(e, "margin");
+    };
+    for (let box = body; ; ) {
+      if (side(box, "padding")) return color;
+      if (box.childNodes.some(text)) return color;
+      const kids = box.childNodes.filter((n): n is Element => isElement(n) && !ignored.test(n.tagName) && !MSO_ONLY.test(n.tagName) && !(this.style(n).hidden && !this.style(n).unknown.has("hides")));
+      if (kids.length !== 1 || !full(kids[0])) return color;
+      if (!paint(kids[0])) return undefined;
+      box = kids[0];
+    }
+  }
+
+  private ids?: Map<string, Element>;
+
+  /** The element with this id (the first, as the browser finds it). */
+  private byId(id: string): Element | undefined {
+    if (!this.ids) {
+      this.ids = new Map();
+      for (const e of this.elements()) {
+        const own = attr(e, "id");
+        if (own !== undefined && !this.ids.has(own)) this.ids.set(own, e);
+      }
+    }
+    return this.ids.get(id);
   }
 
   /** Whether a box starts a line of its own: a block (a paragraph, a list item, a table, a row, a cell), not an inline box. */
@@ -1655,8 +1794,10 @@ export class StyledDocument {
     let under: Rgba | undefined;
     // Faint text: each box's opacity, multiplied.
     let fade = 1;
+    let backgroundAttribute = false;
     for (const e of chain) {
       const s = this.style(e);
+      if (s.imageUrl && !s.image) backgroundAttribute = true;
       fade *= s.fade ?? 1;
       if (s.image) {
         image = true;
@@ -1721,6 +1862,7 @@ export class StyledDocument {
       color: own.color && fade < 1 && !own.unknown.has("color") ? [own.color[0], own.color[1], own.color[2], own.color[3] * fade] : (known("color", own.color) as Rgba | undefined),
       background,
       ...(image ? { image, ...(under ? { underImage: under } : {}) } : {}),
+      ...(backgroundAttribute ? { backgroundAttribute: true as const } : {}),
       ...(options ? { backgrounds: options } : {}),
       ...(inLink ? { target } : {}),
       ...(Object.keys(causes).length ? { causes } : {}),
@@ -1731,6 +1873,23 @@ export class StyledDocument {
 
 // Outlook's VML: not shown by other clients.
 const MSO_ONLY = /^(v:|o:|w:)/;
+
+/**
+ * A hidden preheader, as older React Email (`@react-email/preview` before `data-skip-in-text`) and hand-written
+ * emails write the preview text: hidden by its own style with `display: none` and, as preheaders are, shrunk to
+ * nothing too (`max-height: 0`, `opacity: 0`, a 1px font or line). Read before any text a reader sees, it's the
+ * text inboxes list first. A block only `display: none` (shown on phones, say) isn't one.
+ */
+function preheader(element: Element): boolean {
+  const own = new Map(parseDeclarations(attr(element, "style") ?? "").map((d) => [d.property, d.value.trim().toLowerCase()]));
+  if (own.get("display") !== "none") return false;
+  const zero = (property: string, most = 0) => {
+    const value = own.get(property);
+    const px = value === undefined ? undefined : lengthPx(value);
+    return px !== undefined && px <= most;
+  };
+  return zero("max-height") || zero("max-width") || own.get("opacity") === "0" || zero("font-size", 1) || zero("line-height", 1);
+}
 
 // ============================================
 // What the check doesn't model
@@ -1930,7 +2089,10 @@ function compareArrays(a: number[], b: number[]): number {
 // ============================================
 
 export interface StyleDifference {
-  /** A style; "shown": text that is only the inbox preview on one side and in the email on the other; "line": a line break moved. */
+  /**
+   * A style; "shown": text that is only the inbox preview on one side and in the email on the other, or that can't
+   * be made out on one side (its color on what's behind it: white on white); "line": a line break moved.
+   */
   property: (typeof STYLE_PROPERTIES)[number] | "shown" | "line";
   original: string;
   converted: string;
@@ -1942,6 +2104,8 @@ export interface StyleDifference {
   dark?: true;
   /** Only on phones (at the width phones are read at). */
   phone?: true;
+  /** The page's own background, around the email (see `StyledDocument.pageBackground`): no words are on it. */
+  page?: true;
 }
 
 /**
@@ -1982,8 +2146,9 @@ export function normalizeWord(word: string): string {
   const w = word.normalize("NFC").replace(/[​-‍⁠﻿]/g, "").replace(/[-−－﹣]/g, "−");
   if (/\p{N}/u.test(w)) return w.replace(/[^\p{L}\p{N}\p{Sc}.,/:'’+−%‰]/gu, "").replace(/[.,]+$/g, "");
   if (/^[+−±]$/.test(w)) return w;
-  // Letters, or else the symbols a reader reads (✓ ✗ ★ © → &): punctuation alone ("—", "·", "|") isn't a word.
-  if (/\p{L}/u.test(w)) return w.replace(/[^\p{L}\p{Sc}%‰]/gu, "");
+  // Letters, or else the symbols a reader reads (✓ ✗ ★ © → &): punctuation alone ("—", "·", "|") isn't a word. An
+  // apostrophe inside a word stays (as reports show it: "You're"), the same whichever one was typed; quotes around it go.
+  if (/\p{L}/u.test(w)) return w.replace(/[’‘ʼ`´]/g, "'").replace(/[^\p{L}\p{Sc}%‰']/gu, "").replace(/^'+|'+$/g, "");
   return w.replace(/[^\p{Sc}\p{So}\p{Sm}%‰&]|[|¦]/gu, "");
 }
 
@@ -2026,6 +2191,44 @@ function sameLook(a: string, b: string): boolean {
   return !!x && !!y && Math.abs(parseFloat(x[1]) - parseFloat(y[1])) <= 0.34;
 }
 
+/** WCAG's relative luminance of an opaque color. */
+function luminance([r, g, b]: Rgba): number {
+  const channel = (c: number) => {
+    const v = c / 255;
+    return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4;
+  };
+  return 0.2126 * channel(r) + 0.7152 * channel(g) + 0.0722 * channel(b);
+}
+
+/** Below this contrast with what's behind it, text can't be read (white on #f4f4f4 is 1.1). */
+const INVISIBLE = 1.2;
+/** At or above this, text can be read, if faintly (#cccccc on white is 1.6). */
+const READABLE = 1.5;
+
+/**
+ * How text in a style stands out from what's behind it: the lowest WCAG contrast ratio over the colors it may be
+ * on (its color, faded or translucent, painted over each). Undefined when its color or background is unknown (an
+ * image behind it).
+ */
+function contrast(style: WordStyle): number | undefined {
+  const color = style.color;
+  const behind = style.backgrounds ?? (style.background ? [style.background] : undefined);
+  if (!color || !behind?.length || style.image || style.backgroundAttribute) return undefined;
+  return Math.min(
+    ...behind.map((back) => {
+      const page = over(back, [255, 255, 255, 1]);
+      const [a, b] = [luminance(over(color, page)), luminance(page)];
+      return (Math.max(a, b) + 0.05) / (Math.min(a, b) + 0.05);
+    })
+  );
+}
+
+/** "#ffffff on #ffffff": the color of text and what's behind it. */
+function onBackground(style: WordStyle): string {
+  const behind = style.backgrounds ?? (style.background ? [style.background] : []);
+  return `${show("color", style.color)} on ${[...new Set(behind.map((b) => show("background", b)))].join(" … ")}`;
+}
+
 function same(property: StyleDifference["property"], a: unknown, b: unknown): boolean {
   if (property === "size") return Math.abs((a as number) - (b as number)) <= 1;
   if (property === "color" || property === "background") {
@@ -2042,6 +2245,13 @@ function same(property: StyleDifference["property"], a: unknown, b: unknown): bo
  * words it affects. Nothing is compared when the words differ (the content
  * check reports that).
  */
+/** The color around the email, where it differs (a page background lost): a look, with no words on it. */
+export function comparePageBackground(original: StyledDocument, converted: StyledDocument): StyleDifference[] {
+  const [a, b] = [original.pageBackground(), converted.pageBackground()];
+  if (!a || !b || same("background", a, b)) return [];
+  return [{ property: "background", original: show("background", a), converted: show("background", b), words: [], page: true }];
+}
+
 export function compareStyles(originalHtml: string | StyledDocument, convertedHtml: string | StyledDocument): StyleCheck {
   const a = styledWords(originalHtml);
   const b = styledWords(convertedHtml);
@@ -2074,6 +2284,16 @@ export function compareStyles(originalHtml: string | StyledDocument, convertedHt
     }
     if (!a[i].shown || !b[i].shown) continue;
     compared++;
+    // Text a reader can't make out on one side only (white on white: a background lost): not the same words read.
+    const [ca, cb] = [contrast(a[i].style), contrast(b[i].style)];
+    if (ca !== undefined && cb !== undefined && ((ca >= READABLE && cb < INVISIBLE) || (ca < INVISIBLE && cb >= READABLE))) {
+      const original = ca < INVISIBLE ? `invisible (${onBackground(a[i].style)})` : "shown";
+      const converted = cb < INVISIBLE ? `invisible (${onBackground(b[i].style)})` : "shown";
+      const key = `shown\u0000${original}\u0000${converted}`;
+      const group = groups.get(key) ?? { property: "shown" as const, original, converted, words: [] };
+      group.words.push(a[i].word);
+      groups.set(key, group);
+    }
     // What the check doesn't model (`white-space`, a transform, content drawn before it): the same on both sides, or in doubt.
     const la = a[i].style.look ?? {}, lb = b[i].style.look ?? {};
     for (const key of new Set([...Object.keys(la), ...Object.keys(lb)])) {
