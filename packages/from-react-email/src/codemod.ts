@@ -274,6 +274,8 @@ class Converter {
     private readonly javascript = false,
     private readonly tailwindComponent?: unknown,
     private readonly loadModule?: ModuleLoader,
+    /** The project's modules read for values the template imports (see `importedConstant`), shared with theirs. */
+    private readonly modules = new Map<string, Converter | { json: unknown } | null>(),
   ) {
     const names = new Set(file.getFullText().match(/\b[A-Za-z_$][\w$]*/g));
     while (names.has(this.plainTextName)) this.plainTextName = `_${this.plainTextName}`;
@@ -593,7 +595,7 @@ class Converter {
     }
     if (ts.isIdentifier(node)) {
       const value = this.constantValue(node);
-      return value ? this.evaluate(value, depth + 1) : undefined;
+      return value ? this.evaluate(value, depth + 1) : this.importedConstant(node, depth + 1);
     }
     // A property of a constant (`styles.body`, `theme.colors.primary`, `sizes["lg"]`): read from the
     // literal that sets it, so the constant's other properties (a function, a prop) don't matter.
@@ -643,6 +645,81 @@ class Converter {
     return value && binding && !this.mutated().has(binding) && binding.declarations?.some((decl) => ts.isVariableDeclaration(decl) && decl.initializer === value && (ts.getCombinedNodeFlags(decl) & ts.NodeFlags.Const) !== 0)
       ? value
       : undefined;
+  }
+
+  /**
+   * A constant another file of the project exports, as its value (`import { styles } from "./theme"`, a JSON file's
+   * data): read there as this file's own are, through what that file imports in turn. Undefined when it can't be told
+   * (a package, a `let`, a value the template changes).
+   */
+  private importedConstant(node: ts.Identifier, depth: number): unknown {
+    if (!this.loadModule || depth > 20) return undefined;
+    const symbol = ts.isShorthandPropertyAssignment(node.parent) ? this.checker.getShorthandAssignmentValueSymbol(node.parent) : this.checker.getSymbolAtLocation(node);
+    const decl = symbol?.declarations?.[0];
+    if (!symbol || !decl || this.mutated().has(symbol) || !(ts.isImportSpecifier(decl) || ts.isImportClause(decl))) return undefined;
+    const declaration = ts.isImportClause(decl) ? decl.parent : decl.parent.parent.parent;
+    if (!ts.isStringLiteral(declaration.moduleSpecifier) || !/^[./]/.test(declaration.moduleSpecifier.text) || (ts.isImportSpecifier(decl) && decl.isTypeOnly) || declaration.importClause?.isTypeOnly) return undefined;
+    return this.exportedValue(declaration.moduleSpecifier.text, ts.isImportClause(decl) ? "default" : (decl.propertyName ?? decl.name).text, this.file.fileName, depth);
+  }
+
+  /** What the module `specifier` (from `from`) exports as `name`, as a value (see `importedConstant`). */
+  private exportedValue(specifier: string, name: string, from: string, depth: number): unknown {
+    const loaded = this.loadModule?.(specifier, from);
+    if (!loaded || depth > 20) return undefined;
+    let module = this.modules.get(loaded.fileName);
+    if (module === undefined) {
+      this.modules.set(loaded.fileName, null); // being read: an import back to it gives nothing
+      if (/\.json$/i.test(loaded.fileName)) {
+        try {
+          module = { json: JSON.parse(loaded.source) };
+        } catch {
+          module = null;
+        }
+      } else {
+        const file = ts.createSourceFile(loaded.fileName, loaded.source, ts.ScriptTarget.Latest, true, /\.(jsx?|mjs|cjs)$/i.test(loaded.fileName) ? ts.ScriptKind.JSX : ts.ScriptKind.TSX);
+        const reader = new Converter(file, undefined, /\.(jsx?|mjs|cjs)$/i.test(loaded.fileName), undefined, this.loadModule, this.modules);
+        reader.readModule();
+        module = reader;
+      }
+      this.modules.set(loaded.fileName, module);
+    }
+    if (!module) return undefined;
+    if (!(module instanceof Converter)) {
+      const data = module.json as Record<string, unknown> | null;
+      return name === "default" ? data : data && typeof data === "object" && Object.prototype.hasOwnProperty.call(data, name) ? data[name] : undefined;
+    }
+    return module.exported(name, depth + 1);
+  }
+
+  /** What this module exports as `name`, as a value: a `const` it exports, or names again (`export { a as b }`, `from`). */
+  private exported(name: string, depth: number): unknown {
+    for (const statement of this.file.statements) {
+      if (ts.isVariableStatement(statement) && hasModifier(statement, ts.SyntaxKind.ExportKeyword) && name !== "default") {
+        const decl = statement.declarationList.declarations.find((d) => ts.isIdentifier(d.name) && d.name.text === name);
+        if (decl) return this.evaluate(decl.name as ts.Identifier, depth);
+      }
+      if (ts.isExportAssignment(statement) && !statement.isExportEquals && name === "default") return this.evaluate(statement.expression, depth);
+      if (ts.isExportDeclaration(statement) && !statement.isTypeOnly && statement.exportClause && ts.isNamedExports(statement.exportClause)) {
+        const element = statement.exportClause.elements.find((e) => e.name.text === name && !e.isTypeOnly);
+        if (!element) continue;
+        const local = element.propertyName ?? element.name;
+        if (statement.moduleSpecifier && ts.isStringLiteral(statement.moduleSpecifier)) return this.exportedValue(statement.moduleSpecifier.text, local.text, this.file.fileName, depth);
+        // `const theme = …; export { theme }`: the local constant (through `evaluate`, which checks it's one), or what it imports.
+        for (const st of this.file.statements) {
+          const decl = ts.isVariableStatement(st) ? st.declarationList.declarations.find((d) => ts.isIdentifier(d.name) && d.name.text === local.text) : undefined;
+          if (decl) return this.evaluate(decl.name as ts.Identifier, depth);
+          const bindings = ts.isImportDeclaration(st) && ts.isStringLiteral(st.moduleSpecifier) ? st.importClause?.namedBindings : undefined;
+          const spec = bindings && ts.isNamedImports(bindings) ? bindings.elements.find((e) => e.name.text === local.text) : undefined;
+          if (spec) return this.exportedValue((st as ts.ImportDeclaration).moduleSpecifier.getText().slice(1, -1), (spec.propertyName ?? spec.name).text, this.file.fileName, depth);
+        }
+        return undefined;
+      }
+      if (ts.isExportDeclaration(statement) && !statement.isTypeOnly && !statement.exportClause && statement.moduleSpecifier && ts.isStringLiteral(statement.moduleSpecifier) && name !== "default") {
+        const value = this.exportedValue(statement.moduleSpecifier.text, name, this.file.fileName, depth);
+        if (value !== undefined) return value;
+      }
+    }
+    return undefined;
   }
 
   /** The literal an expression is written as: itself, a constant's, or a property of one (`styles.card`). */
@@ -868,6 +945,8 @@ class Converter {
     if (!ts.isStringLiteral(declaration.moduleSpecifier) || !this.loadModule) return undefined;
     const loaded = this.loadModule(declaration.moduleSpecifier.text, this.file.fileName);
     if (!loaded) return undefined;
+    // A JSON file is data: what it holds is its text (no `display` in it is a style that hides).
+    if (/\.json$/i.test(loaded.fileName)) return loaded.source;
     const module = ts.createSourceFile(loaded.fileName, loaded.source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
     const name = ts.isImportClause(decl) ? "default" : (decl.propertyName ?? decl.name).text;
     for (const statement of module.statements) {

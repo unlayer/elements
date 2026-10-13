@@ -275,13 +275,13 @@ export { Text, Heading as Title };
 export * from "./more";
 `,
       "ui/more.ts": `export { Button } from "@react-email/components";
-export const company = "Acme Inc.";
+export function company() { return "Acme Inc."; }
 `,
       "invite.tsx": `import { Html, Body, Container, Text, Title, Button, company } from "./ui";
 export default function Invite({ url }: { url: string }) {
   return <Html><Body><Container>
     <Title>You're invited</Title>
-    <Text>Join {company} today.</Text>
+    <Text>Join {company()} today.</Text>
     <Button href={url} style={{ backgroundColor: "#111827", color: "#ffffff", padding: "12px 20px" }}>Accept</Button>
   </Container></Body></Html>;
 }
@@ -323,5 +323,37 @@ Receipt.PreviewProps = { firstName: "Leo" };
       const check = await verifyConversion(Original, Migrated, { props });
       expect([check.missing, check.added, check.styles]).toEqual([[], [], []]);
     }
+  });
+});
+
+describe("styles from another file of the project", () => {
+  it("are read as the template's own constants are: through re-exports, and from JSON", async () => {
+    const { conversion, added, Original, Migrated } = await migrate({
+      "theme/colors.ts": `export const colors = { ink: "#e2e8f0", night: "#0b1120" };
+`,
+      "theme/index.ts": `import { colors } from "./colors";
+export const page = { backgroundColor: colors.night, fontFamily: "Arial, sans-serif" };
+export const heading = { color: colors.ink, fontSize: "24px" };
+export { colors };
+`,
+      "brand.json": `{ "accent": "#22d3ee" }
+`,
+      "status.tsx": `import { Html, Body, Container, Heading, Text, Link } from "@react-email/components";
+import { page, heading, colors } from "./theme";
+import brand from "./brand.json";
+export default function Status({ url }: { url: string }) {
+  return <Html><Body style={page}><Container>
+    <Heading style={heading}>All systems normal</Heading>
+    <Text style={{ color: colors.ink }}>No incidents in the last 24 hours. <Link href={url} style={{ color: brand.accent }}>Details</Link></Text>
+  </Container></Body></Html>;
+}
+Status.PreviewProps = { url: "https://status.example.com" };
+`,
+    }, "status.tsx");
+    expect(added).toEqual([]);
+    expect(conversion.report.lostStyles ?? []).toEqual([]);
+    expect(conversion.code).toMatch(/<Email[^>]*backgroundColor="#0b1120"/);
+    const check = await verifyConversion(Original, Migrated);
+    expect([check.missing, check.added, check.styles]).toEqual([[], [], []]);
   });
 });
