@@ -334,6 +334,24 @@ Code.PreviewProps = { code: "482913", color: "#e11d48", size: 24 };`;
     expect(JSON.parse(fs.readFileSync(path.join(dir, "strict.json"), "utf8"))[0].status).toBe("check-failed");
   });
 
+  it("says a style the page itself shows differently (its background) is the page's, on no words", async () => {
+    const dir = project({ "emails/welcome.tsx": `import { Html, Body, Text } from "@react-email/components";
+export default function Welcome() { return <Html><Body><Text>Welcome aboard</Text></Body></Html>; }` });
+    // As the check reports a lost page background: no words it's on.
+    const page = { property: "background", original: "#f4f4f5", converted: "#ffffff", words: [], page: true as const };
+    const library = {
+      ...lib,
+      verifyConversion: async (...args: Parameters<typeof lib.verifyConversion>) => {
+        const check = await lib.verifyConversion(...args);
+        return { ...check, styles: [...check.styles, page] };
+      },
+    } as typeof lib;
+    const out = io(dir);
+    expect(await main(["emails", "--report", "report.md"], out, library), out.out + out.err).toBe(0);
+    expect(out.out).toContain("looks different: shown in another style: the page's background #f4f4f5 → #ffffff\n");
+    expect(fs.readFileSync(path.join(dir, "report.md"), "utf8")).toContain("**Shown in another style:**\n- the page's background: #f4f4f5 → #ffffff\n");
+  });
+
   it("migrates, checks and writes templates to --out, with design JSON and a report", async () => {
     const dir = project({ "emails/welcome.tsx": WELCOME, "emails/components/button.tsx": SHARED, "lib/format.ts": FORMAT });
     const out = io(dir);

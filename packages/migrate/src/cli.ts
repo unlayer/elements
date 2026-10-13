@@ -88,6 +88,8 @@ export interface StyleChange {
   dark?: true;
   /** Only on phones. */
   phone?: true;
+  /** The page's own style (its background), on no words in particular: `words` is empty. */
+  page?: true;
 }
 
 export interface FileResult {
@@ -1051,7 +1053,7 @@ function markdownReport(results: FileResult[]): string {
     if (r.lostShown?.length) lines.push("**Shown whatever the props** (the original shows or hides it by them):", ...r.lostShown.map((s) => `- ${s}`), "");
     const lostLooks = (r.lostStyles ?? []).filter((style) => !r.lostShown?.includes(style));
     if (lostLooks.length) lines.push("**Lost styles** (change how it looks):", ...lostLooks.map((s) => `- ${s}`), "");
-    if (r.styles?.length) lines.push("**Shown in another style:**", ...r.styles.map((c) => `- ${c.property}: ${c.original} → ${c.converted}, on ${quote(c.words)}${wider(c.width)}`), "");
+    if (r.styles?.length) lines.push("**Shown in another style:**", ...r.styles.map((c) => `- ${styleChange(c, true)}${wider(c.width)}`), "");
     if (r.unverified?.length) lines.push("**Couldn't verify** (what the check can't read):", ...unverifiedList(r.unverified).split("; ").map((line) => `- ${line}`), "");
     if (r.phone?.missing.length) lines.push(`**On phones, lost text:** ${quote(r.phone.missing)}`, "");
     if (r.phone?.added.length) lines.push(`**On phones, extra text:** ${quote(r.phone.added)}`, "");
@@ -1181,9 +1183,16 @@ function lookProblems(check: CheckParts): string[] {
   ];
 }
 
-/** Style changes in a line: "color #e11d48 → #000000 on "Hello", "world"". */
+/** Style changes in a line: "color #e11d48 → #000000 on "Hello", "world"", "the page's background #f4f4f5 → #ffffff". */
 function styleChanges(changes: StyleChange[]): string {
-  return changes.map((c) => `${c.property} ${c.original} → ${c.converted} on ${quote(c.words)}${wider(c.width)}${c.dark ? " in dark mode" : ""}${c.phone ? " on phones" : ""}`).join("; ");
+  return changes.map((c) => `${styleChange(c)}${wider(c.width)}${c.dark ? " in dark mode" : ""}${c.phone ? " on phones" : ""}`).join("; ");
+}
+
+/** One style change and what it's on (words, or the page itself), in a line or in the Markdown report. */
+function styleChange(c: StyleChange, markdown = false): string {
+  const change = `${c.original} → ${c.converted}`;
+  if (c.page) return `the page's ${c.property}${markdown ? ":" : ""} ${change}`;
+  return markdown ? `${c.property}: ${change}, on ${quote(c.words)}` : `${c.property} ${change} on ${quote(c.words)}`;
 }
 
 /** " on screens 768px and wider", for a difference only wider screens than the desktop width show. */
