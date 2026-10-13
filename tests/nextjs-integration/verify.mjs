@@ -3,8 +3,9 @@
 // enough: Elements once rendered rows as a web page there, and an empty design, without an error.
 import { spawn } from "node:child_process";
 
-// Run in the app's folder (tests/next14-integration runs it too, without an edge route: Next.js 14 can't bundle
-// Elements for the edge runtime, 0.1.22 neither), on a port of its own.
+// Run in the app's folder (tests/next14-integration and tests/next16-integration run it too, without an edge route:
+// Next.js 14 can't bundle Elements for the edge runtime, 0.1.22 neither, and Next.js 16 deprecates it), on a port of
+// its own.
 const port = Number(process.argv[2] ?? 3765);
 const edgeRoute = !process.argv.includes("--no-edge");
 const server = spawn("npx", ["next", "start", "-p", String(port)], { stdio: "inherit" });

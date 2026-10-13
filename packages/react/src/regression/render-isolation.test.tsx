@@ -150,3 +150,57 @@ describe("an email rendered inside a component", () => {
     }
   });
 });
+
+describe("a render", () => {
+  // A prerendered page that reads one of these changes with each build: Next.js's Cache Components (its new apps'
+  // default since 16) fail the build on one. 0.2.0 asked crypto.getRandomValues() for each render's nonce, so no
+  // email could be rendered in a page Next.js prerenders.
+  it("reads no random numbers and not the date", () => {
+    const sources: Array<[object, string]> = [[globalThis.crypto, "getRandomValues"], [globalThis.crypto, "randomUUID"], [Math, "random"], [Date, "now"]];
+    const spies = sources.filter(([owner, name]) => typeof (owner as Record<string, unknown>)?.[name] === "function").map(([owner, name]) => vi.spyOn(owner as any, name as any));
+    expect(spies).toHaveLength(4);
+    try {
+      const email = () => (
+        <Email previewText="Hi">
+          {kept.hooks}
+          <Row><Column><Paragraph>Text</Paragraph><Html html="<p>Kept</p>" /></Column></Row>
+        </Email>
+      );
+      renderToHtml(email());
+      renderToHtmlParts(email());
+      renderToPlainText(email());
+      renderToJson(email());
+      renderRowToJson(<Row><Column><Paragraph>Row</Paragraph></Column></Row>);
+      for (const spy of spies) expect(spy).not.toHaveBeenCalled();
+    } finally {
+      for (const spy of spies) spy.mockRestore();
+    }
+  });
+
+  // Its nonce comes from the clock and a count of renders: where the clock stands still (fake timers) or there's
+  // none, an email renders as it does with one, and so does an email rendered inside a component of it.
+  it("renders the same where the clock stands still or there's none", () => {
+    const Inner = () => {
+      const inner = renderToHtml(<Email><Row><Column><Paragraph>Inner email</Paragraph></Column></Row></Email>);
+      return <Html html={inner.includes("Inner email") ? "<p>Inner ok</p>" : "<p>Inner missing</p>"} />;
+    };
+    const email = () => <Email><Row><Column><Paragraph>Outer</Paragraph><Inner /></Column></Row></Email>;
+    const outputs = () => [renderToHtml(email()), JSON.stringify(renderToJson(email())), renderToPlainText(email())];
+    const expected = outputs();
+    expect(expected[0]).toContain("Inner ok");
+    const now = vi.spyOn(performance, "now").mockReturnValue(1000);
+    try {
+      expect(outputs()).toEqual(expected);
+    } finally {
+      now.mockRestore();
+    }
+    const clock = Object.getOwnPropertyDescriptor(globalThis, "performance")!;
+    delete (globalThis as { performance?: unknown }).performance;
+    try {
+      expect(globalThis.performance).toBeUndefined();
+      expect(outputs()).toEqual(expected);
+    } finally {
+      Object.defineProperty(globalThis, "performance", clock);
+    }
+  });
+});

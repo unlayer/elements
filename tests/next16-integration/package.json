@@ -1,0 +1,14 @@
+{
+  "name": "next16-integration-test",
+  "version": "0.0.0",
+  "private": true,
+  "scripts": {
+    "build": "next build",
+    "verify": "node ../nextjs-integration/verify.mjs 3767 --no-edge"
+  },
+  "dependencies": {
+    "next": "16.4.0",
+    "react": "19.3.0",
+    "react-dom": "19.3.0"
+  }
+}
