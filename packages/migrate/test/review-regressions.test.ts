@@ -2034,12 +2034,11 @@ export default function Styled({ accent = "#e11d48" }: { accent?: string }) {
 
 describe("a second --write", () => {
   it("is done where a template it wrote keeps a block as HTML that imports React Email, even uncommitted", async () => {
-    // Text and a link from a lookup by a prop: kept as React Email's markup where it holds elements.
-    const help = `import { Html, Body, Text, Link } from "@react-email/components";
-const copy: Record<string, { help: string; helpLink: string }> = { en: { help: "Need help?", helpLink: "Contact support" } };
+    // A call's value beside markup in text keeps its block as React Email's markup (it's read once, as React reads it).
+    const help = `import { Html, Body, Text } from "@react-email/components";
+function greeting() { return "Need help?"; }
 export default function Help({ locale = "en" }: { locale?: string }) {
-  const t = copy[locale] ?? copy.en;
-  return <Html><Body><Text>{t.help} <Link href={\`https://acme.example.com/\${locale}/support\`}>{t.helpLink}</Link></Text></Body></Html>;
+  return <Html><Body><Text>{greeting() || <b>Hi</b>} Write to support ({locale}).</Text></Body></Html>;
 }
 Help.PreviewProps = { locale: "en" };`;
     const dir = project({ "emails/help.tsx": help });
