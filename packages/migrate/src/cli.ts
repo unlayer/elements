@@ -10,7 +10,7 @@
 import { isUtf8 } from "node:buffer";
 import { existsSync, readFileSync, realpathSync, rmSync, rmdirSync } from "node:fs";
 import { lstat, mkdir, open, readFile, readdir, realpath, rename, rm, stat } from "node:fs/promises";
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import Module, { createRequire } from "node:module";
 import { tmpdir } from "node:os";
 import { basename, dirname, extname, isAbsolute, join, relative, resolve, sep } from "node:path";
@@ -55,7 +55,7 @@ and the visual editor must get every block. Nothing is written unless you ask:
   --force          With --strict, write templates the check fails anyway.
   --overwrite      Replace files already at a destination that this run
                    didn't produce: what an earlier run wrote in an --out
-                   folder, or files git can restore.
+                   folder (not once it's edited), or files git can restore.
   --allow-dirty    Replace files git can't restore (changed since the last
                    commit, not committed, or not in a repository) with
                    --write, or with --overwrite. Without it, they're
@@ -530,17 +530,23 @@ async function reserveDestinations(inputs: Input[], candidates: Input[], options
   // A report replaces the one a run wrote before; any other file only with --overwrite (it's someone's work).
   if (report) await reserve(resolve(cwd, report), "--report", undefined, false, options.overwrite || (await isReport(resolve(cwd, report))));
   // --overwrite replaces what a run wrote before, or what git can restore: never someone's work it can't (`--out .`
-  // over an uncommitted welcome.tsx), unless --allow-dirty.
+  // over an uncommitted welcome.tsx, or a migrated template edited since), unless --allow-dirty.
   const atRisk: string[] = [];
-  // In a folder of its own (--out), an earlier run's template (its header) is replaced. A design can't be told from
-  // one made in the editor, or edited there since a run wrote it: one git can't restore is replaced only by the same
-  // design (a run again from the same template), checked when it's written.
+  // In a folder of its own (--out), an earlier run's template is replaced while it's as that run wrote it (the hash in
+  // its header). A design can't be told from one made in the editor, or edited there since a run wrote it: one git
+  // can't restore is replaced only by the same design (a run again from the same template), checked when it's written.
   // A report a run wrote is replaced as it is (see above).
   const reportPath = report ? resolve(cwd, report) : undefined;
+  const earlier = new Map<string, "edited" | "unhashed">();
   if (!options.allowDirty) {
     for (const [path, d] of destinations) {
       if (!d.replace || sources.has(d.canonical) || !existsSync(path)) continue;
-      if ((d.root !== undefined && !d.design && (await isOutput(path))) || (path === reportPath && (await isReport(path)))) continue;
+      if (path === reportPath && (await isReport(path))) continue;
+      if (d.root !== undefined && !d.design) {
+        const state = earlierOutput(await readFile(path, "utf8").catch(() => ""));
+        if (state === "intact") continue;
+        if (state) earlier.set(path, state);
+      }
       atRisk.push(path);
     }
   }
@@ -548,16 +554,53 @@ async function reserveDestinations(inputs: Input[], candidates: Input[], options
   for (const u of atRisk.length ? await notRestorable(atRisk) : []) {
     const design = destinations.get(u.file);
     if (design?.design) design.keepUnlessSame = u.why;
-    else unsafe.push(u);
+    else {
+      const state = earlier.get(u.file);
+      const how = state === "edited" ? "edited since a run wrote it, " : state === "unhashed" ? "written by an earlier version, which didn't record whether it's edited since, " : "";
+      unsafe.push({ file: u.file, why: `${how}${u.why}` });
+    }
   }
   if (unsafe.length) throw new Error(`--overwrite would replace ${unsafe.map((u) => `${relative(cwd, u.file)} (${u.why})`).join(", ")}, which git can't restore. Commit it, choose a folder of its own for --out, or pass --allow-dirty.`);
   return destinations;
 }
 
-/** Whether a file is a template a run wrote (its header). */
-async function isOutput(path: string): Promise<boolean> {
-  const text = await readFile(path, "utf8").catch(() => "");
-  return /^\/\*\* @jsxRuntime automatic \*\/\r?\n\/\/ Migrated from React Email by @unlayer\/migrate/.test(text);
+/** The header the converter starts a migrated template with: its first two lines. */
+const OUTPUT_HEADER = /^﻿?\/\*\* @jsxRuntime automatic \*\/[ \t]*\r?\n\/\/ Migrated from React Email by @unlayer\/migrate[^\r\n]*(?:\r?\n|$)/;
+/** The line after it where a run records what it wrote (a hash of the file without this line). */
+const HASH_LINE = /^\/\/ @unlayer\/migrate hash ([0-9a-f]{16})\b[^\r\n]*(?:\r?\n|$)/;
+
+/**
+ * A hash of a migrated template as written: LF line endings, no trailing whitespace or blank lines at the end, so an
+ * editor that changes only those (or adds a byte order mark) doesn't make it an edit.
+ */
+function contentHash(text: string): string {
+  const normalized = text.replace(/^﻿/, "").replace(/\r\n?/g, "\n").split("\n").map((line) => line.trimEnd()).join("\n").replace(/\n+$/, "");
+  return createHash("sha256").update(normalized).digest("hex").slice(0, 16);
+}
+
+/**
+ * The migrated template with the hash of its content after its header: a later run with --overwrite replaces the
+ * file only while it still matches (an edit made since is kept).
+ */
+export function withContentHash(code: string): string {
+  const header = OUTPUT_HEADER.exec(code);
+  if (!header) return code;
+  const eol = header[0].endsWith("\r\n") ? "\r\n" : "\n";
+  return `${header[0]}// @unlayer/migrate hash ${contentHash(code)}: a run with --overwrite replaces this file only while it's unchanged.${eol}${code.slice(header[0].length)}`;
+}
+
+/**
+ * Whether a file is a template a run wrote, and whether it's as written: "intact" (its hash matches), "edited" (it
+ * doesn't), "unhashed" (an earlier version wrote it without one: whether it was edited can't be told), or undefined
+ * (it isn't one).
+ */
+function earlierOutput(text: string): "intact" | "edited" | "unhashed" | undefined {
+  const header = OUTPUT_HEADER.exec(text);
+  if (!header) return undefined;
+  const rest = text.slice(header[0].length);
+  const hash = HASH_LINE.exec(rest);
+  if (!hash) return "unhashed";
+  return contentHash(header[0] + rest.slice(hash[0].length)) === hash[1] ? "intact" : "edited";
 }
 
 /** Whether a file is a report this CLI wrote (Markdown with its title, or JSON with its results), or nothing yet. */
@@ -832,7 +875,8 @@ async function migrateFile(input: Input, options: Options, lib: Library, io: Io,
     // Every template is written: one whose content differs too, flagged (git or the original folder keeps it as it was).
     // With --strict, only one with no difference (or any, with --force).
     if (writing && (result.status === "migrated" || !options.strict || options.force)) {
-      writes.push({ path: target, text: code, kind: "output", ...(resolve(target) === resolve(file) ? { replaces: bytes } : {}) });
+      // With the hash of what's written: a later --overwrite keeps the file once it's edited.
+      writes.push({ path: target, text: withContentHash(code), kind: "output", ...(resolve(target) === resolve(file) ? { replaces: bytes } : {}) });
       if (options.design) writes.push({ path: designPath(target), text: `${JSON.stringify(design, null, 2)}\n`, kind: "design" });
     }
     return { ...result, writes, code };

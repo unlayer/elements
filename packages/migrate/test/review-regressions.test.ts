@@ -6,7 +6,7 @@ import { execFile, spawn } from "node:child_process";
 import { promisify } from "node:util";
 import { tmpdir } from "node:os";
 import * as lib from "@unlayer/from-react-email";
-import { main, type Io } from "../src/cli";
+import { main, withContentHash, type Io } from "../src/cli";
 import { resolutionOrder } from "../src/resolution";
 
 const dirs: string[] = [];
@@ -144,7 +144,7 @@ export default function T() {
 
   it("does not truncate an outside file hard-linked to an existing output", async () => {
     // The linked file is one an earlier run wrote (its header): --overwrite replaces it.
-    const dir = project({ "emails/a.tsx": good, "outside/keep.tsx": "/** @jsxRuntime automatic */\n// Migrated from React Email by @unlayer/migrate\nOUTSIDE" });
+    const dir = project({ "emails/a.tsx": good, "outside/keep.tsx": withContentHash("/** @jsxRuntime automatic */\n// Migrated from React Email by @unlayer/migrate\nOUTSIDE") });
     fs.mkdirSync(path.join(dir, "migrated"));
     fs.linkSync(path.join(dir, "outside/keep.tsx"), path.join(dir, "migrated/a.tsx"));
     const out = io(dir);
@@ -1058,6 +1058,37 @@ export default function Welcome() { return <Html><Body><Text>Hello there</Text><
     expect(await main(["emails", "--out", "migrated", "--design"], io(dir), lib)).toBe(0);
     expect(await main(["emails", "--out", "migrated", "--design", "--overwrite"], io(dir), lib)).toBe(0);
   });
+
+  it("aren't replaced by --out with --overwrite once a template a run wrote is edited (its hash), unless git can restore it or --allow-dirty", async () => {
+    const dir = project({ "emails/welcome.tsx": template });
+    expect(await main(["emails", "--out", "migrated"], io(dir), lib)).toBe(0);
+    const output = path.join(dir, "migrated/welcome.tsx");
+    const written = fs.readFileSync(output, "utf8");
+    expect(written).toMatch(/^\/\*\* @jsxRuntime automatic \*\/\n\/\/ Migrated from React Email by @unlayer\/migrate[^\n]*\n\/\/ @unlayer\/migrate hash [0-9a-f]{16}: /);
+    // As written, or with only what an editor changes on save (line endings, trailing whitespace): replaced.
+    fs.writeFileSync(output, `${written.replace(/\n/g, "  \r\n")}\r\n`);
+    expect(await main(["emails", "--out", "migrated", "--overwrite"], io(dir), lib)).toBe(0);
+    expect(fs.readFileSync(output, "utf8")).toBe(written);
+    // Edited since, and git can't restore it (not committed): kept, naming it.
+    fs.appendFileSync(output, "export const mine = 1;\n");
+    const edited = io(dir);
+    expect(await main(["emails", "--out", "migrated", "--overwrite"], edited, lib), edited.out + edited.err).toBe(1);
+    expect(edited.err).toContain("--overwrite would replace migrated/welcome.tsx (edited since a run wrote it, not committed)");
+    expect(fs.readFileSync(output, "utf8")).toContain("export const mine = 1;");
+    // Written by 0.1.0, without a hash: whether it's edited can't be told, so it's kept the same way.
+    fs.writeFileSync(output, written.replace(/^\/\/ @unlayer\/migrate hash [^\n]*\n/m, ""));
+    const unhashed = io(dir);
+    expect(await main(["emails", "--out", "migrated", "--overwrite"], unhashed, lib), unhashed.out + unhashed.err).toBe(1);
+    expect(unhashed.err).toContain("--overwrite would replace migrated/welcome.tsx (written by an earlier version, which didn't record whether it's edited since, not committed)");
+    // An edit git can restore is replaced; so is one with --allow-dirty.
+    fs.writeFileSync(output, `${written}export const mine = 2;\n`);
+    commit(dir);
+    expect(await main(["emails", "--out", "migrated", "--overwrite"], io(dir), lib)).toBe(0);
+    expect(fs.readFileSync(output, "utf8")).toBe(written);
+    fs.appendFileSync(output, "export const mine = 3;\n");
+    expect(await main(["emails", "--out", "migrated", "--overwrite", "--allow-dirty"], io(dir), lib)).toBe(0);
+    expect(fs.readFileSync(output, "utf8")).toBe(written);
+  });
 });
 
 describe("a symbolic link to a folder, in a folder", () => {
@@ -1447,7 +1478,7 @@ Notice.PreviewProps = {};
     const written = fs.readFileSync(path.join(dir, "migrated/welcome.design.json"), "utf8");
     const mine = `${JSON.stringify({ counters: { u_row: 1 }, body: { id: "mine", rows: [{ id: "edited-in-the-editor" }] }, schemaVersion: 16 })}\n`;
     fs.writeFileSync(path.join(dir, "migrated/welcome.design.json"), mine);
-    fs.writeFileSync(path.join(dir, "migrated/welcome.tsx"), "/** @jsxRuntime automatic */\n// Migrated from React Email by @unlayer/migrate (codemod mode).\nexport const earlier = 1;\n");
+    fs.writeFileSync(path.join(dir, "migrated/welcome.tsx"), withContentHash("/** @jsxRuntime automatic */\n// Migrated from React Email by @unlayer/migrate (codemod mode).\nexport const earlier = 1;\n"));
     const out = io(dir);
     expect(await main(["emails", "--out", "migrated", "--design", "--overwrite"], out, lib), out.out + out.err).toBe(2);
     expect(out.out).toMatch(/--overwrite would replace migrated\/welcome\.design\.json \(not (committed|in a git repository)\), a design that isn't the one this run writes/);
@@ -1460,7 +1491,7 @@ Notice.PreviewProps = {};
     expect(fs.readFileSync(path.join(dir, "migrated/welcome.design.json"), "utf8")).toBe(written);
     // The same design a run writes again isn't someone's work: replaced, committed or not.
     fs.writeFileSync(path.join(dir, "migrated/welcome.design.json"), written);
-    fs.writeFileSync(path.join(dir, "migrated/welcome.tsx"), "/** @jsxRuntime automatic */\n// Migrated from React Email by @unlayer/migrate (codemod mode).\nexport const earlier = 2;\n");
+    fs.writeFileSync(path.join(dir, "migrated/welcome.tsx"), withContentHash("/** @jsxRuntime automatic */\n// Migrated from React Email by @unlayer/migrate (codemod mode).\nexport const earlier = 2;\n"));
     expect(await main(["emails", "--out", "migrated", "--design", "--overwrite"], io(dir), lib)).toBe(0);
     expect(fs.readFileSync(path.join(dir, "migrated/welcome.tsx"), "utf8")).toContain("@unlayer/react-elements");
     // Not one a run wrote at all, with no template next to it: kept the same way.
