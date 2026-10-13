@@ -22,7 +22,7 @@ export interface Io {
   cwd: string;
   /**
    * The folder the converter's React, React Email and Elements resolve from
-   * (the command sets it up before the CLI loads: see bin.ts). Without it, the
+   * (the command sets it up before the CLI loads: see start.ts). Without it, the
    * current folder.
    */
   project?: string;

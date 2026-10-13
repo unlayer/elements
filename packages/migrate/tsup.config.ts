@@ -1,7 +1,7 @@
 import { defineConfig } from "tsup";
 
 const cli = defineConfig({
-  entry: ["src/bin.ts", "src/cli.ts", "src/hooks.ts"],
+  entry: ["src/bin.ts", "src/start.ts", "src/cli.ts", "src/hooks.ts"],
   format: ["esm"],
   target: "node20",
   platform: "node",
@@ -11,8 +11,9 @@ const cli = defineConfig({
   // The converter is bundled; React, React Email, Elements, TypeScript,
   // Prettier and tsx stay external (resolved from the project first, see hooks.ts).
   noExternal: ["entities", "parse5", "@unlayer/from-react-email", "@unlayer/convert-core"],
-  // bin.ts registers the hooks before loading cli.js: keep that a runtime import.
-  external: ["react", "react-dom", /^@react-email\//, "@unlayer/react-elements", "typescript", "prettier", /^tsx/, "./cli.js"],
+  // bin.ts checks the Node.js version before loading start.js, which registers the hooks before loading cli.js: keep
+  // those runtime imports.
+  external: ["react", "react-dom", /^@react-email\//, "@unlayer/react-elements", "typescript", "prettier", /^tsx/, "./cli.js", "./start.js"],
   esbuildOptions(options) {
     options.jsx = "automatic";
   },

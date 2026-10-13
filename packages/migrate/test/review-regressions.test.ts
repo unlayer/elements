@@ -155,6 +155,37 @@ export default function T() {
   });
 });
 
+describe("a Node.js older than the CLI needs (built CLI)", () => {
+  const bin = path.resolve(import.meta.dirname, "../dist/bin.js");
+  // The version the check reads, as an older Node.js reports it.
+  const reporting = (version: string) => ["--import", `data:text/javascript,Object.defineProperty(process.versions,"node",{value:"${version}"})`];
+  const run = (node: string, args: string[], cwd: string) => promisify(execFile)(node, args, { cwd, timeout: 60_000 }).catch((error) => error);
+
+  it("stops with exit 1, saying which version it needs, before loading anything", async () => {
+    const dir = project({ "emails/welcome.tsx": good });
+    for (const version of ["18.20.4", "20.5.1"]) {
+      const result = await run(process.execPath, [...reporting(version), bin, "emails"], dir);
+      expect(result.code, result.stdout + result.stderr).toBe(1);
+      expect(result.stderr).toBe(`@unlayer/migrate needs Node.js 20.6 or later (you have ${version}).\n`);
+      expect(result.stdout).toBe("");
+    }
+    const supported = await run(process.execPath, [...reporting("20.6.0"), bin, "--help"], dir);
+    expect(supported.stdout).toContain("Migrate React Email templates to Unlayer Elements.");
+  }, 90_000);
+
+  // On Node 18 itself when it's installed (with nvm): nothing it lacks loads before the check.
+  const home = process.env.HOME ?? "";
+  const installed = fs.existsSync(path.join(home, ".nvm/versions/node")) ? fs.readdirSync(path.join(home, ".nvm/versions/node")).filter((v) => /^v(1[0-9]|20\.[0-5])\./.test(v)) : [];
+  it.skipIf(!installed.length)("stops the same way on an older Node.js itself", async () => {
+    const dir = project({ "emails/welcome.tsx": good });
+    for (const version of installed) {
+      const result = await run(path.join(home, ".nvm/versions/node", version, "bin/node"), [bin, "emails"], dir);
+      expect(result.code, result.stdout + result.stderr).toBe(1);
+      expect(result.stderr).toBe(`@unlayer/migrate needs Node.js 20.6 or later (you have ${version.slice(1)}).\n`);
+    }
+  }, 90_000);
+});
+
 describe("files the run can't read (built CLI)", () => {
   const bin = path.resolve(import.meta.dirname, "../dist/bin.js");
   function linked(files: Record<string, string>): string {

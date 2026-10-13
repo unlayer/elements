@@ -6,7 +6,7 @@ Migrate React Email templates to [Unlayer Elements](https://github.com/unlayer/e
 npx @unlayer/migrate emails --write
 ```
 
-Run it from your project folder. Each template is:
+Run it from your project folder, with Node.js 20.6 or later (an older one stops with exit code `1`, saying so). Each template is:
 
 1. **Converted.** React Email components become Elements components (`Text` → `Paragraph`, `Section`/`Row`/`Column` → `Row`/`Column`, `Button` → `Button`, …). Tailwind classes become props. Components the template uses from the same file or from your other files (a shared `Layout`, a `Footer`, also through an `index.ts` that re-exports them) are inlined. Anything with no Elements equivalent is kept as an `Html` block that renders exactly as before.
 2. **Checked.** The original and the migrated template are rendered with the template's `PreviewProps`, then again with each boolean prop flipped, and compared in two parts. The goal is an editable Unlayer template with the same content, not pixel parity: every template is written, with what differs listed.
