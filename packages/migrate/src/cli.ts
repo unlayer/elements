@@ -942,23 +942,31 @@ async function compare(paths: string[], args: Args, io: Io, library?: Library): 
   const lib = library ?? ((await import("@unlayer/from-react-email")) as Library);
   const release: Array<() => void> = [];
   try {
-    let Original: any;
-    let Migrated: any;
-    let props: Record<string, unknown>;
-    try {
-      const original = templateComponent(defaultExport(await importFile(originalPath, io, release)));
-      const migrated = templateComponent(defaultExport(await importFile(migratedPath, io, release)));
-      if (!original || !migrated) {
-        io.stderr("Both files need a default-exported template component.\n");
-        return 1;
+    // Each file loads with its imports resolved from where it is: one that fails is named, with what to do (null).
+    const load = async (path: string, which: string) => {
+      try {
+        return templateComponent(defaultExport(await importFile(path, io, release)));
+      } catch (error) {
+        const code = (error as NodeJS.ErrnoException).code;
+        const missing = code === "ERR_MODULE_NOT_FOUND" || code === "MODULE_NOT_FOUND" || /Cannot find (module|package)/.test(message(error));
+        io.stderr(
+          `Couldn't load the ${which}, ${relative(io.cwd, path)}: ${message(error)}\n` +
+            (missing ? "Its imports resolve from its own folder, where they aren't installed: put it in the project that has its dependencies (or install them there), then run compare from that project.\n" : "")
+        );
+        return null;
       }
-      Original = original.component;
-      Migrated = migrated.exported;
-      props = original.props;
-    } catch (error) {
-      io.stderr(`Couldn't load the templates: ${message(error)}\n`);
-      return 2;
+    };
+    const original = await load(originalPath, "original template");
+    if (original === null) return 2;
+    const migrated = await load(migratedPath, "migrated template");
+    if (migrated === null) return 2;
+    if (!original || !migrated) {
+      io.stderr("Both files need a default-exported template component.\n");
+      return 1;
     }
+    const Original: any = original.component;
+    const Migrated: any = migrated.exported;
+    const props: Record<string, unknown> = original.props;
     let check: Awaited<ReturnType<Library["verifyConversion"]>>;
     try {
       check = await lib.verifyConversion(Original, Migrated, { props });

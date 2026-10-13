@@ -970,6 +970,20 @@ export default function Later() { return <Html><Body><Text>Later</Text></Body></
 });
 
 describe("compare and the whole check", () => {
+  it("names an original it can't load, outside the project, and says where to run it", async () => {
+    const dir = project({ "emails/welcome.tsx": good });
+    expect(await main(["emails", "--out", "migrated"], io(dir), lib)).toBe(0);
+    // A copy of the original outside the project, whose imports aren't installed where it is.
+    const elsewhere = fs.mkdtempSync(path.join(tmpdir(), "unlayer-elsewhere-"));
+    dirs.push(elsewhere);
+    fs.writeFileSync(path.join(elsewhere, "welcome.tsx"), good.replace("@react-email/components", "react-email"));
+    const out = io(dir);
+    expect(await main(["compare", path.join(elsewhere, "welcome.tsx"), "migrated/welcome.tsx"], out, lib), out.out + out.err).toBe(2);
+    expect(out.err).toContain(`Couldn't load the original template, ${path.relative(dir, path.join(elsewhere, "welcome.tsx"))}: Cannot find`);
+    expect(out.err).toContain("'react-email'");
+    expect(out.err).toContain("put it in the project that has its dependencies (or install them there), then run compare from that project.");
+  });
+
   it("lists a hand migration that moves text across the page, as a run would (and fails it with --strict)", async () => {
     const original = `import { Html, Body, Section, Row, Column, Text } from "@react-email/components";
 export default function T() { return <Html><Body><Section style={{ width: "600px" }}><Row><Column><Text>Thanks for your order, here is the summary</Text><Text style={{ textAlign: "right" }}>Total due: 40 dollars</Text></Column></Row></Section></Body></Html>; }`;
