@@ -72,16 +72,21 @@ export function callIsolated(call: () => unknown, prefix?: string, providers: Re
   let error: unknown;
   let ran = false;
   let threw = false;
+  let calling = false;
   const Probe = () => {
-    // Only React's render: its development build calls a component again, with hooks off, to say where a warning
-    // came from (an undefined component, a list without keys), and that call fails where the render didn't.
-    if (ran) return null;
-    ran = true;
+    // React's development build calls a component again from inside its render, with hooks off, to say where a warning
+    // came from (an undefined component, a list without keys): that call fails where the render didn't. A render React
+    // starts again (the template set its state while it rendered) counts, as its last one does in React.
+    if (calling) return null;
+    ran = calling = true;
+    threw = false;
     try {
       result = call();
     } catch (cause) {
       threw = true;
       error = cause;
+    } finally {
+      calling = false;
     }
     return null;
   };

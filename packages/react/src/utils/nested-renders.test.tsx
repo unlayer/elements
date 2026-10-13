@@ -176,6 +176,21 @@ describe("a component of the user's own that calls a hook, in React's developmen
     }
   });
 
+  // React renders a component again when it sets its state while it renders: that render is the one that counts.
+  it("renders a template that sets its state while it renders as React does (its last render)", () => {
+    function Counted() {
+      const [n, setN] = useState(0);
+      if (n < 1) setN(n + 1);
+      // The root it picks from that state too: an email, with its preview text.
+      return n < 1 ? <Page><Row><Column><Paragraph>{`n=${n}`}</Paragraph></Column></Row></Page> : <Email previewText="Ready"><Row><Column><Paragraph>{`n=${n}`}</Paragraph></Column></Row></Email>;
+    }
+    const html = renderToHtml(<Counted />);
+    expect(html).toContain("n=1");
+    expect(html).toContain("Ready");
+    expect(html.startsWith("<!DOCTYPE HTML PUBLIC")).toBe(true);
+    expect(JSON.stringify(renderToJson(<Counted />))).toContain("n=1");
+  });
+
   it("renders a template with a hook and a list without keys the same every time", () => {
     const error = vi.spyOn(console, "error").mockImplementation(() => {});
     const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
