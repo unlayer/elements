@@ -252,12 +252,15 @@ describe("HTML from a component in a Column", () => {
     }
   });
 
-  it("keeps markup other than a bare div as it is: a table, an image, elements side by side", () => {
+  it("keeps markup other than a bare div as it is: a table, an image, a linked image, a styled rule, elements side by side", () => {
     const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
     try {
       const shapes: Array<[React.FC, string]> = [
         [() => <table><tbody><tr><td align="right">cell</td></tr></tbody></table>, '<table><tbody><tr><td align="right">cell</td></tr></tbody></table>'],
         [() => <img src="https://example.com/pic.png" alt="pic" />, '<img src="https://example.com/pic.png" alt="pic"/>'],
+        // A link or a rule its block couldn't hold all of (an image in the link, the rule's style) stays as it is.
+        [() => <a href="https://example.com"><img src="https://example.com/logo.png" alt="Logo" width="120" /></a>, '<a href="https://example.com"><img src="https://example.com/logo.png" alt="Logo" width="120"/></a>'],
+        [() => <hr style={{ borderTop: "2px dashed #cccccc" }} />, '<hr style="border-top:2px dashed #cccccc"/>'],
         [() => <><div>one</div><p>two</p></>, "<div>one</div><p>two</p>"],
       ];
       for (const [Shape, kept] of shapes) {

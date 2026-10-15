@@ -362,9 +362,13 @@ function styled(c: Collected, node: Extract<Node, { kind: "row" | "column" | "bl
 /** Props any block takes beside its values (its defaults' keys); `font…` in camel case (`fontsize` is a slip). */
 const KNOWN = /^(children|className|style|mode|values|containerPadding|hideOn(Mobile|Desktop)|mobile|skipInText|html|text|href|action|alt|src|width|maxWidth|items|icons|icon\w+|spacing|videoUrl|headers|data|columns|rows|font[A-Z]\w*|letterSpacing|color|lineHeight|textAlign|padding|border\w*|backgroundColor|hover\w*|_\w+)$/;
 
-/** Markup that is a block: an <a> a Paragraph holding it (its link kept to what text can hold), an <hr> a Divider. */
+/**
+ * Markup that is a block, where the block keeps all of it: an <a> whose markup is all text can hold (a Paragraph
+ * holding it), an <hr> with no attributes (a Divider). Anything else (a linked image, a styled rule) stays an HTML
+ * block, as it was.
+ */
 const asBlock = (part: Part, props: Record<string, unknown> = {}): React.ReactElement | undefined =>
-  "tag" in part && part.tag === "a" ? React.createElement(Paragraph, { ...props, html: inlineHtml(part.html) }) : "tag" in part && part.tag === "hr" ? React.createElement(Divider, props) : undefined;
+  "tag" in part && part.tag === "a" && inlineHtml(part.html) === part.html ? React.createElement(Paragraph, { ...props, html: part.html }) : "tag" in part && part.html === "<hr/>" ? React.createElement(Divider, props) : undefined;
 
 /**
  * This copy's blocks, by name. A block of another copy of Elements (a package still on an earlier release, in a
