@@ -261,6 +261,40 @@ export function generateHtmlFromTextJson(textJson: string): string {
   }
 }
 
+const TEXT_ENTITIES: Record<string, string> = { "&": "&amp;", "<": "&lt;", ">": "&gt;" };
+
+/** A Lexical paragraph of plain text (`textToTextJson`'s): text nodes with no formatting, in a paragraph with none. */
+function plainParagraph(node: any): boolean {
+  return (
+    (node?.type === "paragraph" || node?.type === "extended-paragraph") &&
+    !node.format && !node.indent && !node.style && !dirAttribute(node.direction) &&
+    (node.children ?? []).every((child: any) => (child?.type === "text" || child?.type === "extended-text") && !child.format && !child.style)
+  );
+}
+
+/**
+ * The HTML a text block holds (its `text`) for a textJson: what Elements writes in the design and renders, as the
+ * builder's text block exports it. HTML given (`htmlToTextJson`) is kept as it is; a paragraph of plain text (a
+ * Paragraph's `text` or string children) is that text, escaped, with no paragraph around it; other Lexical JSON
+ * (formatting, links, several paragraphs) is its HTML, as `generateHtmlFromTextJson` writes it.
+ *
+ * @param textJson - Lexical JSON string, or the HTML passthrough
+ * @returns The text block's HTML ("" for JSON it can't read)
+ */
+export function textJsonToText(textJson: string): string {
+  try {
+    const parsed = JSON.parse(textJson);
+    if (parsed?.__html) return parsed.__html;
+    const paragraphs = parsed?.root?.children;
+    if (!Array.isArray(paragraphs)) return "";
+    if (paragraphs.length > 1 || !paragraphs.every(plainParagraph)) return nodeToHtml(parsed.root);
+    // (Its quotes kept: it's text, not an attribute.)
+    return (paragraphs[0]?.children ?? []).map((node: any) => String(node.text ?? "").replace(/[&<>]/g, (c) => TEXT_ENTITIES[c])).join("");
+  } catch {
+    return "";
+  }
+}
+
 /**
  * Convert an HTML string to a textJson-compatible value.
  *

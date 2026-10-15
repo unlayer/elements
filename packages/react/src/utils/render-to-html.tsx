@@ -2,10 +2,9 @@ import React from "react";
 import { renderToStaticMarkup } from "./server-renderer";
 import type { PlainTextOptions, UnlayerConfig } from "@unlayer-internal/shared-elements";
 import { htmlToPlainText } from "@unlayer-internal/shared-elements";
-import type { RenderMode } from "@unlayer-internal/shared-elements";
 import { extractHeadFromTree } from "./extract-head";
-import { htmlRoot, providedConfig } from "./unwrap-root";
-import { rootConfig, type RootConfigProps } from "../context/layer-config";
+import { htmlRoot, providedConfig, ROOT_NAMES } from "./unwrap-root";
+import { rootConfig, rootMode, type RootConfigProps } from "../context/layer-config";
 import { normalizedRoot } from "./normalize";
 import { withRenderScope } from "./render-scope";
 import { isTailwindError } from "./tailwind";
@@ -16,40 +15,12 @@ import {
   type DocumentLayoutArgs,
 } from "./document-layouts";
 
-// Email/Page/Document lock their render mode internally (they render
-// <Body mode="...">), so the top-level element's own props never carry it.
-// Map wrapper displayName → mode so head extraction and the document layout
-// always match what the body actually rendered as.
-const MODE_BY_WRAPPER: Record<string, RenderMode> = {
-  Email: "email",
-  Page: "web",
-  Document: "document",
-};
-
 /**
  * The root's config (see rootConfig), key by key: the render function's options over the root's `config` prop, over
  * its `textDirection`, over the <UnlayerProvider>s found around it, over the defaults.
  */
 function resolveConfig(element: React.ReactElement, config?: Partial<UnlayerConfig>): UnlayerConfig {
   return rootConfig(element.props as RootConfigProps, providedConfig(element), config);
-}
-
-/**
- * Resolve the display mode for a tree: wrapper component type first
- * (Email/Page/Document), then an explicit `mode` prop (Body), then config.
- */
-function resolveDisplayMode(
-  element: React.ReactElement,
-  mergedConfig: Partial<UnlayerConfig>
-): RenderMode {
-  const displayName = (element.type as { displayName?: string })?.displayName;
-  const wrapperMode = displayName ? MODE_BY_WRAPPER[displayName] : undefined;
-  return (
-    wrapperMode ??
-    (element.props as { mode?: RenderMode }).mode ??
-    mergedConfig.mode ??
-    "web"
-  );
 }
 
 /**
@@ -171,14 +142,13 @@ function htmlDocument(element: React.ReactElement, options?: RenderToHtmlOptions
 
   const lang = optionLang ?? (element.props as { lang?: string }).lang;
   const mergedConfig = resolveConfig(element, config);
-  const displayMode = resolveDisplayMode(element, mergedConfig);
+  const displayMode = rootMode(element, mergedConfig);
 
   // Only Unlayer wrappers (Body/Email/Page/Document) get their renderer's
   // host <div> stripped — for any other root (a bare item, a custom
   // component) the outer div is the element's own markup and must stay.
   const wrapperName = (element.type as { displayName?: string })?.displayName;
-  const isUnlayerWrapper =
-    wrapperName === "Body" || (wrapperName ? wrapperName in MODE_BY_WRAPPER : false);
+  const isUnlayerWrapper = ROOT_NAMES.has(wrapperName ?? "");
   const rawBody = renderBody(element, config);
   const body = isUnlayerWrapper ? stripOuterDiv(rawBody) : rawBody;
   const { css, js, tags } = extractHeadFromTree(element, {
@@ -192,7 +162,7 @@ function htmlDocument(element: React.ReactElement, options?: RenderToHtmlOptions
       ? ` dir="${escapeForHtml(String(mergedConfig.textDirection))}"`
       : "",
     titleTag: title ? `<title>${escapeForHtml(title.trim())}</title>` : "",
-    styleTag: css ? `<style type="text/css">\n${styleText(css)}\n</style>` : "",
+    css: styleText(css),
     scriptTag: js
       ? `<script type="application/javascript">\n${js}\n</script>`
       : "",
@@ -328,7 +298,7 @@ function htmlParts(element: React.ReactElement, config?: Partial<UnlayerConfig>)
 
   // Resolve display mode from the wrapper component, element props, or config
   const mergedConfig = resolveConfig(element, config);
-  const displayMode = resolveDisplayMode(element, mergedConfig);
+  const displayMode = rootMode(element, mergedConfig);
 
   // Extract head CSS/JS/tags by walking the element tree
   const { css, js, tags } = extractHeadFromTree(element, {

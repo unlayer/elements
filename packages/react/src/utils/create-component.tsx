@@ -317,25 +317,27 @@ export function createItemComponent<
     //    so JSON output preserves the schema's storage shape.
     const valuesForExporter = normalizeValuesForExporter(valuesWithMeta as Record<string, any>, config.name, mode);
 
-    // 5b. Convert a fixed (px) image pin to the editor's canonical percent now
+    // 5b. The block's padding, which the design gives every block (10px unless it sets one): the exporters size an
+    //     image or a video's thumbnail in the slot it leaves, as the editor does.
+    const forExporter = valuesForExporter as Record<string, any>;
+    forExporter.containerPadding ??= DEFAULT_CONTAINER_PADDING;
+    // 5c. Convert a fixed (px) image pin to the editor's canonical percent now
     //     that the column geometry is known (Column threads columnValues/cells/
     //     bodyValues). Guarded on `src.autoWidth === false`, so only pinned
     //     images are touched; responsive images and non-image blocks pass through.
-    const forExporter = valuesForExporter as Record<string, any>;
     const exportSrc = forExporter.src;
     let exporter = (config.exporters[mode] || config.exporters.web)!;
     if (exportSrc && typeof exportSrc === "object" && exportSrc.autoWidth === false) {
       const available = contentSlotWidth({ bodyValues: safeBodyValues, rowValues, rowCells: cells, columnIndex: colIndex, columnValues, containerPadding: forExporter.containerPadding });
       const px = toPx(exportSrc.maxWidth);
+      // The percent the design stores (see render-to-json.ts), which the exporter sizes the image by.
+      forExporter.src = pinImageSrc(exportSrc, available);
       if (px! < available) {
-        // A px width narrower than the slot: a percent of it rounded up, sized by the exporter in the same slot (the
-        // block's padding, on its wrapper, taken off), and the px its max-width. It renders at that width (the
-        // exporter rounds what it works out from a percent to 2 decimals), and narrower on a narrower screen.
-        forExporter.containerPadding ??= DEFAULT_CONTAINER_PADDING;
-        forExporter.src = pinImageSrc(exportSrc, available, (n) => Math.ceil(n * 100 - 1e-9) / 100);
+        // A px width narrower than the slot keeps that px as its max-width (and its width attribute, Outlook's), where
+        // the exporter writes the px it works out from the percent (2 decimals): `64px`, not `63.97px`.
         const own = exporter;
         exporter = (...args: any[]) => String(own(...(args as Parameters<typeof own>))).replace(/<img [^>]*max-width: [\d.]+px[^>]*>/g, (tag) => tag.replace(/(max-width: |width=")[\d.]+/g, `$1${px}`));
-      } else forExporter.src = pinImageSrc(exportSrc, available);
+      }
     }
 
     // 7. Render using utility (handles all boilerplate)

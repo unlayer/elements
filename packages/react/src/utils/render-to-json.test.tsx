@@ -646,17 +646,105 @@ describe("renderRowToJson", () => {
 });
 
 describe("renderToJson fonts prop", () => {
-  it("keeps the root's fonts out of the design (renderToHtml links them)", () => {
+  const INTER = "https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap";
+  const PAIR = "https://fonts.googleapis.com/css?family=Open+Sans:400,700|Lora";
+
+  it("puts each URL on the design's fonts of the families it names, as a <Font> does, so the editor loads them", () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    try {
+      // As the CLI starters write it: the root's font is the stylesheet's family.
+      const design = renderToJson(
+        <Email fonts={[{ url: INTER }, { url: PAIR }]} fontFamily={{ label: "Inter", value: "Inter, 'Helvetica Neue', Arial, sans-serif" }}>
+          <Row>
+            <Column>
+              <Heading fontFamily="'Open Sans', Arial, sans-serif">Hello</Heading>
+              <Paragraph fontFamily={{ label: "Lora", value: "Lora, serif", url: "https://example.com/own.css" }}>Its own</Paragraph>
+              <Paragraph fontFamily="Georgia, serif">Another family</Paragraph>
+            </Column>
+          </Row>
+        </Email>
+      ) as any;
+      expect(design.body.values.fontFamily).toEqual({ label: "Inter", value: "Inter, 'Helvetica Neue', Arial, sans-serif", url: INTER });
+      const [heading, own, other] = design.body.rows[0].columns[0].contents.map((c: any) => c.values.fontFamily);
+      expect(heading.url).toBe(PAIR);
+      // A font with its own URL keeps it; another family takes none.
+      expect(own.url).toBe("https://example.com/own.css");
+      expect(other.url).toBeUndefined();
+      expect(warn).not.toHaveBeenCalled();
+    } finally {
+      warn.mockRestore();
+    }
+  });
+
+  it("says, once a render, a URL the design can't hold: one naming no family a font in it has, or no family at all", () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    try {
+      const tree = (
+        <Email fonts={[{ url: "https://fonts.googleapis.com/css2?family=Inter" }, { url: "https://cdn.example.com/brand.css" }, { url: "https://cdn.example.com/brand.css" }]}>
+          <Row>
+            <Column>
+              <Paragraph>Hello</Paragraph>
+            </Column>
+          </Row>
+        </Email>
+      );
+      const design = renderToJson(tree);
+      expect(JSON.stringify(design)).not.toContain("fonts.googleapis.com");
+      const said = warn.mock.calls.map((c) => String(c[0]));
+      expect(said).toEqual([
+        expect.stringMatching(/^\[Unlayer\] Email `fonts` URL https:\/\/fonts\.googleapis\.com\/css2\?family=Inter is kept in HTML but not in the design/),
+        expect.stringMatching(/^\[Unlayer\] Email `fonts` URL https:\/\/cdn\.example\.com\/brand\.css is kept in HTML but not in the design/),
+      ]);
+      // The HTML links them all the same.
+      expect(renderToHtml(tree)).toContain('href="https://cdn.example.com/brand.css"');
+    } finally {
+      warn.mockRestore();
+    }
+  });
+
+  it("reads the families of a data: stylesheet's @font-face rules (as @unlayer/migrate writes a font file)", () => {
+    const css = "@font-face{font-family:'Brand Sans';src:url('https://cdn.example.com/brand.woff2') format('woff2');font-weight:400;font-style:normal}";
+    const url = `data:text/css,${encodeURIComponent(css)}`;
     const design = renderToJson(
-      <Email fonts={[{ url: "https://fonts.googleapis.com/css2?family=Inter" }]}>
+      <Email fonts={[{ url }]} fontFamily="'Brand Sans', Arial, sans-serif">
         <Row>
           <Column>
             <Paragraph>Hello</Paragraph>
           </Column>
         </Row>
       </Email>
-    );
-    expect(JSON.stringify(design)).not.toContain("fonts.googleapis.com");
+    ) as any;
+    expect(decodeURIComponent(design.body.values.fontFamily.url)).toBe(`data:text/css,${css}`);
+  });
+
+  it("leaves a <Font>'s URL where it put it", () => {
+    const design = renderToJson(
+      <Email fonts={[{ url: INTER }]} fontFamily={{ label: "Inter", value: "Inter, sans-serif", url: "https://example.com/inter.css" }}>
+        <Row>
+          <Column>
+            <Paragraph>Hello</Paragraph>
+          </Column>
+        </Row>
+      </Email>
+    ) as any;
+    expect(design.body.values.fontFamily.url).toBe("https://example.com/inter.css");
+  });
+});
+
+describe("renderToJson displayMode", () => {
+  const content = <Row><Column><Paragraph>Hi</Paragraph></Column></Row>;
+  it.each([
+    ["Email", <Email>{content}</Email>, "email"],
+    ["Page", <Page>{content}</Page>, "web"],
+    ["Document", <Document>{content}</Document>, "document"],
+    ["Body with a mode", <Body mode="email">{content}</Body>, "email"],
+    ["Body with none", <Body>{content}</Body>, "web"],
+  ] as const)("writes the mode the HTML renders in on the body: %s", (_, tree, mode) => {
+    expect((renderToJson(tree).body.values as any).displayMode).toBe(mode);
+  });
+
+  it("is the root's, over one given in its values", () => {
+    expect((renderToJson(<Email values={{ displayMode: "web" } as any}>{content}</Email>).body.values as any).displayMode).toBe("email");
   });
 });
 

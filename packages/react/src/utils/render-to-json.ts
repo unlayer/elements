@@ -18,7 +18,7 @@ import type {
   DesignContent,
   UnlayerConfig,
 } from "@unlayer-internal/shared-elements";
-import { escapeText, mergeValues, pxZeros } from "@unlayer-internal/shared-elements";
+import { mergeValues, pxZeros, textJsonToText } from "@unlayer-internal/shared-elements";
 // Schema version from the exporters bundle — matches the editor's currentVersion
 // at the time the exporters were generated. This ensures renderToJson output is
 // recognized as current by the editor, skipping unnecessary migrations.
@@ -27,7 +27,7 @@ import { schemaVersion as _schemaVersion } from "@unlayer/exporters";
 const schemaVersion: number = _schemaVersion ?? 24;
 import { mapSemanticProps } from "./semantic-props";
 import { componentName, getDisplayName, providedConfig, ROOT_NAMES, unwrapRoot, UNWRAP_ADVICE } from "./unwrap-root";
-import { rootConfig, type RootConfigProps } from "../context/layer-config";
+import { rootConfig, rootMode, type RootConfigProps } from "../context/layer-config";
 import { BODY_DEFAULTS, ROW_DEFAULTS, COLUMN_DEFAULTS } from "./container-defaults";
 import { contentSlotWidth, pinImageSrc, type SlotContext } from "./image-sizing";
 import { sayOnce, withRenderScope } from "./render-scope";
@@ -35,6 +35,7 @@ import { collect, KEPT, normalizedChildren, normalizedRoot } from "./normalize";
 import type { Recorded } from "./collect";
 import { rtlAlign, textDirectionOf, UNLAYER_CONFIG_KEY } from "./create-component";
 import { TAILWIND } from "./tailwind";
+import { fontUrlInDesign, safeUrl, urlFamilies } from "./font-design";
 
 /** Layout context threaded down the walk so an image can be sized against the
  *  real column slot (contentWidth × column share, minus paddings/borders). */
@@ -98,42 +99,6 @@ export function nextCounter(counters: Record<string, number>, key: string): numb
 }
 
 // ============================================
-// Helpers
-// ============================================
-
-/**
- * The design's `text` (HTML) from a textJson string, without needing a DOM.
- * Handles both Lexical JSON format and the __html passthrough format. A
- * Lexical text node is plain text (a Paragraph's `text` prop or string
- * children): escaped, as the HTML renders it, so the editor shows it as typed.
- */
-function extractTextFromTextJson(textJson: string): string {
-  try {
-    const parsed = JSON.parse(textJson);
-
-    // __html passthrough (from htmlToTextJson)
-    if (parsed.__html) return parsed.__html;
-
-    // Lexical JSON — walk the tree and extract text content
-    const root = parsed?.root;
-    if (!root?.children) return "";
-
-    const paragraphs: string[] = [];
-    for (const paragraph of root.children) {
-      if (!paragraph?.children) continue;
-      const parts: string[] = [];
-      for (const node of paragraph.children) {
-        if (node?.text) parts.push(escapeText(String(node.text)));
-      }
-      paragraphs.push(parts.join(""));
-    }
-    return paragraphs.join("\n");
-  } catch {
-    return "";
-  }
-}
-
-// ============================================
 // Tree processors
 // ============================================
 
@@ -174,10 +139,10 @@ function processItem(
   rtlAlign(mappedValues, defaultValues, (layout.bodyValues as { textDirection?: unknown } | undefined)?.textDirection);
   const finalValues = mergeValues(defaultValues, mappedValues);
 
-  // Paragraph maps to "text" content type — convert textJson to plain text/HTML.
-  // Extract text directly from the Lexical JSON structure (no DOM needed).
+  // Paragraph maps to "text" content type: its textJson as the HTML the text block holds, which its HTML renders too
+  // (see Paragraph.tsx).
   if (contentType === "text" && finalValues.textJson) {
-    finalValues.text = extractTextFromTextJson(finalValues.textJson);
+    finalValues.text = textJsonToText(finalValues.textJson);
     delete finalValues.textJson;
   }
 
@@ -305,6 +270,8 @@ function processRow(
 function processBody(
   element: React.ReactElement,
   counters: Record<string, number>,
+  /** The mode the root renders in (see rootMode). */
+  mode: string,
   /** The config of the <UnlayerProvider>s around the root (see unwrap-root.ts). */
   provided?: Partial<UnlayerConfig>
 ): DesignBody {
@@ -320,6 +287,8 @@ function processBody(
   const direction = textDirectionOf(rootConfig(element.props as RootConfigProps, provided).textDirection);
   if (direction) (values as Record<string, unknown>).textDirection = direction;
   else delete (values as Record<string, unknown>).textDirection;
+  // The mode the HTML renders in (email, web or document), which the editor keeps and opens the design in.
+  (values as Record<string, unknown>).displayMode = mode;
 
   // `previewText` is the React alias for the schema's `preheaderText`. It is
   // excluded from the mapped values (it drives the email preview HTML at render
@@ -358,6 +327,21 @@ function processBody(
     rows,
     values: valuesWithMeta,
   } as DesignBody;
+}
+
+/**
+ * A root's `fonts` (stylesheets its HTML links) in the design, as a <Font>'s are: each URL on the design's fonts of
+ * the families it names (see urlFamilies), so the editor loads it too. One that names no family the design has a font
+ * of is said (its start, for a long one): the HTML loads it, the editor doesn't.
+ */
+function rootFonts(element: React.ReactElement, name: string, body: DesignBody): void {
+  for (const font of (element.props as { fonts?: Array<{ url?: unknown }> }).fonts ?? []) {
+    if (!font?.url) continue;
+    const url = safeUrl(String(font.url));
+    let held = false;
+    for (const family of urlFamilies(url)) held = fontUrlInDesign(family, url, body) || held;
+    if (!held) sayOnce(`[Unlayer] ${name} \`fonts\` URL ${url.length > 80 ? `${url.slice(0, 79)}…` : url} is kept in HTML but not in the design for the visual editor: it names no family (\`family=\`) that a \`fontFamily\` in the design has. <Font family url default> ("@unlayer/react-elements/font") makes a font the template's in both.`);
+  }
 }
 
 // ============================================
@@ -444,6 +428,8 @@ function designJson(element: React.ReactElement): DesignJSON {
   // The config of the <UnlayerProvider>s around it (the design keeps its direction), read before it's copied below.
   const provided = providedConfig(element);
   const displayName = getDisplayName(element);
+  // (Email, Page or Document's, read before it's copied below.)
+  const mode = rootMode(element, rootConfig(element.props as RootConfigProps, provided));
   // One React render collects the rows and blocks (as the HTML does).
   let heads: Recorded[] = [];
   if (displayName && ROOT_NAMES.has(displayName)) {
@@ -469,9 +455,10 @@ function designJson(element: React.ReactElement): DesignJSON {
   // For Email/Page/Document, the children and semantic props are on the
   // wrapper element directly, same as Body.
   const counters: Record<string, number> = {};
-  const body = processBody(element, counters, provided);
-  // What its content gives the design (a <Font>'s URL, on the fonts of its family).
+  const body = processBody(element, counters, mode, provided);
+  // What its content gives the design (a <Font>'s URL, on the fonts of its family), then its `fonts` prop.
   for (const r of heads) if (r.kind === "head") r.design?.(body);
+  rootFonts(element, displayName, body);
 
   // Bare zeros in its px lengths written `0px`, as its schema types them (see pxZeros).
   return {

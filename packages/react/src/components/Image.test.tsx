@@ -205,8 +205,9 @@ describe("Image Component", () => {
   });
 
   // Regression: an image must size against the real available width
-  // (contentWidth × column fraction), not a fixed fallback. The Column threads
-  // its body/column context to the exporter so this matches the editor.
+  // (contentWidth × column fraction, less the block's default 10px padding on
+  // each side), not a fixed fallback. The Column threads its body/column context
+  // to the exporter so this matches the editor.
   describe("sizes against contentWidth × column width (threaded to the exporter)", () => {
     const big = { url: "https://x/p.jpg", width: 1200, height: 600 };
     const imgWidth = (html: string) => {
@@ -226,16 +227,16 @@ describe("Image Component", () => {
       );
     };
 
-    it("a full-width image fills the content width (not the 500 fallback)", () => {
-      expect(imgWidth(renderImg("600px", ColumnLayouts.OneColumn, 1))).toBe(600);
+    it("a full-width image fills the content width less its padding (not the 500 fallback)", () => {
+      expect(imgWidth(renderImg("600px", ColumnLayouts.OneColumn, 1))).toBe(580);
     });
 
     it("an image in a 3-column row sizes to its column (~1/3), staying responsive", () => {
-      expect(imgWidth(renderImg("600px", ColumnLayouts.ThreeEqual, 3))).toBe(200);
+      expect(imgWidth(renderImg("600px", ColumnLayouts.ThreeEqual, 3))).toBe(180);
     });
 
     it("respects a wider contentWidth", () => {
-      expect(imgWidth(renderImg("900px", ColumnLayouts.OneColumn, 1))).toBe(900);
+      expect(imgWidth(renderImg("900px", ColumnLayouts.OneColumn, 1))).toBe(880);
     });
   });
 });

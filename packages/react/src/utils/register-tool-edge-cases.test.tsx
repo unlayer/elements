@@ -392,7 +392,8 @@ describe("edge: composition", () => {
       },
     } as any);
     const html = renderToHtml(inEmail(<Probe className="x" style={{ color: "red" }} />));
-    expect(html).toContain("keys:</div>");
+    // (Its containerPadding is every block's, as in the design: the editor gives it to a tool's exporter too.)
+    expect(html).toContain("keys:containerPadding</div>");
   });
 
   it("renderToPlainText extracts custom tool text like any content", () => {

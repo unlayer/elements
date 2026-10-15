@@ -29,7 +29,14 @@ import Column from "../components/Column";
 import Html from "../components/Html";
 import Paragraph from "../components/Paragraph";
 import Divider from "../components/Divider";
-import { margins } from "../components/Heading";
+import Heading, { margins } from "../components/Heading";
+import Button from "../components/Button";
+import Image from "../components/Image";
+import Menu from "../components/Menu";
+import Social from "../components/Social";
+import Table from "../components/Table";
+import Video from "../components/Video";
+import PageBreak from "../components/PageBreak";
 import { COLUMN_DEFAULTS, ROW_DEFAULTS } from "./container-defaults";
 
 /**
@@ -359,6 +366,13 @@ const KNOWN = /^(children|className|style|mode|values|containerPadding|hideOn(Mo
 const asBlock = (part: Part, props: Record<string, unknown> = {}): React.ReactElement | undefined =>
   "tag" in part && part.tag === "a" ? React.createElement(Paragraph, { ...props, html: inlineHtml(part.html) }) : "tag" in part && part.tag === "hr" ? React.createElement(Divider, props) : undefined;
 
+/**
+ * This copy's blocks, by name. A block of another copy of Elements (a package still on an earlier release, in a
+ * monorepo) is this copy's block of its name, so its HTML is this release's, the export of its design (a custom tool
+ * stays its own).
+ */
+const BLOCKS: Record<string, React.ComponentType<any>> = { Paragraph, Heading, Button, Image, Divider, Html, Menu, Social, Table, Video, PageBreak };
+
 /** A recorded Row, Column or block, as the Elements component it was, with what React rendered in it (null: left out). */
 function element(c: Collected, node: Extract<Node, { kind: "row" | "column" | "block" }>): React.ReactElement | null {
   const r = recorded(c, node);
@@ -381,7 +395,7 @@ function element(c: Collected, node: Extract<Node, { kind: "row" | "column" | "b
         if (near !== false) sayOnce(`[Unlayer] ${item.name} ignores the prop \`${key}\`${near ? `: did you mean \`${near}\`?` : "."}`);
       }
     }
-    return React.createElement(r.type, styled(c, node, props));
+    return React.createElement((item?.contentType !== "custom" && BLOCKS[item?.name]) || r.type, styled(c, node, props));
   }
   if (node.kind === "column") return React.createElement(Column, { ...styled(c, node, r.props), children: keyed(elements(c, node.children, "column")) });
   const props: Record<PropertyKey, any> = { ...styled(c, node, r.props) };

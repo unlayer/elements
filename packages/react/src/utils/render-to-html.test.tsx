@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import React from "react";
-import { renderToHtml } from "./render-to-html";
+import { renderToHtml, renderToHtmlParts } from "./render-to-html";
 import { renderToJson } from "./render-to-json";
 import Body from "../components/Body";
 import Row from "../components/Row";
@@ -185,13 +185,19 @@ describe("renderToHtml: full document shell", () => {
     expect(html).toContain('<html dir="rtl" xmlns=');
   });
 
-  it("every <p> in the document carries the inline margin reset", () => {
-    const html = renderToHtml(emailTree);
-    const pTags = html.match(/<p[^>]*>/g) ?? [];
-    expect(pTags.length).toBeGreaterThan(0);
-    for (const tag of pTags) {
-      expect(tag).toContain("margin: 0px; margin-block-start: 0px; margin-block-end: 0px;");
-    }
+  it("has the editor's base stylesheet first in its head's <style>, in each mode", () => {
+    const tree = (Root: typeof Email) => <Root><Row><Column><Paragraph>Hi</Paragraph></Column></Row></Root>;
+    const style = (html: string) => /<style type="text\/css">\n([\s\S]*?)\n<\/style>/.exec(html)?.[1] ?? "";
+    expect(style(renderToHtml(tree(Email)))).toMatch(/^sub,sup\{line-height:0\}\n\nbody\{margin:0;padding:0\}table,td,tr\{border-collapse:collapse;vertical-align:top\}p\{margin:0\}\.ie-container table,\.mso-container table\{table-layout:fixed\}\*\{line-height:inherit\}a\[x-apple-data-detectors=true\]\{color:inherit!important;text-decoration:none!important\}\n@media/);
+    const web = style(renderToHtml(tree(Page)));
+    expect(web).toMatch(/^body,html\{margin:0;padding:0\}html\{box-sizing:border-box\}\*,:after,:before\{box-sizing:inherit\}html\{font-size:14px;/);
+    expect(web).toContain("p{margin:0}.container{");
+    expect(web).toContain("sub,sup{line-height:0}\n\na[onclick]{cursor:pointer}\n@media");
+    // (Not the editor's form styles: Elements has no form block.)
+    expect(web).not.toContain("form ");
+    expect(style(renderToHtml(tree(Document)))).toMatch(/^body,html\{margin:0;padding:0\}html\{box-sizing:border-box\}\*,:after,:before\{box-sizing:inherit\}html\{font-size:14px\}p\{margin:0\}sub,sup\{line-height:0\}\n\na\[onclick\]\{cursor:pointer\}\n/);
+    // Not in the parts: an app's own page has its own.
+    expect(renderToHtmlParts(tree(Email)).css).not.toContain("x-apple-data-detectors");
   });
 
   it("document mode returns a print-ready XHTML document", async () => {

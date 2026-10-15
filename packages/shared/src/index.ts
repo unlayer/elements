@@ -67,6 +67,7 @@ export {
   textToTextJson,
   htmlToTextJson,
   generateHtmlFromTextJson,
+  textJsonToText,
 } from "./utils/lexical-helpers";
 
 // Utils - Value merging

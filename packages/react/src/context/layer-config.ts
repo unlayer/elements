@@ -5,7 +5,8 @@
  *
  * The render functions, Body and renderToJson all work a root's config out here, so the HTML and the design agree.
  */
-import type { UnlayerConfig } from "@unlayer-internal/shared-elements";
+import type React from "react";
+import type { RenderMode, UnlayerConfig } from "@unlayer-internal/shared-elements";
 import { DEFAULT_CONFIG } from "@unlayer-internal/shared-elements";
 import { textDirectionOf } from "../utils/create-component";
 
@@ -36,4 +37,16 @@ export interface RootConfigProps {
 export function rootConfig(props: RootConfigProps | null | undefined, provided?: Partial<UnlayerConfig>, options?: Partial<UnlayerConfig>): UnlayerConfig {
   const direction = textDirectionOf(props?.textDirection ?? (props?.values as { textDirection?: unknown } | undefined)?.textDirection);
   return layerConfig(provided, direction && { textDirection: direction }, props?.config, options);
+}
+
+/** The modes Email, Page and Document render in (they render a <Body mode="…">, so their own props never carry it). */
+const ROOT_MODES: Record<string, RenderMode> = { Email: "email", Page: "web", Document: "document" };
+
+/**
+ * The display mode a root renders in: Email's, Page's or Document's own, else its `mode` prop (a Body's), else its
+ * config's (see rootConfig), else web. The HTML's document shell and the design's `displayMode` are this one.
+ */
+export function rootMode(element: React.ReactElement, config: Partial<UnlayerConfig>): RenderMode {
+  const name = (element.type as { displayName?: string } | null)?.displayName;
+  return (name ? ROOT_MODES[name] : undefined) ?? (element.props as { mode?: RenderMode }).mode ?? config.mode ?? "web";
 }

@@ -4,6 +4,8 @@
  *
  * - `counters`, `schemaVersion`, node `id`s and `_meta.htmlID`/`htmlClassNames`: numbering, which the editor
  *   (and renderToJson) assigns.
+ * - The body's `displayMode`: the root's (an Email is an email), which renderToJson writes and a saved design may
+ *   not have.
  * - A value missing and the same value at the builder's default: the builder fills defaults in (an image without
  *   `autoWidth` is sized automatically; a video block without a video has none).
  * - A text block's missing color and the body's text color: that's the color the builder shows it in.
@@ -134,7 +136,8 @@ function withFontUrls(body: Plain): Plain {
 /** A design as the builder shows it: what a round trip has to keep (see the top of this file). */
 export function normalizeDesign(design: Plain): Plain {
   const body: Plain = isPlainObject(design.body) ? withFontUrls(design.body) : {};
-  const bodyValues = nodeValues(body.values, EDITOR_BODY_DEFAULTS);
+  const { displayMode: _mode, ...shown } = isPlainObject(body.values) ? body.values : {};
+  const bodyValues = nodeValues(shown, EDITOR_BODY_DEFAULTS);
   const textColor = mergeValues(EDITOR_BODY_DEFAULTS, isPlainObject(body.values) ? body.values : {}).textColor;
   const rows = (Array.isArray(body.rows) ? body.rows : []).map((row: Plain) => {
     const given: Plain = isPlainObject(row.values) ? { ...row.values } : {};

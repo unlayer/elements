@@ -1,6 +1,6 @@
-import { ParagraphExporters, ParagraphDefaults } from "@unlayer/exporters";
+import { ParagraphDefaults, TextExporters } from "@unlayer/exporters";
 import type { AlignAlias, ParagraphValues, TextColorAlias, TextStyleProps } from "../types";
-import type { ValuesInput } from "@unlayer-internal/shared-elements";
+import { textJsonToText, type ValuesInput } from "@unlayer-internal/shared-elements";
 import { createItemComponent, type ItemComponentProps } from "../utils/create-component";
 import { mapSemanticProps, type SemanticProps } from "../utils/semantic-props";
 
@@ -34,6 +34,17 @@ const DEFAULT_VALUES = {
 } as unknown as ParagraphValues;
 
 /**
+ * The design holds a Paragraph as the builder's text block (see render-to-json.ts), so its HTML is that block's: the
+ * text block's exporters, on the HTML its textJson holds there. The editor exports the design as it renders.
+ */
+const exporters = Object.fromEntries(
+  Object.entries(TextExporters).map(([mode, exporter]) => [
+    mode,
+    (values: Record<string, any>, ...rest: unknown[]) => (exporter as (...args: unknown[]) => string)(values.textJson ? { ...values, text: textJsonToText(values.textJson) } : values, ...rest),
+  ])
+);
+
+/**
  * Paragraph - Universal SSR/Client Component with Semantic Props API
  *
  * ✅ Semantic flat props (color, fontSize, textAlign, etc.)
@@ -61,7 +72,7 @@ const Paragraph = createItemComponent<ParagraphValues, ParagraphSemanticProps>({
   displayName: "Paragraph",
   // `style` and `className` go on its text element.
   at: /<[a-z\d]+ [^>]*v-text-align[^>]*>/,
-  exporters: ParagraphExporters,
+  exporters,
 });
 
 export default Paragraph;

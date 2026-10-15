@@ -34,7 +34,8 @@ export function convertBody(values: Plain, root: RootName, state: ModuleState): 
   // The builder's popup settings, at their defaults (Elements doesn't write them).
   for (const key of Object.keys(rest)) if (!(key in BODY_DEFAULTS) && key in EDITOR_BODY_DEFAULTS && deepEqual(rest[key], EDITOR_BODY_DEFAULTS[key])) delete rest[key];
 
-  const { preheaderText, fontFamily, ...others } = rest;
+  // (Its `displayMode` is the root's: see designToElements.)
+  const { preheaderText, fontFamily, displayMode: _mode, ...others } = rest;
   rest = others;
   if (typeof preheaderText === "string" && preheaderText !== "") props.add("previewText", preheaderText);
   else if (preheaderText !== undefined && preheaderText !== "") props.values.preheaderText = preheaderText;

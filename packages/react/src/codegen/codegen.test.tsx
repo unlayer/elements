@@ -108,6 +108,22 @@ describe("designToElements", () => {
     expect(() => designToElements("{")).toThrow(/isn't valid JSON/);
   });
 
+  it("takes the root from the displayMode renderToJson writes, which stays out of its props", () => {
+    const { Email, Page, Document, Row, Column, Paragraph } = Elements;
+    for (const [Root, name, mode] of [[Page, "Page", "web"], [Document, "Document", "document"], [Email, "Email", "email"]] as const) {
+      const design = Elements.renderToJson(<Root><Row><Column><Paragraph>Hi</Paragraph></Column></Row></Root>) as any;
+      expect(design.body.values.displayMode).toBe(mode);
+      const result = roundTrip(design);
+      expect(result.code).toContain(`<${name}>`);
+      expect(result.code).not.toContain("displayMode");
+      expect((result.design as any).body.values.displayMode).toBe(mode);
+      expect(result.differences).toEqual([]);
+    }
+    // A design without one (the editor's own saves) is compared without it.
+    const { displayMode: _mode, ...values } = (Elements.renderToJson(<Page><Row><Column><Paragraph>Hi</Paragraph></Column></Row></Page>) as any).body.values;
+    expect(compareDesigns({ body: { rows: [], values } }, { body: { rows: [], values: { ...values, displayMode: "email" } } })).toEqual([]);
+  });
+
   it("writes an empty design as an empty root", () => {
     const { code } = designToElements({ body: { rows: [], values: {} } }, { displayMode: "web" });
     expect(code).toContain("return <Page />;");

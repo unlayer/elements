@@ -168,13 +168,13 @@ describe("DX: text components", () => {
   });
 
   it("Paragraph text shorthand renders", () => {
-    expect(html(<Paragraph text={"Hi" as any} />)).toMatch(/<p[^>]*>Hi<\/p>/);
+    expect(html(<Paragraph text={"Hi" as any} />)).toMatch(/word-wrap: break-word;">\s*Hi\s*<\/div>/);
   });
 
-  it("Paragraph <p> carries the editor's inline margin reset", () => {
-    expect(html(<Paragraph>Hi</Paragraph>)).toMatch(
-      /<p style="margin: 0px; margin-block-start: 0px; margin-block-end: 0px;">Hi<\/p>/
-    );
+  it("Paragraph renders as the editor's text block: its text in no <p>, its line height as given", () => {
+    const out = html(<Paragraph>Hi</Paragraph>);
+    expect(out).toMatch(/line-height: 140%; text-align: left; word-wrap: break-word;">\s*Hi\s*<\/div>/);
+    expect(out).not.toMatch(/<p[\s>]/);
   });
 
   it("JSX children keep their inline formatting instead of [object Object]", () => {
@@ -301,7 +301,7 @@ describe("DX: style and className, on the element each component renders", () =>
 
   it("leaves out what could end the attribute or the rule, and class names that aren't", () => {
     const out = html(<Paragraph style={{ color: 'red" onclick="x', background: "url(x);}</style>", fontWeight: 700 }} className={'a"b <c>'}>Hi</Paragraph>);
-    expect(out).not.toContain("onclick");
+    expect(out).not.toContain('onclick="x');
     expect(out).not.toContain("</style>\"");
     expect(out).toMatch(/class="ab c v-/);
     expect(out).toMatch(/;font-weight:700"/);

@@ -139,12 +139,11 @@ function round2(n: number): number {
  * px/number placeholder; a percent `maxWidth` is already canonical and is left
  * as-is, and a responsive image (`autoWidth !== false`) is untouched. A pin
  * wider than the slot clamps to 100%, mirroring the editor. The percent is rounded as the editor rounds it (to 2
- * decimals), unless `round` says otherwise.
+ * decimals), in the HTML and the design alike.
  */
 export function pinImageSrc<T extends Record<string, any> | undefined>(
   src: T,
-  availableWidth: number | undefined,
-  round: (n: number) => number = round2
+  availableWidth: number | undefined
 ): T {
   if (!src || typeof src !== "object") return src;
   if ((src as Record<string, any>).autoWidth !== false) return src;
@@ -156,7 +155,7 @@ export function pinImageSrc<T extends Record<string, any> | undefined>(
   if (pinPx == null) return src;
 
   const avail = availableWidth && availableWidth > 0 ? availableWidth : undefined;
-  const pct = avail ? (pinPx >= avail ? 100 : round((pinPx / avail) * 100)) : 100;
+  const pct = avail ? (pinPx >= avail ? 100 : round2((pinPx / avail) * 100)) : 100;
 
   return { ...src, autoWidth: false, maxWidth: `${pct}%` } as T;
 }

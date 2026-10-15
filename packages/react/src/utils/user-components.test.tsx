@@ -32,7 +32,7 @@ describe("Fragments and user components among the blocks", () => {
   it("render every block once, in order, each with its own id", () => {
     const html = renderToHtml(template);
     const body = html.slice(html.indexOf("<body"));
-    const texts = order.map((t) => body.indexOf(`>${t}<`));
+    const texts = order.map((t) => body.search(new RegExp(`>\\s*${t}\\s*<`)));
     expect(texts.every((at) => at > 0)).toBe(true);
     expect([...texts].sort((a, b) => a - b)).toEqual(texts);
     const ids = [...body.matchAll(/id="(u_(?:row|column|content_paragraph)_\d+)"/g)].map((m) => m[1]);
@@ -45,7 +45,7 @@ describe("Fragments and user components among the blocks", () => {
   it("put the phone CSS on the block that asked for it, and the design has the same blocks", () => {
     const html = renderToHtml(template);
     const selector = /#(u_content_paragraph_\d+)[^{]*\{[^}]*font-size:\s*30px/.exec(html)?.[1];
-    const targetId = new RegExp(`id="(u_content_paragraph_\\d+)"[^>]*>(?:(?!id=")[\\s\\S])*?>Target<`).exec(html)?.[1];
+    const targetId = new RegExp(`id="(u_content_paragraph_\\d+)"[^>]*>(?:(?!id=")[\\s\\S])*?>\\s*Target\\s*<`).exec(html)?.[1];
     expect(selector).toBeDefined();
     expect(selector).toBe(targetId);
     expect(html.match(new RegExp(`id="${selector}"`, "g"))).toHaveLength(1);

@@ -211,9 +211,10 @@ describe("Image fixed-width rendering (renderToHtml)", () => {
         </Row>
       </Page>
     );
-    // The pin renders as `width: <pct>%` (rounded up) with the px as its max-width, so the image is 300px wide in
-    // its 580px slot and shrinks with a narrow column instead of forcing a fixed 300px box.
-    expect(html).toMatch(/[^-]width:\s*51\.73%;max-width: 300px;/);
+    // The pin renders as `width: <pct>%` (the percent the design stores, rounded as the editor rounds it) with the
+    // px as its max-width, so the image is 300px wide in its 580px slot (299.98px) and shrinks with a narrow column
+    // instead of forcing a fixed 300px box.
+    expect(html).toMatch(/[^-]width:\s*51\.72%;max-width: 300px;/);
     expect(html).not.toMatch(/[^-]width:\s*300px/);
   });
 
@@ -233,13 +234,33 @@ describe("Image fixed-width rendering (renderToHtml)", () => {
           </Root>
         );
         for (const img of html.match(/<img [^>]*>/g)!) sizes.push(...(img.match(/max-width: [\d.]+px|width="[\d.]+"/g) ?? []));
-        // The percent it scales down by from that is of the slot, rounded up: never narrower than asked.
-        const percent = Number(/[^-]width: ([\d.]+)%/.exec(html)![1]);
+        // The percent it scales down by from that (where the image has one) is the design's: of the slot, to 2
+        // decimals, as the editor rounds it.
+        const percent = /[^-]width: ([\d.]+)%/.exec(/<img [^>]*>/.exec(html)![0])?.[1];
         const slot = 500 / layout.cells.length - (padding ? 26 : 20);
-        expect((percent / 100) * slot).toBeGreaterThanOrEqual(Number(String(width).replace("px", "")));
+        if (percent) expect(Math.abs((Number(percent) / 100) * slot - Number(String(width).replace("px", "")))).toBeLessThanOrEqual(slot * 0.00005);
       }
     }
     expect([...new Set(sizes)].sort()).toEqual(['max-width: 120px', 'max-width: 97px', 'width="120"', 'width="97"']);
+  });
+
+  it("stores the same percent in the HTML as in the design, keeping the px as its max-width", () => {
+    // 64px of the 580px slot is 11.034…%: 11.03% in both (the HTML rounded it up to 11.04% before).
+    const tree = (
+      <Email contentWidth="600px">
+        <Row>
+          <Column>
+            <Image src="https://x/p.png" width={64} />
+            <Image src="https://x/p.png" width="120px" />
+          </Column>
+        </Row>
+      </Email>
+    );
+    const design = renderToJson(tree).body.rows[0].columns[0].contents.map((c) => (c.values.src as Record<string, any>).maxWidth);
+    expect(design).toEqual(["11.03%", "20.69%"]);
+    const images = renderToHtml(tree).match(/<img [^>]*>/g)!;
+    expect(images[0]).toMatch(/[^-]width: 11\.03%;max-width: 64px;" width="64"/);
+    expect(images[1]).toMatch(/[^-]width: 20\.69%;max-width: 120px;" width="120"/);
   });
 
   it("caps a too-wide pin at 100% in a narrow column", () => {

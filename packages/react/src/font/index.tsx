@@ -1,6 +1,7 @@
 /**
  * @unlayer/react-elements/font: `<Font>`, a web font for a template.
  */
+import { fontUrlInDesign, primaryFamily, safeUrl } from "../utils/font-design";
 
 export interface FontProps {
   /** The family name your styles use ("Inter"). */
@@ -25,8 +26,6 @@ export interface FontProps {
 /** Text that can't end a CSS string, a declaration or an attribute. */
 const clean = (text: unknown) => String(text ?? "").replace(/[<>{};"'\\]/g, "").trim();
 const isFile = (font: FontProps) => !!font.format || /\.(woff2?|ttf|otf)([?#]|$)/i.test(font.url ?? "");
-/** A URL that can't end its attribute or its CSS string: what could, percent-encoded. */
-const safeUrl = (url: string) => url.trim().replace(/["'()<>\s\\]/g, (c) => `%${c.charCodeAt(0).toString(16).padStart(2, "0")}`);
 
 /** A font's family as a root's `fontFamily` takes it: with the stylesheet the editor loads it from, when it's one. */
 export function fontFamilyOf(font: FontProps): { label: string; value: string; url?: string } {
@@ -45,24 +44,11 @@ export function fontTags(font: FontProps, mode: string): string[] {
   return [mode === "email" ? `<!--[if !mso]><!-->${tag}<!--<![endif]-->` : tag];
 }
 
-/** A font stack's first family, as the editor matches fonts: without quotes, any case. */
-const primary = (stack: unknown) => String(stack).split(",")[0].replace(/['"]/g, "").trim().toLowerCase();
-
-/**
- * A stylesheet font's URL on the design's fonts of its family (the body's and each block's `fontFamily`, a table's
- * `headerFontFamily` …) that have none: the editor keeps a web font so, loads it from there, and exports its `<link>`.
- */
-function fontInDesign(font: FontProps, body: { values?: Record<string, any>; rows?: any[] }): void {
+/** A stylesheet font's URL on the design's fonts of its family that have none (see fontUrlInDesign). */
+function fontInDesign(font: FontProps, body: Parameters<typeof fontUrlInDesign>[2]): void {
   const { url } = fontFamilyOf(font);
-  const family = primary(clean(font.family));
-  if (!url || !family) return;
-  const add = (values: Record<string, any> | undefined) => {
-    for (const [key, value] of Object.entries(values ?? {})) {
-      if (/fontFamily$/i.test(key) && value && typeof value.value === "string" && value.url === undefined && primary(value.value) === family) values![key] = { ...value, url };
-    }
-  };
-  add(body.values);
-  for (const row of body.rows ?? []) for (const column of row.columns ?? []) for (const content of column.contents ?? []) add(content.values);
+  const family = primaryFamily(clean(font.family));
+  if (url && family) fontUrlInDesign(family, url, body);
 }
 
 // The render that collects a template (Elements' main entry): a stack shared by every copy of Elements a process loads.

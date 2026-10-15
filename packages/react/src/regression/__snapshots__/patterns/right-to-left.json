@@ -193,7 +193,8 @@
     "htmlID": "u_body",
     "htmlClassNames": "u_body"
    },
-   "textDirection": "rtl"
+   "textDirection": "rtl",
+   "displayMode": "email"
   }
  },
  "schemaVersion": 27

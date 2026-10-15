@@ -10,6 +10,23 @@
  * in render-to-html.tsx.
  */
 
+/**
+ * The editor's base stylesheet for each mode, which its exported documents have in their head, before the blocks' CSS
+ * (its `styles/<mode>/index.scss` and `inline.css`, minified as it ships them): resets, `p` and `sub`/`sup` line
+ * spacing, and in email the table and Apple data-detector rules. The web one leaves out the editor's form styles
+ * (Elements has no form block).
+ */
+const BASE_CSS = {
+  email:
+    "sub,sup{line-height:0}\n\nbody{margin:0;padding:0}table,td,tr{border-collapse:collapse;vertical-align:top}p{margin:0}.ie-container table,.mso-container table{table-layout:fixed}*{line-height:inherit}a[x-apple-data-detectors=true]{color:inherit!important;text-decoration:none!important}",
+  web:
+    "body,html{margin:0;padding:0}html{box-sizing:border-box}*,:after,:before{box-sizing:inherit}html{font-size:14px;-ms-overflow-style:scrollbar;-webkit-tap-highlight-color:rgba(0,0,0,0)}p{margin:0}.container{--bs-gutter-x:0px;--bs-gutter-y:0;margin-left:auto;margin-right:auto;padding-left:calc(var(--bs-gutter-x)*.5);padding-right:calc(var(--bs-gutter-x)*.5);width:100%}sub,sup{line-height:0}\n\na[onclick]{cursor:pointer}",
+  document: "body,html{margin:0;padding:0}html{box-sizing:border-box}*,:after,:before{box-sizing:inherit}html{font-size:14px}p{margin:0}sub,sup{line-height:0}\n\na[onclick]{cursor:pointer}",
+};
+
+/** The head's `<style>`: the mode's base stylesheet, then the blocks' CSS. */
+const styleTag = (base: string, css: string) => `<style type="text/css">\n${[base, css].filter(Boolean).join("\n")}\n</style>`;
+
 export interface DocumentLayoutArgs {
   /** ` lang="ar"` attribute chunk for <html>, or "" */
   lang?: string;
@@ -19,8 +36,8 @@ export interface DocumentLayoutArgs {
   titleTag: string;
   /** Newline-joined head tags from component head functions, or "" */
   tagLines: string;
-  /** `<style type="text/css">...</style>` or "" */
-  styleTag: string;
+  /** The blocks' CSS for the head's `<style>` (a `</style` in it escaped), or "" */
+  css: string;
   /** `<script type="application/javascript">...</script>` or "" */
   scriptTag: string;
   /** Concatenated `<link rel="stylesheet">` tags for web fonts, or "" */
@@ -35,12 +52,12 @@ export interface DocumentLayoutArgs {
  * the <body> tag in email mode.
  */
 export function emailLayout(args: DocumentLayoutArgs): string {
-  const { dir, titleTag, tagLines, styleTag, scriptTag, fontLinks, body } = args;
+  const { dir, titleTag, tagLines, css, scriptTag, fontLinks, body } = args;
 
   const head = [
     titleTag,
     tagLines,
-    styleTag,
+    styleTag(BASE_CSS.email, css),
     scriptTag,
     fontLinks && `<!--[if !mso]><!-->${fontLinks}<!--<![endif]-->`,
   ]
@@ -75,9 +92,9 @@ ${body}
  * <link> tags — PDF renderers that can't fetch should pass no fonts.
  */
 export function documentLayout(args: DocumentLayoutArgs): string {
-  const { dir, titleTag, tagLines, styleTag, scriptTag, fontLinks, body } = args;
+  const { dir, titleTag, tagLines, css, scriptTag, fontLinks, body } = args;
 
-  const head = [titleTag, tagLines, styleTag, scriptTag, fontLinks]
+  const head = [titleTag, tagLines, styleTag(BASE_CSS.document, css), scriptTag, fontLinks]
     .filter(Boolean)
     .join("\n  ");
 
@@ -97,9 +114,9 @@ ${body}
  * The body markup has no <body> tag in web mode, so the shell provides it.
  */
 export function webLayout(args: DocumentLayoutArgs): string {
-  const { dir, titleTag, tagLines, styleTag, scriptTag, fontLinks, body } = args;
+  const { dir, titleTag, tagLines, css, scriptTag, fontLinks, body } = args;
 
-  const head = [titleTag, fontLinks, tagLines, styleTag, scriptTag]
+  const head = [titleTag, fontLinks, tagLines, styleTag(BASE_CSS.web, css), scriptTag]
     .filter(Boolean)
     .join("\n    ");
 

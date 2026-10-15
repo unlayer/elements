@@ -266,11 +266,16 @@ const BLOCKS: Record<string, (L: any, r: Random) => React.ReactElement> = {
 /**
  * The body's HTML with ids and the documented changes left out: in the device CSS, no-stack rules written
  * `.u-row.no-stack` (a later row's rules overrode them) and the rules that hide content on a device; an image's size
- * (a px width renders at that width now: the previous release sized it in a slot without the block's padding).
+ * (a px width renders at that width now: the previous release sized it in a slot without the block's padding); a
+ * Paragraph's markup, now the editor's text block's (its text in no `<p>`, its line height as given, `140%` and not
+ * `1.4`, its classes in that block's order).
  */
 function comparable(html: string): string {
   return html
     .replace(/<img [^>]*>/g, (img) => img.replace(/(width|height)(: |=")[\d.]+/g, "$1$2N"))
+    .replace(/class="v-color v-line-height v-font-weight v-font-family v-font-size v-letter-spacing v-text-align"/g, 'class="v-color v-text-align v-line-height v-font-weight v-font-family v-font-size v-letter-spacing"')
+    .replace(/<p style="margin: 0px; margin-block-start: 0px; margin-block-end: 0px;">([\s\S]*?)<\/p>/g, "$1")
+    .replace(/line-height: ([^;"]+);\s+text-align/g, (_, value: string) => `line-height: ${value.endsWith("%") ? parseFloat(value) / 100 : value}; text-align`)
     .replace(/<head[\s\S]*?<\/head>/i, "")
     .replace(/<style[\s\S]*?<\/style>/gi, (css) =>
       css
@@ -282,8 +287,8 @@ function comparable(html: string): string {
     .replace(/u_[a-z_]+_\d+/g, "ID")
     .replace(/\s+/g, " ");
 }
-/** A design without its ids, counters and the phone settings the previous release didn't keep. */
-const designOf = (design: unknown) => JSON.stringify(design, (key, value) => (["_meta", "counters", "schemaVersion", "_override", "hideMobile", "hideDesktop"].includes(key) ? undefined : value));
+/** A design without its ids, counters, and the phone settings and the body's mode the previous release didn't keep. */
+const designOf = (design: unknown) => JSON.stringify(design, (key, value) => (["_meta", "counters", "schemaVersion", "_override", "hideMobile", "hideDesktop", "displayMode"].includes(key) ? undefined : value));
 
 describe("each block with its props", () => {
   it.each(Object.keys(BLOCKS))("%s renders as the previous release did, in every mode", (name) => {

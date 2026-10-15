@@ -300,7 +300,9 @@ describe.each(Object.entries(PATTERNS))("%s", (_, { build, shows, fixed, json, i
 
   if (!fixed && json !== false) {
     it("gives the previous release's design", () => {
-      expect(JSON.stringify(current.renderToJson(now), null, 1)).toBe(JSON.stringify(previous.renderToJson(before), null, 1));
+      // (But for the body's `displayMode`, which this release writes.)
+      const design = JSON.stringify(current.renderToJson(now), (key, value) => (key === "displayMode" ? undefined : value), 1);
+      expect(design).toBe(JSON.stringify(previous.renderToJson(before), null, 1));
     });
   }
 });

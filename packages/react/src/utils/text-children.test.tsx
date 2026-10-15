@@ -95,7 +95,8 @@ describe("rich text children of Paragraph, Heading and Button", () => {
 
   it("render the same HTML, and plain text with links as text (url)", () => {
     const html = renderToHtml(email);
-    expect(html).toContain(RICH);
+    // (In an email the editor's text block gives sub- and superscripts `line-height: 0` inline, as it exports them.)
+    expect(html).toContain(RICH.replace(/<(sub|sup)>/g, '<$1 style="line-height: 0;">'));
     expect(html).toContain("Hola Ada <a>x</a>");
     expect(html).not.toMatch(/javascript:|onclick|<div>inside|<img src="https:\/\/example.com\/x.png"/i);
     const text = renderToPlainText(email);
