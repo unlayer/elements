@@ -29,7 +29,7 @@ await mkdir("output", { recursive: true });
 await writeFile("output/design.json", JSON.stringify(design, null, 2));
 ```
 
-Expected: a serializable object with `body.rows`, `body.values`, `counters`, and `schemaVersion`, saved as `output/design.json`. It contains design structure, not HTML. For the full invoice used in the other guides, [render-email.ts](../../../examples/content-workflows/src/render-email.ts) writes `output/invoice.design.json`.
+Expected: a serializable object with `body.rows`, `body.values`, `counters`, and `schemaVersion`, saved as `output/design.json`. It contains design structure, not HTML. `body.values.displayMode` is the mode the template renders in (`email` for an `Email`, `web` for a `Page`, `document` for a `Document`). What the editor exports for the design is what `renderToHtml()` renders for the template. For the full invoice used in the other guides, [render-email.ts](../../../examples/content-workflows/src/render-email.ts) writes `output/invoice.design.json`.
 
 ## Load and edit the invoice
 
@@ -105,7 +105,7 @@ Expected: the editor loads the invoice after `editor:ready`; after `design:loade
 - `renderToJson()` is synchronous. It renders the template once with React, as `renderToHtml()` does, so hooks, Context, Fragments and your own layout components work, and the design keeps the Rows, Columns and blocks they render. Root wrappers are unwrapped, including `memo`, `forwardRef` and wrappers that use hooks; a class component as the root is not.
 - A component that is async, suspends or throws is left out with a console message, and the rest renders: fetch data before building the tree, as in the [shared invoice factory](../../../examples/content-workflows/src/invoice.tsx). A component of your own that returns plain markup (a `<div>`) in a Column is kept as it is: in the HTML, and in the design as an HTML block (edited as HTML in the editor, not as text or images). Outside a Row, the design leaves it out with a console message naming it: put it in a Column, or use an `<Html>` block for raw HTML.
 - A hand-written content wrapper is not a registered Elements item. Custom items must use [the custom tool API](../README.md#custom-tools) and need matching tool registration in the hosted editor.
-- Match the editor's `displayMode` to the design (`email` in this example). Preserve the generated schema version and counters rather than constructing guessed design JSON. Editor support for individual tools/features depends on its version and project configuration.
+- Match the editor's `displayMode` to the design's `body.values.displayMode` (`email` in this example). Preserve the generated schema version and counters rather than constructing guessed design JSON. Editor support for individual tools/features depends on its version and project configuration.
 - Exported JSON preserves design content and settings; it does not preserve React functions, business logic, hooks, or event handlers. `renderToHtml()` takes a React element, not saved design JSON. Use the editor's `exportHtml()` for the edited design's HTML, or turn the edited design into Elements code with `designToElements()` from `@unlayer/react-elements/codegen` ([guide](./codegen.md)): the code is the design's rows and blocks, not your original components and logic.
 - After handing a design to an editor user, persist their latest JSON. Regenerating it from the original React source and reloading it would overwrite visual changes. Keep the template source and saved edited designs as separate application records.
 

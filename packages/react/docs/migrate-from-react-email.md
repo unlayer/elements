@@ -62,7 +62,7 @@ npx @unlayer/migrate emails --out unlayer --design --report unlayer/report.json
 editor.loadDesign(await fetch("/unlayer/welcome.design.json").then((r) => r.json()));
 ```
 
-A template's web fonts (Google Fonts, `<Font>`) aren't part of the design JSON: the editor loads and exports a web font only when it's registered when the editor is created. The report lists each template's fonts in that shape, so pass them on:
+A template's Google Fonts are in the design JSON, as the stylesheet's URL on the fonts of their family, and the editor loads them from there; a font file of your own (`<Font webFont>` from another host) isn't. To load those in the editor, and to offer any of them in its font picker, register them when the editor is created. The report lists each template's fonts in that shape, so pass them on:
 
 ```js
 const report = await fetch("/unlayer/report.json").then((r) => r.json());

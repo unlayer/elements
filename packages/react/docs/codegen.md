@@ -23,7 +23,7 @@ for (const warning of warnings) console.warn(warning);
 
 | Option | Default | |
 |--------|---------|--|
-| `displayMode` | the design's `displayMode`, else `"email"` | The root: `"email"` (`<Email>`), `"web"` (`<Page>`), `"document"` (`<Document>`). A `"popup"` design is written as a `<Page>`. |
+| `displayMode` | the design's `displayMode` (`body.values.displayMode`, which `renderToJson()` writes), else `"email"` | The root: `"email"` (`<Email>`), `"web"` (`<Page>`), `"document"` (`<Document>`). A `"popup"` design is written as a `<Page>`. |
 | `componentName` | `"Template"` | The component's name: `export default function OrderShipped()`. |
 | `html` | | The design's exported HTML (`exportHtml()`'s `html`): blocks Elements has no component for are kept as `<Html>` blocks with theirs. |
 
@@ -182,7 +182,7 @@ Each setting that differs from the component's default is a prop, written as you
 - **The root**: `<Email>`, `<Page>` or `<Document>`, with the body's `backgroundColor`, `contentWidth`, `contentAlign`, `textColor`, `fontFamily`, `linkStyle` (what differs), `textDirection`, `previewText` (the preheader) and a document's `documentSize` and `documentOrientation`. A web font (a font with a URL, as the editor's Google Fonts) gets a `<Font>` that loads it; where the body's font is what `<Font default>` writes, it's that. The fonts of its family are written without the URL, which the `<Font>` writes back on them in the design.
 - **Rows**: `<Row>` with `layout={ColumnLayouts.X}` where the design's cells are one of them, else `cells={[…]}`; `backgroundColor`, `columnsBackgroundColor`, `backgroundImage`, `padding` (the editor's, around the row) and phone padding as `mobile={{ padding }}`, `noStackMobile`, `hideOnMobile`, `hideOnDesktop`.
 - **Columns**: `backgroundColor`, `padding`, `borderRadius`, `border`, and phone padding as `mobile={{ padding }}`.
-- **Text**: a Paragraph's text as `html`, which renders as the design has it (a Paragraph's children render as rich text, inside a `<p>`); a Heading's as children when it's plain text (words with nothing React would escape), else its `text`. A Heading's `headingType`; text styles as flat props.
+- **Text**: a Paragraph's text as `html`, which renders as the design has it (a Paragraph's children are text, with inline JSX as rich text); a Heading's as children when it's plain text (words with nothing React would escape), else its `text`. A Heading's `headingType`; text styles as flat props.
 - **Buttons**: the text as children, the link as `href` (and `target` when it isn't a new tab), colors as `color`, `backgroundColor`, `hoverColor`, `hoverBackgroundColor`, a fixed width as `width`.
 - **Images**: `src` (a URL, or `{ url, width, height }` with the image's natural size, and `autoWidth: true` when its width is automatic), a fixed width as `width={32}` where its percent of the column is a whole pixel (as renderToJson writes a px width: Elements then renders exactly that), else `width="45.5%"`, `alt`, `action` (its link).
 - **Menus, social icons, tables and videos**: `items`, `icons` (and `iconType`), `headers` and `data` (or `columns` and `rows` for an empty grid), `videoUrl` (or `video`, which keeps the editor's URL).

@@ -168,6 +168,7 @@ Root wrapper for email-safe HTML. Same props as Body (without `mode`).
 - `linkStyle?: { linkColor, linkHoverColor, linkUnderline, linkHoverUnderline }` — the links in the content, as the editor's body link style
 - `previewText?: string` — plain text shown in email client inboxes, escaped for HTML. Pass `"Fish & chips"`, not `"Fish &amp; chips"`; entities supplied in the string display literally.
 - `textDirection?: string` — document direction (`"ltr"` or `"rtl"`), kept in design JSON. When opening the design in the editor, also set its direction with `unlayer.setTextDirection(...)`.
+- `fonts?: Array<{ url: string }>` — web-font stylesheets the document's head links (`renderToHtml`). `renderToJson()` writes each URL on the design's fonts of the families it names (`family=` in a Google Fonts URL), as [`<Font>`](https://github.com/unlayer/elements/blob/main/packages/react/docs/fonts.md) does, and says once per render a URL it can't place.
 - `lang?: string` — document language, such as `"ar"`; emitted on `<html>` by `renderToHtml`. Language is document metadata and is not stored in design JSON. Renderer options override both props. A right-to-left template also gets `dir="rtl"` and its `lang` on `<body>` and the content's wrapper, for email clients that drop the `<html>` tag; a left-to-right one is unchanged.
 
 ### Page
@@ -234,7 +235,9 @@ Must be child of Row. Count must match layout (a Row that doesn't fit its layout
 - `fontFamily?: { label: string, value: string }`
 - aliases: `align` for `textAlign`, `textColor` for `color`
 
-Text in children is escaped, as React shows it. Other elements (a `div`, a `table`, an image) leave only their text, so no block gets into a paragraph, and nothing that runs code is kept (event handlers, `javascript:` URLs). A component that is async or suspends is left out, with a warning naming it. The design (`renderToJson()`) keeps the same HTML, and the plain text writes links as `text (url)`. Children that are only strings render as before.
+Text in children is escaped, as React shows it. Other elements (a `div`, a `table`, an image) leave only their text, so no block gets into a paragraph, and nothing that runs code is kept (event handlers, `javascript:` URLs). A component that is async or suspends is left out, with a warning naming it. The design (`renderToJson()`) keeps the same HTML, and the plain text writes links as `text (url)`.
+
+A Paragraph is a text block in the design, and renders as the editor exports that block: plain text in no `<p>`, and its line height as given (`140%`, which text of another size inside it inherits as a fixed height, as in the editor).
 
 ```tsx
 <Paragraph fontSize="14px">
@@ -450,12 +453,14 @@ const html = renderToHtml(
 );
 ```
 
-The document shell matches the mode: `<Email>` gets the XHTML transitional doctype plus the MSO conditional comments Outlook needs, `<Page>` gets a standard HTML5 shell, and `<Document>` gets a print/PDF-friendly XHTML shell. Options accept config overrides plus:
+The document shell matches the mode: `<Email>` gets the XHTML transitional doctype plus the MSO conditional comments Outlook needs, `<Page>` gets a standard HTML5 shell, and `<Document>` gets a print/PDF-friendly XHTML shell. Its `<style>` starts with the editor's base stylesheet for the mode (the body's and a `<p>`'s margins, `sub`/`sup` line height, and the table and Apple data-detector rules in email; box sizing and a 14px root font size on a page or document), as the editor's export does. Options accept config overrides plus:
 
 - `title` — document `<title>`
 - `fonts` — web-font stylesheet URLs to load via `<link>` tags, e.g. `[{ url: "https://fonts.googleapis.com/css2?family=Inter" }]`
 
 If your app owns the document shell (an existing page template, an ESP template, an iframe `srcdoc`), use `renderToHtmlParts` instead — it returns `{ head, body }` plus the granular pieces (`css`, `js`, `tags`) for pipelines that need them separately, e.g. CSS inlining. This mirrors the editor's [chunk parameters](https://docs.unlayer.com/builder/latest/export-html#chunk-parameters) with two deliberate differences: `tags` is extra (components can contribute head tags, and reassembling from `css` + `js` alone would drop them), and there is no `fonts` chunk (Elements has no font registry — pass font stylesheet URLs via `renderToHtml`'s `fonts` option instead).
+
+Its `head` and `css` don't have the base stylesheet: your page has its own.
 
 ```tsx
 const { head, body, css, js, tags } = renderToHtmlParts(<Email>...</Email>);
