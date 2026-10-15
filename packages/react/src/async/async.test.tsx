@@ -6,11 +6,41 @@ import { Column, Email, Heading, Html, Paragraph, Row, UnlayerProvider, renderTo
 import { Tailwind } from "../tailwind";
 import { pretty as formatted, renderToHtml, renderToHtmlParts, renderToJson, renderToPlainText } from "./index";
 import * as tailwind from "../tailwind";
+import { Head } from "../head";
+import { Font } from "../font";
 
 const later = <T,>(value: T, ms = 5) => new Promise<T>((resolve) => setTimeout(() => resolve(value), ms));
 const contents = (design: { body: { rows: any[] } }) => design.body.rows.flatMap((row) => row.columns.flatMap((column: any) => column.contents.map((c: any) => c.values.text ?? c.values.html)));
 
 describe("the async renderers", () => {
+  it("keeps each template's own <Head> tags and <Font> when async templates render at once", async () => {
+    const template = (name: string, ms: number) => {
+      const Late = async () => {
+        await later(null, ms);
+        return (
+          <>
+            <Head><meta name="who" content={name} /></Head>
+            <Font family={`Family${name}`} url={`https://fonts.googleapis.com/css2?family=Family${name}`} />
+            <Paragraph>{`Body ${name}`}</Paragraph>
+          </>
+        );
+      };
+      return <Email><Row><Column><Late /></Column></Row></Email>;
+    };
+    const names = ["A", "B", "C", "D", "E", "F"];
+    // Started in order, finished in reverse and interleaved: the first one's components run with others under way.
+    const htmls = await Promise.all(names.map((name, i) => renderToHtml(template(name, 5 + ((i * 7) % 4) * 6))));
+    names.forEach((name, i) => {
+      expect(htmls[i]).toContain(`Body ${name}`);
+      expect(htmls[i]).toContain(`content="${name}"`);
+      expect(htmls[i]).toContain(`Family${name}`);
+      for (const other of names.filter((n) => n !== name)) {
+        expect(htmls[i]).not.toContain(`content="${other}"`);
+        expect(htmls[i]).not.toContain(`Family${other}`);
+      }
+    });
+  });
+
   it("resolve an async template, async blocks in a Column, async components in text, and thrown promises (Suspense), each run once", async () => {
     const runs = { template: 0, name: 0, block: 0 };
     const Name = async ({ id }: { id: number }) => {

@@ -3,7 +3,7 @@
  * (the editor's, around the row, as Elements renders it).
  */
 import { ColumnLayouts } from "@unlayer-internal/shared-elements";
-import { fontFamilyOf } from "../font/index";
+import { fontFamilyOf } from "../utils/font-design";
 import { BODY_DEFAULTS, COLUMN_DEFAULTS, EDITOR_BODY_DEFAULTS, ROW_DEFAULTS } from "./defaults";
 import { placeDevice } from "./device";
 import { withoutRestoredUrl } from "./fonts";

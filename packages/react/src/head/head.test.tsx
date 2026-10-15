@@ -1,4 +1,5 @@
 import React from "react";
+import { renderToStaticMarkup } from "react-dom/server";
 import { afterEach, beforeEach, describe, expect, it, vi, type MockInstance } from "vitest";
 import { Column, Document, Email, Page, Paragraph, Row, renderToHtml, renderToHtmlParts, renderToJson, renderToPlainText } from "../index";
 import { renderToHtml as renderToHtmlAsync } from "../async";
@@ -108,6 +109,6 @@ describe("Head", () => {
 
   it("renders nothing outside a template's render", () => {
     expect(renderToHtml(<Email>{content}</Email>)).not.toContain("color-scheme");
-    expect(Head({ children: <meta name="a" /> })).toBeNull();
+    expect(renderToStaticMarkup(<Head><meta name="a" /></Head>)).toBe("");
   });
 });

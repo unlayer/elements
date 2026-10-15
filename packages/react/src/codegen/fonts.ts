@@ -4,7 +4,7 @@
  * of its family in the design (see the font entry). So the code declares one `<Font>` per web font, and a font that
  * the `<Font>` gives its URL back to is written without it.
  */
-import { fontFamilyOf } from "../font/index";
+import { fontFamilyOf } from "../utils/font-design";
 import type { ModuleState } from "./state";
 import { isPlainObject, type Plain } from "./values";
 

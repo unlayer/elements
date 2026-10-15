@@ -140,7 +140,7 @@ describe("designToElements", () => {
     const modules = import.meta.glob<string>(["./*.ts", "!./*.test.ts", "!./test-harness.ts"], { query: "?raw", import: "default", eager: true });
     expect(Object.keys(modules)).toContain("./design-to-elements.ts");
     for (const [file, source] of Object.entries(modules)) {
-      for (const [, from] of source.matchAll(/^(?:import|export)\s[^;=(]*?\sfrom "([^"]+)"/gm)) expect(from, file).toMatch(/^(\.\/|\.\.\/utils\/(container-defaults|image-sizing)$|\.\.\/font\/index$|@unlayer\/exporters$|@unlayer-internal\/shared-elements$)/);
+      for (const [, from] of source.matchAll(/^(?:import|export)\s[^;=(]*?\sfrom "([^"]+)"/gm)) expect(from, file).toMatch(/^(\.\/|\.\.\/utils\/(container-defaults|image-sizing)$|\.\.\/utils\/font-design$|@unlayer\/exporters$|@unlayer-internal\/shared-elements$)/);
     }
   });
 
