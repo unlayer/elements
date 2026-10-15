@@ -29,8 +29,8 @@ cd packages/react && pnpm storybook         # Storybook dev server
 | `@unlayer-internal/shared-elements` | `packages/shared` | No (private, bundled into react) | Framework-agnostic types, config, utils |
 | `@unlayer/elements-demo` | `packages/demo` | No | Demo/showcase app |
 | `@unlayer/from-react-email` | `packages/from-react-email` | No (private, bundled into migrate; API at `@unlayer/migrate/react-email`) | React Email → Elements converter (codemod, runtime with merge tags, check against the original); fidelity benchmark in `bench/`, results in `FIDELITY.md` |
-| `@unlayer/migrate` | `packages/migrate` | Yes (npm) | React Email converter API at `@unlayer/migrate/react-email`; `npx @unlayer/migrate` CLI: migrate React Email templates, check them, write a report; `compare` for templates migrated by hand |
-| `@unlayer/convert-core` | `packages/convert-core` | No (private, bundled into the converters) | Elements tree, conversion report, TSX printer and content check that converters share |
+| `@unlayer/migrate` | `packages/migrate` | Yes (npm) | React Email converter API at `@unlayer/migrate/react-email`; `npx @unlayer/migrate` CLI: migrate React Email, MJML (`--from mjml`) and Beefree (`--from beefree`) templates, check them against the originals, write a report; `compare` for templates migrated by hand. The MJML and Beefree converters (`src/from-mjml`, `src/from-beefree`) build a design that `@unlayer/react-elements/codegen` writes as code; `src/design-source.ts` runs both (MJML's compile or Beefree's HTML export is what they're checked against). Measure them with `measure:mjml` and `scripts/measure-beefree.ts` |
+| `@unlayer/convert-core` | `packages/convert-core` | No (private, bundled into the converters) | Elements tree, conversion report, TSX printer and content check that converters share; declared differences (`declared.ts`: content a converter knows it changes, such as a Social icon's alt text, which the check expects and lists) |
 
 ### Component Hierarchy (strict)
 

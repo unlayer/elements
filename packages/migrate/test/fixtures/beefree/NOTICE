@@ -1,0 +1,69 @@
+Beefree template fixtures
+
+The files in this folder are third-party Beefree templates (and, where named, Beefree's HTML export of them), kept
+unchanged as test fixtures for the Beefree converter in @unlayer/migrate. They are not covered by this repository's MIT
+license: each keeps the license of the repository it comes from, listed below.
+
+Apache License 2.0 (full text in LICENSE, in this folder)
+----------------------------------------------------------
+
+playground/*.json, playground/*.html (9 templates and their HTML exports)
+  From https://github.com/BeefreeSDK/playground
+  Commit 3146572db7e203b9793b27aaec73438e70cd3bed, public/templates/<name>.json and public/templates/exports/<name>.html
+
+beefree-sdk-examples/multi-ltr-language-template.json, beefree-sdk-examples/multi-rtl-language-template.json
+  From https://github.com/BeefreeSDK/beefree-sdk-examples
+  Commit 4a970e9505606f1148ace0fbefbbd9092eb010bf, multi-language-template-example/public/templates/
+
+beefree-sdk-csapi-simple-integration/initial-template.json
+  From https://github.com/BeefreeSDK/beefree-sdk-csapi-simple-integration
+  Commit a5375561bddf4d7751abcaac3e1eefc08746fb95, public/initial-template.json
+
+beefree-sdk-demos/hackister.json
+  From https://github.com/BeefreeSDK/beefree-sdk-demos
+  Commit 2b4269df02565018b05856ba38725470ce7517d7, saved-rows/src/assets/templates/hackister.js
+  (the template object exported by that module, saved as JSON)
+
+beefree-django-app-demo/initial-template.json
+  From https://github.com/BeefreeSDK/beefree-django-app-demo
+  Commit 900de6cb7ddcc66bc610fe3a92a6c742e0fa79ea, static/editor/initial-template.json
+
+beefree-liquid-email-personalization/template.json
+  From https://github.com/BeefreeSDK/beefree-liquid-email-personalization
+  Commit d665452c68137289b41d429942bfbd9af1b72bca, template.json
+
+toptile-legacy/signup-email.json, toptile-legacy/signup-email.html
+  From https://github.com/enzoferey/toptile-legacy
+  Commit dd015c90d5f55bb1e4eee9611ef02461dbccb283, signup-server/public/emails/signup/
+
+None of these repositories ships a NOTICE file. Images the templates show are linked from their authors' CDNs, not
+included here.
+
+MIT License
+-----------
+
+templatical/example-1.json
+  From https://github.com/templatical/sdk, commit 04573be22d190abd0df4588764c79a2fc2adf9d5,
+  packages/import-beefree/src/__tests__/fixtures/example-1.json
+
+  MIT License
+
+  Copyright (c) 2026-present Templatical
+
+  Permission is hereby granted, free of charge, to any person obtaining a copy
+  of this software and associated documentation files (the "Software"), to deal
+  in the Software without restriction, including without limitation the rights
+  to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+  copies of the Software, and to permit persons to whom the Software is
+  furnished to do so, subject to the following conditions:
+
+  The above copyright notice and this permission notice shall be included in all
+  copies or substantial portions of the Software.
+
+  THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+  IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+  FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+  AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+  LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+  OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+  SOFTWARE.
