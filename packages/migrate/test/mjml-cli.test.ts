@@ -196,6 +196,17 @@ describe("--from mjml", () => {
     expect(read(dir, "report.md")).toContain("**Not read, so not in the migrated template:** `mj-include ../secret.mjml (outside emails, not read)`");
   });
 
+  it("writes a file name with a line break in it into the header's comment on one line, as text", async () => {
+    const name = 'welcome\nglobalThis.__unlayerMigrateProbe=1,("x")';
+    const dir = project({ [`emails/${name}.mjml`]: WELCOME, "emails/partials/base.mjml": BASE });
+    const { code, out, err } = await run(dir, "emails", "--from", "mjml", "--out", "migrated");
+    expect(code, out + err).toBe(0);
+    expect((globalThis as Record<string, unknown>).__unlayerMigrateProbe).toBeUndefined();
+    const written = fs.readdirSync(path.join(dir, "migrated")).find((f) => f.endsWith(".tsx"))!;
+    const header = read(dir, `migrated/${written}`).split("\n").slice(0, 3);
+    expect(header[1]).toBe('// Migrated from MJML by @unlayer/migrate: welcome globalThis.__unlayerMigrateProbe=1,("x").mjml');
+    expect(header[2]).not.toContain("__unlayerMigrateProbe");
+  });
 
   it("says when there's nothing to migrate, and points a React Email run at --from mjml", async () => {
     const dir = project({ "emails/partials/base.mjml": BASE });

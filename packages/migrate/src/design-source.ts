@@ -137,7 +137,7 @@ export async function checkDesign(source: string, file: string, conversion: Pick
   const { designToElements } = await import("@unlayer/react-elements/codegen");
   const generated = designToElements(conversion.design as never, { componentName: componentName(file) });
   const title = plainTitle(conversion.title);
-  const header = `/** @jsxRuntime automatic */\n// Migrated from ${source} by @unlayer/migrate: ${basename(file)}${title ? ` (${title})` : ""}\n`;
+  const header = `/** @jsxRuntime automatic */\n// Migrated from ${source} by @unlayer/migrate: ${basename(file).replace(/[\r\n\u2028\u2029]+/g, " ")}${title ? ` (${title})` : ""}\n`;
   const code = `${header}${generated.code}`;
   const probe = join(folder, `.${basename(file, extname(file))}.unlayer-migrate-${randomUUID()}.tsx`);
   let firstCreated: string | undefined;
