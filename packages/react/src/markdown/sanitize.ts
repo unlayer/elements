@@ -10,10 +10,13 @@ export const escapeText = (text: string) => text.replace(/&(?!#\d+;|#x[\da-f]+;|
 /** An attribute's value: every `&` escaped too, so an entity in a URL (`&#106;avascript:`) stays text. */
 export const escapeAttribute = (text: string) => text.replace(/[&<>"]/g, (ch) => ESCAPES[ch]);
 
+/** A numeric reference's character; one past Unicode's range (or a surrogate) is U+FFFD, as browsers read it. */
+const codePoint = (n: number) => String.fromCodePoint(n > 0x10ffff || (n >= 0xd800 && n <= 0xdfff) ? 0xfffd : n);
+
 /** A URL as the browser reads it (entities decoded, control characters and spaces dropped), to read its scheme. */
 const decoded = (url: string) =>
   url
-    .replace(/&#(x[\da-f]+|\d+);?/gi, (_, n: string) => String.fromCodePoint(n[0].toLowerCase() === "x" ? parseInt(n.slice(1), 16) : Number(n)))
+    .replace(/&#(x[\da-f]+|\d+);?/gi, (_, n: string) => codePoint(n[0].toLowerCase() === "x" ? parseInt(n.slice(1), 16) : Number(n)))
     .replace(/&(colon|tab|newline);/gi, (_, name: string) => ({ colon: ":", tab: "\t", newline: "\n" })[name.toLowerCase()]!)
     .replace(/[\u0000- \u007f-\u009f]/g, "");
 

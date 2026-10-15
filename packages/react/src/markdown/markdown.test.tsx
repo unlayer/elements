@@ -108,6 +108,8 @@ describe("Markdown", () => {
     expect(blocks({ markdown: "<b>x</b>", html: "escape" })).toEqual([["text", "&lt;b&gt;x&lt;/b&gt;"]]);
     expect(blocks({ markdown: "<div>x</div>\n\nText", html: "drop" })).toEqual([["text", "Text"]]);
     expect(sanitizeHtml('<p style="background: url(javascript:x)">a < b</p><!--[if mso]><x><![endif]-->')).toBe("<p>a &lt; b</p>");
+    // A numeric reference past Unicode's range reads as U+FFFD, as in a browser, instead of throwing.
+    expect(blocks({ markdown: '<a href="&#99999999;x" style="color: &#x110000;">a</a>' })).toHaveLength(1);
   });
 
   it("takes off the indentation a template literal gives, and with `breaks` keeps line breaks", () => {
