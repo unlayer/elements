@@ -51,6 +51,10 @@
 - **An Image's `max-w-*` holds with a width.** `<Image className="w-full max-w-xs">` rendered as wide as its column: the editor's image has one width, and the max width was dropped without a word. It's now the smaller of the two, as the browser shows it (320px here, in the HTML and the design); a percentage with pixels (`w-1/2 max-w-xs`), which depends on the column, keeps the width and says so.
 - **`w-auto` on an Image is its auto width.** It was an inline `width: auto` that undid the image's `width: 100%`, so a large image overflowed its column, and a phone's screen. It's now the editor's auto width, as wide as its column allows.
 
+### Changed
+
+- **A Row's `style` and `className` go on its content box.** Like every component's, they go on the element it renders: a Row's `.u-row` box, the content width its Columns sit in (a Column's on its cell). 0.2 put a Row's on a wrapper around the whole row, full width. For a full-width color, use the Row's `backgroundColor`.
+
 ## 0.1.0
 
 - Initial release
