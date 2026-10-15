@@ -256,7 +256,7 @@ function keptMarkupOnce(c: Collected, node: Within): React.ReactElement | undefi
   // A link alone (a <Link>) is a Paragraph holding it, a rule a Divider: blocks the design can edit.
   const solo = list.filter((p) => !("text" in p) || p.text.trim());
   const { containerPadding, hideOnMobile, hideOnDesktop } = (element.props ?? {}) as Record<string, unknown>;
-  const block = solo.length === 1 && "tag" in solo[0] ? asBlock(solo[0], { containerPadding, hideOnMobile, hideOnDesktop }) : undefined;
+  const block = solo.length === 1 && "tag" in solo[0] ? asBlock(solo[0], { containerPadding, hideOnMobile, hideOnDesktop }, true) : undefined;
   if (block) return block;
   // One element (what's in it may not pair up as markup): React writes `dangerouslySetInnerHTML` and children
   // alike, so the component is asked which it gave (a <div> when it can't say, as most such are).
@@ -362,13 +362,21 @@ function styled(c: Collected, node: Extract<Node, { kind: "row" | "column" | "bl
 /** Props any block takes beside its values (its defaults' keys); `font…` in camel case (`fontsize` is a slip). */
 const KNOWN = /^(children|className|style|mode|values|containerPadding|hideOn(Mobile|Desktop)|mobile|skipInText|html|text|href|action|alt|src|width|maxWidth|items|icons|icon\w+|spacing|videoUrl|headers|data|columns|rows|font[A-Z]\w*|letterSpacing|color|lineHeight|textAlign|padding|border\w*|backgroundColor|hover\w*|_\w+)$/;
 
+/** The tags in markup, in order (attributes aside). */
+const tagsOf = (html: string) => String(html.match(/<\/?[a-zA-Z][\w:-]*/g));
+
 /**
- * Markup that is a block, where the block keeps all of it: an <a> whose markup is all text can hold (a Paragraph
- * holding it), an <hr> with no attributes (a Divider). Anything else (a linked image, a styled rule) stays an HTML
- * block, as it was.
+ * Markup that is a block: an <a> whose tags are all ones text holds a Paragraph holding it (its link kept to what text
+ * can hold), a bare <hr> a Divider. Another <a> or <hr> (an image in the link, a styled rule) is an HTML block, as it
+ * is; with `exact` (a component's markup, kept as HTML anyway), nothing, unless the block keeps all of it.
  */
-const asBlock = (part: Part, props: Record<string, unknown> = {}): React.ReactElement | undefined =>
-  "tag" in part && part.tag === "a" && inlineHtml(part.html) === part.html ? React.createElement(Paragraph, { ...props, html: part.html }) : "tag" in part && part.html === "<hr/>" ? React.createElement(Divider, props) : undefined;
+const asBlock = (part: Part, props: Record<string, unknown> = {}, exact = false): React.ReactElement | undefined => {
+  if (!("tag" in part) || !/^(a|hr)$/.test(part.tag)) return undefined;
+  const text = part.tag === "a" ? inlineHtml(part.html) : "";
+  if (text && (exact ? text === part.html : tagsOf(text) === tagsOf(part.html))) return React.createElement(Paragraph, { ...props, html: text });
+  if (part.html === "<hr/>") return React.createElement(Divider, props);
+  return exact ? undefined : React.createElement(Html, { ...props, html: part.html });
+};
 
 /**
  * This copy's blocks, by name. A block of another copy of Elements (a package still on an earlier release, in a
@@ -511,7 +519,7 @@ function elements(c: Collected, nodes: Node[], place: Place, owner?: React.FC, i
           return place === "row" && name && !inMarkup ? [React.createElement(owner ?? name)] : [];
         }
         // Text shows as text. Other markup isn't a Column, which a Row says (and leaves it out); in a Column it's left out.
-        // In a Column, an <a> is a Paragraph holding it and an <hr> a Divider; other markup is said and left out.
+        // In a Column, an <a> or <hr> is a block (see asBlock); other markup is said and left out.
         return parts(node.html).flatMap((p): React.ReactNode[] => {
           if ("text" in p) return [p.text];
           if (!inColumn) return [React.createElement(owner ?? (p.tag === "#" ? "div" : p.tag))];

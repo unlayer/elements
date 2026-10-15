@@ -178,5 +178,24 @@ describe("Column Component", () => {
         warn.mockRestore();
       }
     });
+
+    it("a link with more than text in it, or a styled rule, as an HTML block; a link's other attributes aside, a Paragraph", () => {
+      const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+      try {
+        const email = column(
+          <a key="r" href="https://example.com/receipt" aria-label="Receipt">Download receipt</a>,
+          <a key="l" href="https://example.com"><img src="https://example.com/logo.png" alt="Logo" /></a>,
+          <hr key="hr" style={{ borderTop: "2px dashed #cccccc" }} />
+        );
+        const html = renderToHtml(email);
+        expect(html).toContain('<a href="https://example.com/receipt">Download receipt</a>');
+        expect(html).toContain('<a href="https://example.com"><img src="https://example.com/logo.png" alt="Logo"/></a>');
+        expect(html).toContain('<hr style="border-top:2px dashed #cccccc"/>');
+        expect(contents(email).map((c) => c.type)).toEqual(["text", "html", "html"]);
+        expect(warn).not.toHaveBeenCalled();
+      } finally {
+        warn.mockRestore();
+      }
+    });
   });
 });

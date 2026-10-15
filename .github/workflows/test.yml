@@ -58,8 +58,8 @@ jobs:
         run: pnpm --filter @unlayer/from-react-email typecheck && pnpm --filter @unlayer/migrate typecheck
 
       # ── Bundle size budget ──────────────────────────────────────
-      # Fail if the react-elements ESM bundle exceeds 129.9KB.
-      # Current size: about 129.9KB (0.1.22: about 76KB). Raised from 126KB for
+      # Fail if the react-elements ESM bundle exceeds 130.5KB.
+      # Current size: about 130.2KB (0.1.22: about 76KB). Raised from 126KB for
       # editor parity: the editor's base stylesheet for each mode in the
       # document's head (about 1.1KB of CSS), a Paragraph rendered from the text
       # its design holds, a root's `fonts` and its `displayMode` in the design,
@@ -82,7 +82,8 @@ jobs:
       # Button text), code kept in plain text, what a <Font> gives the head and
       # the root, right-to-left text alignment, and `style`/`className` on the
       # element each component renders, <Link>, the plain text's options, and
-      # an <UnlayerProvider>'s config read by the roots and the render functions.
+      # an <UnlayerProvider>'s config read by the roots and the render functions,
+      # and a link or rule in a Column kept as HTML where its block can't hold it.
       # The Markdown parser, the code highlighter, <Font>, <Head> and the
       # design-to-code converter (`codegen`) are in their own entries.
       # The budget tracks the unminified ESM output as a proxy for code volume;
@@ -91,7 +92,7 @@ jobs:
         run: |
           BUNDLE="packages/react/dist/index.js"
           SIZE=$(wc -c < "$BUNDLE" | tr -d ' ')
-          MAX_SIZE=129900
+          MAX_SIZE=130500
           echo "Bundle: $BUNDLE"
           echo "Size: $SIZE bytes (budget: $MAX_SIZE bytes)"
           if [ "$SIZE" -gt "$MAX_SIZE" ]; then

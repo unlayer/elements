@@ -279,7 +279,7 @@ A Paragraph is a text block in the design, and renders as the editor exports tha
 - `html?: string` — `"<p>Custom HTML content</p>"`
 
 ### Link
-A link, for text (`<Paragraph>Read <Link href="https://example.com/docs">the docs</Link>.</Paragraph>`) or on its own in a Column, where it's a Paragraph holding it (an editable text block in the design). A bare `<a>` in a Column is too, and a bare `<hr>` is a Divider; other markup there is left out with a warning (put it in an `<Html>` block).
+A link, for text (`<Paragraph>Read <Link href="https://example.com/docs">the docs</Link>.</Paragraph>`) or on its own in a Column, where it's a Paragraph holding it (an editable text block in the design). A bare `<a>` in a Column is too, and a bare `<hr>` is a Divider; a link holding more than text holds (an image) or a rule with a style is an `<Html>` block, as it is. Other markup there is left out with a warning (put it in an `<Html>` block).
 - `href: string`
 - `target?: string` — `"_blank"` (a new tab)
 - `rel?: string` — `"noopener"` for a new tab
