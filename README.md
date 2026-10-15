@@ -155,7 +155,7 @@ Generates email-safe HTML, responsive web HTML, and print-ready HTML for PDF gen
 
 ### Visual Builder Compatible
 
-Export Unlayer-compatible design JSON with `renderToJson()` to hand code-authored templates to the visual editor. Persist edited designs as JSON and export their HTML from the editor; edited JSON does not regenerate React source. See the [code-to-visual-editing workflow](./packages/react/docs/visual-editing.md).
+Export Unlayer-compatible design JSON with `renderToJson()` to hand code-authored templates to the visual editor. Persist edited designs as JSON and export their HTML from the editor, or turn a design back into Elements code with `designToElements()` from `@unlayer/react-elements/codegen`. See the [code-to-visual-editing workflow](./packages/react/docs/visual-editing.md) and [designs as Elements code](./packages/react/docs/codegen.md).
 
 ### TypeScript First
 
