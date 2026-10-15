@@ -1,6 +1,7 @@
 // Starts the built app and checks that an email rendered on the server is one: email tables, not a web layout,
-// and a design with its rows, from a route handler and from a Server Component; and what an edge route gets. `next build` succeeding isn't
-// enough: Elements once rendered rows as a web page there, and an empty design, without an error.
+// and a design with its rows (and an UnlayerProvider's config in both), from a route handler and from a Server
+// Component; what an App Router edge route gets, and an email from a Pages Router edge API route. `next build`
+// succeeding isn't enough: Elements once rendered rows as a web page there, and an empty design, without an error.
 import { spawn } from "node:child_process";
 
 // Run in the app's folder (tests/next14-integration and tests/next16-integration run it too, without an edge route:
@@ -31,6 +32,7 @@ const check = (where, counts) => {
   if (!(counts.tables >= 8)) fail(`${where}: ${counts.tables} tables in the email (rows came out as a web layout)`);
   if (!counts.text) fail(`${where}: the email's text is missing`);
   if (counts.rows !== 2 || counts.columns.join() !== "1,2") fail(`${where}: the design has rows ${JSON.stringify(counts.columns)}, not [1,2]`);
+  if (counts.provider !== true) fail(`${where}: an UnlayerProvider's textDirection didn't reach the email and its design`);
   console.log(`✓ ${where}: ${counts.tables} tables, design rows ${JSON.stringify(counts.columns)}`);
 };
 check("route handler", JSON.parse(await get("/email")));
@@ -48,5 +50,11 @@ if (!edge);
 else if (edge.error === undefined) check("edge route", edge);
 else if (/render emails in the Node\.js runtime/.test(edge.error)) console.log(`✓ edge route: ${edge.error}`);
 else fail(`edge route: ${edge.error}`);
+// A Pages Router API route on the edge runtime: React there is the full one, so the email renders.
+if (edgeRoute) {
+  const pages = JSON.parse(await get("/api/edge-email"));
+  if (pages.error !== undefined) fail(`Pages Router edge API route: ${pages.error}`);
+  check("Pages Router edge API route", pages);
+}
 server.kill();
 process.exit(0);

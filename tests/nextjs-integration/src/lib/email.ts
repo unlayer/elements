@@ -1,7 +1,7 @@
 // An email rendered on the server with renderToHtml and renderToJson: what verify.mjs checks comes out as an
 // email (tables, not a web layout) with its design, from a route handler and from a Server Component.
 import React from "react";
-import { ColumnLayouts, Column, Email, Paragraph, Row, Button, renderToHtml, renderToJson } from "@unlayer/react-elements";
+import { ColumnLayouts, Column, Email, Paragraph, Row, Button, UnlayerProvider, renderToHtml, renderToJson } from "@unlayer/react-elements";
 
 const h = React.createElement;
 
@@ -17,7 +17,11 @@ function Welcome({ name }: { name: string }) {
 export function emailCounts() {
   const html = renderToHtml(h(Welcome, { name: "Ada" }));
   const design = renderToJson(h(Welcome, { name: "Ada" }));
+  // An <UnlayerProvider> around the template configures it, in the HTML and the design (React Server Components'
+  // React has no context: the render functions read its config off the element).
+  const provided = h(UnlayerProvider, { config: { textDirection: "rtl" }, children: h(Welcome, { name: "Ada" }) });
   return {
+    provider: /<html[^>]* dir="rtl"/.test(renderToHtml(provided)) && renderToJson(provided).body.values.textDirection === "rtl",
     tables: (html.match(/<table/g) ?? []).length,
     text: html.includes("Hello Ada") && html.includes("Right"),
     rows: design.body.rows.length,

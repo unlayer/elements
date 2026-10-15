@@ -58,8 +58,8 @@ jobs:
         run: pnpm --filter @unlayer/from-react-email typecheck && pnpm --filter @unlayer/migrate typecheck
 
       # ── Bundle size budget ──────────────────────────────────────
-      # Fail if the react-elements ESM bundle exceeds 118KB.
-      # Current size: about 113.4KB (0.1.22: about 76KB). Most of the growth is
+      # Fail if the react-elements ESM bundle exceeds 126KB.
+      # Current size: about 125.3KB (0.1.22: about 76KB). Most of the growth is
       # the render that collects a template's rows and blocks (one React render,
       # so hooks, context, Fragments and the user's components work as React
       # renders them; a component that throws, suspends or is async left out
@@ -70,14 +70,24 @@ jobs:
       # rendering where a bundler gives Elements another copy of React than
       # react-dom's (Next.js's server layers), and loading a second module of
       # react-dom's when Elements is called inside a renderToString it renders with,
-      # and leaving out Columns inside markup in a Row, as 0.1.22 did.
+      # and leaving out Columns inside markup in a Row, as 0.1.22 did, and
+      # Tailwind classes (the hook a <Tailwind> scope uses in the collected
+      # render; <Tailwind>, Tailwind itself, the code that reads its CSS and each
+      # component's class table are in the separate `tailwind` entry, not counted),
+      # rich text children (inline JSX and components in Paragraph, Heading and
+      # Button text), code kept in plain text, what a <Font> gives the head and
+      # the root, right-to-left text alignment, and `style`/`className` on the
+      # element each component renders, <Link>, the plain text's options, and
+      # an <UnlayerProvider>'s config read by the roots and the render functions.
+      # The Markdown parser, the code highlighter, <Font>, <Head> and the
+      # design-to-code converter (`codegen`) are in their own entries.
       # The budget tracks the unminified ESM output as a proxy for code volume;
       # it still flags accidental dependency bundling (any real dep is 10KB+).
       - name: Check bundle size
         run: |
           BUNDLE="packages/react/dist/index.js"
           SIZE=$(wc -c < "$BUNDLE" | tr -d ' ')
-          MAX_SIZE=118000
+          MAX_SIZE=126000
           echo "Bundle: $BUNDLE"
           echo "Size: $SIZE bytes (budget: $MAX_SIZE bytes)"
           if [ "$SIZE" -gt "$MAX_SIZE" ]; then
@@ -178,8 +188,9 @@ jobs:
           npm install "$TARBALL"
           npm run build
           # An email rendered in a route handler and a Server Component comes out as one (tables, a design with
-          # its rows), with Elements bundled into Next's server layers (no serverExternalPackages); an edge route
-          # builds (Turbopack) and renders or says to render in the Node.js runtime.
+          # its rows), with Elements bundled into Next's server layers (no serverExternalPackages); an App Router
+          # edge route builds (Turbopack) and renders or says to render in the Node.js runtime, and a Pages Router
+          # edge API route renders.
           npm run verify
 
       # ── More consumers ──────────────────────────────────────────
