@@ -1,0 +1,73 @@
+{
+  "name": "@unlayer/elements-preview",
+  "version": "0.1.0",
+  "description": "Preview Unlayer Elements templates in your browser as you edit them, check them against email clients, and export them to HTML.",
+  "license": "MIT",
+  "type": "module",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/unlayer/elements.git",
+    "directory": "packages/preview"
+  },
+  "homepage": "https://github.com/unlayer/elements/tree/main/packages/preview",
+  "keywords": [
+    "email",
+    "preview",
+    "dev-server",
+    "react-email",
+    "unlayer",
+    "elements"
+  ],
+  "bin": {
+    "elements-preview": "./dist/bin.js"
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "types": "./dist/index.d.ts",
+  "files": [
+    "dist",
+    "THIRD_PARTY_NOTICES.md"
+  ],
+  "engines": {
+    "node": "^20.19.0 || >=22.12.0"
+  },
+  "scripts": {
+    "build": "tsup && vite build --config vite.ui.config.ts",
+    "dev:ui": "vite --config vite.ui.config.ts",
+    "test": "vitest",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "caniemail": "2.0.2",
+    "htmlparser2": "10.1.0",
+    "prettier": "3.6.2",
+    "puppeteer-core": "24.43.1",
+    "vite": "8.3.4"
+  },
+  "peerDependencies": {
+    "@unlayer/react-elements": ">=0.2.0",
+    "react": "^18.0.0 || ^19.0.0",
+    "react-dom": "^18.0.0 || ^19.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "24.9.1",
+    "@types/prismjs": "1.26.6",
+    "@types/react": "18.3.3",
+    "@types/react-dom": "18.3.0",
+    "@unlayer/react-elements": "workspace:*",
+    "prismjs": "1.30.0",
+    "react": "18.3.1",
+    "react-dom": "18.3.1",
+    "tsup": "8.5.0",
+    "typescript": "5.9.3",
+    "vitest": "3.2.4"
+  },
+  "publishConfig": {
+    "access": "public"
+  }
+}
