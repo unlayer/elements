@@ -80,6 +80,7 @@ export const MJML_SOURCE: DesignSource = {
       ...(result.title ? { title: result.title } : {}),
       reference: { html: reference },
       declared: result.declared,
+      unread: result.warnings.filter((w) => /^mj-include (left out|not followed)$/.test(w.reason)).map((w) => `mj-include ${w.detail}`),
     };
   },
   failure(error) {

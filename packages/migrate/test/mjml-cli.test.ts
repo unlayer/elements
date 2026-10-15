@@ -184,15 +184,18 @@ describe("--from mjml", () => {
     expect(out).toContain("✓ emails/welcome.mjml");
   });
 
-  it("refuses an include outside the folder given, and reports it", async () => {
+  it("refuses an include outside the folder given, and fails the template, whose check can't see what's missing", async () => {
     const dir = project({ "secret.mjml": "<mj-text>Outside the folder</mj-text>", "emails/welcome.mjml": WELCOME.replace("</mj-column>", '<mj-include path="../secret.mjml" /></mj-column>'), "emails/partials/base.mjml": BASE });
     const { code, out, err } = await run(dir, "emails", "--from", "mjml", "--out", "migrated", "--report", "report.md");
-    expect(code, out + err).toBe(0);
+    // The reference is compiled from the same document, without the include: the check alone would pass.
+    expect(code, out + err).toBe(2);
+    expect(out).toContain("✗ emails/welcome.mjml: written, but its content differs: couldn't read mj-include ../secret.mjml (outside emails, not read), so its content isn't all there");
     expect(read(dir, "migrated/welcome.tsx")).not.toContain("Outside the folder");
-    expect(out).toContain("mj-include left out");
     expect(read(dir, "report.md")).toMatch(/^# MJML → Unlayer Elements migration/);
     expect(read(dir, "report.md")).toContain("- mj-include left out: `../secret.mjml (outside emails, not read)`");
+    expect(read(dir, "report.md")).toContain("**Not read, so not in the migrated template:** `mj-include ../secret.mjml (outside emails, not read)`");
   });
+
 
   it("says when there's nothing to migrate, and points a React Email run at --from mjml", async () => {
     const dir = project({ "emails/partials/base.mjml": BASE });

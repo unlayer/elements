@@ -108,6 +108,8 @@ export interface FileResult {
   status: "migrated" | "check-failed" | "failed" | "skipped" | "unverified";
   /** Why it wasn't checked (an unverified template, or one --strict failed for it). */
   unchecked?: string;
+  /** Parts of the original that couldn't be read, so its check can't vouch for it (an mj-include outside the folder). */
+  unread?: string[];
   /** Why it was skipped or failed. */
   reason?: string;
   /** Where the migrated template was written. */
@@ -1283,6 +1285,7 @@ function line(result: FileResult): string {
       const found = [
         ...contentProblems({ ...result, missing: result.missingText, added: result.addedText }),
         ...(result.designWarnings?.length ? [blocksLost(result.designWarnings.length)] : []),
+        ...(result.unread?.length ? [`couldn't read ${result.unread.join(", ")}, so its content isn't all there`] : []),
         ...(result.variants ?? []).filter((v) => v.error || contentProblems(v).length).map((v) => `with ${v.change}: ${variantProblems(v)}`),
       ];
       // Its content differs (a converter bug: report it), something else failed the check (what it couldn't verify, a
@@ -1387,6 +1390,7 @@ function markdownReport(results: FileResult[], source = "React Email"): string {
     lines.push("", `## ${r.file}`, "");
     if (r.reason) lines.push(r.reason, "");
     if (r.unchecked) lines.push(`Not checked: ${r.unchecked}.`, "");
+    if (r.unread?.length) lines.push(`**Not read, so not in the migrated template:** ${r.unread.map((u) => `\`${u}\``).join(", ")}`, "");
     if (r.output) lines.push(`Written to \`${r.output}\`${r.design ? ` (design JSON: \`${r.design}\`)` : ""}.`, "");
     if (r.fonts?.length) lines.push(`**Web fonts to register with the editor** (\`fonts.customFonts\`): ${r.fonts.map((f) => f.label).join(", ")}`, "");
     if (r.missingText?.length) lines.push(`**Lost text:** ${quote(r.missingText)}`, "");
@@ -1576,7 +1580,7 @@ function lostContent(result: FileResult): boolean {
       c.phone?.missing.length || c.phone?.added.length || c.phone?.missingAttributes?.length || c.phone?.addedAttributes?.length ||
       c.lostShown?.length || c.styles?.some((s) => s.property === "shown" && !/^invisible/.test(s.original) && !/^invisible/.test(s.converted))
     );
-  return lost({ ...result, missing: result.missingText, added: result.addedText }) || (result.variants ?? []).some(lost);
+  return Boolean(result.unread?.length) || lost({ ...result, missing: result.missingText, added: result.addedText }) || (result.variants ?? []).some(lost);
 }
 
 /** Style changes in a line: "color #e11d48 → #000000 on "Hello", "world"", "the page's background #f4f4f5 → #ffffff". */

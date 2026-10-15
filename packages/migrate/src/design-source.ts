@@ -63,6 +63,11 @@ export interface SourceConversion {
    * exactly these, and lists each one as a difference. Anything else that differs still fails.
    */
   declared?: DeclaredDifference[];
+  /**
+   * Parts of the original the converter couldn't read (an mj-include outside the folder): its reference has the same
+   * gap, so the check can't vouch for the template, and it fails.
+   */
+  unread?: string[];
 }
 
 /** A format migrated through a design. */
@@ -265,7 +270,8 @@ async function migrateOne(source: DesignSource, input: SourceInput, options: Opt
   const declared = expected ? expected.applied.map(describeDeclared) : (conversion.declared ?? []).map((declaration) => describeDeclared({ declaration, count: 1 }));
   const differences = group([...conversion.warnings, ...declared, ...checked.codegenWarnings.map((w) => ({ reason: "codegen", detail: w }))]);
   const looks = check ? [...lookProblems(check), ...phoneWidths("html" in conversion.reference ? conversion.reference.html : "")] : [];
-  const failsContent = (check ? contentProblems(check).length > 0 : false) || designWarnings.length > 0;
+  const unread = conversion.unread ?? [];
+  const failsContent = (check ? contentProblems(check).length > 0 : false) || designWarnings.length > 0 || unread.length > 0;
   const missing = "missing" in conversion.reference ? conversion.reference.missing : undefined;
   // --strict: any difference fails, a block kept as HTML too, and a template there's nothing to check against.
   const strictFails = options.strict && (looks.length > 0 || differences.length > 0 || kept.length > 0 || missing !== undefined);
@@ -273,6 +279,7 @@ async function migrateOne(source: DesignSource, input: SourceInput, options: Opt
     file: name,
     status: failsContent || strictFails ? "check-failed" : missing !== undefined ? "unverified" : "migrated",
     ...(missing !== undefined ? { unchecked: missing } : {}),
+    ...(unread.length ? { unread } : {}),
     ...(looks.length ? { looks } : {}),
     editable: designEditable(design),
     fallbacks: kept.length,
