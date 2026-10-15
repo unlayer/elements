@@ -244,7 +244,7 @@ export async function verifyConversion(
     console.warn = warn;
     console.error = error;
   }
-  const designWarnings = withoutImagePreloads(warnings, () => (designRoot === root ? convertedHtml : renderToHtml(designRoot)));
+  const designWarnings = withoutImagePreloads(warnings.filter((warning) => !FONT_URL.test(warning)), () => (designRoot === root ? convertedHtml : renderToHtml(designRoot)));
 
   const variants: Verification["variants"] = [];
   for (const [name, value] of Object.entries(props)) {
@@ -339,6 +339,12 @@ export async function verifyConversion(
   const stylesheets = (designRoot.props as { fonts?: Array<{ url: string }> } | null)?.fonts;
   return { ...compareText(originalHtml, convertedHtml), originalHtml, convertedHtml, designWarnings, design, editable: designEditable(design), editorFonts: editorFonts(design, stylesheets), variants };
 }
+
+/**
+ * Elements' warning for a root's web font the design can't hold (a font file, or a family no text in it has): the
+ * report lists it (`editorFonts`) to register with the editor, so it's no block the editor wouldn't get.
+ */
+const FONT_URL = /^\[Unlayer\] \w+ `fonts` URL /;
 
 /** Elements' warning for a `<link>` among the email's rows. */
 const LINK_AMONG_ROWS = "[Unlayer] renderToJson: <link> is not a valid Body child. Only <Row> is allowed.";
