@@ -225,9 +225,9 @@ describe("renderToHtml: full document shell", () => {
 
   it("keeps a bare item root's own wrapper div (only Unlayer wrappers get stripped)", () => {
     const html = renderToHtml(<Button className="cta-wrapper">Click</Button>);
-    // The Button's host <div class="cta-wrapper"> is the element's own
-    // markup, not a Body wrapper — it must survive into the document.
-    expect(html).toContain('class="cta-wrapper"');
+    // The Button's host <div> is the element's own markup, not a Body wrapper — it must survive into the document
+    // (its className is on its link, as in a Column).
+    expect(html).toMatch(/<body>\s*<div>\s*<div class="v-text-align"[^>]*>\s*<a [^>]*class="cta-wrapper /);
   });
 
   it("strips the Body renderer's wrapper even when the root has className/style", () => {
@@ -309,6 +309,20 @@ describe("document direction and language", () => {
   it("allows renderer options to override root metadata and escapes language", () => {
     const html = renderToHtml(<Email textDirection="rtl" lang="ar"><Row><Column /></Row></Email>, { textDirection: "ltr", lang: 'en" data-injected="yes' });
     expect(html).toContain('dir="ltr" lang="en&quot; data-injected=&quot;yes"');
+  });
+
+  it.each([Email, Page, Document])("puts a right-to-left direction and its language on the body and its wrapper too", (Root) => {
+    const html = renderToHtml(<Root textDirection="rtl" lang="ar"><Row><Column><Paragraph>مرحبا</Paragraph></Column></Row></Root>);
+    expect(html).toMatch(/<body[^>]* dir="rtl" lang="ar"[^>]*>/);
+    expect(html).toMatch(/<[a-z]+ [^>]*u_body[^>]* dir="rtl" lang="ar"/);
+  });
+
+  it.each([Email, Page, Document])("leaves the body as it was otherwise (left to right, or no direction)", (Root) => {
+    for (const props of [{ lang: "en" }, { textDirection: "ltr", lang: "en" }, {}] as const) {
+      const html = renderToHtml(<Root {...props}><Row><Column><Paragraph>Hi</Paragraph></Column></Row></Root>);
+      expect(html.match(/<body[^>]*>/)![0]).not.toMatch(/ dir=| lang=/);
+      expect(html.match(/<[a-z]+ [^>]*u_body[^>]*>/)![0]).not.toMatch(/ dir=| lang=/);
+    }
   });
 
   it("reads direction from design body values", () => {
@@ -420,7 +434,7 @@ describe("renderToHtml with a template component", () => {
 
   it("says an async template isn't supported", () => {
     const Async = (async () => root({ name: "Ada" })) as unknown as React.ComponentType;
-    expect(() => renderToHtml(<Async />)).toThrow("async and suspending templates aren't supported");
+    expect(() => renderToHtml(<Async />)).toThrow('async and suspending templates need "@unlayer/react-elements/async"\'s renderers');
   });
 
   it("leaves Elements components and plain HTML as they are", () => {

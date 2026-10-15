@@ -112,7 +112,7 @@ export function webLayout(args: DocumentLayoutArgs): string {
     <meta name="viewport" content="width=device-width, initial-scale=1">
     ${head}
   </head>
-  <body>
+  <body${dir.includes("rtl") ? `${dir}${args.lang || ""}` : ""}>
 ${body}
   </body>
 </html>

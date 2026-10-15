@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import React from "react";
 import Email from "./Email";
 import Page from "./Page";
+import Document from "./Document";
 import Image from "./Image";
 import Row from "./Row";
 import { Column } from "./Column";
@@ -210,10 +211,35 @@ describe("Image fixed-width rendering (renderToHtml)", () => {
         </Row>
       </Page>
     );
-    // The pin renders as `width: <pct>%` (caps at the slot via max-width), so the
-    // image shrinks with a narrow column instead of forcing a fixed 300px box.
-    expect(html).toMatch(/width:\s*51\.72%/);
-    expect(html).not.toMatch(/width:\s*300px/);
+    // The pin renders as `width: <pct>%` (rounded up) with the px as its max-width, so the image is 300px wide in
+    // its 580px slot and shrinks with a narrow column instead of forcing a fixed 300px box.
+    expect(html).toMatch(/[^-]width:\s*51\.73%;max-width: 300px;/);
+    expect(html).not.toMatch(/[^-]width:\s*300px/);
+  });
+
+  // Regression: a px width rendered wider than asked (`width="120px"` in a two-column row gave `max-width: 130.43px`):
+  // the exporter sized the image in a slot without the block's padding.
+  it("renders a px width at that width in every mode, in any column", () => {
+    const sizes: string[] = [];
+    for (const Root of [Email, Page, Document]) {
+      for (const [layout, width, padding] of [[ColumnLayouts.TwoEqual, "120px", undefined], [ColumnLayouts.OneColumn, 120, undefined], [ColumnLayouts.ThreeEqual, "97px", "4px 13px"]] as const) {
+        const html = renderToHtml(
+          <Root>
+            <Row layout={layout}>
+              {layout.cells.map((_, i) => (
+                <Column key={i}>{i === 0 ? <Image src={{ url: "https://x/p.png", width: 800, height: 400 }} width={width} containerPadding={padding} /> : null}</Column>
+              ))}
+            </Row>
+          </Root>
+        );
+        for (const img of html.match(/<img [^>]*>/g)!) sizes.push(...(img.match(/max-width: [\d.]+px|width="[\d.]+"/g) ?? []));
+        // The percent it scales down by from that is of the slot, rounded up: never narrower than asked.
+        const percent = Number(/[^-]width: ([\d.]+)%/.exec(html)![1]);
+        const slot = 500 / layout.cells.length - (padding ? 26 : 20);
+        expect((percent / 100) * slot).toBeGreaterThanOrEqual(Number(String(width).replace("px", "")));
+      }
+    }
+    expect([...new Set(sizes)].sort()).toEqual(['max-width: 120px', 'max-width: 97px', 'width="120"', 'width="97"']);
   });
 
   it("caps a too-wide pin at 100% in a narrow column", () => {
@@ -233,7 +259,7 @@ describe("Image fixed-width rendering (renderToHtml)", () => {
       </Page>
     );
     expect(html).toMatch(/width:\s*100%/);
-    expect(html).not.toMatch(/width:\s*300px/);
+    expect(html).not.toMatch(/[^-]width:\s*300px/);
   });
 });
 

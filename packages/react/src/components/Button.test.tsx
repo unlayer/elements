@@ -163,4 +163,26 @@ describe("Button Component", () => {
       ).not.toThrow();
     });
   });
+
+  describe("target", () => {
+    const link = (element: React.ReactElement) => renderToJson(
+      <Body>
+        <Row>
+          <Column>{element}</Column>
+        </Row>
+      </Body>
+    ).body.rows[0].columns[0].contents[0].values.href;
+
+    it("a flat `target` is the link's, in the HTML and the design", () => {
+      const { container } = render(<Button href="https://example.com" target="_self">Go</Button>);
+      expect(container.querySelector("a")!.getAttribute("target")).toBe("_self");
+      expect(link(<Button href="https://example.com" target="_self">Go</Button>)).toEqual({ name: "web", values: { href: "https://example.com", target: "_self" } });
+    });
+
+    it("a new tab (`_blank`) without one, as before", () => {
+      const { container } = render(<Button href="https://example.com">Go</Button>);
+      expect(container.querySelector("a")!.getAttribute("target")).toBe("_blank");
+      expect(link(<Button href="https://example.com">Go</Button>)).toEqual({ name: "web", values: { href: "https://example.com", target: "_blank" } });
+    });
+  });
 });

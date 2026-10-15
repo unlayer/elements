@@ -16,6 +16,7 @@ import Body from "./components/Body";
 import Email from "./components/Email";
 import Page from "./components/Page";
 import Document from "./components/Document";
+import Link from "./components/Link";
 import {
   ColumnLayouts,
   validateColumnLayout,
@@ -24,11 +25,12 @@ import {
 } from "./layouts/ColumnLayouts";
 import { UnlayerProvider, useUnlayerConfig } from "./context";
 import { renderToHtml, renderToPlainText, renderToHtmlParts } from "./utils/render-to-html";
+import { internals, INTERNALS } from "./utils/internals";
 export type { HtmlParts, RenderToHtmlOptions } from "./utils/render-to-html";
 import { renderToJson, renderRowToJson } from "./utils/render-to-json";
 import { registerTool, registerElementsTool } from "./utils/register-tool";
 export type { ElementsToolConfig, ElementsToolProps, ToolExporter } from "./utils/register-tool";
-import { htmlToTextJson } from "@unlayer-internal/shared-elements";
+import { htmlToTextJson, htmlToPlainText as toPlainText } from "@unlayer-internal/shared-elements";
 
 // 🎯 Export clean public types (hiding internal implementation details)
 export type {
@@ -69,6 +71,10 @@ export type {
   FontWeightInput,
   HeadingLevel,
   ImageSrcInput,
+  // What a component's `values` takes; names other props stand for
+  ValuesInput,
+  AlignAlias,
+  TextColorAlias,
 } from "./types";
 
 // Design JSON types (re-export from shared)
@@ -93,7 +99,10 @@ export type { SocialProps } from "./components/Social";
 export type { TableProps } from "./components/Table";
 export type { VideoProps } from "./components/Video";
 export type { RowProps } from "./components/Row";
+export type { ColumnProps } from "./components/Column";
 export type { EmailProps } from "./components/Email";
+export type { LinkProps } from "./components/Link";
+export type { PlainTextOptions } from "@unlayer-internal/shared-elements";
 export type { PageProps } from "./components/Page";
 export type {
   DocumentProps,
@@ -124,6 +133,7 @@ export {
   Email,
   Page,
   Document,
+  Link,
   ColumnLayouts,
   validateColumnLayout,
   UnlayerProvider,
@@ -136,7 +146,10 @@ export {
   registerTool,
   registerElementsTool,
   htmlToTextJson,
+  toPlainText,
   type ColumnLayout,
   type ValidColumnLayout
 };
 
+// The other entries' way into the main one's internals (see utils/internals.ts).
+(renderToHtml as unknown as Record<symbol, unknown>)[INTERNALS] = internals;

@@ -6,7 +6,9 @@ import { mapSemanticProps, type SemanticProps } from "../utils/semantic-props";
 // Menu carries fontFamily/fontWeight/fontSize/letterSpacing (but not color or
 // lineHeight) — relax those to the same agent-friendly inputs Heading/Paragraph
 // use, so a string fontFamily or a number/em size type-checks (normalized at
-// render time). It has no `color` field (uses linkColor/textColor).
+// render time). Its colors are `textColor` (an item without a link, the
+// separator) and `linkColor` (an item with one); `color` stands for both, and
+// `textAlign` for `align` (see PROP_ALIASES).
 type MenuSemanticProps = Omit<
   SemanticProps<MenuValues>,
   "padding" | "fontFamily" | "fontWeight" | "fontSize" | "letterSpacing"
@@ -16,6 +18,10 @@ type MenuSemanticProps = Omit<
     items?: MenuItem[];
     /** Inner padding — a number (→ px) or CSS string. */
     padding?: SizeInput;
+    /** The items' color, linked or not: it stands for `textColor` and `linkColor` (each wins where it's given). */
+    color?: string;
+    /** Alias of `align` (which wins where both are given). */
+    textAlign?: MenuValues["align"];
   };
 
 export interface MenuProps extends ItemComponentProps<MenuSemanticProps> {}
@@ -61,20 +67,12 @@ const Menu = createItemComponent<MenuValues, MenuSemanticProps>({
           values: { href: item.href, target: item.target ?? "_blank" },
         },
       }));
-      const base: Partial<MenuValues> = mapSemanticProps(
-        rest as SemanticProps<MenuValues>,
-        DEFAULT_VALUES,
-        "Menu"
-      );
+      const base: Partial<MenuValues> = mapSemanticProps(rest as SemanticProps<MenuValues>, DEFAULT_VALUES, "Menu");
       base.menu = { items: mapped };
       return base;
     }
 
-    return mapSemanticProps(
-      props as SemanticProps<MenuValues>,
-      DEFAULT_VALUES,
-      "Menu"
-    );
+    return mapSemanticProps(props as SemanticProps<MenuValues>, DEFAULT_VALUES, "Menu");
   },
   displayName: "Menu",
   exporters: MenuExporters,

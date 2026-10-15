@@ -20,70 +20,21 @@ export interface ColumnLayout {
   widths: string[]; // e.g., ["50%", "50%"]
 }
 
+/** A layout from its name, its columns' relative widths and how it's described. */
+function layout(name: string, cells: number[], description: string): ColumnLayout {
+  const total = cells.reduce((a, b) => a + b);
+  return { name, description, cells, expectedColumns: cells.length, widths: cells.map((cell) => `${+((cell / total) * 100).toFixed(2)}%`) };
+}
+
 export const ColumnLayouts = {
-  OneColumn: {
-    name: 'OneColumn',
-    description: 'One full column (100%)',
-    cells: [1],
-    expectedColumns: 1,
-    widths: ['100%'],
-  } as ColumnLayout,
-
-  TwoEqual: {
-    name: 'TwoEqual',
-    description: 'Two equal columns (50% + 50%)',
-    cells: [1, 1],
-    expectedColumns: 2,
-    widths: ['50%', '50%'],
-  } as ColumnLayout,
-
-  TwoWideNarrow: {
-    name: 'TwoWideNarrow',
-    description: 'Two columns: wide + narrow (67% + 33%)',
-    cells: [2, 1],
-    expectedColumns: 2,
-    widths: ['66.67%', '33.33%'],
-  } as ColumnLayout,
-
-  TwoNarrowWide: {
-    name: 'TwoNarrowWide',
-    description: 'Two columns: narrow + wide (33% + 67%)',
-    cells: [1, 2],
-    expectedColumns: 2,
-    widths: ['33.33%', '66.67%'],
-  } as ColumnLayout,
-
-  ThreeEqual: {
-    name: 'ThreeEqual',
-    description: 'Three equal columns (33% + 33% + 33%)',
-    cells: [1, 1, 1],
-    expectedColumns: 3,
-    widths: ['33.33%', '33.33%', '33.33%'],
-  } as ColumnLayout,
-
-  ThreeNarrowWideNarrow: {
-    name: 'ThreeNarrowWideNarrow',
-    description: 'Three columns: narrow + wide + narrow (25% + 50% + 25%)',
-    cells: [1, 2, 1],
-    expectedColumns: 3,
-    widths: ['25%', '50%', '25%'],
-  } as ColumnLayout,
-
-  FourEqual: {
-    name: 'FourEqual',
-    description: 'Four equal columns (25% + 25% + 25% + 25%)',
-    cells: [1, 1, 1, 1],
-    expectedColumns: 4,
-    widths: ['25%', '25%', '25%', '25%'],
-  } as ColumnLayout,
-
-  FiveEqual: {
-    name: 'FiveEqual',
-    description: 'Five equal columns (20% + 20% + 20% + 20% + 20%)',
-    cells: [1, 1, 1, 1, 1],
-    expectedColumns: 5,
-    widths: ['20%', '20%', '20%', '20%', '20%'],
-  } as ColumnLayout,
+  OneColumn: layout('OneColumn', [1], 'One full column (100%)'),
+  TwoEqual: layout('TwoEqual', [1, 1], 'Two equal columns (50% + 50%)'),
+  TwoWideNarrow: layout('TwoWideNarrow', [2, 1], 'Two columns: wide + narrow (67% + 33%)'),
+  TwoNarrowWide: layout('TwoNarrowWide', [1, 2], 'Two columns: narrow + wide (33% + 67%)'),
+  ThreeEqual: layout('ThreeEqual', [1, 1, 1], 'Three equal columns (33% + 33% + 33%)'),
+  ThreeNarrowWideNarrow: layout('ThreeNarrowWideNarrow', [1, 2, 1], 'Three columns: narrow + wide + narrow (25% + 50% + 25%)'),
+  FourEqual: layout('FourEqual', [1, 1, 1, 1], 'Four equal columns (25% + 25% + 25% + 25%)'),
+  FiveEqual: layout('FiveEqual', [1, 1, 1, 1, 1], 'Five equal columns (20% + 20% + 20% + 20% + 20%)'),
 };
 
 // Export the layout type for strict typing

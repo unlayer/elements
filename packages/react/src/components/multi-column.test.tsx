@@ -68,22 +68,21 @@ describe("Multi-column layouts", () => {
     expect(container.textContent).toContain("Narrow");
   });
 
-  it("logs error when layout column count mismatches children", () => {
-    // ThreeEqual expects 3 columns but we give 2
-    // Body catches the error from Row, so it doesn't throw — it logs
+  it("leaves out a Row whose Columns don't fit its layout, and says so", () => {
+    // ThreeEqual expects 3 columns but we give 2: that Row is left out (see nested-renders.test.tsx), the others render.
     const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
-    render(
+    const { container } = render(
       <Body>
         <Row layout={ColumnLayouts.ThreeEqual}>
           <Column><Paragraph>Only two</Paragraph></Column>
           <Column><Paragraph>columns</Paragraph></Column>
         </Row>
+        <Row><Column><Paragraph>Kept</Paragraph></Column></Row>
       </Body>
     );
-    expect(errorSpy).toHaveBeenCalledWith(
-      expect.stringContaining("Failed to render"),
-      expect.objectContaining({ message: expect.stringContaining("expects 3") })
-    );
+    expect(container.textContent).not.toContain("Only two");
+    expect(container.textContent).toContain("Kept");
+    expect(errorSpy).toHaveBeenCalledWith("[Unlayer] A Row with the ThreeEqual layout, for 3 Columns, has 2, so it's left out.");
     errorSpy.mockRestore();
   });
 

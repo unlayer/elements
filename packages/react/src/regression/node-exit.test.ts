@@ -184,8 +184,9 @@ console.log(JSON.stringify({ warnings }));
 describe("the built package's own requires", () => {
   // A bundler warns on a require of a path worked out when it runs (and the migration CLI can't follow one): the
   // build requires modules by name only. (The CommonJS build once wrote `import.meta.url` as `require('u' + 'rl')`.)
+  const entries = ["index", "tailwind", "font", "code", "markdown", "async"].flatMap((entry) => [`${entry}.js`, `${entry}.cjs`]);
   it("name the modules they load", () => {
-    for (const file of ["index.js", "index.cjs"]) {
+    for (const file of entries) {
       const code = fs.readFileSync(path.join(dist, file), "utf8");
       expect(code.match(/\brequire\((?!(?:"[^"]*"|'[^']*')\))[^)]*\)/g) ?? [], file).toEqual([]);
     }
@@ -193,7 +194,140 @@ describe("the built package's own requires", () => {
 
   // webpack 4 (Create React App 4, Storybook 6), which 0.1.22 built with, can't parse `import.meta`.
   it("use no syntax webpack 4 can't parse (import.meta)", () => {
-    for (const file of ["index.js", "index.cjs"]) expect(fs.readFileSync(path.join(dist, file), "utf8"), file).not.toMatch(/import\.meta/);
+    for (const file of entries) expect(fs.readFileSync(path.join(dist, file), "utf8"), file).not.toMatch(/import\.meta/);
+  });
+});
+
+describe("the Tailwind entry (@unlayer/react-elements/tailwind), built", () => {
+  // Tailwind is an optional peer dependency: the main entry never loads it, and the Tailwind entry loads it only when
+  // it's asked to compile, both as a module and required.
+  const [react, reactDom] = reacts["React 18"];
+  const template = `const h = React.createElement;
+const email = (root, block) => h(E.Email, { className: root }, h(E.Row, null, h(E.Column, null, h(E.Paragraph, { className: block }, "Hi there"))));`;
+  const scripts = {
+    // No tailwindcss: Elements renders (a <Tailwind> with no classes to read too), and compiling says what to install.
+    without: `const plain = E.renderToHtml(h(T.Tailwind, { config: {} }, email()));
+const error = await T.loadTailwind().then(() => "compiled", (e) => e.message);
+console.log(JSON.stringify({ plain: plain.includes("Hi there"), same: E.Tailwind === undefined, error }));`,
+    with: `const tw = await T.loadTailwind();
+const html = E.renderToHtml(h(T.Tailwind, { tw }, email("bg-gray-100", "text-red-500")));
+const json = await T.renderToJson(h(T.Tailwind, { config: { theme: { extend: { colors: { brand: "#007291" } } } } }, email(undefined, "text-brand")));
+console.log(JSON.stringify({ html: html.includes("#f3f4f6") && html.includes("#fb2c36"), json: json.body.rows[0].columns[0].contents[0].values.color }));`,
+  };
+  for (const format of ["module", "commonjs"] as const) {
+    for (const installed of [false, true]) {
+      it(`loads ${installed ? "Tailwind to compile" : "without tailwindcss installed"} (${format})`, () => {
+        expect(fs.existsSync(path.join(dist, "tailwind.cjs")), "build the package first (pnpm build)").toBe(true);
+        const dir = project(react, reactDom, format);
+        try {
+          if (installed) fs.symlinkSync(fs.realpathSync(path.join(root, "node_modules/tailwindcss")), path.join(dir, "node_modules/tailwindcss"), "dir");
+          const load =
+            format === "module"
+              ? `import * as E from "@unlayer/react-elements"; import * as T from "@unlayer/react-elements/tailwind"; import React from "react";`
+              : `const E = require("@unlayer/react-elements"); const T = require("@unlayer/react-elements/tailwind"); const React = require("react");`;
+          const body = `${template}\n${installed ? scripts.with : scripts.without}`;
+          fs.writeFileSync(path.join(dir, "tailwind.js"), format === "module" ? `${load}\n${body}` : `${load}\n(async () => {\n${body}\n})();`);
+          const run = spawnSync(process.execPath, ["tailwind.js"], { cwd: dir, encoding: "utf8", timeout: 20_000 });
+          expect(run.status, run.stderr).toBe(0);
+          const out = JSON.parse(run.stdout.trim().split("\n").pop()!);
+          if (installed) expect(out).toEqual({ html: true, json: "#007291" });
+          else expect(out).toEqual({ plain: true, same: true, error: expect.stringMatching(/loadTailwind needs Tailwind CSS 4: install it/) });
+        } finally {
+          fs.rmSync(dir, { recursive: true, force: true });
+        }
+      }, 30_000);
+    }
+  }
+
+  it("leaves Tailwind out of the main entry", () => {
+    for (const file of ["index.js", "index.cjs"]) expect(fs.readFileSync(path.join(dist, file), "utf8"), file).not.toMatch(/tailwindcss/);
+  });
+});
+
+describe("the async renderers (@unlayer/react-elements/async), built", () => {
+  // React's streaming renderer resolves what a synchronous render leaves out. React 19 renders async components
+  // anywhere and has use(); on React 18 Elements resolves the async components it places itself (a child of a root,
+  // a Row, a Column or text), and thrown promises (Suspense) work.
+  const script = (react19: boolean) => `const E = require("@unlayer/react-elements"); const A = require("@unlayer/react-elements/async"); const React = require("react");
+const h = React.createElement;
+const later = (value) => new Promise((resolve) => setTimeout(() => resolve(value), 5));
+const Name = async () => h("b", null, await later("Ada"));
+let state = {};
+const Thrown = () => { state.promise ??= later("thrown").then((v) => (state.value = v)); if (!state.value) throw state.promise; return h(E.Paragraph, null, state.value); };
+const used = later("used");
+const Used = () => h(E.Paragraph, null, React.use(used));
+const Inner = async () => h("i", null, await later("deep"));
+const Deep = () => h(Inner);
+// An async component another component of yours renders, which no Elements component's children hold.
+const InnerBlock = async () => h(E.Paragraph, null, await later("deep block"));
+const DeepBlock = () => h(InnerBlock);
+async function Template() {
+  const title = await later("Order 7");
+  return h(E.Email, null, h(E.Row, null, h(E.Column, null, h(E.Heading, null, title), h(E.Paragraph, null, "Hi ", h(Name), "!"), h(Thrown)${react19 ? ", h(Used), h(E.Paragraph, null, h(Deep))" : ""})));
+}
+const boom = new Error("down");
+async function Broken() { await later(null); throw boom; }
+(async () => {
+  const design = await A.renderToJson(h(Template));
+  const texts = design.body.rows[0].columns[0].contents.map((c) => c.values.text);
+  const failure = await A.renderToHtml(h(E.Email, null, h(E.Row, null, h(E.Column, null, h(Broken))))).catch((e) => e);
+  const deep = await A.renderToHtml(h(E.Email, null, h(E.Row, null, h(E.Column, null, h(DeepBlock))))).then((html) => (html.includes("deep block") ? "rendered" : html), (e) => e.message);
+  console.log(JSON.stringify({ texts, cause: failure.cause === boom, message: failure.message, deep }));
+})();`;
+  for (const [name, [react, reactDom]] of Object.entries(reacts)) {
+    it(`resolve async templates and components, and Suspense (${name})`, () => {
+      expect(fs.existsSync(path.join(dist, "async.cjs")), "build the package first (pnpm build)").toBe(true);
+      const react19 = name === "React 19";
+      const dir = project(react, reactDom, "commonjs");
+      try {
+        fs.writeFileSync(path.join(dir, "async.js"), script(react19));
+        const run = spawnSync(process.execPath, ["async.js"], { cwd: dir, encoding: "utf8", timeout: 20_000 });
+        expect(run.status, run.stderr).toBe(0);
+        const out = JSON.parse(run.stdout.trim().split("\n").pop()!);
+        expect(out.texts).toEqual(["Order 7", "Hi <b>Ada</b>!", "thrown", ...(react19 ? ["used", "<i>deep</i>"] : [])]);
+        expect(out).toMatchObject({ cause: true, message: "[Unlayer] <Broken> threw while rendering: down" });
+        // An async component another component renders: React 19 renders it, React 18 can't (and says so).
+        if (react19) expect(out.deep).toBe("rendered");
+        else expect(out.deep).toMatch(/threw while rendering: Objects are not valid as a React child \(found: \[object Promise\]\)[\s\S]*use React 19/);
+      } finally {
+        fs.rmSync(dir, { recursive: true, force: true });
+      }
+    }, 30_000);
+  }
+});
+
+describe("the Markdown, code and font entries, built", () => {
+  // Their parser and highlighter are built in: a project installs nothing more, as a module or required, and the
+  // main entry has neither.
+  const [react, reactDom] = reacts["React 18"];
+  const body = `const h = React.createElement;
+const email = h(E.Email, null, h(F.Font, { family: "Inter", url: "https://fonts.example.com/inter.css", default: true }), h(E.Row, null, h(E.Column, null,
+  h(M.Markdown, null, "# Hi\\n\\nSome **bold** text.\\n\\n\\u0060\\u0060\\u0060js\\nconst a = 1;\\n\\u0060\\u0060\\u0060"),
+  h(E.Paragraph, null, "Run ", h(C.CodeInline, null, "npm i")))));
+const json = E.renderToJson(email);
+const html = E.renderToHtml(email);
+console.log(JSON.stringify({ blocks: json.body.rows[0].columns[0].contents.map((c) => c.type), font: json.body.values.fontFamily.label, keyword: html.includes(">const</span>"), link: html.includes("inter.css") }));`;
+  for (const format of ["module", "commonjs"] as const) {
+    it(`render, with nothing more installed (${format})`, () => {
+      expect(fs.existsSync(path.join(dist, "markdown.cjs")), "build the package first (pnpm build)").toBe(true);
+      const dir = project(react, reactDom, format);
+      try {
+        const load =
+          format === "module"
+            ? `import * as E from "@unlayer/react-elements"; import * as M from "@unlayer/react-elements/markdown"; import * as C from "@unlayer/react-elements/code"; import * as F from "@unlayer/react-elements/font"; import React from "react";`
+            : `const E = require("@unlayer/react-elements"); const M = require("@unlayer/react-elements/markdown"); const C = require("@unlayer/react-elements/code"); const F = require("@unlayer/react-elements/font"); const React = require("react");`;
+        fs.writeFileSync(path.join(dir, "content.js"), `${load}\n${body}`);
+        const run = spawnSync(process.execPath, ["content.js"], { cwd: dir, encoding: "utf8", timeout: 20_000 });
+        expect(run.status, run.stderr).toBe(0);
+        expect(JSON.parse(run.stdout.trim().split("\n").pop()!)).toEqual({ blocks: ["heading", "text", "html", "text"], font: "Inter", keyword: true, link: true });
+      } finally {
+        fs.rmSync(dir, { recursive: true, force: true });
+      }
+    }, 30_000);
+  }
+
+  it("leave the parser and the highlighter out of the main entry", () => {
+    for (const file of ["index.js", "index.cjs"]) expect(fs.readFileSync(path.join(dist, file), "utf8"), file).not.toMatch(/marked|highlight\.js|hljs/i);
   });
 });
 

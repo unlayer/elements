@@ -1,10 +1,9 @@
 import React from "react";
 import type { RenderMode, UnlayerConfig, RowValues } from "@unlayer-internal/shared-elements";
-import { validateColumnLayout } from "@unlayer-internal/shared-elements";
 import type { ColumnLayout } from "@unlayer-internal/shared-elements";
 import { RowExporters } from "@unlayer/exporters";
 import { mapSemanticProps, type SemanticProps } from "../utils/semantic-props";
-import { nextHtmlId, safeMeta } from "../utils/create-component";
+import { nextHtmlId, safeMeta, hatch, cssUrl } from "../utils/create-component";
 import { bodyContentWidthPx } from "../utils/image-sizing";
 import type { DeviceProps, SizeInput } from "../types";
 import { ROW_DEFAULTS, BODY_DEFAULTS } from "../utils/container-defaults";
@@ -36,12 +35,18 @@ export type RowProps = Omit<SemanticProps<RowValues>, "padding" | keyof DevicePr
   layout?: ColumnLayout;
   cells?: number[];
   mode?: RenderMode;
+  /** Class names on the row's container; HTML only. */
   className?: string;
+  /** Inline CSS on the row's container, after the renderer's own (a prop given wins over the same property); HTML only. */
   style?: React.CSSProperties;
   index?: number;
   bodyValues?: any;
   collection?: string;
-  /** Padding — a CSS string ("0 48px", "20px 40px") or a number (px). */
+  /**
+   * The editor's Row padding: around the row, outside its content box. A CSS string ("0 48px") or a number (px). With
+   * a `columnsBackgroundColor` it's outside that background and doesn't inset the content (said once per render): inset
+   * it with the Columns' `padding`. (A Row's Tailwind `p-*` classes do inset it, as in CSS.)
+   */
   padding?: SizeInput;
   /** @internal - Unlayer config threaded from UnlayerProvider via Body */
   _config?: UnlayerConfig;
@@ -254,30 +259,21 @@ function renderRow(props: RowProps): React.ReactElement | null {
   // Determine cells from layout or props. With neither, default to one equal
   // cell PER <Column> child (mirroring renderToJson) — `[1]` regardless of column
   // count left the 2nd/3rd column with no cell, rendering width="NaN".
-  // Its Columns, as React rendered them (see normalize.tsx).
+  // Its Columns, as React rendered them (see normalize.tsx). (The renderers give it its layout's cells, and leave out
+  // a Row whose Columns don't fit it.)
   const columnCount = React.Children.toArray(children).filter(
     (c) => React.isValidElement(c) && /^Column$/.test((c.type as any)?.displayName || (c.type as any)?.name || "")
   ).length;
-  let cells: number[];
-  if (layout) {
-    // The Columns as rendered, or as written (a condition's place included, as 0.1.22 counted them): either fits it.
-    if (columnCount !== layout.expectedColumns) validateColumnLayout(layout, React.Children.count(children));
-    cells = layout.cells;
-  } else if (propsCells) {
-    cells = propsCells;
-  } else {
-    cells = Array(Math.max(1, columnCount)).fill(1);
-  }
+  const cells: number[] = layout?.cells ?? propsCells ?? Array(Math.max(1, columnCount)).fill(1);
 
   // Merge body values with defaults
   const safeBodyValues = { ...DEFAULT_BODY_VALUES, ...bodyValues };
 
   // Map semantic props to values
-  const values = mapSemanticProps<RowValues>(
-    semanticProps as SemanticProps<RowValues>,
-    DEFAULT_VALUES,
-    "Row"
-  );
+  const values = mapSemanticProps<RowValues>(semanticProps as SemanticProps<RowValues>, DEFAULT_VALUES, "Row");
+  // A background image takes the editor's defaults where it sets none (full width, centered), as the design does; its
+  // URL as CSS takes it (see cssUrl).
+  cssUrl(values, DEFAULT_VALUES.backgroundImage);
 
   const valuesWithMeta = { ...values, cells, _meta: safeMeta({ htmlID: nextHtmlId(_config, "u_row"), htmlClassNames: "u_row", ...(values._meta || {}) }) };
 
@@ -292,15 +288,10 @@ function renderRow(props: RowProps): React.ReactElement | null {
   );
 
   try {
-    const html = renderRowToHtml(innerHTML, valuesWithMeta, safeBodyValues, mode, cells, collection);
+    // Its `style` and `className` on its row (the box at the content width, see hatch).
+    const html = hatch(renderRowToHtml(innerHTML, valuesWithMeta, safeBodyValues, mode, cells, collection), /<div[^>]*class="u-row[ "][^>]*>/, style, className, semanticProps);
 
-    return (
-      <div
-        dangerouslySetInnerHTML={{ __html: html }}
-        className={className}
-        style={style}
-      />
-    );
+    return <div dangerouslySetInnerHTML={{ __html: html }} />;
   } catch (error) {
     console.error("Row rendering failed:", error);
     return (

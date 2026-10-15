@@ -9,6 +9,7 @@ import Button from "../components/Button";
 import Heading from "../components/Heading";
 import Paragraph from "../components/Paragraph";
 import Divider from "../components/Divider";
+import Document from "../components/Document";
 
 describe("renderToHtmlParts", () => {
   it("returns head and body as separate strings", () => {
@@ -187,5 +188,33 @@ describe("renderToHtmlParts", () => {
     // Divider has no head, but Body/Row/Column do
     expect(typeof head).toBe("string");
     expect(body.length).toBeGreaterThan(0);
+  });
+});
+
+describe("the body's link style", () => {
+  // Its head CSS is for the body's element (`#u_body_1 a`, the id its HTML has), as the editor's is for its body's
+  // (`#u_body a`): the links in it take the color. (It was for `#u_content_body_1`, which nothing has.)
+  it.each([["Email", Email], ["Page", Page], ["Document", Document]] as const)("%s: colors the links in the HTML", (_, Root) => {
+    const html = renderToHtml(
+      <Root linkStyle={{ linkColor: "#ff0000", linkUnderline: false }}>
+        <Row>
+          <Column>
+            <Paragraph html={'Read <a href="https://example.com">the guide</a>'} />
+          </Column>
+        </Row>
+      </Root>
+    );
+    const id = /<[a-z]+ [^>]*id="(u_body[^"]*)"/.exec(html)![1];
+    expect(html).toMatch(new RegExp(`#${id} a \\{\\s*color: #ff0000;\\s*text-decoration: none;`));
+    // As a browser shows it.
+    const before = document.documentElement.innerHTML;
+    try {
+      document.documentElement.innerHTML = html.replace(/^<!doctype html>/i, "").replace(/<\/?html[^>]*>/g, "");
+      const link = document.querySelector('a[href="https://example.com"]')!;
+      expect(getComputedStyle(link).color).toBe("rgb(255, 0, 0)");
+      expect(getComputedStyle(link).textDecoration).toBe("none");
+    } finally {
+      document.documentElement.innerHTML = before;
+    }
   });
 });

@@ -2,13 +2,15 @@
  * Output against the previous release, so a change for existing users is never
  * silent. The realistic examples are rendered with this build and with the
  * last published Elements (`@unlayer/react-elements-previous`): their designs
- * and plain text must be the same. Their HTML is compared with a reviewed
+ * and plain text must be the same (but for bare zeros in a design's px lengths,
+ * now written `0px` as its schema types them: see pxZeros). Their HTML is compared with a reviewed
  * snapshot, as it changed on purpose (a full document, escaping, device CSS):
  * any further change fails until the snapshot is updated (`vitest -u`) and
  * reviewed. After a release, move the alias in package.json to it.
  */
 import { describe, expect, it, vi } from "vitest";
 import { lines } from "./lines";
+import { pxZeros } from "@unlayer-internal/shared-elements";
 import type React from "react";
 
 const EXAMPLES = [
@@ -48,7 +50,7 @@ describe.each(EXAMPLES)("%s", (name) => {
     expect(previous.element.type).toBe((previous.render as unknown as { Email: unknown }).Email);
     expect(current.element.type).toBe((current.render as unknown as { Email: unknown }).Email);
     expect(previous.element.type).not.toBe(current.element.type);
-    expect(JSON.stringify(current.render.renderToJson(current.element), null, 1)).toBe(JSON.stringify(previous.render.renderToJson(previous.element), null, 1));
+    expect(JSON.stringify(current.render.renderToJson(current.element), null, 1)).toBe(JSON.stringify(pxZeros(previous.render.renderToJson(previous.element)), null, 1));
     expect(current.render.renderToPlainText(current.element)).toBe(previous.render.renderToPlainText(previous.element));
   });
 

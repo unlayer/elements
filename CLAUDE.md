@@ -96,6 +96,13 @@ Example: `<Button fontSize="16px">` → `{ style: { fontSize: "16px" } }` in the
 | `packages/react/src/utils/render-to-html.tsx` | `renderToHtml()` implementation |
 | `packages/react/src/utils/document-layouts.ts` | Per-mode document shells (email/web/document), kept in parity with the editor's exported documents |
 | `packages/react/src/utils/render-to-json.ts` | `renderToJson()` implementation |
+| `packages/react/src/utils/inline-html.ts` | Rich text children (inline JSX, components such as react-intl's) of Paragraph/Heading/Button: rendered in the collecting render (`record.tsx`), kept to inline formatting here |
+| `packages/react/src/utils/tailwind.ts`, `src/utils/internals.ts` | The main entry's hooks for the other entries: a scope component (`<Tailwind>`) whose props rewrite those of the components inside it, recorded in the collecting render; and the internals the other entries use (on `renderToHtml[Symbol.for("@unlayer/react-elements/internals")]`) |
+| `packages/react/src/tailwind/Tailwind.tsx` | `<Tailwind>` (in the `tailwind` entry, not the main one): classes of the components inside it as their props (how each component takes them: `src/tailwind/tables.ts`), and what no prop takes as an inline `style` |
+| `packages/react/src/tailwind/inherit.ts`, `src/tailwind/row.ts` | A Row's rewrite (the Row's own, else one of its Columns', else the root's; normalize.tsx runs it on the Row's Columns): text classes on a Row, a Column or the root as the props of the text blocks inside, as CSS inherits them, and a border without a color in the text color around it (`inherit.ts`); then the Row's padding classes and its Columns' margins placed in its Columns (`row.ts`) |
+| `packages/react/src/tailwind/index.ts` | The `@unlayer/react-elements/tailwind` entry: `loadTailwind()` (the only code that loads `tailwindcss`), the class → declaration → prop reading (and classes in `html` markup → inline styles), the async renderers |
+| `packages/react/src/async/` | The `@unlayer/react-elements/async` entry (also the Tailwind entry's async renderers): an async template awaited, then the content collected once in React's streaming render (`onAllReady`/`allReady`, so async components, Suspense and `use()` resolve; its frame stays on the collecting stack and its `useId` prefix names its collection, see `record.tsx`'s Sentinel), which the synchronous render reuses; `pretty` with prettier (optional peer) |
+| `packages/react/src/markdown/`, `src/code/`, `src/font/`, `src/head/` | The `markdown` (Markdown → blocks, built-in `marked`), `code` (CodeBlock, CodeInline, built-in `highlight.js` and themes, highlight.js's ported), `font` (`<Font>`) and `head` (`<Head>`) entries. They import the main entry by the package's name (`tsup.config.ts` keeps it external; `vitest.config.ts` and the tsconfigs map it to `src/`), so all entries share one copy of Elements; their libraries are built in (licenses in `packages/react/THIRD_PARTY_LICENSES.md`) and never reach the main entry |
 | `packages/react/src/utils/semantic-props.ts` | Flat → nested prop mapper |
 | `packages/react/src/components/Body.tsx` | Core container component (handles all 3 modes) |
 | `packages/react/src/components/Row.tsx` | Row layout with column management |
@@ -127,7 +134,7 @@ Example: `<Button fontSize="16px">` → `{ style: { fontSize: "16px" } }` in the
 
 - TypeScript strict compilation
 - All unit tests pass
-- Bundle size < 118KB (ESM)
+- Bundle size < 126KB (ESM, main entry; the `tailwind`, `async`, `markdown`, `code`, `font` and `head` entries aren't counted)
 - Elements output matches the previous release (designs, plain text) and the reviewed snapshots (HTML, template patterns); hostile inputs add no markup
 - Next.js integration build succeeds
 - Browser E2E gate passes (rendered documents verified in Chromium: 0px `<p>` margins, single `<body>`, no errors)

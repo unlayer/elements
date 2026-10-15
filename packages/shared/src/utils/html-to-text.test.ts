@@ -7,6 +7,11 @@ describe("htmlToPlainText", () => {
     expect(htmlToPlainText(undefined as any)).toBe("");
   });
 
+  it("keeps preformatted text (code) as it is: its indentation, blank lines and markup's text", () => {
+    const html = '<p>Before</p><pre style="x"><code><span style="color:red">if</span> (a) {\n    go(&quot;x&quot;);\n\n  }</code></pre><p>After</p>';
+    expect(htmlToPlainText(html)).toBe('Before\nif (a) {\n    go("x");\n\n  }\nAfter');
+  });
+
   it("returns plain text unchanged", () => {
     expect(htmlToPlainText("Hello World")).toBe("Hello World");
   });
@@ -160,4 +165,36 @@ describe("htmlToPlainText", () => {
     expect(text).toContain("\u00A9 2026");
     expect(text).not.toContain("Preview text here");
   });
+
+  describe("options", () => {
+    const html = '<h1>Hello &amp; welcome</h1><p>Read <a href="https://example.com/a?b=1&amp;c=2">the guide</a> and <a href="https://example.com/b">the FAQ</a>.</p><div class="footer md:x">Unsubscribe <a href="https://example.com/u">here</a></div><img src="x.png" alt="Logo"><p>One two three four five six seven eight</p>';
+
+    it("write the same text without them as with none given", () => {
+      expect(htmlToPlainText(html, {})).toBe(htmlToPlainText(html));
+      expect(htmlToPlainText(html)).toBe(
+        "HELLO & WELCOME\nRead the guide (https://example.com/a?b=1&c=2) and the FAQ (https://example.com/b).\nUnsubscribe here (https://example.com/u)\n[Logo]One two three four five six seven eight"
+      );
+    });
+
+    it("links: inline (the default), listed after the text, or left out", () => {
+      expect(htmlToPlainText(html, { links: "after" })).toBe(
+        "HELLO & WELCOME\nRead the guide [1] and the FAQ [2].\nUnsubscribe here [3]\n[Logo]One two three four five six seven eight\n\n[1] https://example.com/a?b=1&c=2\n[2] https://example.com/b\n[3] https://example.com/u"
+      );
+      expect(htmlToPlainText(html, { links: "none" })).toContain("Read the guide and the FAQ.\nUnsubscribe here\n");
+    });
+
+    it("headings as written, and lines wrapped between words", () => {
+      expect(htmlToPlainText(html, { uppercaseHeadings: false })).toMatch(/^Hello & welcome\n/);
+      const wrapped = htmlToPlainText("<p>One two three four five six seven eight</p><p>https://example.com/a-very-long-link-that-cannot-wrap</p>", { wordwrap: 12 });
+      expect(wrapped).toBe("One two\nthree four\nfive six\nseven eight\nhttps://example.com/a-very-long-link-that-cannot-wrap");
+    });
+
+    it("skip elements by tag or class, with what's in them, as data-skip-in-text marks them", () => {
+      expect(htmlToPlainText(html, { skip: ["img", ".md:x", "h1"] })).toBe("Read the guide (https://example.com/a?b=1&c=2) and the FAQ (https://example.com/b).\nOne two three four five six seven eight");
+      expect(htmlToPlainText('<div data-skip-in-text="true"><div>nested <div>deep</div></div> gone</div><p>kept</p>')).toBe("kept");
+      // A class that only starts like it isn't it.
+      expect(htmlToPlainText('<p class="footers">kept</p>', { skip: [".footer"] })).toBe("kept");
+    });
+  });
 });
+

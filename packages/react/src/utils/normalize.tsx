@@ -18,10 +18,19 @@ import { renderToStaticMarkup, renderToString } from "./server-renderer";
 import { COLLECTING_ID, MARK, within, type Collection, type Recorded } from "./collect";
 import { guard } from "./record";
 import { callIsolated, FORWARD_REF, isAsyncComponent, isThenable, MEMO } from "./unwrap-root";
-import { scopeCache } from "./render-scope";
+import { sayOnce, scopeCache } from "./render-scope";
+import { classProps, rootProps, TAILWIND } from "./tailwind";
+import { UNLAYER_CONFIG_KEY } from "./create-component";
+import { inlineHtml } from "./inline-html";
+import { closestName } from "./closest-name";
+import { PROP_ALIASES } from "@unlayer-internal/shared-elements";
 import Row from "../components/Row";
 import Column from "../components/Column";
 import Html from "../components/Html";
+import Paragraph from "../components/Paragraph";
+import Divider from "../components/Divider";
+import { margins } from "../components/Heading";
+import { COLUMN_DEFAULTS, ROW_DEFAULTS } from "./container-defaults";
 
 /**
  * On markup a component of the user's own rendered in a Column (see `keptMarkup`): the Html block the design
@@ -29,16 +38,19 @@ import Html from "../components/Html";
  */
 export const KEPT = Symbol.for("@unlayer/react-elements/kept");
 
-type Within = { at: number; children: Node[] };
+/** `tw`: the <Tailwind> it's in (where it's recorded), whose classes its `className` takes. */
+type Within = { at: number; children: Node[]; tw?: number };
 type Node =
   | { kind: "raw"; html: string }
-  | ({ kind: "block" } | { kind: "failed" }) & { at: number }
-  | ({ kind: "row" } | { kind: "column" } | { kind: "boundary" }) & Within;
+  | ({ kind: "block" } | { kind: "failed" }) & { at: number; tw?: number; children?: Node[] }
+  | ({ kind: "row" } | { kind: "column" } | { kind: "boundary" } | { kind: "tailwind" }) & Within;
 
 /** The markers in a collected render, as a tree; what's between them is kept as raw HTML. */
-function parse(html: string, collection: Collection): Node[] {
+export function parse(html: string, collection: Collection): Node[] {
   const root: Node[] = [];
   const open: Node[][] = [root];
+  // The <Tailwind> each open list is in.
+  const tws: Array<number | undefined> = [undefined];
   const pattern = new RegExp(`<${MARK} data-n="${collection.nonce}" data-i="(\\d+)"(?: data-e="([ocf])")?></${MARK}>`, "g");
   let last = 0;
   for (const match of html.matchAll(pattern)) {
@@ -47,12 +59,17 @@ function parse(html: string, collection: Collection): Node[] {
     last = match.index! + match[0].length;
     const at = Number(match[1]);
     const edge = match[2];
+    const tw = tws[tws.length - 1];
     if (edge === "o") {
       const children: Node[] = [];
-      into.push({ kind: collection.recorded[at].kind as "row" | "column" | "boundary", at, children });
+      const kind = collection.recorded[at].kind as "row" | "column" | "boundary" | "tailwind" | "block";
+      into.push({ kind, at, children, tw });
       open.push(children);
-    } else if (edge === "c") open.pop();
-    else into.push({ kind: edge === "f" ? "failed" : "block", at });
+      tws.push(kind === "tailwind" ? at : tw);
+    } else if (edge === "c") {
+      open.pop();
+      tws.pop();
+    } else into.push({ kind: edge === "f" ? "failed" : "block", at, tw });
   }
   if (last < html.length) open[open.length - 1].push({ kind: "raw", html: html.slice(last) });
   if (open.length !== 1) throw new Error("[Unlayer] a collected render's markers don't pair up");
@@ -126,6 +143,10 @@ interface Collected {
   kept?: Map<number, React.ReactElement | undefined>;
   /** A template that isn't one (see tell): every use of this render fails with it, the head's and the design's too. */
   fatal?: unknown;
+  /** Props with their classes turned into props (see styled), by where they're recorded. */
+  styled?: Map<number, Record<string, any>>;
+  /** The root's props (its classes as props, its mode), for a scope's rewrite of a Row (see utils/tailwind.ts). */
+  root?: Record<PropertyKey, any>;
 }
 
 const recorded = (c: Collected, node: { at: number }) => c.collection.recorded[node.at] as Recorded & Record<string, any>;
@@ -168,13 +189,13 @@ function tell(element: React.ReactElement<any>): void {
   const type = innerType(element.type);
   const name = nameOf(element);
   const async = () =>
-    console.warn(`[Unlayer] <${name}> is async or suspends: Elements renders synchronously, so it's left out. Load its data first and pass it as props.`);
+    console.warn(`[Unlayer] <${name}> is async or suspends: these renderers are synchronous, so it's left out. Render with "@unlayer/react-elements/async", or load its data first and pass it as props.`);
   if (isAsyncComponent(type)) return async();
   try {
     const again = calledAgain(element);
     // A class, lazy, …: React renders it, and throws what it does.
     const inner = again ? collected(again.out as React.ReactNode) : collected(element, false);
-    const failed = (nodes: Node[]): Array<{ at: number }> => nodes.flatMap((n) => (n.kind === "failed" ? [n] : "children" in n ? failed(n.children) : []));
+    const failed = (nodes: Node[]): Array<{ at: number }> => nodes.flatMap((n) => (n.kind === "failed" ? [n] : "children" in n && n.children ? failed(n.children) : []));
     const found = failed(inner.nodes);
     for (const node of found) tell(recorded(inner, node).element);
     if (!found.length) console.error(`[Unlayer] <${name}> failed while rendering, so it's left out.`);
@@ -196,7 +217,7 @@ function markupOnly(c: Collected, nodes: Node[]): string | undefined {
   for (const node of nodes) {
     if (node.kind === "raw") out += node.html;
     else if (node.kind === "failed") leftOut(c, node);
-    else if (node.kind !== "boundary") return undefined;
+    else if (node.kind !== "boundary" && node.kind !== "tailwind") return undefined;
     else {
       const inner = markupOnly(c, node.children);
       if (inner === undefined) return undefined;
@@ -225,6 +246,11 @@ function keptMarkupOnce(c: Collected, node: Within): React.ReactElement | undefi
   // Text alone shows as text (see `elements`).
   if (!list.some((p) => "tag" in p)) return undefined;
   const element = recorded(c, node).element as React.ReactElement<any>;
+  // A link alone (a <Link>) is a Paragraph holding it, a rule a Divider: blocks the design can edit.
+  const solo = list.filter((p) => !("text" in p) || p.text.trim());
+  const { containerPadding, hideOnMobile, hideOnDesktop } = (element.props ?? {}) as Record<string, unknown>;
+  const block = solo.length === 1 && "tag" in solo[0] ? asBlock(solo[0], { containerPadding, hideOnMobile, hideOnDesktop }) : undefined;
+  if (block) return block;
   // One element (what's in it may not pair up as markup): React writes `dangerouslySetInnerHTML` and children
   // alike, so the component is asked which it gave (a <div> when it can't say, as most such are).
   const one = list.length === 1 || list.some((p) => "tag" in p && p.tag === "#") ? /^<([a-zA-Z][\w:-]*)\b[^>]*>([\s\S]*)<\/\1>$/.exec(raw) : null;
@@ -241,7 +267,6 @@ function keptMarkupOnce(c: Collected, node: Within): React.ReactElement | undefi
   const html = one && given ? one[2] : raw;
   const Rendered = () => React.createElement("div", { dangerouslySetInnerHTML: { __html: html } });
   Rendered.displayName = nameOf(element);
-  const { containerPadding, hideOnMobile, hideOnDesktop } = (element.props ?? {}) as Record<string, unknown>;
   (Rendered as unknown as Record<symbol, unknown>)[KEPT] = React.createElement(Html, {
     html,
     ...(containerPadding !== undefined ? { containerPadding } : {}),
@@ -292,12 +317,15 @@ function markup(c: Collected, nodes: Node[], render: (element: React.ReactElemen
         case "raw":
           return node.html;
         case "boundary":
+        case "tailwind":
           return markup(c, node.children, render);
         case "failed":
           leftOut(c, node);
           return "";
-        default:
-          return render(element(c, node));
+        default: {
+          const out = element(c, node);
+          return out ? render(out) : "";
+        }
       }
     })
     .join("");
@@ -307,22 +335,79 @@ function markup(c: Collected, nodes: Node[], render: (element: React.ReactElemen
 const keyed = (list: React.ReactNode[]): React.ReactNode[] =>
   list.map((child, i) => (React.isValidElement(child) && child.key == null ? React.cloneElement(child, { key: `k${i}` }) : child));
 
-/** A recorded Row, Column or block, as the Elements component it was, with what React rendered in it. */
-function element(c: Collected, node: Extract<Node, { kind: "row" | "column" | "block" }>): React.ReactElement {
-  const r = recorded(c, node);
-  if (node.kind === "block") return React.createElement(r.type, resolvedProps(c, r.props));
-  if (node.kind === "column") return React.createElement(Column, { ...r.props, children: keyed(elements(c, node.children, "column")) });
-  const props = { ...r.props };
-  const children = keyed(elements(c, node.children, "row"));
-  // A layout counts the Columns as written (a condition's place included) or as rendered (from Fragments and
-  // components): either fits it. The rendered Row is then given its cells, which hold no condition's place.
-  if (props.layout) {
-    const columns = children.filter((child) => React.isValidElement(child) && child.type === Column).length;
-    if (columns === props.layout.expectedColumns || React.Children.count(props.children) === props.layout.expectedColumns) {
-      props.cells = props.layout.cells;
-      delete props.layout;
-    }
+/**
+ * A recorded Row's, Column's or block's props, with its `className` turned into props by the <Tailwind> it's in
+ * (worked out once: the HTML, the head and the design ask for the same).
+ */
+function styled(c: Collected, node: Extract<Node, { kind: "row" | "column" | "block" }>, props: Record<string, any>): Record<string, any> {
+  // (Classes in a block's `html` are inlined too.)
+  if (node.tw === undefined || !(props.className || /\sclass=/i.test(props.html))) return props;
+  c.styled ??= new Map();
+  if (!c.styled.has(node.at)) {
+    const type = recorded(c, node).type as any;
+    const item = type?.[UNLAYER_CONFIG_KEY];
+    const [name, defaults] = node.kind === "row" ? ["Row", ROW_DEFAULTS] : node.kind === "column" ? ["Column", COLUMN_DEFAULTS] : [item?.name ?? type?.displayName ?? "Block", item?.defaultValues];
+    c.styled.set(node.at, classProps(recorded(c, { at: node.tw }).props, name, defaults, props));
   }
+  return c.styled.get(node.at)!;
+}
+
+/** Props any block takes beside its values (its defaults' keys); `font…` in camel case (`fontsize` is a slip). */
+const KNOWN = /^(children|className|style|mode|values|containerPadding|hideOn(Mobile|Desktop)|mobile|skipInText|html|text|href|action|alt|src|width|maxWidth|items|icons|icon\w+|spacing|videoUrl|headers|data|columns|rows|font[A-Z]\w*|letterSpacing|color|lineHeight|textAlign|padding|border\w*|backgroundColor|hover\w*|_\w+)$/;
+
+/** Markup that is a block: an <a> a Paragraph holding it (its link kept to what text can hold), an <hr> a Divider. */
+const asBlock = (part: Part, props: Record<string, unknown> = {}): React.ReactElement | undefined =>
+  "tag" in part && part.tag === "a" ? React.createElement(Paragraph, { ...props, html: inlineHtml(part.html) }) : "tag" in part && part.tag === "hr" ? React.createElement(Divider, props) : undefined;
+
+/** A recorded Row, Column or block, as the Elements component it was, with what React rendered in it (null: left out). */
+function element(c: Collected, node: Extract<Node, { kind: "row" | "column" | "block" }>): React.ReactElement | null {
+  const r = recorded(c, node);
+  if (node.kind === "block") {
+    let props = resolvedProps(c, r.props);
+    // Its text as React rendered it (see record.tsx): HTML, kept to inline formatting. A component in it that failed is said.
+    const html = node.children && markupOnly(c, node.children);
+    const item = r.type[UNLAYER_CONFIG_KEY];
+    if (html !== undefined) props = { ...props, children: undefined, [item.name === "Paragraph" ? "html" : "text"]: inlineHtml(html, node.tw !== undefined) };
+    if (item?.name === "Heading") props = margins(props);
+    // A prop a block has no use for is said, not dropped quietly (a custom tool's props are its own).
+    if (item && !item.contentType) {
+      const values = item.defaultValues;
+      // Its props: its values' names (flat too) and the names it takes for them (see PROP_ALIASES).
+      const names = Object.keys({ ...values, ...PROP_ALIASES[item.name] }).concat(...Object.values(values).map((v) => (v && typeof v == "object" ? Object.keys(v) : [])));
+      for (const key in props) {
+        // (`target` is a link's: a block without one has no use for it.)
+        const known = names.includes(key) || KNOWN.test(key) || (key === "target" && ("href" in values || "action" in values));
+        const near = !known && props[key] !== undefined && closestName(key, names);
+        if (near !== false) sayOnce(`[Unlayer] ${item.name} ignores the prop \`${key}\`${near ? `: did you mean \`${near}\`?` : "."}`);
+      }
+    }
+    return React.createElement(r.type, styled(c, node, props));
+  }
+  if (node.kind === "column") return React.createElement(Column, { ...styled(c, node, r.props), children: keyed(elements(c, node.children, "column")) });
+  const props: Record<PropertyKey, any> = { ...styled(c, node, r.props) };
+  const list = elements(c, node.children, "row");
+  // A layout counts the Columns as written (a condition's place included) or as rendered (from Fragments and
+  // components): either fits it. The rendered Row is then given its cells, which hold no condition's place. A Row
+  // neither fits is left out, of the HTML and the design alike, and said once.
+  const layout = props.layout;
+  if (layout) {
+    const columns = list.filter((child: any) => child?.type === Column).length;
+    if (columns !== layout.expectedColumns && React.Children.count(props.children) !== layout.expectedColumns) {
+      // (Said once: the HTML, the head and the design ask.)
+      c.told.has(node.at) || (c.told.add(node.at), console.error(`[Unlayer] A Row with the ${layout.name} layout, for ${layout.expectedColumns} Columns, has ${columns}, so it's left out.`));
+      return null;
+    }
+    props.cells = layout.cells;
+    delete props.layout;
+  }
+  // A scope's rewrite, the Row's, one its Columns' classes give, or the root's, can put what its classes give the Row
+  // in its Columns (Tailwind's padding and margins, and text styles for the text in them: see utils/tailwind.ts).
+  const rewrite = props[TAILWIND] ?? list.map((child: any) => child?.props?.style?.[TAILWIND]?.row).find(Boolean) ?? c.root?.[TAILWIND];
+  const children = keyed(rewrite?.(list, props, c.root) ?? list);
+  // Its own padding is the editor's: around the row, outside its content background (a hook's warned already).
+  const v = { ...props.values, ...props };
+  if (!props[TAILWIND] && /[1-9]/.test(String(v.padding ?? "")) && (/^(transparent)?$/.test(v.columnsBackgroundColor ?? "") ? v.backgroundImage?.url && v.backgroundImage.fullWidth === false : 1))
+    sayOnce("[Unlayer] Row padding sits outside the row's content background, as in the editor; to inset the content use the Columns' padding.");
   return React.createElement(Row, { ...props, children });
 }
 
@@ -387,6 +472,8 @@ function elements(c: Collected, nodes: Node[], place: Place, owner?: React.FC, i
     switch (node.kind) {
       case "failed":
         return leftOut(c, node);
+      case "tailwind":
+        return elements(c, node.children, place, owner, inside);
       case "boundary": {
         const kept = inColumn && !inside ? keptMarkup(c, node) : undefined;
         if (kept) return [kept];
@@ -406,9 +493,19 @@ function elements(c: Collected, nodes: Node[], place: Place, owner?: React.FC, i
           return place === "row" && name && !inMarkup ? [React.createElement(owner ?? name)] : [];
         }
         // Text shows as text. Other markup isn't a Column, which a Row says (and leaves it out); in a Column it's left out.
-        return parts(node.html).flatMap((p): React.ReactNode[] => ("text" in p ? [p.text] : inColumn ? [] : [React.createElement(owner ?? (p.tag === "#" ? "div" : p.tag))]));
-      default:
-        return [element(c, node)];
+        // In a Column, an <a> is a Paragraph holding it and an <hr> a Divider; other markup is said and left out.
+        return parts(node.html).flatMap((p): React.ReactNode[] => {
+          if ("text" in p) return [p.text];
+          if (!inColumn) return [React.createElement(owner ?? (p.tag === "#" ? "div" : p.tag))];
+          const block = asBlock(p);
+          // (A component's markup is said where it's left out, above.)
+          if (!block && p.tag !== "#" && !owner) sayOnce(`[Unlayer] Column: <${p.tag}> isn't a block, so it's left out. Put HTML in an <Html> block.`);
+          return block ? [block] : [];
+        });
+      default: {
+        const out = element(c, node);
+        return out ? [out] : [];
+      }
     }
   });
 }
@@ -468,25 +565,40 @@ function nonce(): string {
 }
 
 /** `children` collected, once per render (the HTML, the head and the design ask for the same). */
-const collect = (children: React.ReactNode): Collected =>
+export const collect = (children: React.ReactNode): Collected =>
   children !== null && typeof children === "object" ? scopeCache(children, () => collected(children)) : collected(children);
 
 /**
  * A root's children as HTML (what Body puts inside it): markup among the rows as it is, and each row or block
  * rendered by Elements with `place` giving it the root's settings.
  */
-export function childrenHtml(children: React.ReactNode, place: (child: React.ReactElement) => React.ReactElement): string {
+export function childrenHtml(children: React.ReactNode, place: (child: React.ReactElement) => React.ReactElement, root: Record<string, any>): string {
   const c = collect(children);
+  c.root = root;
   return withoutMarkers(markup(c, c.nodes, (child) => within(null, () => renderToString(place(child)))), c.collection.nonce);
 }
 
-/** Children (a root's, or a Row on its own) as Elements components only, for the head and the design. */
-export function normalizedChildren(children: React.ReactNode): React.ReactNode[] {
+/** Children (a root's, with its props, or a Row on its own) as Elements components only, for the head and the design. */
+export function normalizedChildren(children: React.ReactNode, root?: Record<string, any>): React.ReactNode[] {
   const c = collect(children);
+  c.root = root;
   return elements(c, c.nodes, "root");
 }
 
-/** `root` with its children as Elements components only. */
+/** What a root's content gives the document's head and the root (a <Font>, from "@unlayer/react-elements/font"). */
+const heads = (children: React.ReactNode) => collect(children).collection.recorded.flatMap((r) => (r.kind === "head" ? [r] : []));
+export const headTags = (children: React.ReactNode, mode: string) => heads(children).flatMap((r) => r.tags(mode));
+
+/** The props a root's content gives it (a <Font default>'s `fontFamily`), where it sets none of them. */
+export function rootDefaults(props: Record<string, any>): Record<string, unknown> {
+  const out: Record<string, unknown> = {};
+  for (const { root } of heads(props.children)) for (const key in root) if (props[key] === undefined && props.values?.[key] === undefined) out[key] ??= root[key];
+  return out;
+}
+
+/** `root` with its children as Elements components only (and its classes and default font as props). */
 export function normalizedRoot(root: React.ReactElement): React.ReactElement {
-  return React.cloneElement(root, undefined, ...normalizedChildren((root.props as { children?: React.ReactNode }).children));
+  const props = root.props as { className?: string; children?: React.ReactNode };
+  const styled = rootProps(props, (root.type as { displayName?: string }).displayName ?? "Body");
+  return React.cloneElement(root, { ...styled, ...rootDefaults(styled) }, ...normalizedChildren(props.children, styled));
 }

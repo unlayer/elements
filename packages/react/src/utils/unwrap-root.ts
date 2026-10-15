@@ -6,9 +6,11 @@
  */
 
 import React from "react";
+import type { UnlayerConfig } from "@unlayer-internal/shared-elements";
 import { renderToStaticMarkup } from "./server-renderer";
 import { UNLAYER_RENDER_KEY } from "./create-component";
 import { RECORDS } from "./collect";
+import { TAILWIND } from "./tailwind";
 
 /** The root components a design starts from. */
 export const ROOT_NAMES = new Set(["Body", "Email", "Page", "Document"]);
@@ -18,6 +20,18 @@ export const FORWARD_REF = Symbol.for("react.forward_ref");
 /** A context's provider: `<Ctx.Provider>` in React 18, `<Ctx>` (and `<Ctx.Provider>`, the same) in React 19. */
 const PROVIDER = Symbol.for("react.provider");
 const CONTEXT = Symbol.for("react.context");
+
+/** On <UnlayerProvider> (see context/UnlayerProvider.tsx). */
+const UNLAYER_PROVIDER = Symbol.for("@unlayer/react-elements/provider");
+
+/**
+ * The config of the <UnlayerProvider>s around a root, by the root `unwrapRoot` gave back: the render functions read
+ * it as React would give it to the root (with no context: React Server Components have none).
+ */
+const PROVIDED = new WeakMap<object, Partial<UnlayerConfig>>();
+
+/** The config of the <UnlayerProvider>s `unwrapRoot` found around `root` (the inner one's keys over the outer's). */
+export const providedConfig = (root: React.ReactElement): Partial<UnlayerConfig> | undefined => PROVIDED.get(root);
 
 /**
  * The Elements component an element is, by the `displayName` Elements gives
@@ -46,7 +60,7 @@ function isElementsComponent(element: React.ReactElement): boolean {
 
 /** Thrown for a template that is async or suspends: renderToHtml renders synchronously. */
 const ASYNC_TEMPLATE =
-  "async and suspending templates aren't supported: load the data first and pass it as props";
+  'async and suspending templates need "@unlayer/react-elements/async"\'s renderers, or their data loaded first and passed as props';
 
 export const isThenable = (value: unknown): boolean => typeof (value as { then?: unknown } | null)?.then === "function";
 
@@ -113,6 +127,8 @@ export function unwrapRoot(element: React.ReactElement, why: { unread?: string }
   let current = element;
   // Context providers around the root (`<Theme.Provider value="dark"><Email>…`): the root's content goes in them.
   const providers: React.ReactElement[] = [];
+  // The config of the <UnlayerProvider>s among them, the inner one's keys over the outer's (see providedConfig).
+  let provided: Record<string, unknown> | undefined;
   for (let depth = 0; ; depth++) {
     if (ROOT_NAMES.has(getDisplayName(current) ?? "")) break;
     // A Row or block: what it renders is Elements' own, never a root.
@@ -127,7 +143,18 @@ export function unwrapRoot(element: React.ReactElement, why: { unread?: string }
       current = React.createElement(type.type, props);
       continue;
     }
-    if ((type?.$$typeof === PROVIDER || type?.$$typeof === CONTEXT) && "value" in props) {
+    // An <UnlayerProvider>: its config is the root's (read here, as React Server Components have no context), and it
+    // stays around the root's content, as a context provider does, for `useUnlayerConfig()` there.
+    if (type?.[UNLAYER_PROVIDER]) {
+      const inside = React.Children.toArray(props.children as React.ReactNode);
+      if (inside.length !== 1 || !React.isValidElement(inside[0])) break;
+      for (const [key, value] of Object.entries((props.config ?? {}) as Record<string, unknown>)) if (value !== undefined) (provided ??= {})[key] = value;
+      providers.push(current);
+      current = inside[0];
+      continue;
+    }
+    // A <Tailwind> around it too: the root's content goes in it, and its classes are the root's (see Body).
+    if (((type?.$$typeof === PROVIDER || type?.$$typeof === CONTEXT) && "value" in props) || type?.[TAILWIND]) {
       const inside = React.Children.toArray(props.children as React.ReactNode);
       if (inside.length !== 1 || !React.isValidElement(inside[0])) break;
       providers.push(current);
@@ -159,7 +186,9 @@ export function unwrapRoot(element: React.ReactElement, why: { unread?: string }
   }
   if (!providers.length || !ROOT_NAMES.has(getDisplayName(current) ?? "")) return current;
   const children = providers.reduceRight<React.ReactNode>((inside, provider) => React.cloneElement(provider, undefined, inside), (current.props as { children?: React.ReactNode }).children);
-  return React.cloneElement(current, undefined, children);
+  const root = React.cloneElement(current, undefined, children);
+  if (provided) PROVIDED.set(root, provided as Partial<UnlayerConfig>);
+  return root;
 }
 
 /** Elements' own Row, Column or block (not a component of the user's own named like one, which is called). */

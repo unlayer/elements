@@ -82,6 +82,19 @@ export function normalizeCssValues<T>(value: T, key?: string): T {
   return out as T;
 }
 
+/**
+ * A design's values with each bare zero in its px lengths written `0px` (`0 0 12px` is `0px 0px 12px`), at any depth:
+ * the design's schema types these as px, where CSS and the editor read `0` as `0px`. Only where every part is a px
+ * length or a zero (`0 auto` and `1em 0` stay as they are); a custom tool's own values stay as it wrote them.
+ */
+export function pxZeros<T>(value: T, key = ""): T {
+  // (A key the schema types as px lengths: a padding or margin, a box of them, a radius, a width, a font size.)
+  if (typeof value === "string") return (/(padding|margin|radius|width|spacing|fontsize)$/i.test(key) && /^\s*((-?[\d.]+px|0)(\s+|$))+$/.test(value) ? value.replace(/(^|\s)0(?=\s|$)/g, "$10px") : value) as T;
+  if (Array.isArray(value)) return value.map((item) => pxZeros(item)) as T;
+  if (!isPlainObject(value) || "slug" in value) return value;
+  return Object.fromEntries(Object.entries(value).map(([k, v]) => [k, pxZeros(v, k)])) as T;
+}
+
 function isPlainObject(value: unknown): value is Record<string, unknown> {
   if (value === null || typeof value !== "object") return false;
   const proto = Object.getPrototypeOf(value);

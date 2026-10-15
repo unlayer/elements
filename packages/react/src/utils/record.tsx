@@ -4,8 +4,10 @@
  * renders inside them.
  */
 import React, { Suspense } from "react";
-import { collecting, COLLECTING_ID, marker, RECORDS, within, type Collection } from "./collect";
+import { asyncs, collecting, COLLECTING_ID, marker, RECORDS, within, type Collection } from "./collect";
 import { isAsyncComponent, isElementsType } from "./unwrap-root";
+import { TAILWIND } from "./tailwind";
+import { UNLAYER_CONFIG_KEY } from "./create-component";
 
 /**
  * Children with each component Elements doesn't know wrapped: markers that
@@ -25,7 +27,8 @@ export function guard(children: React.ReactNode, collection: Collection, inConta
 
 /** One child of `guard`'s list. */
 function guarded(child: React.ReactNode, collection: Collection, inContainer: boolean): React.ReactNode {
-  if (!React.isValidElement(child)) return child;
+  // A <Tailwind> records itself, around what's in it.
+  if (!React.isValidElement(child) || (child.type as unknown as Record<symbol, unknown>)?.[TAILWIND]) return child;
   if (isElementsType(child.type)) {
     if ((child.type as unknown as Record<symbol, unknown>)[RECORDS]) return child;
     // A component of the user's own named Row or Column (its displayName): rendered as React renders it.
@@ -51,9 +54,12 @@ function guarded(child: React.ReactNode, collection: Collection, inContainer: bo
 /** `child` between markers, in a Suspense whose fallback (a marker) stands for it when it throws or suspends. */
 function bounded(child: React.ReactElement, collection: Collection): React.ReactNode {
   const at = collection.recorded.push({ kind: "boundary", element: child }) - 1;
-  // An async component is left out without calling it: it can't render synchronously, and React 18 leaves
-  // the promise it gives back unhandled (its rejection would end the process).
-  if (isAsyncComponent(child.type)) return marker(collection, at, "f");
+  // An async component is left out without calling it (unless the render is async): it can't render
+  // synchronously, and React 18 leaves the promise it gives back unhandled (its rejection would end the process).
+  if (isAsyncComponent(child.type)) {
+    if (!collection.async) return marker(collection, at, "f");
+    child = collection.async(child);
+  }
   return React.createElement(
     Suspense,
     { key: child.key ?? `b${at}`, fallback: marker(collection, at, "f") },
@@ -120,14 +126,17 @@ function Sentinel({ record, real }: { record: () => React.ReactNode; real: () =>
   // Where ids can't tell (another copy of React: see Collection.blind), it records while collecting: a marker in a
   // render started inside the collecting one is then rendered in its place (normalize.tsx).
   let collected = !!collecting()?.blind;
+  let id = "";
   if (!collected) {
     try {
-      collected = React.useId().slice(1).startsWith(COLLECTING_ID);
+      id = React.useId().slice(1);
+      collected = id.startsWith(COLLECTING_ID);
     } catch {
       // Not in a render React runs: what it renders.
     }
   }
-  return collected ? record() : within(null, real);
+  // An async render's ids carry its nonce (`unlayer-collect-<nonce>-`): it records in its own collection.
+  return collected ? within(asyncs.get(id.slice(COLLECTING_ID.length).split("-")[0]) ?? collecting()!, record) : within(null, real);
 }
 
 /** Sentinel by the name of the component it stands for, which React's warnings name (`Check the render method of Column`). */
@@ -140,8 +149,8 @@ export function whileCollecting(record: () => React.ReactNode, real: () => React
   return React.createElement(type, { record, real });
 }
 
-/** A Row or Column while collecting: its props, and markers around its children. */
-export function recordContainer(kind: "row" | "column", props: Record<string, any>): React.ReactElement {
+/** A Row, Column or <Tailwind> while collecting: its props, and markers around its children. */
+export function recordContainer(kind: "row" | "column" | "tailwind", props: Record<string, any>): React.ReactElement {
   const collection = collecting()!;
   const at = collection.recorded.push({ kind, props }) - 1;
   return (
@@ -153,9 +162,20 @@ export function recordContainer(kind: "row" | "column", props: Record<string, an
   );
 }
 
-/** A block while collecting: its props, and a marker in its place. */
+/**
+ * A block while collecting: its props, and a marker in its place. A text block with elements in its text (markup,
+ * a component of yours, react-intl's <FormattedMessage>) gets them rendered here, with the template's context,
+ * between markers: their HTML is its text (see normalize.tsx).
+ */
 export function recordBlock(type: React.ComponentType<any>, props: Record<string, any>): React.ReactElement {
   const collection = collecting()!;
   const at = collection.recorded.push({ kind: "block", type, props }) - 1;
-  return marker(collection, at);
+  if (!/^(Paragraph|Heading|Button)$/.test((type as any)[UNLAYER_CONFIG_KEY]?.name) || !React.Children.toArray(props.children).some(React.isValidElement)) return marker(collection, at);
+  return (
+    <>
+      {marker(collection, at, "o")}
+      {guard(props.children, collection)}
+      {marker(collection, at, "c")}
+    </>
+  );
 }

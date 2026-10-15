@@ -259,16 +259,18 @@ const BLOCKS: Record<string, (L: any, r: Random) => React.ReactElement> = {
   Image: (L, r) => <L.Image src="https://example.com/a.png" alt="Alt words" {...some(r, { width: ["120px", "50%", "300px"], textAlign: ALIGNS, href: ["https://example.com/i"], containerPadding: PADDINGS })} />,
   Divider: (L, r) => <L.Divider {...some(r, { containerPadding: PADDINGS, textAlign: ALIGNS })} />,
   Html: (L, r) => <L.Html html="<p>Html words</p>" {...some(r, { containerPadding: PADDINGS })} />,
-  Menu: (L, r) => <L.Menu items={[{ text: "Home", href: "https://example.com/" }, { text: "About", href: "https://example.com/a" }]} {...some(r, { color: COLORS, fontSize: SIZES, textAlign: ALIGNS, containerPadding: PADDINGS })} />,
-  Social: (L, r) => <L.Social icons={[{ name: "Facebook", url: "https://facebook.com/x" }, { name: "Twitter", url: "https://twitter.com/x" }]} {...some(r, { textAlign: ALIGNS, containerPadding: PADDINGS })} />,
+  Menu: (L, r) => <L.Menu items={[{ text: "Home", href: "https://example.com/" }, { text: "About", href: "https://example.com/a" }]} {...some(r, { textColor: COLORS, fontSize: SIZES, align: ALIGNS, containerPadding: PADDINGS })} />,
+  Social: (L, r) => <L.Social icons={[{ name: "Facebook", url: "https://facebook.com/x" }, { name: "Twitter", url: "https://twitter.com/x" }]} {...some(r, { align: ALIGNS, containerPadding: PADDINGS })} />,
 };
 
 /**
- * The body's HTML with ids and the documented changes to the device CSS left out: no-stack rules
- * written `.u-row.no-stack` (a later row's rules overrode them), and the rules that hide content on a device.
+ * The body's HTML with ids and the documented changes left out: in the device CSS, no-stack rules written
+ * `.u-row.no-stack` (a later row's rules overrode them) and the rules that hide content on a device; an image's size
+ * (a px width renders at that width now: the previous release sized it in a slot without the block's padding).
  */
 function comparable(html: string): string {
   return html
+    .replace(/<img [^>]*>/g, (img) => img.replace(/(width|height)(: |=")[\d.]+/g, "$1$2N"))
     .replace(/<head[\s\S]*?<\/head>/i, "")
     .replace(/<style[\s\S]*?<\/style>/gi, (css) =>
       css

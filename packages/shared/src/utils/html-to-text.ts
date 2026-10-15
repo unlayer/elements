@@ -18,77 +18,44 @@
  * handled separately below, so anything missing here still decodes if written
  * numerically.
  */
-const HTML_ENTITIES: Record<string, string> = {
-  // Core markup + whitespace
-  "&amp;": "&",
-  "&lt;": "<",
-  "&gt;": ">",
-  "&quot;": '"',
-  "&#39;": "'",
-  "&apos;": "'",
-  "&nbsp;": " ",
-  // Dashes, quotes, and typographic punctuation
-  "&mdash;": "—",
-  "&ndash;": "–",
-  "&laquo;": "«",
-  "&raquo;": "»",
-  "&lsquo;": "‘",
-  "&rsquo;": "’",
-  "&ldquo;": "“",
-  "&rdquo;": "”",
-  "&bull;": "•",
-  "&middot;": "·",
-  "&hellip;": "…",
-  // Currency
-  "&cent;": "¢",
-  "&pound;": "£",
-  "&yen;": "¥",
-  "&euro;": "€",
-  // Legal / trademark
-  "&copy;": "©",
-  "&reg;": "®",
-  "&trade;": "™",
-  "&sect;": "§",
-  "&para;": "¶",
-  // Math and misc symbols
-  "&deg;": "°",
-  "&plusmn;": "±",
-  "&times;": "×",
-  "&divide;": "÷",
-  "&micro;": "µ",
-  "&frac14;": "¼",
-  "&frac12;": "½",
-  "&frac34;": "¾",
-  // Latin-1 accented letters (common in European names/words)
-  "&szlig;": "ß",
-  "&agrave;": "à",
-  "&aacute;": "á",
-  "&acirc;": "â",
-  "&atilde;": "ã",
-  "&auml;": "ä",
-  "&aring;": "å",
-  "&aelig;": "æ",
-  "&ccedil;": "ç",
-  "&egrave;": "è",
-  "&eacute;": "é",
-  "&ecirc;": "ê",
-  "&euml;": "ë",
-  "&igrave;": "ì",
-  "&iacute;": "í",
-  "&icirc;": "î",
-  "&iuml;": "ï",
-  "&ntilde;": "ñ",
-  "&ograve;": "ò",
-  "&oacute;": "ó",
-  "&ocirc;": "ô",
-  "&otilde;": "õ",
-  "&ouml;": "ö",
-  "&oslash;": "ø",
-  "&ugrave;": "ù",
-  "&uacute;": "ú",
-  "&ucirc;": "û",
-  "&uuml;": "ü",
-};
+const HTML_ENTITIES: Record<string, string> = Object.fromEntries(
+  // Each name, then the character it stands for (`amp&lt<…`): the same map, written compactly for the bundle.
+  Array.from("amp&lt<gt>quot\"apos'nbsp mdash—ndash–laquo«raquo»lsquo‘rsquo’ldquo“rdquo”bull•middot·hellip…cent¢pound£yen¥euro€copy©reg®trade™sect§para¶deg°plusmn±times×divide÷microµfrac14¼frac12½frac34¾szligßagraveàaacuteáacircâatildeãaumläaringåaeligæccedilçegraveèeacuteéecircêeumlëigraveìiacuteíicircîiumlïntildeñograveòoacuteóocircôotildeõoumlöoslashøugraveùuacuteúucircûuumlü".matchAll(/([a-z\d]+)([^a-z\d])/gi), ([, name, char]) => [`&${name};`, char])
+);
+
+/** How `htmlToPlainText` writes plain text; each left out is as before. */
+export interface PlainTextOptions {
+  /** Wrap lines at this many characters, between words (default: no wrapping). */
+  wordwrap?: number;
+  /** Links: "inline" (default) `text (url)`, "after" `text [1]` with the URLs listed at the end, or "none" (the text only). */
+  links?: "inline" | "after" | "none";
+  /** h1 and h2 in capitals (default true). */
+  uppercaseHeadings?: boolean;
+  /** Elements left out, with what's in them, by tag name (`"img"`) or class (`".footer"`). */
+  skip?: string[];
+}
+
+/** `html` without the elements `test` picks, by their start tag: what's in them goes too (nested ones counted). */
+function without(html: string, test: (tag: string) => boolean): string {
+  const open = /<([a-z][\w-]*)\b[^>]*>/gi;
+  for (let m = open.exec(html); m; m = open.exec(html)) {
+    if (!test(m[0])) continue;
+    let end = m.index + m[0].length;
+    if (!/\/>$/.test(m[0]) && !/^(area|br|col|embed|hr|img|input|link|meta|source|wbr)$/i.test(m[1])) {
+      const tags = new RegExp(`<(/?)${m[1]}\\b[^>]*>`, "gi");
+      tags.lastIndex = end;
+      for (let t = tags.exec(html), depth = 1; t; t = tags.exec(html)) {
+        if (!/\/>$/.test(t[0]) && (depth += t[1] ? -1 : 1) === 0) {
+          end = t.index + t[0].length;
+          break;
+        }
+      }
+    }
+    html = html.slice(0, m.index) + html.slice(end);
+    open.lastIndex = m.index;
+  }
+  return html;
+}
 
 /**
  * Decode HTML entities (named and numeric).
@@ -122,18 +89,25 @@ function decodeEntities(text: string): string {
  * // "HELLO\nWorld"
  * ```
  */
-export function htmlToPlainText(html: string): string {
+export function htmlToPlainText(html: string, options: PlainTextOptions = {}): string {
   if (!html) return "";
 
   let text = html;
+  const { links = "inline", uppercaseHeadings = true, skip = [], wordwrap } = options;
 
-  // 1. Remove elements marked with data-skip-in-text (preview div, etc.)
-  text = text.replace(/<[^>]+data-skip-in-text="true"[^>]*>[\s\S]*?<\/[^>]+>/gi, "");
+  // 1. Remove elements marked with data-skip-in-text (preview div, a block's `skipInText`, etc.) and those `skip` names,
+  // with what's in them.
+  text = without(text, (tag) => /data-skip-in-text="true"/.test(tag) || skip.some((s) => (s[0] === "." ? new RegExp(`\\sclass="([^"]*\\s)?${s.slice(1).replace(/\W/g, "\\$&")}[\\s"]`) : new RegExp(`^<${s}[\\s>/]`, "i")).test(tag)));
 
   // 2. Remove <head>, <style>, <script> blocks entirely
   text = text.replace(/<head[\s\S]*?<\/head>/gi, "");
   text = text.replace(/<style[\s\S]*?<\/style>/gi, "");
   text = text.replace(/<script[\s\S]*?<\/script>/gi, "");
+
+  // Preformatted text (code) as it is, spaces and lines kept (but at their ends): set aside until the end.
+  const pre: string[] = [];
+  // A line of its own, unless it ends a table cell (code with line numbers: a row per line).
+  text = text.replace(/<pre\b[^>]*>([\s\S]*?)<\/pre>(\s*<\/t[dh]>)?/gi, (_, content: string, cell?: string) => `\u0000${pre.push(decodeEntities(content.replace(/<br\s*\/?>/gi, "\n").replace(/<[^>]+>/g, "")).replace(/[^\S\n]+$/gm, "")) - 1}\u0000${cell ?? "\n"}`);
 
   // A line break, first: headings, links and list items keep theirs ("WELCOME BACK,<br>ADA").
   text = text.replace(/<br\s*\/?>/gi, "\n");
@@ -142,7 +116,7 @@ export function htmlToPlainText(html: string): string {
   text = text.replace(/<h[12][^>]*>([\s\S]*?)<\/h[12]>/gi, (_, content) => {
     const clean = content.replace(/<[^>]+>/g, "").trim();
     // Entities stay as written, to decode below (`&amp;` uppercased wouldn't).
-    const upper = clean.replace(/&#?\w+;|[^&]+|&/g, (part: string) => (/^&#?\w+;$/.test(part) ? part : part.toUpperCase()));
+    const upper = clean.replace(/&#?\w+;|[^&]+|&/g, (part: string) => (/^&#?\w+;$/.test(part) || !uppercaseHeadings ? part : part.toUpperCase()));
     return "\n" + upper + "\n";
   });
   text = text.replace(/<h[3-6][^>]*>([\s\S]*?)<\/h[3-6]>/gi, (_, content) => {
@@ -150,14 +124,15 @@ export function htmlToPlainText(html: string): string {
     return "\n" + clean + "\n";
   });
 
-  // 4. Convert links: <a href="url">text</a> → text (url)
+  // 4. Convert links: <a href="url">text</a> → text (url), or text [1] with the URLs at the end, or text
+  const listed: string[] = [];
   text = text.replace(/<a[^>]+href=["']([^"']+)["'][^>]*>([\s\S]*?)<\/a>/gi, (_, href, content) => {
     const clean = content.replace(/<[^>]+>/g, "").trim();
     // Skip if link text is the same as URL (avoid duplication)
-    if (clean === href || clean === decodeEntities(href)) {
+    if (links === "none" || clean === href || clean === decodeEntities(href)) {
       return clean;
     }
-    return `${clean} (${href})`;
+    return links === "after" ? `${clean} [${listed.push(href)}]` : `${clean} (${href})`;
   });
 
   // 5. Convert images: <img alt="text"> → [text]
@@ -203,6 +178,9 @@ export function htmlToPlainText(html: string): string {
   text = text.replace(/\n{3,}/g, "\n\n");
   // Trim leading/trailing whitespace
   text = text.trim();
+  if (listed.length) text += `\n\n${listed.map((href, i) => `[${i + 1}] ${decodeEntities(href)}`).join("\n")}`;
+  // Lines wrapped at `wordwrap` characters, between words (a longer word stays whole).
+  if (wordwrap) text = text.replace(new RegExp(`(?![^\\n]{1,${wordwrap}}$)([^\\n]{1,${wordwrap}})\\s`, "g"), "$1\n");
 
-  return text;
+  return text.replace(/\u0000(\d+)\u0000/g, (whole, i: string) => pre[Number(i)] ?? whole);
 }

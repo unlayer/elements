@@ -10,7 +10,12 @@
 import React from "react";
 
 export type Recorded =
-  | { kind: "row" | "column"; props: Record<string, any> }
+  | { kind: "row" | "column" | "tailwind"; props: Record<string, any> }
+  /**
+   * What a component gives the document's head, and the root's props unless it sets them (a <Font>); `design`, what
+   * it gives the design (a <Font>'s URL on the fonts of its family).
+   */
+  | { kind: "head"; tags: (mode: string) => string[]; root?: Record<string, unknown>; json?: string; design?: (body: any) => void }
   | { kind: "block"; type: React.ComponentType<any>; props: Record<string, any> }
   | { kind: "boundary"; element: React.ReactElement };
 
@@ -26,12 +31,24 @@ export interface Collection {
    * while it's collecting.
    */
   blind?: boolean;
+  /**
+   * An async render's (see "@unlayer/react-elements/async"): its async components are rendered, as `async` gives
+   * them (on React 18, resolved first), not left out.
+   */
+  async?: (element: React.ReactElement) => React.ReactElement;
 }
 
 // Shared by every copy of Elements a process loads (a project's ESM and CommonJS builds, a tool's own): a render one
 // copy starts collects the Rows, Columns and blocks another's template uses.
 const SHARED = Symbol.for("@unlayer/react-elements/collecting");
-const frames: Array<Collection | null> = ((globalThis as Record<symbol, unknown>)[SHARED] ??= []) as Array<Collection | null>;
+export const frames: Array<Collection | null> = ((globalThis as Record<symbol, unknown>)[SHARED] ??= []) as Array<Collection | null>;
+
+/**
+ * The collections async renders are under way with, by nonce: their components run after awaits, with another
+ * render's frame maybe on top, and find theirs by their ids (see Sentinel). Shared, as the stack is.
+ */
+const ASYNCS = Symbol.for("@unlayer/react-elements/async-collections");
+export const asyncs = ((globalThis as Record<symbol, unknown>)[ASYNCS] ??= new Map()) as Map<string, Collection>;
 
 /** The collecting render under way, if any (and not a render of Elements' own inside it). */
 export function collecting(): Collection | undefined {

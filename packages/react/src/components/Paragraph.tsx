@@ -1,5 +1,6 @@
 import { ParagraphExporters, ParagraphDefaults } from "@unlayer/exporters";
-import type { ParagraphValues, TextStyleProps } from "../types";
+import type { AlignAlias, ParagraphValues, TextColorAlias, TextStyleProps } from "../types";
+import type { ValuesInput } from "@unlayer-internal/shared-elements";
 import { createItemComponent, type ItemComponentProps } from "../utils/create-component";
 import { mapSemanticProps, type SemanticProps } from "../utils/semantic-props";
 
@@ -9,11 +10,15 @@ import { mapSemanticProps, type SemanticProps } from "../utils/semantic-props";
  */
 type ParagraphSemanticProps = Omit<
   SemanticProps<ParagraphValues>,
-  keyof TextStyleProps
+  keyof TextStyleProps | "values"
 > &
-  TextStyleProps & {
+  TextStyleProps &
+  AlignAlias &
+  TextColorAlias & {
     /** Plain-text content (or use `html` for inline formatting, or children). */
     text?: string;
+    /** The builder's values (see `SemanticProps`), with its text as HTML in `text` or `html`. */
+    values?: ValuesInput<ParagraphValues & { text: string; html: string }>;
   };
 
 /**
@@ -54,6 +59,8 @@ const Paragraph = createItemComponent<ParagraphValues, ParagraphSemanticProps>({
   propMapper: (props) =>
     mapSemanticProps(props as SemanticProps<ParagraphValues>, DEFAULT_VALUES, "Paragraph"),
   displayName: "Paragraph",
+  // `style` and `className` go on its text element.
+  at: /<[a-z\d]+ [^>]*v-text-align[^>]*>/,
   exporters: ParagraphExporters,
 });
 

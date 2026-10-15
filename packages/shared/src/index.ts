@@ -40,6 +40,8 @@ export type {
   MenuItem,
   // Utility types
   RenderMode,
+  LooseValue,
+  ValuesInput,
   MobileProps,
   DeviceProps,
   // Design JSON types
@@ -69,17 +71,18 @@ export {
 
 // Utils - Value merging
 export { mergeValues } from "./utils/merge-values";
-export { cssValueSafe, normalizeColor, normalizeCssValues, normalizeFontStack } from "./utils/css-values";
+export { cssValueSafe, normalizeColor, normalizeCssValues, normalizeFontStack, pxZeros } from "./utils/css-values";
 
 // Utils - Semantic props
 export {
   escapeText,
   escapeKeepingTags,
   mapSemanticProps,
+  PROP_ALIASES,
   normalizeLinkValue,
   normalizeValuesForExporter,
 } from "./utils/semantic-props";
 export type { SemanticProps } from "./utils/semantic-props";
 
 // Utils - HTML to plain text
-export { htmlToPlainText } from "./utils/html-to-text";
+export { htmlToPlainText, type PlainTextOptions } from "./utils/html-to-text";

@@ -1,9 +1,9 @@
 import { DividerExporters, DividerDefaults } from "@unlayer/exporters";
-import type { DividerValues, BorderInput } from "../types";
+import type { AlignAlias, DividerValues, BorderInput } from "../types";
 import { createItemComponent, type ItemComponentProps } from "../utils/create-component";
 import { mapSemanticProps, type SemanticProps } from "../utils/semantic-props";
 
-type DividerSemanticProps = Omit<SemanticProps<DividerValues>, "border"> & {
+type DividerSemanticProps = Omit<SemanticProps<DividerValues>, "border"> & AlignAlias & {
   /** Per-side border object (width fields accept a number/px string). */
   border?: BorderInput;
 };

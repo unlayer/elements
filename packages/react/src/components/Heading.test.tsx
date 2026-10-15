@@ -1,7 +1,12 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import React from "react";
 import { render } from "@testing-library/react";
 import Heading from "./Heading";
+import Body from "./Body";
+import Row from "./Row";
+import { Column } from "./Column";
+import { renderToJson } from "../utils/render-to-json";
+import { renderToHtml } from "../utils/render-to-html";
 
 describe("Heading Component", () => {
   it("renders an h1 element by default", () => {
@@ -46,4 +51,49 @@ describe("Heading Component", () => {
   it("has correct displayName", () => {
     expect(Heading.displayName).toBe("Heading");
   });
+
+  describe("margin shortcuts (m, mx, my, mt, mr, mb, ml): its containerPadding", () => {
+    const padding = (props: Record<string, unknown>) =>
+      (renderToJson(
+        <Body>
+          <Row>
+            <Column>
+              <Heading {...props}>Title</Heading>
+            </Column>
+          </Row>
+        </Body>
+      ).body.rows[0].columns[0].contents[0].values as Record<string, unknown>).containerPadding;
+
+    it("sets the sides given, the others its default (10px); a number in px", () => {
+      expect(padding({ m: 0 })).toBe("0px 0px 0px 0px");
+      expect(padding({ my: 24, mx: "16px" })).toBe("24px 16px 24px 16px");
+      expect(padding({ mt: 32, mb: 8 })).toBe("32px 10px 8px 10px");
+      expect(padding({ m: 4, ml: 0 })).toBe("4px 4px 4px 0px");
+    });
+
+    it("gives way to an explicit containerPadding, and changes nothing without them", () => {
+      expect(padding({ mt: 32, containerPadding: "2px" })).toBe("2px");
+      expect(padding({})).toBe("10px");
+    });
+
+    it("is in the HTML as in the design, and not said as a prop it ignores", () => {
+      const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+      try {
+        const html = renderToHtml(
+          <Body>
+            <Row>
+              <Column>
+                <Heading mt={32} mb={8}>Title</Heading>
+              </Column>
+            </Row>
+          </Body>
+        );
+        expect(html).toContain("padding: 32px 10px 8px 10px");
+        expect(warn).not.toHaveBeenCalled();
+      } finally {
+        warn.mockRestore();
+      }
+    });
+  });
 });
+

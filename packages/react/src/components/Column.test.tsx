@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import React from "react";
 import { render } from "@testing-library/react";
 import Body from "./Body";
@@ -8,6 +8,9 @@ import Heading from "./Heading";
 import Paragraph from "./Paragraph";
 import Button from "./Button";
 import { renderToHtml } from "../utils/render-to-html";
+import { renderToJson } from "../utils/render-to-json";
+import Email from "./Email";
+import Link from "./Link";
 
 describe("Column Component", () => {
   it("renders column container with correct ID", () => {
@@ -132,5 +135,48 @@ describe("Column Component", () => {
       </Body>
     );
     expect(html).toContain("padding: 7px 9px");
+  });
+
+  describe("a link or a rule in it, blocks the design can edit", () => {
+    const column = (...children: React.ReactNode[]) => (
+      <Email>
+        <Row>
+          <Column>{children}</Column>
+        </Row>
+      </Email>
+    );
+    const contents = (element: React.ReactElement) => renderToJson(element).body.rows[0].columns[0].contents;
+
+    it("a <Link> is a Paragraph holding it, with the block's own props", () => {
+      const email = column(<Link key="l" href="https://example.com/docs" containerPadding="4px 10px" hideOnMobile>Read the docs</Link>);
+      const html = renderToHtml(email);
+      expect(html).toContain('<a href="https://example.com/docs" target="_blank" rel="noopener">Read the docs</a>');
+      expect(html).toMatch(/padding:4px 10px/);
+      expect(contents(email)).toEqual([
+        expect.objectContaining({
+          type: "text",
+          values: expect.objectContaining({ text: '<a href="https://example.com/docs" target="_blank" rel="noopener">Read the docs</a>', containerPadding: "4px 10px" }),
+        }),
+      ]);
+    });
+
+    it("a bare <a> and <hr> as well; other markup is said, and left out", () => {
+      const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+      try {
+        const email = column(
+          <a key="a" href="https://example.com" title="Home">Home</a>,
+          <hr key="hr" />,
+          <span key="s">loose</span>
+        );
+        const html = renderToHtml(email);
+        expect(html).toContain('<a href="https://example.com" title="Home">Home</a>');
+        expect(html).toContain("u_content_divider");
+        expect(html).not.toContain("loose");
+        expect(contents(email).map((c) => c.type)).toEqual(["text", "divider"]);
+        expect([...new Set(warn.mock.calls.map((call) => String(call[0])))]).toEqual(["[Unlayer] Column: <span> isn't a block, so it's left out. Put HTML in an <Html> block."]);
+      } finally {
+        warn.mockRestore();
+      }
+    });
   });
 });

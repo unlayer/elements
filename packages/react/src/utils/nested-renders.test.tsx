@@ -213,17 +213,53 @@ describe("a component of the user's own that calls a hook, in React's developmen
 });
 
 describe("a Row whose Columns don't fit its layout", () => {
-  // As in 0.1.22: the body says so (console.error) and renders without its rows; renderToHtml and renderToPlainText
-  // don't throw (a mailer that never expected them to would fail).
-  it("renders without its rows, in the HTML and the plain text alike", async () => {
-    const { renderToPlainText } = await import("./render-to-html");
+  // Left out, of the HTML, the plain text and the design alike, said once per render with the console.error a block
+  // left out gets (`unlayer elements check` lists it to fix); the rows around it render. The renderers don't throw (a
+  // mailer that never expected them to would fail). (0.1.22 rendered no rows at all, and its design kept the row.)
+  const MESSAGE = "[Unlayer] A Row with the TwoEqual layout, for 2 Columns, has 1, so it's left out.";
+  const template = async (Root: React.ElementType) => {
     const { ColumnLayouts } = await import("../index");
+    return (
+      <Root>
+        <Row><Column><Paragraph>Before</Paragraph></Column></Row>
+        <Row layout={ColumnLayouts.TwoEqual}><Column><Paragraph>Lonely</Paragraph></Column></Row>
+        <Row layout={ColumnLayouts.TwoEqual}><Column><Paragraph>Left</Paragraph></Column><Column><Paragraph>Right</Paragraph></Column></Row>
+      </Root>
+    );
+  };
+
+  it.each(["Email", "Page", "Document"])("%s: only that Row is left out, said once per render", async (name) => {
+    const roots = await import("../index");
+    const element = await template(roots[name as "Email" | "Page" | "Document"]);
     const error = vi.spyOn(console, "error").mockImplementation(() => {});
     try {
-      const email = <Email><Row><Column><Paragraph>Kept?</Paragraph></Column></Row><Row layout={ColumnLayouts.TwoEqual}><Column><Paragraph>One</Paragraph></Column></Row></Email>;
-      expect(renderToHtml(email)).toMatch(/^<!DOCTYPE/);
-      expect(renderToPlainText(email)).toBe("");
-      expect(error.mock.calls.some((call) => String(call[0]).includes("Body: Failed to render children"))).toBe(true);
+      const html = renderToHtml(element);
+      expect(html).toMatch(/^<!DOCTYPE/i);
+      expect(html).toContain("Before");
+      expect(html).toContain("Right");
+      expect(html).not.toContain("Lonely");
+      expect(error.mock.calls.map((call) => String(call[0]))).toEqual([MESSAGE]);
+      expect(renderToPlainText(element)).toBe("Before\n\nLeft\n\nRight");
+      const design = renderToJson(element);
+      expect(design.body.rows.map((row) => [row.cells, row.columns.length])).toEqual([[[1], 1], [[1, 1], 2]]);
+      expect(JSON.stringify(design)).not.toContain("Lonely");
+      // One for each render.
+      expect(error.mock.calls.map((call) => String(call[0]))).toEqual([MESSAGE, MESSAGE, MESSAGE]);
+    } finally {
+      error.mockRestore();
+    }
+  });
+
+  it("renderRowToJson has no row to give: it says why, and throws", async () => {
+    const { ColumnLayouts, renderRowToJson } = await import("../index");
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
+    try {
+      expect(() => renderRowToJson(<Row layout={ColumnLayouts.ThreeEqual}><Column><Paragraph>One</Paragraph></Column><Column><Paragraph>Two</Paragraph></Column></Row>)).toThrow(
+        "[Unlayer] renderRowToJson: the Row is left out."
+      );
+      expect(error.mock.calls.map((call) => String(call[0]))).toEqual(["[Unlayer] A Row with the ThreeEqual layout, for 3 Columns, has 2, so it's left out."]);
+      // One that fits gives its row, with the layout's cells.
+      expect(renderRowToJson(<Row layout={ColumnLayouts.TwoWideNarrow}><Column><Paragraph>Wide</Paragraph></Column><Column><Paragraph>Narrow</Paragraph></Column></Row>).cells).toEqual([2, 1]);
     } finally {
       error.mockRestore();
     }

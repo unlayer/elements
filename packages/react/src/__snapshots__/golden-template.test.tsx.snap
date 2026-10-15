@@ -31,7 +31,7 @@ exports[`Golden Template: Marketing Email > snapshot locks the full email HTML 1
   }
   
   
-  #u_content_body_1 a {
+  #u_body_1 a {
   
     color: #0000ee;
     text-decoration: underline;
@@ -808,13 +808,13 @@ exports[`Golden Template: Print Document > snapshot locks the full document HTML
 
   
   
-  #u_content_body_1 a {
+  #u_body_1 a {
   
     color: #0000ee;
     text-decoration: underline;
   }
   
-  #u_content_body_1 a:hover {
+  #u_body_1 a:hover {
     color: #0000ee;
     text-decoration: underline;
   }
@@ -916,13 +916,13 @@ exports[`Golden Template: Web Page (3-column) > snapshot locks the full page HTM
 
   
   
-  #u_content_body_1 a {
+  #u_body_1 a {
   
     color: #0000ee;
     text-decoration: underline;
   }
   
-  #u_content_body_1 a:hover {
+  #u_body_1 a:hover {
     color: #0000ee;
     text-decoration: underline;
   }

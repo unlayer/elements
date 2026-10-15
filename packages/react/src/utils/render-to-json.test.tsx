@@ -12,6 +12,7 @@ import Divider from "../components/Divider";
 import Email from "../components/Email";
 import Page from "../components/Page";
 import Document from "../components/Document";
+import { renderToHtml } from "./render-to-html";
 import { ColumnLayouts } from "../layouts/ColumnLayouts";
 
 describe("renderToJson", () => {
@@ -656,5 +657,93 @@ describe("renderToJson fonts prop", () => {
       </Email>
     );
     expect(JSON.stringify(design)).not.toContain("fonts.googleapis.com");
+  });
+});
+
+describe("renderToJson lengths", () => {
+  // The design's schema types paddings, radii and border widths as px lengths: `0` is written `0px` there.
+  const one = (block: React.ReactElement, row: Record<string, unknown> = {}, column: Record<string, unknown> = {}) =>
+    renderToJson(
+      <Email>
+        <Row {...row}>
+          <Column {...column}>{block}</Column>
+        </Row>
+      </Email>
+    ) as any;
+  const blockOf = (design: any) => design.body.rows[0].columns[0].contents[0].values;
+
+  it("writes a bare zero in a px length as 0px: containerPadding=\"0 0 12px\"", () => {
+    expect(blockOf(one(<Paragraph containerPadding="0 0 12px">Hi</Paragraph>)).containerPadding).toBe("0px 0px 12px");
+    expect(blockOf(one(<Paragraph containerPadding="0">Hi</Paragraph>)).containerPadding).toBe("0px");
+  });
+
+  it("in every length a design holds, in each of its forms", () => {
+    const design = one(
+      <Button padding="0 24px" borderRadius="0" border={{ borderTopWidth: "0", borderTopStyle: "solid" }} mobile={{ padding: "0 12px 0" }}>Go</Button>,
+      { values: { padding: "0 0 8px 0" } },
+      { padding: "0 16px", borderRadius: "0 4px", border: { borderLeftWidth: "0" } }
+    );
+    const button = blockOf(design);
+    expect(button).toMatchObject({ padding: "0px 24px", borderRadius: "0px", border: { borderTopWidth: "0px", borderTopStyle: "solid" } });
+    expect(button._override.mobile.padding).toBe("0px 12px 0px");
+    expect(design.body.rows[0].values.padding).toBe("0px 0px 8px 0px");
+    expect(design.body.rows[0].columns[0].values).toMatchObject({ padding: "0px 16px", borderRadius: "0px 4px", border: { borderLeftWidth: "0px" } });
+  });
+
+  it("leaves a length in another unit as it is, and the HTML as it was", () => {
+    expect(blockOf(one(<Paragraph containerPadding="1em 0">Hi</Paragraph>)).containerPadding).toBe("1em 0");
+    expect(blockOf(one(<Paragraph containerPadding="0 auto">Hi</Paragraph>)).containerPadding).toBe("0 auto");
+    expect(blockOf(one(<Paragraph containerPadding="0px 8px">Hi</Paragraph>)).containerPadding).toBe("0px 8px");
+    // Text that isn't a length isn't touched.
+    expect(blockOf(one(<Paragraph>0</Paragraph>)).text).toBe("0");
+    // The HTML writes the padding as given.
+    expect(renderToHtml(<Email><Row><Column><Paragraph containerPadding="0 0 12px">Hi</Paragraph></Column></Row></Email>)).toMatch(/padding: ?0 0 12px/);
+  });
+});
+
+/**
+ * Text given as text shows as typed in the HTML, and in the editor that opens the design: the design's `text` is HTML,
+ * so text is escaped there as it is in the HTML. What's given as HTML stays HTML in both.
+ */
+describe("renderToJson: text shows in the editor as in the HTML", () => {
+  const typed = 'Use <b>bold</b> & <img src=x onerror="alert(1)"> &amp; <%name%>';
+  /** What a browser (and the editor's canvas) shows of an element: its text (spaces collapsed), and whether it holds elements. */
+  const seen = (at: Element) => ({ text: at.textContent!.replace(/\s+/g, " ").trim(), elements: at.querySelectorAll("b, img").length });
+  /** The block's text as the email shows it, and as the editor shows the design's (its `text` is HTML). */
+  const both = (Root: React.FC<any>, block: React.ReactElement) => {
+    const tree = <Root><Row><Column>{block}</Column></Row></Root>;
+    const page = new DOMParser().parseFromString(renderToHtml(tree), "text/html");
+    const design = document.createElement("div");
+    design.innerHTML = (renderToJson(tree).body.rows[0].columns[0].contents[0].values as any).text;
+    return { html: seen(page.querySelector("[id^='u_content_']")!), design: seen(design) };
+  };
+
+  it.each([["Email", Email], ["Page", Page], ["Document", Document]] as const)("a Paragraph's `text` and string children are text in both (%s)", (_, Root) => {
+    for (const block of [<Paragraph text={typed} />, <Paragraph>{typed}</Paragraph>]) {
+      const { html, design } = both(Root, block);
+      expect(html).toEqual({ text: typed, elements: 0 });
+      expect(design).toEqual(html);
+    }
+    const values = renderToJson(<Root><Row><Column><Paragraph text={typed} /></Column></Row></Root>).body.rows[0].columns[0].contents[0].values as any;
+    expect(values.text).toBe('Use &lt;b&gt;bold&lt;/b&gt; &amp; &lt;img src=x onerror="alert(1)"&gt; &amp;amp; &lt;%name%&gt;');
+    expect(values.textJson).toBeUndefined();
+    // Plain words are written as before.
+    expect((renderToJson(<Root><Row><Column><Paragraph text="Hello there" /></Column></Row></Root>).body.rows[0].columns[0].contents[0].values as any).text).toBe("Hello there");
+  });
+
+  it.each([["Email", Email], ["Page", Page], ["Document", Document]] as const)("a Paragraph's `html`, Heading's and Button's `text` stay HTML in both, their children text (%s)", (_, Root) => {
+    const html = "Use <b>bold</b> &amp; more";
+    expect(both(Root, <Paragraph html={html} />)).toEqual({ html: { text: "Use bold & more", elements: 1 }, design: { text: "Use bold & more", elements: 1 } });
+    expect((renderToJson(<Root><Row><Column><Paragraph html={html} /></Column></Row></Root>).body.rows[0].columns[0].contents[0].values as any).text).toBe(html);
+    for (const block of [<Heading text={html} />, <Button href="https://example.com" text={html} />]) {
+      const { html: shownInHtml, design } = both(Root, block);
+      expect(shownInHtml).toEqual({ text: "Use bold & more", elements: 1 });
+      expect(design).toEqual(shownInHtml);
+    }
+    for (const block of [<Heading>{typed}</Heading>, <Button href="https://example.com">{typed}</Button>]) {
+      const { html: shownInHtml, design } = both(Root, block);
+      expect(shownInHtml).toEqual({ text: typed, elements: 0 });
+      expect(design).toEqual(shownInHtml);
+    }
   });
 });

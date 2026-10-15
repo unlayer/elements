@@ -34,6 +34,9 @@ function dispatcher(): unknown {
   return internals.__CLIENT_INTERNALS_DO_NOT_USE_OR_WARN_USERS_THEY_CANNOT_UPGRADE?.H ?? internals.__SECRET_INTERNALS_DO_NOT_USE_OR_YOU_WILL_BE_FIRED?.ReactCurrentDispatcher?.current ?? null;
 }
 
+/** Whether a React render is under way with this React (its hooks can be called): none outside one, or under another copy of React. */
+export const rendering = (): boolean => dispatcher() !== null;
+
 /** The dispatcher a build renders with, from a render of a class component (no hooks: safe inside its own render). */
 const dispatchers = new Map<Build, unknown>();
 function dispatcherOf(build: Build): unknown {
@@ -137,9 +140,10 @@ export function withBuild<T>(render: () => T, own = false): T {
   try {
     return render();
   } catch (error) {
-    // React Server Components' React (Next.js's edge runtime), which react-dom can't render with at all. (Not checked
+    // React Server Components' React (a Next.js App Router route on the edge runtime: React's react-server build pairs
+    // it with react-dom/server.edge), which react-dom can't render with at all. (Not checked
     // in a render of the same module, whose hooks a check would disturb.)
-    if (build !== theirs && !rendersHere(build)) throw Object.assign(new Error("[Unlayer] react-dom can't render with this React (React Server Components', as in Next.js's edge runtime): render emails in the Node.js runtime."), { cause: error });
+    if (build !== theirs && !rendersHere(build)) throw Object.assign(new Error("[Unlayer] react-dom can't render with this React (React Server Components', as in a Next.js App Router route on the edge runtime): render emails in the Node.js runtime (`export const runtime = \"nodejs\"`)."), { cause: error });
     throw error;
   } finally {
     using.length -= busy.length + 1;

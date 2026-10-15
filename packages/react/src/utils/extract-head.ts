@@ -13,9 +13,9 @@ import { heads } from "@unlayer/exporters";
 import { mergeValues } from "@unlayer-internal/shared-elements";
 import type { RenderMode, HeadConfig } from "@unlayer-internal/shared-elements";
 import { mapSemanticProps } from "./semantic-props";
-import { UNLAYER_CONFIG_KEY } from "./create-component";
+import { UNLAYER_CONFIG_KEY, cssUrl } from "./create-component";
 import { BODY_DEFAULTS, ROW_DEFAULTS, COLUMN_DEFAULTS } from "./container-defaults";
-import { KEPT, normalizedRoot } from "./normalize";
+import { headTags, KEPT, normalizedRoot } from "./normalize";
 import { getDisplayName } from "./unwrap-root";
 import { extractSemanticProps, nextCounter } from "./render-to-json";
 
@@ -36,21 +36,18 @@ type ComponentHead = {
 // Inlined helpers
 // ============================================
 
-/** Add _meta fields if not present. */
+/** Add _meta fields if not present: the id the HTML gives it (`u_body_1`, `u_row_2`, `u_content_paragraph_3`). */
 function ensureMeta(values: any, type: string, index: number = 0): any {
   return {
     ...values,
     _meta: {
-      htmlID: `${["row", "column"].includes(type) ? "u" : "u_content"}_${type.toLowerCase()}_${index + 1}`,
+      htmlID: `${["body", "row", "column"].includes(type) ? "u" : "u_content"}_${type.toLowerCase()}_${index + 1}`,
       htmlClassNames: `u_content_${type.toLowerCase()}`,
       ...(values._meta || {})
     }
   };
 }
 
-
-/** The element children of a collected (Elements-only) tree. */
-const collectChildren = (node: React.ReactNode): React.ReactElement[] => React.Children.toArray(node).filter(React.isValidElement);
 
 // ============================================
 // Types
@@ -72,150 +69,6 @@ export interface ExtractHeadOptions {
   headConfig?: HeadConfig;
 }
 
-/**
- * Call a head's css/js/tags functions and collect the results.
- */
-function callHead(
-  head: ComponentHead | undefined,
-  values: Record<string, any>,
-  bodyValues: Record<string, any>,
-  displayMode: RenderMode,
-  headConfig: HeadConfig,
-  styles: string[],
-  scripts: string[],
-  tags: string[]
-): void {
-  if (!head) return;
-
-  const headArgs: [Record<string, any>, Record<string, any>, Record<string, any>] = [
-    values,
-    bodyValues,
-    {
-      displayMode,
-      isViewer: false,
-      variant: null,
-      type: "rows",
-      headConfig,
-    },
-  ];
-
-  const css = head.css?.(...headArgs);
-  if (css) styles.push(css);
-
-  const js = head.js?.(...headArgs);
-  if (js) scripts.push(js);
-
-  const headTags = head.tags?.(...headArgs);
-  if (headTags) tags.push(...headTags);
-}
-
-// ============================================
-// Tree walkers
-// ============================================
-
-function walkItem(
-  element: React.ReactElement,
-  bodyValues: Record<string, any>,
-  displayMode: RenderMode,
-  headConfig: HeadConfig,
-  counters: Record<string, number>,
-  styles: string[],
-  scripts: string[],
-  tags: string[],
-  deviceStyles: Record<string, string[]>
-): void {
-  const componentType = element.type as any;
-  const config = componentType[UNLAYER_CONFIG_KEY];
-  if (!config) {
-    // Markup a component of the user's own rendered in a Column: the HTML numbers it after the component.
-    if (componentType?.[KEPT]) nextCounter(counters, `u_content_${(componentType.displayName || componentType.name || "component").toLowerCase()}`);
-    return;
-  }
-
-  const { name, defaultValues, propMapper } = config;
-
-  // Map and merge values (same as render-to-json and create-component)
-  const { children, ...restProps } = element.props;
-  const mappedValues = propMapper({ children, ...restProps });
-  const finalValues = mergeValues(defaultValues, mappedValues);
-
-  // Track component index (same counter pattern as render-to-json.ts)
-  const contentType = config.metaName ?? name.toLowerCase();
-  const count = nextCounter(counters, `u_content_${contentType}`);
-  const valuesWithMeta = ensureMeta(finalValues, contentType, count - 1);
-
-  collectDeviceStyles(valuesWithMeta, "contents", name, displayMode, deviceStyles);
-
-  // The component's own head (custom tools) wins over the registry lookup
-  const head =
-    (config.head as ComponentHead | undefined) ??
-    (heads as Record<string, ComponentHead | undefined>)[name];
-  callHead(head, valuesWithMeta, bodyValues, displayMode, headConfig, styles, scripts, tags);
-
-}
-
-function walkColumn(
-  element: React.ReactElement,
-  bodyValues: Record<string, any>,
-  rowValues: Record<string, any>,
-  displayMode: RenderMode,
-  headConfig: HeadConfig,
-  counters: Record<string, number>,
-  styles: string[],
-  scripts: string[],
-  tags: string[],
-  deviceStyles: Record<string, string[]>
-): void {
-  // Column head
-  const semanticProps = extractSemanticProps(element.props);
-  const mapped = mapSemanticProps(semanticProps, COLUMN_DEFAULTS, "Column");
-  const count = nextCounter(counters, "u_column");
-  const columnValues = ensureMeta(mergeValues(COLUMN_DEFAULTS, mapped), "column", count - 1);
-
-  collectDeviceStyles(columnValues, "columns", "Column", displayMode, deviceStyles);
-
-  const columnHead = (heads as Record<string, ComponentHead | undefined>)["Column"];
-  callHead(columnHead, columnValues, bodyValues, displayMode, headConfig, styles, scripts, tags);
-
-  // Walk item children
-  const children = collectChildren(element.props.children);
-  for (const child of children) {
-    walkItem(child, bodyValues, displayMode, headConfig, counters, styles, scripts, tags, deviceStyles);
-  }
-}
-
-function walkRow(
-  element: React.ReactElement,
-  bodyValues: Record<string, any>,
-  displayMode: RenderMode,
-  headConfig: HeadConfig,
-  counters: Record<string, number>,
-  styles: string[],
-  scripts: string[],
-  tags: string[],
-  deviceStyles: Record<string, string[]>
-): void {
-  // Row head
-  const semanticProps = extractSemanticProps(element.props, ["layout"]);
-  const mapped = mapSemanticProps(semanticProps, ROW_DEFAULTS, "Row");
-  const count = nextCounter(counters, "u_row");
-  const rowValues = ensureMeta(mergeValues(ROW_DEFAULTS, mapped), "row", count - 1);
-
-  collectDeviceStyles(rowValues, "rows", "Row", displayMode, deviceStyles);
-
-  const rowHead = (heads as Record<string, ComponentHead | undefined>)["Row"];
-  callHead(rowHead, rowValues, bodyValues, displayMode, headConfig, styles, scripts, tags);
-
-  // Walk column children
-  const children = collectChildren(element.props.children);
-  for (const child of children) {
-    const name = getDisplayName(child);
-    if (name === "Column") {
-      walkColumn(child, bodyValues, rowValues, displayMode, headConfig, counters, styles, scripts, tags, deviceStyles);
-    }
-  }
-}
-
 // ============================================
 // Public API
 // ============================================
@@ -234,7 +87,8 @@ export function extractHeadFromTree(
   element: React.ReactElement,
   options: ExtractHeadOptions
 ): ExtractHeadResult {
-  // The rows and blocks as the body rendered them (the same collected render).
+  // What its content gives the head (a <Font>), then the rows and blocks as the body rendered them (the same collected render).
+  const fonts = headTags((element.props as { children?: React.ReactNode }).children, options.displayMode);
   element = normalizedRoot(element);
   const { displayMode } = options;
   const headConfig: HeadConfig = {
@@ -247,22 +101,55 @@ export function extractHeadFromTree(
   const tags: string[] = [];
   const counters: Record<string, number> = {};
   const deviceStyles: Record<string, string[]> = {};
+  const registry = heads as Record<string, ComponentHead | undefined>;
+  let bodyValues: Record<string, any> | undefined;
 
-  // Extract body values
-  const semanticProps = extractSemanticProps(element.props);
-  const mapped = mapSemanticProps(semanticProps, BODY_DEFAULTS, "Body");
-  const bodyValues = ensureMeta(mergeValues(BODY_DEFAULTS, mapped), "body", 0);
+  /** A head's CSS, JS and tags for the values of the Body, Row, Column or block it's for. */
+  const call = (head: ComponentHead | undefined, values: Record<string, any>) => {
+    const args: HeadArgs = [values, bodyValues ?? values, { displayMode, isViewer: false, variant: null, type: "rows", headConfig }];
+    const css = head?.css?.(...args);
+    if (css) styles.push(css);
+    const js = head?.js?.(...args);
+    if (js) scripts.push(js);
+    tags.push(...(head?.tags?.(...args) ?? []));
+  };
 
-  // Body head
-  const bodyHead = (heads as Record<string, ComponentHead | undefined>)["Body"];
-  callHead(bodyHead, bodyValues, bodyValues, displayMode, headConfig, styles, scripts, tags);
+  /** A container's values (with the id the HTML gives it), its phone and desktop styles, and its head. */
+  const container = (node: React.ReactElement<any>, name: "Body" | "Row" | "Column", defaults: Record<string, any>) => {
+    const type = name.toLowerCase();
+    const mapped = mapSemanticProps(extractSemanticProps(node.props), defaults, name);
+    const values = ensureMeta(mergeValues(defaults, mapped), type, name === "Body" ? 0 : nextCounter(counters, `u_${type}`) - 1);
+    // (A background image's URL as CSS takes it, as in the body: see cssUrl.)
+    cssUrl(values);
+    if (name !== "Body") collectDeviceStyles(values, `${type}s` as "rows" | "columns", name, displayMode, deviceStyles);
+    call(registry[name], values);
+    return values;
+  };
 
-  // Walk rows
-  const children = collectChildren(element.props.children);
-  for (const child of children) {
-    const name = getDisplayName(child);
-    if (name === "Row") {
-      walkRow(child, bodyValues, displayMode, headConfig, counters, styles, scripts, tags, deviceStyles);
+  /** The element children of a collected (Elements-only) tree, of one component where it's named. */
+  const children = (node: React.ReactElement<any>, name?: string) =>
+    React.Children.toArray(node.props.children).filter((child): child is React.ReactElement<any> => React.isValidElement(child) && (!name || getDisplayName(child) === name));
+
+  bodyValues = container(element, "Body", BODY_DEFAULTS);
+  for (const row of children(element, "Row")) {
+    container(row, "Row", ROW_DEFAULTS);
+    for (const column of children(row, "Column")) {
+      container(column, "Column", COLUMN_DEFAULTS);
+      for (const block of children(column)) {
+        const type = block.type as any;
+        const config = type[UNLAYER_CONFIG_KEY];
+        if (!config) {
+          // Markup a component of the user's own rendered in a Column: the HTML numbers it after the component.
+          if (type?.[KEPT]) nextCounter(counters, `u_content_${(type.displayName || type.name || "component").toLowerCase()}`);
+          continue;
+        }
+        // Mapped and merged as the HTML and the design do, numbered as they are.
+        const contentType = config.metaName ?? config.name.toLowerCase();
+        const values = ensureMeta(mergeValues(config.defaultValues, config.propMapper({ ...block.props })), contentType, nextCounter(counters, `u_content_${contentType}`) - 1);
+        collectDeviceStyles(values, "contents", config.name, displayMode, deviceStyles);
+        // The component's own head (custom tools) wins over the registry's.
+        call(config.head ?? registry[config.name], values);
+      }
     }
   }
 
@@ -270,12 +157,10 @@ export function extractHeadFromTree(
   const overrides = deviceStylesCss(deviceStyles, displayMode);
   if (overrides) styles.push(overrides);
 
-  // Deduplicate tags
-  const uniqueTags = [...new Set(tags.filter(Boolean))];
-
   return {
     css: styles.filter(Boolean).join("\n"),
     js: scripts.filter(Boolean).join("\n"),
-    tags: uniqueTags,
+    // Each tag once.
+    tags: [...new Set([...fonts, ...tags].filter(Boolean))],
   };
 }

@@ -140,7 +140,7 @@ describe("a component that fails", () => {
     const Later = React.lazy(() => new Promise<{ default: React.FC }>(() => {}));
     let html = "";
     expect(messages(() => (html = renderToHtml(<Email><Row><Column><Later /><Paragraph>Still here</Paragraph></Column></Row></Email>)))).toEqual([
-      "[Unlayer] <component> is async or suspends: Elements renders synchronously, so it's left out. Load its data first and pass it as props.",
+      '[Unlayer] <component> is async or suspends: these renderers are synchronous, so it\'s left out. Render with "@unlayer/react-elements/async", or load its data first and pass it as props.',
     ]);
     expect(html).toContain("Still here");
   });
@@ -152,7 +152,7 @@ describe("a component that fails", () => {
     };
     let html = "";
     expect(messages(() => (html = renderToHtml(<Email><Row><Column><Later /><Paragraph>Still here</Paragraph></Column></Row></Email>)))).toEqual([
-      "[Unlayer] <Later> is async or suspends: Elements renders synchronously, so it's left out. Load its data first and pass it as props.",
+      '[Unlayer] <Later> is async or suspends: these renderers are synchronous, so it\'s left out. Render with "@unlayer/react-elements/async", or load its data first and pass it as props.',
     ]);
     expect(html).toContain("Still here");
   });
@@ -252,11 +252,10 @@ describe("HTML from a component in a Column", () => {
     }
   });
 
-  it("keeps markup other than a bare div as it is: a link, a table, an image, elements side by side", () => {
+  it("keeps markup other than a bare div as it is: a table, an image, elements side by side", () => {
     const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
     try {
       const shapes: Array<[React.FC, string]> = [
-        [() => <a href="https://example.com/visit">Visit</a>, '<a href="https://example.com/visit">Visit</a>'],
         [() => <table><tbody><tr><td align="right">cell</td></tr></tbody></table>, '<table><tbody><tr><td align="right">cell</td></tr></tbody></table>'],
         [() => <img src="https://example.com/pic.png" alt="pic" />, '<img src="https://example.com/pic.png" alt="pic"/>'],
         [() => <><div>one</div><p>two</p></>, "<div>one</div><p>two</p>"],
@@ -267,6 +266,23 @@ describe("HTML from a component in a Column", () => {
         // The design keeps it as an HTML block too.
         expect(renderToJson(email).body.rows[0].columns[0].contents).toEqual([expect.objectContaining({ type: "html", values: expect.objectContaining({ html: kept }) })]);
       }
+      expect(warn).not.toHaveBeenCalled();
+    } finally {
+      warn.mockRestore();
+    }
+  });
+
+  it("makes a link alone a Paragraph holding it, and a rule a Divider: blocks the design can edit", () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    try {
+      const Visit = () => <a href="https://example.com/visit" target="_self">Visit <b>now</b></a>;
+      const email = <Email><Row><Column><Visit /><hr /></Column></Row></Email>;
+      const html = renderToHtml(email);
+      expect(html).toContain('<a href="https://example.com/visit" target="_self">Visit <b>now</b></a>');
+      expect(html).toContain("u_content_divider");
+      const [link, rule] = renderToJson(email).body.rows[0].columns[0].contents;
+      expect(link).toMatchObject({ type: "text", values: { text: '<a href="https://example.com/visit" target="_self">Visit <b>now</b></a>' } });
+      expect(rule.type).toBe("divider");
       expect(warn).not.toHaveBeenCalled();
     } finally {
       warn.mockRestore();

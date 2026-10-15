@@ -21,7 +21,7 @@
          "containerPadding": "10px",
          "headingType": "h1",
          "fontSize": "22px",
-         "textAlign": "left",
+         "textAlign": "right",
          "lineHeight": "140%",
          "linkStyle": {
           "inherit": true,
@@ -49,7 +49,7 @@
         "values": {
          "containerPadding": "10px",
          "fontSize": "14px",
-         "textAlign": "left",
+         "textAlign": "right",
          "lineHeight": "140%",
          "linkStyle": {
           "inherit": true,

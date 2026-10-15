@@ -1,25 +1,33 @@
 import React from "react";
 import type { RenderMode, UnlayerConfig, BodyValues } from "@unlayer-internal/shared-elements";
-import { DEFAULT_CONFIG, mergeValues } from "@unlayer-internal/shared-elements";
+import { mergeValues } from "@unlayer-internal/shared-elements";
 import { BodyExporters } from "@unlayer/exporters";
 import { mapSemanticProps, type SemanticProps } from "../utils/semantic-props";
-import { nextHtmlId } from "../utils/create-component";
+import { cssUrl, hatch, nextHtmlId, safeName, textDirectionOf } from "../utils/create-component";
 import type { SizeInput } from "../types";
 import { BODY_DEFAULTS } from "../utils/container-defaults";
 import { withRenderScope } from "../utils/render-scope";
-import { childrenHtml } from "../utils/normalize";
+import { childrenHtml, rootDefaults } from "../utils/normalize";
+import { isTailwindError, rootProps } from "../utils/tailwind";
+import { useProvidedConfig } from "../context/UnlayerProvider";
+import { rootConfig } from "../context/layer-config";
 
 export type BodyProps = Omit<SemanticProps<BodyValues>, "padding" | "borderRadius"> & {
   children?: React.ReactNode;
   mode?: RenderMode;
+  /** Class names on the body (the wrapper in it, on a web page); HTML only. */
   className?: string;
+  /** Inline CSS on the body (the wrapper in it, on a web page), after the renderer's own (a prop given wins over the same property); HTML only. */
   style?: React.CSSProperties;
   index?: number;
-  /** Optional config (replaces context-based config for Server Component usage) */
+  /**
+   * Config for this root (`cdnBaseUrl`, `textDirection`, `mergeTagState`, …), key by key over the nearest
+   * `<UnlayerProvider>`'s; a render function's options win over it.
+   */
   config?: Partial<UnlayerConfig>;
   /** Preview text shown in email client inboxes (email mode only) */
   previewText?: string;
-  /** Document text direction, also kept in the design JSON. Renderer options can override it. */
+  /** Document text direction, also kept in the design JSON. A `config.textDirection` (or renderer option) wins over it; it wins over an `<UnlayerProvider>`'s. */
   textDirection?: string;
   /** Language of the rendered document (for example, "ar"). */
   lang?: string;
@@ -35,6 +43,8 @@ export type BodyProps = Omit<SemanticProps<BodyValues>, "padding" | "borderRadiu
 };
 
 const DEFAULT_VALUES = BODY_DEFAULTS;
+
+const NAMES: Record<string, string> = { email: "Email", web: "Page", document: "Document" };
 
 // ============================================
 // Preview text (inlined from shared/utils/preview.ts)
@@ -126,9 +136,9 @@ function renderBodyToHtml(innerHTML: string, values: any, mode: RenderMode, prev
 /**
  * Body - Universal Server/Client Component
  *
- * Works in both Server Components and Client Components.
- * In Server Components, pass config as a prop.
- * In Client Components, config can come from UnlayerProvider context or props.
+ * Works in both Server Components and Client Components. Its config, key by key: a render function's options, its
+ * `config` prop, its `textDirection` prop, the nearest UnlayerProvider's (which the render functions read off the
+ * element, and Body from context where React renders it with one: not in Server Components), then the defaults.
  *
  * @example Server Component
  * ```tsx
@@ -144,11 +154,14 @@ function renderBodyToHtml(innerHTML: string, values: any, mode: RenderMode, prev
  * </UnlayerProvider>
  * ```
  */
-const Body: React.FC<BodyProps> = (props) => {
-  const { children, mode: modeProp, className, style, index = 0, config: configProp, previewText, fonts: _fonts, lang: _lang, ...semanticProps } = props;
+const Body: React.FC<BodyProps> = (given) => {
+  // Classes, from the <Tailwind> its content is in, as props.
+  const props = rootProps(given, NAMES[given.mode ?? ""] ?? "Body");
+  const { children, mode: modeProp, className, style, index = 0, config: _configProp, previewText, fonts: _fonts, lang: _lang, ...semanticProps } = props;
 
-  // Resolve config: explicit prop > default (no hooks, Server Component safe)
-  const resolvedConfig: UnlayerConfig = { ...DEFAULT_CONFIG, ...configProp };
+  // Its config: its `config` prop (a render function passes its options there), its `textDirection`, the nearest
+  // <UnlayerProvider>'s (from its context where React has one: not in Server Components), then the defaults.
+  const resolvedConfig: UnlayerConfig = rootConfig(props, useProvidedConfig());
 
   // Resolve mode: explicit prop > config > default
   const mode: RenderMode = modeProp ?? resolvedConfig.mode ?? "web";
@@ -168,6 +181,9 @@ const Body: React.FC<BodyProps> = (props) => {
     DEFAULT_VALUES,
     mapSemanticProps<BodyValues>(semanticProps as SemanticProps<BodyValues>, DEFAULT_VALUES, "Body")
   );
+
+  // Its background image's URL as CSS takes it (see cssUrl); the design keeps it as given.
+  cssUrl(values);
 
   // Ensure _meta
   const valuesWithMeta = {
@@ -190,25 +206,28 @@ const Body: React.FC<BodyProps> = (props) => {
     try {
       // A render of its own when Body is rendered straight through React (not renderToHtml).
       innerHTML = withRenderScope(() => {
+        // What its content gives it (a <Font default>'s family), where it sets none: the body's, and its rows'.
+        const given = rootDefaults(props);
+        Object.assign(values, given);
+        Object.assign(valuesWithMeta, given);
         // One React render collects the rows and blocks; each is then rendered with Body's settings.
-        return childrenHtml(children, (child) => React.cloneElement(child as React.ReactElement<any>, { _config, bodyValues: values }));
+        return childrenHtml(children, (child) => React.cloneElement(child as React.ReactElement<any>, { _config, bodyValues: values }), { ...props, mode });
       }, true);
     } catch (error) {
+      if (isTailwindError(error)) throw error;
       console.error("Body: Failed to render children:", error);
       innerHTML = "";
     }
   }
 
   try {
-    const html = renderBodyToHtml(innerHTML, valuesWithMeta, mode, previewText);
+    // Its `style` and `className` on the body (see hatch); a right-to-left one's direction and language there too, as
+    // Gmail drops the <html>'s.
+    const at = /<[a-z]+ [^>]*u_body[^>]*?(?=\/?>)/;
+    let html = hatch(renderBodyToHtml(innerHTML, valuesWithMeta, mode, previewText), at, style, className, semanticProps);
+    if (textDirectionOf(resolvedConfig.textDirection) === "rtl") html = html.replace(at, (tag) => `${tag} dir="rtl"${_lang ? ` lang="${safeName(_lang)}"` : ""}`);
 
-    return (
-      <div
-        dangerouslySetInnerHTML={{ __html: html }}
-        className={className}
-        style={style}
-      />
-    );
+    return <div dangerouslySetInnerHTML={{ __html: html }} />;
   } catch (error) {
     console.error("Body rendering failed:", error);
     return (

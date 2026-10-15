@@ -1,14 +1,14 @@
 import React from "react";
 import { renderToStaticMarkup } from "./server-renderer";
-import type { UnlayerConfig } from "@unlayer-internal/shared-elements";
-import { DEFAULT_CONFIG } from "@unlayer-internal/shared-elements";
+import type { PlainTextOptions, UnlayerConfig } from "@unlayer-internal/shared-elements";
 import { htmlToPlainText } from "@unlayer-internal/shared-elements";
 import type { RenderMode } from "@unlayer-internal/shared-elements";
 import { extractHeadFromTree } from "./extract-head";
-import { htmlRoot } from "./unwrap-root";
+import { htmlRoot, providedConfig } from "./unwrap-root";
+import { rootConfig, type RootConfigProps } from "../context/layer-config";
 import { normalizedRoot } from "./normalize";
 import { withRenderScope } from "./render-scope";
-import { textDirectionOf } from "./create-component";
+import { isTailwindError } from "./tailwind";
 import {
   emailLayout,
   webLayout,
@@ -26,11 +26,12 @@ const MODE_BY_WRAPPER: Record<string, RenderMode> = {
   Document: "document",
 };
 
-/** A template's direction follows its root props; explicit renderer options still win. */
+/**
+ * The root's config (see rootConfig), key by key: the render function's options over the root's `config` prop, over
+ * its `textDirection`, over the <UnlayerProvider>s found around it, over the defaults.
+ */
 function resolveConfig(element: React.ReactElement, config?: Partial<UnlayerConfig>): UnlayerConfig {
-  const props = element.props as { textDirection?: string; values?: { textDirection?: string } };
-  const textDirection = textDirectionOf(props.textDirection ?? props.values?.textDirection);
-  return { ...DEFAULT_CONFIG, ...(textDirection !== undefined ? { textDirection } : {}), ...config };
+  return rootConfig(element.props as RootConfigProps, providedConfig(element), config);
 }
 
 /**
@@ -54,8 +55,8 @@ function resolveDisplayMode(
 /**
  * Render the element tree to body markup (no document shell).
  *
- * - Passes merged config via the `config` prop (no React context — works in
- *   Server Components)
+ * - Passes the root's whole config (see resolveConfig) via its `config` prop:
+ *   no React context, so it works in Server Components
  * - Uses `renderToStaticMarkup` — no React hydration markers
  */
 function renderBody(
@@ -66,11 +67,12 @@ function renderBody(
   const mergedConfig = resolveConfig(element, config);
 
   try {
-    // Pass config via prop (not context) so this works in React Server Components.
-    // Body reads `config` prop and threads it as `_config` to children via cloneElement.
+    // Pass config via prop (not context) so this works in React Server Components: the root's own `config` and the
+    // Provider's are in it (see resolveConfig). Body threads it as `_config` to children via cloneElement.
     const enriched = React.cloneElement(element, { config: mergedConfig });
     return renderToStaticMarkup(enriched);
   } catch (error) {
+    if (isTailwindError(error)) throw error;
     const message =
       error instanceof Error ? error.message : String(error);
     throw new Error(
@@ -233,7 +235,7 @@ function htmlDocument(element: React.ReactElement, options?: RenderToHtmlOptions
  */
 export function renderToPlainText(
   element: React.ReactElement,
-  config?: Partial<UnlayerConfig>
+  config?: Partial<UnlayerConfig> & PlainTextOptions
 ): string {
   // A template component renders as its root, as in renderToHtml (context providers around it included).
   const html = withRenderScope(() => {
@@ -243,7 +245,8 @@ export function renderToPlainText(
     normalizedRoot(root);
     return renderBody(root, config, "renderToPlainText");
   });
-  return htmlToPlainText(html);
+  // How the text is written (wrapping, links, headings, what's left out): see PlainTextOptions.
+  return htmlToPlainText(html, config);
 }
 
 /**

@@ -16,6 +16,24 @@ export function scopeCache<T>(key: object, make: () => T): T {
   return scoped.get(key) as T;
 }
 
+const SAID = {};
+/** A warning, said once per render (each time outside one). */
+export function sayOnce(message: string): void {
+  const said = scopeCache(SAID, () => new Set<string>());
+  if (!said.has(message)) console.warn(said.add(message) && message);
+}
+
+/** Runs `run` in a scope of its own, `cache`: an async renderer collects a template once in it, and renders in it. */
+export function withScope<T>(cache: WeakMap<object, unknown>, run: () => T): T {
+  const outer = scoped;
+  scoped = cache;
+  try {
+    return run();
+  } finally {
+    scoped = outer;
+  }
+}
+
 /**
  * Runs one render with its own scope (a render inside another shares it), apart from a template being
  * collected: called inside a component of one (a block rendered to a string), it renders what it's given.

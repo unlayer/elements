@@ -202,7 +202,8 @@ describe("blocks and Rows of the previous release inside this one's (a package s
       <R.Row><R.Column>
         <B.Paragraph color="#ff0000">Same text</B.Paragraph>
         <B.Button href="https://example.com">Go</B.Button>
-        <B.Image src="https://example.com/a.png" alt="A" width="120px" />
+        {/* (A px width: the previous release's Image sizes it in a slot without the block's padding, as its own code does.) */}
+        <B.Image src="https://example.com/a.png" alt="A" width="50%" />
       </R.Column></R.Row>
     </C.Email>
   );

@@ -129,3 +129,42 @@ export const _phone_reject_visibility: RowProps = { hideOnMobile: "yes" };
 
 // A custom tool's props are its own values, whatever their names (as in 0.1.22): a phone number called `mobile`.
 export const _tool_own_values: ElementsToolProps = { name: "Ada", mobile: "+1 555", hideOnMobile: "yes", hideOnDesktop: 0 };
+
+// ── `values`: as many as you set, keys checked, values as the builder stores them ──
+import type { EmailProps, SocialProps, ValuesInput, ParagraphValues } from "./index";
+export const _values_partial: ParagraphProps = { values: { anchor: "intro" } };
+export const _values_partial_nested: ButtonProps = { values: { buttonColors: { backgroundColor: "#000" } } };
+export const _values_device: DividerProps = { values: { _override: { mobile: { textAlign: "center", hideMobile: true } }, hideDesktop: true } };
+export const _values_column: ColumnProps = { values: { backgroundColor: "#fff", _meta: { htmlID: "x" } } };
+export const _values_root: EmailProps = { values: { popupWidth: "400px" } };
+// What a design may hold that its type doesn't say (a number padding, a weight as text): passed on as it is.
+export const _values_loose_leaf: ParagraphProps = { values: { lineHeight: 1.5, fontWeight: "700", containerPadding: 12 } };
+export const _values_input: ValuesInput<ParagraphValues> = { textAlign: "center" };
+// @ts-expect-error a misspelled key is caught (every component, Button and Image included)
+export const _values_reject_key: ButtonProps = { values: { buttonColour: { color: "#fff" } } };
+// @ts-expect-error a misspelled key in a nested object too
+export const _values_reject_nested: ButtonProps = { values: { buttonColors: { backgroundColour: "#000" } } };
+// @ts-expect-error and in a device's settings
+export const _values_reject_device: ImageProps = { values: { _override: { mobile: { textAling: "left" } } } };
+// @ts-expect-error a nested object holds objects only where its type has one
+export const _values_reject_shape: ParagraphProps = { values: { textAlign: { value: "left" } } };
+
+// ── names authors reach for: aliases of a component's own prop ──────────────
+// (The props the components take in JSX, not only the exported interfaces.)
+import type { ComponentProps } from "react";
+import type { Heading as HeadingComponent, Menu as MenuComponent, Social as SocialComponent } from "./index";
+export const _alias_menu_color: ComponentProps<typeof MenuComponent> = { color: "#ff0000", textAlign: "center" };
+export const _alias_social_align: SocialProps = { textAlign: "right" };
+export const _alias_social_component: ComponentProps<typeof SocialComponent> = { textAlign: "right" };
+export const _alias_text: ParagraphProps = { align: "center", textColor: "#333" };
+export const _alias_heading: HeadingProps = { align: "right", textColor: "#111" };
+// React Email's `<Heading as="h2">`: a heading level, as `headingType` and `level` take one.
+export const _alias_heading_as: HeadingProps = { as: "h2" };
+export const _alias_heading_as_component: ComponentProps<typeof HeadingComponent> = { as: "h3", level: "h4" };
+// @ts-expect-error `as` takes a heading level, not any element
+export const _alias_heading_as_reject: HeadingProps = { as: "div" };
+export const _alias_button: ButtonProps = { align: "left", textColor: "#fff" };
+export const _alias_image: ImageProps = { align: "center" };
+export const _alias_divider: DividerProps = { align: "center" };
+// @ts-expect-error an alias takes what its prop takes
+export const _alias_reject: ParagraphProps = { align: "middle" };

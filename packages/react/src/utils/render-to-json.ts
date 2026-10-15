@@ -16,8 +16,9 @@ import type {
   DesignRow,
   DesignColumn,
   DesignContent,
+  UnlayerConfig,
 } from "@unlayer-internal/shared-elements";
-import { mergeValues } from "@unlayer-internal/shared-elements";
+import { escapeText, mergeValues, pxZeros } from "@unlayer-internal/shared-elements";
 // Schema version from the exporters bundle — matches the editor's currentVersion
 // at the time the exporters were generated. This ensures renderToJson output is
 // recognized as current by the editor, skipping unnecessary migrations.
@@ -25,12 +26,15 @@ import { mergeValues } from "@unlayer-internal/shared-elements";
 import { schemaVersion as _schemaVersion } from "@unlayer/exporters";
 const schemaVersion: number = _schemaVersion ?? 24;
 import { mapSemanticProps } from "./semantic-props";
-import { componentName, getDisplayName, ROOT_NAMES, unwrapRoot, UNWRAP_ADVICE } from "./unwrap-root";
+import { componentName, getDisplayName, providedConfig, ROOT_NAMES, unwrapRoot, UNWRAP_ADVICE } from "./unwrap-root";
+import { rootConfig, type RootConfigProps } from "../context/layer-config";
 import { BODY_DEFAULTS, ROW_DEFAULTS, COLUMN_DEFAULTS } from "./container-defaults";
 import { contentSlotWidth, pinImageSrc, type SlotContext } from "./image-sizing";
-import { withRenderScope } from "./render-scope";
-import { KEPT, normalizedChildren, normalizedRoot } from "./normalize";
-import { textDirectionOf, UNLAYER_CONFIG_KEY } from "./create-component";
+import { sayOnce, withRenderScope } from "./render-scope";
+import { collect, KEPT, normalizedChildren, normalizedRoot } from "./normalize";
+import type { Recorded } from "./collect";
+import { rtlAlign, textDirectionOf, UNLAYER_CONFIG_KEY } from "./create-component";
+import { TAILWIND } from "./tailwind";
 
 /** Layout context threaded down the walk so an image can be sized against the
  *  real column slot (contentWidth × column share, minus paddings/borders). */
@@ -69,37 +73,22 @@ const collectChildren = (node: React.ReactNode): React.ReactElement[] => React.C
  * Strip internal/base props from an element's props,
  * returning only the semantic props that should be mapped to values.
  */
-export function extractSemanticProps(
-  props: Record<string, any>,
-  extraKeys: string[] = []
-): Record<string, any> {
-  const internalKeys = new Set([
-    "children",
-    "mode",
-    "className",
-    "style",
-    "index",
-    "colIndex",
-    "cells",
-    "bodyValues",
-    "rowValues",
-    "_config",
-    "config",
-    "previewText",
-    "fonts",
-    "lang",
-    "layout",
-    "collection",
-    ...extraKeys,
-  ]);
-
+export function extractSemanticProps(props: Record<string, any>): Record<string, any> {
   const result: Record<string, any> = {};
-  for (const [key, value] of Object.entries(props)) {
-    if (!internalKeys.has(key) && value !== undefined) {
-      result[key] = value;
-    }
-  }
+  for (const [key, value] of Object.entries(props)) if (!INTERNAL.test(key) && value !== undefined) result[key] = value;
   return result;
+}
+
+const INTERNAL = /^(children|mode|className|style|index|colIndex|cells|bodyValues|rowValues|_config|config|previewText|fonts|lang|layout|collection)$/;
+
+/** What makes a row or block editable in the editor. */
+const EDITABLE = { selectable: true, draggable: true, duplicatable: true, deletable: true, hideable: true };
+
+/** A component's `style`, `className` and `skipInText`, which the design can't hold: said once per render. */
+function codeOnly(name: string, props: Record<string, any>): void {
+  // (Not a style a <Tailwind>'s classes give, which it says.)
+  const keys = [...Object.keys(props.style ?? {}).filter((key) => !props.style[TAILWIND]?.includes(key)).map((key) => `style.${key}`), ...["className", "skipInText"].filter((key) => props[key])];
+  if (keys.length) sayOnce(`[Unlayer] ${name} \`${keys.join("`, `")}\` ${keys.length > 1 ? "are" : "is"} kept in HTML but not in the design for the visual editor.`);
 }
 
 /** Increment and return counter for a given key. */
@@ -112,24 +101,11 @@ export function nextCounter(counters: Record<string, number>, key: string): numb
 // Helpers
 // ============================================
 
-/** Map component displayName to Unlayer content type.
- *  Paragraph maps to "text" (the legacy content type that uses plain HTML
- *  values.text) for universal editor compatibility. The newer "paragraph"
- *  content type uses Lexical textJson which requires specific editor support.
- */
-function toContentType(displayName: string): string {
-  if (displayName === "Paragraph") return "text";
-  return displayName.toLowerCase();
-}
-
-/** Generate a unique ID like "u_row_1", "u_content_button_2" */
-function makeId(prefix: string, counter: number): string {
-  return `${prefix}_${counter}`;
-}
-
 /**
- * Extract plain text/HTML from a textJson string without needing a DOM.
- * Handles both Lexical JSON format and the __html passthrough format.
+ * The design's `text` (HTML) from a textJson string, without needing a DOM.
+ * Handles both Lexical JSON format and the __html passthrough format. A
+ * Lexical text node is plain text (a Paragraph's `text` prop or string
+ * children): escaped, as the HTML renders it, so the editor shows it as typed.
  */
 function extractTextFromTextJson(textJson: string): string {
   try {
@@ -147,7 +123,7 @@ function extractTextFromTextJson(textJson: string): string {
       if (!paragraph?.children) continue;
       const parts: string[] = [];
       for (const node of paragraph.children) {
-        if (node?.text) parts.push(node.text);
+        if (node?.text) parts.push(escapeText(String(node.text)));
       }
       paragraphs.push(parts.join(""));
     }
@@ -184,15 +160,18 @@ function processItem(
   }
 
   const { name, defaultValues, propMapper, slug } = config;
-  const contentType = config.contentType ?? toContentType(name);
+  // Paragraph is "text" (the content type whose values.text is plain HTML), which every editor reads; the newer
+  // "paragraph" type's Lexical textJson needs specific editor support.
+  const contentType = config.contentType ?? (name === "Paragraph" ? "text" : name.toLowerCase());
   // Custom tools use u_content_custom_<slug> as their id/class base
   const metaBase = `u_content_${metaName ?? config.metaName ?? contentType}`;
-  const count = nextCounter(counters, metaBase);
-  const id = makeId(metaBase, count);
+  const id = `${metaBase}_${nextCounter(counters, metaBase)}`;
 
-  // Map props through the item's own propMapper, then merge with defaults
-  const { children, ...restProps } = element.props;
+  // Map props through the item's own propMapper, then merge with defaults (what the design can't hold said, and left out)
+  const { children, style: _style, className: _className, skipInText: _skip, ...restProps } = element.props;
+  codeOnly(name, element.props);
   const mappedValues = propMapper({ children, ...restProps });
+  rtlAlign(mappedValues, defaultValues, (layout.bodyValues as { textDirection?: unknown } | undefined)?.textDirection);
   const finalValues = mergeValues(defaultValues, mappedValues);
 
   // Paragraph maps to "text" content type — convert textJson to plain text/HTML.
@@ -211,11 +190,7 @@ function processItem(
       htmlClassNames: metaBase,
       ...(finalValues._meta || {}),
     },
-    selectable: true,
-    draggable: true,
-    duplicatable: true,
-    deletable: true,
-    hideable: true,
+    ...EDITABLE,
   };
 
   // Convert a fixed (px) image pin to a percent of the column slot using the
@@ -238,10 +213,10 @@ function processColumn(
   counters: Record<string, number>,
   layout: Omit<LayoutContext, "columnValues"> = {}
 ): DesignColumn {
-  const count = nextCounter(counters, "u_column");
-  const id = makeId("u_column", count);
+  const id = `u_column_${nextCounter(counters, "u_column")}`;
 
   // Extract semantic props for column values, then merge with defaults
+  codeOnly("Column", element.props);
   const semanticProps = extractSemanticProps(element.props);
   const mapped = mapSemanticProps(semanticProps, COLUMN_DEFAULTS, "Column");
   const values = mergeValues(COLUMN_DEFAULTS, mapped);
@@ -273,32 +248,17 @@ function processRow(
   counters: Record<string, number>,
   parentLayout: Pick<LayoutContext, "bodyValues"> = {}
 ): DesignRow {
-  const count = nextCounter(counters, "u_row");
-  const id = makeId("u_row", count);
+  const id = `u_row_${nextCounter(counters, "u_row")}`;
 
-  // Determine cells from layout or cells prop
-  const { layout, cells: propsCells } = element.props;
-  let cells: number[];
-  if (layout) {
-    cells = layout.cells;
-  } else if (propsCells) {
-    cells = propsCells;
-  } else {
-    // Default: one equal cell per Column child. Count only <Column> children —
-    // any stray non-Column child is warned and skipped below, so including it
-    // would make `cells` longer than the column list and distort both the row
-    // layout and the column-share math used for image sizing.
-    const columnCount = Math.max(
-      1,
-      collectChildren(element.props.children).filter(
-        (child) => getDisplayName(child) === "Column"
-      ).length
-    );
-    cells = Array(columnCount).fill(1);
-  }
+  // Cells from the layout or cells prop. Default: one equal cell per Column child. Count only <Column> children —
+  // any stray non-Column child is warned and skipped below, so including it would make `cells` longer than the
+  // column list and distort both the row layout and the column-share math used for image sizing.
+  const cells: number[] =
+    element.props.layout?.cells ?? element.props.cells ?? Array(Math.max(1, collectChildren(element.props.children).filter((child) => getDisplayName(child) === "Column").length)).fill(1);
 
   // Extract semantic props for row values, then merge with defaults
-  const semanticProps = extractSemanticProps(element.props, ["layout"]);
+  codeOnly("Row", element.props);
+  const semanticProps = extractSemanticProps(element.props);
   const mapped = mapSemanticProps(semanticProps, ROW_DEFAULTS, "Row");
   const values = mergeValues(ROW_DEFAULTS, mapped);
 
@@ -312,11 +272,7 @@ function processRow(
       htmlClassNames: "u_row",
       ...(values._meta || {}),
     },
-    selectable: true,
-    draggable: true,
-    duplicatable: true,
-    deletable: true,
-    hideable: true,
+    ...EDITABLE,
   };
 
   // Process Column children
@@ -348,20 +304,22 @@ function processRow(
 
 function processBody(
   element: React.ReactElement,
-  counters: Record<string, number>
+  counters: Record<string, number>,
+  /** The config of the <UnlayerProvider>s around the root (see unwrap-root.ts). */
+  provided?: Partial<UnlayerConfig>
 ): DesignBody {
   const id = "u_body";
 
   // Extract semantic props for body values, then merge with defaults
+  codeOnly(getDisplayName(element) ?? "Body", element.props);
   const semanticProps = extractSemanticProps(element.props);
   const mapped = mapSemanticProps(semanticProps, BODY_DEFAULTS, "Body");
   const values = mergeValues(BODY_DEFAULTS, mapped);
-  // Only ltr, rtl or auto, as in the HTML (a value from a request could carry anything).
-  if ("textDirection" in values) {
-    const direction = textDirectionOf((values as Record<string, unknown>).textDirection);
-    if (direction) (values as Record<string, unknown>).textDirection = direction;
-    else delete (values as Record<string, unknown>).textDirection;
-  }
+  // The direction the HTML has (its `config`, its `textDirection`, the Provider's: see rootConfig), so the editor opens
+  // the design as it renders. Only ltr, rtl or auto, as in the HTML (a value from a request could carry anything).
+  const direction = textDirectionOf(rootConfig(element.props as RootConfigProps, provided).textDirection);
+  if (direction) (values as Record<string, unknown>).textDirection = direction;
+  else delete (values as Record<string, unknown>).textDirection;
 
   // `previewText` is the React alias for the schema's `preheaderText`. It is
   // excluded from the mapped values (it drives the email preview HTML at render
@@ -439,7 +397,7 @@ function processBody(
  *
  * @param element - A React element tree with Row > Column > Item structure
  * @returns A DesignRow object compatible with the Unlayer block editor
- * @throws {Error} If the element is not a `<Row>`
+ * @throws {Error} If the element is not a `<Row>`, or its Columns don't fit its `layout` (it's left out)
  *
  * @example
  * ```tsx
@@ -467,7 +425,12 @@ export function renderRowToJson(element: React.ReactElement): DesignRow {
 
   const counters: Record<string, number> = {};
   // A render of its own, as renderToJson's: the same row gives the same ids every time. React renders what's in it.
-  return withRenderScope(() => processRow(normalizedChildren(element).find((c): c is React.ReactElement => React.isValidElement(c)) ?? element, counters));
+  return withRenderScope(() => {
+    const row = normalizedChildren(element).find((c): c is React.ReactElement => React.isValidElement(c));
+    // Left out (its Columns don't fit its layout), it's no row.
+    if (!row) throw new Error("[Unlayer] renderRowToJson: the Row is left out.");
+    return pxZeros(processRow(row, counters));
+  });
 }
 
 export function renderToJson(element: React.ReactElement): DesignJSON {
@@ -478,9 +441,17 @@ function designJson(element: React.ReactElement): DesignJSON {
   // Accept a user wrapper component (e.g. <MyEmail/>) by unwrapping to its root,
   // matching renderToHtml which renders wrappers through React.
   element = unwrapForJson(element);
+  // The config of the <UnlayerProvider>s around it (the design keeps its direction), read before it's copied below.
+  const provided = providedConfig(element);
   const displayName = getDisplayName(element);
   // One React render collects the rows and blocks (as the HTML does).
-  if (displayName && ROOT_NAMES.has(displayName)) element = normalizedRoot(element);
+  let heads: Recorded[] = [];
+  if (displayName && ROOT_NAMES.has(displayName)) {
+    // What its content gives the head and the design can't hold (a <Head>'s tags): said.
+    heads = collect((element.props as { children?: React.ReactNode }).children).collection.recorded.filter((r) => r.kind === "head");
+    for (const r of heads) if (r.kind === "head" && r.json) sayOnce(r.json);
+    element = normalizedRoot(element);
+  }
 
   if (!displayName || !ROOT_NAMES.has(displayName)) {
     throw new Error(
@@ -498,11 +469,14 @@ function designJson(element: React.ReactElement): DesignJSON {
   // For Email/Page/Document, the children and semantic props are on the
   // wrapper element directly, same as Body.
   const counters: Record<string, number> = {};
-  const body = processBody(element, counters);
+  const body = processBody(element, counters, provided);
+  // What its content gives the design (a <Font>'s URL, on the fonts of its family).
+  for (const r of heads) if (r.kind === "head") r.design?.(body);
 
+  // Bare zeros in its px lengths written `0px`, as its schema types them (see pxZeros).
   return {
     counters,
-    body,
+    body: pxZeros(body),
     schemaVersion,
   };
 }
