@@ -1,0 +1,1 @@
+import{c as r,b as i,a5 as p,a6 as s}from"./create-component-BmfBOqSB.js";const e={...p},t=r({name:"Divider",defaultValues:e,propMapper:a=>i(a,e,"Divider"),displayName:"Divider",exporters:s});export{t as D};
