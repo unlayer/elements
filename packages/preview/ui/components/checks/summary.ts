@@ -12,6 +12,8 @@ export function renderingItems(result: RenderResponse | undefined, warnings: str
 export interface SectionSummary {
   /** What to fix and to check: 0 when there's nothing (notes don't count). */
   count: number;
+  /** Of those, what's broken (errors): the rest is to check. */
+  fix: number;
   tone: Tone;
   /** Not known yet: the check hasn't answered for this template. */
   pending: boolean;
@@ -21,7 +23,7 @@ export interface SectionSummary {
 function summarize(findings: Finding[], pending: boolean): SectionSummary {
   const counted = findings.filter((f) => f.level !== "info");
   const tone: Tone = counted.some((f) => f.level === "error") ? "bad" : counted.length ? "warn" : "ok";
-  return { count: counted.length, tone, pending };
+  return { count: counted.length, fix: counted.filter((f) => f.level === "error").length, tone, pending };
 }
 
 export function renderingSummary(result: RenderResponse | undefined, warnings: string[]): SectionSummary {
@@ -36,9 +38,10 @@ export function linksSummary(report: LinksResponse | undefined): SectionSummary 
   return summarize(linkFindings(report), !report);
 }
 
-/** "to fix" when something is broken, "to check" when it's only worth a look (a client that partly supports a feature). */
-export function verb(summary: SectionSummary): string {
-  return summary.tone === "bad" ? "to fix" : "to check";
+/** What's to fix and what's only worth a look (a client that partly supports a feature): "3 to fix, 1 to check". */
+export function countLabel(summary: SectionSummary): string {
+  const check = summary.count - summary.fix;
+  return [summary.fix ? `${summary.fix} to fix` : "", check ? `${check} to check` : ""].filter(Boolean).join(", ");
 }
 
 const RANK: Record<Tone, number> = { ok: 0, warn: 1, bad: 2 };
@@ -48,9 +51,10 @@ export function combine(sections: SectionSummary[]): SectionSummary {
   return sections.reduce<SectionSummary>(
     (all, s) => ({
       count: all.count + s.count,
+      fix: all.fix + s.fix,
       tone: RANK[s.tone] > RANK[all.tone] ? s.tone : all.tone,
       pending: all.pending || s.pending,
     }),
-    { count: 0, tone: "ok", pending: false }
+    { count: 0, fix: 0, tone: "ok", pending: false }
   );
 }

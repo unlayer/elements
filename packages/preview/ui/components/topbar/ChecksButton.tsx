@@ -1,10 +1,10 @@
-import { verb, type SectionSummary } from "../checks/summary";
+import { countLabel, type SectionSummary } from "../checks/summary";
 import { AlertIcon, CheckCircleIcon } from "../icons";
 import { Tip } from "../Tip";
 
 /** Opens the checks drawer; shows "All clear", or how much there is to fix (something broken) or to check, in the color of the worst. */
 export function ChecksButton({ summary, open, onClick }: { summary: SectionSummary; open: boolean; onClick(): void }) {
-  const text = summary.count ? `${summary.count} ${verb(summary)}` : summary.pending ? "Checking…" : "All clear";
+  const text = summary.count ? countLabel(summary) : summary.pending ? "Checking…" : "All clear";
   const tone = summary.count ? summary.tone : summary.pending ? "pending" : "ok";
   return (
     <Tip label={open ? "Hide checks" : "Checks: rendering, email clients, links and images"} kbd="." align="end">

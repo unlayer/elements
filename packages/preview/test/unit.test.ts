@@ -409,3 +409,14 @@ describe("the design the editor gets", () => {
     expect(prepared.body.rows[0].values.backgroundImage.url).toBe("http://localhost:3000/static/hero.png");
   });
 });
+
+describe("the checks' counts", () => {
+  it("says what's to fix and what's to check, apart", async () => {
+    const { combine, countLabel } = await import("../ui/components/checks/summary");
+    expect(countLabel({ count: 4, fix: 3, tone: "bad", pending: false })).toBe("3 to fix, 1 to check");
+    expect(countLabel({ count: 2, fix: 0, tone: "warn", pending: false })).toBe("2 to check");
+    expect(countLabel({ count: 1, fix: 1, tone: "bad", pending: false })).toBe("1 to fix");
+    const all = combine([{ count: 3, fix: 3, tone: "bad", pending: false }, { count: 1, fix: 0, tone: "warn", pending: false }]);
+    expect(countLabel(all)).toBe("3 to fix, 1 to check");
+  });
+});

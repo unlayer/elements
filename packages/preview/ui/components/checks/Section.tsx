@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 import { CheckCircleIcon } from "../icons";
-import { verb, type SectionSummary } from "./summary";
+import { countLabel, type SectionSummary } from "./summary";
 
 interface SectionProps {
   title: string;
@@ -17,7 +17,7 @@ interface SectionProps {
 
 /** One section of the Checks tab: a header line with its status, and what it found under it. */
 export function Section({ title, about, summary, status, action, children }: SectionProps) {
-  const label = `${summary.count} ${verb(summary)}`;
+  const label = countLabel(summary);
   return (
     <section className="check-section" aria-label={title}>
       <header className="check-head">
