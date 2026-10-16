@@ -13,6 +13,7 @@ import Email from "../components/Email";
 import Page from "../components/Page";
 import Document from "../components/Document";
 import { ColumnLayouts } from "../layouts/ColumnLayouts";
+import { RenderError } from "@unlayer-internal/shared-elements";
 
 describe("renderToHtml", () => {
   it("generates unique element ids across the whole tree (no duplicates)", () => {
@@ -73,10 +74,11 @@ describe("renderToHtml", () => {
     expect(html).toContain("No config");
   });
 
-  it("throws with helpful message on render failure", () => {
+  it("throws a RenderError naming the component that failed", () => {
     // A component that throws during render
     const Broken = () => { throw new Error("boom"); };
-    expect(() => renderToHtml(<Broken />)).toThrow("[Unlayer] renderToHtml failed: boom");
+    expect(() => renderToHtml(<Broken />)).toThrow("[Unlayer] boom (in <Broken>)");
+    expect(() => renderToHtml(<Broken />)).toThrow(RenderError);
   });
 
   it("keeps the original error as the cause, so its stack points at the line that threw", () => {
@@ -90,12 +92,14 @@ describe("renderToHtml", () => {
     }
   });
 
-  it("includes tip in error message", () => {
+  it("says where a component in the template is", () => {
     const Broken = () => { throw new Error("test"); };
+    const Card = () => <Broken />;
     try {
-      renderToHtml(<Broken />);
+      renderToHtml(<Email><Row><Column><Paragraph>Hi</Paragraph></Column><Column><Card /></Column></Row></Email>);
+      expect.unreachable();
     } catch (e: any) {
-      expect(e.message).toContain("Body > Row > Column > Item");
+      expect(e).toMatchObject({ message: "[Unlayer] test (in <Broken> at Row 1 › Column 2 › Card › Broken)", component: "Broken", position: "Row 1 › Column 2 › Card › Broken" });
     }
   });
 
@@ -402,7 +406,7 @@ describe("renderToHtml with a template component", () => {
     expect(warnings.join()).toContain("couldn't unwrap");
   });
 
-  it("unwraps StrictMode and Profiler, keeping the root's settings; says why a class template isn't unwrapped", () => {
+  it("unwraps StrictMode and Profiler, and a class template, keeping the root's settings", () => {
     const warnings: string[] = [];
     const warn = console.warn;
     console.warn = (message: string) => void warnings.push(message);
@@ -413,12 +417,12 @@ describe("renderToHtml with a template component", () => {
       expect(renderToHtml(<React.StrictMode><Welcome name="Ada" /></React.StrictMode>)).toBe(direct);
       expect(renderToHtml(<React.Profiler id="email" onRender={() => {}}><Welcome name="Ada" /></React.Profiler>)).toBe(direct);
       expect(warnings).toEqual([]);
-      // A class renders through React, as in 0.1.22, and the message says why its root's settings aren't read.
-      expect(renderToHtml(<Template name="Ada" />)).toContain("Hello Ada");
+      // A class is constructed and rendered to find its root, as a function is called.
+      expect(renderToHtml(<Template name="Ada" />)).toBe(direct);
     } finally {
       console.warn = warn;
     }
-    expect(warnings.join()).toContain("couldn't unwrap <Template> (<Template> is a class component");
+    expect(warnings).toEqual([]);
   });
 
   it("says nothing when the template has no root whose settings go unread (Rows, nothing, a list), as 0.1.22", () => {

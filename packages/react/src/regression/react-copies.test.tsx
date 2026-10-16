@@ -1,9 +1,9 @@
 // @vitest-environment node
 /**
  * Elements' React isn't the one react-dom renders with (see react-copy.ts), as in a Next.js App Router route handler
- * or Server Component: `useId()` can't tell the render collecting a template from one inside it, so Rows, Columns
- * and blocks record without it (Collection.blind). The async renderers once didn't: their Rows rendered as a web
- * layout, and the design had no rows, with only a warning.
+ * or Server Component. Elements renders templates itself (src/engine), never with react-dom, so it renders them as
+ * anywhere else; and a collecting walk records Rows, Columns and blocks by their markers, another copy's of Elements
+ * (with another React) too. (0.3.0's react-dom renders couldn't tell, and needed a "blind" mode for it.)
  */
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -109,51 +109,11 @@ describe("another copy of React than react-dom's", () => {
     });
     expect(said).toEqual([]);
   });
-
-  it("renders them one at a time where the runtime has no AsyncLocalStorage", async () => {
-    const slot = Symbol.for("@unlayer/react-elements/async-running");
-    const shared = globalThis as Record<symbol, unknown>;
-    const before = shared[slot];
-    const { runner } = await import("../async/running");
-    shared[slot] = runner();
-    try {
-      const log: string[] = [];
-      const names = ["A", "B", "C"];
-      const designs = await Promise.all(names.map((name, i) => renderToJson(late(name, 30 - i * 10, log))));
-      names.forEach((name, i) => expect(designs[i]).toEqual(renderToJsonSync(resolved(name))));
-      // One collected, then the next.
-      expect(log).toEqual(names.flatMap((name) => [`start ${name}`, `end ${name}`]));
-    } finally {
-      shared[slot] = before;
-    }
-    expect(said).toEqual([]);
-  });
-
-  it("there, has a render whose ids can't say wait for the renders under way, and those started after wait for it", async () => {
-    const { runner } = await import("../async/running");
-    const run = runner<{ blind?: boolean; name: string }>();
-    const log: string[] = [];
-    const collect = (name: string, ms: number) => async () => {
-      log.push(`start ${name}`);
-      expect(run.current()?.name).toBe(name.startsWith("blind") ? name : undefined);
-      await later(ms);
-      log.push(`end ${name}`);
-      return name;
-    };
-    const names = await Promise.all([
-      run.run({ name: "seen 1" }, collect("seen 1", 20)),
-      run.run({ name: "blind 1", blind: true }, collect("blind 1", 10)),
-      run.run({ name: "seen 2" }, collect("seen 2", 5)),
-      run.run({ name: "blind 2", blind: true }, collect("blind 2", 5)),
-    ]);
-    expect(names).toEqual(["seen 1", "blind 1", "seen 2", "blind 2"]);
-    expect(log).toEqual(["seen 1", "blind 1", "seen 2", "blind 2"].flatMap((name) => [`start ${name}`, `end ${name}`]));
-  });
 });
 
-describe("Rows that can't tell the render collecting them", () => {
-  // The app's Elements, whose React is react-dom's: its renders aren't blind. The Rows, Columns and blocks of this
-  // file's (another copy of Elements, with another React) can't call `useId()` in them, so they render their HTML.
+describe("Rows of another copy of Elements, with another React", () => {
+  // The app's Elements, with another React than this file's: the Rows, Columns and blocks of this file's (another
+  // copy of Elements) are recorded by their markers, as the app's own are.
   let app: typeof import("../index") & { async: typeof import("../async"); Head: typeof Head; Font: typeof Font };
   beforeAll(async () => {
     vi.resetModules();
@@ -162,21 +122,17 @@ describe("Rows that can't tell the render collecting them", () => {
     app = { ...(await import("../index")), async: await import("../async"), Head: (await import("../head")).Head, Font: (await import("../font")).Font };
     vi.doUnmock("react");
   });
-  const broken = /Rows and blocks rendered as HTML instead of being collected, so the email would be broken: Elements' React isn't react-dom's \(another copy of React/;
-
-  it("fail the render, saying why, rather than give a broken email", async () => {
+  it("are collected, as the app's own are", async () => {
     const Content = () => <Row><Column><Paragraph>Hello</Paragraph></Column></Row>;
-    // Among the root's children (fewer Rows recorded than it has), and in a component of the template's (none recorded).
-    for (const element of [<app.Email key="plain">{Content()}</app.Email>, <app.Email key="component"><Content /></app.Email>]) {
-      expect(() => app.renderToHtml(element)).toThrow(broken);
-      expect(() => app.renderToJson(element)).toThrow(broken);
-      await expect(app.async.renderToHtml(element)).rejects.toThrow(broken);
-      await expect(app.async.renderToJson(element)).rejects.toThrow(broken);
-    }
-    // The app's own Rows are collected as ever.
     const own = <app.Email><app.Row><app.Column><app.Paragraph>Hello</app.Paragraph></app.Column></app.Row></app.Email>;
+    // Among the root's children, and in a component of the template's.
+    for (const element of [<app.Email key="plain">{Content()}</app.Email>, <app.Email key="component"><Content /></app.Email>]) {
+      expect(app.renderToHtml(element)).toBe(app.renderToHtml(own));
+      expect(app.renderToJson(element)).toEqual(app.renderToJson(own));
+      expect(await app.async.renderToHtml(element)).toBe(app.renderToHtml(own));
+      expect(await app.async.renderToJson(element)).toEqual(app.renderToJson(own));
+    }
     expect(app.renderToJson(own).body.rows).toHaveLength(1);
-    expect((await app.async.renderToJson(own)).body.rows).toHaveLength(1);
   });
 
   it("leave alone a template with no Rows to collect", async () => {

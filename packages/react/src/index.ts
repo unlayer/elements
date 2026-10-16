@@ -28,6 +28,7 @@ import { renderToHtml, renderToPlainText, renderToHtmlParts } from "./utils/rend
 import { internals, INTERNALS } from "./utils/internals";
 export type { HtmlParts, RenderToHtmlOptions } from "./utils/render-to-html";
 import { renderToJson, renderRowToJson } from "./utils/render-to-json";
+export type { RenderToJsonOptions } from "./utils/render-to-json";
 import { registerTool, registerElementsTool } from "./utils/register-tool";
 export type { ElementsToolConfig, ElementsToolProps, ToolExporter } from "./utils/register-tool";
 import { htmlToTextJson, htmlToPlainText as toPlainText } from "@unlayer-internal/shared-elements";
@@ -112,6 +113,8 @@ export type {
 
 // Export context (UnlayerProvider, useUnlayerConfig, UnlayerConfig type)
 export type { UnlayerConfig, UnlayerProviderProps } from "./context";
+// What a part of a template that fails throws, or is listed as where the render leaves it out (`onError`).
+export { RenderError, type OnError } from "@unlayer-internal/shared-elements";
 export { DEFAULT_CONFIG } from "./context";
 
 // Export individual renderers

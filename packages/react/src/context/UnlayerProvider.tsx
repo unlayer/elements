@@ -3,7 +3,7 @@
 import React, { createContext, useContext, useMemo } from "react";
 import type { UnlayerConfig } from "@unlayer-internal/shared-elements";
 import { DEFAULT_CONFIG } from "@unlayer-internal/shared-elements";
-import { rendering } from "../utils/server-renderer";
+import { rendering } from "../engine/dispatcher";
 import { layerConfig } from "./layer-config";
 
 /**

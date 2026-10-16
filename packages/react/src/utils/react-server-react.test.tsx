@@ -1,7 +1,8 @@
 /**
  * Where React is React Server Components' (Next.js's edge runtime route handlers and Server Components), react-dom
- * can't render at all ("Cannot read properties of undefined (reading 'H')"): Elements says to render in the
- * Node.js runtime. react-dom/server here fails as it does there.
+ * can't render at all ("Cannot read properties of undefined (reading 'H')"). Elements renders templates itself
+ * (src/engine), so an email renders there: react-dom/server here fails as it does there. (A web page's or document's
+ * Divider, Html, Menu and Social exporters still render with react-dom/server.)
  */
 import { describe, it, expect, vi } from "vitest";
 
@@ -13,22 +14,16 @@ vi.mock("react-dom/server", async (original) => {
   return { ...real, renderToStaticMarkup: fail, renderToString: fail };
 });
 
-import React from "react";
-import { Email, Row, Column, Paragraph, renderToHtml, renderToJson, renderToPlainText } from "../index";
+import React, { useId, useMemo } from "react";
+import { Email, Row, Column, Paragraph, Button, renderToHtml, renderToJson, renderToPlainText } from "../index";
 
 describe("React Server Components' React, which react-dom can't render with", () => {
-  it("says to render in the Node.js runtime, with react-dom's error as the cause", () => {
-    const email = <Email><Row><Column><Paragraph>Hello</Paragraph></Column></Row></Email>;
-    for (const render of [renderToJson, renderToHtml, renderToPlainText]) {
-      let thrown: unknown;
-      try {
-        render(email);
-      } catch (error) {
-        thrown = error;
-      }
-      expect(String((thrown as Error)?.message)).toMatch(/react-dom can't render with this React.*render emails in the Node\.js runtime/);
-      expect(String(((thrown as Error).cause as Error)?.message)).toContain("reading 'H'");
-    }
+  it("renders an email, hooks and all, without react-dom", () => {
+    const Greeting = () => <Paragraph>{`Hello ${useMemo(() => "Ada", [])} ${useId()}`}</Paragraph>;
+    const email = <Email><Row><Column><Greeting /><Button href="https://example.com">Go</Button></Column></Row></Email>;
+    expect(renderToHtml(email)).toMatch(/Hello Ada (:R\w+:|«R\w+»|_R_\w+_)/);
+    expect(renderToPlainText(email)).toContain("Hello Ada");
+    expect(renderToJson(email).body.rows).toHaveLength(1);
     expect(React.isValidElement(email)).toBe(true);
   });
 });

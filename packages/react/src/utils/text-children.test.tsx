@@ -115,15 +115,17 @@ describe("rich text children of Paragraph, Heading and Button", () => {
     expect(renderToPlainText(linked)).toBe("Read the docs (https://example.com/docs) or the FAQ (https://example.com/faq).");
   });
 
-  it("say which component in them can't render (async or suspending), naming it, and keep the rest", () => {
-    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+  it("say which component in them can't render (async or suspending), naming it; left out, keep the rest", () => {
+    const Later = async () => "never";
+    const email = <Email><Row><Column><Paragraph>Hi <Later /> <b>there</b></Paragraph></Column></Row></Email>;
+    expect(() => renderToJson(email)).toThrow(/^\[Unlayer\] it is async or suspends.* \(in <Later> at Row 1 › Column 1 › Paragraph › Later\)$/);
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
     try {
-      const Later = async () => "never";
-      const json = renderToJson(<Email><Row><Column><Paragraph>Hi <Later /> <b>there</b></Paragraph></Column></Row></Email>);
+      const json = renderToJson(email, { onError: "omit" });
       expect(json.body.rows[0].columns[0].contents[0].values.text).toBe("Hi  <b>there</b>");
-      expect(warn.mock.calls.map((c) => String(c[0]))).toEqual([expect.stringMatching(/^\[Unlayer\] <Later> is async or suspends/)]);
+      expect(error.mock.calls.map((c) => String(c[0]))).toEqual([expect.stringMatching(/^\[Unlayer\] Left out: it is async or suspends.*<Later>/)]);
     } finally {
-      warn.mockRestore();
+      error.mockRestore();
     }
   });
 

@@ -552,19 +552,25 @@ describe("renderToJson", () => {
 });
 
 describe("renderToJson with markup React rejects in a Column", () => {
-  it("leaves it out, with a message, and keeps the blocks around it", () => {
+  const email = (
+    <Email><Row><Column>
+      <Paragraph>Before the rule</Paragraph>
+      {React.createElement("hr", { style: "border-top:1px solid #eee" } as never)}
+      <Paragraph>After the rule</Paragraph>
+    </Column></Row></Email>
+  );
+
+  it("fails, naming it", () => {
+    expect(() => renderToJson(email)).toThrow(/^\[Unlayer\] The `style` prop expects a mapping .* \(in <hr> at Row 1 › Column 1 › hr\)$/);
+  });
+
+  it("with onError: \"omit\", leaves it out, with a message, and keeps the blocks around it", () => {
     const error = vi.spyOn(console, "error").mockImplementation(() => {});
     try {
-      const design = renderToJson(
-        <Email><Row><Column>
-          <Paragraph>Before the rule</Paragraph>
-          {React.createElement("hr", { style: "border-top:1px solid #eee" } as never)}
-          <Paragraph>After the rule</Paragraph>
-        </Column></Row></Email>
-      );
+      const design = renderToJson(email, { onError: "omit" });
       const text = JSON.stringify(design.body.rows[0].columns[0].contents.map((c: any) => c.type));
       expect(text).toBe('["text","text"]');
-      expect(error.mock.calls.some((call) => String(call[0]).includes("<hr>"))).toBe(true);
+      expect(error.mock.calls.map((call) => String(call[0]))).toEqual([expect.stringMatching(/^\[Unlayer\] Left out: The `style` prop .*\(in <hr> at Row 1 › Column 1 › hr\)$/)]);
     } finally {
       error.mockRestore();
     }

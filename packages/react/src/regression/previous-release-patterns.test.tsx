@@ -17,8 +17,8 @@ type Lib = typeof current;
 const previousHasTheBugs = /^0\.1\./.test(previousPackage.version);
 const releases = { current, previous: previous as unknown as Lib };
 
-/** React's `useId()` values (`:R1:` in React 18, `«R1»` in 19). */
-const REACT_ID = /:[\w-]*R[\w-]*:|«[\w-]*R[\w-]*»/g;
+/** React's `useId()` values (`:R1:` in React 18 and 19.0, `«R1»` in 19.1, `_R_1_` in 19.2 and later). */
+const REACT_ID = /:[\w-]*R[\w-]*:|«[\w-]*R[\w-]*»|_R_[0-9a-v]+(?:H[0-9a-v]+)?_/g;
 
 /** What a reader sees: the body's text, tags and entities gone (React's ids as "‹id›", whatever their format). */
 function visible(html: string): string {
@@ -50,6 +50,8 @@ type Pattern = {
   json?: false;
   /** How many different `useId()` values the HTML shows. */
   ids?: number;
+  /** Part of it fails: the render throws a RenderError naming it, and leaves it out with `onError: "omit"` (compared so). */
+  omit?: true;
 };
 
 const PATTERNS: Record<string, Pattern> = {
@@ -61,8 +63,9 @@ const PATTERNS: Record<string, Pattern> = {
         <L.Paragraph>After the rule</L.Paragraph>
       </L.Column></L.Row></L.Email>
     ),
-    // The element is left out (with a message); the rest renders.
+    // The element fails the render; left out (`onError: "omit"`), the rest renders.
     shows: "Before the rule After the rule",
+    omit: true,
     json: false, // 0.1.22's renderToJson throws on markup in a Column: this build's design is checked in render-to-json.test
   },
   // Markup written in a Row or Column is left out whole, as 0.1.22 left it out, also with a component or block in it.
@@ -212,6 +215,7 @@ const PATTERNS: Record<string, Pattern> = {
       return <L.Email><L.Row><L.Column><L.Paragraph>Thanks for your order</L.Paragraph><Recommendations /><L.Paragraph>See you soon</L.Paragraph></L.Column></L.Row></L.Email>;
     },
     shows: "Thanks for your order See you soon",
+    omit: true,
     json: false, // 0.1.22's design read the async component's promise as a block
   },
   "a component that throws, among a Row's columns": {
@@ -220,6 +224,7 @@ const PATTERNS: Record<string, Pattern> = {
       return <L.Email><L.Row><L.Column><L.Paragraph>Thanks for your order</L.Paragraph></L.Column></L.Row><L.Row><ItemColumns order={{}} /><L.Column><L.Paragraph>Total 0 dollars</L.Paragraph></L.Column></L.Row><L.Row><L.Column><L.Paragraph>Footer</L.Paragraph></L.Column></L.Row></L.Email>;
     },
     shows: "Thanks for your order Total 0 dollars Footer",
+    omit: true,
     json: false,
   },
   "a Column shown under a condition, in a Row with a layout": {
@@ -271,20 +276,27 @@ const PATTERNS: Record<string, Pattern> = {
   },
 };
 
-// An async or throwing component is left out with a message: keep the test output quiet.
+// A part left out (`onError: "omit"`) is said: keep the test output quiet.
 beforeAll(() => {
   vi.spyOn(console, "error").mockImplementation(() => {});
   vi.spyOn(console, "warn").mockImplementation(() => {});
 });
 afterAll(() => vi.restoreAllMocks());
 
-describe.each(Object.entries(PATTERNS))("%s", (_, { build, shows, fixed, json, ids }) => {
+describe.each(Object.entries(PATTERNS))("%s", (_, { build, shows, fixed, json, ids, omit }) => {
   const now = build(releases.current);
   const before = build(releases.previous);
+  const options = omit ? ({ onError: "omit" } as const) : undefined;
+
+  if (omit) {
+    it("fails the render by default, naming the part that failed", () => {
+      for (const render of [() => current.renderToHtml(now), () => current.renderToPlainText(now), () => current.renderToJson(now)]) expect(render).toThrow(current.RenderError);
+    });
+  }
 
   it("shows what React shows", () => {
-    expect(visible(current.renderToHtml(now))).toBe(shows);
-    if (ids) expect(new Set(current.renderToHtml(now).match(REACT_ID)).size).toBe(ids);
+    expect(visible(current.renderToHtml(now, options))).toBe(shows);
+    if (ids) expect(new Set(current.renderToHtml(now, options).match(REACT_ID)).size).toBe(ids);
     // The previous release showed it too, or (while it's a release before the fix) it's a fix: a pattern that
     // changes either way is a decision to make.
     if (!fixed || previousHasTheBugs) expect(visible(previous.renderToHtml(before)) === shows).toBe(!fixed);
@@ -294,14 +306,14 @@ describe.each(Object.entries(PATTERNS))("%s", (_, { build, shows, fixed, json, i
     it("gives the previous release's plain text", () => {
       // React's useId() values are opaque: where React places a component in its tree sets them.
       const ids = (text: string) => text.replace(REACT_ID, "‹id›");
-      expect(ids(current.renderToPlainText(now))).toBe(ids(previous.renderToPlainText(before)));
+      expect(ids(current.renderToPlainText(now, options))).toBe(ids(previous.renderToPlainText(before)));
     });
   }
 
   if (!fixed && json !== false) {
     it("gives the previous release's design", () => {
       // (But for the body's `displayMode`, which this release writes.)
-      const design = JSON.stringify(current.renderToJson(now), (key, value) => (key === "displayMode" ? undefined : value), 1);
+      const design = JSON.stringify(current.renderToJson(now, options), (key, value) => (key === "displayMode" ? undefined : value), 1);
       expect(design).toBe(JSON.stringify(previous.renderToJson(before), null, 1));
     });
   }

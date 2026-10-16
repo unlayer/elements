@@ -3,12 +3,13 @@ import type { RenderMode, UnlayerConfig, BodyValues } from "@unlayer-internal/sh
 import { mergeValues } from "@unlayer-internal/shared-elements";
 import { BodyExporters } from "@unlayer/exporters";
 import { mapSemanticProps, type SemanticProps } from "../utils/semantic-props";
-import { cssUrl, hatch, nextHtmlId, safeName, textDirectionOf } from "../utils/create-component";
+import { cssUrl, hatch, isOwn, nextHtmlId, OWN, safeName, textDirectionOf } from "../utils/create-component";
 import type { SizeInput } from "../types";
 import { BODY_DEFAULTS } from "../utils/container-defaults";
-import { withRenderScope } from "../utils/render-scope";
+import { setOnError, withRenderScope } from "../utils/render-scope";
 import { childrenHtml, rootDefaults } from "../utils/normalize";
 import { isTailwindError, rootProps } from "../utils/tailwind";
+import { ownMarkup, renderStatic } from "../engine";
 import { useProvidedConfig } from "../context/UnlayerProvider";
 import { rootConfig } from "../context/layer-config";
 
@@ -45,6 +46,9 @@ export type BodyProps = Omit<SemanticProps<BodyValues>, "padding" | "borderRadiu
 const DEFAULT_VALUES = BODY_DEFAULTS;
 
 const NAMES: Record<string, string> = { email: "Email", web: "Page", document: "Document" };
+
+/** How Elements' own markup renders (see the engine's renderStatic). */
+export const OWN_MARKUP = { bare: isOwn, passes: isTailwindError };
 
 // ============================================
 // Preview text (inlined from shared/utils/preview.ts)
@@ -161,7 +165,8 @@ const Body: React.FC<BodyProps> = (given) => {
 
   // Its config: its `config` prop (a render function passes its options there), its `textDirection`, the nearest
   // <UnlayerProvider>'s (from its context where React has one: not in Server Components), then the defaults.
-  const resolvedConfig: UnlayerConfig = rootConfig(props, useProvidedConfig());
+  // (Rendered by the render functions, it has their config, and reads no context of an app's render it's called in.)
+  const resolvedConfig: UnlayerConfig = rootConfig(props, ownMarkup() ? undefined : useProvidedConfig());
 
   // Resolve mode: explicit prop > config > default
   const mode: RenderMode = modeProp ?? resolvedConfig.mode ?? "web";
@@ -203,41 +208,39 @@ const Body: React.FC<BodyProps> = (given) => {
   // Fragments and user components expanded: their rows get the context too.
   let innerHTML = "";
   if (children) {
-    try {
-      // A render of its own when Body is rendered straight through React (not renderToHtml).
-      innerHTML = withRenderScope(() => {
-        // What its content gives it (a <Font default>'s family), where it sets none: the body's, and its rows'.
-        const given = rootDefaults(props);
-        Object.assign(values, given);
-        Object.assign(valuesWithMeta, given);
-        // One React render collects the rows and blocks; each is then rendered with Body's settings.
-        return childrenHtml(children, (child) => React.cloneElement(child as React.ReactElement<any>, { _config, bodyValues: values }), { ...props, mode });
-      }, true);
-    } catch (error) {
-      if (isTailwindError(error)) throw error;
-      console.error("Body: Failed to render children:", error);
-      innerHTML = "";
-    }
+    // A render of its own when Body is rendered straight through React (not renderToHtml).
+    innerHTML = withRenderScope(() => {
+      setOnError(resolvedConfig.onError);
+      // What its content gives it (a <Font default>'s family), where it sets none: the body's, and its rows'.
+      const given = rootDefaults(props, NAMES[mode] ?? "Body");
+      Object.assign(values, given);
+      Object.assign(valuesWithMeta, given);
+      // One walk collects the rows and blocks; each is then rendered with Body's settings. One that fails and is left
+      // out (`onError: "omit"`) gives back the ids it took, so the HTML numbers as the head and design do.
+      const ids = (_config as unknown as { __ids: Record<string, number> }).__ids;
+      const render = (child: React.ReactElement) => {
+        const before = { ...ids };
+        try {
+          return renderStatic(React.cloneElement(child as React.ReactElement<any>, { _config, bodyValues: values }), OWN_MARKUP);
+        } catch (error) {
+          for (const key of Object.keys(ids)) if (!(key in before)) delete ids[key];
+          Object.assign(ids, before);
+          throw error;
+        }
+      };
+      return childrenHtml(children, render, { ...props, mode }, NAMES[mode] ?? "Body");
+    });
   }
 
-  try {
-    // Its `style` and `className` on the body (see hatch); a right-to-left one's direction and language there too, as
-    // Gmail drops the <html>'s.
-    const at = /<[a-z]+ [^>]*u_body[^>]*?(?=\/?>)/;
-    let html = hatch(renderBodyToHtml(innerHTML, valuesWithMeta, mode, previewText), at, style, className, semanticProps);
-    if (textDirectionOf(resolvedConfig.textDirection) === "rtl") html = html.replace(at, (tag) => `${tag} dir="rtl"${_lang ? ` lang="${safeName(_lang)}"` : ""}`);
-
-    return <div dangerouslySetInnerHTML={{ __html: html }} />;
-  } catch (error) {
-    console.error("Body rendering failed:", error);
-    return (
-      <div className={className} style={style}>
-        {children}
-      </div>
-    );
-  }
+  // Its `style` and `className` on the body (see hatch); a right-to-left one's direction and language there too, as
+  // Gmail drops the <html>'s.
+  const at = /<[a-z]+ [^>]*u_body[^>]*?(?=\/?>)/;
+  let html = hatch(renderBodyToHtml(innerHTML, valuesWithMeta, mode, previewText), at, style, className, semanticProps);
+  if (textDirectionOf(resolvedConfig.textDirection) === "rtl") html = html.replace(at, (tag) => `${tag} dir="rtl"${_lang ? ` lang="${safeName(_lang)}"` : ""}`);
+  return <div dangerouslySetInnerHTML={{ __html: html }} />;
 };
 
 Body.displayName = "Body";
+(Body as unknown as Record<symbol, boolean>)[OWN] = true;
 
 export default Body;

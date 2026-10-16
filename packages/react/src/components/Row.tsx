@@ -8,8 +8,7 @@ import { bodyContentWidthPx } from "../utils/image-sizing";
 import type { DeviceProps, SizeInput } from "../types";
 import { ROW_DEFAULTS, BODY_DEFAULTS } from "../utils/container-defaults";
 import { looseText } from "../utils/render-scope";
-import { collecting, RECORDS } from "../utils/collect";
-import { recordContainer, whileCollecting } from "../utils/record";
+import { RECORDS } from "../utils/collect";
 
 /**
  * Row - Container for columns in a layout
@@ -287,24 +286,14 @@ function renderRow(props: RowProps): React.ReactElement | null {
     _config
   );
 
-  try {
-    // Its `style` and `className` on its row (the box at the content width, see hatch).
-    const html = hatch(renderRowToHtml(innerHTML, valuesWithMeta, safeBodyValues, mode, cells, collection), /<div[^>]*class="u-row[ "][^>]*>/, style, className, semanticProps);
-
-    return <div dangerouslySetInnerHTML={{ __html: html }} />;
-  } catch (error) {
-    console.error("Row rendering failed:", error);
-    return (
-      <div className={className} style={style}>
-        {children}
-      </div>
-    );
-  }
+  // Its `style` and `className` on its row (the box at the content width, see hatch). An exporter that fails fails the
+  // row (see normalize.tsx's markup, and `onError`).
+  const html = hatch(renderRowToHtml(innerHTML, valuesWithMeta, safeBodyValues, mode, cells, collection), /<div[^>]*class="u-row[ "][^>]*>/, style, className, semanticProps);
+  return <div dangerouslySetInnerHTML={{ __html: html }} />;
 }
 
-// While a template is collected, a Row records itself (see normalize.tsx); then it renders the collected tree.
-const Row: React.FC<RowProps> = (props) =>
-  collecting() ? whileCollecting(() => recordContainer("row", props), () => renderRow(props), "Row") : renderRow(props);
+// A collecting walk records a Row (see utils/record.tsx); rendered, it's the collected Row's HTML.
+const Row: React.FC<RowProps> = (props) => renderRow(props);
 
 Row.displayName = "Row";
 (Row as unknown as Record<symbol, boolean>)[RECORDS] = true;

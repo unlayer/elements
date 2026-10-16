@@ -11,8 +11,7 @@ import { pathToFileURL } from "node:url";
  * The built package in a Node script of its own: it must exit when it's done, on React 18 and 19, imported as a
  * module and required. React 19's browser server build opens a MessageChannel when it loads, which kept Node
  * running forever. Each script also renders Elements inside an app's own server render (renderToJson in a
- * component, then a hook): in react-dom/server's renderToString, Elements loads another module of react-dom's then
- * (see src/utils/server-renderer.ts), which must not keep Node running either.
+ * component, then a hook), which must not keep Node running either.
  */
 const root = path.resolve(import.meta.dirname, "../..");
 // esbuild through tsup, which depends on it (a clean install links no esbuild binary into this package).
@@ -37,7 +36,7 @@ const email = h(E.Email, null, h(E.Row, null, h(E.Column, null, h(E.Paragraph, n
 const html = E.renderToHtml(email);
 // In an app's own render: the design worked out in a component, then a hook.
 const Page = () => { const rows = React.useMemo(() => E.renderToJson(email).body.rows.length, []); const [open] = React.useState(false); return h("pre", null, rows + " rows, open=" + open); };
-// In react-dom/server's renderToString, Elements loads another module of react-dom's: Node still exits.
+// Inside react-dom/server's renderToString: Node still exits.
 console.log(JSON.stringify({ react: React.version, html: html.includes("Hi there"), page: renderToString(h(Page)) }));
 `;
 };
@@ -59,9 +58,10 @@ function project(react: string, reactDom: string, type: "module" | "commonjs", d
 describe("importing the built package", () => {
   // Next.js 14's server layer can't render when a module loads, an edge runtime has no MessageChannel, and Jest's
   // jsdom no TextEncoder: importing Elements renders nothing, and loads no react-dom module but react-dom/server
-  // (react-dom's browser build needs both when it loads), as 0.1.22.
+  // (the exporters', for web pages; react-dom's browser build needs both when it loads), as 0.1.22. Rendering an
+  // email calls none of react-dom's renderers: Elements renders templates itself.
   for (const [name, [react, reactDom]] of Object.entries(reacts)) {
-    it(`renders nothing and loads only react-dom/server (${name})`, () => {
+    it(`renders nothing and loads only react-dom/server, and renders an email without it (${name})`, () => {
       expect(fs.existsSync(path.join(dist, "index.cjs")), "build the package first (pnpm build)").toBe(true);
       const dir = project(react, reactDom, "commonjs");
       try {
@@ -76,12 +76,12 @@ const atImport = calls;
 const reactDom = [...new Set(Object.keys(require.cache).filter((file) => /react-dom[\\/]/.test(file)).map((file) => file.split(/react-dom[\\/]/).pop()).filter((file) => file.startsWith("server")))];
 const h = React.createElement;
 const html = E.renderToHtml(h(E.Email, null, h(E.Row, null, h(E.Column, null, h(E.Paragraph, null, "Hi there")))));
-console.log(JSON.stringify({ atImport, reactDom, rendered: calls > 0 && html.includes("Hi there") }));
+console.log(JSON.stringify({ atImport, reactDom, rendered: html.includes("Hi there"), reactDomRenders: calls }));
 `
         );
         const run = spawnSync(process.execPath, ["import.js"], { cwd: dir, encoding: "utf8", timeout: 20_000 });
         expect(run.status, run.stderr).toBe(0);
-        expect(JSON.parse(run.stdout.trim().split("\n").pop()!)).toEqual({ atImport: 0, reactDom: ["server.node.js"], rendered: true });
+        expect(JSON.parse(run.stdout.trim().split("\n").pop()!)).toEqual({ atImport: 0, reactDom: ["server.node.js"], rendered: true, reactDomRenders: 0 });
       } finally {
         fs.rmSync(dir, { recursive: true, force: true });
       }
@@ -143,10 +143,11 @@ console.log(JSON.stringify({ react: React.version, page: renderToString(h(Page))
 });
 
 describe("a template with a list written without keys (`items.map(…)`)", () => {
-  // React 19 warns about an element of such a list wherever it's rendered, on every render. 0.1.22 never rendered the
-  // template's lists, so it said nothing: the collecting render places copies of them, with the keys a list gives.
+  // React warns about an element of such a list in its development build: React 18 where the list is made (the
+  // template's own code), React 19 where it's rendered. Elements renders the template, and says so as React 19 does,
+  // once for each component a list is in, not on every render.
   for (const [name, [react, reactDom]] of Object.entries(reacts)) {
-    it(`renders without React's key warning, as 0.1.22 did (${name})`, () => {
+    it(`warns once per component, as React does (${name})`, () => {
       expect(fs.existsSync(path.join(dist, "index.cjs")), "build the package first (pnpm build)").toBe(true);
       const dir = project(react, reactDom, "commonjs");
       try {
@@ -166,14 +167,15 @@ const templates = [
 ];
 // React 18 warns once, where the list is made (the template's own code, as with 0.1.22): only renders are counted.
 let warnings = 0;
-console.error = (message) => { if (/unique "key"/.test(String(message))) warnings++; };
+console.error = (message) => { if (String(message).startsWith("[Unlayer]") && /unique "key"/.test(String(message))) warnings++; };
 for (const template of templates) for (const render of [E.renderToHtml, E.renderToPlainText, E.renderToJson, E.renderToHtml]) render(template);
 console.log(JSON.stringify({ warnings }));
 `
         );
         const run = spawnSync(process.execPath, ["keys.js"], { cwd: dir, encoding: "utf8", timeout: 20_000 });
         expect(run.status, run.stderr).toBe(0);
-        expect(JSON.parse(run.stdout.trim().split("\n").pop()!)).toEqual({ warnings: 0 });
+        // Lists in a Column, the root and a Row: one each, however many renders, on React 19 (React 18 said it before).
+        expect(JSON.parse(run.stdout.trim().split("\n").pop()!)).toEqual({ warnings: name === "React 19" ? 3 : 0 });
       } finally {
         fs.rmSync(dir, { recursive: true, force: true });
       }
@@ -245,9 +247,7 @@ console.log(JSON.stringify({ html: html.includes("#f3f4f6") && html.includes("#f
 });
 
 describe("the async renderers (@unlayer/react-elements/async), built", () => {
-  // React's streaming renderer resolves what a synchronous render leaves out. React 19 renders async components
-  // anywhere and has use(); on React 18 Elements resolves the async components it places itself (a child of a root,
-  // a Row, a Column or text), and thrown promises (Suspense) work.
+  // Async templates and components (anywhere, on React 18 too), use() on React 19, and thrown promises (Suspense).
   const script = (react19: boolean) => `const E = require("@unlayer/react-elements"); const A = require("@unlayer/react-elements/async"); const React = require("react");
 const h = React.createElement;
 const later = (value) => new Promise((resolve) => setTimeout(() => resolve(value), 5));
@@ -285,10 +285,9 @@ async function Broken() { await later(null); throw boom; }
         expect(run.status, run.stderr).toBe(0);
         const out = JSON.parse(run.stdout.trim().split("\n").pop()!);
         expect(out.texts).toEqual(["Order 7", "Hi <b>Ada</b>!", "thrown", ...(react19 ? ["used", "<i>deep</i>"] : [])]);
-        expect(out).toMatchObject({ cause: true, message: "[Unlayer] <Broken> threw while rendering: down" });
-        // An async component another component renders: React 19 renders it, React 18 can't (and says so).
-        if (react19) expect(out.deep).toBe("rendered");
-        else expect(out.deep).toMatch(/threw while rendering: Objects are not valid as a React child \(found: \[object Promise\]\)[\s\S]*use React 19/);
+        expect(out).toMatchObject({ cause: true, message: "[Unlayer] down (in <Broken> at Row 1 › Column 1 › Broken)" });
+        // An async component another component renders: rendered on React 18 too (Elements renders it, not react-dom).
+        expect(out.deep).toBe("rendered");
       } finally {
         fs.rmSync(dir, { recursive: true, force: true });
       }

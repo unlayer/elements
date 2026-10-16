@@ -88,7 +88,7 @@ export function extractHeadFromTree(
   options: ExtractHeadOptions
 ): ExtractHeadResult {
   // What its content gives the head (a <Font>), then the rows and blocks as the body rendered them (the same collected render).
-  const fonts = headTags((element.props as { children?: React.ReactNode }).children, options.displayMode);
+  const fonts = headTags((element.props as { children?: React.ReactNode }).children, options.displayMode, getDisplayName(element));
   element = normalizedRoot(element);
   const { displayMode } = options;
   const headConfig: HeadConfig = {
@@ -145,7 +145,8 @@ export function extractHeadFromTree(
         }
         // Mapped and merged as the HTML and the design do, numbered as they are.
         const contentType = config.metaName ?? config.name.toLowerCase();
-        const values = ensureMeta(mergeValues(config.defaultValues, config.propMapper({ ...block.props })), contentType, nextCounter(counters, `u_content_${contentType}`) - 1);
+        const { _record, ...props } = block.props;
+        const values = ensureMeta(mergeValues(config.defaultValues, config.propMapper(props)), contentType, nextCounter(counters, `u_content_${contentType}`) - 1);
         collectDeviceStyles(values, "contents", config.name, displayMode, deviceStyles);
         // The component's own head (custom tools) wins over the registry's.
         call(config.head ?? registry[config.name], values);

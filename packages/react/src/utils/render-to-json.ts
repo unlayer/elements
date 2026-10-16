@@ -30,7 +30,8 @@ import { componentName, getDisplayName, providedConfig, ROOT_NAMES, unwrapRoot, 
 import { rootConfig, rootMode, type RootConfigProps } from "../context/layer-config";
 import { BODY_DEFAULTS, ROW_DEFAULTS, COLUMN_DEFAULTS } from "./container-defaults";
 import { contentSlotWidth, pinImageSrc, type SlotContext } from "./image-sizing";
-import { sayOnce, withRenderScope } from "./render-scope";
+import { sayOnce, setOnError, withRenderScope } from "./render-scope";
+import { renderBody } from "./render-to-html";
 import { collect, KEPT, normalizedChildren, normalizedRoot } from "./normalize";
 import type { Recorded } from "./collect";
 import { rtlAlign, textDirectionOf, UNLAYER_CONFIG_KEY } from "./create-component";
@@ -80,7 +81,7 @@ export function extractSemanticProps(props: Record<string, any>): Record<string,
   return result;
 }
 
-const INTERNAL = /^(children|mode|className|style|index|colIndex|cells|bodyValues|rowValues|_config|config|previewText|fonts|lang|layout|collection)$/;
+const INTERNAL = /^(children|mode|className|style|index|colIndex|cells|bodyValues|rowValues|_config|_record|config|previewText|fonts|lang|layout|collection)$/;
 
 /** What makes a row or block editable in the editor. */
 const EDITABLE = { selectable: true, draggable: true, duplicatable: true, deletable: true, hideable: true };
@@ -133,7 +134,7 @@ function processItem(
   const id = `${metaBase}_${nextCounter(counters, metaBase)}`;
 
   // Map props through the item's own propMapper, then merge with defaults (what the design can't hold said, and left out)
-  const { children, style: _style, className: _className, skipInText: _skip, ...restProps } = element.props;
+  const { children, style: _style, className: _className, skipInText: _skip, _record, ...restProps } = element.props;
   codeOnly(name, element.props);
   const mappedValues = propMapper({ children, ...restProps });
   rtlAlign(mappedValues, defaultValues, (layout.bodyValues as { textDirection?: unknown } | undefined)?.textDirection);
@@ -410,18 +411,24 @@ export function renderRowToJson(element: React.ReactElement): DesignRow {
   const counters: Record<string, number> = {};
   // A render of its own, as renderToJson's: the same row gives the same ids every time. React renders what's in it.
   return withRenderScope(() => {
-    const row = normalizedChildren(element).find((c): c is React.ReactElement => React.isValidElement(c));
+    const row = normalizedChildren(element, undefined, "Row").find((c): c is React.ReactElement => React.isValidElement(c));
     // Left out (its Columns don't fit its layout), it's no row.
     if (!row) throw new Error("[Unlayer] renderRowToJson: the Row is left out.");
     return pxZeros(processRow(row, counters));
   });
 }
 
-export function renderToJson(element: React.ReactElement): DesignJSON {
-  return withRenderScope(() => designJson(element));
+/** renderToJson's options. */
+export interface RenderToJsonOptions {
+  /** What a part of the template that fails does (see UnlayerConfig's `onError`), over the root's config's. */
+  onError?: UnlayerConfig["onError"];
 }
 
-function designJson(element: React.ReactElement): DesignJSON {
+export function renderToJson(element: React.ReactElement, options?: RenderToJsonOptions): DesignJSON {
+  return withRenderScope(() => designJson(element, options));
+}
+
+function designJson(element: React.ReactElement, options?: RenderToJsonOptions): DesignJSON {
   // Accept a user wrapper component (e.g. <MyEmail/>) by unwrapping to its root,
   // matching renderToHtml which renders wrappers through React.
   element = unwrapForJson(element);
@@ -430,11 +437,15 @@ function designJson(element: React.ReactElement): DesignJSON {
   const displayName = getDisplayName(element);
   // (Email, Page or Document's, read before it's copied below.)
   const mode = rootMode(element, rootConfig(element.props as RootConfigProps, provided));
-  // One React render collects the rows and blocks (as the HTML does).
+  // One walk collects the rows and blocks (as the HTML does).
   let heads: Recorded[] = [];
   if (displayName && ROOT_NAMES.has(displayName)) {
+    setOnError(rootConfig(element.props as RootConfigProps, provided, options).onError);
+    // Its body rendered as its HTML is, so the design and the HTML can't disagree: an exporter that fails fails the
+    // design too, or (`onError: "omit"`) its row or block is left out of both.
+    renderBody(element, options, "renderToJson");
     // What its content gives the head and the design can't hold (a <Head>'s tags): said.
-    heads = collect((element.props as { children?: React.ReactNode }).children).collection.recorded.filter((r) => r.kind === "head");
+    heads = collect((element.props as { children?: React.ReactNode }).children, displayName).collection.recorded.filter((r) => r.kind === "head");
     for (const r of heads) if (r.kind === "head" && r.json) sayOnce(r.json);
     element = normalizedRoot(element);
   }

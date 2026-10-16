@@ -1,12 +1,13 @@
 import React from "react";
-import { renderToStaticMarkup } from "./server-renderer";
 import type { PlainTextOptions, UnlayerConfig } from "@unlayer-internal/shared-elements";
-import { htmlToPlainText } from "@unlayer-internal/shared-elements";
+import { htmlToPlainText, RenderError } from "@unlayer-internal/shared-elements";
+import { renderStatic } from "../engine";
+import { OWN_MARKUP } from "../components/Body";
 import { extractHeadFromTree } from "./extract-head";
 import { htmlRoot, providedConfig, ROOT_NAMES } from "./unwrap-root";
 import { rootConfig, rootMode, type RootConfigProps } from "../context/layer-config";
 import { normalizedRoot } from "./normalize";
-import { withRenderScope } from "./render-scope";
+import { omissions, setOnError, withRenderScope } from "./render-scope";
 import { isTailwindError } from "./tailwind";
 import {
   emailLayout,
@@ -28,22 +29,25 @@ function resolveConfig(element: React.ReactElement, config?: Partial<UnlayerConf
  *
  * - Passes the root's whole config (see resolveConfig) via its `config` prop:
  *   no React context, so it works in Server Components
- * - Uses `renderToStaticMarkup` — no React hydration markers
+ * - Rendered by the engine as react-dom's static markup — no hydration markers
  */
-function renderBody(
+export function renderBody(
   element: React.ReactElement,
   config?: Partial<UnlayerConfig>,
   name = "renderToHtml"
 ): string {
   const mergedConfig = resolveConfig(element, config);
+  // What it does with a part that fails (see RenderError): the render functions' option over the root's config.
+  setOnError(mergedConfig.onError);
 
   try {
     // Pass config via prop (not context) so this works in React Server Components: the root's own `config` and the
     // Provider's are in it (see resolveConfig). Body threads it as `_config` to children via cloneElement.
     const enriched = React.cloneElement(element, { config: mergedConfig });
-    return renderToStaticMarkup(enriched);
+    return renderStatic(enriched, OWN_MARKUP);
   } catch (error) {
-    if (isTailwindError(error)) throw error;
+    // A part of the template that failed says which and where; a scope's error is as it is.
+    if (error instanceof RenderError || isTailwindError(error)) throw error;
     const message =
       error instanceof Error ? error.message : String(error);
     // Keep the original error as `cause`: its stack points at the template line that threw.
@@ -214,8 +218,8 @@ export function renderToPlainText(
   // A template component renders as its root, as in renderToHtml (context providers around it included).
   const html = withRenderScope(() => {
     const root = htmlRoot(element, "renderToPlainText");
-    // Collected first, as renderToHtml's head is: it fails where that does (a component that isn't one), not with
-    // empty text (Body leaves out what fails, for a live preview).
+    setOnError(resolveConfig(root, config).onError);
+    // Collected first, as renderToHtml's head is: it fails where that does.
     normalizedRoot(root);
     return renderBody(root, config, "renderToPlainText");
   });
@@ -244,6 +248,11 @@ export interface HtmlParts {
   css: string;
   /** Raw component JS (no `<script>` wrapper); empty for most email designs */
   js: string;
+  /**
+   * The parts of the template left out (`onError: "omit"`, or a function), in the order the render found them: each
+   * a RenderError naming the component, where it is (`position`) and what it threw (`cause`). Empty when nothing was.
+   */
+  omitted: RenderError[];
   /**
    * Individual head tags (`<meta>`, `<link>`, ...) contributed by components.
    * Not part of the editor's documented chunk parameters, but exposed here
@@ -331,5 +340,6 @@ function htmlParts(element: React.ReactElement, config?: Partial<UnlayerConfig>)
     css,
     js,
     tags,
+    omitted: [...omissions()],
   };
 }

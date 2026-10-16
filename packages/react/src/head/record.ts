@@ -1,27 +1,13 @@
 /**
- * How `<Head>` and `<Font>` record what they give the head while a template is collected.
+ * How `<Head>` and `<Font>` give the document's head what they give it: a template's collecting walk records their
+ * entry (`HEAD_ENTRY`, see the main entry's record.tsx) where it finds them; rendered, they render nothing.
  */
 import type React from "react";
-import { renderToHtml } from "@unlayer/react-elements";
 
-interface Internals {
-  collecting(): { recorded: unknown[] } | undefined;
-  whileCollecting(record: () => React.ReactNode, real: () => React.ReactNode, name: string): React.ReactElement;
-}
+/** The main entry's (src/utils/collect.ts): one key for every copy of Elements. */
+const HEAD_ENTRY = Symbol.for("@unlayer/react-elements/head-entry");
 
-/**
- * Records `entry` in the collection of the template it renders in, and renders nothing. It finds that collection as
- * Rows and blocks do, by the render's ids (see the main entry's record.tsx): with async templates under way at once,
- * the top of the shared stack can be another template's.
- */
-export function recordForHead(entry: unknown, name: string): React.ReactElement {
-  const { collecting, whileCollecting } = (renderToHtml as unknown as Record<symbol, Internals>)[Symbol.for("@unlayer/react-elements/internals")];
-  return whileCollecting(
-    () => {
-      collecting()?.recorded.push(entry);
-      return null;
-    },
-    () => null,
-    name
-  );
+/** `component` made a head entry: what `entry(props)` gives is recorded for the head, and it renders nothing. */
+export function headEntry<P>(component: (props: P) => React.ReactElement | null, entry: (props: P) => unknown): void {
+  (component as unknown as Record<symbol, unknown>)[HEAD_ENTRY] = entry;
 }

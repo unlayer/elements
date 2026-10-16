@@ -1,8 +1,9 @@
 /**
  * Elements' renders inside another React render: an app page that renders on the server and works out its
  * design or HTML while it renders (`useMemo(() => renderToJson(<T />))`), and a template's component that does.
- * React keeps a render's hook state in its module, so a render started inside another one with the same module
- * broke the hooks the outer component called after it (see server-renderer.ts).
+ * Elements' renders put React's hooks dispatcher back as they found it, so the outer component's hooks after the
+ * call work, however deep (0.3.0 rendered with react-dom, whose module keeps a render's hook state: three levels
+ * deep, a component calling a hook after the call was left out).
  */
 import { describe, it, expect, vi } from "vitest";
 import React, { useMemo, useState } from "react";
@@ -11,7 +12,7 @@ import { renderToString } from "react-dom/server";
 import { renderToString as renderToStringWithBrowserBuild } from "react-dom/server.browser";
 import { renderToHtml, renderToPlainText } from "./render-to-html";
 import { renderToJson } from "./render-to-json";
-import { Email, Row, Column, Paragraph } from "../index";
+import { Email, Page, Row, Column, Paragraph } from "../index";
 
 const Template = () => <Email><Row><Column><Paragraph>Hello from the template</Paragraph></Column></Row></Email>;
 
@@ -59,7 +60,7 @@ describe("a template's component", () => {
     expect(html).toContain("1 rows");
   });
 
-  it("can nest one more, in the module it's in, as 0.1.22 did: a component calling a hook after the call is left out, named", () => {
+  it("can nest one more, and a component there calls hooks after the call", () => {
     const error = vi.spyOn(console, "error").mockImplementation(() => {});
     try {
       function Deepest() {
@@ -77,9 +78,8 @@ describe("a template's component", () => {
       }
       const html = renderToHtml(<Email><Row><Column><Paragraph>Outer</Paragraph><Deeper /></Column></Row></Email>);
       expect(html).toContain("Outer");
-      expect(html).toContain("deepest shown, hook left out");
-      // Named (the render that explains why calls it once more on its own, where it renders).
-      expect(error.mock.calls.some((call) => String(call[0]).includes("<DeepestWithHook>"))).toBe(true);
+      expect(html).toContain("deepest shown, hook shown");
+      expect(error).not.toHaveBeenCalled();
     } finally {
       error.mockRestore();
     }
@@ -87,10 +87,9 @@ describe("a template's component", () => {
 });
 
 describe("a page that renders on the server, with a template whose component works out another design", () => {
-  // Three renders: the page's (react-dom/server), Elements' (another module of react-dom's), and the component's call
-  // (none is left that isn't rendering: Elements' module, as 0.1.22 rendered). The page's hooks keep working; the
-  // component renders, unless it calls a hook after the call (it's left out, named).
-  it("keeps the page's hooks, and renders that component unless it calls a hook after", () => {
+  // Three renders: the page's (react-dom/server), Elements', and the component's call. The page's hooks keep working,
+  // and the component's after the call.
+  it("keeps the page's hooks, and the component's hooks after its call", () => {
     const error = vi.spyOn(console, "error").mockImplementation(() => {});
     try {
       function Count() {
@@ -107,8 +106,8 @@ describe("a page that renders on the server, with a template whose component wor
         const [zoom] = useState(1);
         return <pre>{`${html.includes("Outer")}, ${html.includes("1 rows")}, ${html.includes("labelled")}, zoom=${zoom}`}</pre>;
       }
-      expect(renderToString(<PreviewPage />)).toBe("<pre>true, true, false, zoom=1</pre>");
-      expect(error.mock.calls.some((call) => String(call[0]).includes("<CountWithHook>"))).toBe(true);
+      expect(renderToString(<PreviewPage />)).toBe("<pre>true, true, true, zoom=1</pre>");
+      expect(error).not.toHaveBeenCalled();
     } finally {
       error.mockRestore();
     }
@@ -213,10 +212,10 @@ describe("a component of the user's own that calls a hook, in React's developmen
 });
 
 describe("a Row whose Columns don't fit its layout", () => {
-  // Left out, of the HTML, the plain text and the design alike, said once per render with the console.error a block
-  // left out gets (`unlayer elements check` lists it to fix); the rows around it render. The renderers don't throw (a
-  // mailer that never expected them to would fail). (0.1.22 rendered no rows at all, and its design kept the row.)
-  const MESSAGE = "[Unlayer] A Row with the TwoEqual layout, for 2 Columns, has 1, so it's left out.";
+  // It fails the render (a RenderError naming it and where it is), the HTML, the plain text and the design alike.
+  // With `onError: "omit"` it's left out of all three, said once per render with console.error, and listed in
+  // renderToHtmlParts' `omitted`; the rows around it render. (0.1.22 rendered no rows at all, and its design kept it.)
+  const MESSAGE = "A Row with the TwoEqual layout, for 2 Columns, has 1 (in <Row> at Row 2)";
   const template = async (Root: React.ElementType) => {
     const { ColumnLayouts } = await import("../index");
     return (
@@ -228,41 +227,45 @@ describe("a Row whose Columns don't fit its layout", () => {
     );
   };
 
-  it.each(["Email", "Page", "Document"])("%s: only that Row is left out, said once per render", async (name) => {
+  it.each(["Email", "Page", "Document"])("%s: fails the render, or only that Row is left out, said once per render", async (name) => {
     const roots = await import("../index");
     const element = await template(roots[name as "Email" | "Page" | "Document"]);
+    for (const render of [() => renderToHtml(element), () => renderToPlainText(element), () => renderToJson(element)]) expect(render).toThrow(`[Unlayer] ${MESSAGE}`);
     const error = vi.spyOn(console, "error").mockImplementation(() => {});
     try {
-      const html = renderToHtml(element);
+      const omit = { onError: "omit" } as const;
+      const html = renderToHtml(element, omit);
       expect(html).toMatch(/^<!DOCTYPE/i);
       expect(html).toContain("Before");
       expect(html).toContain("Right");
       expect(html).not.toContain("Lonely");
-      expect(error.mock.calls.map((call) => String(call[0]))).toEqual([MESSAGE]);
-      expect(renderToPlainText(element)).toBe("Before\n\nLeft\n\nRight");
-      const design = renderToJson(element);
+      expect(error.mock.calls.map((call) => String(call[0]))).toEqual([`[Unlayer] Left out: ${MESSAGE}`]);
+      expect(renderToPlainText(element, omit)).toBe("Before\n\nLeft\n\nRight");
+      const design = renderToJson(element, omit);
       expect(design.body.rows.map((row) => [row.cells, row.columns.length])).toEqual([[[1], 1], [[1, 1], 2]]);
       expect(JSON.stringify(design)).not.toContain("Lonely");
       // One for each render.
-      expect(error.mock.calls.map((call) => String(call[0]))).toEqual([MESSAGE, MESSAGE, MESSAGE]);
+      expect(error.mock.calls.map((call) => String(call[0]))).toEqual([1, 2, 3].map(() => `[Unlayer] Left out: ${MESSAGE}`));
+      // Listed, with where it is.
+      const { omitted } = roots.renderToHtmlParts(element, omit);
+      expect(omitted.map((e) => [e.message, e.component, e.position])).toEqual([[`[Unlayer] ${MESSAGE}`, "Row", "Row 2"]]);
+      // A function instead of the console.
+      const given: unknown[] = [];
+      error.mockClear();
+      expect(renderToHtml(element, { onError: (e) => void given.push(e.position) })).not.toContain("Lonely");
+      expect([given, error.mock.calls]).toEqual([["Row 2"], []]);
     } finally {
       error.mockRestore();
     }
   });
 
-  it("renderRowToJson has no row to give: it says why, and throws", async () => {
+  it("renderRowToJson fails on it", async () => {
     const { ColumnLayouts, renderRowToJson } = await import("../index");
-    const error = vi.spyOn(console, "error").mockImplementation(() => {});
-    try {
-      expect(() => renderRowToJson(<Row layout={ColumnLayouts.ThreeEqual}><Column><Paragraph>One</Paragraph></Column><Column><Paragraph>Two</Paragraph></Column></Row>)).toThrow(
-        "[Unlayer] renderRowToJson: the Row is left out."
-      );
-      expect(error.mock.calls.map((call) => String(call[0]))).toEqual(["[Unlayer] A Row with the ThreeEqual layout, for 3 Columns, has 2, so it's left out."]);
-      // One that fits gives its row, with the layout's cells.
-      expect(renderRowToJson(<Row layout={ColumnLayouts.TwoWideNarrow}><Column><Paragraph>Wide</Paragraph></Column><Column><Paragraph>Narrow</Paragraph></Column></Row>).cells).toEqual([2, 1]);
-    } finally {
-      error.mockRestore();
-    }
+    expect(() => renderRowToJson(<Row layout={ColumnLayouts.ThreeEqual}><Column><Paragraph>One</Paragraph></Column><Column><Paragraph>Two</Paragraph></Column></Row>)).toThrow(
+      "[Unlayer] A Row with the ThreeEqual layout, for 3 Columns, has 2 (in <Row> at Row 1)"
+    );
+    // One that fits gives its row, with the layout's cells.
+    expect(renderRowToJson(<Row layout={ColumnLayouts.TwoWideNarrow}><Column><Paragraph>Wide</Paragraph></Column><Column><Paragraph>Narrow</Paragraph></Column></Row>).cells).toEqual([2, 1]);
   });
 });
 

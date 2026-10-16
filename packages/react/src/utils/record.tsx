@@ -1,115 +1,75 @@
 /**
- * What Rows, Columns and blocks render while a template is collected (see
- * collect.ts): they record their props, and render markers around what React
- * renders inside them.
+ * How a template is collected (see normalize.tsx): the walker (src/engine) renders it, and asks this collector about
+ * each element first. Elements' Rows, Columns and blocks (of any copy of Elements: by their markers, or an older
+ * copy's names and code), <Tailwind> scopes and <Head>/<Font> entries are recorded, and marked in the output, instead
+ * of being called; everything else (the user's components, markup, Fragments, Context) renders as React renders it.
+ * Each component of the template's own in a list is in a boundary, where it's left out when it fails and the render
+ * leaves failed parts out (`onError: "omit"`).
  */
-import React, { Suspense } from "react";
-import { asyncs, collecting, COLLECTING_ID, marker, RECORDS, running, within, type Collection } from "./collect";
-import { isAsyncComponent, isElementsType } from "./unwrap-root";
+import React from "react";
+import { HEAD_ENTRY, RECORDS, type Recorded } from "./collect";
+import { isElementsType, ROOT_NAMES } from "./unwrap-root";
 import { TAILWIND } from "./tailwind";
-import { UNLAYER_CONFIG_KEY } from "./create-component";
+import { UNLAYER_CONFIG_KEY, UNLAYER_RENDER_KEY } from "./create-component";
+import { boundary, mark } from "../engine/marks";
+import { checked, checkKeys } from "../engine/keys";
+import type { Collector } from "../engine";
 
-/**
- * Children with each component Elements doesn't know wrapped: markers that
- * say where its output starts and ends, inside a Suspense whose fallback (a
- * marker) stands for it when it throws, suspends or is async, so it's left
- * out and the rest renders. Fragments are kept, their children wrapped too.
- */
-export function guard(children: React.ReactNode, collection: Collection, inContainer = false): React.ReactNode {
-  return React.Children.toArray(children).map((child) => {
-    const placed = guarded(child, collection, inContainer);
-    // The template's own element, placed in this list: a copy, with the key the list gave it. React 19 warns about an
-    // element of a list without keys (`items.map(…)`) wherever it's rendered, on every render, and 0.1.22 never
-    // rendered the template's lists: a static render has nothing to match keys for.
-    return placed === child && React.isValidElement(child) ? React.cloneElement(child) : placed;
-  });
+interface Options {
+  /** Markup is in a boundary too, so markup React rejects is left out rather than failing the render. */
+  omit: boolean;
 }
 
-/** One child of `guard`'s list. */
-function guarded(child: React.ReactNode, collection: Collection, inContainer: boolean): React.ReactNode {
-  // A <Tailwind> records itself, around what's in it.
-  if (!React.isValidElement(child) || (child.type as unknown as Record<symbol, unknown>)?.[TAILWIND]) return child;
-  if (isElementsType(child.type)) {
-    if ((child.type as unknown as Record<symbol, unknown>)[RECORDS]) return child;
-    // A component of the user's own named Row or Column (its displayName): rendered as React renders it.
-    if (!olderContainer(child.type)) return bounded(child, collection);
-    return recordedForOlder(child, collection, inContainer);
+/** Children as a list (arrays flattened, nothing and booleans left out), each list checked for keys. */
+function childList(children: React.ReactNode, owner: string, out: React.ReactNode[] = []): React.ReactNode[] {
+  if (Array.isArray(children)) {
+    checkKeys(children, owner);
+    for (const child of children) childList(child, owner, out);
+  } else if (children !== null && children !== undefined && typeof children !== "boolean") out.push(children);
+  return out;
+}
+
+const displayName = (type: unknown) => (type as { displayName?: string } | null)?.displayName ?? "";
+
+/**
+ * Children with each component of the template's own in a boundary. Fragments are kept, their children in
+ * boundaries too; markup with such a component in it (`<div><Promo /></div>`) gets that component's.
+ */
+export function guard(children: React.ReactNode, options: Options, owner: string, inContainer = false): React.ReactNode[] {
+  // (Its lists checked for keys as written: the one it gives back isn't checked again.)
+  return checked(childList(children, owner).map((child) => guarded(child, options, owner, inContainer)));
+}
+
+function guarded(child: React.ReactNode, options: Options, owner: string, inContainer: boolean): React.ReactNode {
+  if (!React.isValidElement(child)) return child;
+  const type = child.type as any;
+  // No component at all (`undefined` from a broken or circular import): the render fails, as an email missing a
+  // block shouldn't send. A <Tailwind> and Elements' own are recorded where the walk reaches them.
+  if (!type || (typeof type === "object" && !("$$typeof" in type)) || type[TAILWIND] || type[HEAD_ENTRY]) return child;
+  if (isElementsType(type)) {
+    // A root (Email, Page, Document) placed in a Row or Column: left out, as 0.1.22 left it out, saying so. Among the
+    // rows (`<Email><Email>…</Email></Email>`) it renders as it renders, as 0.1.22 rendered it.
+    if (ROOT_NAMES.has(displayName(type)) && !type[UNLAYER_RENDER_KEY]) {
+      if (!inContainer) return child;
+      console.warn(`[Unlayer] <${displayName(type)}> is a root: it can't be placed in a Row or Column, so it's left out.`);
+      return null;
+    }
+    if (kindOf(type)) return child;
   }
-  // No component at all (`undefined` from a broken or circular import): React says so and the render fails, as an
-  // email missing a block shouldn't send. Only what can render gets a boundary that leaves it out.
-  if (!child.type || (typeof child.type === "object" && !("$$typeof" in child.type))) return child;
-  if (typeof child.type === "string") {
-    // Markup with a component of the user's own in it (`<div><Promo /></div>`): that component gets its own too.
+  if (typeof type === "string") {
     const inside = (child.props as { children?: React.ReactNode }).children;
-    const element = inside !== undefined && hasComponent(inside) ? React.cloneElement(child, undefined, guard(inside, collection, inContainer)) : child;
-    // Markup React rejects (`<hr style="…">` as a string) throws out of the render: guarded too when it did.
-    return collection.markup ? bounded(element, collection) : element;
+    const element = inside !== undefined && hasComponent(inside) ? React.cloneElement(child, undefined, guard(inside, options, owner, inContainer)) : child;
+    // Markup React rejects (`<hr style="…">` with a string style): left out, where failed parts are.
+    return options.omit ? boundary(null, element) : element;
   }
-  if (child.type === React.Fragment) {
-    return React.createElement(React.Fragment, { key: child.key }, guard((child.props as { children?: React.ReactNode }).children, collection, inContainer));
-  }
-  return bounded(child, collection);
+  if (type === React.Fragment) return guard((child.props as { children?: React.ReactNode }).children, options, owner, inContainer);
+  const record: Recorded = { kind: "boundary", element: child };
+  return boundary(record, child);
 }
 
-/** `child` between markers, in a Suspense whose fallback (a marker) stands for it when it throws or suspends. */
-function bounded(child: React.ReactElement, collection: Collection): React.ReactNode {
-  const at = collection.recorded.push({ kind: "boundary", element: child }) - 1;
-  // An async component is left out without calling it (unless the render is async): it can't render
-  // synchronously, and React 18 leaves the promise it gives back unhandled (its rejection would end the process).
-  if (isAsyncComponent(child.type)) {
-    if (!collection.async) return marker(collection, at, "f");
-    child = collection.async(child);
-  }
-  return React.createElement(
-    Suspense,
-    { key: child.key ?? `b${at}`, fallback: marker(collection, at, "f") },
-    marker(collection, at, "o"),
-    child,
-    marker(collection, at, "c")
-  );
-}
-
-/**
- * A Row, Column or block of an older copy of Elements (0.1.x, from a package still on it), which renders its HTML
- * instead of recording itself: recorded here as this copy's would, so it's in the HTML and the design (rendered by
- * this copy's Row and Column, and by the block's own exporter).
- */
-/**
- * Whether a type named Row or Column is an older copy's (0.1.x marks them only by name): their code reads the
- * config Body passes them (`_config`), which a component of the user's own named after one doesn't. Blocks and
- * roots are marked otherwise (`__unlayerRender`, and roots aren't recorded).
- */
-function olderContainer(type: unknown): boolean {
-  return !/^(Row|Column)$/.test((type as { displayName?: string } | null)?.displayName ?? "") || /\b_config\b/.test(String(type));
-}
-
-function recordedForOlder(child: React.ReactElement, collection: Collection, inContainer: boolean): React.ReactNode {
-  const type = child.type as unknown as { displayName?: string; __unlayerRender?: unknown };
-  const props = child.props as Record<string, any>;
-  if (type.displayName === "Row" || type.displayName === "Column") {
-    const at = collection.recorded.push({ kind: type.displayName === "Row" ? "row" : "column", props }) - 1;
-    return (
-      <React.Fragment key={child.key ?? `r${at}`}>
-        {marker(collection, at, "o")}
-        {guard(props.children, collection, true)}
-        {marker(collection, at, "c")}
-      </React.Fragment>
-    );
-  }
-  // A root (Email, Page, Document) placed in a Row or Column: left out, as 0.1.22 left it out, saying so. Among the
-  // rows (`<Email><Email>…</Email></Email>`) it renders as it renders, as 0.1.22 rendered it.
-  if (!type.__unlayerRender && !inContainer) return child;
-  if (!type.__unlayerRender) {
-    console.warn(`[Unlayer] <${type.displayName}> is a root: it can't be placed in a Row or Column, so it's left out.`);
-    return null;
-  }
-  const at = collection.recorded.push({ kind: "block", type: child.type as React.ComponentType<any>, props }) - 1;
-  return React.cloneElement(marker(collection, at), { key: child.key ?? `b${at}` });
-}
-
-/** Whether there's a component of the user's own in `children`, in markup or Fragments (not in Elements' own). */
+/** Whether there's a component of the user's own in `children`, in markup or Fragments (not Elements' own). */
 function hasComponent(children: React.ReactNode): boolean {
-  return React.Children.toArray(children).some(
+  return childList(children, "").some(
     (child) =>
       React.isValidElement(child) &&
       (typeof child.type === "string" || child.type === React.Fragment ? hasComponent((child.props as { children?: React.ReactNode }).children) : !isElementsType(child.type))
@@ -117,69 +77,54 @@ function hasComponent(children: React.ReactNode): boolean {
 }
 
 /**
- * What a Row, Column or block renders while a template is collected: in the collecting render (its ids carry
- * COLLECTING_ID), what `record` gives; in any other render started inside it, what it renders anyway (`real`,
- * called with nothing collecting). When it can't tell, it renders what it renders: a marker never leaves the
- * collecting render.
+ * Which of Elements' components a type is, of any copy of Elements: a Row or Column (0.2 and later carry RECORDS; an
+ * older copy's reads the config Body passes it, `_config`, which a component of the user's own named after one
+ * doesn't), or a block (its item config).
  */
-function Sentinel({ record, real }: { record: () => React.ReactNode; real: () => React.ReactNode }): React.ReactNode {
-  const top = collecting();
-  // The collection it's in: a synchronous render's is on top while it runs; an async one's frame stays on the stack
-  // while others start, so it's the one whose work this is (see `running`). Where ids can't tell (another copy of
-  // React: see Collection.blind), it records there: a marker in a render started inside the collecting one is then
-  // rendered in its place (normalize.tsx).
-  const own = top?.async ? running() : top;
-  let into = own?.blind ? own : undefined;
-  if (!into) {
-    try {
-      const id = React.useId().slice(1);
-      // An async render's ids carry its nonce (`unlayer-collect-<nonce>-`): it records in its own collection.
-      if (id.startsWith(COLLECTING_ID)) into = asyncs.get(id.slice(COLLECTING_ID.length).split("-")[0]) ?? top;
-    } catch {
-      // Not in a render React runs: what it renders, which the collection it's in can't hold (see normalize.tsx's intact).
-      if (own) own.lost = true;
+function kindOf(type: any): "row" | "column" | "block" | undefined {
+  if (type[UNLAYER_CONFIG_KEY] && type[UNLAYER_RENDER_KEY]) return "block";
+  const name = displayName(type);
+  if ((name === "Row" || name === "Column") && (type[RECORDS] || /\b_config\b/.test(String(type)))) return name === "Row" ? "row" : "column";
+  return undefined;
+}
+
+/** Rich text: a Paragraph's, Heading's or Button's children with elements in them, rendered between its marks. */
+const RICH = /^(Paragraph|Heading|Button)$/;
+
+/** The collector a template's collecting walk asks (see the engine's Collector). */
+export function collector(options: Options): Collector {
+  return (element) => {
+    const type = element.type as any;
+    if (!type || typeof type === "string") return undefined;
+    const props = element.props as Record<string, any>;
+    if (typeof type[TAILWIND] === "function") {
+      // A scope: its rewrite in its props, so each Row, Column and block knows the one it's in.
+      return { record: (position) => container({ kind: "tailwind", props: { ...props, [TAILWIND]: type[TAILWIND] }, position }, options, "Tailwind") };
     }
-  }
-  return into ? within(into, record) : within(null, real);
+    if (typeof type[HEAD_ENTRY] === "function") return { record: (position) => mark({ ...type[HEAD_ENTRY](props), position }, "h") };
+    const kind = kindOf(type);
+    if (kind === "row" || kind === "column") {
+      const name = kind === "row" ? "Row" : "Column";
+      return { name, record: (position) => container({ kind, props, position }, options, name) };
+    }
+    if (kind === "block") {
+      const name = type[UNLAYER_CONFIG_KEY]?.name ?? displayName(type);
+      return {
+        name,
+        record: (position) => {
+          const record: Recorded = { kind: "block", type, props, position };
+          // Text with elements in it (markup, a component of yours, react-intl's <FormattedMessage>): rendered here, with
+          // the template's context, between its marks; their HTML is its text (see normalize.tsx).
+          if (!RICH.test(name) || !childList(props.children, name).some(React.isValidElement)) return mark(record);
+          return checked([mark(record, "o"), guard(props.children, options, name), mark(record, "c")]);
+        },
+      };
+    }
+    return undefined;
+  };
 }
 
-/** Sentinel by the name of the component it stands for, which React's warnings name (`Check the render method of Column`). */
-const named = new Map<string, typeof Sentinel>();
-
-/** A Row, Column or block, while a template is collected (see Sentinel). */
-export function whileCollecting(record: () => React.ReactNode, real: () => React.ReactNode, name: string): React.ReactElement {
-  let type = named.get(name);
-  if (!type) named.set(name, (type = Object.assign((props: Parameters<typeof Sentinel>[0]) => Sentinel(props), { displayName: name })));
-  return React.createElement(type, { record, real });
-}
-
-/** A Row, Column or <Tailwind> while collecting: its props, and markers around its children. */
-export function recordContainer(kind: "row" | "column" | "tailwind", props: Record<string, any>): React.ReactElement {
-  const collection = collecting()!;
-  const at = collection.recorded.push({ kind, props }) - 1;
-  return (
-    <>
-      {marker(collection, at, "o")}
-      {guard(props.children, collection, true)}
-      {marker(collection, at, "c")}
-    </>
-  );
-}
-
-/**
- * A block while collecting: its props, and a marker in its place. A text block with elements in its text (markup,
- * a component of yours, react-intl's <FormattedMessage>) gets them rendered here, with the template's context,
- * between markers: their HTML is its text (see normalize.tsx).
- */
-export function recordBlock(type: React.ComponentType<any>, props: Record<string, any>): React.ReactElement {
-  const collection = collecting()!;
-  const at = collection.recorded.push({ kind: "block", type, props }) - 1;
-  if (!/^(Paragraph|Heading|Button)$/.test((type as any)[UNLAYER_CONFIG_KEY]?.name) || !React.Children.toArray(props.children).some(React.isValidElement)) return marker(collection, at);
-  return (
-    <>
-      {marker(collection, at, "o")}
-      {guard(props.children, collection)}
-      {marker(collection, at, "c")}
-    </>
-  );
+/** A Row, Column or scope: its props recorded, and marks around its children (in boundaries). */
+function container(record: Recorded & { props: Record<string, any> }, options: Options, name: string): React.ReactNode {
+  return checked([mark(record, "o"), guard(record.props.children, options, name, true), mark(record, "c")]);
 }

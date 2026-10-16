@@ -3,14 +3,14 @@
  */
 import React from "react";
 import { renderToHtml } from "@unlayer/react-elements";
-import { recordForHead } from "./record";
+import { headEntry } from "./record";
 
 export interface HeadProps {
   /** `<meta>`, `<link>`, `<style>` and `<title>` elements. */
   children?: React.ReactNode;
 }
 
-/** The main entry's React render (the one it renders templates with: see src/utils/internals.ts). */
+/** The main entry's static markup (the engine's: see src/utils/internals.ts). */
 const render = (node: React.ReactNode): string =>
   (renderToHtml as unknown as Record<symbol, { render: (node: React.ReactElement) => string }>)[Symbol.for("@unlayer/react-elements/internals")].render(<>{node}</>);
 
@@ -42,16 +42,14 @@ function asWritten(node: React.ReactNode): React.ReactNode {
  * </Email>
  * ```
  */
-export function Head({ children }: HeadProps): React.ReactElement {
-  // While a template is collected, its tags are recorded for the head; it renders nothing.
-  return recordForHead(
-    {
-      kind: "head",
-      tags: () => [render(asWritten(children))],
-      json: "[Unlayer] <Head>'s tags are kept in HTML but not in the design for the visual editor.",
-    },
-    "Head"
-  );
+export function Head(_: HeadProps): React.ReactElement | null {
+  // Its tags are recorded for the head where the template is collected; it renders nothing.
+  return null;
 }
 
 Head.displayName = "Head";
+headEntry(Head, ({ children }: HeadProps) => ({
+  kind: "head",
+  tags: () => [render(asWritten(children))],
+  json: "[Unlayer] <Head>'s tags are kept in HTML but not in the design for the visual editor.",
+}));

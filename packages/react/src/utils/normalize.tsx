@@ -1,8 +1,8 @@
 /**
- * A template's Rows, Columns and blocks, as React renders them: one render
- * collects them (see collect.ts and record.tsx), with the user's components,
- * Fragments, conditions, hooks and Context handled by React itself. What it
- * gives back is the template as Elements components only (Email > Row >
+ * A template's Rows, Columns and blocks, as React would render them: one walk
+ * collects them (see record.tsx and src/engine), with the user's components,
+ * Fragments, conditions, hooks and Context rendered as React renders them. What
+ * it gives back is the template as Elements components only (Email > Row >
  * Column > blocks), which the HTML, the head and the design are then made
  * from, so they can't disagree.
  *
@@ -10,17 +10,18 @@
  * markup among the rows is kept as it is; text in a Row or Column shows as
  * text (with a warning); a component of the user's own that renders markup in
  * a Column is an HTML block named after it; other markup in a Row or Column is
- * left out. A component that throws, suspends or is async is left out, with a
- * message, and the rest renders.
+ * left out. A component that fails fails the render, or with `onError: "omit"` is
+ * left out of all three (see engine/errors.ts).
  */
 import React from "react";
-import { renderToStaticMarkup, renderToString } from "./server-renderer";
-import { COLLECTING_ID, MARK, RECORDS, within, type Collection, type Recorded } from "./collect";
-import { guard } from "./record";
-import { callIsolated, FORWARD_REF, isAsyncComponent, isThenable, MEMO } from "./unwrap-root";
-import { sayOnce, scopeCache } from "./render-scope";
-import { classProps, rootProps, TAILWIND } from "./tailwind";
-import { UNLAYER_CONFIG_KEY } from "./create-component";
+import { MARK, type Collection, type Recorded } from "./collect";
+import { collector, guard } from "./record";
+import { contentTree, isUnlayerProvider, MEMO } from "./unwrap-root";
+import { failed, failedBefore, omitted, onError, sayOnce, scopeCache, withScope } from "./render-scope";
+import { collect as walkCollect, RenderError } from "../engine";
+import { omits } from "../engine/errors";
+import { classProps, isTailwindError, rootProps, TAILWIND } from "./tailwind";
+import { OWN, UNLAYER_CONFIG_KEY } from "./create-component";
 import { inlineHtml } from "./inline-html";
 import { closestName } from "./closest-name";
 import { PROP_ALIASES } from "@unlayer-internal/shared-elements";
@@ -49,7 +50,7 @@ export const KEPT = Symbol.for("@unlayer/react-elements/kept");
 type Within = { at: number; children: Node[]; tw?: number };
 type Node =
   | { kind: "raw"; html: string }
-  | ({ kind: "block" } | { kind: "failed" }) & { at: number; tw?: number; children?: Node[] }
+  | { kind: "block"; at: number; tw?: number; children?: Node[] }
   | ({ kind: "row" } | { kind: "column" } | { kind: "boundary" } | { kind: "tailwind" }) & Within;
 
 /** The markers in a collected render, as a tree; what's between them is kept as raw HTML. */
@@ -58,7 +59,7 @@ export function parse(html: string, collection: Collection): Node[] {
   const open: Node[][] = [root];
   // The <Tailwind> each open list is in.
   const tws: Array<number | undefined> = [undefined];
-  const pattern = new RegExp(`<${MARK} data-n="${collection.nonce}" data-i="(\\d+)"(?: data-e="([ocf])")?></${MARK}>`, "g");
+  const pattern = new RegExp(`<${MARK} data-n="${collection.nonce}" data-i="(\\d+)"(?: data-e="([oc])")?></${MARK}>`, "g");
   let last = 0;
   for (const match of html.matchAll(pattern)) {
     const into = open[open.length - 1];
@@ -76,7 +77,7 @@ export function parse(html: string, collection: Collection): Node[] {
     } else if (edge === "c") {
       open.pop();
       tws.pop();
-    } else into.push({ kind: edge === "f" ? "failed" : "block", at, tw });
+    } else into.push({ kind: "block", at, tw });
   }
   if (last < html.length) open[open.length - 1].push({ kind: "raw", html: html.slice(last) });
   if (open.length !== 1) throw new Error("[Unlayer] a collected render's markers don't pair up");
@@ -141,15 +142,13 @@ function innerType(type: any): any {
 }
 
 /** One render of a root's children, collected. */
-interface Collected {
+export interface Collected {
   nodes: Node[];
   collection: Collection;
-  /** The components left out that were said so (once: the HTML, the head and the design build from the same render). */
+  /** What was said once (the HTML, the head and the design build from the same render). */
   told: Set<number>;
-  /** Each component's kept markup, worked out once (asking the component means calling it again). */
+  /** Each component's kept markup, worked out once. */
   kept?: Map<number, React.ReactElement | undefined>;
-  /** A template that isn't one (see tell): every use of this render fails with it, the head's and the design's too. */
-  fatal?: unknown;
   /** Props with their classes turned into props (see styled), by where they're recorded. */
   styled?: Map<number, Record<string, any>>;
   /** The root's props (its classes as props, its mode), for a scope's rewrite of a Row (see utils/tailwind.ts). */
@@ -164,66 +163,11 @@ const nameOf = (element: React.ReactElement): string => {
   return type?.displayName || type?.name || "component";
 };
 
-/** A component that threw, suspended or is async, left out: said once per render. */
-function leftOut(c: Collected, node: { at: number }): [] {
-  if (c.fatal) throw c.fatal;
-  if (!c.told.has(node.at)) {
-    c.told.add(node.at);
-    try {
-      tell(recorded(c, node).element);
-    } catch (error) {
-      c.fatal = error;
-      throw error;
-    }
-  }
-  return [];
-}
-
-/** A function component of the user's own (memo, forwardRef), called once more on its own; undefined for others. */
-function calledAgain(element: React.ReactElement<any>): { out: unknown } | undefined {
-  const type = innerType(element.type);
-  if (type?.$$typeof !== FORWARD_REF && (typeof type !== "function" || type.prototype?.isReactComponent)) return undefined;
-  const props = { ...element.props };
-  for (const key in type.defaultProps) if (props[key] === undefined) props[key] = type.defaultProps[key];
-  return { out: callIsolated(() => (type.$$typeof === FORWARD_REF ? type.render(props, null) : type(props))) };
-}
-
-/**
- * Says why a component was left out: it's called once more on its own, and what it renders is collected, so a
- * component in it that fails says so itself.
- */
-function tell(element: React.ReactElement<any>): void {
-  const type = innerType(element.type);
-  const name = nameOf(element);
-  const async = () =>
-    console.warn(`[Unlayer] <${name}> is async or suspends: these renderers are synchronous, so it's left out. Render with "@unlayer/react-elements/async", or load its data first and pass it as props.`);
-  if (isAsyncComponent(type)) return async();
-  try {
-    const again = calledAgain(element);
-    // A class, lazy, …: React renders it, and throws what it does.
-    const inner = again ? collected(again.out as React.ReactNode) : collected(element, false);
-    const failed = (nodes: Node[]): Array<{ at: number }> => nodes.flatMap((n) => (n.kind === "failed" ? [n] : "children" in n && n.children ? failed(n.children) : []));
-    const found = failed(inner.nodes);
-    for (const node of found) tell(recorded(inner, node).element);
-    if (!found.length) console.error(`[Unlayer] <${name}> failed while rendering, so it's left out.`);
-  } catch (error) {
-    const message = String((error as Error)?.message);
-    // A template that isn't one (a component that's undefined, from a broken or circular import; an object or a Date
-    // as a child) fails the render, wherever it is, as without a component around it: an email missing a block
-    // shouldn't send. (React's production build names these by their error numbers, 130 and 31.)
-    if (/Element type is invalid|Objects are not valid as a React child|Minified React error #(130|31)\b/.test(message)) throw error;
-    // (React's production build says "suspended" as its error #426.)
-    if (isThenable(error) || /async and suspending|suspended|Minified React error #426\b/.test(message)) async();
-    else console.error(`[Unlayer] <${name}> threw while rendering, so it's left out:`, error);
-  }
-}
-
 /** What a component rendered, when that's markup only (its own components' markup in, those that failed left out). */
 function markupOnly(c: Collected, nodes: Node[]): string | undefined {
   let out = "";
   for (const node of nodes) {
     if (node.kind === "raw") out += node.html;
-    else if (node.kind === "failed") leftOut(c, node);
     else if (node.kind !== "boundary" && node.kind !== "tailwind") return undefined;
     else {
       const inner = markupOnly(c, node.children);
@@ -259,21 +203,18 @@ function keptMarkupOnce(c: Collected, node: Within): React.ReactElement | undefi
   const block = solo.length === 1 && "tag" in solo[0] ? asBlock(solo[0], { containerPadding, hideOnMobile, hideOnDesktop }, true) : undefined;
   if (block) return block;
   // One element (what's in it may not pair up as markup): React writes `dangerouslySetInnerHTML` and children
-  // alike, so the component is asked which it gave (a <div> when it can't say, as most such are).
+  // alike, so what the component returned says which it gave (a <div> when it can't, as most such are: a class's).
   const one = list.length === 1 || list.some((p) => "tag" in p && p.tag === "#") ? /^<([a-zA-Z][\w:-]*)\b[^>]*>([\s\S]*)<\/\1>$/.exec(raw) : null;
-  // Asked only when it matters (one element), as asking calls the component again.
   let given = false;
   if (one) {
-    try {
-      const out = calledAgain(element)?.out as React.ReactElement<{ dangerouslySetInnerHTML?: unknown }> | undefined;
-      given = React.isValidElement(out) && typeof out.type === "string" && out.props.dangerouslySetInnerHTML != null;
-    } catch {
-      given = one[1].toLowerCase() === "div";
-    }
+    const output = (recorded(c, node) as { output?: { value: unknown } }).output;
+    const out = output?.value as React.ReactElement<{ dangerouslySetInnerHTML?: unknown }> | undefined;
+    given = output ? React.isValidElement(out) && typeof out.type === "string" && out.props.dangerouslySetInnerHTML != null : one[1].toLowerCase() === "div";
   }
   const html = one && given ? one[2] : raw;
   const Rendered = () => React.createElement("div", { dangerouslySetInnerHTML: { __html: html } });
   Rendered.displayName = nameOf(element);
+  (Rendered as unknown as Record<symbol, unknown>)[OWN] = true;
   (Rendered as unknown as Record<symbol, unknown>)[KEPT] = React.createElement(Html, {
     html,
     ...(containerPadding !== undefined ? { containerPadding } : {}),
@@ -281,39 +222,6 @@ function keptMarkupOnce(c: Collected, node: Within): React.ReactElement | undefi
     ...(hideOnDesktop !== undefined ? { hideOnDesktop } : {}),
   } as Record<string, unknown>);
   return React.createElement(Rendered, { ...element.props });
-}
-
-/**
- * A block a component of the template rendered to a string (react-dom's own `renderToStaticMarkup`) while the
- * template is collected comes out as its marker. In a prop (an Html block's `html`) that's what it renders.
- */
-function resolvedProps(c: Collected, props: Record<string, any>): Record<string, any> {
-  let out = props;
-  for (const [key, value] of Object.entries(props)) {
-    if (typeof value !== "string" || !value.includes(MARK)) continue;
-    let html = value;
-    try {
-      if (value.includes(c.collection.nonce)) html = markup(c, parse(value, c.collection), (block) => within(null, () => renderToStaticMarkup(block)));
-    } catch {
-      // Markers that don't pair up (part of a string): left for withoutMarkers.
-    }
-    out = out === props ? { ...props } : out;
-    out[key] = withoutMarkers(html, c.collection.nonce);
-  }
-  return out;
-}
-
-/**
- * A marker that got out of the collecting render (it can't, by the Sentinel: this is the net under it) is
- * taken out, and said, rather than sent in an email: what it stood for can't be told any more. Only this
- * render's markers, whole, as React writes them: this runs on finished HTML, after `toSafeHtml`, and taking
- * out anything else (text shaped like a marker in an attribute) could move where an attribute ends.
- */
-function withoutMarkers(html: string, nonce: string): string {
-  const left = new RegExp(`<${MARK} data-n="${nonce}" data-i="\\d+"(?: data-e="[ocf]")?></${MARK}>`, "g");
-  if (!html.includes(nonce) || !html.match(left)) return html;
-  console.error(`[Unlayer] an Elements block rendered inside a component left a marker behind; it's taken out, and the block it stood for is missing.`);
-  return html.replace(left, "");
 }
 
 /** Collected nodes as HTML: markup as it is, each row, column or block by `render`. */
@@ -326,12 +234,18 @@ function markup(c: Collected, nodes: Node[], render: (element: React.ReactElemen
         case "boundary":
         case "tailwind":
           return markup(c, node.children, render);
-        case "failed":
-          leftOut(c, node);
-          return "";
         default: {
           const out = element(c, node);
-          return out ? render(out) : "";
+          if (!out) return "";
+          try {
+            return render(out);
+          } catch (error) {
+            // An exporter of the row (its Columns' too) that failed: the row's. A block's says which block it was.
+            if (error instanceof RenderError) throw error;
+            const r = recorded(c, node);
+            failed(new RenderError(`${String((error as Error)?.message ?? error)}`, node.kind === "row" ? "Row" : nameOf(out), r.position ?? "", error), r);
+            return "";
+          }
         }
       }
     })
@@ -388,8 +302,10 @@ const BLOCKS: Record<string, React.ComponentType<any>> = { Paragraph, Heading, B
 /** A recorded Row, Column or block, as the Elements component it was, with what React rendered in it (null: left out). */
 function element(c: Collected, node: Extract<Node, { kind: "row" | "column" | "block" }>): React.ReactElement | null {
   const r = recorded(c, node);
+  // A row or block whose exporter failed in this render's HTML (`onError: "omit"`): left out of the head and design too.
+  if (failedBefore(r)) return null;
   if (node.kind === "block") {
-    let props = resolvedProps(c, r.props);
+    let props: Record<string, any> = r.props;
     // Its text as React rendered it (see record.tsx): HTML, kept to inline formatting. A component in it that failed is said.
     const html = node.children && markupOnly(c, node.children);
     const item = r.type[UNLAYER_CONFIG_KEY];
@@ -407,7 +323,8 @@ function element(c: Collected, node: Extract<Node, { kind: "row" | "column" | "b
         if (near !== false) sayOnce(`[Unlayer] ${item.name} ignores the prop \`${key}\`${near ? `: did you mean \`${near}\`?` : "."}`);
       }
     }
-    return React.createElement((item?.contentType !== "custom" && BLOCKS[item?.name]) || r.type, styled(c, node, props));
+    // `_record`: its record, which the Column rendering it names when its exporter fails.
+    return React.createElement((item?.contentType !== "custom" && BLOCKS[item?.name]) || r.type, { ...styled(c, node, props), _record: r });
   }
   if (node.kind === "column") return React.createElement(Column, { ...styled(c, node, r.props), children: keyed(elements(c, node.children, "column")) });
   const props: Record<PropertyKey, any> = { ...styled(c, node, r.props) };
@@ -419,8 +336,11 @@ function element(c: Collected, node: Extract<Node, { kind: "row" | "column" | "b
   if (layout) {
     const columns = list.filter((child: any) => child?.type === Column).length;
     if (columns !== layout.expectedColumns && React.Children.count(props.children) !== layout.expectedColumns) {
-      // (Said once: the HTML, the head and the design ask.)
-      c.told.has(node.at) || (c.told.add(node.at), console.error(`[Unlayer] A Row with the ${layout.name} layout, for ${layout.expectedColumns} Columns, has ${columns}, so it's left out.`));
+      // It fails the render, or is left out (once: the HTML, the head and the design ask).
+      if (!c.told.has(node.at)) {
+        c.told.add(node.at);
+        failed(new RenderError(`A Row with the ${layout.name} layout, for ${layout.expectedColumns} Columns, has ${columns}`, "Row", r.position ?? "Row"));
+      }
       return null;
     }
     props.cells = layout.cells;
@@ -496,8 +416,6 @@ function elements(c: Collected, nodes: Node[], place: Place, owner?: React.FC, i
   const inColumn = place === "column";
   return (place === "root" || inMarkup ? nodes.map((node) => ({ node, inside: inMarkup })) : spanned(nodes)).flatMap(({ node, inside }): React.ReactNode[] => {
     switch (node.kind) {
-      case "failed":
-        return leftOut(c, node);
       case "tailwind":
         return elements(c, node.children, place, owner, inside);
       case "boundary": {
@@ -536,114 +454,77 @@ function elements(c: Collected, nodes: Node[], place: Place, owner?: React.FC, i
   });
 }
 
-/** A render of `children` that collects them; `guarded`, a component in them that fails is left out. */
-function collected(children: React.ReactNode, guarded = true): Collected {
-  const once = (markup: boolean): Collected => {
-    const collection: Collection = { nonce: nonce(), recorded: [], ...(markup ? { markup } : {}), ...(idsSeen() ? {} : { blind: true }) };
-    const html = within(collection, () => renderToStaticMarkup(<>{guarded ? guard(children, collection) : children}</>, { identifierPrefix: COLLECTING_ID }));
-    return { nodes: parse(html, collection), collection, told: new Set() };
-  };
-  try {
-    return once(false);
-  } catch (error) {
-    // Markup React rejects (`<hr style="…">` with a string style, in a JavaScript template) isn't a component, so no
-    // boundary catches it and it ends the render. Once more with markup guarded too: it's left out, with a message,
-    // and the rest renders, as in 0.1.22. A template that renders doesn't get here, so nothing else changes.
-    if (!guarded) throw error;
-    return once(true);
-  }
-}
-
-/**
- * Whether the React Elements' components call gives them the ids of the render Elements starts (see Sentinel):
- * not where a bundler gave them another copy than react-dom's (Next.js's server layers), where `useId()` throws or
- * gives an outer render's ids. `render`: the react-dom that render is with (an async render's, its own).
- */
-export function idsSeen(render = renderToStaticMarkup): boolean {
-  let seen = false;
-  const Probe = () => {
-    try {
-      seen = React.useId().slice(1).startsWith(COLLECTING_ID);
-    } catch {
-      // another copy: no render it can see
-    }
-    return null;
-  };
-  render(<Probe />, { identifierPrefix: COLLECTING_ID });
-  return seen;
-}
-
-/**
- * A collection that isn't the template: fewer Rows recorded than it plainly has (its root's own, in Fragments and
- * <Tailwind>s), or none where a Row, Column or block rendered its HTML in it (see Sentinel). Its email would be broken
- * (rows as a web layout, a design without them), with nothing but a warning, so the render fails.
- */
-export function intact(children: React.ReactNode, collection: Collection): void {
-  const rows = (nodes: React.ReactNode): number =>
-    React.Children.toArray(nodes).reduce<number>((n, child: any) => n + (child?.type === React.Fragment || child?.type?.[TAILWIND] ? rows(child.props.children) : child?.type?.[RECORDS] && child.type.displayName === "Row" ? 1 : 0), 0);
-  const recorded = collection.recorded.filter((r) => r.kind === "row").length;
-  if (recorded < rows(children) || (!recorded && collection.lost))
-    throw new Error("[Unlayer] the template's Rows and blocks rendered as HTML instead of being collected, so the email would be broken: Elements' React isn't react-dom's (another copy of React: see `npm ls react`), or the runtime isn't one Elements supports.");
-}
-
-// Shared by every copy of Elements a process loads, as the collecting stack is (collect.ts): no two renders get one nonce.
-const RENDERS = Symbol.for("@unlayer/react-elements/renders");
+let renders = 0;
 
 /**
  * A collection's nonce, so markup a template's data holds can't name it: letters, digits and "_", from the count of
- * the process's renders and its high-resolution clock (when it started, and the time since to a fraction of a
+ * renders and the high-resolution clock (when the process started, and the time since to a fraction of a
  * millisecond), which data written before the render can't know. Not random numbers: a framework that prerenders
  * pages takes `crypto.getRandomValues()` and `Math.random()` for a value that changes the page, and Next.js's Cache
  * Components (its new apps' default) fail the build on one, but the nonce never reaches the output. `performance` is
  * what Next.js leaves for timing, and every runtime Elements supports has it.
  */
-function nonce(): string {
-  const shared = globalThis as Record<symbol, number>;
+export function nonce(): string {
   const clock = globalThis.performance;
-  return [(shared[RENDERS] = (shared[RENDERS] ?? 0) + 1), (clock?.timeOrigin ?? 0) * 1e3, (clock?.now() ?? 0) * 1e6].map((n) => Math.floor(n).toString(36)).join("_");
+  return [++renders, (clock?.timeOrigin ?? 0) * 1e3, (clock?.now() ?? 0) * 1e6].map((n) => Math.floor(n).toString(36)).join("_");
+}
+
+/** How `children` (a root's, `root` naming it) are walked to collect them: the collector, and the walk's options. */
+export function collecting(children: React.ReactNode, root: string) {
+  const policy = onError();
+  const options = { omit: omits(policy) };
+  return { node: guard(children, options, root), options: { collector: collector(options), nonce: nonce(), onError: policy, root, tree: contentTree(children), passes: isTailwindError, frameless: isUnlayerProvider } };
+}
+
+/** A collecting walk's output as the collected template; what it left out listed and said (this render's). */
+export function collectedFrom(flat: { html: string; recorded: object[]; omitted: RenderError[] }, nonce: string): Collected {
+  const collection: Collection = { nonce, recorded: flat.recorded as Recorded[] };
+  for (const error of flat.omitted) omitted(error);
+  return { nodes: parse(flat.html, collection), collection, told: new Set() };
+}
+
+/** `children` collected synchronously: its components run outside this render's scope (one they start is its own). */
+function collected(children: React.ReactNode, root: string): Collected {
+  const { node, options } = collecting(children, root);
+  return collectedFrom(withScope(undefined, () => walkCollect(node, options)), options.nonce);
 }
 
 /** `children` collected, once per render (the HTML, the head and the design ask for the same). */
-export const collect = (children: React.ReactNode): Collected =>
-  children !== null && typeof children === "object"
-    ? scopeCache(children, () => {
-        const c = collected(children);
-        intact(children, c.collection);
-        return c;
-      })
-    : collected(children);
+export const collect = (children: React.ReactNode, root = "template"): Collected =>
+  children !== null && typeof children === "object" ? scopeCache(children, () => collected(children, root)) : collected(children, root);
 
 /**
  * A root's children as HTML (what Body puts inside it): markup among the rows as it is, and each row or block
- * rendered by Elements with `place` giving it the root's settings.
+ * rendered by Elements with `render` (with the root's settings).
  */
-export function childrenHtml(children: React.ReactNode, place: (child: React.ReactElement) => React.ReactElement, root: Record<string, any>): string {
-  const c = collect(children);
+export function childrenHtml(children: React.ReactNode, render: (child: React.ReactElement) => string, root: Record<string, any>, name: string): string {
+  const c = collect(children, name);
   c.root = root;
-  return withoutMarkers(markup(c, c.nodes, (child) => within(null, () => renderToString(place(child)))), c.collection.nonce);
+  return markup(c, c.nodes, render);
 }
 
 /** Children (a root's, with its props, or a Row on its own) as Elements components only, for the head and the design. */
-export function normalizedChildren(children: React.ReactNode, root?: Record<string, any>): React.ReactNode[] {
-  const c = collect(children);
+export function normalizedChildren(children: React.ReactNode, root?: Record<string, any>, name?: string): React.ReactNode[] {
+  const c = collect(children, name);
   c.root = root;
   return elements(c, c.nodes, "root");
 }
 
 /** What a root's content gives the document's head and the root (a <Font>, from "@unlayer/react-elements/font"). */
-const heads = (children: React.ReactNode) => collect(children).collection.recorded.flatMap((r) => (r.kind === "head" ? [r] : []));
-export const headTags = (children: React.ReactNode, mode: string) => heads(children).flatMap((r) => r.tags(mode));
+export const heads = (children: React.ReactNode, root?: string) => collect(children, root).collection.recorded.flatMap((r) => (r.kind === "head" ? [r] : []));
+export const headTags = (children: React.ReactNode, mode: string, root?: string) => heads(children, root).flatMap((r) => r.tags(mode));
 
 /** The props a root's content gives it (a <Font default>'s `fontFamily`), where it sets none of them. */
-export function rootDefaults(props: Record<string, any>): Record<string, unknown> {
+export function rootDefaults(props: Record<string, any>, name?: string): Record<string, unknown> {
   const out: Record<string, unknown> = {};
-  for (const { root } of heads(props.children)) for (const key in root) if (props[key] === undefined && props.values?.[key] === undefined) out[key] ??= root[key];
+  for (const { root } of heads(props.children, name)) for (const key in root) if (props[key] === undefined && props.values?.[key] === undefined) out[key] ??= root[key];
   return out;
 }
 
 /** `root` with its children as Elements components only (and its classes and default font as props). */
 export function normalizedRoot(root: React.ReactElement): React.ReactElement {
   const props = root.props as { className?: string; children?: React.ReactNode };
-  const styled = rootProps(props, (root.type as { displayName?: string }).displayName ?? "Body");
-  return React.cloneElement(root, { ...styled, ...rootDefaults(styled) }, ...normalizedChildren(props.children, styled));
+  const name = (root.type as { displayName?: string }).displayName ?? "Body";
+  const styled = rootProps(props, name);
+  return React.cloneElement(root, { ...styled, ...rootDefaults(styled, name) }, ...normalizedChildren(props.children, styled, name));
 }

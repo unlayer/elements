@@ -1,5 +1,4 @@
 import React from "react";
-import { renderToHtml } from "@unlayer/react-elements";
 
 /** A Tailwind config, as React Email's `<Tailwind config>` takes it: `{ theme: { extend: { colors: { brand: "#007291" } } } }`. */
 export type TailwindConfig = { theme?: Record<string, unknown>; presets?: TailwindConfig[]; plugins?: unknown[]; [key: string]: unknown };
@@ -52,10 +51,9 @@ function rewrite(scope: TailwindProps, name: string, defaults: Record<string, an
   return resolver(scope).props(name, className ?? "", explicit, defaults);
 }
 
-const internals = (renderToHtml as unknown as Record<symbol, any>)[Symbol.for("@unlayer/react-elements/internals")];
 const ROOTS = new Set(["Body", "Email", "Page", "Document"]);
 
-/** Outside a template being collected: it goes inside the roots it's around (their classes are its, see the root's Body). */
+/** Rendered (not collected): it goes inside the roots it's around (their classes are its, see the root's Body). */
 function placed({ children, ...props }: TailwindProps): React.ReactNode {
   return React.Children.map(children, (child) =>
     React.isValidElement<{ children?: React.ReactNode }>(child) && ROOTS.has((child.type as { displayName?: string })?.displayName ?? "")
@@ -85,12 +83,11 @@ function placed({ children, ...props }: TailwindProps): React.ReactNode {
  * ```
  */
 export function Tailwind(props: TailwindProps): React.ReactElement {
-  // While a template is collected, it records itself, with its rewrite (see the main entry's utils/tailwind.ts).
-  if (internals.collecting()) return internals.whileCollecting(() => internals.recordContainer("tailwind", { ...props, [TAILWIND]: rewrite }), () => placed(props), "Tailwind");
   return <>{placed(props)}</>;
 }
 
 Tailwind.displayName = "Tailwind";
+// A template's collecting walk records it, with this rewrite (see the main entry's utils/tailwind.ts and record.tsx).
 (Tailwind as unknown as Record<symbol, unknown>)[TAILWIND] = rewrite;
 
 export default Tailwind;

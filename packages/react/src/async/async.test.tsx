@@ -2,7 +2,7 @@
 import React from "react";
 import { JSDOM } from "jsdom";
 import { describe, expect, it, vi } from "vitest";
-import { Column, Email, Heading, Html, Paragraph, Row, UnlayerProvider, renderToHtml as renderToHtmlSync, renderToJson as renderToJsonSync } from "../index";
+import { Column, Email, Heading, Html, Paragraph, RenderError, Row, UnlayerProvider, renderToHtml as renderToHtmlSync, renderToJson as renderToJsonSync } from "../index";
 import { Tailwind } from "../tailwind";
 import { pretty as formatted, renderToHtml, renderToHtmlParts, renderToJson, renderToPlainText } from "./index";
 import * as tailwind from "../tailwind";
@@ -150,13 +150,13 @@ describe("the async renderers", () => {
       throw boom;
     };
     const failure = await renderToHtml(<Email><Row><Column><Paragraph>Before</Paragraph><Broken /></Column></Row></Email>).catch((error) => error);
-    expect(failure.message).toBe("[Unlayer] <Broken> threw while rendering: the order service is down");
-    expect(failure.cause).toBe(boom);
+    expect(failure).toBeInstanceOf(RenderError);
+    expect(failure).toMatchObject({ message: "[Unlayer] the order service is down (in <Broken> at Row 1 › Column 1 › Broken)", component: "Broken", position: "Row 1 › Column 1 › Broken", cause: boom });
     async function Template() {
       await later(null);
       throw boom;
     }
-    await expect(renderToJson(<Template />)).rejects.toMatchObject({ message: "[Unlayer] <Template> threw while rendering: the order service is down", cause: boom });
+    await expect(renderToJson(<Template />)).rejects.toMatchObject({ message: "[Unlayer] the order service is down (in <Template>)", component: "Template", cause: boom });
   });
 
   it("compile <Tailwind config>, also in a template that's async", async () => {
@@ -225,16 +225,20 @@ describe("the async renderers", () => {
     expect(await renderToPlainText(email, { links: "after", uppercaseHeadings: false })).toBe("Welcome\n\nRead the guide [1].\n\n[1] https://example.com/a");
   });
 
-  it("say the synchronous renderers can't, naming the async component", () => {
-    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+  it("say the synchronous renderers can't, naming the async component (without calling it)", () => {
+    let calls = 0;
+    const Later = async () => (calls++, <Paragraph>later</Paragraph>);
+    const email = <Email><Row><Column><Later /><Paragraph>Still here</Paragraph></Column></Row></Email>;
+    const said = '[Unlayer] it is async or suspends, and this renderer is synchronous: render with "@unlayer/react-elements/async", or load its data first and pass it as props (in <Later> at Row 1 › Column 1 › Later)';
+    expect(() => renderToHtmlSync(email)).toThrow(said);
+    // Left out where the render leaves failed parts out, said once.
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
     try {
-      const Later = async () => <Paragraph>later</Paragraph>;
-      renderToHtmlSync(<Email><Row><Column><Later /></Column></Row></Email>);
-      expect(warn.mock.calls.map((c) => String(c[0]))).toEqual([
-        '[Unlayer] <Later> is async or suspends: these renderers are synchronous, so it\'s left out. Render with "@unlayer/react-elements/async", or load its data first and pass it as props.',
-      ]);
+      expect(renderToHtmlSync(email, { onError: "omit" })).toContain("Still here");
+      expect(error.mock.calls.map((c) => String(c[0]))).toEqual([said.replace("[Unlayer] it", "[Unlayer] Left out: it")]);
     } finally {
-      warn.mockRestore();
+      error.mockRestore();
     }
+    expect(calls).toBe(0);
   });
 });
