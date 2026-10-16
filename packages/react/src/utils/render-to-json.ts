@@ -409,7 +409,7 @@ export function renderRowToJson(element: React.ReactElement): DesignRow {
   }
 
   const counters: Record<string, number> = {};
-  // A render of its own, as renderToJson's: the same row gives the same ids every time. React renders what's in it.
+  // A render of its own, as renderToJson's: the same row gives the same ids every time. What's in it is collected.
   return withRenderScope(() => {
     const row = normalizedChildren(element, undefined, "Row").find((c): c is React.ReactElement => React.isValidElement(c));
     // Left out (its Columns don't fit its layout), it's no row.

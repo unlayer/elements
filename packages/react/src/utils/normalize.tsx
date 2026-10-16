@@ -299,14 +299,14 @@ const asBlock = (part: Part, props: Record<string, unknown> = {}, exact = false)
  */
 const BLOCKS: Record<string, React.ComponentType<any>> = { Paragraph, Heading, Button, Image, Divider, Html, Menu, Social, Table, Video, PageBreak };
 
-/** A recorded Row, Column or block, as the Elements component it was, with what React rendered in it (null: left out). */
+/** A recorded Row, Column or block, as the Elements component it was, with what rendered in it (null: left out). */
 function element(c: Collected, node: Extract<Node, { kind: "row" | "column" | "block" }>): React.ReactElement | null {
   const r = recorded(c, node);
   // A row or block whose exporter failed in this render's HTML (`onError: "omit"`): left out of the head and design too.
   if (failedBefore(r)) return null;
   if (node.kind === "block") {
     let props: Record<string, any> = r.props;
-    // Its text as React rendered it (see record.tsx): HTML, kept to inline formatting. A component in it that failed is said.
+    // Its text as it rendered (see record.tsx): HTML, kept to inline formatting.
     const html = node.children && markupOnly(c, node.children);
     const item = r.type[UNLAYER_CONFIG_KEY];
     if (html !== undefined) props = { ...props, children: undefined, [item.name === "Paragraph" ? "html" : "text"]: inlineHtml(html, node.tw !== undefined) };

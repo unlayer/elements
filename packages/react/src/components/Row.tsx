@@ -258,8 +258,8 @@ function renderRow(props: RowProps): React.ReactElement | null {
   // Determine cells from layout or props. With neither, default to one equal
   // cell PER <Column> child (mirroring renderToJson) — `[1]` regardless of column
   // count left the 2nd/3rd column with no cell, rendering width="NaN".
-  // Its Columns, as React rendered them (see normalize.tsx). (The renderers give it its layout's cells, and leave out
-  // a Row whose Columns don't fit it.)
+  // Its Columns, as they rendered (see normalize.tsx). (The renderers give it its layout's cells, and leave out
+  // or fail on, a Row whose Columns don't fit it.)
   const columnCount = React.Children.toArray(children).filter(
     (c) => React.isValidElement(c) && /^Column$/.test((c.type as any)?.displayName || (c.type as any)?.name || "")
   ).length;
