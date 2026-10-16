@@ -17,7 +17,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { createChecks } from "./checks.js";
 import { discoverTemplates, resolveTemplatePath, type TemplateEntry } from "./discover.js";
-import { createLoader, readSource, type TemplateLoader } from "./loader.js";
+import { createLoader, readSource, type RenderResult, type TemplateLoader } from "./loader.js";
 import { inspectProject, type ProjectInfo } from "./project.js";
 
 export interface DevServerOptions {
@@ -58,6 +58,10 @@ export async function startDevServer(options: DevServerOptions): Promise<DevServ
   let templates: TemplateEntry[] = await discoverTemplates(dir);
   const events = new Set<ServerResponse>();
   const hashes = new Map<string, string>();
+  // Each template's last render, for its checks; `generation` counts the times files changed and were loaded again.
+  let generation = 0;
+  const lastRenders = new Map<string, { key: string; generation: number; result: RenderResult }>();
+  const renderKey = (props: unknown) => JSON.stringify(props ?? null);
 
   function broadcast(event: string, data: unknown): void {
     const payload = `event: ${event}\ndata: ${JSON.stringify(data)}\n\n`;
@@ -84,6 +88,8 @@ export async function startDevServer(options: DevServerOptions): Promise<DevServ
       const files = [...changed];
       changed.clear();
       loader.invalidate();
+      // A render from before is out of date for the checks too.
+      generation++;
       const inDir = files.filter((f) => f.startsWith(dir + path.sep));
       if (inDir.length) templates = await discoverTemplates(dir);
       broadcast("change", {
@@ -131,10 +137,15 @@ export async function startDevServer(options: DevServerOptions): Promise<DevServ
       const file = body.path ? resolveTemplatePath(dir, body.path) : undefined;
       if (!file || !templates.some((t) => t.path === body.path)) return json(res, 404, { error: `No template ${body.path}` });
       if (!project.canRender) return json(res, 200, { ok: false, logs: [], durationMs: 0, error: { message: project.warnings.join("\n"), phase: "load" } });
-      const result = await loader.render(file, { props: body.props });
       if (url.pathname === "/api/render") {
+        const at = generation;
+        const result = await loader.render(file, { props: body.props });
+        lastRenders.set(body.path!, { key: renderKey(body.props), generation: at, result });
         return json(res, 200, { ...result, source: await readSource(file) });
       }
+      // The app checks each render it gets: the same template and props, with no file changed since, is that render.
+      const last = lastRenders.get(body.path!);
+      const result = last && last.key === renderKey(body.props) && last.generation === generation ? last.result : await loader.render(file, { props: body.props });
       if (!result.ok) return json(res, 200, { applicable: false, reason: "The template doesn't render." });
       if (url.pathname === "/api/links") return json(res, 200, await checks.links(result));
       return json(res, 200, await checks.compat(result, await readSource(file)));
@@ -154,14 +165,21 @@ export async function startDevServer(options: DevServerOptions): Promise<DevServ
         res.writeHead(405);
         return res.end();
       }
+      let pathname: string;
+      try {
+        pathname = decodeURIComponent(url.pathname);
+      } catch {
+        res.writeHead(400, { "content-type": "text/plain" });
+        return res.end("Bad request");
+      }
       // The templates folder's static/ files, as React Email's preview serves them: <img src="/static/logo.png">.
-      if (url.pathname.startsWith("/static/")) {
-        const file = inside(path.join(dir, "static"), decodeURIComponent(url.pathname.slice("/static/".length)));
+      if (pathname.startsWith("/static/")) {
+        const file = inside(path.join(dir, "static"), pathname.slice("/static/".length));
         if (file && (await sendFile(res, file))) return;
         res.writeHead(404, { "content-type": "text/plain" });
         return res.end("Not found");
       }
-      const asset = url.pathname !== "/" ? inside(uiDir, decodeURIComponent(url.pathname.slice(1))) : undefined;
+      const asset = pathname !== "/" ? inside(uiDir, pathname.slice(1)) : undefined;
       if (asset && (await sendFile(res, asset))) return;
       // Anything else is a page of the app (/preview/<template>).
       if (await sendFile(res, path.join(uiDir, "index.html"))) return;

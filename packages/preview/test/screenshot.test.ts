@@ -1,8 +1,9 @@
 import { existsSync } from "node:fs";
-import { readFile, writeFile } from "node:fs/promises";
+import { readFile, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { findBrowser } from "../src/server/browser";
+import { UsageError } from "../src/server/errors";
 import { takeScreenshots } from "../src/server/screenshot";
 import { fixtureCopy } from "./helpers";
 
@@ -105,5 +106,24 @@ describe("screenshots without what they need", () => {
   it("refuses a browser that isn't there, and no templates", async () => {
     await expect(takeScreenshots({ dir: fixture.emails, templates: ["welcome.tsx"], browser: "/nowhere/chrome" })).rejects.toThrow(/There's no browser at \/nowhere\/chrome/);
     await expect(takeScreenshots({ dir: fixture.emails, templates: [] })).rejects.toThrow(/Name the templates/);
+  });
+
+  it("stops before taking any when two templates would have the same screenshot", async () => {
+    const twin = path.join(fixture.emails, "welcome.jsx");
+    await writeFile(twin, 'import { Email } from "@unlayer/react-elements";\nexport default function Welcome() { return <Email />; }\n');
+    try {
+      const outDir = path.join(fixture.root, "shots-twins");
+      // Before it looks for a browser: this one isn't there.
+      const taken = takeScreenshots({ dir: fixture.emails, templates: ["welcome"], outDir, browser: "/nowhere/chrome" });
+      await expect(taken).rejects.toThrow(UsageError);
+      await expect(takeScreenshots({ dir: fixture.emails, templates: ["."], outDir, browser: "/nowhere/chrome" })).rejects.toThrow(
+        /welcome\.jsx and welcome\.tsx would both write .*welcome\.desktop\.png/
+      );
+      // Each one alone is fine.
+      await expect(takeScreenshots({ dir: fixture.emails, templates: ["welcome.jsx"], outDir, browser: "/nowhere/chrome" })).rejects.toThrow(/There's no browser/);
+      expect(existsSync(outDir)).toBe(false);
+    } finally {
+      await rm(twin);
+    }
   });
 });

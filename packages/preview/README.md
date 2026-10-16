@@ -85,7 +85,7 @@ Renders every template with its `PreviewProps` to `out/<path>.html` (`emails/bil
 | `--design` | | Also write each template's design JSON (`<name>.design.json`) for the Unlayer builder |
 | `--extension <ext>` | `html` | The file extension, e.g. `blade.php` (`txt` with `--plainText`) |
 
-It exits with 1 when a template fails, after exporting the others. Export is for backends that can't run JavaScript, or platforms that only take HTML; when your code can call Elements, render at send time with the real data instead (`renderToHtml`).
+It exits with 1 when a template fails, after exporting the others; with `--plainText`, a template whose plain text can't be made fails too, and gets no file. It exits with 2, before writing anything, when two templates would write the same file (`welcome.jsx` and `welcome.tsx` both export to `welcome.html`): rename one of them. Export is for backends that can't run JavaScript, or platforms that only take HTML; when your code can call Elements, render at send time with the real data instead (`renderToHtml`).
 
 ### `elements-preview check`
 
@@ -121,7 +121,7 @@ Name templates by their path in the templates folder (`welcome.tsx`) or from the
 | --- | --- |
 | `0` | Nothing to fix (with `--strict`, nothing to check either) |
 | `1` | Something to fix (with `--strict`, or to check) |
-| `2` | The check couldn't run: an option, folder or template that isn't right, or Elements not installed. With `--json`, stderr has `{"error": "…"}` |
+| `2` | The check couldn't run: an option, folder or template that isn't right, a folder with no templates, or Elements not installed. With `--json`, stderr has `{"error": "…"}` |
 
 #### The JSON report
 
@@ -207,7 +207,7 @@ npx elements-preview screenshot welcome.tsx --all
 
 Templates are named as for `check` (`.` takes them all). Each page loads the templates folder's `static/` files as the preview does, and waits for its images and web fonts; an image that doesn't load is reported. Templates are taken one at a time, in one browser tab.
 
-It uses a browser already installed, never downloads one: Chrome, Chromium, Microsoft Edge or Brave, in their usual places on macOS, Windows and Linux. Point to another with `--browser` or `CHROME_PATH`. It exits with `1` when a template fails to render, and `2` when it can't run (no browser, or an option, folder or template that isn't right).
+It uses a browser already installed, never downloads one: Chrome, Chromium, Microsoft Edge or Brave, in their usual places on macOS, Windows and Linux. Point to another with `--browser` or `CHROME_PATH`. It exits with `1` when a template fails to render, and `2` when it can't run (no browser, an option, folder or template that isn't right, or two templates whose screenshots would have the same name, such as `welcome.jsx` and `welcome.tsx`).
 
 ### `elements-preview render`
 
@@ -261,6 +261,8 @@ New fields may be added; existing ones keep their meaning.
 | `--open` | | Open it in your browser (`start`) |
 
 A build can't render with other props or update as you edit: that's what `dev` is for. Its Editor view works as in `dev`.
+
+Building again replaces the previous build: the files it wrote are removed first, so a template you deleted, and the app files of an earlier version, don't stay in the folder. A build lists the files it writes in `.elements-preview-build.json` in the folder, and removes only those, so files you add (a host's `_headers`, a `CNAME`) stay. It only writes into a new or empty folder, or one with a build in it: it exits with 2, writing nothing, when the folder has other files (or a build from an earlier version of the preview, without the list). Delete the folder, or build to another one with `--outDir`.
 
 #### Deploy a build
 

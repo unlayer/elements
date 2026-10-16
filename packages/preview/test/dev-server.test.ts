@@ -100,6 +100,31 @@ describe("dev server", () => {
     expect(ok.headers.get("content-type")).toBe("image/png");
     expect((await fetch(`${server.url}/static/..%2F..%2Fpackage.json`)).status).toBe(404);
     expect((await fetch(`${server.url}/static/../package.json`)).status).not.toBe(200);
+    // A path that doesn't decode is a bad request, not the server's error.
+    expect((await fetch(`${server.url}/static/%`)).status).toBe(400);
+    expect((await fetch(`${server.url}/%E0%A4%A`)).status).toBe(400);
+  });
+
+  it("checks the render the app just got, without rendering the template again", async () => {
+    const file = path.join(fixture.emails, "counted.tsx");
+    const change = nextChange();
+    await new Promise((r) => setTimeout(r, 100));
+    await writeFile(
+      file,
+      'import { Email, Row, Column, Paragraph } from "@unlayer/react-elements";\nexport default function Counted({ name }: { name: string }) {\n  (globalThis as any).__countedRenders = ((globalThis as any).__countedRenders ?? 0) + 1;\n  return <Email><Row><Column><Paragraph>Hi {name}</Paragraph></Column></Row></Email>;\n}\nCounted.PreviewProps = { name: "Ada" };\n'
+    );
+    await change;
+    const renders = () => (globalThis as { __countedRenders?: number }).__countedRenders ?? 0;
+    expect((await post("/api/render", { path: "counted.tsx" })).body.ok).toBe(true);
+    const once = renders();
+    expect(once).toBeGreaterThan(0);
+    expect((await post("/api/compat", { path: "counted.tsx" })).body.applicable).toBe(true);
+    expect((await post("/api/links", { path: "counted.tsx" })).body.applicable).toBe(true);
+    expect(renders()).toBe(once);
+    // Other props are another render.
+    const links = await post("/api/links", { path: "counted.tsx", props: { name: "Grace" } });
+    expect(links.body.applicable).toBe(true);
+    expect(renders()).toBe(once * 2);
   });
 
   it("answers only requests addressed to localhost", async () => {

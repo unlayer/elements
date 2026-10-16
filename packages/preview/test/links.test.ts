@@ -67,6 +67,18 @@ describe("link and image checks", () => {
     expect(report.findings[0].level).toBe("error");
   });
 
+  it("reports a /static/ URL that doesn't decode, and checks the rest", async () => {
+    const report = await checkLinks(html('<img src="/static/%" alt="Logo"><img src="/static/%E0%A4%A" alt="Logo"><a href="javascript:x">A</a>'), { dir: DIR, network: false });
+    const messages = report.findings.map((f) => `${f.level}: ${f.url} ${f.message}`);
+    expect(messages).toEqual(
+      expect.arrayContaining([
+        expect.stringMatching(/^error: \/static\/% A malformed URL/),
+        expect.stringMatching(/^error: \/static\/%E0%A4%A A malformed URL/),
+        expect.stringMatching(/^error: javascript:x Email clients don't run javascript: links/),
+      ])
+    );
+  });
+
   it("accepts the templates folder's static files, and says to host them", async () => {
     const report = await checkLinks(html('<img src="/static/logo.png" alt="Acme">'), { dir: DIR, network: false });
     expect(report.findings).toEqual([expect.objectContaining({ level: "info", message: expect.stringMatching(/host the image/) })]);

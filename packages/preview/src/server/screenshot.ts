@@ -22,6 +22,7 @@ import { discoverTemplates, selectTemplates, unknownTemplatesMessage } from "./d
 import { UsageError, type TemplateError } from "./errors.js";
 import { inside, listenFrom, requestAllowed, sendFile } from "./http.js";
 import { createLoader, type RenderMode } from "./loader.js";
+import { assertDistinctOutputs } from "./outputs.js";
 import { shown } from "./paths.js";
 import { inspectProject } from "./project.js";
 
@@ -203,9 +204,10 @@ export async function takeScreenshots(options: ScreenshotOptions): Promise<Scree
   const all = await discoverTemplates(dir);
   const { selected, unknown } = selectTemplates(dir, options.templates, all);
   if (unknown.length) throw new UsageError(unknownTemplatesMessage(unknown, shown(dir), all));
-  const browser = findBrowser(options.browser);
   const variants = options.variants?.length ? options.variants : (["desktop"] as Variant[]);
   const outDir = path.resolve(options.outDir ?? "screenshots");
+  assertDistinctOutputs(selected, (template) => variants.map((variant) => screenshotFile(outDir, template.path, variant)));
+  const browser = findBrowser(options.browser);
   const timeoutMs = options.timeoutMs ?? 15_000;
 
   const { default: puppeteer } = await import("puppeteer-core");

@@ -52,7 +52,9 @@ ${VITE_PLUGINS_HELP}
 `,
   build: `Usage: elements-preview build [options]
 
-Build the preview as static files to share or host anywhere.
+Build the preview as static files to share or host anywhere. Building again
+replaces the previous build's files and keeps any others; a folder with files
+that aren't a build is refused (exit code 2).
 
 Options:
   --dir <path>          The templates folder (default: emails)
@@ -87,8 +89,9 @@ Options:
 ${VITE_PLUGINS_HELP}
 
 Exit codes: 0 nothing to fix; 1 something to fix (with --strict, or to check);
-2 the check couldn't run (an option, folder or template that isn't right,
-Elements not installed); with --json, stderr then has {"error": "..."}.
+2 the check couldn't run (an option, folder or template that isn't right, a
+folder with no templates, Elements not installed); with --json, stderr then
+has {"error": "..."}.
 `,
   screenshot: `Usage: elements-preview screenshot <templates...> [options]
 
@@ -111,7 +114,8 @@ Options:
 ${VITE_PLUGINS_HELP}
 
 Exit codes: 0 every screenshot taken; 1 a template failed to render or shoot;
-2 it couldn't run (an option, folder or template that isn't right, no browser).
+2 it couldn't run (an option, folder or template that isn't right, no browser,
+two templates whose screenshots would have the same name).
 `,
   render: `Usage: elements-preview render <templates...> [options]
 
@@ -184,6 +188,16 @@ function failCommand(error: unknown, json: boolean | undefined): never {
   const message = error instanceof Error ? error.message : String(error);
   process.stderr.write(json ? `${JSON.stringify({ error: message })}\n` : `${message}\n`);
   process.exit(2);
+}
+
+/**
+ * Ends `export` or `build` when it can't start: with 2 for what it refuses
+ * to do (a UsageError: two templates writing the same file, a folder that
+ * isn't a build), as the other commands, and 1 for anything else.
+ */
+function failSetup(error: unknown): never {
+  if (error instanceof UsageError) failCommand(error, false);
+  fail((error as Error).message);
 }
 
 function useColor(): boolean {
@@ -389,7 +403,7 @@ export async function run(argv: string[]): Promise<void> {
         extension: values.extension,
       });
     } catch (error) {
-      fail((error as Error).message);
+      failSetup(error);
     }
     for (const template of result.templates) {
       if (template.error) {
@@ -412,7 +426,7 @@ export async function run(argv: string[]): Promise<void> {
     try {
       result = await buildPreview({ dir: values.dir, outDir: values.outDir, plugins, projectId });
     } catch (error) {
-      fail((error as Error).message);
+      failSetup(error);
     }
     for (const { template, error } of result.failed) {
       process.stderr.write(`  ✗ ${template}: ${error.message.split("\n")[0]}${error.file ? ` (${error.file}${error.line ? `:${error.line}` : ""})` : ""}\n`);

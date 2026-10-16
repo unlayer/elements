@@ -1,12 +1,13 @@
 import { existsSync } from "node:fs";
-import { readFile, writeFile } from "node:fs/promises";
+import { mkdir, readdir, readFile, rm, writeFile } from "node:fs/promises";
 import http from "node:http";
 import path from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { buildPreview, startStaticServer } from "../src/server/build";
+import { UsageError } from "../src/server/errors";
 import { exportTemplates } from "../src/server/export";
 import { loadVitePlugins } from "../src/server/loader";
-import { fixtureCopy } from "./helpers";
+import { cli, fixtureCopy } from "./helpers";
 
 let fixture: Awaited<ReturnType<typeof fixtureCopy>>;
 const UI = path.join(path.dirname(new URL(import.meta.url).pathname), "..", "dist", "ui");
@@ -68,6 +69,55 @@ describe("static build", () => {
 
   it("refuses to start without a build", async () => {
     await expect(startStaticServer({ outDir: path.join(fixture.root, "nothing-here"), port: 0 })).rejects.toThrow(/no preview build/);
+  });
+});
+
+describe("building again", () => {
+  /** A preview app with one script, named as Vite names it after its content. */
+  async function fakeUi(name: string, script: string): Promise<string> {
+    const uiDir = path.join(fixture.root, name);
+    await mkdir(path.join(uiDir, "assets"), { recursive: true });
+    await writeFile(path.join(uiDir, "index.html"), `<html><head><script src="/assets/${script}"></script></head><body></body></html>`);
+    await writeFile(path.join(uiDir, "assets", script), "");
+    return uiDir;
+  }
+
+  it("replaces the previous build's files, and keeps the files that aren't the build's", async () => {
+    const dir = path.join(fixture.root, "rebuilt");
+    await mkdir(dir);
+    await writeFile(path.join(dir, "welcome.tsx"), 'import { Email } from "@unlayer/react-elements";\nexport default function Welcome() { return <Email />; }\n');
+    await writeFile(path.join(dir, "old.tsx"), 'import { Email } from "@unlayer/react-elements";\nexport default function Old() { return <Email />; }\nOld.PreviewProps = { secret: "s3cret" };\n');
+    const outDir = path.join(fixture.root, "rebuilt-out");
+    await buildPreview({ dir, outDir, uiDir: await fakeUi("ui-1", "index-1111.js") });
+    expect(existsSync(path.join(outDir, "api", "render", "old.tsx.json"))).toBe(true);
+    // A file of the host's, put in the build.
+    await writeFile(path.join(outDir, "_headers"), "/*\n  X-Robots-Tag: noindex\n");
+
+    await rm(path.join(dir, "old.tsx"));
+    const result = await buildPreview({ dir, outDir, uiDir: await fakeUi("ui-2", "index-2222.js") });
+    expect(result).toMatchObject({ templates: 1, failed: [] });
+    for (const gone of ["render", "compat", "links"]) expect(existsSync(path.join(outDir, "api", gone, "old.tsx.json"))).toBe(false);
+    expect(existsSync(path.join(outDir, "assets", "index-1111.js"))).toBe(false);
+    expect(existsSync(path.join(outDir, "assets", "index-2222.js"))).toBe(true);
+    expect(existsSync(path.join(outDir, "api", "render", "welcome.tsx.json"))).toBe(true);
+    expect(await readFile(path.join(outDir, "_headers"), "utf8")).toContain("noindex");
+  });
+
+  it("builds into an empty folder, and refuses a folder that has other files", async () => {
+    const uiDir = await fakeUi("ui-3", "index-3333.js");
+    const empty = path.join(fixture.root, "empty-out");
+    await mkdir(empty);
+    await expect(buildPreview({ dir: fixture.emails, outDir: empty, uiDir })).resolves.toMatchObject({ failed: [] });
+
+    const other = path.join(fixture.root, "other-out");
+    await mkdir(other);
+    await writeFile(path.join(other, "notes.txt"), "mine");
+    await expect(buildPreview({ dir: fixture.emails, outDir: other, uiDir })).rejects.toThrow(UsageError);
+    await expect(buildPreview({ dir: fixture.emails, outDir: other, uiDir })).rejects.toThrow(/other-out has files that aren't a preview build/);
+    expect(await readdir(other)).toEqual(["notes.txt"]);
+    const { code, stderr } = await cli(["build", "--dir", fixture.emails, "--outDir", other]);
+    expect(code).toBe(2);
+    expect(stderr).toMatch(/aren't a preview build/);
   });
 });
 

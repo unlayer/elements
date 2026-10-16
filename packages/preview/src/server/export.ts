@@ -8,8 +8,9 @@
 import { cp, mkdir, writeFile } from "node:fs/promises";
 import { existsSync, statSync } from "node:fs";
 import path from "node:path";
-import { discoverTemplates } from "./discover.js";
+import { discoverTemplates, type TemplateEntry } from "./discover.js";
 import { createLoader } from "./loader.js";
+import { assertDistinctOutputs } from "./outputs.js";
 import { inspectProject } from "./project.js";
 import type { TemplateError } from "./errors.js";
 
@@ -61,6 +62,11 @@ export async function exportTemplates(options: ExportOptions): Promise<ExportRes
   if (!project.canRender) throw new Error(project.warnings.join("\n"));
   const extension = (options.extension ?? (options.plainText ? "txt" : "html")).replace(/^\./, "");
   const templates = await discoverTemplates(dir);
+  const base = (template: TemplateEntry) => template.path.slice(0, -path.extname(template.path).length);
+  assertDistinctOutputs(templates, (template) => [
+    path.join(outDir, `${base(template)}.${extension}`),
+    ...(options.design ? [path.join(outDir, `${base(template)}.design.json`)] : []),
+  ]);
   const loader = await createLoader({ project, watch: false, plugins: options.plugins });
   const results: ExportedTemplate[] = [];
   try {
@@ -72,7 +78,11 @@ export async function exportTemplates(options: ExportOptions): Promise<ExportRes
         results.push({ template: template.path, files: [], error: result.error, warnings });
         continue;
       }
-      const base = template.path.slice(0, -path.extname(template.path).length);
+      // Without its plain text there's nothing to write: an empty file would pass for an email without text.
+      if (options.plainText && result.textError) {
+        results.push({ template: template.path, files: [], error: { message: `No plain text version: ${result.textError}`, phase: "render" }, warnings });
+        continue;
+      }
       const files: string[] = [];
       const write = async (relative: string, content: string) => {
         const file = path.join(outDir, relative);
@@ -82,12 +92,12 @@ export async function exportTemplates(options: ExportOptions): Promise<ExportRes
         files.push(shown.startsWith("..") ? file : shown);
       };
       if (options.plainText) {
-        await write(`${base}.${extension}`, result.text);
+        await write(`${base(template)}.${extension}`, result.text);
       } else {
-        await write(`${base}.${extension}`, options.pretty ? await prettyHtml(result.html) : result.html);
+        await write(`${base(template)}.${extension}`, options.pretty ? await prettyHtml(result.html) : result.html);
       }
       if (options.design) {
-        if (result.json) await write(`${base}.design.json`, `${JSON.stringify(result.json, null, 2)}\n`);
+        if (result.json) await write(`${base(template)}.design.json`, `${JSON.stringify(result.json, null, 2)}\n`);
         else if (result.jsonError) warnings.push(`No design JSON: ${result.jsonError}`);
       }
       results.push({ template: template.path, files, warnings });

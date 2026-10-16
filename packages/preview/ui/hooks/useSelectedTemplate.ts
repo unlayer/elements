@@ -9,7 +9,13 @@ const PREFIX = "/preview/";
  */
 function currentTemplate(): string | undefined {
   const where = STATIC ? window.location.hash.replace(/^#/, "") : window.location.pathname;
-  return where.startsWith(PREFIX) ? decodeURIComponent(where.slice(PREFIX.length)) : undefined;
+  if (!where.startsWith(PREFIX)) return undefined;
+  try {
+    return decodeURIComponent(where.slice(PREFIX.length));
+  } catch {
+    // A URL that doesn't decode (/preview/%) names no template: the first one opens.
+    return undefined;
+  }
 }
 
 /** The selected template, kept in the URL (/preview/billing/receipt.tsx) so reloads and links keep it. */

@@ -58,8 +58,8 @@ export interface CheckReport {
 
 /**
  * The project and the templates a one-off command (`check`, `render`) works on:
- * the templates folder must exist, Elements and React must be installed, and
- * every template named must be there; otherwise a UsageError.
+ * the templates folder must exist and have templates, Elements and React must
+ * be installed, and every template named must be there; otherwise a UsageError.
  */
 export async function selectProjectTemplates(
   dirOption: string,
@@ -73,6 +73,9 @@ export async function selectProjectTemplates(
   const project = inspectProject(dir);
   if (!project.canRender) throw new UsageError(project.warnings.join("\n"));
   const all = await discoverTemplates(dir);
+  if (!all.length) {
+    throw new UsageError(`There are no templates in ${shown(dir)}: they're .tsx, .jsx or .js files with an export default. Point the ${command} at the folder with your templates: --dir ./emails`);
+  }
   const { selected, unknown } = selectTemplates(dir, requested, all);
   if (unknown.length) throw new UsageError(unknownTemplatesMessage(unknown, shown(dir), all));
   return { dir, project, selected };

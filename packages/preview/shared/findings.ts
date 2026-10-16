@@ -2,11 +2,12 @@
  * What the checks found, in one list and with one meaning for the preview's
  * Checks drawer and for `elements-preview check`:
  *
- * - "error": to fix. The template doesn't render, a block is left out, the
- *   design JSON can't be made (it won't open in the Unlayer editor), or a link
- *   or image is broken;
- * - "warning": to check. Elements and React warnings, no plain text, CSS some
- *   email clients don't support, a placeholder or http: URL, Gmail clipping;
+ * - "error": to fix. The template doesn't render, Elements says it left a
+ *   block out, the design JSON can't be made (it won't open in the Unlayer
+ *   editor), or a link or image is broken;
+ * - "warning": to check. Elements and React warnings (React's development
+ *   warnings come through console.error), no plain text, CSS some email
+ *   clients don't support, a placeholder or http: URL, Gmail clipping;
  * - "info": a note.
  *
  * Shared by the preview app and the server, so it imports nothing and takes
@@ -107,12 +108,26 @@ interface LinkFindingInput {
 
 export type LinksInput = { applicable: true; findings: LinkFindingInput[] } | { applicable: false; reason: string };
 
-const LOG_LEVEL: Record<LogInput["level"], FindingLevel> = { error: "error", warn: "warning", info: "info", log: "info" };
+/**
+ * What Elements writes with console.error, when it leaves a block out or a
+ * block fails: `[Unlayer] …` (0.2 and later), and in 0.2.x and 0.3 also
+ * `Body: Failed to render children: …`, `Column: Failed to render children: …`
+ * and `<Body, Row, Column or a block's name> rendering failed: …`. React writes
+ * its development warnings (a list without keys, an invalid DOM property) with
+ * console.error too: those, and a template's own, aren't Elements'.
+ */
+const ELEMENTS_ERROR = /^(?:\[Unlayer\] |(?:Body|Column): Failed to render children:|[^\s:]+ rendering failed:)/;
+
+function logFinding(log: LogInput): Finding {
+  if (log.level === "error" && ELEMENTS_ERROR.test(log.message)) return { kind: "render", level: "error", message: log.message };
+  if (log.level === "error" || log.level === "warn") return { kind: "warning", level: "warning", message: log.message };
+  return { kind: "log", level: "info", message: log.message };
+}
 
 /**
  * What rendering reported: the project's warnings, a render error, no design
  * JSON or plain text, and what Elements and React wrote to the console (an
- * error there means Elements left a block out).
+ * error from Elements means it left a block out; React's are warnings).
  */
 export function renderingFindings(result: RenderInput | undefined, projectWarnings: string[] = []): Finding[] {
   const findings: Finding[] = projectWarnings.map((message) => ({ kind: "warning", level: "warning", message }));
@@ -124,9 +139,7 @@ export function renderingFindings(result: RenderInput | undefined, projectWarnin
     if (result.jsonError) findings.push({ kind: "design", level: "error", message: `No design JSON, so it won't open in the Unlayer editor: ${result.jsonError}` });
     if (result.textError) findings.push({ kind: "text", level: "warning", message: `No plain text version: ${result.textError}` });
   }
-  for (const log of result.logs) {
-    findings.push({ kind: log.level === "error" ? "render" : log.level === "warn" ? "warning" : "log", level: LOG_LEVEL[log.level], message: log.message });
-  }
+  findings.push(...result.logs.map(logFinding));
   return findings;
 }
 

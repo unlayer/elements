@@ -115,6 +115,15 @@ export function isPlaceholderUrl(url: string): boolean {
   }
 }
 
+/** A URL's path decoded, or undefined when it doesn't decode (`%`, `%zz`, a % escape that isn't UTF-8). */
+function decoded(text: string): string | undefined {
+  try {
+    return decodeURIComponent(text);
+  } catch {
+    return undefined;
+  }
+}
+
 /** What's wrong with a URL from the HTML alone. */
 function staticFindings(item: Found, dir: string): LinkFinding[] {
   const base = { kind: item.kind, url: item.url, block: item.block, label: item.kind === "image" ? item.alt ?? undefined : item.label };
@@ -147,7 +156,12 @@ function staticFindings(item: Found, dir: string): LinkFinding[] {
       out.push({ ...base, level: "info", message: "Empty alt text: right for a decorative image. Otherwise describe it (alt=\"…\"): it's what readers see while images are blocked." });
     }
     if (url.startsWith("/static/")) {
-      const file = path.join(dir, "static", decodeURIComponent(url.slice("/static/".length).split(/[?#]/)[0]));
+      const relative = decoded(url.slice("/static/".length).split(/[?#]/)[0]);
+      if (relative === undefined) {
+        out.push({ ...base, level: "error", message: "A malformed URL: its % escapes don't decode (write a % itself as %25)." });
+        return out;
+      }
+      const file = path.join(dir, "static", relative);
       if (!existsSync(file)) out.push({ ...base, level: "error", message: `There's no ${path.join("static", url.slice("/static/".length))} in the templates folder.` });
       else {
         const size = statSync(file).size;

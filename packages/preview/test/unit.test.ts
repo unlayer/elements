@@ -101,6 +101,37 @@ describe("check findings", () => {
     expect([grouped.toFix.length, grouped.toCheck.length, grouped.notes.length]).toEqual([2, 3, 1]);
   });
 
+  it("fixes what Elements says with console.error, and only checks the rest (React's development warnings)", () => {
+    const level = (message: string) => renderingFindings({ ok: true, logs: [{ level: "error", message }] }).map((f) => [f.kind, f.level])[0];
+    // Elements 0.3, and 0.2.x.
+    for (const message of [
+      "[Unlayer] <Chart> failed while rendering, so it's left out.",
+      "[Unlayer] <Chart> threw while rendering, so it's left out: No data",
+      "[Unlayer] an Elements block rendered inside a component left a marker behind; it's taken out, and the block it stood for is missing.",
+      "[Unlayer] A Row with the TwoEqual layout, for 2 Columns, has 1, so it's left out.",
+      "Body: Failed to render children: boom",
+      "Body rendering failed: boom",
+      "Row rendering failed: boom",
+      "Column: Failed to render children: boom",
+      "Column rendering failed: boom",
+      "Button rendering failed: boom",
+      "countdown rendering failed: boom",
+    ]) {
+      expect(level(message), message).toEqual(["render", "error"]);
+    }
+    // React 18 and 19's development warnings, and a template's own console.error.
+    for (const message of [
+      'Warning: Each child in a list should have a unique "key" prop. See https://reactjs.org/link/warning-keys for more information.\n    at Paragraph',
+      'Each child in a list should have a unique "key" prop.\n\nCheck the render method of `Items`. See https://react.dev/link/warning-keys for more information.',
+      "Warning: Invalid DOM property `class`. Did you mean `className`?\n    at span",
+      "Invalid DOM property `class`. Did you mean `className`?",
+      "Couldn't load the products: 503",
+      "  [Unlayer] not at the start",
+    ]) {
+      expect(level(message), message).toEqual(["warning", "warning"]);
+    }
+  });
+
   it("lists the template's own compatibility issues to check, with their lines and clients, and links at their level", () => {
     const clients = [
       { client: "outlook.windows", label: "Outlook (Windows)", support: "none" as const, notes: [] },

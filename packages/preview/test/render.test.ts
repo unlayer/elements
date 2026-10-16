@@ -1,10 +1,9 @@
 import { writeFile } from "node:fs/promises";
 import path from "node:path";
-import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
-import { run } from "../src/cli";
+import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 import { renderTemplates } from "../src/server/render";
 import { UsageError } from "../src/server/errors";
-import { fixtureCopy } from "./helpers";
+import { cli, fixtureCopy } from "./helpers";
 
 let fixture: Awaited<ReturnType<typeof fixtureCopy>>;
 
@@ -32,32 +31,6 @@ beforeAll(async () => {
 afterAll(async () => {
   await fixture?.cleanup();
 });
-
-/** Runs `elements-preview <args>` in-process: what it writes to stdout and stderr, and its exit code. */
-async function cli(args: string[]): Promise<{ stdout: string; stderr: string; code: number }> {
-  let stdout = "";
-  let stderr = "";
-  const out = vi.spyOn(process.stdout, "write").mockImplementation((chunk) => ((stdout += String(chunk)), true));
-  const err = vi.spyOn(process.stderr, "write").mockImplementation((chunk) => ((stderr += String(chunk)), true));
-  const exit = vi.spyOn(process, "exit").mockImplementation(((code?: number) => {
-    throw Object.assign(new Error("exit"), { exitCode: code ?? 0 });
-  }) as never);
-  let code: number;
-  try {
-    await run(args);
-    code = Number(process.exitCode ?? 0);
-  } catch (error) {
-    const exitCode = (error as { exitCode?: number }).exitCode;
-    if (exitCode === undefined) throw error;
-    code = exitCode;
-  } finally {
-    out.mockRestore();
-    err.mockRestore();
-    exit.mockRestore();
-    process.exitCode = undefined;
-  }
-  return { stdout, stderr, code };
-}
 
 afterEach(() => {
   process.exitCode = undefined;

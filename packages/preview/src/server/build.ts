@@ -13,6 +13,7 @@ import { existsSync, statSync } from "node:fs";
 import { cp, mkdir, readFile, writeFile } from "node:fs/promises";
 import http from "node:http";
 import path from "node:path";
+import { listFiles, previousBuild, removeBuild, writeBuildMarker } from "./build-folder.js";
 import { createChecks } from "./checks.js";
 import { defaultUiDir } from "./dev-server.js";
 import { discoverTemplates } from "./discover.js";
@@ -38,14 +39,9 @@ export interface BuildResult {
   failed: Array<{ template: string; error: TemplateError }>;
 }
 
-/** Where a template's data goes: its path as folders, so any static host serves it. */
-function dataFile(outDir: string, kind: string, template: string): string {
-  return path.join(outDir, "api", kind, ...template.split("/")) + ".json";
-}
-
-async function writeJson(file: string, value: unknown): Promise<void> {
-  await mkdir(path.dirname(file), { recursive: true });
-  await writeFile(file, JSON.stringify(value));
+/** Where a template's data goes in the build: its path as folders, so any static host serves it. */
+function dataFile(kind: string, template: string): string {
+  return `api/${kind}/${template}.json`;
 }
 
 /** /static/ URLs relative to the page, so the build works under any path. */
@@ -60,25 +56,44 @@ export async function buildPreview(options: BuildOptions): Promise<BuildResult> 
   }
   const outDir = path.resolve(options.outDir ?? ".elements-preview");
   if (dir === outDir || dir.startsWith(outDir + path.sep)) throw new Error(`The output folder ${outDir} holds the templates. Pick another one: --outDir .elements-preview`);
+  // A folder with other files is refused before anything is rendered or written.
+  const previous = await previousBuild(outDir);
   const uiDir = options.uiDir ?? defaultUiDir();
   if (!existsSync(path.join(uiDir, "index.html"))) throw new Error("The preview app isn't built. Run the package's build first.");
   const project = inspectProject(dir);
   if (!project.canRender) throw new Error(project.warnings.join("\n"));
 
   const templates = await discoverTemplates(dir);
+  const staticDir = path.join(dir, "static");
+  const appFiles = await listFiles(uiDir);
+  const staticFiles = existsSync(staticDir) ? (await listFiles(staticDir)).map((file) => `static/${file}`) : [];
   const loader = await createLoader({ project, watch: false, plugins: options.plugins });
   const checks = createChecks(loader, dir);
   const failed: BuildResult["failed"] = [];
+  const written = new Set<string>();
+  const writeJson = async (relative: string, value: unknown) => {
+    const file = path.join(outDir, ...relative.split("/"));
+    await mkdir(path.dirname(file), { recursive: true });
+    await writeFile(file, JSON.stringify(value));
+    written.add(relative);
+  };
   try {
     await mkdir(outDir, { recursive: true });
+    await removeBuild(outDir, previous);
+    // Every file this build may write, until it's done: a build stopped halfway is still removed by the next.
+    const planned = [...appFiles, "api/meta.json", "api/templates.json", ...staticFiles];
+    for (const template of templates) planned.push(...["render", "compat", "links"].map((kind) => dataFile(kind, template.path)));
+    await writeBuildMarker(outDir, planned);
+
     // The app, with relative asset paths and a flag that tells it to read the files written here.
     await cp(uiDir, outDir, { recursive: true });
+    for (const file of appFiles) written.add(file);
     const index = (await readFile(path.join(uiDir, "index.html"), "utf8"))
       .replace(/(src|href)="\/assets\//g, '$1="./assets/')
       .replace("</head>", '  <script>window.__ELEMENTS_PREVIEW_STATIC__ = true;</script>\n  </head>');
     await writeFile(path.join(outDir, "index.html"), index);
 
-    await writeJson(path.join(outDir, "api", "meta.json"), {
+    await writeJson("api/meta.json", {
       dir: path.relative(project.root, dir) || ".",
       elementsVersion: project.elementsVersion,
       reactVersion: project.reactVersion,
@@ -88,7 +103,7 @@ export async function buildPreview(options: BuildOptions): Promise<BuildResult> 
       static: true,
       builtAt: new Date().toISOString(),
     });
-    await writeJson(path.join(outDir, "api", "templates.json"), { templates });
+    await writeJson("api/templates.json", { templates });
 
     for (const template of templates) {
       const file = path.join(dir, template.path);
@@ -96,15 +111,18 @@ export async function buildPreview(options: BuildOptions): Promise<BuildResult> 
       const result = await loader.render(file);
       if (!result.ok) {
         failed.push({ template: template.path, error: result.error });
-        await writeJson(dataFile(outDir, "render", template.path), { ...result, source });
+        await writeJson(dataFile("render", template.path), { ...result, source });
         continue;
       }
-      await writeJson(dataFile(outDir, "render", template.path), { ...result, html: relativeStatic(result.html), source });
-      await writeJson(dataFile(outDir, "compat", template.path), await checks.compat(result, source));
-      await writeJson(dataFile(outDir, "links", template.path), await checks.links(result, { network: false }));
+      await writeJson(dataFile("render", template.path), { ...result, html: relativeStatic(result.html), source });
+      await writeJson(dataFile("compat", template.path), await checks.compat(result, source));
+      await writeJson(dataFile("links", template.path), await checks.links(result, { network: false }));
     }
-    const staticDir = path.join(dir, "static");
-    if (existsSync(staticDir)) await cp(staticDir, path.join(outDir, "static"), { recursive: true });
+    if (staticFiles.length) {
+      await cp(staticDir, path.join(outDir, "static"), { recursive: true });
+      for (const file of staticFiles) written.add(file);
+    }
+    await writeBuildMarker(outDir, written);
   } finally {
     await loader.close();
   }

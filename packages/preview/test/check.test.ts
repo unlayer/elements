@@ -1,9 +1,9 @@
-import { writeFile } from "node:fs/promises";
+import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { checkTemplates, formatCheckReport } from "../src/server/check";
 import { UsageError } from "../src/server/errors";
-import { fixtureCopy } from "./helpers";
+import { cli, fixtureCopy } from "./helpers";
 
 let fixture: Awaited<ReturnType<typeof fixtureCopy>>;
 
@@ -26,10 +26,41 @@ export default function NeedsFixes() {
 }
 `;
 
+// React's development warnings, which it writes with console.error: a list without keys.
+const NO_KEYS = `import { Email, Row, Column, Paragraph } from "@unlayer/react-elements";
+
+function Items({ items }: { items: string[] }) {
+  return <>{items.map((item) => <Paragraph>{item}</Paragraph>)}</>;
+}
+
+export default function NoKeys() {
+  return <Email><Row><Column><Items items={["One", "Two"]} /></Column></Row></Email>;
+}
+`;
+
+// A block Elements leaves out, and says so with console.error: a Row with a layout for 2 Columns and 1.
+const LEFT_OUT = `import { Email, Row, Column, Paragraph, ColumnLayouts } from "@unlayer/react-elements";
+
+export default function LeftOut() {
+  return <Email><Row layout={ColumnLayouts.TwoEqual}><Column><Paragraph>Only one</Paragraph></Column></Row></Email>;
+}
+`;
+
+const BAD_URL = `import { Email, Row, Column, Html } from "@unlayer/react-elements";
+
+export default function BadUrl() {
+  return <Email><Row><Column><Html html={'<img src="/static/%" alt="Logo">'} /></Column></Row></Email>;
+}
+`;
+
 beforeAll(async () => {
   fixture = await fixtureCopy("check");
   await writeFile(path.join(fixture.emails, "needs-fixes.tsx"), NEEDS_FIXES);
   await writeFile(path.join(fixture.emails, "broken.tsx"), "export default function Broken() { return <Email>; }\n");
+  await mkdir(path.join(fixture.root, "more"));
+  await writeFile(path.join(fixture.root, "more", "no-keys.tsx"), NO_KEYS);
+  await writeFile(path.join(fixture.root, "more", "left-out.tsx"), LEFT_OUT);
+  await writeFile(path.join(fixture.root, "more", "bad-url.tsx"), BAD_URL);
 });
 
 afterAll(async () => {
@@ -97,9 +128,35 @@ describe("check", () => {
     expect(formatCheckReport(report, { color: true })).toContain("\u001b[31m");
   });
 
+  it("fixes what Elements leaves out, and only checks React's development warnings", async () => {
+    const report = await checkTemplates({ dir: path.join(fixture.root, "more"), templates: ["no-keys.tsx", "left-out.tsx"], network: false });
+    const leftOut = report.templates.find((t) => t.path === "left-out.tsx")!;
+    expect(leftOut.toFix).toEqual([expect.objectContaining({ kind: "render", level: "error", message: expect.stringMatching(/^\[Unlayer\] A Row with the TwoEqual layout/) })]);
+    const noKeys = report.templates.find((t) => t.path === "no-keys.tsx")!;
+    expect(noKeys.toFix).toEqual([]);
+    expect(noKeys.toCheck).toEqual(expect.arrayContaining([expect.objectContaining({ kind: "warning", level: "warning", message: expect.stringMatching(/unique "key" prop/) })]));
+    expect(noKeys.ok).toBe(true);
+  });
+
+  it("reports a URL that doesn't decode as the template's, and checks the others", async () => {
+    const report = await checkTemplates({ dir: path.join(fixture.root, "more"), network: false });
+    expect(report.templates.map((t) => t.path).sort()).toEqual(["bad-url.tsx", "left-out.tsx", "no-keys.tsx"]);
+    const badUrl = report.templates.find((t) => t.path === "bad-url.tsx")!;
+    expect(badUrl.toFix).toEqual([expect.objectContaining({ kind: "image", url: "/static/%", message: expect.stringMatching(/^A malformed URL/) })]);
+  });
+
   it("refuses templates and folders that aren't there", async () => {
     await expect(checkTemplates({ dir: fixture.emails, templates: ["nope.tsx"], network: false })).rejects.toThrow(UsageError);
     await expect(checkTemplates({ dir: fixture.emails, templates: ["nope.tsx"], network: false })).rejects.toThrow(/No template nope\.tsx in .*Its templates: billing\/receipt\.jsx/s);
     await expect(checkTemplates({ dir: path.join(fixture.root, "missing") })).rejects.toThrow(/doesn't exist/);
+  });
+
+  it("refuses a folder with no templates, as one that isn't there", async () => {
+    const empty = path.join(fixture.root, "empty");
+    await mkdir(empty);
+    await expect(checkTemplates({ dir: empty, network: false })).rejects.toThrow(UsageError);
+    const { code, stderr } = await cli(["check", "--dir", empty, "--json"]);
+    expect(code).toBe(2);
+    expect(JSON.parse(stderr).error).toMatch(/^There are no templates in .*empty/);
   });
 });
