@@ -89,7 +89,7 @@ const html = renderToHtml(<WelcomeEmail />);
 
 **Try it in your browser:** the [Elements Playground](https://examples.unlayer.com/examples/elements-playground/) renders Elements code as an email, page, or document with nothing to install. Write plain JSX, export the HTML or design JSON, and open the result in the Unlayer builder.
 
-**Preview your templates while you edit them:** [`@unlayer/elements-preview`](./packages/preview) lists the templates in your `emails` folder, renders them with your project's Elements as you save, and checks them against email clients. `npm install -D @unlayer/elements-preview && npx elements-preview dev`, or `unlayer elements dev` with the [Unlayer CLI](https://github.com/unlayer/cli).
+**Preview your templates while you edit them:** [`@unlayer/elements-preview`](./packages/preview) lists the templates in your `emails` folder, renders them with your project's Elements as you save, and checks them against email clients. `npm install -D @unlayer/elements-preview && npx elements-preview dev`.
 
 ## Email Client Compatibility Notes
 
