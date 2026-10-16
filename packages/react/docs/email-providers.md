@@ -232,7 +232,7 @@ Expected: `Mailgun accepted: <id@your-domain>`.
 
 ## Azure Communication Services Email
 
-Install in your own project: `npm install @azure/communication-email`. The workspace example already declares this dependency.
+Install in your own project: `npm install @azure/communication-email`. The workspace example already declares this dependency. Azure's SDK packages declare Node.js 22 or newer: the example's script and its test run on Node.js 20 too, but use 22 or newer for a project of your own.
 
 Set `AZURE_COMMUNICATION_CONNECTION_STRING` to the connection string of a Communication Services resource with an email domain connected to it, and use a sender address from that domain (for example `DoNotReply@<your-domain>`) as `EMAIL_FROM`. To use Microsoft Entra ID instead of the access key, pass the endpoint and a credential from `@azure/identity`: `new EmailClient(endpoint, new DefaultAzureCredential())`. `beginSend()` queues the message; `pollUntilDone()` waits until Azure reports the send operation's final status. [Azure email quickstart](https://learn.microsoft.com/en-us/azure/communication-services/quickstarts/email/send-email?pivots=programming-language-javascript).
 

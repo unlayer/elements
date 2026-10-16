@@ -1,6 +1,6 @@
 # React transactional email, web, PDF, and visual editing example
 
-One invoice template demonstrates `@unlayer/react-elements` rendering and delivery. Use this example for receipts, order confirmations, invoices, or AI-generated templates that need visual editing. All commands below run from the repository root with Node.js 20+ and pnpm 9.
+One invoice template demonstrates `@unlayer/react-elements` rendering and delivery. Use this example for receipts, order confirmations, invoices, or AI-generated templates that need visual editing. All commands below run from the repository root with Node.js 20+ and pnpm 9 (Azure's SDK declares Node.js 22 or newer: use 22+ to send with Azure).
 
 ## Install and run
 
