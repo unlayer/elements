@@ -81,6 +81,122 @@
 
 - **A Row's `style` and `className` go on its content box.** Like every component's, they go on the element it renders: a Row's `.u-row` box, the content width its Columns sit in (a Column's on its cell). 0.2 put a Row's on a wrapper around the whole row, full width. For a full-width color, use the Row's `backgroundColor`.
 
+## 0.2.1 (2026-10-13)
+
+- Renders without reading a random number or the date, so Next.js 16 with Cache Components can prerender pages, route handlers and Client Components that render emails. 0.2.0 failed those builds. ([#65](https://github.com/unlayer/elements/pull/65))
+
+## 0.2.0 (2026-10-13)
+
+- One React render collects the template, and the HTML, the head and the design JSON are all made from it. Your own components, hooks, Context, `useId`, Fragments, `memo` and `forwardRef` work in `renderToHtml` and `renderToJson`.
+- `renderToHtml(<Template />)` renders a template component as its root and reads the root's settings (fonts, `lang`, `dir`, phone styles).
+- A component that throws, suspends or is async is left out with a console message naming it, and the rest of the email renders.
+- `<Row noStackMobile>` works, `rgb()` colors render, phone settings match the editor's device CSS, and `renderToJson` keeps phone settings and hide-on-device options.
+- `Email`, `Page` and `Document` accept `fonts`, `textDirection` and `lang`.
+- Security: text placed straight in a Row or Column, Heading and Button children, Menu and Social text, link URLs, `previewText`, phone settings and `textDirection` are escaped.
+- Behavior changes: text children show as typed, link URLs percent-encode `"`, `<` and `>`, and rows from Fragments and components are email tables. See [upgrading](./docs/upgrading.md). ([#61](https://github.com/unlayer/elements/pull/61))
+
+## 0.1.22 (2026-09-22)
+
+- `PageBreak` starts a new page in document output.
+- `Document` accepts `documentSize` and `documentOrientation`.
+- `Table` accepts `repeatHeaderOnEachPage`, `enableFooter` and `repeatFooterOnEachPage`.
+- Updates `@unlayer/exporters` and `@unlayer/types` to 1.497.0. ([#57](https://github.com/unlayer/elements/pull/57))
+
+## 0.1.21 (2026-08-13)
+
+- `renderToPlainText` decodes common named HTML entities (`&pound;`, `&euro;`, `&eacute;`, `&deg;`, `&times;`…) instead of printing them. ([#54](https://github.com/unlayer/elements/pull/54))
+
+## 0.1.20 (2026-07-15)
+
+- Updates `@unlayer/exporters` and `@unlayer/types` to 1.455.0, with a check that the package loads in a browser runtime. ([#47](https://github.com/unlayer/elements/pull/47))
+
+## 0.1.19 (2026-07-04)
+
+- `renderToHtmlParts` also returns the `css`, `js` and `tags` its `head` is built from. ([#38](https://github.com/unlayer/elements/pull/38))
+
+## 0.1.18 (2026-07-04)
+
+- `registerTool` (also exported as `registerElementsTool`) renders an editor custom tool's definition from code, and `renderToJson` writes it as the custom tool the editor opens. ([#37](https://github.com/unlayer/elements/pull/37))
+
+## 0.1.17 (2026-07-04)
+
+- **Breaking:** `renderToHtml` returns a complete HTML document, with the editor's shell for each mode, and takes `title` and `fonts` options. Use `renderToHtmlParts` for the `head` and `body` to embed in your own document.
+- Paragraph margins are reset inline, as in the editor's exports.
+- Web-mode columns stack on phones (480px); document output never stacks.
+- `renderToHtmlParts(<Email>)` returns the email CSS (it returned the web CSS). ([#36](https://github.com/unlayer/elements/pull/36))
+
+## 0.1.16 (2026-06-28)
+
+- A Row with several Columns and no `layout` or `cells` gives each Column an equal share (the columns rendered `width="NaN"`).
+- Number border widths render in px. ([#35](https://github.com/unlayer/elements/pull/35))
+
+## 0.1.15 (2026-06-28)
+
+- An image's fixed width set in `src={{ width }}` stays fixed in the editor, as the flat `width` prop does.
+- Button links given as `{ name, attrs: { href } }` render; Social `iconSize` and `spacing` accept px strings; an image given as a URL keeps its own aspect ratio. ([#34](https://github.com/unlayer/elements/pull/34))
+
+## 0.1.14 (2026-06-28)
+
+- A fixed image width survives opening the design in the editor. ([#33](https://github.com/unlayer/elements/pull/33))
+
+## 0.1.13 (2026-06-28)
+
+- Images are sized against the real content width of their column.
+- `containerPadding` is a typed prop on every block.
+- `renderToHtml` writes unique element ids. ([#32](https://github.com/unlayer/elements/pull/32))
+
+## 0.1.12 (2026-06-28)
+
+- `renderToJson` accepts a template component as its root, as `renderToHtml` does.
+- Menu's text props accept the same inputs as Heading's and Paragraph's. ([#31](https://github.com/unlayer/elements/pull/31))
+
+## 0.1.11 (2026-06-27)
+
+- Prop types accept the natural forms (a shared border object, numeric sizes) and reject wrong values. ([#30](https://github.com/unlayer/elements/pull/30))
+
+## 0.1.10 (2026-06-27)
+
+- Explicit image and button widths survive opening the design in the editor.
+- CSS-style values work: a string `fontFamily`, `fontWeight="700"`, numeric sizes, `width="300px"` on an image, `letterSpacing`.
+- Heading accepts `level` and `h1`–`h6`; `Table` with `columns` and `rows` renders an empty grid instead of crashing; `previewText` reaches the design JSON. ([#28](https://github.com/unlayer/elements/pull/28))
+
+## 0.1.9 (2026-06-21)
+
+- Each block's `containerPadding` applies (blocks rendered with the column's padding).
+- `contentWidth` on the root sets the web column widths (they assumed 500px). ([#26](https://github.com/unlayer/elements/pull/26))
+
+## 0.1.8 (2026-05-24)
+
+- Updates `@unlayer/exporters` and `@unlayer/types` to 1.415.0.
+
+## 0.1.7 (2026-05-08)
+
+- Links render: Button `href`, Image `action`, Menu items and Video `href` rendered an empty `href`. ([#15](https://github.com/unlayer/elements/pull/15))
+
+## 0.1.6 (2026-04-12)
+
+- Updates `@unlayer/exporters` and `@unlayer/types` to 1.400.0. ([#13](https://github.com/unlayer/elements/pull/13))
+
+## 0.1.5 (2026-03-26)
+
+- Updates `@unlayer/exporters` and `@unlayer/types` to 1.394.0. ([#10](https://github.com/unlayer/elements/pull/10))
+
+## 0.1.4 (2026-03-26)
+
+- Published from the same commit as 0.1.3.
+
+## 0.1.3 (2026-03-26)
+
+- README and npm keywords for the open-source release. ([#7](https://github.com/unlayer/elements/pull/7))
+
+## 0.1.2 (2026-03-25)
+
+- No changes to the package: the first release published by CI on merge to `main`. ([#3](https://github.com/unlayer/elements/pull/3))
+
+## 0.1.1 (2026-03-20)
+
+- Published the day 0.1.0 was; no release tag or recorded changes.
+
 ## 0.1.0
 
 - Initial release
