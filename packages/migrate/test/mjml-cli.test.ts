@@ -189,7 +189,9 @@ describe("--from mjml", () => {
     const { code, out, err } = await run(dir, "emails", "--from", "mjml", "--out", "migrated", "--report", "report.md");
     // The reference is compiled from the same document, without the include: the check alone would pass.
     expect(code, out + err).toBe(2);
-    expect(out).toContain("✗ emails/welcome.mjml: written, but its content differs: couldn't read mj-include ../secret.mjml (outside emails, not read), so its content isn't all there");
+    expect(out).toContain("✗ emails/welcome.mjml: written, but it failed the check: couldn't read mj-include ../secret.mjml (outside emails, not read), so its content isn't all there");
+    // What the converter couldn't read isn't a converter bug.
+    expect(out).not.toContain("converter bug");
     expect(read(dir, "migrated/welcome.tsx")).not.toContain("Outside the folder");
     expect(read(dir, "report.md")).toMatch(/^# MJML → Unlayer Elements migration/);
     expect(read(dir, "report.md")).toContain("- mj-include left out: `../secret.mjml (outside emails, not read)`");

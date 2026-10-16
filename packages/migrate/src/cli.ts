@@ -1580,7 +1580,7 @@ function lostContent(result: FileResult): boolean {
       c.phone?.missing.length || c.phone?.added.length || c.phone?.missingAttributes?.length || c.phone?.addedAttributes?.length ||
       c.lostShown?.length || c.styles?.some((s) => s.property === "shown" && !/^invisible/.test(s.original) && !/^invisible/.test(s.converted))
     );
-  return Boolean(result.unread?.length) || lost({ ...result, missing: result.missingText, added: result.addedText }) || (result.variants ?? []).some(lost);
+  return lost({ ...result, missing: result.missingText, added: result.addedText }) || (result.variants ?? []).some(lost);
 }
 
 /** Style changes in a line: "color #e11d48 → #000000 on "Hello", "world"", "the page's background #f4f4f5 → #ffffff". */
