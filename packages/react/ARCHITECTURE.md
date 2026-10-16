@@ -1,0 +1,197 @@
+# How @unlayer/react-elements renders
+
+This is the map of the renderer for people and coding agents changing it: the pipeline, the engine that renders
+templates (`src/engine`), its hooks dispatcher, what it does when part of a template fails, and the invariants the
+tests hold it to. The [README](./README.md) is the API.
+
+## The pipeline
+
+```
+template (JSX)                       <Welcome name="Ada" />
+  │ unwrap                           template wrappers called, once, until the root        utils/unwrap-root.ts
+  ▼
+root                                 <Email> … </Email>
+  │ walk (collect)                   the content rendered by the engine; Elements' Rows,   src/engine, utils/record.tsx
+  │                                  Columns and blocks recorded and marked, the rest
+  │                                  rendered as React renders it
+  ▼
+model                                Email > Row > Column > blocks, Elements' only         utils/normalize.tsx
+  ├──▶ design                        renderToJson()                                        utils/render-to-json.ts
+  └──▶ exporters                     each row's and block's HTML (@unlayer/exporters)      components/*, utils/create-component.tsx
+         ├──▶ HTML                   the rows in the mode's document, the head's CSS       utils/render-to-html.tsx, utils/extract-head.ts
+         └──▶ plain text             the HTML as text                                      (shared) htmlToPlainText
+```
+
+- **Unwrap.** `renderToHtml(<Welcome />)` reads the root's settings (fonts, `lang`, `dir`, phone styles, config), so
+  the components around the root are called first: function components, `memo`, `forwardRef`, class components, each
+  once, with hooks, inside the context providers around them. Providers, `<UnlayerProvider>`s and `<Tailwind>`s around
+  the root move inside it, around its content. An async wrapper, or one that `use()`s a promise, is awaited by the async
+  renderers (`unwrapRootAsync`); the synchronous ones throw for it.
+- **Walk.** The engine renders the root's content once per render. It asks a collector (`utils/record.tsx`) about each
+  element: a Row, Column or block (of any copy of Elements, by its markers), a `<Tailwind>` scope or a `<Head>`/`<Font>`
+  entry is recorded, and marks stand where it is; everything else (your components, markup, Fragments, Context,
+  Suspense) is rendered as react-dom's static server render would. Each component of the template's own in a list is in
+  a boundary, the part that's left out when it fails and the render leaves failed parts out (see Errors).
+- **Model.** The marks are parsed back into the collected tree (`parse`, `elements` in `normalize.tsx`): the template
+  as Elements components only. The HTML, the head and the design are all made from it, so they can't disagree.
+- **Exporters.** Row, Column and each block call the editor's exporters (`@unlayer/exporters`) for their HTML; Body
+  puts the rows in the mode's document shell (`document-layouts.ts`). Four of the web and document exporters (Divider,
+  Html, Menu, Social) render with `react-dom/server` themselves: it's why `react-dom` is still a peer dependency.
+
+A render (`renderToHtml`, `renderToJson`, …) has a scope (`utils/render-scope.ts`): what it works out once (the
+collected content), what it does with a part that fails (`onError`), and the parts it left out. Body rendered by an
+app's own React (a live preview) makes a scope of its own.
+
+## The engine (`src/engine`)
+
+| File | What it is |
+|--|--|
+| `walk.ts` | The walker: elements, components, Context, Fragments, memo, forwardRef, lazy, Suspense, classes; holes where something suspends |
+| `dispatcher.ts` | Elements' hooks dispatcher, put in React's slot around each component call |
+| `host.ts` | Host markup (`<div>`, `<img>`, …) as react-dom writes it: attributes, styles, escaping |
+| `output.ts` | The walk's output (strings, marks, holes, boundaries, errors), flattened in tree order |
+| `tree-id.ts` | Where a component is in the tree (Fizz's tree context), and `useId()` from it |
+| `react-compat.ts` | What the walker relies on, per React version, and where React's dispatcher slot is |
+| `self-test.ts` | The once-per-process check of the installed React |
+| `errors.ts` | Positions (`Row 3 › Column 1 › Hero`), names, and how a part left out is said |
+| `marks.ts`, `keys.ts` | The collector's marks and boundaries; React's development key warnings |
+| `index.ts` | Entry points: `collect`, `collectAsync`, `renderStatic` (Elements' own markup), `callComponent` |
+
+### The hooks dispatcher
+
+React's hook functions (`useState`, `useId`, `use`, …) call whatever dispatcher is in a slot of React's internals:
+`__SECRET_INTERNALS_DO_NOT_USE_OR_YOU_WILL_BE_FIRED.ReactCurrentDispatcher.current` in React 18,
+`__CLIENT_INTERNALS_DO_NOT_USE_OR_WARN_USERS_THEY_CANNOT_UPGRADE.H` in React 19, and
+`__SERVER_INTERNALS_DO_NOT_USE_OR_WARN_USERS_THEY_CANNOT_UPGRADE.H` in React 19's react-server build (Next.js's Server
+Components and route handlers). `callWithHooks` puts Elements' dispatcher there synchronously around one component call
+and puts back what was there in `finally`: never across an `await`. A render Elements runs inside (the app's react-dom
+render, Next.js's Flight render) finds its own dispatcher when the call returns; a render inside a component (an
+`Elements` render in a template's `useMemo`) saves and restores it the same way. Elements' own components (roots,
+Rows, Columns, blocks) call no hooks, and `renderStatic` calls them with the slot holding the dispatcher of the render
+around it, as that render would: react-dom puts its context back after a render started inside one of its renders
+(an exporter's) only when its own dispatcher is there.
+
+What the hooks do is what React's server renderer does: context from the walker's provider stack (a context no
+provider in the walk gives has the value React has for it then: its default, or an outer render's), `useId` from the
+tree position, initial state (a state set while rendering renders the component again, its last render counts, as in
+React), `useSyncExternalStore`'s server snapshot, effects and `useInsertionEffect`/`useLayoutEffect` never run,
+`useOptimistic`/`useActionState` their initial state, react-dom's `useFormStatus` not pending, `useEffectEvent`'s
+function failing if it's called while rendering, and `use()` of a pending promise suspending. A hook the dispatcher
+doesn't have (a newer React's) reaches a Proxy behind it, which throws
+`<Hero> calls useNewHook, which Elements' renderer doesn't support (React x.y.z)` instead of React's
+`dispatcher.useNewHook is not a function`. React's react-server build has no `useState`, `useContext`, `useEffect`, …:
+a template calling one fails with a RenderError saying so and what to do.
+
+### React versions
+
+`react-compat.ts` has a row per React minor Elements is tested with (18.3, 19.0, 19.1, 19.2, 19.3): the dispatcher
+slot's path per build, `useId`'s format (`:R1:`, `«R1»`, `_R_1_`), the context shape (React 18's `Ctx.Provider`
+object, React 19's `<Ctx>`), and whether it has `use()`. The walker throws its own errors for what React's server
+renderer rejects (an object as a child, an invalid element type, a portal) and reads no React error message.
+
+Before the first render, `self-test.ts` checks the installed React: the slot is where the table says, the dispatcher
+installs there and the previous one is put back, a `useId()` has the table's format, a context reads through the
+walker's stack, `use()` reads a fulfilled thenable. A version the table doesn't have takes the row of the nearest one
+before it: if it passes, it renders (with one warning in development); if it fails, every render throws
+`[Unlayer] unsupported React x.y.z: <what failed>`. **`UNLAYER_SKIP_REACT_CHECK=1`** in the environment skips the
+check, to render anyway.
+
+CI runs the react package's suite on React 18.3, 19.1, 19.2 and the latest 19, in React's development and production
+builds, and weekly against React's canary with a longer fuzz run (`.github/workflows/test.yml`, `react-canary.yml`).
+To support a new version: add its row, run the suite on it (`pnpm --filter @unlayer/react-elements add -D react@x
+react-dom@x`), and add a hook it adds to `dispatcher.ts` and to the list in `dispatcher.test.tsx`.
+
+### The async walk
+
+The synchronous and the async renderers share one synchronous walk. Where a component suspends (an async component,
+`use()` of a pending promise, a thrown promise, a lazy component, a promise as a child), the synchronous walk throws to
+the nearest `<Suspense>`, which renders its fallback as react-dom's synchronous render does (with none, it's a failed
+part: see Errors). The async walk leaves a hole in its output and walks on, so the promises of the siblings after it
+start at once; when the promise settles, the hole is filled by walking that component again (a `use()` component is
+called again with the results it had; an async component's resolved value is walked) at the tree position, with the
+context and in the place it had. The output is flattened in tree order, whatever settled first: the HTML, the
+records' order (head tags, Tailwind configs) and the ids are byte-identical from run to run.
+
+### Ids
+
+`useId()` is Fizz's (react-dom's server renderer's) algorithm on the walker's tree position, in the installed React's
+format, with no prefix of Elements': `:R1:` (18, 19.0), `«R1»` (19.1), `_R_1_` (19.2 and later). The template
+wrappers are the tree's top, and the content continues from where they left it, so their ids and the content's are
+one document's. A walk a component starts (a nested Email among the rows, an Elements render inside a component) starts
+at that component's place in the tree.
+
+## Errors
+
+A part of a template fails when a component throws (or is async, or suspends with no `<Suspense>` around it, in a
+synchronous render), when a Row's Columns don't fit its `layout`, or when an exporter fails. By default every renderer
+throws, the synchronous and the async ones alike, `renderToJson` and `renderToPlainText` too: a **`RenderError`**
+whose `component` is the one that failed, `position` where it is in the template (`Row 3 › Column 1 › Hero`: Rows and
+Columns numbered among their parent's, other components by name, numbered from the second of a name), and `cause` the
+original error. The message reads `[Unlayer] <what it threw> (in <Hero> at Row 3 › Column 1 › Hero)`. A part that
+fails in an async render is the first in tree order whatever fails first; the render doesn't wait for what comes after
+it in the tree.
+
+`onError` (render options, a root's `config`, an `<UnlayerProvider>`; `renderToJson(element, { onError })`) changes
+that:
+
+- `"omit"`: the part is left out of the HTML, the plain text and the design alike, and said once with `console.error`
+  (`[Unlayer] Left out: …`, with the cause).
+- a function: the part is left out and the RenderError given to it, instead of the console; it can throw it to fail
+  the render.
+
+Either way, `renderToHtmlParts()` (and the async one) lists the parts it left out in `omitted`, in the order found.
+A string-returning renderer (`renderToHtml`, `renderToPlainText`) and `renderToJson` report them through the console
+or the function.
+
+What's left out: a component of the template's own in a list (the root's children, a Row's, a Column's, a text
+block's), with what it rendered; markup React rejects (`<hr style="…">` given a string), where it is; a Row whose
+Columns don't fit its layout; a block whose exporter fails (its id goes to the next block, in the HTML and the design);
+a Row whose exporter, or one of its Columns', fails. `renderToJson()` renders the body's HTML too, so an exporter that
+fails can't be in the design and not in the HTML. A template that isn't one always fails the render, `onError` or
+not: an undefined component (a broken or circular import), an object or a date as a child, a portal, a Client
+Component in server code.
+
+### Not supported
+
+- **Error boundaries.** A class component's `componentDidCatch`/`getDerivedStateFromError` don't catch: React's server
+  renderer doesn't run them either. What replaces them is the RenderError's `position` and `cause`, and `onError` to
+  leave a failed part out.
+- **Portals.** As in React's server renderer, they fail the render.
+- **React 19's hoisting**: a `<title>`, `<meta>` or `<link>` in the body stays where it is, and images get no preload
+  `<link>`s (put head tags in `<Head>`); `<select value>` doesn't mark its `<option>`s; forms' actions aren't written.
+- **Effects** never run, as on any server.
+
+## Invariants
+
+1. **No react-dom in Elements' own renders.** The engine renders templates and Elements' markup. (The four exporters
+   above still call `react-dom/server`.)
+2. **React's dispatcher is Elements' only during a component call**, set and restored synchronously, never held across
+   an `await`; a render Elements runs in, or that runs in it, keeps its own.
+3. **One model per render.** The HTML, the head, the plain text and the design are made from the same collected
+   content, in one scope: they can't disagree, and a failed part is in none of them.
+4. **Tree order.** Output, records, ids and the error a render throws don't depend on when promises settle.
+5. **Components run once per render**, but as React runs them again: a component that sets its state while rendering,
+   and one `use()` suspends, which is called again once the promise settles.
+6. **Nothing is left out silently.** A part that fails throws, or is left out where `onError` says, and said.
+7. **No randomness, no date.** A collection's nonce is a counter and the high-resolution clock, so Next.js's Cache
+   Components can prerender pages that render emails.
+8. **Across copies of Elements** (a package's ESM and CommonJS builds, a package still on another version) only type
+   markers are shared, by `Symbol.for`: a Row's, Column's and block's (`@unlayer/react-elements/records`, and their
+   `__unlayerRender`/`__unlayerItemConfig` statics), a `<Head>`/`<Font>` entry's (`…/head-entry`), a `<Tailwind>`'s
+   rewrite (`…/tailwind`), an `<UnlayerProvider>`'s (`…/provider`), so one copy's walk records another copy's Rows.
+   The async and Tailwind entries, separate bundles, share the Tailwind compiler and the handles an async render
+   compiled (`…/tailwind-loader`, `…/tailwind-scopes`). No render state is shared.
+
+## Where it's tested
+
+| What | Tests |
+|--|--|
+| The walker writes what react-dom writes, ids included, on hand-written and random trees | `src/engine/differential.test.tsx` (`WALKER_FUZZ_SEEDS=5000` for more) |
+| Every hook of the installed React; an unknown one's error; the slot put back | `src/engine/dispatcher.test.tsx` |
+| The version table and the self-check | `src/engine/react-compat.test.ts` |
+| Siblings at once, tree order, determinism over random delays, renders at once, error order | `src/engine/async.test.tsx` |
+| The error policy, every renderer, every place `onError` goes | `src/utils/render-errors.test.tsx` |
+| React's react-server build (React 19) | `src/regression/react-server-build.test.ts` |
+| Renders inside an app's render, and inside each other | `src/utils/nested-renders.test.tsx`, `src/regression/edge-cases.test.tsx` |
+| The output against the previous release | `src/regression/*` (`GENERATED_SEEDS=5000` for more random templates) |
+| Next.js route handlers, Server Components, Cache Components | `tests/next*-integration` |

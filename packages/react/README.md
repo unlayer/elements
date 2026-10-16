@@ -102,8 +102,8 @@ These props have non-obvious shapes that **must** be followed exactly:
 - **Text shows as typed**: Heading and Button children (their strings; JSX elements in them are formatting) and text placed straight in a Row or Column show markup and entities as written, as React shows text (`{"Terms &amp; Conditions"}` shows `&amp;`; in JSX text, `Terms &amp; Conditions` is already `&`). Put markup in Paragraph's `html` prop or an `<Html>` block, and template syntax with `<` or `>` in it (a Liquid `{% if count > 1 %}`) in the `text` prop. An email service's `<%name%>` tag stays as written, for it to fill in. Menu item text shows markup as typed; in an email, an entity (`&rarr;`) and a single quote stay as written, as in 0.1.22, and a double quote is escaped, also in a template tag (the text is also written in an `aria-label`): write a template's string in single quotes (`{{ name | default: 'you' }}`; in Go templates, backticks).
 - **`text` and `html` props are HTML**: Heading's and Button's `text` prop, like Paragraph's `html` and `<Html>`, is written into the email as given (as in 0.1.22). Put only markup you wrote there: a value a user typed (a name, a message) goes in as children, which show it as text.
 - **Link URLs**: `"`, `<` and `>` are percent-encoded, so a URL can't end its attribute. Fill template tags that contain them (a Liquid filter with quotes) in before rendering; a `<%name%>` tag stays as written.
-- **Your own components** render as React renders them: hooks, Context (also from a Provider around the root) and Fragments work. One that's async, suspends or throws is left out with a console message, and the rest renders. Elements renders the template once, and may call a component once more on its own, to take the HTML it puts in a Column or to say why it failed (the whole template once more when it holds markup React rejects), so keep side effects, like creating a coupon code, out of rendering.
-- **Inside your own render**: `renderToHtml`, `renderToJson` and `renderToPlainText` can run while React renders (a preview page's `useMemo`, a client component, Next.js's server render of one). Inside react-dom/server's own `renderToString`, Elements renders with another of react-dom's modules where a synchronous `require` can load one with your React (CommonJS, Jest, an ES module on Node 20.16+ / 22.3+). Where it can't (a bundle with React in it, some test runners' module registries), it renders with the same module, as 0.1.22 did: call it in the component's body, not in `useMemo` and not before another hook (React keeps a render's hooks in that module), or render first and pass the result as a prop. Edge runtimes render too: Vercel Edge Functions, Cloudflare Workers, and Next.js Pages Router API routes with `export const config = { runtime: "edge" }`. A Next.js App Router route handler on the edge runtime can't: React's `react-server` build pairs React Server Components' React with `react-dom/server.edge`, which can't render with it (`Cannot read properties of undefined (reading 'H')`, which Elements reports as such). Add `export const runtime = "nodejs"` to that route. `pretty` doesn't work on edge runtimes (prettier is loaded when it runs): format at build time there. Waku's Server Components get a `react-dom/server` that can't render either (every release of Elements fails there): render emails in a Client Component.
+- **Your own components** render as React renders them: hooks, Context (also from a Provider around the root), Fragments, `useId`, `memo`, `forwardRef` and class components work, and async components and `use()` with the [async renderers](#async-templates-and-pretty). Each component runs once per render (and again where React runs one again: one that sets its state while rendering, and one whose `use()` waited for a promise). One that throws (or is async, in a synchronous render) fails the render with a `RenderError` naming it and where it is, or is left out with `onError: "omit"`: see [Errors](#errors). Keep side effects, like creating a coupon code, out of rendering.
+- **Inside your own render**: `renderToHtml`, `renderToJson` and `renderToPlainText` can run while React renders (a preview page's `useMemo`, a client component, Next.js's server render of one, react-dom/server's `renderToString`), and the component's hooks after the call work: Elements renders templates itself, not with react-dom, and leaves React's hooks as it found them. Edge runtimes render too: Vercel Edge Functions, Cloudflare Workers, Next.js Pages Router API routes with `export const config = { runtime: "edge" }`, and App Router route handlers and Server Components. Where react-dom can't render (React Server Components' React, as in an App Router route on the edge runtime), an email renders, but a web page's or a document's Divider, Html, Menu and Social blocks don't: their exporters render with `react-dom/server` (add `export const runtime = "nodejs"` to that route). `pretty` doesn't work on edge runtimes (prettier is loaded when it runs): format at build time there. How Elements renders: [ARCHITECTURE.md](./ARCHITECTURE.md).
 
 ## Structure: Email/Page/Document > Row > Column > Items
 
@@ -199,10 +199,10 @@ A Row's `padding` (and its `mobile={{ padding }}`) is the editor's Row padding, 
 
 A Row's Tailwind padding classes (`<Row className="bg-white p-8">`) inset the content, as in CSS: they go to its Columns' padding, added to theirs, as its Columns' margin classes do. Around cards (Columns with a background or a border) they're borders in the color around them, so a card grid keeps its gutters in the editor too (see the [Tailwind guide](./docs/tailwind.md#card-grids)).
 
-A Row's Columns must fit its `layout` (two for `ColumnLayouts.TwoEqual`). One that doesn't is left out of the HTML, the plain text and the design alike, with a console error naming its layout and how many Columns it has; the other rows render.
+A Row's Columns must fit its `layout` (two for `ColumnLayouts.TwoEqual`). One that doesn't fails the render with a `RenderError` naming its layout and how many Columns it has (`A Row with the TwoEqual layout, for 2 Columns, has 1 (in <Row> at Row 2)`); with `onError: "omit"` it's left out of the HTML, the plain text and the design alike, and the other rows render (see [Errors](#errors)).
 
 ### Column
-Must be child of Row. Count must match layout (a Row that doesn't fit its layout is left out).
+Must be child of Row. Count must match layout (a Row that doesn't fit its layout fails the render).
 - `padding?: string` — `"10px"`
 - `backgroundColor?: string`
 - `borderRadius?: string`
@@ -235,7 +235,7 @@ Must be child of Row. Count must match layout (a Row that doesn't fit its layout
 - `fontFamily?: { label: string, value: string }`
 - aliases: `align` for `textAlign`, `textColor` for `color`
 
-Text in children is escaped, as React shows it. Other elements (a `div`, a `table`, an image) leave only their text, so no block gets into a paragraph, and nothing that runs code is kept (event handlers, `javascript:` URLs). A component that is async or suspends is left out, with a warning naming it. The design (`renderToJson()`) keeps the same HTML, and the plain text writes links as `text (url)`.
+Text in children is escaped, as React shows it. Other elements (a `div`, a `table`, an image) leave only their text, so no block gets into a paragraph, and nothing that runs code is kept (event handlers, `javascript:` URLs). A component that is async or suspends fails a synchronous render, naming it (see [Errors](#errors)). The design (`renderToJson()`) keeps the same HTML, and the plain text writes links as `text (url)`.
 
 A Paragraph is a text block in the design, and renders as the editor exports that block: plain text in no `<p>`, and its line height as given (`140%`, which text of another size inside it inherits as a fixed height, as in the editor).
 
@@ -414,7 +414,7 @@ import { Row, Column, ColumnLayouts } from '@unlayer/react-elements';
 </Row>
 ```
 
-Number of `<Column>` children must match the layout. A Row whose Columns don't is left out, with a console error (`A Row with the TwoEqual layout, for 2 Columns, has 1, so it's left out.`), and the other rows render; `renderRowToJson()` of one throws.
+Number of `<Column>` children must match the layout. A Row whose Columns don't fails the render (`A Row with the TwoEqual layout, for 2 Columns, has 1 (in <Row> at Row 2)`), or is left out with `onError: "omit"` while the other rows render; `renderRowToJson()` of one throws.
 
 ## Rendering Modes
 
@@ -488,7 +488,7 @@ Without options the text is as before.
 
 ### Async templates and `pretty`
 
-The renderers above are synchronous: an async component, or one that suspends, is left out with a warning. For templates that load data as they render, use the same renderers from `@unlayer/react-elements/async`. They return Promises, and resolve async templates, async components (in Columns and in text), Suspense (`use()` on React 19, thrown promises on React 18) and `<Tailwind config>`, with each component run once. A component that throws rejects the render, with what it threw as the error's `cause`. Their `renderToHtml` and `renderToHtmlParts` also take `pretty: true` to format the HTML for reading (with `prettier`, an optional peer dependency); Outlook's conditional comments are kept as they were. See the [async guide](https://github.com/unlayer/elements/blob/main/packages/react/docs/async.md), including what React 18 supports.
+The renderers above are synchronous: an async component, or one that suspends, fails the render, naming it. For templates that load data as they render, use the same renderers from `@unlayer/react-elements/async`. They return Promises, and resolve async templates, async components (anywhere, on React 18 too), Suspense (`use()` on React 19, thrown promises on React 18) and `<Tailwind config>`, with each component run once and sibling components loading at once. A part that fails rejects the render with a `RenderError`, as in the synchronous renderers (see [Errors](#errors)). Their `renderToHtml` and `renderToHtmlParts` also take `pretty: true` to format the HTML for reading (with `prettier`, an optional peer dependency); Outlook's conditional comments are kept as they were. See the [async guide](https://github.com/unlayer/elements/blob/main/packages/react/docs/async.md), including what React 18 supports.
 
 ```tsx
 import { renderToHtml } from "@unlayer/react-elements/async";
@@ -502,6 +502,35 @@ const html = await renderToHtml(<Receipt id="A-1001" />, { title: "Receipt", pre
 ```
 
 `pretty(html)` from `@unlayer/react-elements/async` formats any HTML the same way (the synchronous renderers' too). It doesn't work on edge runtimes, which can't load prettier as they run: format at build time there.
+
+## Errors
+
+A part of a template that fails fails the render, the synchronous and the async renderers alike, `renderToJson()` and `renderToPlainText()` too: a component that throws (or is async, or suspends, in a synchronous render), a Row whose Columns don't fit its `layout`, an exporter that fails. The error is a `RenderError` that says which component and where it is, with what it threw as its `cause`:
+
+```
+RenderError: [Unlayer] Cannot read properties of undefined (reading 'name') (in <Hero> at Row 3 › Column 1 › Hero)
+```
+
+`error.component` is `"Hero"`, `error.position` is `"Row 3 › Column 1 › Hero"`, and `error.cause` the original error, whose stack points at the line that threw. An email that's missing a part doesn't send by mistake.
+
+To leave failed parts out instead (a live preview, a digest whose sections are optional), set `onError`: in the render's options, in a root's `config`, or in an `<UnlayerProvider>`'s:
+
+```tsx
+import { renderToHtml, renderToHtmlParts, renderToJson, type RenderError } from "@unlayer/react-elements";
+
+// Left out of the HTML, the plain text and the design alike, each said with console.error
+const html = renderToHtml(<Digest />, { onError: "omit" });
+const design = renderToJson(<Digest />, { onError: "omit" });
+
+// Listed, to check or report: renderToHtmlParts (and the async one) gives what it left out
+const { body, omitted } = renderToHtmlParts(<Digest />, { onError: "omit" });
+for (const error of omitted) report(error.position, error.cause);
+
+// Or a function, instead of the console (it can throw the error to fail the render)
+renderToHtml(<Digest />, { onError: (error: RenderError) => logger.warn(error.message, { cause: error.cause }) });
+```
+
+What's left out is the part that failed: a component of yours (with what it rendered), markup React rejects, a Row whose Columns don't fit its layout, a block whose exporter failed. A template that isn't one fails anyway: a component that's `undefined` (a broken or circular import), an object or a date as a child. Error boundaries (`componentDidCatch`) don't catch while Elements renders, as in React's server renderer: `onError` and the error's position are what to use.
 
 ## Designs as code
 
@@ -593,8 +622,11 @@ import type {
   Href, Icons, TextAlign, LinkStyle,
   SocialIcon, MenuItem,
   ButtonProps, MenuProps, ImageProps,
+  OnError, RenderToJsonOptions,
 } from '@unlayer/react-elements';
 ```
+
+`RenderError` (a class: `error instanceof RenderError`) is exported too.
 
 ## Common Font Stacks
 
@@ -682,7 +714,7 @@ const monoFont = { label: "Monospace", value: "'SF Mono', 'Fira Code', 'Roboto M
 
 ## Common Mistakes
 
-1. **Column count mismatch** — `TwoEqual` layout requires exactly 2 `<Column>` children (a Row that doesn't fit its layout is left out, with a console error)
+1. **Column count mismatch** — `TwoEqual` layout requires exactly 2 `<Column>` children (a Row that doesn't fit its layout fails the render)
 2. **Missing Column** — Items must be inside `<Column>`, never directly in `<Row>`
 3. **Missing Row** — Columns must be inside `<Row>`, never directly in `<Email>`/`<Page>`/`<Document>`
 4. **Block elements in text children** — `<Paragraph>Hi <div>x</div></Paragraph>` keeps only the div's text: text children hold inline formatting (`<b>`, `<a>`, `<br />` …). Put blocks in their own Elements blocks, or HTML in an `<Html>` block.
@@ -713,6 +745,8 @@ pnpm build          # Build the package
 pnpm test           # Run tests
 pnpm storybook      # Launch Storybook
 ```
+
+How the renderer works, and the invariants its tests hold: [ARCHITECTURE.md](./ARCHITECTURE.md).
 
 ## License
 
