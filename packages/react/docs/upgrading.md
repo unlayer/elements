@@ -1,0 +1,110 @@
+# Upgrade Elements
+
+- [Upgrade from 0.2.x to 0.3](#upgrade-from-02x-to-03)
+- [Upgrade from 0.1.x to 0.2](#upgrade-from-01x-to-02)
+
+## Upgrade from 0.2.x to 0.3
+
+Elements 0.3 renders each block as the Unlayer editor exports it: the HTML `renderToHtml()` gives is the HTML the editor exports for the design `renderToJson()` gives. In 0.2, the two could differ by a few pixels, and some settings reached only one of them. Most templates look the same. The changes below are the ones to check.
+
+```bash
+npm install @unlayer/react-elements@0.3.0
+```
+
+React 18 and 19 are supported, as before.
+
+### Upgrade checklist
+
+1. **A Paragraph renders as the editor's text block.** 0.2 wrapped a Paragraph's text in a `<p>`, with `line-height: 1.4`. 0.3 writes the text with no `<p>` around it, with `line-height: 140%`, as the editor exports the design (whose line height was already `140%`). A line height you set is written as given. A percent line height is inherited as a fixed height, so a line that holds text of another size (a large price in a span, inline code, a superscript) can sit 1 to 20px from where 0.2 put it: where the editor puts it. Update snapshot tests, and CSS that selects the `<p>` in a text block.
+2. **Images and video thumbnails are sized in the block's slot.** An image without a `containerPadding` of its own is sized to its column less the block's default 10px padding on each side, as the editor sizes it, on phones and in Outlook's `width` attribute. That's up to 20px narrower than in 0.2: a full-width image in a 500px email is 480px wide, where 0.2 made it 500px. A px width is now exactly that wide (in a 500px email, 0.2 drew `width="300px"` 313px wide). To fill the column as before, give the image `containerPadding="0px"`.
+3. **The document's head has the editor's base stylesheet.** `renderToHtml()`'s `<style>` starts with the stylesheet the editor's export has for the mode. In email: the body's margins, table cells aligned to the top, `p { margin: 0 }`, `* { line-height: inherit }`, `sub`/`sup` line height and Apple's data-detector links. On a page or in a document: `box-sizing`, a 14px root font size (`rem`), the body's and a `<p>`'s margins, and `sub`/`sup` line height. So a `<p>` in a Paragraph's `html` or an Html block has no margins, as in the editor: write the margins inline where you want them. `renderToHtmlParts()` leaves the stylesheet out, since your page has its own.
+4. **`<UnlayerProvider config>` applies.** In 0.2 it had no effect. Now a root's config is merged key by key, the most specific first: the render function's options, the root's `config` prop (its `textDirection` prop just under it), the nearest `<UnlayerProvider>`'s config, then the defaults. `renderToJson()` keeps its `textDirection` in the design. If a Provider around your templates did nothing before, check what its config sets now. See [UnlayerProvider](../README.md#unlayerprovider).
+5. **Text starts on the right in a right-to-left template.** In a template with `textDirection="rtl"`, Paragraph and Heading default to `textAlign="right"`; 0.2 left them at the left edge unless you set it. A `textAlign="right"` you added for that can go. Set `textAlign="left"` where you want 0.2's alignment.
+6. **A Row's `style` and `className` go on its content box.** Like every component's, they go on the element it renders: the Row's `.u-row` box, the content width its Columns sit in. 0.2 put them on a wrapper around the whole row, full width. For a full-width color, use the Row's `backgroundColor`.
+7. **A Row's background image is full width.** `<Row backgroundImage={{ url }}>` rendered the image inside the content width, while the design (and so the editor) had it full width. The HTML now takes the editor's defaults: full width, centered, not repeated. Add `fullWidth: false` to keep it inside the content width.
+8. **A root's `fonts` reach the design.** `<Email fonts={[{ url }]} fontFamily={…}>` loaded the font in the HTML only, so the editor showed the fallback. `renderToJson()` now writes each stylesheet's URL on the design's fonts of the families it names (`family=Inter` in a Google Fonts URL), and the editor loads them. A URL that names no family the design uses stays in the HTML only, with a warning once per render. See [web fonts](./fonts.md).
+9. **The design records `displayMode`.** `renderToJson()` writes the body's `displayMode`: `email` for an `Email`, `web` for a `Page`, `document` for a `Document`. Design snapshots and comparisons that list every key change.
+10. **Links and rules written in a Column render.** 0.2 left markup written straight in a Column out, without a word. In 0.3, a bare `<a>` (or `<Link>`) is a Paragraph and a bare `<hr>` a Divider; a link holding more than text (an image) or an `<hr>` with a style is an Html block, as written. Other markup is still left out, now with a warning: put it in an `<Html>` block.
+11. **Inline JSX in Paragraph, Heading and Button children is kept.** 0.2 kept only the text of inline elements, and components there rendered nothing: `<Paragraph>Hello <strong>world</strong></Paragraph>` lost its bold. 0.3 keeps formatting tags, `<Link>`, and components that return them, such as react-intl's `<FormattedMessage>` and react-i18next's `<Trans>`, rendered with the template's context. Text in the children is still escaped.
+12. **The error for an async or suspending template changed.** The synchronous renderers still throw for an async or suspending template, with a new message: `async and suspending templates need "@unlayer/react-elements/async"'s renderers, or their data loaded first and passed as props.` A test that matches 0.2's message (`aren't supported`) needs the new one. See [async templates](./async.md).
+13. **`@unlayer/migrate` 0.2 needs Elements 0.3.** `@unlayer/migrate` renders with the Elements installed in your project, and stops before writing anything (exit code `1`) when it's outside its range: 0.1.x takes `^0.2.0`, and 0.2 (with the [MJML](./migrate-from-mjml.md) and [Beefree](./migrate-from-beefree.md) importers) `^0.3.0`. On Elements 0.2, it says `@unlayer/migrate needs @unlayer/react-elements ^0.3.0, but this project has 0.2.0`, with the install command. Upgrade Elements first, then migrate.
+
+### Also changed
+
+- **Zero lengths in the design are `0px`.** `containerPadding="0 0 12px"` is `"0px 0px 12px"` in the design, which Unlayer's design validation accepts. Lengths in other units, and the HTML, are as before.
+- **A Paragraph's `text` and string children show as typed in the editor too.** The design stores them escaped, as the HTML has them. The `html` prop and inline JSX are HTML, as before.
+- **A Row whose Columns don't fit its `layout` is left out, and only that Row.** 0.2 rendered no rows at all and logged the error; 0.3 renders the others, and one console error names the Row.
+- **The body's `linkStyle` colors its links.** Its CSS was written for an id the HTML didn't have.
+- **A background image's URL with a quote, a bracket or a space is whole in the HTML.** Those characters are percent-encoded there; the design keeps the URL as given.
+- **A Row's padding next to a content background is said.** A warning, once per render: the padding sits outside `columnsBackgroundColor`, as in the editor, so use the Columns' padding to inset the content.
+
+### New in 0.3
+
+Each has its own entry, so the main entry doesn't grow:
+
+- `@unlayer/react-elements/tailwind`: Tailwind classes on Elements components, with `<Tailwind>`. See [Tailwind CSS in Elements](./tailwind.md).
+- `@unlayer/react-elements/markdown`: Markdown rendered as editable blocks. See [Markdown in Elements](./markdown.md).
+- `@unlayer/react-elements/code`: `CodeBlock` and `CodeInline`, syntax-highlighted with inline styles. See [Code in emails](./code.md).
+- `@unlayer/react-elements/font`: `<Font>`, a web font declared once for the template, in the HTML and the design. See [Web fonts](./fonts.md).
+- `@unlayer/react-elements/head`: `<Head>`, tags of your own for the document's head. See [Head](../README.md#head).
+- `@unlayer/react-elements/async`: renderers for templates that `await` or suspend, and a `pretty` option for readable HTML. See [Async templates](./async.md).
+- `@unlayer/react-elements/codegen`: `designToElements()`, an Unlayer design as Elements code. See [Unlayer designs as Elements code](./codegen.md).
+
+In the main entry: `<Link>` for links in text and on their own in a Column ([Link](../README.md#link)), prop names from CSS and React Email (`align` for `textAlign`, `<Heading as="h2">`), and `values` that take only the keys you set. The [changelog](../CHANGELOG.md) lists every change.
+
+## Upgrade from 0.1.x to 0.2
+
+Elements 0.2 renders a template with React itself. In 0.1.x, `renderToHtml`, the head's CSS and `renderToJson` each walked the tree their own way, and they disagreed: rows from Fragments and components came out with a web layout in emails, ids repeated, a Context Provider never reached the design, and a component with hooks could blank its Column. In 0.2, one React render collects the template, and the HTML, the head and the design are all made from it. Hooks, Context, `useId`, Fragments, `memo`, `forwardRef` and conditions behave as React runs them.
+
+Most templates render the same. The changes below are the ones to check. Coming from 0.1.x, check these and the [0.3 changes](#upgrade-from-02x-to-03), and install 0.3.0. To stay on 0.2, install 0.2.1:
+
+```bash
+npm install @unlayer/react-elements@0.2.1
+```
+
+React 18 and 19 are supported, as before. Use 0.2.1 rather than 0.2.0: 0.2.0 reads a random number on each render, which fails a Next.js 16 build that prerenders a page or route rendering an email.
+
+### Upgrade checklist
+
+1. **Text you pass as children now shows as typed.** Heading and Button children, `previewText`, and text placed straight in a Row or Column escape markup and entities, as React shows text. Move markup to Paragraph's `html` prop, Heading's or Button's `text` prop, or an `<Html>` block. Template syntax with `<` or `>` in it (`{% if a > b %}`) goes in a `text` prop too. In `previewText`, write the padding characters themselves, not `&nbsp;&zwnj;`.
+2. **A template component as the root gets its own document shell.** `renderToHtml(<Welcome />)` now reads the settings of the root `Welcome` returns (fonts, `lang`, `dir`, phone styles), which 0.1.x dropped, also through a Provider, `StrictMode` or `Profiler` around it. A class template, or a root inside other markup, renders as before, with a console warning that its root's settings aren't read.
+3. **Your components get only the props you give them.** 0.1.x also passed internal ones (`_config`, `bodyValues`, `cells`); don't read them. Markup your components return (a wrapper, a link) now renders where 0.1.x left it out.
+4. **Keep side effects out of rendering.** Elements may call a component once more on its own, to take the HTML it puts in a Column or to say why it failed. Don't create a coupon code or write to a database while rendering.
+5. **Load data before rendering.** The renderers are synchronous. A component that is `async`, suspends or throws is left out at the nearest Row, Column or root child, with a console message naming it, and the rest of the email renders. With such a component, 0.1.22 rendered no rows.
+6. **Check `noStackMobile` rows.** `<Row noStackMobile>` now keeps its columns side by side on phones, which 0.1.x ignored, and the design saves it.
+7. **Check email size.** Rows that come from Fragments and components are email tables with their own ids, where 0.1.x gave them a web layout. Emails built that way are larger: one went from 37KB to 81KB, closer to the size where Gmail clips a message (102KB).
+8. **Fill in template tags in links before rendering.** `"`, `<` and `>` in link URLs are percent-encoded, so a Liquid filter with quotes in an `href` no longer survives. SendGrid's `<%name%>` tags stay as written.
+9. **Check Menu text.** Menu item text in emails escapes markup and double quotes, also inside a template tag. Write a template's strings in single quotes: `{{ name | default: 'Shop' }}`.
+10. **Expect a different `useId()` value.** Ids differ from 0.1.x's, but are unique, and the same in the HTML and the design.
+11. **Snapshot tests will change.** Colors written as `rgb()` become hex, double-quoted font names use single quotes, every document's head carries the device CSS for `hideOnDesktop` and `hideOnMobile`, and a block's `values._meta.htmlID` is now its wrapper's id (so its hover and link styles apply).
+
+### Fixed in 0.2
+
+- `<Row noStackMobile>` works, and `rgb()` colors render (Tailwind writes them).
+- Phone settings match the editor's device CSS, and `renderToJson` keeps phone settings, visibility flags and a Provider's context.
+- The roots accept `fonts`, `textDirection` and `lang`.
+- Security: text placed straight in a Row or Column, Heading and Button children, Menu and Social text, link URLs, `previewText`, phone settings written into the head's CSS, and `textDirection` could inject markup. They're escaped now. A `textDirection` other than `ltr`, `rtl` or `auto` is left out.
+- Plain text breaks the line at a `<br>` in a heading, link or list item, and decodes entities in headings.
+- 0.2.1 keeps each render apart from the next without reading a random number or the date, so Next.js 16 with Cache Components (`create-next-app`'s default) can prerender pages, route handlers and Client Components that render emails, as it could with 0.1.22. A render never leaks data into the next, and the same input always gives the same output.
+
+### Other behavior changes
+
+- An undefined component (a broken import) or an object as a child fails the render, as React's own render does.
+- Text placed straight in a Row or Column logs a console warning, once per process: it isn't kept in the design.
+- Markup written straight in a Row or Column is still left out, but a block, Column or Row inside it (a `<div>` around them) now renders.
+- `renderToJson` leaves markup in a Column out, as the HTML does; 0.1.x threw.
+- A root's `lang` and `fonts` are root settings, so the design's body values no longer copy them. A font URL given twice is linked once.
+- Renders are slower: on the server, about 0.2 ms more per render on average (2.6 times 0.1.22's time); live-preview updates in the browser, 15–30% slower. The bundle grew from about 76KB to 118KB.
+
+### Known limits
+
+- In Next.js's edge runtime, react-dom can't render with React Server Components' React. `renderToHtml` fails there, as in 0.1.x, and `renderToJson` now fails too, with an error saying to use the Node.js runtime.
+- Called inside an app's own `react-dom/server` render where no second react-dom module can share the app's React (a bundle with React in it, some test runners), Elements renders with the same module. Call it in the component's body, not in `useMemo` and not before another hook, or render first and pass the result as a prop.
+- An ES module or a bundle on Node.js 18, or on 20 below 20.16, can't load that second react-dom module.
+- In a live preview rendered with `createRoot`, a Context Provider around `<Email>` doesn't reach the components inside it.
+
+The [v0.2.0 release notes](https://github.com/unlayer/elements/releases/tag/v0.2.0) list every change, and the [changelog](../CHANGELOG.md) each release.
+
+### Upgrading from 0.1.16 or earlier
+
+`renderToHtml()` returns a complete HTML document, from `<!DOCTYPE>` to `</html>`, since 0.1.17. Where you wrapped its output in your own document, use `renderToHtmlParts()`, which returns the `head` and `body` to embed.

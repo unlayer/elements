@@ -1,5 +1,7 @@
 # @unlayer/react-elements
 
+Upgrading? See [upgrading](./docs/upgrading.md): what changed in 0.3 and in 0.2, and what to check.
+
 ## Unreleased
 
 ### New
