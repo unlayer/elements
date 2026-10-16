@@ -38,7 +38,7 @@ function rendered(type: (props: object) => React.ReactNode, props: object): Reac
 }
 
 /** The template rendered by `Root` (Page or Document): its root replaced, found through the components that render it. */
-export function as(node: React.ReactNode, Root: typeof Page): React.ReactElement {
+export function as(node: React.ReactNode, Root: typeof Page | typeof Document): React.ReactElement {
   if (React.isValidElement(node)) {
     const { type, props } = node as React.ReactElement<Record<string, unknown>>;
     if (ROOTS.has(type)) {
@@ -272,7 +272,7 @@ function values(): Template[] {
   );
 
   for (const style of ["solid", "dashed", "dotted", "double", "none"])
-    for (const width of ["100%", "50%", "240px"])
+    for (const width of ["100%", "50%", "240px"] as const)
       add(
         `divider: ${style}, ${width}`,
         <Email>
