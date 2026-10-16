@@ -1,4 +1,4 @@
-import type { TemplateError } from "../api";
+import { STATIC, type TemplateError } from "../api";
 
 export function ErrorView({ error }: { error: TemplateError }) {
   const where = error.file ? `${error.file}${error.line ? `:${error.line}:${error.column ?? 1}` : ""}` : undefined;
@@ -15,7 +15,9 @@ export function ErrorView({ error }: { error: TemplateError }) {
           <pre>{error.stack}</pre>
         </details>
       )}
-      <p className="error-hint">Fix the file and save: the preview updates by itself.</p>
+      <p className="error-hint">
+        {STATIC ? "A build doesn't update as you edit: fix the file, then build the preview again." : "Fix the file and save: the preview updates by itself."}
+      </p>
     </div>
   );
 }
