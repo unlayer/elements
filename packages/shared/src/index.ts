@@ -8,6 +8,7 @@
 // Config
 export { DEFAULT_CONFIG } from "./config";
 export type { UnlayerConfig, HeadConfig } from "./config";
+export { RenderError, type OnError } from "./render-error";
 
 // Types
 export type {
