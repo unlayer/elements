@@ -36,6 +36,8 @@ export interface Collection {
    * them (on React 18, resolved first), not left out.
    */
   async?: (element: React.ReactElement) => React.ReactElement;
+  /** A Row, Column or block in it rendered its HTML: it couldn't tell this render (see Sentinel), so it's no template. */
+  lost?: boolean;
 }
 
 // Shared by every copy of Elements a process loads (a project's ESM and CommonJS builds, a tool's own): a render one
@@ -49,6 +51,13 @@ export const frames: Array<Collection | null> = ((globalThis as Record<symbol, u
  */
 const ASYNCS = Symbol.for("@unlayer/react-elements/async-collections");
 export const asyncs = ((globalThis as Record<symbol, unknown>)[ASYNCS] ??= new Map()) as Map<string, Collection>;
+
+/**
+ * The async render whose work this is (`undefined` where the async entry can't tell), for a Row, Column or block whose
+ * ids can't name it (see Collection.blind): the async entry's runner (see its running.ts), shared as the stack is.
+ */
+const RUNNING = Symbol.for("@unlayer/react-elements/async-running");
+export const running = (): Collection | undefined => ((globalThis as Record<symbol, unknown>)[RUNNING] as { current(): Collection | undefined } | undefined)?.current();
 
 /** The collecting render under way, if any (and not a render of Elements' own inside it). */
 export function collecting(): Collection | undefined {

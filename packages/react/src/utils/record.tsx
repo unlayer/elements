@@ -4,7 +4,7 @@
  * renders inside them.
  */
 import React, { Suspense } from "react";
-import { asyncs, collecting, COLLECTING_ID, marker, RECORDS, within, type Collection } from "./collect";
+import { asyncs, collecting, COLLECTING_ID, marker, RECORDS, running, within, type Collection } from "./collect";
 import { isAsyncComponent, isElementsType } from "./unwrap-root";
 import { TAILWIND } from "./tailwind";
 import { UNLAYER_CONFIG_KEY } from "./create-component";
@@ -123,20 +123,24 @@ function hasComponent(children: React.ReactNode): boolean {
  * collecting render.
  */
 function Sentinel({ record, real }: { record: () => React.ReactNode; real: () => React.ReactNode }): React.ReactNode {
-  // Where ids can't tell (another copy of React: see Collection.blind), it records while collecting: a marker in a
-  // render started inside the collecting one is then rendered in its place (normalize.tsx).
-  let collected = !!collecting()?.blind;
-  let id = "";
-  if (!collected) {
+  const top = collecting();
+  // The collection it's in: a synchronous render's is on top while it runs; an async one's frame stays on the stack
+  // while others start, so it's the one whose work this is (see `running`). Where ids can't tell (another copy of
+  // React: see Collection.blind), it records there: a marker in a render started inside the collecting one is then
+  // rendered in its place (normalize.tsx).
+  const own = top?.async ? running() : top;
+  let into = own?.blind ? own : undefined;
+  if (!into) {
     try {
-      id = React.useId().slice(1);
-      collected = id.startsWith(COLLECTING_ID);
+      const id = React.useId().slice(1);
+      // An async render's ids carry its nonce (`unlayer-collect-<nonce>-`): it records in its own collection.
+      if (id.startsWith(COLLECTING_ID)) into = asyncs.get(id.slice(COLLECTING_ID.length).split("-")[0]) ?? top;
     } catch {
-      // Not in a render React runs: what it renders.
+      // Not in a render React runs: what it renders, which the collection it's in can't hold (see normalize.tsx's intact).
+      if (own) own.lost = true;
     }
   }
-  // An async render's ids carry its nonce (`unlayer-collect-<nonce>-`): it records in its own collection.
-  return collected ? within(asyncs.get(id.slice(COLLECTING_ID.length).split("-")[0]) ?? collecting()!, record) : within(null, real);
+  return into ? within(into, record) : within(null, real);
 }
 
 /** Sentinel by the name of the component it stands for, which React's warnings name (`Check the render method of Column`). */

@@ -16,8 +16,9 @@ import {
   type UnlayerConfig,
 } from "@unlayer/react-elements";
 import type { TailwindConfig, TailwindHandle } from "@unlayer/react-elements/tailwind";
-import { asyncComponent, renderAll } from "./stream";
+import { asyncComponent, renderAll, renderStatic } from "./stream";
 import { prettyHtml } from "./pretty";
+import { runner, storage, type Runner } from "./running";
 
 export type { DesignJSON, HtmlParts, PlainTextOptions, RenderToHtmlOptions };
 
@@ -41,6 +42,7 @@ const FRAMES = Symbol.for("@unlayer/react-elements/collecting");
 const ASYNCS = Symbol.for("@unlayer/react-elements/async-collections");
 const LOADER = Symbol.for("@unlayer/react-elements/tailwind-loader");
 const PROVIDER = Symbol.for("@unlayer/react-elements/provider");
+const RUNNING = Symbol.for("@unlayer/react-elements/async-running");
 const MEMO = Symbol.for("react.memo");
 const ROOTS = new Set(["Body", "Email", "Page", "Document"]);
 
@@ -48,10 +50,13 @@ interface Collection {
   nonce: string;
   recorded: Array<{ kind: string; props?: { tw?: unknown; config?: TailwindConfig } }>;
   async: (element: React.ReactElement) => React.ReactElement;
+  blind?: boolean;
 }
 interface Internals {
   guard(children: React.ReactNode, collection: Collection): React.ReactNode;
   parse(html: string, collection: Collection): unknown;
+  idsSeen(render?: (node: React.ReactNode, options?: object) => string): boolean;
+  intact(children: React.ReactNode, collection: Collection): void;
   unwrap(element: React.ReactElement, api: string, scope: WeakMap<object, unknown>): React.ReactElement;
   withScope<T>(scope: WeakMap<object, unknown>, run: () => T): T;
 }
@@ -105,22 +110,27 @@ async function render<T>(element: React.ReactElement, api: string, run: (root: R
   const children = (root.props as { children?: React.ReactNode } | null)?.children;
   const configs: Array<TailwindConfig | undefined> = [];
   if (ROOTS.has((root.type as { displayName?: string })?.displayName ?? "") && children && typeof children === "object") {
-    const collection: Collection = { nonce: nonce(), recorded: [], async: asyncComponent };
+    // Where Elements' React isn't the one react-dom renders with, ids can't name it (see the main entry's Collection.blind).
+    const collection: Collection = { nonce: nonce(), recorded: [], async: asyncComponent, ...(internals.idsSeen(renderStatic) ? {} : { blind: true }) };
     const shared = globalThis as Record<symbol, unknown>;
     const frames = (shared[FRAMES] ??= []) as unknown[];
     const asyncs = (shared[ASYNCS] ??= new Map()) as Map<string, Collection>;
-    // Its components run while it's under way, after awaits too: its frame stays, and its ids name it.
+    // Its components run while it's under way, after awaits too: its frame stays, and its ids name it (or, blind, the
+    // runner tells its work: see running.ts).
+    const running = (shared[RUNNING] ??= runner(storage<Collection>())) as Runner<Collection>;
     frames.push(collection);
     asyncs.set(collection.nonce, collection);
     let html: string;
     try {
-      html = await renderAll(React.createElement(React.Fragment, null, internals.guard(children, collection)), `unlayer-collect-${collection.nonce}-`);
+      html = await running.run(collection, () => renderAll(React.createElement(React.Fragment, null, internals.guard(children, collection)), `unlayer-collect-${collection.nonce}-`));
     } finally {
       frames.splice(frames.indexOf(collection), 1);
       asyncs.delete(collection.nonce);
     }
-    // The collected template, for the render after (see the main entry's normalize.tsx).
-    scope.set(children as object, { nodes: internals.parse(html, collection), collection, told: new Set() });
+    // The collected template, for the render after (see the main entry's normalize.tsx); one that isn't fails there.
+    const nodes = internals.parse(html, collection);
+    internals.intact(children, collection);
+    scope.set(children as object, { nodes, collection, told: new Set() });
     for (const r of collection.recorded) if (r.kind === "tailwind" && !r.props?.tw) configs.push(r.props?.config);
   }
   const handles = new Map<unknown, TailwindHandle>();

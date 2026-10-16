@@ -79,6 +79,8 @@
 
 - **The error for an async or suspending template names the async renderers.** The synchronous renderers still throw for one, now with: `async and suspending templates need "@unlayer/react-elements/async"'s renderers, or their data loaded first and passed as props`.
 
+- **A template whose Rows render as HTML instead of being collected fails.** Where Elements' React isn't the one react-dom renders with and Elements can't tell (another copy of React, as a second install or a bundler gives), a template's Rows and blocks rendered as a web layout, and its design had no rows, with only a warning (`<div> is not a valid Body child`). The render now fails with an error saying so. (Next.js's App Router, where Elements' React is React Server Components', renders as ever, with the async renderers too.)
+
 - **A Row's `style` and `className` go on its content box.** Like every component's, they go on the element it renders: a Row's `.u-row` box, the content width its Columns sit in (a Column's on its cell). 0.2 put a Row's on a wrapper around the whole row, full width. For a full-width color, use the Row's `backgroundColor`.
 
 ## 0.2.1 (2026-10-13)

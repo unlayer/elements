@@ -24,6 +24,9 @@ function failure(error: unknown, info?: unknown): Error {
   return Object.assign(new Error(`[Unlayer] ${name ? `<${name}>` : "A component"} threw while rendering: ${message}${hint}`), { cause: error });
 }
 
+/** This react-dom's static renderer, for the check whose React it renders with (see the main entry's idsSeen). */
+export const renderStatic = (server as unknown as { renderToStaticMarkup?: (node: React.ReactNode, options?: object) => string }).renderToStaticMarkup;
+
 /** What a streaming render writes for hydration, which a static render doesn't: Suspense boundaries' and text's markers. */
 const clean = (html: string) => html.replace(/<!--(?:\$[?!]?|\/\$| )-->(?:<template[^>]*><\/template>)?/g, "");
 

@@ -44,7 +44,7 @@ The output is what the synchronous renderers give for the same content, and the 
 
 ## How it works
 
-The template's root is resolved first: an async template is called and awaited. The content is then rendered once by React's streaming server renderer, which the renderer reads only when everything in it is ready (`onAllReady` in Node, `allReady` on the web), so React itself resolves async components and Suspense, with hooks, context and `use()` working as in any server render. That render collects the template, and the synchronous renderer makes the HTML, the head, the plain text or the design from what it collected: each component runs once per render. Several renders can run at once.
+The template's root is resolved first: an async template is called and awaited. The content is then rendered once by React's streaming server renderer, which the renderer reads only when everything in it is ready (`onAllReady` in Node, `allReady` on the web), so React itself resolves async components and Suspense, with hooks, context and `use()` working as in any server render. That render collects the template, and the synchronous renderer makes the HTML, the head, the plain text or the design from what it collected: each component runs once per render. Several renders can run at once (on a runtime without `AsyncLocalStorage`, such as a browser, those where Elements' React isn't react-dom's collect one at a time).
 
 ## React 18 and React 19
 

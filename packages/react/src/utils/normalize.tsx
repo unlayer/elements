@@ -15,7 +15,7 @@
  */
 import React from "react";
 import { renderToStaticMarkup, renderToString } from "./server-renderer";
-import { COLLECTING_ID, MARK, within, type Collection, type Recorded } from "./collect";
+import { COLLECTING_ID, MARK, RECORDS, within, type Collection, type Recorded } from "./collect";
 import { guard } from "./record";
 import { callIsolated, FORWARD_REF, isAsyncComponent, isThenable, MEMO } from "./unwrap-root";
 import { sayOnce, scopeCache } from "./render-scope";
@@ -557,9 +557,9 @@ function collected(children: React.ReactNode, guarded = true): Collected {
 /**
  * Whether the React Elements' components call gives them the ids of the render Elements starts (see Sentinel):
  * not where a bundler gave them another copy than react-dom's (Next.js's server layers), where `useId()` throws or
- * gives an outer render's ids.
+ * gives an outer render's ids. `render`: the react-dom that render is with (an async render's, its own).
  */
-function idsSeen(): boolean {
+export function idsSeen(render = renderToStaticMarkup): boolean {
   let seen = false;
   const Probe = () => {
     try {
@@ -569,8 +569,21 @@ function idsSeen(): boolean {
     }
     return null;
   };
-  renderToStaticMarkup(<Probe />, { identifierPrefix: COLLECTING_ID });
+  render(<Probe />, { identifierPrefix: COLLECTING_ID });
   return seen;
+}
+
+/**
+ * A collection that isn't the template: fewer Rows recorded than it plainly has (its root's own, in Fragments and
+ * <Tailwind>s), or none where a Row, Column or block rendered its HTML in it (see Sentinel). Its email would be broken
+ * (rows as a web layout, a design without them), with nothing but a warning, so the render fails.
+ */
+export function intact(children: React.ReactNode, collection: Collection): void {
+  const rows = (nodes: React.ReactNode): number =>
+    React.Children.toArray(nodes).reduce<number>((n, child: any) => n + (child?.type === React.Fragment || child?.type?.[TAILWIND] ? rows(child.props.children) : child?.type?.[RECORDS] && child.type.displayName === "Row" ? 1 : 0), 0);
+  const recorded = collection.recorded.filter((r) => r.kind === "row").length;
+  if (recorded < rows(children) || (!recorded && collection.lost))
+    throw new Error("[Unlayer] the template's Rows and blocks rendered as HTML instead of being collected, so the email would be broken: Elements' React isn't react-dom's (another copy of React: see `npm ls react`), or the runtime isn't one Elements supports.");
 }
 
 // Shared by every copy of Elements a process loads, as the collecting stack is (collect.ts): no two renders get one nonce.
@@ -592,7 +605,13 @@ function nonce(): string {
 
 /** `children` collected, once per render (the HTML, the head and the design ask for the same). */
 export const collect = (children: React.ReactNode): Collected =>
-  children !== null && typeof children === "object" ? scopeCache(children, () => collected(children)) : collected(children);
+  children !== null && typeof children === "object"
+    ? scopeCache(children, () => {
+        const c = collected(children);
+        intact(children, c.collection);
+        return c;
+      })
+    : collected(children);
 
 /**
  * A root's children as HTML (what Body puts inside it): markup among the rows as it is, and each row or block

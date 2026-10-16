@@ -5,7 +5,7 @@
 import type React from "react";
 import { collecting } from "./collect";
 import { guard, recordContainer, whileCollecting } from "./record";
-import { parse } from "./normalize";
+import { idsSeen, intact, parse } from "./normalize";
 import { htmlRoot, unwrapRoot } from "./unwrap-root";
 import { withRenderScope, withScope } from "./render-scope";
 import { renderToStaticMarkup } from "./server-renderer";
@@ -22,4 +22,4 @@ function unwrap(element: React.ReactElement, api: string, scope: WeakMap<object,
   }
 }
 
-export const internals = { collecting, whileCollecting, recordContainer, guard, parse, withScope, unwrap, render: renderToStaticMarkup };
+export const internals = { collecting, whileCollecting, recordContainer, guard, parse, idsSeen, intact, withScope, unwrap, render: renderToStaticMarkup };
