@@ -10,10 +10,14 @@ import { ID_PATTERN, KNOWN_REACT, reactRow, slotOf } from "./react-compat";
 import { checkReact, probe } from "./self-test";
 
 describe("the React compat table", () => {
-  it("has the installed React's minor, or the nearest one before it", () => {
+  it("has the installed React's minor, or (a newer one) the nearest one before it", () => {
     const { row, known } = reactRow();
-    expect(known, `React ${React.version} isn't in the table: add its row`).toBe(true);
-    expect(React.version.startsWith(row.react + ".")).toBe(true);
+    const newest = KNOWN_REACT[KNOWN_REACT.length - 1];
+    const newer = Number.parseFloat(React.version) > Number.parseFloat(newest.react);
+    // A version the table should have (one before its newest) is in it; a newer one renders if the self-check passes.
+    if (!newer) expect(known, `React ${React.version} isn't in the table: add its row`).toBe(true);
+    if (known) expect(React.version.startsWith(row.react + ".")).toBe(true);
+    else expect(row).toBe(newest);
     expect(reactRow("19.2.4").row.react).toBe("19.2");
     expect(reactRow("19.9.0")).toEqual({ row: KNOWN_REACT[KNOWN_REACT.length - 1], known: false });
     expect(reactRow("20.0.0-canary-abc").known).toBe(false);

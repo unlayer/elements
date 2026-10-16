@@ -399,7 +399,7 @@ describe("an async component whose data load fails", () => {
 describe("React's warnings about a template", () => {
   // React says where a list without keys is rendered, in its development build; Elements renders it, and says so too,
   // naming the component the list is in, once.
-  it("name the component a list without keys is in, once", () => {
+  it.skipIf(process.env.NODE_ENV === "production")("name the component a list without keys is in, once", () => {
     const error = vi.spyOn(console, "error").mockImplementation(() => {});
     try {
       const items = ["Shoes", "Hat"];

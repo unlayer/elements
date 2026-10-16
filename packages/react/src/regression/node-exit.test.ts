@@ -17,11 +17,13 @@ const root = path.resolve(import.meta.dirname, "../..");
 // esbuild through tsup, which depends on it (a clean install links no esbuild binary into this package).
 const esbuild = createRequire(createRequire(path.join(root, "package.json")).resolve("tsup/package.json"))("esbuild") as typeof import("esbuild");
 const dist = path.join(root, "dist");
-const reacts = {
-  "React 18": [path.join(root, "node_modules/react"), path.join(root, "node_modules/react-dom")],
-  // React 19, from the migration CLI's tests (aliases there).
-  "React 19": [path.join(root, "../migrate/node_modules/react19"), path.join(root, "../migrate/node_modules/react-dom19")],
-};
+const versionOf = (dir: string): string => JSON.parse(fs.readFileSync(path.join(dir, "package.json"), "utf8")).version;
+const is19 = (dir: string) => Number.parseInt(versionOf(dir)) >= 19;
+// This package's React (18 here; CI runs the suite on others too), and React 19 from the migration CLI's tests (its
+// aliases): two installs.
+const own = [path.join(root, "node_modules/react"), path.join(root, "node_modules/react-dom")];
+const other = [path.join(root, "../migrate/node_modules/react19"), path.join(root, "../migrate/node_modules/react-dom19")];
+const reacts: Record<string, string[]> = { [`React ${versionOf(own[0])}`]: own, [`React ${versionOf(other[0])}, another install`]: other };
 
 const script = (format: "module" | "commonjs", noChannel = false, react19 = false) => {
   // No MessageChannel, and on React 19 no TextEncoder (Jest 30's jsdom environment): React 19's browser build throws
@@ -93,8 +95,8 @@ describe("an app that's a module, started from another folder than its own", () 
   // The second react-dom module was looked for from the folder Node was started in: from a folder whose React is 19,
   // a React 18 app loaded React 19's browser build (rejected, but its MessageChannel kept Node running), and from one
   // with no React, none was found (a design worked out in `useMemo`, then a hook, failed). 0.1.22 did neither.
-  const [react18, reactDom18] = reacts["React 18"];
-  const [react19, reactDom19] = reacts["React 19"];
+  const [react18, reactDom18] = own;
+  const [react19, reactDom19] = other;
   const page = `import React from "react";
 import { renderToString } from "react-dom/server";
 import * as E from "@unlayer/react-elements";
@@ -116,7 +118,7 @@ console.log(JSON.stringify({ react: React.version, page: renderToString(h(Page))
       fs.writeFileSync(path.join(app, "body.js"), page.replace(/const Page = .*\n/, 'const Page = () => h("pre", { dangerouslySetInnerHTML: { __html: "1 rows, open=false, " + E.renderToHtml(email).includes("Hi there") } });\n'));
       const body = spawnSync(process.execPath, [path.join(app, "body.js")], { cwd: parent, encoding: "utf8", timeout: 20_000 });
       expect(body.error, "still running after 20s: something keeps Node alive").toBeUndefined();
-      expect(JSON.parse(body.stdout.trim().split("\n").pop()!)).toEqual({ react: "18.3.1", page: "<pre>1 rows, open=false, true</pre>" });
+      expect(JSON.parse(body.stdout.trim().split("\n").pop()!)).toEqual({ react: versionOf(react18), page: "<pre>1 rows, open=false, true</pre>" });
       // Run as its folder (its package's `main`), through a link to it elsewhere, imported by a script elsewhere, and
       // from `node -e`: Node's script isn't the app's, but Elements is where it is.
       fs.writeFileSync(path.join(app, "package.json"), JSON.stringify({ type: "module", main: "page.js" }));
@@ -133,7 +135,7 @@ console.log(JSON.stringify({ react: React.version, page: renderToString(h(Page))
         const run = spawnSync(process.execPath, args, { cwd, encoding: "utf8", timeout: 20_000 });
         expect(run.error, `still running after 20s: node ${args.join(" ")}`).toBeUndefined();
         expect(run.status, `node ${args.join(" ")}: ${run.stderr}`).toBe(0);
-        expect(JSON.parse(run.stdout.trim().split("\n").pop()!)).toEqual({ react: "18.3.1", page: "<pre>1 rows, open=false, true</pre>" });
+        expect(JSON.parse(run.stdout.trim().split("\n").pop()!)).toEqual({ react: versionOf(react18), page: "<pre>1 rows, open=false, true</pre>" });
       }
     } finally {
       fs.rmSync(parent, { recursive: true, force: true });
@@ -174,8 +176,9 @@ console.log(JSON.stringify({ warnings }));
         );
         const run = spawnSync(process.execPath, ["keys.js"], { cwd: dir, encoding: "utf8", timeout: 20_000 });
         expect(run.status, run.stderr).toBe(0);
-        // Lists in a Column, the root and a Row: one each, however many renders, on React 19 (React 18 said it before).
-        expect(JSON.parse(run.stdout.trim().split("\n").pop()!)).toEqual({ warnings: name === "React 19" ? 3 : 0 });
+        // Lists in a Column, the root and a Row: one each, however many renders, on React 19 (React 18 said it before);
+        // none in React's production build.
+        expect(JSON.parse(run.stdout.trim().split("\n").pop()!)).toEqual({ warnings: is19(react) && process.env.NODE_ENV !== "production" ? 3 : 0 });
       } finally {
         fs.rmSync(dir, { recursive: true, force: true });
       }
@@ -203,7 +206,7 @@ describe("the built package's own requires", () => {
 describe("the Tailwind entry (@unlayer/react-elements/tailwind), built", () => {
   // Tailwind is an optional peer dependency: the main entry never loads it, and the Tailwind entry loads it only when
   // it's asked to compile, both as a module and required.
-  const [react, reactDom] = reacts["React 18"];
+  const [react, reactDom] = own;
   const template = `const h = React.createElement;
 const email = (root, block) => h(E.Email, { className: root }, h(E.Row, null, h(E.Column, null, h(E.Paragraph, { className: block }, "Hi there"))));`;
   const scripts = {
@@ -277,7 +280,7 @@ async function Broken() { await later(null); throw boom; }
   for (const [name, [react, reactDom]] of Object.entries(reacts)) {
     it(`resolve async templates and components, and Suspense (${name})`, () => {
       expect(fs.existsSync(path.join(dist, "async.cjs")), "build the package first (pnpm build)").toBe(true);
-      const react19 = name === "React 19";
+      const react19 = is19(react);
       const dir = project(react, reactDom, "commonjs");
       try {
         fs.writeFileSync(path.join(dir, "async.js"), script(react19));
@@ -298,7 +301,7 @@ async function Broken() { await later(null); throw boom; }
 describe("the Markdown, code and font entries, built", () => {
   // Their parser and highlighter are built in: a project installs nothing more, as a module or required, and the
   // main entry has neither.
-  const [react, reactDom] = reacts["React 18"];
+  const [react, reactDom] = own;
   const body = `const h = React.createElement;
 const email = h(E.Email, null, h(F.Font, { family: "Inter", url: "https://fonts.example.com/inter.css", default: true }), h(E.Row, null, h(E.Column, null,
   h(M.Markdown, null, "# Hi\\n\\nSome **bold** text.\\n\\n\\u0060\\u0060\\u0060js\\nconst a = 1;\\n\\u0060\\u0060\\u0060"),
@@ -331,9 +334,8 @@ console.log(JSON.stringify({ blocks: json.body.rows[0].columns[0].contents.map((
 });
 
 describe("a bundle with React in it, which renders with react-dom/server", () => {
-  // There Elements has no other module of react-dom's that renders with that React (a browser bundle, a bundled
-  // server): called in a component that render renders, it renders with the module it's in, as 0.1.22 did (it threw,
-  // and React 19 kept Node running). An email that render renders itself renders too.
+  // Called in a component that render renders (a browser bundle, a bundled server), Elements renders, as 0.1.22 did
+  // (0.2 threw there, and React 19 kept Node running). An email that render renders itself renders too.
   for (const [name, [react, reactDom]] of Object.entries(reacts)) {
     for (const platform of ["browser", "node"] as const) {
       it(`renders an email it renders, and Elements called in its components (${name}, ${platform} bundle)`, () => {
@@ -391,12 +393,12 @@ describe("a Node script that renders with the built package", () => {
           fs.copyFileSync(path.join(root, "package.json"), path.join(elements, "package.json"));
           for (const dependency of ["exporters", "types"]) fs.symlinkSync(fs.realpathSync(path.join(root, "node_modules/@unlayer", dependency)), path.join(modules, "@unlayer", dependency), "dir");
           fs.writeFileSync(path.join(dir, "package.json"), JSON.stringify({ type: format }));
-          fs.writeFileSync(path.join(dir, "render.js"), script(format, noChannel, name === "React 19"));
+          fs.writeFileSync(path.join(dir, "render.js"), script(format, noChannel, is19(react)));
           const run = spawnSync(process.execPath, ["render.js"], { cwd: dir, encoding: "utf8", timeout: 20_000 });
           expect(run.error, "still running after 20s: something keeps Node alive").toBeUndefined();
           expect(run.status, run.stderr).toBe(0);
           const out = JSON.parse(run.stdout.trim().split("\n").pop()!);
-          expect(out.react.split(".")[0]).toBe(name.split(" ")[1]);
+          expect(out.react).toBe(versionOf(react));
           expect(out).toMatchObject({ html: true, page: "<pre>1 rows, open=false</pre>" });
         } finally {
           fs.rmSync(dir, { recursive: true, force: true });

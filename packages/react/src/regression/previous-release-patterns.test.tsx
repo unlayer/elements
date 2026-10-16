@@ -256,7 +256,8 @@ const PATTERNS: Record<string, Pattern> = {
       const MemoBanner = memo(Banner);
       return <L.Email><MemoBanner /><L.Row><L.Column><L.Paragraph>Footer</L.Paragraph></L.Column></L.Row></L.Email>;
     },
-    shows: "Banner: default title Footer",
+    // React 19 doesn't fill a function component's defaultProps (memo'd or not); React 18 does.
+    shows: Number.parseInt(React.version) >= 19 ? "Banner: undefined Footer" : "Banner: default title Footer",
     json: false, // 0.1.22's design left out components among the rows
   },
   "headings, buttons and text with &, < and quotes": {

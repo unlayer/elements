@@ -222,7 +222,8 @@ describe("blocks and Rows of the previous release inside this one's (a package s
   });
 });
 
-describe("in the browser (a live preview)", () => {
+// (React's act(), which this needs, is in its development build only.)
+describe.skipIf(process.env.NODE_ENV === "production")("in the browser (a live preview)", () => {
   (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
   it("renders the email, and works out its design and HTML while rendering, as the previous release did", async () => {
     const shown: Record<string, string[]> = {};

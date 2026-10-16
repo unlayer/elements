@@ -553,7 +553,7 @@ describe("renderToHtml inside a React render", () => {
     const out = renderToString(<App />);
     expect(out).toContain("Hello Ada");
     expect(out).toContain("dir=&quot;rtl&quot;");
-    expect(out).toMatch(/data-id=":R[^"]*:"/);
+    expect(out).toMatch(/data-id="(:R[^"]*:|«R[^"]*»|_R_[^"]*_)"/);
   });
 
   it("keeps the root's settings for a template that uses hooks, outside a render too", () => {

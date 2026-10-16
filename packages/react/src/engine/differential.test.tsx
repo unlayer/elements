@@ -36,7 +36,9 @@ function Stateful({ children }: { children?: React.ReactNode }) {
   return <p data-state={`${count} ${reduced} ${ref.current} ${memo}`}>{children}</p>;
 }
 
-const same = (node: React.ReactElement) => expect(renderStatic(node)).toBe(renderToStaticMarkup(node));
+/** react-dom's markup, but for React 19's image preloads (hoisted resource hints), which the walker doesn't write. */
+const reactDom = (node: React.ReactElement) => renderToStaticMarkup(node).replace(/<link rel="preload" as="image"[^>]*\/>/g, "");
+const same = (node: React.ReactElement) => expect(renderStatic(node)).toBe(reactDom(node));
 
 // React's development warnings for these trees (an attribute it doesn't know, a list without keys), and the walker's.
 beforeAll(() => void vi.spyOn(console, "error").mockImplementation(() => {}));
@@ -88,7 +90,7 @@ describe("the walker against react-dom/server", () => {
     let bytes = 0;
     for (let seed = 1; seed <= SEEDS; seed++) {
       const tree = randomTree(seed);
-      const html = renderToStaticMarkup(tree);
+      const html = reactDom(tree);
       bytes += html.length;
       if (renderStatic(tree) !== html) different.push(seed);
     }
