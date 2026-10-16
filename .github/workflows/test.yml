@@ -58,8 +58,14 @@ jobs:
         run: pnpm --filter @unlayer/from-react-email typecheck && pnpm --filter @unlayer/migrate typecheck
 
       # ── Bundle size budget ──────────────────────────────────────
-      # Fail if the react-elements ESM bundle exceeds 173.5KB.
-      # Current size: about 172.3KB (0.1.22: about 76KB). Raised from 131.5KB
+      # Fail if the react-elements ESM bundle exceeds 189.5KB.
+      # Current size: about 189.2KB (0.1.22: about 76KB). Raised from 173.5KB
+      # (about 17KB) so Divider, Html, Menu and Social write their web and
+      # document HTML without react-dom/server, which can't run in an edge
+      # runtime or a React Server Components layer: the static markup React
+      # renders for the elements @unlayer/exporters gives them, with React 18's
+      # and 19's rules for attributes, styles and children (src/exporters/).
+      # Raised from 131.5KB
       # (about 41KB) for the walker (src/engine), the renderer Elements renders
       # templates with instead of react-dom: the walk itself, its hooks
       # dispatcher, React's attribute and style tables for host markup, the
@@ -105,7 +111,7 @@ jobs:
         run: |
           BUNDLE="packages/react/dist/index.js"
           SIZE=$(wc -c < "$BUNDLE" | tr -d ' ')
-          MAX_SIZE=173500
+          MAX_SIZE=189500
           echo "Bundle: $BUNDLE"
           echo "Size: $SIZE bytes (budget: $MAX_SIZE bytes)"
           if [ "$SIZE" -gt "$MAX_SIZE" ]; then

@@ -98,6 +98,7 @@ Example: `<Button fontSize="16px">` → `{ style: { fontSize: "16px" } }` in the
 |------|---------|
 | `packages/react/src/index.ts` | Main barrel export |
 | `packages/react/src/utils/create-component.tsx` | Component factory |
+| `packages/react/src/exporters/` | Divider's, Html's, Menu's and Social's web and document HTML as strings: @unlayer/exporters renders it with react-dom/server, which can't run in an edge runtime or a Server Components layer. `markup.ts` and `attributes.ts` write what React's static markup would (React 18's or 19's rules, by the installed React's version); `parity.test.tsx` compares them with the pinned exporters (it fails when a new pin's HTML differs), `react-19.test.ts` with React 19's output |
 | `packages/react/src/utils/render-to-html.tsx` | `renderToHtml()` implementation |
 | `packages/react/src/utils/document-layouts.ts` | Per-mode document shells (email/web/document), kept in parity with the editor's exported documents |
 | `packages/react/src/utils/render-to-json.ts` | `renderToJson()` implementation |
