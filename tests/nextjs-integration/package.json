@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "build": "next build --turbopack",
-    "verify": "node verify.mjs"
+    "verify": "node verify.mjs 3765 --async"
   },
   "dependencies": {
     "next": "15.5.3",
