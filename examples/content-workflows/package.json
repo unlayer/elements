@@ -13,7 +13,16 @@
     "send:ses": "tsx src/providers/ses.ts",
     "send:postmark": "tsx src/providers/postmark.ts",
     "send:sendgrid": "tsx src/providers/sendgrid.ts",
-    "send:nodemailer": "tsx src/providers/nodemailer.ts"
+    "send:nodemailer": "tsx src/providers/nodemailer.ts",
+    "send:mailgun": "tsx src/providers/mailgun.ts",
+    "send:azure": "tsx src/providers/azure.ts",
+    "send:mailersend": "tsx src/providers/mailersend.ts",
+    "send:scaleway": "tsx src/providers/scaleway.ts",
+    "send:plunk": "tsx src/providers/plunk.ts",
+    "send:lettermint": "tsx src/providers/lettermint.ts",
+    "send:brevo": "tsx src/providers/brevo.ts",
+    "send:inbound": "tsx src/providers/inbound.ts",
+    "send:eusend": "tsx src/providers/eusend.ts"
   },
   "dependencies": {
     "@unlayer/react-elements": "workspace:*",
@@ -24,7 +33,16 @@
     "@aws-sdk/client-sesv2": "^3.0.0",
     "postmark": "^4.0.0",
     "@sendgrid/mail": "^8.1.0",
-    "nodemailer": "^7.0.0"
+    "nodemailer": "^7.0.0",
+    "mailgun.js": "14.1.0",
+    "@azure/communication-email": "1.1.0",
+    "mailersend": "3.4.1",
+    "@scaleway/sdk-client": "2.14.0",
+    "@scaleway/sdk-tem": "2.16.1",
+    "lettermint": "3.1.0",
+    "@getbrevo/brevo": "6.1.0",
+    "inboundemail": "0.20.0",
+    "@eusend_dev/sdk": "0.19.0"
   },
   "devDependencies": {
     "@types/node": "^24.9.1",
@@ -33,6 +51,7 @@
     "@types/nodemailer": "^7.0.0",
     "tsx": "^4.20.5",
     "typescript": "^5.6.3",
-    "http-server": "14.1.1"
+    "http-server": "14.1.1",
+    "nock": "14.0.17"
   }
 }

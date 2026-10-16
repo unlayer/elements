@@ -41,7 +41,7 @@ The [provider guide](../../packages/react/docs/email-providers.md) lists install
 - `src/message.ts`: HTML and plain-text renderer plus environment handling.
 - `src/render-email.ts` / `src/render-all.ts`: output files.
 - `src/pdf.ts`: Playwright PDF generation and browser cleanup.
-- `src/providers/`: Resend, SES, Postmark, SendGrid, and SMTP delivery.
+- `src/providers/`: Resend, SES, Postmark, SendGrid, SMTP, Mailgun, Azure Communication Services, MailerSend, Scaleway, Plunk, Lettermint, Brevo, Inbound, and eusend delivery.
 - `editor.html`: wait for editor readiness, load design, export edits.
 
 ```bash
@@ -49,4 +49,4 @@ pnpm --filter @unlayer/content-workflows-example typecheck
 pnpm --filter @unlayer/content-workflows-example test
 ```
 
-Tests check invoice content in Chromium across all three modes, plain text, editable JSON, escaped customer input, URL validation, and real PDF bytes. They do not send email or depend on the hosted editor. Review inbox compatibility and PDF pagination with your real content before deployment. See the [task guides](../../packages/react/docs/README.md) for constraints and adaptation.
+Tests check invoice content in Chromium across all three modes, plain text, editable JSON, escaped customer input, URL validation, and real PDF bytes. They also run the Mailgun, Azure, MailerSend, Scaleway, Plunk, Lettermint, Brevo, Inbound, and eusend scripts with [nock](https://github.com/nock/nock) answering their HTTP requests, and check what each one sends. They do not send email or depend on the hosted editor. Review inbox compatibility and PDF pagination with your real content before deployment. See the [task guides](../../packages/react/docs/README.md) for constraints and adaptation.
