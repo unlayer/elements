@@ -38,11 +38,16 @@ const check = (where, counts) => {
 };
 check("route handler", JSON.parse(await get("/email")));
 const counts = async (path, where, checked = check) => {
-  const json = /<pre id="counts">([^<]*)<\/pre>/.exec(await get(path))?.[1]?.replace(/&quot;/g, '"');
+  const page = await get(path);
+  const json = /<pre id="counts">([^<]*)<\/pre>/.exec(page)?.[1]?.replace(/&quot;/g, '"');
   if (!json) fail(`${where}: no counts on the page`);
   checked(where, JSON.parse(json));
+  return page;
 };
-await counts("/email-page", "Server Component");
+// The Server Component's own hook after Elements' renders: React's dispatcher (Flight's) was put back.
+const serverComponent = await counts("/email-page", "Server Component");
+if (!/<i id="hook-after">[^<]+<\/i>/.test(serverComponent)) fail("Server Component: its useId() after Elements' renders gave nothing");
+console.log(`✓ Server Component: its hook after Elements' renders works (${/<i id="hook-after">([^<]+)<\/i>/.exec(serverComponent)[1]})`);
 // A Client Component working the email out in useMemo, in its server render.
 await counts("/client-email", "Client Component");
 // The async renderers, on the same email with its greeting loaded as it renders: the same email as the synchronous
@@ -56,11 +61,11 @@ if (asyncRoutes) {
   same("async route handler", JSON.parse(await get("/async")));
   await counts("/async-page", "async Server Component", same);
 }
-// An edge route: it renders the email, or (react-dom can't render with React Server Components' React) says where to.
+// An App Router edge route: React there is React Server Components', which react-dom can't render with; Elements
+// renders the email without it.
 const edge = edgeRoute ? JSON.parse(await get("/edge")) : undefined;
 if (!edge);
 else if (edge.error === undefined) check("edge route", edge);
-else if (/render emails in the Node\.js runtime/.test(edge.error)) console.log(`✓ edge route: ${edge.error}`);
 else fail(`edge route: ${edge.error}`);
 // A Pages Router API route on the edge runtime: React there is the full one, so the email renders.
 if (edgeRoute) {
