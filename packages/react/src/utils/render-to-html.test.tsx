@@ -79,6 +79,17 @@ describe("renderToHtml", () => {
     expect(() => renderToHtml(<Broken />)).toThrow("[Unlayer] renderToHtml failed: boom");
   });
 
+  it("keeps the original error as the cause, so its stack points at the line that threw", () => {
+    const original = new Error("boom");
+    const Broken = () => { throw original; };
+    try {
+      renderToHtml(<Broken />);
+      expect.unreachable();
+    } catch (e: any) {
+      expect(e.cause).toBe(original);
+    }
+  });
+
   it("includes tip in error message", () => {
     const Broken = () => { throw new Error("test"); };
     try {

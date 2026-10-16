@@ -46,9 +46,13 @@ function renderBody(
     if (isTailwindError(error)) throw error;
     const message =
       error instanceof Error ? error.message : String(error);
-    throw new Error(
-      `[Unlayer] ${name} failed: ${message}\n` +
-        `Tip: Ensure your tree uses Body > Row > Column > Item structure.`
+    // Keep the original error as `cause`: its stack points at the template line that threw.
+    throw Object.assign(
+      new Error(
+        `[Unlayer] ${name} failed: ${message}\n` +
+          `Tip: Ensure your tree uses Body > Row > Column > Item structure.`
+      ),
+      { cause: error }
     );
   }
 }
