@@ -5,12 +5,12 @@
  * See ARCHITECTURE.md.
  */
 import React, { cloneElement } from "react";
-import { asHost, callWithHooks, SUSPEND, type HookState } from "./dispatcher";
+import { asHost, callWithHooks, type ContextStack, type HookState } from "./dispatcher";
 import { childFrame, nameOf, omits, positionOf, RenderError, rootFrame, threw, type OnError } from "./errors";
 import { flatten, type Flat, type Part } from "./output";
 import { checkReact } from "./self-test";
 import { pushTreeContext, ROOT_TREE, type TreeContext } from "./tree-id";
-import { caller, positioned, thrownBy, walkNode, type Collector, type Task, type Wait, type Walker } from "./walk";
+import { caller, failure, positioned, renderClass, suspension, thrownBy, walkNode, type Collector, type Task, type Wait, type Walker } from "./walk";
 
 export { RenderError, type OnError } from "./errors";
 export { flatten, htmlOf, PENDING, type Flat, type Item, type Markup, type Cut, type Part, type RecordItem } from "./output";
@@ -143,8 +143,9 @@ export function renderOwn(node: React.ReactElement, given: Record<string, unknow
 
 /**
  * A template wrapper (`<Welcome />`, which returns the root) called with hooks: what it returns (an async one's
- * promise as it is), and where what it returns is in the tree. `state` (hookState(), at the wrapper's place and inside
- * the providers around it) is kept when it's called again after `use()` suspended it, which throws the promise.
+ * promise as it is), and where what it returns is in the tree. What it suspends on (`use()` of a pending promise, or a
+ * thrown one: React 18's Suspense) is thrown as it is, for its caller to call it again once it settles (see
+ * utils/unwrap-root.ts): `state` (hookState(), at the wrapper's place and inside the providers around it) is kept.
  */
 export function callComponent(fn: (props: any, second?: unknown) => unknown, props: Record<string, unknown>, second: unknown, state: HookState): { value: unknown; tree: TreeContext } {
   checkReact();
@@ -157,17 +158,30 @@ export function callComponent(fn: (props: any, second?: unknown) => unknown, pro
     try {
       value = callWithHooks(state, () => fn(props, second));
     } catch (thrown) {
-      if (thrown === SUSPEND) {
+      const thenable = suspension(thrown, state);
+      if (thenable) {
         state.hooks = undefined;
-        throw state.suspendedOn;
+        throw thenable;
       }
-      throw positioned(walker({}), thrown, state.name, rootFrame(state.name));
+      throw positioned(walker({}), failure(thrown), state.name, rootFrame(state.name));
     }
     if (state.rerender && ++renders <= 25) continue;
     return { value, tree: state.localId > 0 ? pushTreeContext(state.tree, 1, 0) : state.tree };
   }
 }
 
+/** A template wrapper that's a class (react-intl's <IntlProvider>), constructed and rendered inside `contexts`: as callComponent. */
+export function callClass(Ctor: any, props: Record<string, unknown>, contexts: ContextStack | null): unknown {
+  checkReact();
+  try {
+    return renderClass(Ctor, props, contexts);
+  } catch (thrown) {
+    const thenable = suspension(thrown);
+    if (thenable) throw thenable;
+    const name = nameOf(Ctor);
+    throw positioned(walker({}), failure(thrown), name, rootFrame(name));
+  }
+}
+
 export { hookState, readContext, contextOf, type ContextStack, type HookState } from "./dispatcher";
-export { renderClass } from "./walk";
 export { ROOT_TREE } from "./tree-id";

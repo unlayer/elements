@@ -108,6 +108,23 @@ export class SyncSuspend {
 }
 
 const isThenable = (value: unknown): value is PromiseLike<unknown> => typeof (value as { then?: unknown } | null)?.then === "function";
+type Thenable = PromiseLike<unknown> & { status?: "pending" | "fulfilled" | "rejected"; value?: unknown; reason?: unknown };
+
+/**
+ * The promise a component's call suspended on, which it's called again once it settles: the one its `use()` waits for,
+ * or one it threw (React 18's Suspense, react-i18next's `useTranslation`). A thrown one that has rejected is what the
+ * call failed with (see `failure`), as `use()` of it fails: it isn't called again for it.
+ */
+export function suspension(thrown: unknown, state?: HookState): PromiseLike<unknown> | undefined {
+  if (thrown === SUSPEND) return state?.suspendedOn;
+  if (!isThenable(thrown)) return undefined;
+  track(thrown as Thenable);
+  return (thrown as Thenable).status === "rejected" ? undefined : thrown;
+}
+
+/** What a component's call failed with: what it threw, or what a promise it threw rejected with (see `suspension`). */
+export const failure = (thrown: unknown): unknown => (isThenable(thrown) && (thrown as Thenable).status === "rejected" ? (thrown as Thenable).reason : thrown);
+
 const isAsyncFunction = (fn: unknown) => (fn as { [Symbol.toStringTag]?: string } | null)?.[Symbol.toStringTag] === "AsyncFunction";
 /** A promise nothing waits for: its rejection mustn't end the process. */
 const settle = (thenable: PromiseLike<unknown>) => void thenable.then(undefined, () => {});
@@ -343,8 +360,8 @@ function callAndWalk(w: Walker, state: HookState, fn: Function, props: Record<st
   try {
     result = asCaller(task, () => call(state, fn, props, secondArg));
   } catch (thrown) {
-    const thenable = thrown === SUSPEND ? state.suspendedOn! : isThenable(thrown) ? thrown : undefined;
-    if (!thenable) throw positioned(w, thrown, state.name, frame);
+    const thenable = suspension(thrown, state);
+    if (!thenable) throw positioned(w, failure(thrown), state.name, frame);
     // `use()` of a pending promise, or a thrown one (React 18's Suspense): called again once it settles, with fresh
     // hooks and the results `use()` had, as React does.
     if (!w.wait) {
@@ -400,13 +417,19 @@ function walkResult(w: Walker, state: HookState, result: unknown, frame: Frame, 
   }
 }
 
-function walkClass(w: Walker, Ctor: any, given: Record<string, any>, task: Task, out: Part[]): void {
-  const frame = childFrame(task.frame, nameOf(Ctor));
+function walkClass(w: Walker, Ctor: any, given: Record<string, any>, task: Task, out: Part[], frame = childFrame(task.frame, nameOf(Ctor))): void {
   let result: unknown;
   try {
     result = asCaller(task, () => renderClass(Ctor, given, task.contexts));
-  } catch (error) {
-    throw positioned(w, error, frame.name, frame);
+  } catch (thrown) {
+    const thenable = suspension(thrown);
+    if (!thenable) throw positioned(w, failure(thrown), frame.name, frame);
+    // A thrown promise (React 18's Suspense): constructed and rendered again once it settles, as React does.
+    if (!w.wait) {
+      settle(thenable);
+      throw new SyncSuspend(frame.name, frame);
+    }
+    return w.wait(w, task, out, thenable, (t, parts) => walkClass(w, Ctor, given, t, parts, frame));
   }
   const outer = task.frame;
   task.frame = frame;
@@ -462,8 +485,6 @@ function walkSuspense(w: Walker, props: Record<string, any>, task: Task, out: Pa
 }
 
 // ── What waits ──
-
-type Thenable = PromiseLike<unknown> & { status?: "pending" | "fulfilled" | "rejected"; value?: unknown; reason?: unknown };
 
 function walkThenable(w: Walker, thenable: Thenable, task: Task, out: Part[]): void {
   track(thenable);

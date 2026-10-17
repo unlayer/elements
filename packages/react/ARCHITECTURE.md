@@ -25,8 +25,9 @@ model                                Email > Row > Column > blocks, Elements' on
 - **Unwrap.** `renderToHtml(<Welcome />)` reads the root's settings (fonts, `lang`, `dir`, phone styles, config), so
   the components around the root are called first: function components, `memo`, `forwardRef`, class components, each
   once, with hooks, inside the context providers around them. Providers, `<UnlayerProvider>`s and `<Tailwind>`s around
-  the root move inside it, around its content. An async wrapper, or one that `use()`s a promise, is awaited by the async
-  renderers (`take` in `src/async/collect.ts`, along `unwrapSteps`); the synchronous ones throw for it.
+  the root move inside it, around its content. An async wrapper, or one that `use()`s or throws a promise (React 18's
+  Suspense: react-i18next's `useTranslation`), is awaited by the async renderers (`take` in `src/async/collect.ts`, along
+  `unwrapSteps`), and called again once it settles; the synchronous ones throw for it.
 - **Walk.** The engine renders the root's content once per render. It asks a collector (`utils/record.tsx`) about each
   element: a Row, Column or block (of any copy of Elements, by its markers), a `<Tailwind>` scope or a `<Head>`/`<Font>`
   entry is recorded where it is, and what's inside it (a Row's Columns, rich text's markup) walked inside its record;
@@ -121,9 +122,11 @@ it how to wait (its `wait`: the holes, and flattening them once they've settled)
 the nearest `<Suspense>`, which renders its fallback as react-dom's synchronous render does (with none, it's a failed
 part: see Errors). The async walk leaves a hole in its output and walks on, so the promises of the siblings after it
 start at once; when the promise settles, the hole is filled by walking that component again (a `use()` component is
-called again with the results it had; an async component's resolved value is walked) at the tree position, with the
-context and in the place it had. The output is flattened in tree order, whatever settled first: the HTML, the
-records' order (head tags, Tailwind configs) and the ids are byte-identical from run to run.
+called again with the results it had; one that threw a promise is called, or a class rendered, again; an async
+component's resolved value is walked) at the tree position, with the context and in the place it had. A component that
+throws a promise again once it has rejected fails with what it rejected with, as `use()` of it does. The output is
+flattened in tree order, whatever settled first: the HTML, the records' order (head tags, Tailwind configs) and the ids
+are byte-identical from run to run.
 
 ### Ids
 
@@ -222,5 +225,6 @@ row or block is left out of the HTML, the plain text and the design (the slower 
 | `idPrefix`: the walker's against react-dom's `identifierPrefix`, and every renderer's | `src/engine/differential.test.tsx`, `src/utils/render-to-html.test.tsx` |
 | React's react-server build (React 19): a render, and each ESM entry loading (none imports by name what it lacks) | `src/regression/react-server-build.test.ts` |
 | Renders inside an app's render, and inside each other | `src/utils/nested-renders.test.tsx`, `src/regression/edge-cases.test.tsx` |
+| What suspends wherever it is (the template, a wrapper around it, a component, a class, a block's children): the async renderers wait, the synchronous ones say so | `src/async/async.test.tsx` |
 | The output against the previous release | `src/regression/*` (`GENERATED_SEEDS=5000` for more random templates) |
 | Next.js route handlers, Server Components, Client Components, edge and Pages Router API routes, every entry, Turbopack and webpack; Cache Components | `tests/next*-integration` |

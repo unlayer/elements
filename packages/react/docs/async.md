@@ -44,7 +44,7 @@ The output is what the synchronous renderers give for the same content, and the 
 
 ## How it works
 
-The template's root is resolved first: an async template is called and awaited (and one that `use()`s a promise, called again once it's there). Elements then renders the content once, itself, with hooks, context and `use()` working as in React's server renderer: where a component waits, it goes on with the rest, so the data of sibling components loads at once, and puts each part where it is in the template once it's there, whatever arrives first, so the output is the same every time. The synchronous renderer makes the HTML, the head, the plain text or the design from that render: each component runs once per render. Several renders can run at once. See [ARCHITECTURE.md](../ARCHITECTURE.md#the-async-walk).
+The template's root is resolved first: an async template is called and awaited (and one that `use()`s or throws a promise, called again once it's there). Elements then renders the content once, itself, with hooks, context and `use()` working as in React's server renderer: where a component waits, it goes on with the rest, so the data of sibling components loads at once, and puts each part where it is in the template once it's there, whatever arrives first, so the output is the same every time. The synchronous renderer makes the HTML, the head, the plain text or the design from that render: each component runs once per render. Several renders can run at once. See [ARCHITECTURE.md](../ARCHITECTURE.md#the-async-walk).
 
 ## React 18 and React 19
 

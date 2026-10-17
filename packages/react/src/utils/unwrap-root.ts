@@ -14,7 +14,7 @@ import type { UnlayerConfig } from "@unlayer-internal/shared-elements";
 import { UNLAYER_RENDER_KEY } from "./create-component";
 import { RECORDS } from "./collect";
 import { TAILWIND } from "./tailwind";
-import { callComponent, contextOf, hookState, renderClass, ROOT_TREE, RenderError, type ContextStack, type TreeContext } from "../engine";
+import { callClass, callComponent, contextOf, hookState, ROOT_TREE, RenderError, type ContextStack, type TreeContext } from "../engine";
 import { nameOf, threw } from "../engine/errors";
 
 /** The root components a design starts from. */
@@ -82,9 +82,30 @@ function providerOf(element: unknown): { context: object; value: unknown } | und
 export type Steps = Generator<PromiseLike<unknown>, React.ReactElement, unknown>;
 
 /**
+ * `call()` (a wrapper's: see the engine's callComponent) again each time it suspends, once what it suspended on
+ * settles (`use()` of a pending promise, or a thrown one: React 18's Suspense), as React calls it again: what it
+ * returns. What it waits for is yielded: the async renderers wait for it, the synchronous ones throw.
+ */
+function* waiting<T>(call: () => T): Generator<PromiseLike<unknown>, T, unknown> {
+  for (;;) {
+    try {
+      return call();
+    } catch (thrown) {
+      if (!isThenable(thrown)) throw thrown;
+      try {
+        yield thrown;
+      } catch {
+        // It rejected: called again, the wrapper fails with it (`use()` throws it, and a promise thrown again is its
+        // rejection: see the engine's `failure`).
+      }
+    }
+  }
+}
+
+/**
  * Wrappers called (plain functions, `memo`, `forwardRef`, nested in any order) until a root element comes out. It
  * stops at an element that isn't a root when a wrapper doesn't return an element (null, an array), saying why in
- * `why.unread`. What a wrapper waits for (an async one's promise, `use()`) is yielded: the
+ * `why.unread`. What a wrapper waits for (an async one's promise, `use()`, a thrown promise) is yielded: the
  * async renderers wait for it, the synchronous ones throw.
  */
 function* steps(element: React.ReactElement, why: { unread?: string }, idPrefix?: string): Steps {
@@ -100,27 +121,13 @@ function* steps(element: React.ReactElement, why: { unread?: string }, idPrefix?
     // (Its `useId()`s' prefix: the render's, else the <UnlayerProvider>s' around it.)
     const prefix = idPrefix ?? provided?.idPrefix;
     const state = hookState(name, tree, contexts, typeof prefix === "string" ? prefix : "");
-    for (;;) {
-      let out: { value: unknown; tree: TreeContext };
-      try {
-        out = callComponent(fn, props, second, state);
-      } catch (thrown) {
-        if (!isThenable(thrown)) throw thrown;
-        // `use()` of a pending promise: called again once it settles (with what `use()` had), as React does.
-        try {
-          yield thrown;
-        } catch {
-          // It rejected: `use()` throws it when it's called again.
-        }
-        continue;
-      }
-      tree = out.tree;
-      if (!isThenable(out.value)) return out.value;
-      try {
-        return yield out.value;
-      } catch (error) {
-        throw new RenderError(threw(error), name, "", error);
-      }
+    const out = yield* waiting(() => callComponent(fn, props, second, state));
+    tree = out.tree;
+    if (!isThenable(out.value)) return out.value;
+    try {
+      return yield out.value;
+    } catch (error) {
+      throw new RenderError(threw(error), name, "", error);
     }
   }
   for (let depth = 0; ; depth++) {
@@ -177,11 +184,8 @@ function* steps(element: React.ReactElement, why: { unread?: string }, idPrefix?
     else if (typeof type === "function" && !type.prototype?.isReactComponent) produced = yield* called(type, { ...props }, undefined, nameOf(type));
     else if (type?.prototype?.isReactComponent) {
       // A class (react-intl's <IntlProvider>): constructed and rendered, inside the providers around it.
-      try {
-        produced = renderClass(type, props, contexts);
-      } catch (error) {
-        throw new RenderError(threw(error), nameOf(type), "", error);
-      }
+      const around = contexts;
+      produced = yield* waiting(() => callClass(type, props, around));
     } else break;
     if (!React.isValidElement(produced)) {
       if (holdsRoot(produced as React.ReactNode)) why.unread = "it doesn't return a root element";

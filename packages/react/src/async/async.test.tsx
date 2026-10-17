@@ -88,6 +88,106 @@ describe("the async renderers", () => {
     expect(runs).toEqual({ template: 4, name: 4, block: 4 });
   });
 
+  /**
+   * Data that suspends until it's there, as React 18's Suspense libraries do (react-i18next's `useTranslation`):
+   * `read()` throws a promise until it has settled.
+   */
+  const suspending = (value: string) => {
+    const data = { calls: 0, value: undefined as string | undefined, promise: undefined as Promise<void> | undefined };
+    const read = () => {
+      data.calls++;
+      data.promise ??= later(value).then((loaded) => void (data.value = loaded));
+      if (data.value === undefined) throw data.promise;
+      return data.value;
+    };
+    return Object.assign(data, { read });
+  };
+  type Data = { calls: number; read: () => string };
+  const Theme = React.createContext("none");
+  const InTheme = () => <Paragraph>{React.useContext(Theme)}</Paragraph>;
+  const one = (content: React.ReactNode) => <Email><Row><Column>{content}</Column></Row></Email>;
+  const TEMPLATE = 'async and suspending templates need "@unlayer/react-elements/async"\'s renderers';
+  const inSync = (name: string, position: string) => `it is async or suspends, and this renderer is synchronous: render with "@unlayer/react-elements/async", or load its data first and pass it as props (in <${name}> at ${position})`;
+  /** Where it suspends: a template whose data does there, and what the synchronous renderers say for it. */
+  const WHERE: Array<[string, (data: Data) => React.ReactElement, string]> = [
+    ["the template", (data) => { const Template = () => one(<Paragraph>{data.read()}</Paragraph>); return <Template />; }, TEMPLATE],
+    ["the template in a provider", (data) => {
+      const Template = () => one(<Paragraph>{data.read()}</Paragraph>);
+      const Provider = ({ children }: { children: React.ReactNode }) => <Theme.Provider value="dark">{children}</Theme.Provider>;
+      return <Provider><Template /></Provider>;
+    }, TEMPLATE],
+    ["a wrapper", (data) => {
+      const Wrapper = ({ children }: { children: React.ReactNode }) => <Theme.Provider value={data.read()}>{children}</Theme.Provider>;
+      return <Wrapper>{one(<InTheme />)}</Wrapper>;
+    }, TEMPLATE],
+    ["a class wrapper", (data) => {
+      class Loader extends React.Component<{ children: React.ReactNode }> {
+        render() {
+          return <Theme.Provider value={data.read()}>{this.props.children}</Theme.Provider>;
+        }
+      }
+      return <Loader>{one(<InTheme />)}</Loader>;
+    }, TEMPLATE],
+    ["a component", (data) => { const Text = () => <Paragraph>{data.read()}</Paragraph>; return one(<Text />); }, inSync("Text", "Row 1 › Column 1 › Text")],
+    ["a class component", (data) => {
+      class Translated extends React.Component {
+        render() {
+          return <Paragraph>{data.read()}</Paragraph>;
+        }
+      }
+      return one(<Translated />);
+    }, inSync("Translated", "Row 1 › Column 1 › Translated")],
+    ["a block's children", (data) => { const Name = () => <b>{data.read()}</b>; return one(<Paragraph>Hi <Name /></Paragraph>); }, inSync("Name", "Row 1 › Column 1 › Paragraph › Name")],
+  ];
+
+  it.each(WHERE)("wait where %s throws a promise (React 18's Suspense), calling it again once it settles; the synchronous renderers say what to do", async (_, template, said) => {
+    expect(() => renderToHtmlSync(template(suspending("Loaded")))).toThrow(said);
+    expect(() => renderToJsonSync(template(suspending("Loaded")))).toThrow(said);
+    const data = suspending("Loaded");
+    expect(await renderToHtml(template(data))).toContain("Loaded");
+    // Suspended, then rendered once it settled.
+    expect(data.calls).toBe(2);
+    expect(JSON.stringify(await renderToJson(template(suspending("Loaded"))))).toContain("Loaded");
+    expect(await renderToPlainText(template(suspending("Loaded")))).toContain("Loaded");
+  });
+
+  const use = (React as unknown as { use?: <T>(promise: PromiseLike<T>) => T }).use;
+  it.runIf(use)("wait for `use()` of a promise the same way, wherever it is (React 19)", async () => {
+    for (const [where, template, said] of WHERE.filter(([where]) => !where.includes("class"))) {
+      const using = () => {
+        const promise = later("Used");
+        const data = { calls: 0, read: () => (data.calls++, use!(promise)) };
+        return data;
+      };
+      expect(() => renderToHtmlSync(template(using())), where).toThrow(said);
+      const data = using();
+      expect(await renderToHtml(template(data)), where).toContain("Used");
+      expect(data.calls, where).toBe(2);
+    }
+  });
+
+  it("fail with what a promise a component throws rejected with, where it throws it again, as `use()` of it fails", async () => {
+    const down = new Error("the translations didn't load");
+    const failing = () => {
+      const promise = later(null).then(() => {
+        throw down;
+      });
+      promise.catch(() => {});
+      let calls = 0;
+      // (Waited for again each time it's thrown, it would never be done.)
+      return () => {
+        if (++calls > 5) throw new Error("called again and again");
+        throw promise;
+      };
+    };
+    const read = failing();
+    const Template = () => one(<Paragraph>{read()}</Paragraph>);
+    await expect(renderToHtml(<Template />)).rejects.toMatchObject({ message: "[Unlayer] the translations didn't load (in <Template>)", component: "Template", cause: down });
+    const again = failing();
+    const Text = () => <Paragraph>{again()}</Paragraph>;
+    await expect(renderToHtml(one(<Text />))).rejects.toMatchObject({ message: "[Unlayer] the translations didn't load (in <Text> at Row 1 › Column 1 › Text)", cause: down });
+  });
+
   it("give what the synchronous renderers give for a template with nothing async", async () => {
     const Hooked = () => {
       const [label] = React.useState("from a hook");

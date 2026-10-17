@@ -95,7 +95,7 @@
 
 - **A component's `useId()` is React's id, with nothing of Elements' in it.** It gave `:unlayer-collect-R…:` (an async render's with a number of its own in it, which changed from render to render). It's now the id React gives at its place in the tree, in the installed React's format (`:R1:`, `«R1»`, `_R_1_`), the same every render, and unique in the document, the template wrappers' too.
 
-- **Components run once per render.** Elements called a component again to say why it failed, or to read the HTML it rendered in a Column, called template wrappers in throwaway renders of their own, and rendered a template with markup React rejects twice. A component now runs once (again only where React runs one again: when it sets its state while rendering, and after a promise its `use()` waited for settles).
+- **Components run once per render.** Elements called a component again to say why it failed, or to read the HTML it rendered in a Column, called template wrappers in throwaway renders of their own, and rendered a template with markup React rejects twice. A component now runs once (again only where React runs one again: when it sets its state while rendering, and after a promise its `use()` waited for, or that it threw, settles).
 
 - **Elements renders where its React isn't react-dom's.** Where a second install or a bundler gave Elements another copy of React than react-dom's, renders needed workarounds (and failed where they couldn't tell); Elements doesn't render with react-dom now, and records the Rows of another copy of Elements too.
 
