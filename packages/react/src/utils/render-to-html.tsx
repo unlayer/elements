@@ -1,7 +1,7 @@
 import React from "react";
 import type { PlainTextOptions, UnlayerConfig } from "@unlayer-internal/shared-elements";
 import { htmlToPlainText, RenderError } from "@unlayer-internal/shared-elements";
-import { renderStatic } from "../engine";
+import { renderRoot } from "../engine";
 import { OWN_MARKUP } from "../components/Body";
 import { extractHeadFromTree } from "./extract-head";
 import { htmlRoot, providedConfig, ROOT_NAMES } from "./unwrap-root";
@@ -36,6 +36,12 @@ export function renderBody(
   config?: Partial<UnlayerConfig>,
   name = "renderToHtml"
 ): string {
+  const { html, inner } = bodyHtml(element, config, name);
+  return inner === undefined ? html : `<div>${inner}</div>`;
+}
+
+/** The body markup (see renderBody), and a root's HTML as it is in its renderer's `<div>` (`inner`), where it has one. */
+function bodyHtml(element: React.ReactElement, config?: Partial<UnlayerConfig>, name = "renderToHtml"): { html: string; inner?: string } {
   const mergedConfig = resolveConfig(element, config);
   // What it does with a part that fails (see RenderError): the render functions' option over the root's config.
   setOnError(mergedConfig.onError);
@@ -44,7 +50,7 @@ export function renderBody(
     // Pass config via prop (not context) so this works in React Server Components: the root's own `config` and the
     // Provider's are in it (see resolveConfig). Body threads it as `_config` to children via cloneElement.
     const enriched = React.cloneElement(element, { config: mergedConfig });
-    return renderStatic(enriched, OWN_MARKUP);
+    return renderRoot(enriched, OWN_MARKUP);
   } catch (error) {
     // A part of the template that failed says which and where; a scope's error is as it is.
     if (error instanceof RenderError || isTailwindError(error)) throw error;
@@ -157,8 +163,9 @@ function htmlDocument(element: React.ReactElement, options?: RenderToHtmlOptions
   // component) the outer div is the element's own markup and must stay.
   const wrapperName = (element.type as { displayName?: string })?.displayName;
   const isUnlayerWrapper = ROOT_NAMES.has(wrapperName ?? "");
-  const rawBody = renderBody(element, config);
-  const body = isUnlayerWrapper ? stripOuterDiv(rawBody) : rawBody;
+  // (A root's HTML as Body writes it in its `<div>`, which the document has instead.)
+  const rendered = bodyHtml(element, config);
+  const body = rendered.inner !== undefined ? (isUnlayerWrapper ? rendered.inner : `<div>${rendered.inner}</div>`) : isUnlayerWrapper ? stripOuterDiv(rendered.html) : rendered.html;
   const { css, js, tags } = extractHeadFromTree(element, {
     displayMode,
     headConfig: mergedConfig.headConfig,

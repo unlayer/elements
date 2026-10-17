@@ -113,6 +113,43 @@ export function renderStatic(node: React.ReactNode, options: { bare?: (type: unk
 }
 
 /**
+ * A root of Elements' own (Email, Page, Document, Body: `bare`, they call no hooks) as renderStatic renders it, but
+ * the HTML in its `<div>` given as it is (`inner`): what renderStatic would write, without writing it out again. Where
+ * it isn't one, or doesn't render a `<div>` of HTML in the end, `html` is renderStatic's.
+ */
+export function renderRoot(node: React.ReactElement, options: { bare?: (type: unknown) => boolean; passes?: (error: unknown) => boolean } = {}): { html: string; inner?: string } {
+  const bare = options.bare;
+  if (typeof node.type !== "function" || !bare?.(node.type)) return { html: renderStatic(node, options) };
+  checkReact();
+  own++;
+  try {
+    return asHost(() => {
+      let frame = rootFrame("");
+      let element: any = node;
+      // Email > Body > its <div>: each called as renderStatic calls them, where it would.
+      for (;;) {
+        const type = element.type;
+        const name = nameOf(type);
+        frame = childFrame(frame, name);
+        let result: any;
+        try {
+          result = type(element.props);
+        } catch (error) {
+          if (error instanceof RenderError || options.passes?.(error)) throw error;
+          throw new RenderError(threw(error), name, positionOf(frame), error);
+        }
+        const html = result?.type === "div" && Object.keys(result.props).length === 1 ? result.props.dangerouslySetInnerHTML : undefined;
+        if (html && typeof html === "object" && "__html" in html) return { html: "", inner: html.__html == null ? "" : "" + html.__html };
+        if (typeof result?.type !== "function" || !bare(result.type)) return { html: renderStatic(result, options) };
+        element = result;
+      }
+    });
+  } finally {
+    own--;
+  }
+}
+
+/**
  * One of Elements' own components (a Row, a block: they call no hooks), given its props, as renderStatic renders it:
  * called, and the HTML it returns (in a `<div dangerouslySetInnerHTML>`) in its `<div>`; anything else it returns
  * walked. What it throws is a RenderError naming it, as renderStatic's.
