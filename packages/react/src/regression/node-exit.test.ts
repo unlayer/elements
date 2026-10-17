@@ -186,6 +186,83 @@ console.log(JSON.stringify({ warnings }));
   }
 });
 
+describe("the module and CommonJS builds loaded together", () => {
+  // tsx, and @unlayer/migrate, load a template's `@unlayer/react-elements` as one build and render with the other: a
+  // template of one copy's components, rendered by the other copy's renderers. The copy whose renderer was called
+  // renders it all, as one copy alone does: what fails is left out of the HTML, the plain text and the design alike,
+  // listed, and each message said once a render. (The other copy's root rendered the HTML with its own scope: a block
+  // left out of the HTML stayed in the design, `omitted` lacked it, messages were said twice, and the async renderers
+  // failed for an async component.)
+  const script = `import { createRequire } from "node:module";
+import React from "react";
+import * as esm from "@unlayer/react-elements";
+import * as esmAsync from "@unlayer/react-elements/async";
+const require = createRequire(import.meta.url);
+const copies = { esm: { ...esm, async: esmAsync }, cjs: { ...require("@unlayer/react-elements"), async: require("@unlayer/react-elements/async") } };
+const h = React.createElement;
+const later = (value) => new Promise((resolve) => setTimeout(() => resolve(value), 5));
+const Broken = () => { throw new Error("no data"); };
+const tools = {};
+for (const [name, E] of Object.entries(copies)) tools[name] = E.registerElementsTool({ name: "failing_tool", values: {}, renderer: { exporters: { email: () => { throw new Error("exporter down"); } } } });
+// A component that throws, a Row whose Columns don't fit its layout, a block whose exporter fails, a Row whose
+// padding is said, and (for the async renderers) an async component.
+const template = (from, late) => {
+  const E = copies[from];
+  const Late = async () => h(E.Paragraph, null, await later("Late"));
+  return h(E.Email, null,
+    h(E.Row, null, h(E.Column, null, h(E.Paragraph, null, "First"), h(Broken), h(E.Paragraph, null, "Second"))),
+    h(E.Row, { layout: E.ColumnLayouts.TwoEqual }, h(E.Column, null, h(E.Paragraph, null, "Lonely"))),
+    h(E.Row, { padding: "10px", columnsBackgroundColor: "#ffffff" }, h(E.Column, null, h(tools[from]), h(E.Paragraph, null, "Third"), late ? h(Late) : null)));
+};
+const words = (html) => html.match(/First|Second|Third|Lonely|Late|failing_tool/g) ?? [];
+const said = [];
+console.error = console.warn = (message) => void said.push(String(message));
+const run = async (render) => { said.length = 0; const value = await render(); return { value, said: [...said] }; };
+const omit = { onError: "omit" };
+const out = {};
+for (const [by, from] of [["esm", "esm"], ["esm", "cjs"], ["cjs", "esm"], ["cjs", "cjs"]]) {
+  const R = copies[by];
+  out[by + " renders " + from] = {
+    html: await run(() => words(R.renderToHtml(template(from), omit))),
+    text: await run(() => words(R.renderToPlainText(template(from), omit))),
+    design: await run(() => words(JSON.stringify(R.renderToJson(template(from), omit)))),
+    omitted: await run(() => R.renderToHtmlParts(template(from), omit).omitted.map((error) => error.position)),
+    asyncHtml: await run(async () => words(await R.async.renderToHtml(template(from, true), omit))),
+    asyncDesign: await run(async () => words(JSON.stringify(await R.async.renderToJson(template(from, true), omit)))),
+    asyncOmitted: await run(async () => (await R.async.renderToHtmlParts(template(from, true), omit)).omitted.map((error) => error.position)),
+  };
+}
+process.stdout.write(JSON.stringify(out) + "\\n");
+`;
+  for (const [name, [react, reactDom]] of Object.entries(reacts)) {
+    it(`render a template of either build's components as one build alone does (${name})`, () => {
+      expect(fs.existsSync(path.join(dist, "async.cjs")), "build the package first (pnpm build)").toBe(true);
+      const dir = project(react, reactDom, "module");
+      try {
+        fs.writeFileSync(path.join(dir, "both.js"), script);
+        const run = spawnSync(process.execPath, ["both.js"], { cwd: dir, encoding: "utf8", timeout: 20_000 });
+        expect(run.status, run.stderr).toBe(0);
+        const out = JSON.parse(run.stdout.trim().split("\n").pop()!);
+        const one = out["esm renders esm"];
+        expect(one.html.value).toEqual(["First", "Second", "Third"]);
+        expect(one.design.value).toEqual(["First", "Second", "Third"]);
+        expect(one.asyncHtml.value).toEqual(["First", "Second", "Third", "Late"]);
+        expect(one.omitted.value).toEqual(["Row 1 › Column 1 › Broken", "Row 2", "Row 3 › Column 1 › failing_tool"]);
+        // Each part left out said once (and the Row's padding), in every render.
+        for (const { said } of Object.values(one) as Array<{ said: string[] }>) {
+          expect(said).toHaveLength(4);
+          expect(new Set(said).size).toBe(4);
+        }
+        expect(out["esm renders cjs"]).toEqual(one);
+        expect(out["cjs renders esm"]).toEqual(one);
+        expect(out["cjs renders cjs"]).toEqual(one);
+      } finally {
+        fs.rmSync(dir, { recursive: true, force: true });
+      }
+    }, 30_000);
+  }
+});
+
 describe("the built package's own requires", () => {
   // A bundler warns on a require of a path worked out when it runs (and the migration CLI can't follow one): the
   // build requires modules by name only. (The CommonJS build once wrote `import.meta.url` as `require('u' + 'rl')`.)

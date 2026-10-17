@@ -209,7 +209,10 @@ row or block is left out of the HTML, the plain text and the design (the slower 
    The async and Tailwind entries, separate bundles, share the handles an async render compiled (`…/tailwind-scopes`),
    found by the `<Tailwind>` they're for; a `<Tailwind>` carries its copy's compiler (`…/tailwind-loader`, on its
    type), which the async renderers compile its config with, so two copies' classes don't mix (an older copy's
-   `<Tailwind>`, which carries none, gets the compiler of the Tailwind entry loaded last). No render state is shared.
+   `<Tailwind>`, which carries none, gets the compiler of the Tailwind entry loaded last). No render state is shared:
+   the render functions render a root of another copy (Body, Email, Page, Document, by name, as another copy's blocks
+   are made this copy's) as their own copy's (`utils/own-root.ts`), so the copy whose renderer was called renders the
+   whole template in its render's scope, whichever copy its components are of.
 
 ## Where it's tested
 
@@ -226,5 +229,6 @@ row or block is left out of the HTML, the plain text and the design (the slower 
 | React's react-server build (React 19): a render, and each ESM entry loading (none imports by name what it lacks) | `src/regression/react-server-build.test.ts` |
 | Renders inside an app's render, and inside each other | `src/utils/nested-renders.test.tsx`, `src/regression/edge-cases.test.tsx` |
 | What suspends wherever it is (the template, a wrapper around it, a component, a class, a block's children): the async renderers wait, the synchronous ones say so | `src/async/async.test.tsx` |
+| Two copies of Elements: the module and CommonJS builds loaded together, either's components rendered by the other's renderers; another copy's Rows | `src/regression/node-exit.test.ts`, `src/regression/react-copies.test.tsx` |
 | The output against the previous release | `src/regression/*` (`GENERATED_SEEDS=5000` for more random templates) |
 | Next.js route handlers, Server Components, Client Components, edge and Pages Router API routes, every entry, Turbopack and webpack; Cache Components | `tests/next*-integration` |

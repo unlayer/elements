@@ -5,6 +5,7 @@ import { renderOwn } from "../engine";
 import { OWN_MARKUP } from "../components/Body";
 import { extractHeadFromTree } from "./extract-head";
 import { htmlRoot, providedConfig, ROOT_NAMES } from "./unwrap-root";
+import { ownRoot } from "./own-root";
 import { rootConfig, rootMode, type RootConfigProps } from "../context/layer-config";
 import { normalizedRoot } from "../model";
 import { omissions, setRenderConfig, withRenderScope } from "./render-scope";
@@ -48,8 +49,9 @@ function bodyHtml(element: React.ReactElement, config?: Partial<UnlayerConfig>, 
 
   try {
     // Pass config via prop (not context) so this works in React Server Components: the root's own `config` and the
-    // Provider's are in it (see resolveConfig). Body threads it as `_config` to children via cloneElement.
-    return renderOwn(element, { config: mergedConfig }, OWN_MARKUP);
+    // Provider's are in it (see resolveConfig). Body threads it as `_config` to children via cloneElement. (A root of
+    // another copy of Elements renders as this copy's: this render renders it all, see own-root.ts.)
+    return renderOwn(ownRoot(element), { config: mergedConfig }, OWN_MARKUP);
   } catch (error) {
     // A part of the template that failed says which and where; a scope's error is as it is.
     if (error instanceof RenderError || isTailwindError(error)) throw error;
