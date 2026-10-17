@@ -37,6 +37,7 @@ import type { Recorded } from "./collect";
 import { rtlAlign, textDirectionOf, UNLAYER_CONFIG_KEY } from "./create-component";
 import { TAILWIND } from "./tailwind";
 import { fontUrlInDesign, safeUrl, urlFamilies } from "./font-design";
+import { omits } from "../engine/errors";
 
 /** Layout context threaded down the walk so an image can be sized against the
  *  real column slot (contentWidth × column share, minus paddings/borders). */
@@ -440,10 +441,12 @@ function designJson(element: React.ReactElement, options?: RenderToJsonOptions):
   // One walk collects the rows and blocks (as the HTML does).
   let heads: Recorded[] = [];
   if (displayName && ROOT_NAMES.has(displayName)) {
-    setOnError(rootConfig(element.props as RootConfigProps, provided, options).onError);
-    // Its body rendered as its HTML is, so the design and the HTML can't disagree: an exporter that fails fails the
-    // design too, or (`onError: "omit"`) its row or block is left out of both.
-    renderBody(element, options, "renderToJson");
+    const policy = rootConfig(element.props as RootConfigProps, provided, options).onError;
+    setOnError(policy);
+    // Where failed parts are left out (`onError: "omit"`), its body is rendered as its HTML is, so a row or block whose
+    // exporter fails is left out of the design too. Otherwise nothing renders its HTML: an exporter that fails
+    // fails renderToHtml, which then gives nothing to disagree with.
+    if (omits(policy)) renderBody(element, options, "renderToJson");
     // What its content gives the head and the design can't hold (a <Head>'s tags): said.
     heads = collect((element.props as { children?: React.ReactNode }).children, displayName).collection.recorded.filter((r) => r.kind === "head");
     for (const r of heads) if (r.kind === "head" && r.json) sayOnce(r.json);

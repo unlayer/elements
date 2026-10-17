@@ -85,6 +85,18 @@ describe("a part of a template that fails", () => {
     expect(() => renderToHtml(template(), { onError: strict })).toThrow(FAILED[1][0]);
   });
 
+  it("renderToJson renders no HTML by default (an exporter that fails fails the HTML, which then has nothing to disagree with), and only with onError the HTML it needs to leave the same parts out", () => {
+    let calls = 0;
+    const Counted = registerElementsTool({ name: "counted_tool", values: {}, renderer: { exporters: { email: () => (calls++, "<p>counted</p>") } } } as never) as React.FC;
+    const email = <Email><Row><Column><Counted /><Paragraph>Text</Paragraph></Column></Row></Email>;
+    expect(JSON.stringify(renderToJson(email))).toContain("counted_tool");
+    expect(calls).toBe(0);
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    expect(JSON.stringify(renderToJson(email, { onError: "omit" }))).toContain("counted_tool");
+    expect(calls).toBe(1);
+    expect(JSON.stringify(renderToJson(template(), { onError: "omit" }))).not.toContain("failing_tool");
+  });
+
   it("lists nothing when nothing failed", () => {
     expect(renderToHtmlParts(<Email><Row><Column><Paragraph>Fine</Paragraph></Column></Row></Email>, { onError: "omit" }).omitted).toEqual([]);
   });

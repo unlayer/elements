@@ -505,7 +505,7 @@ const html = await renderToHtml(<Receipt id="A-1001" />, { title: "Receipt", pre
 
 ## Errors
 
-A part of a template that fails fails the render, the synchronous and the async renderers alike, `renderToJson()` and `renderToPlainText()` too: a component that throws (or is async, or suspends, in a synchronous render), a Row whose Columns don't fit its `layout`, an exporter that fails. The error is a `RenderError` that says which component and where it is, with what it threw as its `cause`:
+A part of a template that fails fails the render, the synchronous and the async renderers alike, `renderToJson()` and `renderToPlainText()` too: a component that throws (or is async, or suspends, in a synchronous render), a Row whose Columns don't fit its `layout`, an exporter that fails (`renderToJson()` doesn't run the exporters, which make the HTML, not the design: it gives the design, while `renderToHtml()` throws). The error is a `RenderError` that says which component and where it is, with what it threw as its `cause`:
 
 ```
 RenderError: [Unlayer] Cannot read properties of undefined (reading 'name') (in <Hero> at Row 3 › Column 1 › Hero)

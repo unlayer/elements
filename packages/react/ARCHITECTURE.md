@@ -126,7 +126,8 @@ at that component's place in the tree.
 
 A part of a template fails when a component throws (or is async, or suspends with no `<Suspense>` around it, in a
 synchronous render), when a Row's Columns don't fit its `layout`, or when an exporter fails. By default every renderer
-throws, the synchronous and the async ones alike, `renderToJson` and `renderToPlainText` too: a **`RenderError`**
+throws, the synchronous and the async ones alike, `renderToJson` and `renderToPlainText` too (`renderToJson` for an
+exporter's failure only where it leaves parts out: see below): a **`RenderError`**
 whose `component` is the one that failed, `position` where it is in the template (`Row 3 › Column 1 › Hero`: Rows and
 Columns numbered among their parent's, other components by name, numbered from the second of a name), and `cause` the
 original error. The message reads `[Unlayer] <what it threw> (in <Hero> at Row 3 › Column 1 › Hero)`. A part that
@@ -148,10 +149,15 @@ or the function.
 What's left out: a component of the template's own in a list (the root's children, a Row's, a Column's, a text
 block's), with what it rendered; markup React rejects (`<hr style="…">` given a string), where it is; a Row whose
 Columns don't fit its layout; a block whose exporter fails (its id goes to the next block, in the HTML and the design);
-a Row whose exporter, or one of its Columns', fails. `renderToJson()` renders the body's HTML too, so an exporter that
-fails can't be in the design and not in the HTML. A template that isn't one always fails the render, `onError` or
+a Row whose exporter, or one of its Columns', fails. A template that isn't one always fails the render, `onError` or
 not: an undefined component (a broken or circular import), an object or a date as a child, a portal, a Client
 Component in server code.
+
+**The design and the exporters.** No exporter makes the design, so `renderToJson()` doesn't render the HTML: by
+default, a template whose only failure is an exporter's gives its design, block included, while `renderToHtml()` and
+`renderToPlainText()` throw. Nothing is sent that the design disagrees with, as the HTML isn't made. With `onError`
+leaving parts out, `renderToJson()` renders the body's HTML first, which is what finds a failing exporter, so the same
+row or block is left out of the HTML, the plain text and the design (the slower path, only where it's asked for).
 
 ### Not supported
 

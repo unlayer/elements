@@ -262,7 +262,7 @@ describe("edge: head contributions", () => {
 // Failure modes and hostile input
 // ---------------------------------------------------------------------------
 describe("edge: failure modes", () => {
-  it("a throwing exporter fails the render, the design's too; with onError: \"omit\" only its block is left out, of both", () => {
+  it("a throwing exporter fails the HTML and the text, not the design (which no exporter makes); with onError: \"omit\" only its block is left out, of all three", () => {
     const consoleError = vi.spyOn(console, "error").mockImplementation(() => {});
     const consoleWarn = vi.spyOn(console, "warn").mockImplementation(() => {});
     const boom = new Error("boom");
@@ -274,9 +274,11 @@ describe("edge: failure modes", () => {
     const email = inEmail(<Broken />, <HeadToolSafe />);
     const said = "[Unlayer] broken_tool failed to render: boom (in <broken_tool> at Row 1 › Column 1 › broken_tool)";
     // By default the render fails, naming the block and where it is (no error card in sendable output)...
-    for (const render of [() => renderToHtml(email), () => renderToJson(email), () => renderToPlainText(email)]) {
+    for (const render of [() => renderToHtml(email), () => renderToPlainText(email)]) {
       expect(render).toThrow(said);
     }
+    // ...while renderToJson renders no HTML, so the design has the block: nothing is sent that it disagrees with.
+    expect(JSON.stringify(renderToJson(email))).toContain("broken_tool");
     try {
       renderToHtml(email);
     } catch (error) {
