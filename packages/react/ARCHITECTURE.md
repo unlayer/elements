@@ -26,7 +26,7 @@ model                                Email > Row > Column > blocks, Elements' on
   the components around the root are called first: function components, `memo`, `forwardRef`, class components, each
   once, with hooks, inside the context providers around them. Providers, `<UnlayerProvider>`s and `<Tailwind>`s around
   the root move inside it, around its content. An async wrapper, or one that `use()`s a promise, is awaited by the async
-  renderers (`unwrapRootAsync`); the synchronous ones throw for it.
+  renderers (`take` in `src/async/collect.ts`, along `unwrapSteps`); the synchronous ones throw for it.
 - **Walk.** The engine renders the root's content once per render. It asks a collector (`utils/record.tsx`) about each
   element: a Row, Column or block (of any copy of Elements, by its markers), a `<Tailwind>` scope or a `<Head>`/`<Font>`
   entry is recorded where it is, and what's inside it (a Row's Columns, rich text's markup) walked inside its record;
@@ -56,7 +56,7 @@ Body rendered by an app's own React (a live preview) makes a scope of its own.
 
 | File | What it is |
 |--|--|
-| `walk.ts` | The walker: elements, components, Context, Fragments, memo, forwardRef, lazy, Suspense, classes; holes where something suspends |
+| `walk.ts` | The walker: elements, components, Context, Fragments, memo, forwardRef, lazy, Suspense, classes; where something suspends, the async walk's `wait` (src/async/collect.ts) or a throw to the nearest `<Suspense>` |
 | `dispatcher.ts` | Elements' hooks dispatcher, put in React's slot around each component call |
 | `host.ts`, `attributes.ts` | Host markup (`<div>`, `<img>`, …) as react-dom writes it: void, custom and form elements; each attribute and style by React 18's property table or React 19's switch; escaping. The walker and the string exporters write with it |
 | `output.ts` | The walk's output (text, markup, records, holes, boundaries, errors), flattened in tree order into the content's tree |
@@ -65,7 +65,7 @@ Body rendered by an app's own React (a live preview) makes a scope of its own.
 | `self-test.ts` | The once-per-process check of the installed React |
 | `errors.ts` | Positions (`Row 3 › Column 1 › Hero`), names, and how a part left out is said |
 | `records.ts`, `keys.ts` | The collector's records and boundaries; React's development key warnings |
-| `index.ts` | Entry points: `collect`, `collectAsync`, `renderStatic` (Elements' own markup), `callComponent` |
+| `index.ts` | Entry points: `collect`, `walkAsync` (the async entry's walk), `renderStatic` (markup), `renderOwn` (one of Elements' own components, called as the walk would: a Row's, a root's HTML), `callComponent` |
 
 ### The hooks dispatcher
 
@@ -213,7 +213,9 @@ row or block is left out of the HTML, the plain text and the design (the slower 
 | Every hook of the installed React; an unknown one's error; the slot put back | `src/engine/dispatcher.test.tsx` |
 | The version table and the self-check | `src/engine/react-compat.test.ts` |
 | Siblings at once, tree order, determinism over random delays, renders at once, error order | `src/engine/async.test.tsx` |
-| The error policy, every renderer, every place `onError` goes | `src/utils/render-errors.test.tsx` |
+| The error policy, every renderer, every place `onError` goes; `renderToJson` calling no exporter by default | `src/utils/render-errors.test.tsx` |
+| The head reusing the values the HTML mapped (no block mapped again) | `src/utils/extract-head.test.tsx` |
+| `idPrefix`: the walker's against react-dom's `identifierPrefix`, and every renderer's | `src/engine/differential.test.tsx`, `src/utils/render-to-html.test.tsx` |
 | React's react-server build (React 19) | `src/regression/react-server-build.test.ts` |
 | Renders inside an app's render, and inside each other | `src/utils/nested-renders.test.tsx`, `src/regression/edge-cases.test.tsx` |
 | The output against the previous release | `src/regression/*` (`GENERATED_SEEDS=5000` for more random templates) |
