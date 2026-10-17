@@ -58,8 +58,11 @@ jobs:
         run: pnpm --filter @unlayer/from-react-email typecheck && pnpm --filter @unlayer/migrate typecheck
 
       # ── Bundle size budget ──────────────────────────────────────
-      # Fail if the react-elements ESM bundle exceeds 191KB.
-      # Current size: about 190.8KB (0.1.22: about 76KB). Raised from 190KB
+      # Fail if the react-elements ESM bundle exceeds 192KB.
+      # Current size: about 191.8KB (0.1.22: about 76KB). Raised from 191KB
+      # (about 1KB): a template with no root renders as a root's content
+      # (walked once, its rows rendered with the render's config), and the
+      # async renderers collect it as they collect a root's. Raised from 190KB
       # (about 1.3KB): Elements' roots are known by a marker shared across
       # copies (an older copy's by its code), a suspension reaches the
       # <Suspense> around it whatever `onError` says, and an async template
@@ -125,7 +128,7 @@ jobs:
         run: |
           BUNDLE="packages/react/dist/index.js"
           SIZE=$(wc -c < "$BUNDLE" | tr -d ' ')
-          MAX_SIZE=191000
+          MAX_SIZE=192000
           echo "Bundle: $BUNDLE"
           echo "Size: $SIZE bytes (budget: $MAX_SIZE bytes)"
           if [ "$SIZE" -gt "$MAX_SIZE" ]; then
