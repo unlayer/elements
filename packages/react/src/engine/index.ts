@@ -4,7 +4,7 @@
  * markup rendered (Elements' own components: the root's HTML); one component called with hooks (a template wrapper).
  * See ARCHITECTURE.md.
  */
-import React, { createElement } from "react";
+import React, { cloneElement } from "react";
 import { asHost, callWithHooks, SUSPEND, type HookState } from "./dispatcher";
 import { childFrame, nameOf, omits, positionOf, RenderError, rootFrame, threw, type OnError } from "./errors";
 import { flatten, type Flat, type Part } from "./output";
@@ -104,14 +104,16 @@ export function renderStatic(node: React.ReactNode, options: { bare?: (type: unk
 }
 
 /**
- * One of Elements' own components (`bare`: a root, a Row, a block, which call no hooks), given its props, as
- * renderStatic renders it, but the HTML it renders in its `<div dangerouslySetInnerHTML>` given as it is (`inner`):
- * what renderStatic would write, without writing it out again; a root's Body called in turn, as renderStatic calls
- * it. Where it isn't one, or doesn't render such a `<div>` in the end, `html` is renderStatic's.
+ * An element of one of Elements' own components (`bare`: a root, a Row, a block, which call no hooks), with `given`
+ * props, as renderStatic renders it, but the HTML it renders in its `<div dangerouslySetInnerHTML>` given as it is
+ * (`inner`): what renderStatic would write, without writing it out again; a root's Body called in turn, as
+ * renderStatic calls it. Where it isn't one, or doesn't render such a `<div>` in the end, `html` is renderStatic's.
  */
-export function renderOwn(type: unknown, props: Record<string, unknown>, options: { bare?: (type: unknown) => boolean; passes?: (error: unknown) => boolean } = {}): { html: string; inner?: string } {
+export function renderOwn(node: React.ReactElement, given: Record<string, unknown>, options: { bare?: (type: unknown) => boolean; passes?: (error: unknown) => boolean } = {}): { html: string; inner?: string } {
   const bare = options.bare;
-  if (typeof type !== "function" || !bare?.(type)) return { html: renderStatic(createElement(type as React.ElementType, props), options) };
+  const type = node.type;
+  if (typeof type !== "function" || !bare?.(type)) return { html: renderStatic(cloneElement(node, given), options) };
+  const props = { ...(node.props as object), ...given };
   checkReact();
   own++;
   try {

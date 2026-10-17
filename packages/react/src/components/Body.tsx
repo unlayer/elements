@@ -222,7 +222,7 @@ const Body: React.FC<BodyProps> = (given) => {
         const before = { ...ids };
         try {
           // (Elements' own, which call no hooks: called as they are, no walk around them.)
-          const { html, inner } = renderOwn(child.type, { ...(child.props as object), _config, bodyValues: values }, OWN_MARKUP);
+          const { html, inner } = renderOwn(child, { _config, bodyValues: values }, OWN_MARKUP);
           return inner === undefined ? html : `<div>${inner}</div>`;
         } catch (error) {
           for (const key of Object.keys(ids)) if (!(key in before)) delete ids[key];
