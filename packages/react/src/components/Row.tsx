@@ -258,7 +258,7 @@ function renderRow(props: RowProps): React.ReactElement | null {
   // Determine cells from layout or props. With neither, default to one equal
   // cell PER <Column> child (mirroring renderToJson) — `[1]` regardless of column
   // count left the 2nd/3rd column with no cell, rendering width="NaN".
-  // Its Columns, as they rendered (see normalize.tsx). (The renderers give it its layout's cells, and leave out
+  // Its Columns, as they rendered (see src/model). (The renderers give it its layout's cells, and leave out
   // or fail on, a Row whose Columns don't fit it.)
   const columnCount = React.Children.toArray(children).filter(
     (c) => React.isValidElement(c) && /^Column$/.test((c.type as any)?.displayName || (c.type as any)?.name || "")
@@ -287,7 +287,7 @@ function renderRow(props: RowProps): React.ReactElement | null {
   );
 
   // Its `style` and `className` on its row (the box at the content width, see hatch). An exporter that fails fails the
-  // row (see normalize.tsx's markup, and `onError`).
+  // row (see src/model/elements.ts's markup, and `onError`).
   const html = hatch(renderRowToHtml(innerHTML, valuesWithMeta, safeBodyValues, mode, cells, collection), /<div[^>]*class="u-row[ "][^>]*>/, style, className, semanticProps);
   return <div dangerouslySetInnerHTML={{ __html: html }} />;
 }

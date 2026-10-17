@@ -4,6 +4,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { renderToHtml, renderToHtmlParts, renderToPlainText } from "./render-to-html";
 import { renderToJson } from "./render-to-json";
 import { Email, Page, Row, Column, Paragraph, Heading, Html, Button as ElementsButton, ColumnLayouts } from "../index";
+import { Font } from "../font";
 
 const block = (text: string, props: Record<string, unknown> = {}) => <Row><Column><Paragraph {...props}>{text}</Paragraph></Column></Row>;
 const Header = () => block("Header");
@@ -324,6 +325,17 @@ describe("a component inside markup", () => {
     } finally {
       error.mockRestore();
     }
+  });
+});
+
+describe("markup holding what writes nothing", () => {
+  it("is markup: a <Font> in a link straight in a Column leaves the link a Paragraph, in the HTML and the design", () => {
+    const font = <Font family="Inter" url="https://fonts.example.com/inter.css" />;
+    const email = <Email><Row><Column><a href="https://example.com/x">{font}Go</a><Paragraph>After</Paragraph></Column></Row></Email>;
+    const contents = renderToJson(email).body.rows[0].columns[0].contents as { type: string; values: { text?: string } }[];
+    expect(contents.map((content) => content.type)).toEqual(["text", "text"]);
+    expect(contents[0].values.text).toContain('href="https://example.com/x"');
+    expect(renderToHtml(email)).toContain(">Go</a>");
   });
 });
 

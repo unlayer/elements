@@ -11,11 +11,11 @@ template (JSX)                       <Welcome name="Ada" />
   │ unwrap                           template wrappers called, once, until the root        utils/unwrap-root.ts
   ▼
 root                                 <Email> … </Email>
-  │ walk (collect)                   the content rendered by the engine; Elements' Rows,   src/engine, utils/record.tsx
-  │                                  Columns and blocks recorded and marked, the rest
-  │                                  rendered as React renders it
+  │ walk (collect)                   the content rendered by the engine; Elements' Rows,   src/engine, utils/record.tsx,
+  │                                  Columns and blocks recorded, the rest rendered as     src/model/collect.ts
+  │                                  React renders it: a tree of records, markup, text
   ▼
-model                                Email > Row > Column > blocks, Elements' only         utils/normalize.tsx
+model                                Email > Row > Column > blocks, Elements' only         src/model
   ├──▶ design                        renderToJson()                                        utils/render-to-json.ts
   └──▶ exporters                     each row's and block's HTML (@unlayer/exporters)      components/*, utils/create-component.tsx
          ├──▶ HTML                   the rows in the mode's document, the head's CSS       utils/render-to-html.tsx, utils/extract-head.ts
@@ -29,11 +29,14 @@ model                                Email > Row > Column > blocks, Elements' on
   renderers (`unwrapRootAsync`); the synchronous ones throw for it.
 - **Walk.** The engine renders the root's content once per render. It asks a collector (`utils/record.tsx`) about each
   element: a Row, Column or block (of any copy of Elements, by its markers), a `<Tailwind>` scope or a `<Head>`/`<Font>`
-  entry is recorded, and marks stand where it is; everything else (your components, markup, Fragments, Context,
-  Suspense) is rendered as react-dom's static server render would. Each component of the template's own in a list is in
-  a boundary, the part that's left out when it fails and the render leaves failed parts out (see Errors).
-- **Model.** The marks are parsed back into the collected tree (`parse`, `elements` in `normalize.tsx`): the template
-  as Elements components only. The HTML, the head and the design are all made from it, so they can't disagree.
+  entry is recorded where it is, and what's inside it (a Row's Columns, rich text's markup) walked inside its record;
+  everything else (your components, markup, Fragments, Context, Suspense) is rendered as react-dom's static server
+  render would. Each component of the template's own in a list is in a boundary, the part that's left out when it fails
+  and the render leaves failed parts out (see Errors). What the walk gives is the content as a tree (`Item` in
+  `engine/output.ts`): text as React writes it, markup written whole, markup a record is in (`<p>Hello <Name /></p>`:
+  "cut" by it), and the records with their content.
+- **Model.** The content made the template as Elements components only (`src/model/elements.ts`), from that tree as it
+  is: nothing is parsed. The HTML, the head and the design are all made from it, so they can't disagree.
 - **Exporters.** Row, Column and each block call the editor's exporters (`@unlayer/exporters`) for their HTML; Body
   puts the rows in the mode's document shell (`document-layouts.ts`). Four of their web and document exporters
   (Divider, Html, Menu, Social) render with `react-dom/server`: Elements writes those as strings instead
@@ -51,12 +54,12 @@ app's own React (a live preview) makes a scope of its own.
 | `walk.ts` | The walker: elements, components, Context, Fragments, memo, forwardRef, lazy, Suspense, classes; holes where something suspends |
 | `dispatcher.ts` | Elements' hooks dispatcher, put in React's slot around each component call |
 | `host.ts`, `attributes.ts` | Host markup (`<div>`, `<img>`, …) as react-dom writes it: void, custom and form elements; each attribute and style by React 18's property table or React 19's switch; escaping. The walker and the string exporters write with it |
-| `output.ts` | The walk's output (strings, marks, holes, boundaries, errors), flattened in tree order |
+| `output.ts` | The walk's output (text, markup, records, holes, boundaries, errors), flattened in tree order into the content's tree |
 | `tree-id.ts` | Where a component is in the tree (Fizz's tree context), and `useId()` from it |
 | `react-compat.ts` | What the walker relies on, per React version, and where React's dispatcher slot is |
 | `self-test.ts` | The once-per-process check of the installed React |
 | `errors.ts` | Positions (`Row 3 › Column 1 › Hero`), names, and how a part left out is said |
-| `marks.ts`, `keys.ts` | The collector's marks and boundaries; React's development key warnings |
+| `records.ts`, `keys.ts` | The collector's records and boundaries; React's development key warnings |
 | `index.ts` | Entry points: `collect`, `collectAsync`, `renderStatic` (Elements' own markup), `callComponent` |
 
 ### The hooks dispatcher
@@ -182,8 +185,7 @@ row or block is left out of the HTML, the plain text and the design (the slower 
 5. **Components run once per render**, but as React runs them again: a component that sets its state while rendering,
    and one `use()` suspends, which is called again once the promise settles.
 6. **Nothing is left out silently.** A part that fails throws, or is left out where `onError` says, and said.
-7. **No randomness, no date.** A collection's nonce is a counter and the high-resolution clock, so Next.js's Cache
-   Components can prerender pages that render emails.
+7. **No randomness, no date**, so Next.js's Cache Components can prerender pages that render emails.
 8. **Across copies of Elements** (a package's ESM and CommonJS builds, a package still on another version) only type
    markers are shared, by `Symbol.for`: a Row's, Column's and block's (`@unlayer/react-elements/records`, and their
    `__unlayerRender`/`__unlayerItemConfig` statics), a `<Head>`/`<Font>` entry's (`…/head-entry`), a `<Tailwind>`'s

@@ -42,7 +42,7 @@ const LOADER = Symbol.for("@unlayer/react-elements/tailwind-loader");
 const ROOTS = new Set(["Body", "Email", "Page", "Document"]);
 
 interface Collected {
-  collection: { recorded: Array<{ kind: string; props?: { tw?: unknown; config?: TailwindConfig } }> };
+  recorded: Array<{ kind: string; props?: { tw?: unknown; config?: TailwindConfig } }>;
 }
 type Scope = object;
 interface Internals {
@@ -73,7 +73,7 @@ async function render<T>(element: React.ReactElement, options: Partial<UnlayerCo
   const configs: Array<TailwindConfig | undefined> = [];
   if (ROOTS.has((root.type as { displayName?: string })?.displayName ?? "") && children && typeof children === "object") {
     const collected = await internals.collectAsync(root, scope, options);
-    for (const r of collected.collection.recorded) if (r.kind === "tailwind" && !r.props?.tw) configs.push(r.props?.config);
+    for (const r of collected.recorded) if (r.kind === "tailwind" && !r.props?.tw) configs.push(r.props?.config);
   }
   const handles = new Map<unknown, TailwindHandle>();
   if (configs.length) {

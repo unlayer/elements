@@ -62,10 +62,11 @@ This factory:
 JSX flat props
   → template wrappers called once, with hooks, until the root (utils/unwrap-root.ts)
   → the walker (src/engine) renders the content once, no react-dom: Row, Column, blocks, <Tailwind> and
-    <Head>/<Font> are recorded by their markers (utils/record.tsx) and marked in its output; everything else
-    (the user's components, hooks, Context, Fragments, async components and use()) as React renders it
-  → the marks parsed into the template as Elements components only (Email > Row > Column > blocks,
-    utils/normalize.tsx); the HTML, the head and the design are all made from it, so they can't disagree
+    <Head>/<Font> are recorded by their markers (utils/record.tsx), what's inside them walked inside their
+    records; everything else (the user's components, hooks, Context, Fragments, async components and use())
+    as React renders it. Its output is the content as a tree of records, markup and text (engine/output.ts)
+  → that tree made the template as Elements components only (Email > Row > Column > blocks, src/model),
+    nothing parsed; the HTML, the head and the design are all made from it, so they can't disagree
   → mapSemanticProps() converts to nested values matching @unlayer/types
   → each row's HTML is Row/Column/blocks calling @unlayer/exporters (written by the walker's static
     markup); BodyExporter produces final HTML per mode
@@ -105,7 +106,7 @@ Example: `<Button fontSize="16px">` → `{ style: { fontSize: "16px" } }` in the
 | `packages/react/src/utils/inline-html.ts` | Rich text children (inline JSX, components such as react-intl's) of Paragraph/Heading/Button: rendered in the collecting render (`record.tsx`), kept to inline formatting here |
 | `packages/react/src/utils/tailwind.ts`, `src/utils/internals.ts` | The main entry's hooks for the other entries: a scope component (`<Tailwind>`) whose props rewrite those of the components inside it, recorded in the collecting render; and the internals the other entries use (on `renderToHtml[Symbol.for("@unlayer/react-elements/internals")]`) |
 | `packages/react/src/tailwind/Tailwind.tsx` | `<Tailwind>` (in the `tailwind` entry, not the main one): classes of the components inside it as their props (how each component takes them: `src/tailwind/tables.ts`), and what no prop takes as an inline `style` |
-| `packages/react/src/tailwind/inherit.ts`, `src/tailwind/row.ts` | A Row's rewrite (the Row's own, else one of its Columns', else the root's; normalize.tsx runs it on the Row's Columns): text classes on a Row, a Column or the root as the props of the text blocks inside, as CSS inherits them, and a border without a color in the text color around it (`inherit.ts`); then the Row's padding classes and its Columns' margins placed in its Columns (`row.ts`) |
+| `packages/react/src/tailwind/inherit.ts`, `src/tailwind/row.ts` | A Row's rewrite (the Row's own, else one of its Columns', else the root's; src/model/elements.ts runs it on the Row's Columns): text classes on a Row, a Column or the root as the props of the text blocks inside, as CSS inherits them, and a border without a color in the text color around it (`inherit.ts`); then the Row's padding classes and its Columns' margins placed in its Columns (`row.ts`) |
 | `packages/react/src/tailwind/index.ts` | The `@unlayer/react-elements/tailwind` entry: `loadTailwind()` (the only code that loads `tailwindcss`), the class → declaration → prop reading (and classes in `html` markup → inline styles), the async renderers |
 | `packages/react/src/engine/` | The walker: renders templates as react-dom's static server render would, without react-dom (`walk.ts`), with its own hooks dispatcher (`dispatcher.ts`), host markup (`host.ts`, `attributes.ts`, which the string exporters write with too), tree-order output (`output.ts`), the React version table and self-check (`react-compat.ts`, `self-test.ts`). See `packages/react/ARCHITECTURE.md` |
 | `packages/react/src/async/` | The `@unlayer/react-elements/async` entry (also the Tailwind entry's async renderers): an async template awaited, then the content collected once by the walker's async walk (async components, Suspense and `use()` awaited, siblings at once, output in tree order), which the synchronous render reuses; `pretty` with prettier (optional peer) |

@@ -1,6 +1,6 @@
 /**
- * What collecting a template records (see record.tsx, and normalize.tsx, which reads it back): each Row, Column,
- * block and scope it renders, in tree order, at the marks the collecting walk writes in their place.
+ * What collecting a template records (see record.tsx, and src/model, which makes the template's model from it): each
+ * Row, Column, block, scope and head entry it renders, where it renders it, in the content the collecting walk gives.
  */
 import type React from "react";
 
@@ -15,19 +15,11 @@ export type Recorded = Placed &
      * it gives the design (a <Font>'s URL on the fonts of its family).
      */
     | { kind: "head"; tags: (mode: string) => string[]; root?: Record<string, unknown>; json?: string; design?: (body: any) => void }
-    | { kind: "block"; type: React.ComponentType<any>; props: Record<string, any> }
-    /** A component of the template's own; `output`, what it returned (see normalize.tsx's keptMarkup). */
+    /** `rich`: text with elements in it, rendered inside its record (see record.tsx). */
+    | { kind: "block"; type: React.ComponentType<any>; props: Record<string, any>; rich?: boolean }
+    /** A component of the template's own; `output`, what it returned (see src/model's keptMarkup). */
     | { kind: "boundary"; element: React.ReactElement; output?: { value: unknown } }
   );
-
-export interface Collection {
-  /** In each marker, so markup a template writes can't pass for one. */
-  nonce: string;
-  /** What's recorded, numbered as the markers number it. */
-  recorded: Recorded[];
-}
-
-export const MARK = "unlayer-mark";
 
 /**
  * On Elements' Rows, Columns and blocks (0.2 and later): a collecting walk records them. One of an older copy

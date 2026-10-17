@@ -1,7 +1,8 @@
 /**
- * The engine's entry points: a template's content collected (marks where its Rows, Columns and blocks are, see
- * utils/record.tsx), synchronously or waiting for what's async in it; markup rendered (Elements' own components:
- * the rows' and the root's HTML); one component called with hooks (a template wrapper). See ARCHITECTURE.md.
+ * The engine's entry points: a template's content collected (its Rows, Columns and blocks recorded, see
+ * utils/record.tsx, as a tree of its records, markup and text), synchronously or waiting for what's async in it;
+ * markup rendered (Elements' own components: the root's HTML); one component called with hooks (a template wrapper).
+ * See ARCHITECTURE.md.
  */
 import type React from "react";
 import { asHost, callWithHooks, SUSPEND, type HookState } from "./dispatcher";
@@ -12,13 +13,12 @@ import { pushTreeContext, ROOT_TREE, type TreeContext } from "./tree-id";
 import { caller, positioned, thrownBy, walkNode, type Collector, type Task, type Walker } from "./walk";
 
 export { RenderError, type OnError } from "./errors";
+export { htmlOf, type Flat, type Item, type Markup, type Cut, type RecordItem } from "./output";
 export type { TreeContext } from "./tree-id";
 export type { Collector, Recorded } from "./walk";
 
 export interface CollectOptions {
   collector: Collector;
-  /** In each mark, so markup a template writes can't pass for one. */
-  nonce: string;
   onError?: OnError;
   /** The root's name (Email, Page, …): where positions start. */
   root: string;
@@ -58,7 +58,7 @@ export function collect(node: React.ReactNode, options: CollectOptions): Flat {
   } catch (error) {
     throw thrownBy(w, error, t.frame);
   }
-  return flatten(out, options.nonce, w.omit) as Flat;
+  return flatten(out, w.omit) as Flat;
 }
 
 /** `node` collected once everything async in it has settled (siblings at once, the output in tree order). */
@@ -77,7 +77,7 @@ export function collectAsync(node: React.ReactNode, options: CollectOptions): Pr
     w.settled = () => {
       if (w.done) return;
       try {
-        const flat = flatten(out, options.nonce, w.omit);
+        const flat = flatten(out, w.omit);
         if (flat === PENDING) return;
         w.done = true;
         resolve(flat);

@@ -5,7 +5,7 @@
  */
 import type React from "react";
 import type { UnlayerConfig } from "@unlayer-internal/shared-elements";
-import { collectedFrom, collecting, type Collected } from "./normalize";
+import { collectedFrom, collecting, type Collected } from "../model";
 import { isElementsType, providedConfig, ROOT_NAMES, unwrapRootAsync } from "./unwrap-root";
 import { newScope, setOnError, withScope, type Scope } from "./render-scope";
 import { rootConfig, type RootConfigProps } from "../context/layer-config";
@@ -32,7 +32,7 @@ async function collectAsync(root: React.ReactElement, scope: Scope, options?: Pa
     return collecting(props.children, name);
   });
   const flat = await walkAsync(node, walk);
-  const done = withScope(scope, () => collectedFrom(flat, walk.nonce));
+  const done = withScope(scope, () => collectedFrom(flat));
   scope.cache.set(props.children as object, done);
   return done;
 }

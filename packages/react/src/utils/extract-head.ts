@@ -15,7 +15,7 @@ import type { RenderMode, HeadConfig } from "@unlayer-internal/shared-elements";
 import { mapSemanticProps } from "./semantic-props";
 import { UNLAYER_CONFIG_KEY, cssUrl } from "./create-component";
 import { BODY_DEFAULTS, ROW_DEFAULTS, COLUMN_DEFAULTS } from "./container-defaults";
-import { headTags, KEPT, normalizedRoot } from "./normalize";
+import { headTags, KEPT, normalizedRoot } from "../model";
 import { getDisplayName } from "./unwrap-root";
 import { extractSemanticProps, nextCounter } from "./render-to-json";
 

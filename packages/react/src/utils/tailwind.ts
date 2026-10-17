@@ -1,7 +1,7 @@
 /**
  * Scopes: a component (the Tailwind entry's <Tailwind>) whose props rewrite the props of the Elements components
  * inside it. Its type carries the rewrite as `[TAILWIND]`; while a template is collected it records itself (with
- * that rewrite in its props), so each Row, Column and block knows the scope it's in (see normalize.tsx), and a root
+ * that rewrite in its props), so each Row, Column and block knows the scope it's in (see src/model/elements.ts), and a root
  * whose content is one is rewritten by it too. The main entry knows no more of Tailwind than that.
  */
 import React from "react";
@@ -17,7 +17,7 @@ export const isTailwindError = (error: unknown): boolean => !!(error as Record<s
 
 /**
  * A component's props as the scope it's in (its recorded props) rewrites them. A Row's can hold a function under
- * `[TAILWIND]`, which normalize.tsx gives the Row's children (its Columns), its props and the root's, to change
+ * `[TAILWIND]`, which src/model/elements.ts gives the Row's children (its Columns), its props and the root's, to change
  * (Tailwind's padding classes, which inset the content as in CSS, and text styles for the text inside); so can a
  * Column's `style` and the root's props, for a Row without one.
  */

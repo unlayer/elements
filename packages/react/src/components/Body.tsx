@@ -7,7 +7,7 @@ import { cssUrl, hatch, isOwn, nextHtmlId, OWN, safeName, textDirectionOf } from
 import type { SizeInput } from "../types";
 import { BODY_DEFAULTS } from "../utils/container-defaults";
 import { setOnError, withRenderScope } from "../utils/render-scope";
-import { childrenHtml, rootDefaults } from "../utils/normalize";
+import { childrenHtml, rootDefaults } from "../model";
 import { isTailwindError, rootProps } from "../utils/tailwind";
 import { ownMarkup, renderStatic } from "../engine";
 import { useProvidedConfig } from "../context/UnlayerProvider";

@@ -134,7 +134,7 @@ export const Column: React.FC<ColumnProps> = (props) => {
       rendered = renderFn({ ...child.props, _config, _metaHtmlId: contentHtmlId, colIndex: index, cells, bodyValues, rowValues, columnValues: valuesWithMeta });
     } catch (error) {
       // Its exporter failed: the render fails, or (`onError: "omit"`) it's left out of the HTML, and by its record
-      // (normalize.tsx gives it) of the head and the design too; the next block takes its id.
+      // (src/model gives it) of the head and the design too; the next block takes its id.
       const ids = (_config as { __ids?: Record<string, number> } | undefined)?.__ids;
       if (ids) ids[`u_content_${componentName}`]--;
       const record = (child.props as { _record?: { position?: string } })._record;

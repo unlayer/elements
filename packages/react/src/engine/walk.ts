@@ -10,7 +10,8 @@
  * context it had (output.ts puts it all in tree order).
  *
  * A collecting walk (the template's, see utils/record.tsx) asks its collector about each element first: Elements'
- * Rows, Columns and blocks are recorded, and marked in the output, instead of called.
+ * Rows, Columns and blocks are recorded instead of called, and what's inside them walked inside their records; its
+ * output is the template's content as a tree (output.ts).
  */
 import type React from "react";
 import { callWithHooks, contextOf, hookState, readContext, SUSPEND, track, type ContextStack, type HookState } from "./dispatcher";
@@ -18,8 +19,8 @@ import { ASYNC_IN_SYNC, childFrame, nameOf, placeFrame, positionOf, RenderError,
 import { escapeText, leadingNewline, openTag, propsBody, validateHost, VOID } from "./host";
 import { REACT_18 } from "./react-compat";
 import { checkKeys } from "./keys";
-import { isMark, type BoundaryNode, type MarkNode } from "./marks";
-import type { BoundaryPart, ErrorPart, Hole, Part } from "./output";
+import { isWalkerNode, type BoundaryNode, type RecordNode } from "./records";
+import type { BoundaryPart, ErrorPart, Hole, HostPart, Part, RecordPart } from "./output";
 import { pushTreeContext, type TreeContext } from "./tree-id";
 
 const ELEMENT = Symbol.for("react.element");
@@ -38,7 +39,7 @@ const ACTIVITY = Symbol.for("react.activity");
 /** What renders its children as they are on a server. */
 const PASSTHROUGH = new Set<unknown>([FRAGMENT, Symbol.for("react.strict_mode"), Symbol.for("react.profiler"), Symbol.for("react.suspense_list"), Symbol.for("react.view_transition"), Symbol.for("react.legacy_hidden"), Symbol.for("react.scope")]);
 
-/** What a collecting walk walks for an element instead of calling it (a record's marks), and the name it's at. */
+/** What a collecting walk walks for an element instead of calling it (its record), and the name it's at. */
 export interface Recorded {
   name?: string;
   record(position: string): React.ReactNode;
@@ -72,7 +73,7 @@ export interface Task {
   tree: TreeContext;
   contexts: ContextStack | null;
   frame: Frame;
-  /** A boundary's own component, whose return value its record keeps (`output`: see normalize.tsx's keptMarkup). */
+  /** A boundary's own component, whose return value its record keeps (`output`: see src/model/elements.ts's keptMarkup). */
   watch: { element: unknown; record: Record<string, any> } | null;
 }
 
@@ -157,7 +158,7 @@ export function walkNode(w: Walker, node: unknown, task: Task, out: Part[]): voi
   const object = node as Record<string | symbol, any>;
   const tag = object.$$typeof;
   if (tag === ELEMENT || tag === TRANSITIONAL) return walkElement(w, object as unknown as React.ReactElement, task, out);
-  if (isMark(object)) return "boundary" in object ? walkBoundary(w, object, task, out) : void out.push({ t: "mark", record: (object as MarkNode).record, edge: (object as MarkNode).edge });
+  if (isWalkerNode(object)) return "boundary" in object ? walkBoundary(w, object, task, out) : walkRecord(w, object, task, out);
   if (tag === PORTAL) throw fatal(w, "Portals aren't supported by server rendering (React's server renderer has none either)", task.frame);
   if (tag === LAZY) return walkLazy(w, object, task, out, (resolved, t, parts) => walkNode(w, resolved, t, parts));
   if (typeof object[Symbol.iterator] === "function") return walkArray(w, Array.from(object as Iterable<unknown>), task, out);
@@ -259,7 +260,7 @@ function withContext(w: Walker, context: object, props: Record<string, any>, tas
   }
 }
 
-/** What a collecting walk walks for an Elements component: its record's marks, at the place its name takes. */
+/** What a collecting walk walks for an Elements component: its record, at the place its name takes. */
 function walkRecorded(w: Walker, recorded: Recorded, task: Task, out: Part[]): void {
   const outer = task.frame;
   const frame = recorded.name ? childFrame(outer, recorded.name) : outer;
@@ -277,23 +278,43 @@ function walkRecorded(w: Walker, recorded: Recorded, task: Task, out: Part[]): v
   }
 }
 
-/** A part of the template left out when it fails (`onError: "omit"`), between its marks. */
+/**
+ * A record, what's inside it walked into it. Its children are where a list of three (its start, them, its end) had
+ * them, as the walk wrote a record's two ends before: their tree positions, so their `useId()`s, are as they were.
+ */
+function walkRecord(w: Walker, node: RecordNode, task: Task, out: Part[]): void {
+  const part: RecordPart = { t: "record", record: node.record, parts: [], quiet: node.quiet };
+  out.push(part);
+  if (node.children === undefined) return;
+  const tree = task.tree;
+  task.tree = pushTreeContext(tree, 3, 1);
+  try {
+    walkNode(w, node.children, task, part.parts);
+  } finally {
+    task.tree = tree;
+  }
+}
+
+/** A part of the template left out when it fails (`onError: "omit"`): a component's, in its record. */
 function walkBoundary(w: Walker, node: BoundaryNode, task: Task, out: Part[]): void {
   const part: BoundaryPart = { t: "boundary", parts: [] };
   out.push(part);
-  if (node.boundary) part.parts.push({ t: "mark", record: node.boundary, edge: "o" });
+  let into = part.parts;
+  if (node.boundary) {
+    const record: RecordPart = { t: "record", record: node.boundary, parts: [] };
+    part.parts.push(record);
+    into = record.parts;
+  }
   const watch = task.watch;
   task.watch = node.boundary ? { element: node.child, record: node.boundary as Record<string, any> } : null;
   try {
-    walkNode(w, node.child, task, part.parts);
+    walkNode(w, node.child, task, into);
   } catch (error) {
     if (!w.async && !w.omit) throw error;
     part.parts.push(errorPart(w, error, task.frame));
-    return;
   } finally {
     task.watch = watch;
   }
-  if (node.boundary) part.parts.push({ t: "mark", record: node.boundary, edge: "c" });
 }
 
 // ── Components ──
@@ -497,14 +518,22 @@ function walkHost(w: Walker, type: string, props: Record<string, any>, task: Tas
   } catch (error) {
     throw positioned(w, error, type, placeFrame(task.frame, type));
   }
-  out.push(openTag(type, props));
-  if (VOID.has(type)) return;
+  const open = openTag(type, props);
+  const close = VOID.has(type) ? "" : `</${type}>`;
+  // A collecting walk's markup is content (output.ts): its records are in it, where they are.
+  let into = out;
+  if (w.collector) {
+    const part: HostPart = { t: "host", tag: type, open, close, parts: [] };
+    out.push(part);
+    into = part.parts;
+  } else out.push(open);
+  if (!close) return;
   const body = propsBody(type, props);
-  if (body !== undefined) out.push(body);
+  if (body !== undefined) into.push(body);
   else {
     const lead = leadingNewline(type, props.children);
-    if (lead) out.push(lead);
-    walkNode(w, props.children, task, out);
+    if (lead) into.push(lead);
+    walkNode(w, props.children, task, into);
   }
-  out.push(`</${type}>`);
+  if (!w.collector) out.push(close);
 }

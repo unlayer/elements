@@ -13,7 +13,7 @@
  * Divider's without a text class of its own is the text color around it, set here (the root's `textColor`, the
  * editor's default, where no class sets one).
  *
- * A Row's rewrite (normalize.tsx gives it the Row's Columns, its props and the root's) does both, then places the
+ * A Row's rewrite (src/model/elements.ts gives it the Row's Columns, its props and the root's) does both, then places the
  * Row's padding and its Columns' margins (see row.ts). The root's rewrite, a Column's and a Row's are the same: a Row
  * takes its own, else one of its Columns', else the root's.
  */

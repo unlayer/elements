@@ -108,7 +108,7 @@ function grown(radius: number[], gutter: string[]): string | string[] {
 }
 
 /**
- * The Row's rewrite of its children (normalize.tsx gives it them, its props and the root's): `padding` and `phone`
+ * The Row's rewrite of its children (src/model/elements.ts gives it them, its props and the root's): `padding` and `phone`
  * (its phone padding) from its classes, and its Columns' margins, in its Columns. It takes the padding it puts in them
  * out of the Row's props.
  */

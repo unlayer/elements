@@ -354,7 +354,7 @@ export function classesToProps(name: string, found: ClassDeclarations, explicit:
       delete out[prop];
     }
   }
-  // A Row's padding classes inset its content as in CSS: in its Columns (see row.ts), which normalize.tsx gives this;
+  // A Row's padding classes inset its content as in CSS: in its Columns (see row.ts), which src/model/elements.ts gives this;
   // its text styles and the root's are the text blocks' in it (see inherit.ts), and the root's rewrite is a Row's
   // without one of its own.
   if (text.length && name !== "Column") out[PASSED] = text;

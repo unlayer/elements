@@ -32,7 +32,7 @@ import { BODY_DEFAULTS, ROW_DEFAULTS, COLUMN_DEFAULTS } from "./container-defaul
 import { contentSlotWidth, pinImageSrc, type SlotContext } from "./image-sizing";
 import { sayOnce, setOnError, withRenderScope } from "./render-scope";
 import { renderBody } from "./render-to-html";
-import { collect, KEPT, normalizedChildren, normalizedRoot } from "./normalize";
+import { collect, KEPT, normalizedChildren, normalizedRoot } from "../model";
 import type { Recorded } from "./collect";
 import { rtlAlign, textDirectionOf, UNLAYER_CONFIG_KEY } from "./create-component";
 import { TAILWIND } from "./tailwind";
@@ -448,7 +448,7 @@ function designJson(element: React.ReactElement, options?: RenderToJsonOptions):
     // fails renderToHtml, which then gives nothing to disagree with.
     if (omits(policy)) renderBody(element, options, "renderToJson");
     // What its content gives the head and the design can't hold (a <Head>'s tags): said.
-    heads = collect((element.props as { children?: React.ReactNode }).children, displayName).collection.recorded.filter((r) => r.kind === "head");
+    heads = collect((element.props as { children?: React.ReactNode }).children, displayName).recorded.filter((r) => r.kind === "head");
     for (const r of heads) if (r.kind === "head" && r.json) sayOnce(r.json);
     element = normalizedRoot(element);
   }

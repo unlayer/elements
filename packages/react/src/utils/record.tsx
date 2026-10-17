@@ -1,8 +1,9 @@
 /**
- * How a template is collected (see normalize.tsx): the walker (src/engine) renders it, and asks this collector about
+ * How a template is collected (see src/model): the walker (src/engine) renders it, and asks this collector about
  * each element first. Elements' Rows, Columns and blocks (of any copy of Elements: by their markers, or an older
- * copy's names and code), <Tailwind> scopes and <Head>/<Font> entries are recorded, and marked in the output, instead
- * of being called; everything else (the user's components, markup, Fragments, Context) renders as React renders it.
+ * copy's names and code), <Tailwind> scopes and <Head>/<Font> entries are recorded instead of being called, what's
+ * inside them walked inside their records; everything else (the user's components, markup, Fragments, Context)
+ * renders as React renders it.
  * Each component of the template's own in a list is in a boundary, where it's left out when it fails and the render
  * leaves failed parts out (`onError: "omit"`).
  */
@@ -11,7 +12,7 @@ import { HEAD_ENTRY, RECORDS, type Recorded } from "./collect";
 import { isElementsType, ROOT_NAMES } from "./unwrap-root";
 import { TAILWIND } from "./tailwind";
 import { UNLAYER_CONFIG_KEY, UNLAYER_RENDER_KEY } from "./create-component";
-import { boundary, mark } from "../engine/marks";
+import { boundary, recordNode } from "../engine/records";
 import { checked, checkKeys } from "../engine/keys";
 import type { Collector } from "../engine";
 
@@ -88,7 +89,7 @@ function kindOf(type: any): "row" | "column" | "block" | undefined {
   return undefined;
 }
 
-/** Rich text: a Paragraph's, Heading's or Button's children with elements in them, rendered between its marks. */
+/** Rich text: a Paragraph's, Heading's or Button's children with elements in them, rendered inside its record. */
 const RICH = /^(Paragraph|Heading|Button)$/;
 
 /** The collector a template's collecting walk asks (see the engine's Collector). */
@@ -101,7 +102,7 @@ export function collector(options: Options): Collector {
       // A scope: its rewrite in its props, so each Row, Column and block knows the one it's in.
       return { record: (position) => container({ kind: "tailwind", props: { ...props, [TAILWIND]: type[TAILWIND] }, position }, options, "Tailwind") };
     }
-    if (typeof type[HEAD_ENTRY] === "function") return { record: (position) => mark({ ...type[HEAD_ENTRY](props), position }, "h") };
+    if (typeof type[HEAD_ENTRY] === "function") return { record: (position) => recordNode({ ...type[HEAD_ENTRY](props), position }, undefined, true) };
     const kind = kindOf(type);
     if (kind === "row" || kind === "column") {
       const name = kind === "row" ? "Row" : "Column";
@@ -114,9 +115,9 @@ export function collector(options: Options): Collector {
         record: (position) => {
           const record: Recorded = { kind: "block", type, props, position };
           // Text with elements in it (markup, a component of yours, react-intl's <FormattedMessage>): rendered here, with
-          // the template's context, between its marks; their HTML is its text (see normalize.tsx).
-          if (!RICH.test(name) || !childList(props.children, name).some(React.isValidElement)) return mark(record);
-          return checked([mark(record, "o"), guard(props.children, options, name), mark(record, "c")]);
+          // the template's context, inside its record; their HTML is its text (see src/model).
+          if (!RICH.test(name) || !childList(props.children, name).some(React.isValidElement)) return recordNode(record);
+          return recordNode(Object.assign(record, { rich: true }), guard(props.children, options, name));
         },
       };
     }
@@ -124,7 +125,7 @@ export function collector(options: Options): Collector {
   };
 }
 
-/** A Row, Column or scope: its props recorded, and marks around its children (in boundaries). */
+/** A Row, Column or scope: its props recorded, its children (in boundaries) inside it. */
 function container(record: Recorded & { props: Record<string, any> }, options: Options, name: string): React.ReactNode {
-  return checked([mark(record, "o"), guard(record.props.children, options, name, true), mark(record, "c")]);
+  return recordNode(record, guard(record.props.children, options, name, true));
 }

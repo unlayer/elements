@@ -6,7 +6,7 @@ import { OWN_MARKUP } from "../components/Body";
 import { extractHeadFromTree } from "./extract-head";
 import { htmlRoot, providedConfig, ROOT_NAMES } from "./unwrap-root";
 import { rootConfig, rootMode, type RootConfigProps } from "../context/layer-config";
-import { normalizedRoot } from "./normalize";
+import { normalizedRoot } from "../model";
 import { omissions, setOnError, withRenderScope } from "./render-scope";
 import { isTailwindError } from "./tailwind";
 import {
