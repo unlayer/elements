@@ -433,6 +433,34 @@ describe("React's warnings about a template", () => {
   });
 });
 
+describe("keys in lists of lists", () => {
+  // The React Email migration writes a list item that's several Rows as a list of them (`articles.map((article) =>
+  // [<Row key={0} />, <Row key={1} />])`): each list's keys are its own, as in React, so a key in each isn't two
+  // children with the same key.
+  it("are each list's own, in every renderer", async () => {
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
+    try {
+      const articles = ["One", "Two", "Three"];
+      const email = (
+        <Email>
+          {articles.map((title, index) => [
+            <Row key={0}><Column><Paragraph>{title}</Paragraph></Column></Row>,
+            <Row key={1}><Column>{index < articles.length - 1 ? <Paragraph>Next</Paragraph> : null}</Column></Row>,
+          ])}
+        </Email>
+      );
+      renderToHtml(email);
+      renderToJson(email);
+      renderToPlainText(email);
+      const { renderToHtml: renderAsync } = await import("../async");
+      await renderAsync(email);
+      expect(error.mock.calls.map((call) => String(call[0])).filter((m) => /key/.test(m))).toEqual([]);
+    } finally {
+      error.mockRestore();
+    }
+  });
+});
+
 describe("a root (Email, Page, Document) placed among another's rows", () => {
   it("renders, as 0.1.22 rendered it (a shared layout's <Email> inside the template's)", () => {
     const html = renderToHtml(<Email><Email><Row><Column><Paragraph>Inner content</Paragraph></Column></Row></Email></Email>);
