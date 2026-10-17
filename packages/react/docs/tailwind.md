@@ -39,7 +39,7 @@ const text = await renderToPlainText(welcome("Ada"));
 const design = await renderToJson(welcome("Ada")); // classes are props here, editable in the editor
 ```
 
-`config` takes what React Email's `<Tailwind config>` takes (`theme`, `presets`, `plugins`). A `<Tailwind>` without `config` uses Tailwind's default theme. The four async renderers (`renderToHtml`, `renderToPlainText`, `renderToJson`, `renderToHtmlParts`) take the same arguments as the ones from `@unlayer/react-elements` and return Promises. They load the Tailwind compiler only for a template with a config, from your `node_modules` when they run (so a bundle doesn't need `tailwindcss` unless you use it). Where there's no `node_modules` (an edge function), compile in the bundle instead: pass `tw={await loadTailwind(config)}` from `@unlayer/react-elements/tailwind`.
+`config` takes what React Email's `<Tailwind config>` takes (`theme`, `presets`, `plugins`). A `<Tailwind>` without `config` uses Tailwind's default theme. The four async renderers (`renderToHtml`, `renderToPlainText`, `renderToJson`, `renderToHtmlParts`) take the same arguments as the ones from `@unlayer/react-elements` and return Promises. They load the Tailwind compiler only for a template with a `<Tailwind>` (with a `config` or without one), from your `node_modules` when they run (so a bundle doesn't need `tailwindcss` unless you use it). Where there's no `node_modules` (an edge function), compile in the bundle instead: pass `tw={await loadTailwind(config)}` from `@unlayer/react-elements/tailwind`.
 
 ## Keep the synchronous renderers
 
