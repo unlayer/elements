@@ -7,13 +7,15 @@
 import type React from "react";
 import { asHost, callWithHooks, SUSPEND, type HookState } from "./dispatcher";
 import { childFrame, nameOf, omits, positionOf, RenderError, rootFrame, threw, type OnError } from "./errors";
-import { flatten, PENDING, type Flat, type Part } from "./output";
+import { flatten, type Flat, type Part } from "./output";
 import { checkReact } from "./self-test";
 import { pushTreeContext, ROOT_TREE, type TreeContext } from "./tree-id";
-import { caller, positioned, thrownBy, walkNode, type Collector, type Task, type Walker } from "./walk";
+import { caller, positioned, thrownBy, walkNode, type Collector, type Task, type Wait, type Walker } from "./walk";
 
 export { RenderError, type OnError } from "./errors";
-export { htmlOf, type Flat, type Item, type Markup, type Cut, type RecordItem } from "./output";
+export { flatten, htmlOf, PENDING, type Flat, type Item, type Markup, type Cut, type Part, type RecordItem } from "./output";
+export { errorPart, type Task, type Wait } from "./walk";
+export { track } from "./dispatcher";
 export type { TreeContext } from "./tree-id";
 export type { Collector, Recorded } from "./walk";
 
@@ -32,16 +34,14 @@ export interface CollectOptions {
 
 type WalkerOptions = Pick<CollectOptions, "onError" | "collector" | "passes" | "frameless">;
 
-const walker = (async: boolean, options: Partial<WalkerOptions>): Walker => ({
-  async,
+const walker = (options: Partial<WalkerOptions>, wait?: Wait): Walker => ({
+  wait,
   collector: options.collector,
   passes: options.passes,
   frameless: options.frameless,
   omit: omits(options.onError),
   made: new WeakSet(),
   fatal: new WeakSet(),
-  done: false,
-  settled: () => {},
 });
 
 /** Where a walk starts: where the component that started it is, if the walker is calling one (see `caller`). */
@@ -50,7 +50,7 @@ const task = (root: string, tree?: TreeContext): Task => ({ tree: tree ?? caller
 /** `node` collected synchronously: what's async in it fails (or is left out, as `onError` says). */
 export function collect(node: React.ReactNode, options: CollectOptions): Flat {
   checkReact();
-  const w = walker(false, options);
+  const w = walker(options);
   const t = task(options.root, options.tree);
   const out: Part[] = [];
   try {
@@ -61,10 +61,13 @@ export function collect(node: React.ReactNode, options: CollectOptions): Flat {
   return flatten(out, w.omit) as Flat;
 }
 
-/** `node` collected once everything async in it has settled (siblings at once, the output in tree order). */
-export function collectAsync(node: React.ReactNode, options: CollectOptions): Promise<Flat> {
+/**
+ * `node` walked to collect it, waiting where `wait` says (the async renderers' holes: see src/async/collect.ts), its
+ * output as it is then (holes in it), and whether failed parts are left out: flattened once its holes settle.
+ */
+export function walkAsync(node: React.ReactNode, options: CollectOptions, wait: Wait): { parts: Part[]; omit: boolean } {
   checkReact();
-  const w = walker(true, options);
+  const w = walker(options, wait);
   const t = task(options.root, options.tree);
   const out: Part[] = [];
   try {
@@ -72,22 +75,7 @@ export function collectAsync(node: React.ReactNode, options: CollectOptions): Pr
   } catch (error) {
     out.push({ t: "error", error: thrownBy(w, error, t.frame) as RenderError, fatal: true });
   }
-  return new Promise((resolve, reject) => {
-    // Whenever a hole settles: done once everything before the first error (or everything) has.
-    w.settled = () => {
-      if (w.done) return;
-      try {
-        const flat = flatten(out, w.omit);
-        if (flat === PENDING) return;
-        w.done = true;
-        resolve(flat);
-      } catch (error) {
-        w.done = true;
-        reject(error as RenderError);
-      }
-    };
-    w.settled();
-  });
+  return { parts: out, omit: w.omit };
 }
 
 let own = 0;
@@ -101,7 +89,7 @@ export const ownMarkup = (): boolean => own > 0;
  */
 export function renderStatic(node: React.ReactNode, options: { bare?: (type: unknown) => boolean; passes?: (error: unknown) => boolean } = {}): string {
   checkReact();
-  const w: Walker = { ...walker(false, options), passAll: true, bare: options.bare };
+  const w: Walker = { ...walker(options), passAll: true, bare: options.bare };
   const out: Part[] = [];
   own++;
   try {
@@ -188,7 +176,7 @@ export function callComponent(fn: (props: any, second?: unknown) => unknown, pro
         state.hooks = undefined;
         throw state.suspendedOn;
       }
-      throw positioned(walker(false, {}), thrown, state.name, rootFrame(state.name));
+      throw positioned(walker({}), thrown, state.name, rootFrame(state.name));
     }
     if (state.rerender && ++renders <= 25) continue;
     return { value, tree: state.localId > 0 ? pushTreeContext(state.tree, 1, 0) : state.tree };

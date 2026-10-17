@@ -18,6 +18,9 @@ import {
 } from "@unlayer/react-elements";
 import type { TailwindConfig, TailwindHandle } from "@unlayer/react-elements/tailwind";
 import { prettyHtml } from "./pretty";
+import { collectWaiting, take } from "./collect";
+import type { CollectOptions, Flat } from "../engine";
+import type { Engine } from "../utils/internals";
 
 export type { DesignJSON, HtmlParts, PlainTextOptions, RenderToHtmlOptions, RenderToJsonOptions };
 
@@ -48,8 +51,9 @@ type Scope = object;
 interface Internals {
   newScope(): Scope;
   withScope<T>(scope: Scope, run: () => T): T;
-  unwrapAsync(element: React.ReactElement): Promise<React.ReactElement>;
-  collectAsync(root: React.ReactElement, scope: Scope, options?: Partial<UnlayerConfig>): Promise<Collected>;
+  unwrapAsync(element: React.ReactElement, steps: typeof take): Promise<React.ReactElement>;
+  collectAsync(root: React.ReactElement, scope: Scope, options: Partial<UnlayerConfig> | undefined, collect: (node: React.ReactNode, walk: CollectOptions) => Promise<Flat>): Promise<Collected>;
+  engine: Engine;
 }
 
 /** Elements' Tailwind compiler, when a template has a `<Tailwind config>`: the Tailwind entry's, never loaded otherwise. */
@@ -68,11 +72,11 @@ async function tailwindLoader(): Promise<(config?: TailwindConfig) => Promise<Ta
 async function render<T>(element: React.ReactElement, options: Partial<UnlayerConfig> | undefined, run: (root: React.ReactElement) => T): Promise<T> {
   const internals = (renderHtml as unknown as Record<symbol, Internals>)[Symbol.for("@unlayer/react-elements/internals")];
   const scope = internals.newScope();
-  const root = await internals.unwrapAsync(element);
+  const root = await internals.unwrapAsync(element, take);
   const children = (root.props as { children?: React.ReactNode } | null)?.children;
   const configs: Array<TailwindConfig | undefined> = [];
   if (ROOTS.has((root.type as { displayName?: string })?.displayName ?? "") && children && typeof children === "object") {
-    const collected = await internals.collectAsync(root, scope, options);
+    const collected = await internals.collectAsync(root, scope, options, (node, walk) => collectWaiting(internals.engine, node, walk));
     for (const r of collected.recorded) if (r.kind === "tailwind" && !r.props?.tw) configs.push(r.props?.config);
   }
   const handles = new Map<unknown, TailwindHandle>();

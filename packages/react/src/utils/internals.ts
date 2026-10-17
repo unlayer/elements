@@ -1,40 +1,45 @@
 /**
  * What the other entries ("@unlayer/react-elements/async", "/tailwind", "/head") use of the main one's internals,
- * on `renderToHtml` (no export of its own): a render's scope, a template collected waiting for what's async in it,
- * and the engine's static markup.
+ * on `renderToHtml` (no export of its own): a render's scope, a template collected waiting for what's async in it
+ * (the waiting itself is the async entry's: see src/async/collect.ts), and the engine's static markup.
  */
 import type React from "react";
 import type { UnlayerConfig } from "@unlayer-internal/shared-elements";
 import { collectedFrom, collecting, type Collected } from "../model";
-import { isElementsType, providedConfig, ROOT_NAMES, unwrapRootAsync } from "./unwrap-root";
+import { isElementsType, providedConfig, ROOT_NAMES, unwrapSteps, type Steps } from "./unwrap-root";
 import { newScope, setOnError, withScope, type Scope } from "./render-scope";
 import { rootConfig, type RootConfigProps } from "../context/layer-config";
-import { collectAsync as walkAsync, renderStatic } from "../engine";
+import { errorPart, flatten, PENDING, renderStatic, track, walkAsync, type CollectOptions, type Flat } from "../engine";
 
 export const INTERNALS = Symbol.for("@unlayer/react-elements/internals");
 
-/** The root a template unwraps to, its async wrappers awaited; the element itself where none comes out (said after). */
-async function unwrapAsync(element: React.ReactElement): Promise<React.ReactElement> {
+/** The root a template unwraps to, its steps taken by `take` (awaiting what they wait for); the element itself where none comes out (said after). */
+async function unwrapAsync(element: React.ReactElement, take: (steps: Steps) => Promise<React.ReactElement>): Promise<React.ReactElement> {
   if (typeof element.type === "string" || isElementsType(element.type)) return element;
-  const root = await unwrapRootAsync(element);
+  const root = await take(unwrapSteps(element));
   return ROOT_NAMES.has((root.type as { displayName?: string })?.displayName ?? "") ? root : element;
 }
 
 /**
- * A root's content collected in `scope`, waiting for its async components, `use()` and Suspense (siblings at once),
- * for the synchronous render after: what it does with parts that fail is `options`' over the root's config.
+ * A root's content collected in `scope` by `collect` (waiting for its async components, `use()` and Suspense,
+ * siblings at once), for the synchronous render after: what it does with parts that fail is `options`' over the
+ * root's config.
  */
-async function collectAsync(root: React.ReactElement, scope: Scope, options?: Partial<UnlayerConfig>): Promise<Collected> {
+async function collectAsync(root: React.ReactElement, scope: Scope, options: Partial<UnlayerConfig> | undefined, collect: (node: React.ReactNode, walk: CollectOptions) => Promise<Flat>): Promise<Collected> {
   const props = root.props as RootConfigProps & { children?: React.ReactNode };
   const name = (root.type as { displayName?: string }).displayName ?? "Body";
   const { node, options: walk } = withScope(scope, () => {
     setOnError(rootConfig(props, providedConfig(root), options).onError);
     return collecting(props.children, name);
   });
-  const flat = await walkAsync(node, walk);
+  const flat = await collect(node, walk);
   const done = withScope(scope, () => collectedFrom(flat));
   scope.cache.set(props.children as object, done);
   return done;
 }
 
-export const internals = { newScope, withScope, unwrapAsync, collectAsync, render: renderStatic };
+/** What the async entry's walk uses of the engine (see src/async/collect.ts). */
+const engine = { walk: walkAsync, flatten, PENDING, errorPart, track };
+export type Engine = typeof engine;
+
+export const internals = { newScope, withScope, unwrapAsync, collectAsync, render: renderStatic, engine };

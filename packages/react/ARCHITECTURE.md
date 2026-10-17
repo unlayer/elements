@@ -113,7 +113,8 @@ react-dom@x`), and add a hook it adds to `dispatcher.ts` and to the list in `dis
 
 ### The async walk
 
-The synchronous and the async renderers share one synchronous walk. Where a component suspends (an async component,
+The synchronous and the async renderers share one synchronous walk; the async entry (`src/async/collect.ts`) gives
+it how to wait (its `wait`: the holes, and flattening them once they've settled), so the main entry has none of it. Where a component suspends (an async component,
 `use()` of a pending promise, a thrown promise, a lazy component, a promise as a child), the synchronous walk throws to
 the nearest `<Suspense>`, which renders its fallback as react-dom's synchronous render does (with none, it's a failed
 part: see Errors). The async walk leaves a hole in its output and walks on, so the promises of the siblings after it

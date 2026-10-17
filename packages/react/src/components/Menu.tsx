@@ -27,9 +27,6 @@ type MenuSemanticProps = Omit<
 
 export interface MenuProps extends ItemComponentProps<MenuSemanticProps> {}
 
-// Defaults from the editor schema
-const DEFAULT_MENU: NonNullable<MenuValues["menu"]> = MenuDefaults.menu ?? { items: [] };
-
 const DEFAULT_VALUES = {
   ...MenuDefaults,
 } as unknown as MenuValues;

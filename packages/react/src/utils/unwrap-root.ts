@@ -79,7 +79,7 @@ function providerOf(element: unknown): { context: object; value: unknown } | und
   return undefined;
 }
 
-type Steps = Generator<PromiseLike<unknown>, React.ReactElement, unknown>;
+export type Steps = Generator<PromiseLike<unknown>, React.ReactElement, unknown>;
 
 /**
  * Wrappers called (plain functions, `memo`, `forwardRef`, nested in any order) until a root element comes out. It
@@ -206,22 +206,8 @@ export function unwrapRoot(element: React.ReactElement, why: { unread?: string }
   throw new Error(ASYNC_TEMPLATE);
 }
 
-/** The root a template unwraps to, waiting for its async wrappers and what they `use()`. */
-export async function unwrapRootAsync(element: React.ReactElement, why: { unread?: string } = {}): Promise<React.ReactElement> {
-  const run = steps(element, why);
-  let step = run.next();
-  while (!step.done) {
-    let value: unknown;
-    try {
-      value = await step.value;
-    } catch (error) {
-      step = run.throw(error);
-      continue;
-    }
-    step = run.next(value);
-  }
-  return step.value;
-}
+/** The steps to the root a template unwraps to (see steps), which the async renderers take, waiting where they wait. */
+export const unwrapSteps = (element: React.ReactElement): Steps => steps(element, {});
 
 /** Elements' own Row, Column or block (not a component of the user's own named like one, which is called). */
 const elementsOwn = (element: React.ReactElement): boolean => {

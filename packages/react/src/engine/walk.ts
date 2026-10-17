@@ -5,9 +5,9 @@
  *
  * One synchronous walk serves both renderers. Where a component suspends (an async component, `use()` of a pending
  * promise, a thrown promise, a lazy component, a promise as a child), the synchronous renderer throws (to the nearest
- * <Suspense>, whose fallback it renders, as react-dom does); the async one leaves a hole in the output, walks on (so
- * siblings start their own work at once) and fills the hole when the promise settles, with the tree position and
- * context it had (output.ts puts it all in tree order).
+ * <Suspense>, whose fallback it renders, as react-dom does); the async one (`wait`: the async entry's, see
+ * src/async/collect.ts) leaves a hole in the output, walks on (so siblings start their own work at once) and fills the
+ * hole when the promise settles, with the tree position and context it had (output.ts puts it all in tree order).
  *
  * A collecting walk (the template's, see utils/record.tsx) asks its collector about each element first: Elements'
  * Rows, Columns and blocks are recorded instead of called, and what's inside them walked inside their records; its
@@ -20,7 +20,7 @@ import { escapeText, leadingNewline, openTag, propsBody, validateHost, VOID } fr
 import { REACT_18 } from "./react-compat";
 import { checkKeys } from "./keys";
 import { isWalkerNode, type BoundaryNode, type RecordNode } from "./records";
-import type { BoundaryPart, ErrorPart, Hole, HostPart, Part, RecordPart } from "./output";
+import type { BoundaryPart, ErrorPart, HostPart, Part, RecordPart } from "./output";
 import { pushTreeContext, type TreeContext } from "./tree-id";
 
 const ELEMENT = Symbol.for("react.element");
@@ -47,8 +47,12 @@ export interface Recorded {
 }
 export type Collector = (element: React.ReactElement) => Recorded | undefined;
 
+/** What waits for `thenable` (an async walk's hole), and `fill`s the walk's output where it is once it settles. */
+export type Wait = (w: Walker, task: Task, out: Part[], thenable: PromiseLike<unknown>, fill: (task: Task, parts: Part[]) => void) => void;
+
 export interface Walker {
-  async: boolean;
+  /** How it waits for what's async (the async renderers'); a synchronous walk throws to the nearest <Suspense>. */
+  wait?: Wait;
   /** Pass on any RenderError (a render of Elements' own markup: its components' errors are placed already). */
   passAll?: boolean;
   /** Components called as they are, with whatever dispatcher is there (Elements' own, which call no hooks). */
@@ -64,10 +68,6 @@ export interface Walker {
   made: WeakSet<object>;
   /** RenderErrors for a template that isn't one: never left out. */
   fatal: WeakSet<object>;
-  /** The async walk is over (it finished, or failed): holes settling after do nothing. */
-  done: boolean;
-  /** Called when a hole settles. */
-  settled(): void;
 }
 
 export interface Task {
@@ -135,7 +135,7 @@ export function asRenderError(w: Walker, error: unknown, frame: Frame): RenderEr
 /** What a walk throws: a RenderError, or an error passed on as it is. */
 export const thrownBy = (w: Walker, error: unknown, frame: Frame): unknown => (w.passes?.(error) ? error : asRenderError(w, error, frame));
 
-const errorPart = (w: Walker, error: unknown, frame: Frame): ErrorPart => {
+export const errorPart = (w: Walker, error: unknown, frame: Frame): ErrorPart => {
   const made = thrownBy(w, error, frame) as RenderError;
   return { t: "error", error: made, fatal: w.fatal.has(made) || !(made instanceof RenderError) };
 };
@@ -311,7 +311,7 @@ function walkBoundary(w: Walker, node: BoundaryNode, task: Task, out: Part[]): v
   try {
     walkNode(w, node.child, task, into);
   } catch (error) {
-    if (!w.async && !w.omit) throw error;
+    if (!w.wait && !w.omit) throw error;
     part.parts.push(errorPart(w, error, task.frame));
   } finally {
     task.watch = watch;
@@ -324,7 +324,7 @@ function walkFunction(w: Walker, fn: Function, named: unknown, props: Record<str
   const name = nameOf(named);
   const frame = w.frameless?.(named) ? task.frame : childFrame(task.frame, name);
   // Not called when nothing can wait for it (and the promise it gives back could reject unhandled).
-  if (!w.async && isAsyncFunction(fn)) throw new SyncSuspend(name, frame);
+  if (!w.wait && isAsyncFunction(fn)) throw new SyncSuspend(name, frame);
   const state = hookState(name, task.tree, task.contexts);
   if (!w.bare?.(named)) return callAndWalk(w, state, fn, props, secondArg, frame, task, out, keep);
   let result: unknown;
@@ -345,23 +345,23 @@ function callAndWalk(w: Walker, state: HookState, fn: Function, props: Record<st
     if (!thenable) throw positioned(w, thrown, state.name, frame);
     // `use()` of a pending promise, or a thrown one (React 18's Suspense): called again once it settles, with fresh
     // hooks and the results `use()` had, as React does.
-    if (!w.async) {
+    if (!w.wait) {
       settle(thenable);
       throw new SyncSuspend(state.name, frame);
     }
-    return hole(w, task, out, thenable, (t, parts) => {
+    return w.wait(w, task, out, thenable, (t, parts) => {
       state.hooks = undefined;
       callAndWalk(w, state, fn, props, secondArg, frame, t, parts, keep);
     });
   }
   if (isThenable(result)) {
     // An async component: what its promise resolves to (it isn't called again).
-    if (!w.async) {
+    if (!w.wait) {
       settle(result);
       throw new SyncSuspend(state.name, frame);
     }
     const promise = result as PromiseLike<unknown> & { status?: string; value?: unknown; reason?: unknown };
-    return hole(w, task, out, promise, (t, parts) => {
+    return w.wait(w, task, out, promise, (t, parts) => {
       if (promise.status === "rejected") throw positioned(w, promise.reason, state.name, frame);
       if (keep) keep.output = { value: promise.value };
       walkResult(w, state, promise.value, frame, t, parts);
@@ -447,7 +447,7 @@ export function renderClass(Ctor: any, given: Record<string, any>, contexts: Con
 
 function walkSuspense(w: Walker, props: Record<string, any>, task: Task, out: Part[]): void {
   // The async renderer waits for what's in it.
-  if (w.async) return walkNode(w, props.children, task, out);
+  if (w.wait) return walkNode(w, props.children, task, out);
   const inside: Part[] = [];
   try {
     walkNode(w, props.children, task, inside);
@@ -461,39 +461,17 @@ function walkSuspense(w: Walker, props: Record<string, any>, task: Task, out: Pa
 
 // ── What waits ──
 
-/**
- * A hole for what `thenable` gives: the walk goes on, and `fill` walks it, with the tree position, context and
- * place it has now, once it settles.
- */
-function hole(w: Walker, task: Task, out: Part[], thenable: PromiseLike<unknown>, fill: (task: Task, parts: Part[]) => void): void {
-  const part: Hole = { t: "hole", parts: [], settled: false };
-  out.push(part);
-  const at: Task = { tree: task.tree, contexts: task.contexts, frame: task.frame, watch: null };
-  track(thenable);
-  const settled = () => {
-    if (w.done) return;
-    try {
-      fill({ ...at }, part.parts);
-    } catch (error) {
-      part.parts.push(errorPart(w, error, at.frame));
-    }
-    part.settled = true;
-    w.settled();
-  };
-  thenable.then(settled, settled);
-}
-
 type Thenable = PromiseLike<unknown> & { status?: "pending" | "fulfilled" | "rejected"; value?: unknown; reason?: unknown };
 
 function walkThenable(w: Walker, thenable: Thenable, task: Task, out: Part[]): void {
   track(thenable);
   if (thenable.status === "fulfilled") return walkNode(w, thenable.value, task, out);
   if (thenable.status === "rejected") throw positioned(w, thenable.reason, task.frame.name, task.frame);
-  if (!w.async) {
+  if (!w.wait) {
     settle(thenable);
     throw new SyncSuspend(task.frame.name, task.frame);
   }
-  hole(w, task, out, thenable, (t, parts) => walkThenable(w, thenable, t, parts));
+  w.wait(w, task, out, thenable, (t, parts) => walkThenable(w, thenable, t, parts));
 }
 
 function walkLazy(w: Walker, lazy: Record<string, any>, task: Task, out: Part[], walk: (resolved: any, task: Task, parts: Part[]) => void): void {
@@ -502,11 +480,11 @@ function walkLazy(w: Walker, lazy: Record<string, any>, task: Task, out: Part[],
     resolved = lazy._init(lazy._payload);
   } catch (thrown) {
     if (!isThenable(thrown)) throw positioned(w, thrown, "lazy", placeFrame(task.frame, "lazy"));
-    if (!w.async) {
+    if (!w.wait) {
       settle(thrown);
       throw new SyncSuspend("lazy", placeFrame(task.frame, "lazy"));
     }
-    return hole(w, task, out, thrown, (t, parts) => walkLazy(w, lazy, t, parts, walk));
+    return w.wait(w, task, out, thrown, (t, parts) => walkLazy(w, lazy, t, parts, walk));
   }
   walk(resolved, task, out);
 }
