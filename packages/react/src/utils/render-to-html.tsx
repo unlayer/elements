@@ -2,8 +2,7 @@ import React from "react";
 import type { PlainTextOptions, RenderMode, UnlayerConfig } from "@unlayer-internal/shared-elements";
 import { htmlToPlainText, RenderError } from "@unlayer-internal/shared-elements";
 import { renderOwn } from "../engine";
-import Body from "../components/Body";
-import { OWN_MARKUP, rootlessHtml } from "./root-content";
+import { OWN_MARKUP, rootlessHtml, rootlessRoot } from "./root-content";
 import { extractHeadFromTree } from "./extract-head";
 import { htmlRoot, providedConfig } from "./unwrap-root";
 import { isRoot } from "./root-type";
@@ -29,9 +28,9 @@ function resolveConfig(element: React.ReactElement, config?: Partial<UnlayerConf
 
 /**
  * The root the head and the plain text are read from: the root, or for a template with no root (what it rendered, an
- * Elements component, markup), a Body holding it, whose content is the one the HTML rendered (collected once).
+ * Elements component, markup), one holding it, whose content is the one the HTML rendered (collected once).
  */
-const headRoot = (element: React.ReactElement, mode: RenderMode): React.ReactElement => (isRoot(element.type) ? element : React.createElement(Body, { mode }, element));
+const headRoot = (element: React.ReactElement, mode: RenderMode): React.ReactElement => (isRoot(element.type) ? element : rootlessRoot(element, mode));
 
 /**
  * Render the element tree to body markup (no document shell).

@@ -4,7 +4,7 @@
  * a block, markup: see unwrap-root.ts's `Why.rendered`) is that content alone, with no body around it, so its rows
  * are numbered and rendered as the head and the plain text read them, from the same render.
  */
-import type React from "react";
+import React from "react";
 import type { RenderMode, UnlayerConfig } from "@unlayer-internal/shared-elements";
 import { mergeValues } from "@unlayer-internal/shared-elements";
 import { renderOwn } from "../engine";
@@ -17,6 +17,14 @@ import { isTailwindError } from "./tailwind";
 
 /** How Elements' own markup renders (see the engine's renderStatic). */
 export const OWN_MARKUP = { bare: isOwn, passes: isTailwindError };
+
+/** What a template with no root's content is walked as (what fails at its top is `in <template>`). */
+export const ROOTLESS = "template";
+const Rootless = () => null;
+Rootless.displayName = ROOTLESS;
+
+/** The root a template with no root is read as (its head, its plain text): its content as the root's, in `mode`. */
+export const rootlessRoot = (content: React.ReactElement, mode: RenderMode): React.ReactElement => React.createElement(Rootless, { mode }, content);
 
 /**
  * The content of a root (`props`, Body's, in `mode`, named `name`) as HTML: its rows and blocks rendered with
@@ -56,5 +64,5 @@ export function rootlessHtml(content: React.ReactElement, config: UnlayerConfig,
   const _config = { ...config, mode, __ids: {} } as UnlayerConfig;
   const values: Record<string, any> = mergeValues(BODY_DEFAULTS, mapSemanticProps({}, BODY_DEFAULTS, "Body"));
   cssUrl(values);
-  return contentHtml({ mode, children: content }, config, _config, mode, "Body", values);
+  return contentHtml({ mode, children: content }, config, _config, mode, ROOTLESS, values);
 }

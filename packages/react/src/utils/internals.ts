@@ -10,6 +10,7 @@ import { isElementsType, providedConfig, unwrapSteps, type Steps, type Why } fro
 import { isRoot, rootName } from "./root-type";
 import { newScope, setRenderConfig, withScope, type Scope } from "./render-scope";
 import { rootConfig, type RootConfigProps } from "../context/layer-config";
+import { ROOTLESS } from "./root-content";
 import { errorPart, flatten, PENDING, renderStatic, track, walkAsync, type CollectOptions, type Flat } from "../engine";
 
 export const INTERNALS = Symbol.for("@unlayer/react-elements/internals");
@@ -35,7 +36,7 @@ async function unwrapAsync(element: React.ReactElement, take: (steps: Steps) => 
 async function collectAsync(root: React.ReactElement, scope: Scope, options: Partial<UnlayerConfig> | undefined, collect: (node: React.ReactNode, walk: CollectOptions) => Promise<Flat>): Promise<Collected> {
   const props = root.props as RootConfigProps & { children?: React.ReactNode };
   const content = isRoot(root.type) ? props.children : root;
-  const name = rootName(root.type) ?? "Body";
+  const name = rootName(root.type) ?? ROOTLESS;
   const { node, options: walk } = withScope(scope, () => {
     setRenderConfig(rootConfig(props, providedConfig(root), options));
     return collecting(content, name);

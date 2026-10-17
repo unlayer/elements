@@ -5,6 +5,7 @@ import { renderToHtml, renderToHtmlParts, renderToPlainText } from "./render-to-
 import { renderToJson } from "./render-to-json";
 import { Email, Page, Row, Column, Paragraph, Heading, Html, Button as ElementsButton, ColumnLayouts } from "../index";
 import { Font } from "../font";
+import * as asyncRenderers from "../async";
 
 const block = (text: string, props: Record<string, unknown> = {}) => <Row><Column><Paragraph {...props}>{text}</Paragraph></Column></Row>;
 const Header = () => block("Header");
@@ -162,6 +163,19 @@ describe("a template with no root", () => {
 
   it("is markup given no settings as attributes", () => {
     expect(renderToHtml(<div>Markup</div>)).toContain("<div>Markup</div>");
+  });
+
+  it("says what fails at its top is in the template, in every renderer", async () => {
+    // (Not a component: a module's object, as a story file's default export is.)
+    const Invalid = {} as unknown as React.FC;
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
+    try {
+      for (const render of [renderToHtml, renderToHtmlParts, renderToPlainText, asyncRenderers.renderToHtml]) {
+        await expect(Promise.resolve().then(() => render(<Invalid />))).rejects.toThrow(/but got: object\. .* \(in <template>\)$/);
+      }
+    } finally {
+      error.mockRestore();
+    }
   });
 });
 
