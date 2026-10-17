@@ -10,6 +10,7 @@
  */
 import React from "react";
 import type { Item, RecordItem } from "../engine";
+import { whereIs } from "../utils/collect";
 import { RenderError } from "../engine";
 import { failed, failedBefore, sayOnce } from "../utils/render-scope";
 import { classProps, TAILWIND } from "../utils/tailwind";
@@ -121,17 +122,13 @@ export function markup(c: Collected, items: readonly Item[], render: (element: R
         } catch (error) {
           // An exporter of the row (its Columns' too) that failed: the row's. A block's says which block it was.
           if (error instanceof RenderError) throw error;
-          failed(new RenderError(`${String((error as Error)?.message ?? error)}`, r.kind === "row" ? "Row" : nameOf(out), r.position ?? "", error), r);
+          failed(new RenderError(`${String((error as Error)?.message ?? error)}`, r.kind === "row" ? "Row" : nameOf(out), whereIs(r) ?? "", error), r);
         }
       }
     }
   }
   return html;
 }
-
-/** A list with keys, as React asks for one it renders (a Row or Column that fails renders its children as they are). */
-const keyed = (list: React.ReactNode[]): React.ReactNode[] =>
-  list.map((child, i) => (React.isValidElement(child) && child.key == null ? React.cloneElement(child, { key: `k${i}` }) : child));
 
 /**
  * A recorded Row's, Column's or block's props, with its `className` turned into props by the <Tailwind> it's in
@@ -189,12 +186,22 @@ const asBlock = (part: Part, props: Record<string, unknown> = {}, exact = false)
  */
 const BLOCKS: Record<string, React.ComponentType<any>> = { Paragraph, Heading, Button, Image, Divider, Html, Menu, Social, Table, Video, PageBreak };
 
-/** A recorded Row, Column or block, as the Elements component it was, with what rendered in it (null: left out). */
+/**
+ * A recorded Row, Column or block, as the Elements component it was, with what rendered in it (null: left out), made
+ * once per render: the HTML, the head and the design ask for the same. `_record` is its record: a Column names a block
+ * by it when its exporter fails, and the head and the design leave out what failed in the HTML (see `failedBefore`).
+ */
 export function element(c: Collected, scoped: Scoped): React.ReactElement | null {
-  const { item, tw } = scoped;
-  const r = recordOf(item);
+  const r = recordOf(scoped.item);
   // A row or block whose exporter failed in this render's HTML (`onError: "omit"`): left out of the head and design too.
   if (failedBefore(r)) return null;
+  c.made ??= new Map();
+  if (!c.made.has(r)) c.made.set(r, made(c, scoped, r));
+  return c.made.get(r)!;
+}
+
+function made(c: Collected, scoped: Scoped, r: ReturnType<typeof recordOf>): React.ReactElement | null {
+  const { item, tw } = scoped;
   if (r.kind === "block") {
     let props: Record<string, any> = r.props;
     // Its text as it rendered (see record.tsx): HTML, kept to inline formatting.
@@ -213,10 +220,9 @@ export function element(c: Collected, scoped: Scoped): React.ReactElement | null
         if (near !== false) sayOnce(`[Unlayer] ${config.name} ignores the prop \`${key}\`${near ? `: did you mean \`${near}\`?` : "."}`);
       }
     }
-    // `_record`: its record, which the Column rendering it names when its exporter fails.
     return React.createElement((config?.contentType !== "custom" && BLOCKS[config?.name]) || r.type, { ...styled(c, scoped, props), _record: r });
   }
-  if (r.kind === "column") return React.createElement(Column, { ...styled(c, scoped, r.props), children: keyed(elements(c, item.items, "column", tw)) });
+  if (r.kind === "column") return React.createElement(Column, { ...styled(c, scoped, r.props), children: elements(c, item.items, "column", tw), _record: r } as React.ComponentProps<typeof Column>);
   const props: Record<PropertyKey, any> = { ...styled(c, scoped, r.props) };
   const list = elements(c, item.items, "row", tw);
   // A layout counts the Columns as written (a condition's place included) or as rendered (from Fragments and
@@ -229,7 +235,7 @@ export function element(c: Collected, scoped: Scoped): React.ReactElement | null
       // It fails the render, or is left out (once: the HTML, the head and the design ask).
       if (!c.told.has(r)) {
         c.told.add(r);
-        failed(new RenderError(`A Row with the ${layout.name} layout, for ${layout.expectedColumns} Columns, has ${columns}`, "Row", r.position ?? "Row"));
+        failed(new RenderError(`A Row with the ${layout.name} layout, for ${layout.expectedColumns} Columns, has ${columns}`, "Row", whereIs(r) ?? "Row"));
       }
       return null;
     }
@@ -239,12 +245,12 @@ export function element(c: Collected, scoped: Scoped): React.ReactElement | null
   // A scope's rewrite, the Row's, one its Columns' classes give, or the root's, can put what its classes give the Row
   // in its Columns (Tailwind's padding and margins, and text styles for the text in them: see utils/tailwind.ts).
   const rewrite = props[TAILWIND] ?? list.map((child: any) => child?.props?.style?.[TAILWIND]?.row).find(Boolean) ?? c.root?.[TAILWIND];
-  const children = keyed(rewrite?.(list, props, c.root) ?? list);
+  const children = rewrite?.(list, props, c.root) ?? list;
   // Its own padding is the editor's: around the row, outside its content background (a hook's warned already).
   const v = { ...props.values, ...props };
   if (!props[TAILWIND] && /[1-9]/.test(String(v.padding ?? "")) && (/^(transparent)?$/.test(v.columnsBackgroundColor ?? "") ? v.backgroundImage?.url && v.backgroundImage.fullWidth === false : 1))
     sayOnce("[Unlayer] Row padding sits outside the row's content background, as in the editor; to inset the content use the Columns' padding.");
-  return React.createElement(Row, { ...props, children });
+  return React.createElement(Row, { ...props, children, _record: r });
 }
 
 /** Text among the rows, or straight in a Row or Column, as it reads. */

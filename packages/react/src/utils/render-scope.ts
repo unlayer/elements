@@ -8,6 +8,8 @@ import { omits, reportOmitted } from "../engine/errors";
 
 export interface Scope {
   cache: WeakMap<object, unknown>;
+  /** What the HTML worked out for a record (a block's values), which the head reuses (see `remember`). */
+  values: WeakMap<object, unknown>;
   onError?: OnError;
   /** The parts left out, each said once (see reportOmitted). */
   omitted: RenderError[];
@@ -15,7 +17,7 @@ export interface Scope {
   failed: WeakSet<object>;
 }
 
-export const newScope = (): Scope => ({ cache: new WeakMap(), omitted: [], failed: new WeakSet() });
+export const newScope = (): Scope => ({ cache: new WeakMap(), values: new WeakMap(), omitted: [], failed: new WeakSet() });
 
 let scoped: Scope | undefined;
 
@@ -25,6 +27,16 @@ export function scopeCache<T>(key: object, make: () => T): T {
   if (!scoped.cache.has(key)) scoped.cache.set(key, make());
   return scoped.cache.get(key) as T;
 }
+
+/**
+ * What a Row, Column or block's HTML worked out for its record (its values, mapped from its props), for the head to
+ * reuse in the same render instead of working it out again (outside a render, nothing is kept).
+ */
+export function remember(record: object | undefined, value: unknown): void {
+  if (record && scoped) scoped.values.set(record, value);
+}
+
+export const recall = <T>(record: object | undefined): T | undefined => (record && scoped ? (scoped.values.get(record) as T | undefined) : undefined);
 
 const SAID = {};
 /** A warning, said once per render (each time outside one). */

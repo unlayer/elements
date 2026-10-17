@@ -42,7 +42,8 @@ const PASSTHROUGH = new Set<unknown>([FRAGMENT, Symbol.for("react.strict_mode"),
 /** What a collecting walk walks for an element instead of calling it (its record), and the name it's at. */
 export interface Recorded {
   name?: string;
-  record(position: string): React.ReactNode;
+  /** (`position`, where it is: `Row 3 › Column 1 › Button`, worked out when an error asks.) */
+  record(position: () => string): React.ReactNode;
 }
 export type Collector = (element: React.ReactElement) => Recorded | undefined;
 
@@ -266,7 +267,7 @@ function walkRecorded(w: Walker, recorded: Recorded, task: Task, out: Part[]): v
   const frame = recorded.name ? childFrame(outer, recorded.name) : outer;
   let nodes: React.ReactNode;
   try {
-    nodes = recorded.record(positionOf(frame));
+    nodes = recorded.record(() => positionOf(frame));
   } catch (error) {
     throw positioned(w, error, frame.name, frame);
   }

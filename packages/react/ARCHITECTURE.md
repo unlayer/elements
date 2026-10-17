@@ -43,9 +43,14 @@ model                                Email > Row > Column > blocks, Elements' on
   (`src/exporters`), with the engine's host markup, so nothing in a render calls react-dom. `react-dom` is still a peer
   dependency because `@unlayer/exporters` imports `react-dom/server` when it loads.
 
-A render (`renderToHtml`, `renderToJson`, …) has a scope (`utils/render-scope.ts`): what it works out once (the
-collected content), what it does with a part that fails (`onError`), and the parts it left out. Body rendered by an
-app's own React (a live preview) makes a scope of its own.
+A render (`renderToHtml`, `renderToJson`, …) has a scope (`utils/render-scope.ts`): what it works out once, what it
+does with a part that fails (`onError`), and the parts it left out. Once: the content is collected, each Row, Column
+and block made the Elements component it is (`model/elements.ts`, by its record), and the values the HTML of each
+Row, Column and built-in block mapped from its props are kept for the head (`remember`), which doesn't map them again
+(a custom tool's own head maps its block itself: its code could read its props otherwise). Body calls each Row as it
+is (`renderOwn`: Elements' own components call no hooks), not through a walk. The design's values are made as copies
+(`pxMerged`): no object of the design is the defaults', and its px lengths' bare zeros are `0px` as they're made.
+Body rendered by an app's own React (a live preview) makes a scope of its own.
 
 ## The engine (`src/engine`)
 

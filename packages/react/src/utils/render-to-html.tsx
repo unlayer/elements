@@ -218,9 +218,10 @@ export function renderToPlainText(
   // A template component renders as its root, as in renderToHtml (context providers around it included).
   const html = withRenderScope(() => {
     const root = htmlRoot(element, "renderToPlainText");
-    setOnError(resolveConfig(root, config).onError);
+    const resolved = resolveConfig(root, config);
+    setOnError(resolved.onError);
     // Collected first, as renderToHtml's head is: it fails where that does.
-    normalizedRoot(root);
+    normalizedRoot(root, rootMode(root, resolved));
     return renderBody(root, config, "renderToPlainText");
   });
   // How the text is written (wrapping, links, headings, what's left out): see PlainTextOptions.

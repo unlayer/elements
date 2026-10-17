@@ -6,7 +6,7 @@
  */
 import type React from "react";
 import { asHost, callWithHooks, SUSPEND, type HookState } from "./dispatcher";
-import { omits, rootFrame, type OnError, type RenderError } from "./errors";
+import { childFrame, nameOf, omits, positionOf, RenderError, rootFrame, threw, type OnError } from "./errors";
 import { flatten, PENDING, type Flat, type Part } from "./output";
 import { checkReact } from "./self-test";
 import { pushTreeContext, ROOT_TREE, type TreeContext } from "./tree-id";
@@ -110,6 +110,25 @@ export function renderStatic(node: React.ReactNode, options: { bare?: (type: unk
     own--;
   }
   return out.join("");
+}
+
+/**
+ * One of Elements' own components (a Row, a block: they call no hooks), given its props, as renderStatic renders it:
+ * called, and the HTML it returns (in a `<div dangerouslySetInnerHTML>`) in its `<div>`; anything else it returns
+ * walked. What it throws is a RenderError naming it, as renderStatic's.
+ */
+export function renderOwn(type: (props: any) => unknown, props: Record<string, unknown>, options: { bare?: (type: unknown) => boolean; passes?: (error: unknown) => boolean } = {}): string {
+  let result: any;
+  try {
+    result = type(props);
+  } catch (error) {
+    if (error instanceof RenderError || options.passes?.(error)) throw error;
+    const name = nameOf(type);
+    throw new RenderError(threw(error), name, positionOf(childFrame(rootFrame(""), name)), error);
+  }
+  const html = result?.type === "div" && Object.keys(result.props).length === 1 ? result.props.dangerouslySetInnerHTML : undefined;
+  if (html && typeof html === "object" && "__html" in html) return `<div>${html.__html == null ? "" : "" + html.__html}</div>`;
+  return renderStatic(result, options);
 }
 
 /**

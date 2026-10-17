@@ -25,8 +25,8 @@ export interface Collected {
   styled?: Map<object, Record<string, any>>;
   /** The root's props (its classes as props, its mode), for a scope's rewrite of a Row (see utils/tailwind.ts). */
   root?: Record<PropertyKey, any>;
-  /** The model, made once (see elements.ts). */
-  model?: React.ReactNode[];
+  /** Each Row, Column and block, as the Elements component it is, made once (see elements.ts), by record. */
+  made?: Map<object, React.ReactElement | null>;
 }
 
 /** How `children` (a root's, `root` naming it) are walked to collect them: the collector, and the walk's options. */

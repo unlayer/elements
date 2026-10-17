@@ -92,6 +92,9 @@ function kindOf(type: any): "row" | "column" | "block" | undefined {
 /** Rich text: a Paragraph's, Heading's or Button's children with elements in them, rendered inside its record. */
 const RICH = /^(Paragraph|Heading|Button)$/;
 
+/** A record, with where it is in the template (`Row 3 › Column 1 › Button`), worked out when an error names it. */
+const placed = <T extends object>(record: T, where: () => string): T & { where: () => string } => Object.assign(record, { where });
+
 /** The collector a template's collecting walk asks (see the engine's Collector). */
 export function collector(options: Options): Collector {
   return (element) => {
@@ -100,20 +103,20 @@ export function collector(options: Options): Collector {
     const props = element.props as Record<string, any>;
     if (typeof type[TAILWIND] === "function") {
       // A scope: its rewrite in its props, so each Row, Column and block knows the one it's in.
-      return { record: (position) => container({ kind: "tailwind", props: { ...props, [TAILWIND]: type[TAILWIND] }, position }, options, "Tailwind") };
+      return { record: (position) => container(placed({ kind: "tailwind", props: { ...props, [TAILWIND]: type[TAILWIND] } }, position), options, "Tailwind") };
     }
-    if (typeof type[HEAD_ENTRY] === "function") return { record: (position) => recordNode({ ...type[HEAD_ENTRY](props), position }, undefined, true) };
+    if (typeof type[HEAD_ENTRY] === "function") return { record: (position) => recordNode(placed({ ...type[HEAD_ENTRY](props) }, position), undefined, true) };
     const kind = kindOf(type);
     if (kind === "row" || kind === "column") {
       const name = kind === "row" ? "Row" : "Column";
-      return { name, record: (position) => container({ kind, props, position }, options, name) };
+      return { name, record: (position) => container(placed({ kind, props }, position), options, name) };
     }
     if (kind === "block") {
       const name = type[UNLAYER_CONFIG_KEY]?.name ?? displayName(type);
       return {
         name,
         record: (position) => {
-          const record: Recorded = { kind: "block", type, props, position };
+          const record: Recorded = placed({ kind: "block", type, props }, position);
           // Text with elements in it (markup, a component of yours, react-intl's <FormattedMessage>): rendered here, with
           // the template's context, inside its record; their HTML is its text (see src/model).
           if (!RICH.test(name) || !childList(props.children, name).some(React.isValidElement)) return recordNode(record);

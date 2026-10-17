@@ -39,10 +39,13 @@ export function rootDefaults(props: Record<string, any>, name?: string): Record<
   return out;
 }
 
-/** `root` with its children as Elements components only (and its classes and default font as props). */
-export function normalizedRoot(root: React.ReactElement): React.ReactElement {
+/**
+ * `root` with its children as Elements components only (and its classes and default font as props), in `mode` (the
+ * mode it renders in, which its rows' Tailwind rewrites read, as where Body renders them).
+ */
+export function normalizedRoot(root: React.ReactElement, mode?: string): React.ReactElement {
   const props = root.props as { className?: string; children?: React.ReactNode };
   const name = (root.type as { displayName?: string }).displayName ?? "Body";
   const styled = rootProps(props, name);
-  return React.cloneElement(root, { ...styled, ...rootDefaults(styled, name) }, ...normalizedChildren(props.children, styled, name));
+  return React.cloneElement(root, { ...styled, ...rootDefaults(styled, name) }, ...normalizedChildren(props.children, mode ? { ...styled, mode } : styled, name));
 }

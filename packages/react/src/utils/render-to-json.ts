@@ -18,7 +18,7 @@ import type {
   DesignContent,
   UnlayerConfig,
 } from "@unlayer-internal/shared-elements";
-import { mergeValues, pxZeros, textJsonToText } from "@unlayer-internal/shared-elements";
+import { mergeValues, pxMerged, pxZeros, textJsonToText } from "@unlayer-internal/shared-elements";
 // Schema version from the exporters bundle — matches the editor's currentVersion
 // at the time the exporters were generated. This ensures renderToJson output is
 // recognized as current by the editor, skipping unnecessary migrations.
@@ -30,7 +30,7 @@ import { componentName, getDisplayName, providedConfig, ROOT_NAMES, unwrapRoot, 
 import { rootConfig, rootMode, type RootConfigProps } from "../context/layer-config";
 import { BODY_DEFAULTS, ROW_DEFAULTS, COLUMN_DEFAULTS } from "./container-defaults";
 import { contentSlotWidth, pinImageSrc, type SlotContext } from "./image-sizing";
-import { sayOnce, setOnError, withRenderScope } from "./render-scope";
+import { failedBefore, sayOnce, setOnError, withRenderScope } from "./render-scope";
 import { renderBody } from "./render-to-html";
 import { collect, KEPT, normalizedChildren, normalizedRoot } from "../model";
 import type { Recorded } from "./collect";
@@ -69,8 +69,18 @@ function unwrapForJson(element: React.ReactElement): React.ReactElement {
   }
 }
 
-/** The element children of a collected (Elements-only) tree. */
-const collectChildren = (node: React.ReactNode): React.ReactElement[] => React.Children.toArray(node).filter(React.isValidElement);
+/** The elements in children (lists flattened): the model's Rows, Columns and blocks (see src/model). */
+export function elementsIn(children: React.ReactNode, out: React.ReactElement<any>[] = []): React.ReactElement<any>[] {
+  if (Array.isArray(children)) for (const child of children) elementsIn(child, out);
+  else if (React.isValidElement(children)) out.push(children);
+  return out;
+}
+
+/**
+ * The element children of a collected (Elements-only) tree; a Row or block whose HTML failed in this render
+ * (`onError: "omit"`) left out, as in the HTML.
+ */
+const collectChildren = (node: React.ReactNode): React.ReactElement<any>[] => elementsIn(node).filter((child) => !failedBefore(child.props._record));
 
 /**
  * Strip internal/base props from an element's props,
@@ -139,7 +149,9 @@ function processItem(
   codeOnly(name, element.props);
   const mappedValues = propMapper({ children, ...restProps });
   rtlAlign(mappedValues, defaultValues, (layout.bodyValues as { textDirection?: unknown } | undefined)?.textDirection);
-  const finalValues = mergeValues(defaultValues, mappedValues);
+  // (Bare zeros in px lengths written `0px`, as the design's schema types them: see pxZeros. A custom tool's values
+  // are as it writes them.)
+  const finalValues = slug ? mergeValues(defaultValues, mappedValues) : pxMerged(defaultValues, mappedValues);
 
   // Paragraph maps to "text" content type: its textJson as the HTML the text block holds, which its HTML renders too
   // (see Paragraph.tsx).
@@ -169,7 +181,7 @@ function processItem(
       ...layout,
       containerPadding: (values as Record<string, any>).containerPadding,
     });
-    (values as Record<string, any>).src = pinImageSrc(itemSrc, availableWidth);
+    (values as Record<string, any>).src = pxZeros(pinImageSrc(itemSrc, availableWidth));
   }
 
   return slug ? { type: contentType, slug, values } : { type: contentType, values };
@@ -186,7 +198,7 @@ function processColumn(
   codeOnly("Column", element.props);
   const semanticProps = extractSemanticProps(element.props);
   const mapped = mapSemanticProps(semanticProps, COLUMN_DEFAULTS, "Column");
-  const values = mergeValues(COLUMN_DEFAULTS, mapped);
+  const values = pxMerged(COLUMN_DEFAULTS, mapped);
 
   // Add _meta
   const valuesWithMeta = {
@@ -227,13 +239,13 @@ function processRow(
   codeOnly("Row", element.props);
   const semanticProps = extractSemanticProps(element.props);
   const mapped = mapSemanticProps(semanticProps, ROW_DEFAULTS, "Row");
-  const values = mergeValues(ROW_DEFAULTS, mapped);
+  const values = pxMerged(ROW_DEFAULTS, mapped);
 
   // Add cells, columns flag, editor flags, and _meta
   const valuesWithMeta = {
     ...values,
     columns: values.columns ?? false,
-    cells,
+    cells: pxZeros(cells),
     _meta: {
       htmlID: id,
       htmlClassNames: "u_row",
@@ -266,7 +278,7 @@ function processRow(
     }
   }
 
-  return { cells, columns, values: valuesWithMeta };
+  return { cells: pxZeros(cells), columns, values: valuesWithMeta };
 }
 
 function processBody(
@@ -283,7 +295,7 @@ function processBody(
   codeOnly(getDisplayName(element) ?? "Body", element.props);
   const semanticProps = extractSemanticProps(element.props);
   const mapped = mapSemanticProps(semanticProps, BODY_DEFAULTS, "Body");
-  const values = mergeValues(BODY_DEFAULTS, mapped);
+  const values = pxMerged(BODY_DEFAULTS, mapped);
   // The direction the HTML has (its `config`, its `textDirection`, the Provider's: see rootConfig), so the editor opens
   // the design as it renders. Only ltr, rtl or auto, as in the HTML (a value from a request could carry anything).
   const direction = textDirectionOf(rootConfig(element.props as RootConfigProps, provided).textDirection);
@@ -415,7 +427,7 @@ export function renderRowToJson(element: React.ReactElement): DesignRow {
     const row = normalizedChildren(element, undefined, "Row").find((c): c is React.ReactElement => React.isValidElement(c));
     // Left out (its Columns don't fit its layout), it's no row.
     if (!row) throw new Error("[Unlayer] renderRowToJson: the Row is left out.");
-    return pxZeros(processRow(row, counters));
+    return processRow(row, counters);
   });
 }
 
@@ -450,7 +462,7 @@ function designJson(element: React.ReactElement, options?: RenderToJsonOptions):
     // What its content gives the head and the design can't hold (a <Head>'s tags): said.
     heads = collect((element.props as { children?: React.ReactNode }).children, displayName).recorded.filter((r) => r.kind === "head");
     for (const r of heads) if (r.kind === "head" && r.json) sayOnce(r.json);
-    element = normalizedRoot(element);
+    element = normalizedRoot(element, mode);
   }
 
   if (!displayName || !ROOT_NAMES.has(displayName)) {
@@ -474,10 +486,10 @@ function designJson(element: React.ReactElement, options?: RenderToJsonOptions):
   for (const r of heads) if (r.kind === "head") r.design?.(body);
   rootFonts(element, displayName, body);
 
-  // Bare zeros in its px lengths written `0px`, as its schema types them (see pxZeros).
+  // (Its values are copies, bare zeros in their px lengths written `0px`: see pxMerged.)
   return {
     counters,
-    body: pxZeros(body),
+    body,
     schemaVersion,
   };
 }

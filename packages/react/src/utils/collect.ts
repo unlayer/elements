@@ -4,8 +4,11 @@
  */
 import type React from "react";
 
-/** Where it is in the template (`Row 3 › Column 1 › Button`), for the errors that name it. */
-type Placed = { position?: string };
+/** Where it is in the template (`Row 3 › Column 1 › Button`), worked out for the errors that name it (see `whereIs`). */
+type Placed = { where?: () => string };
+
+/** Where a record is in the template (`Row 3 › Column 1 › Button`). */
+export const whereIs = (record: Placed | undefined): string | undefined => record?.where?.();
 
 export type Recorded = Placed &
   (

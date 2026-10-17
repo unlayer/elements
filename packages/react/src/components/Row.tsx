@@ -7,7 +7,7 @@ import { nextHtmlId, safeMeta, hatch, cssUrl } from "../utils/create-component";
 import { bodyContentWidthPx } from "../utils/image-sizing";
 import type { DeviceProps, SizeInput } from "../types";
 import { ROW_DEFAULTS, BODY_DEFAULTS } from "../utils/container-defaults";
-import { looseText } from "../utils/render-scope";
+import { looseText, remember } from "../utils/render-scope";
 import { RECORDS } from "../utils/collect";
 
 /**
@@ -249,8 +249,9 @@ function renderRow(props: RowProps): React.ReactElement | null {
     bodyValues = {},
     collection = "rows",
     _config,
+    _record,
     ...semanticProps
-  } = props;
+  } = props as RowProps & { _record?: object };
 
   // Resolve mode: explicit prop > _config > default
   const mode: RenderMode = modeProp ?? _config?.mode ?? "web";
@@ -270,6 +271,8 @@ function renderRow(props: RowProps): React.ReactElement | null {
 
   // Map semantic props to values
   const values = mapSemanticProps<RowValues>(semanticProps as SemanticProps<RowValues>, DEFAULT_VALUES, "Row");
+  // (The head reuses them: see remember.)
+  remember(_record, values.backgroundImage ? { ...values } : values);
   // A background image takes the editor's defaults where it sets none (full width, centered), as the design does; its
   // URL as CSS takes it (see cssUrl).
   cssUrl(values, DEFAULT_VALUES.backgroundImage);

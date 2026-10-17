@@ -7,6 +7,7 @@
  * as "#NaN0203". And font stacks are written into style="" attributes, so a
  * double-quoted family name ended the attribute early.
  */
+import { mergeValues } from "./merge-values";
 
 /** A channel: a number, maybe a percentage. One way to read each digit, so a long value can't make it backtrack. */
 const CHANNEL = /^-?(?:\d+(?:\.\d*)?|\.\d+)%?$/;
@@ -101,6 +102,27 @@ export function pxZeros<T>(value: T, key = ""): T {
   }
   return out as T;
 }
+
+/**
+ * `values` merged over `defaults` as mergeValues merges them, as pxZeros writes the result: a copy that shares no
+ * object with either, its px lengths' bare zeros `0px`. One pass, where the design is made (instead of a pass over
+ * the whole design after).
+ */
+export function pxMerged<T>(defaults: T, values: unknown, key = ""): T {
+  if (!values) return pxZeros(defaults, key);
+  const d = defaults as Record<string, unknown>;
+  const v = values as Record<string, unknown>;
+  // (A custom tool's own values, which pxZeros leaves as they are.)
+  if ("slug" in d || "slug" in v) return mergeValues(d, v) as T;
+  const out: Record<string, unknown> = {};
+  for (const k of Object.keys(d)) out[k] = Object.prototype.hasOwnProperty.call(v, k) ? merged(d[k], v[k], k) : pxZeros(d[k], k);
+  for (const k of Object.keys(v)) if (!Object.prototype.hasOwnProperty.call(d, k)) out[k] = pxZeros(v[k], k);
+  return out as T;
+}
+
+/** A value over a default, as mergeValues merges it (plain objects into each other, anything else in its place). */
+const merged = (base: unknown, value: unknown, key: string) =>
+  value !== null && base !== null && typeof value === "object" && typeof base === "object" && !Array.isArray(value) && !Array.isArray(base) ? pxMerged(base, value, key) : pxZeros(value, key);
 
 /** A key the schema types as px lengths: a padding or margin, a box of them, a radius, a width, a font size. */
 const PX_KEY = /(padding|margin|radius|width|spacing|fontsize)$/i;

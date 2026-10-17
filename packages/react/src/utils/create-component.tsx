@@ -16,6 +16,7 @@ import type { RenderMode, UnlayerConfig } from "@unlayer-internal/shared-element
 import type { ContentValues, DeviceProps, SizeInput } from "../types";
 import type { ValuesInput } from "@unlayer-internal/shared-elements";
 import { contentSlotWidth, DEFAULT_CONTAINER_PADDING, pinImageSrc, toPx } from "./image-sizing";
+import { remember } from "./render-scope";
 import {
   mergeValues,
   generateHtmlFromTextJson,
@@ -282,8 +283,9 @@ export function createItemComponent<
     // A text block in a right-to-left document starts on the right, unless it's aligned (see rtlAlign).
     rtlAlign(mappedValues, config.defaultValues, _config?.textDirection ?? bodyValues.textDirection);
 
-    // 2. Merge with defaults
+    // 2. Merge with defaults (a built-in block's, which the head reuses: see remember)
     const finalValues = mergeValues(config.defaultValues, mappedValues);
+    if (!config.contentType) remember(_r as object | undefined, finalValues);
 
     // 3. Ensure _meta is present. The Column-allocated id wins so every
     //    instance is unique; the index fallback covers standalone renders.

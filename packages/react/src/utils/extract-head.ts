@@ -17,7 +17,8 @@ import { UNLAYER_CONFIG_KEY, cssUrl } from "./create-component";
 import { BODY_DEFAULTS, ROW_DEFAULTS, COLUMN_DEFAULTS } from "./container-defaults";
 import { headTags, KEPT, normalizedRoot } from "../model";
 import { getDisplayName } from "./unwrap-root";
-import { extractSemanticProps, nextCounter } from "./render-to-json";
+import { elementsIn, extractSemanticProps, nextCounter } from "./render-to-json";
+import { failedBefore, recall } from "./render-scope";
 
 /** Args every head builder receives: (values, bodyValues, meta). */
 type HeadArgs = [Record<string, any>, Record<string, any>, Record<string, any>];
@@ -89,7 +90,7 @@ export function extractHeadFromTree(
 ): ExtractHeadResult {
   // What its content gives the head (a <Font>), then the rows and blocks as the body rendered them (the same collected render).
   const fonts = headTags((element.props as { children?: React.ReactNode }).children, options.displayMode, getDisplayName(element));
-  element = normalizedRoot(element);
+  element = normalizedRoot(element, options.displayMode);
   const { displayMode } = options;
   const headConfig: HeadConfig = {
     hasFeature: options.headConfig?.hasFeature ?? (() => false),
@@ -117,7 +118,8 @@ export function extractHeadFromTree(
   /** A container's values (with the id the HTML gives it), its phone and desktop styles, and its head. */
   const container = (node: React.ReactElement<any>, name: "Body" | "Row" | "Column", defaults: Record<string, any>) => {
     const type = name.toLowerCase();
-    const mapped = mapSemanticProps(extractSemanticProps(node.props), defaults, name);
+    // As its HTML mapped them, where it rendered in this render (see remember).
+    const mapped = recall<Record<string, any>>(node.props._record) ?? mapSemanticProps(extractSemanticProps(node.props), defaults, name);
     const values = ensureMeta(mergeValues(defaults, mapped), type, name === "Body" ? 0 : nextCounter(counters, `u_${type}`) - 1);
     // (A background image's URL as CSS takes it, as in the body: see cssUrl.)
     cssUrl(values);
@@ -126,9 +128,12 @@ export function extractHeadFromTree(
     return values;
   };
 
-  /** The element children of a collected (Elements-only) tree, of one component where it's named. */
+  /**
+   * The element children of a collected (Elements-only) tree, of one component where it's named; a Row or block
+   * whose HTML failed in this render (`onError: "omit"`) left out, as in the HTML.
+   */
   const children = (node: React.ReactElement<any>, name?: string) =>
-    React.Children.toArray(node.props.children).filter((child): child is React.ReactElement<any> => React.isValidElement(child) && (!name || getDisplayName(child) === name));
+    elementsIn(node.props.children).filter((child) => (!name || getDisplayName(child) === name) && !failedBefore(child.props._record));
 
   bodyValues = container(element, "Body", BODY_DEFAULTS);
   for (const row of children(element, "Row")) {
@@ -143,10 +148,12 @@ export function extractHeadFromTree(
           if (type?.[KEPT]) nextCounter(counters, `u_content_${(type.displayName || type.name || "component").toLowerCase()}`);
           continue;
         }
-        // Mapped and merged as the HTML and the design do, numbered as they are.
+        // Mapped and merged as the HTML and the design do (a built-in block's as its HTML did, in this render: see
+        // remember), numbered as they are.
         const contentType = config.metaName ?? config.name.toLowerCase();
         const { _record, ...props } = block.props;
-        const values = ensureMeta(mergeValues(config.defaultValues, config.propMapper(props)), contentType, nextCounter(counters, `u_content_${contentType}`) - 1);
+        const merged = (!config.contentType && recall<Record<string, any>>(_record)) || mergeValues(config.defaultValues, config.propMapper(props));
+        const values = ensureMeta(merged, contentType, nextCounter(counters, `u_content_${contentType}`) - 1);
         collectDeviceStyles(values, "contents", config.name, displayMode, deviceStyles);
         // The component's own head (custom tools) wins over the registry's.
         call(config.head ?? registry[config.name], values);

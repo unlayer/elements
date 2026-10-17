@@ -6,8 +6,8 @@ import { RenderError } from "@unlayer-internal/shared-elements";
 import { mapSemanticProps, type SemanticProps } from "../utils/semantic-props";
 import type { DeviceProps, SizeInput, BorderInput } from "../types";
 import { COLUMN_DEFAULTS } from "../utils/container-defaults";
-import { failed, looseText } from "../utils/render-scope";
-import { RECORDS } from "../utils/collect";
+import { failed, looseText, remember } from "../utils/render-scope";
+import { RECORDS, whereIs } from "../utils/collect";
 import { DEFAULT_CONTAINER_PADDING } from "../utils/image-sizing";
 
 /** Unlayer's default content-block padding when a block sets none. */
@@ -95,14 +95,16 @@ export const Column: React.FC<ColumnProps> = (props) => {
     className,
     style,
     _config,
+    _record,
     ...semanticProps
-  } = props;
+  } = props as ColumnProps & { _record?: object };
 
   // Resolve mode: explicit prop > _config > default
   const mode: RenderMode = modeProp ?? _config?.mode ?? "web";
 
-  // Map semantic props to values
+  // Map semantic props to values (which the head reuses: see remember)
   const values = mapSemanticProps<ColumnValues>(semanticProps as SemanticProps<ColumnValues>, DEFAULT_VALUES, "Column");
+  remember(_record, values);
 
   // Add _meta (an id or class names given in values kept to what they can hold, as for rows and blocks)
   const valuesWithMeta = { ...values, _meta: safeMeta({ htmlID: nextHtmlId(_config, "u_column"), htmlClassNames: "u_column", ...(values._meta || {}) }) };
@@ -137,9 +139,9 @@ export const Column: React.FC<ColumnProps> = (props) => {
       // (src/model gives it) of the head and the design too; the next block takes its id.
       const ids = (_config as { __ids?: Record<string, number> } | undefined)?.__ids;
       if (ids) ids[`u_content_${componentName}`]--;
-      const record = (child.props as { _record?: { position?: string } })._record;
+      const record = (child.props as { _record?: { where?: () => string } })._record;
       const name = config?.name ?? (ComponentType.displayName || ComponentType.name || "Block");
-      failed(error instanceof RenderError ? error : new RenderError(`${name} failed to render: ${String((error as Error)?.message ?? error)}`, name, record?.position ?? `Column ${index + 1} › ${name}`, error), record);
+      failed(error instanceof RenderError ? error : new RenderError(`${name} failed to render: ${String((error as Error)?.message ?? error)}`, name, whereIs(record) ?? `Column ${index + 1} › ${name}`, error), record);
       continue;
     }
 
