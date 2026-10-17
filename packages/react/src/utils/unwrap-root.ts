@@ -80,6 +80,25 @@ function providerOf(element: unknown): { context: object; value: unknown } | und
 
 export type Steps = Generator<PromiseLike<unknown>, React.ReactElement, unknown>;
 
+/** What unwrapping a template says beside the root it gives. */
+export interface Why {
+  /** Why its root's settings go unread. */
+  unread?: string;
+  /**
+   * With no root, what the template rendered, made again without calling its wrappers (see `replayed`): the async
+   * renderers, which waited for it, give it to the synchronous render, which renders it as it renders the template.
+   */
+  rendered?: React.ReactElement;
+}
+
+/** A wrapper as it rendered (`output`), not called again: with its props and names, its `useId()` moving the ids after it. */
+function replayed(type: any, props: object, forked: boolean, output: React.ReactNode): React.ReactElement {
+  const Replayed = () => (forked && React.useId(), output);
+  Object.defineProperty(Replayed, "name", { value: typeof type === "function" ? type.name : nameOf(type) });
+  Object.assign(Replayed, { displayName: type.displayName });
+  return React.createElement(Replayed, props);
+}
+
 /**
  * `call()` (a wrapper's: see the engine's callComponent) again each time it suspends, once what it suspended on
  * settles (`use()` of a pending promise, or a thrown one: React 18's Suspense), as React calls it again: what it
@@ -104,11 +123,16 @@ function* waiting<T>(call: () => T): Generator<PromiseLike<unknown>, T, unknown>
 /**
  * Wrappers called (plain functions, `memo`, `forwardRef`, nested in any order) until a root element comes out. It
  * stops at an element that isn't a root when a wrapper doesn't return an element (null, an array), saying why in
- * `why.unread`. What a wrapper waits for (an async one's promise, `use()`, a thrown promise) is yielded: the
+ * `why.unread`, and what the template rendered in `why.rendered`. What a wrapper waits for (an async one's promise, `use()`, a thrown promise) is yielded: the
  * async renderers wait for it, the synchronous ones throw.
  */
-function* steps(element: React.ReactElement, why: { unread?: string }, idPrefix?: string): Steps {
+function* steps(element: React.ReactElement, why: Why, idPrefix?: string): Steps {
   let current = element;
+  // With no root, how what the template rendered is made again (`why.rendered`): each step's element, around what's
+  // inside it; and what the last wrapper returned, where it isn't an element.
+  const again: Array<(inside: React.ReactNode) => React.ReactElement> = [];
+  let returned: { value: unknown } | undefined;
+  const holding = (at: React.ReactElement) => (inside: React.ReactNode) => React.cloneElement(at, undefined, inside);
   // Context providers around the root (`<Theme.Provider value="dark"><Email>…`): the root's content goes in them.
   const providers: React.ReactElement[] = [];
   let contexts: ContextStack | null = null;
@@ -156,6 +180,7 @@ function* steps(element: React.ReactElement, why: { unread?: string }, idPrefix?
       const given = providerOf(yield* called(type, props, undefined, "UnlayerProvider"));
       if (given) contexts = { ...given, context: contextOf(given.context), next: contexts };
       providers.push(current);
+      again.push(holding(current));
       current = only;
       continue;
     }
@@ -167,6 +192,7 @@ function* steps(element: React.ReactElement, why: { unread?: string }, idPrefix?
       if (!only) break;
       if (provider) contexts = { context: contextOf(provider.context), value: provider.value, next: contexts };
       providers.push(current);
+      again.push(holding(current));
       current = only;
       continue;
     }
@@ -175,9 +201,11 @@ function* steps(element: React.ReactElement, why: { unread?: string }, idPrefix?
     if (type === React.Fragment || type === React.StrictMode || type === React.Profiler) {
       const only = inside();
       if (!only) break;
+      again.push(holding(current));
       current = only;
       continue;
     }
+    const at = tree;
     let produced: unknown;
     if (type?.$$typeof === FORWARD_REF) produced = yield* called(type.render, { ...props }, null, nameOf(type));
     else if (typeof type === "function" && !type.prototype?.isReactComponent) produced = yield* called(type, { ...props }, undefined, nameOf(type));
@@ -186,13 +214,18 @@ function* steps(element: React.ReactElement, why: { unread?: string }, idPrefix?
       const around = contexts;
       produced = yield* waiting(() => callClass(type, props, around));
     } else break;
+    again.push((inside) => replayed(type, props, tree !== at, inside));
     if (!React.isValidElement(produced)) {
       if (holdsRoot(produced as React.ReactNode)) why.unread = "it doesn't return a root element";
+      returned = { value: produced };
       break;
     }
     current = produced;
   }
-  if (!isRoot(current.type)) return current;
+  if (!isRoot(current.type)) {
+    why.rendered = again.reduceRight<React.ReactNode>((inside, wrap) => wrap(inside), (returned ? returned.value : current) as React.ReactNode) as React.ReactElement;
+    return current;
+  }
   const own = (current.props as { children?: React.ReactNode }).children;
   const children = providers.reduceRight<React.ReactNode>((inside, provider) => React.cloneElement(provider, undefined, inside), own);
   const root = providers.length ? React.cloneElement(current, undefined, children) : current;
@@ -203,7 +236,7 @@ function* steps(element: React.ReactElement, why: { unread?: string }, idPrefix?
 }
 
 /** The root a template unwraps to (see steps); one that waits for something fails, with what to do. */
-export function unwrapRoot(element: React.ReactElement, why: { unread?: string } = {}, idPrefix?: string): React.ReactElement {
+export function unwrapRoot(element: React.ReactElement, why: Why = {}, idPrefix?: string): React.ReactElement {
   const run = steps(element, why, idPrefix);
   const step = run.next();
   if (step.done) return step.value;
@@ -212,7 +245,7 @@ export function unwrapRoot(element: React.ReactElement, why: { unread?: string }
 }
 
 /** The steps to the root a template unwraps to (see steps), which the async renderers take, waiting where they wait. */
-export const unwrapSteps = (element: React.ReactElement, idPrefix?: string): Steps => steps(element, {}, idPrefix);
+export const unwrapSteps = (element: React.ReactElement, idPrefix?: string, why: Why = {}): Steps => steps(element, why, idPrefix);
 
 /** Elements' own Row, Column or block (not a component of the user's own named like one, which is called). */
 const elementsOwn = (element: React.ReactElement): boolean => {
@@ -238,7 +271,7 @@ export const UNWRAP_ADVICE = "Pass the root element (<Email>…</Email>), or a f
  */
 export function htmlRoot(element: React.ReactElement, api: string, idPrefix?: string): React.ReactElement {
   if (typeof element.type === "string" || isElementsType(element.type)) return element;
-  const why: { unread?: string } = {};
+  const why: Why = {};
   let root: React.ReactElement;
   try {
     root = unwrapRoot(element, why, idPrefix);

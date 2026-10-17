@@ -6,7 +6,7 @@
 import type React from "react";
 import type { UnlayerConfig } from "@unlayer-internal/shared-elements";
 import { collectedFrom, collecting, type Collected } from "../model";
-import { isElementsType, providedConfig, unwrapSteps, type Steps } from "./unwrap-root";
+import { isElementsType, providedConfig, unwrapSteps, type Steps, type Why } from "./unwrap-root";
 import { isRoot, rootName } from "./root-type";
 import { newScope, setRenderConfig, withScope, type Scope } from "./render-scope";
 import { rootConfig, type RootConfigProps } from "../context/layer-config";
@@ -14,11 +14,16 @@ import { errorPart, flatten, PENDING, renderStatic, track, walkAsync, type Colle
 
 export const INTERNALS = Symbol.for("@unlayer/react-elements/internals");
 
-/** The root a template unwraps to, its steps taken by `take` (awaiting what they wait for); the element itself where none comes out (said after). */
+/**
+ * The root a template unwraps to, its steps taken by `take` (awaiting what they wait for). Where none comes out, what
+ * the template rendered (see unwrap-root.ts's `Why`): the synchronous render after renders it as it renders a template
+ * with no root, without calling the template again.
+ */
 async function unwrapAsync(element: React.ReactElement, take: (steps: Steps) => Promise<React.ReactElement>, idPrefix?: string): Promise<React.ReactElement> {
   if (typeof element.type === "string" || isElementsType(element.type)) return element;
-  const root = await take(unwrapSteps(element, idPrefix));
-  return isRoot(root.type) ? root : element;
+  const why: Why = {};
+  const root = await take(unwrapSteps(element, idPrefix, why));
+  return isRoot(root.type) ? root : why.rendered ?? element;
 }
 
 /**

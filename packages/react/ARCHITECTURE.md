@@ -27,7 +27,10 @@ model                                Email > Row > Column > blocks, Elements' on
   once, with hooks, inside the context providers around them. Providers, `<UnlayerProvider>`s and `<Tailwind>`s around
   the root move inside it, around its content. An async wrapper, or one that `use()`s or throws a promise (React 18's
   Suspense: react-i18next's `useTranslation`), is awaited by the async renderers (`take` in `src/async/collect.ts`, along
-  `unwrapSteps`), and called again once it settles; the synchronous ones throw for it.
+  `unwrapSteps`), and called again once it settles; the synchronous ones throw for it. A template with no root (Rows, a
+  block) is rendered as it is: `renderToHtml()` writes its HTML in a document and `renderToJson()` says it needs a
+  root. The async renderers give the synchronous render what it rendered (`Why.rendered`: its wrappers made again
+  with what they returned, not called again), so it renders as the synchronous renderers render it.
 - **Walk.** The engine renders the root's content once per render. It asks a collector (`utils/record.tsx`) about each
   element: a Row, Column or block (of any copy of Elements, by its markers), a `<Tailwind>` scope or a `<Head>`/`<Font>`
   entry is recorded where it is, and what's inside it (a Row's Columns, rich text's markup) walked inside its record;

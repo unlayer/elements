@@ -2,7 +2,7 @@
 import React from "react";
 import { JSDOM } from "jsdom";
 import { describe, expect, it, vi } from "vitest";
-import { Column, Email, Heading, Html, Paragraph, RenderError, Row, UnlayerProvider, renderToHtml as renderToHtmlSync, renderToJson as renderToJsonSync } from "../index";
+import { Column, Email, Heading, Html, Paragraph, RenderError, Row, UnlayerProvider, renderToHtml as renderToHtmlSync, renderToHtmlParts as renderToHtmlPartsSync, renderToJson as renderToJsonSync, renderToPlainText as renderToPlainTextSync } from "../index";
 import { Tailwind } from "../tailwind";
 import { pretty as formatted, renderToHtml, renderToHtmlParts, renderToJson, renderToPlainText } from "./index";
 import * as tailwind from "../tailwind";
@@ -206,6 +206,45 @@ describe("the async renderers", () => {
     );
     expect(await renderToHtml(email)).toBe(renderToHtmlSync(email));
     expect(await renderToJson(email)).toEqual(renderToJsonSync(email));
+  });
+
+  it("render a template with no root as the synchronous renderers do, calling it once", async () => {
+    // Rows with no root: renderToHtml() renders them in a document, renderToJson() says the root it needs. The
+    // async template is called once a render (not again by the synchronous render after), inside the providers and
+    // after the wrapper (whose useId() moves the ids after it) around it.
+    const Theme = React.createContext("light");
+    const Themed = () => <p id={React.useId()}>{React.useContext(Theme)}</p>;
+    const content = (
+      <>
+        <Themed />
+        <Row><Column><Paragraph>A</Paragraph></Column></Row>
+        <Row><Column><Paragraph>B</Paragraph></Column></Row>
+      </>
+    );
+    const runs = { template: 0 };
+    const Rows = () => content;
+    async function LoadedRows() {
+      runs.template++;
+      await later(null);
+      return content;
+    }
+    const Wrapper = ({ children }: { children: React.ReactElement }) => (React.useId(), children);
+    const element = (Template: React.FC) => <Theme.Provider value="dark"><Wrapper><Template /></Wrapper></Theme.Provider>;
+    const html = renderToHtmlSync(element(Rows));
+    expect(html).toContain(">dark</p>");
+    expect(await renderToHtml(element(LoadedRows))).toBe(html);
+    expect(await renderToPlainText(element(LoadedRows))).toBe(renderToPlainTextSync(element(Rows)));
+    expect(await renderToHtmlParts(element(LoadedRows))).toEqual(renderToHtmlPartsSync(element(Rows)));
+    expect(runs.template).toBe(3);
+    let said = "";
+    try {
+      renderToJsonSync(element(Rows));
+    } catch (error) {
+      said = (error as Error).message;
+    }
+    expect(said).toContain("Root element must be <Body>, <Email>, <Page>, or <Document>");
+    await expect(renderToJson(element(LoadedRows))).rejects.toThrow(said);
+    expect(runs.template).toBe(4);
   });
 
   it("give an async template the config of an <UnlayerProvider> around it, as the synchronous renderers do", async () => {
