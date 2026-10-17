@@ -1,8 +1,9 @@
 import React from "react";
-import type { PlainTextOptions, UnlayerConfig } from "@unlayer-internal/shared-elements";
+import type { PlainTextOptions, RenderMode, UnlayerConfig } from "@unlayer-internal/shared-elements";
 import { htmlToPlainText, RenderError } from "@unlayer-internal/shared-elements";
 import { renderOwn } from "../engine";
-import { OWN_MARKUP } from "../components/Body";
+import Body from "../components/Body";
+import { OWN_MARKUP, rootlessHtml } from "./root-content";
 import { extractHeadFromTree } from "./extract-head";
 import { htmlRoot, providedConfig } from "./unwrap-root";
 import { isRoot } from "./root-type";
@@ -27,6 +28,12 @@ function resolveConfig(element: React.ReactElement, config?: Partial<UnlayerConf
 }
 
 /**
+ * The root the head and the plain text are read from: the root, or for a template with no root (what it rendered, an
+ * Elements component, markup), a Body holding it, whose content is the one the HTML rendered (collected once).
+ */
+const headRoot = (element: React.ReactElement, mode: RenderMode): React.ReactElement => (isRoot(element.type) ? element : React.createElement(Body, { mode }, element));
+
+/**
  * Render the element tree to body markup (no document shell).
  *
  * - Passes the root's whole config (see resolveConfig) via its `config` prop:
@@ -49,6 +56,8 @@ function bodyHtml(element: React.ReactElement, config?: Partial<UnlayerConfig>, 
   setRenderConfig(mergedConfig);
 
   try {
+    // A template with no root: its content as a root's, with no body around it (see root-content.ts).
+    if (!isRoot(element.type)) return { html: rootlessHtml(element, mergedConfig, rootMode(element, mergedConfig)) };
     // Pass config via prop (not context) so this works in React Server Components: the root's own `config` and the
     // Provider's are in it (see resolveConfig). Body threads it as `_config` to children via cloneElement. (A root of
     // another copy of Elements renders as this copy's: this render renders it all, see own-root.ts.)
@@ -167,7 +176,7 @@ function htmlDocument(element: React.ReactElement, options?: RenderToHtmlOptions
   // (A root's HTML as Body writes it in its `<div>`, which the document has instead.)
   const rendered = bodyHtml(element, config);
   const body = rendered.inner !== undefined ? (isUnlayerWrapper ? rendered.inner : `<div>${rendered.inner}</div>`) : isUnlayerWrapper ? stripOuterDiv(rendered.html) : rendered.html;
-  const { css, js, tags } = extractHeadFromTree(element, {
+  const { css, js, tags } = extractHeadFromTree(headRoot(element, displayMode), {
     displayMode,
     headConfig: mergedConfig.headConfig,
   });
@@ -229,7 +238,8 @@ export function renderToPlainText(
     const resolved = resolveConfig(root, config);
     setRenderConfig(resolved);
     // Collected first, as renderToHtml's head is: it fails where that does.
-    normalizedRoot(root, rootMode(root, resolved));
+    const mode = rootMode(root, resolved);
+    normalizedRoot(headRoot(root, mode), mode);
     return renderBody(root, config, "renderToPlainText");
   });
   // How the text is written (wrapping, links, headings, what's left out): see PlainTextOptions.
@@ -323,7 +333,7 @@ function htmlParts(element: React.ReactElement, config?: Partial<UnlayerConfig>)
   const displayMode = rootMode(element, mergedConfig);
 
   // Extract head CSS/JS/tags by walking the element tree
-  const { css, js, tags } = extractHeadFromTree(element, {
+  const { css, js, tags } = extractHeadFromTree(headRoot(element, displayMode), {
     displayMode,
     headConfig: mergedConfig.headConfig,
   });

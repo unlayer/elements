@@ -30,8 +30,9 @@ const UNLAYER_PROVIDER = Symbol.for("@unlayer/react-elements/provider");
 export const isUnlayerProvider = (type: unknown): boolean => !!(type as Record<symbol, unknown> | null)?.[UNLAYER_PROVIDER];
 
 /**
- * The config of the <UnlayerProvider>s around a root, by the root `unwrapRoot` gave back: the render functions read
- * it as React would give it to the root (with no context: React Server Components have none).
+ * The config of the <UnlayerProvider>s around a root, by the root `unwrapRoot` gave back (or what a template with no
+ * root rendered): the render functions read it as React would give it to the root (with no context: React Server
+ * Components have none).
  */
 const PROVIDED = new WeakMap<object, Partial<UnlayerConfig>>();
 
@@ -85,11 +86,15 @@ export interface Why {
   /** Why its root's settings go unread. */
   unread?: string;
   /**
-   * With no root, what the template rendered, made again without calling its wrappers (see `replayed`): the async
-   * renderers, which waited for it, give it to the synchronous render, which renders it as it renders the template.
+   * With no root, what the template rendered, made again without calling its wrappers (see `replayed`): what the
+   * render renders as a root's content (see utils/root-content.ts), and the async renderers, which waited for it, give
+   * the synchronous render.
    */
   rendered?: React.ReactElement;
 }
+
+/** What templates rendered (`Why.rendered`): rendered already, so not unwrapped again (its content is collected once). */
+const RENDERED = new WeakSet<object>();
 
 /** A wrapper as it rendered (`output`), not called again: with its props and names, its `useId()` moving the ids after it. */
 function replayed(type: any, props: object, forked: boolean, output: React.ReactNode): React.ReactElement {
@@ -223,7 +228,10 @@ function* steps(element: React.ReactElement, why: Why, idPrefix?: string): Steps
     current = produced;
   }
   if (!isRoot(current.type)) {
-    why.rendered = again.reduceRight<React.ReactNode>((inside, wrap) => wrap(inside), (returned ? returned.value : current) as React.ReactNode) as React.ReactElement;
+    const rendered = again.reduceRight<React.ReactNode>((inside, wrap) => wrap(inside), (returned ? returned.value : current) as React.ReactNode) as React.ReactElement;
+    RENDERED.add(rendered);
+    if (provided) PROVIDED.set(rendered, provided as Partial<UnlayerConfig>);
+    why.rendered = rendered;
     return current;
   }
   const own = (current.props as { children?: React.ReactNode }).children;
@@ -265,12 +273,14 @@ export const UNWRAP_ADVICE = "Pass the root element (<Email>…</Email>), or a f
 
 /**
  * For renderToHtml: the root a template component unwraps to. An element that
- * is already an Elements component (or plain HTML) is returned as it is. When
- * a wrapper can't be unwrapped it's rendered as it is, with a warning: its root's
- * settings aren't read. A wrapper that throws fails the render (a RenderError naming it).
+ * is already an Elements component (or plain HTML), or what a template rendered,
+ * is returned as it is. A template with no root gives what it rendered (see
+ * `Why.rendered`), its wrappers not called again; with a warning where a root in
+ * it can't be reached: its settings aren't read. A wrapper that throws fails the
+ * render (a RenderError naming it).
  */
 export function htmlRoot(element: React.ReactElement, api: string, idPrefix?: string): React.ReactElement {
-  if (typeof element.type === "string" || isElementsType(element.type)) return element;
+  if (typeof element.type === "string" || isElementsType(element.type) || RENDERED.has(element)) return element;
   const why: Why = {};
   let root: React.ReactElement;
   try {
@@ -282,7 +292,6 @@ export function htmlRoot(element: React.ReactElement, api: string, idPrefix?: st
   }
   if (isRoot(root.type)) return root;
   // A template of Rows, or nothing: there's no root whose settings go unread.
-  if (!why.unread && !holdsRoot(root)) return element;
-  console.warn(`[Unlayer] ${api}: couldn't unwrap <${componentName(element) || "wrapper"}> (${why.unread ?? "its root is inside other markup"}): its root's fonts, lang, dir and phone styles are ignored. ${UNWRAP_ADVICE}`);
-  return element;
+  if (why.unread || holdsRoot(root)) console.warn(`[Unlayer] ${api}: couldn't unwrap <${componentName(element) || "wrapper"}> (${why.unread ?? "its root is inside other markup"}): its root's fonts, lang, dir and phone styles are ignored. ${UNWRAP_ADVICE}`);
+  return why.rendered ?? element;
 }

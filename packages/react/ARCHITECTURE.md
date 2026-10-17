@@ -28,9 +28,10 @@ model                                Email > Row > Column > blocks, Elements' on
   the root move inside it, around its content. An async wrapper, or one that `use()`s or throws a promise (React 18's
   Suspense: react-i18next's `useTranslation`), is awaited by the async renderers (`take` in `src/async/collect.ts`, along
   `unwrapSteps`), and called again once it settles; the synchronous ones throw for it. A template with no root (Rows, a
-  block) is rendered as it is: `renderToHtml()` writes its HTML in a document and `renderToJson()` says it needs a
-  root. The async renderers give the synchronous render what it rendered (`Why.rendered`: its wrappers made again
-  with what they returned, not called again), so it renders as the synchronous renderers render it.
+  block, markup) gives what it rendered instead (`Why.rendered`: its wrappers made again with what they returned, not
+  called again), which renders as a root's content does, without the root's markup (`utils/root-content.ts`): walked
+  once, its Rows and blocks rendered with the render's config and numbered as the head numbers them, its head and
+  plain text from the same walk. `renderToJson()` says it needs a root, without walking it.
 - **Walk.** The engine renders the root's content once per render. It asks a collector (`utils/record.tsx`) about each
   element: a Row, Column or block (of any copy of Elements, by its markers), a `<Tailwind>` scope or a `<Head>`/`<Font>`
   entry is recorded where it is, and what's inside it (a Row's Columns, rich text's markup) walked inside its record;
@@ -234,6 +235,7 @@ row or block is left out of the HTML, the plain text and the design (the slower 
 | React's react-server build (React 19): a render, and each ESM entry loading (none imports by name what it lacks) | `src/regression/react-server-build.test.ts` |
 | Renders inside an app's render, and inside each other | `src/utils/nested-renders.test.tsx`, `src/regression/edge-cases.test.tsx` |
 | What suspends wherever it is (the template, a wrapper around it, a component, a class, a block's children): the async renderers wait, the synchronous ones say so | `src/async/async.test.tsx` |
+| A template with no root: each component run once, its ids the head's, its failed parts as a root's | `src/utils/user-components.test.tsx` |
 | Two copies of Elements: the module and CommonJS builds loaded together, either's components rendered by the other's renderers; another copy's Rows | `src/regression/node-exit.test.ts`, `src/regression/react-copies.test.tsx` |
 | The output against the previous release | `src/regression/*` (`GENERATED_SEEDS=5000` for more random templates) |
 | Next.js route handlers, Server Components, Client Components, edge and Pages Router API routes, every entry, Turbopack and webpack; Cache Components | `tests/next*-integration` |

@@ -85,6 +85,8 @@
 
 - **A Row's padding next to a content background is said.** A Row's `padding` is the editor's, around the row, outside the content box its `columnsBackgroundColor` (or a background image that isn't full width) paints, so it doesn't inset the content. Elements now warns once per render when a Row has both: `Row padding sits outside the row's content background, as in the editor; to inset the content use the Columns' padding.`
 
+- **A template with no root renders as a root's content.** Rows, a block or markup rendered with no Email, Page, Document or Body around them (`renderToHtml(<Rows />)`) rendered apart from their head: every Row was `u_row_1` and a web row, in an email too, and the head was made from the template's `children`, not from what it rendered, its components run again for it. Its content now renders as a root's does, without the root's markup: walked once, each component run once, its Rows and blocks rendered with the render's config and in its mode, numbered as the head numbers them; a part that fails is a `RenderError` naming it and where it is, or is left out with `onError`. `renderToJson()` still says it needs a root.
+
 ### Changed
 
 - **Text starts on the right in a right-to-left template.** With `textDirection="rtl"`, a Paragraph and a Heading default to `textAlign="right"`, as in the editor; 0.2 left them on the left unless you set it. Set `textAlign="left"` where you want 0.2's alignment.

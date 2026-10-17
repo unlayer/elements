@@ -94,6 +94,77 @@ describe("a component element kept between renders", () => {
   });
 });
 
+describe("a template with no root", () => {
+  // Rows, a block and markup with no Email, Page, Document or Body around them, inside a wrapper: rendered as a
+  // root's content is, without the root's markup. The HTML, the head and the plain text are made from one render.
+  const counted = () => {
+    const runs: Record<string, number> = {};
+    const ran = (name: string) => void (runs[name] = (runs[name] ?? 0) + 1);
+    const Hero = () => {
+      ran("Hero");
+      const [text] = useState("Hero");
+      return <Paragraph mobile={{ fontSize: "30px" }}>{text}</Paragraph>;
+    };
+    const Note = () => {
+      ran("Note");
+      const [text] = useState("Note");
+      return <b>{text}</b>;
+    };
+    const Rows = ({ children }: { children?: React.ReactNode }) => (ran("Rows"), <>{block("One")}{children}<div><Note /></div></>);
+    const Wrapper = ({ children }: { children: React.ReactNode }) => (ran("Wrapper"), <>{children}</>);
+    return { runs, element: <Wrapper><Rows><Row><Column><Hero /></Column></Row></Rows></Wrapper> };
+  };
+
+  it.each([
+    ["renderToHtml", (element: React.ReactElement) => renderToHtml(element)],
+    ["renderToHtmlParts", (element: React.ReactElement) => Object.values(renderToHtmlParts(element)).join("")],
+    ["renderToPlainText", (element: React.ReactElement) => renderToPlainText(element)],
+  ])("%s runs each of its components once", (_, render) => {
+    const { runs, element } = counted();
+    const out = render(element);
+    expect(out).toContain("Hero");
+    expect(out).toContain("Note");
+    expect(runs).toEqual({ Wrapper: 1, Rows: 1, Hero: 1, Note: 1 });
+  });
+
+  it("renderToJson says it needs a root, calling its wrappers once and nothing they render", () => {
+    const { runs, element } = counted();
+    expect(() => renderToJson(element)).toThrow("Root element must be <Body>, <Email>, <Page>, or <Document>");
+    expect(runs).toEqual({ Wrapper: 1, Rows: 1 });
+  });
+
+  it("numbers its rows and blocks as its head does, in the render's mode", () => {
+    const html = renderToHtml(counted().element, { mode: "email" });
+    const body = html.slice(html.indexOf("</head>"));
+    const ids = [...body.matchAll(/id="(u_(?:row|column|content_paragraph)_\d+)"/g)].map((m) => m[1]);
+    expect(ids).toEqual(["u_row_1", "u_column_1", "u_content_paragraph_1", "u_row_2", "u_column_2", "u_content_paragraph_2"]);
+    // The phone CSS the second block asked for is on its id.
+    expect(/#(u_content_paragraph_\d+)[^{]*\{[^}]*font-size:\s*30px/.exec(html)?.[1]).toBe("u_content_paragraph_2");
+    expect(body.match(/id="u_row_\d+" class="u-row-container/g)).toHaveLength(2);
+  });
+
+  it("fails on a part that fails, naming it and where it is, or leaves it out (onError: \"omit\"), as in a root", () => {
+    const Later = async () => <Paragraph>Later</Paragraph>;
+    const Broken = () => {
+      throw new Error("boom");
+    };
+    const Rows = () => <>{block("Kept")}<Row><Column><Later /></Column></Row><Row><Column><Broken /></Column></Row></>;
+    expect(() => renderToHtml(<Rows />)).toThrow('it is async or suspends, and this renderer is synchronous: render with "@unlayer/react-elements/async", or load its data first and pass it as props (in <Later> at Rows › Row 2 › Column 1 › Later)');
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
+    try {
+      const parts = renderToHtmlParts(<Rows />, { onError: "omit" });
+      expect(parts.body).toContain("Kept");
+      expect(parts.omitted.map((e) => e.message)).toEqual(["[Unlayer] it is async or suspends, and this renderer is synchronous: render with \"@unlayer/react-elements/async\", or load its data first and pass it as props (in <Later> at Rows › Row 2 › Column 1 › Later)", "[Unlayer] boom (in <Broken> at Rows › Row 3 › Column 1 › Broken)"]);
+    } finally {
+      error.mockRestore();
+    }
+  });
+
+  it("is markup given no settings as attributes", () => {
+    expect(renderToHtml(<div>Markup</div>)).toContain("<div>Markup</div>");
+  });
+});
+
 describe("HTML from a component placed straight in the body", () => {
   it("doesn't get the body's settings as attributes", () => {
     const Raw = () => <div dangerouslySetInnerHTML={{ __html: "<p>Raw footer</p>" }} />;
