@@ -1,7 +1,8 @@
 // Every entry of Elements, rendered where src/lib/email.ts's email is (each route, page and component of the app,
 // in each of Next.js's layers and with either bundler): a <Font> and a <Head> tag, Markdown, highlighted code and
-// the design as code with the synchronous renderers, and Tailwind classes with the async ones. A bundler that can't
-// load one fails the build (webpack checks every name a module imports), or the route gives `false` for it.
+// the design as code with the synchronous renderers, and Tailwind classes with the async ones (which load tailwindcss,
+// installed with the app, as they run). A bundler that can't load an entry fails the build (webpack checks every name
+// a module imports), or the route gives `false` for it.
 import React from "react";
 import { Column, Email, Paragraph, Row, renderToHtml, renderToJson } from "@unlayer/react-elements";
 import { renderToHtml as renderToHtmlAsync } from "@unlayer/react-elements/async";
