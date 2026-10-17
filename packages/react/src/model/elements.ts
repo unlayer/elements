@@ -15,6 +15,7 @@ import type { Item, RecordItem } from "../engine";
 import { whereIs } from "../utils/collect";
 import { RenderError } from "../engine";
 import { failed, failedBefore, sayOnce } from "../utils/render-scope";
+import { containerOf } from "../utils/container-render";
 import { classProps, TAILWIND } from "../utils/tailwind";
 import { OWN, UNLAYER_CONFIG_KEY } from "../utils/create-component";
 import { inlineHtml } from "../utils/inline-html";
@@ -116,20 +117,36 @@ export function markup(c: Collected, items: readonly Item[], render: (element: R
       const r = recordOf(item);
       if (r.kind === "boundary") html += markup(c, item.items, render, tw);
       else if (r.kind === "tailwind") html += markup(c, item.items, render, r);
-      else {
-        const out = element(c, { item, tw });
-        if (!out) continue;
-        try {
-          html += render(out);
-        } catch (error) {
-          // An exporter of the row (its Columns' too) that failed: the row's. A block's says which block it was.
-          if (error instanceof RenderError) throw error;
-          failed(new RenderError(`${String((error as Error)?.message ?? error)}`, r.kind === "row" ? "Row" : nameOf(out), whereIs(r) ?? "", error), r);
-        }
-      }
+      else html += recordHtml(c, { item, tw }, render);
     }
   }
   return html;
+}
+
+/**
+ * A recorded row (or a block among the rows) as HTML, by `render`. A Row or Column whose own HTML fails (see
+ * renderContainer) fails the render, or is left out (`onError: "omit"`): a Column with its cell, the Row made again
+ * without it (the Columns after it move up, as a block's siblings do), and the Row with its last Column.
+ */
+function recordHtml(c: Collected, scoped: Scoped, render: (element: React.ReactElement) => string): string {
+  const r = recordOf(scoped.item);
+  for (let out = element(c, scoped); out; out = element(c, scoped)) {
+    try {
+      return render(out);
+    } catch (error) {
+      const container = containerOf(error);
+      if (!container || failedBefore(container)) {
+        // A block's failure says which block it was.
+        if (error instanceof RenderError) throw error;
+        failed(new RenderError(`${String((error as Error)?.message ?? error)}`, r.kind === "row" ? "Row" : nameOf(out), whereIs(r) ?? "", error), r);
+        return "";
+      }
+      failed(error as RenderError, container);
+      if (container === r) return "";
+      c.made!.delete(r);
+    }
+  }
+  return "";
 }
 
 /**
@@ -240,13 +257,21 @@ function made(c: Collected, scoped: Scoped, r: ReturnType<typeof recordOf>): Rea
   }
   if (r.kind === "column") return jsxs(Column, { ...styled(c, scoped, r.props), children: elements(c, item.items, "column", tw), _record: r });
   const props: Record<PropertyKey, any> = { ...styled(c, scoped, r.props) };
-  const list = elements(c, item.items, "row", tw);
+  let list = elements(c, item.items, "row", tw);
+  // Columns whose own HTML failed in this render (`onError: "omit"`), by their places among the Columns: left out with
+  // their cells, and the Row with the last of them (see `recordHtml`).
+  const gone = leftOut(list);
+  if (gone.length) {
+    list = list.filter((child) => child !== LEFT_OUT);
+    if (!list.some((child: any) => child?.type === Column)) return null;
+    if (!props.layout && props.cells) props.cells = without(props.cells, gone);
+  }
   // A layout counts the Columns as written (a condition's place included) or as rendered (from Fragments and
   // components): either fits it. The rendered Row is then given its cells, which hold no condition's place. A Row
   // neither fits is left out, of the HTML and the design alike, and said once.
   const layout = props.layout;
   if (layout) {
-    const columns = list.filter((child: any) => child?.type === Column).length;
+    const columns = list.filter((child: any) => child?.type === Column).length + gone.length;
     if (columns !== layout.expectedColumns && React.Children.count(props.children) !== layout.expectedColumns) {
       // It fails the render, or is left out (once: the HTML, the head and the design ask).
       if (!c.told.has(r)) {
@@ -255,7 +280,7 @@ function made(c: Collected, scoped: Scoped, r: ReturnType<typeof recordOf>): Rea
       }
       return null;
     }
-    props.cells = layout.cells;
+    props.cells = without(layout.cells, gone);
     delete props.layout;
   }
   // A scope's rewrite, the Row's, one its Columns' classes give, or the root's, can put what its classes give the Row
@@ -270,6 +295,21 @@ function made(c: Collected, scoped: Scoped, r: ReturnType<typeof recordOf>): Rea
   }
   return jsxs(Row, { ...props, children, _record: r });
 }
+
+/** Where a Column left out was, among its Row's Columns (see `elements`). */
+const LEFT_OUT = React.createElement(() => null);
+
+function leftOut(list: React.ReactNode[]): number[] {
+  const places: number[] = [];
+  let column = 0;
+  for (const child of list) {
+    if (child === LEFT_OUT) places.push(column++);
+    else if ((child as React.ReactElement | null)?.type === Column) column++;
+  }
+  return places;
+}
+
+const without = (cells: number[], places: number[]): number[] => (places.length ? cells.filter((_, i) => !places.includes(i)) : cells);
 
 /** A prop as given, or in `values` (where it's given as neither, undefined). */
 const given = (props: Record<string, any>, key: string) => (key in props ? props[key] : props.values?.[key]);
@@ -302,6 +342,8 @@ export function elements(c: Collected, items: readonly Item[], place: Place, tw?
     if (r.kind !== "boundary") {
       const made = element(c, { item, tw });
       if (made) out.push(made);
+      // (Its place among the Columns, for its Row's cells: see made.)
+      else if (place === "row" && r.kind === "column" && failedBefore(r)) out.push(LEFT_OUT);
       return;
     }
     const kept = inColumn && !inside ? keptMarkup(c, item) : undefined;

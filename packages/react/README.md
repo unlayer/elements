@@ -534,7 +534,7 @@ for (const error of omitted) report(error.position, error.cause);
 renderToHtml(<Digest />, { onError: (error: RenderError) => logger.warn(error.message, { cause: error.cause }) });
 ```
 
-What's left out is the part that failed: a component of yours (with what it rendered), markup React rejects, a Row whose Columns don't fit its layout, a block whose exporter failed. A template that isn't one fails anyway: a component that's `undefined` (a broken or circular import), an object or a date as a child. Error boundaries (`componentDidCatch`) don't catch while Elements renders, as in React's server renderer: `onError` and the error's position are what to use.
+What's left out is the part that failed: a component of yours (with what it rendered), markup React rejects, a Row whose Columns don't fit its layout, a block, Row or Column whose exporter failed (a Column with its cell, so the Row's other Columns share its width; a Row with its last Column). The HTML, the plain text and the design are then the template's without it. A template that isn't one fails anyway: a component that's `undefined` (a broken or circular import), an object or a date as a child. Error boundaries (`componentDidCatch`) don't catch while Elements renders, as in React's server renderer: `onError` and the error's position are what to use.
 
 ## Designs as code
 

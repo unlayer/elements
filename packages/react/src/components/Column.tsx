@@ -6,8 +6,9 @@ import { RenderError } from "@unlayer-internal/shared-elements";
 import { mapSemanticProps, type SemanticProps } from "../utils/semantic-props";
 import type { DeviceProps, SizeInput, BorderInput } from "../types";
 import { COLUMN_DEFAULTS } from "../utils/container-defaults";
-import { failed, looseText, remember } from "../utils/render-scope";
+import { failed, failedBefore, looseText, remember } from "../utils/render-scope";
 import { RECORDS, whereIs } from "../utils/collect";
+import { renderContainer } from "../utils/container-render";
 import { DEFAULT_CONTAINER_PADDING } from "../utils/image-sizing";
 
 /** Unlayer's default content-block padding when a block sets none. */
@@ -84,7 +85,10 @@ export type ColumnProps = Omit<SemanticProps<ColumnValues>, "padding" | "border"
 };
 
 // A collecting walk records a Column (see utils/record.tsx); rendered, it's the collected Column's HTML.
-export const Column: React.FC<ColumnProps> = (props) => {
+export const Column: React.FC<ColumnProps> = (props) =>
+  renderContainer("Column", (props as { _record?: object })._record, `Column ${(props.index ?? 0) + 1}`, () => renderColumn(props));
+
+function renderColumn(props: ColumnProps): React.ReactElement {
   const {
     children,
     index = 0,
@@ -118,6 +122,8 @@ export const Column: React.FC<ColumnProps> = (props) => {
     }
     // Call component function to get rendered result
     if (!React.isValidElement(child) || typeof child.type !== "function") continue;
+    // A block whose exporter failed in this render, rendered again with its Row (a Column of it was left out).
+    if (failedBefore((child.props as { _record?: object })._record)) continue;
     const ComponentType = child.type as any;
     const config = ComponentType[UNLAYER_CONFIG_KEY];
     // Use __unlayerRender (hook-free) if available, otherwise call directly
@@ -191,10 +197,11 @@ export const Column: React.FC<ColumnProps> = (props) => {
     innerHTML += childProps.skipInText ? content.replace(/<[a-z]+/, '$& data-skip-in-text="true"') : content;
   }
 
-  // Its `style` and `className` on its column cell (see hatch). Its exporter failing fails its Row.
+  // Its `style` and `className` on its column cell (see hatch). Its exporter failing fails it, or leaves it out (see
+  // renderContainer).
   const html = hatch(renderColumnToHtml(innerHTML, valuesWithMeta, index, cells, bodyValues, rowValues, mode), /<div[^>]*class="u-col[ "][^>]*>/, style, className, semanticProps);
   return <div dangerouslySetInnerHTML={{ __html: html }} />;
-};
+}
 
 Column.displayName = "Column";
 (Column as unknown as Record<symbol, boolean>)[RECORDS] = true;

@@ -9,6 +9,7 @@ import type { DeviceProps, SizeInput } from "../types";
 import { ROW_DEFAULTS, BODY_DEFAULTS } from "../utils/container-defaults";
 import { looseText, remember } from "../utils/render-scope";
 import { RECORDS } from "../utils/collect";
+import { renderContainer } from "../utils/container-render";
 
 /**
  * Row - Container for columns in a layout
@@ -289,14 +290,14 @@ function renderRow(props: RowProps): React.ReactElement | null {
     _config
   );
 
-  // Its `style` and `className` on its row (the box at the content width, see hatch). An exporter that fails fails the
-  // row (see src/model/elements.ts's markup, and `onError`).
+  // Its `style` and `className` on its row (the box at the content width, see hatch). Its exporter, or a Column's,
+  // failing fails it, or that Row or Column is left out (see renderContainer, and `onError`).
   const html = hatch(renderRowToHtml(innerHTML, valuesWithMeta, safeBodyValues, mode, cells, collection), /<div[^>]*class="u-row[ "][^>]*>/, style, className, semanticProps);
   return <div dangerouslySetInnerHTML={{ __html: html }} />;
 }
 
 // A collecting walk records a Row (see utils/record.tsx); rendered, it's the collected Row's HTML.
-const Row: React.FC<RowProps> = (props) => renderRow(props);
+const Row: React.FC<RowProps> = (props) => renderContainer("Row", (props as { _record?: object })._record, "Row", () => renderRow(props));
 
 Row.displayName = "Row";
 (Row as unknown as Record<symbol, boolean>)[RECORDS] = true;

@@ -3,9 +3,11 @@
  * Columns don't fit its layout, an exporter that fails. They all throw a RenderError by default, the synchronous and
  * the async ones alike; with `onError: "omit"` (render options, the root's `config`, an <UnlayerProvider>) or a
  * function, the part is left out of the HTML, the plain text and the design alike, and each part left out is listed.
+ * A Row or Column whose own exporter fails is left out as a block is: the render is the template's without it.
  */
 import { afterEach, describe, expect, it, vi } from "vitest";
 import React from "react";
+import { ColumnExporters, RowExporters } from "@unlayer/exporters";
 import { Column, ColumnLayouts, Email, Paragraph, RenderError, Row, UnlayerProvider, registerElementsTool, renderToHtml, renderToHtmlParts, renderToJson, renderToPlainText, type OnError } from "../index";
 import * as asyncRenderers from "../async";
 
@@ -99,5 +101,89 @@ describe("a part of a template that fails", () => {
 
   it("lists nothing when nothing failed", () => {
     expect(renderToHtmlParts(<Email><Row><Column><Paragraph>Fine</Paragraph></Column></Row></Email>, { onError: "omit" }).omitted).toEqual([]);
+  });
+});
+
+describe("a Row or Column whose exporter fails", () => {
+  // The Row's or Column's exporter fails for the one with this background (the editor's exporters, as they are, for the rest).
+  const failing = (exporters: Record<string, (...args: any[]) => string>, color: string, valuesAt: number) => {
+    const email = exporters.email;
+    vi.spyOn(exporters, "email").mockImplementation((...args: any[]) => {
+      if (args[valuesAt]?.backgroundColor === color) throw new Error("exporter down");
+      return email(...args);
+    });
+  };
+  const rows = (failingRow: React.ReactNode, columns: React.ReactNode) => (
+    <Email>
+      <Row><Column><Paragraph>First</Paragraph></Column></Row>
+      {failingRow}
+      {columns}
+    </Email>
+  );
+  const red = <Row backgroundColor="#ff0000"><Column><Paragraph>Second</Paragraph></Column></Row>;
+  const cells = (failingColumn: boolean) => (
+    <Row cells={failingColumn ? [2, 1, 1] : [2, 1]}>
+      <Column><Paragraph>Third</Paragraph></Column>
+      {failingColumn && <Column backgroundColor="#00ff00"><Paragraph>Lonely</Paragraph></Column>}
+      <Column><Paragraph>Fourth</Paragraph></Column>
+    </Row>
+  );
+  const renders = (element: React.ReactElement, options?: { onError?: OnError }) => ({
+    html: renderToHtml(element, options),
+    text: renderToPlainText(element, options),
+    design: renderToJson(element, options),
+  });
+
+  it("fails the render by default, naming it and where it is", async () => {
+    failing(RowExporters as never, "#ff0000", 1);
+    const element = rows(red, null);
+    expect(() => renderToHtml(element)).toThrow("[Unlayer] Row failed to render: exporter down (in <Row> at Row 2)");
+    await expect(asyncRenderers.renderToHtml(element)).rejects.toThrow("(in <Row> at Row 2)");
+    try {
+      renderToPlainText(element);
+    } catch (error) {
+      expect(error).toMatchObject({ name: "RenderError", component: "Row", position: "Row 2", cause: new Error("exporter down") });
+    }
+    // The design calls no exporter.
+    expect(designWords(renderToJson(element))).toEqual(["First", "Second"]);
+    vi.restoreAllMocks();
+    failing(ColumnExporters as never, "#00ff00", 1);
+    expect(() => renderToHtml(rows(null, cells(true)))).toThrow("[Unlayer] Column failed to render: exporter down (in <Column> at Row 2 › Column 2)");
+  });
+
+  it("with onError: \"omit\", is left out of the HTML, the plain text and the design: they're the template's without it", async () => {
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
+    failing(RowExporters as never, "#ff0000", 1);
+    failing(ColumnExporters as never, "#00ff00", 1);
+    const element = rows(red, cells(true));
+    // A Column with its cell (the Columns after it move up); the Row's ids go to the next Row, its Column's to the next.
+    expect(renders(element, { onError: "omit" })).toEqual(renders(rows(null, cells(false))));
+    // Each said once a render.
+    error.mockClear();
+    renderToHtml(element, { onError: "omit" });
+    expect(error.mock.calls.map((call) => String(call[0]))).toEqual([
+      "[Unlayer] Left out: Row failed to render: exporter down (in <Row> at Row 2)",
+      "[Unlayer] Left out: Column failed to render: exporter down (in <Column> at Row 3 › Column 2)",
+    ]);
+    const omitted = (parts: { omitted: RenderError[] }) => parts.omitted.map((e) => [e.component, e.position]);
+    expect(omitted(renderToHtmlParts(element, { onError: "omit" }))).toEqual([["Row", "Row 2"], ["Column", "Row 3 › Column 2"]]);
+    expect(omitted(await asyncRenderers.renderToHtmlParts(element, { onError: "omit" }))).toEqual([["Row", "Row 2"], ["Column", "Row 3 › Column 2"]]);
+    const given: RenderError[] = [];
+    expect(renderToHtml(element, { onError: (failure) => void given.push(failure) })).toBe(renders(rows(null, cells(false))).html);
+    expect(given.map((e) => e.position)).toEqual(["Row 2", "Row 3 › Column 2"]);
+  });
+
+  it("leaves a Row out with its last Column, and a Row with a layout gives its other Columns their cells", () => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    failing(ColumnExporters as never, "#00ff00", 1);
+    const alone = <Row><Column backgroundColor="#00ff00"><Paragraph>Lonely</Paragraph></Column></Row>;
+    expect(renders(rows(alone, null), { onError: "omit" })).toEqual(renders(rows(null, null)));
+    const laidOut = (failingColumn: boolean) => (
+      <Row layout={failingColumn ? ColumnLayouts.TwoEqual : undefined}>
+        {failingColumn && <Column backgroundColor="#00ff00"><Paragraph>Lonely</Paragraph></Column>}
+        <Column><Paragraph>Third</Paragraph></Column>
+      </Row>
+    );
+    expect(renders(rows(null, laidOut(true)), { onError: "omit" })).toEqual(renders(rows(null, laidOut(false))));
   });
 });

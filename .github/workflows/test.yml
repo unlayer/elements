@@ -58,8 +58,11 @@ jobs:
         run: pnpm --filter @unlayer/from-react-email typecheck && pnpm --filter @unlayer/migrate typecheck
 
       # ── Bundle size budget ──────────────────────────────────────
-      # Fail if the react-elements ESM bundle exceeds 187KB.
-      # Current size: about 186.4KB (0.1.22: about 76KB). Raised from 173.5KB
+      # Fail if the react-elements ESM bundle exceeds 189KB.
+      # Current size: about 188.3KB (0.1.22: about 76KB). Raised from 187KB
+      # (about 2KB): a Row or Column whose own exporter fails is left out with
+      # `onError: "omit"`, as a block is (a Column with its cell, its Row made
+      # again without it), instead of failing the render. Raised from 173.5KB
       # (about 13KB): Divider, Html, Menu and Social write their web and
       # document HTML without react-dom/server, which can't run in an edge
       # runtime or a React Server Components layer (src/exporters/, about 7KB,
@@ -114,7 +117,7 @@ jobs:
         run: |
           BUNDLE="packages/react/dist/index.js"
           SIZE=$(wc -c < "$BUNDLE" | tr -d ' ')
-          MAX_SIZE=187000
+          MAX_SIZE=189000
           echo "Bundle: $BUNDLE"
           echo "Size: $SIZE bytes (budget: $MAX_SIZE bytes)"
           if [ "$SIZE" -gt "$MAX_SIZE" ]; then

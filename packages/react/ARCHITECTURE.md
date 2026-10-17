@@ -163,8 +163,10 @@ or the function.
 What's left out: a component of the template's own in a list (the root's children, a Row's, a Column's, a text
 block's), with what it rendered; markup React rejects (`<hr style="…">` given a string), where it is; a Row whose
 Columns don't fit its layout; a block whose exporter fails (its id goes to the next block, in the HTML and the design);
-a Row whose exporter, or one of its Columns', fails. A template that isn't one always fails the render, `onError` or
-not: an undefined component (a broken or circular import), an object or a date as a child, a portal, a Client
+a Row or Column whose own HTML fails (its exporter, or mapping its props: `utils/container-render.ts`), a Column with
+its cell (the Row is made again without it, its Columns after it moving up; with no Column left, the Row is left out
+with it). The render is then the template's without that part. A template that isn't one always fails the render,
+`onError` or not: an undefined component (a broken or circular import), an object or a date as a child, a portal, a Client
 Component in server code.
 
 **The design and the exporters.** No exporter makes the design, so `renderToJson()` doesn't render the HTML: by
