@@ -200,6 +200,8 @@ export function nextHtmlId(config: any, prefix: string): string {
  */
 export function safeName(value: unknown, spaces = false): string {
   const text = String(value ?? "");
+  // (Most are ids and class names Elements gives, which hold none of it.)
+  if (/^[\w-]*$/.test(text)) return text;
   // Class names apart on lines or by tabs stay apart, as the browser reads them.
   return spaces ? text.replace(/[\t\n\f\r]/g, " ").replace(/["'<>&`\u0000-\u001f\u007f]/g, "") : text.replace(/["'<>&`\s\u0000-\u001f\u007f]/g, "");
 }

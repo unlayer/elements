@@ -111,16 +111,16 @@ export function pxZeros<T>(value: T, key = ""): T {
 /**
  * `values` merged over `defaults` as mergeValues merges them, as pxZeros writes the result: a copy that shares no
  * object with either, its px lengths' bare zeros `0px`. One pass, where the design is made (instead of a pass over
- * the whole design after).
+ * the whole design after). `out`: the object it's written into, with what goes first.
  */
-export function pxMerged<T>(defaults: T, values: unknown, key = ""): T {
-  if (!values) return pxZeros(defaults, key);
+export function pxMerged<T>(defaults: T, values: unknown, key = "", out: Record<string, unknown> = {}): T {
   const d = defaults as Record<string, unknown>;
+  if (!values) return Object.assign(out, copy(pxWritten(d, key))) as T;
   const v = values as Record<string, unknown>;
   // (A custom tool's own values, which pxZeros leaves as they are.)
-  if ("slug" in d || "slug" in v) return mergeValues(d, v) as T;
-  const out: Record<string, unknown> = {};
-  for (const k of Object.keys(d)) out[k] = Object.prototype.hasOwnProperty.call(v, k) ? merged(d[k], v[k], k) : pxZeros(d[k], k);
+  if ("slug" in d || "slug" in v) return Object.assign(out, mergeValues(d, v)) as T;
+  const written = pxWritten(d, key) as Record<string, unknown>;
+  for (const k of Object.keys(d)) out[k] = Object.prototype.hasOwnProperty.call(v, k) ? merged(d[k], v[k], k) : copy(written[k]);
   for (const k of Object.keys(v)) if (!Object.prototype.hasOwnProperty.call(d, k)) out[k] = pxZeros(v[k], k);
   return out as T;
 }
@@ -128,6 +128,25 @@ export function pxMerged<T>(defaults: T, values: unknown, key = ""): T {
 /** A value over a default, as mergeValues merges it (plain objects into each other, anything else in its place). */
 const merged = (base: unknown, value: unknown, key: string) =>
   value !== null && base !== null && typeof value === "object" && typeof base === "object" && !Array.isArray(value) && !Array.isArray(base) ? pxMerged(base, value, key) : pxZeros(value, key);
+
+/** Defaults as pxZeros writes them, worked out once each (they're constants): copied where they're used. */
+const pxWrittenDefaults = new WeakMap<object, unknown>();
+function pxWritten(defaults: unknown, key: string): unknown {
+  if (defaults === null || typeof defaults !== "object") return pxZeros(defaults, key);
+  let written = pxWrittenDefaults.get(defaults);
+  if (written === undefined) pxWrittenDefaults.set(defaults, (written = pxZeros(defaults, key)));
+  return written;
+}
+
+/** A copy of what pxZeros wrote: the objects and lists it made made again (what it left as it was, left). */
+function copy<T>(value: T): T {
+  if (value === null || typeof value !== "object") return value;
+  if (Array.isArray(value)) return value.map(copy) as T;
+  if (!isPlainObject(value) || "slug" in value) return value;
+  const out: Record<string, unknown> = {};
+  for (const k of Object.keys(value)) out[k] = copy(value[k]);
+  return out as T;
+}
 
 /** A key the schema types as px lengths: a padding or margin, a box of them, a radius, a width, a font size. */
 const PX_KEY = /(padding|margin|radius|width|spacing|fontsize)$/i;

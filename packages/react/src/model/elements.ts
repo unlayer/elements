@@ -151,16 +151,33 @@ function styled(c: Collected, { item, tw }: Scoped, props: Record<string, any>):
 /** Props any block takes beside its values (its defaults' keys); `font…` in camel case (`fontsize` is a slip). */
 const KNOWN = /^(children|className|style|mode|values|containerPadding|hideOn(Mobile|Desktop)|mobile|skipInText|html|text|href|action|alt|src|width|maxWidth|items|icons|icon\w+|spacing|videoUrl|headers|data|columns|rows|font[A-Z]\w*|letterSpacing|color|lineHeight|textAlign|padding|border\w*|backgroundColor|hover\w*|_\w+)$/;
 
+type ItemConfig = { name: string; defaultValues: Record<string, unknown> };
+
 /** A block's props: its values' names (flat too) and the names it takes for them (see PROP_ALIASES), once per block. */
-const propNames = new WeakMap<object, string[]>();
-function namesOf(config: { name: string; defaultValues: Record<string, unknown> }): string[] {
-  let names = propNames.get(config);
-  if (!names) {
+const propNames = new WeakMap<object, { names: string[]; known: Map<string, boolean> }>();
+
+/** Whether a block takes a prop: one of its names (see namesOf), one any block takes, or a link's `target`. */
+function takes(config: ItemConfig, key: string): boolean {
+  const { names, known } = namesOf(config);
+  let takes = known.get(key);
+  if (takes === undefined) {
     const values = config.defaultValues;
-    names = Object.keys({ ...values, ...PROP_ALIASES[config.name] }).concat(...Object.values(values).map((v) => (v && typeof v == "object" ? Object.keys(v) : [])));
-    propNames.set(config, names);
+    // (`target` is a link's: a block without one has no use for it.)
+    takes = names.includes(key) || KNOWN.test(key) || (key === "target" && ("href" in values || "action" in values));
+    // (Names a template gives: a few per block, kept.)
+    if (known.size < 500) known.set(key, takes);
   }
-  return names;
+  return takes;
+}
+
+function namesOf(config: ItemConfig): { names: string[]; known: Map<string, boolean> } {
+  let entry = propNames.get(config);
+  if (!entry) {
+    const values = config.defaultValues;
+    const names = Object.keys({ ...values, ...PROP_ALIASES[config.name] }).concat(...Object.values(values).map((v) => (v && typeof v == "object" ? Object.keys(v) : [])));
+    propNames.set(config, (entry = { names, known: new Map() }));
+  }
+  return entry;
 }
 
 /** The tags in markup, in order (attributes aside). */
@@ -211,13 +228,10 @@ function made(c: Collected, scoped: Scoped, r: ReturnType<typeof recordOf>): Rea
     if (config?.name === "Heading") props = margins(props);
     // A prop a block has no use for is said, not dropped quietly (a custom tool's props are its own).
     if (config && !config.contentType) {
-      const values = config.defaultValues;
-      const names = namesOf(config);
       for (const key in props) {
-        // (`target` is a link's: a block without one has no use for it.)
-        const known = names.includes(key) || KNOWN.test(key) || (key === "target" && ("href" in values || "action" in values));
-        const near = !known && props[key] !== undefined && closestName(key, names);
-        if (near !== false) sayOnce(`[Unlayer] ${config.name} ignores the prop \`${key}\`${near ? `: did you mean \`${near}\`?` : "."}`);
+        if (takes(config, key) || props[key] === undefined) continue;
+        const near = closestName(key, namesOf(config).names);
+        sayOnce(`[Unlayer] ${config.name} ignores the prop \`${key}\`${near ? `: did you mean \`${near}\`?` : "."}`);
       }
     }
     return React.createElement((config?.contentType !== "custom" && BLOCKS[config?.name]) || r.type, { ...styled(c, scoped, props), _record: r });

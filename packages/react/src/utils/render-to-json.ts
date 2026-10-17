@@ -94,11 +94,15 @@ export function extractSemanticProps(props: Record<string, any>): Record<string,
 
 const INTERNAL = /^(children|mode|className|style|index|colIndex|cells|bodyValues|rowValues|_config|_record|config|previewText|fonts|lang|layout|collection)$/;
 
+/** A block's props the design doesn't hold (its children are its text: see processItem). */
+const CODE_ONLY = new Set(["children", "style", "className", "skipInText", "_record"]);
+
 /** What makes a row or block editable in the editor. */
 const EDITABLE = { selectable: true, draggable: true, duplicatable: true, deletable: true, hideable: true };
 
 /** A component's `style`, `className` and `skipInText`, which the design can't hold: said once per render. */
 function codeOnly(name: string, props: Record<string, any>): void {
+  if (!props.style && !props.className && !props.skipInText) return;
   // (Not a style a <Tailwind>'s classes give, which it says.)
   const keys = [...Object.keys(props.style ?? {}).filter((key) => !props.style[TAILWIND]?.includes(key)).map((key) => `style.${key}`), ...["className", "skipInText"].filter((key) => props[key])];
   if (keys.length) sayOnce(`[Unlayer] ${name} \`${keys.join("`, `")}\` ${keys.length > 1 ? "are" : "is"} kept in HTML but not in the design for the visual editor.`);
@@ -144,33 +148,28 @@ function processItem(
   const metaBase = `u_content_${metaName ?? config.metaName ?? contentType}`;
   const id = `${metaBase}_${nextCounter(counters, metaBase)}`;
 
-  // Map props through the item's own propMapper, then merge with defaults (what the design can't hold said, and left out)
-  const { children, style: _style, className: _className, skipInText: _skip, _record, ...restProps } = element.props;
-  codeOnly(name, element.props);
-  const mappedValues = propMapper({ children, ...restProps });
+  // Map props through the item's own propMapper (but what the design can't hold, said and left out), then merge with
+  // defaults, after the base content option every block has, containerPadding.
+  const props = element.props as Record<string, any>;
+  codeOnly(name, props);
+  const given: Record<string, any> = { children: props.children };
+  for (const key in props) if (!CODE_ONLY.has(key)) given[key] = props[key];
+  const mappedValues = propMapper(given);
   rtlAlign(mappedValues, defaultValues, (layout.bodyValues as { textDirection?: unknown } | undefined)?.textDirection);
   // (Bare zeros in px lengths written `0px`, as the design's schema types them: see pxZeros. A custom tool's values
   // are as it writes them.)
-  const finalValues = slug ? mergeValues(defaultValues, mappedValues) : pxMerged(defaultValues, mappedValues);
+  const values: Record<string, any> = slug ? { containerPadding: "10px", ...mergeValues(defaultValues, mappedValues) } : pxMerged(defaultValues, mappedValues, "", { containerPadding: "10px" });
 
   // Paragraph maps to "text" content type: its textJson as the HTML the text block holds, which its HTML renders too
   // (see Paragraph.tsx).
-  if (contentType === "text" && finalValues.textJson) {
-    finalValues.text = textJsonToText(finalValues.textJson);
-    delete finalValues.textJson;
+  if (contentType === "text" && values.textJson) {
+    values.text = textJsonToText(values.textJson);
+    delete values.textJson;
   }
 
-  // Add containerPadding (base content option) and _meta
-  const values = {
-    containerPadding: "10px",
-    ...finalValues,
-    _meta: {
-      htmlID: id,
-      htmlClassNames: metaBase,
-      ...(finalValues._meta || {}),
-    },
-    ...EDITABLE,
-  };
+  // Its _meta and the editor's flags
+  values._meta = { htmlID: id, htmlClassNames: metaBase, ...(values._meta || {}) };
+  Object.assign(values, EDITABLE);
 
   // Convert a fixed (px) image pin to a percent of the column slot using the
   // threaded geometry, so the display width survives the JSON round-trip into an
@@ -198,17 +197,10 @@ function processColumn(
   codeOnly("Column", element.props);
   const semanticProps = extractSemanticProps(element.props);
   const mapped = mapSemanticProps(semanticProps, COLUMN_DEFAULTS, "Column");
-  const values = pxMerged(COLUMN_DEFAULTS, mapped);
+  const valuesWithMeta = pxMerged(COLUMN_DEFAULTS, mapped) as Record<string, any>;
 
   // Add _meta
-  const valuesWithMeta = {
-    ...values,
-    _meta: {
-      htmlID: id,
-      htmlClassNames: "u_column",
-      ...(values._meta || {}),
-    },
-  };
+  valuesWithMeta._meta = { htmlID: id, htmlClassNames: "u_column", ...(valuesWithMeta._meta || {}) };
 
   // Process item children
   const contents: DesignContent[] = [];
@@ -239,20 +231,13 @@ function processRow(
   codeOnly("Row", element.props);
   const semanticProps = extractSemanticProps(element.props);
   const mapped = mapSemanticProps(semanticProps, ROW_DEFAULTS, "Row");
-  const values = pxMerged(ROW_DEFAULTS, mapped);
+  const valuesWithMeta = pxMerged(ROW_DEFAULTS, mapped) as Record<string, any>;
 
   // Add cells, columns flag, editor flags, and _meta
-  const valuesWithMeta = {
-    ...values,
-    columns: values.columns ?? false,
-    cells: pxZeros(cells),
-    _meta: {
-      htmlID: id,
-      htmlClassNames: "u_row",
-      ...(values._meta || {}),
-    },
-    ...EDITABLE,
-  };
+  valuesWithMeta.columns = valuesWithMeta.columns ?? false;
+  valuesWithMeta.cells = pxZeros(cells);
+  valuesWithMeta._meta = { htmlID: id, htmlClassNames: "u_row", ...(valuesWithMeta._meta || {}) };
+  Object.assign(valuesWithMeta, EDITABLE);
 
   // Process Column children
   const columns: DesignColumn[] = [];
@@ -313,14 +298,8 @@ function processBody(
   }
 
   // Add _meta
-  const valuesWithMeta = {
-    ...values,
-    _meta: {
-      htmlID: id,
-      htmlClassNames: "u_body",
-      ...(values._meta || {}),
-    },
-  };
+  const valuesWithMeta = values as Record<string, any>;
+  valuesWithMeta._meta = { htmlID: id, htmlClassNames: "u_body", ...(valuesWithMeta._meta || {}) };
 
   // Process Row children
   const rows: DesignRow[] = [];
