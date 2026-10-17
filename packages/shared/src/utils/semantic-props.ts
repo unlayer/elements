@@ -54,19 +54,29 @@ export type SemanticProps<T, TChildren = any> = Omit<FlattenObjectProps<T>, keyo
  * Results are cached per defaultValues object reference to avoid recomputing
  * on every render.
  */
-const nestedStructureCache = new WeakMap<object, Map<string, Set<string>>>();
+interface NestedStructure {
+  /** Each nested object's key, with its keys. */
+  groups: Map<string, Set<string>>;
+  /** A key of a nested object (flat, as a prop): the first nested object that has it. */
+  owners: Map<string, string>;
+}
 
-function analyzeNestedStructure(defaultValues: any): Map<string, Set<string>> {
-  let groups = nestedStructureCache.get(defaultValues);
-  if (!groups) {
-    groups = new Map();
+const nestedStructureCache = new WeakMap<object, NestedStructure>();
+
+function analyzeNestedStructure(defaultValues: any): NestedStructure {
+  let structure = nestedStructureCache.get(defaultValues);
+  if (!structure) {
+    const groups = new Map<string, Set<string>>();
+    const owners = new Map<string, string>();
     // A nested object: a plain object (not an array, not null) with keys; special keys aside.
     for (const [key, value] of Object.entries(defaultValues)) {
       if (!/^(_meta|text|textJson|children)$/.test(key) && value && typeof value === "object" && !Array.isArray(value) && Object.keys(value).length) groups.set(key, new Set(Object.keys(value)));
     }
-    nestedStructureCache.set(defaultValues, groups);
+    for (const [group, keys] of groups) for (const key of keys) if (!owners.has(key)) owners.set(key, group);
+    structure = { groups, owners };
+    nestedStructureCache.set(defaultValues, structure);
   }
-  return groups;
+  return structure;
 }
 
 /**
@@ -169,6 +179,14 @@ export const PROP_ALIASES: Record<string, Record<string, string>> = {
   Divider: ALIGN,
 };
 
+/** The props an alias stands for (`"textColor linkColor"`), split once. */
+const aliasLists = new Map<string, string[]>();
+function aliasesOf(names: string): string[] {
+  let list = aliasLists.get(names);
+  if (!list) aliasLists.set(names, (list = names.split(" ")));
+  return list;
+}
+
 /**
  * Universal semantic props mapper
  * Works for ANY component - no configuration needed!
@@ -188,11 +206,12 @@ export function mapSemanticProps<T extends Record<string, any>>(
   const hideOnMobile = componentType === "Column" ? undefined : hideMobileProp;
   const hideOnDesktop = componentType === "Column" ? undefined : hideDesktopProp;
   const userProps: any = { ...restProps };
-  const aliases = PROP_ALIASES[componentType] ?? {};
-  for (const alias in aliases) {
-    for (const prop of aliases[alias].split(" ")) userProps[prop] ??= userProps[alias];
-    delete userProps[alias];
-  }
+  const aliases = PROP_ALIASES[componentType];
+  if (aliases)
+    for (const alias in aliases) {
+      for (const prop of aliasesOf(aliases[alias])) userProps[prop] ??= userProps[alias];
+      delete userProps[alias];
+    }
 
   // Start with escape hatch if provided
   const result: any = values ? { ...values } : {};
@@ -265,17 +284,20 @@ export function mapSemanticProps<T extends Record<string, any>>(
   normalizeCssProps(userProps);
 
   // Analyze default values to detect nested object structure
-  const nestedGroups = analyzeNestedStructure(defaultValues);
+  const { groups: nestedGroups, owners } = analyzeNestedStructure(defaultValues);
 
   // Separate flat props from potential nested props: a nested object as given, a key of one (flat) in it.
   const nested: Record<string, any> = {};
   const flat: Record<string, any> = {};
-  for (const [key, value] of Object.entries(userProps)) {
+  for (const key of Object.keys(userProps)) {
+    const value = userProps[key];
     if (value === undefined) continue;
-    const group = nestedGroups.has(key) ? undefined : [...nestedGroups].find(([, keys]) => keys.has(key))?.[0];
     if (nestedGroups.has(key)) nested[key] = value;
-    else if (group) (nested[group] ||= {})[key] = value;
-    else flat[key] = value;
+    else {
+      const group = owners.get(key);
+      if (group) (nested[group] ||= {})[key] = value;
+      else flat[key] = value;
+    }
   }
 
   // Merge everything: escape hatch < flat props < nested groups

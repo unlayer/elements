@@ -88,11 +88,27 @@ export function normalizeCssValues<T>(value: T, key?: string): T {
  * length or a zero (`0 auto` and `1em 0` stay as they are); a custom tool's own values stay as it wrote them.
  */
 export function pxZeros<T>(value: T, key = ""): T {
-  // (A key the schema types as px lengths: a padding or margin, a box of them, a radius, a width, a font size.)
-  if (typeof value === "string") return (/(padding|margin|radius|width|spacing|fontsize)$/i.test(key) && /^\s*((-?[\d.]+px|0)(\s+|$))+$/.test(value) ? value.replace(/(^|\s)0(?=\s|$)/g, "$10px") : value) as T;
+  if (typeof value === "string") return (pxKey(key) && PX_LENGTHS.test(value) ? value.replace(/(^|\s)0(?=\s|$)/g, "$10px") : value) as T;
+  if (value === null || typeof value !== "object") return value;
   if (Array.isArray(value)) return value.map((item) => pxZeros(item)) as T;
   if (!isPlainObject(value) || "slug" in value) return value;
-  return Object.fromEntries(Object.entries(value).map(([k, v]) => [k, pxZeros(v, k)])) as T;
+  // A copy (the design shares no object with the defaults it's merged from), its keys in order.
+  const out: Record<string, unknown> = {};
+  for (const k of Object.keys(value)) {
+    const v = pxZeros(value[k], k);
+    if (k === "__proto__") Object.defineProperty(out, k, { value: v, enumerable: true, writable: true, configurable: true });
+    else out[k] = v;
+  }
+  return out as T;
+}
+
+/** A key the schema types as px lengths: a padding or margin, a box of them, a radius, a width, a font size. */
+const PX_KEY = /(padding|margin|radius|width|spacing|fontsize)$/i;
+const PX_LENGTHS = /^\s*((-?[\d.]+px|0)(\s+|$))+$/;
+function pxKey(key: string): boolean {
+  // (Most keys don't end in one of their last letters: g, s, h, e.)
+  const last = key.charCodeAt(key.length - 1) | 32;
+  return (last === 103 || last === 115 || last === 104 || last === 101) && PX_KEY.test(key);
 }
 
 function isPlainObject(value: unknown): value is Record<string, unknown> {
