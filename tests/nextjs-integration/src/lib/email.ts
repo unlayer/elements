@@ -2,6 +2,7 @@
 // email (tables, not a web layout) with its design, from a route handler and from a Server Component.
 import React from "react";
 import { ColumnLayouts, Column, Email, Paragraph, Row, Button, UnlayerProvider, renderToHtml, renderToJson } from "@unlayer/react-elements";
+import { entryChecks } from "@/lib/entries";
 
 const h = React.createElement;
 
@@ -26,5 +27,6 @@ export function emailCounts() {
     text: html.includes("Hello Ada") && html.includes("Right"),
     rows: design.body.rows.length,
     columns: design.body.rows.map((row) => row.columns.length),
+    entries: entryChecks(),
   };
 }

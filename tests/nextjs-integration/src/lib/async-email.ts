@@ -6,6 +6,7 @@ import React from "react";
 import { ColumnLayouts, Column, Email, Paragraph, Row, Button, UnlayerProvider } from "@unlayer/react-elements";
 import { renderToHtml, renderToJson } from "@unlayer/react-elements/async";
 import { emailCounts } from "@/lib/email";
+import { asyncEntryChecks } from "@/lib/entries";
 
 const h = React.createElement;
 
@@ -33,5 +34,6 @@ export async function asyncEmailCounts() {
     text: html.includes("Hello Ada") && html.includes("Right"),
     rows: design.body.rows.length,
     columns: design.body.rows.map((row) => row.columns.length),
+    entries: await asyncEntryChecks(),
   };
 }

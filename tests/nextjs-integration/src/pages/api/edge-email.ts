@@ -3,7 +3,9 @@
 // Router edge route (src/app/edge/route.ts).
 import { emailCounts } from "@/lib/email";
 
-export const config = { runtime: "edge" };
+// webpack (Next.js 15's default bundler) fails an edge API route's build for code that could evaluate a string:
+// @unlayer/exporters has lodash's `Function("return this")()`, which the edge runtime never reaches (it has globalThis).
+export const config = { runtime: "edge", unstable_allowDynamic: ["**/node_modules/@unlayer/exporters/**"] };
 
 export default function handler() {
   try {
