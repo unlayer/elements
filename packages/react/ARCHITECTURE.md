@@ -90,7 +90,9 @@ function failing if it's called while rendering, and `use()` of a pending promis
 doesn't have (a newer React's) reaches a Proxy behind it, which throws
 `<Hero> calls useNewHook, which Elements' renderer doesn't support (React x.y.z)` instead of React's
 `dispatcher.useNewHook is not a function`. React's react-server build has no `useState`, `useContext`, `useEffect`, …:
-a template calling one fails with a RenderError saying so and what to do.
+a template calling one fails with a RenderError saying so and what to do. Elements' own modules import nothing by
+name that build lacks (webpack, Next.js 15's default bundler, fails the build of a module that does: `createContext`
+and `useContext` are read off React), and its one context, `<UnlayerProvider>`'s, is made when it's first read.
 
 ### React versions
 
@@ -216,7 +218,7 @@ row or block is left out of the HTML, the plain text and the design (the slower 
 | The error policy, every renderer, every place `onError` goes; `renderToJson` calling no exporter by default | `src/utils/render-errors.test.tsx` |
 | The head reusing the values the HTML mapped (no block mapped again) | `src/utils/extract-head.test.tsx` |
 | `idPrefix`: the walker's against react-dom's `identifierPrefix`, and every renderer's | `src/engine/differential.test.tsx`, `src/utils/render-to-html.test.tsx` |
-| React's react-server build (React 19) | `src/regression/react-server-build.test.ts` |
+| React's react-server build (React 19): a render, and each ESM entry loading (none imports by name what it lacks) | `src/regression/react-server-build.test.ts` |
 | Renders inside an app's render, and inside each other | `src/utils/nested-renders.test.tsx`, `src/regression/edge-cases.test.tsx` |
 | The output against the previous release | `src/regression/*` (`GENERATED_SEEDS=5000` for more random templates) |
-| Next.js route handlers, Server Components, Cache Components | `tests/next*-integration` |
+| Next.js route handlers, Server Components, Client Components, edge and Pages Router API routes, every entry, Turbopack and webpack; Cache Components | `tests/next*-integration` |
