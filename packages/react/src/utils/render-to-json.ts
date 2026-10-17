@@ -88,11 +88,11 @@ const collectChildren = (node: React.ReactNode): React.ReactElement<any>[] => el
  */
 export function extractSemanticProps(props: Record<string, any>): Record<string, any> {
   const result: Record<string, any> = {};
-  for (const [key, value] of Object.entries(props)) if (!INTERNAL.test(key) && value !== undefined) result[key] = value;
+  for (const key of Object.keys(props)) if (!INTERNAL.has(key) && props[key] !== undefined) result[key] = props[key];
   return result;
 }
 
-const INTERNAL = /^(children|mode|className|style|index|colIndex|cells|bodyValues|rowValues|_config|_record|config|previewText|fonts|lang|layout|collection)$/;
+const INTERNAL = new Set("children mode className style index colIndex cells bodyValues rowValues _config _record config previewText fonts lang layout collection".split(" "));
 
 /** A block's props the design doesn't hold (its children are its text: see processItem). */
 const CODE_ONLY = new Set(["children", "style", "className", "skipInText", "_record"]);

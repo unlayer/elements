@@ -9,6 +9,8 @@
  * the render, or with `onError: "omit"` is left out of all three (see engine/errors.ts).
  */
 import React from "react";
+// (React 19 takes the props object as it's given, where createElement copies it.)
+import { jsx, jsxs } from "react/jsx-runtime";
 import type { Item, RecordItem } from "../engine";
 import { whereIs } from "../utils/collect";
 import { RenderError } from "../engine";
@@ -234,9 +236,9 @@ function made(c: Collected, scoped: Scoped, r: ReturnType<typeof recordOf>): Rea
         sayOnce(`[Unlayer] ${config.name} ignores the prop \`${key}\`${near ? `: did you mean \`${near}\`?` : "."}`);
       }
     }
-    return React.createElement((config?.contentType !== "custom" && BLOCKS[config?.name]) || r.type, { ...styled(c, scoped, props), _record: r });
+    return jsx((config?.contentType !== "custom" && BLOCKS[config?.name]) || r.type, { ...styled(c, scoped, props), _record: r });
   }
-  if (r.kind === "column") return React.createElement(Column, { ...styled(c, scoped, r.props), children: elements(c, item.items, "column", tw), _record: r } as React.ComponentProps<typeof Column>);
+  if (r.kind === "column") return jsxs(Column, { ...styled(c, scoped, r.props), children: elements(c, item.items, "column", tw), _record: r });
   const props: Record<PropertyKey, any> = { ...styled(c, scoped, r.props) };
   const list = elements(c, item.items, "row", tw);
   // A layout counts the Columns as written (a condition's place included) or as rendered (from Fragments and
@@ -266,7 +268,7 @@ function made(c: Collected, scoped: Scoped, r: ReturnType<typeof recordOf>): Rea
     if (/^(transparent)?$/.test(given(props, "columnsBackgroundColor") ?? "") ? image?.url && image.fullWidth === false : 1)
       sayOnce("[Unlayer] Row padding sits outside the row's content background, as in the editor; to inset the content use the Columns' padding.");
   }
-  return React.createElement(Row, { ...props, children, _record: r });
+  return jsxs(Row, { ...props, children, _record: r });
 }
 
 /** A prop as given, or in `values` (where it's given as neither, undefined). */
