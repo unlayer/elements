@@ -87,7 +87,7 @@ export type Steps = Generator<PromiseLike<unknown>, React.ReactElement, unknown>
  * `why.unread`. What a wrapper waits for (an async one's promise, `use()`) is yielded: the
  * async renderers wait for it, the synchronous ones throw.
  */
-function* steps(element: React.ReactElement, why: { unread?: string }): Steps {
+function* steps(element: React.ReactElement, why: { unread?: string }, idPrefix?: string): Steps {
   let current = element;
   // Context providers around the root (`<Theme.Provider value="dark"><Email>…`): the root's content goes in them.
   const providers: React.ReactElement[] = [];
@@ -97,7 +97,9 @@ function* steps(element: React.ReactElement, why: { unread?: string }): Steps {
   let provided: Record<string, unknown> | undefined;
   /** `fn` called as the component `name` (hooks, context), its promises yielded. */
   function* called(fn: (props: any, second?: unknown) => unknown, props: Record<string, unknown>, second: unknown, name: string): Generator<PromiseLike<unknown>, unknown, unknown> {
-    const state = hookState(name, tree, contexts);
+    // (Its `useId()`s' prefix: the render's, else the <UnlayerProvider>s' around it.)
+    const prefix = idPrefix ?? provided?.idPrefix;
+    const state = hookState(name, tree, contexts, typeof prefix === "string" ? prefix : "");
     for (;;) {
       let out: { value: unknown; tree: TreeContext };
       try {
@@ -198,8 +200,8 @@ function* steps(element: React.ReactElement, why: { unread?: string }): Steps {
 }
 
 /** The root a template unwraps to (see steps); one that waits for something fails, with what to do. */
-export function unwrapRoot(element: React.ReactElement, why: { unread?: string } = {}): React.ReactElement {
-  const run = steps(element, why);
+export function unwrapRoot(element: React.ReactElement, why: { unread?: string } = {}, idPrefix?: string): React.ReactElement {
+  const run = steps(element, why, idPrefix);
   const step = run.next();
   if (step.done) return step.value;
   step.value.then(undefined, () => {});
@@ -207,7 +209,7 @@ export function unwrapRoot(element: React.ReactElement, why: { unread?: string }
 }
 
 /** The steps to the root a template unwraps to (see steps), which the async renderers take, waiting where they wait. */
-export const unwrapSteps = (element: React.ReactElement): Steps => steps(element, {});
+export const unwrapSteps = (element: React.ReactElement, idPrefix?: string): Steps => steps(element, {}, idPrefix);
 
 /** Elements' own Row, Column or block (not a component of the user's own named like one, which is called). */
 const elementsOwn = (element: React.ReactElement): boolean => {
@@ -231,12 +233,12 @@ export const UNWRAP_ADVICE = "Pass the root element (<Email>…</Email>), or a f
  * a wrapper can't be unwrapped it's rendered as it is, with a warning: its root's
  * settings aren't read. A wrapper that throws fails the render (a RenderError naming it).
  */
-export function htmlRoot(element: React.ReactElement, api: string): React.ReactElement {
+export function htmlRoot(element: React.ReactElement, api: string, idPrefix?: string): React.ReactElement {
   if (typeof element.type === "string" || isElementsType(element.type)) return element;
   const why: { unread?: string } = {};
   let root: React.ReactElement;
   try {
-    root = unwrapRoot(element, why);
+    root = unwrapRoot(element, why, idPrefix);
   } catch (cause) {
     // An async template can't be rendered synchronously: say why.
     if (cause instanceof Error && cause.message === ASYNC_TEMPLATE) throw new Error(`[Unlayer] ${api}: ${ASYNC_TEMPLATE}.`);

@@ -458,6 +458,10 @@ The document shell matches the mode: `<Email>` gets the XHTML transitional docty
 - `title` — document `<title>`
 - `fonts` — web-font stylesheet URLs to load via `<link>` tags, e.g. `[{ url: "https://fonts.googleapis.com/css2?family=Inter" }]`
 
+And with every renderer (`renderToJson` and the async ones too), and in a root's `config` or an `<UnlayerProvider>`'s:
+
+- `idPrefix` — what your components' `useId()`s start with, as React's `identifierPrefix` (`{ idPrefix: "welcome-" }` gives `«welcome-R1»` on React 19.1), for an email or page you put in a page of yours, whose own `useId()`s it then can't repeat. A template component around the root (`<Welcome />`) takes it from the render's options or an `<UnlayerProvider>` around it, as it's called before the root's `config` is read. Elements' own ids (`u_row_1`) are the editor's export's, without it.
+
 If your app owns the document shell (an existing page template, an ESP template, an iframe `srcdoc`), use `renderToHtmlParts` instead — it returns `{ head, body }` plus the granular pieces (`css`, `js`, `tags`) for pipelines that need them separately, e.g. CSS inlining. This mirrors the editor's [chunk parameters](https://docs.unlayer.com/builder/latest/export-html#chunk-parameters) with two deliberate differences: `tags` is extra (components can contribute head tags, and reassembling from `css` + `js` alone would drop them), and there is no `fonts` chunk (Elements has no font registry — pass font stylesheet URLs via `renderToHtml`'s `fonts` option instead).
 
 Its `head` and `css` don't have the base stylesheet: your page has its own.
@@ -573,7 +577,7 @@ renderToJson(tree);  // emits { type: "custom", slug: "countdown", values } — 
 
 ## UnlayerProvider
 
-Set config once for every root inside it (`Email`, `Page`, `Document` or `Body`): the CDN for assets (`cdnBaseUrl`), merge tags (`mergeTagState`), text direction (`textDirection`), a sanitizer (`toSafeHtml`), head options (`headConfig`), and the mode of a `<Body>`:
+Set config once for every root inside it (`Email`, `Page`, `Document` or `Body`): the CDN for assets (`cdnBaseUrl`), merge tags (`mergeTagState`), text direction (`textDirection`), a sanitizer (`toSafeHtml`), head options (`headConfig`), what failed parts do (`onError`), the `useId()`s' prefix (`idPrefix`), and the mode of a `<Body>`:
 
 ```tsx
 import { UnlayerProvider, Email, Row, Column, ColumnLayouts, Social, Menu, renderToHtml, renderToJson } from '@unlayer/react-elements';

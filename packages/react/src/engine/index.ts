@@ -30,15 +30,18 @@ export interface CollectOptions {
   passes?: (error: unknown) => boolean;
   /** Components that are no place of their own in positions. */
   frameless?: (type: unknown) => boolean;
+  /** What the `useId()`s start with (React's `identifierPrefix`). */
+  idPrefix?: string;
 }
 
-type WalkerOptions = Pick<CollectOptions, "onError" | "collector" | "passes" | "frameless">;
+type WalkerOptions = Pick<CollectOptions, "onError" | "collector" | "passes" | "frameless" | "idPrefix">;
 
 const walker = (options: Partial<WalkerOptions>, wait?: Wait): Walker => ({
   wait,
   collector: options.collector,
   passes: options.passes,
   frameless: options.frameless,
+  idPrefix: options.idPrefix,
   omit: omits(options.onError),
   made: new WeakSet(),
   fatal: new WeakSet(),
@@ -87,7 +90,7 @@ export const ownMarkup = (): boolean => own > 0;
  * which call no hooks) are called with the dispatcher of the render around it in the slot, as that render would call
  * them (see asHost); others with hooks. A RenderError in it passes as it is.
  */
-export function renderStatic(node: React.ReactNode, options: { bare?: (type: unknown) => boolean; passes?: (error: unknown) => boolean } = {}): string {
+export function renderStatic(node: React.ReactNode, options: { bare?: (type: unknown) => boolean; passes?: (error: unknown) => boolean; idPrefix?: string } = {}): string {
   checkReact();
   const w: Walker = { ...walker(options), passAll: true, bare: options.bare };
   const out: Part[] = [];

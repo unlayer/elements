@@ -7,16 +7,16 @@ import type React from "react";
 import type { UnlayerConfig } from "@unlayer-internal/shared-elements";
 import { collectedFrom, collecting, type Collected } from "../model";
 import { isElementsType, providedConfig, ROOT_NAMES, unwrapSteps, type Steps } from "./unwrap-root";
-import { newScope, setOnError, withScope, type Scope } from "./render-scope";
+import { newScope, setRenderConfig, withScope, type Scope } from "./render-scope";
 import { rootConfig, type RootConfigProps } from "../context/layer-config";
 import { errorPart, flatten, PENDING, renderStatic, track, walkAsync, type CollectOptions, type Flat } from "../engine";
 
 export const INTERNALS = Symbol.for("@unlayer/react-elements/internals");
 
 /** The root a template unwraps to, its steps taken by `take` (awaiting what they wait for); the element itself where none comes out (said after). */
-async function unwrapAsync(element: React.ReactElement, take: (steps: Steps) => Promise<React.ReactElement>): Promise<React.ReactElement> {
+async function unwrapAsync(element: React.ReactElement, take: (steps: Steps) => Promise<React.ReactElement>, idPrefix?: string): Promise<React.ReactElement> {
   if (typeof element.type === "string" || isElementsType(element.type)) return element;
-  const root = await take(unwrapSteps(element));
+  const root = await take(unwrapSteps(element, idPrefix));
   return ROOT_NAMES.has((root.type as { displayName?: string })?.displayName ?? "") ? root : element;
 }
 
@@ -29,7 +29,7 @@ async function collectAsync(root: React.ReactElement, scope: Scope, options: Par
   const props = root.props as RootConfigProps & { children?: React.ReactNode };
   const name = (root.type as { displayName?: string }).displayName ?? "Body";
   const { node, options: walk } = withScope(scope, () => {
-    setOnError(rootConfig(props, providedConfig(root), options).onError);
+    setRenderConfig(rootConfig(props, providedConfig(root), options));
     return collecting(props.children, name);
   });
   const flat = await collect(node, walk);

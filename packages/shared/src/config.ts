@@ -20,6 +20,13 @@ export interface UnlayerConfig {
    * is given the RenderError instead.
    */
   onError?: OnError;
+  /**
+   * What the `useId()`s of the template's components start with, as React's `identifierPrefix` (`em-` gives `«em-R1»`),
+   * so an email or page placed in a page of yours keeps ids apart from the page's own: the render functions' option,
+   * a root's `config` or an `<UnlayerProvider>`'s. (A template component around the root takes it from the render's
+   * options or an `<UnlayerProvider>` around it: it's called before the root's `config` is read.)
+   */
+  idPrefix?: string;
 }
 
 export const DEFAULT_CONFIG: UnlayerConfig = {

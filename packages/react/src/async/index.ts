@@ -51,7 +51,7 @@ type Scope = object;
 interface Internals {
   newScope(): Scope;
   withScope<T>(scope: Scope, run: () => T): T;
-  unwrapAsync(element: React.ReactElement, steps: typeof take): Promise<React.ReactElement>;
+  unwrapAsync(element: React.ReactElement, steps: typeof take, idPrefix?: string): Promise<React.ReactElement>;
   collectAsync(root: React.ReactElement, scope: Scope, options: Partial<UnlayerConfig> | undefined, collect: (node: React.ReactNode, walk: CollectOptions) => Promise<Flat>): Promise<Collected>;
   engine: Engine;
 }
@@ -72,7 +72,7 @@ async function tailwindLoader(): Promise<(config?: TailwindConfig) => Promise<Ta
 async function render<T>(element: React.ReactElement, options: Partial<UnlayerConfig> | undefined, run: (root: React.ReactElement) => T): Promise<T> {
   const internals = (renderHtml as unknown as Record<symbol, Internals>)[Symbol.for("@unlayer/react-elements/internals")];
   const scope = internals.newScope();
-  const root = await internals.unwrapAsync(element, take);
+  const root = await internals.unwrapAsync(element, take, options?.idPrefix);
   const children = (root.props as { children?: React.ReactNode } | null)?.children;
   const configs: Array<TailwindConfig | undefined> = [];
   if (ROOTS.has((root.type as { displayName?: string })?.displayName ?? "") && children && typeof children === "object") {

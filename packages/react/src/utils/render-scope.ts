@@ -11,6 +11,7 @@ export interface Scope {
   /** What the HTML worked out for a record (a block's values), which the head reuses (see `remember`). */
   values: WeakMap<object, unknown>;
   onError?: OnError;
+  idPrefix?: string;
   /** The parts left out, each said once (see reportOmitted). */
   omitted: RenderError[];
   /** Rows and blocks whose exporters failed, by their records: left out of the head and the design too. */
@@ -45,12 +46,19 @@ export function sayOnce(message: string): void {
   if (!said.has(message)) console.warn(said.add(message) && message);
 }
 
-/** The render's `onError`, where its root's config says it (the render functions, or Body rendered on its own). */
-export function setOnError(onError: OnError | undefined): void {
-  if (scoped && onError !== undefined) scoped.onError ??= onError;
+/**
+ * The render's `onError` and `idPrefix`, where its root's config says them (the render functions, or Body rendered
+ * on its own): the first config given in a render wins.
+ */
+export function setRenderConfig(config: { onError?: OnError; idPrefix?: unknown }): void {
+  if (!scoped) return;
+  if (config.onError !== undefined) scoped.onError ??= config.onError;
+  if (typeof config.idPrefix === "string") scoped.idPrefix ??= config.idPrefix;
 }
 
 export const onError = (): OnError | undefined => scoped?.onError;
+/** What the template's `useId()`s start with in this render (see UnlayerConfig's `idPrefix`). */
+export const idPrefix = (): string | undefined => scoped?.idPrefix;
 
 /**
  * A part that failed: thrown, or (`onError: "omit"`) left out, listed and said once; `record`, the row's or block's

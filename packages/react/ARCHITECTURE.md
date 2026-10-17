@@ -126,7 +126,10 @@ records' order (head tags, Tailwind configs) and the ids are byte-identical from
 ### Ids
 
 `useId()` is Fizz's (react-dom's server renderer's) algorithm on the walker's tree position, in the installed React's
-format, with no prefix of Elements': `:R1:` (18, 19.0), `«R1»` (19.1), `_R_1_` (19.2 and later). The template
+format, with no prefix of Elements': `:R1:` (18, 19.0), `«R1»` (19.1), `_R_1_` (19.2 and later). `idPrefix` (render
+options, a root's `config`, an `<UnlayerProvider>`'s) is React's `identifierPrefix` (`«em-R1»`): the render scope holds
+it for the content's walk, and the template wrappers take the render options' or the Providers' around them, as
+they're called before the root's config is read. The template
 wrappers are the tree's top, and the content continues from where they left it, so their ids and the content's are
 one document's. A walk a component starts (a nested Email among the rows, an Elements render inside a component) starts
 at that component's place in the tree.

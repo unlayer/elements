@@ -6,7 +6,7 @@ import { mapSemanticProps, type SemanticProps } from "../utils/semantic-props";
 import { cssUrl, hatch, isOwn, nextHtmlId, OWN, safeName, textDirectionOf } from "../utils/create-component";
 import type { SizeInput } from "../types";
 import { BODY_DEFAULTS } from "../utils/container-defaults";
-import { setOnError, withRenderScope } from "../utils/render-scope";
+import { setRenderConfig, withRenderScope } from "../utils/render-scope";
 import { childrenHtml, rootDefaults } from "../model";
 import { isTailwindError, rootProps } from "../utils/tailwind";
 import { ownMarkup, renderOwn, renderStatic } from "../engine";
@@ -210,7 +210,7 @@ const Body: React.FC<BodyProps> = (given) => {
   if (children) {
     // A render of its own when Body is rendered straight through React (not renderToHtml).
     innerHTML = withRenderScope(() => {
-      setOnError(resolvedConfig.onError);
+      setRenderConfig(resolvedConfig);
       // What its content gives it (a <Font default>'s family), where it sets none: the body's, and its rows'.
       const given = rootDefaults(props, NAMES[mode] ?? "Body");
       Object.assign(values, given);

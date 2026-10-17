@@ -7,7 +7,7 @@ import { extractHeadFromTree } from "./extract-head";
 import { htmlRoot, providedConfig, ROOT_NAMES } from "./unwrap-root";
 import { rootConfig, rootMode, type RootConfigProps } from "../context/layer-config";
 import { normalizedRoot } from "../model";
-import { omissions, setOnError, withRenderScope } from "./render-scope";
+import { omissions, setRenderConfig, withRenderScope } from "./render-scope";
 import { isTailwindError } from "./tailwind";
 import {
   emailLayout,
@@ -44,7 +44,7 @@ export function renderBody(
 function bodyHtml(element: React.ReactElement, config?: Partial<UnlayerConfig>, name = "renderToHtml"): { html: string; inner?: string } {
   const mergedConfig = resolveConfig(element, config);
   // What it does with a part that fails (see RenderError): the render functions' option over the root's config.
-  setOnError(mergedConfig.onError);
+  setRenderConfig(mergedConfig);
 
   try {
     // Pass config via prop (not context) so this works in React Server Components: the root's own `config` and the
@@ -149,7 +149,7 @@ function styleText(css: string): string {
 function htmlDocument(element: React.ReactElement, options?: RenderToHtmlOptions): string {
   const { title, lang: optionLang, fonts: optionFonts = [], ...config } = options ?? {};
   // A template component (<Welcome/>) renders as its root, whose settings follow.
-  element = htmlRoot(element, "renderToHtml");
+  element = htmlRoot(element, "renderToHtml", config.idPrefix);
   // The root's own `fonts` prop, then the option's, each URL once.
   const rootFonts = (element.props as { fonts?: Array<{ url: string }> } | null)?.fonts ?? [];
   const fonts = [...rootFonts, ...optionFonts].filter((font, i, all) => font?.url && all.findIndex((f) => f?.url === font.url) === i);
@@ -224,9 +224,9 @@ export function renderToPlainText(
 ): string {
   // A template component renders as its root, as in renderToHtml (context providers around it included).
   const html = withRenderScope(() => {
-    const root = htmlRoot(element, "renderToPlainText");
+    const root = htmlRoot(element, "renderToPlainText", config?.idPrefix);
     const resolved = resolveConfig(root, config);
-    setOnError(resolved.onError);
+    setRenderConfig(resolved);
     // Collected first, as renderToHtml's head is: it fails where that does.
     normalizedRoot(root, rootMode(root, resolved));
     return renderBody(root, config, "renderToPlainText");
@@ -313,7 +313,7 @@ export function renderToHtmlParts(
 }
 
 function htmlParts(element: React.ReactElement, config?: Partial<UnlayerConfig>): HtmlParts {
-  element = htmlRoot(element, "renderToHtmlParts");
+  element = htmlRoot(element, "renderToHtmlParts", config?.idPrefix);
   // Render body markup
   const body = renderBody(element, config, "renderToHtmlParts");
 

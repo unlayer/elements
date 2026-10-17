@@ -36,16 +36,19 @@ function treeId(tree: TreeContext): string {
   return (id & ~(1 << (32 - clz32(id) - 1))).toString(32) + tree.overflow;
 }
 
-/** The `local`-th `useId()` of the component at `tree` (no `identifierPrefix`: Elements' ids carry nothing of its own). */
-export function makeId(tree: TreeContext, local: number): string {
+/**
+ * The `local`-th `useId()` of the component at `tree`, after `prefix` as React writes its `identifierPrefix` (the
+ * render's `idPrefix`; Elements' ids carry nothing of its own).
+ */
+export function makeId(tree: TreeContext, local: number, prefix = ""): string {
   const tid = treeId(tree);
   const h = local > 0 ? "H" + local.toString(32) : "";
   switch (idFormat()) {
     case "underscore":
-      return `_R_${tid}${h}_`;
+      return `_${prefix}R_${tid}${h}_`;
     case "guillemet":
-      return `«R${tid}${h}»`;
+      return `«${prefix}R${tid}${h}»`;
     default:
-      return `:R${tid}${h}:`;
+      return `:${prefix}R${tid}${h}:`;
   }
 }

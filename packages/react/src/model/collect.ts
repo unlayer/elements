@@ -7,7 +7,7 @@ import type React from "react";
 import type { Recorded } from "../utils/collect";
 import { collector, guard } from "../utils/record";
 import { contentTree, isUnlayerProvider } from "../utils/unwrap-root";
-import { omitted, onError, scopeCache, withScope } from "../utils/render-scope";
+import { idPrefix, omitted, onError, scopeCache, withScope } from "../utils/render-scope";
 import { isTailwindError } from "../utils/tailwind";
 import { collect as walk, type Flat, type Item, type RenderError } from "../engine";
 import { omits } from "../engine/errors";
@@ -33,7 +33,7 @@ export interface Collected {
 export function collecting(children: React.ReactNode, root: string) {
   const policy = onError();
   const options = { omit: omits(policy) };
-  return { node: guard(children, options, root), options: { collector: collector(options), onError: policy, root, tree: contentTree(children), passes: isTailwindError, frameless: isUnlayerProvider } };
+  return { node: guard(children, options, root), options: { collector: collector(options), onError: policy, idPrefix: idPrefix(), root, tree: contentTree(children), passes: isTailwindError, frameless: isUnlayerProvider } };
 }
 
 /** A collecting walk's output as the collected template; what it left out listed and said (this render's). */

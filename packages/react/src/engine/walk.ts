@@ -61,6 +61,8 @@ export interface Walker {
   passes?: (error: unknown) => boolean;
   /** Components that are no place of their own in positions (an <UnlayerProvider>: its children are where it is). */
   frameless?: (type: unknown) => boolean;
+  /** What the `useId()`s start with (the render's `idPrefix`). */
+  idPrefix?: string;
   collector?: Collector;
   /** Boundaries leave out what fails (`onError: "omit"`); an async walk's always catch, flattening decides. */
   omit: boolean;
@@ -325,7 +327,7 @@ function walkFunction(w: Walker, fn: Function, named: unknown, props: Record<str
   const frame = w.frameless?.(named) ? task.frame : childFrame(task.frame, name);
   // Not called when nothing can wait for it (and the promise it gives back could reject unhandled).
   if (!w.wait && isAsyncFunction(fn)) throw new SyncSuspend(name, frame);
-  const state = hookState(name, task.tree, task.contexts);
+  const state = hookState(name, task.tree, task.contexts, w.idPrefix);
   if (!w.bare?.(named)) return callAndWalk(w, state, fn, props, secondArg, frame, task, out, keep);
   let result: unknown;
   try {

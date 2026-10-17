@@ -41,6 +41,8 @@ export interface HookState {
   name: string;
   tree: TreeContext;
   contexts: ContextStack | null;
+  /** What its `useId()`s start with (the render's `idPrefix`). */
+  idPrefix: string;
   /** useId calls so far (React's localIdCounter): more than 0 gives its children a fork of the tree. */
   localId: number;
   /** Thenables `use()` was given, by call order, kept when it's called again (React's thenableState). */
@@ -55,8 +57,8 @@ export interface HookState {
   rerender: boolean;
 }
 
-export function hookState(name: string, tree: TreeContext, contexts: ContextStack | null): HookState {
-  return { name, tree, contexts, localId: 0, thenables: [], thenableIndex: 0, hookIndex: 0, rerender: false };
+export function hookState(name: string, tree: TreeContext, contexts: ContextStack | null, idPrefix = ""): HookState {
+  return { name, tree, contexts, idPrefix, localId: 0, thenables: [], thenableIndex: 0, hookIndex: 0, rerender: false };
 }
 
 /** Thrown by `use()` of a pending thenable (the walker reads `suspendedOn`). */
@@ -174,7 +176,7 @@ const HOOKS = {
   },
   useId() {
     const state = current();
-    return makeId(state.tree, state.localId++);
+    return makeId(state.tree, state.localId++, state.idPrefix);
   },
   // Effects never run on a server.
   useEffect: noop,

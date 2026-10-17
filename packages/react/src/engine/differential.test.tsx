@@ -114,6 +114,16 @@ describe("the walker against react-dom/server", () => {
     expect(different.slice(0, 10)).toEqual([]);
   });
 
+  it("gives the same useId()s with a prefix, as React's identifierPrefix", () => {
+    const different: number[] = [];
+    for (let seed = 1; seed <= 100; seed++) {
+      const tree = randomTree(seed);
+      const html = renderToStaticMarkup(tree, { identifierPrefix: "em-" }).replace(/<link rel="preload" as="image"[^>]*\/>/g, "");
+      if (renderStatic(tree, { idPrefix: "em-" }) !== html) different.push(seed);
+    }
+    expect(different.slice(0, 10)).toEqual([]);
+  });
+
   it(`writes the same for ${SEEDS} random trees`, () => {
     const different: number[] = [];
     let bytes = 0;

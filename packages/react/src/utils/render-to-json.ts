@@ -30,7 +30,7 @@ import { componentName, getDisplayName, providedConfig, ROOT_NAMES, unwrapRoot, 
 import { rootConfig, rootMode, type RootConfigProps } from "../context/layer-config";
 import { BODY_DEFAULTS, ROW_DEFAULTS, COLUMN_DEFAULTS } from "./container-defaults";
 import { contentSlotWidth, pinImageSrc, type SlotContext } from "./image-sizing";
-import { failedBefore, sayOnce, setOnError, withRenderScope } from "./render-scope";
+import { failedBefore, sayOnce, setRenderConfig, withRenderScope } from "./render-scope";
 import { renderBody } from "./render-to-html";
 import { collect, KEPT, normalizedChildren, normalizedRoot } from "../model";
 import type { Recorded } from "./collect";
@@ -58,9 +58,9 @@ type LayoutContext = Pick<
  * be called first. A wrapper that throws (React hooks aren't valid outside a
  * render) gets an actionable message instead of a bare "Invalid hook call".
  */
-function unwrapForJson(element: React.ReactElement): React.ReactElement {
+function unwrapForJson(element: React.ReactElement, idPrefix?: string): React.ReactElement {
   try {
-    return unwrapRoot(element);
+    return unwrapRoot(element, {}, idPrefix);
   } catch (cause) {
     const detail = cause instanceof Error ? cause.message : String(cause);
     throw new Error(
@@ -414,6 +414,8 @@ export function renderRowToJson(element: React.ReactElement): DesignRow {
 export interface RenderToJsonOptions {
   /** What a part of the template that fails does (see UnlayerConfig's `onError`), over the root's config's. */
   onError?: UnlayerConfig["onError"];
+  /** What the template's `useId()`s start with (see UnlayerConfig's `idPrefix`), over the root's config's. */
+  idPrefix?: UnlayerConfig["idPrefix"];
 }
 
 export function renderToJson(element: React.ReactElement, options?: RenderToJsonOptions): DesignJSON {
@@ -423,7 +425,7 @@ export function renderToJson(element: React.ReactElement, options?: RenderToJson
 function designJson(element: React.ReactElement, options?: RenderToJsonOptions): DesignJSON {
   // Accept a user wrapper component (e.g. <MyEmail/>) by unwrapping to its root,
   // matching renderToHtml which renders wrappers through React.
-  element = unwrapForJson(element);
+  element = unwrapForJson(element, options?.idPrefix);
   // The config of the <UnlayerProvider>s around it (the design keeps its direction), read before it's copied below.
   const provided = providedConfig(element);
   const displayName = getDisplayName(element);
@@ -432,8 +434,9 @@ function designJson(element: React.ReactElement, options?: RenderToJsonOptions):
   // One walk collects the rows and blocks (as the HTML does).
   let heads: Recorded[] = [];
   if (displayName && ROOT_NAMES.has(displayName)) {
-    const policy = rootConfig(element.props as RootConfigProps, provided, options).onError;
-    setOnError(policy);
+    const config = rootConfig(element.props as RootConfigProps, provided, options);
+    const policy = config.onError;
+    setRenderConfig(config);
     // Where failed parts are left out (`onError: "omit"`), its body is rendered as its HTML is, so a row or block whose
     // exporter fails is left out of the design too. Otherwise nothing renders its HTML: an exporter that fails
     // fails renderToHtml, which then gives nothing to disagree with.

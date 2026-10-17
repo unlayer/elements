@@ -562,3 +562,41 @@ describe("renderToHtml inside a React render", () => {
     expect(html).toContain('dir="rtl"');
   });
 });
+
+describe("idPrefix", () => {
+  // The useId()s of a template wrapper (the preview text) and of a component in it (a Paragraph's text).
+  const Named = () => <Paragraph html={`content ${React.useId()}`} />;
+  const Template = ({ config }: { config?: { idPrefix?: string } }) => (
+    <Email config={config} previewText={`wrapper ${React.useId()}`}>
+      <Row>
+        <Column>
+          <Named />
+        </Column>
+      </Row>
+    </Email>
+  );
+  /** The ids in HTML (any React's format), and what's before each: `wrapper ` or `content `. */
+  const ids = (html: string) => [...html.matchAll(/(wrapper|content) ([:«_][^\s<"]*?R[^\s<"]*?[:»_])(?=[\s<"])/g)].map((m) => `${m[1]} ${m[2]}`);
+  const prefixed = (prefix: string, list: string[]) => list.map((id) => id.replace(/([:«_])R/, `$1${prefix}R`));
+
+  it("starts the template's useId()s with it, as React's identifierPrefix, in the HTML and the design", async () => {
+    const plain = ids(renderToHtml(<Template />));
+    expect(plain.map((id) => id.split(" ")[0])).toEqual(["wrapper", "content"]);
+    expect(ids(renderToHtml(<Template />, { idPrefix: "em-" }))).toEqual(prefixed("em-", plain));
+    const design = ids(JSON.stringify(renderToJson(<Template />)));
+    expect(design.map((id) => id.split(" ")[0]).sort()).toEqual(["content", "wrapper"]);
+    expect(ids(JSON.stringify(renderToJson(<Template />, { idPrefix: "em-" })))).toEqual(prefixed("em-", design));
+    const { renderToHtml: renderAsync } = await import("../async");
+    expect(ids(await renderAsync(<Template />, { idPrefix: "em-" }))).toEqual(prefixed("em-", plain));
+  });
+
+  it("is the root's config's for its content, and an <UnlayerProvider>'s for the template inside it too", async () => {
+    const { UnlayerProvider } = await import("../context");
+    const plain = ids(renderToHtml(<Template />));
+    // (The wrapper is called before the root's config is read.)
+    expect(ids(renderToHtml(<Template config={{ idPrefix: "root-" }} />))).toEqual([plain[0], ...prefixed("root-", plain.slice(1))]);
+    expect(ids(renderToHtml(<UnlayerProvider config={{ idPrefix: "p-" }}><Template /></UnlayerProvider>))).toEqual(prefixed("p-", plain));
+    // The render's option wins.
+    expect(ids(renderToHtml(<UnlayerProvider config={{ idPrefix: "p-" }}><Template config={{ idPrefix: "root-" }} /></UnlayerProvider>, { idPrefix: "em-" }))).toEqual(prefixed("em-", plain));
+  });
+});
