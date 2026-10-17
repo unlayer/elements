@@ -29,18 +29,20 @@ async function unwrapAsync(element: React.ReactElement, take: (steps: Steps) => 
 /**
  * A root's content collected in `scope` by `collect` (waiting for its async components, `use()` and Suspense,
  * siblings at once), for the synchronous render after: what it does with parts that fail is `options`' over the
- * root's config.
+ * root's config. A template with no root (what it rendered: see `unwrapAsync`) is its own content, as the
+ * synchronous render collects it (see root-content.ts).
  */
 async function collectAsync(root: React.ReactElement, scope: Scope, options: Partial<UnlayerConfig> | undefined, collect: (node: React.ReactNode, walk: CollectOptions) => Promise<Flat>): Promise<Collected> {
   const props = root.props as RootConfigProps & { children?: React.ReactNode };
+  const content = isRoot(root.type) ? props.children : root;
   const name = rootName(root.type) ?? "Body";
   const { node, options: walk } = withScope(scope, () => {
     setRenderConfig(rootConfig(props, providedConfig(root), options));
-    return collecting(props.children, name);
+    return collecting(content, name);
   });
   const flat = await collect(node, walk);
   const done = withScope(scope, () => collectedFrom(flat));
-  scope.cache.set(props.children as object, done);
+  scope.cache.set(content as object, done);
   return done;
 }
 

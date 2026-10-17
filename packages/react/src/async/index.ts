@@ -72,15 +72,16 @@ async function tailwindLoader(): Promise<Load> {
 /**
  * Renders `element` once, resolving what's async in it: its root first (an async template, or one that `use()`s a
  * promise), then its content, walked waiting for its async components, Suspense and `use()` (siblings at once, the
- * output in tree order); the synchronous render `run` makes the output from that, in the same scope.
+ * output in tree order); the synchronous render `run` makes the output from that, in the same scope. A template with
+ * no root is its own content (what it rendered), but where `rootless` is false (the design, which needs a root).
  */
-async function render<T>(element: React.ReactElement, options: Partial<UnlayerConfig> | undefined, run: (root: React.ReactElement) => T): Promise<T> {
+async function render<T>(element: React.ReactElement, options: Partial<UnlayerConfig> | undefined, run: (root: React.ReactElement) => T, rootless = true): Promise<T> {
   const internals = (renderHtml as unknown as Record<symbol, Internals>)[Symbol.for("@unlayer/react-elements/internals")];
   const scope = internals.newScope();
   const root = await internals.unwrapAsync(element, take, options?.idPrefix);
-  const children = (root.props as { children?: React.ReactNode } | null)?.children;
+  const content = internals.isRoot(root.type) ? (root.props as { children?: React.ReactNode } | null)?.children : rootless && root;
   const scopes: Array<{ config?: TailwindConfig; load?: Load }> = [];
-  if (internals.isRoot(root.type) && children && typeof children === "object") {
+  if (content && typeof content === "object") {
     const collected = await internals.collectAsync(root, scope, options, (node, walk) => collectWaiting(internals.engine, node, walk));
     for (const r of collected.recorded) if (r.kind === "tailwind" && !r.props?.tw) scopes.push({ config: r.props?.config, load: typeof r.load === "function" ? r.load : undefined });
   }
@@ -126,7 +127,7 @@ export function renderToPlainText(element: React.ReactElement, config?: Partial<
 
 /** `renderToJson`, for templates that load data as they render (see renderToHtml), with the same options. */
 export function renderToJson(element: React.ReactElement, options?: RenderToJsonOptions): Promise<DesignJSON> {
-  return render(element, options, (root) => renderJson(root, options));
+  return render(element, options, (root) => renderJson(root, options), false);
 }
 
 /** `renderToHtmlParts`, for templates that load data as they render (see renderToHtml); with `pretty`, its head and body formatted. */

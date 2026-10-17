@@ -247,6 +247,55 @@ describe("the async renderers", () => {
     expect(runs.template).toBe(4);
   });
 
+  it("wait for what's async in a template with no root, as in a root, each run once; the synchronous renderers say where it is", async () => {
+    // An async block in a Column, an async Row, async markup and a thrown promise (React 18's Suspense) among Rows
+    // with no root around them.
+    const runs = { price: 0, total: 0, note: 0 };
+    const Price = async () => {
+      runs.price++;
+      return <Paragraph>{await later("$10")}</Paragraph>;
+    };
+    const Total = async () => {
+      runs.total++;
+      return <Row><Column><Paragraph>{await later("$20")}</Paragraph></Column></Row>;
+    };
+    const Note = async () => {
+      runs.note++;
+      return <b>{await later("$30")}</b>;
+    };
+    const template = (data: Data) => {
+      const Text = () => <Paragraph>{data.read()}</Paragraph>;
+      const Rows = () => (
+        <>
+          <Row><Column><Price /></Column></Row>
+          <Total />
+          <div><Note /></div>
+          <Row><Column><Text /></Column></Row>
+        </>
+      );
+      return <Rows />;
+    };
+    const data = suspending("Loaded");
+    const html = await renderToHtml(template(data));
+    for (const text of ["$10", "$20", "<b>$30</b>", "Loaded"]) expect(html).toContain(text);
+    expect(data.calls).toBe(2);
+    expect(runs).toEqual({ price: 1, total: 1, note: 1 });
+    expect(await renderToPlainText(template(suspending("Loaded")))).toBe("$10\n\n$20\n\n$30\n\nLoaded");
+    expect((await renderToHtmlParts(template(suspending("Loaded")))).body).toContain("$20");
+    expect(runs).toEqual({ price: 3, total: 3, note: 3 });
+    // The design needs a root, async or not: what's in the template isn't waited for.
+    await expect(renderToJson(template(suspending("Loaded")))).rejects.toThrow("Root element must be <Body>, <Email>, <Page>, or <Document>");
+    expect(runs).toEqual({ price: 3, total: 3, note: 3 });
+    // The synchronous renderers fail on the first, naming it and where it is.
+    const said = inSync("Price", "Rows › Row 1 › Column 1 › Price");
+    expect(() => renderToHtmlSync(template(suspending("Loaded")))).toThrow(said);
+    expect(() => renderToHtmlPartsSync(template(suspending("Loaded")))).toThrow(said);
+    expect(() => renderToPlainTextSync(template(suspending("Loaded")))).toThrow(said);
+    // (A template that suspends itself is one of the template's wrappers, said as they are.)
+    const Suspends = () => <Row><Column><Paragraph>{suspending("Loaded").read()}</Paragraph></Column></Row>;
+    expect(() => renderToHtmlSync(<Suspends />)).toThrow(TEMPLATE);
+  });
+
   it("give an async template the config of an <UnlayerProvider> around it, as the synchronous renderers do", async () => {
     const Loaded = async () => <Paragraph text={`Hi, the total is ${await later("$10")}`} />;
     async function Receipt() {
@@ -316,6 +365,9 @@ describe("the async renderers", () => {
     const design = await renderToJson(<Welcome />);
     expect(design.body.values.backgroundColor).toBe("#f3f4f6");
     expect(design.body.rows[0].columns[0].contents[0].values.color).toBe("#007291");
+    // Around Rows with no root too.
+    const rows = await renderToHtml(<Tailwind config={{ theme: { extend: { colors: { brand: "#007291" } } } }}><Row><Column><Paragraph className="text-brand">Hi</Paragraph></Column></Row></Tailwind>);
+    expect(rows).toMatch(/color: ?#007291/);
     // The Tailwind entry's async renderers are these.
     expect(tailwind.renderToHtml).toBe(renderToHtml);
     expect(tailwind.renderToJson).toBe(renderToJson);
