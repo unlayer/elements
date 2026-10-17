@@ -67,65 +67,21 @@ const Table = createItemComponent<TableValues, TableSemanticProps>({
       rows?: number;
     };
 
-    if (
-      headers ||
-      data ||
-      typeof columns === "number" ||
-      typeof rows === "number"
-    ) {
-      const base: Partial<TableValues> = mapSemanticProps(
-        rest as SemanticProps<TableValues>,
-        DEFAULT_VALUES,
-        "Table"
-      );
-
-      const colCount = headers
-        ? headers.length
-        : typeof columns === "number"
-          ? columns
-          : data?.[0]?.length ?? 0;
-      const blankCells = (n: number) =>
-        Array.from({ length: n }, () => ({ text: "", width: 0 }));
-
-      const tableHeaders = headers
-        ? [{ cells: headers.map((text: string) => ({ text, width: 0 })), height: 0 }]
-        : [];
-
-      const tableRows = data
-        ? data.map((row: string[]) => ({
-            cells: row.map((text: string) => ({ text, width: 0 })),
-            height: 0,
-          }))
-        : typeof rows === "number"
-          ? // No data: build an empty grid sized by `columns` × `rows`.
-            Array.from({ length: rows }, () => ({
-              cells: blankCells(colCount),
-              height: 0,
-            }))
-          : [];
-
-      base.table = { headers: tableHeaders, rows: tableRows, footers: [] };
-
-      if (headers || typeof columns === "number") {
-        base.columns = colCount;
-      }
-      if (headers) {
-        base.enableHeader = true;
-      }
-      if (data) {
-        base.rows = data.length;
-      } else if (typeof rows === "number") {
-        base.rows = rows;
-      }
-
+    if (headers || data || typeof columns === "number" || typeof rows === "number") {
+      const base: Partial<TableValues> = mapSemanticProps(rest as SemanticProps<TableValues>, DEFAULT_VALUES, "Table");
+      const colCount = headers ? headers.length : typeof columns === "number" ? columns : (data?.[0]?.length ?? 0);
+      const cellsOf = (row: string[]) => ({ cells: row.map((text) => ({ text, width: 0 })), height: 0 });
+      // No data: an empty grid sized by `columns` × `rows`.
+      const tableRows = data ? data.map(cellsOf) : typeof rows === "number" ? Array.from({ length: rows }, () => cellsOf(Array(colCount).fill(""))) : [];
+      base.table = { headers: headers ? [cellsOf(headers)] : [], rows: tableRows, footers: [] };
+      if (headers || typeof columns === "number") base.columns = colCount;
+      if (headers) base.enableHeader = true;
+      if (data) base.rows = data.length;
+      else if (typeof rows === "number") base.rows = rows;
       return base;
     }
 
-    return mapSemanticProps(
-      props as SemanticProps<TableValues>,
-      DEFAULT_VALUES,
-      "Table"
-    );
+    return mapSemanticProps(props as SemanticProps<TableValues>, DEFAULT_VALUES, "Table");
   },
   displayName: "Table",
   exporters: TableExporters,

@@ -9,6 +9,7 @@ import Button from "../components/Button";
 import Heading from "../components/Heading";
 import Paragraph from "../components/Paragraph";
 import Divider from "../components/Divider";
+import Document from "../components/Document";
 
 describe("renderToHtmlParts", () => {
   it("returns head and body as separate strings", () => {
@@ -187,5 +188,64 @@ describe("renderToHtmlParts", () => {
     // Divider has no head, but Body/Row/Column do
     expect(typeof head).toBe("string");
     expect(body.length).toBeGreaterThan(0);
+  });
+});
+
+describe("the body's link style", () => {
+  // Its head CSS is for the body's element (`#u_body_1 a`, the id its HTML has), as the editor's is for its body's
+  // (`#u_body a`): the links in it take the color. (It was for `#u_content_body_1`, which nothing has.)
+  it.each([["Email", Email], ["Page", Page], ["Document", Document]] as const)("%s: colors the links in the HTML", (_, Root) => {
+    const html = renderToHtml(
+      <Root linkStyle={{ linkColor: "#ff0000", linkUnderline: false }}>
+        <Row>
+          <Column>
+            <Paragraph html={'Read <a href="https://example.com">the guide</a>'} />
+          </Column>
+        </Row>
+      </Root>
+    );
+    const id = /<[a-z]+ [^>]*id="(u_body[^"]*)"/.exec(html)![1];
+    expect(html).toMatch(new RegExp(`#${id} a \\{\\s*color: #ff0000;\\s*text-decoration: none;`));
+    // As a browser shows it.
+    const before = document.documentElement.innerHTML;
+    try {
+      document.documentElement.innerHTML = html.replace(/^<!doctype html>/i, "").replace(/<\/?html[^>]*>/g, "");
+      const link = document.querySelector('a[href="https://example.com"]')!;
+      expect(getComputedStyle(link).color).toBe("rgb(255, 0, 0)");
+      expect(getComputedStyle(link).textDecoration).toBe("none");
+    } finally {
+      document.documentElement.innerHTML = before;
+    }
+  });
+});
+
+describe("the head, made in the same render as the HTML", () => {
+  it("maps no Row, Column or block again: it takes the values their HTML mapped, and writes the same CSS", () => {
+    const config = (Paragraph as unknown as Record<string, { propMapper: (props: object) => object }>).__unlayerItemConfig;
+    const own = config.propMapper;
+    let calls = 0;
+    config.propMapper = (props) => (calls++, own(props));
+    try {
+      const template = (
+        <Email>
+          <Row padding="0 4px" mobile={{ padding: "2px" }}>
+            <Column padding={8} mobile={{ padding: 3 }}>
+              <Paragraph linkStyle={{ inherit: false, linkColor: "#ff0000" }} mobile={{ fontSize: "12px" }}>
+                Hello
+              </Paragraph>
+            </Column>
+          </Row>
+        </Email>
+      );
+      const { css } = renderToHtmlParts(template);
+      expect(calls).toBe(0);
+      // (The CSS the head would write mapping them itself.)
+      expect(css).toMatch(/#u_content_paragraph_1 a\b[^}]*color: #ff0000/);
+      expect(css).toContain("#u_content_paragraph_1 .v-font-size { font-size: 12px !important; }");
+      expect(css).toContain("#u_row_1.v-row-padding { padding: 2px !important; }");
+      expect(css).toContain("#u_column_1 .v-col-padding { padding: 3px !important; }");
+    } finally {
+      config.propMapper = own;
+    }
   });
 });

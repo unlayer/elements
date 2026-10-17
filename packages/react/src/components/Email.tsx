@@ -1,4 +1,5 @@
 import Body, { type BodyProps } from "./Body";
+import { OWN } from "../utils/create-component";
 
 export type EmailProps = Omit<BodyProps, "mode">;
 
@@ -19,3 +20,4 @@ export default function Email(props: EmailProps) {
 }
 
 Email.displayName = "Email";
+((Email as unknown) as Record<symbol, boolean>)[OWN] = true;

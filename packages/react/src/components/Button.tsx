@@ -1,5 +1,5 @@
 import { ButtonExporters, ButtonDefaults } from "@unlayer/exporters";
-import type { ButtonValues, TextStyleProps, SizeInput, BorderInput } from "../types";
+import type { AlignAlias, ButtonValues, TextColorAlias, TextStyleProps, SizeInput, BorderInput } from "../types";
 import { createItemComponent, type ItemComponentProps } from "../utils/create-component";
 import { mapSemanticProps, type SemanticProps } from "../utils/semantic-props";
 
@@ -11,7 +11,9 @@ type ButtonSemanticProps = Omit<
   SemanticProps<ButtonValues>,
   keyof TextStyleProps | "width" | "padding" | "borderRadius" | "border"
 > &
-  TextStyleProps & {
+  TextStyleProps &
+  AlignAlias &
+  TextColorAlias & {
     /** Display width — a number/px pins the button; "100%" makes it full-width. */
     width?: SizeInput;
     /** Inner padding — a number (→ px) or CSS string ("14px 28px"). */
@@ -20,6 +22,8 @@ type ButtonSemanticProps = Omit<
     borderRadius?: SizeInput;
     /** Per-side border object (width fields accept a number/px string). */
     border?: BorderInput;
+    /** Where its link (`href`) opens: `_blank` (a new tab, the default), `_self`, … */
+    target?: string;
   };
 
 /**
@@ -76,11 +80,7 @@ const Button = createItemComponent<ButtonValues, ButtonSemanticProps>({
   name: "Button",
   defaultValues: DEFAULT_VALUES,
   propMapper: (props) => {
-    const mapped = mapSemanticProps(
-      props as SemanticProps<ButtonValues>,
-      DEFAULT_VALUES,
-      "Button"
-    );
+    const mapped = mapSemanticProps(props as SemanticProps<ButtonValues>, DEFAULT_VALUES, "Button");
     // In Unlayer's model a button's display width is size.width, used only when
     // size.autoWidth is false (otherwise the width is auto / content-sized). So a
     // user-provided width sets autoWidth:false. Read the MAPPED size, which
@@ -104,6 +104,7 @@ const Button = createItemComponent<ButtonValues, ButtonSemanticProps>({
     return mapped;
   },
   displayName: "Button",
+  at: /<a [^>]*>/,
   exporters: ButtonExporters,
 });
 

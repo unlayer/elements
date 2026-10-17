@@ -60,18 +60,24 @@ This factory:
 
 ```
 JSX flat props
-  → one React render collects the template (utils/normalize.tsx): Row, Column and blocks record their props
-    and render markers, React renders everything else (the user's components, hooks, Context, Fragments);
-    the result is the template as Elements components only (Email > Row > Column > blocks)
-  → the HTML, the head and the design are all made from that collected tree, so they can't disagree
+  → template wrappers called once, with hooks, until the root (utils/unwrap-root.ts)
+  → the walker (src/engine) renders the content once, no react-dom: Row, Column, blocks, <Tailwind> and
+    <Head>/<Font> are recorded by their markers (utils/record.tsx), what's inside them walked inside their
+    records; everything else (the user's components, hooks, Context, Fragments, async components and use())
+    as React renders it. Its output is the content as a tree of records, markup and text (engine/output.ts)
+  → that tree made the template as Elements components only (Email > Row > Column > blocks, src/model),
+    nothing parsed; the HTML, the head and the design are all made from it, so they can't disagree
   → mapSemanticProps() converts to nested values matching @unlayer/types
-  → each row is rendered with ReactDOMServer.renderToString(); BodyExporter from @unlayer/exporters
-    produces final HTML per mode
+  → each row's HTML is Row/Column/blocks calling @unlayer/exporters (written by the walker's static
+    markup); BodyExporter produces final HTML per mode
 ```
 
-A component that throws, suspends or is async is left out at the nearest Row, Column or root child (a
-Suspense boundary), with a message naming it; the rest renders. The collector is a module-level stack shared
-by every copy of Elements in a process (`Symbol.for`), not React context, so it works in Server Components.
+A part that fails (a component that throws, or is async in a synchronous render; a Row whose Columns don't fit
+its layout; an exporter) fails the render with a `RenderError` naming it and its position (`Row 3 › Column 1 ›
+Hero`), the original as `cause`; with `onError: "omit"` (or a function) it's left out of the HTML, text and design
+alike and listed (`renderToHtmlParts().omitted`). The walker installs its own hooks dispatcher in React's slot
+around each component call only. See `packages/react/ARCHITECTURE.md` (pipeline, dispatcher, React version table
+and self-check, async walk, error policy, invariants) before changing the renderer.
 
 Three render modes: `email` (table-based), `web` (div+flexbox), `document` (print).
 
@@ -93,9 +99,18 @@ Example: `<Button fontSize="16px">` → `{ style: { fontSize: "16px" } }` in the
 |------|---------|
 | `packages/react/src/index.ts` | Main barrel export |
 | `packages/react/src/utils/create-component.tsx` | Component factory |
+| `packages/react/src/exporters/` | Divider's, Html's, Menu's and Social's web and document HTML as strings: @unlayer/exporters renders it with react-dom/server, which can't run in an edge runtime or a Server Components layer. `markup.ts` writes what React's static markup would with the engine's host markup (`src/engine/host.ts`, `attributes.ts`: React 18's or 19's rules, by the installed React's version); `parity.test.tsx` compares them with the pinned exporters (it fails when a new pin's HTML differs), `react-19.test.ts` with React 19's output |
 | `packages/react/src/utils/render-to-html.tsx` | `renderToHtml()` implementation |
 | `packages/react/src/utils/document-layouts.ts` | Per-mode document shells (email/web/document), kept in parity with the editor's exported documents |
 | `packages/react/src/utils/render-to-json.ts` | `renderToJson()` implementation |
+| `packages/react/src/utils/inline-html.ts` | Rich text children (inline JSX, components such as react-intl's) of Paragraph/Heading/Button: rendered in the collecting render (`record.tsx`), kept to inline formatting here |
+| `packages/react/src/utils/tailwind.ts`, `src/utils/internals.ts` | The main entry's hooks for the other entries: a scope component (`<Tailwind>`) whose props rewrite those of the components inside it, recorded in the collecting render; and the internals the other entries use (on `renderToHtml[Symbol.for("@unlayer/react-elements/internals")]`) |
+| `packages/react/src/tailwind/Tailwind.tsx` | `<Tailwind>` (in the `tailwind` entry, not the main one): classes of the components inside it as their props (how each component takes them: `src/tailwind/tables.ts`), and what no prop takes as an inline `style` |
+| `packages/react/src/tailwind/inherit.ts`, `src/tailwind/row.ts` | A Row's rewrite (the Row's own, else one of its Columns', else the root's; src/model/elements.ts runs it on the Row's Columns): text classes on a Row, a Column or the root as the props of the text blocks inside, as CSS inherits them, and a border without a color in the text color around it (`inherit.ts`); then the Row's padding classes and its Columns' margins placed in its Columns (`row.ts`) |
+| `packages/react/src/tailwind/index.ts` | The `@unlayer/react-elements/tailwind` entry: `loadTailwind()` (the only code that loads `tailwindcss`), the class → declaration → prop reading (and classes in `html` markup → inline styles), the async renderers |
+| `packages/react/src/engine/` | The walker: renders templates as react-dom's static server render would, without react-dom (`walk.ts`), with its own hooks dispatcher (`dispatcher.ts`), host markup (`host.ts`, `attributes.ts`, which the string exporters write with too), tree-order output (`output.ts`), the React version table and self-check (`react-compat.ts`, `self-test.ts`). See `packages/react/ARCHITECTURE.md` |
+| `packages/react/src/async/` | The `@unlayer/react-elements/async` entry (also the Tailwind entry's async renderers): an async template awaited, then the content collected once by the walker's async walk (async components, Suspense and `use()` awaited, siblings at once, output in tree order), which the synchronous render reuses; `pretty` with prettier (optional peer) |
+| `packages/react/src/markdown/`, `src/code/`, `src/font/`, `src/head/` | The `markdown` (Markdown → blocks, built-in `marked`), `code` (CodeBlock, CodeInline, built-in `highlight.js` and themes, highlight.js's ported), `font` (`<Font>`) and `head` (`<Head>`) entries. They import the main entry by the package's name (`tsup.config.ts` keeps it external; `vitest.config.ts` and the tsconfigs map it to `src/`), so all entries share one copy of Elements; their libraries are built in (licenses in `packages/react/THIRD_PARTY_LICENSES.md`) and never reach the main entry |
 | `packages/react/src/utils/semantic-props.ts` | Flat → nested prop mapper |
 | `packages/react/src/components/Body.tsx` | Core container component (handles all 3 modes) |
 | `packages/react/src/components/Row.tsx` | Row layout with column management |
@@ -109,7 +124,7 @@ Example: `<Button fontSize="16px">` → `{ style: { fontSize: "16px" } }` in the
 - **Snapshot tests**: `packages/react/src/components/snapshots.test.tsx` — every component in web + email modes
 - **Golden template test**: `packages/react/src/golden-template.test.tsx` — full realistic email through all 4 render pipelines
 - **Node environment test**: `packages/react/src/node-import.test.ts` — verifies no browser API dependency
-- **Next.js integration**: `tests/nextjs-integration/` — real Next.js 15 app build (Turbopack) that renders an email in a route handler, a Server Component and an edge route (`verify.mjs`); `tests/next14-integration/` the same on Next.js 14 with React 18; `tests/next16-integration/` on Next.js 16 with Cache Components (create-next-app's default), where the route handler, Server Component and Client Component are prerendered when the app builds, which fails if a render reads a random number or the date (`src/regression/render-isolation.test.tsx` checks that too); `tests/jest-integration/` the packed package in Jest 30's jsdom environment with React 19
+- **Next.js integration**: `tests/nextjs-integration/` — real Next.js 15 app, built with Turbopack and with webpack (`npm run build:webpack`), that renders an email in a route handler, a Server Component, a Client Component, an edge route and Pages Router API routes (Node.js and edge), each with every entry of Elements too (`src/lib/entries.ts`, `verify.mjs`); `tests/next14-integration/` the same on Next.js 14 with React 18; `tests/next16-integration/` on Next.js 16 with Cache Components (create-next-app's default), where the route handler, Server Component and Client Component are prerendered when the app builds, which fails if a render reads a random number or the date (`src/regression/render-isolation.test.tsx` checks that too); `tests/jest-integration/` the packed package in Jest 30's jsdom environment with React 19
 - **Storybook smoke test**: `packages/react/.storybook/test-runner.ts` — opens every story in headless Chromium and asserts each component paints visible content with no console / page errors. Runs against both the dev server (`pnpm test-storybook`) and the production static build (`pnpm test-storybook:ci`). Note: Storybook bundles from `src/` via Vite — the published `dist/` artifact is covered by the Next.js integration and the CSP gate.
 - **CSP safety gate**: `packages/react/scripts/csp-probe.mjs` (`pnpm test:csp`) — imports + renders the built `dist/` bundle under V8's `--disallow-code-generation-from-strings` (a Content-Security-Policy without `'unsafe-eval'`). **Hard gate**: fails if this package _or_ its pinned `@unlayer/exporters` evaluates a string (`eval` / `new Function`) at import or render. It stays red until the workspace catalog pins a precompiled / CSP-safe `@unlayer/exporters` release — a green check must mean the package is genuinely CSP-safe.
 - **Storybook visual-drift gate**: `packages/react/scripts/storybook-visual.mjs` (`pnpm test:visual`, needs `pnpm build-storybook` first) — fingerprints the computed styles and the visible text of every story (276 renders) at desktop + mobile widths in headless Chromium and diffs against the committed `scripts/storybook-visual-baseline.json` (dictionary-encoded; regenerate intentional changes with `UPDATE_VISUAL_BASELINE=1 pnpm test:visual`). Fails naming the exact stories and property-level diffs. Computed styles, not pixel screenshots — deterministic across macOS/Linux; blind only to pure rasterization differences.
@@ -127,7 +142,8 @@ Example: `<Button fontSize="16px">` → `{ style: { fontSize: "16px" } }` in the
 
 - TypeScript strict compilation
 - All unit tests pass
-- Bundle size < 118KB (ESM)
+- Bundle size < 173.5KB (ESM, main entry; the `tailwind`, `async`, `markdown`, `code`, `font` and `head` entries aren't counted)
+- The react package's suite on React 18.3, 19.1, 19.2 and the latest 19, in React's development and production builds (the walker against react-dom/server, useId()s included; React's react-server build); weekly against React's canary (`react-canary.yml`, reports only)
 - Elements output matches the previous release (designs, plain text) and the reviewed snapshots (HTML, template patterns); hostile inputs add no markup
 - Next.js integration build succeeds
 - Browser E2E gate passes (rendered documents verified in Chromium: 0px `<p>` margins, single `<body>`, no errors)

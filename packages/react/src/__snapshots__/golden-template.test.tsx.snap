@@ -17,6 +17,9 @@ exports[`Golden Template: Marketing Email > snapshot locks the full email HTML 1
   <meta name="x-apple-disable-message-reformatting">
   <!--[if !mso]><!--><meta http-equiv="X-UA-Compatible" content="IE=edge"><!--<![endif]-->
   <style type="text/css">
+sub,sup{line-height:0}
+
+body{margin:0;padding:0}table,td,tr{border-collapse:collapse;vertical-align:top}p{margin:0}.ie-container table,.mso-container table{table-layout:fixed}*{line-height:inherit}a[x-apple-data-detectors=true]{color:inherit!important;text-decoration:none!important}
 @media (min-width: 0px) { .hide-default__display-block { display: block !important; mso-hide: unset !important; } .hide-default__display-table { display: table !important; mso-hide: unset !important; } }
 @media (max-width: 480px) { .hide-mobile { max-height: 0px; overflow: hidden; display: none !important; } }
 @media (min-width: 481px) { .hide-desktop { max-height: 0px; overflow: hidden; display: none !important; } }
@@ -31,7 +34,7 @@ exports[`Golden Template: Marketing Email > snapshot locks the full email HTML 1
   }
   
   
-  #u_content_body_1 a {
+  #u_body_1 a {
   
     color: #0000ee;
     text-decoration: underline;
@@ -95,7 +98,7 @@ exports[`Golden Template: Marketing Email > snapshot locks the full email HTML 1
   <tr>
     <td class="v-text-align" style="padding-right: 0px;padding-left: 0px;" align="center">
       
-      <img align="center" border="0" src="https://example.com/logo.png" alt="Acme Co" title="Acme Co" style="outline: none;text-decoration: none;-ms-interpolation-mode: bicubic;clear: both;display: inline-block !important;border: none;height: auto;float: none;width: 100%;max-width: 560px;" width="560" class="v-src-width v-src-max-width"/>
+      <img align="center" border="0" src="https://example.com/logo.png" alt="Acme Co" title="Acme Co" style="outline: none;text-decoration: none;-ms-interpolation-mode: bicubic;clear: both;display: inline-block !important;border: none;height: auto;float: none;width: 100%;max-width: 540px;" width="540" class="v-src-width v-src-max-width"/>
       
     </td>
   </tr>
@@ -232,7 +235,7 @@ exports[`Golden Template: Marketing Email > snapshot locks the full email HTML 1
   <tr>
     <td class="v-text-align" style="padding-right: 0px;padding-left: 0px;" align="center">
       
-      <img align="center" border="0" src="https://example.com/hero.jpg" alt="Spring Collection" title="Spring Collection" style="outline: none;text-decoration: none;-ms-interpolation-mode: bicubic;clear: both;display: inline-block !important;border: none;height: auto;float: none;width: 100%;max-width: 600px;" width="600" class="v-src-width v-src-max-width"/>
+      <img align="center" border="0" src="https://example.com/hero.jpg" alt="Spring Collection" title="Spring Collection" style="outline: none;text-decoration: none;-ms-interpolation-mode: bicubic;clear: both;display: inline-block !important;border: none;height: auto;float: none;width: 100%;max-width: 580px;" width="580" class="v-src-width v-src-max-width"/>
       
     </td>
   </tr>
@@ -262,8 +265,8 @@ exports[`Golden Template: Marketing Email > snapshot locks the full email HTML 1
     <tr>
       <td class="v-container-padding-padding" style="overflow-wrap:break-word;word-break:break-word;padding:10px;font-family:arial,helvetica,sans-serif;" align="left">
         
-  <div class="v-color v-line-height v-font-weight v-font-family v-font-size v-letter-spacing v-text-align" style="font-size: 14px; color: #666666; line-height: 1.4;  text-align: center; word-wrap: break-word;">
-    <p style="margin: 0px; margin-block-start: 0px; margin-block-end: 0px;">Fresh styles for the new season. Limited time only.</p>
+  <div class="v-color v-text-align v-line-height v-font-weight v-font-family v-font-size v-letter-spacing" style="font-size: 14px; color: #666666; line-height: 140%; text-align: center; word-wrap: break-word;">
+    Fresh styles for the new season. Limited time only.
   </div>
 
       </td>
@@ -395,7 +398,7 @@ exports[`Golden Template: Marketing Email > snapshot locks the full email HTML 1
   <tr>
     <td class="v-text-align" style="padding-right: 0px;padding-left: 0px;" align="center">
       
-      <img align="center" border="0" src="https://example.com/product-a.jpg" alt="Product A" title="Product A" style="outline: none;text-decoration: none;-ms-interpolation-mode: bicubic;clear: both;display: inline-block !important;border: none;height: auto;float: none;width: 100%;max-width: 300px;" width="300" class="v-src-width v-src-max-width"/>
+      <img align="center" border="0" src="https://example.com/product-a.jpg" alt="Product A" title="Product A" style="outline: none;text-decoration: none;-ms-interpolation-mode: bicubic;clear: both;display: inline-block !important;border: none;height: auto;float: none;width: 100%;max-width: 280px;" width="280" class="v-src-width v-src-max-width"/>
       
     </td>
   </tr>
@@ -411,8 +414,8 @@ exports[`Golden Template: Marketing Email > snapshot locks the full email HTML 1
     <tr>
       <td class="v-container-padding-padding" style="overflow-wrap:break-word;word-break:break-word;padding:10px;font-family:arial,helvetica,sans-serif;" align="left">
         
-  <div class="v-color v-line-height v-font-weight v-font-family v-font-size v-letter-spacing v-text-align" style="font-size: 16px; color: #333333; line-height: 1.4;  text-align: center; word-wrap: break-word;">
-    <p style="margin: 0px; margin-block-start: 0px; margin-block-end: 0px;">Classic Tee — $29.99</p>
+  <div class="v-color v-text-align v-line-height v-font-weight v-font-family v-font-size v-letter-spacing" style="font-size: 16px; color: #333333; line-height: 140%; text-align: center; word-wrap: break-word;">
+    Classic Tee — $29.99
   </div>
 
       </td>
@@ -457,7 +460,7 @@ exports[`Golden Template: Marketing Email > snapshot locks the full email HTML 1
   <tr>
     <td class="v-text-align" style="padding-right: 0px;padding-left: 0px;" align="center">
       
-      <img align="center" border="0" src="https://example.com/product-b.jpg" alt="Product B" title="Product B" style="outline: none;text-decoration: none;-ms-interpolation-mode: bicubic;clear: both;display: inline-block !important;border: none;height: auto;float: none;width: 100%;max-width: 300px;" width="300" class="v-src-width v-src-max-width"/>
+      <img align="center" border="0" src="https://example.com/product-b.jpg" alt="Product B" title="Product B" style="outline: none;text-decoration: none;-ms-interpolation-mode: bicubic;clear: both;display: inline-block !important;border: none;height: auto;float: none;width: 100%;max-width: 280px;" width="280" class="v-src-width v-src-max-width"/>
       
     </td>
   </tr>
@@ -473,8 +476,8 @@ exports[`Golden Template: Marketing Email > snapshot locks the full email HTML 1
     <tr>
       <td class="v-container-padding-padding" style="overflow-wrap:break-word;word-break:break-word;padding:10px;font-family:arial,helvetica,sans-serif;" align="left">
         
-  <div class="v-color v-line-height v-font-weight v-font-family v-font-size v-letter-spacing v-text-align" style="font-size: 16px; color: #333333; line-height: 1.4;  text-align: center; word-wrap: break-word;">
-    <p style="margin: 0px; margin-block-start: 0px; margin-block-end: 0px;">Slim Jeans — $49.99</p>
+  <div class="v-color v-text-align v-line-height v-font-weight v-font-family v-font-size v-letter-spacing" style="font-size: 16px; color: #333333; line-height: 140%; text-align: center; word-wrap: break-word;">
+    Slim Jeans — $49.99
   </div>
 
       </td>
@@ -738,8 +741,8 @@ exports[`Golden Template: Marketing Email > snapshot locks the full email HTML 1
     <tr>
       <td class="v-container-padding-padding" style="overflow-wrap:break-word;word-break:break-word;padding:10px;font-family:arial,helvetica,sans-serif;" align="left">
         
-  <div class="v-color v-line-height v-font-weight v-font-family v-font-size v-letter-spacing v-text-align" style="font-size: 11px; color: #999999; line-height: 1.4;  text-align: center; word-wrap: break-word;">
-    <p style="margin: 0px; margin-block-start: 0px; margin-block-end: 0px;">Acme Co, 123 Main St, Springfield. Unsubscribe.</p>
+  <div class="v-color v-text-align v-line-height v-font-weight v-font-family v-font-size v-letter-spacing" style="font-size: 11px; color: #999999; line-height: 140%; text-align: center; word-wrap: break-word;">
+    Acme Co, 123 Main St, Springfield. Unsubscribe.
   </div>
 
       </td>
@@ -777,6 +780,9 @@ exports[`Golden Template: Print Document > snapshot locks the full document HTML
 <head>
   <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
   <style type="text/css">
+body,html{margin:0;padding:0}html{box-sizing:border-box}*,:after,:before{box-sizing:inherit}html{font-size:14px}p{margin:0}sub,sup{line-height:0}
+
+a[onclick]{cursor:pointer}
 
   
 
@@ -808,13 +814,13 @@ exports[`Golden Template: Print Document > snapshot locks the full document HTML
 
   
   
-  #u_content_body_1 a {
+  #u_body_1 a {
   
     color: #0000ee;
     text-decoration: underline;
   }
   
-  #u_content_body_1 a:hover {
+  #u_body_1 a:hover {
     color: #0000ee;
     text-decoration: underline;
   }
@@ -856,8 +862,8 @@ exports[`Golden Template: Print Document > snapshot locks the full document HTML
 
   <div id="u_content_paragraph_1" data-page-row="u_content_paragraph_1" class="u_content_paragraph v-container-padding" style="overflow-wrap: break-word;padding: 10px;font-family: arial,helvetica,sans-serif;">
     
-  <div class="v-color v-line-height v-font-weight v-font-family v-font-size v-letter-spacing v-text-align" style="font-size: 14px; color: #000000; line-height: 1.4;  text-align: left; word-wrap: break-word;">
-    <p style="margin: 0px; margin-block-start: 0px; margin-block-end: 0px;">Revenue grew 14% quarter over quarter.</p>
+  <div class="v-color v-text-align v-line-height v-font-weight v-font-family v-font-size v-letter-spacing" style="font-size: 14px; color: #000000; line-height: 140%; text-align: left; word-wrap: break-word;">
+    Revenue grew 14% quarter over quarter.
   </div>
 
   </div>
@@ -868,8 +874,8 @@ exports[`Golden Template: Print Document > snapshot locks the full document HTML
 
   <div id="u_content_paragraph_2" data-page-row="u_content_paragraph_2" class="u_content_paragraph v-container-padding" style="overflow-wrap: break-word;padding: 10px;font-family: arial,helvetica,sans-serif;">
     
-  <div class="v-color v-line-height v-font-weight v-font-family v-font-size v-letter-spacing v-text-align" style="font-size: 14px; color: #000000; line-height: 1.4;  text-align: left; word-wrap: break-word;">
-    <p style="margin: 0px; margin-block-start: 0px; margin-block-end: 0px;">Operating costs remained flat.</p>
+  <div class="v-color v-text-align v-line-height v-font-weight v-font-family v-font-size v-letter-spacing" style="font-size: 14px; color: #000000; line-height: 140%; text-align: left; word-wrap: break-word;">
+    Operating costs remained flat.
   </div>
 
   </div>
@@ -897,6 +903,9 @@ exports[`Golden Template: Web Page (3-column) > snapshot locks the full page HTM
     <meta name="description" content="">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <style type="text/css">
+body,html{margin:0;padding:0}html{box-sizing:border-box}*,:after,:before{box-sizing:inherit}html{font-size:14px;-ms-overflow-style:scrollbar;-webkit-tap-highlight-color:rgba(0,0,0,0)}p{margin:0}.container{--bs-gutter-x:0px;--bs-gutter-y:0;margin-left:auto;margin-right:auto;padding-left:calc(var(--bs-gutter-x)*.5);padding-right:calc(var(--bs-gutter-x)*.5);width:100%}sub,sup{line-height:0}
+
+a[onclick]{cursor:pointer}
 @media (max-width: 480px) { .hide-mobile { display: none !important; } }
 @media (min-width: 481px) { .hide-desktop { display: none !important; } }
 
@@ -916,13 +925,13 @@ exports[`Golden Template: Web Page (3-column) > snapshot locks the full page HTM
 
   
   
-  #u_content_body_1 a {
+  #u_body_1 a {
   
     color: #0000ee;
     text-decoration: underline;
   }
   
-  #u_content_body_1 a:hover {
+  #u_body_1 a:hover {
     color: #0000ee;
     text-decoration: underline;
   }
@@ -974,8 +983,8 @@ exports[`Golden Template: Web Page (3-column) > snapshot locks the full page HTM
 
   <div id="u_content_paragraph_1" class="u_content_paragraph v-container-padding-padding" style="overflow-wrap: break-word;padding: 10px;">
     
-  <div class="v-color v-line-height v-font-weight v-font-family v-font-size v-letter-spacing v-text-align" style="font-size: 14px; color: #000000; line-height: 1.4;  text-align: left; word-wrap: break-word;">
-    <p style="margin: 0px; margin-block-start: 0px; margin-block-end: 0px;">Blazing fast performance.</p>
+  <div class="v-color v-text-align v-line-height v-font-weight v-font-family v-font-size v-letter-spacing" style="font-size: 14px; color: #000000; line-height: 140%; text-align: left; word-wrap: break-word;">
+    Blazing fast performance.
   </div>
 
   </div>
@@ -994,8 +1003,8 @@ exports[`Golden Template: Web Page (3-column) > snapshot locks the full page HTM
 
   <div id="u_content_paragraph_2" class="u_content_paragraph v-container-padding-padding" style="overflow-wrap: break-word;padding: 10px;">
     
-  <div class="v-color v-line-height v-font-weight v-font-family v-font-size v-letter-spacing v-text-align" style="font-size: 14px; color: #000000; line-height: 1.4;  text-align: left; word-wrap: break-word;">
-    <p style="margin: 0px; margin-block-start: 0px; margin-block-end: 0px;">Enterprise-grade security.</p>
+  <div class="v-color v-text-align v-line-height v-font-weight v-font-family v-font-size v-letter-spacing" style="font-size: 14px; color: #000000; line-height: 140%; text-align: left; word-wrap: break-word;">
+    Enterprise-grade security.
   </div>
 
   </div>
@@ -1014,8 +1023,8 @@ exports[`Golden Template: Web Page (3-column) > snapshot locks the full page HTM
 
   <div id="u_content_paragraph_3" class="u_content_paragraph v-container-padding-padding" style="overflow-wrap: break-word;padding: 10px;">
     
-  <div class="v-color v-line-height v-font-weight v-font-family v-font-size v-letter-spacing v-text-align" style="font-size: 14px; color: #000000; line-height: 1.4;  text-align: left; word-wrap: break-word;">
-    <p style="margin: 0px; margin-block-start: 0px; margin-block-end: 0px;">24/7 customer support.</p>
+  <div class="v-color v-text-align v-line-height v-font-weight v-font-family v-font-size v-letter-spacing" style="font-size: 14px; color: #000000; line-height: 140%; text-align: left; word-wrap: break-word;">
+    24/7 customer support.
   </div>
 
   </div>

@@ -3,6 +3,7 @@ import {
   textToTextJson,
   htmlToTextJson,
   generateHtmlFromTextJson,
+  textJsonToText,
   EMPTY_TEXT_JSON,
 } from "./lexical-helpers";
 
@@ -178,5 +179,29 @@ describe("generateHtmlFromTextJson", () => {
     expect(generateHtmlFromTextJson(mk({ tag: 'h1 onclick="alert(1)"' }))).toBe(
       "<h1>Hi</h1>"
     );
+  });
+});
+
+describe("textJsonToText", () => {
+  it("writes plain text as the text block holds it: escaped, in no paragraph, its quotes kept", () => {
+    expect(textJsonToText(textToTextJson('Fish & "chips" <b>'))).toBe('Fish &amp; "chips" &lt;b&gt;');
+    expect(textJsonToText(EMPTY_TEXT_JSON)).toBe("");
+  });
+
+  it("keeps HTML given as it is", () => {
+    expect(textJsonToText(htmlToTextJson('H<sub>2</sub>O <span style="font-size: 40px">$20</span>'))).toBe('H<sub>2</sub>O <span style="font-size: 40px">$20</span>');
+  });
+
+  it("writes formatting, links and several paragraphs as their HTML (generateHtmlFromTextJson's)", () => {
+    const rich = JSON.stringify({ root: { type: "root", children: [{ type: "paragraph", children: [{ type: "text", text: "Bold", format: 1 }] }] } });
+    const two = JSON.stringify({ root: { type: "root", children: [{ type: "paragraph", children: [{ type: "text", text: "One" }] }, { type: "paragraph", children: [{ type: "text", text: "Two" }] }] } });
+    const aligned = JSON.stringify({ root: { type: "root", children: [{ type: "paragraph", format: "center", children: [{ type: "text", text: "Mid" }] }] } });
+    for (const json of [rich, two, aligned]) expect(textJsonToText(json)).toBe(generateHtmlFromTextJson(json));
+    expect(textJsonToText(rich)).toBe(`<p style="${P_MARGIN_RESET}"><strong>Bold</strong></p>`);
+  });
+
+  it("is empty for JSON it can't read", () => {
+    expect(textJsonToText("{")).toBe("");
+    expect(textJsonToText("{}")).toBe("");
   });
 });

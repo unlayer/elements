@@ -202,7 +202,8 @@
    "_meta": {
     "htmlID": "u_body",
     "htmlClassNames": "u_body"
-   }
+   },
+   "displayMode": "email"
   }
  },
  "schemaVersion": 27

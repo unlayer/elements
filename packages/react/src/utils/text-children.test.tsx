@@ -1,8 +1,8 @@
 import { describe, it, expect, vi } from "vitest";
 import React from "react";
-import { renderToHtml } from "./render-to-html";
+import { renderToHtml, renderToPlainText } from "./render-to-html";
 import { renderToJson } from "./render-to-json";
-import { Email, Page, Document, Row, Column, Heading, Button, Paragraph, Menu } from "../index";
+import { Email, Page, Document, Row, Column, Heading, Button, Paragraph, Menu, Link } from "../index";
 
 // A value such as a user's name, with markup in it.
 const name = '<img src=x onerror="alert(1)"> & Co';
@@ -39,6 +39,103 @@ describe("text children of Heading and Button", () => {
     const [heading, button] = design.body.rows[0].columns[0].contents as Array<{ values: { text: string } }>;
     expect(heading.values.text).toBe("&lt;img src=x onerror=\"alert(1)\"&gt; &amp; Co");
     expect(button.values.text).toBe(heading.values.text);
+  });
+});
+
+describe("rich text children of Paragraph, Heading and Button", () => {
+  const Locale = React.createContext("en");
+  // As react-intl's <FormattedMessage> or react-i18next's <Trans>: a component that reads context and returns text.
+  const Message = ({ id }: { id: string }) => <>{React.useContext(Locale) === "es" ? `Hola ${id}` : `Hello ${id}`}</>;
+  const Name = () => <strong>Ada &amp; co</strong>;
+  const content = (
+    <>
+      <Paragraph>
+        Hello <strong>world</strong>, read{" "}
+        <a href="https://example.com/a?b=1&c=2" target="_blank" rel="noopener" title={'Say "hi"'} style={{ color: "#2563eb" }} onClick={() => {}}>
+          this <em>now</em>
+        </a>
+        .<br />
+        Next <span style={{ fontWeight: 700 }}>line</span> with <u>u</u>, <s>s</s>, <i>i</i>, <b>b</b>, <code>c</code>, x<sup>2</sup>, H<sub>2</sub>O, <small>small</small>, <mark>mark</mark>
+        {[" and ", <Name key="n" />]}
+      </Paragraph>
+      <Heading>
+        <Message id="Ada" /> <a href="javascript:alert(1)">x</a> <a href={"java\nscript:alert(1)"}>y</a> <span style={{ background: "url(javascript:alert(1))" }}>z</span>
+      </Heading>
+      <Button href="https://example.com">
+        Buy <em>now</em> {"<%first_name%>"}
+      </Button>
+      <Paragraph>
+        Not a block: <div>inside a div</div>
+        <table><tbody><tr><td>a cell</td></tr></tbody></table>
+        <img src="https://example.com/x.png" alt="x" />
+      </Paragraph>
+    </>
+  );
+  const email = (
+    <Locale.Provider value="es">
+      <Email>
+        <Row>
+          <Column>{content}</Column>
+        </Row>
+      </Email>
+    </Locale.Provider>
+  );
+  const RICH =
+    'Hello <strong>world</strong>, read <a href="https://example.com/a?b=1&amp;c=2" target="_blank" rel="noopener" title="Say &quot;hi&quot;" style="color:#2563eb">this <em>now</em></a>.<br/>Next <span style="font-weight:700">line</span> with <u>u</u>, <s>s</s>, <i>i</i>, <b>b</b>, <code>c</code>, x<sup>2</sup>, H<sub>2</sub>O, <small>small</small>, <mark>mark</mark> and <strong>Ada &amp; co</strong>';
+
+  it("keep their inline formatting in the design, components (with their context) rendered", () => {
+    const [paragraph, heading, button, blocks] = renderToJson(email).body.rows[0].columns[0].contents as Array<{ values: { text: string } }>;
+    expect(paragraph.values.text).toBe(RICH);
+    // What could run code goes: javascript: URLs (also split by a line break) and CSS that loads one; handlers aren't written.
+    expect(heading.values.text).toBe("Hola Ada <a>x</a> <a>y</a> <span>z</span>");
+    expect(button.values.text).toBe("Buy <em>now</em> <%first_name%>");
+    // No block gets into text: only the text of a div, a table or an image stays.
+    expect(blocks.values.text).toBe("Not a block: inside a diva cell");
+  });
+
+  it("render the same HTML, and plain text with links as text (url)", () => {
+    const html = renderToHtml(email);
+    // (In an email the editor's text block gives sub- and superscripts `line-height: 0` inline, as it exports them.)
+    expect(html).toContain(RICH.replace(/<(sub|sup)>/g, '<$1 style="line-height: 0;">'));
+    expect(html).toContain("Hola Ada <a>x</a>");
+    expect(html).not.toMatch(/javascript:|onclick|<div>inside|<img src="https:\/\/example.com\/x.png"/i);
+    const text = renderToPlainText(email);
+    expect(text).toContain("Hello world, read this now (https://example.com/a?b=1&c=2).\nNext line with u, s, i, b, c, x2, H2O, small, mark and Ada & co");
+  });
+
+  it("take a <Link>: its target and rel kept, in the HTML and the design", () => {
+    const linked = (
+      <Email><Row><Column>
+        <Paragraph>Read <Link href="https://example.com/docs">the docs</Link> or <Link href="https://example.com/faq" target="_self" title="FAQ">the FAQ</Link>.</Paragraph>
+      </Column></Row></Email>
+    );
+    const written = 'Read <a href="https://example.com/docs" target="_blank" rel="noopener">the docs</a> or <a href="https://example.com/faq" target="_self" title="FAQ">the FAQ</a>.';
+    expect(renderToHtml(linked)).toContain(written);
+    expect(renderToJson(linked).body.rows[0].columns[0].contents[0].values.text).toBe(written);
+    expect(renderToPlainText(linked)).toBe("Read the docs (https://example.com/docs) or the FAQ (https://example.com/faq).");
+  });
+
+  it("say which component in them can't render (async or suspending), naming it; left out, keep the rest", () => {
+    const Later = async () => "never";
+    const email = <Email><Row><Column><Paragraph>Hi <Later /> <b>there</b></Paragraph></Column></Row></Email>;
+    expect(() => renderToJson(email)).toThrow(/^\[Unlayer\] it is async or suspends.* \(in <Later> at Row 1 › Column 1 › Paragraph › Later\)$/);
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
+    try {
+      const json = renderToJson(email, { onError: "omit" });
+      expect(json.body.rows[0].columns[0].contents[0].values.text).toBe("Hi  <b>there</b>");
+      expect(error.mock.calls.map((c) => String(c[0]))).toEqual([expect.stringMatching(/^\[Unlayer\] Left out: it is async or suspends.*<Later>/)]);
+    } finally {
+      error.mockRestore();
+    }
+  });
+
+  it("leave text given as strings exactly as before", () => {
+    const strings = <Email><Row><Column><Paragraph>Hi {name}</Paragraph><Heading>{"A <b>b</b>"}</Heading><Button href="#">{["Go", " now"]}</Button></Column></Row></Email>;
+    const [paragraph, heading, button] = renderToJson(strings).body.rows[0].columns[0].contents as Array<{ values: { text: string } }>;
+    // (A Paragraph's string is text: escaped in the design's HTML, as in the email's, so the editor shows it as typed.)
+    expect(paragraph.values.text).toBe(`Hi &lt;img src=x onerror="alert(1)"&gt; &amp; Co`);
+    expect(heading.values.text).toBe("A &lt;b&gt;b&lt;/b&gt;");
+    expect(button.values.text).toBe("Go now");
   });
 });
 
@@ -183,6 +280,25 @@ describe("text placed straight in a Row or Column", () => {
     } finally {
       warn.mockRestore();
     }
+  });
+});
+
+describe("text blocks in a right-to-left document", () => {
+  it.each([["email", Email], ["web", Page], ["document", Document]] as const)("start on the right unless they're aligned; left-to-right ones are unchanged (%s)", (_, Root) => {
+    const blocks = (dir?: string) => (
+      <Root textDirection={dir}>
+        <Row><Column><Heading>مرحبا</Heading><Paragraph>نص</Paragraph><Paragraph textAlign="center">وسط</Paragraph><Button href="#">زر</Button></Column></Row>
+      </Root>
+    );
+    const rtl = renderToHtml(blocks("rtl"));
+    expect(rtl.match(/text-align: ?right/g)?.length).toBeGreaterThanOrEqual(2);
+    expect(rtl).toMatch(/text-align: ?center[^>]*>\s*(<p[^>]*>)?وسط/);
+    const [heading, paragraph, centered, button] = renderToJson(blocks("rtl")).body.rows[0].columns[0].contents as Array<{ values: { textAlign: string } }>;
+    expect([heading, paragraph, centered, button].map((c) => c.values.textAlign)).toEqual(["right", "right", "center", "center"]);
+    // Through the renderer's option too.
+    expect(renderToHtml(blocks(), { textDirection: "rtl" })).toMatch(/text-align: ?right/);
+    expect(renderToHtml(blocks())).not.toMatch(/text-align: ?right/);
+    expect(renderToJson(blocks()).body.rows[0].columns[0].contents.map((c: any) => c.values.textAlign)).toEqual(["left", "left", "center", "center"]);
   });
 });
 

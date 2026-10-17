@@ -120,6 +120,40 @@ export interface MenuItem {
 
 export type RenderMode = "web" | "email" | "document";
 
+/** Any text, number, true or false, or null, keeping a type's own strings and numbers as suggestions (see LooseValue). */
+type AnyScalar = (string & {}) | (number & {}) | boolean | null;
+
+/**
+ * A value as the builder may store it, at any depth: its own type, or any text, number, true or false, or null (designs
+ * hold `lineHeight: 1.5`, `fontWeight: "700"`, a padding as a number). Objects and lists keep their keys checked.
+ * `(string & {})` and `(number & {})` keep the type's own strings and numbers as suggestions, where a plain `string`
+ * would swallow them: don't simplify them.
+ */
+export type LooseValue<T> = T extends string | number | boolean | null | undefined
+  ? T | AnyScalar
+  : T extends (...args: any[]) => any
+    ? T
+    : T extends readonly (infer Item)[]
+      ? readonly LooseValue<Item>[] | AnyScalar
+      : T extends object
+        ? { [K in keyof T]?: LooseValue<T[K]> } | AnyScalar
+        : T;
+
+/**
+ * What a component's `values` prop takes: the builder's values, as many as you set (the defaults fill in the rest),
+ * at any depth. Its keys are checked, so a misspelled one is a type error; its values aren't (they reach the
+ * renderer as they are, as the builder stores them). The flat props are the typed way to set a value.
+ */
+export type ValuesInput<V> = { [K in keyof V]?: LooseValue<V[K]> } & {
+  /** Settings for one device (`mobile`, `desktop`), as the builder stores them: the `mobile` prop sets the phone's. */
+  _override?: {
+    mobile?: { [K in keyof V]?: LooseValue<V[K]> } & { hideMobile?: boolean };
+    desktop?: { [K in keyof V]?: LooseValue<V[K]> } & { hideDesktop?: boolean };
+  };
+  /** Hidden on a desktop screen (the `hideOnDesktop` prop). */
+  hideDesktop?: boolean;
+};
+
 // ============================================
 // DESIGN JSON TYPES (Unlayer editor schema)
 // ============================================

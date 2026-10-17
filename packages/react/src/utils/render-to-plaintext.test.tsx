@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import React from "react";
-import { renderToPlainText, renderToHtmlParts } from "./render-to-html";
+import { renderToPlainText, renderToHtmlParts, renderToHtml } from "./render-to-html";
+import { toPlainText } from "../index";
 import Body from "../components/Body";
 import Row from "../components/Row";
 import { Column } from "../components/Column";
@@ -146,4 +147,37 @@ describe("renderToHtmlParts", () => {
     expect(body).toContain("Web mode");
     expect(typeof head).toBe("string");
   });
+
+  describe("options and what's left out", () => {
+    const email = (
+      <Body>
+        <Row>
+          <Column>
+            <Heading>Your order</Heading>
+            <Paragraph html='Track it <a href="https://example.com/t">here</a>.' />
+            <Button href="https://example.com/o" skipInText>View order</Button>
+            <Paragraph skipInText>Sent by Example</Paragraph>
+          </Column>
+        </Row>
+      </Body>
+    );
+
+    it("leaves out a block with `skipInText`, in the text only", () => {
+      expect(renderToPlainText(email)).toBe("YOUR ORDER\n\nTrack it here (https://example.com/t).");
+      const { body } = renderToHtmlParts(email);
+      expect(body).toContain("View order");
+      expect(body).toContain("Sent by Example");
+    });
+
+    it("takes the text's options", () => {
+      expect(renderToPlainText(email, { links: "after", uppercaseHeadings: false })).toBe("Your order\n\nTrack it here [1].\n\n[1] https://example.com/t");
+      expect(renderToPlainText(email, { skip: ["h1"], links: "none" })).toBe("Track it here.");
+    });
+
+    it("writes any HTML as text with toPlainText, as it writes a template's", () => {
+      expect(toPlainText(renderToHtml(email), { links: "none" })).toBe("YOUR ORDER\n\nTrack it here.");
+      expect(toPlainText("<p>A</p><p>B</p>")).toBe("A\nB");
+    });
+  });
 });
+

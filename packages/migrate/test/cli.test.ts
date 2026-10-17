@@ -213,6 +213,23 @@ export default function Template() {
     expect(result.fonts).toEqual([{ label: "Inter", value: "Inter, Arial", url: "https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap" }]);
   });
 
+  it("migrates a template with a web font the design can't hold (a font file): no block the editor wouldn't get", async () => {
+    const source = `import { Html, Head, Font, Body, Text } from "@react-email/components";
+export default function Template() {
+  return (
+    <Html>
+      <Head>
+        <Font fontFamily="Brand Sans" fallbackFontFamily="Arial" webFont={{ url: "https://cdn.example.com/brand.woff2", format: "woff2" }} fontWeight={400} />
+      </Head>
+      <Body style={{ fontFamily: "Arial, sans-serif" }}><Text>Thanks for your order.</Text></Body>
+    </Html>
+  );
+}`;
+    const dir = project({ "emails/receipt.tsx": source });
+    const out = io(dir);
+    expect(await main(["emails", "--out", "migrated", "--design", "--report", "report.json"], out, lib), out.out + out.err).toBe(0);
+  });
+
   it("builds the design from the migrated preview props, whose JSX has styles instead of classes", async () => {
     const source = `import { Html, Body, Tailwind, Text } from "@react-email/components";
 export default function Template({ note }: { note: React.ReactNode }) {

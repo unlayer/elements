@@ -3,12 +3,19 @@
  * their root element. `renderToJson` walks the element tree and `renderToHtml`
  * reads the root's settings (fonts, language, direction, phone styles) from it,
  * so a wrapper is called first to reach <Email>/<Page>/<Document>/<Body>.
+ *
+ * Each wrapper is called once, with hooks (the engine's dispatcher), at its place in the tree and inside the context
+ * providers around it, as React would call it; the content then starts where the wrappers left the tree, so its
+ * `useId()`s and theirs are one document's.
  */
 
 import React from "react";
-import { renderToStaticMarkup } from "./server-renderer";
+import type { UnlayerConfig } from "@unlayer-internal/shared-elements";
 import { UNLAYER_RENDER_KEY } from "./create-component";
 import { RECORDS } from "./collect";
+import { TAILWIND } from "./tailwind";
+import { callClass, callComponent, contextOf, hookState, ROOT_TREE, RenderError, type ContextStack, type TreeContext } from "../engine";
+import { nameOf, threw } from "../engine/errors";
 
 /** The root components a design starts from. */
 export const ROOT_NAMES = new Set(["Body", "Email", "Page", "Document"]);
@@ -18,6 +25,23 @@ export const FORWARD_REF = Symbol.for("react.forward_ref");
 /** A context's provider: `<Ctx.Provider>` in React 18, `<Ctx>` (and `<Ctx.Provider>`, the same) in React 19. */
 const PROVIDER = Symbol.for("react.provider");
 const CONTEXT = Symbol.for("react.context");
+
+/** On <UnlayerProvider> (see context/UnlayerProvider.tsx). */
+const UNLAYER_PROVIDER = Symbol.for("@unlayer/react-elements/provider");
+export const isUnlayerProvider = (type: unknown): boolean => !!(type as Record<symbol, unknown> | null)?.[UNLAYER_PROVIDER];
+
+/**
+ * The config of the <UnlayerProvider>s around a root, by the root `unwrapRoot` gave back: the render functions read
+ * it as React would give it to the root (with no context: React Server Components have none).
+ */
+const PROVIDED = new WeakMap<object, Partial<UnlayerConfig>>();
+
+/** The config of the <UnlayerProvider>s `unwrapRoot` found around `root` (the inner one's keys over the outer's). */
+export const providedConfig = (root: React.ReactElement): Partial<UnlayerConfig> | undefined => PROVIDED.get(root);
+
+/** Where a root's content starts in the tree, by the content (the root's children), as its wrappers left it. */
+const CONTENT_TREE = new WeakMap<object, TreeContext>();
+export const contentTree = (children: unknown): TreeContext | undefined => (children !== null && typeof children === "object" ? CONTENT_TREE.get(children) : undefined);
 
 /**
  * The Elements component an element is, by the `displayName` Elements gives
@@ -39,80 +63,73 @@ export function isElementsType(type: any): boolean {
   return !!type?.[UNLAYER_RENDER_KEY] || CONTAINER_NAMES.has(type?.displayName);
 }
 
-/** Whether the element is an Elements component (a root, a container or a content block). */
-function isElementsComponent(element: React.ReactElement): boolean {
-  return isElementsType(element.type);
-}
-
 /** Thrown for a template that is async or suspends: renderToHtml renders synchronously. */
 const ASYNC_TEMPLATE =
-  "async and suspending templates aren't supported: load the data first and pass it as props";
+  'async and suspending templates need "@unlayer/react-elements/async"\'s renderers, or their data loaded first and passed as props';
 
-export const isThenable = (value: unknown): boolean => typeof (value as { then?: unknown } | null)?.then === "function";
+export const isThenable = (value: unknown): value is PromiseLike<unknown> => typeof (value as { then?: unknown } | null)?.then === "function";
 
-/** A promise a component gave back, which Elements doesn't wait for: its rejection mustn't end the process. */
-const settle = (value: unknown): void => {
-  if (isThenable(value)) (value as PromiseLike<unknown>).then(undefined, () => {});
-};
-
-/** A component declared `async`: it can't render synchronously, so it isn't called at all. */
-export function isAsyncComponent(type: any): boolean {
-  while (type?.$$typeof === MEMO) type = type.type;
-  return (type?.$$typeof === FORWARD_REF ? type.render : type)?.[Symbol.toStringTag] === "AsyncFunction";
+/** The provider an element is (`<Ctx value>`, `<Ctx.Provider value>`): its context and value. */
+function providerOf(element: unknown): { context: object; value: unknown } | undefined {
+  if (!React.isValidElement(element)) return undefined;
+  const type = element.type as any;
+  const props = element.props as { value?: unknown };
+  if (type?.$$typeof === PROVIDER) return { context: type._context, value: props.value };
+  if (type?.$$typeof === CONTEXT && "value" in props && type.Provider === type) return { context: contextOf(type), value: props.value };
+  return undefined;
 }
 
+export type Steps = Generator<PromiseLike<unknown>, React.ReactElement, unknown>;
+
 /**
- * Call a template component in a throwaway render of its own. Its hooks run
- * there, never on the component that is rendering when renderToHtml is called
- * (a live preview in `useMemo`), whose hooks they would otherwise corrupt.
- * Components called in renders of their own each need their own `prefix`, or
- * their `useId()` values repeat in the document.
+ * `call()` (a wrapper's: see the engine's callComponent) again each time it suspends, once what it suspended on
+ * settles (`use()` of a pending promise, or a thrown one: React 18's Suspense), as React calls it again: what it
+ * returns. What it waits for is yielded: the async renderers wait for it, the synchronous ones throw.
  */
-export function callIsolated(call: () => unknown, prefix?: string, providers: React.ReactElement[] = []): unknown {
-  let result: unknown;
-  let error: unknown;
-  let ran = false;
-  let threw = false;
-  let calling = false;
-  const Probe = () => {
-    // React's development build calls a component again from inside its render, with hooks off, to say where a warning
-    // came from (an undefined component, a list without keys): that call fails where the render didn't. A render React
-    // starts again (the template set its state while it rendered) counts, as its last one does in React.
-    if (calling) return null;
-    ran = calling = true;
-    threw = false;
+function* waiting<T>(call: () => T): Generator<PromiseLike<unknown>, T, unknown> {
+  for (;;) {
     try {
-      result = call();
-    } catch (cause) {
-      threw = true;
-      error = cause;
-    } finally {
-      calling = false;
+      return call();
+    } catch (thrown) {
+      if (!isThenable(thrown)) throw thrown;
+      try {
+        yield thrown;
+      } catch {
+        // It rejected: called again, the wrapper fails with it (`use()` throws it, and a promise thrown again is its
+        // rejection: see the engine's `failure`).
+      }
     }
-    return null;
-  };
-  // Inside the context providers around it, so a template that reads their context gets their values.
-  const probe = providers.reduceRight<React.ReactElement>((inside, provider) => React.cloneElement(provider, undefined, inside), React.createElement(Probe));
-  renderToStaticMarkup(probe, prefix ? { identifierPrefix: prefix } : undefined);
-  settle(error);
-  settle(result);
-  if (threw) throw isThenable(error) ? new Error(ASYNC_TEMPLATE) : error;
-  if (!ran) throw new Error("the template wasn't rendered");
-  if (isThenable(result)) throw new Error(ASYNC_TEMPLATE);
-  return result;
+  }
 }
 
 /**
- * Call wrapper components (plain functions, `memo`, `forwardRef`, nested in any
- * order) until a root element comes out, each in a render of its own (so its
- * hooks work). Returns the element it stops at, which isn't a root when a
- * wrapper can't be called (a class) or doesn't return an element (null, an
- * array). Throws what a wrapper throws, and for an async template.
+ * Wrappers called (plain functions, `memo`, `forwardRef`, nested in any order) until a root element comes out. It
+ * stops at an element that isn't a root when a wrapper doesn't return an element (null, an array), saying why in
+ * `why.unread`. What a wrapper waits for (an async one's promise, `use()`, a thrown promise) is yielded: the
+ * async renderers wait for it, the synchronous ones throw.
  */
-export function unwrapRoot(element: React.ReactElement, why: { unread?: string } = {}): React.ReactElement {
+function* steps(element: React.ReactElement, why: { unread?: string }, idPrefix?: string): Steps {
   let current = element;
   // Context providers around the root (`<Theme.Provider value="dark"><Email>…`): the root's content goes in them.
   const providers: React.ReactElement[] = [];
+  let contexts: ContextStack | null = null;
+  let tree = ROOT_TREE;
+  // The config of the <UnlayerProvider>s among them, the inner one's keys over the outer's (see providedConfig).
+  let provided: Record<string, unknown> | undefined;
+  /** `fn` called as the component `name` (hooks, context), its promises yielded. */
+  function* called(fn: (props: any, second?: unknown) => unknown, props: Record<string, unknown>, second: unknown, name: string): Generator<PromiseLike<unknown>, unknown, unknown> {
+    // (Its `useId()`s' prefix: the render's, else the <UnlayerProvider>s' around it.)
+    const prefix = idPrefix ?? provided?.idPrefix;
+    const state = hookState(name, tree, contexts, typeof prefix === "string" ? prefix : "");
+    const out = yield* waiting(() => callComponent(fn, props, second, state));
+    tree = out.tree;
+    if (!isThenable(out.value)) return out.value;
+    try {
+      return yield out.value;
+    } catch (error) {
+      throw new RenderError(threw(error), name, "", error);
+    }
+  }
   for (let depth = 0; ; depth++) {
     if (ROOT_NAMES.has(getDisplayName(current) ?? "")) break;
     // A Row or block: what it renders is Elements' own, never a root.
@@ -127,40 +144,76 @@ export function unwrapRoot(element: React.ReactElement, why: { unread?: string }
       current = React.createElement(type.type, props);
       continue;
     }
-    if ((type?.$$typeof === PROVIDER || type?.$$typeof === CONTEXT) && "value" in props) {
-      const inside = React.Children.toArray(props.children as React.ReactNode);
-      if (inside.length !== 1 || !React.isValidElement(inside[0])) break;
+    const inside = () => {
+      const list = React.Children.toArray(props.children as React.ReactNode);
+      return list.length === 1 && React.isValidElement(list[0]) ? list[0] : undefined;
+    };
+    // An <UnlayerProvider>: its config is the root's (read here, as React Server Components have no context), and it
+    // stays around the root's content, as a context provider does, for `useUnlayerConfig()` there and in wrappers.
+    if (type?.[UNLAYER_PROVIDER]) {
+      const only = inside();
+      if (!only) break;
+      for (const [key, value] of Object.entries((props.config ?? {}) as Record<string, unknown>)) if (value !== undefined) (provided ??= {})[key] = value;
+      const given = providerOf(yield* called(type, props, undefined, "UnlayerProvider"));
+      if (given) contexts = { ...given, context: contextOf(given.context), next: contexts };
       providers.push(current);
-      current = inside[0];
+      current = only;
+      continue;
+    }
+    // A context provider, or a <Tailwind>, around it: the root's content goes in it (a <Tailwind>'s classes are the
+    // root's, see Body).
+    const provider = providerOf(current);
+    if (provider || type?.[TAILWIND]) {
+      const only = inside();
+      if (!only) break;
+      if (provider) contexts = { context: contextOf(provider.context), value: provider.value, next: contexts };
+      providers.push(current);
+      current = only;
       continue;
     }
     // A Fragment, StrictMode or Profiler around the template (`<><Welcome /></>`): what's in it, when that's one
     // element. They add nothing to a server render.
     if (type === React.Fragment || type === React.StrictMode || type === React.Profiler) {
-      const inside = React.Children.toArray(props.children as React.ReactNode);
-      if (inside.length !== 1 || !React.isValidElement(inside[0])) break;
-      current = inside[0];
+      const only = inside();
+      if (!only) break;
+      current = only;
       continue;
     }
     let produced: unknown;
-    // Each wrapper renders on its own: one inside another gets its own `useId()` prefix (the first keeps React's).
-    const prefix = depth ? `w${depth}-` : undefined;
-    if (type?.$$typeof === FORWARD_REF) produced = callIsolated(() => type.render({ ...props }, null), prefix, providers);
-    else if (typeof type === "function" && !type.prototype?.isReactComponent) produced = callIsolated(() => type({ ...props }), prefix, providers);
-    else {
-      if (type?.prototype?.isReactComponent) why.unread = `<${componentName(current)}> is a class component, which isn't called to find it`;
-      break;
-    }
+    if (type?.$$typeof === FORWARD_REF) produced = yield* called(type.render, { ...props }, null, nameOf(type));
+    else if (typeof type === "function" && !type.prototype?.isReactComponent) produced = yield* called(type, { ...props }, undefined, nameOf(type));
+    else if (type?.prototype?.isReactComponent) {
+      // A class (react-intl's <IntlProvider>): constructed and rendered, inside the providers around it.
+      const around = contexts;
+      produced = yield* waiting(() => callClass(type, props, around));
+    } else break;
     if (!React.isValidElement(produced)) {
       if (holdsRoot(produced as React.ReactNode)) why.unread = "it doesn't return a root element";
       break;
     }
     current = produced;
   }
-  if (!providers.length || !ROOT_NAMES.has(getDisplayName(current) ?? "")) return current;
-  const children = providers.reduceRight<React.ReactNode>((inside, provider) => React.cloneElement(provider, undefined, inside), (current.props as { children?: React.ReactNode }).children);
-  return React.cloneElement(current, undefined, children);
+  if (!ROOT_NAMES.has(getDisplayName(current) ?? "")) return current;
+  const own = (current.props as { children?: React.ReactNode }).children;
+  const children = providers.reduceRight<React.ReactNode>((inside, provider) => React.cloneElement(provider, undefined, inside), own);
+  const root = providers.length ? React.cloneElement(current, undefined, children) : current;
+  if (provided) PROVIDED.set(root, provided as Partial<UnlayerConfig>);
+  const content = (root.props as { children?: React.ReactNode }).children;
+  if (content !== null && typeof content === "object" && tree !== ROOT_TREE) CONTENT_TREE.set(content, tree);
+  return root;
 }
+
+/** The root a template unwraps to (see steps); one that waits for something fails, with what to do. */
+export function unwrapRoot(element: React.ReactElement, why: { unread?: string } = {}, idPrefix?: string): React.ReactElement {
+  const run = steps(element, why, idPrefix);
+  const step = run.next();
+  if (step.done) return step.value;
+  step.value.then(undefined, () => {});
+  throw new Error(ASYNC_TEMPLATE);
+}
+
+/** The steps to the root a template unwraps to (see steps), which the async renderers take, waiting where they wait. */
+export const unwrapSteps = (element: React.ReactElement, idPrefix?: string): Steps => steps(element, {}, idPrefix);
 
 /** Elements' own Row, Column or block (not a component of the user's own named like one, which is called). */
 const elementsOwn = (element: React.ReactElement): boolean => {
@@ -181,24 +234,23 @@ export const UNWRAP_ADVICE = "Pass the root element (<Email>…</Email>), or a f
 /**
  * For renderToHtml: the root a template component unwraps to. An element that
  * is already an Elements component (or plain HTML) is returned as it is. When
- * a wrapper can't be unwrapped it's rendered through React as before, with a
- * warning: its root's settings aren't read.
+ * a wrapper can't be unwrapped it's rendered as it is, with a warning: its root's
+ * settings aren't read. A wrapper that throws fails the render (a RenderError naming it).
  */
-export function htmlRoot(element: React.ReactElement, api: string): React.ReactElement {
-  if (typeof element.type === "string" || isElementsComponent(element)) return element;
-  let reason: string;
+export function htmlRoot(element: React.ReactElement, api: string, idPrefix?: string): React.ReactElement {
+  if (typeof element.type === "string" || isElementsType(element.type)) return element;
+  const why: { unread?: string } = {};
+  let root: React.ReactElement;
   try {
-    const why: { unread?: string } = {};
-    const root = unwrapRoot(element, why);
-    if (ROOT_NAMES.has(getDisplayName(root) ?? "")) return root;
-    // A template of Rows, or nothing: there's no root whose settings go unread.
-    if (!why.unread && !holdsRoot(root)) return element;
-    reason = why.unread ?? "its root is inside other markup";
+    root = unwrapRoot(element, why, idPrefix);
   } catch (cause) {
-    // An async template can't be rendered through React either: say why.
+    // An async template can't be rendered synchronously: say why.
     if (cause instanceof Error && cause.message === ASYNC_TEMPLATE) throw new Error(`[Unlayer] ${api}: ${ASYNC_TEMPLATE}.`);
-    reason = cause instanceof Error ? cause.message : String(cause);
+    throw cause;
   }
-  console.warn(`[Unlayer] ${api}: couldn't unwrap <${componentName(element) || "wrapper"}> (${reason}): its root's fonts, lang, dir and phone styles are ignored. ${UNWRAP_ADVICE}`);
+  if (ROOT_NAMES.has(getDisplayName(root) ?? "")) return root;
+  // A template of Rows, or nothing: there's no root whose settings go unread.
+  if (!why.unread && !holdsRoot(root)) return element;
+  console.warn(`[Unlayer] ${api}: couldn't unwrap <${componentName(element) || "wrapper"}> (${why.unread ?? "its root is inside other markup"}): its root's fonts, lang, dir and phone styles are ignored. ${UNWRAP_ADVICE}`);
   return element;
 }

@@ -1,40 +1,104 @@
 /**
- * One render's scope (renderToHtml, renderToJson, …): what it works out once,
- * like a template's collected render, is reused for the rest of it and never
- * by the next render (an element kept between renders may read other data).
+ * One render's scope (renderToHtml, renderToJson, …): what it works out once, like a template's collected content,
+ * is reused for the rest of it and never by the next render (an element kept between renders may read other data);
+ * what the render does with parts that fail (`onError`), and the parts it left out.
  */
-import { escapeKeepingTags } from "@unlayer-internal/shared-elements";
-import { within } from "./collect";
-import { withBuild } from "./server-renderer";
+import { escapeKeepingTags, type OnError, type RenderError } from "@unlayer-internal/shared-elements";
+import { omits, reportOmitted } from "../engine/errors";
 
-let scoped: WeakMap<object, unknown> | undefined;
+export interface Scope {
+  cache: WeakMap<object, unknown>;
+  /** What the HTML worked out for a record (a block's values), which the head reuses (see `remember`). */
+  values: WeakMap<object, unknown>;
+  onError?: OnError;
+  idPrefix?: string;
+  /** The parts left out, each said once (see reportOmitted). */
+  omitted: RenderError[];
+  /** Rows and blocks whose exporters failed, by their records: left out of the head and the design too. */
+  failed: WeakSet<object>;
+}
+
+export const newScope = (): Scope => ({ cache: new WeakMap(), values: new WeakMap(), omitted: [], failed: new WeakSet() });
+
+let scoped: Scope | undefined;
 
 /** `make()`'s result for `key`, worked out once per render (each time outside one). */
 export function scopeCache<T>(key: object, make: () => T): T {
   if (!scoped) return make();
-  if (!scoped.has(key)) scoped.set(key, make());
-  return scoped.get(key) as T;
+  if (!scoped.cache.has(key)) scoped.cache.set(key, make());
+  return scoped.cache.get(key) as T;
 }
 
 /**
- * Runs one render with its own scope (a render inside another shares it), apart from a template being
- * collected: called inside a component of one (a block rendered to a string), it renders what it's given.
+ * What a Row, Column or block's HTML worked out for its record (its values, mapped from its props), for the head to
+ * reuse in the same render instead of working it out again (outside a render, nothing is kept).
  */
-export function withRenderScope<T>(render: () => T, own = false): T {
-  // Called in a render (a component of the user's own calling renderToJson in its useMemo, while Elements or the app
-  // renders it), it renders with a server build that isn't rendering (see server-renderer.ts).
-  const scope = () => {
-    if (scoped) return render();
-    scoped = new WeakMap();
-    try {
-      return render();
-    } finally {
-      scoped = undefined;
-    }
-  };
-  // The build is chosen first: whether a template is being collected tells who calls it.
-  // `own`: from Elements' own component, which calls no hooks after (see withBuild).
-  return withBuild(() => within(null, scope), own);
+export function remember(record: object | undefined, value: unknown): void {
+  if (record && scoped) scoped.values.set(record, value);
+}
+
+export const recall = <T>(record: object | undefined): T | undefined => (record && scoped ? (scoped.values.get(record) as T | undefined) : undefined);
+
+const SAID = {};
+/** A warning, said once per render (each time outside one). */
+export function sayOnce(message: string): void {
+  const said = scopeCache(SAID, () => new Set<string>());
+  if (!said.has(message)) console.warn(said.add(message) && message);
+}
+
+/**
+ * The render's `onError` and `idPrefix`, where its root's config says them (the render functions, or Body rendered
+ * on its own): the first config given in a render wins.
+ */
+export function setRenderConfig(config: { onError?: OnError; idPrefix?: unknown }): void {
+  if (!scoped) return;
+  if (config.onError !== undefined) scoped.onError ??= config.onError;
+  if (typeof config.idPrefix === "string") scoped.idPrefix ??= config.idPrefix;
+}
+
+export const onError = (): OnError | undefined => scoped?.onError;
+/** What the template's `useId()`s start with in this render (see UnlayerConfig's `idPrefix`). */
+export const idPrefix = (): string | undefined => scoped?.idPrefix;
+
+/**
+ * A part that failed: thrown, or (`onError: "omit"`) left out, listed and said once; `record`, the row's or block's
+ * whose exporter failed, so the head and the design leave it out too.
+ */
+export function failed(error: RenderError, record?: object): void {
+  if (!omits(scoped?.onError)) throw error;
+  if (record) scoped!.failed.add(record);
+  omitted(error);
+}
+
+/** A part the render left out (what a collecting walk left out, a Row that doesn't fit): listed and said. */
+export function omitted(error: RenderError): void {
+  scoped?.omitted.push(error);
+  reportOmitted(scoped?.onError, error);
+}
+
+/** Whether a row's or block's exporter failed in this render (see `failed`). */
+export const failedBefore = (record: object | undefined): boolean => !!record && !!scoped?.failed.has(record);
+
+/** The parts this render left out. */
+export const omissions = (): RenderError[] => scoped?.omitted ?? [];
+
+/**
+ * Runs `run` in `scope` (an async renderer collects a template in it first, then renders in it); with none, outside
+ * any (a template's components run so: a render one of them starts is a render of its own).
+ */
+export function withScope<T>(scope: Scope | undefined, run: () => T): T {
+  const outer = scoped;
+  scoped = scope;
+  try {
+    return run();
+  } finally {
+    scoped = outer;
+  }
+}
+
+/** Runs one render with its own scope (a render inside another, as Body's in renderToHtml's, shares it). */
+export function withRenderScope<T>(render: () => T): T {
+  return scoped ? render() : withScope(newScope(), render);
 }
 
 /**

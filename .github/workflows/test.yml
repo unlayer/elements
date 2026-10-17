@@ -58,9 +58,42 @@ jobs:
         run: pnpm --filter @unlayer/from-react-email typecheck && pnpm --filter @unlayer/migrate typecheck
 
       # ── Bundle size budget ──────────────────────────────────────
-      # Fail if the react-elements ESM bundle exceeds 118KB.
-      # Current size: about 113.4KB (0.1.22: about 76KB). Most of the growth is
-      # the render that collects a template's rows and blocks (one React render,
+      # Fail if the react-elements ESM bundle exceeds 190KB.
+      # Current size: about 189.5KB (0.1.22: about 76KB). Raised from 189KB
+      # (about 1.2KB): a template, a component around its root and a class
+      # component that throw a promise (React 18's Suspense) are waited for by
+      # the async renderers and said by the synchronous ones, and a root of
+      # another copy of Elements renders as this copy's. Raised from 187KB
+      # (about 2KB): a Row or Column whose own exporter fails is left out with
+      # `onError: "omit"`, as a block is (a Column with its cell, its Row made
+      # again without it), instead of failing the render. Raised from 173.5KB
+      # (about 13KB): Divider, Html, Menu and Social write their web and
+      # document HTML without react-dom/server, which can't run in an edge
+      # runtime or a React Server Components layer (src/exporters/, about 7KB,
+      # writing with the walker's host markup, one table of React 18's and 19's
+      # rules for both), and what makes the renders faster: the template
+      # collected as a tree of its records (no markers parsed back), its model,
+      # values and the design's copies made once (src/model/, the head's reuse,
+      # pxMerged), and a root's and Row's HTML written without a walk. The
+      # async walk's holes are the async entry's. Raised from 131.5KB
+      # (about 41KB) for the walker (src/engine), the renderer Elements renders
+      # templates with instead of react-dom: the walk itself, its hooks
+      # dispatcher, React's attribute and style tables for host markup, the
+      # async walk's holes and tree-order output, the React version table and
+      # its self-check, and the error policy (RenderError, `onError`). It
+      # replaces react-dom in Elements' own renders, which was never counted
+      # here (a peer dependency); the collecting render's react-dom plumbing
+      # (the second react-dom module, blind mode, the Sentinel, calling a
+      # failed component again) went with it. Raised from 130.5KB
+      # (about 1KB) so the async renderers collect where Elements' React isn't
+      # react-dom's (Next.js's server layers) as the synchronous ones do, and a
+      # template whose Rows render as HTML instead of being collected fails
+      # instead of giving a broken email. Raised from 126KB for
+      # editor parity: the editor's base stylesheet for each mode in the
+      # document's head (about 1.1KB of CSS), a Paragraph rendered from the text
+      # its design holds, a root's `fonts` and its `displayMode` in the design,
+      # and blocks of another copy of Elements rendered as this one's. Most of
+      # the growth since 0.1.22 is the render that collects a template's rows and blocks (one React render,
       # so hooks, context, Fragments and the user's components work as React
       # renders them; a component that throws, suspends or is async left out
       # with a message naming it; markup and blocks rendered to strings inside
@@ -70,14 +103,25 @@ jobs:
       # rendering where a bundler gives Elements another copy of React than
       # react-dom's (Next.js's server layers), and loading a second module of
       # react-dom's when Elements is called inside a renderToString it renders with,
-      # and leaving out Columns inside markup in a Row, as 0.1.22 did.
+      # and leaving out Columns inside markup in a Row, as 0.1.22 did, and
+      # Tailwind classes (the hook a <Tailwind> scope uses in the collected
+      # render; <Tailwind>, Tailwind itself, the code that reads its CSS and each
+      # component's class table are in the separate `tailwind` entry, not counted),
+      # rich text children (inline JSX and components in Paragraph, Heading and
+      # Button text), code kept in plain text, what a <Font> gives the head and
+      # the root, right-to-left text alignment, and `style`/`className` on the
+      # element each component renders, <Link>, the plain text's options, and
+      # an <UnlayerProvider>'s config read by the roots and the render functions,
+      # and a link or rule in a Column kept as HTML where its block can't hold it.
+      # The Markdown parser, the code highlighter, <Font>, <Head> and the
+      # design-to-code converter (`codegen`) are in their own entries.
       # The budget tracks the unminified ESM output as a proxy for code volume;
       # it still flags accidental dependency bundling (any real dep is 10KB+).
       - name: Check bundle size
         run: |
           BUNDLE="packages/react/dist/index.js"
           SIZE=$(wc -c < "$BUNDLE" | tr -d ' ')
-          MAX_SIZE=118000
+          MAX_SIZE=190000
           echo "Bundle: $BUNDLE"
           echo "Size: $SIZE bytes (budget: $MAX_SIZE bytes)"
           if [ "$SIZE" -gt "$MAX_SIZE" ]; then
@@ -178,8 +222,20 @@ jobs:
           npm install "$TARBALL"
           npm run build
           # An email rendered in a route handler and a Server Component comes out as one (tables, a design with
-          # its rows), with Elements bundled into Next's server layers (no serverExternalPackages); an edge route
-          # builds (Turbopack) and renders or says to render in the Node.js runtime.
+          # its rows), with the synchronous and the async renderers, with Elements bundled into Next's server
+          # layers (no serverExternalPackages); an App Router
+          # edge route builds (Turbopack) and renders or says to render in the Node.js runtime, and Pages Router
+          # API routes (Node.js and edge) render. Each route renders with every entry of Elements too.
+          npm run verify
+
+      # ── Next.js integration build with webpack ──────────────────
+      # The same app built with webpack, Next.js 15's default bundler (`next build` without --turbopack). It fails
+      # the build of a module that imports by name what React's react-server build doesn't export (createContext,
+      # useContext), in an edge route, where Turbopack builds it.
+      - name: Next.js integration build (webpack)
+        run: |
+          cd tests/nextjs-integration
+          npm run build:webpack
           npm run verify
 
       # ── More consumers ──────────────────────────────────────────
@@ -202,6 +258,7 @@ jobs:
       # create-next-app's setup since Next.js 16: a route handler, a Server Component and a Client Component that
       # render an email are prerendered when the app builds, and the build fails if a render reads a random number
       # or the date. 0.2.0's did (crypto.getRandomValues() for each render's nonce), so no new app could build.
+      # The async renderers render one in a route handler and a Server Component when it's requested.
       - name: Next.js 16 consumer (Cache Components)
         run: |
           cd tests/next16-integration
@@ -225,3 +282,61 @@ jobs:
             packages/*/coverage/
             coverage/
           retention-days: 30
+
+  # ── React versions ──────────────────────────────────────────
+  # Elements renders templates with its own renderer (src/engine), which must
+  # render as each React it supports does: the react package's suite on each
+  # one (its react and react-dom swapped in), in React's development build
+  # (the full suite) and its production build (the engine's, the renderers'
+  # and the regression tests: React's act(), which the component tests need,
+  # is in its development build only). It holds the walker against
+  # react-dom/server on hand-written and random trees, useId()s included
+  # (src/engine/differential.test.tsx), React's react-server build with a
+  # hook it lacks (src/regression/react-server-build.test.ts, React 19), and
+  # a hook the dispatcher doesn't know (src/engine/dispatcher.test.tsx).
+  react-versions:
+    name: React ${{ matrix.react }} (${{ matrix.build }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        react: ["18.3.1", "19.1", "19.2", "latest"]
+        build: [development, production]
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9.7.0
+
+      - name: Authenticate npm registry
+        run: echo "//registry.npmjs.org/:_authToken=${{ secrets.TEST_NPM_TOKEN }}" > ~/.npmrc
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Install React ${{ matrix.react }}
+        run: |
+          pnpm --filter @unlayer/react-elements add -D react@${{ matrix.react }} react-dom@${{ matrix.react }}
+          node -e "console.log('React', require('./packages/react/node_modules/react/package.json').version)"
+
+      - name: Build
+        run: pnpm --filter @unlayer-internal/shared-elements build && pnpm --filter @unlayer/react-elements build
+
+      - name: Tests (React's development build)
+        if: matrix.build == 'development'
+        run: pnpm --filter @unlayer/react-elements exec vitest run
+
+      - name: Tests (React's production build)
+        if: matrix.build == 'production'
+        env:
+          NODE_ENV: production
+        run: pnpm --filter @unlayer/react-elements exec vitest run src/engine src/async src/regression src/utils/render-errors.test.tsx src/utils/nested-renders.test.tsx --exclude src/regression/client-render.test.tsx

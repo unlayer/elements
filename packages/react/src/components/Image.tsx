@@ -1,7 +1,8 @@
 import { ImageExporters, ImageDefaults } from "@unlayer/exporters";
-import type { ImageValues, ImageSrcInput, SizeInput } from "../types";
+import type { AlignAlias, ImageValues, ImageSrcInput, SizeInput } from "../types";
 import { createItemComponent, type ItemComponentProps } from "../utils/create-component";
 import { mapSemanticProps, type SemanticProps } from "../utils/semantic-props";
+import { PERCENT, toPx } from "../utils/image-sizing";
 
 /**
  * Image semantic props — agent-friendly `src` (plain URL string or value object)
@@ -11,7 +12,7 @@ import { mapSemanticProps, type SemanticProps } from "../utils/semantic-props";
 type ImageSemanticProps = Omit<
   SemanticProps<ImageValues>,
   "src" | "width" | "maxWidth"
-> & {
+> & AlignAlias & {
   /** Alt text (alias for altText) */
   alt?: string;
   /** Image URL string, or the value object `{ url, width?, maxWidth?, ... }`. */
@@ -78,11 +79,7 @@ const Image = createItemComponent<ImageValues, ImageSemanticProps>({
         ? { ...rest, values: { ...restValues, src: { url: restValues.src } } }
         : rest;
 
-    const base: Partial<ImageValues> = mapSemanticProps(
-      normalizedRest as SemanticProps<ImageValues>,
-      DEFAULT_VALUES,
-      "Image"
-    );
+    const base: Partial<ImageValues> = mapSemanticProps(normalizedRest as SemanticProps<ImageValues>, DEFAULT_VALUES, "Image");
 
     // Map alt → altText
     if (alt !== undefined) {
@@ -129,51 +126,20 @@ const Image = createItemComponent<ImageValues, ImageSemanticProps>({
       // (the documented full-control form) — is treated as that display intent and
       // pins. This is the canonical pinned shape the editor stores, so it survives
       // the round-trip; an `autoWidth` set explicitly on `src` is honored as-is.
-      const pctRe = /^\d+(?:\.\d+)?%$/;
-      const asPercent = (v: unknown): string | undefined =>
-        typeof v === "string" && pctRe.test(v.trim()) ? v.trim() : undefined;
-      const asPx = (v: unknown): number | undefined => {
-        if (typeof v === "number" && Number.isFinite(v)) return v;
-        if (typeof v === "string") {
-          const t = v.trim();
-          if (pctRe.test(t)) return undefined;
-          const m = /^(\d+(?:\.\d+)?)(?:px)?$/.exec(t);
-          if (m) return parseFloat(m[1]);
-        }
-        return undefined;
-      };
-
-      // Resolve display intent in priority order: flat `width` → flat `maxWidth`
-      // → object src `maxWidth` → object src `width`.
-      let displayPct: string | undefined;
-      let displayPx: number | undefined;
+      // The display intent, in priority order: flat `width` → flat `maxWidth` → object src `maxWidth` → object src
+      // `width` (a percent, or px; a value that's neither is passed over).
+      let display: string | number | undefined;
       for (const candidate of [widthProp, maxWidthProp, userSrc.maxWidth, userSrc.width]) {
-        if (candidate === undefined) continue;
-        const pct = asPercent(candidate);
-        if (pct) {
-          displayPct = pct;
-          break;
-        }
-        const px = asPx(candidate);
-        if (px != null) {
-          displayPx = px;
-          break;
-        }
+        display = typeof candidate === "string" && PERCENT.test(candidate.trim()) ? candidate.trim() : toPx(candidate);
+        if (display !== undefined) break;
       }
 
       // An explicit escape-hatch `autoWidth` is honored as-is (its own maxWidth
-      // stays); otherwise the display intent decides.
+      // stays); otherwise the display intent decides ("100%" is responsive).
       if (userSrc.autoWidth === undefined) {
-        if (displayPct && displayPct !== "100%") {
-          merged.autoWidth = false;
-          merged.maxWidth = displayPct;
-        } else if (displayPx != null) {
-          merged.autoWidth = false;
-          merged.maxWidth = displayPx;
-        } else {
-          merged.autoWidth = true;
-          merged.maxWidth = "100%";
-        }
+        const pinned = display !== undefined && display !== "100%";
+        merged.autoWidth = !pinned;
+        merged.maxWidth = pinned ? display : "100%";
       }
 
       base.src = merged as ImageValues["src"];
@@ -182,6 +148,7 @@ const Image = createItemComponent<ImageValues, ImageSemanticProps>({
     return base;
   },
   displayName: "Image",
+  at: /<img [^>]*>/,
   exporters: ImageExporters,
 });
 
