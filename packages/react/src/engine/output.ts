@@ -89,56 +89,58 @@ function add(into: Item[], item: Item): void {
   else into.push(item);
 }
 
-interface Into {
-  items: Item[];
+/** Where a resolution's records and left-out parts go (a boundary's own, until it's resolved), and the policy. */
+interface Found {
   recorded: object[];
   omitted: RenderError[];
+  omit: boolean;
 }
 
 /** Parts in tree order as content; the first error that isn't left out, or PENDING before an unsettled hole. */
-function resolve(parts: Part[], into: Into, omit: boolean): ErrorPart | typeof PENDING | undefined {
+function resolve(parts: Part[], into: Item[], found: Found): ErrorPart | typeof PENDING | undefined {
   for (const part of parts) {
     if (typeof part === "string") {
-      if (part) add(into.items, part);
+      if (part) add(into, part);
       continue;
     }
     switch (part.t) {
       case "host": {
-        const inside: Into = { items: [], recorded: into.recorded, omitted: into.omitted };
-        const stop = resolve(part.parts, inside, omit);
+        const inside: Item[] = [];
+        const stop = resolve(part.parts, inside, found);
         if (stop) return stop;
-        if (inside.items.every((item) => typeof item === "string" || item.kind === "markup")) {
-          const inner = htmlOf(inside.items);
-          into.items.push({ kind: "markup", tag: part.tag, html: part.open + inner + part.close, inner: part.close ? inner : undefined });
-        } else into.items.push({ kind: "cut", tag: part.tag, open: part.open, close: part.close, items: inside.items });
+        if (inside.every((item) => typeof item === "string" || item.kind === "markup")) {
+          const inner = htmlOf(inside);
+          into.push({ kind: "markup", tag: part.tag, html: part.open + inner + part.close, inner: part.close ? inner : undefined });
+        } else into.push({ kind: "cut", tag: part.tag, open: part.open, close: part.close, items: inside });
         break;
       }
       case "record": {
-        into.recorded.push(part.record);
-        const inside: Into = { items: [], recorded: into.recorded, omitted: into.omitted };
-        const stop = resolve(part.parts, inside, omit);
+        found.recorded.push(part.record);
+        const inside: Item[] = [];
+        const stop = resolve(part.parts, inside, found);
         if (stop) return stop;
-        if (!part.quiet) into.items.push({ kind: "record", record: part.record, items: inside.items });
+        if (!part.quiet) into.push({ kind: "record", record: part.record, items: inside });
         break;
       }
       case "hole": {
         if (!part.settled) return PENDING;
-        const stop = resolve(part.parts, into, omit);
+        const stop = resolve(part.parts, into, found);
         if (stop) return stop;
         break;
       }
       case "boundary": {
-        const own: Into = { items: [], recorded: [], omitted: [] };
-        const stop = resolve(part.parts, own, omit);
+        const own: Item[] = [];
+        const ownFound: Found = { recorded: [], omitted: [], omit: found.omit };
+        const stop = resolve(part.parts, own, ownFound);
         if (stop === PENDING) return PENDING;
         if (stop) {
           // Left out whole: what it recorded too (its head tags, its scopes).
-          if (omit && !stop.fatal) into.omitted.push(stop.error);
+          if (found.omit && !stop.fatal) found.omitted.push(stop.error);
           else return stop;
         } else {
-          for (const item of own.items) add(into.items, item);
-          for (const record of own.recorded) into.recorded.push(record);
-          for (const error of own.omitted) into.omitted.push(error);
+          for (const item of own) add(into, item);
+          for (const record of ownFound.recorded) found.recorded.push(record);
+          for (const error of ownFound.omitted) found.omitted.push(error);
         }
         break;
       }
@@ -151,9 +153,10 @@ function resolve(parts: Part[], into: Into, omit: boolean): ErrorPart | typeof P
 
 /** The output as content, its records in tree order; PENDING while a hole before any error is open. */
 export function flatten(parts: Part[], omit: boolean): Flat | typeof PENDING {
-  const into: Into = { items: [], recorded: [], omitted: [] };
-  const stop = resolve(parts, into, omit);
+  const content: Item[] = [];
+  const found: Found = { recorded: [], omitted: [], omit };
+  const stop = resolve(parts, content, found);
   if (stop === PENDING) return PENDING;
   if (stop) throw stop.error;
-  return { content: into.items, recorded: into.recorded, omitted: into.omitted };
+  return { content, recorded: found.recorded, omitted: found.omitted };
 }

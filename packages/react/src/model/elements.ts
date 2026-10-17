@@ -258,13 +258,27 @@ function made(c: Collected, scoped: Scoped, r: ReturnType<typeof recordOf>): Rea
   }
   // A scope's rewrite, the Row's, one its Columns' classes give, or the root's, can put what its classes give the Row
   // in its Columns (Tailwind's padding and margins, and text styles for the text in them: see utils/tailwind.ts).
-  const rewrite = props[TAILWIND] ?? list.map((child: any) => child?.props?.style?.[TAILWIND]?.row).find(Boolean) ?? c.root?.[TAILWIND];
+  const rewrite = props[TAILWIND] ?? columnsRewrite(list) ?? c.root?.[TAILWIND];
   const children = rewrite?.(list, props, c.root) ?? list;
   // Its own padding is the editor's: around the row, outside its content background (a hook's warned already).
-  const v = { ...props.values, ...props };
-  if (!props[TAILWIND] && /[1-9]/.test(String(v.padding ?? "")) && (/^(transparent)?$/.test(v.columnsBackgroundColor ?? "") ? v.backgroundImage?.url && v.backgroundImage.fullWidth === false : 1))
-    sayOnce("[Unlayer] Row padding sits outside the row's content background, as in the editor; to inset the content use the Columns' padding.");
+  if (!props[TAILWIND] && /[1-9]/.test(String(given(props, "padding") ?? ""))) {
+    const image = given(props, "backgroundImage");
+    if (/^(transparent)?$/.test(given(props, "columnsBackgroundColor") ?? "") ? image?.url && image.fullWidth === false : 1)
+      sayOnce("[Unlayer] Row padding sits outside the row's content background, as in the editor; to inset the content use the Columns' padding.");
+  }
   return React.createElement(Row, { ...props, children, _record: r });
+}
+
+/** A prop as given, or in `values` (where it's given as neither, undefined). */
+const given = (props: Record<string, any>, key: string) => (key in props ? props[key] : props.values?.[key]);
+
+/** The rewrite a Row's Columns' classes give it (see utils/tailwind.ts). */
+function columnsRewrite(list: React.ReactNode[]): unknown {
+  for (const child of list) {
+    const rewrite = (child as React.ReactElement<any> | null)?.props?.style?.[TAILWIND]?.row;
+    if (rewrite) return rewrite;
+  }
+  return undefined;
 }
 
 /** Text among the rows, or straight in a Row or Column, as it reads. */

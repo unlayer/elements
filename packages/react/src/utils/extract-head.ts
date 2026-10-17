@@ -105,14 +105,19 @@ export function extractHeadFromTree(
   const registry = heads as Record<string, ComponentHead | undefined>;
   let bodyValues: Record<string, any> | undefined;
 
+  /** What a head is told of the render: the same for each (a custom tool's head gets one of its own). */
+  const told = { displayMode, isViewer: false, variant: null, type: "rows", headConfig };
+
   /** A head's CSS, JS and tags for the values of the Body, Row, Column or block it's for. */
-  const call = (head: ComponentHead | undefined, values: Record<string, any>) => {
-    const args: HeadArgs = [values, bodyValues ?? values, { displayMode, isViewer: false, variant: null, type: "rows", headConfig }];
-    const css = head?.css?.(...args);
+  const call = (head: ComponentHead | undefined, values: Record<string, any>, own = false) => {
+    if (!head || !(head.css || head.js || head.tags)) return;
+    const args: HeadArgs = [values, bodyValues ?? values, own ? { ...told } : told];
+    const css = head.css?.(...args);
     if (css) styles.push(css);
-    const js = head?.js?.(...args);
+    const js = head.js?.(...args);
     if (js) scripts.push(js);
-    tags.push(...(head?.tags?.(...args) ?? []));
+    const given = head.tags?.(...args);
+    if (given) tags.push(...given);
   };
 
   /** A container's values (with the id the HTML gives it), its phone and desktop styles, and its head. */
@@ -156,7 +161,7 @@ export function extractHeadFromTree(
         const values = ensureMeta(merged, contentType, nextCounter(counters, `u_content_${contentType}`) - 1);
         collectDeviceStyles(values, "contents", config.name, displayMode, deviceStyles);
         // The component's own head (custom tools) wins over the registry's.
-        call(config.head ?? registry[config.name], values);
+        call(config.head ?? registry[config.name], values, !!config.head);
       }
     }
   }

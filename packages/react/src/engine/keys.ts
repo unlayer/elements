@@ -3,6 +3,8 @@
  * gives too: an element of a list without a `key`, and two with the same one. Development builds only (their elements
  * carry `_store`: React marks the children it validated there), each once per component.
  */
+import { createElement } from "react";
+
 const said = new Set<string>();
 
 function warnOnce(key: string, message: string): void {
@@ -13,9 +15,12 @@ function warnOnce(key: string, message: string): void {
 
 type DevElement = { $$typeof?: unknown; key: string | null; _store?: { validated?: unknown } };
 
+/** Whether React is its development build, whose elements carry `_store` (its production build checks no keys). */
+const DEVELOPMENT = "_store" in createElement("i");
+
 /** Lists Elements made of the template's (already checked, as the template wrote them), which aren't checked again. */
 const made = new WeakSet<object>();
-export const checked = <T extends object>(list: T): T => (made.add(list), list);
+export const checked = <T extends object>(list: T): T => (DEVELOPMENT && made.add(list), list);
 
 /**
  * Checks a list of children (`items.map(…)`) the way React's renderer does, for the component `owner` renders it in.
@@ -23,7 +28,7 @@ export const checked = <T extends object>(list: T): T => (made.add(list), list);
  * React.Children gave keys to that it still warns for), which the walker reads and marks the same way.
  */
 export function checkKeys(list: readonly unknown[], owner: string): void {
-  if (made.has(list)) return;
+  if (!DEVELOPMENT || made.has(list)) return;
   let keys: Set<string> | undefined;
   for (const child of list) {
     const element = child as DevElement | null;
