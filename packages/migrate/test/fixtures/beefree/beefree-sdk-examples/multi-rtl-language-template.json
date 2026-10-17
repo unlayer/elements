@@ -1,0 +1,364 @@
+{
+  "page": {
+    "body": {
+      "container": {
+        "style": {
+          "background-color": "#FFFFFF"
+        }
+      },
+      "content": {
+        "computedStyle": {
+          "align": "center",
+          "linkColor": "#0068A5",
+          "messageBackgroundColor": "transparent",
+          "messageWidth": "500px"
+        },
+        "style": {
+          "color": "#000000",
+          "direction": "rtl",
+          "font-family": "Noto Sans Arabic, Noto Nastaliq Urdu, Arial, Helvetica Neue, Helvetica, sans-serif"
+        }
+      },
+      "webFonts": [
+        {
+          "name": "Noto Sans Arabic",
+          "fontFamily": "'Noto Sans Arabic', sans-serif",
+          "url": "https://fonts.googleapis.com/css2?family=Noto+Sans+Arabic:wght@400;700&display=swap",
+          "weights": [
+            { "label": "400", "value": "400" },
+            { "label": "700", "value": "700" }
+          ]
+        },
+        {
+          "name": "Noto Nastaliq Urdu",
+          "fontFamily": "'Noto Nastaliq Urdu', serif",
+          "url": "https://fonts.googleapis.com/css2?family=Noto+Nastaliq+Urdu:wght@400;700&display=swap",
+          "weights": [
+            { "label": "400", "value": "400" },
+            { "label": "700", "value": "700" }
+          ]
+        },
+        {
+          "name": "Noto Sans",
+          "fontFamily": "'Noto Sans', sans-serif",
+          "url": "https://fonts.googleapis.com/css2?family=Noto+Sans:wght@400;700&display=swap",
+          "weights": [
+            { "label": "400", "value": "400" },
+            { "label": "700", "value": "700" }
+          ]
+        }
+      ]
+    },
+    "description": "",
+    "rows": [
+      {
+        "columns": [
+          {
+            "grid-columns": 12,
+            "modules": [
+              {
+                "descriptor": {
+                  "computedStyle": {
+                    "hideContentOnDesktop": false,
+                    "hideContentOnMobile": false
+                  },
+                  "heading": {
+                    "style": {
+                      "color": "#555555",
+                      "direction": "rtl",
+                      "font-family": "inherit",
+                      "font-size": "23px",
+                      "font-weight": "700",
+                      "letter-spacing": "0px",
+                      "line-height": "120%",
+                      "link-color": "#0068A5",
+                      "text-align": "center"
+                    },
+                    "text": "<span class=\"tinyMce-placeholder\">قالب نمونه چندزبانه</span>",
+                    "title": "h1",
+                    "translations": {
+                      "ar-SA": {
+                        "text": "<span class=\"tinyMce-placeholder\">نموذج عينة متعدد اللغات</span>"
+                      },
+                      "ckb-IQ": {
+                        "text": "<span class=\"tinyMce-placeholder\">نموونەی قاڵبی زمانی زۆر</span>"
+                      },
+                      "dv-MV": {
+                        "text": "<span class=\"tinyMce-placeholder\">ބަސްބަސް ނަމޫނާ ޓެމްޕްލޭޓް</span>"
+                      },
+                      "ja-JP": {
+                        "text": "<span class=\"tinyMce-placeholder\">多言語サンプルテンプレート</span>"
+                      },
+                      "ps-AF": {
+                        "text": "<span class=\"tinyMce-placeholder\">څو ژبنۍ نمونه کينډۍ</span>"
+                      },
+                      "sd-PK": {
+                        "text": "<span class=\"tinyMce-placeholder\">گھڻ-ٻولي نموني ٽيمپليٽ</span>"
+                      },
+                      "tr-TR": {
+                        "text": "<span class=\"tinyMce-placeholder\">Çoklu dil örnek şablonu</span>"
+                      },
+                      "ug-CN": {
+                        "text": "<span class=\"tinyMce-placeholder\">كۆپ تىللىق ئەندىزە قېلىپ</span>"
+                      },
+                      "ur-PK": {
+                        "text": "<span class=\"tinyMce-placeholder\">کثیر اللسانی نمونہ ٹیمپلیٹ</span>"
+                      }
+                    }
+                  },
+                  "style": {
+                    "padding-bottom": "0px",
+                    "padding-left": "0px",
+                    "padding-right": "0px",
+                    "padding-top": "0px",
+                    "text-align": "center",
+                    "width": "100%"
+                  }
+                },
+                "locked": false,
+                "type": "mailup-bee-newsletter-modules-heading",
+                "uuid": "a558b1f5-9a51-454f-b810-d95c235ea616"
+              },
+              {
+                "descriptor": {
+                  "computedStyle": {
+                    "hideContentOnAmp": false,
+                    "hideContentOnDesktop": false,
+                    "hideContentOnHtml": false,
+                    "hideContentOnMobile": false
+                  },
+                  "paragraph": {
+                    "computedStyle": {
+                      "linkColor": "#0068A5",
+                      "paragraphSpacing": "16px"
+                    },
+                    "html": "<p>این یک قالب نمونه برای نمایش قابلیت‌های چندزبانه ویرایشگر ایمیل Beefree SDK است، مانند توانایی استفاده از تصویر متفاوت برای هر زبان قالب:</p>",
+                    "style": {
+                      "color": "#000000",
+                      "direction": "rtl",
+                      "font-family": "inherit",
+                      "font-size": "14px",
+                      "font-weight": "400",
+                      "letter-spacing": "0px",
+                      "line-height": "120%",
+                      "text-align": "justify"
+                    },
+                    "translations": {
+                      "ar-SA": {
+                        "html": "<p>هذا نموذج عينة لإظهار ميزات اللغات المتعددة في محرر البريد الإلكتروني Beefree SDK، مثل القدرة على استخدام صورة مختلفة لكل لغة من لغات النموذج:</p>"
+                      },
+                      "ckb-IQ": {
+                        "html": "<p>ئەمە نموونەی قاڵبێکە بۆ نیشاندانی تایبەتمەندیەکانی زۆر زمانی دەستکاریکەری ئیمەیڵی Beefree SDK، وەک توانای بەکارهێنانی وێنەیەکی جیاواز بۆ هەر زمانێکی قاڵبەکە:</p>"
+                      },
+                      "dv-MV": {
+                        "html": "<p>މިއީ Beefree SDK އީމެއިލް އެޑިޓަރުގެ ބަސްބަސްގެ ހާއްސަ ފީޗާތައް ދައްކުވައިދިނުމަށް މިސާލުއަކަށް ދައްކާ ޓެމްޕްލޭޓެކެވެ. އެގޮތުން ޓެމްޕްލޭޓުގެ ކޮންމެ ބަހަކަށް ތަފާތު ފޮޓޯއެއް ބޭނުންކުރެވޭނެ:</p>"
+                      },
+                      "ja-JP": {
+                        "html": "<p>これはBeefree SDKメールエディターの多言語機能を実演するサンプルテンプレートです。テンプレートの各言語に異なる画像を使用する機能などがあります：</p>"
+                      },
+                      "ps-AF": {
+                        "html": "<p>دا د Beefree SDK بریښنالیک سمونکي څو ژبنۍ ځانګړتیاوې د ښودلو لپاره نمونه کينډۍ دی، لکه د کينډۍ د هرې ژبې لپاره د بیلې انځور کارولو وړتیا:</p>"
+                      },
+                      "sd-PK": {
+                        "html": "<p>هيءَ Beefree SDK اي ميل ايڊيٽر جي گھڻ-ٻولي خاصيتن کي ڏيکارڻ لاءِ هڪ نموني ٽيمپليٽ آهي، جيئن ته ٽيمپليٽ جي هر ٻولي لاءِ مختلف تصوير استعمال ڪرڻ جي صلاحيت:</p>"
+                      },
+                      "tr-TR": {
+                        "html": "<p>Bu, Beefree SDK e-posta düzenleyicisinin çoklu dil özelliklerini göstermek için örnek bir şablondur; şablonun her dili için farklı bir resim kullanma yeteneği gibi:</p>"
+                      },
+                      "ug-CN": {
+                        "html": "<p>بۇ Beefree SDK ئېلېكترونلۇق خەت تەھرىرلىگۈچىنىڭ كۆپ تىللىق ئىقتىدارلىرىنى كۆرسىتىش ئۈچۈن ئەندىزە قېلىپ، مەسىلەن قېلىپتىكى ھەر بىر تىلغا ئوخشىمىغان رەسىم ئىشلىتىش ئىقتىدارى:</p>"
+                      },
+                      "ur-PK": {
+                        "html": "<p>یہ Beefree SDK ای میل ایڈیٹر کی کثیر اللسانی خصوصیات کا مظاہرہ کرنے کے لیے ایک نمونہ ٹیمپلیٹ ہے، جیسے ٹیمپلیٹ کی ہر زبان کے لیے مختلف تصویر استعمال کرنے کی صلاحیت:</p>"
+                      }
+                    }
+                  },
+                  "style": {
+                    "padding-bottom": "20px",
+                    "padding-left": "10px",
+                    "padding-right": "10px",
+                    "padding-top": "10px"
+                  }
+                },
+                "locked": false,
+                "type": "mailup-bee-newsletter-modules-paragraph",
+                "uuid": "58320a27-0cf3-4faf-8e75-165f5404a4fb"
+              },
+              {
+                "descriptor": {
+                  "computedStyle": {
+                    "class": "center fixedwidth",
+                    "hideContentOnMobile": false,
+                    "width": "375px"
+                  },
+                  "image": {
+                    "alt": "",
+                    "height": "142px",
+                    "href": "",
+                    "percWidth": 75,
+                    "prefix": "",
+                    "src": "https://d15k2d11r6t6rl.cloudfront.net/pub/uxr6/dgc7p1us/9np/c96/4jz/multi-language-example-image-fa.png",
+                    "target": "_blank",
+                    "translations": {
+                      "ar-SA": {
+                        "src": "https://d15k2d11r6t6rl.cloudfront.net/pub/uxr6/dgc7p1us/dm2/yxn/jyc/multi-language-example-image-ar.png"
+                      },
+                      "ckb-IQ": {
+                        "src": "https://d15k2d11r6t6rl.cloudfront.net/pub/uxr6/dgc7p1us/730/7gm/glq/multi-language-example-image-ckb.png"
+                      },
+                      "dv-MV": {
+                        "src": "https://d15k2d11r6t6rl.cloudfront.net/pub/uxr6/dgc7p1us/g84/wud/zue/multi-language-example-image-dv.png"
+                      },
+                      "ja-JP": {
+                        "src": "https://d15k2d11r6t6rl.cloudfront.net/pub/uxr6/dgc7p1us/qsq/zad/y6n/multi-language-example-image-ja.png"
+                      },
+                      "ps-AF": {
+                        "src": "https://d15k2d11r6t6rl.cloudfront.net/pub/uxr6/dgc7p1us/5y7/vvo/mwf/multi-language-example-image-ps.png"
+                      },
+                      "sd-PK": {
+                        "src": "https://d15k2d11r6t6rl.cloudfront.net/pub/uxr6/dgc7p1us/8wc/d0m/1mq/multi-language-example-image-sd.png"
+                      },
+                      "tr-TR": {
+                        "src": "https://d15k2d11r6t6rl.cloudfront.net/pub/uxr6/dgc7p1us/10t/2vd/h5f/multi-language-example-image-tr.png"
+                      },
+                      "ug-CN": {
+                        "src": "https://d15k2d11r6t6rl.cloudfront.net/pub/uxr6/dgc7p1us/79i/z8f/d9t/multi-language-example-image-ug.png"
+                      },
+                      "ur-PK": {
+                        "src": "https://d15k2d11r6t6rl.cloudfront.net/pub/uxr6/dgc7p1us/k8r/uxg/84r/multi-language-example-image-ur.png"
+                      }
+                    },
+                    "width": "900px"
+                  },
+                  "style": {
+                    "border-radius": "0px",
+                    "padding-bottom": "0px",
+                    "padding-left": "0px",
+                    "padding-right": "0px",
+                    "padding-top": "0px",
+                    "width": "100%"
+                  }
+                },
+                "locked": false,
+                "type": "mailup-bee-newsletter-modules-image",
+                "uuid": "1f717cf9-9854-402d-beec-6df41f1f9654"
+              },
+              {
+                "descriptor": {
+                  "computedStyle": {
+                    "hideContentOnAmp": false,
+                    "hideContentOnDesktop": false,
+                    "hideContentOnHtml": false,
+                    "hideContentOnMobile": false
+                  },
+                  "paragraph": {
+                    "computedStyle": {
+                      "linkColor": "#0068A5",
+                      "paragraphSpacing": "16px"
+                    },
+                    "html": "<p>قابلیت <em><strong>قالب‌های چندزبانه</strong></em> به شما امکان می‌دهد محتوای قالب را ترجمه کنید، اما محتوا را به‌طور خودکار ترجمه <em>نمی‌کند</em>.<br/><br/>لطفاً برای <a href=\"https://docs.beefree.io/beefree-sdk/other-customizations/multi-language-templates\" target=\"_blank\" style=\"text-decoration: underline;\" rel=\"noopener\">اطلاعات بیشتر</a> مستندات را بررسی کنید.</p>",
+                    "style": {
+                      "color": "#000000",
+                      "direction": "rtl",
+                      "font-family": "inherit",
+                      "font-size": "14px",
+                      "font-weight": "400",
+                      "letter-spacing": "0px",
+                      "line-height": "120%",
+                      "text-align": "right"
+                    },
+                    "translations": {
+                      "ar-SA": {
+                        "html": "<p>توفر ميزة <em><strong>النماذج متعددة اللغات</strong></em> وسيلة لترجمة محتوى النموذج، ولكنها <em>لا</em> تترجم المحتوى تلقائيًا نيابة عنك.<br/><br/>يرجى الاطلاع على التوثيق <a href=\"https://docs.beefree.io/beefree-sdk/other-customizations/multi-language-templates\" target=\"_blank\" style=\"text-decoration: underline;\" rel=\"noopener\">لمزيد من المعلومات</a>.</p>"
+                      },
+                      "ckb-IQ": {
+                        "html": "<p>تایبەتمەندی <em><strong>قاڵبە زۆر زمانەکان</strong></em> ڕێگایەکی وەرگێڕانی ناوەڕۆکی قاڵبەکەت پێدەدات، بەڵام ناوەڕۆکەکە بە شێوەیەکی خۆکار وەرناگێڕێتەوە.<br/><br/>تکایە <a href=\"https://docs.beefree.io/beefree-sdk/other-customizations/multi-language-templates\" target=\"_blank\" style=\"text-decoration: underline;\" rel=\"noopener\">بەڵگەنامەکان</a> بپشکنە بۆ زانیاری زیاتر.</p>"
+                      },
+                      "dv-MV": {
+                        "html": "<p><em><strong>ބަސްބަސް ޓެމްޕްލޭޓްސް</strong></em> ފީޗާއިން ޓެމްޕްލޭޓް ކޮންޓެންޓް ތަރުޖަމާކުރުމަށް ވަސީލަތެއް ލިބިދޭއިރު، އަމިއްލައަށް ކޮންޓެންޓް ތަރުޖަމާ <em>ނުކުރެވޭނެއެވެ</em>.<br/><br/>އިތުރު މައުލޫމާތު ހޯދުމަށް <a href=\"https://docs.beefree.io/beefree-sdk/other-customizations/multi-language-templates\" target=\"_blank\" style=\"text-decoration: underline;\" rel=\"noopener\">ލިޔުންތައް</a> ބައްލަވާލައްވާށެވެ.</p>"
+                      },
+                      "ja-JP": {
+                        "html": "<p><em><strong>多言語テンプレート</strong></em>機能は、テンプレートのコンテンツを翻訳する手段を提供しますが、コンテンツを自動的には翻訳<em>しません</em>。<br/><br/>詳細については<a href=\"https://docs.beefree.io/beefree-sdk/other-customizations/multi-language-templates\" target=\"_blank\" style=\"text-decoration: underline;\" rel=\"noopener\">ドキュメント</a>をご確認ください。</p>"
+                      },
+                      "ps-AF": {
+                        "html": "<p>د <em><strong>څو ژبنۍ کينډيو</strong></em> ځانګړتیا تاسو ته د کينډۍ منځپانګې د ژباړې لاره چمتو کوي، خو منځپانګه په خپل ځان <em>نه</em> ژباړي.<br/><br/>د نورو معلوماتو لپاره مهرباني وکړئ <a href=\"https://docs.beefree.io/beefree-sdk/other-customizations/multi-language-templates\" target=\"_blank\" style=\"text-decoration: underline;\" rel=\"noopener\">اسناد</a> وګورئ.</p>"
+                      },
+                      "sd-PK": {
+                        "html": "<p><em><strong>گھڻ-ٻولي ٽيمپليٽس</strong></em> جي خاصيت توهان کي ٽيمپليٽ جي مواد کي ترجمو ڪرڻ جو وسيلو ڏئي ٿي، پر پاڻمرادو طور مواد ترجمو <em>نٿو ڪري</em>.<br/><br/>وڌيڪ ڄاڻ لاءِ مھرباني ڪري <a href=\"https://docs.beefree.io/beefree-sdk/other-customizations/multi-language-templates\" target=\"_blank\" style=\"text-decoration: underline;\" rel=\"noopener\">دستاويز</a> ڏسو.</p>"
+                      },
+                      "tr-TR": {
+                        "html": "<p><em><strong>Çoklu dil şablonları</strong></em> özelliği, şablon içeriğini çevirmeniz için bir araç sağlar, ancak içeriği sizin için otomatik olarak çevir<em>mez</em>.<br/><br/>Daha fazla bilgi için lütfen <a href=\"https://docs.beefree.io/beefree-sdk/other-customizations/multi-language-templates\" target=\"_blank\" style=\"text-decoration: underline;\" rel=\"noopener\">belgeleri</a> kontrol edin.</p>"
+                      },
+                      "ug-CN": {
+                        "html": "<p><em><strong>كۆپ تىللىق قېلىپ</strong></em> ئىقتىدارى سىزگە قېلىپ مەزمۇنىنى تەرجىمە قىلىشنىڭ ئۇسۇلىنى تەمىنلەيدۇ، ئەمما مەزمۇننى ئاپتوماتىك ھالدا تەرجىمە قىل<em>مايدۇ</em>.<br/><br/>تېخىمۇ كۆپ ئۇچۇر ئۈچۈن <a href=\"https://docs.beefree.io/beefree-sdk/other-customizations/multi-language-templates\" target=\"_blank\" style=\"text-decoration: underline;\" rel=\"noopener\">پۈتۈكنى</a> تەكشۈرۈڭ.</p>"
+                      },
+                      "ur-PK": {
+                        "html": "<p><em><strong>کثیر اللسانی ٹیمپلیٹس</strong></em> کی خصوصیت آپ کو ٹیمپلیٹ مواد کا ترجمہ کرنے کا ذریعہ فراہم کرتی ہے، لیکن خودکار طور پر مواد کا ترجمہ <em>نہیں</em> کرتی۔<br/><br/>برائے مزید معلومات براہ کرم <a href=\"https://docs.beefree.io/beefree-sdk/other-customizations/multi-language-templates\" target=\"_blank\" style=\"text-decoration: underline;\" rel=\"noopener\">دستاویزات</a> دیکھیں۔</p>"
+                      }
+                    }
+                  },
+                  "style": {
+                    "padding-bottom": "10px",
+                    "padding-left": "10px",
+                    "padding-right": "10px",
+                    "padding-top": "20px"
+                  }
+                },
+                "locked": false,
+                "type": "mailup-bee-newsletter-modules-paragraph",
+                "uuid": "3ecdf8b0-0c87-48f1-9a59-ca9654e2cc82"
+              }
+            ],
+            "style": {
+              "background-color": "transparent",
+              "border-bottom": "0 solid transparent",
+              "border-left": "0 solid transparent",
+              "border-right": "0 solid transparent",
+              "border-top": "0 solid transparent",
+              "padding-bottom": "5px",
+              "padding-left": "0px",
+              "padding-right": "0px",
+              "padding-top": "5px"
+            },
+            "uuid": "970ff29e-e97e-485b-9b5d-4bc5ca7b1cad"
+          }
+        ],
+        "container": {
+          "style": {
+            "background-color": "transparent",
+            "background-image": "none",
+            "background-position": "top left",
+            "background-repeat": "no-repeat"
+          }
+        },
+        "content": {
+          "computedStyle": {
+            "hideContentOnDesktop": false,
+            "hideContentOnMobile": false,
+            "rowColStackOnMobile": true,
+            "rowReverseColStackOnMobile": false,
+            "verticalAlign": "top"
+          },
+          "style": {
+            "background-color": "transparent",
+            "background-image": "none",
+            "background-position": "top left",
+            "background-repeat": "no-repeat",
+            "color": "#000000",
+            "width": "500px"
+          }
+        },
+        "empty": false,
+        "locked": false,
+        "synced": false,
+        "type": "one-column-empty",
+        "uuid": "04fd4079-93bf-49c2-9875-38ca61aad1c8"
+      }
+    ],
+    "template": {
+      "version": "2.0.0"
+    },
+    "title": ""
+  },
+  "comments": {}
+}

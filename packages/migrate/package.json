@@ -1,7 +1,7 @@
 {
   "name": "@unlayer/migrate",
-  "version": "0.1.2",
-  "description": "Migrate React Email templates to Unlayer Elements: TSX that keeps your props and logic, checked against the originals, editable in the Unlayer visual editor.",
+  "version": "0.2.0",
+  "description": "Migrate React Email, MJML and Beefree templates to Unlayer Elements: TSX checked against the originals, editable in the Unlayer visual editor (React Email templates keep their props and logic).",
   "license": "MIT",
   "type": "module",
   "repository": {
@@ -22,11 +22,13 @@
   "scripts": {
     "build": "tsup",
     "test": "vitest",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "measure:mjml": "tsx scripts/measure-mjml.ts"
   },
   "dependencies": {
     "@react-email/components": "^1.0.12",
     "@unlayer/react-elements": "workspace:^0.3.0",
+    "mjml": "5.4.1",
     "prettier": "^3.3.3",
     "tsx": "^4.20.5",
     "typescript": "^5.6.3"

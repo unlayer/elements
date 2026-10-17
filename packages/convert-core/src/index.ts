@@ -24,3 +24,4 @@ export { compareStyles, DESKTOP_WIDTH, normalizeWord, StyledDocument, type Style
 export { decodeHtmlEntities } from "./entities";
 export { autoTableWidths, htmlText, unbreakableWords, wordWidth, type TableColumn } from "./text-width";
 export { editorFonts, shareEditorFonts, type EditorFont } from "./fonts";
+export { applyDeclared, describeDeclared, type AppliedDifference, type DeclaredDifference } from "./declared";

@@ -1,0 +1,149 @@
+{
+  "page": {
+    "body": {
+      "container": { "style": { "background-color": "#FFFFFF" } },
+      "content": {
+        "computedStyle": {
+          "linkColor": "#f7dd72",
+          "messageBackgroundColor": "#ffffff",
+          "messageWidth": "500px"
+        },
+        "style": {
+          "color": "#000000",
+          "font-family": "Open Sans, Helvetica Neue, Helvetica, Arial, sans-serif"
+        }
+      },
+      "type": "mailup-bee-page-properties",
+      "webFonts": [
+        {
+          "family": "'Open Sans', 'Helvetica Neue', Helvetica, Arial, sans-serif",
+          "fontFamily": "'Open Sans', 'Helvetica Neue', Helvetica, Arial, sans-serif",
+          "fontName": "Open Sans",
+          "name": "Open Sans",
+          "url": "https://fonts.googleapis.com/css?family=Open+Sans"
+        }
+      ]
+    },
+    "description": "",
+    "rows": [
+      {
+        "columns": [
+          {
+            "grid-columns": 12,
+            "modules": [
+              {
+                "descriptor": {
+                  "computedStyle": { "hideContentOnMobile": false },
+                  "style": {
+                    "padding-bottom": "10px",
+                    "padding-left": "10px",
+                    "padding-right": "10px",
+                    "padding-top": "10px"
+                  },
+                  "text": {
+                    "computedStyle": { "linkColor": "#f7dd72" },
+                    "html": "<div class=\"txtTinyMce-wrapper\" style=\"line-height: 14px; font-size: 12px; font-family: &apos;Open Sans&apos;, &apos;Helvetica Neue&apos;, Helvetica, Arial, sans-serif;\" data-mce-style=\"line-height: 14px; font-size: 12px; font-family: &apos;Open Sans&apos;, &apos;Helvetica Neue&apos;, Helvetica, Arial, sans-serif;\"><p style=\"font-size: 14px; line-height: 16px; word-break: break-word; font-family: &apos;Open Sans&apos;, &apos;Helvetica Neue&apos;, Helvetica, Arial, sans-serif;\" data-mce-style=\"font-size: 14px; line-height: 16px; word-break: break-word;\"><span style=\"font-size: 42px; color: #000000; line-height: 50px;\" data-mce-style=\"font-size: 42px; color: #000000; line-height: 50px;\"><strong><span style=\"line-height: 14px;\" data-mce-style=\"line-height: 14px;\">Welcome to Toptile !</span></strong></span></p></div>",
+                    "style": {
+                      "color": "#000000",
+                      "font-family": "'Open Sans', 'Helvetica Neue', Helvetica, Arial, sans-serif",
+                      "line-height": "120%"
+                    }
+                  }
+                },
+                "locked": false,
+                "type": "mailup-bee-newsletter-modules-text"
+              },
+              {
+                "descriptor": {
+                  "computedStyle": { "hideContentOnMobile": false },
+                  "style": {
+                    "padding-bottom": "10px",
+                    "padding-left": "10px",
+                    "padding-right": "10px",
+                    "padding-top": "10px"
+                  },
+                  "text": {
+                    "computedStyle": { "linkColor": "#f7dd72" },
+                    "html": "<div class=\"txtTinyMce-wrapper\" style=\"line-height: 14px; font-size: 12px;\" data-mce-style=\"line-height: 14px; font-size: 12px;\"><p style=\"line-height: 14px; word-break: break-word;\" data-mce-style=\"line-height: 14px; word-break: break-word;\"> </p><p style=\"line-height: 14px; word-break: break-word;\" data-mce-style=\"line-height: 14px; word-break: break-word;\"><span style=\"font-size: 16px; line-height: 19px;\" data-mce-style=\"font-size: 16px; line-height: 19px;\">I&apos;m thrilled to have you on board.</span></p><p style=\"line-height: 14px; word-break: break-word;\" data-mce-style=\"line-height: 14px; word-break: break-word;\"> </p><p style=\"line-height: 14px; word-break: break-word;\" data-mce-style=\"line-height: 14px; word-break: break-word;\"><span style=\"font-size: 16px; line-height: 19px;\" data-mce-style=\"font-size: 16px; line-height: 19px;\">My goal is to make Toptile the reference network for top percentile people. The network you and me wish had existed for a long time.</span></p><p style=\"line-height: 14px; word-break: break-word;\" data-mce-style=\"line-height: 14px; word-break: break-word;\"> </p><p style=\"line-height: 14px; word-break: break-word;\" data-mce-style=\"line-height: 14px; word-break: break-word;\"><span style=\"font-size: 16px; line-height: 19px;\" data-mce-style=\"font-size: 16px; line-height: 19px;\">I have so many ideas about how to make this a reality. And at the same time no strong opinion about what, when, how, or where.</span></p><p style=\"line-height: 14px; word-break: break-word;\" data-mce-style=\"line-height: 14px; word-break: break-word;\"> </p><p style=\"line-height: 14px; word-break: break-word;\" data-mce-style=\"line-height: 14px; word-break: break-word;\"><span style=\"font-size: 16px; line-height: 19px;\" data-mce-style=\"font-size: 16px; line-height: 19px;\">Reach to me at <a style=\"text-decoration: underline;\" title=\"hello@enzoferey.com\" href=\"mailto:hello@enzoferey.com?subject=Toptile\"><span style=\"background-color: #f7dd72; color: #000000; text-decoration: underline; line-height: 14px;\" data-mce-style=\"background-color: #f7dd72; color: #000000; text-decoration: underline; line-height: 14px;\">hello@enzoferey.com</span></a> if you want to be part of the initial members that will shape this network.</span></p></div>",
+                    "style": {
+                      "color": "#000000",
+                      "font-family": "'Open Sans', 'Helvetica Neue', Helvetica, Arial, sans-serif",
+                      "line-height": "120%"
+                    }
+                  }
+                },
+                "locked": false,
+                "type": "mailup-bee-newsletter-modules-text"
+              },
+              {
+                "descriptor": {
+                  "computedStyle": { "hideContentOnMobile": false },
+                  "style": {
+                    "padding-bottom": "10px",
+                    "padding-left": "10px",
+                    "padding-right": "10px",
+                    "padding-top": "10px"
+                  },
+                  "text": {
+                    "computedStyle": { "linkColor": "#f7dd72" },
+                    "html": "<div class=\"txtTinyMce-wrapper\" style=\"line-height: 14px; font-size: 12px; font-family: &apos;Open Sans&apos;, &apos;Helvetica Neue&apos;, Helvetica, Arial, sans-serif;\" data-mce-style=\"line-height: 14px; font-size: 12px; font-family: &apos;Open Sans&apos;, &apos;Helvetica Neue&apos;, Helvetica, Arial, sans-serif;\"><p style=\"font-size: 14px; line-height: 16px; word-break: break-word; font-family: &apos;Open Sans&apos;, &apos;Helvetica Neue&apos;, Helvetica, Arial, sans-serif;\" data-mce-style=\"font-size: 14px; line-height: 16px; word-break: break-word;\"><span style=\"font-size: 16px; line-height: 19px;\" data-mce-style=\"font-size: 16px; line-height: 19px;\">In the mean time, as an appetizer for the tons of content you will hear about in Toptile, two amazing pieces of related content:</span></p><p style=\"font-size: 14px; line-height: 16px; word-break: break-word; font-family: &apos;Open Sans&apos;, &apos;Helvetica Neue&apos;, Helvetica, Arial, sans-serif;\" data-mce-style=\"font-size: 14px; line-height: 16px; word-break: break-word;\"> </p>\n<ul>\n<li style=\"font-size: 14px; line-height: 16px;\" data-mce-style=\"font-size: 14px; line-height: 16px;\"><span style=\"font-size: 16px; color: #000000; line-height: 19px;\" data-mce-style=\"font-size: 16px; color: #000000; line-height: 19px;\"><a style=\"text-decoration: underline; color: #000000;\" href=\"https://danluu.com/p95-skill/\" target=\"_blank\" rel=\"noopener\">95%-ile isn&apos;t that good</a><span style=\"color: #808080; line-height: 14px;\" data-mce-style=\"color: #808080; line-height: 14px;\">, by </span><a style=\"text-decoration: underline; color: #000000;\" href=\"https://twitter.com/danluu\" target=\"_blank\" rel=\"noopener\"><span style=\"color: #333333; text-decoration: underline; line-height: 14px;\" data-mce-style=\"color: #333333; text-decoration: underline; line-height: 14px;\"><span style=\"color: #808080; text-decoration: underline; line-height: 14px;\" data-mce-style=\"color: #808080; text-decoration: underline; line-height: 14px;\">Dan Luu</span></span></a></span></li>\n<li style=\"font-size: 14px; line-height: 16px;\" data-mce-style=\"font-size: 14px; line-height: 16px;\"><span style=\"font-size: 16px; color: #000000; line-height: 19px;\" data-mce-style=\"font-size: 16px; color: #000000; line-height: 19px;\"><a style=\"text-decoration: underline; color: #000000;\" href=\"https://jamesclear.com/3-2-1\" target=\"_blank\" rel=\"noopener\">3-2-1 Thursday newsletter</a><span style=\"color: #808080; line-height: 14px;\" data-mce-style=\"color: #808080; line-height: 14px;\">, by </span><a style=\"text-decoration: underline; color: #000000;\" href=\"https://twitter.com/jamesclear\" target=\"_blank\" rel=\"noopener\"><span style=\"color: #808080; text-decoration: underline; line-height: 14px;\" data-mce-style=\"color: #808080; text-decoration: underline; line-height: 14px;\">James Clear</span></a></span></li>\n</ul><p style=\"font-size: 14px; line-height: 16px; word-break: break-word; font-family: &apos;Open Sans&apos;, &apos;Helvetica Neue&apos;, Helvetica, Arial, sans-serif;\" data-mce-style=\"font-size: 14px; line-height: 16px; word-break: break-word;\"> </p><p style=\"font-size: 14px; line-height: 16px; word-break: break-word; font-family: &apos;Open Sans&apos;, &apos;Helvetica Neue&apos;, Helvetica, Arial, sans-serif;\" data-mce-style=\"font-size: 14px; line-height: 16px; word-break: break-word;\"><span style=\"font-size: 16px; line-height: 19px;\" data-mce-style=\"font-size: 16px; line-height: 19px;\">I&apos;m looking forward hearing from you,</span></p><p style=\"font-size: 14px; line-height: 16px; word-break: break-word; font-family: &apos;Open Sans&apos;, &apos;Helvetica Neue&apos;, Helvetica, Arial, sans-serif;\" data-mce-style=\"font-size: 14px; line-height: 16px; word-break: break-word;\"> </p><p style=\"font-size: 14px; line-height: 16px; word-break: break-word; font-family: &apos;Open Sans&apos;, &apos;Helvetica Neue&apos;, Helvetica, Arial, sans-serif;\" data-mce-style=\"font-size: 14px; line-height: 16px; word-break: break-word;\"><span style=\"font-size: 14px; color: #808080; line-height: 16px;\" data-mce-style=\"font-size: 14px; color: #808080; line-height: 16px;\"><span style=\"font-size: 16px; line-height: 19px;\" data-mce-style=\"font-size: 16px; line-height: 19px;\">This is only the beginning</span><br><br></span></p><p style=\"font-size: 14px; line-height: 16px; word-break: break-word; font-family: &apos;Open Sans&apos;, &apos;Helvetica Neue&apos;, Helvetica, Arial, sans-serif;\" data-mce-style=\"font-size: 14px; line-height: 16px; word-break: break-word;\"><span style=\"font-size: 16px; line-height: 19px;\" data-mce-style=\"font-size: 16px; line-height: 19px;\">- Enzo Ferey</span></p><p style=\"font-size: 14px; line-height: 16px; word-break: break-word; font-family: &apos;Open Sans&apos;, &apos;Helvetica Neue&apos;, Helvetica, Arial, sans-serif;\" data-mce-style=\"font-size: 14px; line-height: 16px; word-break: break-word;\"> </p></div>",
+                    "style": {
+                      "color": "#000000",
+                      "font-family": "'Open Sans', 'Helvetica Neue', Helvetica, Arial, sans-serif",
+                      "line-height": "120%"
+                    }
+                  }
+                },
+                "locked": false,
+                "type": "mailup-bee-newsletter-modules-text"
+              }
+            ],
+            "style": {
+              "background-color": "#ffffff",
+              "border-bottom": "0px solid transparent",
+              "border-left": "0px solid transparent",
+              "border-right": "0px solid transparent",
+              "border-top": "0px solid transparent",
+              "padding-bottom": "16px",
+              "padding-left": "16px",
+              "padding-right": "16px",
+              "padding-top": "16px"
+            }
+          }
+        ],
+        "container": {
+          "style": {
+            "background-color": "#ffffff",
+            "background-image": "none",
+            "background-position": "top left",
+            "background-repeat": "no-repeat"
+          }
+        },
+        "content": {
+          "computedStyle": {
+            "hideContentOnDesktop": false,
+            "hideContentOnMobile": false,
+            "rowColStackOnMobile": true,
+            "rowReverseColStackOnMobile": false
+          },
+          "style": {
+            "background-color": "#ffffff",
+            "background-image": "none",
+            "background-position": "top left",
+            "background-repeat": "no-repeat",
+            "color": "#000000",
+            "width": "500px"
+          }
+        },
+        "locked": false,
+        "type": "row-1-columns-12"
+      }
+    ],
+    "template": {
+      "name": "template-base",
+      "type": "basic",
+      "version": "2.0.0"
+    },
+    "title": ""
+  }
+}

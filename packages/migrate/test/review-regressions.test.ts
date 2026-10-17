@@ -194,7 +194,7 @@ describe("a Node.js older than the CLI needs (built CLI)", () => {
       expect(result.stdout).toBe("");
     }
     const supported = await run(process.execPath, [...reporting("20.6.0"), bin, "--help"], dir);
-    expect(supported.stdout).toContain("Migrate React Email templates to Unlayer Elements.");
+    expect(supported.stdout).toContain("Migrate React Email, MJML or Beefree templates to Unlayer Elements.");
   }, 90_000);
 
   it("says which version it is on any Node.js", async () => {
