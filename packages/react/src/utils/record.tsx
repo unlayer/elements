@@ -10,7 +10,7 @@
 import React from "react";
 import { HEAD_ENTRY, RECORDS, type Recorded } from "./collect";
 import { isElementsType, ROOT_NAMES } from "./unwrap-root";
-import { TAILWIND } from "./tailwind";
+import { TAILWIND, TAILWIND_LOADER } from "./tailwind";
 import { UNLAYER_CONFIG_KEY, UNLAYER_RENDER_KEY } from "./create-component";
 import { boundary, recordNode } from "../engine/records";
 import { checked, checkKeys } from "../engine/keys";
@@ -103,7 +103,8 @@ export function collector(options: Options): Collector {
     const props = element.props as Record<string, any>;
     if (typeof type[TAILWIND] === "function") {
       // A scope: its rewrite in its props, so each Row, Column and block knows the one it's in.
-      return { record: (position) => container(placed({ kind: "tailwind", props: { ...props, [TAILWIND]: type[TAILWIND] } }, position), options, "Tailwind") };
+      // (With its copy's compiler, which the async renderers compile its config with.)
+      return { record: (position) => container(placed({ kind: "tailwind", props: { ...props, [TAILWIND]: type[TAILWIND] }, load: type[TAILWIND_LOADER] }, position), options, "Tailwind") };
     }
     if (typeof type[HEAD_ENTRY] === "function") return { record: (position) => recordNode(placed({ ...type[HEAD_ENTRY](props) }, position), undefined, true) };
     const kind = kindOf(type);

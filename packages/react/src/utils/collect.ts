@@ -12,7 +12,9 @@ export const whereIs = (record: Placed | undefined): string | undefined => recor
 
 export type Recorded = Placed &
   (
-    | { kind: "row" | "column" | "tailwind"; props: Record<string, any> }
+    | { kind: "row" | "column"; props: Record<string, any> }
+    /** `load`: the compiler of the copy of Elements whose <Tailwind> it is (the async renderers compile its config with it). */
+    | { kind: "tailwind"; props: Record<string, any>; load?: unknown }
     /**
      * What a component gives the document's head, and the root's props unless it sets them (a <Font>); `design`, what
      * it gives the design (a <Font>'s URL on the fonts of its family).

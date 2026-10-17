@@ -138,6 +138,23 @@ describe("the async renderers, with <Tailwind config>", () => {
     expect(parts.body).toContain("color: #007291");
   });
 
+  it("compile it with the compiler of its own copy of Elements, whichever copy's Tailwind entry loaded last", async () => {
+    // Another copy of Elements in the app (another version, a package still on one), whose Tailwind entry loaded after.
+    const LOADER = Symbol.for("@unlayer/react-elements/tailwind-loader");
+    const global = globalThis as Record<symbol, unknown>;
+    const own = global[LOADER];
+    const other = vi.fn(async () => {
+      throw new Error("another copy's compiler");
+    });
+    global[LOADER] = other;
+    try {
+      expect(await renderToHtml(template)).toContain("color: #007291");
+      expect(other).not.toHaveBeenCalled();
+    } finally {
+      global[LOADER] = own;
+    }
+  });
+
   it("take Tailwind's default theme from a <Tailwind> without a config, and `tw` as it is", async () => {
     const plain = await renderToJson(
       <Tailwind>

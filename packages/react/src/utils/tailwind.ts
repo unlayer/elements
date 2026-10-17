@@ -12,6 +12,9 @@ export const TAILWIND = Symbol.for("@unlayer/react-elements/tailwind");
 
 type Rewrite = (scope: Record<PropertyKey, any>, name: string, defaults: Record<string, any> | undefined, props: Record<string, any>) => Record<string, any>;
 
+/** On a scope's component type (the Tailwind entry's <Tailwind>): its copy's compiler, for the async renderers. */
+export const TAILWIND_LOADER = Symbol.for("@unlayer/react-elements/tailwind-loader");
+
 /** Whether an error is one a scope threw: the renderers pass it on as it is. */
 export const isTailwindError = (error: unknown): boolean => !!(error as Record<symbol, unknown> | null)?.[TAILWIND];
 

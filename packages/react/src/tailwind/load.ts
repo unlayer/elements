@@ -3,7 +3,7 @@
  * and stylesheets that way); what it gives is a handle whose classes are read synchronously, so the renderers stay
  * synchronous. Tailwind (the optional peer dependency) is loaded here only, when it's first asked for.
  */
-import type { Resolver, TailwindConfig, TailwindHandle } from "./Tailwind";
+import { Tailwind, type Resolver, type TailwindConfig, type TailwindHandle } from "./Tailwind";
 // Tailwind's default theme, as its `tailwindcss/theme.css` holds it, built into this module: a bundler or an edge
 // runtime has no file to read it from.
 /*! Includes tailwindcss's default theme (MIT License, Copyright (c) Tailwind Labs, Inc.): see THIRD_PARTY_LICENSES.md */
@@ -107,8 +107,12 @@ export function loadTailwind(config?: TailwindConfig): Promise<TailwindHandle> {
   return loading;
 }
 
-// The async renderers ("@unlayer/react-elements/async") compile with it where this entry is loaded (a bundle).
-(globalThis as Record<symbol, unknown>)[Symbol.for("@unlayer/react-elements/tailwind-loader")] = loadTailwind;
+// The async renderers ("@unlayer/react-elements/async") compile a <Tailwind config> with the compiler of the copy of
+// Elements whose <Tailwind> it is (two copies in one app, each its own: their classes can differ), and an older
+// copy's with the one loaded last, where this entry is loaded (a bundle).
+const LOADER = Symbol.for("@unlayer/react-elements/tailwind-loader");
+(Tailwind as unknown as Record<symbol, unknown>)[LOADER] = loadTailwind;
+(globalThis as Record<symbol, unknown>)[LOADER] = loadTailwind;
 
 /**
  * The declarations a class string gives with a compiled Tailwind, as Elements reads them for an email: colors in

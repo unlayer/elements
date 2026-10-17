@@ -28,12 +28,13 @@ export interface Resolver {
   props(name: string, className: string, explicit: Record<string, any>, defaults?: Record<string, any>): Record<string, any>;
 }
 
-// The handles an async renderer compiled, by config, while it renders (never a cache a sync render could find warm).
+// The handles an async renderer compiled, by config and by the <Tailwind> it's for (this copy's), while it renders
+// (never a cache a sync render could find warm).
 const SCOPES = Symbol.for("@unlayer/react-elements/tailwind-scopes");
-export const lookups = ((globalThis as Record<symbol, unknown>)[SCOPES] ??= []) as Array<(config?: TailwindConfig) => unknown>;
+export const lookups = ((globalThis as Record<symbol, unknown>)[SCOPES] ??= []) as Array<(config: TailwindConfig | undefined, scope: unknown) => unknown>;
 
 function resolver({ tw, config }: TailwindProps): Resolver {
-  const handle = (tw ?? lookups[lookups.length - 1]?.(config)) as Record<symbol, Resolver> | undefined;
+  const handle = (tw ?? lookups[lookups.length - 1]?.(config, Tailwind)) as Record<symbol, Resolver> | undefined;
   if (handle?.[TAILWIND]) return handle[TAILWIND];
   throw Object.assign(
     new Error(

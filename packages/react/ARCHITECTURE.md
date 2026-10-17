@@ -199,8 +199,10 @@ row or block is left out of the HTML, the plain text and the design (the slower 
    markers are shared, by `Symbol.for`: a Row's, Column's and block's (`@unlayer/react-elements/records`, and their
    `__unlayerRender`/`__unlayerItemConfig` statics), a `<Head>`/`<Font>` entry's (`…/head-entry`), a `<Tailwind>`'s
    rewrite (`…/tailwind`), an `<UnlayerProvider>`'s (`…/provider`), so one copy's walk records another copy's Rows.
-   The async and Tailwind entries, separate bundles, share the Tailwind compiler and the handles an async render
-   compiled (`…/tailwind-loader`, `…/tailwind-scopes`). No render state is shared.
+   The async and Tailwind entries, separate bundles, share the handles an async render compiled (`…/tailwind-scopes`),
+   found by the `<Tailwind>` they're for; a `<Tailwind>` carries its copy's compiler (`…/tailwind-loader`, on its
+   type), which the async renderers compile its config with, so two copies' classes don't mix (an older copy's
+   `<Tailwind>`, which carries none, gets the compiler of the Tailwind entry loaded last). No render state is shared.
 
 ## Where it's tested
 

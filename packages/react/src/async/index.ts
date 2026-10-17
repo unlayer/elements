@@ -45,8 +45,9 @@ const LOADER = Symbol.for("@unlayer/react-elements/tailwind-loader");
 const ROOTS = new Set(["Body", "Email", "Page", "Document"]);
 
 interface Collected {
-  recorded: Array<{ kind: string; props?: { tw?: unknown; config?: TailwindConfig } }>;
+  recorded: Array<{ kind: string; props?: { tw?: unknown; config?: TailwindConfig }; load?: Load }>;
 }
+type Load = (config?: TailwindConfig) => Promise<TailwindHandle>;
 type Scope = object;
 interface Internals {
   newScope(): Scope;
@@ -56,10 +57,13 @@ interface Internals {
   engine: Engine;
 }
 
-/** Elements' Tailwind compiler, when a template has a `<Tailwind config>`: the Tailwind entry's, never loaded otherwise. */
-async function tailwindLoader(): Promise<(config?: TailwindConfig) => Promise<TailwindHandle>> {
+/**
+ * Elements' Tailwind compiler, for a `<Tailwind config>` of a copy of Elements that doesn't carry its own (an older
+ * one): the Tailwind entry's loaded last, never loaded otherwise.
+ */
+async function tailwindLoader(): Promise<Load> {
   const loaded = (globalThis as Record<symbol, unknown>)[LOADER];
-  if (typeof loaded === "function") return loaded as (config?: TailwindConfig) => Promise<TailwindHandle>;
+  if (typeof loaded === "function") return loaded as Load;
   // Not where a bundler would follow it (into `tailwindcss`, an optional peer dependency): loaded when it runs.
   return (await import(/* webpackIgnore: true */ /* @vite-ignore */ "@unlayer/react-elements/tailwind")).loadTailwind;
 }
@@ -74,19 +78,28 @@ async function render<T>(element: React.ReactElement, options: Partial<UnlayerCo
   const scope = internals.newScope();
   const root = await internals.unwrapAsync(element, take, options?.idPrefix);
   const children = (root.props as { children?: React.ReactNode } | null)?.children;
-  const configs: Array<TailwindConfig | undefined> = [];
+  const scopes: Array<{ config?: TailwindConfig; load?: Load }> = [];
   if (ROOTS.has((root.type as { displayName?: string })?.displayName ?? "") && children && typeof children === "object") {
     const collected = await internals.collectAsync(root, scope, options, (node, walk) => collectWaiting(internals.engine, node, walk));
-    for (const r of collected.recorded) if (r.kind === "tailwind" && !r.props?.tw) configs.push(r.props?.config);
+    for (const r of collected.recorded) if (r.kind === "tailwind" && !r.props?.tw) scopes.push({ config: r.props?.config, load: typeof r.load === "function" ? r.load : undefined });
   }
-  const handles = new Map<unknown, TailwindHandle>();
-  if (configs.length) {
-    const load = await tailwindLoader();
-    for (const config of configs) if (!handles.has(config)) handles.set(config, await load(config));
+  // Each scope's config compiled by its copy's compiler (an older copy's by the one loaded last), once each.
+  const handles = new Map<Load, Map<unknown, TailwindHandle>>();
+  for (const { config, load: own } of scopes) {
+    const load = own ?? (await tailwindLoader());
+    const compiled = handles.get(load) ?? new Map<unknown, TailwindHandle>();
+    handles.set(load, compiled);
+    if (!compiled.has(config)) compiled.set(config, await load(config));
   }
-  // The handles, for the <Tailwind config> elements to find while it renders (the Tailwind entry's lookups).
-  const lookups = ((globalThis as Record<symbol, unknown>)[LOOKUPS] ??= []) as Array<(config?: TailwindConfig) => unknown>;
-  const lookup = (config?: TailwindConfig) => handles.get(config);
+  // The handles, for the <Tailwind config> elements to find while it renders (the Tailwind entry's lookups): a
+  // <Tailwind> says which it is, by its type (an older copy's doesn't: any compiled for its config).
+  const lookups = ((globalThis as Record<symbol, unknown>)[LOOKUPS] ??= []) as Array<(config: TailwindConfig | undefined, scope?: unknown) => unknown>;
+  const lookup = (config: TailwindConfig | undefined, scope?: unknown) => {
+    const own = handles.get((scope as Record<symbol, Load> | undefined)?.[LOADER] as Load)?.get(config);
+    if (own) return own;
+    for (const compiled of handles.values()) if (compiled.has(config)) return compiled.get(config);
+    return undefined;
+  };
   lookups.push(lookup);
   try {
     return internals.withScope(scope, () => run(root));
