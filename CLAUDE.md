@@ -143,7 +143,7 @@ Example: `<Button fontSize="16px">` → `{ style: { fontSize: "16px" } }` in the
 - TypeScript strict compilation
 - All unit tests pass
 - Bundle size < 173.5KB (ESM, main entry; the `tailwind`, `async`, `markdown`, `code`, `font` and `head` entries aren't counted)
-- The react package's suite on React 18.3, 19.1, 19.2 and the latest 19, in React's development and production builds (the walker against react-dom/server, useId()s included; React's react-server build); weekly against React's canary (`react-canary.yml`, reports only)
+- The react package's suite on React 18.0, 18.2, 18.3, 19.1, 19.2 and the latest 19, in React's development and production builds (the walker against react-dom/server, useId()s included; React's react-server build); weekly against React's canary (`react-canary.yml`, reports only)
 - Elements output matches the previous release (designs, plain text) and the reviewed snapshots (HTML, template patterns); hostile inputs add no markup
 - Next.js integration build succeeds
 - Browser E2E gate passes (rendered documents verified in Chromium: 0px `<p>` margins, single `<body>`, no errors)

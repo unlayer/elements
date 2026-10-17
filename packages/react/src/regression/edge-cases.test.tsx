@@ -8,11 +8,12 @@
  * it; with `onError: "omit"` it's left out, and then the rest renders where the previous release did.
  */
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
-import React, { Component, Fragment, createContext, forwardRef, memo, useContext, useDeferredValue, useLayoutEffect, useMemo, useState, useSyncExternalStore, useTransition, act } from "react";
+import React, { Component, Fragment, createContext, forwardRef, memo, useContext, useDeferredValue, useLayoutEffect, useMemo, useState, useSyncExternalStore, useTransition } from "react";
 import { renderToString } from "react-dom/server";
 import { createRoot } from "react-dom/client";
 import * as current from "../index";
 import * as previous from "@unlayer/react-elements-previous";
+import { act } from "../test-utils";
 
 type Lib = typeof current;
 const releases = { current, previous: previous as unknown as Lib };

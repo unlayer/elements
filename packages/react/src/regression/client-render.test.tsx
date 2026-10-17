@@ -4,9 +4,10 @@
  * renders it, whatever is added, removed or moved around it.
  */
 import { afterEach, describe, expect, it, vi } from "vitest";
-import React, { act, useId, useState } from "react";
+import React, { useId, useState } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { Column, Email, Html, Paragraph, Row, renderToHtml, renderToPlainText } from "../index";
+import { act } from "../test-utils";
 
 // Renders run inside act(), as React's testing setup expects.
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;

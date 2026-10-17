@@ -18,6 +18,8 @@ const root = path.resolve(import.meta.dirname, "../..");
 const esbuild = createRequire(createRequire(path.join(root, "package.json")).resolve("tsup/package.json"))("esbuild") as typeof import("esbuild");
 const dist = path.join(root, "dist");
 const versionOf = (dir: string): string => JSON.parse(fs.readFileSync(path.join(dir, "package.json"), "utf8")).version;
+/** `React.version` of the React in `dir`: its package's (React 18.0.0's has its build after it). */
+const reactVersion = (dir: string) => expect.stringMatching(new RegExp(`^${versionOf(dir).replace(/\./g, "\\.")}(-|$)`));
 const is19 = (dir: string) => Number.parseInt(versionOf(dir)) >= 19;
 // This package's React (18 here; CI runs the suite on others too), and React 19 from the migration CLI's tests (its
 // aliases): two installs.
@@ -118,7 +120,7 @@ console.log(JSON.stringify({ react: React.version, page: renderToString(h(Page))
       fs.writeFileSync(path.join(app, "body.js"), page.replace(/const Page = .*\n/, 'const Page = () => h("pre", { dangerouslySetInnerHTML: { __html: "1 rows, open=false, " + E.renderToHtml(email).includes("Hi there") } });\n'));
       const body = spawnSync(process.execPath, [path.join(app, "body.js")], { cwd: parent, encoding: "utf8", timeout: 20_000 });
       expect(body.error, "still running after 20s: something keeps Node alive").toBeUndefined();
-      expect(JSON.parse(body.stdout.trim().split("\n").pop()!)).toEqual({ react: versionOf(react18), page: "<pre>1 rows, open=false, true</pre>" });
+      expect(JSON.parse(body.stdout.trim().split("\n").pop()!)).toEqual({ react: reactVersion(react18), page: "<pre>1 rows, open=false, true</pre>" });
       // Run as its folder (its package's `main`), through a link to it elsewhere, imported by a script elsewhere, and
       // from `node -e`: Node's script isn't the app's, but Elements is where it is.
       fs.writeFileSync(path.join(app, "package.json"), JSON.stringify({ type: "module", main: "page.js" }));
@@ -135,7 +137,7 @@ console.log(JSON.stringify({ react: React.version, page: renderToString(h(Page))
         const run = spawnSync(process.execPath, args, { cwd, encoding: "utf8", timeout: 20_000 });
         expect(run.error, `still running after 20s: node ${args.join(" ")}`).toBeUndefined();
         expect(run.status, `node ${args.join(" ")}: ${run.stderr}`).toBe(0);
-        expect(JSON.parse(run.stdout.trim().split("\n").pop()!)).toEqual({ react: versionOf(react18), page: "<pre>1 rows, open=false, true</pre>" });
+        expect(JSON.parse(run.stdout.trim().split("\n").pop()!)).toEqual({ react: reactVersion(react18), page: "<pre>1 rows, open=false, true</pre>" });
       }
     } finally {
       fs.rmSync(parent, { recursive: true, force: true });
@@ -490,7 +492,7 @@ describe("a Node script that renders with the built package", () => {
           expect(run.error, "still running after 20s: something keeps Node alive").toBeUndefined();
           expect(run.status, run.stderr).toBe(0);
           const out = JSON.parse(run.stdout.trim().split("\n").pop()!);
-          expect(out.react).toBe(versionOf(react));
+          expect(out.react).toEqual(reactVersion(react));
           expect(out).toMatchObject({ html: true, page: "<pre>1 rows, open=false</pre>" });
         } finally {
           fs.rmSync(dir, { recursive: true, force: true });

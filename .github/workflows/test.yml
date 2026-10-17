@@ -307,7 +307,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        react: ["18.3.1", "19.1", "19.2", "latest"]
+        react: ["18.0.0", "18.2.0", "18.3.1", "19.1", "19.2", "latest"]
         build: [development, production]
 
     steps:

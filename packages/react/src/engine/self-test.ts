@@ -43,6 +43,10 @@ export function probe(row: ReactRow, R: any = React, slot: Slot | null = theSlot
   return undefined;
 }
 
+/** What development says of a React the table doesn't have (`v`) that passed the check. */
+export const untested = (v: string): string =>
+  `[Unlayer] React ${v} is ${reactRow(v).older ? "older" : "newer"} than the versions Elements is tested with (${KNOWN_REACT[0].react}–${KNOWN_REACT[KNOWN_REACT.length - 1].react}); it passed Elements' check of the React it relies on.`;
+
 let verdict: string | null | undefined;
 
 /** Throws, on every render, if this React fails the check (run once per process). */
@@ -52,8 +56,7 @@ export function checkReact(): void {
     else {
       const { row, known } = reactRow();
       verdict = probe(row) ?? null;
-      if (!verdict && !known && env.NODE_ENV !== "production")
-        console.warn(`[Unlayer] React ${React.version} is newer than the versions Elements is tested with (${KNOWN_REACT[0].react}–${KNOWN_REACT[KNOWN_REACT.length - 1].react}); it passed Elements' check of the React it relies on.`);
+      if (!verdict && !known && env.NODE_ENV !== "production") console.warn(untested(React.version));
     }
   }
   if (verdict) throw new Error(`[Unlayer] unsupported React ${React.version}: ${verdict}. Set UNLAYER_SKIP_REACT_CHECK=1 to render anyway.`);

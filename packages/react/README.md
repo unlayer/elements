@@ -10,7 +10,7 @@ npm install @unlayer/react-elements
 pnpm add @unlayer/react-elements
 ```
 
-Elements works with React 18.3 and 19 (tested with 18.3, 19.0 to 19.3, and React's canary), in Node.js, edge runtimes, browsers and Next.js's Server Components alike. It renders templates with a renderer of its own, which uses React's hooks as React's server renderer does, so before its first render it checks the installed React: a newer React it isn't tested with renders if that check passes (with one warning in development), and if it fails, every render throws `[Unlayer] unsupported React x.y.z: <what failed>`. To render anyway, set `UNLAYER_SKIP_REACT_CHECK=1` in the environment. `react-dom` stays a peer dependency because the editor's exporters import it, though no render calls it. How it works: [ARCHITECTURE.md](./ARCHITECTURE.md).
+Elements works with React 18 and 19 (tested with 18.0 to 18.3, 19.0 to 19.3, and React's canary), in Node.js, edge runtimes, browsers and Next.js's Server Components alike. It renders templates with a renderer of its own, which uses React's hooks as React's server renderer does, so before its first render it checks the installed React: a newer React it isn't tested with renders if that check passes (with one warning in development), and if it fails, every render throws `[Unlayer] unsupported React x.y.z: <what failed>`. To render anyway, set `UNLAYER_SKIP_REACT_CHECK=1` in the environment. `react-dom` stays a peer dependency because the editor's exporters import it, though no render calls it. How it works: [ARCHITECTURE.md](./ARCHITECTURE.md).
 
 ## Quick Start
 

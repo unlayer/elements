@@ -102,7 +102,7 @@ and `useContext` are read off React), and its one context, `<UnlayerProvider>`'s
 
 ### React versions
 
-`react-compat.ts` has a row per React minor Elements is tested with (18.3, 19.0, 19.1, 19.2, 19.3): the dispatcher
+`react-compat.ts` has a row per React minor Elements is tested with (18.0 to 18.3, 19.0, 19.1, 19.2, 19.3): the dispatcher
 slot's path per build, `useId`'s format (`:R1:`, `«R1»`, `_R_1_`), the context shape (React 18's `Ctx.Provider`
 object, React 19's `<Ctx>`), and whether it has `use()`. The walker throws its own errors for what React's server
 renderer rejects (an object as a child, an invalid element type, a portal) and reads no React error message.
@@ -110,11 +110,12 @@ renderer rejects (an object as a child, an invalid element type, a portal) and r
 Before the first render, `self-test.ts` checks the installed React: the slot is where the table says, the dispatcher
 installs there and the previous one is put back, a `useId()` has the table's format, a context reads through the
 walker's stack, `use()` reads a fulfilled thenable. A version the table doesn't have takes the row of the nearest one
-before it: if it passes, it renders (with one warning in development); if it fails, every render throws
+before it (one older than all, the first): if it passes, it renders (with one warning in development, saying it's
+newer or older than the table's); if it fails, every render throws
 `[Unlayer] unsupported React x.y.z: <what failed>`. **`UNLAYER_SKIP_REACT_CHECK=1`** in the environment skips the
 check, to render anyway.
 
-CI runs the react package's suite on React 18.3, 19.1, 19.2 and the latest 19, in React's development and production
+CI runs the react package's suite on React 18.0, 18.2, 18.3, 19.1, 19.2 and the latest 19, in React's development and production
 builds, and weekly against React's canary with a longer fuzz run (`.github/workflows/test.yml`, `react-canary.yml`).
 To support a new version: add its row, run the suite on it (`pnpm --filter @unlayer/react-elements add -D react@x
 react-dom@x`), and add a hook it adds to `dispatcher.ts` and to the list in `dispatcher.test.tsx`.

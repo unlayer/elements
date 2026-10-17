@@ -7,7 +7,7 @@ import { describe, expect, it } from "vitest";
 import React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { ID_PATTERN, KNOWN_REACT, reactRow, slotOf } from "./react-compat";
-import { checkReact, probe } from "./self-test";
+import { checkReact, probe, untested } from "./self-test";
 
 describe("the React compat table", () => {
   it("has the installed React's minor, or (a newer one) the nearest one before it", () => {
@@ -21,6 +21,14 @@ describe("the React compat table", () => {
     expect(reactRow("19.2.4").row.react).toBe("19.2");
     expect(reactRow("19.9.0")).toEqual({ row: KNOWN_REACT[KNOWN_REACT.length - 1], known: false });
     expect(reactRow("20.0.0-canary-abc").known).toBe(false);
+    // React 18's every minor (the peer range's), 18.0.0 with its build in its version.
+    for (const v of ["18.0.0-fc46dba67-20220329", "18.1.0", "18.2.0", "18.3.1"]) expect(reactRow(v), v).toMatchObject({ row: { react: v.slice(0, 4) }, known: true });
+    expect(reactRow("17.0.2")).toEqual({ row: KNOWN_REACT[0], known: false, older: true });
+  });
+
+  it("says a React it isn't tested with is newer, or older, than those it is", () => {
+    expect(untested("19.9.0")).toBe(`[Unlayer] React 19.9.0 is newer than the versions Elements is tested with (18.0–19.3); it passed Elements' check of the React it relies on.`);
+    expect(untested("17.0.2")).toMatch(/^\[Unlayer\] React 17\.0\.2 is older than the versions Elements is tested with \(18\.0–/);
   });
 
   it("gives useId's format as the installed react-dom/server writes it", () => {
