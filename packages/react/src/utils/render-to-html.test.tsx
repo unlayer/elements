@@ -453,6 +453,24 @@ describe("renderToHtml with a template component", () => {
     expect(JSON.stringify(renderToJson(<Layout name="Ada" />))).toContain("Hello Ada");
   });
 
+  it.each([
+    ["Email", Email],
+    ["Body", Body],
+    ["Page", Page],
+    ["Document", Document],
+  ] as const)("calls a component of the user's own named like a root (`displayName = \"%s\"`), in the HTML and the design alike", (name, Root) => {
+    // A design-system wrapper of the root, named after it: it renders as written, the props it sets included.
+    const Branded = (props: React.ComponentProps<typeof Body>) => <Root backgroundColor="#f4f4f4" contentWidth="560px" {...props} />;
+    Branded.displayName = name;
+    const content = <Row><Column><Paragraph>Hello</Paragraph></Column></Row>;
+    const written = <Root backgroundColor="#f4f4f4" contentWidth="560px" textColor="#333333">{content}</Root>;
+    const html = renderToHtml(<Branded textColor="#333333">{content}</Branded>);
+    expect(html).toBe(renderToHtml(written));
+    expect(html).toContain("#f4f4f4");
+    expect(renderToJson(<Branded textColor="#333333">{content}</Branded>)).toEqual(renderToJson(written));
+    expect(renderToJson(<Branded>{content}</Branded>).body.values).toMatchObject({ backgroundColor: "#f4f4f4", contentWidth: "560px" });
+  });
+
   it("says an async template isn't supported", () => {
     const Async = (async () => root({ name: "Ada" })) as unknown as React.ComponentType;
     expect(() => renderToHtml(<Async />)).toThrow('async and suspending templates need "@unlayer/react-elements/async"\'s renderers');

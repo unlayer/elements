@@ -9,7 +9,8 @@
  */
 import React from "react";
 import { HEAD_ENTRY, RECORDS, type Recorded } from "./collect";
-import { isElementsType, ROOT_NAMES } from "./unwrap-root";
+import { isElementsType } from "./unwrap-root";
+import { rootName } from "./root-type";
 import { TAILWIND, TAILWIND_LOADER } from "./tailwind";
 import { UNLAYER_CONFIG_KEY, UNLAYER_RENDER_KEY } from "./create-component";
 import { boundary, recordNode } from "../engine/records";
@@ -50,9 +51,10 @@ function guarded(child: React.ReactNode, options: Options, owner: string, inCont
   if (isElementsType(type)) {
     // A root (Email, Page, Document) placed in a Row or Column: left out, as 0.1.22 left it out, saying so. Among the
     // rows (`<Email><Email>…</Email></Email>`) it renders as it renders, as 0.1.22 rendered it.
-    if (ROOT_NAMES.has(displayName(type)) && !type[UNLAYER_RENDER_KEY]) {
+    const root = rootName(type);
+    if (root && !type[UNLAYER_RENDER_KEY]) {
       if (!inContainer) return child;
-      console.warn(`[Unlayer] <${displayName(type)}> is a root: it can't be placed in a Row or Column, so it's left out.`);
+      console.warn(`[Unlayer] <${root}> is a root: it can't be placed in a Row or Column, so it's left out.`);
       return null;
     }
     if (kindOf(type)) return child;

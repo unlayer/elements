@@ -67,6 +67,8 @@
 
 - **A class component around the root is unwrapped.** `<IntlProvider>` (react-intl's, a class) around `<Email>` wasn't called to find the root: its settings were ignored, with a warning, and the template's `<FormattedMessage>`s and `useIntl()` failed, so the email went out without its translated text. A class is now constructed and rendered as a function wrapper is called, inside the providers around it.
 
+- **A component of yours named like a root renders as written.** A design-system wrapper given a root's name (`const Email = (props) => <UEmail backgroundColor="#f4f4f4" {...props} />; Email.displayName = "Email"`) was taken for the root itself, so the design lacked the props it sets. It's now called as any component is, in the HTML and the design alike: Elements knows its own roots by a marker (an older release's by their name and code).
+
 - **A template whose wrapper sets its state while it renders renders its last render**, as React does, and a wrapper that throws fails the render once, naming it, instead of warning that it couldn't be unwrapped and then failing.
 
 - **A Row's background image is full width unless it says otherwise.** `<Row backgroundImage={{ url }}>` rendered the image inside the content width, while the design (and so the editor) had it full width, the editor's default. The HTML now takes the editor's defaults for what the image doesn't set (full width, centered, not repeated), as the design does, so code generated from a design renders as the design does. `fullWidth: false` keeps it inside the content width.

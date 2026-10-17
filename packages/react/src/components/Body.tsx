@@ -6,6 +6,7 @@ import { mapSemanticProps, type SemanticProps } from "../utils/semantic-props";
 import { cssUrl, hatch, isOwn, nextHtmlId, OWN, safeName, textDirectionOf } from "../utils/create-component";
 import type { SizeInput } from "../types";
 import { BODY_DEFAULTS } from "../utils/container-defaults";
+import { ROOT } from "../utils/root-type";
 import { setRenderConfig, withRenderScope } from "../utils/render-scope";
 import { childrenHtml, rootDefaults } from "../model";
 import { isTailwindError, rootProps } from "../utils/tailwind";
@@ -244,5 +245,6 @@ const Body: React.FC<BodyProps> = (given) => {
 
 Body.displayName = "Body";
 (Body as unknown as Record<symbol, boolean>)[OWN] = true;
+(Body as unknown as Record<symbol, string>)[ROOT] = "Body";
 
 export default Body;

@@ -1,5 +1,6 @@
 import Body, { type BodyProps } from "./Body";
 import { OWN } from "../utils/create-component";
+import { ROOT } from "../utils/root-type";
 
 export type DocumentPageSize =
   | "A3"
@@ -42,3 +43,4 @@ export default function Document(props: DocumentProps) {
 
 Document.displayName = "Document";
 ((Document as unknown) as Record<symbol, boolean>)[OWN] = true;
+((Document as unknown) as Record<symbol, string>)[ROOT] = "Document";

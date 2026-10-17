@@ -42,7 +42,6 @@ export interface PrettyOption {
 // while that render renders.
 const LOOKUPS = Symbol.for("@unlayer/react-elements/tailwind-scopes");
 const LOADER = Symbol.for("@unlayer/react-elements/tailwind-loader");
-const ROOTS = new Set(["Body", "Email", "Page", "Document"]);
 
 interface Collected {
   recorded: Array<{ kind: string; props?: { tw?: unknown; config?: TailwindConfig }; load?: Load }>;
@@ -54,6 +53,8 @@ interface Internals {
   withScope<T>(scope: Scope, run: () => T): T;
   unwrapAsync(element: React.ReactElement, steps: typeof take, idPrefix?: string): Promise<React.ReactElement>;
   collectAsync(root: React.ReactElement, scope: Scope, options: Partial<UnlayerConfig> | undefined, collect: (node: React.ReactNode, walk: CollectOptions) => Promise<Flat>): Promise<Collected>;
+  /** Whether a type is one of Elements' roots, of any copy (see utils/root-type.ts). */
+  isRoot(type: unknown): boolean;
   engine: Engine;
 }
 
@@ -79,7 +80,7 @@ async function render<T>(element: React.ReactElement, options: Partial<UnlayerCo
   const root = await internals.unwrapAsync(element, take, options?.idPrefix);
   const children = (root.props as { children?: React.ReactNode } | null)?.children;
   const scopes: Array<{ config?: TailwindConfig; load?: Load }> = [];
-  if (ROOTS.has((root.type as { displayName?: string })?.displayName ?? "") && children && typeof children === "object") {
+  if (internals.isRoot(root.type) && children && typeof children === "object") {
     const collected = await internals.collectAsync(root, scope, options, (node, walk) => collectWaiting(internals.engine, node, walk));
     for (const r of collected.recorded) if (r.kind === "tailwind" && !r.props?.tw) scopes.push({ config: r.props?.config, load: typeof r.load === "function" ? r.load : undefined });
   }

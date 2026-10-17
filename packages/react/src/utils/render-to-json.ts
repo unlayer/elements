@@ -26,7 +26,8 @@ import { mergeValues, pxMerged, pxZeros, textJsonToText } from "@unlayer-interna
 import { schemaVersion as _schemaVersion } from "@unlayer/exporters";
 const schemaVersion: number = _schemaVersion ?? 24;
 import { mapSemanticProps } from "./semantic-props";
-import { componentName, getDisplayName, providedConfig, ROOT_NAMES, unwrapRoot, UNWRAP_ADVICE } from "./unwrap-root";
+import { componentName, getDisplayName, providedConfig, unwrapRoot, UNWRAP_ADVICE } from "./unwrap-root";
+import { rootName } from "./root-type";
 import { rootConfig, rootMode, type RootConfigProps } from "../context/layer-config";
 import { BODY_DEFAULTS, ROW_DEFAULTS, COLUMN_DEFAULTS } from "./container-defaults";
 import { contentSlotWidth, pinImageSrc, type SlotContext } from "./image-sizing";
@@ -428,12 +429,13 @@ function designJson(element: React.ReactElement, options?: RenderToJsonOptions):
   element = unwrapForJson(element, options?.idPrefix);
   // The config of the <UnlayerProvider>s around it (the design keeps its direction), read before it's copied below.
   const provided = providedConfig(element);
-  const displayName = getDisplayName(element);
+  // (Of any copy of Elements: see root-type.ts.)
+  const displayName = rootName(element.type);
   // (Email, Page or Document's, read before it's copied below.)
   const mode = rootMode(element, rootConfig(element.props as RootConfigProps, provided));
   // One walk collects the rows and blocks (as the HTML does).
   let heads: Recorded[] = [];
-  if (displayName && ROOT_NAMES.has(displayName)) {
+  if (displayName) {
     const config = rootConfig(element.props as RootConfigProps, provided, options);
     const policy = config.onError;
     setRenderConfig(config);
@@ -447,7 +449,7 @@ function designJson(element: React.ReactElement, options?: RenderToJsonOptions):
     element = normalizedRoot(element, mode);
   }
 
-  if (!displayName || !ROOT_NAMES.has(displayName)) {
+  if (!displayName) {
     throw new Error(
       `[Unlayer] renderToJson: Root element must be <Body>, <Email>, <Page>, or <Document>, ` +
         `but got <${componentName(element) || "unknown"}>. ` +

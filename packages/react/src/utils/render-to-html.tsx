@@ -4,7 +4,8 @@ import { htmlToPlainText, RenderError } from "@unlayer-internal/shared-elements"
 import { renderOwn } from "../engine";
 import { OWN_MARKUP } from "../components/Body";
 import { extractHeadFromTree } from "./extract-head";
-import { htmlRoot, providedConfig, ROOT_NAMES } from "./unwrap-root";
+import { htmlRoot, providedConfig } from "./unwrap-root";
+import { isRoot } from "./root-type";
 import { ownRoot } from "./own-root";
 import { rootConfig, rootMode, type RootConfigProps } from "../context/layer-config";
 import { normalizedRoot } from "../model";
@@ -162,8 +163,7 @@ function htmlDocument(element: React.ReactElement, options?: RenderToHtmlOptions
   // Only Unlayer wrappers (Body/Email/Page/Document) get their renderer's
   // host <div> stripped — for any other root (a bare item, a custom
   // component) the outer div is the element's own markup and must stay.
-  const wrapperName = (element.type as { displayName?: string })?.displayName;
-  const isUnlayerWrapper = ROOT_NAMES.has(wrapperName ?? "");
+  const isUnlayerWrapper = isRoot(element.type);
   // (A root's HTML as Body writes it in its `<div>`, which the document has instead.)
   const rendered = bodyHtml(element, config);
   const body = rendered.inner !== undefined ? (isUnlayerWrapper ? rendered.inner : `<div>${rendered.inner}</div>`) : isUnlayerWrapper ? stripOuterDiv(rendered.html) : rendered.html;

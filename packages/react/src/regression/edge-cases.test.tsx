@@ -204,21 +204,32 @@ describe.each(Object.entries(CASES))("%s", (name, build) => {
 describe("blocks and Rows of the previous release inside this one's (a package still on it, in a monorepo)", () => {
   const P = releases.previous;
   const C = releases.current;
-  const build = (B: Lib, R: Lib) => (
-    <C.Email>
+  const build = (B: Lib, R: Lib, E: Lib = C) => (
+    <E.Email backgroundColor="#f4f4f4">
       <R.Row><R.Column>
         <B.Paragraph color="#ff0000">Same text</B.Paragraph>
         <B.Button href="https://example.com">Go</B.Button>
         <B.Image src="https://example.com/a.png" alt="A" width="200px" />
       </R.Column></R.Row>
-    </C.Email>
+    </E.Email>
   );
   it.each([
-    ["its blocks in this release's Row", P, C],
-    ["its Row, Column and blocks", P, P],
-  ] as const)("render as this release's do: %s", (_, blocks, rows) => {
-    expect(C.renderToHtml(build(blocks, rows))).toBe(C.renderToHtml(build(C, C)));
-    expect(JSON.stringify(C.renderToJson(build(blocks, rows)))).toBe(JSON.stringify(C.renderToJson(build(C, C))));
+    ["its blocks in this release's Row", P, C, C],
+    ["its Row, Column and blocks", P, P, C],
+    // (Its root carries no marker: it's known by its name and its code, see utils/root-type.ts.)
+    ["its Email, Row, Column and blocks", P, P, P],
+  ] as const)("render as this release's do: %s", (_, blocks, rows, root) => {
+    expect(C.renderToHtml(build(blocks, rows, root))).toBe(C.renderToHtml(build(C, C)));
+    expect(JSON.stringify(C.renderToJson(build(blocks, rows, root)))).toBe(JSON.stringify(C.renderToJson(build(C, C))));
+  });
+
+  it.each(["Body", "Page", "Document"] as const)("render as this release's do: its %s", (name) => {
+    const template = (L: Lib) => {
+      const Root = L[name] as React.ComponentType<{ backgroundColor?: string; children?: React.ReactNode }>;
+      return <Root backgroundColor="#f4f4f4"><C.Row><C.Column><C.Paragraph>Same text</C.Paragraph></C.Column></C.Row></Root>;
+    };
+    expect(C.renderToHtml(template(P))).toBe(C.renderToHtml(template(C)));
+    expect(JSON.stringify(C.renderToJson(template(P)))).toBe(JSON.stringify(C.renderToJson(template(C))));
   });
 });
 

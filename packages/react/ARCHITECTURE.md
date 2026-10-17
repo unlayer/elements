@@ -204,15 +204,16 @@ row or block is left out of the HTML, the plain text and the design (the slower 
 7. **No randomness, no date**, so Next.js's Cache Components can prerender pages that render emails.
 8. **Across copies of Elements** (a package's ESM and CommonJS builds, a package still on another version) only type
    markers are shared, by `Symbol.for`: a Row's, Column's and block's (`@unlayer/react-elements/records`, and their
-   `__unlayerRender`/`__unlayerItemConfig` statics), a `<Head>`/`<Font>` entry's (`…/head-entry`), a `<Tailwind>`'s
-   rewrite (`…/tailwind`), an `<UnlayerProvider>`'s (`…/provider`), so one copy's walk records another copy's Rows.
-   The async and Tailwind entries, separate bundles, share the handles an async render compiled (`…/tailwind-scopes`),
-   found by the `<Tailwind>` they're for; a `<Tailwind>` carries its copy's compiler (`…/tailwind-loader`, on its
-   type), which the async renderers compile its config with, so two copies' classes don't mix (an older copy's
-   `<Tailwind>`, which carries none, gets the compiler of the Tailwind entry loaded last). No render state is shared:
-   the render functions render a root of another copy (Body, Email, Page, Document, by name, as another copy's blocks
-   are made this copy's) as their own copy's (`utils/own-root.ts`), so the copy whose renderer was called renders the
-   whole template in its render's scope, whichever copy its components are of; a `<Tailwind>`'s rewrites find the
+   `__unlayerRender`/`__unlayerItemConfig` statics), a root's (`…/root`, its name), a `<Head>`/`<Font>` entry's
+   (`…/head-entry`), a `<Tailwind>`'s rewrite (`…/tailwind`), an `<UnlayerProvider>`'s (`…/provider`), so one copy's
+   walk records another copy's Rows. The async and Tailwind entries, separate bundles, share the handles an async
+   render compiled (`…/tailwind-scopes`), found by the `<Tailwind>` they're for; a `<Tailwind>` carries its copy's
+   compiler (`…/tailwind-loader`, on its type), which the async renderers compile its config with, so two copies'
+   classes don't mix (an older copy's `<Tailwind>`, which carries none, gets the compiler of the Tailwind entry loaded
+   last). No render state is shared: the render functions render a root of another copy (Body, Email, Page, Document,
+   by its marker, or an older copy's by its name and its code: `utils/root-type.ts`; a component of yours named like
+   one is called as written) as their own copy's (`utils/own-root.ts`), so the copy whose renderer was called renders
+   the whole template in its render's scope, whichever copy its components are of; a `<Tailwind>`'s rewrites find the
    Columns of that render's Rows by their marker (`src/tailwind/column.ts`).
 
 ## Where it's tested

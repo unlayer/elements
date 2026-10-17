@@ -16,10 +16,9 @@ import { RECORDS } from "./collect";
 import { TAILWIND } from "./tailwind";
 import { callClass, callComponent, contextOf, hookState, ROOT_TREE, RenderError, type ContextStack, type TreeContext } from "../engine";
 import { nameOf, threw } from "../engine/errors";
+import { isRoot } from "./root-type";
 
-/** The root components a design starts from. */
-export const ROOT_NAMES = new Set(["Body", "Email", "Page", "Document"]);
-const CONTAINER_NAMES = new Set([...ROOT_NAMES, "Row", "Column"]);
+const CONTAINER_NAMES = new Set(["Row", "Column"]);
 export const MEMO = Symbol.for("react.memo");
 export const FORWARD_REF = Symbol.for("react.forward_ref");
 /** A context's provider: `<Ctx.Provider>` in React 18, `<Ctx>` (and `<Ctx.Provider>`, the same) in React 19. */
@@ -58,9 +57,9 @@ export function componentName(element: React.ReactElement): string | undefined {
   return type?.displayName || type?.name;
 }
 
-/** Whether a component type is an Elements component (a root, a container or a content block). */
+/** Whether a component type is an Elements component (a root, of any copy: see root-type.ts; a container or a content block). */
 export function isElementsType(type: any): boolean {
-  return !!type?.[UNLAYER_RENDER_KEY] || CONTAINER_NAMES.has(type?.displayName);
+  return !!type?.[UNLAYER_RENDER_KEY] || isRoot(type) || CONTAINER_NAMES.has(type?.displayName);
 }
 
 /** Thrown for a template that is async or suspends: renderToHtml renders synchronously. */
@@ -131,7 +130,7 @@ function* steps(element: React.ReactElement, why: { unread?: string }, idPrefix?
     }
   }
   for (let depth = 0; ; depth++) {
-    if (ROOT_NAMES.has(getDisplayName(current) ?? "")) break;
+    if (isRoot(current.type)) break;
     // A Row or block: what it renders is Elements' own, never a root.
     if (elementsOwn(current)) break;
     if (depth === 20) {
@@ -193,7 +192,7 @@ function* steps(element: React.ReactElement, why: { unread?: string }, idPrefix?
     }
     current = produced;
   }
-  if (!ROOT_NAMES.has(getDisplayName(current) ?? "")) return current;
+  if (!isRoot(current.type)) return current;
   const own = (current.props as { children?: React.ReactNode }).children;
   const children = providers.reduceRight<React.ReactNode>((inside, provider) => React.cloneElement(provider, undefined, inside), own);
   const root = providers.length ? React.cloneElement(current, undefined, children) : current;
@@ -225,7 +224,7 @@ const elementsOwn = (element: React.ReactElement): boolean => {
 function holdsRoot(node: React.ReactNode): boolean {
   if (Array.isArray(node)) return node.some(holdsRoot);
   if (!React.isValidElement(node)) return false;
-  return ROOT_NAMES.has(getDisplayName(node) ?? "") || (!elementsOwn(node) && holdsRoot((node.props as { children?: React.ReactNode }).children));
+  return isRoot(node.type) || (!elementsOwn(node) && holdsRoot((node.props as { children?: React.ReactNode }).children));
 }
 
 /** The advice both render functions give when a wrapper can't be unwrapped. */
@@ -248,7 +247,7 @@ export function htmlRoot(element: React.ReactElement, api: string, idPrefix?: st
     if (cause instanceof Error && cause.message === ASYNC_TEMPLATE) throw new Error(`[Unlayer] ${api}: ${ASYNC_TEMPLATE}.`);
     throw cause;
   }
-  if (ROOT_NAMES.has(getDisplayName(root) ?? "")) return root;
+  if (isRoot(root.type)) return root;
   // A template of Rows, or nothing: there's no root whose settings go unread.
   if (!why.unread && !holdsRoot(root)) return element;
   console.warn(`[Unlayer] ${api}: couldn't unwrap <${componentName(element) || "wrapper"}> (${why.unread ?? "its root is inside other markup"}): its root's fonts, lang, dir and phone styles are ignored. ${UNWRAP_ADVICE}`);
