@@ -192,13 +192,19 @@ describe("the module and CommonJS builds loaded together", () => {
   // renders it all, as one copy alone does: what fails is left out of the HTML, the plain text and the design alike,
   // listed, and each message said once a render. (The other copy's root rendered the HTML with its own scope: a block
   // left out of the HTML stayed in the design, `omitted` lacked it, messages were said twice, and the async renderers
-  // failed for an async component.)
+  // failed for an async component; a <Tailwind> didn't see the other copy's Columns, so a Row's padding classes stayed
+  // around the row.)
   const script = `import { createRequire } from "node:module";
 import React from "react";
 import * as esm from "@unlayer/react-elements";
 import * as esmAsync from "@unlayer/react-elements/async";
+import * as esmTailwind from "@unlayer/react-elements/tailwind";
 const require = createRequire(import.meta.url);
-const copies = { esm: { ...esm, async: esmAsync }, cjs: { ...require("@unlayer/react-elements"), async: require("@unlayer/react-elements/async") } };
+const copies = {
+  esm: { ...esm, async: esmAsync, tailwind: esmTailwind },
+  cjs: { ...require("@unlayer/react-elements"), async: require("@unlayer/react-elements/async"), tailwind: require("@unlayer/react-elements/tailwind") },
+};
+for (const E of Object.values(copies)) E.tw = await E.tailwind.loadTailwind();
 const h = React.createElement;
 const later = (value) => new Promise((resolve) => setTimeout(() => resolve(value), 5));
 const Broken = () => { throw new Error("no data"); };
@@ -213,6 +219,11 @@ const template = (from, late) => {
     h(E.Row, null, h(E.Column, null, h(E.Paragraph, null, "First"), h(Broken), h(E.Paragraph, null, "Second"))),
     h(E.Row, { layout: E.ColumnLayouts.TwoEqual }, h(E.Column, null, h(E.Paragraph, null, "Lonely"))),
     h(E.Row, { padding: "10px", columnsBackgroundColor: "#ffffff" }, h(E.Column, null, h(tools[from]), h(E.Paragraph, null, "Third"), late ? h(Late) : null)));
+};
+// A <Tailwind>: a Row's padding classes go to its Columns, text classes to the text blocks.
+const styled = (from) => {
+  const E = copies[from];
+  return h(E.tailwind.Tailwind, { tw: E.tw }, h(E.Email, null, h(E.Row, { className: "p-4" }, h(E.Column, null, h(E.Paragraph, { className: "text-red-500" }, "Styled")))));
 };
 const words = (html) => html.match(/First|Second|Third|Lonely|Late|failing_tool/g) ?? [];
 const said = [];
@@ -230,6 +241,7 @@ for (const [by, from] of [["esm", "esm"], ["esm", "cjs"], ["cjs", "esm"], ["cjs"
     asyncHtml: await run(async () => words(await R.async.renderToHtml(template(from, true), omit))),
     asyncDesign: await run(async () => words(JSON.stringify(await R.async.renderToJson(template(from, true), omit)))),
     asyncOmitted: await run(async () => (await R.async.renderToHtmlParts(template(from, true), omit)).omitted.map((error) => error.position)),
+    tailwind: await run(() => ({ html: R.renderToHtml(styled(from)), column: R.renderToJson(styled(from)).body.rows[0].columns[0].values.padding })),
   };
 }
 process.stdout.write(JSON.stringify(out) + "\\n");
@@ -239,6 +251,7 @@ process.stdout.write(JSON.stringify(out) + "\\n");
       expect(fs.existsSync(path.join(dist, "async.cjs")), "build the package first (pnpm build)").toBe(true);
       const dir = project(react, reactDom, "module");
       try {
+        fs.symlinkSync(fs.realpathSync(path.join(root, "node_modules/tailwindcss")), path.join(dir, "node_modules/tailwindcss"), "dir");
         fs.writeFileSync(path.join(dir, "both.js"), script);
         const run = spawnSync(process.execPath, ["both.js"], { cwd: dir, encoding: "utf8", timeout: 20_000 });
         expect(run.status, run.stderr).toBe(0);
@@ -248,8 +261,10 @@ process.stdout.write(JSON.stringify(out) + "\\n");
         expect(one.design.value).toEqual(["First", "Second", "Third"]);
         expect(one.asyncHtml.value).toEqual(["First", "Second", "Third", "Late"]);
         expect(one.omitted.value).toEqual(["Row 1 › Column 1 › Broken", "Row 2", "Row 3 › Column 1 › failing_tool"]);
+        expect(one.tailwind.value.column).toBe("16px");
         // Each part left out said once (and the Row's padding), in every render.
-        for (const { said } of Object.values(one) as Array<{ said: string[] }>) {
+        for (const [render, { said }] of Object.entries(one) as Array<[string, { said: string[] }]>) {
+          if (render === "tailwind") continue;
           expect(said).toHaveLength(4);
           expect(new Set(said).size).toBe(4);
         }

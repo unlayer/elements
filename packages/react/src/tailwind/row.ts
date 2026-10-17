@@ -22,7 +22,7 @@
  */
 import React from "react";
 import { BodyDefaults } from "@unlayer/exporters";
-import { Column } from "@unlayer/react-elements";
+import { isColumn } from "./column";
 
 /** On a component's `style` (beside the keys its classes inlined): what its classes give its Row (see props.ts). */
 const TAILWIND = Symbol.for("@unlayer/react-elements/tailwind");
@@ -120,7 +120,7 @@ export function insetColumns(padding: string | undefined, phone: string | undefi
   };
 
   return (children: React.ReactNode[], props: Record<string, any>, root?: Record<string, any>): React.ReactNode[] => {
-    const columns = children.filter((child): child is React.ReactElement<Record<string, any>> => React.isValidElement(child) && child.type === Column);
+    const columns = children.filter(isColumn);
     if (!columns.length) return children;
     const margins: Array<Margins | undefined> = columns.map((column) => column.props.style?.[TAILWIND]?.margin);
     /** What can't be done: the padding from its classes stays the Row's, around it, and the margins are ignored. */

@@ -19,9 +19,9 @@
  */
 import React from "react";
 import { BodyDefaults } from "@unlayer/exporters";
-import { Column } from "@unlayer/react-elements";
 import { classesToProps, given } from "./props";
 import { insetColumns } from "./row";
+import { isColumn } from "./column";
 import type { ClassDeclaration } from "./declarations";
 
 const TAILWIND = Symbol.for("@unlayer/react-elements/tailwind");
@@ -36,7 +36,6 @@ const TEXTLESS = new Set(["Image", "Divider", "Video", "PageBreak"]);
 const PARTS = ["header", "content", "footer"];
 
 type Props = Record<PropertyKey, any>;
-const isColumn = (child: unknown): child is React.ReactElement<Props> => React.isValidElement(child) && child.type === Column;
 const camel = (property: string) => property.replace(/-([a-z])/g, (_, c: string) => c.toUpperCase());
 
 /** A Table's text props from a Paragraph's: its header's, content's and footer's (see the comment above). */

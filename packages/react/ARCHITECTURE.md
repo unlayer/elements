@@ -212,7 +212,8 @@ row or block is left out of the HTML, the plain text and the design (the slower 
    `<Tailwind>`, which carries none, gets the compiler of the Tailwind entry loaded last). No render state is shared:
    the render functions render a root of another copy (Body, Email, Page, Document, by name, as another copy's blocks
    are made this copy's) as their own copy's (`utils/own-root.ts`), so the copy whose renderer was called renders the
-   whole template in its render's scope, whichever copy its components are of.
+   whole template in its render's scope, whichever copy its components are of; a `<Tailwind>`'s rewrites find the
+   Columns of that render's Rows by their marker (`src/tailwind/column.ts`).
 
 ## Where it's tested
 
