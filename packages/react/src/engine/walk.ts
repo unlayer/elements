@@ -66,6 +66,8 @@ export interface Walker {
   collector?: Collector;
   /** Boundaries leave out what fails (`onError: "omit"`); an async walk's always catch, flattening decides. */
   omit: boolean;
+  /** The <Suspense>s open where a synchronous walk is: what suspends goes to the nearest, whatever `onError` says. */
+  suspense: number;
   /** The RenderErrors this walk made (one from a render inside a component is that component's error). */
   made: WeakSet<object>;
   /** RenderErrors for a template that isn't one: never left out. */
@@ -330,7 +332,8 @@ function walkBoundary(w: Walker, node: BoundaryNode, task: Task, out: Part[]): v
   try {
     walkNode(w, node.child, task, into);
   } catch (error) {
-    if (!w.wait && !w.omit) throw error;
+    // (A suspension a <Suspense> around it handles isn't a part that failed: it renders the fallback.)
+    if ((!w.wait && !w.omit) || (error instanceof SyncSuspend && w.suspense > 0)) throw error;
     part.parts.push(errorPart(w, error, task.frame));
   } finally {
     task.watch = watch;
@@ -474,13 +477,18 @@ function walkSuspense(w: Walker, props: Record<string, any>, task: Task, out: Pa
   // The async renderer waits for what's in it.
   if (w.wait) return walkNode(w, props.children, task, out);
   const inside: Part[] = [];
+  let suspended = false;
+  w.suspense++;
   try {
     walkNode(w, props.children, task, inside);
   } catch (error) {
     if (!(error instanceof SyncSuspend)) throw error;
-    // What suspended can't be waited for: the fallback, as react-dom's synchronous render writes it.
-    return walkNode(w, props.fallback, task, out);
+    suspended = true;
+  } finally {
+    w.suspense--;
   }
+  // What suspended can't be waited for: the fallback (outside this <Suspense>), as react-dom's synchronous render writes it.
+  if (suspended) return walkNode(w, props.fallback, task, out);
   for (const part of inside) out.push(part);
 }
 

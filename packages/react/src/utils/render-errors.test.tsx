@@ -187,3 +187,66 @@ describe("a Row or Column whose exporter fails", () => {
     expect(renders(rows(null, laidOut(true)), { onError: "omit" })).toEqual(renders(rows(null, laidOut(false))));
   });
 });
+
+describe("a part that suspends in a <Suspense>", () => {
+  // `<Suspense>` handles it, whatever `onError` says: the synchronous renderers render its fallback, as react-dom's
+  // synchronous render does, and the async ones wait for it. Nothing failed, so nothing is left out or said.
+  const later = <T,>(value: T) => new Promise<T>((resolve) => setTimeout(() => resolve(value), 5));
+  /** Its data suspends until it's there (React 18's Suspense: a thrown promise), once per template made. */
+  const thrown = () => {
+    const data: { value?: string; promise?: Promise<void> } = {};
+    return () => {
+      data.promise ??= later("Price").then((value) => void (data.value = value));
+      if (data.value === undefined) throw data.promise;
+      return <Paragraph>{data.value}</Paragraph>;
+    };
+  };
+  const use = (React as unknown as { use?: <T>(promise: PromiseLike<T>) => T }).use;
+  const PRICES: Array<[string, () => React.FC]> = [
+    ["an async component", () => async () => <Paragraph>{await later("Price")}</Paragraph>],
+    ["a component that throws a promise", thrown],
+    ...(use ? [["a component that `use()`s a promise (React 19)", () => {
+      const promise = later("Price");
+      return () => <Paragraph>{use(promise)}</Paragraph>;
+    }] as [string, () => React.FC]] : []),
+  ];
+  const template = (Price: React.FC, config?: { onError?: OnError }) => (
+    <Email config={config}>
+      <Row><Column><Paragraph>First</Paragraph></Column></Row>
+      <React.Suspense fallback={<Row><Column><Paragraph>Loading</Paragraph></Column></Row>}>
+        <Row><Column><Price /></Column></Row>
+      </React.Suspense>
+    </Email>
+  );
+  const shown = (text: string) => text.match(/First|Loading|Price/g) ?? [];
+  const given: RenderError[] = [];
+  const POLICIES: Array<[string, { onError?: OnError } | undefined]> = [
+    ["by default", undefined],
+    ['with onError: "omit"', { onError: "omit" }],
+    ["with an onError function", { onError: (failure) => void given.push(failure) }],
+  ];
+
+  describe.each(PRICES)("%s", (_, price) => {
+    it.each(POLICIES)("renders the fallback in the synchronous renderers %s", (_, config) => {
+      const error = vi.spyOn(console, "error");
+      given.length = 0;
+      expect(shown(renderToHtml(template(price(), config)))).toEqual(["First", "Loading"]);
+      expect(shown(renderToPlainText(template(price(), config)))).toEqual(["First", "Loading"]);
+      expect(shown(JSON.stringify(renderToJson(template(price(), config))))).toEqual(["First", "Loading"]);
+      expect(renderToHtmlParts(template(price(), config)).omitted).toEqual([]);
+      expect(error).not.toHaveBeenCalled();
+      expect(given).toEqual([]);
+    });
+
+    it.each(POLICIES)("waits for it in the async renderers %s", async (_, config) => {
+      const error = vi.spyOn(console, "error");
+      given.length = 0;
+      expect(shown(await asyncRenderers.renderToHtml(template(price(), config)))).toEqual(["First", "Price"]);
+      expect(shown(await asyncRenderers.renderToPlainText(template(price(), config)))).toEqual(["First", "Price"]);
+      expect(shown(JSON.stringify(await asyncRenderers.renderToJson(template(price(), config))))).toEqual(["First", "Price"]);
+      expect((await asyncRenderers.renderToHtmlParts(template(price(), config))).omitted).toEqual([]);
+      expect(error).not.toHaveBeenCalled();
+      expect(given).toEqual([]);
+    });
+  });
+});

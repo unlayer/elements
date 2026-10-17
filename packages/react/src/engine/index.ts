@@ -43,6 +43,7 @@ const walker = (options: Partial<WalkerOptions>, wait?: Wait): Walker => ({
   frameless: options.frameless,
   idPrefix: options.idPrefix,
   omit: omits(options.onError),
+  suspense: 0,
   made: new WeakSet(),
   fatal: new WeakSet(),
 });
