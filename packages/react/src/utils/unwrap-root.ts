@@ -17,6 +17,7 @@ import { TAILWIND } from "./tailwind";
 import { callClass, callComponent, contextOf, hookState, ROOT_TREE, RenderError, type ContextStack, type TreeContext } from "../engine";
 import { nameOf, threw } from "../engine/errors";
 import { isRoot } from "./root-type";
+import { withScope } from "./render-scope";
 
 const CONTAINER_NAMES = new Set(["Row", "Column"]);
 export const MEMO = Symbol.for("react.memo");
@@ -107,12 +108,13 @@ function replayed(type: any, props: object, forked: boolean, output: React.React
 /**
  * `call()` (a wrapper's: see the engine's callComponent) again each time it suspends, once what it suspended on
  * settles (`use()` of a pending promise, or a thrown one: React 18's Suspense), as React calls it again: what it
- * returns. What it waits for is yielded: the async renderers wait for it, the synchronous ones throw.
+ * returns. What it waits for is yielded: the async renderers wait for it, the synchronous ones throw. It runs outside
+ * the render's scope, as the content's components do: a render it starts is its own.
  */
 function* waiting<T>(call: () => T): Generator<PromiseLike<unknown>, T, unknown> {
   for (;;) {
     try {
-      return call();
+      return withScope(undefined, call);
     } catch (thrown) {
       if (!isThenable(thrown)) throw thrown;
       try {

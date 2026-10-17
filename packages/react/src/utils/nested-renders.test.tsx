@@ -6,7 +6,7 @@
  * deep, a component calling a hook after the call was left out).
  */
 import { describe, it, expect, vi } from "vitest";
-import React, { useMemo, useState } from "react";
+import React, { useId, useMemo, useState } from "react";
 import { renderToString } from "react-dom/server";
 // @ts-ignore react-dom/server.browser has no types of its own (the same API as react-dom/server).
 import { renderToString as renderToStringWithBrowserBuild } from "react-dom/server.browser";
@@ -82,6 +82,74 @@ describe("a template's component", () => {
       expect(error).not.toHaveBeenCalled();
     } finally {
       error.mockRestore();
+    }
+  });
+});
+
+describe("a template that renders another one while it's called (its wrapper)", () => {
+  // That render is its own, as one a component among the rows starts is: what it does with a part that fails, the
+  // parts it leaves out and its ids aren't the outer render's, which its root's config hadn't given yet.
+  const InnerBroken = (): React.ReactElement => {
+    throw new Error("inner data");
+  };
+  const OuterBroken = (): React.ReactElement => {
+    throw new Error("outer data");
+  };
+  const Id = () => <div dangerouslySetInnerHTML={{ __html: `useId=${useId()}` }} />;
+  const inner = <Email><Row><Column><Paragraph>Inner</Paragraph><InnerBroken /><Id /></Column></Row></Email>;
+  const outer = <Email><Row><Column><Paragraph>Outer</Paragraph><OuterBroken /><Id /></Column></Row></Email>;
+  const renderers = async () => {
+    const { renderToHtmlParts } = await import("./render-to-html");
+    const asyncRenderers = await import("../async");
+    const sync = { renderToHtml, renderToPlainText, renderToJson, renderToHtmlParts } as Record<string, (element: React.ReactElement, options?: object) => unknown>;
+    return { sync, all: { ...sync, ...Object.fromEntries(Object.entries(asyncRenderers).filter(([name]) => name in sync).map(([name, render]) => [`async ${name}`, render])) } as Record<string, (element: React.ReactElement, options?: object) => unknown> };
+  };
+
+  it("keeps the outer render's onError: a part of its own that fails fails it", async () => {
+    const { sync, all } = await renderers();
+    const left: unknown[] = [];
+    for (const [innerName, render] of Object.entries(sync)) {
+      function Outer() {
+        render(inner, { onError: (failure: unknown) => void left.push(failure) });
+        return outer;
+      }
+      for (const [name, outerRender] of Object.entries(all)) {
+        const rendering = async () => outerRender(<Outer />);
+        await expect(rendering(), `${innerName} in ${name}`).rejects.toThrow(/outer data/);
+      }
+    }
+    expect(left.length).toBeGreaterThan(0);
+  });
+
+  it("keeps the parts each leaves out its own", async () => {
+    const { renderToHtmlParts } = await import("./render-to-html");
+    const asyncRenderers = await import("../async");
+    let innerParts: ReturnType<typeof renderToHtmlParts> | undefined;
+    function Outer() {
+      innerParts = renderToHtmlParts(inner, { onError: () => {} });
+      return outer;
+    }
+    for (const render of [renderToHtmlParts, asyncRenderers.renderToHtmlParts]) {
+      const parts = await render(<Outer />, { onError: () => {} });
+      expect(parts.omitted.map((e) => e.component)).toEqual(["OuterBroken"]);
+      expect(innerParts!.omitted.map((e) => e.component)).toEqual(["InnerBroken"]);
+    }
+  });
+
+  it("keeps its ids' prefix its own", async () => {
+    const { sync, all } = await renderers();
+    const id = /useId=([^<"\\]*)/;
+    for (const [innerName, render] of Object.entries(sync)) {
+      function Outer() {
+        render(inner, { onError: () => {}, idPrefix: "inner-" });
+        return outer;
+      }
+      for (const [name, outerRender] of Object.entries(all)) {
+        if (/Json/.test(name)) continue;
+        const given = id.exec(JSON.stringify(await outerRender(<Outer />, { onError: () => {} })))?.[1];
+        expect(given, `${innerName} in ${name}`).toMatch(/R/);
+        expect(given, `${innerName} in ${name}`).not.toContain("inner-");
+      }
     }
   });
 });
