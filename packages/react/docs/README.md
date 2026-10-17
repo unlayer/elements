@@ -11,8 +11,10 @@ npm install @unlayer/react-elements react react-dom
 | Problem | Guide | Result |
 |---------|-------|--------|
 | Send a React transactional email, receipt, or order confirmation | [Transactional email in React](./transactional-email.md) | Complete HTML, plain text, and provider-ready message |
-| Deliver Elements HTML with an email provider | [Resend, AWS SES, Postmark, SendGrid, and Nodemailer](./email-providers.md) | Five runnable server-side integrations |
+| Deliver Elements HTML with an email provider | [Resend, AWS SES, Postmark, SendGrid, Nodemailer, Mailgun, Azure, MailerSend, Scaleway, Plunk, Lettermint, Brevo, Inbound, and eusend](./email-providers.md) | Fourteen runnable server-side integrations |
 | Share one React template across email, web, and PDF | [One React invoice, three outputs](./one-template-email-web-pdf.md) | Email HTML, responsive page, print HTML, and real PDF |
+| Translate an email and support right-to-left languages | [i18n with react-intl, react-i18next, and next-intl](./i18n.md) | English and Arabic renders with `lang`, `dir`, and alignment checked |
+| Share templates across apps in a workspace | [Monorepos with npm, pnpm, Yarn, and Bun](./monorepo.md) | One emails package that apps import, and a single copy of React |
 | Generate an invoice PDF using Playwright | [React to PDF with Playwright](./react-to-pdf.md) | A PDF file created by headless Chromium |
 | Make AI-generated React content visually editable | [React to Unlayer design JSON](./visual-editing.md) | `renderToJson()` → `loadDesign()` → edited JSON and HTML |
 | Turn a template made in the Unlayer editor into React code | [Unlayer designs as Elements code](./codegen.md) | `designToElements(design)` → a `.tsx` component that renders back to the same design |
@@ -22,6 +24,9 @@ npm install @unlayer/react-elements react react-dom
 | Use a web font | [Web fonts in Elements](./fonts.md) | `<Font>` in the head, the template's font, Outlook's fallback |
 | Render templates that load data (async components, Suspense) | [Async templates and readable HTML](./async.md) | `await renderToHtml()` from `@unlayer/react-elements/async`, with `pretty` |
 | Move React Email templates to Elements | [Migrate from React Email](./migrate-from-react-email.md) | `npx @unlayer/migrate`: converted templates, checked against the originals |
+| Move MJML templates to Elements | [Migrate from MJML](./migrate-from-mjml.md) | `npx @unlayer/migrate --from mjml`: converted templates, checked against MJML's own HTML |
+| Move Beefree templates to Elements | [Migrate from Beefree](./migrate-from-beefree.md) | `npx @unlayer/migrate --from beefree`: converted templates, checked against Beefree's HTML export |
+| Upgrade from Elements 0.2.x or 0.1.x | [Upgrade Elements](./upgrading.md) | What changed in 0.3 and in 0.2, and what to check; see also the [changelog](../CHANGELOG.md) |
 | Open React Email templates in the Unlayer editor | [React Email in the editor](../../../examples/react-email-in-editor) | `npx @unlayer/migrate --design` → `loadDesign()` |
 | Try Elements or preview a snippet without installing | [Elements Playground](https://examples.unlayer.com/examples/elements-playground/) | Live email, page, or document preview, HTML and design JSON export, and the Unlayer builder |
 
@@ -44,4 +49,4 @@ Elements supplies components and renderers. Your email provider handles delivery
 - Read the [visual editing constraints](./visual-editing.md#constraints) before promising React-to-editor round trips. Edited JSON doesn't change the JSX it came from: convert it to new Elements code with `designToElements()` from `@unlayer/react-elements/codegen` ([guide](./codegen.md)).
 - To preview code without installing, open the [Elements Playground](https://examples.unlayer.com/examples/elements-playground/) with the source in the URL hash: `#code=<base64url of the code>`, optionally with `&mode=email|page|document`. The playground takes plain JSX with no imports. In browsers with WebMCP, call its `render_elements` tool to get the HTML.
 
-The [runnable example](../../../examples/content-workflows) backs these guides. The [React API reference](../README.md) covers component props; [Next.js App Router](../../../examples/nextjs-app-router) demonstrates framework integration.
+The [runnable example](../../../examples/content-workflows) and the [i18n example](../../../examples/i18n) back these guides. Coding agents can load the [`unlayer-elements` skill](https://github.com/unlayer/unlayer-skills) (`npx skills add unlayer/unlayer-skills`), a short set of rules for writing correct templates. The [React API reference](../README.md) covers component props; [Next.js App Router](../../../examples/nextjs-app-router) demonstrates framework integration.
