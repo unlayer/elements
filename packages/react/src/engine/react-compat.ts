@@ -59,6 +59,12 @@ export const ID_PATTERN: Record<IdFormat, RegExp> = {
 
 const version = (v: string) => v.split(/[.-]/).slice(0, 2).map((n) => Number.parseInt(n, 10) || 0);
 
+const [MAJOR, MINOR] = version(String(React.version));
+/** React 18 renders some elements, attributes, styles and children otherwise than React 19 (see walk.ts, attributes.ts). */
+export const REACT_18 = MAJOR < 19;
+/** React 19.3 added `credentialless` to its boolean attributes and `maskType` to its SVG attributes. */
+export const REACT_19_3 = MAJOR > 19 || (MAJOR === 19 && MINOR >= 3);
+
 /** The installed React's row: its own, else the nearest before it (`known: false`). */
 export function reactRow(v: string = React.version): { row: ReactRow; known: boolean } {
   const [major, minor] = version(v);

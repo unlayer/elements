@@ -85,6 +85,35 @@ describe("the walker against react-dom/server", () => {
     same(<div><Suspense fallback={<i>loading</i>}><Ids /><Later /></Suspense><Ids /></div>);
   });
 
+  it("writes each attribute, style and child as react-dom does, on every kind of element", () => {
+    const tags = ["div", "a", "img", "span", "td", "input", "textarea", "pre", "svg", "path", "my-el", "button", "select", "option", "font-face", "hr"];
+    const names = ["data-x", "aria-hidden", "title", "class", "className", "href", "src", "onClick", "onmouseover", "tabIndex", "htmlFor", "hidden", "download", "is", "rowSpan", "cols", "start", "contentEditable", "spellCheck", "allowFullScreen", "inert", "credentialless", "checked", "selected", "multiple", "autoFocus", "readOnly", "itemScope", "action", "formAction", "xlinkHref", "strokeWidth", "transformOrigin", "maskType", "crossOrigin", "httpEquiv", "x y", "defaultValue", "defaultChecked", "value", "capture", "cellPadding", "valign", "suppressHydrationWarning", "innerHTML", "focusable", "xmlLang", "panose-1"];
+    const values = [null, "", 0, 1, 2.5, NaN, true, false, " 5 ", "javascript:alert(1)", "<&\"'>", { a: 1 }, [1, 2], () => 1];
+    const styles = [{ lineHeight: 1, width: 1, scale: 2, WebkitLineClamp: 2, msFlex: 1, MozBoxFlex: 2, OFlex: 1 }, { "--x": " a<b ", marginTop: 0, padding: "  1px  " }, { msTransform: "x", fontWeight: 700, aspectRatio: 1.5 }];
+    const different: string[] = [];
+    const check = (node: React.ReactElement, label: string) => {
+      const attempt = (render: () => string) => {
+        try {
+          return render();
+        } catch {
+          return "throws";
+        }
+      };
+      if (attempt(() => renderStatic(node)) !== attempt(() => reactDom(node))) different.push(label);
+    };
+    const empty = (tag: string, name: string) => ["img", "input", "hr"].includes(tag) || (tag === "textarea" && /value/i.test(name));
+    for (const tag of tags) {
+      for (const name of names) for (const value of values) {
+        // (React 19 writes a form's action function as a script, which the walker doesn't: see host.ts.)
+        if (typeof value === "function" && /action/i.test(name)) continue;
+        check(React.createElement(tag, { [name]: value }, empty(tag, name) ? undefined : "t"), `<${tag} ${name}=${typeof value === "function" ? "fn" : JSON.stringify(value)}>`);
+      }
+      for (const style of styles) check(React.createElement(tag, { style }), `<${tag} style=${JSON.stringify(style)}>`);
+      if (!empty(tag, "")) for (const child of ["<&\"'>", 0, true, ["a", 1, null, ["b"]], "\nnl"]) check(React.createElement(tag, null, child), `<${tag}>${JSON.stringify(child)}`);
+    }
+    expect(different.slice(0, 10)).toEqual([]);
+  });
+
   it(`writes the same for ${SEEDS} random trees`, () => {
     const different: number[] = [];
     let bytes = 0;

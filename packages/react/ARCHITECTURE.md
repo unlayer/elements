@@ -35,8 +35,10 @@ model                                Email > Row > Column > blocks, Elements' on
 - **Model.** The marks are parsed back into the collected tree (`parse`, `elements` in `normalize.tsx`): the template
   as Elements components only. The HTML, the head and the design are all made from it, so they can't disagree.
 - **Exporters.** Row, Column and each block call the editor's exporters (`@unlayer/exporters`) for their HTML; Body
-  puts the rows in the mode's document shell (`document-layouts.ts`). Four of the web and document exporters (Divider,
-  Html, Menu, Social) render with `react-dom/server` themselves: it's why `react-dom` is still a peer dependency.
+  puts the rows in the mode's document shell (`document-layouts.ts`). Four of their web and document exporters
+  (Divider, Html, Menu, Social) render with `react-dom/server`: Elements writes those as strings instead
+  (`src/exporters`), with the engine's host markup, so nothing in a render calls react-dom. `react-dom` is still a peer
+  dependency because `@unlayer/exporters` imports `react-dom/server` when it loads.
 
 A render (`renderToHtml`, `renderToJson`, …) has a scope (`utils/render-scope.ts`): what it works out once (the
 collected content), what it does with a part that fails (`onError`), and the parts it left out. Body rendered by an
@@ -48,7 +50,7 @@ app's own React (a live preview) makes a scope of its own.
 |--|--|
 | `walk.ts` | The walker: elements, components, Context, Fragments, memo, forwardRef, lazy, Suspense, classes; holes where something suspends |
 | `dispatcher.ts` | Elements' hooks dispatcher, put in React's slot around each component call |
-| `host.ts` | Host markup (`<div>`, `<img>`, …) as react-dom writes it: attributes, styles, escaping |
+| `host.ts`, `attributes.ts` | Host markup (`<div>`, `<img>`, …) as react-dom writes it: void, custom and form elements; each attribute and style by React 18's property table or React 19's switch; escaping. The walker and the string exporters write with it |
 | `output.ts` | The walk's output (strings, marks, holes, boundaries, errors), flattened in tree order |
 | `tree-id.ts` | Where a component is in the tree (Fizz's tree context), and `useId()` from it |
 | `react-compat.ts` | What the walker relies on, per React version, and where React's dispatcher slot is |
@@ -163,8 +165,9 @@ Component in server code.
 
 ## Invariants
 
-1. **No react-dom in Elements' own renders.** The engine renders templates and Elements' markup. (The four exporters
-   above still call `react-dom/server`.)
+1. **No react-dom in a render.** The engine renders templates and Elements' markup, and the string exporters the four
+   blocks whose exporters would call `react-dom/server` (`src/exporters/no-react-dom.test.tsx` renders whole pages and
+   documents with it made to throw).
 2. **React's dispatcher is Elements' only during a component call**, set and restored synchronously, never held across
    an `await`; a render Elements runs in, or that runs in it, keeps its own.
 3. **One model per render.** The HTML, the head, the plain text and the design are made from the same collected
@@ -186,7 +189,8 @@ Component in server code.
 
 | What | Tests |
 |--|--|
-| The walker writes what react-dom writes, ids included, on hand-written and random trees | `src/engine/differential.test.tsx` (`WALKER_FUZZ_SEEDS=5000` for more) |
+| The walker writes what react-dom writes, ids included, on hand-written and random trees, and each attribute on each kind of element | `src/engine/differential.test.tsx` (`WALKER_FUZZ_SEEDS=5000` for more) |
+| The string exporters write what `@unlayer/exporters` writes with react-dom (12k cases; React 19's attributes); pages and documents render with react-dom/server made to throw | `src/exporters/parity.test.tsx`, `react-19.test.ts`, `no-react-dom.test.tsx` |
 | Every hook of the installed React; an unknown one's error; the slot put back | `src/engine/dispatcher.test.tsx` |
 | The version table and the self-check | `src/engine/react-compat.test.ts` |
 | Siblings at once, tree order, determinism over random delays, renders at once, error order | `src/engine/async.test.tsx` |

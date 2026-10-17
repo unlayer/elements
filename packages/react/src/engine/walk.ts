@@ -15,7 +15,8 @@
 import type React from "react";
 import { callWithHooks, contextOf, hookState, readContext, SUSPEND, track, type ContextStack, type HookState } from "./dispatcher";
 import { ASYNC_IN_SYNC, childFrame, nameOf, placeFrame, positionOf, RenderError, threw, type Frame } from "./errors";
-import { escapeText, leadingNewline, openTag, propsBody, REACT_18, validateHost, VOID } from "./host";
+import { escapeText, leadingNewline, openTag, propsBody, validateHost, VOID } from "./host";
+import { REACT_18 } from "./react-compat";
 import { checkKeys } from "./keys";
 import { isMark, type BoundaryNode, type MarkNode } from "./marks";
 import type { BoundaryPart, ErrorPart, Hole, Part } from "./output";

@@ -1,6 +1,5 @@
-import { MenuExporters } from "@unlayer/exporters";
 import { decodeBase64, encodeBase64 } from "./base64";
-import { element, NeedsReact, staticMarkup } from "./markup";
+import { element, staticMarkup } from "./markup";
 import { present } from "./present";
 
 /** lodash's `omit(value, ["onClick"])`: its keys, own and inherited, but `onClick`. */
@@ -82,15 +81,9 @@ function markup(values: Record<string, any>): string {
 
 /**
  * Menu's web HTML (which a document uses too), as @unlayer/exporters' MenuExporters write it with React (byte for
- * byte). Item text or a separator only React can render (an element) renders with React, as it did.
+ * byte). Item text or a separator given as an element renders as the walker renders it.
  */
-export function menu(values: Record<string, any>, ...args: any[]): string {
-  let html: string;
-  try {
-    html = markup({ ...values, menu: { ...values?.menu, items: present(values?.menu?.items || []) } });
-  } catch (error) {
-    if (error instanceof NeedsReact) return (MenuExporters.web as (...given: unknown[]) => string)(values, ...args);
-    throw error;
-  }
+export function menu(values: Record<string, any>): string {
+  const html = markup({ ...values, menu: { ...values?.menu, items: present(values?.menu?.items || []) } });
   return html.replace(/data-onclick-encoded="([^\"]+)"/gi, (_, encoded: string) => `onclick="${decodeBase64(encoded)}"`);
 }

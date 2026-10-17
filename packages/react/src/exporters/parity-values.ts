@@ -4,6 +4,7 @@
  * in every text, `javascript:` URLs, React's own attribute names in a link's custom attributes). Every combination of
  * the values that shape each block's HTML, then more combinations drawn by a seeded generator.
  */
+import React from "react";
 import { LINKS, TEXTS } from "./test-corpus";
 
 type Values = Record<string, any>;
@@ -130,7 +131,16 @@ const LINK_SHAPES: unknown[] = [
   { url: "https://example.com/", customAttrs: { is: "x-link", className: "c", onClick: "x()", hidden: true } },
 ];
 
-const ITEM_TEXTS = [...TEXTS, 0, 7, null, undefined, ["a", 1, null, ["b"]]];
+/** Item text given as JSX (markup, a component, a Fragment): the string version renders it with the walker. */
+const Em = ({ children }: { children?: React.ReactNode }) => React.createElement("em", { className: "x" }, children);
+const ELEMENT_TEXTS = [
+  React.createElement("b", null, "Bold"),
+  React.createElement("span", { style: { color: "red", lineHeight: 1.5 }, "data-x": 1 }, "a & b"),
+  ["x", React.createElement("i", { key: "i" }, "y")],
+  React.createElement(Em, null, "e"),
+  React.createElement(React.Fragment, null, "f", 1),
+];
+const ITEM_TEXTS = [...TEXTS, 0, 7, null, undefined, ["a", 1, null, ["b"]], ...ELEMENT_TEXTS];
 
 export function menuValues(): Values[] {
   const all: Values[] = [];

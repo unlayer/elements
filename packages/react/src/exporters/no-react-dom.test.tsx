@@ -1,13 +1,15 @@
 /**
- * Divider, Html, Menu and Social render their web and document HTML without react-dom: with react-dom/server's
- * renderers made to throw, in this test's modules and in the @unlayer/exporters module Node loads (where its own
- * web and document exporters of these blocks call them), each block renders on a page and in a document, the same
- * HTML as with them. (The rest of a render, which collects the template and renders its rows, still uses react-dom.)
+ * Pages and documents render without react-dom: with react-dom/server's renderers made to throw, in this test's
+ * modules and in the @unlayer/exporters module Node loads (where its own web and document exporters of Divider, Html,
+ * Menu and Social call them), each of those blocks renders on a page and in a document, and so does a whole template
+ * with every block, by every renderer, the same as with them. (@unlayer/exporters still imports react-dom/server, so
+ * it has to be installed: it isn't called.)
  */
 import { createRequire } from "node:module";
 import { describe, expect, it, onTestFinished, vi } from "vitest";
 import { DividerExporters, HtmlExporters, MenuExporters, SocialExporters } from "@unlayer/exporters";
-import { Divider, Html, Menu, Social } from "../index";
+import { Button, Column, Divider, Document, Heading, Html, Image, Menu, Page, PageBreak, Paragraph, Row, Social, Table, Video, renderToHtml, renderToHtmlParts, renderToJson, renderToPlainText } from "../index";
+import * as Async from "../async";
 import { UNLAYER_RENDER_KEY } from "../utils/create-component";
 
 const { RENDERERS, poisoned } = vi.hoisted(() => ({
@@ -60,6 +62,55 @@ describe.each(Object.entries(BLOCKS))("%s", (name, [Component, props]) => {
       const html = blockHtml(Component, props, mode);
       expect(html).toBe(before);
       expect(html.length).toBeGreaterThan(20);
+      expect(error).not.toHaveBeenCalled();
+    } finally {
+      error.mockRestore();
+    }
+  });
+});
+
+describe("a whole template", () => {
+  const content = (
+    <>
+      <Row cells={[1, 2]}>
+        <Column>
+          <Heading>Hello, <b>world</b></Heading>
+          <Paragraph>
+            Text with a <a href="https://example.com/">link</a>
+          </Paragraph>
+          <Button href="https://example.com/go">Go</Button>
+          <Image src="https://example.com/a.png" alt="A" width={200} />
+        </Column>
+        <Column>
+          <Divider width="80%" />
+          <Html html="<p>Raw <b>HTML</b></p>" />
+          <Menu items={[{ text: "Home", href: "https://example.com/" }, { text: <b>Bold</b> as unknown as string, href: "https://example.com/b" }]} separator="|" />
+          <Social icons={[{ name: "Facebook", url: "https://facebook.com/x" }]} />
+          <Table columns={2} rows={1} />
+          <Video videoUrl="https://www.youtube.com/watch?v=dQw4w9WgXcQ" />
+          <PageBreak />
+        </Column>
+      </Row>
+    </>
+  );
+  const renders = {
+    renderToHtml: (root: React.ReactElement) => renderToHtml(root),
+    renderToHtmlParts: (root: React.ReactElement) => JSON.stringify(renderToHtmlParts(root)),
+    renderToPlainText: (root: React.ReactElement) => renderToPlainText(root),
+    renderToJson: (root: React.ReactElement) => JSON.stringify(renderToJson(root)),
+    "async renderToHtml": (root: React.ReactElement) => Async.renderToHtml(root),
+  };
+  it.each(Object.entries(renders).flatMap(([name, render]) => [[name, "Page", Page, render], [name, "Document", Document, render]] as const))("%s renders a %s where react-dom/server can't render", async (_, __, Root, render) => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    onTestFinished(() => warn.mockRestore());
+    const root = <Root>{content}</Root>;
+    const before = await render(root);
+    poisonExporters();
+    const error = vi.spyOn(console, "error");
+    try {
+      const after = await render(root);
+      expect(after).toBe(before);
+      expect(after).toContain("Bold");
       expect(error).not.toHaveBeenCalled();
     } finally {
       error.mockRestore();
