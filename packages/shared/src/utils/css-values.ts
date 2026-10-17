@@ -74,12 +74,17 @@ export function normalizeFontStack(value: string): string {
  * new objects (values can alias the caller's, e.g. a shared style constant).
  */
 export function normalizeCssValues<T>(value: T, key?: string): T {
-  if (typeof value === "string") return (key === "fontFamily" ? normalizeFontStack(value) : key === "color" || key?.endsWith("Color") ? normalizeColor(value) : value) as T;
+  if (typeof value === "string") {
+    // (Only a stack with a double quote, and a color with a bracket, are written otherwise.)
+    if (key === "fontFamily") return (value.includes('"') ? normalizeFontStack(value) : value) as T;
+    return ((key === "color" || key?.endsWith("Color")) && value.includes("(") ? normalizeColor(value) : value) as T;
+  }
+  if (value === null || typeof value !== "object") return value;
   if (Array.isArray(value)) return value.map((item) => normalizeCssValues(item)) as T;
   if (!isPlainObject(value)) return value;
   const out: Record<string, unknown> = {};
   // A fontFamily object ({ label, value }) holds font stacks.
-  for (const [k, v] of Object.entries(value)) out[k] = normalizeCssValues(v, key === "fontFamily" ? key : k);
+  for (const k of Object.keys(value)) out[k] = normalizeCssValues(value[k], key === "fontFamily" ? key : k);
   return out as T;
 }
 

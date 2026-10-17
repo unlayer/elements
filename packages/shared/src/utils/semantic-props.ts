@@ -96,13 +96,15 @@ function analyzeNestedStructure(defaultValues: any): NestedStructure {
 /** A unit-less number as text ("20", " 0 "): read as px where a size takes one. */
 const BARE_NUMBER = /^\s*\d+\s*$/;
 
+const SIZES = ["fontSize", "padding", "containerPadding", "borderRadius", "letterSpacing"];
+
 function normalizeCssProps(props: Record<string, any>): void {
   const { fontFamily, fontWeight } = props;
   if (typeof fontFamily === "string") props.fontFamily = { label: fontFamily, value: fontFamily };
   if (typeof fontWeight === "string" && BARE_NUMBER.test(fontWeight)) props.fontWeight = Number(fontWeight);
   if (typeof props.lineHeight === "number") props.lineHeight = String(props.lineHeight);
   // A bare number (28) or a unit-less numeric string ("0", "20") → "<n>px".
-  for (const key of ["fontSize", "padding", "containerPadding", "borderRadius", "letterSpacing"]) {
+  for (const key of SIZES) {
     const v = props[key];
     if (typeof v === "number" || (typeof v === "string" && BARE_NUMBER.test(v))) props[key] = `${String(v).trim()}px`;
   }
@@ -120,6 +122,7 @@ export function escapeText(text: string, quotes?: boolean): string {
  * did in this text: the service fills it in. `<%` can't start an element, so it adds no markup.
  */
 export function escapeKeepingTags(text: string, quotes?: boolean, escape = (part: string) => escapeText(part, quotes)): string {
+  if (!text.includes("<%")) return escape(text);
   return text
     .split(/(<%[\w.]+%>)/)
     .map((part, i) => (i % 2 ? part : escape(part)))
@@ -155,7 +158,9 @@ function flattenChildrenText(node: any, breaks?: boolean): string {
  * written `<br>` in a string (as it worked before) or as a JSX `<br />`.
  */
 function childrenHtml(children: any): string {
-  return flattenChildrenText(children, true)
+  const text = flattenChildrenText(children, true);
+  if (!text.includes("<")) return escapeKeepingTags(text);
+  return text
     .split(/(<br\s*\/?>)/i)
     .map((part, i) => (i % 2 ? "<br/>" : escapeKeepingTags(part)))
     .join("");
@@ -179,6 +184,24 @@ export const PROP_ALIASES: Record<string, Record<string, string>> = {
   Divider: ALIGN,
 };
 
+const LINK_KEYS = ["href", "action"] as const;
+
+/**
+ * A link in the schema's storage shape: `"https://…"` is `{ name: "web", values: { href, target } }` (`target`, the
+ * component's, a new tab where it gives none), and a link given in `attrs` has its `href` and `target` in `values`.
+ */
+function canonicalizeLink(v: any, target: string): any {
+  if (typeof v === "string") return { name: "web", values: { href: v, target } };
+  if (!(v && typeof v === "object" && "name" in v && v.attrs && typeof v.attrs === "object")) return v;
+  const { href, target: attrsTarget, ...attrs } = v.attrs;
+  if (href === undefined && attrsTarget === undefined) return v;
+  const values = { ...(v.values as Record<string, any> | undefined) };
+  if (!values.href && href !== undefined) values.href = href;
+  if (!values.target && attrsTarget !== undefined) values.target = attrsTarget;
+  const { attrs: _attrs, ...next } = v;
+  return Object.keys(attrs).length ? { ...next, values, attrs } : { ...next, values };
+}
+
 /** The props an alias stands for (`"textColor linkColor"`), split once. */
 const aliasLists = new Map<string, string[]>();
 function aliasesOf(names: string): string[] {
@@ -201,14 +224,15 @@ export function mapSemanticProps<T extends Record<string, any>>(
   defaultValues: T,
   componentType: string
 ): T {
-  const { children, values, mobile, hideOnMobile: hideMobileProp, hideOnDesktop: hideDesktopProp, ...restProps } = props;
+  const { children, values, mobile, hideOnMobile: hideMobileProp, hideOnDesktop: hideDesktopProp, ...rest } = props;
+  const userProps: Record<string, any> = rest;
   // The editor hides rows and content on a device, never a column.
   const hideOnMobile = componentType === "Column" ? undefined : hideMobileProp;
   const hideOnDesktop = componentType === "Column" ? undefined : hideDesktopProp;
-  const userProps: any = { ...restProps };
   const aliases = PROP_ALIASES[componentType];
   if (aliases)
     for (const alias in aliases) {
+      if (!(alias in userProps)) continue;
       for (const prop of aliasesOf(aliases[alias])) userProps[prop] ??= userProps[alias];
       delete userProps[alias];
     }
@@ -261,19 +285,11 @@ export function mapSemanticProps<T extends Record<string, any>>(
   // `normalizeLinkValue` also reads `attrs` as a defensive fallback.)
   // A flat `target` (Button, Link) is the link's: a new tab only where none is given.
   const target = userProps.target ?? "_blank";
-  delete userProps.target;
-  const canonicalizeLink = (v: any): any => {
-    if (typeof v === "string") return { name: "web", values: { href: v, target } };
-    if (!(v && typeof v === "object" && "name" in v && v.attrs && typeof v.attrs === "object")) return v;
-    const { href, target: attrsTarget, ...attrs } = v.attrs;
-    if (href === undefined && attrsTarget === undefined) return v;
-    const values = { ...(v.values as Record<string, any> | undefined) };
-    if (!values.href && href !== undefined) values.href = href;
-    if (!values.target && attrsTarget !== undefined) values.target = attrsTarget;
-    const { attrs: _attrs, ...next } = v;
-    return Object.keys(attrs).length ? { ...next, values, attrs } : { ...next, values };
-  };
-  for (const key of ["href", "action"] as const) for (const props of [userProps, result]) if (props[key] !== undefined) props[key] = canonicalizeLink(props[key]);
+  if ("target" in userProps) delete userProps.target;
+  for (const key of LINK_KEYS) {
+    if (userProps[key] !== undefined) userProps[key] = canonicalizeLink(userProps[key], target);
+    if (result[key] !== undefined) result[key] = canonicalizeLink(result[key], target);
+  }
 
   // Normalize CSS-idiom prop values to the shapes the exporters expect. Authors
   // (humans and AI) reach for CSS habits — a string `fontFamily`, a numeric
@@ -304,14 +320,17 @@ export function mapSemanticProps<T extends Record<string, any>>(
   const final: any = { ...result, ...flat };
 
   // Merge nested groups (preserve existing from escape hatch)
-  for (const [groupName, groupValues] of Object.entries(nested)) if (Object.keys(groupValues).length) final[groupName] = { ...result[groupName], ...groupValues };
+  for (const groupName in nested) {
+    const groupValues = nested[groupName];
+    if (Object.keys(groupValues).length) final[groupName] = { ...result[groupName], ...groupValues };
+  }
 
   // Some components (e.g. Column) ship an empty `border: {}` default, so the
   // nested-group detector can't see the border sub-keys and flat border-side
   // props (borderTopWidth, …) would land loose and be dropped by the exporter.
   // If the component declares a `border` field, gather them into it.
   if (defaultValues && typeof defaultValues === "object" && "border" in (defaultValues as object)) {
-    const sides = Object.keys(final).filter((key) => /^border(Top|Right|Bottom|Left)(Width|Style|Color)$/.test(key));
+    const sides = Object.keys(final).filter((key) => key.startsWith("border") && /^border(Top|Right|Bottom|Left)(Width|Style|Color)$/.test(key));
     if (sides.length) final.border = { ...(final.border || {}), ...Object.fromEntries(sides.map((key) => [key, final[key]])) };
     for (const key of sides) delete final[key];
 
