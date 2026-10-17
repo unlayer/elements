@@ -393,8 +393,8 @@ function callAndWalk(w: Walker, state: HookState, fn: Function, props: Record<st
   walkResult(w, state, result, frame, task, out);
 }
 
-/** A component's own call, with hooks: again while it sets its state as it renders (its last render counts). */
-function call(state: HookState, fn: Function, props: Record<string, any>, secondArg: unknown): unknown {
+/** A component's own call (a template wrapper's too), with hooks: again while it sets its state as it renders (its last render counts). */
+export function call(state: HookState, fn: Function, props: Record<string, any>, secondArg: unknown): unknown {
   for (let renders = 0; ; ) {
     state.localId = 0;
     state.thenableIndex = 0;

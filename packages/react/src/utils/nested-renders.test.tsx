@@ -190,6 +190,30 @@ describe("a component of the user's own that calls a hook, in React's developmen
     expect(JSON.stringify(renderToJson(<Counted />))).toContain("n=1");
   });
 
+  // As React does, and as a component among the rows does: its last render isn't taken as the template.
+  it("fails a template that sets its state every time it renders", async () => {
+    const { RenderError } = await import("../index");
+    const asyncRenderers = await import("../async");
+    function Looping() {
+      const [n, setN] = useState(0);
+      setN(n + 1);
+      return <Email><Row><Column><Paragraph>{`n=${n}`}</Paragraph></Column></Row></Email>;
+    }
+    const looping = /Too many re-renders: a component sets its state every time it renders/;
+    for (const render of [renderToHtml, renderToJson, renderToPlainText]) expect(() => render(<Looping />)).toThrow(looping);
+    for (const render of [asyncRenderers.renderToHtml, asyncRenderers.renderToJson]) await expect(render(<Looping />)).rejects.toThrow(looping);
+    let thrown: unknown;
+    try {
+      renderToHtml(<Looping />);
+    } catch (error) {
+      thrown = error;
+    }
+    expect(thrown).toBeInstanceOf(RenderError);
+    expect(thrown).toMatchObject({ component: "Looping", position: "" });
+    const inside = () => renderToHtml(<Email><Row><Column><Looping /></Column></Row></Email>);
+    expect(inside).toThrow(looping);
+  });
+
   it("renders a template with a hook and a list without keys the same every time", () => {
     const error = vi.spyOn(console, "error").mockImplementation(() => {});
     const warn = vi.spyOn(console, "warn").mockImplementation(() => {});

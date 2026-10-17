@@ -5,12 +5,12 @@
  * See ARCHITECTURE.md.
  */
 import React, { cloneElement } from "react";
-import { asHost, callWithHooks, type ContextStack, type HookState } from "./dispatcher";
+import { asHost, type ContextStack, type HookState } from "./dispatcher";
 import { childFrame, nameOf, omits, positionOf, RenderError, rootFrame, threw, type OnError } from "./errors";
 import { flatten, type Flat, type Part } from "./output";
 import { checkReact } from "./self-test";
 import { pushTreeContext, ROOT_TREE, type TreeContext } from "./tree-id";
-import { caller, failure, positioned, renderClass, suspension, thrownBy, walkNode, type Collector, type Task, type Wait, type Walker } from "./walk";
+import { call, caller, failure, positioned, renderClass, suspension, thrownBy, walkNode, type Collector, type Task, type Wait, type Walker } from "./walk";
 
 export { RenderError, type OnError } from "./errors";
 export { flatten, htmlOf, PENDING, type Flat, type Item, type Markup, type Cut, type Part, type RecordItem } from "./output";
@@ -150,25 +150,18 @@ export function renderOwn(node: React.ReactElement, given: Record<string, unknow
  */
 export function callComponent(fn: (props: any, second?: unknown) => unknown, props: Record<string, unknown>, second: unknown, state: HookState): { value: unknown; tree: TreeContext } {
   checkReact();
-  for (let renders = 0; ; ) {
-    state.localId = 0;
-    state.thenableIndex = 0;
-    state.hookIndex = 0;
-    state.rerender = false;
-    let value: unknown;
-    try {
-      value = callWithHooks(state, () => fn(props, second));
-    } catch (thrown) {
-      const thenable = suspension(thrown, state);
-      if (thenable) {
-        state.hooks = undefined;
-        throw thenable;
-      }
-      throw positioned(walker({}), failure(thrown), state.name, rootFrame(state.name));
+  let value: unknown;
+  try {
+    value = call(state, fn, props, second);
+  } catch (thrown) {
+    const thenable = suspension(thrown, state);
+    if (thenable) {
+      state.hooks = undefined;
+      throw thenable;
     }
-    if (state.rerender && ++renders <= 25) continue;
-    return { value, tree: state.localId > 0 ? pushTreeContext(state.tree, 1, 0) : state.tree };
+    throw positioned(walker({}), failure(thrown), state.name, rootFrame(state.name));
   }
+  return { value, tree: state.localId > 0 ? pushTreeContext(state.tree, 1, 0) : state.tree };
 }
 
 /** A template wrapper that's a class (react-intl's <IntlProvider>), constructed and rendered inside `contexts`: as callComponent. */
