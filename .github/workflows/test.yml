@@ -58,14 +58,17 @@ jobs:
         run: pnpm --filter @unlayer/from-react-email typecheck && pnpm --filter @unlayer/migrate typecheck
 
       # ── Bundle size budget ──────────────────────────────────────
-      # Fail if the react-elements ESM bundle exceeds 189.5KB.
-      # Current size: about 189.2KB (0.1.22: about 76KB). Raised from 173.5KB
-      # (about 17KB) so Divider, Html, Menu and Social write their web and
+      # Fail if the react-elements ESM bundle exceeds 187KB.
+      # Current size: about 186.4KB (0.1.22: about 76KB). Raised from 173.5KB
+      # (about 13KB): Divider, Html, Menu and Social write their web and
       # document HTML without react-dom/server, which can't run in an edge
-      # runtime or a React Server Components layer: the static markup React
-      # renders for the elements @unlayer/exporters gives them, with React 18's
-      # and 19's rules for attributes, styles and children (src/exporters/).
-      # Raised from 131.5KB
+      # runtime or a React Server Components layer (src/exporters/, about 7KB,
+      # writing with the walker's host markup, one table of React 18's and 19's
+      # rules for both), and what makes the renders faster: the template
+      # collected as a tree of its records (no markers parsed back), its model,
+      # values and the design's copies made once (src/model/, the head's reuse,
+      # pxMerged), and a root's and Row's HTML written without a walk. The
+      # async walk's holes are the async entry's. Raised from 131.5KB
       # (about 41KB) for the walker (src/engine), the renderer Elements renders
       # templates with instead of react-dom: the walk itself, its hooks
       # dispatcher, React's attribute and style tables for host markup, the
@@ -111,7 +114,7 @@ jobs:
         run: |
           BUNDLE="packages/react/dist/index.js"
           SIZE=$(wc -c < "$BUNDLE" | tr -d ' ')
-          MAX_SIZE=189500
+          MAX_SIZE=187000
           echo "Bundle: $BUNDLE"
           echo "Size: $SIZE bytes (budget: $MAX_SIZE bytes)"
           if [ "$SIZE" -gt "$MAX_SIZE" ]; then

@@ -1,7 +1,7 @@
 import React from "react";
 import type { PlainTextOptions, UnlayerConfig } from "@unlayer-internal/shared-elements";
 import { htmlToPlainText, RenderError } from "@unlayer-internal/shared-elements";
-import { renderRoot } from "../engine";
+import { renderOwn } from "../engine";
 import { OWN_MARKUP } from "../components/Body";
 import { extractHeadFromTree } from "./extract-head";
 import { htmlRoot, providedConfig, ROOT_NAMES } from "./unwrap-root";
@@ -49,8 +49,7 @@ function bodyHtml(element: React.ReactElement, config?: Partial<UnlayerConfig>, 
   try {
     // Pass config via prop (not context) so this works in React Server Components: the root's own `config` and the
     // Provider's are in it (see resolveConfig). Body threads it as `_config` to children via cloneElement.
-    const enriched = React.cloneElement(element, { config: mergedConfig });
-    return renderRoot(enriched, OWN_MARKUP);
+    return renderOwn(element.type, { ...(element.props as object), config: mergedConfig }, OWN_MARKUP);
   } catch (error) {
     // A part of the template that failed says which and where; a scope's error is as it is.
     if (error instanceof RenderError || isTailwindError(error)) throw error;

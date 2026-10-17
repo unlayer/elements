@@ -9,7 +9,7 @@ import { BODY_DEFAULTS } from "../utils/container-defaults";
 import { setRenderConfig, withRenderScope } from "../utils/render-scope";
 import { childrenHtml, rootDefaults } from "../model";
 import { isTailwindError, rootProps } from "../utils/tailwind";
-import { ownMarkup, renderOwn, renderStatic } from "../engine";
+import { ownMarkup, renderOwn } from "../engine";
 import { useProvidedConfig } from "../context/UnlayerProvider";
 import { rootConfig } from "../context/layer-config";
 
@@ -222,8 +222,8 @@ const Body: React.FC<BodyProps> = (given) => {
         const before = { ...ids };
         try {
           // (Elements' own, which call no hooks: called as they are, no walk around them.)
-          if (typeof child.type === "function") return renderOwn(child.type as (props: any) => unknown, { ...(child.props as object), _config, bodyValues: values }, OWN_MARKUP);
-          return renderStatic(React.cloneElement(child as React.ReactElement<any>, { _config, bodyValues: values }), OWN_MARKUP);
+          const { html, inner } = renderOwn(child.type, { ...(child.props as object), _config, bodyValues: values }, OWN_MARKUP);
+          return inner === undefined ? html : `<div>${inner}</div>`;
         } catch (error) {
           for (const key of Object.keys(ids)) if (!(key in before)) delete ids[key];
           Object.assign(ids, before);
