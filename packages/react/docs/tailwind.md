@@ -10,7 +10,7 @@ Tailwind CSS 4 is an optional peer dependency. Only `@unlayer/react-elements/tai
 
 ## Render a template with classes
 
-Wrap the root in `<Tailwind>` (from `@unlayer/react-elements/tailwind`) and render with the async renderers, which that entry exports too (they're `@unlayer/react-elements/async`'s, the same functions). They compile the config first (asynchronously, once per config), then render, resolving async components too (see [Async templates](./async.md)):
+Wrap the root in `<Tailwind>` (from `@unlayer/react-elements/tailwind`) and render with the async renderers, which that entry exports too (they're `@unlayer/react-elements/async`'s, the same functions). They compile the config first (asynchronously, and keep it compiled for the next render: see [`loadTailwind`](#keep-the-synchronous-renderers)), then render, resolving async components too (see [Async templates](./async.md)):
 
 ```tsx
 import { Email, Row, Column, Heading, Paragraph, Button } from "@unlayer/react-elements";
@@ -58,7 +58,7 @@ renderToHtml(
 );
 ```
 
-`loadTailwind(config)` compiles each config once: a later call with the same config (the same object, or one with equal contents) returns the same handle. A config with functions (plugins) is cached by the object only, so define it once, outside your components.
+`loadTailwind(config)` compiles a config and keeps it: a later call with the same config (the same object, or one with equal contents) returns the same handle. It keeps the 50 configs used last, so a server that renders each customer's theme doesn't keep every theme it has rendered: one used longer ago is compiled again when it's asked for, and a handle you hold keeps working. A handle that has read 2,000 different classes (classes made from data, like `w-[123px]`, keep coming) compiles a fresh compiler in the background and reads new classes with it once it's ready, so reading a new class stays fast and memory stays bounded; classes read the same with either. A config with functions (plugins) is cached by the object only, so define it once, outside your components.
 
 A synchronous renderer given `<Tailwind config>` without `tw` throws, telling you to pass `tw` or use the async renderers (`@unlayer/react-elements/async`). It throws every time, even when the async renderers compiled that config before: otherwise a template would render in development and fail on a cold serverless start.
 

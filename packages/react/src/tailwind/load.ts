@@ -1,7 +1,8 @@
 /**
- * `loadTailwind(config)`: Tailwind compiled once for a config. Compiling is asynchronous (Tailwind loads its config
- * and stylesheets that way); what it gives is a handle whose classes are read synchronously, so the renderers stay
- * synchronous. Tailwind (the optional peer dependency) is loaded here only, when it's first asked for.
+ * `loadTailwind(config)`: Tailwind compiled for a config, kept for the next call with it. Compiling is asynchronous
+ * (Tailwind loads its config and stylesheets that way); what it gives is a handle whose classes are read
+ * synchronously, so the renderers stay synchronous. Tailwind (the optional peer dependency) is loaded here only, when
+ * it's first asked for.
  */
 import { Tailwind, type Resolver, type TailwindConfig, type TailwindHandle } from "./Tailwind";
 // Tailwind's default theme, as its `tailwindcss/theme.css` holds it, built into this module: a bundler or an edge
@@ -35,7 +36,8 @@ export function configKey(config: unknown, seen = new Set<unknown>()): string | 
   return Array.isArray(config) ? `[${entries.join(",")}]` : `{${entries.join(",")}}`;
 }
 
-async function compile(config: TailwindConfig | undefined): Promise<TailwindHandle> {
+/** Tailwind's compiler for a config. */
+async function compiler(config: TailwindConfig | undefined): Promise<Compiler> {
   let tailwind: Record<string, any>;
   try {
     tailwind = await import("tailwindcss");
@@ -45,7 +47,7 @@ async function compile(config: TailwindConfig | undefined): Promise<TailwindHand
   const run = (tailwind.compile ?? tailwind.default?.compile) as (css: string, options: Record<string, unknown>) => Promise<Compiler>;
   // Tailwind's theme and utilities, no reset (an email has its own), and the config as React Email's <Tailwind> takes it.
   const input = `@layer theme, base, components, utilities;\n@import "tailwindcss/theme.css" layer(theme);\n@import "tailwindcss/utilities.css" layer(utilities);\n${config ? "@config;\n" : ""}`;
-  const compiler = await run(input, {
+  return run(input, {
     base: "/",
     // No fallbacks for older browsers (`@supports` blocks): colors are converted for email anyway.
     polyfills: 0,
@@ -59,7 +61,11 @@ async function compile(config: TailwindConfig | undefined): Promise<TailwindHand
       throw new Error(`[Unlayer] loadTailwind: plugins are given in the config's \`plugins\`, not loaded by name ("${id}").`);
     },
   });
-  const declarations = declarationReader(compiler);
+}
+
+async function compile(config: TailwindConfig | undefined): Promise<TailwindHandle> {
+  // (A fresh compiler past the classes one keeps: see declarationReader.)
+  const declarations = declarationReader(await compiler(config), () => compiler(config));
   const resolver: HandleResolver = {
     declarations,
     props: (name: string, className: string, explicit: Record<string, any>, defaults?: Record<string, any>) => {
@@ -72,12 +78,17 @@ async function compile(config: TailwindConfig | undefined): Promise<TailwindHand
   return Object.freeze({ config, [TAILWIND]: resolver }) as TailwindHandle;
 }
 
-const byConfig = new WeakMap<object, Promise<TailwindHandle>>();
+/** The configs kept compiled (about 1.3 MB each, and their classes), the ones used last: a server rendering each customer's theme keeps these. */
+export const CONFIGS = 50;
+
+// By its text, the last used last; by the object, its text (or, for a config with functions, its handle).
 const byKey = new Map<string, Promise<TailwindHandle>>();
+const byConfig = new WeakMap<object, string | Promise<TailwindHandle>>();
 
 /**
- * Compiles Tailwind for a config (React Email's `<Tailwind config>` takes the same), once: later calls with the same
- * config (the same object, or one equal to it) get the same handle. Pass it to `<Tailwind tw={tw}>`.
+ * Compiles Tailwind for a config (React Email's `<Tailwind config>` takes the same), kept for later calls: one with
+ * the same config (the same object, or one equal to it) gets the same handle, while it's among the 50 used last.
+ * Pass it to `<Tailwind tw={tw}>`.
  *
  * @example
  * ```tsx
@@ -88,22 +99,27 @@ const byKey = new Map<string, Promise<TailwindHandle>>();
 export function loadTailwind(config?: TailwindConfig): Promise<TailwindHandle> {
   const object = config && typeof config === "object" ? config : undefined;
   const known = object && byConfig.get(object);
-  if (known) return known;
-  const key = configKey(config);
+  if (known && typeof known !== "string") return known;
+  const key = known ?? configKey(config);
   if (key === undefined) {
     console.warn("[Unlayer] loadTailwind: the config holds functions (plugins), so it's compiled again for each config object: define it once, outside your components.");
   }
   let loading = key === undefined ? undefined : byKey.get(key);
   if (!loading) {
     loading = compile(config);
-    if (key !== undefined) byKey.set(key, loading);
     // One that failed (Tailwind not installed) is tried again next time.
     loading.catch(() => {
       if (key !== undefined && byKey.get(key) === loading) byKey.delete(key);
       if (object && byConfig.get(object) === loading) byConfig.delete(object);
     });
   }
-  if (object) byConfig.set(object, loading);
+  if (key !== undefined) {
+    // Used last, it goes last; past CONFIGS, the one used longest ago goes (a handle given out keeps working).
+    byKey.delete(key);
+    byKey.set(key, loading);
+    if (byKey.size > CONFIGS) byKey.delete(byKey.keys().next().value!);
+  }
+  if (object) byConfig.set(object, key ?? loading);
   return loading;
 }
 

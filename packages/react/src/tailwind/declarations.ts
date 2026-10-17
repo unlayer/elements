@@ -58,11 +58,26 @@ export interface Compiler {
   build(candidates: string[]): string;
 }
 
-/** Reads classes with a compiler: each class built once, its rules read back from the latest stylesheet. */
-export function declarationReader(compiler: Compiler): (className: string) => ClassDeclarations {
-  const seen = new Set<string>();
-  let sheet: Sheet = { rules: [], vars: new Map(), initial: new Map() };
+/**
+ * The classes a compiler builds before a fresh one takes over. Tailwind's keeps every class it has built, and each new
+ * one builds and reads again the stylesheet of them all: about 1 ms per 300 classes (7 ms at 2,000), and memory that
+ * grows with each, as classes made from data (`w-[123px]`) keep coming. An app's own classes, hundreds to a couple of
+ * thousand, don't get there.
+ */
+export const CLASSES = 2000;
+
+const empty = (): Sheet => ({ rules: [], vars: new Map(), initial: new Map() });
+
+/**
+ * Reads classes with a compiler: each class built once, its rules read back from the latest stylesheet. Past `limit`
+ * classes, a fresh compiler from `renew` (Tailwind compiles asynchronously) takes over once it's ready, with none
+ * built: a class string reads the same whatever its compiler built before.
+ */
+export function declarationReader(compiler: Compiler, renew?: () => Promise<Compiler>, limit = CLASSES): (className: string) => ClassDeclarations {
+  let seen = new Set<string>();
+  let sheet = empty();
   let byToken = new Map<string, Rule[]>();
+  let renewing = false;
   return (className) => {
     const tokens = [...new Set(String(className).split(/\s+/).filter(Boolean))];
     const fresh = tokens.filter((token) => !seen.has(token));
@@ -71,7 +86,22 @@ export function declarationReader(compiler: Compiler): (className: string) => Cl
       sheet = parseSheet(compiler.build(fresh));
       fresh.forEach((token) => seen.add(token));
       byToken = new Map();
-      for (const rule of sheet.rules) byToken.set(rule.token, [...(byToken.get(rule.token) ?? []), rule]);
+      for (const rule of sheet.rules) {
+        const rules = byToken.get(rule.token);
+        if (rules) rules.push(rule);
+        else byToken.set(rule.token, [rule]);
+      }
+      // Once (one that fails leaves this one in use).
+      if (renew && !renewing && seen.size > limit) {
+        renewing = true;
+        renew().then((next) => {
+          compiler = next;
+          seen = new Set();
+          sheet = empty();
+          byToken = new Map();
+          renewing = false;
+        }, () => {});
+      }
     }
     const ignored: ClassDeclarations["ignored"] = [];
     const applied: Array<{ rule: Rule; when: ClassCondition }> = [];
