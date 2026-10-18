@@ -5,7 +5,7 @@
  * reported where it can't be (a phone or hover variant needs a stylesheet). The markup is read as a browser reads it
  * (src/utils/html-tags.ts), and only the class attributes and the styles they give are written again.
  */
-import type { ClassDeclarations } from "./declarations";
+import type { ClassCondition, ClassDeclaration, ClassDeclarations } from "./declarations";
 import { commentEnd, rawTextEnd, readTag, type Attribute } from "../utils/html-tags";
 
 // Logical sides as in a left-to-right document, and those a right-to-left one changes: email clients read only physical ones.
@@ -29,18 +29,21 @@ const escape = (text: string) => text.replace(/&/g, "&amp;").replace(/"/g, "&quo
 /** A value as written, in a `"`-quoted one (its references, which mean the same there, kept). */
 const requote = (attribute: Attribute) => (attribute.value ?? "").replace(/"/g, "&quot;");
 
+/** When a declaration that can't be inline applies. */
+const WHEN: Record<ClassCondition, string> = { always: "", phone: "on phones only", desktop: "above a screen width only", hover: "on hover" };
+
 /**
- * A declaration as email clients read it: logical sides as physical ones (`rtl`: on an element that reads right to
- * left, where inline start is the right), `text-decoration-line` as `text-decoration`.
+ * A declaration's properties as email clients read them: logical sides as physical ones (`rtl`: on an element that
+ * reads right to left, where inline start is the right), `text-decoration-line` as `text-decoration`.
  */
-function physical(property: string, value: string, rtl: boolean): string[] {
+function physical(property: string, rtl: boolean): string[] {
   const side = /^(padding|margin|border)-(inline|block)(-start|-end)?(-width|-style|-color)?$/.exec(property);
   const sides = side && side[2] + (side[3] ?? "");
-  if (side) return ((rtl && RTL_SIDES[sides!]) || SIDES[sides!]).map((s) => `${side[1]}-${s}${side[4] ?? ""}: ${value}`);
+  if (side) return ((rtl && RTL_SIDES[sides!]) || SIDES[sides!]).map((s) => `${side[1]}-${s}${side[4] ?? ""}`);
   const corner = /^border-(start|end)-(start|end)-radius$/.exec(property);
   const at = corner && `${corner[1]}-${corner[2]}`;
-  if (corner) return [`border-${(rtl && RTL_CORNERS[at!]) || CORNERS[at!]}-radius: ${value}`];
-  return [`${property === "text-decoration-line" ? "text-decoration" : property}: ${value}`];
+  if (corner) return [`border-${(rtl && RTL_CORNERS[at!]) || CORNERS[at!]}-radius`];
+  return [property === "text-decoration-line" ? "text-decoration" : property];
 }
 
 /**
@@ -115,10 +118,23 @@ function classes(text: string, attributes: Attribute[], nameEnd: number, offset:
   }
   const kept = given.filter((_, i) => names[i] === undefined || yours.has(names[i]!));
   if (kept.length === given.length) return undefined;
+  // A class that sets on every screen what a phone or breakpoint variant sets on one isn't inline either: it would
+  // apply on that screen too (`hidden md:block` would hide the element on every screen). (Without hover, an element
+  // is as its classes say without `hover:`: those are.)
+  const screens = new Map<string, ClassDeclaration>();
+  for (const d of found.declarations) if (d.when === "phone" || d.when === "desktop") for (const property of physical(d.property, rtl)) if (!screens.has(property)) screens.set(property, d);
+  const changed = new Set<string>();
+  for (const d of found.declarations) {
+    const property = d.when === "always" && !changed.has(d.className) ? physical(d.property, rtl).find((p) => screens.has(p)) : undefined;
+    if (property === undefined) continue;
+    changed.add(d.className);
+    const by = screens.get(property)!;
+    once(`can't inline class \`${d.className}\` in its markup: \`${by.className}\` sets its \`${property}\` ${WHEN[by.when]}, which needs a stylesheet`);
+  }
   const css: string[] = [];
   for (const d of found.declarations) {
-    if (d.when === "always") css.push(...physical(d.property, d.value, rtl).map((declaration) => `${declaration}${d.important ? " !important" : ""}`));
-    else once(`can't inline class \`${d.className}\` in its markup: it applies ${d.when === "phone" ? "on phones only" : d.when === "desktop" ? "above a screen width only" : "on hover"}, which needs a stylesheet`);
+    if (d.when !== "always") once(`can't inline class \`${d.className}\` in its markup: it applies ${WHEN[d.when]}, which needs a stylesheet`);
+    else if (!changed.has(d.className)) css.push(...physical(d.property, rtl).map((property) => `${property}: ${d.value}${d.important ? " !important" : ""}`));
   }
   // Each edit: what's from `start` to `end` (in the markup) written as `with`.
   const edits: Array<{ start: number; end: number; with: string }> = [];

@@ -310,6 +310,7 @@ describe("<Tailwind>: classes in an Html block's markup", () => {
     block(<Html html={'<p class="p-2 max-sm:p-1 hover:underline sm:p-4 dark:text-white">x</p>'} />);
     expect(warnings()).toEqual([
       "[Unlayer] Html ignores class `dark:text-white` in its markup: it applies only for @media (prefers-color-scheme: dark).",
+      "[Unlayer] Html can't inline class `p-2` in its markup: `max-sm:p-1` sets its `padding` on phones only, which needs a stylesheet.",
       "[Unlayer] Html can't inline class `hover:underline` in its markup: it applies on hover, which needs a stylesheet.",
       "[Unlayer] Html can't inline class `max-sm:p-1` in its markup: it applies on phones only, which needs a stylesheet.",
       "[Unlayer] Html can't inline class `sm:p-4` in its markup: it applies above a screen width only, which needs a stylesheet.",
@@ -318,6 +319,22 @@ describe("<Tailwind>: classes in an Html block's markup", () => {
     warn.mockClear();
     expect(block(<Html html={'<div class="group mine"><p class="[.group:hover_&]:underline p-2">x</p></div>'} />).html).toBe('<div class="group mine"><p style="padding: 8px">x</p></div>');
     expect(warnings()).toEqual(["[Unlayer] Html ignores class `[.group:hover_&]:underline` in its markup: it applies only for `.group:hover &`."]);
+  });
+
+  it("doesn't inline a class a screen variant changes on another screen: `hidden md:block` doesn't hide on every screen", () => {
+    expect(block(<Html html={'<div class="hidden md:block mine">Desktop text</div><p class="block max-sm:hidden ps-2 md:pl-4 p-1">Desktop only</p><p class="hidden hover:block text-red-500 hover:text-blue-500">Hover</p>'} />).html).toBe(
+      '<div class="mine">Desktop text</div><p style="padding: 4px">Desktop only</p><p style="display: none; color: #fb2c36">Hover</p>'
+    );
+    expect(warnings()).toEqual([
+      "[Unlayer] Html can't inline class `hidden` in its markup: `md:block` sets its `display` above a screen width only, which needs a stylesheet.",
+      "[Unlayer] Html can't inline class `md:block` in its markup: it applies above a screen width only, which needs a stylesheet.",
+      "[Unlayer] Html can't inline class `block` in its markup: `max-sm:hidden` sets its `display` on phones only, which needs a stylesheet.",
+      "[Unlayer] Html can't inline class `ps-2` in its markup: `md:pl-4` sets its `padding-left` above a screen width only, which needs a stylesheet.",
+      "[Unlayer] Html can't inline class `max-sm:hidden` in its markup: it applies on phones only, which needs a stylesheet.",
+      "[Unlayer] Html can't inline class `md:pl-4` in its markup: it applies above a screen width only, which needs a stylesheet.",
+      "[Unlayer] Html can't inline class `hover:block` in its markup: it applies on hover, which needs a stylesheet.",
+      "[Unlayer] Html can't inline class `hover:text-blue-500` in its markup: it applies on hover, which needs a stylesheet.",
+    ]);
   });
 
   it("reads tags and attributes as a browser does: what isn't a class attribute, or isn't in a tag, stays as written", () => {
