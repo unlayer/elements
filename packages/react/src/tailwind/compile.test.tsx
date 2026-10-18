@@ -148,7 +148,8 @@ describe("classNameToDeclarations", () => {
     for (const other of others.slice(0, 50).reverse()) classNameToDeclarations(warmed, other);
     classNameToDeclarations(warmed, others.join(" "));
     for (const [i, className] of strings.entries()) expect(classNameToDeclarations(warmed, className), className).toEqual(classNameToDeclarations(fresh[i], className));
-  });
+    // (Thousands of classes built: about half a second here, ten on a CI runner.)
+  }, 60_000);
 
   it("reads the classes after one it can't read as before: a class can't change how the stylesheet reads", async () => {
     const handle = await loadTailwind({ ...config, hostile: true });

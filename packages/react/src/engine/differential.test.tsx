@@ -150,7 +150,8 @@ describe("the walker against react-dom/server", () => {
     }
     expect(different.slice(0, 20)).toEqual([]);
     expect(checked).toBeGreaterThan(100000);
-  });
+    // (Over a hundred thousand renders by each: under a second here, several on a CI runner with React's development build.)
+  }, 60_000);
 
   it("writes form controls as react-dom does: a select's value marking its options, a textarea's value as its text, an input's checked and value last", () => {
     const Option = ({ value, children }: { value?: unknown; children?: React.ReactNode }) => h("option", { value }, children);
