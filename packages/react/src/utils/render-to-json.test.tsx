@@ -13,6 +13,7 @@ import Email from "../components/Email";
 import Page from "../components/Page";
 import Document from "../components/Document";
 import { renderToHtml } from "./render-to-html";
+import { RenderError } from "@unlayer-internal/shared-elements";
 import { ColumnLayouts } from "../layouts/ColumnLayouts";
 
 describe("renderToJson", () => {
@@ -331,11 +332,20 @@ describe("renderToJson", () => {
     expect(() => renderToJson(<NotARoot />)).toThrow("Root element must be <Body>");
   });
 
-  it("rethrows an actionable error when a wrapper throws while unwrapping", () => {
+  it("throws what a wrapper throws as renderToHtml does (a RenderError naming it), and says what to do for an async one", () => {
+    const cause = new Error("no data");
     const Boom = (): React.ReactElement => {
-      throw new Error("invalid hook call");
+      throw cause;
     };
-    expect(() => renderToJson(<Boom />)).toThrow("could not unwrap");
+    for (const render of [() => renderToJson(<Boom />), () => renderToHtml(<Boom />)]) {
+      expect(render).toThrow(RenderError);
+      expect(render).toThrow(/^\[Unlayer\] no data \(in <Boom>\)$/);
+    }
+    expect(() => renderToJson(<Boom />)).toThrow(expect.objectContaining({ component: "Boom", cause }));
+    const Later = async () => <Email />;
+    expect(() => renderToJson(<Later />)).toThrow(
+      `[Unlayer] renderToJson: could not unwrap <Later>. Pass the root element (<Email>…</Email>), or a function component that returns one. (async and suspending templates need "@unlayer/react-elements/async"'s renderers, or their data loaded first and passed as props)`
+    );
   });
 
   it("unwraps a wrapper that uses hooks, also while the app is rendering", () => {

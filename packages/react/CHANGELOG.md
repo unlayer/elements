@@ -69,7 +69,7 @@
 
 - **A component of yours named like a root renders as written.** A design-system wrapper given a root's name (`const Email = (props) => <UEmail backgroundColor="#f4f4f4" {...props} />; Email.displayName = "Email"`) was taken for the root itself, so the design lacked the props it sets. It's now called as any component is, in the HTML and the design alike: Elements knows its own roots by a marker (an older release's by their name and code).
 
-- **A template whose wrapper sets its state while it renders renders its last render**, as React does, and a wrapper that throws fails the render once, naming it, instead of warning that it couldn't be unwrapped and then failing.
+- **A template whose wrapper sets its state while it renders renders its last render**, as React does, and a wrapper that throws fails the render once, naming it, instead of warning that it couldn't be unwrapped and then failing. `renderToJson()` throws that RenderError too (its `component` and `cause`), where it said it couldn't unwrap the template; it says so now only for an async one.
 
 - **A Row's background image is full width unless it says otherwise.** `<Row backgroundImage={{ url }}>` rendered the image inside the content width, while the design (and so the editor) had it full width, the editor's default. The HTML now takes the editor's defaults for what the image doesn't set (full width, centered, not repeated), as the design does, so code generated from a design renders as the design does. `fullWidth: false` keeps it inside the content width.
 

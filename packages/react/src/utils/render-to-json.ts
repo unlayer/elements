@@ -26,7 +26,7 @@ import { mergeValues, pxMerged, pxZeros, textJsonToText } from "@unlayer-interna
 import { schemaVersion as _schemaVersion } from "@unlayer/exporters";
 const schemaVersion: number = _schemaVersion ?? 24;
 import { mapSemanticProps } from "./semantic-props";
-import { componentName, getDisplayName, providedConfig, unwrapRoot, UNWRAP_ADVICE } from "./unwrap-root";
+import { ASYNC_TEMPLATE, componentName, getDisplayName, providedConfig, unwrapRoot, UNWRAP_ADVICE } from "./unwrap-root";
 import { rootName } from "./root-type";
 import { rootConfig, rootMode, type RootConfigProps } from "../context/layer-config";
 import { BODY_DEFAULTS, ROW_DEFAULTS, COLUMN_DEFAULTS } from "./container-defaults";
@@ -56,17 +56,16 @@ type LayoutContext = Pick<
 /**
  * Unwrap a user wrapper component (e.g. `renderToJson(<MyEmail/>)`) down to
  * its root element: renderToJson walks the element tree, so the wrapper must
- * be called first. A wrapper that throws (React hooks aren't valid outside a
- * render) gets an actionable message instead of a bare "Invalid hook call".
+ * be called first. What a wrapper throws is thrown as renderToHtml throws it
+ * (a RenderError naming it, with its `cause`); an async template, which this
+ * renderer can't wait for, says what to do instead.
  */
 function unwrapForJson(element: React.ReactElement, idPrefix?: string): React.ReactElement {
   try {
     return unwrapRoot(element, {}, idPrefix);
   } catch (cause) {
-    const detail = cause instanceof Error ? cause.message : String(cause);
-    throw new Error(
-      `[Unlayer] renderToJson: could not unwrap <${componentName(element) || "wrapper"}>. ${UNWRAP_ADVICE} (${detail})`
-    );
+    if ((cause as Error | undefined)?.message !== ASYNC_TEMPLATE) throw cause;
+    throw new Error(`[Unlayer] renderToJson: could not unwrap <${componentName(element) || "wrapper"}>. ${UNWRAP_ADVICE} (${ASYNC_TEMPLATE})`);
   }
 }
 

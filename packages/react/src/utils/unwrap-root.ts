@@ -65,7 +65,7 @@ export function isElementsType(type: any): boolean {
 }
 
 /** Thrown for a template that is async or suspends: renderToHtml renders synchronously. */
-const ASYNC_TEMPLATE =
+export const ASYNC_TEMPLATE =
   'async and suspending templates need "@unlayer/react-elements/async"\'s renderers, or their data loaded first and passed as props';
 
 export const isThenable = (value: unknown): value is PromiseLike<unknown> => typeof (value as { then?: unknown } | null)?.then === "function";
