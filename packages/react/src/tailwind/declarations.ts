@@ -75,6 +75,17 @@ const empty = (): Sheet => ({ rules: [], vars: new Map(), initial: new Map(), cl
 /** Why a class isn't read: Tailwind's stylesheet of it couldn't be read as written (see `readable`). */
 const UNREADABLE = "it isn't a class Tailwind can read here";
 
+/** Why a class isn't read yet: built with one that didn't read cleanly, or after it, so Tailwind is compiling again. */
+const WAITING = "it's read once Tailwind has compiled again, after a class it couldn't read";
+
+/**
+ * Fresh compilers that can fail in a row. One compiles the config this one was compiled from, so one that fails (out of
+ * memory, a plugin that throws now) is asked for again, by the next read that needs one: no timer, so nothing is
+ * compiled while no class needs it and nothing keeps the process running. Past three in a row, it's taken to fail for
+ * good: the reader keeps its compiler, and after a build that didn't read cleanly reads no new class (and says so).
+ */
+const RENEWALS = 3;
+
 /**
  * Whether Tailwind can build a class without changing how what it builds after it reads: its brackets, parentheses,
  * braces and quotes closed (`\` escaping the character after it, as in CSS), no comment in it. Tailwind's compiler
@@ -102,6 +113,14 @@ function readable(token: string): boolean {
  * stylesheet reads isn't built (`readable`); a build whose stylesheet still doesn't read cleanly is left out (its
  * classes said, the classes before it read as they did), and a fresh compiler takes over, on which each of that
  * build's classes is built alone first: the one that was why is never built again.
+ *
+ * So after such a build, which `readable` refuses every known cause of, new classes aren't read till the fresh compiler
+ * is ready (`WAITING`, said): a render that meets one before reads it as left out, and a later one reads it. That can't
+ * be made synchronous: Tailwind compiles only asynchronously, and nothing more can be built on a compiler whose
+ * stylesheet doesn't read cleanly (it keeps every class built). Reading on past the rule that broke it, from Tailwind's
+ * rule boundaries, would trust how Tailwind prints CSS where the reader reads it as CSS does (what keeps one class from
+ * changing how the next reads), and a spare compiler kept ready would double each handle's compiling and memory for a
+ * case no known class reaches.
  */
 export function declarationReader(compiler: Compiler, renew?: () => Promise<Compiler>, limit = CLASSES): (className: string) => ClassDeclarations {
   let seen = new Set<string>();
@@ -112,9 +131,12 @@ export function declarationReader(compiler: Compiler, renew?: () => Promise<Comp
   let dirty = false;
   const suspects = new Set<string>();
   const refused = new Set<string>();
+  // Fresh compilers that failed in a row (see RENEWALS), and the last one's error.
+  let failures = 0;
+  let failure = "";
   // Once at a time (one that fails leaves this one in use).
   const fresh = () => {
-    if (!renew || renewing) return;
+    if (!renew || renewing || failures >= RENEWALS) return;
     renewing = true;
     renew().then(
       (next) => {
@@ -123,8 +145,13 @@ export function declarationReader(compiler: Compiler, renew?: () => Promise<Comp
         sheet = empty();
         byToken = new Map();
         renewing = dirty = false;
+        failures = 0;
       },
-      () => {}
+      (error) => {
+        renewing = false;
+        failures++;
+        failure = error instanceof Error ? error.message : String(error);
+      }
     );
   };
   const build = (tokens: string[]): boolean => {
@@ -154,9 +181,10 @@ export function declarationReader(compiler: Compiler, renew?: () => Promise<Comp
     const ignored: ClassDeclarations["ignored"] = [];
     const applied: Array<{ rule: Rule; when: ClassCondition }> = [];
     for (const token of tokens) {
-      // (One not built on this compiler: refused, or left out of this read.)
+      // One not built on this compiler: refused, or waiting for a fresh one (see declarationReader).
       if (!seen.has(token)) {
-        ignored.push({ className: token, reason: UNREADABLE });
+        const reason = refused.has(token) || !readable(token) || !renew ? UNREADABLE : failures < RENEWALS ? WAITING : `Tailwind couldn't compile again after a class it couldn't read (${failure})`;
+        ignored.push({ className: token, reason });
         continue;
       }
       const rules = byToken.get(token);

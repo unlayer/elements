@@ -327,6 +327,12 @@ describe("a handle's reader of classes", () => {
     const built: string[] = [];
     return { built, build: (classes: string[]) => (built.push(...classes), built.map((c) => `.${c} { margin: 1px; }`).join("\n")) };
   };
+  /** A compiler whose stylesheet, once it has built `evil`, never reads cleanly: as Tailwind keeps every class it built. */
+  const poisoned = () => {
+    const built: string[] = [];
+    return { built, build: (classes: string[]) => (built.push(...classes), built.map((c) => (c === "evil" ? `.${c} { color: x(; }` : `.${c} { margin: 1px; }`)).join("\n")) };
+  };
+  const settled = () => new Promise((resolve) => setTimeout(resolve, 0));
 
   it("swaps its compiler for a fresh one past its classes, once that's ready, the old one read till then", async () => {
     const old = counting();
@@ -349,24 +355,21 @@ describe("a handle's reader of classes", () => {
   });
 
   it("drops the classes of a build it can't read cleanly, keeps reading the others, and compiles a fresh compiler without them", async () => {
-    // A compiler whose stylesheet, once it has built `evil`, never reads cleanly: as Tailwind keeps every class it built.
-    const poisoned = () => {
-      const built: string[] = [];
-      return { built, build: (classes: string[]) => (built.push(...classes), built.map((c) => (c === "evil" ? `.${c} { color: x(; }` : `.${c} { margin: 1px; }`)).join("\n")) };
-    };
     const compilers = [poisoned(), poisoned(), poisoned()];
     const ready: Array<(compiler: Compiler) => void> = [];
     const renew = vi.fn(() => new Promise<Compiler>((resolve) => ready.push(resolve)));
     const read = declarationReader(compilers[0], renew);
     const classes = (className: string) => read(className).declarations.map((d) => d.className);
-    const unreadable = (className: string) => read(className).ignored.filter((i) => i.reason === "it isn't a class Tailwind can read here").map((i) => i.className);
+    const because = (reason: string) => (className: string) => read(className).ignored.filter((i) => i.reason === reason).map((i) => i.className);
+    const unreadable = because("it isn't a class Tailwind can read here");
+    const waiting = because("it's read once Tailwind has compiled again, after a class it couldn't read");
     expect(classes("a")).toEqual(["a"]);
-    // `evil` and `b`, built together, are left out; `a` reads as before; a fresh compiler is asked for.
-    expect(unreadable("b evil")).toEqual(["b", "evil"]);
+    // `evil` and `b`, built together, are left out till a fresh compiler is ready; `a` reads as before.
+    expect(waiting("b evil")).toEqual(["b", "evil"]);
     expect(classes("a")).toEqual(["a"]);
     expect(renew).toHaveBeenCalledTimes(1);
     // Till it's ready, nothing more is built on the one that can't read.
-    expect(unreadable("c")).toEqual(["c"]);
+    expect(waiting("c")).toEqual(["c"]);
     expect(compilers[0].built).toEqual(["a", "b", "evil"]);
     ready[0](compilers[1]);
     await Promise.resolve();
@@ -382,16 +385,54 @@ describe("a handle's reader of classes", () => {
     expect(renew).toHaveBeenCalledTimes(2);
   });
 
-  it("keeps its compiler where a fresh one fails", async () => {
+  it("asks again for a fresh compiler that failed, on the next read that needs one", async () => {
+    const compilers = [poisoned(), poisoned()];
+    let failing = 2;
+    const renew = vi.fn(() => (failing-- > 0 ? Promise.reject(new Error("out of memory")) : Promise.resolve<Compiler>(compilers[1])));
+    const read = declarationReader(compilers[0], renew);
+    const classes = (className: string) => read(className).declarations.map((d) => d.className);
+    expect(classes("a b evil")).toEqual([]);
+    await settled();
+    expect(renew).toHaveBeenCalledTimes(1);
+    // Each class it can't build yet asks again (one at a time), till one is compiled.
+    expect(classes("a c")).toEqual([]);
+    expect(renew).toHaveBeenCalledTimes(2);
+    expect(classes("c")).toEqual([]);
+    expect(renew).toHaveBeenCalledTimes(2);
+    await settled();
+    expect(classes("c")).toEqual([]);
+    expect(renew).toHaveBeenCalledTimes(3);
+    await settled();
+    expect(classes("a b c")).toEqual(["a", "b", "c"]);
+    expect(compilers[1].built).toEqual(["a", "b", "c"]);
+    expect(renew).toHaveBeenCalledTimes(3);
+  });
+
+  it("stops asking for a fresh compiler after three fail in a row, and says why it reads no new class", async () => {
+    const renew = vi.fn(() => Promise.reject(new Error("out of memory")));
+    const read = declarationReader(poisoned(), renew);
+    for (const className of ["a evil", "b", "c", "d", "e"]) {
+      read(className);
+      await settled();
+    }
+    expect(renew).toHaveBeenCalledTimes(3);
+    expect(read("f evil").ignored).toEqual([
+      { className: "f", reason: "Tailwind couldn't compile again after a class it couldn't read (out of memory)" },
+      { className: "evil", reason: "Tailwind couldn't compile again after a class it couldn't read (out of memory)" },
+    ]);
+  });
+
+  it("keeps its compiler where a fresh one fails, asking again on the next build past its classes, three times in a row at most", async () => {
     const old = counting();
     const renew = vi.fn(() => Promise.reject(new Error("no Tailwind")));
     const read = declarationReader(old, renew, 1);
-    read("a b");
-    await Promise.resolve();
-    read("c");
-    expect(read("a c").declarations.map((d) => d.className)).toEqual(["a", "c"]);
-    expect(old.built).toEqual(["a", "b", "c"]);
-    expect(renew).toHaveBeenCalledTimes(1);
+    for (const className of ["a b", "c", "d", "e"]) {
+      read(className);
+      await settled();
+    }
+    expect(read("a c e").declarations.map((d) => d.className)).toEqual(["a", "c", "e"]);
+    expect(old.built).toEqual(["a", "b", "c", "d", "e"]);
+    expect(renew).toHaveBeenCalledTimes(3);
   });
 });
 
