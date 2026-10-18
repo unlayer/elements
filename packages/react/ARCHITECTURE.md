@@ -157,7 +157,8 @@ it for the content's walk, and the template wrappers take the render options' or
 they're called before the root's config is read. The template
 wrappers are the tree's top, and the content continues from where they left it, so their ids and the content's are
 one document's. A walk a component starts (a nested Email among the rows, an Elements render inside a component) starts
-at that component's place in the tree.
+at that component's place in the tree, inside the providers around it (see invariant 4); one a template wrapper starts,
+at the top.
 
 ## Errors
 
@@ -220,12 +221,19 @@ row or block is left out of the HTML, the plain text and the design (the slower 
    an `await`; a render Elements runs in, or that runs in it, keeps its own.
 3. **One model per render.** The HTML, the head, the plain text and the design are made from the same collected
    content, in one scope: they can't disagree, and a failed part is in none of them.
-4. **A render's output depends only on its arguments.** All per-render state lives in that render's scope: the module
-   holds no facts keyed by the user's elements, every render function makes a scope of its own, and the ambient scope
-   is cleared before any of the user's code runs (`guest`), so a render's output and errors depend only on that call's
-   arguments, whatever rendered before or around it (the regression templates rendered again from kept elements in a
-   shuffled order give their reviewed bytes, and random templates sharing kept elements give the same output after any
-   other, and at once).
+4. **A render's output depends only on its arguments**, and on where a component starts it. All per-render state lives
+   in that render's scope: the module holds no facts keyed by the user's elements or by what a render gives (its
+   errors), every render function makes a scope of its own, and the ambient scope is cleared before any of the user's
+   code runs (`guest`), so a render's output and errors depend only on that call's arguments, whatever rendered before
+   it or renders at once (the regression templates rendered again from kept elements in a shuffled order give their
+   reviewed bytes, and random templates sharing kept elements give the same output after any other, and at once). The
+   exception, by design, is the walker's, not the scope's: a walk started while the walker is calling a component (an
+   Elements render in its body or its `useMemo`, a nested Email's content, a render anything that call runs starts)
+   starts at that component's place in the tree and inside the context providers around it (`calling` in
+   `engine/walk.ts`), so its `useId()`s continue the document's and a context it has no provider of its own for reads
+   the value it has there, as React's renders inside a render do. A render started outside any component's call (by a
+   template wrapper, an exporter, a head, `onError`, a Tailwind plugin) starts at the top, as alone
+   (`src/utils/nested-renders.test.tsx` holds both).
 5. **Tree order.** Output, records, ids and the error a render throws don't depend on when promises settle.
 6. **Components run once per render**, but as React runs them again: a component that sets its state while rendering,
    and one `use()` suspends, which is called again once the promise settles.

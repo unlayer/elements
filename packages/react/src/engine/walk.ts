@@ -93,6 +93,8 @@ export interface Task {
  * Where the component the walker is calling is, for a walk that component starts (a root's content, rendered by
  * Body; a render the template's code starts): its providers are around that walk, as React's nested renders read the
  * values of the render they're in, and its place in the tree is where that walk's ids start, so they're the document's.
+ * By design, the one thing outside a render's scope its output depends on (ARCHITECTURE.md, invariant 4): `guest`
+ * doesn't clear it, and a render started outside any component's call starts at the top.
  */
 let calling: { tree: TreeContext; contexts: ContextStack | null } | null = null;
 export const caller = () => calling;

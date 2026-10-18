@@ -60,6 +60,33 @@ describe("a template's component", () => {
     expect(html).toContain("1 rows");
   });
 
+  it("starts a render where it is, inside the providers around it, its ids the document's; one the rest of the user's code starts, as alone", async () => {
+    // By design (the walker's `calling`): as React's renders inside a render read the context it has, and so the ids
+    // of an Elements render a component puts in the document don't repeat the document's.
+    const { registerTool } = await import("../index");
+    const asyncRenderers = await import("../async");
+    const Theme = React.createContext("none");
+    const Themed = () => <Paragraph>{`theme=${React.useContext(Theme)} id=${useId()}`}</Paragraph>;
+    const inner = <Email><Row><Column><Themed /></Column></Row></Email>;
+    const seen = (html: string) => /theme=(\w+) id=([^<\s]+)/.exec(html)!.slice(1);
+    const [none, alone] = seen(renderToHtml(inner));
+    expect(none).toBe("none");
+    const got: Record<string, string[]> = {};
+    const Starts = ({ at }: { at: string }) => ((got[at] = seen(renderToHtml(inner))), <Paragraph>{`outer ${useId()}`}</Paragraph>);
+    const Tool = registerTool({ name: "nested_where", renderer: { exporters: { email: () => ((got.exporter = seen(renderToHtml(inner))), "<b>tool</b>") } } });
+    const outer = (at: string) => <Email><Theme.Provider value="dark"><Row><Column><Paragraph>Before</Paragraph><Starts at={at} /><Tool /></Column></Row></Theme.Provider></Email>;
+    const Wrapper = () => ((got.wrapper = seen(renderToHtml(inner))), outer("component in a wrapper's template"));
+    const html = renderToHtml(outer("component"));
+    await asyncRenderers.renderToHtml(outer("component, async"));
+    renderToHtml(<Theme.Provider value="dark"><Wrapper /></Theme.Provider>);
+    for (const at of ["component", "component, async", "component in a wrapper's template"]) {
+      expect(got[at][0], at).toBe("dark");
+      expect(got[at][1], at).not.toBe(alone);
+    }
+    expect(html).not.toContain(got.component[1]);
+    for (const at of ["exporter", "wrapper"]) expect(got[at], at).toEqual([none, alone]);
+  });
+
   it("can nest one more, and a component there calls hooks after the call", () => {
     const error = vi.spyOn(console, "error").mockImplementation(() => {});
     try {
