@@ -109,6 +109,8 @@ describe("Markdown", () => {
     expect(blocks({ markdown: "<b>x</b>", html: "escape" })).toEqual([["text", "&lt;b&gt;x&lt;/b&gt;"]]);
     expect(blocks({ markdown: "<div>x</div>\n\nText", html: "drop" })).toEqual([["text", "Text"]]);
     expect(sanitizeHtml('<p style="background: url(javascript:x)">a < b</p><!--[if mso]><x><![endif]-->')).toBe("<p>a &lt; b</p>");
+    // Old Internet Explorer's filters load images too, and so would CSS's `image()`.
+    expect(sanitizeHtml('<p style="filter: progid:DXImageTransform.Microsoft.AlphaImageLoader(src=x.png)">a</p><p style="background: image(x.png)">b</p>')).toBe("<p>a</p><p>b</p>");
     // A numeric reference past Unicode's range reads as U+FFFD, as in a browser, instead of throwing.
     expect(blocks({ markdown: '<a href="&#99999999;x" style="color: &#x110000;">a</a>' })).toHaveLength(1);
   });
@@ -127,7 +129,7 @@ const parsed = (html: string) => [...new DOMParser().parseFromString(`<!doctype 
 
 /** Whether a style (as the browser reads it: its escapes decoded, its spaces gone) could load or run something. */
 const loads = (style: string) =>
-  /expression|javascript:|behavior|-moz-binding|url\(|image-set\(|\/\*/i.test(style.replace(/\\([\da-f]{1,6})\s?|\\(.)/gi, (_, hex, ch) => (hex ? String.fromCodePoint(Math.min(parseInt(hex, 16), 0x10ffff)) : ch)).replace(/\s/g, ""));
+  /expression|javascript:|behavior|-moz-binding|progid|url\(|image\(|image-set\(|\/\*/i.test(style.replace(/\\([\da-f]{1,6})\s?|\\(.)/gi, (_, hex, ch) => (hex ? String.fromCodePoint(Math.min(parseInt(hex, 16), 0x10ffff)) : ch)).replace(/\s/g, ""));
 
 describe("sanitizeHtml", () => {
   it("leaves no tag that what's around a part it takes out joins into", () => {
@@ -246,6 +248,8 @@ describe("Markdown in a <Tailwind>", () => {
       "[behavior:url(x.htc)]",
       "[-moz-binding:url(x.xml)]",
       "[background:expression(alert(1))]",
+      "[filter:progid:DXImageTransform.Microsoft.AlphaImageLoader(src=https://x.test/a.png)]",
+      "[background:image(https://x.test/a.png)]",
     ];
     for (const vector of vectors) {
       // In a raw HTML block, and in a paragraph's HTML; the other classes inlined.
@@ -257,6 +261,10 @@ describe("Markdown in a <Tailwind>", () => {
     expect(warn.mock.calls.map((call) => String(call[0]))).toContain(
       "[Unlayer] Html can't inline `[background:url(https://x.test/a.gif)]`'s `background` in its markup: it could load or run something, which Markdown's sanitized HTML doesn't allow."
     );
+    // A phone, breakpoint or hover variant is in no style, inline or in the head.
+    const variants = renderToHtml(<Tailwind tw={tw}><Email><Row><Column><Markdown markdown={'<div class="sm:bg-[url(https://x.test/a.gif)] max-sm:bg-[url(https://x.test/a.gif)] hover:bg-[url(https://x.test/a.gif)]">a</div>'} /></Column></Row></Email></Tailwind>);
+    expect(variants).toContain(">a</div>");
+    expect(variants).not.toContain("x.test");
   });
 
   it("inlines your own markup's classes as written: only Markdown's HTML is sanitized", () => {

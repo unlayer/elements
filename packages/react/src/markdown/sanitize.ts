@@ -47,13 +47,13 @@ export function safeUrl(url: string, kind: "link" | "image"): string | undefined
 }
 
 /**
- * Whether CSS could load or run something (`url()`, `image-set()`, `expression()`, `behavior`, `-moz-binding`, a
- * `javascript:` URL), read as the browser reads it: its escapes decoded (`\75 rl(`); a comment, which can hide one
+ * Whether CSS could load or run something (`url()`, `image()`, `image-set()`, `expression()`, `behavior`,
+ * `-moz-binding`, an old Internet Explorer's `progid:` filter, a `javascript:` URL), read as the browser reads it: its escapes decoded (`\75 rl(`); a comment, which can hide one
  * from a check (`expr/**\/ession(`), counts as one. A `style` it keeps passes; so does what a <Tailwind> inlines into
  * Markdown's HTML for its classes (src/tailwind/html.ts).
  */
 export const unsafeStyle = (css: string) =>
-  /expression|javascript:|vbscript:|behavior|-moz-binding|url\(|image-set\(|\/\*/i.test(tight(entities(css).replace(/\\(?:([\da-f]{1,6})[\t\n\f\r ]?|([\s\S]))/gi, (_, hex?: string, ch?: string) => (hex ? codePoint(parseInt(hex, 16)) : ch!))));
+  /expression|javascript:|vbscript:|behavior|-moz-binding|progid|url\(|image\(|image-set\(|\/\*/i.test(tight(entities(css).replace(/\\(?:([\da-f]{1,6})[\t\n\f\r ]?|([\s\S]))/gi, (_, hex?: string, ch?: string) => (hex ? codePoint(parseInt(hex, 16)) : ch!))));
 
 /** The elements kept, as an email or a page shows them: text and its formatting, links, images, lists, tables, sections. */
 const KEPT = new Set(
@@ -97,7 +97,8 @@ function keptAttributes(list: Attribute[]): string {
  *   open rel reversed role rowspan rules scope size span src start style summary target title type valign value vspace
  *   width` and `aria-*`: `href` and `cite` with a web, `mailto:` or `tel:` URL (or one with no scheme), `src` and
  *   `background` with a web or `cid:` URL or a PNG, GIF, JPEG or WebP data URL (or one with no scheme), `style`
- *   without `url()`, `image-set()`, `expression()`, `behavior`, `-moz-binding`, `javascript:` or a comment. No event
+ *   without `url()`, `image()`, `image-set()`, `expression()`, `behavior`, `-moz-binding`, a `progid:` filter,
+ *   `javascript:` or a comment. No event
  *   handler (`on…`), `data-*`, `srcset` or `srcdoc`.
  * - Left out with what's in them: `script style iframe frameset noframes noembed noscript object applet template svg
  *   math select textarea title xmp plaintext`. Other tags are left out alone, what's in them kept; comments, doctypes,
