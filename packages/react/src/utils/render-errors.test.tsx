@@ -104,6 +104,35 @@ describe("a part of a template that fails", () => {
   });
 });
 
+describe("a custom tool whose head fails", () => {
+  const HeadTool = registerElementsTool({ name: "head_tool", values: {}, renderer: { exporters: { email: () => "<p>tool body</p>" }, head: { css: () => ".kept { color: red }", js: () => { throw new Error("head down"); } } } } as never) as React.FC;
+  const element = <Email><Row><Column><Paragraph>Text</Paragraph><HeadTool /></Column></Row></Email>;
+  const FAILURE = ["[Unlayer] head_tool's head failed: head down (in <head_tool> at Row 1 › Column 1 › head_tool)", "head_tool", "Row 1 › Column 1 › head_tool"];
+
+  it("fails the HTML by default, with a RenderError naming it, where it is and what it threw (the design has no head)", async () => {
+    for (const render of [() => renderToHtml(element), () => renderToHtmlParts(element)]) {
+      expect(render).toThrow(RenderError);
+      expect(render).toThrow(FAILURE[0]);
+    }
+    await expect(asyncRenderers.renderToHtml(element)).rejects.toMatchObject({ component: FAILURE[1], position: FAILURE[2], cause: new Error("head down") });
+    expect(JSON.stringify(renderToJson(element))).toContain("head_tool");
+  });
+
+  it("with onError, leaves what it gives the head out, and lists it: its block renders, as in the design", async () => {
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
+    for (const parts of [renderToHtmlParts(element, { onError: "omit" }), await asyncRenderers.renderToHtmlParts(element, { onError: "omit" })]) {
+      expect(parts.body).toContain("tool body");
+      expect(parts.css).not.toContain(".kept");
+      expect(parts.omitted.map((e) => [e.message, e.component, e.position])).toEqual([FAILURE]);
+    }
+    expect(error.mock.calls.map((call) => String(call[0]))).toEqual([FAILURE[0].replace("[Unlayer] ", "[Unlayer] Left out: "), FAILURE[0].replace("[Unlayer] ", "[Unlayer] Left out: ")]);
+    const given: RenderError[] = [];
+    expect(renderToHtml(element, { onError: (failure) => void given.push(failure) })).toContain("tool body");
+    expect(given.map((e) => e.message)).toEqual([FAILURE[0]]);
+    expect(JSON.stringify(renderToJson(element, { onError: "omit" }))).toContain("head_tool");
+  });
+});
+
 describe("a Row or Column whose exporter fails", () => {
   // The Row's or Column's exporter fails for the one with this background (the editor's exporters, as they are, for the rest).
   const failing = (exporters: Record<string, (...args: any[]) => string>, color: string, valuesAt: number) => {

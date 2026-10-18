@@ -149,7 +149,8 @@ at that component's place in the tree.
 ## Errors
 
 A part of a template fails when a component throws (or is async, or suspends with no `<Suspense>` around it, in a
-synchronous render), when a Row's Columns don't fit its `layout`, or when an exporter fails. By default every renderer
+synchronous render), when a Row's Columns don't fit its `layout`, or when an exporter or a head function (a custom
+tool's `head`, `utils/extract-head.ts`) fails. By default every renderer
 throws, the synchronous and the async ones alike, `renderToJson` and `renderToPlainText` too (`renderToJson` for an
 exporter's failure only where it leaves parts out: see below): a **`RenderError`**
 whose `component` is the one that failed, `position` where it is in the template (`Row 3 › Column 1 › Hero`: Rows and
@@ -175,7 +176,9 @@ block's, a `<Head>`'s), with what it rendered; markup React rejects (`<hr style=
 Columns don't fit its layout; a block whose exporter fails (its id goes to the next block, in the HTML and the design);
 a Row or Column whose own HTML fails (its exporter, or mapping its props: `utils/container-render.ts`), a Column with
 its cell (the Row is made again without it, its Columns after it moving up; with no Column left, the Row is left out
-with it). The render is then the template's without that part. A template that isn't one always fails the render,
+with it); what a head function that fails gives the document's head (a RenderError naming its block, `<tool>'s head
+failed: …`): the block itself renders, as in the design, which runs no head function and has no head to disagree with.
+The render is then the template's without that part. A template that isn't one always fails the render,
 `onError` or not: an undefined component (a broken or circular import), an object or a date as a child, a portal, a Client
 Component in server code.
 

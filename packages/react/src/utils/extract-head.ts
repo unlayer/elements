@@ -18,7 +18,10 @@ import { BODY_DEFAULTS, ROW_DEFAULTS, COLUMN_DEFAULTS } from "./container-defaul
 import { headTags, KEPT, normalizedRoot } from "../model";
 import { getDisplayName } from "./unwrap-root";
 import { elementsIn, extractSemanticProps, nextCounter } from "./render-to-json";
-import { failedBefore, recall } from "./render-scope";
+import { failed, failedBefore, recall } from "./render-scope";
+import { whereIs } from "./collect";
+import { threw } from "../engine/errors";
+import { RenderError } from "@unlayer-internal/shared-elements";
 
 /** Args every head builder receives: (values, bodyValues, meta). */
 type HeadArgs = [Record<string, any>, Record<string, any>, Record<string, any>];
@@ -108,15 +111,24 @@ export function extractHeadFromTree(
   /** What a head is told of the render: the same for each (a custom tool's head gets one of its own). */
   const told = { displayMode, isViewer: false, variant: null, type: "rows", headConfig };
 
-  /** A head's CSS, JS and tags for the values of the Body, Row, Column or block it's for. */
-  const call = (head: ComponentHead | undefined, values: Record<string, any>, own = false) => {
+  /**
+   * A head's CSS, JS and tags for the values of the Body, Row, Column or block (`name`, at `record`) it's for. One that
+   * fails fails the render, or (`onError: "omit"`) gives nothing, listed: its block still renders, as the design has no
+   * head to disagree with.
+   */
+  const call = (head: ComponentHead | undefined, values: Record<string, any>, name: string, record?: object, own = false) => {
     if (!head || !(head.css || head.js || head.tags)) return;
     const args: HeadArgs = [values, bodyValues ?? values, own ? { ...told } : told];
-    const css = head.css?.(...args);
+    let css, js, given;
+    try {
+      css = head.css?.(...args);
+      js = head.js?.(...args);
+      given = head.tags?.(...args);
+    } catch (error) {
+      return failed(error instanceof RenderError ? error : new RenderError(`${name}'s head failed: ${threw(error)}`, name, whereIs(record) ?? name, error));
+    }
     if (css) styles.push(css);
-    const js = head.js?.(...args);
     if (js) scripts.push(js);
-    const given = head.tags?.(...args);
     if (given) tags.push(...given);
   };
 
@@ -129,7 +141,7 @@ export function extractHeadFromTree(
     // (A background image's URL as CSS takes it, as in the body: see cssUrl.)
     cssUrl(values);
     if (name !== "Body") collectDeviceStyles(values, `${type}s` as "rows" | "columns", name, displayMode, deviceStyles);
-    call(registry[name], values);
+    call(registry[name], values, name, node.props._record);
     return values;
   };
 
@@ -161,7 +173,7 @@ export function extractHeadFromTree(
         const values = ensureMeta(merged, contentType, nextCounter(counters, `u_content_${contentType}`) - 1);
         collectDeviceStyles(values, "contents", config.name, displayMode, deviceStyles);
         // The component's own head (custom tools) wins over the registry's.
-        call(config.head ?? registry[config.name], values, !!config.head);
+        call(config.head ?? registry[config.name], values, config.name, _record, !!config.head);
       }
     }
   }

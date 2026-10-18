@@ -511,7 +511,7 @@ const html = await renderToHtml(<Receipt id="A-1001" />, { title: "Receipt", pre
 
 ## Errors
 
-A part of a template that fails fails the render, the synchronous and the async renderers alike, `renderToJson()` and `renderToPlainText()` too: a component that throws (or is async, or suspends, in a synchronous render), a Row whose Columns don't fit its `layout`, an exporter that fails (`renderToJson()` doesn't run the exporters, which make the HTML, not the design: it gives the design, while `renderToHtml()` throws). The error is a `RenderError` that says which component and where it is, with what it threw as its `cause`:
+A part of a template that fails fails the render, the synchronous and the async renderers alike, `renderToJson()` and `renderToPlainText()` too: a component that throws (or is async, or suspends, in a synchronous render), a Row whose Columns don't fit its `layout`, an exporter that fails, or a head function (a custom tool's `head`) that fails (`renderToJson()` doesn't run the exporters or the head functions, which make the HTML, not the design: it gives the design, while `renderToHtml()` throws). The error is a `RenderError` that says which component and where it is, with what it threw as its `cause`:
 
 ```
 RenderError: [Unlayer] Cannot read properties of undefined (reading 'name') (in <Hero> at Row 3 › Column 1 › Hero)
@@ -536,7 +536,7 @@ for (const error of omitted) report(error.position, error.cause);
 renderToHtml(<Digest />, { onError: (error: RenderError) => logger.warn(error.message, { cause: error.cause }) });
 ```
 
-What's left out is the part that failed: a component of yours (with what it rendered), markup React rejects, a Row whose Columns don't fit its layout, a block, Row or Column whose exporter failed (a Column with its cell, so the Row's other Columns share its width; a Row with its last Column). The HTML, the plain text and the design are then the template's without it. A template that isn't one fails anyway: a component that's `undefined` (a broken or circular import), an object or a date as a child. Error boundaries (`componentDidCatch`) don't catch while Elements renders, as in React's server renderer: `onError` and the error's position are what to use.
+What's left out is the part that failed: a component of yours (with what it rendered), markup React rejects, a Row whose Columns don't fit its layout, a block, Row or Column whose exporter failed (a Column with its cell, so the Row's other Columns share its width; a Row with its last Column), and what a head function that failed gives the head (its block still renders, as in the design). The HTML, the plain text and the design are then the template's without it. A template that isn't one fails anyway: a component that's `undefined` (a broken or circular import), an object or a date as a child. Error boundaries (`componentDidCatch`) don't catch while Elements renders, as in React's server renderer: `onError` and the error's position are what to use.
 
 ## Designs as code
 
