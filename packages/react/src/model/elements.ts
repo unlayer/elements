@@ -240,7 +240,7 @@ function made(c: Collected, scoped: Scoped, r: ReturnType<typeof recordOf>): Rea
     // Its text as it rendered (see record.tsx): HTML, kept to inline formatting.
     const html = r.rich ? markupOnly(item.items) : undefined;
     const config = (r.type as any)[UNLAYER_CONFIG_KEY];
-    if (html !== undefined) props = { ...props, children: undefined, [config.name === "Paragraph" ? "html" : "text"]: inlineHtml(html, tw !== undefined) };
+    if (html !== undefined) props = { ...props, children: undefined, [config.name === "Paragraph" ? "html" : "text"]: inlineHtml(html) };
     if (config?.name === "Heading") props = margins(props);
     // A prop a block has no use for is said, not dropped quietly (a custom tool's props are its own).
     if (config && !config.contentType) {

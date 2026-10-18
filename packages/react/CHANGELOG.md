@@ -31,7 +31,7 @@
 
 - **Async templates: `@unlayer/react-elements/async`.** The same renderers for templates that `await` or suspend, and a `pretty` option for readable HTML. See [Async templates](./docs/async.md).
 
-- **`<Link>`.** A link in text (`<Paragraph>Read <Link href="…">the docs</Link>.</Paragraph>`), or on its own in a Column, where it's a Paragraph holding it.
+- **`<Link>`.** A link in text (`<Paragraph>Read <Link href="…">the docs</Link>.</Paragraph>`), or on its own in a Column, where it's a Paragraph holding it. Its `style` and `className` stay on the link, in the HTML and the design.
 
 - **`style`, `className` and `skipInText` on every component.** `style` and `className` go on the element a component renders (HTML only: `renderToJson()` says so), and `skipInText` leaves a block out of the plain text.
 
@@ -42,7 +42,7 @@
   - A link in a Paragraph's or a Heading's children is `text (url)`, as their HTML now holds it (see "Inline JSX in Paragraph, Heading and Button children" next); 0.2 kept only its text.
   - A template that now renders otherwise has the text of what it renders: one in an `<UnlayerProvider config={{ mode: "email" }}>` is an email now (see "`<UnlayerProvider config>` configures the templates inside it" below), so its Menu items, their separators and its Social icons are on lines of their own, as in any email's text.
 
-- **Inline JSX in Paragraph, Heading and Button children.** Formatting tags, `<Link>`, and components that return them (react-intl's `<FormattedMessage>`, react-i18next's `<Trans>`) are kept, rendered with the template's context. 0.2 kept only their text. Text in them is still escaped.
+- **Inline JSX in Paragraph, Heading and Button children.** Formatting tags (with their `style` and `class`), `<Link>`, and components that return them (react-intl's `<FormattedMessage>`, react-i18next's `<Trans>`) are kept, rendered with the template's context. 0.2 kept only their text. Text in them is still escaped.
 
 - **A `<Font>`'s URL in the design.** `renderToJson()` writes a `<Font>`'s stylesheet URL on the design's fonts of its family (the body's and each block's `fontFamily`, matched by the stack's first family, as the editor matches fonts), where the editor keeps a web font: the editor loads it and exports its `<link>`. Before, a `<Font>` without `default` loaded the font in the HTML only, and the editor showed its fallback.
 

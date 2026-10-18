@@ -115,6 +115,32 @@ describe("rich text children of Paragraph, Heading and Button", () => {
     expect(renderToPlainText(linked)).toBe("Read the docs (https://example.com/docs) or the FAQ (https://example.com/faq).");
   });
 
+  it("keep a class (a <Link>'s className, a span's), for a stylesheet of yours, in the HTML and the design", () => {
+    const sale = '<a href="/sale" target="_blank" rel="noopener" style="color:#e11d48" class="mobile-link &quot;x&quot;">the offer</a>';
+    const classed = (
+      <Email><Row><Column>
+        <Paragraph>Read <Link href="/sale" style={{ color: "#e11d48" }} className={'mobile-link "x"'}>the offer</Link> <span className="note">now</span></Paragraph>
+        <Heading>Hi <Link href="/sale" className="mobile-link">there</Link></Heading>
+        <Button href="/buy">Buy <span className="mobile-label">now</span></Button>
+        <Link href="/sale" className="mobile-link">the offer</Link>
+      </Column></Row></Email>
+    );
+    const texts = [
+      `Read ${sale} <span class="note">now</span>`,
+      'Hi <a href="/sale" target="_blank" rel="noopener" class="mobile-link">there</a>',
+      'Buy <span class="mobile-label">now</span>',
+    ];
+    const html = renderToHtml(classed);
+    for (const text of texts) expect(html).toContain(text);
+    const [paragraph, heading, button, solo] = renderToJson(classed).body.rows[0].columns[0].contents as Array<{ type: string; values: { text: string } }>;
+    expect([paragraph, heading, button].map((c) => c.values.text)).toEqual(texts);
+    // A <Link> on its own is still a Paragraph holding it, its class kept, not an HTML block.
+    expect(solo.type).toBe("text");
+    expect(solo.values.text).toBe('<a href="/sale" target="_blank" rel="noopener" class="mobile-link">the offer</a>');
+    // The plain text's `skip` finds it by its class.
+    expect(renderToPlainText(classed, { skip: [".note", ".mobile-label"] })).not.toMatch(/\bnow\b/);
+  });
+
   it("say which component in them can't render (async or suspending), naming it; left out, keep the rest", () => {
     const Later = async () => "never";
     const email = <Email><Row><Column><Paragraph>Hi <Later /> <b>there</b></Paragraph></Column></Row></Email>;

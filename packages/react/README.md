@@ -100,7 +100,7 @@ These props have non-obvious shapes that **must** be followed exactly:
 - **Row padding** is the editor's: around the row, outside its content box. With a `columnsBackgroundColor`, the padding is outside that background and doesn't inset the content (Elements warns): inset the content with the Columns' `padding`. A Row's Tailwind `p-*` classes do inset it, as in CSS, and its Columns' `m-*` classes space them, cards included. See [Row](#row).
 - **children**: Text components accept children as shorthand. `<Heading>Hello</Heading>` sets the heading text. Paragraph, Heading and Button children keep inline JSX: `<Paragraph>Hello <strong>world</strong>, read <a href="https://example.com">this</a>.<br />Next line</Paragraph>` (see Paragraph below).
 - **Paragraph text**: Use children (text and inline JSX, `<Link>` included), the `text` prop (plain text) or the `html` prop (an HTML string with inline formatting like `<b>`, `<a>`). Text in `text` or in string children shows as typed (`"Use <b>bold</b>"` shows the tags), in the HTML and in the editor: the design stores it escaped.
-- **`style` and `className`** (every component): inlined on, and added to, the element the component renders (see [style, className and skipInText](#style-classname-and-skipintext)). They're HTML only: `renderToJson()` leaves them out and says so. A prop given wins over the same property in `style`.
+- **`style` and `className`** (every component): inlined on, and added to, the element the component renders (see [style, className and skipInText](#style-classname-and-skipintext)). They're HTML only: `renderToJson()` leaves them out and says so (a `<Link>`'s in text are in the text, which the design holds). A prop given wins over the same property in `style`.
 - **Text shows as typed**: Heading and Button children (their strings; JSX elements in them are formatting) and text placed straight in a Row or Column show markup and entities as written, as React shows text (`{"Terms &amp; Conditions"}` shows `&amp;`; in JSX text, `Terms &amp; Conditions` is already `&`). Put markup in Paragraph's `html` prop or an `<Html>` block, and template syntax with `<` or `>` in it (a Liquid `{% if count > 1 %}`) in the `text` prop. An email service's `<%name%>` tag stays as written, for it to fill in. Menu item text shows markup as typed; in an email, an entity (`&rarr;`) and a single quote stay as written, as in 0.1.22, and a double quote is escaped, also in a template tag (the text is also written in an `aria-label`): write a template's string in single quotes (`{{ name | default: 'you' }}`; in Go templates, backticks).
 - **`text` and `html` props are HTML**: Heading's and Button's `text` prop, like Paragraph's `html` and `<Html>`, is written into the email as given (as in 0.1.22). Put only markup you wrote there: a value a user typed (a name, a message) goes in as children, which show it as text.
 - **Link URLs**: `"`, `<` and `>` are percent-encoded, so a URL can't end its attribute. Fill template tags that contain them (a Liquid filter with quotes) in before rendering; a `<%name%>` tag stays as written.
@@ -229,7 +229,7 @@ Must be child of Row. Count must match layout (a Row that doesn't fit its layout
 ### Paragraph
 - `html?: string` — **rich HTML string** with inline formatting: `<b>`, `<i>`, `<u>`, `<s>`, `<a>`, `<code>`
 - `text?: string` — plain text: markup and entities in it show as typed, in the HTML and in the design (`renderToJson()` stores it escaped)
-- `children` — text, with inline JSX kept as formatting: `strong`/`b`, `em`/`i`, `u`, `s`, `a` (href, target, rel, title, style), `br`, `span` (style), `code`, `sup`, `sub`, `small`, `mark`, nested, in Fragments and arrays, and components that return them (`<Link>`, yours, react-intl's `<FormattedMessage>`, react-i18next's `<Trans>`, `CodeInline`), rendered with the template's context
+- `children` — text, with inline JSX kept as formatting: `strong`/`b`, `em`/`i`, `u`, `s`, `a` (href, target, rel, title, style, class), `br`, `span` (style, class), `code`, `sup`, `sub`, `small`, `mark`, nested, in Fragments and arrays, and components that return them (`<Link>`, yours, react-intl's `<FormattedMessage>`, react-i18next's `<Trans>`, `CodeInline`), rendered with the template's context
 - `fontSize?: string` — `"14px"`
 - `color?: string` — `"#000000"`
 - `textAlign?: "left" | "center" | "right"` — `"left"` (`"right"` in a right-to-left template, unless set)
@@ -285,7 +285,7 @@ A link, for text (`<Paragraph>Read <Link href="https://example.com/docs">the doc
 - `href: string`
 - `target?: string` — `"_blank"` (a new tab)
 - `rel?: string` — `"noopener"` for a new tab
-- `title?: string`, `style?: CSSProperties`, `className?: string`
+- `title?: string`, `style?: CSSProperties`, `className?: string` — on its `<a>`, in the text: in the HTML and in the design, as the editor's text keeps them (a `<Head>`'s `<style>` can style the class)
 - `containerPadding`, `hideOnMobile`, `hideOnDesktop` — on its own in a Column
 
 ### Head
