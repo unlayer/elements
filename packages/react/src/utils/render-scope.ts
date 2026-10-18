@@ -50,11 +50,17 @@ export function remember(record: object | undefined, value: unknown): void {
 export const recall = <T>(record: object | undefined): T | undefined => (record && scoped ? (scoped.values.get(record) as T | undefined) : undefined);
 
 const SAID = {};
-/** A warning, said once per render (each time outside one). */
-export function sayOnce(message: string): void {
+/**
+ * How this render says a warning once (each time outside one): one said with a `key` is said once for all with it.
+ * Got in the render's scope, it says them in that render's from where its scope isn't (the walk: see `guest`).
+ */
+export function sayer(): (message: string, key?: string) => void {
   const said = scopeCache(SAID, () => new Set<string>());
-  if (!said.has(message)) console.warn(said.add(message) && message);
+  return (message, key = message) => void (said.has(key) || console.warn(said.add(key) && message));
 }
+
+/** A warning, said once per render (each time outside one): see sayer. */
+export const sayOnce = (message: string, key?: string): void => sayer()(message, key);
 
 /**
  * The render's `onError`, `idPrefix` and direction, where its root's config says them (the render functions, or Body

@@ -14,12 +14,11 @@ import { cssUrl, isOwn } from "./create-component";
 import { mapSemanticProps } from "./semantic-props";
 import { setRenderConfig, withRenderScope } from "./render-scope";
 import { isTailwindError } from "./tailwind";
+import { ROOTLESS } from "./root-type";
 
 /** How Elements' own markup renders (see the engine's renderStatic). */
 export const OWN_MARKUP = { bare: isOwn, passes: isTailwindError };
 
-/** What a template with no root's content is walked as (what fails at its top is `in <template>`). */
-export const ROOTLESS = "template";
 const Rootless = () => null;
 Rootless.displayName = ROOTLESS;
 

@@ -138,6 +138,10 @@ describe("the async renderers", () => {
       return one(<Translated />);
     }, inSync("Translated", "Row 1 › Column 1 › Translated")],
     ["a block's children", (data) => { const Name = () => <b>{data.read()}</b>; return one(<Paragraph>Hi <Name /></Paragraph>); }, inSync("Name", "Row 1 › Column 1 › Paragraph › Name")],
+    // A <Suspense> around the root is outside the document: its fallback isn't one, so what's in it is waited for, and
+    // the synchronous renderers say so, as without it.
+    ["the template in a <Suspense>", (data) => { const Template = () => one(<Paragraph>{data.read()}</Paragraph>); return <React.Suspense fallback={<p>Loading</p>}><Template /></React.Suspense>; }, TEMPLATE],
+    ["a component, in a <Suspense> around the root", (data) => { const Text = () => <Paragraph>{data.read()}</Paragraph>; return <React.Suspense fallback={<p>Loading</p>}>{one(<Text />)}</React.Suspense>; }, inSync("Text", "Row 1 › Column 1 › Text")],
   ];
 
   it.each(WHERE)("wait where %s throws a promise (React 18's Suspense), calling it again once it settles; the synchronous renderers say what to do", async (_, template, said) => {
@@ -275,6 +279,51 @@ describe("the async renderers", () => {
     const failed = await renderToHtml(<Missing />).catch((error: unknown) => error);
     expect(failed).toBeInstanceOf(RenderError);
     expect(failed).toMatchObject({ message: "[Unlayer] no such chunk (in <lazy>)", component: "lazy", cause: new Error("no such chunk") });
+  });
+
+  it("unwrap a <Suspense> around the template, its root's settings read, waiting for what's in it; its fallback, which isn't a document, never renders", async () => {
+    // It was taken for a template with no root: renderToJson() said its root wasn't one, and the HTML was a web page's
+    // document without the root's language and fonts, the Email's own document inside it.
+    const email = <Email lang="fr" fonts={[{ url: "https://fonts.example.com/brand.css" }]} previewText="Bonjour"><Row><Column><Paragraph>Hi</Paragraph></Column></Row></Email>;
+    const Welcome = () => email;
+    const AsyncWelcome = async () => (await later(null), <Welcome />);
+    const loading = <p>Loading</p>;
+    const html = renderToHtmlSync(<Welcome />);
+    expect(html.match(/<body/g)).toHaveLength(1);
+    const elements = [
+      <React.Suspense fallback={loading}><Welcome /></React.Suspense>,
+      <React.Suspense fallback={loading}><AsyncWelcome /></React.Suspense>,
+      <React.Suspense fallback={loading}>{email}</React.Suspense>,
+      <React.StrictMode><React.Suspense fallback={loading}><React.Suspense><AsyncWelcome /></React.Suspense></React.Suspense></React.StrictMode>,
+    ];
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    try {
+      for (const element of elements) {
+        expect(await renderToHtml(element)).toBe(html);
+        expect(await renderToHtmlParts(element)).toEqual(renderToHtmlPartsSync(<Welcome />));
+        expect(await renderToPlainText(element)).toBe(renderToPlainTextSync(<Welcome />));
+        expect(await renderToJson(element)).toEqual(renderToJsonSync(<Welcome />));
+      }
+      // The synchronous renderers, where nothing suspends; and an async template in one, said as without it.
+      for (const element of [elements[0], elements[2]]) {
+        expect(renderToHtmlSync(element)).toBe(html);
+        expect(renderToJsonSync(element)).toEqual(renderToJsonSync(<Welcome />));
+      }
+      expect(warn.mock.calls.filter((call) => String(call[0]).includes("unwrap"))).toEqual([]);
+    } finally {
+      warn.mockRestore();
+    }
+    expect(() => renderToHtmlSync(elements[1])).toThrow(`[Unlayer] renderToHtml: ${TEMPLATE}`);
+    expect(() => renderToJsonSync(elements[1])).toThrow(/renderToJson: could not unwrap <wrapper>.*async and suspending templates need/);
+    // A template in it that fails fails the render, naming it: its fallback can't make the document.
+    const Broken = async (): Promise<React.ReactElement> => {
+      await later(null);
+      throw new Error("no order");
+    };
+    for (const render of [renderToHtml, renderToJson]) {
+      await expect(render(<React.Suspense fallback={loading}><Broken /></React.Suspense>)).rejects.toMatchObject({ message: "[Unlayer] no order (in <Broken>)", component: "Broken" });
+      await expect(render(<React.Suspense fallback={loading}><Broken /></React.Suspense>, { onError: "omit" })).rejects.toBeInstanceOf(RenderError);
+    }
   });
 
   it("wait for what's async in a template with no root, as in a root, each run once; the synchronous renderers say where it is", async () => {

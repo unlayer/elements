@@ -6,8 +6,9 @@
 import type React from "react";
 import type { Recorded } from "../utils/collect";
 import { collector, guard } from "../utils/record";
-import { contentTree, isUnlayerProvider } from "../utils/unwrap-root";
-import { guest, idPrefix, omitted, onError, scopeCache } from "../utils/render-scope";
+import { contentTree, isUnlayerProvider, nestedRoot, UNREAD } from "../utils/unwrap-root";
+import { ROOTLESS } from "../utils/root-type";
+import { guest, idPrefix, omitted, onError, sayer, scopeCache } from "../utils/render-scope";
 import { isTailwindError } from "../utils/tailwind";
 import { collect as walk, type Flat, type Item, type RenderError } from "../engine";
 import { omits } from "../engine/errors";
@@ -32,7 +33,9 @@ export interface Collected {
 /** How `children` (a root's, `root` naming it) are walked to collect them: the collector, and the walk's options. */
 export function collecting(children: React.ReactNode, root: string) {
   const policy = onError();
-  const options = { omit: omits(policy) };
+  // A template with no root's: a root its walk meets in it is said, once in this render (see nestedRoot).
+  const say = root === ROOTLESS ? sayer() : undefined;
+  const options = { omit: omits(policy), nested: say && ((name: string) => say(nestedRoot(name), UNREAD)) };
   return { node: guard(children, options, root), options: { collector: collector(options), onError: policy, idPrefix: idPrefix(), root, tree: contentTree(children), passes: isTailwindError, frameless: isUnlayerProvider } };
 }
 
@@ -49,5 +52,5 @@ function collected(children: React.ReactNode, root: string): Collected {
 }
 
 /** `children` collected, once per render (the HTML, the head and the design ask for the same). */
-export const collect = (children: React.ReactNode, root = "template"): Collected =>
+export const collect = (children: React.ReactNode, root = ROOTLESS): Collected =>
   children !== null && typeof children === "object" ? scopeCache(children, () => collected(children, root)) : collected(children, root);

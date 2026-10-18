@@ -25,18 +25,21 @@ model                                Email > Row > Column > blocks, Elements' on
 - **Unwrap.** `renderToHtml(<Welcome />)` reads the root's settings (fonts, `lang`, `dir`, phone styles, config), so
   the components around the root are called first: function components, `memo`, `forwardRef`, class components, each
   once, with hooks, inside the context providers around them. Providers, `<UnlayerProvider>`s and `<Tailwind>`s around
-  the root move inside it, around its content. An async wrapper, or one that `use()`s or throws a promise (React 18's
-  Suspense: react-i18next's `useTranslation`), is awaited by the async renderers (`take` in `src/async/collect.ts`, along
-  `unwrapSteps`), and called again once it settles; the synchronous ones throw for it. So is a lazy template
-  (`React.lazy`): the component it loads is unwrapped once it has loaded. A template with no root (Rows, a
-  block, markup) gives what it rendered instead (`Unwrapped.rendered`: its wrappers made again with what they returned,
-  not called again), which renders as a root's content does, without the root's markup (`utils/root-content.ts`):
-  walked once, its Rows and blocks rendered with the render's config and numbered as the head numbers them, its head
-  and plain text from the same walk, and in the async renderers waited for as a root's content is. `renderToJson()`
-  says it needs a root, without walking it. What unwrapping finds (the root, the `<UnlayerProvider>`s' config, where
-  the wrappers left the tree for the content) is the render's, in its scope, known by the elements unwrapping made or
-  reached, never kept on the template's own elements: a root kept between renders, returned by a wrapper that calls
-  `useId()` in one, has its own ids in the next.
+  the root move inside it, around its content; a Fragment, StrictMode or `<Suspense>` around it is passed through (a
+  `<Suspense>` around the root is outside the document, and its fallback, not a root, never renders). An async
+  wrapper, or one that `use()`s or throws a promise (React 18's Suspense: react-i18next's `useTranslation`), is
+  awaited by the async renderers (`take` in `src/async/collect.ts`, along `unwrapSteps`), and called again once it
+  settles; the synchronous ones throw for it. So is a lazy template (`React.lazy`): the component it loads is
+  unwrapped once it has loaded. A template with no root (Rows, a block, markup) gives what it rendered instead
+  (`Unwrapped.rendered`: its wrappers made again with what they returned, not called again), which renders as a root's
+  content does, without the root's markup (`utils/root-content.ts`; a root its walk meets in it, where unwrapping
+  stopped before it, renders as a document inside it, said once per render: `nestedRoot`): walked once, its Rows and
+  blocks rendered with the render's config and numbered as the head numbers them, its head and plain text from the
+  same walk, and in the async renderers waited for as a root's content is. `renderToJson()` says it needs a root,
+  without walking it. What unwrapping finds (the root, the `<UnlayerProvider>`s' config, where the wrappers left the
+  tree for the content) is the render's, in its scope, known by the elements unwrapping made or reached, never kept on
+  the template's own elements: a root kept between renders, returned by a wrapper that calls `useId()` in one, has its
+  own ids in the next.
 - **Walk.** The engine renders the root's content once per render. It asks a collector (`utils/record.tsx`) about each
   element: a Row, Column or block (of any copy of Elements, by its markers), a `<Tailwind>` scope or a `<Head>`/`<Font>`
   entry is recorded where it is, and what's inside it (a Row's Columns, rich text's markup, a `<Head>`'s tags) walked

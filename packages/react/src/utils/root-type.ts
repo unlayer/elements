@@ -25,5 +25,8 @@ export function rootName(type: unknown): string | undefined {
   return name && OLDER.get(name)?.test(String(type)) ? name : undefined;
 }
 
+/** What a template with no root's content is walked as (what fails at its top is `in <template>`: see root-content.ts). */
+export const ROOTLESS = "template";
+
 /** Whether a component type is one of Elements' roots (see rootName). */
 export const isRoot = (type: unknown): boolean => !!rootName(type);

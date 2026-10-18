@@ -14,7 +14,7 @@ import { call, caller, failure, positioned, renderClass, suspension, thrownBy, w
 
 export { RenderError, type OnError } from "./errors";
 export { flatten, htmlOf, PENDING, type Flat, type Item, type Markup, type Cut, type Part, type RecordItem } from "./output";
-export { errorPart, type Task, type Wait } from "./walk";
+export { errorPart, passesThrough, type Task, type Wait } from "./walk";
 export { track } from "./dispatcher";
 export type { TreeContext } from "./tree-id";
 export type { Collector, Recorded } from "./walk";

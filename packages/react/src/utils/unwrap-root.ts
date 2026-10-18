@@ -18,10 +18,10 @@ import type { UnlayerConfig } from "@unlayer-internal/shared-elements";
 import { UNLAYER_RENDER_KEY } from "./create-component";
 import { RECORDS } from "./collect";
 import { TAILWIND } from "./tailwind";
-import { callClass, callComponent, contextOf, hookState, ROOT_TREE, RenderError, type ContextStack, type TreeContext } from "../engine";
+import { callClass, callComponent, contextOf, hookState, passesThrough, ROOT_TREE, RenderError, type ContextStack, type TreeContext } from "../engine";
 import { nameOf, threw } from "../engine/errors";
 import { isRoot } from "./root-type";
-import { guest, keepUnwrapped, unwrapped } from "./render-scope";
+import { guest, keepUnwrapped, sayOnce, unwrapped } from "./render-scope";
 
 const CONTAINER_NAMES = new Set(["Row", "Column"]);
 export const MEMO = Symbol.for("react.memo");
@@ -224,9 +224,10 @@ function* steps(element: React.ReactElement, idPrefix?: string): Steps {
       current = only;
       continue;
     }
-    // A Fragment, StrictMode or Profiler around the template (`<><Welcome /></>`): what's in it, when that's one
-    // element. They add nothing to a server render.
-    if (type === React.Fragment || type === React.StrictMode || type === React.Profiler) {
+    // A Fragment, StrictMode, Profiler or <Suspense> around the template (`<Suspense><Welcome /></Suspense>`): what's in
+    // it, when that's one element. They add nothing to a whole document: a <Suspense> around its root is outside it, and
+    // its fallback, not a root, can't make one, so what's in it is waited for (or said to be async), as without it.
+    if (passesThrough(type, props)) {
       const only = inside();
       if (!only) break;
       again.push(holding(current));
@@ -292,6 +293,19 @@ function holdsRoot(node: React.ReactNode): boolean {
 /** The advice both render functions give when a wrapper can't be unwrapped. */
 export const UNWRAP_ADVICE = "Pass the root element (<Email>…</Email>), or a function component that returns one.";
 
+/** What a render says once when its root's settings go unread (by unwrapping, or the walk: see nestedRoot). */
+export const UNREAD = "unread";
+
+/** What's said when unwrapping `name` (a template) stops before its root (`why`; in `api`, a render function). */
+const unreadSaid = (name: string, why: string, api = "") => `[Unlayer] ${api}couldn't unwrap <${name}> (${why}): its root's fonts, lang, dir and phone styles are ignored. ${UNWRAP_ADVICE}`;
+
+/**
+ * Said where a template with no root's walk meets a root (`root`, its name) in its content: where unwrapping stopped
+ * before it (a root among other elements, in markup, in what a component renders), which it couldn't see. It renders
+ * as a document inside the content, as 0.1.22 rendered it.
+ */
+export const nestedRoot = (root: string): string => unreadSaid("template", `its <${root}> is inside other markup, a list or a component, and renders as a document there`);
+
 /**
  * For renderToHtml: the root a template component unwraps to. An element that
  * is already an Elements component (or plain HTML), or what this render's
@@ -313,6 +327,7 @@ export function htmlRoot(element: React.ReactElement, api: string, idPrefix?: st
   const { root, unread } = found;
   if (isRoot(root.type)) return root;
   // A template of Rows, or nothing: there's no root whose settings go unread.
-  if (unread || holdsRoot(root)) console.warn(`[Unlayer] ${api}: couldn't unwrap <${componentName(element) || "wrapper"}> (${unread ?? "its root is inside other markup"}): its root's fonts, lang, dir and phone styles are ignored. ${UNWRAP_ADVICE}`);
+  // (Once a render: its walk, which meets the root, says no more.)
+  if (unread || holdsRoot(root)) sayOnce(unreadSaid(componentName(element) || "wrapper", unread ?? "its root is inside other markup", `${api}: `), UNREAD);
   return found.rendered ?? element;
 }

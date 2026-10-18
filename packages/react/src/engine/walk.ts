@@ -39,6 +39,13 @@ const ACTIVITY = Symbol.for("react.activity");
 /** What renders its children as they are on a server. */
 const PASSTHROUGH = new Set<unknown>([FRAGMENT, Symbol.for("react.strict_mode"), Symbol.for("react.profiler"), Symbol.for("react.suspense_list"), Symbol.for("react.view_transition"), Symbol.for("react.legacy_hidden"), Symbol.for("react.scope")]);
 
+/**
+ * Whether an element type renders what's in it, its children, on a server: a Fragment, StrictMode, a <Suspense> (which
+ * renders its fallback instead only where what's in it suspends), a visible <Activity>, … (template wrappers: see
+ * utils/unwrap-root.ts).
+ */
+export const passesThrough = (type: unknown, props: { mode?: unknown }): boolean => PASSTHROUGH.has(type) || type === SUSPENSE || (type === ACTIVITY && props.mode !== "hidden");
+
 /** What a collecting walk walks for an element instead of calling it (its record), and the name it's at. */
 export interface Recorded {
   name?: string;

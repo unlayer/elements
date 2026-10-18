@@ -234,19 +234,29 @@ describe("a root kept between renders, with useId() in its content", () => {
   });
 });
 
-describe("a template whose root's settings can't be read (a <Suspense> around it)", () => {
-  it("says so on every render of it, not only the first", () => {
+describe("a template whose root's settings can't be read (its root inside markup, or one of several)", () => {
+  it("says so on every render of it, not only the first, in every renderer", async () => {
     const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
     try {
-      const element = <Suspense><Email><Row><Column><Paragraph>Hi</Paragraph></Column></Row></Email></Suspense>;
-      const said = () => warn.mock.calls.filter((call) => String(call[0]).includes("couldn't unwrap")).length;
-      const html = renderToHtml(element);
-      expect(said()).toBe(1);
-      expect(renderToHtml(element)).toBe(html);
-      expect(said()).toBe(2);
-      renderToHtmlParts(element);
-      renderToPlainText(element);
-      expect(said()).toBe(4);
+      const email = <Email><Row><Column><Paragraph>Hi</Paragraph></Column></Row></Email>;
+      const Welcome = () => email;
+      const InMarkup = () => <div>{email}</div>;
+      // (Where unwrapping stops, or inside what a component renders, where only the walk finds it.)
+      for (const element of [<InMarkup />, <div>{email}</div>, <><Welcome /><Welcome /></>]) {
+        warn.mockClear();
+        const said = () => warn.mock.calls.filter((call) => String(call[0]).includes("couldn't unwrap")).length;
+        const html = renderToHtml(element);
+        expect(said()).toBe(1);
+        expect(renderToHtml(element)).toBe(html);
+        expect(said()).toBe(2);
+        renderToHtmlParts(element);
+        renderToPlainText(element);
+        expect(said()).toBe(4);
+        expect(await asyncRenderers.renderToHtml(element)).toBe(html);
+        await asyncRenderers.renderToHtmlParts(element);
+        await asyncRenderers.renderToPlainText(element);
+        expect(said()).toBe(7);
+      }
     } finally {
       warn.mockRestore();
     }
@@ -306,6 +316,8 @@ describe("templates that share elements kept between renders, at random", () => 
     ...roots,
     ...roots.slice(0, 6).map((root) => <UnlayerProvider config={{ textDirection: "rtl", idPrefix: "p-" }}>{root}</UnlayerProvider>),
     <Suspense>{roots[0]}</Suspense>,
+    // (Said, as its root's settings go unread.)
+    <div>{roots[1]}</div>,
   ];
   const Forked = ({ of }: { of: React.ReactElement }) => (useId(), of);
   const Plain = ({ of }: { of: React.ReactElement }) => of;

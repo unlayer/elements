@@ -406,7 +406,7 @@ describe("renderToHtml with a template component", () => {
     expect(warnings.join()).toContain("couldn't unwrap");
   });
 
-  it("unwraps StrictMode and Profiler, and a class template, keeping the root's settings", () => {
+  it("unwraps StrictMode, Profiler and Suspense, and a class template, keeping the root's settings", () => {
     const warnings: string[] = [];
     const warn = console.warn;
     console.warn = (message: string) => void warnings.push(message);
@@ -416,6 +416,9 @@ describe("renderToHtml with a template component", () => {
     try {
       expect(renderToHtml(<React.StrictMode><Welcome name="Ada" /></React.StrictMode>)).toBe(direct);
       expect(renderToHtml(<React.Profiler id="email" onRender={() => {}}><Welcome name="Ada" /></React.Profiler>)).toBe(direct);
+      // (Its fallback isn't a root: what's in it is the document, see the async renderers' tests.)
+      expect(renderToHtml(<React.Suspense fallback={<p>Loading</p>}><Welcome name="Ada" /></React.Suspense>)).toBe(direct);
+      expect(renderToHtml(React.createElement(Symbol.for("react.suspense_list") as unknown as React.ElementType, null, <Welcome name="Ada" />))).toBe(direct);
       expect(warnings).toEqual([]);
       // A class is constructed and rendered to find its root, as a function is called.
       expect(renderToHtml(<Template name="Ada" />)).toBe(direct);

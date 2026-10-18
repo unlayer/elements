@@ -21,6 +21,8 @@ import type { Collector } from "../engine";
 interface Options {
   /** Markup is in a boundary too, so markup React rejects is left out rather than failing the render. */
   omit: boolean;
+  /** In a template with no root: what says a root met in its content (by its name). */
+  nested?: (root: string) => void;
 }
 
 /** Children as a list (arrays flattened, nothing and booleans left out), each list checked for keys. */
@@ -140,6 +142,9 @@ export function collector(options: Options): Collector {
         },
       };
     }
+    // A root in a template with no root (unwrapping stopped before it): rendered as it renders, said.
+    const root = options.nested && !type[UNLAYER_RENDER_KEY] && rootName(type);
+    if (root) options.nested!(root);
     return undefined;
   };
 }
