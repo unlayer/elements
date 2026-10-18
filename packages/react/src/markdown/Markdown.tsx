@@ -56,8 +56,9 @@ export interface MarkdownProps {
    */
   url?: (url: string, kind: "link" | "image") => string | undefined;
   /**
-   * Raw HTML in the Markdown: kept, without scripts, frames, forms or event handlers (`"sanitize"`, the default);
-   * shown as text (`"escape"`); or left out (`"drop"`).
+   * Raw HTML in the Markdown: kept to the tags and attributes that display, text, links, images, lists, tables and
+   * sections, without event handlers, URLs that run code or CSS that loads anything (`"sanitize"`, the default: the
+   * lists are sanitizeHtml's); shown as text (`"escape"`); or left out (`"drop"`).
    */
   html?: "sanitize" | "escape" | "drop";
   /** A line break in a paragraph is one in the text (GitHub's comments), not a space. */
@@ -269,8 +270,8 @@ class Writer {
 /**
  * Markdown - Markdown as Elements blocks: headings are Headings, paragraphs, lists and quotes Paragraphs, images on
  * a line of their own Images, `---` a Divider, tables Tables, code a CodeBlock, raw HTML an Html block, so the design
- * stays editable block by block. Place it in a Column. Raw HTML is kept without scripts, frames, forms or event
- * handlers, and links and images that could run code are left out.
+ * stays editable block by block. Place it in a Column. Raw HTML keeps only the tags and attributes that display (see
+ * sanitizeHtml), and links and images that could run code are left out.
  *
  * @example
  * ```tsx

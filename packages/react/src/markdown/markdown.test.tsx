@@ -117,3 +117,104 @@ describe("Markdown", () => {
     expect(blocks({ children: "Hello\nworld", breaks: true })).toEqual([["text", "Hello<br/>world"]]);
   });
 });
+
+/** Random inputs the sanitizer is given (`SANITIZE_FUZZ_RUNS=300000` for a longer run, `SANITIZE_FUZZ_SEED` for others). */
+const FUZZ_RUNS = Number(process.env.SANITIZE_FUZZ_RUNS ?? 10000);
+
+/** The elements an HTML parser makes of HTML in a page's body. */
+const parsed = (html: string) => [...new DOMParser().parseFromString(`<!doctype html><body>${html}`, "text/html").body.querySelectorAll("*")];
+
+describe("sanitizeHtml", () => {
+  it("leaves no tag that what's around a part it takes out joins into", () => {
+    const markdown = "<div>\n<scr<script></script>ipt>alert(1)</script>\n</div>";
+    // (`<scr<script>` is one tag to a browser, named `scr<script`: left out, as is the `</script>` after it.)
+    expect(sanitizeHtml(markdown)).toBe("<div>\nipt>alert(1)\n</div>");
+    const [[type, html]] = blocks({ markdown });
+    expect([type, parsed(html).map((e) => e.localName)]).toEqual(["html", ["div"]]);
+    expect(renderToHtml(email({ markdown }))).not.toMatch(/<script/i);
+    expect(sanitizeHtml("<<script>script>alert(1)<</script>/script>")).toBe("&lt;/script>");
+    expect(sanitizeHtml("<scr<style>x</style>ipt>a</script>")).toBe("xipt>a");
+  });
+
+  it("reads tags and attributes as a browser does, and writes back only those that display", () => {
+    const cases: Array<[string, string]> = [
+      ["<img/src=x/onerror=alert(1)>", '<img src="x/onerror=alert(1)">'],
+      ['<a href="java&#x09;script:alert(1)">a</a><a href="&#x6A;avascript:x">b</a><a href=" &#106avascript:x">c</a><a href="javascript&colon;x">d</a>', "<a>a</a><a>b</a><a>c</a><a>d</a>"],
+      ['<p style="background:url&lpar;x)">a</p><p style="b\\61 ckground: \\75 rl(x)">b</p><p style="width: expr/**/ession(1)">c</p><p style="color: red">d</p>', '<p>a</p><p>b</p><p>c</p><p style="color: red">d</p>'],
+      ['<a href="https://example.com" href="javascript:x" onclick="x()" data-x="1" aria-label="Go" title=\'say "hi" `x`\'>a</a>', '<a href="https://example.com" aria-label="Go" title="say &quot;hi&quot; &#96;x&#96;">a</a>'],
+      ["<custom-tag><o:p>Kept text</o:p></custom-tag><form action=x><input value=y><button>Go</button></form>", "Kept textGo"],
+      ['<svg onload="alert(1)"/>after<svg><script>alert(1)</script></svg>end<math><mi>x</mi></math><template><img src=x></template><svg/onload=alert(1)>gone', "afterend"],
+      ["<!doctype html><?xml version='1.0'?><![CDATA[x]]><!-- a --><!--> b<!---> c<!-- open", " b c"],
+      ["a < b > c & d &copy; <b>e", "a &lt; b > c & d &copy; <b>e"],
+      ['a <a href="x', "a "],
+      ["<b>bold</b> <img src=x onerror=alert(1)", "<b>bold</b> "],
+      ["<b\u0000>x</b>\u0000", "x</b>\ufffd"],
+      ["<td nowrap background=cid:logo colspan=2><br/><hr noshade /></td>", '<td nowrap background="cid:logo" colspan="2"><br /><hr noshade /></td>'],
+      ["<base href=//evil><meta http-equiv=refresh content=0><link rel=stylesheet href=x><embed src=x>text", "text"],
+    ];
+    for (const [html, kept] of cases) expect([html, sanitizeHtml(html)]).toEqual([html, kept]);
+  });
+
+  it("reads a long input in one pass, whatever it leaves open", () => {
+    const start = performance.now();
+    for (const open of ['<a x="', "<b ", "<!", "<", "<script>", "<x y=", "<!--"]) expect(sanitizeHtml(`<p>${open.repeat(40000)}text`).length).toBeLessThan(400000);
+    expect(performance.now() - start).toBeLessThan(2000);
+  });
+
+  it("keeps only display tags and safe attributes, whatever hostile fragments it's given (fuzzed)", () => {
+    // Every element and attribute a browser reads from its output is on the allowlists, no URL runs code, no style
+    // loads or runs anything, and sanitizing its output again changes nothing.
+    const fragments = [
+      "<scr", "ipt>", "<script>", "</script>", "<!--", "-->", "--!>", "<svg/onload=alert(1)>", "<img src=x onerror=alert(1)>", "<img/src=", "/onerror=",
+      "javascript:alert(1)", "&#x6A;avascript:", "java&#x09;script:", "&#106;", "&colon;", "&lpar;", "<iframe", "<iframe src=x>", "<style>", "</style>",
+      "<math>", "<math><mi><mglyph>", "<svg><style>", "<template>", "<noscript>", "<textarea>", "</textarea>", "<title>", "<xmp>", "<plaintext>",
+      "<base href=", "<meta http-equiv=refresh content=0;url=javascript:alert(1)>", "<form action=", "<object data=", "<embed src=", "<link rel=",
+      "<a href=", '<a href="', "<a href=java&#x0A;script:x>", "<td background=javascript:x>", '<p style="', "background:url(", "\\75 rl(", "expression(",
+      "/*", "*/", "-moz-binding:", "behavior:", "<details open ontoggle=alert(1)>", "<font color=red>", "<div>", "</div>", "<b>", "</", "<", "<!", "<?xml ",
+      "<!doctype html>", "<![CDATA[", "]]>", '"', "'", "`", ">", "/", "=", " ", "\n", "\t", "\0", "&#0;", "text", "data:text/html,", "data:image/png;base64,AA", "cid:x",
+    ];
+    const kept = new Set("a abbr address article aside b bdi bdo big blockquote br caption center cite code col colgroup dd del details dfn div dl dt em figcaption figure font footer h1 h2 h3 h4 h5 h6 header hr i img ins kbd li main mark nav ol p pre q s samp section small span strike strong sub summary sup table tbody td tfoot th thead time tr tt u ul var wbr".split(" "));
+    const attributes = new Set("abbr align alt axis background bgcolor border cellpadding cellspacing char charoff cite class clear color colspan compact datetime dir face frame headers height href hreflang hspace id lang name noshade nowrap open rel reversed role rowspan rules scope size span src start style summary target title type valign value vspace width".split(" "));
+    // A URL's scheme as the browser resolves it (a relative one on the page's; one it can't parse goes nowhere), and CSS
+    // as it reads it, its escapes decoded.
+    const scheme = (url: string) => {
+      try {
+        const { protocol, href } = new URL(url, "https://example.com/");
+        return protocol === "data:" ? (/^data:image\/(png|gif|jpe?g|webp)[;,]/i.test(href) ? "image" : "data") : protocol.slice(0, -1);
+      } catch {
+        return "none";
+      }
+    };
+    const css = (style: string) => style.replace(/\\([\da-f]{1,6})\s?|\\(.)/gi, (_, hex, ch) => (hex ? String.fromCodePoint(Math.min(parseInt(hex, 16), 0x10ffff)) : ch)).replace(/\s/g, "");
+    const r = random(Number(process.env.SANITIZE_FUZZ_SEED ?? 20261018));
+    const bad: string[] = [];
+    for (let run = 0; run < FUZZ_RUNS && bad.length < 5; run++) {
+      let input = "";
+      for (let n = 1 + Math.floor(r() * 16); n > 0; n--) input += fragments[Math.floor(r() * fragments.length)];
+      const out = sanitizeHtml(input);
+      const wrong = (why: string) => bad.push(`${JSON.stringify(input)} → ${JSON.stringify(out)}: ${why}`);
+      if (sanitizeHtml(out) !== out) wrong("not idempotent");
+      for (const element of parsed(out)) {
+        if (!kept.has(element.localName) || element.namespaceURI !== "http://www.w3.org/1999/xhtml") wrong(`<${element.localName}>`);
+        for (const { name, value } of element.attributes) {
+          if (!attributes.has(name) && !/^aria-[a-z]+$/.test(name)) wrong(`attribute ${name}`);
+          if ((name === "href" || name === "cite") && !["https", "http", "mailto", "tel", "none"].includes(scheme(value))) wrong(`${name}=${value}`);
+          if ((name === "src" || name === "background") && !["https", "http", "cid", "image", "none"].includes(scheme(value))) wrong(`${name}=${value}`);
+          if (name === "style" && /expression|javascript:|behavior|-moz-binding|url\(|image-set\(|\/\*/i.test(css(value))) wrong(`style=${value}`);
+        }
+      }
+    }
+    expect(bad).toEqual([]);
+  }, FUZZ_RUNS / 2 + 10000);
+});
+
+/** A seeded random number generator (mulberry32): the same inputs every run. */
+function random(seed: number): () => number {
+  let a = seed >>> 0;
+  return () => {
+    a = (a + 0x6d2b79f5) >>> 0;
+    let t = Math.imul(a ^ (a >>> 15), 1 | a);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
