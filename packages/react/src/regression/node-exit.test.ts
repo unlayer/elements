@@ -222,10 +222,11 @@ const template = (from, late) => {
     h(E.Row, { layout: E.ColumnLayouts.TwoEqual }, h(E.Column, null, h(E.Paragraph, null, "Lonely"))),
     h(E.Row, { padding: "10px", columnsBackgroundColor: "#ffffff" }, h(E.Column, null, h(tools[from]), h(E.Paragraph, null, "Third"), late ? h(Late) : null)));
 };
-// A <Tailwind>: a Row's padding classes go to its Columns, text classes to the text blocks.
-const styled = (from) => {
+// A <Tailwind>: a Row's padding classes go to its Columns, text classes to the text blocks. (With a config, the async
+// renderers compile it with its copy's compiler, and give its rewrite what they compiled.)
+const styled = (from, config) => {
   const E = copies[from];
-  return h(E.tailwind.Tailwind, { tw: E.tw }, h(E.Email, null, h(E.Row, { className: "p-4" }, h(E.Column, null, h(E.Paragraph, { className: "text-red-500" }, "Styled")))));
+  return h(E.tailwind.Tailwind, config ? { config } : { tw: E.tw }, h(E.Email, null, h(E.Row, { className: "p-4" }, h(E.Column, null, h(E.Paragraph, { className: "text-red-500" }, "Styled")))));
 };
 const words = (html) => html.match(/First|Second|Third|Lonely|Late|failing_tool/g) ?? [];
 const said = [];
@@ -244,6 +245,7 @@ for (const [by, from] of [["esm", "esm"], ["esm", "cjs"], ["cjs", "esm"], ["cjs"
     asyncDesign: await run(async () => words(JSON.stringify(await R.async.renderToJson(template(from, true), omit)))),
     asyncOmitted: await run(async () => (await R.async.renderToHtmlParts(template(from, true), omit)).omitted.map((error) => error.position)),
     tailwind: await run(() => ({ html: R.renderToHtml(styled(from)), column: R.renderToJson(styled(from)).body.rows[0].columns[0].values.padding })),
+    asyncTailwind: await run(async () => ({ red: (await R.async.renderToHtml(styled(from, {}))).includes("color: #fb2c36"), column: (await R.async.renderToJson(styled(from, {}))).body.rows[0].columns[0].values.padding })),
   };
 }
 process.stdout.write(JSON.stringify(out) + "\\n");
@@ -264,9 +266,10 @@ process.stdout.write(JSON.stringify(out) + "\\n");
         expect(one.asyncHtml.value).toEqual(["First", "Second", "Third", "Late"]);
         expect(one.omitted.value).toEqual(["Row 1 › Column 1 › Broken", "Row 2", "Row 3 › Column 1 › failing_tool"]);
         expect(one.tailwind.value.column).toBe("16px");
+        expect(one.asyncTailwind.value).toEqual({ red: true, column: "16px" });
         // Each part left out said once (and the Row's padding), in every render.
         for (const [render, { said }] of Object.entries(one) as Array<[string, { said: string[] }]>) {
-          if (render === "tailwind") continue;
+          if (render === "tailwind" || render === "asyncTailwind") continue;
           expect(said).toHaveLength(4);
           expect(new Set(said).size).toBe(4);
         }

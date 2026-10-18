@@ -35,16 +35,15 @@ export interface PrettyOption {
 }
 
 // Shared with the Tailwind entry, a bundle of its own (the package's entries share nothing else but the main one): the
-// compiler it registers when it loads, and the handles an async render compiled, for its <Tailwind config>s to find
-// while that render renders.
-const LOOKUPS = Symbol.for("@unlayer/react-elements/tailwind-scopes");
+// compiler it registers when it loads.
 const LOADER = Symbol.for("@unlayer/react-elements/tailwind-loader");
 
 interface Collected {
   recorded: Array<{ kind: string; props?: { tw?: unknown; config?: TailwindConfig }; load?: Load }>;
 }
 type Load = (config?: TailwindConfig) => Promise<TailwindHandle>;
-type Scope = object;
+/** A render's scope (see utils/render-scope.ts): what it compiled for its <Tailwind config>s, for their rewrites. */
+type Scope = { tailwind?: unknown };
 interface Internals {
   newScope(): Scope;
   withScope<T>(scope: Scope, run: () => T): T;
@@ -92,21 +91,16 @@ async function render<T>(element: React.ReactElement, options: Partial<UnlayerCo
     handles.set(load, compiled);
     if (!compiled.has(config)) compiled.set(config, await load(config));
   }
-  // The handles, for the <Tailwind config> elements to find while it renders (the Tailwind entry's lookups): a
-  // <Tailwind> says which it is, by its type (an older copy's doesn't: any compiled for its config).
-  const lookups = ((globalThis as Record<symbol, unknown>)[LOOKUPS] ??= []) as Array<(config: TailwindConfig | undefined, scope?: unknown) => unknown>;
-  const lookup = (config: TailwindConfig | undefined, scope?: unknown) => {
-    const own = handles.get((scope as Record<symbol, Load> | undefined)?.[LOADER] as Load)?.get(config);
+  // The handles, in the render's scope, which gives them to its <Tailwind config>s' rewrites: a <Tailwind> says which
+  // it is, by its type (an older copy's doesn't: any compiled for its config). A render the user's code starts has a
+  // scope of its own, without them.
+  scope.tailwind = (config: TailwindConfig | undefined, type?: unknown) => {
+    const own = handles.get((type as Record<symbol, Load> | undefined)?.[LOADER] as Load)?.get(config);
     if (own) return own;
     for (const compiled of handles.values()) if (compiled.has(config)) return compiled.get(config);
     return undefined;
   };
-  lookups.push(lookup);
-  try {
-    return internals.withScope(scope, () => run(internals.renders, root));
-  } finally {
-    lookups.splice(lookups.indexOf(lookup), 1);
-  }
+  return internals.withScope(scope, () => run(internals.renders, root));
 }
 
 /**

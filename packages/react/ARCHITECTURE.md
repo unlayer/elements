@@ -235,17 +235,18 @@ row or block is left out of the HTML, the plain text and the design (the slower 
    markers are shared, by `Symbol.for`: a Row's, Column's and block's (`@unlayer/react-elements/records`, and their
    `__unlayerRender`/`__unlayerItemConfig` statics), a root's (`…/root`, its name), a `<Head>`/`<Font>` entry's
    (`…/head-entry`), a `<Tailwind>`'s rewrite (`…/tailwind`), an `<UnlayerProvider>`'s (`…/provider`), so one copy's
-   walk records another copy's Rows. The async and Tailwind entries, separate bundles, share the handles an async
-   render compiled (`…/tailwind-scopes`), found by the `<Tailwind>` they're for; a `<Tailwind>` carries its copy's
-   compiler (`…/tailwind-loader`, on its type), which the async renderers compile its config with, so two copies'
-   classes don't mix (an older copy's `<Tailwind>`, which carries none, gets the compiler of the Tailwind entry loaded
-   last). No render state is shared: the render functions render a root of another copy (Body, Email, Page, Document,
-   by its marker, or an older copy's by its name and its code: `utils/root-type.ts`; a component of yours named like
-   one is called as written) as their own copy's (`utils/own-root.ts`), so the copy whose renderer was called renders
-   the whole template in its render's scope, whichever copy its components are of; a `<Tailwind>`'s rewrites find the
-   Columns of that render's Rows by their marker (`src/tailwind/column.ts`), and get the render's direction (its root's
-   resolved `textDirection`, which the render scope holds, as its `onError`) as an argument, never reading a scope
-   themselves (from an older copy, none: left to right).
+   walk records another copy's Rows. What an async render compiled for its `<Tailwind config>`s is in its scope, and
+   given to each `<Tailwind>`'s rewrite as an argument, where it's found by the `<Tailwind>` it's for (a render the
+   user's code starts, with a scope of its own, has none); a `<Tailwind>` carries its copy's compiler
+   (`…/tailwind-loader`, on its type), which the async renderers compile its config with, so two copies' classes don't
+   mix (an older copy's `<Tailwind>`, which carries none, gets the compiler of the Tailwind entry loaded last). No
+   render state is shared: the render functions render a root of another copy (Body, Email, Page, Document, by its
+   marker, or an older copy's by its name and its code: `utils/root-type.ts`; a component of yours named like one is
+   called as written) as their own copy's (`utils/own-root.ts`), so the copy whose renderer was called renders the
+   whole template in its render's scope, whichever copy its components are of; a `<Tailwind>`'s rewrites find the
+   Columns of that render's Rows by their marker (`src/tailwind/column.ts`), and get the render's direction (its
+   root's resolved `textDirection`, which the render scope holds, as its `onError`) as an argument, never reading a
+   scope themselves (from an older copy, none: left to right).
 
 ## Where it's tested
 

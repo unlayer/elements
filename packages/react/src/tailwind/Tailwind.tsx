@@ -28,13 +28,14 @@ export interface Resolver {
   props(name: string, className: string, explicit: Record<string, any>, defaults?: Record<string, any>, rtl?: boolean): Record<string, any>;
 }
 
-// The handles an async renderer compiled, by config and by the <Tailwind> it's for (this copy's), while it renders
-// (never a cache a sync render could find warm).
-const SCOPES = Symbol.for("@unlayer/react-elements/tailwind-scopes");
-export const lookups = ((globalThis as Record<symbol, unknown>)[SCOPES] ??= []) as Array<(config: TailwindConfig | undefined, scope: unknown) => unknown>;
+/**
+ * The handles an async render compiled, by config and by the <Tailwind> it's for (this copy's): the main entry gives
+ * them to a rewrite in that render (from its scope), never one a synchronous render could find warm.
+ */
+type Compiled = (config: TailwindConfig | undefined, scope: unknown) => unknown;
 
-function resolver({ tw, config }: TailwindProps): Resolver {
-  const handle = (tw ?? lookups[lookups.length - 1]?.(config, Tailwind)) as Record<symbol, Resolver> | undefined;
+function resolver({ tw, config }: TailwindProps, compiled?: unknown): Resolver {
+  const handle = (tw ?? (typeof compiled === "function" ? (compiled as Compiled)(config, Tailwind) : undefined)) as Record<symbol, Resolver> | undefined;
   if (handle?.[TAILWIND]) return handle[TAILWIND];
   throw Object.assign(
     new Error(
@@ -48,11 +49,12 @@ function resolver({ tw, config }: TailwindProps): Resolver {
 
 /**
  * A component's props with its `className` (and classes in its `html`) turned into props: the scope's rewrite. `rtl`:
- * the render's root reads right to left, as the main entry's render says (an older copy of it gives none).
+ * the render's root reads right to left, as the main entry's render says (an older copy of it gives none); `compiled`:
+ * what the render compiled, where it's an async render's (see Compiled).
  */
-function rewrite(scope: TailwindProps, name: string, defaults: Record<string, any> | undefined, props: Record<string, any>, rtl?: boolean): Record<string, any> {
+function rewrite(scope: TailwindProps, name: string, defaults: Record<string, any> | undefined, props: Record<string, any>, rtl?: boolean, compiled?: unknown): Record<string, any> {
   const { className, ...explicit } = props;
-  return resolver(scope).props(name, className ?? "", explicit, defaults, rtl);
+  return resolver(scope, compiled).props(name, className ?? "", explicit, defaults, rtl);
 }
 
 const ROOTS = new Set(["Body", "Email", "Page", "Document"]);

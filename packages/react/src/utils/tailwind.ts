@@ -5,12 +5,17 @@
  * whose content is one is rewritten by it too. The main entry knows no more of Tailwind than that.
  */
 import React from "react";
-import { guest, rightToLeft, scopeCache } from "./render-scope";
+import { compiledTailwind, guest, rightToLeft, scopeCache } from "./render-scope";
 
 /** A scope's rewrite: on its component type, in its recorded props, and on the errors it throws (passed on as they are). */
 export const TAILWIND = Symbol.for("@unlayer/react-elements/tailwind");
 
-type Rewrite = (scope: Record<PropertyKey, any>, name: string, defaults: Record<string, any> | undefined, props: Record<string, any>, rtl?: boolean) => Record<string, any>;
+/**
+ * A scope's rewrite of a component's props, in the render's direction (`rtl`) and with what the render compiled
+ * (`compiled`: an async render's handles for its <Tailwind config>s, the async entry's lookup, from the render's
+ * scope), so a render the user's code starts, which has a scope of its own, doesn't find another's.
+ */
+type Rewrite = (scope: Record<PropertyKey, any>, name: string, defaults: Record<string, any> | undefined, props: Record<string, any>, rtl?: boolean, compiled?: unknown) => Record<string, any>;
 
 /** On a scope's component type (the Tailwind entry's <Tailwind>): its copy's compiler, for the async renderers. */
 export const TAILWIND_LOADER = Symbol.for("@unlayer/react-elements/tailwind-loader");
@@ -28,7 +33,8 @@ export const isTailwindError = (error: unknown): boolean => !!(error as Record<s
  */
 export function classProps(scope: Record<PropertyKey, any>, name: string, defaults: Record<string, any> | undefined, props: Record<string, any>): Record<string, any> {
   const rtl = rightToLeft();
-  return guest(() => (scope[TAILWIND] as Rewrite)(scope, name, defaults, props, rtl));
+  const compiled = compiledTailwind();
+  return guest(() => (scope[TAILWIND] as Rewrite)(scope, name, defaults, props, rtl, compiled));
 }
 
 /** The scope a root's content is in: its only child, through context providers and Fragments. */
@@ -50,6 +56,7 @@ export function rootProps<P extends { className?: string; children?: React.React
   const { children: _children, mode: _mode, config: _config, ...styles } = props as Record<string, any>;
   // (By its props: the element itself is the children the render's collected under.)
   const done = scopeCache(scope.props as object, () => new Map<string, Record<string, any>>());
-  if (!done.has(props.className!)) done.set(props.className!, guest(() => (scope.type as unknown as Record<symbol, Rewrite>)[TAILWIND](scope.props, name, undefined, styles)));
+  const compiled = compiledTailwind();
+  if (!done.has(props.className!)) done.set(props.className!, guest(() => (scope.type as unknown as Record<symbol, Rewrite>)[TAILWIND](scope.props, name, undefined, styles, undefined, compiled)));
   return { ...props, ...done.get(props.className!), className: undefined };
 }

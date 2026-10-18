@@ -26,6 +26,8 @@ export interface Scope {
   rtl?: boolean;
   /** What its template unwrapped to: its root, the providers' config, where its content starts (see unwrap-root.ts). */
   unwrapped?: Unwrapped;
+  /** What an async render compiled for its <Tailwind config>s (the async entry's lookup: see utils/tailwind.ts). */
+  tailwind?: unknown;
 }
 
 export const newScope = (): Scope => ({ cache: new WeakMap(), values: new WeakMap(), omitted: [], failed: new WeakSet() });
@@ -104,6 +106,9 @@ export const failedBefore = (record: object | undefined): boolean => !!record &&
 
 /** The parts this render left out. */
 export const omissions = (): RenderError[] => scoped?.omitted ?? [];
+
+/** What this render compiled for its <Tailwind config>s, where it's an async render's (see utils/tailwind.ts). */
+export const compiledTailwind = (): unknown => scoped?.tailwind;
 
 /** What this render's template unwrapped to (see unwrap-root.ts). */
 export const unwrapped = (): Unwrapped | undefined => scoped?.unwrapped;

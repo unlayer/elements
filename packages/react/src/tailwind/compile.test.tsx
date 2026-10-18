@@ -333,6 +333,30 @@ describe("the async renderers, with <Tailwind config>", () => {
     expect(given.body.values.backgroundColor).toBe("#007291");
   });
 
+  it("keep what they compiled their own: a synchronous render the user's code starts in theirs needs `tw`, as anywhere else", async () => {
+    // It found the async render's compiled config while that render ran, and rendered there only.
+    const { registerTool, renderToHtml: renderToHtmlSync } = await import("../index");
+    const inner = <Tailwind config={config}><Email><Row><Column><Paragraph className="text-brand">Inner</Paragraph></Column></Row></Email></Tailwind>;
+    const said: string[] = [];
+    const nested = () => {
+      try {
+        renderToHtmlSync(inner);
+        said.push("rendered");
+      } catch (error) {
+        said.push(String((error as Error).message));
+      }
+    };
+    const Nested = registerTool({ name: "tailwind_nested", renderer: { exporters: { email: () => (nested(), "<b>nested</b>") } } });
+    const onError = () => nested();
+    const Broken = () => {
+      throw new Error("broken");
+    };
+    nested();
+    expect(await renderToHtml(<Tailwind config={config}><Email><Row><Column><Nested /><Broken /><Paragraph className="text-brand">Outer</Paragraph></Column></Row></Email></Tailwind>, { onError })).toContain("color: #007291");
+    expect(said).toHaveLength(3);
+    expect(new Set(said)).toEqual(new Set(['[Unlayer] <Tailwind config> needs `tw`: `await loadTailwind(config)` from "@unlayer/react-elements/tailwind", or the async renderers ("@unlayer/react-elements/async"), which compile it (these are synchronous).']));
+  });
+
   it("find a <Tailwind> a template returns, and render its components once", async () => {
     const calls = { welcome: 0, greeting: 0 };
     const Greeting = ({ name }: { name: string }) => {
