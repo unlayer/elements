@@ -14,7 +14,7 @@
  * has a head of its own (<Head>), and runs no script.
  */
 import { attribute, customAttribute, escapeText, objectData } from "./attributes";
-import { REACT_18 } from "./react-compat";
+import { REACT_18, REACT_18_2 } from "./react-compat";
 
 export { escapeText };
 
@@ -74,7 +74,7 @@ export function validateHost(type: string, props: Record<string, any>): void {
   const content = props.children != null || html != null;
   if (VOID.has(type) && content) throw new Error(`${type} is a self-closing tag and must neither have \`children\` nor use \`dangerouslySetInnerHTML\`.`);
   if (type === "menuitem" && content) throw new Error("menuitems cannot have `children` nor `dangerouslySetInnerHTML`.");
-  if (html != null && (type === "textarea" || (REACT_18 && type === "title"))) throw new Error(`\`dangerouslySetInnerHTML\` does not make sense on <${type}>.`);
+  if (html != null && (type === "textarea" || (REACT_18_2 && type === "title"))) throw new Error(`\`dangerouslySetInnerHTML\` does not make sense on <${type}>.`);
   if (props.style != null && typeof props.style !== "object")
     throw new Error("The `style` prop expects a mapping from style properties to values, not a string. For example, style={{marginRight: spacing + 'em'}} when using JSX.");
   if (html != null) {
