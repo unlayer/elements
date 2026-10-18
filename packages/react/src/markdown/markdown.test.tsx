@@ -162,6 +162,19 @@ describe("sanitizeHtml", () => {
     for (const [html, kept] of cases) expect([html, sanitizeHtml(html)]).toEqual([html, kept]);
   });
 
+  it("keeps no class whose arbitrary value could load or run something, whatever renders it later", () => {
+    const cases: Array<[string, string]> = [
+      ['<p class="note bg-[url(https://x.test/a.gif)] p-2">a</p>', '<p class="note p-2">a</p>'],
+      ['<p class="[background:u&#114;l(x)] max-[480px]:[background:u\\72l(x)] [behavior:x] [--x:image-set(a.png_1x)]">a</p>', "<p>a</p>"],
+      ['<p class="bg-&#91;url(x)] hover:bg-[u/**/rl(x)] [filter:progid:x] text-red-500">a</p>', '<p class="text-red-500">a</p>'],
+      // What isn't one (a class of yours) and arbitrary values that load nothing stay as written.
+      ['<p class="expression-box w-[calc(100%-2px)] bg-[#ff0000] font-[&#39;Open_Sans&#39;]">a</p>', '<p class="expression-box w-[calc(100%-2px)] bg-[#ff0000] font-[&#39;Open_Sans&#39;]">a</p>'],
+    ];
+    for (const [html, kept] of cases) expect([html, sanitizeHtml(html)]).toEqual([html, kept]);
+    // The design, which any renderer may render again (in a <Tailwind>), holds none.
+    expect(blocks({ markdown: '<div class="bg-[url(https://x.test/a.gif)] note">a</div>' })).toEqual([["html", '<div class="note">a</div>']]);
+  });
+
   it("reads a long input in one pass, whatever it leaves open", () => {
     const start = performance.now();
     for (const open of ['<a x="', "<b ", "<!", "<", "<script>", "<x y=", "<!--"]) expect(sanitizeHtml(`<p>${open.repeat(40000)}text`).length).toBeLessThan(400000);
@@ -179,6 +192,8 @@ describe("sanitizeHtml", () => {
       "<a href=", '<a href="', "<a href=java&#x0A;script:x>", "<td background=javascript:x>", '<p style="', "background:url(", "\\75 rl(", "expression(",
       "/*", "*/", "-moz-binding:", "behavior:", "<details open ontoggle=alert(1)>", "<font color=red>", "<div>", "</div>", "<b>", "</", "<", "<!", "<?xml ",
       "<!doctype html>", "<![CDATA[", "]]>", '"', "'", "`", ">", "/", "=", " ", "\n", "\t", "\0", "&#0;", "text", "data:text/html,", "data:image/png;base64,AA", "cid:x",
+      ' class="', " class=", "bg-[", "[background:", "&#91;", "]", "u&#114;l(", "u\\72l(", "u/**/rl(", "image(", "progid:", "&#32;", "p-2", "&lpar;",
+      ' class="bg-[url(x)] p-2', " class='[background:u&#114;l(x)]", ' class="p-2&#32;bg-[u\\72l(x)]"', " class=bg-&#91;url(x)]", ' class="[filter:progid:x]',
     ];
     const kept = new Set("a abbr address article aside b bdi bdo big blockquote br caption center cite code col colgroup dd del details dfn div dl dt em figcaption figure font footer h1 h2 h3 h4 h5 h6 header hr i img ins kbd li main mark nav ol p pre q s samp section small span strike strong sub summary sup table tbody td tfoot th thead time tr tt u ul var wbr".split(" "));
     const attributes = new Set("abbr align alt axis background bgcolor border cellpadding cellspacing char charoff cite class clear color colspan compact datetime dir face frame headers height href hreflang hspace id lang name noshade nowrap open rel reversed role rowspan rules scope size span src start style summary target title type valign value vspace width".split(" "));
@@ -207,6 +222,8 @@ describe("sanitizeHtml", () => {
           if ((name === "href" || name === "cite") && !["https", "http", "mailto", "tel", "none"].includes(scheme(value))) wrong(`${name}=${value}`);
           if ((name === "src" || name === "background") && !["https", "http", "cid", "image", "none"].includes(scheme(value))) wrong(`${name}=${value}`);
           if (name === "style" && loads(value)) wrong(`style=${value}`);
+          // (A class's arbitrary value, what Tailwind would inline: from its first bracket.)
+          if (name === "class") for (const token of value.split(/[\t\n\f\r ]+/)) if (/[[(]/.test(token) && loads(token.slice(token.search(/[[(]/)))) wrong(`class ${token}`);
         }
       }
     }
@@ -258,6 +275,9 @@ describe("Markdown in a <Tailwind>", () => {
         expect([vector, styles(html)]).toEqual([vector, ["color: #fb2c36"]]);
       }
     }
+    // The sanitizer left them out; what Tailwind inlines into sanitized HTML is checked again (as a block holding
+    // Markdown's HTML is marked).
+    expect(design(<Html html={'<div class="[background:url(https://x.test/a.gif)] text-red-500">a</div>'} {...({ _sanitized: true } as {})} />)).toEqual(['<div style="color: #fb2c36">a</div>']);
     expect(warn.mock.calls.map((call) => String(call[0]))).toContain(
       "[Unlayer] Html can't inline `[background:url(https://x.test/a.gif)]`'s `background` in its markup: it could load or run something, which Markdown's sanitized HTML doesn't allow."
     );
@@ -279,10 +299,12 @@ describe("Markdown in a <Tailwind>", () => {
     const r = random(Number(process.env.SANITIZE_FUZZ_SEED ?? 20261018));
     const pick = (list: string[]) => list[Math.floor(r() * list.length)];
     const bad: string[] = [];
+    let dropped = 0;
     for (let run = 0; run < FUZZ_RUNS / 10 && bad.length < 5; run++) {
       let value = "";
       for (let n = 1 + Math.floor(r() * 5); n > 0; n--) value += pick(parts);
       const className = `${pick(opens)}${value}${r() < 0.5 ? ")" : ""}${r() < 0.8 ? "]" : ""} text-red-500`;
+      if (!sanitizeHtml(`<b class="${className}">`).includes(className)) dropped++;
       for (const html of design(<Markdown markdown={`<div class="${className}">a</div>\n\nText <span class="${className}">b</span>`} />)) {
         for (const style of styles(html)) if (loads(style)) bad.push(`${JSON.stringify(className)} → ${JSON.stringify(style)}`);
         // (What Tailwind can't read doesn't stop it reading the rest.)
@@ -290,9 +312,9 @@ describe("Markdown in a <Tailwind>", () => {
       }
     }
     expect(bad).toEqual([]);
-    // (The inputs reach both checks: Tailwind made CSS of many, which was left out, and couldn't read others.)
-    const said = (text: string) => warn.mock.calls.filter((call) => String(call[0]).includes(text)).length;
-    expect([said("could load or run something"), said("isn't a class Tailwind can read here")].map((n) => n > FUZZ_RUNS / 100)).toEqual([true, true]);
+    // (The inputs reach the checks: the sanitizer left many out, and Tailwind couldn't read others.)
+    expect(dropped).toBeGreaterThan(FUZZ_RUNS / 100);
+    expect(warn.mock.calls.filter((call) => String(call[0]).includes("isn't a class Tailwind can read here")).length).toBeGreaterThan(FUZZ_RUNS / 100);
   }, FUZZ_RUNS * 5 + 30000);
 });
 

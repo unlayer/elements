@@ -71,6 +71,22 @@ const ATTRIBUTES = new Set(
 );
 const URL_ATTRIBUTES: Record<string, "link" | "image"> = { href: "link", src: "image", background: "image", cite: "link" };
 
+/**
+ * A class attribute's names but those whose arbitrary value (Tailwind's `bg-[…]`, `[background:…]`: from the first
+ * bracket, as the browser reads the attribute) is CSS that could load or run something, as a <Tailwind> would inline
+ * it, or any renderer of the design later.
+ */
+function keptClasses(value: string): string {
+  const names = value.split(/[\t\n\f\r ]+/);
+  const kept = names.filter((name) => {
+    const read = entities(name);
+    const at = read.search(/[[(]/);
+    return at < 0 || !unsafeStyle(read.slice(at));
+  });
+  // (As written where it keeps them all.)
+  return kept.length === names.length ? value : kept.join(" ");
+}
+
 /** A kept tag's attributes, written again: those on the list, each once (the first of a name, as a browser reads it). */
 function keptAttributes(list: Attribute[]): string {
   let kept = "";
@@ -81,7 +97,9 @@ function keptAttributes(list: Attribute[]): string {
     if (!ATTRIBUTES.has(key) && !/^aria-[a-z]+$/.test(key)) continue;
     if (URL_ATTRIBUTES[key] && safeUrl(value ?? "", URL_ATTRIBUTES[key]) === undefined) continue;
     if (key === "style" && unsafeStyle(value ?? "")) continue;
-    kept += value === undefined ? ` ${key}` : ` ${key}="${value.replace(/["<>`]/g, (ch) => ESCAPES[ch])}"`;
+    const written = key === "class" && value !== undefined ? keptClasses(value) : value;
+    if (key === "class" && value && !written!.trim()) continue;
+    kept += written === undefined ? ` ${key}` : ` ${key}="${written.replace(/["<>`]/g, (ch) => ESCAPES[ch])}"`;
   }
   return kept;
 }
@@ -98,7 +116,7 @@ function keptAttributes(list: Attribute[]): string {
  *   width` and `aria-*`: `href` and `cite` with a web, `mailto:` or `tel:` URL (or one with no scheme), `src` and
  *   `background` with a web or `cid:` URL or a PNG, GIF, JPEG or WebP data URL (or one with no scheme), `style`
  *   without `url()`, `image()`, `image-set()`, `expression()`, `behavior`, `-moz-binding`, a `progid:` filter,
- *   `javascript:` or a comment. No event
+ *   `javascript:` or a comment, and `class` without a name whose arbitrary value (`bg-[…]`) would be such CSS. No event
  *   handler (`on…`), `data-*`, `srcset` or `srcdoc`.
  * - Left out with what's in them: `script style iframe frameset noframes noembed noscript object applet template svg
  *   math select textarea title xmp plaintext`. Other tags are left out alone, what's in them kept; comments, doctypes,
