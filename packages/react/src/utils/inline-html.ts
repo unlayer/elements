@@ -2,8 +2,8 @@
  * Rich text in a Paragraph's, Heading's or Button's children (`Hello <strong>world</strong>`, a link, a component
  * of yours or react-intl's <FormattedMessage>): it's rendered while the template is collected (see record.tsx),
  * and this keeps what text can hold. Inline formatting stays (with a link's href, target, rel and title, and
- * styles and classes, which the editor's text keeps too: a <Head>'s stylesheet or a <Tailwind>'s classes style
- * them); other elements (a div, a table, an image) leave only their text, so no block gets into a paragraph; and
+ * styles and classes, which the editor's text keeps too: a <Head>'s stylesheet styles them, and inside a <Tailwind> a
+ * Paragraph's classes are inlined as styles, a Heading's or Button's kept as they are); other elements (a div, a table, an image) leave only their text, so no block gets into a paragraph; and
  * nothing that runs code (React writes no event handler; a `javascript:` URL or a CSS expression is left out).
  */
 const INLINE = /^(strong|b|em|i|u|s|a|br|span|code|sup|sub|small|mark)$/;
