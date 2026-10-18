@@ -49,9 +49,10 @@ export function safeUrl(url: string, kind: "link" | "image"): string | undefined
 /**
  * Whether CSS could load or run something (`url()`, `image-set()`, `expression()`, `behavior`, `-moz-binding`, a
  * `javascript:` URL), read as the browser reads it: its escapes decoded (`\75 rl(`); a comment, which can hide one
- * from a check (`expr/**\/ession(`), counts as one.
+ * from a check (`expr/**\/ession(`), counts as one. A `style` it keeps passes; so does what a <Tailwind> inlines into
+ * Markdown's HTML for its classes (src/tailwind/html.ts).
  */
-const unsafeStyle = (css: string) =>
+export const unsafeStyle = (css: string) =>
   /expression|javascript:|vbscript:|behavior|-moz-binding|url\(|image-set\(|\/\*/i.test(tight(entities(css).replace(/\\(?:([\da-f]{1,6})[\t\n\f\r ]?|([\s\S]))/gi, (_, hex?: string, ch?: string) => (hex ? codePoint(parseInt(hex, 16)) : ch!))));
 
 /** The elements kept, as an email or a page shows them: text and its formatting, links, images, lists, tables, sections. */

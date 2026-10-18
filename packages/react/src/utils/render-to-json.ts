@@ -94,8 +94,8 @@ export function extractSemanticProps(props: Record<string, any>): Record<string,
 
 const INTERNAL = new Set("children mode className style index colIndex cells bodyValues rowValues _config _record config previewText fonts lang layout collection".split(" "));
 
-/** A block's props the design doesn't hold (its children are its text: see processItem). */
-const CODE_ONLY = new Set(["children", "style", "className", "skipInText", "_record"]);
+/** A block's props the design doesn't hold (its children are its text: see processItem; `_sanitized`: Markdown's). */
+const CODE_ONLY = new Set(["children", "style", "className", "skipInText", "_record", "_sanitized"]);
 
 /** What makes a row or block editable in the editor. */
 const EDITABLE = { selectable: true, draggable: true, duplicatable: true, deletable: true, hideable: true };

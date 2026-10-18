@@ -1,6 +1,7 @@
 import React from "react";
-import { afterEach, beforeEach, describe, expect, it, vi, type MockInstance } from "vitest";
-import { Column, Email, Row, renderToHtml, renderToJson, renderToPlainText } from "../index";
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi, type MockInstance } from "vitest";
+import { Column, Email, Html, Row, renderToHtml, renderToJson, renderToPlainText } from "../index";
+import { Tailwind, loadTailwind, type TailwindHandle } from "../tailwind";
 import { Markdown, safeUrl, sanitizeHtml, type MarkdownProps } from "./index";
 
 let warn: MockInstance;
@@ -124,6 +125,10 @@ const FUZZ_RUNS = Number(process.env.SANITIZE_FUZZ_RUNS ?? 2000);
 /** The elements an HTML parser makes of HTML in a page's body. */
 const parsed = (html: string) => [...new DOMParser().parseFromString(`<!doctype html><body>${html}`, "text/html").body.querySelectorAll("*")];
 
+/** Whether a style (as the browser reads it: its escapes decoded, its spaces gone) could load or run something. */
+const loads = (style: string) =>
+  /expression|javascript:|behavior|-moz-binding|url\(|image-set\(|\/\*/i.test(style.replace(/\\([\da-f]{1,6})\s?|\\(.)/gi, (_, hex, ch) => (hex ? String.fromCodePoint(Math.min(parseInt(hex, 16), 0x10ffff)) : ch)).replace(/\s/g, ""));
+
 describe("sanitizeHtml", () => {
   it("leaves no tag that what's around a part it takes out joins into", () => {
     const markdown = "<div>\n<scr<script></script>ipt>alert(1)</script>\n</div>";
@@ -185,7 +190,6 @@ describe("sanitizeHtml", () => {
         return "none";
       }
     };
-    const css = (style: string) => style.replace(/\\([\da-f]{1,6})\s?|\\(.)/gi, (_, hex, ch) => (hex ? String.fromCodePoint(Math.min(parseInt(hex, 16), 0x10ffff)) : ch)).replace(/\s/g, "");
     const r = random(Number(process.env.SANITIZE_FUZZ_SEED ?? 20261018));
     const bad: string[] = [];
     for (let run = 0; run < FUZZ_RUNS && bad.length < 5; run++) {
@@ -200,11 +204,90 @@ describe("sanitizeHtml", () => {
           if (!attributes.has(name) && !/^aria-[a-z]+$/.test(name)) wrong(`attribute ${name}`);
           if ((name === "href" || name === "cite") && !["https", "http", "mailto", "tel", "none"].includes(scheme(value))) wrong(`${name}=${value}`);
           if ((name === "src" || name === "background") && !["https", "http", "cid", "image", "none"].includes(scheme(value))) wrong(`${name}=${value}`);
-          if (name === "style" && /expression|javascript:|behavior|-moz-binding|url\(|image-set\(|\/\*/i.test(css(value))) wrong(`style=${value}`);
+          if (name === "style" && loads(value)) wrong(`style=${value}`);
         }
       }
     }
     expect(bad).toEqual([]);
+  }, FUZZ_RUNS * 5 + 30000);
+});
+
+describe("Markdown in a <Tailwind>", () => {
+  let tw: TailwindHandle;
+  beforeAll(async () => {
+    tw = await loadTailwind();
+  });
+  /** The HTML of each block in the design. */
+  const design = (content: React.ReactNode) =>
+    renderToJson(
+      <Tailwind tw={tw}>
+        <Email>
+          <Row>
+            <Column>{content}</Column>
+          </Row>
+        </Email>
+      </Tailwind>
+    ).body.rows[0].columns[0].contents.map((c: any) => c.values.text ?? c.values.html);
+  const styles = (html: string) => parsed(html).map((element) => element.getAttribute("style") ?? "");
+
+  it("inlines no class into its HTML that could load or run something, as its sanitizer keeps no such style", () => {
+    // Arbitrary values and properties, written plain or hidden from a check: an HTML reference (`&#114;`), a CSS escape
+    // (`\\72`), a comment Tailwind takes out.
+    const vectors = [
+      "[background:url(https://x.test/a.gif)]",
+      "bg-[url(https://x.test/a.gif)]",
+      "bg-[u&#114;l(https://x.test/a.gif)]",
+      "bg-[u&#x72;l(https://x.test/a.gif)]",
+      "bg-[u\\72l(https://x.test/a.gif)]",
+      "bg-[u\\rl(https://x.test/a.gif)]",
+      "[background:URL(https://x.test/a.gif)]",
+      "[background:u/**/rl(https://x.test/a.gif)]",
+      "[list-style-image:url(https://x.test/a.gif)]",
+      "[behavior:url(x.htc)]",
+      "[-moz-binding:url(x.xml)]",
+      "[background:expression(alert(1))]",
+    ];
+    for (const vector of vectors) {
+      // In a raw HTML block, and in a paragraph's HTML; the other classes inlined.
+      for (const markdown of [`<div class="${vector} text-red-500">a</div>`, `Text <span class="${vector} text-red-500">a</span>`]) {
+        const [html] = design(<Markdown markdown={markdown} />);
+        expect([vector, styles(html)]).toEqual([vector, ["color: #fb2c36"]]);
+      }
+    }
+    expect(warn.mock.calls.map((call) => String(call[0]))).toContain(
+      "[Unlayer] Html can't inline `[background:url(https://x.test/a.gif)]`'s `background` in its markup: it could load or run something, which Markdown's sanitized HTML doesn't allow."
+    );
+  });
+
+  it("inlines your own markup's classes as written: only Markdown's HTML is sanitized", () => {
+    expect(design(<Html html={'<div class="bg-[url(https://x.test/a.gif)]">a</div>'} />)).toEqual(['<div style="background-image: url(https://x.test/a.gif)">a</div>']);
+  });
+
+  it("inlines nothing that loads or runs anything, whatever classes its HTML is given (fuzzed)", () => {
+    // An arbitrary value or property (`bg-[…]`, `[background:…]`) of random parts, some hiding a `url(` from a check
+    // (an HTML reference, a CSS escape, a comment Tailwind takes out), its brackets and comments closed.
+    const opens = ["bg-[", "[background:", "[background-image:", "[list-style-image:", "[behavior:", "[-moz-binding:", "[border-image:", "[color:"];
+    const functions = ["url(", "URL(", "u&#114;l(", "u&#x72;l(", "u\\72l(", "u\\72_l(", "u\\rl(", "u/**/rl(", "image-set(", "expression(", "x&lpar;", "x&#40;"];
+    const parts = ["javascript:", "https://x.test/a.gif", "x", "_", "&amp;", ","];
+    const r = random(Number(process.env.SANITIZE_FUZZ_SEED ?? 20261018));
+    const pick = (list: string[]) => list[Math.floor(r() * list.length)];
+    const bad: string[] = [];
+    for (let run = 0; run < FUZZ_RUNS / 10 && bad.length < 5; run++) {
+      let value = "";
+      let open = 0;
+      for (let n = 1 + Math.floor(r() * 5); n > 0; n--) {
+        const f = r() < 0.4;
+        value += f ? pick(functions) : open && r() < 0.3 ? ")" : pick(parts);
+        open += f ? 1 : value.endsWith(")") ? -1 : 0;
+      }
+      const className = `${pick(opens)}${value}${")".repeat(open)}] text-red-500`;
+      for (const html of design(<Markdown markdown={`<div class="${className}">a</div>\n\nText <span class="${className}">b</span>`} />))
+        for (const style of styles(html)) if (loads(style)) bad.push(`${JSON.stringify(className)} → ${JSON.stringify(style)}`);
+    }
+    expect(bad).toEqual([]);
+    // (The inputs reach the check: Tailwind made CSS of many, which was left out.)
+    expect(warn.mock.calls.filter((call) => String(call[0]).includes("could load or run something")).length).toBeGreaterThan(FUZZ_RUNS / 50);
+    expect(design(<Markdown markdown={'<p class="text-red-500">a</p>'} />)).toEqual(['<p style="color: #fb2c36">a</p>']);
   }, FUZZ_RUNS * 5 + 30000);
 });
 

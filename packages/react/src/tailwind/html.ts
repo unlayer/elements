@@ -103,9 +103,10 @@ function physical(property: string, rtl: boolean): string[] {
  * element it's in, else as the document: its logical sides are those. (An element whose end tag is left out, as a
  * `<p>` or `<li>` can be, is taken to hold what follows it up to its parent's end tag.) A tag's first `class` is its
  * class, as a browser reads it (the others are left out once it's rewritten); comments, raw text (`<script>`,
- * `<style>`, `<textarea>`, …) and what isn't a tag stay as they are.
+ * `<style>`, `<textarea>`, …) and what isn't a tag stay as they are. `unsafe`: CSS sanitized markup can't have (see
+ * src/markdown/sanitize.ts), each declaration that is left out and said.
  */
-export function inlineClasses(html: string, read: (className: string) => ClassDeclarations, warn: (text: string) => void, rtl = false): string {
+export function inlineClasses(html: string, read: (className: string) => ClassDeclarations, warn: (text: string) => void, rtl = false, unsafe?: (css: string) => boolean): string {
   const said = new Set<string>();
   const once = (text: string) => !said.has(text) && (said.add(text), warn(text));
   // The elements open where a tag is, each with whether it reads right to left.
@@ -138,7 +139,7 @@ export function inlineClasses(html: string, read: (className: string) => ClassDe
     const first = (name: string) => tag.attributes.find((a) => a.name === name);
     const dir = first("dir")?.value?.trim().toLowerCase();
     const right = dir === "rtl" ? true : dir === "ltr" || dir === "auto" ? false : open.length ? open[open.length - 1].rtl : rtl;
-    const rewritten = classes(html.slice(lt, tag.end), tag.attributes, tag.nameEnd, lt, right, read, once);
+    const rewritten = classes(html.slice(lt, tag.end), tag.attributes, tag.nameEnd, lt, right, read, once, unsafe);
     if (rewritten !== undefined) {
       out += html.slice(written, lt) + rewritten;
       written = tag.end;
@@ -154,7 +155,7 @@ export function inlineClasses(html: string, read: (className: string) => ClassDe
  * first class attribute holds the classes that stay (or goes), its others go, its first style attribute starts with the
  * inlined declarations (or one is added after its attributes). The rest is as written.
  */
-function classes(text: string, attributes: Attribute[], nameEnd: number, offset: number, rtl: boolean, read: (className: string) => ClassDeclarations, once: (text: string) => void): string | undefined {
+function classes(text: string, attributes: Attribute[], nameEnd: number, offset: number, rtl: boolean, read: (className: string) => ClassDeclarations, once: (text: string) => void, unsafe?: (css: string) => boolean): string | undefined {
   const list = attributes.filter((a) => a.name === "class");
   const given = [...(list[0]?.value ?? "").matchAll(NAMES)].map((m) => m[0]);
   if (!given.length) return undefined;
@@ -184,7 +185,11 @@ function classes(text: string, attributes: Attribute[], nameEnd: number, offset:
   };
   for (const d of found.declarations) {
     if (d.when !== "always") continue;
-    const write = (property: string, value: string) => css.push(`${property}: ${value}${d.important ? " !important" : ""}`);
+    const write = (property: string, value: string) => {
+      const declaration = `${property}: ${value}${d.important ? " !important" : ""}`;
+      if (!unsafe?.(declaration)) css.push(declaration);
+      else once(`can't inline \`${d.className}\`'s \`${property}\` in its markup: it could load or run something, which Markdown's sanitized HTML doesn't allow`);
+    };
     for (const property of physical(d.property, rtl)) {
       const parts = SETS[property] ?? LONGHANDS[property] ?? [property];
       const by = sets(property, rtl).map((p) => screens.get(p));

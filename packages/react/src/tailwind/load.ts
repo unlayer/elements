@@ -12,6 +12,7 @@ import theme from "tailwindcss/theme.css?raw";
 import { declarationReader, type ClassDeclarations, type Compiler } from "./declarations";
 import { classesToProps } from "./props";
 import { inlineClasses } from "./html";
+import { unsafeStyle } from "../markdown/sanitize";
 
 /** Shared by every copy of Elements a process loads: a handle from one works with the others. */
 export const TAILWIND = Symbol.for("@unlayer/react-elements/tailwind");
@@ -75,9 +76,10 @@ async function compile(config: TailwindConfig | undefined, source = config): Pro
   const resolver: HandleResolver = {
     declarations,
     props: (name: string, className: string, explicit: Record<string, any>, defaults?: Record<string, any>, rtl = false) => {
-      // Classes in its markup (an Html block's, a Paragraph's `html`): inline styles.
+      // Classes in its markup (an Html block's, a Paragraph's `html`): inline styles; in Markdown's sanitized HTML, none
+      // its sanitizer wouldn't keep in a `style` (your own markup's are as you wrote them).
       const html = explicit.html;
-      if (typeof html === "string" && /class/i.test(html)) explicit = { ...explicit, html: inlineClasses(html, declarations, (text) => console.warn(`[Unlayer] ${name} ${text}.`), rtl) };
+      if (typeof html === "string" && /class/i.test(html)) explicit = { ...explicit, html: inlineClasses(html, declarations, (text) => console.warn(`[Unlayer] ${name} ${text}.`), rtl, explicit._sanitized ? unsafeStyle : undefined) };
       return classesToProps(name, declarations(className), explicit, defaults, false, rtl);
     },
   };
