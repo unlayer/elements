@@ -7,6 +7,7 @@
  * as "#NaN0203". And font stacks are written into style="" attributes, so a
  * double-quoted family name ended the attribute early.
  */
+import { mergeValues } from "./merge-values";
 
 /** A channel: a number, maybe a percentage. One way to read each digit, so a long value can't make it backtrack. */
 const CHANNEL = /^-?(?:\d+(?:\.\d*)?|\.\d+)%?$/;
@@ -73,12 +74,17 @@ export function normalizeFontStack(value: string): string {
  * new objects (values can alias the caller's, e.g. a shared style constant).
  */
 export function normalizeCssValues<T>(value: T, key?: string): T {
-  if (typeof value === "string") return (key === "fontFamily" ? normalizeFontStack(value) : key === "color" || key?.endsWith("Color") ? normalizeColor(value) : value) as T;
+  if (typeof value === "string") {
+    // (Only a stack with a double quote, and a color with a bracket, are written otherwise.)
+    if (key === "fontFamily") return (value.includes('"') ? normalizeFontStack(value) : value) as T;
+    return ((key === "color" || key?.endsWith("Color")) && value.includes("(") ? normalizeColor(value) : value) as T;
+  }
+  if (value === null || typeof value !== "object") return value;
   if (Array.isArray(value)) return value.map((item) => normalizeCssValues(item)) as T;
   if (!isPlainObject(value)) return value;
   const out: Record<string, unknown> = {};
   // A fontFamily object ({ label, value }) holds font stacks.
-  for (const [k, v] of Object.entries(value)) out[k] = normalizeCssValues(v, key === "fontFamily" ? key : k);
+  for (const k of Object.keys(value)) out[k] = normalizeCssValues(value[k], key === "fontFamily" ? key : k);
   return out as T;
 }
 
@@ -88,11 +94,68 @@ export function normalizeCssValues<T>(value: T, key?: string): T {
  * length or a zero (`0 auto` and `1em 0` stay as they are); a custom tool's own values stay as it wrote them.
  */
 export function pxZeros<T>(value: T, key = ""): T {
-  // (A key the schema types as px lengths: a padding or margin, a box of them, a radius, a width, a font size.)
-  if (typeof value === "string") return (/(padding|margin|radius|width|spacing|fontsize)$/i.test(key) && /^\s*((-?[\d.]+px|0)(\s+|$))+$/.test(value) ? value.replace(/(^|\s)0(?=\s|$)/g, "$10px") : value) as T;
+  if (typeof value === "string") return (pxKey(key) && PX_LENGTHS.test(value) ? value.replace(/(^|\s)0(?=\s|$)/g, "$10px") : value) as T;
+  if (value === null || typeof value !== "object") return value;
   if (Array.isArray(value)) return value.map((item) => pxZeros(item)) as T;
   if (!isPlainObject(value) || "slug" in value) return value;
-  return Object.fromEntries(Object.entries(value).map(([k, v]) => [k, pxZeros(v, k)])) as T;
+  // A copy (the design shares no object with the defaults it's merged from), its keys in order.
+  const out: Record<string, unknown> = {};
+  for (const k of Object.keys(value)) {
+    const v = pxZeros(value[k], k);
+    if (k === "__proto__") Object.defineProperty(out, k, { value: v, enumerable: true, writable: true, configurable: true });
+    else out[k] = v;
+  }
+  return out as T;
+}
+
+/**
+ * `values` merged over `defaults` as mergeValues merges them, as pxZeros writes the result: a copy that shares no
+ * object with either, its px lengths' bare zeros `0px`. One pass, where the design is made (instead of a pass over
+ * the whole design after). `out`: the object it's written into, with what goes first.
+ */
+export function pxMerged<T>(defaults: T, values: unknown, key = "", out: Record<string, unknown> = {}): T {
+  const d = defaults as Record<string, unknown>;
+  if (!values) return Object.assign(out, copy(pxWritten(d, key))) as T;
+  const v = values as Record<string, unknown>;
+  // (A custom tool's own values, which pxZeros leaves as they are.)
+  if ("slug" in d || "slug" in v) return Object.assign(out, mergeValues(d, v)) as T;
+  const written = pxWritten(d, key) as Record<string, unknown>;
+  for (const k of Object.keys(d)) out[k] = Object.prototype.hasOwnProperty.call(v, k) ? merged(d[k], v[k], k) : copy(written[k]);
+  for (const k of Object.keys(v)) if (!Object.prototype.hasOwnProperty.call(d, k)) out[k] = pxZeros(v[k], k);
+  return out as T;
+}
+
+/** A value over a default, as mergeValues merges it (plain objects into each other, anything else in its place). */
+const merged = (base: unknown, value: unknown, key: string) =>
+  value !== null && base !== null && typeof value === "object" && typeof base === "object" && !Array.isArray(value) && !Array.isArray(base) ? pxMerged(base, value, key) : pxZeros(value, key);
+
+/** Defaults as pxZeros writes them, worked out once each (they're constants): copied where they're used. */
+const pxWrittenDefaults = new WeakMap<object, unknown>();
+function pxWritten(defaults: unknown, key: string): unknown {
+  if (defaults === null || typeof defaults !== "object") return pxZeros(defaults, key);
+  let written = pxWrittenDefaults.get(defaults);
+  if (written === undefined) pxWrittenDefaults.set(defaults, (written = pxZeros(defaults, key)));
+  return written;
+}
+
+/** A copy of what pxZeros wrote: the objects and lists it made made again (what it left as it was, left). */
+function copy<T>(value: T): T {
+  if (value === null || typeof value !== "object") return value;
+  if (Array.isArray(value)) return value.map(copy) as T;
+  if (!isPlainObject(value) || "slug" in value) return value;
+  const out: Record<string, unknown> = {};
+  for (const k of Object.keys(value)) out[k] = copy(value[k]);
+  return out as T;
+}
+
+/** What a key the schema types as px lengths ends in: a padding or margin, a box of them, a radius, a width, a font size. */
+const PX_ENDINGS = ["padding", "margin", "radius", "width", "spacing", "fontsize"];
+const PX_KEY = new RegExp(`(${PX_ENDINGS.join("|")})$`, "i");
+/** Their last letters (lowercase char codes): most keys end in none of them, and aren't tested further. */
+const PX_LAST = new Set(PX_ENDINGS.map((ending) => ending.charCodeAt(ending.length - 1)));
+const PX_LENGTHS = /^\s*((-?[\d.]+px|0)(\s+|$))+$/;
+function pxKey(key: string): boolean {
+  return PX_LAST.has(key.charCodeAt(key.length - 1) | 32) && PX_KEY.test(key);
 }
 
 function isPlainObject(value: unknown): value is Record<string, unknown> {

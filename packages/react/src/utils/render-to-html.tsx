@@ -1,12 +1,15 @@
 import React from "react";
-import { renderToStaticMarkup } from "./server-renderer";
-import type { PlainTextOptions, UnlayerConfig } from "@unlayer-internal/shared-elements";
-import { htmlToPlainText } from "@unlayer-internal/shared-elements";
+import type { PlainTextOptions, RenderMode, UnlayerConfig } from "@unlayer-internal/shared-elements";
+import { htmlToPlainText, RenderError } from "@unlayer-internal/shared-elements";
+import { renderOwn } from "../engine";
+import { OWN_MARKUP, rootlessHtml, rootlessRoot } from "./root-content";
 import { extractHeadFromTree } from "./extract-head";
-import { htmlRoot, providedConfig, ROOT_NAMES } from "./unwrap-root";
+import { htmlRoot, providedConfig } from "./unwrap-root";
+import { isRoot } from "./root-type";
+import { ownRoot } from "./own-root";
 import { rootConfig, rootMode, type RootConfigProps } from "../context/layer-config";
-import { normalizedRoot } from "./normalize";
-import { withRenderScope } from "./render-scope";
+import { normalizedRoot } from "../model";
+import { omissions, setRenderConfig, withOwnScope } from "./render-scope";
 import { isTailwindError } from "./tailwind";
 import {
   emailLayout,
@@ -24,31 +27,52 @@ function resolveConfig(element: React.ReactElement, config?: Partial<UnlayerConf
 }
 
 /**
+ * The root the head and the plain text are read from: the root, or for a template with no root (what it rendered, an
+ * Elements component, markup), one holding it, whose content is the one the HTML rendered (collected once).
+ */
+const headRoot = (element: React.ReactElement, mode: RenderMode): React.ReactElement => (isRoot(element.type) ? element : rootlessRoot(element, mode));
+
+/**
  * Render the element tree to body markup (no document shell).
  *
  * - Passes the root's whole config (see resolveConfig) via its `config` prop:
  *   no React context, so it works in Server Components
- * - Uses `renderToStaticMarkup` — no React hydration markers
+ * - Rendered by the engine as react-dom's static markup — no hydration markers
  */
-function renderBody(
+export function renderBody(
   element: React.ReactElement,
   config?: Partial<UnlayerConfig>,
   name = "renderToHtml"
 ): string {
+  const { html, inner } = bodyHtml(element, config, name);
+  return inner === undefined ? html : `<div>${inner}</div>`;
+}
+
+/** The body markup (see renderBody), and a root's HTML as it is in its renderer's `<div>` (`inner`), where it has one. */
+function bodyHtml(element: React.ReactElement, config?: Partial<UnlayerConfig>, name = "renderToHtml"): { html: string; inner?: string } {
   const mergedConfig = resolveConfig(element, config);
+  // What it does with a part that fails (see RenderError): the render functions' option over the root's config.
+  setRenderConfig(mergedConfig);
 
   try {
+    // A template with no root: its content as a root's, with no body around it (see root-content.ts).
+    if (!isRoot(element.type)) return { html: rootlessHtml(element, mergedConfig, rootMode(element, mergedConfig)) };
     // Pass config via prop (not context) so this works in React Server Components: the root's own `config` and the
-    // Provider's are in it (see resolveConfig). Body threads it as `_config` to children via cloneElement.
-    const enriched = React.cloneElement(element, { config: mergedConfig });
-    return renderToStaticMarkup(enriched);
+    // Provider's are in it (see resolveConfig). Body threads it as `_config` to children via cloneElement. (A root of
+    // another copy of Elements renders as this copy's: this render renders it all, see own-root.ts.)
+    return renderOwn(ownRoot(element), { config: mergedConfig }, OWN_MARKUP);
   } catch (error) {
-    if (isTailwindError(error)) throw error;
+    // A part of the template that failed says which and where; a scope's error is as it is.
+    if (error instanceof RenderError || isTailwindError(error)) throw error;
     const message =
       error instanceof Error ? error.message : String(error);
-    throw new Error(
-      `[Unlayer] ${name} failed: ${message}\n` +
-        `Tip: Ensure your tree uses Body > Row > Column > Item structure.`
+    // Keep the original error as `cause`: its stack points at the template line that threw.
+    throw Object.assign(
+      new Error(
+        `[Unlayer] ${name} failed: ${message}\n` +
+          `Tip: Ensure your tree uses Body > Row > Column > Item structure.`
+      ),
+      { cause: error }
     );
   }
 }
@@ -124,7 +148,7 @@ export function renderToHtml(
   element: React.ReactElement,
   options?: RenderToHtmlOptions
 ): string {
-  return withRenderScope(() => htmlDocument(element, options));
+  return withOwnScope(() => htmlDocument(element, options));
 }
 
 /** CSS for a `<style>` element: a `</style` in it would end the element (CSS escapes the slash). */
@@ -132,10 +156,11 @@ function styleText(css: string): string {
   return css.replace(/<\/(style)/gi, "<\\/$1");
 }
 
-function htmlDocument(element: React.ReactElement, options?: RenderToHtmlOptions): string {
+/** renderToHtml in the render's scope (the async renderers' too, which collected the template in it). */
+export function htmlDocument(element: React.ReactElement, options?: RenderToHtmlOptions): string {
   const { title, lang: optionLang, fonts: optionFonts = [], ...config } = options ?? {};
   // A template component (<Welcome/>) renders as its root, whose settings follow.
-  element = htmlRoot(element, "renderToHtml");
+  element = htmlRoot(element, "renderToHtml", config.idPrefix);
   // The root's own `fonts` prop, then the option's, each URL once.
   const rootFonts = (element.props as { fonts?: Array<{ url: string }> } | null)?.fonts ?? [];
   const fonts = [...rootFonts, ...optionFonts].filter((font, i, all) => font?.url && all.findIndex((f) => f?.url === font.url) === i);
@@ -147,11 +172,11 @@ function htmlDocument(element: React.ReactElement, options?: RenderToHtmlOptions
   // Only Unlayer wrappers (Body/Email/Page/Document) get their renderer's
   // host <div> stripped — for any other root (a bare item, a custom
   // component) the outer div is the element's own markup and must stay.
-  const wrapperName = (element.type as { displayName?: string })?.displayName;
-  const isUnlayerWrapper = ROOT_NAMES.has(wrapperName ?? "");
-  const rawBody = renderBody(element, config);
-  const body = isUnlayerWrapper ? stripOuterDiv(rawBody) : rawBody;
-  const { css, js, tags } = extractHeadFromTree(element, {
+  const isUnlayerWrapper = isRoot(element.type);
+  // (A root's HTML as Body writes it in its `<div>`, which the document has instead.)
+  const rendered = bodyHtml(element, config);
+  const body = rendered.inner !== undefined ? (isUnlayerWrapper ? rendered.inner : `<div>${rendered.inner}</div>`) : isUnlayerWrapper ? stripOuterDiv(rendered.html) : rendered.html;
+  const { css, js, tags } = extractHeadFromTree(headRoot(element, displayMode), {
     displayMode,
     headConfig: mergedConfig.headConfig,
   });
@@ -207,16 +232,20 @@ export function renderToPlainText(
   element: React.ReactElement,
   config?: Partial<UnlayerConfig> & PlainTextOptions
 ): string {
+  return withOwnScope(() => plainText(element, config));
+}
+
+/** renderToPlainText in the render's scope (see htmlDocument). */
+export function plainText(element: React.ReactElement, config?: Partial<UnlayerConfig> & PlainTextOptions): string {
   // A template component renders as its root, as in renderToHtml (context providers around it included).
-  const html = withRenderScope(() => {
-    const root = htmlRoot(element, "renderToPlainText");
-    // Collected first, as renderToHtml's head is: it fails where that does (a component that isn't one), not with
-    // empty text (Body leaves out what fails, for a live preview).
-    normalizedRoot(root);
-    return renderBody(root, config, "renderToPlainText");
-  });
+  const root = htmlRoot(element, "renderToPlainText", config?.idPrefix);
+  const resolved = resolveConfig(root, config);
+  setRenderConfig(resolved);
+  // Collected first, as renderToHtml's head is: it fails where that does.
+  const mode = rootMode(root, resolved);
+  normalizedRoot(headRoot(root, mode), mode);
   // How the text is written (wrapping, links, headings, what's left out): see PlainTextOptions.
-  return htmlToPlainText(html, config);
+  return htmlToPlainText(renderBody(root, config, "renderToPlainText"), config);
 }
 
 /**
@@ -240,6 +269,11 @@ export interface HtmlParts {
   css: string;
   /** Raw component JS (no `<script>` wrapper); empty for most email designs */
   js: string;
+  /**
+   * The parts of the template left out (`onError: "omit"`, or a function), in the order the render found them: each
+   * a RenderError naming the component, where it is (`position`) and what it threw (`cause`). Empty when nothing was.
+   */
+  omitted: RenderError[];
   /**
    * Individual head tags (`<meta>`, `<link>`, ...) contributed by components.
    * Not part of the editor's documented chunk parameters, but exposed here
@@ -288,11 +322,12 @@ export function renderToHtmlParts(
   element: React.ReactElement,
   config?: Partial<UnlayerConfig>
 ): HtmlParts {
-  return withRenderScope(() => htmlParts(element, config));
+  return withOwnScope(() => htmlParts(element, config));
 }
 
-function htmlParts(element: React.ReactElement, config?: Partial<UnlayerConfig>): HtmlParts {
-  element = htmlRoot(element, "renderToHtmlParts");
+/** renderToHtmlParts in the render's scope (see htmlDocument). */
+export function htmlParts(element: React.ReactElement, config?: Partial<UnlayerConfig>): HtmlParts {
+  element = htmlRoot(element, "renderToHtmlParts", config?.idPrefix);
   // Render body markup
   const body = renderBody(element, config, "renderToHtmlParts");
 
@@ -301,7 +336,7 @@ function htmlParts(element: React.ReactElement, config?: Partial<UnlayerConfig>)
   const displayMode = rootMode(element, mergedConfig);
 
   // Extract head CSS/JS/tags by walking the element tree
-  const { css, js, tags } = extractHeadFromTree(element, {
+  const { css, js, tags } = extractHeadFromTree(headRoot(element, displayMode), {
     displayMode,
     headConfig: mergedConfig.headConfig,
   });
@@ -327,5 +362,6 @@ function htmlParts(element: React.ReactElement, config?: Partial<UnlayerConfig>)
     css,
     js,
     tags,
+    omitted: [...omissions()],
   };
 }

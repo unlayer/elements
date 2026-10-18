@@ -76,13 +76,20 @@ Inside text, bold, italics, strikethrough, links, images and line breaks are HTM
 - Links get `target="_blank" rel="noopener"`. Pass `linkAttributes` (an object, or a function of the URL) for others, and `imageAttributes` for images in text. Event handlers (`on…`) and `href`/`src`/`style` aren't taken there.
 - `url(url, kind)` rewrites each link's and image's URL (`kind` is `"link"` or `"image"`): add tracking parameters, point images at a CDN. Return `undefined` to leave it out: a link's text stays, an image goes.
 - URLs that could run code are left out before that: links may be web, `mailto:` or `tel:` URLs, images web or `cid:` URLs or PNG, GIF, JPEG and WebP data URLs. A URL with no scheme (`/pricing`, `#faq`, `{{unsubscribe_url}}`) is kept.
-- Raw HTML is kept without scripts, style sheets, frames, forms, embedded objects, comments, event handlers, URLs that run code or CSS expressions (`html="sanitize"`, the default). `html="escape"` shows it as text, and `html="drop"` leaves it out. For Markdown your users write, use `"escape"` or `"drop"`.
+- Raw HTML (`html="sanitize"`, the default) keeps only the tags and attributes that display, read as a browser reads it and written again, so what's left out can't join what's around it into a tag:
+  - Tags: `p` `div` `span` `br` `hr` `wbr` `h1`–`h6` `a` `img` `b` `strong` `i` `em` `u` `s` `strike` `del` `ins` `sub` `sup` `small` `big` `font` `center` `mark` `abbr` `cite` `q` `dfn` `time` `code` `pre` `kbd` `samp` `var` `tt` `bdi` `bdo` `blockquote` `address` `ul` `ol` `li` `dl` `dt` `dd` `table` `caption` `colgroup` `col` `thead` `tbody` `tfoot` `tr` `th` `td` `section` `article` `header` `footer` `main` `nav` `aside` `figure` `figcaption` `details` `summary`.
+  - Attributes: `abbr` `align` `alt` `axis` `background` `bgcolor` `border` `cellpadding` `cellspacing` `char` `charoff` `cite` `class` `clear` `color` `colspan` `compact` `datetime` `dir` `face` `frame` `headers` `height` `href` `hreflang` `hspace` `id` `lang` `name` `noshade` `nowrap` `open` `rel` `reversed` `role` `rowspan` `rules` `scope` `size` `span` `src` `start` `style` `summary` `target` `title` `type` `valign` `value` `vspace` `width`, and `aria-*`. `href` and `cite` are kept with a web, `mailto:` or `tel:` URL (or one with no scheme), `src` and `background` with a web or `cid:` URL or a PNG, GIF, JPEG or WebP data URL, `style` without `url()`, `image()`, `image-set()`, `expression()`, `behavior`, `-moz-binding`, an old Internet Explorer's `progid:` filter, `javascript:` or a comment, and `class` without a name whose arbitrary value would be such CSS (`bg-[url(…)]`, `[background:url(…)]`, written as it is or hidden behind an HTML reference or a CSS escape), so the HTML and the design built from it hold none, whatever renders them later. Event handlers (`on…`), `data-*`, `srcset`, `srcdoc` and every other attribute are left out.
+  - Left out with what's in them: `script`, `style`, `iframe`, `frameset`, `noframes`, `noembed`, `noscript`, `object`, `applet`, `template`, `svg`, `math`, `select`, `textarea`, `title`, `xmp` and `plaintext`. Any other tag is left out alone, what's in it kept (`<form><b>Hi</b></form>` is `<b>Hi</b>`). Comments (Outlook's conditional ones too), doctypes, CDATA and a tag the HTML ends in are left out; a `<` that starts no tag is text.
+
+  Inside a `<Tailwind>`, the classes in its HTML become inline styles (see [Classes in HTML markup](./tailwind.md#classes-in-html-markup)), and what they give is checked again: a declaration a `style` couldn't have is left out, with a warning. The classes of your own markup (an `Html` block's) are inlined as you wrote them.
+
+  `html="escape"` shows raw HTML as text, and `html="drop"` leaves it out. For Markdown your users write, use `"escape"` or `"drop"`.
 
 `sanitizeHtml(html)` and `safeUrl(url, kind)` are exported for markup you build yourself.
 
 ## Plain text
 
-`renderToPlainText()` reads the blocks as it reads any template: headings in capitals (`h1`, `h2`), links as `text (url)`, list items with a dash, code with its indentation.
+`renderToPlainText()` reads the blocks as it reads any template: headings in capitals (`h1`, `h2`), links as `text (url)` (a heading's too: `# [Pay invoice](https://example.com/pay)` is `PAY INVOICE (https://example.com/pay)`, its URL as written), list items with a dash, code with its indentation.
 
 ## Agent rules
 

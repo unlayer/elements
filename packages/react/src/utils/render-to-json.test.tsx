@@ -13,6 +13,7 @@ import Email from "../components/Email";
 import Page from "../components/Page";
 import Document from "../components/Document";
 import { renderToHtml } from "./render-to-html";
+import { RenderError } from "@unlayer-internal/shared-elements";
 import { ColumnLayouts } from "../layouts/ColumnLayouts";
 
 describe("renderToJson", () => {
@@ -331,11 +332,20 @@ describe("renderToJson", () => {
     expect(() => renderToJson(<NotARoot />)).toThrow("Root element must be <Body>");
   });
 
-  it("rethrows an actionable error when a wrapper throws while unwrapping", () => {
+  it("throws what a wrapper throws as renderToHtml does (a RenderError naming it), and says what to do for an async one", () => {
+    const cause = new Error("no data");
     const Boom = (): React.ReactElement => {
-      throw new Error("invalid hook call");
+      throw cause;
     };
-    expect(() => renderToJson(<Boom />)).toThrow("could not unwrap");
+    for (const render of [() => renderToJson(<Boom />), () => renderToHtml(<Boom />)]) {
+      expect(render).toThrow(RenderError);
+      expect(render).toThrow(/^\[Unlayer\] no data \(in <Boom>\)$/);
+    }
+    expect(() => renderToJson(<Boom />)).toThrow(expect.objectContaining({ component: "Boom", cause }));
+    const Later = async () => <Email />;
+    expect(() => renderToJson(<Later />)).toThrow(
+      `[Unlayer] renderToJson: could not unwrap <Later>. Pass the root element (<Email>…</Email>), or a function component that returns one. (async and suspending templates need "@unlayer/react-elements/async"'s renderers, or their data loaded first and passed as props)`
+    );
   });
 
   it("unwraps a wrapper that uses hooks, also while the app is rendering", () => {
@@ -552,19 +562,25 @@ describe("renderToJson", () => {
 });
 
 describe("renderToJson with markup React rejects in a Column", () => {
-  it("leaves it out, with a message, and keeps the blocks around it", () => {
+  const email = (
+    <Email><Row><Column>
+      <Paragraph>Before the rule</Paragraph>
+      {React.createElement("hr", { style: "border-top:1px solid #eee" } as never)}
+      <Paragraph>After the rule</Paragraph>
+    </Column></Row></Email>
+  );
+
+  it("fails, naming it", () => {
+    expect(() => renderToJson(email)).toThrow(/^\[Unlayer\] The `style` prop expects a mapping .* \(in <hr> at Row 1 › Column 1 › hr\)$/);
+  });
+
+  it("with onError: \"omit\", leaves it out, with a message, and keeps the blocks around it", () => {
     const error = vi.spyOn(console, "error").mockImplementation(() => {});
     try {
-      const design = renderToJson(
-        <Email><Row><Column>
-          <Paragraph>Before the rule</Paragraph>
-          {React.createElement("hr", { style: "border-top:1px solid #eee" } as never)}
-          <Paragraph>After the rule</Paragraph>
-        </Column></Row></Email>
-      );
+      const design = renderToJson(email, { onError: "omit" });
       const text = JSON.stringify(design.body.rows[0].columns[0].contents.map((c: any) => c.type));
       expect(text).toBe('["text","text"]');
-      expect(error.mock.calls.some((call) => String(call[0]).includes("<hr>"))).toBe(true);
+      expect(error.mock.calls.map((call) => String(call[0]))).toEqual([expect.stringMatching(/^\[Unlayer\] Left out: The `style` prop .*\(in <hr> at Row 1 › Column 1 › hr\)$/)]);
     } finally {
       error.mockRestore();
     }
@@ -776,6 +792,11 @@ describe("renderToJson lengths", () => {
     expect(button._override.mobile.padding).toBe("0px 12px 0px");
     expect(design.body.rows[0].values.padding).toBe("0px 0px 8px 0px");
     expect(design.body.rows[0].columns[0].values).toMatchObject({ padding: "0px 16px", borderRadius: "0px 4px", border: { borderLeftWidth: "0px" } });
+  });
+
+  it("in the body's margins too: documentMargin, popupCloseButton_margin", () => {
+    const body = renderToJson(<Document values={{ documentMargin: "0 0 12px", popupCloseButton_margin: "0" } as never}><Row><Column><Paragraph>Hi</Paragraph></Column></Row></Document>).body.values as any;
+    expect(body).toMatchObject({ documentMargin: "0px 0px 12px", popupCloseButton_margin: "0px" });
   });
 
   it("leaves a length in another unit as it is, and the HTML as it was", () => {

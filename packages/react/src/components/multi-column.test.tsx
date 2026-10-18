@@ -68,11 +68,11 @@ describe("Multi-column layouts", () => {
     expect(container.textContent).toContain("Narrow");
   });
 
-  it("leaves out a Row whose Columns don't fit its layout, and says so", () => {
-    // ThreeEqual expects 3 columns but we give 2: that Row is left out (see nested-renders.test.tsx), the others render.
+  it("fails on a Row whose Columns don't fit its layout, or leaves it out where the root says (onError), saying so", () => {
+    // ThreeEqual expects 3 columns but we give 2 (see nested-renders.test.tsx).
     const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
-    const { container } = render(
-      <Body>
+    const body = (config?: { onError: "omit" }) => (
+      <Body config={config}>
         <Row layout={ColumnLayouts.ThreeEqual}>
           <Column><Paragraph>Only two</Paragraph></Column>
           <Column><Paragraph>columns</Paragraph></Column>
@@ -80,9 +80,13 @@ describe("Multi-column layouts", () => {
         <Row><Column><Paragraph>Kept</Paragraph></Column></Row>
       </Body>
     );
+    const said = "A Row with the ThreeEqual layout, for 3 Columns, has 2 (in <Row> at Row 1)";
+    expect(() => render(body())).toThrow(`[Unlayer] ${said}`);
+    errorSpy.mockClear();
+    const { container } = render(body({ onError: "omit" }));
     expect(container.textContent).not.toContain("Only two");
     expect(container.textContent).toContain("Kept");
-    expect(errorSpy).toHaveBeenCalledWith("[Unlayer] A Row with the ThreeEqual layout, for 3 Columns, has 2, so it's left out.");
+    expect(errorSpy.mock.calls).toEqual([[`[Unlayer] Left out: ${said}`]]);
     errorSpy.mockRestore();
   });
 

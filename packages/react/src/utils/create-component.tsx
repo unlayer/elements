@@ -7,8 +7,7 @@
  */
 
 import React from "react";
-import { collecting, RECORDS } from "./collect";
-import { recordBlock, whileCollecting } from "./record";
+import { RECORDS } from "./collect";
 import type { ExporterName } from "@unlayer/types";
 
 /** Exporter map keyed by display mode. Defined locally until added to @unlayer/types. */
@@ -17,6 +16,7 @@ import type { RenderMode, UnlayerConfig } from "@unlayer-internal/shared-element
 import type { ContentValues, DeviceProps, SizeInput } from "../types";
 import type { ValuesInput } from "@unlayer-internal/shared-elements";
 import { contentSlotWidth, DEFAULT_CONTAINER_PADDING, pinImageSrc, toPx } from "./image-sizing";
+import { guest, remember } from "./render-scope";
 import {
   mergeValues,
   generateHtmlFromTextJson,
@@ -38,6 +38,18 @@ export const UNLAYER_RENDER_KEY = "__unlayerRender";
  * Used by renderToJson to extract values without rendering to HTML.
  */
 export const UNLAYER_CONFIG_KEY = "__unlayerItemConfig";
+
+/** On this copy's roots and kept markup: Elements' own components, as its Rows, Columns and blocks are. */
+export const OWN = Symbol("@unlayer/react-elements/own");
+
+/**
+ * Elements' own components (roots, Rows, Columns, blocks, kept markup), which call no hooks: the engine renders
+ * Elements' markup calling them as they are (see the engine's renderStatic).
+ */
+export const isOwn = (type: unknown): boolean => {
+  const t = type as Record<PropertyKey, unknown> | null;
+  return !!t && !!(t[OWN] || t[UNLAYER_RENDER_KEY] || t[RECORDS]);
+};
 
 /**
  * Base props that all item components support
@@ -129,25 +141,9 @@ export type ItemComponentProps<TSemanticProps> = BaseItemComponentProps &
 // Internal: rendering helpers (merged from render-component.tsx)
 // ============================================
 
-interface ErrorFallbackProps {
-  type: string;
-  error: Error;
-  className?: string;
-  style?: React.CSSProperties;
-}
-
-/** Error fallback component shown when an exporter throws. */
-const ErrorFallback: React.FC<ErrorFallbackProps> = ({ type, className, style }) => (
-  <div className={className} style={style}>
-    <div style={{ padding: "20px", backgroundColor: "#fee", border: "1px solid #fcc", borderRadius: "4px", color: "#c33", textAlign: "center", fontFamily: "system-ui, sans-serif" }}>
-      <strong>{type} failed to render.</strong><br /><small>Check console for details.</small>
-    </div>
-  </div>
-);
-
-/** A tag's attribute `name` set: `edit` gives its value from the one it has, or it's added as `value`. */
+/** A tag's attribute `name` set: `edit` gives its value from the one it has, or it's added as `value` (a `$` in it as it is). */
 const attr = (tag: string, name: string, value: string, edit: (own: string) => string) =>
-  tag.includes(` ${name}="`) ? tag.replace(new RegExp(` ${name}="([^"]*)`), (_, own: string) => ` ${name}="${edit(own)}`) : tag.replace(/^<[\w:-]+/, `$& ${name}="${value}"`);
+  tag.includes(` ${name}="`) ? tag.replace(new RegExp(` ${name}="([^"]*)`), (_, own: string) => ` ${name}="${edit(own)}`) : tag.replace(/^<[\w:-]+/, (open) => `${open} ${name}="${value}"`);
 
 /**
  * A component's `style` and `className` on the tag that renders it (`at`, in its HTML): the escape hatch for CSS no
@@ -204,6 +200,8 @@ export function nextHtmlId(config: any, prefix: string): string {
  */
 export function safeName(value: unknown, spaces = false): string {
   const text = String(value ?? "");
+  // (Most are ids and class names Elements gives, which hold none of it.)
+  if (/^[\w-]*$/.test(text)) return text;
   // Class names apart on lines or by tabs stay apart, as the browser reads them.
   return spaces ? text.replace(/[\t\n\f\r]/g, " ").replace(/["'<>&`\u0000-\u001f\u007f]/g, "") : text.replace(/["'<>&`\s\u0000-\u001f\u007f]/g, "");
 }
@@ -226,31 +224,27 @@ export function rtlAlign(values: Record<string, any>, defaults: Record<string, a
   if (textDirectionOf(direction) === "rtl" && values.textAlign === undefined && defaults.textAlign === "left") values.textAlign = "right";
 }
 
-/**
- * Render a component by calling its exporter and wrapping the HTML output.
- * Handles error boundaries, exporterConfig construction, and container vs item calling conventions.
- */
 /** A direction the `dir` attribute takes (ltr, rtl, auto). Anything else is dropped: it's written into markup. */
 export function textDirectionOf(value: unknown): "ltr" | "rtl" | "auto" | undefined {
   const dir = typeof value === "string" ? value.trim().toLowerCase() : "";
   return dir === "ltr" || dir === "rtl" || dir === "auto" ? dir : undefined;
 }
 
+/**
+ * Render a component by calling its exporter and wrapping the HTML output. An exporter that throws fails the block
+ * (the Column rendering it says which, as `onError` says).
+ */
 function renderComponent<T = any>(config: RenderConfig<T>): JSX.Element {
-  const { type, values, className, style, args = [], _config, exporter, metaContext, at, given } = config;
-  try {
-    // exporterConfig from _config (falls back to defaults)
-    const cfg = _config ?? DEFAULT_CONFIG;
-    const exporterConfig = { generateHtmlFromTextJson, toSafeHtml: cfg.toSafeHtml, textDirection: textDirectionOf(cfg.textDirection), cdnBaseUrl: cfg.cdnBaseUrl };
-    // Item exporters' signature: (values, index, colIndex, cells, bodyValues, rowValues, embeddedValues, meta). Args 2-7
-    // are deprecated positional params; the 8th arg is a meta object with all context.
-    const html = exporter(values, ...args, undefined, { exporterConfig, mergeTagState: cfg.mergeTagState, ...metaContext });
-    // A string, with its `style` and `className` on the tag that renders it
-    return <div dangerouslySetInnerHTML={{ __html: hatch(String(html), at ?? /<[a-z][^>]*>/, style, className, given ?? {}) }} />;
-  } catch (error) {
-    console.error(`${type} rendering failed:`, error);
-    return <ErrorFallback type={type} error={error as Error} className={className} style={style} />;
-  }
+  const { values, className, style, args = [], _config, exporter, metaContext, at, given } = config;
+  // exporterConfig from _config (falls back to defaults)
+  const cfg = _config ?? DEFAULT_CONFIG;
+  const exporterConfig = { generateHtmlFromTextJson, toSafeHtml: cfg.toSafeHtml, textDirection: textDirectionOf(cfg.textDirection), cdnBaseUrl: cfg.cdnBaseUrl };
+  // Item exporters' signature: (values, index, colIndex, cells, bodyValues, rowValues, embeddedValues, meta). Args 2-7
+  // are deprecated positional params; the 8th arg is a meta object with all context. (A custom tool's exporter, and
+  // the config's `toSafeHtml`, are the user's: see `guest`.)
+  const html = guest(() => exporter(values, ...args, undefined, { exporterConfig, mergeTagState: cfg.mergeTagState, ...metaContext }));
+  // A string, with its `style` and `className` on the tag that renders it
+  return <div dangerouslySetInnerHTML={{ __html: hatch(String(html), at ?? /<[a-z][^>]*>/, style, className, given ?? {}) }} />;
 }
 
 /**
@@ -280,8 +274,8 @@ export function createItemComponent<
     props: ItemComponentProps<TSemanticProps>
   ): React.ReactElement | null {
     // Base props, then internal props (from the Column), children, and the semantic props.
-    const { mode: modeProp, className, style, index = 0, _metaHtmlId, colIndex = 0, cells = [], bodyValues = {}, rowValues = {}, columnValues = {}, _config, children, ...restProps } =
-      props as ItemComponentProps<TSemanticProps>;
+    const { mode: modeProp, className, style, index = 0, _metaHtmlId, colIndex = 0, cells = [], bodyValues = {}, rowValues = {}, columnValues = {}, _config, _record: _r, children, ...restProps } =
+      props as ItemComponentProps<TSemanticProps> & { _record?: unknown };
 
     // Resolve mode: explicit prop > _config > default
     const mode: RenderMode = modeProp ?? _config?.mode ?? "web";
@@ -292,8 +286,9 @@ export function createItemComponent<
     // A text block in a right-to-left document starts on the right, unless it's aligned (see rtlAlign).
     rtlAlign(mappedValues, config.defaultValues, _config?.textDirection ?? bodyValues.textDirection);
 
-    // 2. Merge with defaults
+    // 2. Merge with defaults (a built-in block's, which the head reuses: see remember)
     const finalValues = mergeValues(config.defaultValues, mappedValues);
+    if (!config.contentType) remember(_r as object | undefined, finalValues);
 
     // 3. Ensure _meta is present. The Column-allocated id wins so every
     //    instance is unique; the index fallback covers standalone renders.
@@ -347,13 +342,9 @@ export function createItemComponent<
     return renderComponent<TValues>({ type: config.name, values: valuesForExporter as TValues, mode, className, style, args: [index, colIndex, cells, safeBodyValues, rowValues], metaContext, _config, exporter, at: config.at, given: restProps as Record<string, unknown> });
   }
 
-  // Outer React component — hook-free, works in both Server and Client Components
-  const ItemComponent: React.FC<ItemComponentProps<TSemanticProps>> = (
-    props
-  ) => {
-    if (collecting()) return whileCollecting(() => recordBlock(ItemComponent, props as Record<string, any>), () => renderFn(props), ItemComponent.displayName ?? "Block");
-    return renderFn(props);
-  };
+  // Outer React component — hook-free, works in both Server and Client Components. A collecting walk records it (see
+  // record.tsx); rendered, it's its exporter's HTML.
+  const ItemComponent: React.FC<ItemComponentProps<TSemanticProps>> = (props) => renderFn(props);
 
   // Set display name for React DevTools
   ItemComponent.displayName = config.displayName || config.name;

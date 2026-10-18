@@ -10,7 +10,7 @@ Tailwind CSS 4 is an optional peer dependency. Only `@unlayer/react-elements/tai
 
 ## Render a template with classes
 
-Wrap the root in `<Tailwind>` (from `@unlayer/react-elements/tailwind`) and render with the async renderers, which that entry exports too (they're `@unlayer/react-elements/async`'s, the same functions). They compile the config first (asynchronously, once per config), then render, resolving async components too (see [Async templates](./async.md)):
+Wrap the root in `<Tailwind>` (from `@unlayer/react-elements/tailwind`) and render with the async renderers, which that entry exports too (they're `@unlayer/react-elements/async`'s, the same functions). They compile the config first (asynchronously, and keep it compiled for the next render: see [`loadTailwind`](#keep-the-synchronous-renderers)), then render, resolving async components too (see [Async templates](./async.md)):
 
 ```tsx
 import { Email, Row, Column, Heading, Paragraph, Button } from "@unlayer/react-elements";
@@ -39,7 +39,7 @@ const text = await renderToPlainText(welcome("Ada"));
 const design = await renderToJson(welcome("Ada")); // classes are props here, editable in the editor
 ```
 
-`config` takes what React Email's `<Tailwind config>` takes (`theme`, `presets`, `plugins`). A `<Tailwind>` without `config` uses Tailwind's default theme. The four async renderers (`renderToHtml`, `renderToPlainText`, `renderToJson`, `renderToHtmlParts`) take the same arguments as the ones from `@unlayer/react-elements` and return Promises. They load the Tailwind compiler only for a template with a config, from your `node_modules` when they run (so a bundle doesn't need `tailwindcss` unless you use it). Where there's no `node_modules` (an edge function), compile in the bundle instead: pass `tw={await loadTailwind(config)}` from `@unlayer/react-elements/tailwind`.
+`config` takes what React Email's `<Tailwind config>` takes (`theme`, `presets`, `plugins`). A `<Tailwind>` without `config` uses Tailwind's default theme. The four async renderers (`renderToHtml`, `renderToPlainText`, `renderToJson`, `renderToHtmlParts`) take the same arguments as the ones from `@unlayer/react-elements` and return Promises. They load the Tailwind compiler only for a template with a `<Tailwind>` (with a `config` or without one), from your `node_modules` when they run (so a bundle doesn't need `tailwindcss` unless you use it). Where there's no `node_modules` (an edge function), compile in the bundle instead: pass `tw={await loadTailwind(config)}` from `@unlayer/react-elements/tailwind`.
 
 ## Keep the synchronous renderers
 
@@ -58,7 +58,7 @@ renderToHtml(
 );
 ```
 
-`loadTailwind(config)` compiles each config once: a later call with the same config (the same object, or one with equal contents) returns the same handle. A config with functions (plugins) is cached by the object only, so define it once, outside your components.
+`loadTailwind(config)` compiles a config and keeps it: a later call with the same config (one with equal contents, or the same object holding what it held) returns the same handle. A config is known by what it holds when it's called, so one changed in place (a brand color made another) is compiled as it is then, and a handle compiled before keeps the theme it was compiled from. It keeps the 50 configs used last, so a server that renders each customer's theme doesn't keep every theme it has rendered: one used longer ago is compiled again when it's asked for, and a handle you hold keeps working. A handle that has read 2,000 different classes (classes made from data, like `w-[123px]`, keep coming) compiles a fresh compiler in the background and reads new classes with it once it's ready, so reading a new class stays fast and memory stays bounded; classes read the same with either. A fresh compiler that fails to compile (out of memory, say) is asked for again by the next class that needs one, up to three times in a row; after that, the handle keeps the compiler it has. A config with functions (plugins) can't be known by what it holds: it's compiled once per object, so define it once, outside your components, and give a changed config as a new object. One whose other settings changed in place is compiled again, with a warning; one whose functions changed in place isn't, as a function can't be compared.
 
 A synchronous renderer given `<Tailwind config>` without `tw` throws, telling you to pass `tw` or use the async renderers (`@unlayer/react-elements/async`). It throws every time, even when the async renderers compiled that config before: otherwise a template would render in development and fail on a cold serverless start.
 
@@ -79,7 +79,7 @@ Inside a `<Tailwind>`, `class` attributes in the markup of an `Html` block (and 
 // <p style="padding-top: 8px; padding-bottom: 8px; font-size: 14px; line-height: 1.4286; color: #6a7282">Sent by <a href="https://example.com" style="font-weight: 700; text-decoration: underline">Acme</a></p>
 ```
 
-An element's own `style` wins over its classes, as in the browser. Classes Tailwind doesn't know stay in the attribute, for a stylesheet of your own. Phone, breakpoint and hover variants (`max-sm:`, `sm:`, `hover:`) can't be inline styles: they're left out with a warning, as are classes that don't apply in an email. Script and style elements and comments are left as they are.
+An element's own `style` wins over its classes, as in the browser. Logical sides (`ps-*`, `border-e-*`, `rounded-ss-*`) are the element's: its own `dir` attribute, else the nearest element around it in the markup with one, else the root's direction (see [Right to left](#right-to-left)). Classes Tailwind doesn't know stay in the attribute, for a stylesheet of your own. Phone, breakpoint and hover variants (`max-sm:`, `sm:`, `hover:`) can't be inline styles: they're left out with a warning, as are classes that don't apply in an email. So is whether the element shows (`display`, `visibility`) where a phone or breakpoint variant changes it, as inline it would apply on that screen too: `hidden md:block` would hide the element on every screen, so neither is inlined, and the element shows everywhere, the safer mistake (a class a `hover:` variant changes is inlined: without hover, the element is as it says). Any other class is inlined as it is on every screen, and its variant, which can't apply, is said: `px-4 md:pl-2` gives `padding-left: 16px; padding-right: 16px`. In a `<Markdown>`'s HTML, which is sanitized, a class whose CSS could load or run something (`bg-[url(…)]`) isn't inlined either (see [Markdown](./markdown.md#links-images-and-raw-html)). The markup is read as a browser reads it, and only its class attributes and the styles they give are written again: a tag's first `class` is its class (a browser ignores the others), and comments, the text of `<script>`, `<style>`, `<textarea>` and `<title>` elements, and what isn't a tag (a `class=` in another attribute's value, a `<` that starts no tag) are left as they are.
 
 ## What each class becomes
 
@@ -95,7 +95,7 @@ Colors come out as hex, or `rgba()` when translucent: Tailwind's `oklch()` palet
 | `text-left`, `text-center`, `text-right` | `Paragraph`, `Heading`, `Button`, `Image`, `Divider` / `Menu`, `Social` | `textAlign` / `align` (a Button's is where it sits in its column: its label stays centered) |
 | `p-*` | `Row`, `Column`, `Button` | `padding` (a Button's is inside it; a Row's insets its content, see below) |
 | `m-*` | `Column` | the space around it: its gutter (see [Card grids](#card-grids)) |
-| `p-*`, `m-*` | content blocks | `containerPadding`, margins and padding added up; sides the classes don't set keep 10px |
+| `p-*`, `m-*` | content blocks | `containerPadding`, margins and padding added up (where they can't be, as `5%` and `8px`, the padding stays and Elements says the margin is ignored); sides the classes don't set keep 10px |
 | `border*`, `border-{color}`, `border-dashed` | `Column`, `Button` / `Divider` | the `border` sides / its line (the top border); a width without a color class is in the text color, as Tailwind's `currentColor` |
 | `rounded-*` | `Column`, `Button` | `borderRadius` |
 | `w-*` | `Button`, `Image`, `Divider` / root | `width` (pixels or %; an Image's `w-auto` is its auto width) / `contentWidth` |
@@ -103,9 +103,11 @@ Colors come out as hex, or `rgba()` when translucent: Tailwind's `oklch()` palet
 | `hover:bg-*`, `hover:text-*` | `Button` | `hoverBackgroundColor`, `hoverColor` (without them it keeps its colors on hover) |
 | `hidden` | `Row`, content blocks | `hideOnDesktop` and `hideOnMobile` |
 
-A Row's `p-*` classes inset its content, as in CSS: they go to its Columns' padding, added to theirs (top and bottom to each Column, left to the first and right to the last; on phones, where Columns stack, the sides to each, the top to the first and the bottom to the last), so a `bg-*` covers them. A Column's `m-*` classes are the space around it, between it and the next, added the same way. That's unlike the Row's `padding` prop, which is the editor's, around the row, outside its content background (see Row in the [React API reference](../README.md)).
+A Row's `p-*` classes inset its content, as in CSS: they go to its Columns' padding, added to theirs (top and bottom to each Column, left to the first and right to the last, or right to left the right to the first and the left to the last; on phones, where Columns stack, the sides to each, the top to the first and the bottom to the last), so a `bg-*` covers them. A Column's `m-*` classes are the space around it, between it and the next, added the same way. That's unlike the Row's `padding` prop, which is the editor's, around the row, outside its content background (see Row in the [React API reference](../README.md)).
 
 A Button's `text-left`, `text-center` and `text-right` are its `textAlign`: where the button sits in its column, as `text-center` on its container places an inline-block link in CSS. Its label stays centered in it, so on a fixed or full-width button (`w-48`, `w-full`) `text-left` doesn't move the label to the left, as it would in CSS.
+
+Logical classes (`ps-*`, `pe-*`, `ms-*`, `me-*`, `border-s-*`, `border-e-*`, `rounded-s-*`, `rounded-ss-*`, `text-start`, `text-end`) start on the left, or on the right in a right-to-left template: see [Right to left](#right-to-left).
 
 A border width without a color class (`border`, `border-t-2`) is drawn in the text color, as Tailwind's `currentColor` is (from its preflight): a Button's in its label's color, a Column's or a Divider's in its own text color class's, else the text color around it (a Row's, the root's, the body's default black).
 
@@ -132,6 +134,29 @@ A `Row`'s, a `Column`'s or the root's text color, alignment, font family, size, 
 - **Case, italics and decoration** (`uppercase`, `italic`, `underline`) have no props on any block: they stay an inline style on the container, which the text inside takes as in CSS (HTML only, said).
 
 Without classes around them, blocks keep their defaults (a Paragraph's 14px, left-aligned), as the editor's do.
+
+## Right to left
+
+Tailwind's logical classes follow the template's direction, as CSS's logical properties do: in `<Email textDirection="rtl">` (or a root `config`, an `<UnlayerProvider>` or renderer option that sets `textDirection: "rtl"`), inline start is the right. Email clients read only physical sides, so each class becomes the side it is in that direction, in the HTML and the design alike:
+
+```tsx
+<Tailwind tw={tw}>
+  <Email textDirection="rtl">
+    <Row>
+      <Column className="ps-4 border-s-2 rounded-s-lg">
+        <Paragraph className="text-start">مرحبا</Paragraph>
+      </Column>
+    </Row>
+  </Email>
+</Tailwind>
+// The Column: padding="0px 16px 0px 0px", its border on the right, borderRadius="0px 8px 8px 0px"; the Paragraph
+// textAlign="right". Left to right, the same classes are the left.
+```
+
+- `ps-*`, `pe-*`, `ms-*`, `me-*`, `border-s-*` and `border-e-*` (widths and colors), `rounded-s-*`, `rounded-e-*` and the corners (`rounded-ss-*`, `rounded-se-*`, `rounded-es-*`, `rounded-ee-*`), and `text-start` and `text-end`, theirs or around them.
+- A Row's Columns are laid out from the right, so the Row's padding on the right is the first Column's and its padding on the left the last Column's, whether a class says `pe-*` or `pl-*`; stacked on phones, the first is still on top.
+- In an Html block's markup, an element's own `dir="rtl"` or `dir="ltr"` decides for it and what's in it, over the root's (`ltr` inside a right-to-left email keeps its logical sides on the left). An element whose end tag is left out (a `<p>` or `<li>` can be) is taken to hold what follows it, up to its parent's end tag.
+- `textDirection: "auto"` (and `dir="auto"`), which depends on the text, reads as left to right. Logical classes no prop takes (`start-*`, `float-start`, `scroll-ms-*`) stay as they are in an inline style, which the browser places by the direction.
 
 ## Images
 
@@ -175,7 +200,9 @@ A class that can't apply in an email is never dropped silently either: Elements 
 [Unlayer] Paragraph has no phone setting for `color` (class `max-sm:text-red-500`).
 ```
 
-Left out: dark mode, print, `focus:` and other states, group and peer variants, classes that style other elements (`space-y-*`), negative or automatic margins (`mx-auto`), phone, breakpoint and hover variants of what no prop takes (an inline style applies everywhere), and classes Tailwind doesn't know. Use the component's props for what classes can't express.
+Left out: dark mode, print, `focus:` and other states, group and peer variants, classes that style other elements (`space-y-*`), negative or automatic margins (`mx-auto`), phone, breakpoint and hover variants of what no prop takes (an inline style applies everywhere), and classes Tailwind doesn't know. So is a class with a bracket, a parenthesis or a quote left open, or a comment, in it (`[color:x(]`): it isn't a class Tailwind can read here, and it's never compiled, so it can't change how the classes after it read (Tailwind's compiler keeps every class it has compiled, for every render that uses the same `tw`). Use the component's props for what classes can't express.
+
+Should Tailwind still give CSS Elements can't read for some other class (none is known to: this is a safeguard), the classes compiled with it are left out, the classes read before keep reading as they did, and the handle compiles a fresh compiler in the background, as nothing more can be compiled on that one. Till it's ready, the classes of that compile and any new class are left out, said as `it's read once Tailwind has compiled again, after a class it couldn't read`: a render that meets one then renders without it, and the renders after the fresh compiler is ready render with it (Tailwind compiles only asynchronously, so this can't happen in the same render). On the fresh compiler, each class of that compile is compiled alone first, and the one Elements couldn't read is never compiled again. If the fresh compiler fails three times in a row, new classes aren't read with that `tw` again, and that's said with Tailwind's error.
 
 ## Inspect what a class gives
 

@@ -13,6 +13,7 @@ import Email from "../components/Email";
 import Page from "../components/Page";
 import Document from "../components/Document";
 import { ColumnLayouts } from "../layouts/ColumnLayouts";
+import { RenderError } from "@unlayer-internal/shared-elements";
 
 describe("renderToHtml", () => {
   it("generates unique element ids across the whole tree (no duplicates)", () => {
@@ -73,18 +74,32 @@ describe("renderToHtml", () => {
     expect(html).toContain("No config");
   });
 
-  it("throws with helpful message on render failure", () => {
+  it("throws a RenderError naming the component that failed", () => {
     // A component that throws during render
     const Broken = () => { throw new Error("boom"); };
-    expect(() => renderToHtml(<Broken />)).toThrow("[Unlayer] renderToHtml failed: boom");
+    expect(() => renderToHtml(<Broken />)).toThrow("[Unlayer] boom (in <Broken>)");
+    expect(() => renderToHtml(<Broken />)).toThrow(RenderError);
   });
 
-  it("includes tip in error message", () => {
-    const Broken = () => { throw new Error("test"); };
+  it("keeps the original error as the cause, so its stack points at the line that threw", () => {
+    const original = new Error("boom");
+    const Broken = () => { throw original; };
     try {
       renderToHtml(<Broken />);
+      expect.unreachable();
     } catch (e: any) {
-      expect(e.message).toContain("Body > Row > Column > Item");
+      expect(e.cause).toBe(original);
+    }
+  });
+
+  it("says where a component in the template is", () => {
+    const Broken = () => { throw new Error("test"); };
+    const Card = () => <Broken />;
+    try {
+      renderToHtml(<Email><Row><Column><Paragraph>Hi</Paragraph></Column><Column><Card /></Column></Row></Email>);
+      expect.unreachable();
+    } catch (e: any) {
+      expect(e).toMatchObject({ message: "[Unlayer] test (in <Broken> at Row 1 › Column 2 › Card › Broken)", component: "Broken", position: "Row 1 › Column 2 › Card › Broken" });
     }
   });
 
@@ -391,7 +406,7 @@ describe("renderToHtml with a template component", () => {
     expect(warnings.join()).toContain("couldn't unwrap");
   });
 
-  it("unwraps StrictMode and Profiler, keeping the root's settings; says why a class template isn't unwrapped", () => {
+  it("unwraps StrictMode, Profiler and Suspense, and a class template, keeping the root's settings", () => {
     const warnings: string[] = [];
     const warn = console.warn;
     console.warn = (message: string) => void warnings.push(message);
@@ -401,13 +416,16 @@ describe("renderToHtml with a template component", () => {
     try {
       expect(renderToHtml(<React.StrictMode><Welcome name="Ada" /></React.StrictMode>)).toBe(direct);
       expect(renderToHtml(<React.Profiler id="email" onRender={() => {}}><Welcome name="Ada" /></React.Profiler>)).toBe(direct);
+      // (Its fallback isn't a root: what's in it is the document, see the async renderers' tests.)
+      expect(renderToHtml(<React.Suspense fallback={<p>Loading</p>}><Welcome name="Ada" /></React.Suspense>)).toBe(direct);
+      expect(renderToHtml(React.createElement(Symbol.for("react.suspense_list") as unknown as React.ElementType, null, <Welcome name="Ada" />))).toBe(direct);
       expect(warnings).toEqual([]);
-      // A class renders through React, as in 0.1.22, and the message says why its root's settings aren't read.
-      expect(renderToHtml(<Template name="Ada" />)).toContain("Hello Ada");
+      // A class is constructed and rendered to find its root, as a function is called.
+      expect(renderToHtml(<Template name="Ada" />)).toBe(direct);
     } finally {
       console.warn = warn;
     }
-    expect(warnings.join()).toContain("couldn't unwrap <Template> (<Template> is a class component");
+    expect(warnings).toEqual([]);
   });
 
   it("says nothing when the template has no root whose settings go unread (Rows, nothing, a list), as 0.1.22", () => {
@@ -436,6 +454,24 @@ describe("renderToHtml with a template component", () => {
     const Layout = (props: { name: string }) => root(props);
     Layout.displayName = "Row";
     expect(JSON.stringify(renderToJson(<Layout name="Ada" />))).toContain("Hello Ada");
+  });
+
+  it.each([
+    ["Email", Email],
+    ["Body", Body],
+    ["Page", Page],
+    ["Document", Document],
+  ] as const)("calls a component of the user's own named like a root (`displayName = \"%s\"`), in the HTML and the design alike", (name, Root) => {
+    // A design-system wrapper of the root, named after it: it renders as written, the props it sets included.
+    const Branded = (props: React.ComponentProps<typeof Body>) => <Root backgroundColor="#f4f4f4" contentWidth="560px" {...props} />;
+    Branded.displayName = name;
+    const content = <Row><Column><Paragraph>Hello</Paragraph></Column></Row>;
+    const written = <Root backgroundColor="#f4f4f4" contentWidth="560px" textColor="#333333">{content}</Root>;
+    const html = renderToHtml(<Branded textColor="#333333">{content}</Branded>);
+    expect(html).toBe(renderToHtml(written));
+    expect(html).toContain("#f4f4f4");
+    expect(renderToJson(<Branded textColor="#333333">{content}</Branded>)).toEqual(renderToJson(written));
+    expect(renderToJson(<Branded>{content}</Branded>).body.values).toMatchObject({ backgroundColor: "#f4f4f4", contentWidth: "560px" });
   });
 
   it("says an async template isn't supported", () => {
@@ -538,12 +574,50 @@ describe("renderToHtml inside a React render", () => {
     const out = renderToString(<App />);
     expect(out).toContain("Hello Ada");
     expect(out).toContain("dir=&quot;rtl&quot;");
-    expect(out).toMatch(/data-id=":R[^"]*:"/);
+    expect(out).toMatch(/data-id="(:R[^"]*:|«R[^"]*»|_R_[^"]*_)"/);
   });
 
   it("keeps the root's settings for a template that uses hooks, outside a render too", () => {
     const html = renderToHtml(<Template name="Ada" />);
     expect(html).toContain("Hello Ada");
     expect(html).toContain('dir="rtl"');
+  });
+});
+
+describe("idPrefix", () => {
+  // The useId()s of a template wrapper (the preview text) and of a component in it (a Paragraph's text).
+  const Named = () => <Paragraph html={`content ${React.useId()}`} />;
+  const Template = ({ config }: { config?: { idPrefix?: string } }) => (
+    <Email config={config} previewText={`wrapper ${React.useId()}`}>
+      <Row>
+        <Column>
+          <Named />
+        </Column>
+      </Row>
+    </Email>
+  );
+  /** The ids in HTML (any React's format), and what's before each: `wrapper ` or `content `. */
+  const ids = (html: string) => [...html.matchAll(/(wrapper|content) ([:«_][^\s<"]*?R[^\s<"]*?[:»_])(?=[\s<"])/g)].map((m) => `${m[1]} ${m[2]}`);
+  const prefixed = (prefix: string, list: string[]) => list.map((id) => id.replace(/([:«_])R/, `$1${prefix}R`));
+
+  it("starts the template's useId()s with it, as React's identifierPrefix, in the HTML and the design", async () => {
+    const plain = ids(renderToHtml(<Template />));
+    expect(plain.map((id) => id.split(" ")[0])).toEqual(["wrapper", "content"]);
+    expect(ids(renderToHtml(<Template />, { idPrefix: "em-" }))).toEqual(prefixed("em-", plain));
+    const design = ids(JSON.stringify(renderToJson(<Template />)));
+    expect(design.map((id) => id.split(" ")[0]).sort()).toEqual(["content", "wrapper"]);
+    expect(ids(JSON.stringify(renderToJson(<Template />, { idPrefix: "em-" })))).toEqual(prefixed("em-", design));
+    const { renderToHtml: renderAsync } = await import("../async");
+    expect(ids(await renderAsync(<Template />, { idPrefix: "em-" }))).toEqual(prefixed("em-", plain));
+  });
+
+  it("is the root's config's for its content, and an <UnlayerProvider>'s for the template inside it too", async () => {
+    const { UnlayerProvider } = await import("../context");
+    const plain = ids(renderToHtml(<Template />));
+    // (The wrapper is called before the root's config is read.)
+    expect(ids(renderToHtml(<Template config={{ idPrefix: "root-" }} />))).toEqual([plain[0], ...prefixed("root-", plain.slice(1))]);
+    expect(ids(renderToHtml(<UnlayerProvider config={{ idPrefix: "p-" }}><Template /></UnlayerProvider>))).toEqual(prefixed("p-", plain));
+    // The render's option wins.
+    expect(ids(renderToHtml(<UnlayerProvider config={{ idPrefix: "p-" }}><Template config={{ idPrefix: "root-" }} /></UnlayerProvider>, { idPrefix: "em-" }))).toEqual(prefixed("em-", plain));
   });
 });

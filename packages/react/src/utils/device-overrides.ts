@@ -41,6 +41,7 @@ function size(value: unknown): string | undefined {
 }
 
 export function collectDeviceStyles(values: Record<string, any>, collection: Collection, name: string, mode: RenderMode, styles: DeviceStyles): void {
+  if (!values._override) return;
   // The id the block's HTML has, escaped.
   const given = safeName(values._meta?.htmlID);
   if (!given) return;

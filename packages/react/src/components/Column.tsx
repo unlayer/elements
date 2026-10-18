@@ -2,12 +2,13 @@ import React from "react";
 import type { RenderMode, UnlayerConfig, ColumnValues } from "@unlayer-internal/shared-elements";
 import { ColumnExporters, ContentExporters } from "@unlayer/exporters";
 import { UNLAYER_RENDER_KEY, UNLAYER_CONFIG_KEY, nextHtmlId, safeName, safeMeta, hatch } from "../utils/create-component";
+import { RenderError } from "@unlayer-internal/shared-elements";
 import { mapSemanticProps, type SemanticProps } from "../utils/semantic-props";
 import type { DeviceProps, SizeInput, BorderInput } from "../types";
 import { COLUMN_DEFAULTS } from "../utils/container-defaults";
-import { looseText } from "../utils/render-scope";
-import { collecting, RECORDS } from "../utils/collect";
-import { recordContainer, whileCollecting } from "../utils/record";
+import { failed, failedBefore, looseText, remember } from "../utils/render-scope";
+import { RECORDS, whereIs } from "../utils/collect";
+import { renderContainer } from "../utils/container-render";
 import { DEFAULT_CONTAINER_PADDING } from "../utils/image-sizing";
 
 /** Unlayer's default content-block padding when a block sets none. */
@@ -83,8 +84,11 @@ export type ColumnProps = Omit<SemanticProps<ColumnValues>, "padding" | "border"
   _config?: UnlayerConfig;
 };
 
-export const Column: React.FC<ColumnProps> = (props) => {
-  if (collecting()) return whileCollecting(() => recordContainer("column", props), () => Column(props), "Column");
+// A collecting walk records a Column (see utils/record.tsx); rendered, it's the collected Column's HTML.
+export const Column: React.FC<ColumnProps> = (props) =>
+  renderContainer("Column", (props as { _record?: object })._record, `Column ${(props.index ?? 0) + 1}`, () => renderColumn(props));
+
+function renderColumn(props: ColumnProps): React.ReactElement {
   const {
     children,
     index = 0,
@@ -95,103 +99,109 @@ export const Column: React.FC<ColumnProps> = (props) => {
     className,
     style,
     _config,
+    _record,
     ...semanticProps
-  } = props;
+  } = props as ColumnProps & { _record?: object };
 
   // Resolve mode: explicit prop > _config > default
   const mode: RenderMode = modeProp ?? _config?.mode ?? "web";
 
-  // Map semantic props to values
+  // Map semantic props to values (which the head reuses: see remember)
   const values = mapSemanticProps<ColumnValues>(semanticProps as SemanticProps<ColumnValues>, DEFAULT_VALUES, "Column");
+  remember(_record, values);
 
   // Add _meta (an id or class names given in values kept to what they can hold, as for rows and blocks)
   const valuesWithMeta = { ...values, _meta: safeMeta({ htmlID: nextHtmlId(_config, "u_column"), htmlClassNames: "u_column", ...(values._meta || {}) }) };
 
   // Render children to HTML - extract from dangerouslySetInnerHTML
   let innerHTML = "";
-  try {
-    for (const child of React.Children.toArray(children)) {
-      if (typeof child === "string" || typeof child === "number") {
-        innerHTML += looseText(child, "Column");
-        continue;
-      }
-      // Call component function to get rendered result
-      if (!React.isValidElement(child) || typeof child.type !== "function") continue;
-      const ComponentType = child.type as any;
-      const config = ComponentType[UNLAYER_CONFIG_KEY];
-      // Use __unlayerRender (hook-free) if available, otherwise call directly
-      const renderFn: Function = ComponentType[UNLAYER_RENDER_KEY] || ComponentType;
-      // Allocate the content id BEFORE rendering and thread it in, so the value-level _meta.htmlID exporters see
-      // (custom tool head css scopes on it) is unique per instance and matches both the wrapper id and the
-      // head-extraction/json numbering. Custom tools carry an explicit meta base (custom_<slug>); built-ins derive it
-      // from the component name.
-      const componentName = config?.metaName ?? (ComponentType.displayName || ComponentType.name || "component").toLowerCase();
-      const contentHtmlId = nextHtmlId(_config, `u_content_${componentName}`);
-      // Thread the column/body context so width-aware item exporters (Image) can size against the real available width
-      // (contentWidth × column fraction) instead of the fallback. Mirrors the editor, which passes this context to the
-      // content exporters.
-      const rendered = renderFn({ ...child.props, _config, _metaHtmlId: contentHtmlId, colIndex: index, cells, bodyValues, rowValues, columnValues: valuesWithMeta });
-
-      // Extract HTML from dangerouslySetInnerHTML
-      const inner = rendered?.props?.dangerouslySetInnerHTML;
-      if (!inner) {
-        if (rendered) console.warn(`Column: <${ComponentType.displayName || ComponentType.name || "Unknown"}> did not produce renderable HTML. Ensure it is an Unlayer component (Button, Text, Image, etc.).`);
-        continue;
-      }
-      const componentHTML = inner.__html;
-
-      // Some components intentionally produce no output in unsupported modes. Do not turn that into a padded
-      // content wrapper.
-      if (!componentHTML && config?.omitEmptyOutput) continue;
-
-      // Resolve the block's OWN containerPadding directly from props. `containerPadding` is a universal base-content
-      // prop: it passes straight through mapSemanticProps untouched and is not present in any item's defaultValues,
-      // so reading it from props (flat prop + `values` escape hatch) is equivalent to running the item's full value
-      // pipeline — without paying for a second propMapper call per child (for Paragraph that re-runs the Lexical
-      // textJson convert). Falls back to Unlayer's content default; a bare number is px.
-      const childProps = child.props as {
-        containerPadding?: string | number;
-        skipInText?: boolean;
-        hideOnMobile?: boolean;
-        hideOnDesktop?: boolean;
-        values?: { containerPadding?: string | number; _override?: Record<string, any>; _meta?: Record<string, any> };
-      };
-      const rawContainerPadding = childProps.containerPadding ?? childProps.values?.containerPadding ?? DEFAULT_CONTAINER_PADDING;
-      const containerPadding = typeof rawContainerPadding === "number" ? `${rawContainerPadding}px` : rawContainerPadding;
-
-      // A custom tool's props are its own values, as in 0.1.22: a `hideOnMobile` of its own isn't a device setting.
-      const device = config?.contentType === "custom" ? {} : childProps;
-      const override = childProps.values?._override;
-
-      // Wrap via the canonical content-container exporter for this mode.
-      const contentValues = {
-        containerPadding,
-        _override: {
-          ...override,
-          mobile: { ...override?.mobile, ...(device.hideOnMobile !== undefined ? { hideMobile: device.hideOnMobile } : {}) },
-          desktop: { ...override?.desktop, ...(device.hideOnDesktop !== undefined ? { hideDesktop: device.hideOnDesktop } : {}) },
-        },
-        _meta: { htmlID: contentHtmlId, htmlClassNames: `u_content_${componentName}`, ...(childProps.values?._meta?.htmlID ? { htmlID: safeName(childProps.values._meta.htmlID) } : {}) },
-      };
-      const content = renderContentToHtml(componentHTML, contentValues, bodyValues, mode);
-      // `skipInText`: the block isn't in the plain text.
-      innerHTML += childProps.skipInText ? content.replace(/<[a-z]+/, '$& data-skip-in-text="true"') : content;
+  for (const child of React.Children.toArray(children)) {
+    if (typeof child === "string" || typeof child === "number") {
+      innerHTML += looseText(child, "Column");
+      continue;
     }
-  } catch (error) {
-    console.error("Column: Failed to render children:", error);
-    innerHTML = "";
+    // Call component function to get rendered result
+    if (!React.isValidElement(child) || typeof child.type !== "function") continue;
+    // A block whose exporter failed in this render, rendered again with its Row (a Column of it was left out).
+    if (failedBefore((child.props as { _record?: object })._record)) continue;
+    const ComponentType = child.type as any;
+    const config = ComponentType[UNLAYER_CONFIG_KEY];
+    // Use __unlayerRender (hook-free) if available, otherwise call directly
+    const renderFn: Function = ComponentType[UNLAYER_RENDER_KEY] || ComponentType;
+    // Allocate the content id BEFORE rendering and thread it in, so the value-level _meta.htmlID exporters see
+    // (custom tool head css scopes on it) is unique per instance and matches both the wrapper id and the
+    // head-extraction/json numbering. Custom tools carry an explicit meta base (custom_<slug>); built-ins derive it
+    // from the component name.
+    const componentName = config?.metaName ?? (ComponentType.displayName || ComponentType.name || "component").toLowerCase();
+    const contentHtmlId = nextHtmlId(_config, `u_content_${componentName}`);
+    // Thread the column/body context so width-aware item exporters (Image) can size against the real available width
+    // (contentWidth × column fraction) instead of the fallback. Mirrors the editor, which passes this context to the
+    // content exporters.
+    let rendered: any;
+    try {
+      rendered = renderFn({ ...child.props, _config, _metaHtmlId: contentHtmlId, colIndex: index, cells, bodyValues, rowValues, columnValues: valuesWithMeta });
+    } catch (error) {
+      // Its exporter failed: the render fails, or (`onError: "omit"`) it's left out of the HTML, and by its record
+      // (src/model gives it) of the head and the design too; the next block takes its id.
+      const ids = (_config as { __ids?: Record<string, number> } | undefined)?.__ids;
+      if (ids) ids[`u_content_${componentName}`]--;
+      const record = (child.props as { _record?: { where?: () => string } })._record;
+      const name = config?.name ?? (ComponentType.displayName || ComponentType.name || "Block");
+      failed(error instanceof RenderError ? error : new RenderError(`${name} failed to render: ${String((error as Error)?.message ?? error)}`, name, whereIs(record) ?? `Column ${index + 1} › ${name}`, error), record);
+      continue;
+    }
+
+    // Extract HTML from dangerouslySetInnerHTML
+    const inner = rendered?.props?.dangerouslySetInnerHTML;
+    if (!inner) {
+      if (rendered) console.warn(`Column: <${ComponentType.displayName || ComponentType.name || "Unknown"}> did not produce renderable HTML. Ensure it is an Unlayer component (Button, Text, Image, etc.).`);
+      continue;
+    }
+    const componentHTML = inner.__html;
+
+    // Some components intentionally produce no output in unsupported modes. Do not turn that into a padded
+    // content wrapper.
+    if (!componentHTML && config?.omitEmptyOutput) continue;
+
+    // Resolve the block's OWN containerPadding directly from props. `containerPadding` is a universal base-content
+    // prop: it passes straight through mapSemanticProps untouched and is not present in any item's defaultValues,
+    // so reading it from props (flat prop + `values` escape hatch) is equivalent to running the item's full value
+    // pipeline — without paying for a second propMapper call per child (for Paragraph that re-runs the Lexical
+    // textJson convert). Falls back to Unlayer's content default; a bare number is px.
+    const childProps = child.props as {
+      containerPadding?: string | number;
+      skipInText?: boolean;
+      hideOnMobile?: boolean;
+      hideOnDesktop?: boolean;
+      values?: { containerPadding?: string | number; _override?: Record<string, any>; _meta?: Record<string, any> };
+    };
+    const rawContainerPadding = childProps.containerPadding ?? childProps.values?.containerPadding ?? DEFAULT_CONTAINER_PADDING;
+    const containerPadding = typeof rawContainerPadding === "number" ? `${rawContainerPadding}px` : rawContainerPadding;
+
+    // A custom tool's props are its own values, as in 0.1.22: a `hideOnMobile` of its own isn't a device setting.
+    const device = config?.contentType === "custom" ? {} : childProps;
+    const override = childProps.values?._override;
+
+    // Wrap via the canonical content-container exporter for this mode.
+    const contentValues = {
+      containerPadding,
+      _override: {
+        ...override,
+        mobile: { ...override?.mobile, ...(device.hideOnMobile !== undefined ? { hideMobile: device.hideOnMobile } : {}) },
+        desktop: { ...override?.desktop, ...(device.hideOnDesktop !== undefined ? { hideDesktop: device.hideOnDesktop } : {}) },
+      },
+      _meta: { htmlID: contentHtmlId, htmlClassNames: `u_content_${componentName}`, ...(childProps.values?._meta?.htmlID ? { htmlID: safeName(childProps.values._meta.htmlID) } : {}) },
+    };
+    const content = renderContentToHtml(componentHTML, contentValues, bodyValues, mode);
+    // `skipInText`: the block isn't in the plain text.
+    innerHTML += childProps.skipInText ? content.replace(/<[a-z]+/, '$& data-skip-in-text="true"') : content;
   }
 
-  try {
-    // Its `style` and `className` on its column cell (see hatch).
-    const html = hatch(renderColumnToHtml(innerHTML, valuesWithMeta, index, cells, bodyValues, rowValues, mode), /<div[^>]*class="u-col[ "][^>]*>/, style, className, semanticProps);
-
-    return <div dangerouslySetInnerHTML={{ __html: html }} />;
-  } catch (error) {
-    console.error("Column rendering failed:", error);
-    return <div className={className} style={style}>{children}</div>;
-  }
-};
+  // Its `style` and `className` on its column cell (see hatch). Its exporter failing fails it, or leaves it out (see
+  // renderContainer).
+  const html = hatch(renderColumnToHtml(innerHTML, valuesWithMeta, index, cells, bodyValues, rowValues, mode), /<div[^>]*class="u-col[ "][^>]*>/, style, className, semanticProps);
+  return <div dangerouslySetInnerHTML={{ __html: html }} />;
+}
 
 Column.displayName = "Column";
 (Column as unknown as Record<symbol, boolean>)[RECORDS] = true;

@@ -18,7 +18,7 @@ import type {
   DesignContent,
   UnlayerConfig,
 } from "@unlayer-internal/shared-elements";
-import { mergeValues, pxZeros, textJsonToText } from "@unlayer-internal/shared-elements";
+import { mergeValues, pxMerged, pxZeros, textJsonToText } from "@unlayer-internal/shared-elements";
 // Schema version from the exporters bundle — matches the editor's currentVersion
 // at the time the exporters were generated. This ensures renderToJson output is
 // recognized as current by the editor, skipping unnecessary migrations.
@@ -26,16 +26,19 @@ import { mergeValues, pxZeros, textJsonToText } from "@unlayer-internal/shared-e
 import { schemaVersion as _schemaVersion } from "@unlayer/exporters";
 const schemaVersion: number = _schemaVersion ?? 24;
 import { mapSemanticProps } from "./semantic-props";
-import { componentName, getDisplayName, providedConfig, ROOT_NAMES, unwrapRoot, UNWRAP_ADVICE } from "./unwrap-root";
+import { ASYNC_TEMPLATE, componentName, getDisplayName, providedConfig, unwrapRoot, UNWRAP_ADVICE } from "./unwrap-root";
+import { rootName } from "./root-type";
 import { rootConfig, rootMode, type RootConfigProps } from "../context/layer-config";
 import { BODY_DEFAULTS, ROW_DEFAULTS, COLUMN_DEFAULTS } from "./container-defaults";
 import { contentSlotWidth, pinImageSrc, type SlotContext } from "./image-sizing";
-import { sayOnce, withRenderScope } from "./render-scope";
-import { collect, KEPT, normalizedChildren, normalizedRoot } from "./normalize";
+import { failedBefore, sayOnce, setRenderConfig, withOwnScope } from "./render-scope";
+import { renderBody } from "./render-to-html";
+import { collect, KEPT, normalizedChildren, normalizedRoot } from "../model";
 import type { Recorded } from "./collect";
 import { rtlAlign, textDirectionOf, UNLAYER_CONFIG_KEY } from "./create-component";
 import { TAILWIND } from "./tailwind";
 import { fontUrlInDesign, safeUrl, urlFamilies } from "./font-design";
+import { omits } from "../engine/errors";
 
 /** Layout context threaded down the walk so an image can be sized against the
  *  real column slot (contentWidth × column share, minus paddings/borders). */
@@ -53,22 +56,31 @@ type LayoutContext = Pick<
 /**
  * Unwrap a user wrapper component (e.g. `renderToJson(<MyEmail/>)`) down to
  * its root element: renderToJson walks the element tree, so the wrapper must
- * be called first. A wrapper that throws (React hooks aren't valid outside a
- * render) gets an actionable message instead of a bare "Invalid hook call".
+ * be called first. What a wrapper throws is thrown as renderToHtml throws it
+ * (a RenderError naming it, with its `cause`); an async template, which this
+ * renderer can't wait for, says what to do instead.
  */
-function unwrapForJson(element: React.ReactElement): React.ReactElement {
+function unwrapForJson(element: React.ReactElement, idPrefix?: string): React.ReactElement {
   try {
-    return unwrapRoot(element);
+    return unwrapRoot(element, idPrefix).root;
   } catch (cause) {
-    const detail = cause instanceof Error ? cause.message : String(cause);
-    throw new Error(
-      `[Unlayer] renderToJson: could not unwrap <${componentName(element) || "wrapper"}>. ${UNWRAP_ADVICE} (${detail})`
-    );
+    if ((cause as Error | undefined)?.message !== ASYNC_TEMPLATE) throw cause;
+    throw new Error(`[Unlayer] renderToJson: could not unwrap <${componentName(element) || "wrapper"}>. ${UNWRAP_ADVICE} (${ASYNC_TEMPLATE})`);
   }
 }
 
-/** The element children of a collected (Elements-only) tree. */
-const collectChildren = (node: React.ReactNode): React.ReactElement[] => React.Children.toArray(node).filter(React.isValidElement);
+/** The elements in children (lists flattened): the model's Rows, Columns and blocks (see src/model). */
+export function elementsIn(children: React.ReactNode, out: React.ReactElement<any>[] = []): React.ReactElement<any>[] {
+  if (Array.isArray(children)) for (const child of children) elementsIn(child, out);
+  else if (React.isValidElement(children)) out.push(children);
+  return out;
+}
+
+/**
+ * The element children of a collected (Elements-only) tree; a Row or block whose HTML failed in this render
+ * (`onError: "omit"`) left out, as in the HTML.
+ */
+const collectChildren = (node: React.ReactNode): React.ReactElement<any>[] => elementsIn(node).filter((child) => !failedBefore(child.props._record));
 
 /**
  * Strip internal/base props from an element's props,
@@ -76,17 +88,21 @@ const collectChildren = (node: React.ReactNode): React.ReactElement[] => React.C
  */
 export function extractSemanticProps(props: Record<string, any>): Record<string, any> {
   const result: Record<string, any> = {};
-  for (const [key, value] of Object.entries(props)) if (!INTERNAL.test(key) && value !== undefined) result[key] = value;
+  for (const key of Object.keys(props)) if (!INTERNAL.has(key) && props[key] !== undefined) result[key] = props[key];
   return result;
 }
 
-const INTERNAL = /^(children|mode|className|style|index|colIndex|cells|bodyValues|rowValues|_config|config|previewText|fonts|lang|layout|collection)$/;
+const INTERNAL = new Set("children mode className style index colIndex cells bodyValues rowValues _config _record config previewText fonts lang layout collection".split(" "));
+
+/** A block's props the design doesn't hold (its children are its text: see processItem; `_sanitized`: Markdown's). */
+const CODE_ONLY = new Set(["children", "style", "className", "skipInText", "_record", "_sanitized"]);
 
 /** What makes a row or block editable in the editor. */
 const EDITABLE = { selectable: true, draggable: true, duplicatable: true, deletable: true, hideable: true };
 
 /** A component's `style`, `className` and `skipInText`, which the design can't hold: said once per render. */
 function codeOnly(name: string, props: Record<string, any>): void {
+  if (!props.style && !props.className && !props.skipInText) return;
   // (Not a style a <Tailwind>'s classes give, which it says.)
   const keys = [...Object.keys(props.style ?? {}).filter((key) => !props.style[TAILWIND]?.includes(key)).map((key) => `style.${key}`), ...["className", "skipInText"].filter((key) => props[key])];
   if (keys.length) sayOnce(`[Unlayer] ${name} \`${keys.join("`, `")}\` ${keys.length > 1 ? "are" : "is"} kept in HTML but not in the design for the visual editor.`);
@@ -132,31 +148,28 @@ function processItem(
   const metaBase = `u_content_${metaName ?? config.metaName ?? contentType}`;
   const id = `${metaBase}_${nextCounter(counters, metaBase)}`;
 
-  // Map props through the item's own propMapper, then merge with defaults (what the design can't hold said, and left out)
-  const { children, style: _style, className: _className, skipInText: _skip, ...restProps } = element.props;
-  codeOnly(name, element.props);
-  const mappedValues = propMapper({ children, ...restProps });
+  // Map props through the item's own propMapper (but what the design can't hold, said and left out), then merge with
+  // defaults, after the base content option every block has, containerPadding.
+  const props = element.props as Record<string, any>;
+  codeOnly(name, props);
+  const given: Record<string, any> = { children: props.children };
+  for (const key in props) if (!CODE_ONLY.has(key)) given[key] = props[key];
+  const mappedValues = propMapper(given);
   rtlAlign(mappedValues, defaultValues, (layout.bodyValues as { textDirection?: unknown } | undefined)?.textDirection);
-  const finalValues = mergeValues(defaultValues, mappedValues);
+  // (Bare zeros in px lengths written `0px`, as the design's schema types them: see pxZeros. A custom tool's values
+  // are as it writes them.)
+  const values: Record<string, any> = slug ? { containerPadding: "10px", ...mergeValues(defaultValues, mappedValues) } : pxMerged(defaultValues, mappedValues, "", { containerPadding: "10px" });
 
   // Paragraph maps to "text" content type: its textJson as the HTML the text block holds, which its HTML renders too
   // (see Paragraph.tsx).
-  if (contentType === "text" && finalValues.textJson) {
-    finalValues.text = textJsonToText(finalValues.textJson);
-    delete finalValues.textJson;
+  if (contentType === "text" && values.textJson) {
+    values.text = textJsonToText(values.textJson);
+    delete values.textJson;
   }
 
-  // Add containerPadding (base content option) and _meta
-  const values = {
-    containerPadding: "10px",
-    ...finalValues,
-    _meta: {
-      htmlID: id,
-      htmlClassNames: metaBase,
-      ...(finalValues._meta || {}),
-    },
-    ...EDITABLE,
-  };
+  // Its _meta and the editor's flags
+  values._meta = { htmlID: id, htmlClassNames: metaBase, ...(values._meta || {}) };
+  Object.assign(values, EDITABLE);
 
   // Convert a fixed (px) image pin to a percent of the column slot using the
   // threaded geometry, so the display width survives the JSON round-trip into an
@@ -167,7 +180,7 @@ function processItem(
       ...layout,
       containerPadding: (values as Record<string, any>).containerPadding,
     });
-    (values as Record<string, any>).src = pinImageSrc(itemSrc, availableWidth);
+    (values as Record<string, any>).src = pxZeros(pinImageSrc(itemSrc, availableWidth));
   }
 
   return slug ? { type: contentType, slug, values } : { type: contentType, values };
@@ -184,17 +197,10 @@ function processColumn(
   codeOnly("Column", element.props);
   const semanticProps = extractSemanticProps(element.props);
   const mapped = mapSemanticProps(semanticProps, COLUMN_DEFAULTS, "Column");
-  const values = mergeValues(COLUMN_DEFAULTS, mapped);
+  const valuesWithMeta = pxMerged(COLUMN_DEFAULTS, mapped) as Record<string, any>;
 
   // Add _meta
-  const valuesWithMeta = {
-    ...values,
-    _meta: {
-      htmlID: id,
-      htmlClassNames: "u_column",
-      ...(values._meta || {}),
-    },
-  };
+  valuesWithMeta._meta = { htmlID: id, htmlClassNames: "u_column", ...(valuesWithMeta._meta || {}) };
 
   // Process item children
   const contents: DesignContent[] = [];
@@ -225,20 +231,13 @@ function processRow(
   codeOnly("Row", element.props);
   const semanticProps = extractSemanticProps(element.props);
   const mapped = mapSemanticProps(semanticProps, ROW_DEFAULTS, "Row");
-  const values = mergeValues(ROW_DEFAULTS, mapped);
+  const valuesWithMeta = pxMerged(ROW_DEFAULTS, mapped) as Record<string, any>;
 
   // Add cells, columns flag, editor flags, and _meta
-  const valuesWithMeta = {
-    ...values,
-    columns: values.columns ?? false,
-    cells,
-    _meta: {
-      htmlID: id,
-      htmlClassNames: "u_row",
-      ...(values._meta || {}),
-    },
-    ...EDITABLE,
-  };
+  valuesWithMeta.columns = valuesWithMeta.columns ?? false;
+  valuesWithMeta.cells = pxZeros(cells);
+  valuesWithMeta._meta = { htmlID: id, htmlClassNames: "u_row", ...(valuesWithMeta._meta || {}) };
+  Object.assign(valuesWithMeta, EDITABLE);
 
   // Process Column children
   const columns: DesignColumn[] = [];
@@ -264,7 +263,7 @@ function processRow(
     }
   }
 
-  return { cells, columns, values: valuesWithMeta };
+  return { cells: pxZeros(cells), columns, values: valuesWithMeta };
 }
 
 function processBody(
@@ -281,7 +280,7 @@ function processBody(
   codeOnly(getDisplayName(element) ?? "Body", element.props);
   const semanticProps = extractSemanticProps(element.props);
   const mapped = mapSemanticProps(semanticProps, BODY_DEFAULTS, "Body");
-  const values = mergeValues(BODY_DEFAULTS, mapped);
+  const values = pxMerged(BODY_DEFAULTS, mapped);
   // The direction the HTML has (its `config`, its `textDirection`, the Provider's: see rootConfig), so the editor opens
   // the design as it renders. Only ltr, rtl or auto, as in the HTML (a value from a request could carry anything).
   const direction = textDirectionOf(rootConfig(element.props as RootConfigProps, provided).textDirection);
@@ -299,14 +298,8 @@ function processBody(
   }
 
   // Add _meta
-  const valuesWithMeta = {
-    ...values,
-    _meta: {
-      htmlID: id,
-      htmlClassNames: "u_body",
-      ...(values._meta || {}),
-    },
-  };
+  const valuesWithMeta = values as Record<string, any>;
+  valuesWithMeta._meta = { htmlID: id, htmlClassNames: "u_body", ...(valuesWithMeta._meta || {}) };
 
   // Process Row children
   const rows: DesignRow[] = [];
@@ -408,38 +401,55 @@ export function renderRowToJson(element: React.ReactElement): DesignRow {
   }
 
   const counters: Record<string, number> = {};
-  // A render of its own, as renderToJson's: the same row gives the same ids every time. React renders what's in it.
-  return withRenderScope(() => {
-    const row = normalizedChildren(element).find((c): c is React.ReactElement => React.isValidElement(c));
+  // A render of its own, as renderToJson's: the same row gives the same ids every time. What's in it is collected.
+  return withOwnScope(() => {
+    const row = normalizedChildren(element, undefined, "Row").find((c): c is React.ReactElement => React.isValidElement(c));
     // Left out (its Columns don't fit its layout), it's no row.
     if (!row) throw new Error("[Unlayer] renderRowToJson: the Row is left out.");
-    return pxZeros(processRow(row, counters));
+    return processRow(row, counters);
   });
 }
 
-export function renderToJson(element: React.ReactElement): DesignJSON {
-  return withRenderScope(() => designJson(element));
+/** renderToJson's options. */
+export interface RenderToJsonOptions {
+  /** What a part of the template that fails does (see UnlayerConfig's `onError`), over the root's config's. */
+  onError?: UnlayerConfig["onError"];
+  /** What the template's `useId()`s start with (see UnlayerConfig's `idPrefix`), over the root's config's. */
+  idPrefix?: UnlayerConfig["idPrefix"];
 }
 
-function designJson(element: React.ReactElement): DesignJSON {
+export function renderToJson(element: React.ReactElement, options?: RenderToJsonOptions): DesignJSON {
+  return withOwnScope(() => designJson(element, options));
+}
+
+/** renderToJson in the render's scope (the async renderers' too, which collected the template in it). */
+export function designJson(element: React.ReactElement, options?: RenderToJsonOptions): DesignJSON {
   // Accept a user wrapper component (e.g. <MyEmail/>) by unwrapping to its root,
   // matching renderToHtml which renders wrappers through React.
-  element = unwrapForJson(element);
+  element = unwrapForJson(element, options?.idPrefix);
   // The config of the <UnlayerProvider>s around it (the design keeps its direction), read before it's copied below.
   const provided = providedConfig(element);
-  const displayName = getDisplayName(element);
+  // (Of any copy of Elements: see root-type.ts.)
+  const displayName = rootName(element.type);
   // (Email, Page or Document's, read before it's copied below.)
   const mode = rootMode(element, rootConfig(element.props as RootConfigProps, provided));
-  // One React render collects the rows and blocks (as the HTML does).
+  // One walk collects the rows and blocks (as the HTML does).
   let heads: Recorded[] = [];
-  if (displayName && ROOT_NAMES.has(displayName)) {
+  if (displayName) {
+    const config = rootConfig(element.props as RootConfigProps, provided, options);
+    const policy = config.onError;
+    setRenderConfig(config);
+    // Where failed parts are left out (`onError: "omit"`), its body is rendered as its HTML is, so a row or block whose
+    // exporter fails is left out of the design too. Otherwise nothing renders its HTML: an exporter that fails
+    // fails renderToHtml, which then gives nothing to disagree with.
+    if (omits(policy)) renderBody(element, options, "renderToJson");
     // What its content gives the head and the design can't hold (a <Head>'s tags): said.
-    heads = collect((element.props as { children?: React.ReactNode }).children).collection.recorded.filter((r) => r.kind === "head");
+    heads = collect((element.props as { children?: React.ReactNode }).children, displayName).recorded.filter((r) => r.kind === "head");
     for (const r of heads) if (r.kind === "head" && r.json) sayOnce(r.json);
-    element = normalizedRoot(element);
+    element = normalizedRoot(element, mode);
   }
 
-  if (!displayName || !ROOT_NAMES.has(displayName)) {
+  if (!displayName) {
     throw new Error(
       `[Unlayer] renderToJson: Root element must be <Body>, <Email>, <Page>, or <Document>, ` +
         `but got <${componentName(element) || "unknown"}>. ` +
@@ -460,10 +470,10 @@ function designJson(element: React.ReactElement): DesignJSON {
   for (const r of heads) if (r.kind === "head") r.design?.(body);
   rootFonts(element, displayName, body);
 
-  // Bare zeros in its px lengths written `0px`, as its schema types them (see pxZeros).
+  // (Its values are copies, bare zeros in their px lengths written `0px`: see pxMerged.)
   return {
     counters,
-    body: pxZeros(body),
+    body,
     schemaVersion,
   };
 }

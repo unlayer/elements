@@ -4,7 +4,7 @@
  * the snapshot is updated (`vitest -u`) and reviewed.
  */
 import { describe, expect, it, vi } from "vitest";
-import React, { forwardRef, memo, useState } from "react";
+import React, { forwardRef, memo, useId, useState } from "react";
 import { renderToHtml } from "../utils/render-to-html";
 import { renderToJson } from "../utils/render-to-json";
 import { Email, Page, Document, Row, Column, Paragraph, Heading, Button, Image, Html } from "../index";
@@ -150,3 +150,31 @@ describe("a Context Provider placed in the email", () => {
   });
 });
 
+
+describe("the patterns and the realistic examples, kept and rendered again", () => {
+  // Each element made once, rendered twice in a shuffled order, with a template that calls useId() around each one
+  // rendered between: the reviewed HTML and design each time (a render reads nothing an earlier one left).
+  it("render the reviewed HTML and design every time, whatever rendered before", async () => {
+    const names = ["AirbnbConfirmation", "LumaEventInvite", "MercuryReceipt", "MorningBrewDigest", "NikeDrop", "NotionWelcome", "ProductDigest", "StripeReceipt", "WarbyOrderShipped"];
+    const examples = await Promise.all(names.map(async (name) => [name, (await import(`../examples/${name}.stories.tsx`))[name]()] as const));
+    const kept = [...Object.keys(PATTERNS).map((name) => [name, PATTERNS[name]()] as const), ...examples];
+    const snapshots = import.meta.glob<string>("./__snapshots__/*/*.{html,json}", { query: "?raw", import: "default", eager: true });
+    const reviewed = (name: string, kind: "html" | "json") => snapshots[`./__snapshots__/${names.includes(name) ? "examples" : "patterns"}/${name}.${kind}`];
+    const Forked = ({ of }: { of: React.ReactElement }) => (useId(), of);
+    let seed = 7;
+    const shuffled = <T,>(list: readonly T[]) => list.map((item) => [(seed = (seed * 16807) % 2147483647), item] as const).sort((a, b) => a[0] - b[0]).map(([, item]) => item);
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    try {
+      for (const pass of [1, 2]) {
+        for (const [name, element] of shuffled(kept)) {
+          renderToHtml(<Forked of={element} />);
+          renderToJson(<Forked of={element} />);
+          expect(lines(renderToHtml(element)), `${name}, pass ${pass}`).toBe(reviewed(name, "html"));
+          if (!names.includes(name)) expect(`${JSON.stringify(renderToJson(element), null, 1)}\n`, `${name}, pass ${pass}`).toBe(reviewed(name, "json"));
+        }
+      }
+    } finally {
+      warn.mockRestore();
+    }
+  });
+});

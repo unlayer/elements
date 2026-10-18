@@ -36,27 +36,24 @@ The output is what the synchronous renderers give for the same content, and the 
 
 ## What resolves
 
-- **An async template** (`async function Receipt()`), also wrapped in a context provider, a Fragment or a `<Tailwind>`.
-- **Async components** in a Column, among rows, and in a Paragraph's, Heading's or Button's text.
+- **An async template** (`async function Receipt()`), or a lazy one (`React.lazy(() => import("./Receipt"))`), also wrapped in a context provider, a Fragment, a `<Suspense>` or a `<Tailwind>`. A `<Suspense>` around the template's root is outside the document, and its fallback isn't a document, so it never renders: the template in it is waited for (the synchronous renderers say it's async, as without it), and one that fails rejects the render, naming it. A `<Suspense>` inside the root (or around a template with no root, whose content it is) is React's: these renderers wait for what's in it, and the synchronous ones render its fallback where what's in it suspends.
+- **Async components** in a Column, among rows, in a Paragraph's, Heading's or Button's text, and in a `<Head>`.
 - **Suspense**: `use(promise)` on React 19, and components that throw a promise until their data is there (React 18's way, which React 19 keeps).
 - **`<Tailwind config>`**: its config compiled, as with the [Tailwind guide](./tailwind.md)'s renderers, which are these. `tailwindcss` is loaded only when a template has a config.
-- **Errors**: a component that throws, also after an `await`, rejects the render with an error naming the component, and with what it threw as the error's `cause`. (The synchronous renderers leave such a component out, with a warning, for a live preview.)
+- **Errors**: a component that throws, also after an `await`, rejects the render with a `RenderError` naming the component and where it is, with what it threw as its `cause`, as the synchronous renderers throw. Where two fail, it's the first in the template, whichever failed first. With `onError: "omit"` the failed parts are left out instead (see [Errors](../README.md#errors)).
 
 ## How it works
 
-The template's root is resolved first: an async template is called and awaited. The content is then rendered once by React's streaming server renderer, which the renderer reads only when everything in it is ready (`onAllReady` in Node, `allReady` on the web), so React itself resolves async components and Suspense, with hooks, context and `use()` working as in any server render. That render collects the template, and the synchronous renderer makes the HTML, the head, the plain text or the design from what it collected: each component runs once per render. Several renders can run at once.
+The template's root is resolved first: an async template is called and awaited (and one that `use()`s or throws a promise, called again once it's there). Elements then renders the content once, itself, with hooks, context and `use()` working as in React's server renderer: where a component waits, it goes on with the rest, so the data of sibling components loads at once, and puts each part where it is in the template once it's there, whatever arrives first, so the output is the same every time. The synchronous renderer makes the HTML, the head, the plain text or the design from that render: each component runs once per render. Several renders can run at once. See [ARCHITECTURE.md](../ARCHITECTURE.md#the-async-walk).
 
 ## React 18 and React 19
 
 | | React 19 | React 18 |
 |--|--|--|
 | Async templates (`async function Template()`) | ✓ | ✓ |
-| Async components placed in a root, a Row, a Column or text | ✓ | ✓ (Elements resolves them) |
-| Async components another component of yours renders | ✓ | ✗ (React 18 can't render them: the render rejects, saying so) |
+| Async components, anywhere (in a Column, in text, in a component of yours) | ✓ | ✓ |
 | Components that throw a promise (Suspense) | ✓ | ✓ |
 | `use(promise)` | ✓ | ✗ (React 18 has no `use`) |
-
-A root template that suspends (`use()` in the component that returns `<Email>`) isn't resolved: make it an async function.
 
 ## `pretty`
 
@@ -83,6 +80,6 @@ The plain text takes the synchronous renderer's options too: `await renderToPlai
 
 ## Agent rules
 
-- Templates that `await` or suspend: import the renderers from `@unlayer/react-elements/async` and `await` them. The synchronous ones leave such components out, with a warning naming them.
+- Templates that `await` or suspend: import the renderers from `@unlayer/react-elements/async` and `await` them. The synchronous ones throw for such components, naming them.
 - Keep data loading in the template's own async components; don't fetch inside a synchronous render.
 - Use `pretty` for snapshots and debugging, not for what you send, and not on an edge runtime.

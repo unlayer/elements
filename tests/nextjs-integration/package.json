@@ -4,12 +4,14 @@
   "private": true,
   "scripts": {
     "build": "next build --turbopack",
-    "verify": "node verify.mjs"
+    "build:webpack": "next build",
+    "verify": "node verify.mjs 3765 --async --pages-api"
   },
   "dependencies": {
     "next": "15.5.3",
     "react": "19.1.0",
-    "react-dom": "19.1.0"
+    "react-dom": "19.1.0",
+    "tailwindcss": "4.2.1"
   },
   "devDependencies": {
     "@types/node": "^20",

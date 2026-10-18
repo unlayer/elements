@@ -225,13 +225,13 @@ export async function verifyConversion(
   // renderToHtml reads the root (Email) element, so call the component.
   const root = callTemplate(Converted, props);
   if (!React.isValidElement(root)) throw new Error("the template renders nothing with these props: give it PreviewProps it renders with");
-  const convertedHtml = renderToHtml(root);
+  // A part of the template that fails is left out (the design's warnings say it, below), so the rest is checked.
+  const convertedHtml = renderToHtml(root, { onError: () => {} });
   const designRoot = options.designProps ? callTemplate(Converted, options.designProps) : root;
   const warnings: string[] = [];
   const warn = console.warn;
   const error = console.error;
   console.warn = (...args: unknown[]) => void warnings.push(args.map(String).join(" "));
-  // A block Elements leaves out of the design because it threw (`[Unlayer] <p> threw while rendering`) is missing too.
   console.error = (...args: unknown[]) => {
     const message = args.map(String).join(" ");
     if (message.startsWith("[Unlayer]")) warnings.push(message);
@@ -239,7 +239,8 @@ export async function verifyConversion(
   };
   let design: Record<string, unknown>;
   try {
-    design = pinImageWidths(renderToJson(designRoot) as unknown as Record<string, unknown>);
+    // A block Elements leaves out of the design because it failed (`[Unlayer] no data (in <Broken> at …)`) is missing too.
+    design = pinImageWidths(renderToJson(designRoot, { onError: (failure) => void warnings.push(failure.message) }) as unknown as Record<string, unknown>);
   } finally {
     console.warn = warn;
     console.error = error;
