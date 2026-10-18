@@ -58,8 +58,12 @@ jobs:
         run: pnpm --filter @unlayer/from-react-email typecheck && pnpm --filter @unlayer/migrate typecheck
 
       # ── Bundle size budget ──────────────────────────────────────
-      # Fail if the react-elements ESM bundle exceeds 193KB.
-      # Current size: about 192.8KB (0.1.22: about 76KB). Raised from 192KB
+      # Fail if the react-elements ESM bundle exceeds 193.5KB.
+      # Current size: about 193.4KB (0.1.22: about 76KB). Raised from 193KB
+      # (about 0.6KB): each render function makes a scope of its own, the
+      # user's code (components, exporters, heads, onError) runs outside it,
+      # what unwrapping a template finds is kept in its render's scope, and a
+      # lazy template is unwrapped. Raised from 192KB
       # (about 0.7KB): what's in a <Head> is walked with the template (its
       # components waited for, in the error policy), a head function that
       # fails is in the error policy, renderToJson throws a template
@@ -133,7 +137,7 @@ jobs:
         run: |
           BUNDLE="packages/react/dist/index.js"
           SIZE=$(wc -c < "$BUNDLE" | tr -d ' ')
-          MAX_SIZE=193000
+          MAX_SIZE=193500
           echo "Bundle: $BUNDLE"
           echo "Size: $SIZE bytes (budget: $MAX_SIZE bytes)"
           if [ "$SIZE" -gt "$MAX_SIZE" ]; then
