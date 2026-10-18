@@ -141,9 +141,9 @@ export type ItemComponentProps<TSemanticProps> = BaseItemComponentProps &
 // Internal: rendering helpers (merged from render-component.tsx)
 // ============================================
 
-/** A tag's attribute `name` set: `edit` gives its value from the one it has, or it's added as `value`. */
+/** A tag's attribute `name` set: `edit` gives its value from the one it has, or it's added as `value` (a `$` in it as it is). */
 const attr = (tag: string, name: string, value: string, edit: (own: string) => string) =>
-  tag.includes(` ${name}="`) ? tag.replace(new RegExp(` ${name}="([^"]*)`), (_, own: string) => ` ${name}="${edit(own)}`) : tag.replace(/^<[\w:-]+/, `$& ${name}="${value}"`);
+  tag.includes(` ${name}="`) ? tag.replace(new RegExp(` ${name}="([^"]*)`), (_, own: string) => ` ${name}="${edit(own)}`) : tag.replace(/^<[\w:-]+/, (open) => `${open} ${name}="${value}"`);
 
 /**
  * A component's `style` and `className` on the tag that renders it (`at`, in its HTML): the escape hatch for CSS no

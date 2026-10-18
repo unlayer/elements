@@ -17,6 +17,7 @@ import {
   Menu,
   Social,
   Divider,
+  Html,
 } from "./index";
 
 /**
@@ -305,6 +306,11 @@ describe("DX: style and className, on the element each component renders", () =>
     expect(out).not.toContain("</style>\"");
     expect(out).toMatch(/class="ab c v-/);
     expect(out).toMatch(/;font-weight:700"/);
+  });
+
+  it("keeps a `$` in a value as it is, on a tag without the attribute", () => {
+    const out = html(<Html html='<a href="x" title="y">Hi</a>' style={{ fontFamily: "a$'b$&c$$d" }} className="e$$f" />);
+    expect(out).toContain(`<div style="font-family:a$'b$&c$$d" class="e$$f"><a href="x" title="y">Hi</a></div>`);
   });
 
   it("output without them is the same as before", () => {
