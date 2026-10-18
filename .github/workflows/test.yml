@@ -58,8 +58,13 @@ jobs:
         run: pnpm --filter @unlayer/from-react-email typecheck && pnpm --filter @unlayer/migrate typecheck
 
       # ── Bundle size budget ──────────────────────────────────────
-      # Fail if the react-elements ESM bundle exceeds 194.5KB.
-      # Current size: about 194.5KB (0.1.22: about 76KB). Raised from 193.5KB
+      # Fail if the react-elements ESM bundle exceeds 198KB.
+      # Current size: about 198KB (0.1.22: about 76KB). Raised from 194.5KB
+      # (about 3.4KB): markup is written as react-dom writes it for the
+      # installed React, a <select>'s value marking its options (the format
+      # context the walk carries), the form controls' rules and React 19's
+      # for a style's, script's and title's text, and a <Head>'s style and
+      # script text written as given in every React. Raised from 193.5KB
       # (about 1KB): a <Suspense> around the template is unwrapped, a root
       # the walk of a template with no root meets is said, and which Row or
       # Column failed and what an async render compiled for its <Tailwind>s
@@ -141,7 +146,7 @@ jobs:
         run: |
           BUNDLE="packages/react/dist/index.js"
           SIZE=$(wc -c < "$BUNDLE" | tr -d ' ')
-          MAX_SIZE=194500
+          MAX_SIZE=198000
           echo "Bundle: $BUNDLE"
           echo "Size: $SIZE bytes (budget: $MAX_SIZE bytes)"
           if [ "$SIZE" -gt "$MAX_SIZE" ]; then
