@@ -2,7 +2,8 @@
  * Tailwind classes in markup (an Html block's `html`, a Paragraph's): each element's classes as its inline style,
  * as email clients need them, with the same conversions as classes on components (hex colors, pixels). A class
  * Tailwind doesn't know stays (your own stylesheet's); one Tailwind knows leaves the class attribute, inlined, or
- * reported where it can't be (a phone or hover variant needs a stylesheet). The markup is read as a browser reads it
+ * reported where it can't be (a phone or hover variant needs a stylesheet, and so does what a class sets that a phone
+ * or breakpoint variant sets too: the rest of it is inlined). The markup is read as a browser reads it
  * (src/utils/html-tags.ts), and only the class attributes and the styles they give are written again.
  */
 import type { ClassCondition, ClassDeclaration, ClassDeclarations } from "./declarations";
@@ -31,6 +32,56 @@ const requote = (attribute: Attribute) => (attribute.value ?? "").replace(/"/g, 
 
 /** When a declaration that can't be inline applies. */
 const WHEN: Record<ClassCondition, string> = { always: "", phone: "on phones only", desktop: "above a screen width only", hover: "on hover" };
+
+const box = (name: (side: string) => string) => ["top", "right", "bottom", "left"].map(name);
+/** A shorthand's longhands, in the order its value gives them (its sides: top, right, bottom, left). */
+const LONGHANDS: Record<string, string[]> = {
+  padding: box((s) => `padding-${s}`),
+  margin: box((s) => `margin-${s}`),
+  inset: box((s) => s),
+  "border-width": box((s) => `border-${s}-width`),
+  "border-style": box((s) => `border-${s}-style`),
+  "border-color": box((s) => `border-${s}-color`),
+  "border-radius": ["top-left", "top-right", "bottom-right", "bottom-left"].map((c) => `border-${c}-radius`),
+  "inset-inline": ["inset-inline-start", "inset-inline-end"],
+  "inset-block": ["inset-block-start", "inset-block-end"],
+  gap: ["row-gap", "column-gap"],
+  overflow: ["overflow-x", "overflow-y"],
+};
+/** Shorthands whose value doesn't give their longhands by place (`1px solid red`): what they set, not split. */
+const SETS: Record<string, string[]> = {
+  border: ["width", "style", "color"].flatMap((p) => box((s) => `border-${s}-${p}`)),
+  ...Object.fromEntries(["top", "right", "bottom", "left"].map((s) => [`border-${s}`, [`border-${s}-width`, `border-${s}-style`, `border-${s}-color`]])),
+  background: ["color", "image", "position", "size", "repeat", "attachment", "origin", "clip"].map((p) => `background-${p}`),
+};
+
+/**
+ * What a property sets, as email clients' sides (an inline start the left, or the right in `rtl`): its longhands, or
+ * itself. Two declarations that set one of the same can't both be inline.
+ */
+function sets(property: string, rtl: boolean): string[] {
+  const all = SETS[property] ?? LONGHANDS[property] ?? [property];
+  return all.map((p) => {
+    const inset = /^inset-(inline|block)-(start|end)$/.exec(p);
+    if (!inset) return p;
+    return inset[1] === "block" ? (inset[2] === "start" ? "top" : "bottom") : (inset[2] === "start") !== rtl ? "left" : "right";
+  });
+}
+
+/** A value's parts: between the spaces outside brackets. */
+const PARTS = /(?:[^\s()]|\((?:[^()]|\([^()]*\))*\))+/g;
+
+/** A shorthand's value as its longhands' (`1px 2px` is a box's top and bottom, then its sides), or undefined where it doesn't say. */
+function spread(property: string, value: string): string[] | undefined {
+  const longhands = LONGHANDS[property];
+  const parts = value.match(PARTS) ?? [];
+  if (!longhands || !parts.length || parts.length > longhands.length || /\/|var\(/.test(value) || value.replace(PARTS, "").trim()) return undefined;
+  const [a, b = a, c = a, d = b] = parts as [string, string?, string?, string?];
+  return longhands.length === 2 ? [a, b] : [a, b, c, d];
+}
+
+/** Names as a list: `a`, `b` and `c`. */
+const and = (names: string[]) => names.map((n) => `\`${n}\``).join(", ").replace(/, (?=[^,]*$)/, " and ");
 
 /**
  * A declaration's properties as email clients read them: logical sides as physical ones (`rtl`: on an element that
@@ -118,24 +169,46 @@ function classes(text: string, attributes: Attribute[], nameEnd: number, offset:
   }
   const kept = given.filter((_, i) => names[i] === undefined || yours.has(names[i]!));
   if (kept.length === given.length) return undefined;
-  // A class that sets on every screen what a phone or breakpoint variant sets on one isn't inline either: it would
-  // apply on that screen too (`hidden md:block` would hide the element on every screen). (Without hover, an element
-  // is as its classes say without `hover:`: those are.)
+  // What a class sets on every screen that a phone or breakpoint variant sets on one isn't inline either: it would
+  // apply on that screen too (`hidden md:block` would hide the element on every screen). The rest of the class is
+  // (`px-4 md:pl-2`: its right padding). (Without hover, an element is as its classes say without `hover:`: those are.)
   const screens = new Map<string, ClassDeclaration>();
-  for (const d of found.declarations) if (d.when === "phone" || d.when === "desktop") for (const property of physical(d.property, rtl)) if (!screens.has(property)) screens.set(property, d);
-  const changed = new Set<string>();
-  for (const d of found.declarations) {
-    const property = d.when === "always" && !changed.has(d.className) ? physical(d.property, rtl).find((p) => screens.has(p)) : undefined;
-    if (property === undefined) continue;
-    changed.add(d.className);
-    const by = screens.get(property)!;
-    once(`can't inline class \`${d.className}\` in its markup: \`${by.className}\` sets its \`${property}\` ${WHEN[by.when]}, which needs a stylesheet`);
-  }
+  for (const d of found.declarations) if (d.when === "phone" || d.when === "desktop") for (const property of physical(d.property, rtl)) for (const p of sets(property, rtl)) if (!screens.has(p)) screens.set(p, d);
   const css: string[] = [];
+  // What's left out of each class, by the variant that sets it (with the part of it that sets, where it's less): said after.
+  const left = new Map<string, { d: ClassDeclaration; by: ClassDeclaration; names: string[]; part?: string[] }>();
+  const leave = (d: ClassDeclaration, by: ClassDeclaration, names: string[], part?: string[]) => {
+    const key = `${d.className} ${by.className} ${part ?? ""}`;
+    if (left.has(key)) left.get(key)!.names.push(...names);
+    else left.set(key, { d, by, names, part });
+  };
   for (const d of found.declarations) {
-    if (d.when !== "always") once(`can't inline class \`${d.className}\` in its markup: it applies ${WHEN[d.when]}, which needs a stylesheet`);
-    else if (!changed.has(d.className)) css.push(...physical(d.property, rtl).map((property) => `${property}: ${d.value}${d.important ? " !important" : ""}`));
+    if (d.when !== "always") continue;
+    const write = (property: string, value: string) => css.push(`${property}: ${value}${d.important ? " !important" : ""}`);
+    for (const property of physical(d.property, rtl)) {
+      const parts = SETS[property] ?? LONGHANDS[property] ?? [property];
+      const by = sets(property, rtl).map((p) => screens.get(p));
+      if (!by.some(Boolean)) {
+        write(property, d.value);
+        continue;
+      }
+      // Where variants set some of it, the rest is inline, each longhand with its part of the value; where the value
+      // doesn't say which part is whose (`1px solid red`), it's left out whole.
+      const every = by.every(Boolean);
+      const values = every ? undefined : spread(property, d.value);
+      parts.forEach((p, i) => values && !by[i] && write(p, values[i]));
+      for (const v of new Set(by)) {
+        if (!v) continue;
+        const names = parts.filter((_, i) => by[i] === v);
+        if (names.length === parts.length) leave(d, v, [property]);
+        else if (values || every) leave(d, v, names);
+        else leave(d, v, [property], names);
+      }
+    }
   }
+  for (const { d, by, names, part } of left.values())
+    once(`can't inline \`${d.className}\`'s ${and(names)} in its markup: \`${by.className}\` sets ${part ? `its ${and(part)}` : names.length > 1 ? "them" : "it"} ${WHEN[by.when]}, which needs a stylesheet`);
+  for (const d of found.declarations) if (d.when !== "always") once(`can't inline class \`${d.className}\` in its markup: it applies ${WHEN[d.when]}, which needs a stylesheet`);
   // Each edit: what's from `start` to `end` (in the markup) written as `with`.
   const edits: Array<{ start: number; end: number; with: string }> = [];
   // Where an attribute left out starts: with the gap before it, unless the next one starts where it ends (after its

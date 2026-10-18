@@ -310,7 +310,7 @@ describe("<Tailwind>: classes in an Html block's markup", () => {
     block(<Html html={'<p class="p-2 max-sm:p-1 hover:underline sm:p-4 dark:text-white">x</p>'} />);
     expect(warnings()).toEqual([
       "[Unlayer] Html ignores class `dark:text-white` in its markup: it applies only for @media (prefers-color-scheme: dark).",
-      "[Unlayer] Html can't inline class `p-2` in its markup: `max-sm:p-1` sets its `padding` on phones only, which needs a stylesheet.",
+      "[Unlayer] Html can't inline `p-2`'s `padding` in its markup: `max-sm:p-1` sets it on phones only, which needs a stylesheet.",
       "[Unlayer] Html can't inline class `hover:underline` in its markup: it applies on hover, which needs a stylesheet.",
       "[Unlayer] Html can't inline class `max-sm:p-1` in its markup: it applies on phones only, which needs a stylesheet.",
       "[Unlayer] Html can't inline class `sm:p-4` in its markup: it applies above a screen width only, which needs a stylesheet.",
@@ -323,18 +323,72 @@ describe("<Tailwind>: classes in an Html block's markup", () => {
 
   it("doesn't inline a class a screen variant changes on another screen: `hidden md:block` doesn't hide on every screen", () => {
     expect(block(<Html html={'<div class="hidden md:block mine">Desktop text</div><p class="block max-sm:hidden ps-2 md:pl-4 p-1">Desktop only</p><p class="hidden hover:block text-red-500 hover:text-blue-500">Hover</p>'} />).html).toBe(
-      '<div class="mine">Desktop text</div><p style="padding: 4px">Desktop only</p><p style="display: none; color: #fb2c36">Hover</p>'
+      // (`p-1`'s left padding is `md:pl-4`'s too: its other sides are inline.)
+      '<div class="mine">Desktop text</div><p style="padding-top: 4px; padding-right: 4px; padding-bottom: 4px">Desktop only</p><p style="display: none; color: #fb2c36">Hover</p>'
     );
     expect(warnings()).toEqual([
-      "[Unlayer] Html can't inline class `hidden` in its markup: `md:block` sets its `display` above a screen width only, which needs a stylesheet.",
+      "[Unlayer] Html can't inline `hidden`'s `display` in its markup: `md:block` sets it above a screen width only, which needs a stylesheet.",
       "[Unlayer] Html can't inline class `md:block` in its markup: it applies above a screen width only, which needs a stylesheet.",
-      "[Unlayer] Html can't inline class `block` in its markup: `max-sm:hidden` sets its `display` on phones only, which needs a stylesheet.",
-      "[Unlayer] Html can't inline class `ps-2` in its markup: `md:pl-4` sets its `padding-left` above a screen width only, which needs a stylesheet.",
+      "[Unlayer] Html can't inline `block`'s `display` in its markup: `max-sm:hidden` sets it on phones only, which needs a stylesheet.",
+      "[Unlayer] Html can't inline `p-1`'s `padding-left` in its markup: `md:pl-4` sets it above a screen width only, which needs a stylesheet.",
+      "[Unlayer] Html can't inline `ps-2`'s `padding-left` in its markup: `md:pl-4` sets it above a screen width only, which needs a stylesheet.",
       "[Unlayer] Html can't inline class `max-sm:hidden` in its markup: it applies on phones only, which needs a stylesheet.",
       "[Unlayer] Html can't inline class `md:pl-4` in its markup: it applies above a screen width only, which needs a stylesheet.",
       "[Unlayer] Html can't inline class `hover:block` in its markup: it applies on hover, which needs a stylesheet.",
       "[Unlayer] Html can't inline class `hover:text-blue-500` in its markup: it applies on hover, which needs a stylesheet.",
     ]);
+  });
+
+  it("leaves out only what a screen variant sets of a class: the rest of it is inline, and what isn't is said", () => {
+    const said: string[] = [];
+    const inline = (html: string, rtl = false) => inlineClasses(html, (className) => classNameToDeclarations(tw, className), (text) => said.push(text), rtl);
+    const variant = (name: string, when = "above a screen width only") => `can't inline class \`${name}\` in its markup: it applies ${when}, which needs a stylesheet`;
+    const by = (name: string, what: string, variantName: string, them = false, when = "above a screen width only") =>
+      `can't inline \`${name}\`'s ${what} in its markup: \`${variantName}\` sets ${them ? "them" : "it"} ${when}, which needs a stylesheet`;
+    const cases: Array<[string, string, string[], boolean?]> = [
+      // `md:pl-2` sets `px-4`'s left padding, not its right; the class leaves the attribute, as each class Tailwind knows does.
+      ['<p class="px-4 md:pl-2 mine">a</p>', '<p class="mine" style="padding-right: 16px">a</p>', [by("px-4", "`padding-left`", "md:pl-2"), variant("md:pl-2")]],
+      ['<p class="p-4 md:pl-2">a</p>', '<p style="padding-top: 16px; padding-right: 16px; padding-bottom: 16px">a</p>', [by("p-4", "`padding-left`", "md:pl-2"), variant("md:pl-2")]],
+      ['<p class="p-[1px_2px_3px] max-sm:pb-0">a</p>', '<p style="padding-top: 1px; padding-right: 2px; padding-left: 2px">a</p>', [by("p-[1px_2px_3px]", "`padding-bottom`", "max-sm:pb-0", false, "on phones only"), variant("max-sm:pb-0", "on phones only")]],
+      ['<p class="px-4 md:p-2">a</p>', "<p>a</p>", [by("px-4", "`padding-left` and `padding-right`", "md:p-2", true), variant("md:p-2")]],
+      ['<p class="p-4 md:p-2">a</p>', "<p>a</p>", [by("p-4", "`padding`", "md:p-2"), variant("md:p-2")]],
+      ['<p class="m-2 md:mx-auto">a</p>', '<p style="margin-top: 8px; margin-bottom: 8px">a</p>', [by("m-2", "`margin-right` and `margin-left`", "md:mx-auto", true), variant("md:mx-auto")]],
+      [
+        '<p class="border-2 border-red-500 md:border-l-4">a</p>',
+        '<p style="border-top-style: solid; border-right-style: solid; border-bottom-style: solid; border-top-width: 2px; border-right-width: 2px; border-bottom-width: 2px; border-color: #fb2c36">a</p>',
+        [by("border-2", "`border-left-style` and `border-left-width`", "md:border-l-4", true), variant("md:border-l-4")],
+      ],
+      ['<p class="rounded-md md:rounded-tl-none">a</p>', '<p style="border-top-right-radius: 6px; border-bottom-right-radius: 6px; border-bottom-left-radius: 6px">a</p>', [by("rounded-md", "`border-top-left-radius`", "md:rounded-tl-none"), variant("md:rounded-tl-none")]],
+      ['<p class="inset-0 md:top-4">a</p>', '<p style="right: 0px; bottom: 0px; left: 0px">a</p>', [by("inset-0", "`top`", "md:top-4"), variant("md:top-4")]],
+      ['<p class="inset-x-0 md:left-4">a</p>', '<p style="inset-inline-end: 0px">a</p>', [by("inset-x-0", "`inset-inline-start`", "md:left-4"), variant("md:left-4")]],
+      ['<p class="size-4 md:w-8">a</p>', '<p style="height: 16px">a</p>', [by("size-4", "`width`", "md:w-8"), variant("md:w-8")]],
+      ['<p class="px-4! md:pl-2">a</p>', '<p style="padding-right: 16px !important">a</p>', [by("px-4!", "`padding-left`", "md:pl-2"), variant("md:pl-2")]],
+      // A shorthand it can't split (`/` in a radius) is left out whole.
+      ['<p class="rounded-[4px/8px] md:rounded-tl-none">a</p>', "<p>a</p>", ["can't inline `rounded-[4px/8px]`'s `border-radius` in its markup: `md:rounded-tl-none` sets its `border-top-left-radius` above a screen width only, which needs a stylesheet", variant("md:rounded-tl-none")]],
+      // Right to left, inline start is the right: `ps-4`'s side is the one `md:pr-1` sets.
+      ['<p class="ps-4 pe-2 md:pr-1">a</p>', '<p style="padding-left: 16px">a</p>', [by("pe-2", "`padding-right`", "md:pr-1"), variant("md:pr-1")]],
+      ['<p class="ps-4 pe-2 md:pr-1">a</p>', '<p style="padding-left: 8px">a</p>', [by("ps-4", "`padding-right`", "md:pr-1"), variant("md:pr-1")], true],
+      ['<div dir="rtl"><p class="px-4 md:ps-2">a</p></div>', '<div dir="rtl"><p style="padding-left: 16px">a</p></div>', [by("px-4", "`padding-right`", "md:ps-2"), variant("md:ps-2")]],
+      ['<p class="rounded-s-md md:rounded-tr-none">a</p>', '<p style="border-bottom-right-radius: 6px">a</p>', [by("rounded-s-md", "`border-top-right-radius`", "md:rounded-tr-none"), variant("md:rounded-tr-none")], true],
+      // As before: `hidden md:block` doesn't hide the element on every screen.
+      ['<div class="hidden md:block mine">x</div>', '<div class="mine">x</div>', [by("hidden", "`display`", "md:block"), variant("md:block")]],
+    ];
+    for (const [markup, inlined, warned, rtl] of cases) {
+      said.length = 0;
+      expect([markup, inline(markup, rtl)]).toEqual([markup, inlined]);
+      expect([markup, said]).toEqual([markup, warned]);
+    }
+    // An Html block's, in the design and the email alike, said in each render.
+    const html = <Html html={'<p class="px-4 md:pl-2">a</p>'} />;
+    const eachRender = [
+      "[Unlayer] Html can't inline `px-4`'s `padding-left` in its markup: `md:pl-2` sets it above a screen width only, which needs a stylesheet.",
+      "[Unlayer] Html can't inline class `md:pl-2` in its markup: it applies above a screen width only, which needs a stylesheet.",
+    ];
+    expect(block(html).html).toBe('<p style="padding-right: 16px">a</p>');
+    expect(warnings()).toEqual(eachRender);
+    warn.mockClear();
+    expect(renderToHtml(<Tailwind tw={tw}><Email><Row><Column>{html}</Column></Row></Email></Tailwind>)).toContain('<p style="padding-right: 16px">a</p>');
+    expect(warnings()).toEqual(eachRender);
   });
 
   it("reads tags and attributes as a browser does: what isn't a class attribute, or isn't in a tag, stays as written", () => {
