@@ -480,6 +480,7 @@ describe("a render the user's code starts while Elements renders (a custom tool'
   it("leaves the outer render as it is without it, and gives what it gives alone, wherever the user's code starts it", async () => {
     const { registerTool, renderToHtmlParts } = await import("../index");
     const { Markdown } = await import("../markdown");
+    const { Tailwind, loadTailwind } = await import("../tailwind");
     const asyncRenderers = await import("../async");
     const error = vi.spyOn(console, "error").mockImplementation(() => {});
     const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
@@ -516,19 +517,25 @@ describe("a render the user's code starts while Elements renders (a custom tool'
       const Mine = () => (hook("component"), <Paragraph>{`mine ${useId()}`}</Paragraph>);
       const AsyncMine = async () => (await waiting("async component"), <Paragraph>async mine</Paragraph>);
       const link = "[A link](https://example.com/a)";
+      // A Tailwind plugin's utility, which Tailwind calls as the render reads the class, once per compiled Tailwind (the
+      // HTML's renders below get one of their own).
+      const plugin = ({ matchUtilities }: { matchUtilities: (utilities: object, options: object) => void }) =>
+        matchUtilities({ hooked: (color: string) => (hook("Tailwind plugin"), { color }) }, { values: { brand: "#123456" } });
+      let tw: Awaited<ReturnType<typeof loadTailwind>>;
       const content = (
         <Row>
           <Column>
             <Mine />
             <Tool />
             <Markdown url={(url) => (hook("Markdown url"), url)}>{link}</Markdown>
+            <Paragraph className="hooked-brand">Styled</Paragraph>
             <Broken />
             <Paragraph>After</Paragraph>
           </Column>
         </Row>
       );
-      const Template = () => (hook("wrapper"), useId(), <Email>{content}</Email>);
-      const AsyncTemplate = async () => (await waiting("async wrapper"), <Email>{content}<Row><Column><AsyncMine /></Column></Row></Email>);
+      const Template = () => (hook("wrapper"), useId(), <Tailwind tw={tw}><Email>{content}</Email></Tailwind>);
+      const AsyncTemplate = async () => (await waiting("async wrapper"), <Tailwind tw={tw}><Email>{content}<Row><Column><AsyncMine /></Column></Row></Email></Tailwind>);
       const onError = () => hook("onError");
       const outer: Record<string, (options: object) => unknown> = {
         html: (options) => renderToHtml(<Template />, options),
@@ -551,10 +558,13 @@ describe("a render the user's code starts while Elements renders (a custom tool'
       // The render's own `onError` (it fails, as the block after the custom tool does), and a function.
       for (const options of [{}, { onError }]) {
         for (const [name, render] of Object.entries(outer)) {
+          const compiled = async () => (name === "html" ? (tw = await loadTailwind({ plugins: [plugin] })) : tw);
           active = false;
+          await compiled();
           const stubbed = await given(() => render(options));
           active = true;
           started.length = 0;
+          await compiled();
           const got = await given(() => render(options));
           active = false;
           const label = `${name}, ${"onError" in options ? "onError function" : "throwing"}`;
@@ -566,7 +576,9 @@ describe("a render the user's code starts while Elements renders (a custom tool'
           }
         }
       }
-      expect([...places].sort()).toEqual(["Markdown url", "async component", "async wrapper", "component", "exporter", "head", "onError", "wrapper"]);
+      expect([...places].sort()).toEqual(["Markdown url", "Tailwind plugin", "async component", "async wrapper", "component", "exporter", "head", "onError", "wrapper"]);
+      // (The class did style the Paragraph.)
+      expect(await outer.html({ onError: () => {} })).toMatch(/color: #123456[^>]*>\s*Styled/);
     } finally {
       error.mockRestore();
       warn.mockRestore();
