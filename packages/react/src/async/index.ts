@@ -71,8 +71,8 @@ async function tailwindLoader(): Promise<Load> {
  * Renders `element` once, resolving what's async in it: its root first (an async template, or one that `use()`s a
  * promise), then its content, walked waiting for its async components, Suspense and `use()` (siblings at once, the
  * output in tree order); the synchronous render `run` makes the output from that, in the same scope. A template with
- * no root is its own content (what it rendered) in `api`, the render function named for what it says of one, but in
- * none (the design, which needs a root).
+ * no root is its own content (what it rendered) where `api` names the render function (in what it says of one); the
+ * design, which needs a root, names none.
  */
 async function render<T>(element: React.ReactElement, options: Partial<UnlayerConfig> | undefined, run: (renders: Renders, root: React.ReactElement) => T, api?: string): Promise<T> {
   const internals = (renderHtml as unknown as Record<symbol, Internals>)[Symbol.for("@unlayer/react-elements/internals")];

@@ -324,6 +324,19 @@ describe("the async renderers", () => {
       await expect(render(<React.Suspense fallback={loading}><Broken /></React.Suspense>)).rejects.toMatchObject({ message: "[Unlayer] no order (in <Broken>)", component: "Broken" });
       await expect(render(<React.Suspense fallback={loading}><Broken /></React.Suspense>, { onError: "omit" })).rejects.toBeInstanceOf(RenderError);
     }
+    // Around a template with no root, it's what the template renders, as inside a root: its fallback renders where
+    // what's in it suspends, in the synchronous renderers.
+    const rows = (data: Data) => {
+      const Text = () => <Paragraph>{data.read()}</Paragraph>;
+      const Rows = () => <><Row><Column><Paragraph>Rows</Paragraph></Column></Row><Row><Column><Text /></Column></Row></>;
+      return <React.Suspense fallback={<Row><Column><Paragraph>Loading</Paragraph></Column></Row>}><Rows /></React.Suspense>;
+    };
+    const fallback = renderToHtmlSync(rows(suspending("Loaded")));
+    expect(fallback).toContain("Loading");
+    expect(fallback).not.toContain("Rows");
+    const waited = await renderToHtml(rows(suspending("Loaded")));
+    expect(waited).toContain("Loaded");
+    expect(waited).not.toContain("Loading");
   });
 
   it("wait for what's async in a template with no root, as in a root, each run once; the synchronous renderers say where it is", async () => {

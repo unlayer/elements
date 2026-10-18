@@ -32,7 +32,7 @@ export interface Resolver {
  * The handles an async render compiled, by config and by the <Tailwind> it's for (this copy's): the main entry gives
  * them to a rewrite in that render (from its scope), never one a synchronous render could find warm.
  */
-type Compiled = (config: TailwindConfig | undefined, scope: unknown) => unknown;
+type Compiled = (config: TailwindConfig | undefined, type: unknown) => unknown;
 
 function resolver({ tw, config }: TailwindProps, compiled?: unknown): Resolver {
   const handle = (tw ?? (typeof compiled === "function" ? (compiled as Compiled)(config, Tailwind) : undefined)) as Record<symbol, Resolver> | undefined;
