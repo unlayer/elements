@@ -35,7 +35,12 @@
 
 - **`style`, `className` and `skipInText` on every component.** `style` and `className` go on the element a component renders (HTML only: `renderToJson()` says so), and `skipInText` leaves a block out of the plain text.
 
-- **Plain-text options, and `toPlainText()`.** `renderToPlainText()` takes `wordwrap`, `links` (`"inline"`, `"after"` or `"none"`), `uppercaseHeadings` and `skip`; `toPlainText(html, options)` gives the plain text of any HTML. Without options the text is as before.
+- **Plain-text options, and `toPlainText()`.** `renderToPlainText()` takes `wordwrap`, `links` (`"inline"`, `"after"` or `"none"`), `uppercaseHeadings` and `skip`; `toPlainText(html, options)` gives the plain text of any HTML. Without options, the text is written as 0.2 wrote it, but for these (0.2.1's text and this release's compared on every story, each block in each root, and the same HTML):
+  - Preformatted text (`<pre>`, a CodeBlock's or in an Html block) keeps its indentation and blank lines, each line's trailing spaces aside, on lines of its own; 0.2 collapsed its spaces and ran it into the text after it. Markup in it gives its text, and a link its URL (an image or a rule in it, nothing).
+  - An element with `data-skip-in-text="true"` is left out whole. 0.2 left it out only to its first closing tag, so the text after an element nested in it showed, and one without a closing tag (an `<img>`) took the text after it out instead.
+  - Each link is written with its own URL, whole and as written: a heading's too, never in capitals, one with a `'` or two spaces in it, one after a `data-href`, an `<area>` or an attribute with a `>` in it, and one whose `href` has no quotes (see "A link in a heading keeps its URL in the plain text" below).
+  - A link in a Paragraph's or a Heading's children is `text (url)`, as their HTML now holds it (see "Inline JSX in Paragraph, Heading and Button children" next); 0.2 kept only its text.
+  - A template that now renders otherwise has the text of what it renders: one in an `<UnlayerProvider config={{ mode: "email" }}>` is an email now (see "`<UnlayerProvider config>` configures the templates inside it" below), so its Menu items, their separators and its Social icons are on lines of their own, as in any email's text.
 
 - **Inline JSX in Paragraph, Heading and Button children.** Formatting tags, `<Link>`, and components that return them (react-intl's `<FormattedMessage>`, react-i18next's `<Trans>`) are kept, rendered with the template's context. 0.2 kept only their text. Text in them is still escaped.
 

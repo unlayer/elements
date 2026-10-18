@@ -490,7 +490,7 @@ Options (the config's too):
 - `uppercaseHeadings?: boolean` — h1 and h2 in capitals (default `true`)
 - `skip?: string[]` — elements left out with what's in them, by tag (`"img"`) or class (`".footer"`)
 
-Without options the text is as before.
+Without options, the text is written as 0.2 wrote it, but for preformatted text (`<pre>`, code), now kept as written on lines of its own, an element with `data-skip-in-text` (now left out whole), and links (each with its own URL, a heading's too, never in capitals): see the [changelog](./CHANGELOG.md).
 
 ### Async templates and `pretty`
 
