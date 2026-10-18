@@ -1,7 +1,7 @@
 // @vitest-environment node
 /**
  * The React versions the walker knows, and the check that the installed one has what it relies on: CI runs this on
- * each version in the table (see .github/workflows/test.yml), and weekly on React's canary.
+ * each version in the table (see .github/workflows/react-versions.yml), and weekly on React's canary.
  */
 import { describe, expect, it } from "vitest";
 import React from "react";

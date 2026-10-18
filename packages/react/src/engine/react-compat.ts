@@ -1,8 +1,8 @@
 /**
  * What the walker relies on in React, per minor version it's tested with (CI runs the suite on each: see
- * .github/workflows/test.yml). A version that isn't here takes the row of the nearest one before it; the self-test
- * (self-test.ts) checks this React has those shapes before the first render, so an unknown version that differs fails
- * with a named error instead of rendering wrong.
+ * .github/workflows/react-versions.yml). A version that isn't here takes the row of the nearest one before it; the
+ * self-test (self-test.ts) checks this React has those shapes before the first render, so an unknown version that
+ * differs fails with a named error instead of rendering wrong.
  *
  * | React     | dispatcher slot (client · react-server build)                                | useId   | context  | suspends by     |
  * |-----------|------------------------------------------------------------------------------|---------|----------|-----------------|

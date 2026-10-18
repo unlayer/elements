@@ -130,7 +130,9 @@ newer or older than the table's); if it fails, every render throws
 check, to render anyway.
 
 CI runs the react package's suite on React 18.0, 18.2, 18.3, 19.1, 19.2 and the latest 19, in React's development and production
-builds, and weekly against React's canary with a longer fuzz run (`.github/workflows/test.yml`, `react-canary.yml`).
+builds, and weekly against React's canary with a longer fuzz run (`.github/workflows/react-versions.yml`, which `test.yml`
+runs on every push and pull request and `publish.yml` before it publishes, so a release ships only a commit every one
+passed; `react-canary.yml`).
 To support a new version: add its row, run the suite on it (`pnpm --filter @unlayer/react-elements add -D react@x
 react-dom@x`), and add a hook it adds to `dispatcher.ts` and to the list in `dispatcher.test.tsx`.
 
