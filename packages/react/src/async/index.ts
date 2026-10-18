@@ -47,7 +47,7 @@ type Scope = { tailwind?: unknown };
 interface Internals {
   newScope(): Scope;
   withScope<T>(scope: Scope, run: () => T): T;
-  unwrapAsync(element: React.ReactElement, scope: Scope, steps: typeof take, idPrefix?: string): Promise<React.ReactElement>;
+  unwrapAsync(element: React.ReactElement, scope: Scope, steps: typeof take, idPrefix?: string, api?: string): Promise<React.ReactElement>;
   collectAsync(root: React.ReactElement, scope: Scope, options: Partial<UnlayerConfig> | undefined, collect: (node: React.ReactNode, walk: CollectOptions) => Promise<Flat>): Promise<Collected>;
   /** Whether a type is one of Elements' roots, of any copy (see utils/root-type.ts). */
   isRoot(type: unknown): boolean;
@@ -71,13 +71,14 @@ async function tailwindLoader(): Promise<Load> {
  * Renders `element` once, resolving what's async in it: its root first (an async template, or one that `use()`s a
  * promise), then its content, walked waiting for its async components, Suspense and `use()` (siblings at once, the
  * output in tree order); the synchronous render `run` makes the output from that, in the same scope. A template with
- * no root is its own content (what it rendered), but where `rootless` is false (the design, which needs a root).
+ * no root is its own content (what it rendered) in `api`, the render function named for what it says of one, but in
+ * none (the design, which needs a root).
  */
-async function render<T>(element: React.ReactElement, options: Partial<UnlayerConfig> | undefined, run: (renders: Renders, root: React.ReactElement) => T, rootless = true): Promise<T> {
+async function render<T>(element: React.ReactElement, options: Partial<UnlayerConfig> | undefined, run: (renders: Renders, root: React.ReactElement) => T, api?: string): Promise<T> {
   const internals = (renderHtml as unknown as Record<symbol, Internals>)[Symbol.for("@unlayer/react-elements/internals")];
   const scope = internals.newScope();
-  const root = await internals.unwrapAsync(element, scope, take, options?.idPrefix);
-  const content = internals.isRoot(root.type) ? (root.props as { children?: React.ReactNode } | null)?.children : rootless && root;
+  const root = await internals.unwrapAsync(element, scope, take, options?.idPrefix, api);
+  const content = internals.isRoot(root.type) ? (root.props as { children?: React.ReactNode } | null)?.children : api && root;
   const scopes: Array<{ config?: TailwindConfig; load?: Load }> = [];
   if (content && typeof content === "object") {
     const collected = await internals.collectAsync(root, scope, options, (node, walk) => collectWaiting(internals.engine, node, walk));
@@ -109,23 +110,23 @@ async function render<T>(element: React.ReactElement, options: Partial<UnlayerCo
  */
 export async function renderToHtml(element: React.ReactElement, options?: RenderToHtmlOptions & PrettyOption): Promise<string> {
   const { pretty, ...rest } = options ?? {};
-  const html = await render(element, rest, (renders, root) => renders.html(root, rest));
+  const html = await render(element, rest, (renders, root) => renders.html(root, rest), "renderToHtml");
   return pretty ? prettyHtml(html) : html;
 }
 
 /** `renderToPlainText`, for templates that load data as they render (see renderToHtml), with the same options. */
 export function renderToPlainText(element: React.ReactElement, config?: Partial<UnlayerConfig> & PlainTextOptions): Promise<string> {
-  return render(element, config, (renders, root) => renders.text(root, config));
+  return render(element, config, (renders, root) => renders.text(root, config), "renderToPlainText");
 }
 
 /** `renderToJson`, for templates that load data as they render (see renderToHtml), with the same options. */
 export function renderToJson(element: React.ReactElement, options?: RenderToJsonOptions): Promise<DesignJSON> {
-  return render(element, options, (renders, root) => renders.json(root, options), false);
+  return render(element, options, (renders, root) => renders.json(root, options));
 }
 
 /** `renderToHtmlParts`, for templates that load data as they render (see renderToHtml); with `pretty`, its head and body formatted. */
 export async function renderToHtmlParts(element: React.ReactElement, config?: Partial<UnlayerConfig> & PrettyOption): Promise<HtmlParts> {
   const { pretty, ...rest } = config ?? {};
-  const parts = await render(element, rest, (renders, root) => renders.parts(root, rest));
+  const parts = await render(element, rest, (renders, root) => renders.parts(root, rest), "renderToHtmlParts");
   return pretty ? { ...parts, head: await prettyHtml(parts.head), body: await prettyHtml(parts.body) } : parts;
 }

@@ -324,10 +324,16 @@ export function htmlRoot(element: React.ReactElement, api: string, idPrefix?: st
     if (cause instanceof Error && cause.message === ASYNC_TEMPLATE) throw new Error(`[Unlayer] ${api}: ${ASYNC_TEMPLATE}.`);
     throw cause;
   }
-  const { root, unread } = found;
-  if (isRoot(root.type)) return root;
-  // A template of Rows, or nothing: there's no root whose settings go unread.
-  // (Once a render: its walk, which meets the root, says no more.)
-  if (unread || holdsRoot(root)) sayOnce(unreadSaid(componentName(element) || "wrapper", unread ?? "its root is inside other markup", `${api}: `), UNREAD);
+  if (isRoot(found.root.type)) return found.root;
+  sayUnread(found, element, api);
   return found.rendered ?? element;
+}
+
+/**
+ * Said once a render where unwrapping `element` (in `api`, a render function) stopped before a root it can see in
+ * `found` (a template of Rows, or nothing, has no root whose settings go unread); its walk, which meets the root,
+ * says no more.
+ */
+export function sayUnread(found: Unwrapped, element: React.ReactElement, api: string): void {
+  if (found.unread || holdsRoot(found.root)) sayOnce(unreadSaid(componentName(element) || "wrapper", found.unread ?? "its root is inside other markup", `${api}: `), UNREAD);
 }

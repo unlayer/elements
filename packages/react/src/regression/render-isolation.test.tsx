@@ -256,6 +256,8 @@ describe("a template whose root's settings can't be read (its root inside markup
         await asyncRenderers.renderToHtmlParts(element);
         await asyncRenderers.renderToPlainText(element);
         expect(said()).toBe(7);
+        // What each says, sync or async, but for the render function's name.
+        expect(new Set(warn.mock.calls.map((call) => String(call[0]).replace(/^\[Unlayer\] \w+: /, "[Unlayer] "))).size).toBe(1);
       }
     } finally {
       warn.mockRestore();

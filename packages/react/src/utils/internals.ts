@@ -7,7 +7,7 @@
 import type React from "react";
 import type { UnlayerConfig } from "@unlayer-internal/shared-elements";
 import { collectedFrom, collecting, type Collected } from "../model";
-import { isElementsType, providedConfig, unwrapSteps, type Steps, type Unwrapped } from "./unwrap-root";
+import { isElementsType, providedConfig, sayUnread, unwrapSteps, type Steps, type Unwrapped } from "./unwrap-root";
 import { isRoot, rootName, ROOTLESS } from "./root-type";
 import { newScope, setRenderConfig, withScope, type Scope } from "./render-scope";
 import { rootConfig, type RootConfigProps } from "../context/layer-config";
@@ -20,12 +20,15 @@ export const INTERNALS = Symbol.for("@unlayer/react-elements/internals");
 /**
  * The root a template unwraps to, its steps taken by `take` (awaiting what they wait for), what it found kept in the
  * render's `scope` (see unwrap-root.ts's `Unwrapped`). Where none comes out, what the template rendered: the
- * synchronous render after renders it as it renders a template with no root, without calling the template again.
+ * synchronous render after renders it as it renders a template with no root, without calling the template again; in
+ * `api` (a render function that renders one), what it says where a root's settings go unread, as the synchronous one.
  */
-async function unwrapAsync(element: React.ReactElement, scope: Scope, take: (steps: Steps) => Promise<Unwrapped>, idPrefix?: string): Promise<React.ReactElement> {
+async function unwrapAsync(element: React.ReactElement, scope: Scope, take: (steps: Steps) => Promise<Unwrapped>, idPrefix?: string, api?: string): Promise<React.ReactElement> {
   if (typeof element.type === "string" || isElementsType(element.type)) return element;
   const found = (scope.unwrapped = await take(unwrapSteps(element, idPrefix)));
-  return isRoot(found.root.type) ? found.root : found.rendered ?? element;
+  if (isRoot(found.root.type)) return found.root;
+  if (api) withScope(scope, () => sayUnread(found, element, api));
+  return found.rendered ?? element;
 }
 
 /**
