@@ -4,8 +4,6 @@
  * the snapshot is updated (`vitest -u`) and reviewed.
  */
 import { describe, expect, it, vi } from "vitest";
-import { readFileSync } from "node:fs";
-import path from "node:path";
 import React, { forwardRef, memo, useId, useState } from "react";
 import { renderToHtml } from "../utils/render-to-html";
 import { renderToJson } from "../utils/render-to-json";
@@ -160,7 +158,8 @@ describe("the patterns and the realistic examples, kept and rendered again", () 
     const names = ["AirbnbConfirmation", "LumaEventInvite", "MercuryReceipt", "MorningBrewDigest", "NikeDrop", "NotionWelcome", "ProductDigest", "StripeReceipt", "WarbyOrderShipped"];
     const examples = await Promise.all(names.map(async (name) => [name, (await import(`../examples/${name}.stories.tsx`))[name]()] as const));
     const kept = [...Object.keys(PATTERNS).map((name) => [name, PATTERNS[name]()] as const), ...examples];
-    const reviewed = (name: string, kind: "html" | "json") => readFileSync(path.join(import.meta.dirname, "__snapshots__", names.includes(name) ? "examples" : "patterns", `${name}.${kind}`), "utf8");
+    const snapshots = import.meta.glob<string>("./__snapshots__/*/*.{html,json}", { query: "?raw", import: "default", eager: true });
+    const reviewed = (name: string, kind: "html" | "json") => snapshots[`./__snapshots__/${names.includes(name) ? "examples" : "patterns"}/${name}.${kind}`];
     const Forked = ({ of }: { of: React.ReactElement }) => (useId(), of);
     let seed = 7;
     const shuffled = <T,>(list: readonly T[]) => list.map((item) => [(seed = (seed * 16807) % 2147483647), item] as const).sort((a, b) => a[0] - b[0]).map(([, item]) => item);
