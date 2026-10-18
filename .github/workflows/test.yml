@@ -58,8 +58,12 @@ jobs:
         run: pnpm --filter @unlayer/from-react-email typecheck && pnpm --filter @unlayer/migrate typecheck
 
       # ── Bundle size budget ──────────────────────────────────────
-      # Fail if the react-elements ESM bundle exceeds 198KB.
-      # Current size: about 198KB (0.1.22: about 76KB). Raised from 194.5KB
+      # Fail if the react-elements ESM bundle exceeds 198.5KB.
+      # Current size: about 198.3KB (0.1.22: about 76KB). Raised from 198KB
+      # (about 0.3KB): the plain text reads links before headings and
+      # preformatted text, each attribute whole, with their URLs set aside
+      # till the end, and doesn't wrap the URLs listed after the text.
+      # Raised from 194.5KB
       # (about 3.4KB): markup is written as react-dom writes it for the
       # installed React, a <select>'s value marking its options (the format
       # context the walk carries), the form controls' rules and React 19's
@@ -146,7 +150,7 @@ jobs:
         run: |
           BUNDLE="packages/react/dist/index.js"
           SIZE=$(wc -c < "$BUNDLE" | tr -d ' ')
-          MAX_SIZE=198000
+          MAX_SIZE=198500
           echo "Bundle: $BUNDLE"
           echo "Size: $SIZE bytes (budget: $MAX_SIZE bytes)"
           if [ "$SIZE" -gt "$MAX_SIZE" ]; then
