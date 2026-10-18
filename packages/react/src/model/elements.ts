@@ -85,14 +85,11 @@ function keptMarkupOnce(item: RecordItem): React.ReactElement | undefined {
   const block = solo.length === 1 && typeof solo[0] !== "string" ? asBlock(solo[0], { containerPadding, hideOnMobile, hideOnDesktop }, true) : undefined;
   if (block) return block;
   // One element: React writes `dangerouslySetInnerHTML` and children alike, so what the component returned says which
-  // it gave (a <div> when it can't, as most such are: a class's).
+  // it gave (the walker keeps it, whatever kind of component it is: engine/walk.ts's `returned`). Children are kept
+  // with the element around them, its styles with them.
   const one = list.length === 1 && typeof list[0] !== "string" && list[0].inner !== undefined ? list[0] : undefined;
-  let given = false;
-  if (one) {
-    const output = recordOf(item).output as { value: unknown } | undefined;
-    const out = output?.value as React.ReactElement<{ dangerouslySetInnerHTML?: unknown }> | undefined;
-    given = output ? React.isValidElement(out) && typeof out.type === "string" && out.props.dangerouslySetInnerHTML != null : one.tag.toLowerCase() === "div";
-  }
+  const out = (recordOf(item).output as { value: unknown } | undefined)?.value as React.ReactElement<{ dangerouslySetInnerHTML?: unknown }> | undefined;
+  const given = React.isValidElement(out) && typeof out.type === "string" && out.props.dangerouslySetInnerHTML != null;
   const html = one && given ? one.inner! : raw;
   const Rendered = () => React.createElement("div", { dangerouslySetInnerHTML: { __html: html } });
   Rendered.displayName = nameOf(element);

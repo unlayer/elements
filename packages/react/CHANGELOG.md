@@ -104,6 +104,8 @@
 
 - **Components run once per render.** Elements called a component again to say why it failed, or to read the HTML it rendered in a Column, called template wrappers in throwaway renders of their own, and rendered a template with markup React rejects twice. A component now runs once (again only where React runs one again: when it sets its state while rendering, and after a promise its `use()` waited for, or that it threw, settles).
 
+- **Any component's `dangerouslySetInnerHTML` in a Column is an Html block of what's in it.** A function component (`memo` and `forwardRef` ones too) returning `<div dangerouslySetInnerHTML={…} />` gave an Html block of the HTML in it, without the `<div>`; a class, a lazy component, a context's Consumer or Provider, or a StrictMode kept the `<div>` around it. Now every kind does as a function component does. Any other element a component returns (`<div style={…}>`) is kept whole, with its styles, as before.
+
 - **Elements renders where its React isn't react-dom's.** Where a second install or a bundler gave Elements another copy of React than react-dom's, renders needed workarounds (and failed where they couldn't tell); Elements doesn't render with react-dom now, and records the Rows of another copy of Elements too.
 
 - **React's key warnings, in development.** A list without keys in a template (`items.map(…)`) gets React's warning in development builds, once per component, as React 19 gives it where it renders: Elements renders it now. 0.2 hid it.

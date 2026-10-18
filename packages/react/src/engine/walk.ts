@@ -218,7 +218,8 @@ function walkArray(w: Walker, list: unknown[], task: Task, out: Part[]): void {
   }
 }
 
-function walkElement(w: Walker, element: React.ReactElement, task: Task, out: Part[]): void {
+/** `keep`: the record that keeps what `element` returns, when it's a boundary's own component (see `returned`). */
+function walkElement(w: Walker, element: React.ReactElement, task: Task, out: Part[], keep = watched(task, element)): void {
   const type = element.type as any;
   const props = element.props as Record<string, any>;
   if (typeof type === "string") return walkHost(w, type, props, task, out);
@@ -226,9 +227,11 @@ function walkElement(w: Walker, element: React.ReactElement, task: Task, out: Pa
   if (recorded) return walkRecorded(w, recorded, task, out);
   if (typeof type === "function") {
     if (type.$$typeof === CLIENT_REF) throw clientReference(w, type, task);
-    if (type.prototype?.isReactComponent) return walkClass(w, type, props, task, out);
-    return walkFunction(w, type, type, props, undefined, task, out, watched(task, element));
+    if (type.prototype?.isReactComponent) return walkClass(w, type, props, task, out, keep);
+    return walkFunction(w, type, type, props, undefined, task, out, keep);
   }
+  // What a Provider, a StrictMode or a <Suspense> renders is what's in it (a component's call keeps what it returns).
+  returned(keep, props.children);
   if (PASSTHROUGH.has(type)) return walkNode(w, props.children, task, out);
   if (type === SUSPENSE) return walkSuspense(w, props, task, out);
   if (type === ACTIVITY) return props.mode === "hidden" ? undefined : walkNode(w, props.children, task, out);
@@ -240,23 +243,23 @@ function walkElement(w: Walker, element: React.ReactElement, task: Task, out: Pa
         let own = props;
         if (REACT_18) ref = (element as { ref?: unknown }).ref ?? null;
         else if ("ref" in props) ({ ref, ...own } = props);
-        return walkFunction(w, type.render, type, own, ref, task, out, watched(task, element));
+        return walkFunction(w, type.render, type, own, ref, task, out, keep);
       }
       case MEMO: {
         const inner = type.type;
         const own = REACT_18 ? withDefaults(inner, props) : props;
-        if (typeof inner === "function" && !inner.prototype?.isReactComponent) return walkFunction(w, inner, type, own, undefined, task, out, watched(task, element));
-        return walkElement(w, { ...element, type: inner, props: own } as React.ReactElement, task, out);
+        if (typeof inner === "function" && !inner.prototype?.isReactComponent) return walkFunction(w, inner, type, own, undefined, task, out, keep);
+        return walkElement(w, { ...element, type: inner, props: own } as React.ReactElement, task, out, keep);
       }
       case LAZY:
-        return walkLazy(w, type, task, out, (resolved, t, parts) => walkElement(w, { ...element, type: resolved, props: withDefaults(resolved, props) } as React.ReactElement, t, parts));
+        return walkLazy(w, type, task, out, (resolved, t, parts) => walkElement(w, { ...element, type: resolved, props: withDefaults(resolved, props) } as React.ReactElement, t, parts, keep));
       case PROVIDER:
         return withContext(w, type._context, props, task, out);
       case CONTEXT:
         // React 18: a Consumer (the context, or in development an object with `_context`). React 19: the provider.
-        return REACT_18 ? walkNode(w, props.children(readContext(task.contexts, type)), task, out) : withContext(w, type, props, task, out);
+        return REACT_18 ? walkNode(w, returned(keep, props.children(readContext(task.contexts, type))), task, out) : withContext(w, type, props, task, out);
       case CONSUMER:
-        return walkNode(w, props.children(readContext(task.contexts, type._context)), task, out);
+        return walkNode(w, returned(keep, props.children(readContext(task.contexts, type._context))), task, out);
       case CLIENT_REF:
         throw clientReference(w, type, task);
     }
@@ -271,6 +274,16 @@ function walkElement(w: Walker, element: React.ReactElement, task: Task, out: Pa
 
 /** The record that keeps what `element` returns, when it's a boundary's own component. */
 const watched = (task: Task, element: unknown) => (task.watch && task.watch.element === element ? task.watch.record : undefined);
+
+/**
+ * `value`, what a boundary's own component returned (a function's, a class's render, a Consumer's function's; what's
+ * in a Provider, a StrictMode, a <Suspense>), kept on its record (`keep`) as `output`: src/model/elements.ts's
+ * keptMarkup reads it, whatever kind of component it was (a memo's or a lazy one's is the component's in it).
+ */
+function returned<T>(keep: Record<string, any> | undefined, value: T): T {
+  if (keep) keep.output = { value };
+  return value;
+}
 
 const clientReference = (w: Walker, type: any, task: Task) =>
   fatal(w, `<${type.$$id ?? type.name ?? "component"}> is a Client Component ("use client"): it can't render in server code (a Server Component or route handler). Render it from a Client Component, or import it without "use client"`, task.frame);
@@ -399,12 +412,10 @@ function callAndWalk(w: Walker, state: HookState, fn: Function, props: Record<st
     const promise = result as PromiseLike<unknown> & { status?: string; value?: unknown; reason?: unknown };
     return w.wait(w, task, out, promise, (t, parts) => {
       if (promise.status === "rejected") throw positioned(w, promise.reason, state.name, frame);
-      if (keep) keep.output = { value: promise.value };
-      walkResult(w, state, promise.value, frame, t, parts);
+      walkResult(w, state, returned(keep, promise.value), frame, t, parts);
     });
   }
-  if (keep) keep.output = { value: result };
-  walkResult(w, state, result, frame, task, out);
+  walkResult(w, state, returned(keep, result), frame, task, out);
 }
 
 /** A component's own call (a template wrapper's too), with hooks: again while it sets its state as it renders (its last render counts). */
@@ -434,7 +445,7 @@ function walkResult(w: Walker, state: HookState, result: unknown, frame: Frame, 
   }
 }
 
-function walkClass(w: Walker, Ctor: any, given: Record<string, any>, task: Task, out: Part[], frame = childFrame(task.frame, nameOf(Ctor))): void {
+function walkClass(w: Walker, Ctor: any, given: Record<string, any>, task: Task, out: Part[], keep?: Record<string, any>, frame = childFrame(task.frame, nameOf(Ctor))): void {
   let result: unknown;
   try {
     result = asCaller(task, () => renderClass(Ctor, given, task.contexts));
@@ -446,12 +457,12 @@ function walkClass(w: Walker, Ctor: any, given: Record<string, any>, task: Task,
       settle(thenable);
       throw new SyncSuspend(frame.name, frame);
     }
-    return w.wait(w, task, out, thenable, (t, parts) => walkClass(w, Ctor, given, t, parts, frame));
+    return w.wait(w, task, out, thenable, (t, parts) => walkClass(w, Ctor, given, t, parts, keep, frame));
   }
   const outer = task.frame;
   task.frame = frame;
   try {
-    walkNode(w, result, task, out);
+    walkNode(w, returned(keep, result), task, out);
   } finally {
     task.frame = outer;
   }

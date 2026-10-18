@@ -353,6 +353,72 @@ describe("HTML from a component in a Column", () => {
     }
   });
 
+  // Every kind of component is asked what it returned: an element given `dangerouslySetInnerHTML` gives what's in it,
+  // any other element is kept whole, with its styles.
+  const Ctx = React.createContext(0);
+  const kinds = (element: React.ReactElement): Record<string, React.ReactElement> => {
+    function Fn() {
+      return element;
+    }
+    class Cls extends React.Component {
+      render() {
+        return element;
+      }
+    }
+    // (Loaded already: a synchronous render renders it.)
+    const loaded = (type: React.ComponentType) => React.lazy(() => ({ then: (resolve: (m: { default: React.ComponentType }) => void) => resolve({ default: type }) }) as Promise<{ default: React.ComponentType }>);
+    const Forward = React.forwardRef(() => element);
+    return {
+      "a function": <Fn />,
+      "a class": <Cls />,
+      "a memo'd function": React.createElement(memo(Fn)),
+      "a memo'd class": React.createElement(memo(Cls)),
+      "a forwardRef": <Forward />,
+      "a memo'd forwardRef": React.createElement(memo(Forward)),
+      "a memo of a memo": React.createElement(memo(memo(Fn))),
+      "a lazy function": React.createElement(loaded(Fn)),
+      "a lazy class": React.createElement(loaded(Cls)),
+      "a context's Consumer": <Ctx.Consumer>{() => element}</Ctx.Consumer>,
+      "a context's Provider": <Ctx.Provider value={1}>{element}</Ctx.Provider>,
+      "a StrictMode": <React.StrictMode>{element}</React.StrictMode>,
+      "a Suspense": <React.Suspense>{element}</React.Suspense>,
+    };
+  };
+  const shapes: Array<[string, React.ReactElement, string]> = [
+    ["keeps the element around its content", <div style={{ backgroundColor: "red" }}>Hi</div>, '<div style="background-color:red">Hi</div>'],
+    ["gives what's in an element given dangerouslySetInnerHTML", <div dangerouslySetInnerHTML={{ __html: "<p>Hi</p>" }} />, "<p>Hi</p>"],
+  ];
+  for (const [what, shape, kept] of shapes) {
+    it.each(Object.entries(kinds(shape)))(`${what}, from %s`, async (_, node) => {
+      const email = <Email><Row><Column>{node}</Column></Row></Email>;
+      const block = (design: { body: { rows: any[] } }) => design.body.rows[0].columns[0].contents;
+      expect(block(renderToJson(email))).toEqual([expect.objectContaining({ type: "html", values: expect.objectContaining({ html: kept }) })]);
+      expect(renderToHtml(email)).toContain(kept);
+      expect(block(await asyncRenderers.renderToJson(email))).toEqual([expect.objectContaining({ type: "html", values: expect.objectContaining({ html: kept }) })]);
+    });
+  }
+
+  it("asks a component the async renderers waited for what it returned: an async one, a class that suspended, a lazy one", async () => {
+    const element = <div style={{ backgroundColor: "red" }}>Hi</div>;
+    const kept = '<div style="background-color:red">Hi</div>';
+    const later = <T,>(value: T) => new Promise<T>((resolve) => setTimeout(() => resolve(value), 1));
+    let ready: Promise<unknown> | undefined;
+    class Suspends extends React.Component {
+      render() {
+        if (!ready) throw (ready = later(null));
+        return element;
+      }
+    }
+    const Async = async () => (await later(null), element);
+    const Lazy = React.lazy(() => later({ default: () => element }));
+    const LazyClass = React.lazy(() => later({ default: Suspends }));
+    for (const node of [<Suspends key="a" />, React.createElement(Async as unknown as React.FC), <Lazy key="c" />, <LazyClass key="d" />]) {
+      ready = undefined;
+      const design = await asyncRenderers.renderToJson(<Email><Row><Column>{node}</Column></Row></Email>);
+      expect(design.body.rows[0].columns[0].contents).toEqual([expect.objectContaining({ type: "html", values: expect.objectContaining({ html: kept }) })]);
+    }
+  });
+
   it("makes a link alone a Paragraph holding it, and a rule a Divider: blocks the design can edit", () => {
     const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
     try {
