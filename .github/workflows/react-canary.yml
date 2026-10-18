@@ -42,10 +42,12 @@ jobs:
       - name: Build
         run: pnpm --filter @unlayer-internal/shared-elements build && pnpm --filter @unlayer/react-elements build
 
-      # The walker against react-dom/server on random trees (useId()s included), random templates against the last
-      # release, and the rest of the engine's tests (the self-check of an unknown React version among them).
+      # The walker against react-dom/server on random trees (useId()s included) and on random markup where templates
+      # have it, random templates against the last release, and the rest of the engine's tests (the self-check of an
+      # unknown React version among them).
       - name: Fuzz
         env:
           WALKER_FUZZ_SEEDS: 5000
+          TEMPLATE_SEEDS: 1000
           GENERATED_SEEDS: 3000
         run: pnpm --filter @unlayer/react-elements exec vitest run src/engine src/regression/generated.test.tsx

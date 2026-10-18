@@ -16,7 +16,7 @@
 import type React from "react";
 import { callWithHooks, contextOf, hookState, readContext, SUSPEND, track, type ContextStack, type HookState } from "./dispatcher";
 import { ASYNC_IN_SYNC, childFrame, nameOf, placeFrame, positionOf, RenderError, threw, type Frame } from "./errors";
-import { escapeText, leadingNewline, openTag, propsBody, validateHost, VOID } from "./host";
+import { childFormat, escapeText, leadingNewline, openTag, propsBody, validateHost, VOID, type Format } from "./host";
 import { REACT_18 } from "./react-compat";
 import { checkKeys } from "./keys";
 import { isWalkerNode, type BoundaryNode, type RecordNode } from "./records";
@@ -84,6 +84,8 @@ export interface Walker {
 export interface Task {
   tree: TreeContext;
   contexts: ContextStack | null;
+  /** Where markup is (the `<select>` its options are in): see host.ts. */
+  format: Format;
   frame: Frame;
   /** A boundary's own component, whose return value its record keeps (`output`: see src/model/elements.ts's keptMarkup). */
   watch: { element: unknown; record: Record<string, any> } | null;
@@ -532,12 +534,16 @@ function walkLazy(w: Walker, lazy: Record<string, any>, task: Task, out: Part[],
 // ── Markup ──
 
 function walkHost(w: Walker, type: string, props: Record<string, any>, task: Task, out: Part[]): void {
+  const format = task.format;
+  let open: string;
+  let body: string | undefined;
   try {
     validateHost(type, props);
+    open = openTag(type, props, format);
+    body = propsBody(type, props);
   } catch (error) {
     throw positioned(w, error, type, placeFrame(task.frame, type));
   }
-  const open = openTag(type, props);
   const close = VOID.has(type) ? "" : `</${type}>`;
   // A collecting walk's markup is content (output.ts): its records are in it, where they are.
   let into = out;
@@ -547,12 +553,16 @@ function walkHost(w: Walker, type: string, props: Record<string, any>, task: Tas
     into = part.parts;
   } else out.push(open);
   if (!close) return;
-  const body = propsBody(type, props);
   if (body !== undefined) into.push(body);
   else {
     const lead = leadingNewline(type, props.children);
     if (lead) into.push(lead);
-    walkNode(w, props.children, task, into);
+    task.format = childFormat(format, type, props);
+    try {
+      walkNode(w, props.children, task, into);
+    } finally {
+      task.format = format;
+    }
   }
   if (!w.collector) out.push(close);
 }

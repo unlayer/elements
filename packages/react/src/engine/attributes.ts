@@ -62,6 +62,12 @@ if (REACT_18) {
 
 const written = (name: string, value: unknown) => ` ${name}="${escapeText(value)}"`;
 
+/** An `<object>`'s `data` as React 19 writes it: a URL, any value as text (an empty one left out). */
+export function objectData(value: unknown): string {
+  const data = url("" + value);
+  return data ? written("data", data) : "";
+}
+
 /** A prop of an element as React writes it (` name="value"`), or "" where it writes none. */
 export function attribute(name: string, value: unknown): string {
   if (name === "style") return style(value);

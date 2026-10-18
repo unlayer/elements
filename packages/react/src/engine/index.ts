@@ -10,6 +10,7 @@ import { childFrame, nameOf, omits, positionOf, RenderError, rootFrame, threw, t
 import { flatten, type Flat, type Part } from "./output";
 import { checkReact } from "./self-test";
 import { pushTreeContext, ROOT_TREE, type TreeContext } from "./tree-id";
+import { TOP } from "./host";
 import { call, caller, failure, positioned, renderClass, suspension, thrownBy, walkNode, type Collector, type Task, type Wait, type Walker } from "./walk";
 
 export { RenderError, type OnError } from "./errors";
@@ -49,7 +50,7 @@ const walker = (options: Partial<WalkerOptions>, wait?: Wait): Walker => ({
 });
 
 /** Where a walk starts: where the component that started it is, if the walker is calling one (see `caller`). */
-const task = (root: string, tree?: TreeContext): Task => ({ tree: tree ?? caller()?.tree ?? ROOT_TREE, contexts: caller()?.contexts ?? null, frame: rootFrame(root), watch: null });
+const task = (root: string, tree?: TreeContext): Task => ({ tree: tree ?? caller()?.tree ?? ROOT_TREE, contexts: caller()?.contexts ?? null, format: TOP, frame: rootFrame(root), watch: null });
 
 /** `node` collected synchronously: what's async in it fails (or is left out, as `onError` says). */
 export function collect(node: React.ReactNode, options: CollectOptions): Flat {

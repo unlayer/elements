@@ -1,27 +1,69 @@
 /**
- * Host markup (`<div>`, `<p>`, …) written as react-dom's static render writes it: its attributes (attributes.ts),
- * void, preformatted and custom elements, an `<input>`'s and `<textarea>`'s value. The walker writes the markup of a
- * template with it, and the string exporters (src/exporters) the markup of their blocks. Not written: React 19's
- * hoisting (`<title>`, `<meta>`, `<link>` and image preloads moved to a head) and forms' actions, which an email's or
- * page's markup has no use for, and `<select value>` marking its `<option>`s.
+ * Host markup (`<div>`, `<p>`, …) written as react-dom's static render writes it, for the installed React: its
+ * attributes (attributes.ts); void, preformatted and custom elements; a `<select>`'s value marking its `<option>`s, an
+ * `<input>`'s, `<textarea>`'s, `<button>`'s and `<form>`'s own rules. The walker writes the markup of a template with
+ * it, and the string exporters (src/exporters) the markup of their blocks.
+ *
+ * Not written as react-dom 19 writes it, on purpose (src/engine/differential.test.tsx lists each): its hoisting (a
+ * `<title>`, `<meta>`, `<link>`, `<style precedence href>` or async `<script>` moved to the start of the markup, and
+ * image preloads added), its document singletons (an `<html>` at the top given a `<head>`), and a form's action that's
+ * a function (a script that runs it). An email's or a page's markup is a part of the document Elements writes, which
+ * has a head of its own (<Head>), and runs no script.
  */
-import { attribute, customAttribute, escapeText } from "./attributes";
+import { attribute, customAttribute, escapeText, objectData } from "./attributes";
 import { REACT_18 } from "./react-compat";
 
 export { escapeText };
 
-export const VOID = new Set(["area", "base", "br", "col", "embed", "hr", "img", "input", "keygen", "link", "meta", "param", "source", "track", "wbr", "menuitem"]);
+/**
+ * Where markup is (react-dom's format context): the value of the `<select>` it's in, which marks its `<option>`s, and
+ * whether it's in a table, a row or a table's section (whose children start afresh).
+ */
+export interface Format {
+  selected?: unknown;
+  table?: boolean;
+}
+export const TOP: Format = {};
+
+/** Where what's in a `type` element is, as react-dom works it out. */
+export function childFormat(format: Format, type: string, props: Record<string, any>): Format {
+  switch (type) {
+    case "select":
+      return { selected: props.value != null ? props.value : props.defaultValue };
+    case "table":
+    case "thead":
+    case "tbody":
+    case "tfoot":
+    case "colgroup":
+    case "tr":
+      return { table: true };
+    case "svg":
+    case "math":
+    case "foreignObject":
+      return TOP;
+    case "noscript":
+    case "picture":
+      if (!REACT_18) return TOP;
+  }
+  return format.table ? TOP : format;
+}
+
+export const VOID = new Set(["area", "base", "br", "col", "embed", "hr", "img", "input", "keygen", "link", "meta", "param", "source", "track", "wbr"]);
 const VALID_TAG = /^[a-zA-Z][a-zA-Z:_.\-\d]*$/;
 /** SVG's and MathML's elements whose names have a "-", and those react-dom writes its own way: never custom elements. */
-const NOT_CUSTOM = new Set(["annotation-xml", "color-profile", "font-face", "font-face-src", "font-face-uri", "font-face-format", "font-face-name", "missing-glyph", "select", "option", "textarea", "title", "listing", "pre", "html"]);
-
-const skip = (value: unknown) => typeof value === "function" || typeof value === "symbol";
+const NOT_CUSTOM = new Set(["annotation-xml", "color-profile", "font-face", "font-face-src", "font-face-uri", "font-face-format", "font-face-name", "missing-glyph", "select", "option", "textarea", "title", "listing", "pre", "html", "menuitem"]);
+/** React 19 writes these after an element's other attributes: a form's, and an input's or a button's form settings. */
+const FIELDS = ["name", "formAction", "formEncType", "formMethod", "formTarget"];
+const LATER: Record<string, string[] | undefined> = REACT_18 ? {} : { form: ["action", "encType", "method", "target"], input: FIELDS, button: FIELDS };
 
 /** What react-dom throws for markup it can't write (the walker says where). */
 export function validateHost(type: string, props: Record<string, any>): void {
   if (!VALID_TAG.test(type)) throw new Error("Invalid tag: " + type);
   const html = props.dangerouslySetInnerHTML;
-  if (VOID.has(type.toLowerCase()) && (props.children != null || html != null)) throw new Error(`${type} is a self-closing tag and must neither have \`children\` nor use \`dangerouslySetInnerHTML\`.`);
+  const content = props.children != null || html != null;
+  if (VOID.has(type) && content) throw new Error(`${type} is a self-closing tag and must neither have \`children\` nor use \`dangerouslySetInnerHTML\`.`);
+  if (type === "menuitem" && content) throw new Error("menuitems cannot have `children` nor `dangerouslySetInnerHTML`.");
+  if (html != null && (type === "textarea" || (REACT_18 && type === "title"))) throw new Error(`\`dangerouslySetInnerHTML\` does not make sense on <${type}>.`);
   if (props.style != null && typeof props.style !== "object")
     throw new Error("The `style` prop expects a mapping from style properties to values, not a string. For example, style={{marginRight: spacing + 'em'}} when using JSX.");
   if (html != null) {
@@ -35,64 +77,81 @@ const isCustom = (type: string, props: Record<string, any>) => !VOID.has(type) &
 
 /**
  * `<type …>` with its attributes as react-dom writes them: an `<input>`'s `checked` and `value` last, an `<option>`'s
- * `selected` last, a `<select>`'s `value` on none (it marks an option, which this doesn't).
+ * `selected` last (where the `<select>` it's in has a value, whether that's its value), React 19's form settings after
+ * the rest, and none for what an element holds as its content (a `<textarea>`'s value) or gives its options (a
+ * `<select>`'s).
  */
-export function openTag(type: string, props: Record<string, any>): string {
+export function openTag(type: string, props: Record<string, any>, format: Format = TOP): string {
   const custom = isCustom(type, props);
-  const p = type === "input" ? inputProps(props) : type === "textarea" ? textareaProps(props) : props;
+  const later = LATER[type];
   let open = "<" + type;
-  for (const key in p) {
-    if (!Object.prototype.hasOwnProperty.call(p, key)) continue;
-    const value = p[key];
-    if (value == null || key === "children" || key === "dangerouslySetInnerHTML" || key === "__text") continue;
-    if (key === "__checked") open += ' checked=""';
-    else if (custom) open += customAttribute(key, value);
+  for (const key in props) {
+    if (!Object.prototype.hasOwnProperty.call(props, key)) continue;
+    const value = props[key];
+    if (value == null || key === "children" || key === "dangerouslySetInnerHTML" || later?.includes(key)) continue;
+    if (custom) open += customAttribute(key, value);
+    else if (type === "input" ? /^(value|defaultValue|checked|defaultChecked)$/.test(key) : type === "select" || type === "textarea" ? key === "value" || key === "defaultValue" : type === "option" && key === "selected") continue;
     // A link to nowhere is written (React 19 leaves out other empty URLs).
     else if (value === "" && key === "href" && type === "a") open += ' href=""';
-    else if (type === "select" ? key !== "value" && key !== "defaultValue" : type !== "option" || key !== "selected") open += attribute(key, value);
+    else open += !REACT_18 && type === "object" && key === "data" ? objectData(value) : attribute(key, value);
   }
-  if (type === "option" && p.selected) open += ' selected=""';
+  if (later) for (const key of later) if (props[key] != null) open += attribute(key, props[key]);
+  if (type === "input") {
+    const checked = props.checked != null ? props.checked : props.defaultChecked;
+    if (checked && typeof checked !== "function" && typeof checked !== "symbol") open += ' checked=""';
+    const value = props.value != null ? props.value : props.defaultValue;
+    if (value != null) open += attribute("value", value);
+  }
+  if (type === "option" && selects(format.selected, props)) open += ' selected=""';
   return VOID.has(type) ? open + "/>" : open + ">";
 }
 
+/** Whether an `<option>` is selected: where its `<select>` has a value, whether that's its value (or one of them), else its `selected`. */
+function selects(selected: unknown, props: Record<string, any>): boolean {
+  if (selected == null) return !!props.selected;
+  const value = props.value != null ? "" + props.value : optionText(props.children);
+  return Array.isArray(selected) ? selected.some((v) => "" + v === value) : "" + selected === value;
+}
+
+/** An option's value where it has none, as react-dom reads it: its children's text, joined (an element's is `[object Object]`). */
+function optionText(children: unknown): string {
+  let text = "";
+  const add = (child: any): void => {
+    if (child == null || typeof child === "boolean" || typeof child === "function" || typeof child === "symbol" || (REACT_18 && typeof child === "bigint")) return;
+    if (Array.isArray(child)) child.forEach(add);
+    else text += child;
+  };
+  add(children);
+  return text;
+}
+
 /**
- * What's in the element when props say it (`dangerouslySetInnerHTML`, a `<textarea>`'s value), else undefined: its
+ * What's in the element when its props say it (`dangerouslySetInnerHTML`, a `<textarea>`'s value), else undefined: its
  * children are walked. react-dom starts a `<pre>`, `<textarea>` or `<listing>` whose text starts with a newline with
  * one more (the parser drops it).
  */
 export function propsBody(type: string, props: Record<string, any>): string | undefined {
   const html = props.dangerouslySetInnerHTML;
-  const preformatted = type === "pre" || type === "textarea" || type === "listing";
+  if (type === "textarea") return textareaText(props);
   if (html != null) {
-    const body = html.__html == null ? "" : "" + html.__html;
-    return preformatted && body[0] === "\n" ? "\n" + body : body;
+    const given = html.__html;
+    const body = given == null ? "" : "" + given;
+    return (type === "pre" || type === "listing") && typeof given === "string" && given[0] === "\n" ? "\n" + body : body;
   }
-  if (type === "textarea") {
-    const text = escapeText(textareaProps(props).__text);
-    return text[0] === "\n" ? "\n" + text : text;
+  return type === "menuitem" ? "" : undefined;
+}
+
+/** A `<textarea>`'s text: its value, else its default value, else its one child. */
+function textareaText(props: Record<string, any>): string {
+  let value = props.value != null ? props.value : props.defaultValue;
+  const children = props.children;
+  if (children != null) {
+    if (value != null) throw new Error("If you supply `defaultValue` on a <textarea>, do not pass children.");
+    if (Array.isArray(children) && children.length > 1) throw new Error("<textarea> can only have at most one child.");
+    value = "" + children;
   }
-  return undefined;
+  return value == null ? "" : (typeof value === "string" && value[0] === "\n" ? "\n" : "") + escapeText("" + value);
 }
 
 /** The newline react-dom adds before a `<pre>`'s or `<listing>`'s text children that start with one. */
 export const leadingNewline = (type: string, children: unknown): string => ((type === "pre" || type === "listing") && typeof children === "string" && children[0] === "\n" ? "\n" : "");
-
-function inputProps(props: Record<string, any>): Record<string, any> {
-  const { value, defaultValue, checked, defaultChecked, ...rest } = props;
-  const out: Record<string, any> = rest;
-  const c = checked ?? defaultChecked;
-  if (c && !skip(c)) out.__checked = true;
-  const v = value ?? defaultValue;
-  if (v != null) out.value = v;
-  return out;
-}
-
-function textareaProps(props: Record<string, any>): Record<string, any> {
-  const { value, defaultValue, children, ...rest } = props;
-  let text = value ?? defaultValue;
-  if (text == null && children != null) {
-    if (Array.isArray(children) && children.length > 1) throw new Error("<textarea> can only have at most one child.");
-    text = Array.isArray(children) ? children[0] : children;
-  }
-  return { ...rest, __text: text == null ? "" : "" + text };
-}

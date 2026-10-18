@@ -55,7 +55,7 @@ export function collectWaiting(engine: Engine, node: React.ReactNode, options: C
     const wait: Wait = (w, task, out, thenable, fill) => {
       const part: Hole = { t: "hole", parts: [], settled: false };
       out.push(part);
-      const at: Task = { tree: task.tree, contexts: task.contexts, frame: task.frame, watch: null };
+      const at: Task = { tree: task.tree, contexts: task.contexts, format: task.format, frame: task.frame, watch: null };
       engine.track(thenable);
       const settled = () => {
         if (done) return;

@@ -78,7 +78,7 @@ across an `await`: async code passes it on itself.
 |--|--|
 | `walk.ts` | The walker: elements, components, Context, Fragments, memo, forwardRef, lazy, Suspense, classes; where something suspends, the async walk's `wait` (src/async/collect.ts) or a throw to the nearest `<Suspense>` |
 | `dispatcher.ts` | Elements' hooks dispatcher, put in React's slot around each component call |
-| `host.ts`, `attributes.ts` | Host markup (`<div>`, `<img>`, …) as react-dom writes it: void, custom and form elements; each attribute and style by React 18's property table or React 19's switch; escaping. The walker and the string exporters write with it |
+| `host.ts`, `attributes.ts` | Host markup (`<div>`, `<img>`, …) as react-dom writes it for the installed React: void, custom and preformatted elements; form controls (a `<select>`'s value marking its options, the format context the walker carries for it); each attribute and style by React 18's property table or React 19's switch; escaping. The walker and the string exporters write with it |
 | `output.ts` | The walk's output (text, markup, records, holes, boundaries, errors), flattened in tree order into the content's tree |
 | `tree-id.ts` | Where a component is in the tree (Fizz's tree context), and `useId()` from it |
 | `react-compat.ts` | What the walker relies on, per React version, and where React's dispatcher slot is |
@@ -205,11 +205,17 @@ row or block is left out of the HTML, the plain text and the design (the slower 
 ### Not supported
 
 - **Error boundaries.** A class component's `componentDidCatch`/`getDerivedStateFromError` don't catch: React's server
-  renderer doesn't run them either. What replaces them is the RenderError's `position` and `cause`, and `onError` to
-  leave a failed part out.
+  renderer doesn't run them either. Nor does a `<Suspense>` catch what fails in it, where React's server renderer
+  writes its fallback for the browser to render it again: the part fails, as every failed part does (nothing is left
+  out without a word). What replaces them is the RenderError's `position` and `cause`, and `onError` to leave a failed
+  part out.
 - **Portals.** As in React's server renderer, they fail the render.
-- **React 19's hoisting**: a `<title>`, `<meta>` or `<link>` in the body stays where it is, and images get no preload
-  `<link>`s (put head tags in `<Head>`); `<select value>` doesn't mark its `<option>`s; forms' actions aren't written.
+- **React 19's hoisting**: a `<title>`, `<meta>`, `<link>`, `<style precedence href>` or async `<script>` in the body
+  stays where it is, written as React 19 writes one it doesn't hoist (`precedence`, not `data-precedence`), images get
+  no preload `<link>`s, and an `<html>` at the top of a template with no root gets no `<head>` it doesn't have (put head
+  tags in `<Head>`: Elements writes the document). A form's or a button's action that's a function isn't written
+  (React 19 writes a script that runs it). `src/engine/differential.test.tsx` lists each of these, and checks the walker
+  writes everything else as react-dom does.
 - **Effects** never run, as on any server.
 
 ## Invariants
@@ -260,7 +266,7 @@ row or block is left out of the HTML, the plain text and the design (the slower 
 
 | What | Tests |
 |--|--|
-| The walker writes what react-dom writes, ids included, on hand-written and random trees, and each attribute on each kind of element | `src/engine/differential.test.tsx` (`WALKER_FUZZ_SEEDS=5000` for more) |
+| The walker writes what react-dom writes, ids included, on hand-written and random trees; each attribute on each kind of element; every element React writes its own way (form controls, resources React 19 hoists, where it doesn't); random markup where templates have it (a template with no root, a Page's, a component's in a Column, the async renderers'); and what it means to write otherwise, listed | `src/engine/differential.test.tsx` (`WALKER_FUZZ_SEEDS=5000` and `TEMPLATE_SEEDS=1000` for more) |
 | The string exporters write what `@unlayer/exporters` writes with react-dom (12k cases; React 19's attributes); pages and documents render with react-dom/server made to throw | `src/exporters/parity.test.tsx`, `react-19.test.ts`, `no-react-dom.test.tsx` |
 | Every hook of the installed React; an unknown one's error; the slot put back | `src/engine/dispatcher.test.tsx` |
 | The version table and the self-check | `src/engine/react-compat.test.ts` |
