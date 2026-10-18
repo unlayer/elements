@@ -1,10 +1,15 @@
 "use client";
 
-import React, { createContext, useContext, useMemo } from "react";
+import React, { useMemo } from "react";
 import type { UnlayerConfig } from "@unlayer-internal/shared-elements";
 import { DEFAULT_CONFIG } from "@unlayer-internal/shared-elements";
-import { rendering } from "../utils/server-renderer";
+import { rendering } from "../engine/dispatcher";
 import { layerConfig } from "./layer-config";
+
+// React Server Components' React (its react-server build: Next.js's Server Components and route handlers) has no
+// createContext or useContext. They're read off React, not imported by name: webpack (Next.js 15's default bundler)
+// fails the build of a module that imports by name what the module it imports doesn't export.
+const { createContext, useContext } = React as Partial<Pick<typeof React, "createContext" | "useContext">>;
 
 /**
  * @internal Flag added to context value when a provider is active.
@@ -44,7 +49,7 @@ export const UnlayerProvider: React.FC<UnlayerProviderProps> = ({
 }) => {
   const Context = getUnlayerContext();
   // React Server Components' React has no context: the render functions read the config off this element instead.
-  if (!Context || typeof useContext !== "function") return <>{children}</>;
+  if (!Context || !useContext) return <>{children}</>;
   const parent = useContext(Context);
   // Key by key over the Provider around it (or the defaults): a key it leaves undefined comes from there.
   const merged = useMemo(
@@ -64,7 +69,7 @@ UnlayerProvider.displayName = "UnlayerProvider";
 
 export function useUnlayerConfig(): UnlayerConfig {
   const Context = getUnlayerContext();
-  return Context ? useContext(Context) : DEFAULT_CONFIG;
+  return Context && useContext ? useContext(Context) : DEFAULT_CONFIG;
 }
 
 /**
@@ -75,7 +80,7 @@ export function useUnlayerConfig(): UnlayerConfig {
  */
 export function useProvidedConfig(): Partial<UnlayerConfig> | undefined {
   const Context = getUnlayerContext();
-  if (!Context || typeof useContext !== "function" || !rendering()) return undefined;
+  if (!Context || !useContext || !rendering()) return undefined;
   const { [PROVIDER_ACTIVE_KEY]: active, ...config } = useContext(Context) as UnlayerConfig & Record<string, unknown>;
   return active ? (config as Partial<UnlayerConfig>) : undefined;
 }

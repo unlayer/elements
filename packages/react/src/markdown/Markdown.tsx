@@ -56,8 +56,9 @@ export interface MarkdownProps {
    */
   url?: (url: string, kind: "link" | "image") => string | undefined;
   /**
-   * Raw HTML in the Markdown: kept, without scripts, frames, forms or event handlers (`"sanitize"`, the default);
-   * shown as text (`"escape"`); or left out (`"drop"`).
+   * Raw HTML in the Markdown: kept to the tags and attributes that display, text, links, images, lists, tables and
+   * sections, without event handlers, URLs that run code or CSS that loads anything (`"sanitize"`, the default: the
+   * lists are sanitizeHtml's); shown as text (`"escape"`); or left out (`"drop"`).
    */
   html?: "sanitize" | "escape" | "drop";
   /** A line break in a paragraph is one in the text (GitHub's comments), not a space. */
@@ -85,6 +86,12 @@ function dedent(text: string): string {
 
 const textOf = (node: React.ReactNode): string =>
   node == null || typeof node === "boolean" ? "" : Array.isArray(node) ? node.map(textOf).join("") : React.isValidElement<{ children?: React.ReactNode }>(node) ? textOf(node.props.children) : String(node);
+
+/**
+ * On each block that holds Markdown's HTML: it's sanitized, so a <Tailwind> around it inlines no class of it that could
+ * load or run something either (its sanitizer's check: see src/tailwind/load.ts). Last, so `blocks` can't change it.
+ */
+const SANITIZED = { _sanitized: true } as {};
 
 /** Turns Markdown's tokens into Elements blocks and the HTML in their text. */
 class Writer {
@@ -236,14 +243,14 @@ class Writer {
         case "paragraph": {
           const image = this.alone(token as Tokens.Paragraph);
           if (image) return <Image key={key} src={image.src} alt={image.alt} {...(image.href ? { action: image.href } : {})} {...blocks.image} />;
-          return <Paragraph key={key} {...blocks.paragraph} html={this.inline(token.tokens)} />;
+          return <Paragraph key={key} {...blocks.paragraph} html={this.inline(token.tokens)} {...SANITIZED} />;
         }
         case "text":
-          return <Paragraph key={key} {...blocks.paragraph} html={"tokens" in token && token.tokens ? this.inline(token.tokens) : this.text(token.text)} />;
+          return <Paragraph key={key} {...blocks.paragraph} html={"tokens" in token && token.tokens ? this.inline(token.tokens) : this.text(token.text)} {...SANITIZED} />;
         case "list":
-          return <Paragraph key={key} {...blocks.list} html={this.list(token as Tokens.List)} />;
+          return <Paragraph key={key} {...blocks.list} html={this.list(token as Tokens.List)} {...SANITIZED} />;
         case "blockquote":
-          return <Paragraph key={key} {...blocks.blockquote} html={this.quote(token as Tokens.Blockquote)} />;
+          return <Paragraph key={key} {...blocks.blockquote} html={this.quote(token as Tokens.Blockquote)} {...SANITIZED} />;
         case "hr":
           return <Divider key={key} {...blocks.divider} />;
         case "table": {
@@ -257,10 +264,10 @@ class Writer {
         case "html": {
           const html = this.raw(token.text);
           if (!html.trim()) return null;
-          return this.props.html === "escape" ? <Paragraph key={key} {...blocks.paragraph} html={html} /> : <Html key={key} {...blocks.html} html={html} />;
+          return this.props.html === "escape" ? <Paragraph key={key} {...blocks.paragraph} html={html} {...SANITIZED} /> : <Html key={key} {...blocks.html} html={html} {...SANITIZED} />;
         }
         default:
-          return <Html key={key} {...blocks.html} html={sanitizeHtml(Parser.parse([token]))} />;
+          return <Html key={key} {...blocks.html} html={sanitizeHtml(Parser.parse([token]))} {...SANITIZED} />;
       }
     });
   }
@@ -269,8 +276,8 @@ class Writer {
 /**
  * Markdown - Markdown as Elements blocks: headings are Headings, paragraphs, lists and quotes Paragraphs, images on
  * a line of their own Images, `---` a Divider, tables Tables, code a CodeBlock, raw HTML an Html block, so the design
- * stays editable block by block. Place it in a Column. Raw HTML is kept without scripts, frames, forms or event
- * handlers, and links and images that could run code are left out.
+ * stays editable block by block. Place it in a Column. Raw HTML keeps only the tags and attributes that display (see
+ * sanitizeHtml), and links and images that could run code are left out.
  *
  * @example
  * ```tsx

@@ -5,7 +5,7 @@
  * is the component's. Props given explicitly win; what a component can't take is reported, never dropped quietly.
  */
 import { TABLES } from "./tables";
-import { shorthand, sidesOf, type Margins } from "./row";
+import { plus, shorthand, sidesOf, type Margins } from "./row";
 import { rowRewrite } from "./inherit";
 import { PROP_ALIASES } from "@unlayer-internal/shared-elements";
 import { BodyDefaults } from "@unlayer/exporters";
@@ -71,7 +71,7 @@ const SIMPLE: Record<string, keyof Table> = {
   display: "display",
 };
 const SIDES = ["Top", "Right", "Bottom", "Left"];
-// Logical sides as in a left-to-right document.
+// Logical sides as in a left-to-right document; RTL has the ones a right-to-left one changes.
 const AREAS: Record<string, number[]> = {
   "": [0, 1, 2, 3],
   top: [0],
@@ -86,6 +86,7 @@ const AREAS: Record<string, number[]> = {
   "block-end": [2],
 };
 const CORNERS: Record<string, number[]> = { "": [0, 1, 2, 3], "top-left": [0], "top-right": [1], "bottom-right": [2], "bottom-left": [3], "start-start": [0], "start-end": [1], "end-end": [2], "end-start": [3] };
+const RTL: Record<string, number[]> = { "inline-start": [1], "inline-end": [3], "start-start": [1], "start-end": [0], "end-end": [3], "end-start": [2] };
 const PARTS = ["Width", "Style", "Color"] as const;
 
 type Sides = Array<ClassDeclaration | undefined>;
@@ -100,16 +101,19 @@ interface Box {
 
 const box = (): Box => ({ one: new Map(), padding: [], margin: [], radius: [], border: { Width: [], Style: [], Color: [] }, other: [] });
 
-function add(into: Box, d: ClassDeclaration): void {
+/** `d` in the box, on the sides it sets (`rtl`: in a right-to-left document, where inline start is the right). */
+function add(into: Box, d: ClassDeclaration, rtl: boolean): void {
   const p = d.property;
   const key = SIMPLE[p] ?? (p === "background" && isColor(d.value) ? "bg" : undefined);
   if (key) return void into.one.set(key, d);
+  const at = (table: Record<string, number[]>, a = "", b?: string) => (rtl && RTL[a + "-" + b]) || table[b ? `${a}-${b}` : a];
   let m = /^(padding|margin)(?:-(top|right|bottom|left|inline|block)(?:-(start|end))?)?$/.exec(p);
-  if (m) return void AREAS[m[3] ? `${m[2]}-${m[3]}` : m[2] ?? ""]?.forEach((i) => ((into[m![1] as "padding" | "margin"] as Sides)[i] = d));
+  if (m) return void at(AREAS, m[2], m[3])?.forEach((i) => ((into[m![1] as "padding" | "margin"] as Sides)[i] = d));
   m = /^border(?:-(top|right|bottom|left|inline|block)(?:-(start|end))?)?-(width|style|color)$/.exec(p);
-  if (m) return void AREAS[m[2] ? `${m[1]}-${m[2]}` : m[1] ?? ""]?.forEach((i) => (into.border[(m![3][0].toUpperCase() + m![3].slice(1)) as (typeof PARTS)[number]][i] = d));
+  if (m) return void at(AREAS, m[1], m[2])?.forEach((i) => (into.border[(m![3][0].toUpperCase() + m![3].slice(1)) as (typeof PARTS)[number]][i] = d));
   m = /^border(?:-(top|bottom|start|end)-(left|right|start|end))?-radius$/.exec(p);
-  if (m && CORNERS[m[1] ? `${m[1]}-${m[2]}` : ""]) return void CORNERS[m[1] ? `${m[1]}-${m[2]}` : ""].forEach((i) => (into.radius[i] = d));
+  const corners = m && at(CORNERS, m[1], m[2]);
+  if (corners) return void corners.forEach((i) => (into.radius[i] = d));
   into.other.push(d);
 }
 
@@ -139,8 +143,8 @@ function oneWidth(width: string, max: string): string | undefined {
   return /%$/.test(width) === /%$/.test(max) ? (parseFloat(width) <= parseFloat(max) ? width : max) : undefined;
 }
 
-/** A simple value as the prop takes it; undefined where it can't. */
-function convert(key: string, value: string): unknown {
+/** A simple value as the prop takes it (`rtl`: in a right-to-left document); undefined where it can't. */
+function convert(key: string, value: string, rtl: boolean): unknown {
   switch (key) {
     case "lineHeight":
       // Unitless, as the editor writes line heights: a percentage.
@@ -148,7 +152,7 @@ function convert(key: string, value: string): unknown {
     case "fontWeight":
       return /^\d+$/.test(value) ? Number(value) : value;
     case "textAlign": {
-      const align = value === "start" ? "left" : value === "end" ? "right" : value;
+      const align = value === "start" ? (rtl ? "right" : "left") : value === "end" ? (rtl ? "left" : "right") : value;
       return /^(left|center|right|justify)$/.test(align) ? align : undefined;
     }
     case "width":
@@ -164,9 +168,10 @@ type Found = Map<string, { value: unknown; d: ClassDeclaration }>;
 /**
  * Turns a component's classes into its props. `explicit`: the props it's given (they win); `defaults`: its default
  * values (what a phone shows where only a breakpoint variant, `sm:`, sets a prop). `quiet`: for text styles a block
- * takes from around it (see inherit.ts), what it can't take is passed over, not said or inlined.
+ * takes from around it (see inherit.ts), what it can't take is passed over, not said or inlined. `rtl`: the document
+ * reads right to left, so logical sides and alignment (`ps-4`, `rounded-ss-md`, `text-start`) start on the right.
  */
-export function classesToProps(name: string, found: ClassDeclarations, explicit: Record<string, any>, defaults: Record<string, any> = {}, quiet = false): Record<string, any> {
+export function classesToProps(name: string, found: ClassDeclarations, explicit: Record<string, any>, defaults: Record<string, any> = {}, quiet = false, rtl = false): Record<string, any> {
   const own = read(TABLES[name] ?? "");
   const warn = (text: string) => quiet || console.warn(`[Unlayer] ${name} ${text}.`);
   const has = (prop: string) => given(explicit, prop, name);
@@ -200,7 +205,7 @@ export function classesToProps(name: string, found: ClassDeclarations, explicit:
   const phoneable = new Set(`${own.container ? "" : "containerPadding"},${own.phone ?? ""}`.split(",").filter(Boolean));
   const onPhones = (prop: string) => phoneable.has(prop) || (/^border(Top|Right|Bottom|Left)/.test(prop) && phoneable.has("border"));
   const boxes: Record<ClassDeclaration["when"], Box> = { always: box(), phone: box(), desktop: box(), hover: box() };
-  for (const d of found.declarations) add(boxes[d.when], d);
+  for (const d of found.declarations) add(boxes[d.when], d, rtl);
   const unset = (prop: string) => defaults[prop] ?? UNSET[prop] ?? (/^border.*Width$/.test(prop) ? "0px" : undefined);
 
   /** One condition's props; `under(prop)` is what the sides and corners it doesn't set are, `drop` what no prop takes. */
@@ -209,12 +214,14 @@ export function classesToProps(name: string, found: ClassDeclarations, explicit:
     for (const [key, d] of b.one) {
       if (key === "display") continue;
       const prop = table[key as keyof Table];
-      const value = typeof prop === "string" ? convert(key, d.value) : undefined;
+      const value = typeof prop === "string" ? convert(key, d.value, rtl) : undefined;
       if (value === undefined) drop(d);
       else out.set(prop as string, { value, d });
     }
-    // Spacing: a block's margins and padding are both the padding around it, added up.
+    // Spacing: a block's margins and padding are both the padding around it, added up; where they can't be (`5%` and
+    // `8px`), the padding, its own, stays and the margin is said.
     const spacing = new Map<string, Sides>();
+    const said = new Set<ClassDeclaration>();
     for (const kind of ["padding", "margin"] as const) {
       b[kind].forEach((d, i) => {
         if (!d) return;
@@ -226,7 +233,9 @@ export function classesToProps(name: string, found: ClassDeclarations, explicit:
         }
         const sides = spacing.get(prop) ?? (spacing.set(prop, []), spacing.get(prop)!);
         const was = sides[i];
-        sides[i] = was && /px$/.test(was.value) && /px$/.test(d.value) ? { ...d, value: `${parseFloat(was.value) + parseFloat(d.value)}px` } : d;
+        const sum = !was ? d.value : /px$/.test(was.value) && /px$/.test(d.value) ? `${parseFloat(was.value) + parseFloat(d.value)}px` : plus(was.value, d.value);
+        if (sum !== undefined) sides[i] = was ? { ...d, value: sum } : d;
+        else if (!said.has(d) && said.add(d)) ignore(d, `: its \`${prop}\` can't add it to \`${was!.property}: ${was!.value}\``);
       });
     }
     for (const [prop, sides] of spacing) {
@@ -354,7 +363,7 @@ export function classesToProps(name: string, found: ClassDeclarations, explicit:
       delete out[prop];
     }
   }
-  // A Row's padding classes inset its content as in CSS: in its Columns (see row.ts), which normalize.tsx gives this;
+  // A Row's padding classes inset its content as in CSS: in its Columns (see row.ts), which src/model/elements.ts gives this;
   // its text styles and the root's are the text blocks' in it (see inherit.ts), and the root's rewrite is a Row's
   // without one of its own.
   if (text.length && name !== "Column") out[PASSED] = text;

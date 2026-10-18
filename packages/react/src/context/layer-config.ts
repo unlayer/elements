@@ -9,6 +9,7 @@ import type React from "react";
 import type { RenderMode, UnlayerConfig } from "@unlayer-internal/shared-elements";
 import { DEFAULT_CONFIG } from "@unlayer-internal/shared-elements";
 import { textDirectionOf } from "../utils/create-component";
+import { rootName } from "../utils/root-type";
 
 type Layer = Partial<UnlayerConfig> | false | null | undefined;
 
@@ -47,6 +48,6 @@ const ROOT_MODES: Record<string, RenderMode> = { Email: "email", Page: "web", Do
  * config's (see rootConfig), else web. The HTML's document shell and the design's `displayMode` are this one.
  */
 export function rootMode(element: React.ReactElement, config: Partial<UnlayerConfig>): RenderMode {
-  const name = (element.type as { displayName?: string } | null)?.displayName;
+  const name = rootName(element.type);
   return (name ? ROOT_MODES[name] : undefined) ?? (element.props as { mode?: RenderMode }).mode ?? config.mode ?? "web";
 }

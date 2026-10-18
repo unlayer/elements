@@ -1,4 +1,6 @@
 import Body, { type BodyProps } from "./Body";
+import { OWN } from "../utils/create-component";
+import { ROOT } from "../utils/root-type";
 
 export type PageProps = Omit<BodyProps, "mode">;
 
@@ -19,3 +21,5 @@ export default function Page(props: PageProps) {
 }
 
 Page.displayName = "Page";
+((Page as unknown) as Record<symbol, boolean>)[OWN] = true;
+((Page as unknown) as Record<symbol, string>)[ROOT] = "Page";

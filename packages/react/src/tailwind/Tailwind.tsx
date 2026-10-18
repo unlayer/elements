@@ -1,5 +1,4 @@
 import React from "react";
-import { renderToHtml } from "@unlayer/react-elements";
 
 /** A Tailwind config, as React Email's `<Tailwind config>` takes it: `{ theme: { extend: { colors: { brand: "#007291" } } } }`. */
 export type TailwindConfig = { theme?: Record<string, unknown>; presets?: TailwindConfig[]; plugins?: unknown[]; [key: string]: unknown };
@@ -24,17 +23,19 @@ export interface TailwindProps {
 /** On a compiled Tailwind (its resolver), on <Tailwind> (its rewrite), and on its errors: one for every copy of Elements. */
 export const TAILWIND = Symbol.for("@unlayer/react-elements/tailwind");
 
-/** What a handle does with a component's classes: its props, explicit ones kept over those from classes. */
+/** What a handle does with a component's classes: its props, explicit ones kept over those from classes (`rtl`: in a right-to-left document). */
 export interface Resolver {
-  props(name: string, className: string, explicit: Record<string, any>, defaults?: Record<string, any>): Record<string, any>;
+  props(name: string, className: string, explicit: Record<string, any>, defaults?: Record<string, any>, rtl?: boolean): Record<string, any>;
 }
 
-// The handles an async renderer compiled, by config, while it renders (never a cache a sync render could find warm).
-const SCOPES = Symbol.for("@unlayer/react-elements/tailwind-scopes");
-export const lookups = ((globalThis as Record<symbol, unknown>)[SCOPES] ??= []) as Array<(config?: TailwindConfig) => unknown>;
+/**
+ * The handles an async render compiled, by config and by the <Tailwind> it's for (this copy's): the main entry gives
+ * them to a rewrite in that render (from its scope), never one a synchronous render could find warm.
+ */
+type Compiled = (config: TailwindConfig | undefined, type: unknown) => unknown;
 
-function resolver({ tw, config }: TailwindProps): Resolver {
-  const handle = (tw ?? lookups[lookups.length - 1]?.(config)) as Record<symbol, Resolver> | undefined;
+function resolver({ tw, config }: TailwindProps, compiled?: unknown): Resolver {
+  const handle = (tw ?? (typeof compiled === "function" ? (compiled as Compiled)(config, Tailwind) : undefined)) as Record<symbol, Resolver> | undefined;
   if (handle?.[TAILWIND]) return handle[TAILWIND];
   throw Object.assign(
     new Error(
@@ -46,16 +47,19 @@ function resolver({ tw, config }: TailwindProps): Resolver {
   );
 }
 
-/** A component's props with its `className` (and classes in its `html`) turned into props: the scope's rewrite. */
-function rewrite(scope: TailwindProps, name: string, defaults: Record<string, any> | undefined, props: Record<string, any>): Record<string, any> {
+/**
+ * A component's props with its `className` (and classes in its `html`) turned into props: the scope's rewrite. `rtl`:
+ * the render's root reads right to left, as the main entry's render says (an older copy of it gives none); `compiled`:
+ * what the render compiled, where it's an async render's (see Compiled).
+ */
+function rewrite(scope: TailwindProps, name: string, defaults: Record<string, any> | undefined, props: Record<string, any>, rtl?: boolean, compiled?: unknown): Record<string, any> {
   const { className, ...explicit } = props;
-  return resolver(scope).props(name, className ?? "", explicit, defaults);
+  return resolver(scope, compiled).props(name, className ?? "", explicit, defaults, rtl);
 }
 
-const internals = (renderToHtml as unknown as Record<symbol, any>)[Symbol.for("@unlayer/react-elements/internals")];
 const ROOTS = new Set(["Body", "Email", "Page", "Document"]);
 
-/** Outside a template being collected: it goes inside the roots it's around (their classes are its, see the root's Body). */
+/** Rendered (not collected): it goes inside the roots it's around (their classes are its, see the root's Body). */
 function placed({ children, ...props }: TailwindProps): React.ReactNode {
   return React.Children.map(children, (child) =>
     React.isValidElement<{ children?: React.ReactNode }>(child) && ROOTS.has((child.type as { displayName?: string })?.displayName ?? "")
@@ -85,12 +89,11 @@ function placed({ children, ...props }: TailwindProps): React.ReactNode {
  * ```
  */
 export function Tailwind(props: TailwindProps): React.ReactElement {
-  // While a template is collected, it records itself, with its rewrite (see the main entry's utils/tailwind.ts).
-  if (internals.collecting()) return internals.whileCollecting(() => internals.recordContainer("tailwind", { ...props, [TAILWIND]: rewrite }), () => placed(props), "Tailwind");
   return <>{placed(props)}</>;
 }
 
 Tailwind.displayName = "Tailwind";
+// A template's collecting walk records it, with this rewrite (see the main entry's utils/tailwind.ts and record.tsx).
 (Tailwind as unknown as Record<symbol, unknown>)[TAILWIND] = rewrite;
 
 export default Tailwind;

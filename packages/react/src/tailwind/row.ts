@@ -4,9 +4,11 @@
  * white box; the margins around each Column, between them. A Row's `padding` prop is the editor's, around the row,
  * outside its content background, and a Column has no margins in the editor: the classes go to its Columns instead.
  * Each Column's gutter is the row's padding on its outer sides (the top and bottom of each, the left of the first and
- * the right of the last) and its own margins. On phones, where the Columns stack (unless `noStackMobile`), each gets the
+ * the right of the last; in a right-to-left document, where the first is on the right, the right of the first and the
+ * left of the last) and its own margins. On phones, where the Columns stack (unless `noStackMobile`), each gets the
  * row's sides, the first the row's top and the last its bottom, and the space between two is the space between them on
- * desktop (the one's right margin below it, the next's left margin above it).
+ * desktop (the one's right margin below it, the next's left margin above it; right to left, the one's left margin and
+ * the next's right one).
  *
  * A Column that paints nothing takes its gutter as padding, added to its own. A card (a Column with a background or a
  * border) takes it as borders in the color around it (the row's content background, else its background, else the
@@ -22,7 +24,7 @@
  */
 import React from "react";
 import { BodyDefaults } from "@unlayer/exporters";
-import { Column } from "@unlayer/react-elements";
+import { isColumn } from "./column";
 
 /** On a component's `style` (beside the keys its classes inlined): what its classes give its Row (see props.ts). */
 const TAILWIND = Symbol.for("@unlayer/react-elements/tailwind");
@@ -50,7 +52,7 @@ const SIDES = ["Top", "Right", "Bottom", "Left"];
 const px = (value: string) => (ZERO.test(value) ? 0 : /^\d*\.?\d+px$/.test(value) ? parseFloat(value) : NaN);
 
 /** Two lengths added: in one unit, or one of them zero; undefined where they can't be. */
-function plus(a: string, b: string): string | undefined {
+export function plus(a: string, b: string): string | undefined {
   if (ZERO.test(b)) return a;
   if (ZERO.test(a)) return b;
   const [x, y] = [LENGTH.exec(a), LENGTH.exec(b)];
@@ -108,9 +110,9 @@ function grown(radius: number[], gutter: string[]): string | string[] {
 }
 
 /**
- * The Row's rewrite of its children (normalize.tsx gives it them, its props and the root's): `padding` and `phone`
- * (its phone padding) from its classes, and its Columns' margins, in its Columns. It takes the padding it puts in them
- * out of the Row's props.
+ * The Row's rewrite of its children (src/model/elements.ts gives it them, its props, the root's and whether the
+ * document reads right to left): `padding` and `phone` (its phone padding) from its classes, and its Columns'
+ * margins, in its Columns. It takes the padding it puts in them out of the Row's props.
  */
 export function insetColumns(padding: string | undefined, phone: string | undefined, warn: (text: string) => void) {
   const said = new Set<string>();
@@ -119,8 +121,8 @@ export function insetColumns(padding: string | undefined, phone: string | undefi
     said.add(text);
   };
 
-  return (children: React.ReactNode[], props: Record<string, any>, root?: Record<string, any>): React.ReactNode[] => {
-    const columns = children.filter((child): child is React.ReactElement<Record<string, any>> => React.isValidElement(child) && child.type === Column);
+  return (children: React.ReactNode[], props: Record<string, any>, root?: Record<string, any>, rtl = false): React.ReactNode[] => {
+    const columns = children.filter(isColumn);
     if (!columns.length) return children;
     const margins: Array<Margins | undefined> = columns.map((column) => column.props.style?.[TAILWIND]?.margin);
     /** What can't be done: the padding from its classes stays the Row's, around it, and the margins are ignored. */
@@ -136,8 +138,10 @@ export function insetColumns(padding: string | undefined, phone: string | undefi
     const gutterOf = (i: number, onPhone: boolean): Array<string | undefined> => {
       const m = (onPhone ? (margins[i]?.phone ?? margins[i]?.desktop) : margins[i]?.desktop) ?? [Z, Z, Z, Z];
       const [r, first, last] = [onPhone ? rowPhone : row, i === 0, i === n - 1];
-      if (onPhone && stacks) return [plus(first ? r[0] : m[3], m[0]), r[1], plus(last ? r[2] : m[1], m[2]), r[3]];
-      return [plus(r[0], m[0]), plus(last ? r[1] : Z, m[1]), plus(r[2], m[2]), plus(first ? r[3] : Z, m[3])];
+      // The side toward the Column before it (the one on the left, or right to left on the right), and toward the next.
+      const [before, after] = rtl ? [1, 3] : [3, 1];
+      if (onPhone && stacks) return [plus(first ? r[0] : m[before], m[0]), r[1], plus(last ? r[2] : m[after], m[2]), r[3]];
+      return [plus(r[0], m[0]), plus((rtl ? first : last) ? r[1] : Z, m[1]), plus(r[2], m[2]), plus((rtl ? last : first) ? r[3] : Z, m[3])];
     };
     const gutters = columns.map((_, i) => [gutterOf(i, false), gutterOf(i, true)]);
     const cards = columns.map((column) => paints(column.props));

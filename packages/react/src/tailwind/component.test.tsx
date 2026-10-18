@@ -21,8 +21,10 @@ import {
   renderToJson,
   renderToPlainText,
   renderRowToJson,
+  UnlayerProvider,
 } from "../index";
-import { Tailwind, loadTailwind, renderToJson as renderToJsonAsync, type TailwindHandle } from "./index";
+import { Tailwind, classNameToDeclarations, loadTailwind, renderToJson as renderToJsonAsync, type TailwindHandle } from "./index";
+import { inlineClasses } from "./html";
 
 const config = { theme: { extend: { colors: { brand: "#007291" } } } };
 let tw: TailwindHandle;
@@ -70,6 +72,22 @@ describe("<Tailwind>: classes as each component's props", () => {
     expect(block(<Paragraph className="my-4 px-2">Hi</Paragraph>).containerPadding).toBe("16px 8px");
     expect(block(<Paragraph className="mt-6">Hi</Paragraph>).containerPadding).toBe("24px 10px 10px");
     expect(block(<Html html="<b>x</b>" className="m-2 p-2" />).containerPadding).toBe("16px");
+    // In one unit, or with a zero, they add up too.
+    expect(block(<Paragraph className="p-[5%] m-[2%]">Hi</Paragraph>).containerPadding).toBe("7%");
+    expect(block(<Paragraph className="p-[5%] m-0">Hi</Paragraph>).containerPadding).toBe("5%");
+    expect(warnings()).toEqual([]);
+  });
+
+  it("keeps a block's padding where its margin can't be added to it, and says so", () => {
+    // Whatever the classes' order: the padding is the block's own.
+    for (const className of ["p-[5%] m-2", "m-2 p-[5%]"]) expect(block(<Paragraph className={className}>Hi</Paragraph>).containerPadding).toBe("5%");
+    expect(block(<Paragraph className="pt-[5%] m-2">Hi</Paragraph>).containerPadding).toBe("5% 8px 8px");
+    expect([...new Set(warnings())]).toEqual([
+      "[Unlayer] Paragraph ignores `margin: 8px` from class `m-2`: its `containerPadding` can't add it to `padding: 5%`.",
+      "[Unlayer] Paragraph ignores `margin: 8px` from class `m-2`: its `containerPadding` can't add it to `padding-top: 5%`.",
+    ]);
+    // Said once for a margin on several sides.
+    expect(warnings()).toHaveLength(3);
   });
 
   it("gives Button its colors, inner padding, corners, border, width and hover colors", () => {
@@ -278,7 +296,7 @@ describe("<Tailwind>: classes in an Html block's markup", () => {
     );
     const [html, paragraph] = renderToJson(element).body.rows[0].columns[0].contents;
     expect(html.values.html).toBe(
-      '<p class="mine" style="padding: 16px; color: #fb2c36; color: blue">Hi <a href="https://example.com" style="font-weight: 700; text-decoration: underline">there</a></p><br style="display: block" /><!-- <i class="p-2"> -->'
+      '<p class="mine" style="padding: 16px; color: #fb2c36; color: blue">Hi <a href="https://example.com" style="font-weight: 700; text-decoration: underline">there</a></p><br style="display: block"/><!-- <i class="p-2"> -->'
     );
     // Logical sides (`px-2`, `rounded-s-md`) as physical ones, which email clients read.
     expect(paragraph.values.text).toBe('Total: <span style="border-top-left-radius: 6px; border-bottom-left-radius: 6px; padding-left: 8px; padding-right: 8px; font-weight: 700; color: #007291">$10</span>');
@@ -296,6 +314,240 @@ describe("<Tailwind>: classes in an Html block's markup", () => {
       "[Unlayer] Html can't inline class `max-sm:p-1` in its markup: it applies on phones only, which needs a stylesheet.",
       "[Unlayer] Html can't inline class `sm:p-4` in its markup: it applies above a screen width only, which needs a stylesheet.",
     ]);
+    // A variant's own class (`group`) stays yours; a class that applies only inside it is said, and goes.
+    warn.mockClear();
+    expect(block(<Html html={'<div class="group mine"><p class="[.group:hover_&]:underline p-2">x</p></div>'} />).html).toBe('<div class="group mine"><p style="padding: 8px">x</p></div>');
+    expect(warnings()).toEqual(["[Unlayer] Html ignores class `[.group:hover_&]:underline` in its markup: it applies only for `.group:hover &`."]);
+  });
+
+  it("doesn't inline what shows or hides an element that a screen variant changes on another screen: `hidden md:block` doesn't hide on every screen", () => {
+    expect(block(<Html html={'<div class="hidden md:block mine">Desktop text</div><p class="block max-sm:hidden ps-2 md:pl-4 p-1">Desktop only</p><p class="hidden hover:block text-red-500 hover:text-blue-500">Hover</p>'} />).html).toBe(
+      // (`ps-2` and `p-1` are inline as on every screen: `md:pl-4` can't apply.)
+      '<div class="mine">Desktop text</div><p style="padding: 4px; padding-left: 8px">Desktop only</p><p style="display: none; color: #fb2c36">Hover</p>'
+    );
+    expect(warnings()).toEqual([
+      "[Unlayer] Html can't inline `hidden`'s `display` in its markup: `md:block` sets it above a screen width only, which needs a stylesheet.",
+      "[Unlayer] Html can't inline class `md:block` in its markup: it applies above a screen width only, which needs a stylesheet.",
+      "[Unlayer] Html can't inline `block`'s `display` in its markup: `max-sm:hidden` sets it on phones only, which needs a stylesheet.",
+      "[Unlayer] Html can't inline class `max-sm:hidden` in its markup: it applies on phones only, which needs a stylesheet.",
+      "[Unlayer] Html can't inline class `md:pl-4` in its markup: it applies above a screen width only, which needs a stylesheet.",
+      "[Unlayer] Html can't inline class `hover:block` in its markup: it applies on hover, which needs a stylesheet.",
+      "[Unlayer] Html can't inline class `hover:text-blue-500` in its markup: it applies on hover, which needs a stylesheet.",
+    ]);
+  });
+
+  it("inlines any other class a screen variant changes as it is on every screen, saying the variant can't apply", () => {
+    const said: string[] = [];
+    const inline = (html: string, rtl = false) => inlineClasses(html, (className) => classNameToDeclarations(tw, className), (text) => said.push(text), rtl);
+    const variant = (name: string, when = "above a screen width only") => `can't inline class \`${name}\` in its markup: it applies ${when}, which needs a stylesheet`;
+    const shown = (name: string, property: string, variantName: string, when = "above a screen width only") =>
+      `can't inline \`${name}\`'s \`${property}\` in its markup: \`${variantName}\` sets it ${when}, which needs a stylesheet`;
+    const cases: Array<[string, string, string[], boolean?]> = [
+      // `px-4` is the padding on every screen; `md:pl-2` can't apply in markup. The class leaves the attribute, inlined.
+      ['<p class="px-4 md:pl-2 mine">a</p>', '<p class="mine" style="padding-left: 16px; padding-right: 16px">a</p>', [variant("md:pl-2")]],
+      ['<p class="p-4 md:p-2">a</p>', '<p style="padding: 16px">a</p>', [variant("md:p-2")]],
+      ['<p class="border-2 md:border-l-4">a</p>', '<p style="border-style: solid; border-width: 2px">a</p>', [variant("md:border-l-4")]],
+      ['<p class="rounded-md md:rounded-tl-none">a</p>', '<p style="border-radius: 6px">a</p>', [variant("md:rounded-tl-none")]],
+      ['<p class="size-4 md:w-8 text-red-500 max-sm:text-blue-500">a</p>', '<p style="width: 16px; height: 16px; color: #fb2c36">a</p>', [variant("max-sm:text-blue-500", "on phones only"), variant("md:w-8")]],
+      ['<p class="ps-4 md:pr-1">a</p>', '<p style="padding-right: 16px">a</p>', [variant("md:pr-1")], true],
+      // What shows or hides the element: inline neither (shown on every screen is the safer mistake).
+      ['<div class="hidden md:block mine">x</div>', '<div class="mine">x</div>', [shown("hidden", "display", "md:block"), variant("md:block")]],
+      ['<div class="flex max-sm:hidden p-2">x</div>', '<div style="padding: 8px">x</div>', [shown("flex", "display", "max-sm:hidden", "on phones only"), variant("max-sm:hidden", "on phones only")]],
+      ['<div class="invisible md:visible">x</div>', "<div>x</div>", [shown("invisible", "visibility", "md:visible"), variant("md:visible")]],
+      // A hover variant doesn't count: without hover, the element is as it says.
+      ['<div class="hidden hover:block">x</div>', '<div style="display: none">x</div>', [variant("hover:block", "on hover")]],
+    ];
+    for (const [markup, inlined, warned, rtl] of cases) {
+      said.length = 0;
+      expect([markup, inline(markup, rtl)]).toEqual([markup, inlined]);
+      expect([markup, said]).toEqual([markup, warned]);
+    }
+    // An Html block's, in the design and the email alike, said in each render.
+    const html = <Html html={'<p class="px-4 md:pl-2">a</p>'} />;
+    const eachRender = ["[Unlayer] Html can't inline class `md:pl-2` in its markup: it applies above a screen width only, which needs a stylesheet."];
+    expect(block(html).html).toBe('<p style="padding-left: 16px; padding-right: 16px">a</p>');
+    expect(warnings()).toEqual(eachRender);
+    warn.mockClear();
+    expect(renderToHtml(<Tailwind tw={tw}><Email><Row><Column>{html}</Column></Row></Email></Tailwind>)).toContain('<p style="padding-left: 16px; padding-right: 16px">a</p>');
+    expect(warnings()).toEqual(eachRender);
+  });
+
+  it("reads tags and attributes as a browser does: what isn't a class attribute, or isn't in a tag, stays as written", () => {
+    const cases: Array<[string, string]> = [
+      // `class=` in another attribute's value; the first `class` of a tag (a browser ignores the others).
+      ['<div title=" class=x">Hi</div>', '<div title=" class=x">Hi</div>'],
+      ['<div title=" class=x" class="p-2 mine">Hi</div>', '<div title=" class=x" class="mine" style="padding: 8px">Hi</div>'],
+      ["<p data-x='class=\"p-4\"' class=p-2>a</p>", "<p data-x='class=\"p-4\"' style=\"padding: 8px\">a</p>"],
+      ['<p class="p-2" class="p-4 mine">a</p>', '<p style="padding: 8px">a</p>'],
+      // A `/` between attributes, a name in capitals, an unquoted value (`block/` isn't Tailwind's).
+      ['<p/CLASS="p-2">a</p><br class=block/>', '<p style="padding: 8px">a</p><br class=block/>'],
+      // In a comment, in raw text, in a `<` that starts no tag, in a tag the markup ends in: text, as written.
+      ['<!--> <b class="p-2">x</b><!-- <i class="p-2"> -->', '<!--> <b style="padding: 8px">x</b><!-- <i class="p-2"> -->'],
+      ['<textarea><b class="p-2"></textarea><title><i class="p-2"></title><style>.a{} <b class="p-2"></style><script>"<b class=\'p-2\'>"</script>', '<textarea><b class="p-2"></textarea><title><i class="p-2"></title><style>.a{} <b class="p-2"></style><script>"<b class=\'p-2\'>"</script>'],
+      ['a < b class="p-2"> c', 'a < b class="p-2"> c'],
+      ['<p>x</p><p class="p-2', '<p>x</p><p class="p-2'],
+      // The element's own style after the classes', as it's written (its references and quotes kept).
+      ['<p style=color:blue class=p-2>a</p>', '<p style="padding: 8px; color:blue">a</p>'],
+      ["<p class=\"p-2 mine\" title=\"&copy;\" style='font-family: \"A\"; content: \"&copy;\";'>a</p>", '<p class="mine" title="&copy;" style="padding: 8px; font-family: &quot;A&quot;; content: &quot;&copy;&quot;">a</p>'],
+    ];
+    for (const [markup, inlined] of cases) expect([markup, block(<Html html={markup} />).html]).toEqual([markup, inlined]);
+    expect(warnings()).toEqual([]);
+  });
+
+  it("never throws, changes nothing but class attributes and the styles they give, and inlining again changes nothing, whatever fragments it's given (fuzzed)", () => {
+    // `TAILWIND_FUZZ_RUNS=100000` for a longer run, `TAILWIND_FUZZ_SEED` for other inputs.
+    const runs = Number(process.env.TAILWIND_FUZZ_RUNS ?? 600);
+    const fragments = [
+      "<p", "<div", "<span", "<br", "<img src=x", "<a href='x'", ">", "/>", " ", "\n", "\t", "/", "=", '"', "'", "`", "\0",
+      ' class="', " class='", " class=", " CLASS=", "class", ' title="', " title='", ' style="', " style='color: blue'", ' style="color: red;"', " style", ' dir="rtl"', " dir=ltr",
+      "p-4", " text-red-500", " mine", " md:p-2", " hidden", " md:block", " ps-4", " max-sm:p-1", " hover:underline", " dark:text-white", " w-[10px]", " group", " group-hover:underline",
+      "&amp;", "&quot;", "&#39;", "&copy;", "&", "<!--", "-->", "--!>", "<!-->", "<!", "<?x ", "</", "</p>", "</div>", "</span>", "<script>", "</script>", "<style>", "</style>",
+      "<textarea>", "</textarea>", "<title>", "</title>", "<xmp>", "<plaintext>", "<noscript>", "<svg>", "</svg>", "<math>", "<table><tr><td", "text", "Hi", "<", "<<",
+    ];
+    const read = (className: string) => classNameToDeclarations(tw, className);
+    const none = (className: string) => ({ declarations: [], ignored: className.split(/\s+/).filter(Boolean).map((name) => ({ className: name, reason: "Tailwind has no such class" })) });
+    const parse = (html: string) => new DOMParser().parseFromString(`<!doctype html><body>${html}`, "text/html").body;
+    // What a browser reads both as, but for each element's class (fewer classes) and style (the inlined ones before its own).
+    const differ = (a: Node, b: Node): string | undefined => {
+      if (a.nodeType !== b.nodeType || a.nodeName !== b.nodeName) return `${a.nodeName} → ${b.nodeName}`;
+      if (a instanceof Element && b instanceof Element) {
+        const rest = (e: Element) => [...e.attributes].filter((x) => x.name !== "class" && x.name !== "style").map((x) => `${x.name}=${x.value}`).join(" ");
+        if (rest(a) !== rest(b)) return `<${a.localName} ${rest(a)}> → <${b.localName} ${rest(b)}>`;
+        const classes = (e: Element) => (e.getAttribute("class") ?? "").split(/[\t\n\f\r ]+/).filter(Boolean);
+        if (classes(b).some((name) => !classes(a).includes(name))) return `class ${a.getAttribute("class")} → ${b.getAttribute("class")}`;
+        const style = (e: Element) => (e.getAttribute("style") ?? "").replace(/;\s*$/, "");
+        if (!style(b).endsWith(style(a))) return `style ${a.getAttribute("style")} → ${b.getAttribute("style")}`;
+      } else if (a.nodeValue !== b.nodeValue) return `${JSON.stringify(a.nodeValue)} → ${JSON.stringify(b.nodeValue)}`;
+      if (a.childNodes.length !== b.childNodes.length) return `${a.nodeName}'s ${a.childNodes.length} children → ${b.childNodes.length}`;
+      for (let i = 0; i < a.childNodes.length; i++) {
+        const why = differ(a.childNodes[i], b.childNodes[i]);
+        if (why) return why;
+      }
+      return undefined;
+    };
+    const r = random(Number(process.env.TAILWIND_FUZZ_SEED ?? 20261018));
+    const bad: string[] = [];
+    for (let run = 0; run < runs && bad.length < 5; run++) {
+      let input = "";
+      for (let n = 1 + Math.floor(r() * 24); n > 0; n--) input += fragments[Math.floor(r() * fragments.length)];
+      const wrong = (why: string, out = "") => bad.push(`${JSON.stringify(input)} → ${JSON.stringify(out)}: ${why}`);
+      let out: string;
+      try {
+        out = inlineClasses(input, read, () => {});
+        if (inlineClasses(input, none, () => {}) !== input) wrong("changed with no class to inline", inlineClasses(input, none, () => {}));
+      } catch (error) {
+        wrong(`throws ${error}`);
+        continue;
+      }
+      if (inlineClasses(out, read, () => {}) !== out) wrong("not idempotent", out);
+      const why = differ(parse(input), parse(out));
+      if (why) wrong(why, out);
+    }
+    expect(bad).toEqual([]);
+  }, 60000);
+});
+
+describe("<Tailwind>: logical sides (`ps-*`, `border-e-*`, `rounded-ss-*`, `text-start`) follow the text direction", () => {
+  type Props = Record<string, unknown>;
+  const RTL = { textDirection: "rtl" };
+  const one = (root: Props, content: React.ReactNode, row = "") => (
+    <Tailwind tw={tw}>
+      <Email {...root}>
+        <Row className={row}>{content}</Row>
+      </Email>
+    </Tailwind>
+  );
+  /** A border's four widths, `top right bottom left`. */
+  const widths = (border: Record<string, string>) => ["Top", "Right", "Bottom", "Left"].map((side) => border[`border${side}Width`] ?? "-").join(" ");
+  const columnOf = (root: Props) => {
+    const element = one(root, <Column className="bg-white ps-4 pe-2 max-sm:ps-1 border-s-2 border-e-4 rounded-ss-sm rounded-se-md rounded-ee-lg rounded-es-xl"><Paragraph>Hi</Paragraph></Column>);
+    const { values } = renderToJson(element).body.rows[0].columns[0];
+    return { values: { padding: values.padding, phone: values._override?.mobile?.padding, border: widths(values.border), radius: values.borderRadius }, html: renderToHtml(element) };
+  };
+
+  it("on a Column: its padding, borders and corners, in the design and the HTML", () => {
+    const ltr = columnOf({});
+    expect(ltr.values).toEqual({ padding: "0px 8px 0px 16px", phone: "0px 8px 0px 4px", border: "- 4px - 2px", radius: "4px 6px 8px 12px" });
+    const rtl = columnOf(RTL);
+    expect(rtl.values).toEqual({ padding: "0px 16px 0px 8px", phone: "0px 4px 0px 8px", border: "- 2px - 4px", radius: "6px 4px 12px 8px" });
+    expect(rtl.html).toMatch(/class="v-col-padding[^"]*" style="[^"]*padding: 0px 16px 0px 8px;border-top: 0px solid transparent;border-left: 4px solid #000000;border-right: 2px solid #000000;[^"]*border-radius: 6px 4px 12px 8px;/);
+    // `ltr` and `auto` (which the email can't resolve) read as left to right.
+    for (const textDirection of ["ltr", "auto"]) expect(columnOf({ textDirection }).values).toEqual(ltr.values);
+    expect(warnings()).toEqual([]);
+  });
+
+  it("on blocks: their spacing, a Button's padding, border and corners, and the alignment, theirs or around them", () => {
+    const blocks = (root: Props) =>
+      renderToJson(
+        one(
+          root,
+          <Column className="text-end">
+            <Paragraph className="ps-4 me-2 text-start">A</Paragraph>
+            <Heading>B</Heading>
+            <Button href="https://example.com" className="ps-6 pe-3 border-e-2 rounded-s-lg">C</Button>
+            <Image src="https://example.com/a.png" className="text-start" />
+          </Column>
+        )
+      ).body.rows[0].columns[0].contents.map(({ values: v }: { values: Record<string, any> }) => [v.containerPadding, v.textAlign, v.padding, v.border && widths(v.border), v.borderRadius].filter((x) => x !== undefined));
+    expect(blocks({})).toEqual([["10px 8px 10px 16px", "left"], ["10px", "right"], ["10px", "right", "10px 12px 10px 24px", "- 2px - -", "8px 4px 4px 8px"], ["10px", "left"]]);
+    expect(blocks(RTL)).toEqual([["10px 16px 10px 8px", "right"], ["10px", "left"], ["10px", "left", "10px 24px 10px 12px", "- - - 2px", "4px 8px 8px 4px"], ["10px", "right"]]);
+  });
+
+  it("on a Row: its padding classes go to the Column on that side (the first is on the right), and its Columns' margins between them", () => {
+    const columns = (root: Props) =>
+      renderToJson(one(root, [<Column key={1} className="me-2"><Paragraph>1</Paragraph></Column>, <Column key={2} className="ms-2"><Paragraph>2</Paragraph></Column>], "ps-8 pe-4 py-2")).body.rows[0].columns.map(
+        ({ values: v }: { values: Record<string, any> }) => [v.padding, v._override?.mobile?.padding]
+      );
+    expect(columns({})).toEqual([["8px 8px 8px 32px", "8px 16px 8px 32px"], ["8px 16px 8px 8px", "8px 16px 8px 32px"]]);
+    // Mirrored: stacked on phones, the first is still on top, 8px from the next.
+    expect(columns(RTL)).toEqual([["8px 32px 8px 8px", "8px 32px 8px 16px"], ["8px 8px 8px 16px", "8px 32px 8px 16px"]]);
+    // A physical class is the side it says: the left is the last Column's, right to left.
+    const physical = (root: Props, row: string) => renderToJson(one(root, [<Column key={1}><Paragraph>1</Paragraph></Column>, <Column key={2}><Paragraph>2</Paragraph></Column>], row)).body.rows[0].columns.map((c: any) => c.values.padding);
+    expect([physical({}, "pl-8"), physical({}, "pr-8")]).toEqual([["0px 0px 0px 32px", "0px"], ["0px", "0px 32px 0px 0px"]]);
+    expect([physical(RTL, "pl-8"), physical(RTL, "pr-8")]).toEqual([["0px", "0px 0px 0px 32px"], ["0px 32px 0px 0px", "0px"]]);
+  });
+
+  it("in an Html block's markup: an element's own `dir`, else the nearest around it in the markup, else the root's", () => {
+    const markup = '<p class="ps-3 border-e-2 rounded-ss-md text-start">a</p><div dir="ltr"><p class="ps-3">b<br class="block"><span dir="rtl" class="pe-1">c</span></p></div><p dir="ltr" class="pe-1">d</p><p class="pe-1">e</p>';
+    const html = (root: Props) => renderToJson(one(root, <Column><Html html={markup} /></Column>)).body.rows[0].columns[0].contents[0].values.html;
+    expect(html({})).toBe(
+      '<p style="border-top-left-radius: 6px; border-right-style: solid; border-right-width: 2px; padding-left: 12px; text-align: start">a</p><div dir="ltr"><p style="padding-left: 12px">b<br style="display: block"><span dir="rtl" style="padding-left: 4px">c</span></p></div><p dir="ltr" style="padding-right: 4px">d</p><p style="padding-right: 4px">e</p>'
+    );
+    expect(html(RTL)).toBe(
+      '<p style="border-top-right-radius: 6px; border-left-style: solid; border-left-width: 2px; padding-right: 12px; text-align: start">a</p><div dir="ltr"><p style="padding-left: 12px">b<br style="display: block"><span dir="rtl" style="padding-left: 4px">c</span></p></div><p dir="ltr" style="padding-right: 4px">d</p><p style="padding-left: 4px">e</p>'
+    );
+    // The HTML has the same.
+    expect(renderToHtml(one(RTL, <Column><Html html={markup} /></Column>))).toContain(html(RTL));
+  });
+
+  it("follow the direction the root renders in: its config, an <UnlayerProvider>'s, the renderer's; the async renderers' too, each render its own", async () => {
+    const template = (root: Props = {}) => one(root, <Column className="ps-4 max-sm:ps-1"><Paragraph>Hi</Paragraph></Column>);
+    const padding = (design: any) => design.body.rows[0].columns[0].values.padding;
+    /** The body's direction, the Column's padding and its phone padding (the head's CSS). */
+    const html = (out: string) => [/<body[^>]*dir="(\w+)"/.exec(out)?.[1], /class="v-col-padding[^"]*" style="[^"]*padding: ([^;]+);/.exec(out)?.[1], /#u_column_1 \.v-col-padding \{ padding: ([^!]+) !important/.exec(out)?.[1]];
+    const right = ["rtl", "0px 16px 0px 0px", "0px 4px 0px 0px"];
+    expect(padding(renderToJson(template({ config: { textDirection: "rtl" } })))).toBe("0px 16px 0px 0px");
+    expect(html(renderToHtml(template({ config: { textDirection: "rtl" } })))).toEqual(right);
+    const provided = <UnlayerProvider config={{ textDirection: "rtl" }}>{template()}</UnlayerProvider>;
+    expect([renderToJson(provided).body.values.textDirection, padding(renderToJson(provided))]).toEqual(["rtl", "0px 16px 0px 0px"]);
+    expect(html(renderToHtml(provided))).toEqual(right);
+    expect(html(renderToHtml(template(), { textDirection: "rtl" }))).toEqual(right);
+    // Rendered by React itself, as a Server Component would.
+    expect(renderToStaticMarkup(template(RTL))).toMatch(/class="v-col-padding[^"]*" style="[^"]*padding: 0px 16px 0px 0px;/);
+    // At once, a right-to-left render and a left-to-right one.
+    const asyncOne = (root: Props) => (
+      <Tailwind config={config}>
+        <Email {...root}>
+          <Row>
+            <Column className="ps-4">
+              <Paragraph>Hi</Paragraph>
+            </Column>
+          </Row>
+        </Email>
+      </Tailwind>
+    );
+    const [rtl, ltr] = await Promise.all([renderToJsonAsync(asyncOne(RTL)), renderToJsonAsync(asyncOne({}))]);
+    expect([padding(rtl), padding(ltr)]).toEqual(["0px 16px 0px 0px", "0px 0px 0px 16px"]);
   });
 });
 
@@ -828,3 +1080,14 @@ describe("<Tailwind config> with the synchronous renderers", () => {
     expect(() => renderToJson(<Tailwind tw={{ config: undefined }}>{template(undefined, "p-2").props.children}</Tailwind>)).toThrow('[Unlayer] <Tailwind tw> takes `await loadTailwind(config)` from "@unlayer/react-elements/tailwind".');
   });
 });
+
+/** A seeded random number generator (mulberry32): the same inputs every run. */
+function random(seed: number): () => number {
+  let a = seed >>> 0;
+  return () => {
+    a = (a + 0x6d2b79f5) >>> 0;
+    let t = Math.imul(a ^ (a >>> 15), 1 | a);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}

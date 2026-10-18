@@ -1,4 +1,5 @@
 import { MenuExporters, MenuDefaults } from "@unlayer/exporters";
+import { menu } from "../exporters/menu";
 import type { MenuValues, MenuItem, SizeInput, TextStyleProps } from "../types";
 import { createItemComponent, type ItemComponentProps } from "../utils/create-component";
 import { mapSemanticProps, type SemanticProps } from "../utils/semantic-props";
@@ -25,9 +26,6 @@ type MenuSemanticProps = Omit<
   };
 
 export interface MenuProps extends ItemComponentProps<MenuSemanticProps> {}
-
-// Defaults from the editor schema
-const DEFAULT_MENU: NonNullable<MenuValues["menu"]> = MenuDefaults.menu ?? { items: [] };
 
 const DEFAULT_VALUES = {
   ...MenuDefaults,
@@ -75,7 +73,8 @@ const Menu = createItemComponent<MenuValues, MenuSemanticProps>({
     return mapSemanticProps(props as SemanticProps<MenuValues>, DEFAULT_VALUES, "Menu");
   },
   displayName: "Menu",
-  exporters: MenuExporters,
+  // The web HTML (a document's too) without react-dom (see exporters/markup.ts).
+  exporters: { ...MenuExporters, web: menu },
 });
 
 export default Menu;

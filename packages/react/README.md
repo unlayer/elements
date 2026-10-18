@@ -10,6 +10,8 @@ npm install @unlayer/react-elements
 pnpm add @unlayer/react-elements
 ```
 
+Elements works with React 18 and 19 (tested with 18.0 to 18.3, 19.0 to 19.3, and React's canary), in Node.js, edge runtimes, browsers and Next.js's Server Components alike. It renders templates with a renderer of its own, which uses React's hooks as React's server renderer does, so before its first render it checks the installed React: a newer React it isn't tested with renders if that check passes (with one warning in development), and if it fails, every render throws `[Unlayer] unsupported React x.y.z: <what failed>`. To render anyway, set `UNLAYER_SKIP_REACT_CHECK=1` in the environment. `react-dom` stays a peer dependency because the editor's exporters import it, though no render calls it. How it works: [ARCHITECTURE.md](./ARCHITECTURE.md).
+
 ## Quick Start
 
 ```tsx
@@ -100,12 +102,12 @@ These props have non-obvious shapes that **must** be followed exactly:
 - **Row padding** is the editor's: around the row, outside its content box. With a `columnsBackgroundColor`, the padding is outside that background and doesn't inset the content (Elements warns): inset the content with the Columns' `padding`. A Row's Tailwind `p-*` classes do inset it, as in CSS, and its Columns' `m-*` classes space them, cards included. See [Row](#row).
 - **children**: Text components accept children as shorthand. `<Heading>Hello</Heading>` sets the heading text. Paragraph, Heading and Button children keep inline JSX: `<Paragraph>Hello <strong>world</strong>, read <a href="https://example.com">this</a>.<br />Next line</Paragraph>` (see Paragraph below).
 - **Paragraph text**: Use children (text and inline JSX, `<Link>` included), the `text` prop (plain text) or the `html` prop (an HTML string with inline formatting like `<b>`, `<a>`). Text in `text` or in string children shows as typed (`"Use <b>bold</b>"` shows the tags), in the HTML and in the editor: the design stores it escaped.
-- **`style` and `className`** (every component): inlined on, and added to, the element the component renders (see [style, className and skipInText](#style-classname-and-skipintext)). They're HTML only: `renderToJson()` leaves them out and says so. A prop given wins over the same property in `style`.
+- **`style` and `className`** (every component): inlined on, and added to, the element the component renders (see [style, className and skipInText](#style-classname-and-skipintext)). They're HTML only: `renderToJson()` leaves them out and says so (a `<Link>`'s in text are in the text, which the design holds). A prop given wins over the same property in `style`.
 - **Text shows as typed**: Heading and Button children (their strings; JSX elements in them are formatting) and text placed straight in a Row or Column show markup and entities as written, as React shows text (`{"Terms &amp; Conditions"}` shows `&amp;`; in JSX text, `Terms &amp; Conditions` is already `&`). Put markup in Paragraph's `html` prop or an `<Html>` block, and template syntax with `<` or `>` in it (a Liquid `{% if count > 1 %}`) in the `text` prop. An email service's `<%name%>` tag stays as written, for it to fill in. Menu item text shows markup as typed; in an email, an entity (`&rarr;`) and a single quote stay as written, as in 0.1.22, and a double quote is escaped, also in a template tag (the text is also written in an `aria-label`): write a template's string in single quotes (`{{ name | default: 'you' }}`; in Go templates, backticks).
 - **`text` and `html` props are HTML**: Heading's and Button's `text` prop, like Paragraph's `html` and `<Html>`, is written into the email as given (as in 0.1.22). Put only markup you wrote there: a value a user typed (a name, a message) goes in as children, which show it as text.
 - **Link URLs**: `"`, `<` and `>` are percent-encoded, so a URL can't end its attribute. Fill template tags that contain them (a Liquid filter with quotes) in before rendering; a `<%name%>` tag stays as written.
-- **Your own components** render as React renders them: hooks, Context (also from a Provider around the root) and Fragments work. One that's async, suspends or throws is left out with a console message, and the rest renders. Elements renders the template once, and may call a component once more on its own, to take the HTML it puts in a Column or to say why it failed (the whole template once more when it holds markup React rejects), so keep side effects, like creating a coupon code, out of rendering.
-- **Inside your own render**: `renderToHtml`, `renderToJson` and `renderToPlainText` can run while React renders (a preview page's `useMemo`, a client component, Next.js's server render of one). Inside react-dom/server's own `renderToString`, Elements renders with another of react-dom's modules where a synchronous `require` can load one with your React (CommonJS, Jest, an ES module on Node 20.16+ / 22.3+). Where it can't (a bundle with React in it, some test runners' module registries), it renders with the same module, as 0.1.22 did: call it in the component's body, not in `useMemo` and not before another hook (React keeps a render's hooks in that module), or render first and pass the result as a prop. Edge runtimes render too: Vercel Edge Functions, Cloudflare Workers, and Next.js Pages Router API routes with `export const config = { runtime: "edge" }`. A Next.js App Router route handler on the edge runtime can't: React's `react-server` build pairs React Server Components' React with `react-dom/server.edge`, which can't render with it (`Cannot read properties of undefined (reading 'H')`, which Elements reports as such). Add `export const runtime = "nodejs"` to that route. `pretty` doesn't work on edge runtimes (prettier is loaded when it runs): format at build time there. Waku's Server Components get a `react-dom/server` that can't render either (every release of Elements fails there): render emails in a Client Component.
+- **Your own components** render as React renders them: hooks, Context (also from a Provider around the root), Fragments, `useId`, `memo`, `forwardRef` and class components work, and async components and `use()` with the [async renderers](#async-templates-and-pretty). Each component runs once per render (and again where React runs one again: one that sets its state while rendering, and one whose `use()` waited for a promise, or that threw one). One that throws (or is async, in a synchronous render) fails the render with a `RenderError` naming it and where it is, or is left out with `onError: "omit"`: see [Errors](#errors). Keep side effects, like creating a coupon code, out of rendering.
+- **Inside your own render**: `renderToHtml`, `renderToJson` and `renderToPlainText` can run while React renders (a preview page's `useMemo`, a client component, Next.js's server render of one, react-dom/server's `renderToString`), and the component's hooks after the call work: Elements renders templates itself, not with react-dom, and leaves React's hooks as it found them. Edge runtimes render too: Vercel Edge Functions, Cloudflare Workers, Next.js Pages Router API routes with `export const config = { runtime: "edge" }`, and App Router route handlers and Server Components, built with Turbopack or webpack (Next.js 15's default). With webpack, a Pages Router edge API route also needs `unstable_allowDynamic: ["**/node_modules/@unlayer/exporters/**"]` in that `config`: the editor's exporters have lodash's `Function("return this")()`, which webpack rejects on the edge though it never runs there. Where react-dom can't render (React Server Components' React, as in an App Router route on the edge runtime), emails, pages and documents render: nothing in a render calls react-dom (it's still a peer dependency, as the editor's exporters import it). `pretty` doesn't work on edge runtimes (prettier is loaded when it runs): format at build time there. How Elements renders: [ARCHITECTURE.md](./ARCHITECTURE.md).
 
 ## Structure: Email/Page/Document > Row > Column > Items
 
@@ -201,10 +203,10 @@ A Row's `padding` (and its `mobile={{ padding }}`) is the editor's Row padding, 
 
 A Row's Tailwind padding classes (`<Row className="bg-white p-8">`) inset the content, as in CSS: they go to its Columns' padding, added to theirs, as its Columns' margin classes do. Around cards (Columns with a background or a border) they're borders in the color around them, so a card grid keeps its gutters in the editor too (see the [Tailwind guide](./docs/tailwind.md#card-grids)).
 
-A Row's Columns must fit its `layout` (two for `ColumnLayouts.TwoEqual`). One that doesn't is left out of the HTML, the plain text and the design alike, with a console error naming its layout and how many Columns it has; the other rows render.
+A Row's Columns must fit its `layout` (two for `ColumnLayouts.TwoEqual`). One that doesn't fails the render with a `RenderError` naming its layout and how many Columns it has (`A Row with the TwoEqual layout, for 2 Columns, has 1 (in <Row> at Row 2)`); with `onError: "omit"` it's left out of the HTML, the plain text and the design alike, and the other rows render (see [Errors](#errors)).
 
 ### Column
-Must be child of Row. Count must match layout (a Row that doesn't fit its layout is left out).
+Must be child of Row. Count must match layout (a Row that doesn't fit its layout fails the render).
 - `padding?: string` — `"10px"`
 - `backgroundColor?: string`
 - `borderRadius?: string`
@@ -229,7 +231,7 @@ Must be child of Row. Count must match layout (a Row that doesn't fit its layout
 ### Paragraph
 - `html?: string` — **rich HTML string** with inline formatting: `<b>`, `<i>`, `<u>`, `<s>`, `<a>`, `<code>`
 - `text?: string` — plain text: markup and entities in it show as typed, in the HTML and in the design (`renderToJson()` stores it escaped)
-- `children` — text, with inline JSX kept as formatting: `strong`/`b`, `em`/`i`, `u`, `s`, `a` (href, target, rel, title, style), `br`, `span` (style), `code`, `sup`, `sub`, `small`, `mark`, nested, in Fragments and arrays, and components that return them (`<Link>`, yours, react-intl's `<FormattedMessage>`, react-i18next's `<Trans>`, `CodeInline`), rendered with the template's context
+- `children` — text, with inline JSX kept as formatting: `strong`/`b`, `em`/`i`, `u`, `s`, `a` (href, target, rel, title, style, class), `br`, `span` (style, class), `code`, `sup`, `sub`, `small`, `mark`, nested, in Fragments and arrays, and components that return them (`<Link>`, yours, react-intl's `<FormattedMessage>`, react-i18next's `<Trans>`, `CodeInline`), rendered with the template's context
 - `fontSize?: string` — `"14px"`
 - `color?: string` — `"#000000"`
 - `textAlign?: "left" | "center" | "right"` — `"left"` (`"right"` in a right-to-left template, unless set)
@@ -237,7 +239,7 @@ Must be child of Row. Count must match layout (a Row that doesn't fit its layout
 - `fontFamily?: { label: string, value: string }`
 - aliases: `align` for `textAlign`, `textColor` for `color`
 
-Text in children is escaped, as React shows it. Other elements (a `div`, a `table`, an image) leave only their text, so no block gets into a paragraph, and nothing that runs code is kept (event handlers, `javascript:` URLs). A component that is async or suspends is left out, with a warning naming it. The design (`renderToJson()`) keeps the same HTML, and the plain text writes links as `text (url)`.
+Text in children is escaped, as React shows it. Other elements (a `div`, a `table`, an image) leave only their text, so no block gets into a paragraph, and nothing that runs code is kept (event handlers, `javascript:` URLs). A component that is async or suspends fails a synchronous render, naming it (see [Errors](#errors)). The design (`renderToJson()`) keeps the same HTML, and the plain text writes links as `text (url)`.
 
 A Paragraph is a text block in the design, and renders as the editor exports that block: plain text in no `<p>`, and its line height as given (`140%`, which text of another size inside it inherits as a fixed height, as in the editor).
 
@@ -285,11 +287,11 @@ A link, for text (`<Paragraph>Read <Link href="https://example.com/docs">the doc
 - `href: string`
 - `target?: string` — `"_blank"` (a new tab)
 - `rel?: string` — `"noopener"` for a new tab
-- `title?: string`, `style?: CSSProperties`, `className?: string`
+- `title?: string`, `style?: CSSProperties`, `className?: string` — on its `<a>`, in the text: in the HTML and in the design, as the editor's text keeps them (a `<Head>`'s `<style>` can style the class)
 - `containerPadding`, `hideOnMobile`, `hideOnDesktop` — on its own in a Column
 
 ### Head
-From `@unlayer/react-elements/head`. Tags of your own for the document's head: `<meta>`, `<link>`, `<style>`, `<title>`. Place it in an Email, Page or Document (or a component of yours there); it renders nothing in the body. The head has them after Elements' meta tags and before its styles (a rule of yours that overrides one of them needs `!important`). A `<style>`'s CSS is written as given. The design for the visual editor can't hold them: `renderToJson()` says so, once per render. Use `renderToHtml`'s `title` option or a `<title>` here, not both.
+From `@unlayer/react-elements/head`. Tags of your own for the document's head: `<meta>`, `<link>`, `<style>`, `<title>`. Place it in an Email, Page or Document (or a component of yours there); it renders nothing in the body. The head has them after Elements' meta tags and before its styles (a rule of yours that overrides one of them needs `!important`). A `<style>`'s CSS and a `<script>`'s text (`type="application/ld+json"` data on a page) are written as given, in a component of yours too and in React 18 and 19 alike (only a `</style` or `</script` that would end them, or a tag that would start one, is escaped, as CSS or JavaScript reads it), and a `<title>`'s text is all its children's (`<title>Hi {name}</title>`), as in React 18. Components of yours in it render as the template's do: with its context, waited for by the async renderers, and failing as theirs fail (a RenderError naming one and where it is, `Head › Meta`; with `onError: "omit"`, left out of the head and listed). The design for the visual editor can't hold them: `renderToJson()` says so, once per render. Use `renderToHtml`'s `title` option or a `<title>` here, not both.
 
 ```tsx
 import { Head } from "@unlayer/react-elements/head";
@@ -416,7 +418,7 @@ import { Row, Column, ColumnLayouts } from '@unlayer/react-elements';
 </Row>
 ```
 
-Number of `<Column>` children must match the layout. A Row whose Columns don't is left out, with a console error (`A Row with the TwoEqual layout, for 2 Columns, has 1, so it's left out.`), and the other rows render; `renderRowToJson()` of one throws.
+Number of `<Column>` children must match the layout. A Row whose Columns don't fails the render (`A Row with the TwoEqual layout, for 2 Columns, has 1 (in <Row> at Row 2)`), or is left out with `onError: "omit"` while the other rows render; `renderRowToJson()` of one throws.
 
 ## Rendering Modes
 
@@ -460,6 +462,10 @@ The document shell matches the mode: `<Email>` gets the XHTML transitional docty
 - `title` — document `<title>`
 - `fonts` — web-font stylesheet URLs to load via `<link>` tags, e.g. `[{ url: "https://fonts.googleapis.com/css2?family=Inter" }]`
 
+And with every renderer (`renderToJson` and the async ones too), and in a root's `config` or an `<UnlayerProvider>`'s:
+
+- `idPrefix` — what your components' `useId()`s start with, as React's `identifierPrefix` (`{ idPrefix: "welcome-" }` gives `«welcome-R1»` on React 19.1), for an email or page you put in a page of yours, whose own `useId()`s it then can't repeat. A template component around the root (`<Welcome />`) takes it from the render's options or an `<UnlayerProvider>` around it, as it's called before the root's `config` is read. Elements' own ids (`u_row_1`) are the editor's export's, without it.
+
 If your app owns the document shell (an existing page template, an ESP template, an iframe `srcdoc`), use `renderToHtmlParts` instead — it returns `{ head, body }` plus the granular pieces (`css`, `js`, `tags`) for pipelines that need them separately, e.g. CSS inlining. This mirrors the editor's [chunk parameters](https://docs.unlayer.com/builder/latest/export-html#chunk-parameters) with two deliberate differences: `tags` is extra (components can contribute head tags, and reassembling from `css` + `js` alone would drop them), and there is no `fonts` chunk (Elements has no font registry — pass font stylesheet URLs via `renderToHtml`'s `fonts` option instead).
 
 Its `head` and `css` don't have the base stylesheet: your page has its own.
@@ -481,16 +487,16 @@ const fromHtml = toPlainText(html, { skip: [".footer"] }); // any HTML
 ```
 
 Options (the config's too):
-- `wordwrap?: number` — wrap lines at this many characters, between words (default: no wrapping)
-- `links?: "inline" | "after" | "none"` — `text (url)` (the default), `text [1]` with the URLs listed at the end, or the text only
+- `wordwrap?: number` — wrap lines at this many characters, between words (default: no wrapping); the URLs listed with `links: "after"` aren't wrapped
+- `links?: "inline" | "after" | "none"` — `text (url)` (the default), `text [1]` with the URLs listed at the end, or the text only; in headings and preformatted text too, the URL as written (never in capitals)
 - `uppercaseHeadings?: boolean` — h1 and h2 in capitals (default `true`)
 - `skip?: string[]` — elements left out with what's in them, by tag (`"img"`) or class (`".footer"`)
 
-Without options the text is as before.
+Without options, the text is written as 0.2 wrote it, but for preformatted text (`<pre>`, code), now kept as written on lines of its own, an element with `data-skip-in-text` (now left out whole), and links (each with its own URL, a heading's too, never in capitals): see the [changelog](./CHANGELOG.md).
 
 ### Async templates and `pretty`
 
-The renderers above are synchronous: an async component, or one that suspends, is left out with a warning. For templates that load data as they render, use the same renderers from `@unlayer/react-elements/async`. They return Promises, and resolve async templates, async components (in Columns and in text), Suspense (`use()` on React 19, thrown promises on React 18) and `<Tailwind config>`, with each component run once. A component that throws rejects the render, with what it threw as the error's `cause`. Their `renderToHtml` and `renderToHtmlParts` also take `pretty: true` to format the HTML for reading (with `prettier`, an optional peer dependency); Outlook's conditional comments are kept as they were. See the [async guide](https://github.com/unlayer/elements/blob/main/packages/react/docs/async.md), including what React 18 supports.
+The renderers above are synchronous: an async component, or one that suspends, fails the render, naming it. For templates that load data as they render, use the same renderers from `@unlayer/react-elements/async`. They return Promises, and resolve async templates, async components (anywhere, on React 18 too), Suspense (`use()` on React 19, thrown promises on React 18) and `<Tailwind config>`, with each component run once and sibling components loading at once. A part that fails rejects the render with a `RenderError`, as in the synchronous renderers (see [Errors](#errors)). Their `renderToHtml` and `renderToHtmlParts` also take `pretty: true` to format the HTML for reading (with `prettier`, an optional peer dependency); Outlook's conditional comments are kept as they were. See the [async guide](https://github.com/unlayer/elements/blob/main/packages/react/docs/async.md), including what React 18 supports.
 
 ```tsx
 import { renderToHtml } from "@unlayer/react-elements/async";
@@ -504,6 +510,35 @@ const html = await renderToHtml(<Receipt id="A-1001" />, { title: "Receipt", pre
 ```
 
 `pretty(html)` from `@unlayer/react-elements/async` formats any HTML the same way (the synchronous renderers' too). It doesn't work on edge runtimes, which can't load prettier as they run: format at build time there.
+
+## Errors
+
+A part of a template that fails fails the render, the synchronous and the async renderers alike, `renderToJson()` and `renderToPlainText()` too: a component that throws (or is async, or suspends, in a synchronous render), a Row whose Columns don't fit its `layout`, an exporter that fails, or a head function (a custom tool's `head`) that fails (`renderToJson()` doesn't run the exporters or the head functions, which make the HTML, not the design: it gives the design, while `renderToHtml()` throws). The error is a `RenderError` that says which component and where it is, with what it threw as its `cause`:
+
+```
+RenderError: [Unlayer] Cannot read properties of undefined (reading 'name') (in <Hero> at Row 3 › Column 1 › Hero)
+```
+
+`error.component` is `"Hero"`, `error.position` is `"Row 3 › Column 1 › Hero"`, and `error.cause` the original error, whose stack points at the line that threw. An email that's missing a part doesn't send by mistake.
+
+To leave failed parts out instead (a live preview, a digest whose sections are optional), set `onError`: in the render's options, in a root's `config`, or in an `<UnlayerProvider>`'s:
+
+```tsx
+import { renderToHtml, renderToHtmlParts, renderToJson, type RenderError } from "@unlayer/react-elements";
+
+// Left out of the HTML, the plain text and the design alike, each said with console.error
+const html = renderToHtml(<Digest />, { onError: "omit" });
+const design = renderToJson(<Digest />, { onError: "omit" });
+
+// Listed, to check or report: renderToHtmlParts (and the async one) gives what it left out
+const { body, omitted } = renderToHtmlParts(<Digest />, { onError: "omit" });
+for (const error of omitted) report(error.position, error.cause);
+
+// Or a function, instead of the console (it can throw the error to fail the render)
+renderToHtml(<Digest />, { onError: (error: RenderError) => logger.warn(error.message, { cause: error.cause }) });
+```
+
+What's left out is the part that failed: a component of yours (with what it rendered), markup React rejects, a Row whose Columns don't fit its layout, a block, Row or Column whose exporter failed (a Column with its cell, so the Row's other Columns share its width; a Row with its last Column), and what a head function that failed gives the head (its block still renders, as in the design). The HTML, the plain text and the design are then the template's without it. A template that isn't one fails anyway: a component that's `undefined` (a broken or circular import), an object or a date as a child. Error boundaries (`componentDidCatch`) don't catch while Elements renders, as in React's server renderer: `onError` and the error's position are what to use.
 
 ## Designs as code
 
@@ -546,7 +581,7 @@ renderToJson(tree);  // emits { type: "custom", slug: "countdown", values } — 
 
 ## UnlayerProvider
 
-Set config once for every root inside it (`Email`, `Page`, `Document` or `Body`): the CDN for assets (`cdnBaseUrl`), merge tags (`mergeTagState`), text direction (`textDirection`), a sanitizer (`toSafeHtml`), head options (`headConfig`), and the mode of a `<Body>`:
+Set config once for every root inside it (`Email`, `Page`, `Document` or `Body`): the CDN for assets (`cdnBaseUrl`), merge tags (`mergeTagState`), text direction (`textDirection`), a sanitizer (`toSafeHtml`), head options (`headConfig`), what failed parts do (`onError`), the `useId()`s' prefix (`idPrefix`), and the mode of a `<Body>`:
 
 ```tsx
 import { UnlayerProvider, Email, Row, Column, ColumnLayouts, Social, Menu, renderToHtml, renderToJson } from '@unlayer/react-elements';
@@ -595,8 +630,11 @@ import type {
   Href, Icons, TextAlign, LinkStyle,
   SocialIcon, MenuItem,
   ButtonProps, MenuProps, ImageProps,
+  OnError, RenderToJsonOptions,
 } from '@unlayer/react-elements';
 ```
+
+`RenderError` (a class: `error instanceof RenderError`) is exported too.
 
 ## Common Font Stacks
 
@@ -684,7 +722,7 @@ const monoFont = { label: "Monospace", value: "'SF Mono', 'Fira Code', 'Roboto M
 
 ## Common Mistakes
 
-1. **Column count mismatch** — `TwoEqual` layout requires exactly 2 `<Column>` children (a Row that doesn't fit its layout is left out, with a console error)
+1. **Column count mismatch** — `TwoEqual` layout requires exactly 2 `<Column>` children (a Row that doesn't fit its layout fails the render)
 2. **Missing Column** — Items must be inside `<Column>`, never directly in `<Row>`
 3. **Missing Row** — Columns must be inside `<Row>`, never directly in `<Email>`/`<Page>`/`<Document>`
 4. **Block elements in text children** — `<Paragraph>Hi <div>x</div></Paragraph>` keeps only the div's text: text children hold inline formatting (`<b>`, `<a>`, `<br />` …). Put blocks in their own Elements blocks, or HTML in an `<Html>` block.
@@ -715,6 +753,8 @@ pnpm build          # Build the package
 pnpm test           # Run tests
 pnpm storybook      # Launch Storybook
 ```
+
+How the renderer works, and the invariants its tests hold: [ARCHITECTURE.md](./ARCHITECTURE.md).
 
 ## License
 

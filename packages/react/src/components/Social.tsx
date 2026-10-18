@@ -1,4 +1,5 @@
 import { SocialExporters, SocialDefaults } from "@unlayer/exporters";
+import { social } from "../exporters/social";
 import type { SocialValues, SocialIcon, SizeInput } from "../types";
 import { createItemComponent, type ItemComponentProps } from "../utils/create-component";
 import { mapSemanticProps, type SemanticProps } from "../utils/semantic-props";
@@ -76,7 +77,8 @@ const Social = createItemComponent<SocialValues, SocialSemanticProps>({
     return base;
   },
   displayName: "Social",
-  exporters: SocialExporters,
+  // The web HTML (a document's too) without react-dom (see exporters/markup.ts).
+  exporters: { ...SocialExporters, web: social },
 });
 
 export default Social;

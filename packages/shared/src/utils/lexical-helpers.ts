@@ -263,6 +263,9 @@ export function generateHtmlFromTextJson(textJson: string): string {
 
 const TEXT_ENTITIES: Record<string, string> = { "&": "&amp;", "<": "&lt;", ">": "&gt;" };
 
+/** What textToTextJson writes before and after its text. */
+const PLAIN = textToTextJson("\u0000").split(JSON.stringify("\u0000")) as [string, string];
+
 /** A Lexical paragraph of plain text (`textToTextJson`'s): text nodes with no formatting, in a paragraph with none. */
 function plainParagraph(node: any): boolean {
   return (
@@ -282,6 +285,16 @@ function plainParagraph(node: any): boolean {
  * @returns The text block's HTML ("" for JSON it can't read)
  */
 export function textJsonToText(textJson: string): string {
+  // Plain text as textToTextJson writes it (most Paragraphs'): its text, read without walking the tree.
+  if (textJson === EMPTY_TEXT_JSON) return "";
+  if (textJson.startsWith(PLAIN[0]) && textJson.endsWith(PLAIN[1])) {
+    try {
+      const text = JSON.parse(textJson.slice(PLAIN[0].length, -PLAIN[1].length));
+      if (typeof text === "string") return text.replace(/[&<>]/g, (c) => TEXT_ENTITIES[c]);
+    } catch {
+      // Not one text: read as any other.
+    }
+  }
   try {
     const parsed = JSON.parse(textJson);
     if (parsed?.__html) return parsed.__html;

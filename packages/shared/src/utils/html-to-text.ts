@@ -25,9 +25,9 @@ const HTML_ENTITIES: Record<string, string> = Object.fromEntries(
 
 /** How `htmlToPlainText` writes plain text; each left out is as before. */
 export interface PlainTextOptions {
-  /** Wrap lines at this many characters, between words (default: no wrapping). */
+  /** Wrap lines at this many characters, between words (default: no wrapping); the URLs `links: "after"` lists aren't. */
   wordwrap?: number;
-  /** Links: "inline" (default) `text (url)`, "after" `text [1]` with the URLs listed at the end, or "none" (the text only). */
+  /** Links: "inline" (default) `text (url)`, "after" `text [1]` with the URLs listed at the end, or "none" (the text only); a heading's too, its URL as written. */
   links?: "inline" | "after" | "none";
   /** h1 and h2 in capitals (default true). */
   uppercaseHeadings?: boolean;
@@ -104,15 +104,32 @@ export function htmlToPlainText(html: string, options: PlainTextOptions = {}): s
   text = text.replace(/<style[\s\S]*?<\/style>/gi, "");
   text = text.replace(/<script[\s\S]*?<\/script>/gi, "");
 
-  // Preformatted text (code) as it is, spaces and lines kept (but at their ends): set aside until the end.
-  const pre: string[] = [];
-  // A line of its own, unless it ends a table cell (code with line numbers: a row per line).
-  text = text.replace(/<pre\b[^>]*>([\s\S]*?)<\/pre>(\s*<\/t[dh]>)?/gi, (_, content: string, cell?: string) => `\u0000${pre.push(decodeEntities(content.replace(/<br\s*\/?>/gi, "\n").replace(/<[^>]+>/g, "")).replace(/[^\S\n]+$/gm, "")) - 1}\u0000${cell ?? "\n"}`);
-
   // A line break, first: headings, links and list items keep theirs ("WELCOME BACK,<br>ADA").
   text = text.replace(/<br\s*\/?>/gi, "\n");
 
-  // 3. Convert headings: h1-h2 → UPPERCASE, h3-h6 → as-is
+  // 3. Convert links, a heading's and preformatted text's too: <a href="url">text</a> → text (url), or text [1] with the
+  // URLs at the end, or text. Its URL (or its text, if that's the URL) is set aside until the end, so nothing changes it
+  // (a heading's capitals). An attribute's value, in either quote, is read whole (`href="…it's"`).
+  const urls: string[] = [];
+  const url = (href: string) => `\u0001${urls.push(decodeEntities(href)) - 1}\u0001`;
+  const listed: string[] = [];
+  text = text.replace(/<a\b((?:[^>"']|"[^"]*"|'[^']*')*)>([\s\S]*?)<\/a>/gi, (link, attributes: string, content: string) => {
+    const [, ...quoted] = /\shref\s*=\s*(?:"([^"]+)"|'([^']+)'|([^\s"'>]+))/i.exec(attributes) ?? [];
+    const href = quoted.find(Boolean);
+    if (!href) return link;
+    const clean = content.replace(/<[^>]+>/g, "").trim();
+    // Skip if link text is the same as URL (avoid duplication)
+    if (clean === href || clean === decodeEntities(href)) return url(href);
+    return links === "none" ? clean : links === "after" ? `${clean} [${listed.push(href)}]` : `${clean} (${url(href)})`;
+  });
+  const restore = (text: string) => text.replace(/\u0001(\d+)\u0001/g, (_, i: string) => urls[Number(i)]);
+
+  // Preformatted text (code) as it is, spaces and lines kept (but at their ends): set aside until the end.
+  const pre: string[] = [];
+  // A line of its own, unless it ends a table cell (code with line numbers: a row per line).
+  text = text.replace(/<pre\b[^>]*>([\s\S]*?)<\/pre>(\s*<\/t[dh]>)?/gi, (_, content: string, cell?: string) => `\u0000${pre.push(restore(decodeEntities(content.replace(/<[^>]+>/g, ""))).replace(/[^\S\n]+$/gm, "")) - 1}\u0000${cell ?? "\n"}`);
+
+  // 4. Convert headings: h1-h2 → UPPERCASE, h3-h6 → as-is
   text = text.replace(/<h[12][^>]*>([\s\S]*?)<\/h[12]>/gi, (_, content) => {
     const clean = content.replace(/<[^>]+>/g, "").trim();
     // Entities stay as written, to decode below (`&amp;` uppercased wouldn't).
@@ -122,17 +139,6 @@ export function htmlToPlainText(html: string, options: PlainTextOptions = {}): s
   text = text.replace(/<h[3-6][^>]*>([\s\S]*?)<\/h[3-6]>/gi, (_, content) => {
     const clean = content.replace(/<[^>]+>/g, "").trim();
     return "\n" + clean + "\n";
-  });
-
-  // 4. Convert links: <a href="url">text</a> → text (url), or text [1] with the URLs at the end, or text
-  const listed: string[] = [];
-  text = text.replace(/<a[^>]+href=["']([^"']+)["'][^>]*>([\s\S]*?)<\/a>/gi, (_, href, content) => {
-    const clean = content.replace(/<[^>]+>/g, "").trim();
-    // Skip if link text is the same as URL (avoid duplication)
-    if (links === "none" || clean === href || clean === decodeEntities(href)) {
-      return clean;
-    }
-    return links === "after" ? `${clean} [${listed.push(href)}]` : `${clean} (${href})`;
   });
 
   // 5. Convert images: <img alt="text"> → [text]
@@ -177,10 +183,10 @@ export function htmlToPlainText(html: string, options: PlainTextOptions = {}): s
   // Collapse 3+ consecutive newlines to 2
   text = text.replace(/\n{3,}/g, "\n\n");
   // Trim leading/trailing whitespace
-  text = text.trim();
-  if (listed.length) text += `\n\n${listed.map((href, i) => `[${i + 1}] ${decodeEntities(href)}`).join("\n")}`;
-  // Lines wrapped at `wordwrap` characters, between words (a longer word stays whole).
+  text = restore(text.trim());
+  // Lines wrapped at `wordwrap` characters, between words (a longer word stays whole); the URLs listed after aren't.
   if (wordwrap) text = text.replace(new RegExp(`(?![^\\n]{1,${wordwrap}}$)([^\\n]{1,${wordwrap}})\\s`, "g"), "$1\n");
+  if (listed.length) text += `\n\n${listed.map((href, i) => `[${i + 1}] ${decodeEntities(href)}`).join("\n")}`;
 
   return text.replace(/\u0000(\d+)\u0000/g, (whole, i: string) => pre[Number(i)] ?? whole);
 }
