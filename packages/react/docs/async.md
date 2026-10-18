@@ -36,7 +36,7 @@ The output is what the synchronous renderers give for the same content, and the 
 
 ## What resolves
 
-- **An async template** (`async function Receipt()`), also wrapped in a context provider, a Fragment or a `<Tailwind>`.
+- **An async template** (`async function Receipt()`), or a lazy one (`React.lazy(() => import("./Receipt"))`), also wrapped in a context provider, a Fragment or a `<Tailwind>`.
 - **Async components** in a Column, among rows, in a Paragraph's, Heading's or Button's text, and in a `<Head>`.
 - **Suspense**: `use(promise)` on React 19, and components that throw a promise until their data is there (React 18's way, which React 19 keeps).
 - **`<Tailwind config>`**: its config compiled, as with the [Tailwind guide](./tailwind.md)'s renderers, which are these. `tailwindcss` is loaded only when a template has a config.

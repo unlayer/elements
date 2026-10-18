@@ -26,6 +26,7 @@ import { guest, keepUnwrapped, unwrapped } from "./render-scope";
 const CONTAINER_NAMES = new Set(["Row", "Column"]);
 export const MEMO = Symbol.for("react.memo");
 export const FORWARD_REF = Symbol.for("react.forward_ref");
+const LAZY = Symbol.for("react.lazy");
 /** A context's provider: `<Ctx.Provider>` in React 18, `<Ctx>` (and `<Ctx.Provider>`, the same) in React 19. */
 const PROVIDER = Symbol.for("react.provider");
 const CONTEXT = Symbol.for("react.context");
@@ -182,6 +183,16 @@ function* steps(element: React.ReactElement, idPrefix?: string): Steps {
     const props = current.props as Record<string, unknown>;
     if (type?.$$typeof === MEMO) {
       current = React.createElement(type.type, props);
+      continue;
+    }
+    // A lazy template (`React.lazy(() => import("./Welcome"))`): the component it loads, waited for as a wrapper that
+    // suspends is (the synchronous renderers say it's async till it has loaded); one that fails to load, named.
+    if (type?.$$typeof === LAZY) {
+      try {
+        current = React.createElement((yield* waiting(() => type._init(type._payload))) as React.ElementType, props);
+      } catch (error) {
+        throw new RenderError(threw(error), "lazy", "", error);
+      }
       continue;
     }
     const inside = () => {

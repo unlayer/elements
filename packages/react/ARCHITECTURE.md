@@ -27,7 +27,8 @@ model                                Email > Row > Column > blocks, Elements' on
   once, with hooks, inside the context providers around them. Providers, `<UnlayerProvider>`s and `<Tailwind>`s around
   the root move inside it, around its content. An async wrapper, or one that `use()`s or throws a promise (React 18's
   Suspense: react-i18next's `useTranslation`), is awaited by the async renderers (`take` in `src/async/collect.ts`, along
-  `unwrapSteps`), and called again once it settles; the synchronous ones throw for it. A template with no root (Rows, a
+  `unwrapSteps`), and called again once it settles; the synchronous ones throw for it. So is a lazy template
+  (`React.lazy`): the component it loads is unwrapped once it has loaded. A template with no root (Rows, a
   block, markup) gives what it rendered instead (`Unwrapped.rendered`: its wrappers made again with what they returned,
   not called again), which renders as a root's content does, without the root's markup (`utils/root-content.ts`):
   walked once, its Rows and blocks rendered with the render's config and numbered as the head numbers them, its head

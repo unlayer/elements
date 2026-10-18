@@ -247,6 +247,36 @@ describe("the async renderers", () => {
     expect(runs.template).toBe(4);
   });
 
+  it("resolve a lazy template (`React.lazy`) as an async one, its root's settings read; the synchronous renderers say it's async", async () => {
+    // It was taken for a template with no root: the HTML in a web page's document without the root's language and
+    // fonts, and renderToJson() said its root wasn't one.
+    const Welcome = () => <Email lang="fr" fonts={[{ url: "https://fonts.example.com/brand.css" }]} previewText="Bonjour"><Row><Column><Paragraph>Lazy</Paragraph></Column></Row></Email>;
+    const lazily = () => React.lazy(async () => (await later(null), { default: Welcome }));
+    const Lazy = lazily();
+    const Wrapper = () => <Lazy />;
+    for (const element of [<Lazy />, <Wrapper />, <UnlayerProvider config={{ textDirection: "rtl" }}><Lazy /></UnlayerProvider>]) {
+      const loaded = <Welcome />;
+      const same = element.type === UnlayerProvider ? <UnlayerProvider config={{ textDirection: "rtl" }}>{loaded}</UnlayerProvider> : loaded;
+      const html = await renderToHtml(element);
+      expect(html).toBe(renderToHtmlSync(same));
+      expect(html).toContain('lang="fr"');
+      expect(html).toContain("brand.css");
+      expect(await renderToHtmlParts(element)).toEqual(renderToHtmlPartsSync(same));
+      expect(await renderToPlainText(element)).toBe(renderToPlainTextSync(same));
+      expect(await renderToJson(element)).toEqual(renderToJsonSync(same));
+    }
+    // Loaded, the synchronous renderers render it too; before, they say it's async.
+    expect(renderToHtmlSync(<Lazy />)).toBe(renderToHtmlSync(<Welcome />));
+    const Pending = lazily();
+    expect(() => renderToHtmlSync(<Pending />)).toThrow('[Unlayer] renderToHtml: async and suspending templates need "@unlayer/react-elements/async"');
+    expect(() => renderToJsonSync(<Pending />)).toThrow(/renderToJson: could not unwrap <wrapper>.*async and suspending templates need/);
+    // One that fails to load rejects with its error, naming it.
+    const Missing = React.lazy(() => Promise.reject(new Error("no such chunk")));
+    const failed = await renderToHtml(<Missing />).catch((error: unknown) => error);
+    expect(failed).toBeInstanceOf(RenderError);
+    expect(failed).toMatchObject({ message: "[Unlayer] no such chunk (in <lazy>)", component: "lazy", cause: new Error("no such chunk") });
+  });
+
   it("wait for what's async in a template with no root, as in a root, each run once; the synchronous renderers say where it is", async () => {
     // An async block in a Column, an async Row, async markup and a thrown promise (React 18's Suspense) among Rows
     // with no root around them.
