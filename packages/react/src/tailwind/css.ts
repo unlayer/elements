@@ -2,7 +2,9 @@
  * The stylesheet Tailwind's compiler builds, read back: each rule with the at-rules around it (`@media`), the
  * theme's variables (`:root { --color-red-500: … }`) and the initial values of its registered properties
  * (`@property --tw-border-style { initial-value: solid }`). Tailwind writes regular CSS, so this reads what it
- * writes: blocks, strings, brackets, comments, and rules nested in a rule.
+ * writes as CSS reads it: blocks, escapes, strings, brackets, comments, and rules nested in a rule. What one rule
+ * holds doesn't change how the next reads, unless it runs to the end (a bracket, a string or a comment left open:
+ * the sheet isn't `clean` then).
  */
 
 export interface Declaration {
@@ -31,6 +33,8 @@ export interface Sheet {
   rules: Rule[];
   vars: Map<string, string>;
   initial: Map<string, string>;
+  /** Whether it read as written: nothing left open at its end (a block, a bracket, a string, a comment), nothing closed that wasn't. */
+  clean: boolean;
 }
 
 interface Block {
@@ -39,59 +43,90 @@ interface Block {
   children: Block[];
 }
 
-/** Where a string or a bracket that starts at `i` ends (just past it). */
-export function skip(text: string, i: number): number {
-  const open = text[i];
-  if (open === '"' || open === "'") {
+const CLOSE: Record<string, string> = { "(": ")", "[": "]", "{": "}" };
+
+/**
+ * Where what starts at `i` ends (just past it), as CSS reads it: an escape (`\(`), a string (to its quote, or to the
+ * line's end, where CSS ends one left open), a comment, or a bracket (to the one that closes it, whatever is in it; a
+ * closing one of another kind is a character there). What runs to the end of `text` is said to `open`.
+ */
+function end(text: string, i: number, open?: () => void): number {
+  const c = text[i];
+  if (c === "\\") return Math.min(i + 2, text.length);
+  if (c === '"' || c === "'") {
     for (let j = i + 1; j < text.length; j++) {
       if (text[j] === "\\") j++;
-      else if (text[j] === open) return j + 1;
+      else if (text[j] === c) return j + 1;
+      else if (text[j] === "\n") return open?.(), j;
     }
-    return text.length;
-  }
-  let depth = 0;
-  for (let j = i; j < text.length; j++) {
-    const c = text[j];
-    if (c === '"' || c === "'") j = skip(text, j) - 1;
-    else if (c === "(") depth++;
-    else if (c === ")" && --depth === 0) return j + 1;
-  }
+  } else if (c === "/" && text[i + 1] === "*") {
+    const close = text.indexOf("*/", i + 2);
+    if (close >= 0) return close + 2;
+  } else if (CLOSE[c]) {
+    for (let j = i + 1; j < text.length; ) {
+      if (text[j] === CLOSE[c]) return j + 1;
+      j = starts(text, j) ? end(text, j, open) : j + 1;
+    }
+  } else return i + 1;
+  open?.();
   return text.length;
 }
 
-/** Splits `text` at `separator` where it isn't in a string or brackets. */
+/** Whether what's at `i` is an escape, a string, a comment or a bracket (see `end`). */
+const starts = (text: string, i: number) => text[i] === "\\" || text[i] === '"' || text[i] === "'" || !!CLOSE[text[i]] || (text[i] === "/" && text[i + 1] === "*");
+
+/** Where a string or a bracket that starts at `i` ends (just past it): see `end`. */
+export const skip = (text: string, i: number): number => end(text, i);
+
+/** Splits `text` at `separator` where it isn't in an escape, a string, a comment or brackets. */
 export function split(text: string, separator: string): string[] {
   const out: string[] = [];
   let from = 0;
-  for (let i = 0; i < text.length; i++) {
-    const c = text[i];
-    if (c === '"' || c === "'" || c === "(") i = skip(text, i) - 1;
-    else if (c === separator) {
-      out.push(text.slice(from, i));
-      from = i + 1;
+  for (let i = 0; i < text.length; ) {
+    if (starts(text, i)) i = end(text, i);
+    else if (text[i++] === separator) {
+      out.push(text.slice(from, i - 1));
+      from = i;
     }
   }
   out.push(text.slice(from));
   return out;
 }
 
-function read(text: string, i: number): { children: Block[]; body: string; end: number } {
+/** CSS without its comments (as CSS reads them: not in a string or an escape). */
+function uncommented(text: string, open: () => void): string {
+  let out = "";
+  for (let i = 0; i < text.length; ) {
+    const at = i;
+    if (text[i] === "/" && text[i + 1] === "*") i = end(text, i, open);
+    else {
+      i = text[i] === "\\" || text[i] === '"' || text[i] === "'" ? end(text, i, open) : i + 1;
+      out += text.slice(at, i);
+    }
+  }
+  return out;
+}
+
+/** The blocks from `i`, to the `}` that closes them (`top`: to the end). What isn't closed, or closes nothing, is said to `open`. */
+function read(text: string, i: number, open: () => void, top = false): { children: Block[]; body: string; end: number } {
   const children: Block[] = [];
   let body = "";
   let buffer = "";
   while (i < text.length) {
     const c = text[i];
-    if (c === '"' || c === "'" || c === "(") {
-      const end = skip(text, i);
-      buffer += text.slice(i, end);
-      i = end;
-    } else if (c === "{") {
-      const inner = read(text, i + 1);
+    if (c === "{") {
+      const inner = read(text, i + 1, open);
       children.push({ prelude: buffer.trim(), body: inner.body, children: inner.children });
       buffer = "";
       i = inner.end;
     } else if (c === "}") {
-      return { children, body: body + buffer, end: i + 1 };
+      if (!top) return { children, body: body + buffer, end: i + 1 };
+      open();
+      i++;
+    } else if (starts(text, i)) {
+      const to = end(text, i, open);
+      buffer += text.slice(i, to);
+      i = to;
     } else {
       buffer += c;
       if (c === ";") {
@@ -101,6 +136,7 @@ function read(text: string, i: number): { children: Block[]; body: string; end: 
       i++;
     }
   }
+  if (!top) open();
   return { children, body: body + buffer, end: i };
 }
 
@@ -126,7 +162,8 @@ export function unescape(name: string): string {
 }
 
 export function parseSheet(css: string): Sheet {
-  const sheet: Sheet = { rules: [], vars: new Map(), initial: new Map() };
+  const sheet: Sheet = { rules: [], vars: new Map(), initial: new Map(), clean: true };
+  const open = () => void (sheet.clean = false);
   // (`owner`: the class of the rule a nested one is in, where that rule is for one class.)
   const walk = (blocks: Block[], at: string[], parent?: string, owner?: string) => {
     for (const block of blocks) {
@@ -170,6 +207,6 @@ export function parseSheet(css: string): Sheet {
       });
     }
   };
-  walk(read(css.replace(/\/\*[\s\S]*?\*\//g, ""), 0).children, []);
+  walk(read(uncommented(css, open), 0, open, true).children, []);
   return sheet;
 }

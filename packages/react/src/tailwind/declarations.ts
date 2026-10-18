@@ -70,46 +70,95 @@ export interface Compiler {
  */
 export const CLASSES = 2000;
 
-const empty = (): Sheet => ({ rules: [], vars: new Map(), initial: new Map() });
+const empty = (): Sheet => ({ rules: [], vars: new Map(), initial: new Map(), clean: true });
+
+/** Why a class isn't read: Tailwind's stylesheet of it couldn't be read as written (see `readable`). */
+const UNREADABLE = "it isn't a class Tailwind can read here";
+
+/**
+ * Whether Tailwind can build a class without changing how what it builds after it reads: its brackets, parentheses,
+ * braces and quotes closed (`\` escaping the character after it, as in CSS), no comment in it. Tailwind's compiler
+ * keeps every class it builds, so one that isn't (`[color:x(]`) is never built.
+ */
+function readable(token: string): boolean {
+  if (/\/\*|\*\//.test(token)) return false;
+  const open: string[] = [];
+  for (let i = 0; i < token.length; i++) {
+    const c = token[i];
+    const last = open[open.length - 1];
+    if (c === "\\") i++;
+    else if (last === '"' || last === "'") c === last && open.pop();
+    else if (c === '"' || c === "'") open.push(c);
+    else if (c === "(" || c === "[" || c === "{") open.push({ "(": ")", "[": "]", "{": "}" }[c]);
+    else if ((c === ")" || c === "]" || c === "}") && open.pop() !== c) return false;
+  }
+  return !open.length;
+}
 
 /**
  * Reads classes with a compiler: each class built once, its rules read back from the latest stylesheet. Past `limit`
  * classes, a fresh compiler from `renew` (Tailwind compiles asynchronously) takes over once it's ready, with none
- * built: a class string reads the same whatever its compiler built before.
+ * built: a class string reads the same whatever its compiler built before. A class that could change how the
+ * stylesheet reads isn't built (`readable`); a build whose stylesheet still doesn't read cleanly is left out (its
+ * classes said, the classes before it read as they did), and a fresh compiler takes over, on which each of that
+ * build's classes is built alone first: the one that was why is never built again.
  */
 export function declarationReader(compiler: Compiler, renew?: () => Promise<Compiler>, limit = CLASSES): (className: string) => ClassDeclarations {
   let seen = new Set<string>();
   let sheet = empty();
   let byToken = new Map<string, Rule[]>();
   let renewing = false;
+  // Whether the compiler built a stylesheet that didn't read cleanly: nothing more is built on it.
+  let dirty = false;
+  const suspects = new Set<string>();
+  const refused = new Set<string>();
+  // Once at a time (one that fails leaves this one in use).
+  const fresh = () => {
+    if (!renew || renewing) return;
+    renewing = true;
+    renew().then(
+      (next) => {
+        compiler = next;
+        seen = new Set();
+        sheet = empty();
+        byToken = new Map();
+        renewing = dirty = false;
+      },
+      () => {}
+    );
+  };
+  const build = (tokens: string[]): boolean => {
+    const next = parseSheet(compiler.build(tokens));
+    if (!next.clean) return !(dirty = true);
+    // The stylesheet holds every class built so far, in Tailwind's order: read again, places stay comparable.
+    sheet = next;
+    tokens.forEach((token) => seen.add(token));
+    byToken = new Map();
+    for (const rule of sheet.rules) {
+      const rules = byToken.get(rule.token);
+      if (rules) rules.push(rule);
+      else byToken.set(rule.token, [rule]);
+    }
+    if (seen.size > limit) fresh();
+    return true;
+  };
   return (className) => {
     const tokens = [...new Set(String(className).split(/\s+/).filter(Boolean))];
-    const fresh = tokens.filter((token) => !seen.has(token));
-    if (fresh.length) {
-      // The stylesheet holds every class built so far, in Tailwind's order: read again, places stay comparable.
-      sheet = parseSheet(compiler.build(fresh));
-      fresh.forEach((token) => seen.add(token));
-      byToken = new Map();
-      for (const rule of sheet.rules) {
-        const rules = byToken.get(rule.token);
-        if (rules) rules.push(rule);
-        else byToken.set(rule.token, [rule]);
-      }
-      // Once (one that fails leaves this one in use).
-      if (renew && !renewing && seen.size > limit) {
-        renewing = true;
-        renew().then((next) => {
-          compiler = next;
-          seen = new Set();
-          sheet = empty();
-          byToken = new Map();
-          renewing = false;
-        }, () => {});
-      }
+    const unread = tokens.filter((token) => !seen.has(token) && !refused.has(token) && readable(token));
+    if (unread.length) {
+      for (const token of unread) if (!dirty && suspects.delete(token) && !build([token])) refused.add(token);
+      const rest = unread.filter((token) => !seen.has(token) && !refused.has(token) && !suspects.has(token));
+      if (rest.length && !dirty && !build(rest)) rest.forEach((token) => suspects.add(token));
+      if (dirty) fresh();
     }
     const ignored: ClassDeclarations["ignored"] = [];
     const applied: Array<{ rule: Rule; when: ClassCondition }> = [];
     for (const token of tokens) {
+      // (One not built on this compiler: refused, or left out of this read.)
+      if (!seen.has(token)) {
+        ignored.push({ className: token, reason: UNREADABLE });
+        continue;
+      }
       const rules = byToken.get(token);
       if (!rules?.length) ignored.push({ className: token, reason: "Tailwind has no such class" });
       for (const rule of rules ?? []) {

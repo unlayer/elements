@@ -14,6 +14,7 @@ import {
   type TailwindHandle,
 } from "./index";
 import { CLASSES, declarationReader, type Compiler } from "./declarations";
+import { parseSheet } from "./css";
 import { CONFIGS } from "./load";
 
 // Tailwind as it is, its compilers counted once compiled: a handle compiles a fresh one after building many classes.
@@ -149,6 +150,55 @@ describe("classNameToDeclarations", () => {
     for (const [i, className] of strings.entries()) expect(classNameToDeclarations(warmed, className), className).toEqual(classNameToDeclarations(fresh[i], className));
   });
 
+  it("reads the classes after one it can't read as before: a class can't change how the stylesheet reads", async () => {
+    const handle = await loadTailwind({ ...config, hostile: true });
+    const unreadable = "it isn't a class Tailwind can read here";
+    const asFresh = (after: string) => {
+      for (const normal of ["text-red-500", "p-2", "bg-blue-500/50", "before:content-['a']"]) expect(classNameToDeclarations(handle, normal), `${normal} after ${after}`).toEqual(classNameToDeclarations(tw, normal));
+    };
+    // Brackets, parentheses, braces or quotes left open (an escaped one doesn't close), a comment: refused, never built.
+    for (const hostile of ["[color:x(]", "[color:/*]", "[color:*/]", "bg-[x\\]", "[color:x{]", "[content:'a]", "[content:'a\\']"]) {
+      expect(classNameToDeclarations(handle, `${hostile} text-red-500`).ignored, hostile).toEqual([{ className: hostile, reason: unreadable }]);
+      asFresh(hostile);
+    }
+    // Quotes in a value, escaped ones in its selector: built, and read as CSS reads them.
+    for (const quoted of ['[background-image:image-set("x.png"_1x)]', "[content:'a\\'b']", '[content:"a\\"b"]']) {
+      expect(classNameToDeclarations(handle, quoted).ignored, quoted).toEqual([]);
+      asFresh(quoted);
+    }
+    expect(classNameToDeclarations(handle, '[background-image:image-set("x.png"_1x)]').declarations.map((d) => d.value)).toEqual(['image-set("x.png" 1x)']);
+    // What Tailwind can read stays readable: quotes and brackets closed, an escape in a string.
+    expect(classNameToDeclarations(handle, "before:content-['\\201C'] font-['Open_Sans'] [&>*]:p-2 max-[480px]:p-1").ignored.map((i) => i.reason)).not.toContain(unreadable);
+  });
+
+  it("keeps every class reading as on a fresh handle, whatever hostile classes it's given (fuzzed)", async () => {
+    // `TAILWIND_POISON_FUZZ_RUNS=5000` for a longer run, `TAILWIND_POISON_FUZZ_SEED` for other inputs.
+    const runs = Number(process.env.TAILWIND_POISON_FUZZ_RUNS ?? 300);
+    const handle = await loadTailwind({ ...config, fuzzed: true });
+    const normals = ["text-red-500", "p-2", "px-4", "bg-blue-500/50", "font-bold", "rounded-md", "border-2", "md:p-4", "hover:underline", "max-sm:text-sm", "w-[10px]", "text-[#123456]", "leading-6", "shadow-md", "before:content-['a']", "font-['Open_Sans']", "bg-[url(x.png)]", "text-brand"];
+    const opens = ["[color:", "bg-[", "[content:", "before:content-[", "[background-image:", "w-[", "font-[", "[--x:", "max-[", "[&"];
+    const parts = ["x", "1px", "(", ")", "[", "]", "{", "}", '"', "'", "\\", '\\"', "/*", "*/", "_", "url(", "a.png", ";", ":", "@media", "&", ".x", ",", "!important", "<", "%", "#", "\\72"];
+    const r = random(Number(process.env.TAILWIND_POISON_FUZZ_SEED ?? 20261018));
+    const pick = (list: string[]) => list[Math.floor(r() * list.length)];
+    const expected = new Map(normals.map((normal) => [normal, classNameToDeclarations(tw, normal)]));
+    const bad: string[] = [];
+    for (let run = 0; run < runs && bad.length < 5; run++) {
+      const tokens: string[] = [];
+      for (let n = Math.floor(r() * 3); n >= 0; n--) tokens.push(pick(normals));
+      for (let n = Math.floor(r() * 4); n > 0; n--) {
+        let hostile = pick(opens);
+        for (let k = 1 + Math.floor(r() * 4); k > 0; k--) hostile += pick(parts);
+        tokens.splice(Math.floor(r() * (tokens.length + 1)), 0, hostile + (r() < 0.6 ? "]" : ""));
+      }
+      classNameToDeclarations(handle, tokens.join(" "));
+      for (const normal of normals) {
+        const read = classNameToDeclarations(handle, normal);
+        if (JSON.stringify(read) !== JSON.stringify(expected.get(normal))) bad.push(`${JSON.stringify(tokens.join(" "))}: then \`${normal}\` reads ${JSON.stringify(read)}`);
+      }
+    }
+    expect(bad).toEqual([]);
+  }, 120000);
+
   it("takes only a compiled Tailwind", () => {
     expect(() => classNameToDeclarations({ config } as TailwindHandle, "p-2")).toThrow(/takes the compiled Tailwind/);
   });
@@ -244,6 +294,33 @@ describe("loadTailwind", () => {
   });
 });
 
+describe("the stylesheet's reader", () => {
+  it("reads CSS as CSS does: an escape, a string, a comment or a bracket in a rule doesn't change how the rules after it read", () => {
+    const sheet = parseSheet(
+      [
+        ".a\\(\\] { color: red; }",
+        '.b\\"x { content: "}"; }',
+        ".c { content: '/* not a comment {'; }",
+        "/* a comment: } { */",
+        '.d { background: url("a;b.png"); margin: 1px; }',
+        ".e\\{ { color: x(}); }",
+        ".f { color: blue; }",
+      ].join("\n")
+    );
+    expect(sheet.clean).toBe(true);
+    expect(sheet.rules.map((rule) => [rule.token, rule.declarations.map((d) => `${d.property}: ${d.value}`)])).toEqual([
+      ["a(]", ["color: red"]],
+      ['b"x', ['content: "}"']],
+      ["c", ["content: '/* not a comment {'"]],
+      ["d", ['background: url("a;b.png")', "margin: 1px"]],
+      ["e{", ["color: x(})"]],
+      ["f", ["color: blue"]],
+    ]);
+    // What runs to its end (a block, a bracket, a string, a comment left open) or closes what isn't open isn't clean.
+    for (const css of [".a { color: red;", ".a { color: x(; } .b { color: red; }", ".a { content: 'x; }\n", ".a { color: red; } /* x", ".a { color: red; } } .b { color: red; }"]) expect(parseSheet(css).clean, css).toBe(false);
+  });
+});
+
 describe("a handle's reader of classes", () => {
   /** A compiler that gives each class it's built a rule, as Tailwind gives the stylesheet of all so far. */
   const counting = () => {
@@ -269,6 +346,40 @@ describe("a handle's reader of classes", () => {
     expect(read("a f").declarations.map((d) => d.className)).toEqual(["a", "f"]);
     expect(fresh.built).toEqual(["a", "f"]);
     expect(old.built).toHaveLength(5);
+  });
+
+  it("drops the classes of a build it can't read cleanly, keeps reading the others, and compiles a fresh compiler without them", async () => {
+    // A compiler whose stylesheet, once it has built `evil`, never reads cleanly: as Tailwind keeps every class it built.
+    const poisoned = () => {
+      const built: string[] = [];
+      return { built, build: (classes: string[]) => (built.push(...classes), built.map((c) => (c === "evil" ? `.${c} { color: x(; }` : `.${c} { margin: 1px; }`)).join("\n")) };
+    };
+    const compilers = [poisoned(), poisoned(), poisoned()];
+    const ready: Array<(compiler: Compiler) => void> = [];
+    const renew = vi.fn(() => new Promise<Compiler>((resolve) => ready.push(resolve)));
+    const read = declarationReader(compilers[0], renew);
+    const classes = (className: string) => read(className).declarations.map((d) => d.className);
+    const unreadable = (className: string) => read(className).ignored.filter((i) => i.reason === "it isn't a class Tailwind can read here").map((i) => i.className);
+    expect(classes("a")).toEqual(["a"]);
+    // `evil` and `b`, built together, are left out; `a` reads as before; a fresh compiler is asked for.
+    expect(unreadable("b evil")).toEqual(["b", "evil"]);
+    expect(classes("a")).toEqual(["a"]);
+    expect(renew).toHaveBeenCalledTimes(1);
+    // Till it's ready, nothing more is built on the one that can't read.
+    expect(unreadable("c")).toEqual(["c"]);
+    expect(compilers[0].built).toEqual(["a", "b", "evil"]);
+    ready[0](compilers[1]);
+    await Promise.resolve();
+    // On the fresh one, each class of that build is built alone first: `b` reads, `evil` is refused for good.
+    expect(classes("b c a")).toEqual(["b", "c", "a"]);
+    expect(unreadable("evil")).toEqual(["evil"]);
+    expect(renew).toHaveBeenCalledTimes(2);
+    ready[1](compilers[2]);
+    await Promise.resolve();
+    expect(classes("evil d")).toEqual(["d"]);
+    expect(unreadable("evil")).toEqual(["evil"]);
+    expect(compilers[2].built).toEqual(["d"]);
+    expect(renew).toHaveBeenCalledTimes(2);
   });
 
   it("keeps its compiler where a fresh one fails", async () => {
@@ -422,3 +533,14 @@ describe("the async renderers, with <Tailwind config>", () => {
     expect(design.body.rows[0].columns[0].contents[0].values.color).toBe("#007291");
   });
 });
+
+/** A seeded random number generator (mulberry32): the same inputs every run. */
+function random(seed: number): () => number {
+  let a = seed >>> 0;
+  return () => {
+    a = (a + 0x6d2b79f5) >>> 0;
+    let t = Math.imul(a ^ (a >>> 15), 1 | a);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}

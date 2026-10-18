@@ -200,7 +200,7 @@ A class that can't apply in an email is never dropped silently either: Elements 
 [Unlayer] Paragraph has no phone setting for `color` (class `max-sm:text-red-500`).
 ```
 
-Left out: dark mode, print, `focus:` and other states, group and peer variants, classes that style other elements (`space-y-*`), negative or automatic margins (`mx-auto`), phone, breakpoint and hover variants of what no prop takes (an inline style applies everywhere), and classes Tailwind doesn't know. Use the component's props for what classes can't express.
+Left out: dark mode, print, `focus:` and other states, group and peer variants, classes that style other elements (`space-y-*`), negative or automatic margins (`mx-auto`), phone, breakpoint and hover variants of what no prop takes (an inline style applies everywhere), and classes Tailwind doesn't know. So is a class with a bracket, a parenthesis or a quote left open, or a comment, in it (`[color:x(]`): it isn't a class Tailwind can read here, and it's never compiled, so it can't change how the classes after it read (Tailwind's compiler keeps every class it has compiled, for every render that uses the same `tw`). Use the component's props for what classes can't express.
 
 ## Inspect what a class gives
 

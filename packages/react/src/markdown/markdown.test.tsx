@@ -273,29 +273,26 @@ describe("Markdown in a <Tailwind>", () => {
 
   it("inlines nothing that loads or runs anything, whatever classes its HTML is given (fuzzed)", () => {
     // An arbitrary value or property (`bg-[…]`, `[background:…]`) of random parts, some hiding a `url(` from a check
-    // (an HTML reference, a CSS escape, a comment Tailwind takes out), its brackets and comments closed.
+    // (an HTML reference, a CSS escape, a comment Tailwind takes out), its brackets, quotes and comments closed or not.
     const opens = ["bg-[", "[background:", "[background-image:", "[list-style-image:", "[behavior:", "[-moz-binding:", "[border-image:", "[color:"];
-    const functions = ["url(", "URL(", "u&#114;l(", "u&#x72;l(", "u\\72l(", "u\\72_l(", "u\\rl(", "u/**/rl(", "image-set(", "expression(", "x&lpar;", "x&#40;"];
-    const parts = ["javascript:", "https://x.test/a.gif", "x", "_", "&amp;", ","];
+    const parts = ["url(", "URL(", "u&#114;l(", "u&#x72;l(", "u\\72l(", "u\\72_l(", "u\\rl(", "u/**/rl(", "image-set(", "expression(", "x&lpar;", "x&#40;", "javascript:", "https://x.test/a.gif", "x", "_", "&amp;", ",", ")", "(", "[", "]", "/*", "*/", "\\", "'", "&quot;"];
     const r = random(Number(process.env.SANITIZE_FUZZ_SEED ?? 20261018));
     const pick = (list: string[]) => list[Math.floor(r() * list.length)];
     const bad: string[] = [];
     for (let run = 0; run < FUZZ_RUNS / 10 && bad.length < 5; run++) {
       let value = "";
-      let open = 0;
-      for (let n = 1 + Math.floor(r() * 5); n > 0; n--) {
-        const f = r() < 0.4;
-        value += f ? pick(functions) : open && r() < 0.3 ? ")" : pick(parts);
-        open += f ? 1 : value.endsWith(")") ? -1 : 0;
-      }
-      const className = `${pick(opens)}${value}${")".repeat(open)}] text-red-500`;
-      for (const html of design(<Markdown markdown={`<div class="${className}">a</div>\n\nText <span class="${className}">b</span>`} />))
+      for (let n = 1 + Math.floor(r() * 5); n > 0; n--) value += pick(parts);
+      const className = `${pick(opens)}${value}${r() < 0.5 ? ")" : ""}${r() < 0.8 ? "]" : ""} text-red-500`;
+      for (const html of design(<Markdown markdown={`<div class="${className}">a</div>\n\nText <span class="${className}">b</span>`} />)) {
         for (const style of styles(html)) if (loads(style)) bad.push(`${JSON.stringify(className)} → ${JSON.stringify(style)}`);
+        // (What Tailwind can't read doesn't stop it reading the rest.)
+        if (!html.includes("color: #fb2c36")) bad.push(`${JSON.stringify(className)} → ${JSON.stringify(html)}: no color`);
+      }
     }
     expect(bad).toEqual([]);
-    // (The inputs reach the check: Tailwind made CSS of many, which was left out.)
-    expect(warn.mock.calls.filter((call) => String(call[0]).includes("could load or run something")).length).toBeGreaterThan(FUZZ_RUNS / 50);
-    expect(design(<Markdown markdown={'<p class="text-red-500">a</p>'} />)).toEqual(['<p style="color: #fb2c36">a</p>']);
+    // (The inputs reach both checks: Tailwind made CSS of many, which was left out, and couldn't read others.)
+    const said = (text: string) => warn.mock.calls.filter((call) => String(call[0]).includes(text)).length;
+    expect([said("could load or run something"), said("isn't a class Tailwind can read here")].map((n) => n > FUZZ_RUNS / 100)).toEqual([true, true]);
   }, FUZZ_RUNS * 5 + 30000);
 });
 
