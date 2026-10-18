@@ -59,7 +59,7 @@ jobs:
 
       # ── Bundle size budget ──────────────────────────────────────
       # Fail if the react-elements ESM bundle exceeds 193KB.
-      # Current size: about 192.6KB (0.1.22: about 76KB). Raised from 192KB
+      # Current size: about 192.8KB (0.1.22: about 76KB). Raised from 192KB
       # (about 0.7KB): what's in a <Head> is walked with the template (its
       # components waited for, in the error policy), a head function that
       # fails is in the error policy, renderToJson throws a template
