@@ -89,7 +89,7 @@ Inside text, bold, italics, strikethrough, links, images and line breaks are HTM
 
 ## Plain text
 
-`renderToPlainText()` reads the blocks as it reads any template: headings in capitals (`h1`, `h2`), links as `text (url)`, list items with a dash, code with its indentation.
+`renderToPlainText()` reads the blocks as it reads any template: headings in capitals (`h1`, `h2`), links as `text (url)` (a heading's too: `# [Pay invoice](https://example.com/pay)` is `PAY INVOICE (https://example.com/pay)`, its URL as written), list items with a dash, code with its indentation.
 
 ## Agent rules
 

@@ -485,8 +485,8 @@ const fromHtml = toPlainText(html, { skip: [".footer"] }); // any HTML
 ```
 
 Options (the config's too):
-- `wordwrap?: number` — wrap lines at this many characters, between words (default: no wrapping)
-- `links?: "inline" | "after" | "none"` — `text (url)` (the default), `text [1]` with the URLs listed at the end, or the text only
+- `wordwrap?: number` — wrap lines at this many characters, between words (default: no wrapping); the URLs listed with `links: "after"` aren't wrapped
+- `links?: "inline" | "after" | "none"` — `text (url)` (the default), `text [1]` with the URLs listed at the end, or the text only; in headings and preformatted text too, the URL as written (never in capitals)
 - `uppercaseHeadings?: boolean` — h1 and h2 in capitals (default `true`)
 - `skip?: string[]` — elements left out with what's in them, by tag (`"img"`) or class (`".footer"`)
 
