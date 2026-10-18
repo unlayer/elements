@@ -60,7 +60,7 @@ jobs:
       # ── Bundle size budget ──────────────────────────────────────
       # Fail if the react-elements ESM bundle exceeds 194.5KB.
       # Current size: about 194.5KB (0.1.22: about 76KB). Raised from 193.5KB
-      # (about 0.9KB): a <Suspense> around the template is unwrapped, a root
+      # (about 1KB): a <Suspense> around the template is unwrapped, a root
       # the walk of a template with no root meets is said, and which Row or
       # Column failed and what an async render compiled for its <Tailwind>s
       # are kept in the render's scope. Raised from 193KB
