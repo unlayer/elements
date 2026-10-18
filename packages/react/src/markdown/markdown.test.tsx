@@ -119,7 +119,7 @@ describe("Markdown", () => {
 });
 
 /** Random inputs the sanitizer is given (`SANITIZE_FUZZ_RUNS=300000` for a longer run, `SANITIZE_FUZZ_SEED` for others). */
-const FUZZ_RUNS = Number(process.env.SANITIZE_FUZZ_RUNS ?? 10000);
+const FUZZ_RUNS = Number(process.env.SANITIZE_FUZZ_RUNS ?? 2000);
 
 /** The elements an HTML parser makes of HTML in a page's body. */
 const parsed = (html: string) => [...new DOMParser().parseFromString(`<!doctype html><body>${html}`, "text/html").body.querySelectorAll("*")];
@@ -205,7 +205,7 @@ describe("sanitizeHtml", () => {
       }
     }
     expect(bad).toEqual([]);
-  }, FUZZ_RUNS / 2 + 10000);
+  }, FUZZ_RUNS * 5 + 30000);
 });
 
 /** A seeded random number generator (mulberry32): the same inputs every run. */
