@@ -4,8 +4,8 @@
  * the same markup, `useId()`s included (in the installed React's format). Hand-written trees for what templates do,
  * every element and kind of attribute React writes its own way, then random ones, alone and where templates have
  * markup (`WALKER_FUZZ_SEEDS=5000` for a longer run, `TEMPLATE_SEEDS` for the templates'; CI's weekly canary runs it on
- * React's canary). Where the walker means to differ (React 19's hoisting, its document singletons, forms' actions), the
- * differences are listed, each with why.
+ * React's canary). Where the walker means to differ (React 19's hoisting, its document singletons, forms' function
+ * actions, an error in a <Suspense>), the differences are listed, each with why.
  */
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import React, { Component, createContext, forwardRef, Fragment, memo, Suspense, useContext, useId, useMemo, useReducer, useRef, useState } from "react";
@@ -244,8 +244,8 @@ describe("the walker against react-dom/server", () => {
   });
 
   it("differs from react-dom only where it means to: React 19's hoisting, its document singletons and forms' actions", () => {
-    // Each tree, what the walker writes on React 19, and why react-dom 19 writes otherwise (React 18 writes what the
-    // walker writes: the walker gives what it gives there).
+    // Each tree, what the walker writes on React 19, and why react-dom 19 writes otherwise (react-dom 18 writes them as
+    // the walker does).
     const action = () => {};
     const intended: Array<[React.ReactElement, string, string]> = [
       [h("div", null, h("title", null, "T")), "<div><title>T</title></div>", "it moves a <title> to the start of the markup: Elements' markup is a part of a document (<Head> puts tags in the head)"],
