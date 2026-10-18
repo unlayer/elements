@@ -16,7 +16,7 @@ import type { RenderMode, UnlayerConfig } from "@unlayer-internal/shared-element
 import type { ContentValues, DeviceProps, SizeInput } from "../types";
 import type { ValuesInput } from "@unlayer-internal/shared-elements";
 import { contentSlotWidth, DEFAULT_CONTAINER_PADDING, pinImageSrc, toPx } from "./image-sizing";
-import { remember } from "./render-scope";
+import { guest, remember } from "./render-scope";
 import {
   mergeValues,
   generateHtmlFromTextJson,
@@ -240,8 +240,9 @@ function renderComponent<T = any>(config: RenderConfig<T>): JSX.Element {
   const cfg = _config ?? DEFAULT_CONFIG;
   const exporterConfig = { generateHtmlFromTextJson, toSafeHtml: cfg.toSafeHtml, textDirection: textDirectionOf(cfg.textDirection), cdnBaseUrl: cfg.cdnBaseUrl };
   // Item exporters' signature: (values, index, colIndex, cells, bodyValues, rowValues, embeddedValues, meta). Args 2-7
-  // are deprecated positional params; the 8th arg is a meta object with all context.
-  const html = exporter(values, ...args, undefined, { exporterConfig, mergeTagState: cfg.mergeTagState, ...metaContext });
+  // are deprecated positional params; the 8th arg is a meta object with all context. (A custom tool's exporter, and
+  // the config's `toSafeHtml`, are the user's: see `guest`.)
+  const html = guest(() => exporter(values, ...args, undefined, { exporterConfig, mergeTagState: cfg.mergeTagState, ...metaContext }));
   // A string, with its `style` and `className` on the tag that renders it
   return <div dangerouslySetInnerHTML={{ __html: hatch(String(html), at ?? /<[a-z][^>]*>/, style, className, given ?? {}) }} />;
 }

@@ -1,7 +1,8 @@
 /**
  * What the other entries ("@unlayer/react-elements/async", "/tailwind", "/head") use of the main one's internals,
  * on `renderToHtml` (no export of its own): a render's scope, a template collected waiting for what's async in it
- * (the waiting itself is the async entry's: see src/async/collect.ts), and the engine's static markup.
+ * (the waiting itself is the async entry's: see src/async/collect.ts), the synchronous renders in that scope (the
+ * render functions make one of their own), and the engine's static markup.
  */
 import type React from "react";
 import type { UnlayerConfig } from "@unlayer-internal/shared-elements";
@@ -11,6 +12,8 @@ import { isRoot, rootName } from "./root-type";
 import { newScope, setRenderConfig, withScope, type Scope } from "./render-scope";
 import { rootConfig, type RootConfigProps } from "../context/layer-config";
 import { ROOTLESS } from "./root-content";
+import { htmlDocument, htmlParts, plainText } from "./render-to-html";
+import { designJson } from "./render-to-json";
 import { errorPart, flatten, PENDING, renderStatic, track, walkAsync, type CollectOptions, type Flat } from "../engine";
 
 export const INTERNALS = Symbol.for("@unlayer/react-elements/internals");
@@ -51,4 +54,8 @@ async function collectAsync(root: React.ReactElement, scope: Scope, options: Par
 const engine = { walk: walkAsync, flatten, PENDING, errorPart, track };
 export type Engine = typeof engine;
 
-export const internals = { newScope, withScope, unwrapAsync, collectAsync, isRoot, render: renderStatic, engine };
+/** The synchronous renders, run in the scope the async renderers collected the template in. */
+const renders = { html: htmlDocument, parts: htmlParts, text: plainText, json: designJson };
+export type Renders = typeof renders;
+
+export const internals = { newScope, withScope, unwrapAsync, collectAsync, isRoot, render: renderStatic, engine, renders };

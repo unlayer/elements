@@ -14,7 +14,7 @@ import { jsx, jsxs } from "react/jsx-runtime";
 import type { Item, RecordItem } from "../engine";
 import { whereIs } from "../utils/collect";
 import { RenderError } from "../engine";
-import { failed, failedBefore, rightToLeft, sayOnce } from "../utils/render-scope";
+import { failed, failedBefore, guest, rightToLeft, sayOnce } from "../utils/render-scope";
 import { containerOf } from "../utils/container-render";
 import { classProps, TAILWIND } from "../utils/tailwind";
 import { OWN, UNLAYER_CONFIG_KEY } from "../utils/create-component";
@@ -286,7 +286,8 @@ function made(c: Collected, scoped: Scoped, r: ReturnType<typeof recordOf>): Rea
   // A scope's rewrite, the Row's, one its Columns' classes give, or the root's, can put what its classes give the Row
   // in its Columns (Tailwind's padding and margins, and text styles for the text in them: see utils/tailwind.ts).
   const rewrite = props[TAILWIND] ?? columnsRewrite(list) ?? c.root?.[TAILWIND];
-  const children = rewrite?.(list, props, c.root, rightToLeft()) ?? list;
+  const rtl = rightToLeft();
+  const children = (rewrite && guest(() => rewrite(list, props, c.root, rtl))) ?? list;
   // Its own padding is the editor's: around the row, outside its content background (a hook's warned already).
   if (!props[TAILWIND] && /[1-9]/.test(String(given(props, "padding") ?? ""))) {
     const image = given(props, "backgroundImage");

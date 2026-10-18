@@ -9,7 +9,7 @@ import { isRoot } from "./root-type";
 import { ownRoot } from "./own-root";
 import { rootConfig, rootMode, type RootConfigProps } from "../context/layer-config";
 import { normalizedRoot } from "../model";
-import { omissions, setRenderConfig, withRenderScope } from "./render-scope";
+import { omissions, setRenderConfig, withOwnScope } from "./render-scope";
 import { isTailwindError } from "./tailwind";
 import {
   emailLayout,
@@ -148,7 +148,7 @@ export function renderToHtml(
   element: React.ReactElement,
   options?: RenderToHtmlOptions
 ): string {
-  return withRenderScope(() => htmlDocument(element, options));
+  return withOwnScope(() => htmlDocument(element, options));
 }
 
 /** CSS for a `<style>` element: a `</style` in it would end the element (CSS escapes the slash). */
@@ -156,7 +156,8 @@ function styleText(css: string): string {
   return css.replace(/<\/(style)/gi, "<\\/$1");
 }
 
-function htmlDocument(element: React.ReactElement, options?: RenderToHtmlOptions): string {
+/** renderToHtml in the render's scope (the async renderers' too, which collected the template in it). */
+export function htmlDocument(element: React.ReactElement, options?: RenderToHtmlOptions): string {
   const { title, lang: optionLang, fonts: optionFonts = [], ...config } = options ?? {};
   // A template component (<Welcome/>) renders as its root, whose settings follow.
   element = htmlRoot(element, "renderToHtml", config.idPrefix);
@@ -231,18 +232,20 @@ export function renderToPlainText(
   element: React.ReactElement,
   config?: Partial<UnlayerConfig> & PlainTextOptions
 ): string {
+  return withOwnScope(() => plainText(element, config));
+}
+
+/** renderToPlainText in the render's scope (see htmlDocument). */
+export function plainText(element: React.ReactElement, config?: Partial<UnlayerConfig> & PlainTextOptions): string {
   // A template component renders as its root, as in renderToHtml (context providers around it included).
-  const html = withRenderScope(() => {
-    const root = htmlRoot(element, "renderToPlainText", config?.idPrefix);
-    const resolved = resolveConfig(root, config);
-    setRenderConfig(resolved);
-    // Collected first, as renderToHtml's head is: it fails where that does.
-    const mode = rootMode(root, resolved);
-    normalizedRoot(headRoot(root, mode), mode);
-    return renderBody(root, config, "renderToPlainText");
-  });
+  const root = htmlRoot(element, "renderToPlainText", config?.idPrefix);
+  const resolved = resolveConfig(root, config);
+  setRenderConfig(resolved);
+  // Collected first, as renderToHtml's head is: it fails where that does.
+  const mode = rootMode(root, resolved);
+  normalizedRoot(headRoot(root, mode), mode);
   // How the text is written (wrapping, links, headings, what's left out): see PlainTextOptions.
-  return htmlToPlainText(html, config);
+  return htmlToPlainText(renderBody(root, config, "renderToPlainText"), config);
 }
 
 /**
@@ -319,10 +322,11 @@ export function renderToHtmlParts(
   element: React.ReactElement,
   config?: Partial<UnlayerConfig>
 ): HtmlParts {
-  return withRenderScope(() => htmlParts(element, config));
+  return withOwnScope(() => htmlParts(element, config));
 }
 
-function htmlParts(element: React.ReactElement, config?: Partial<UnlayerConfig>): HtmlParts {
+/** renderToHtmlParts in the render's scope (see htmlDocument). */
+export function htmlParts(element: React.ReactElement, config?: Partial<UnlayerConfig>): HtmlParts {
   element = htmlRoot(element, "renderToHtmlParts", config?.idPrefix);
   // Render body markup
   const body = renderBody(element, config, "renderToHtmlParts");

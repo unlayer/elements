@@ -7,7 +7,7 @@ import type React from "react";
 import type { Recorded } from "../utils/collect";
 import { collector, guard } from "../utils/record";
 import { contentTree, isUnlayerProvider } from "../utils/unwrap-root";
-import { idPrefix, omitted, onError, scopeCache, withScope } from "../utils/render-scope";
+import { guest, idPrefix, omitted, onError, scopeCache } from "../utils/render-scope";
 import { isTailwindError } from "../utils/tailwind";
 import { collect as walk, type Flat, type Item, type RenderError } from "../engine";
 import { omits } from "../engine/errors";
@@ -45,7 +45,7 @@ export function collectedFrom(flat: { content: Item[]; recorded: object[]; omitt
 /** `children` collected synchronously: its components run outside this render's scope (one they start is its own). */
 function collected(children: React.ReactNode, root: string): Collected {
   const { node, options } = collecting(children, root);
-  return collectedFrom(withScope(undefined, () => walk(node, options)) as Flat);
+  return collectedFrom(guest(() => walk(node, options)) as Flat);
 }
 
 /** `children` collected, once per render (the HTML, the head and the design ask for the same). */

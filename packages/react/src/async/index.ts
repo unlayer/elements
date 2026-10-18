@@ -6,9 +6,6 @@
 import type React from "react";
 import {
   renderToHtml as renderHtml,
-  renderToPlainText as renderText,
-  renderToJson as renderJson,
-  renderToHtmlParts as renderParts,
   type DesignJSON,
   type HtmlParts,
   type PlainTextOptions,
@@ -20,7 +17,7 @@ import type { TailwindConfig, TailwindHandle } from "@unlayer/react-elements/tai
 import { prettyHtml } from "./pretty";
 import { collectWaiting, take } from "./collect";
 import type { CollectOptions, Flat } from "../engine";
-import type { Engine } from "../utils/internals";
+import type { Engine, Renders } from "../utils/internals";
 
 export type { DesignJSON, HtmlParts, PlainTextOptions, RenderToHtmlOptions, RenderToJsonOptions };
 
@@ -56,6 +53,8 @@ interface Internals {
   /** Whether a type is one of Elements' roots, of any copy (see utils/root-type.ts). */
   isRoot(type: unknown): boolean;
   engine: Engine;
+  /** The synchronous renders, in the scope they're run in (the render functions make one of their own). */
+  renders: Renders;
 }
 
 /**
@@ -75,7 +74,7 @@ async function tailwindLoader(): Promise<Load> {
  * output in tree order); the synchronous render `run` makes the output from that, in the same scope. A template with
  * no root is its own content (what it rendered), but where `rootless` is false (the design, which needs a root).
  */
-async function render<T>(element: React.ReactElement, options: Partial<UnlayerConfig> | undefined, run: (root: React.ReactElement) => T, rootless = true): Promise<T> {
+async function render<T>(element: React.ReactElement, options: Partial<UnlayerConfig> | undefined, run: (renders: Renders, root: React.ReactElement) => T, rootless = true): Promise<T> {
   const internals = (renderHtml as unknown as Record<symbol, Internals>)[Symbol.for("@unlayer/react-elements/internals")];
   const scope = internals.newScope();
   const root = await internals.unwrapAsync(element, take, options?.idPrefix);
@@ -104,7 +103,7 @@ async function render<T>(element: React.ReactElement, options: Partial<UnlayerCo
   };
   lookups.push(lookup);
   try {
-    return internals.withScope(scope, () => run(root));
+    return internals.withScope(scope, () => run(internals.renders, root));
   } finally {
     lookups.splice(lookups.indexOf(lookup), 1);
   }
@@ -116,23 +115,23 @@ async function render<T>(element: React.ReactElement, options: Partial<UnlayerCo
  */
 export async function renderToHtml(element: React.ReactElement, options?: RenderToHtmlOptions & PrettyOption): Promise<string> {
   const { pretty, ...rest } = options ?? {};
-  const html = await render(element, rest, (root) => renderHtml(root, rest));
+  const html = await render(element, rest, (renders, root) => renders.html(root, rest));
   return pretty ? prettyHtml(html) : html;
 }
 
 /** `renderToPlainText`, for templates that load data as they render (see renderToHtml), with the same options. */
 export function renderToPlainText(element: React.ReactElement, config?: Partial<UnlayerConfig> & PlainTextOptions): Promise<string> {
-  return render(element, config, (root) => renderText(root, config));
+  return render(element, config, (renders, root) => renders.text(root, config));
 }
 
 /** `renderToJson`, for templates that load data as they render (see renderToHtml), with the same options. */
 export function renderToJson(element: React.ReactElement, options?: RenderToJsonOptions): Promise<DesignJSON> {
-  return render(element, options, (root) => renderJson(root, options), false);
+  return render(element, options, (renders, root) => renders.json(root, options), false);
 }
 
 /** `renderToHtmlParts`, for templates that load data as they render (see renderToHtml); with `pretty`, its head and body formatted. */
 export async function renderToHtmlParts(element: React.ReactElement, config?: Partial<UnlayerConfig> & PrettyOption): Promise<HtmlParts> {
   const { pretty, ...rest } = config ?? {};
-  const parts = await render(element, rest, (root) => renderParts(root, rest));
+  const parts = await render(element, rest, (renders, root) => renders.parts(root, rest));
   return pretty ? { ...parts, head: await prettyHtml(parts.head), body: await prettyHtml(parts.body) } : parts;
 }

@@ -17,7 +17,7 @@ import { TAILWIND } from "./tailwind";
 import { callClass, callComponent, contextOf, hookState, ROOT_TREE, RenderError, type ContextStack, type TreeContext } from "../engine";
 import { nameOf, threw } from "../engine/errors";
 import { isRoot } from "./root-type";
-import { withScope } from "./render-scope";
+import { guest } from "./render-scope";
 
 const CONTAINER_NAMES = new Set(["Row", "Column"]);
 export const MEMO = Symbol.for("react.memo");
@@ -114,7 +114,7 @@ function replayed(type: any, props: object, forked: boolean, output: React.React
 function* waiting<T>(call: () => T): Generator<PromiseLike<unknown>, T, unknown> {
   for (;;) {
     try {
-      return withScope(undefined, call);
+      return guest(call);
     } catch (thrown) {
       if (!isThenable(thrown)) throw thrown;
       try {

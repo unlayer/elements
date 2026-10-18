@@ -2,6 +2,11 @@
  * One render's scope (renderToHtml, renderToJson, …): what it works out once, like a template's collected content,
  * is reused for the rest of it and never by the next render (an element kept between renders may read other data);
  * what the render does with parts that fail (`onError`), and the parts it left out.
+ *
+ * Each render function makes a scope of its own, whatever's rendering around it, and the user's code (a component, a
+ * template wrapper, a custom tool's exporter or head, `onError`) runs outside it (`guest`): a render it starts is a
+ * render of its own. The scope is the module's while a render runs synchronously: never kept across an `await`
+ * (async code passes it on itself, as collectAsync does), so renders at once never see each other's.
  */
 import { escapeKeepingTags, type OnError, type RenderError } from "@unlayer-internal/shared-elements";
 import { omits, reportOmitted } from "../engine/errors";
@@ -79,8 +84,10 @@ export function failed(error: RenderError, record?: object): void {
 
 /** A part the render left out (what a collecting walk left out, a Row that doesn't fit): listed and said. */
 export function omitted(error: RenderError): void {
+  const policy = scoped?.onError;
   scoped?.omitted.push(error);
-  reportOmitted(scoped?.onError, error);
+  // (A function's the user's: see `guest`.)
+  guest(() => reportOmitted(policy, error));
 }
 
 /** Whether a row's or block's exporter failed in this render (see `failed`). */
@@ -89,10 +96,7 @@ export const failedBefore = (record: object | undefined): boolean => !!record &&
 /** The parts this render left out. */
 export const omissions = (): RenderError[] => scoped?.omitted ?? [];
 
-/**
- * Runs `run` in `scope` (an async renderer collects a template in it first, then renders in it); with none, outside
- * any (a template's components run so: a render one of them starts is a render of its own).
- */
+/** Runs `run` in `scope` (a render function's own; an async renderer collects a template in it first, then renders in it). */
 export function withScope<T>(scope: Scope | undefined, run: () => T): T {
   const outer = scoped;
   scoped = scope;
@@ -103,9 +107,22 @@ export function withScope<T>(scope: Scope | undefined, run: () => T): T {
   }
 }
 
-/** Runs one render with its own scope (a render inside another, as Body's in renderToHtml's, shares it). */
+/** Runs a render function's render in a scope of its own, whatever's rendering around it. */
+export const withOwnScope = <T>(render: () => T): T => withScope(newScope(), render);
+
+/**
+ * Runs code of the user's own (a component, a template wrapper, a custom tool's exporter or head, an `onError`
+ * function, a Tailwind plugin) outside the render's scope: a render it starts is a render of its own, and Body that
+ * React renders there makes its own.
+ */
+export const guest = <T>(run: () => T): T => withScope(undefined, run);
+
+/**
+ * Body's content rendered in the scope of the render that reached it (the render functions'), or one of its own where
+ * React renders Body (an app's live preview).
+ */
 export function withRenderScope<T>(render: () => T): T {
-  return scoped ? render() : withScope(newScope(), render);
+  return scoped ? render() : withOwnScope(render);
 }
 
 /**

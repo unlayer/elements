@@ -5,7 +5,7 @@
  * whose content is one is rewritten by it too. The main entry knows no more of Tailwind than that.
  */
 import React from "react";
-import { rightToLeft, scopeCache } from "./render-scope";
+import { guest, rightToLeft, scopeCache } from "./render-scope";
 
 /** A scope's rewrite: on its component type, in its recorded props, and on the errors it throws (passed on as they are). */
 export const TAILWIND = Symbol.for("@unlayer/react-elements/tailwind");
@@ -23,10 +23,13 @@ export const isTailwindError = (error: unknown): boolean => !!(error as Record<s
  * sides, `ps-4`, are the right in a right-to-left root). A Row's can hold a function under `[TAILWIND]`, which
  * src/model/elements.ts gives the Row's children (its Columns), its props, the root's and the direction, to change
  * (Tailwind's padding classes, which inset the content as in CSS, and text styles for the text inside); so can a
- * Column's `style` and the root's props, for a Row without one.
+ * Column's `style` and the root's props, for a Row without one. (Tailwind's plugins, which it may call, are the user's:
+ * see `guest`.)
  */
-export const classProps = (scope: Record<PropertyKey, any>, name: string, defaults: Record<string, any> | undefined, props: Record<string, any>): Record<string, any> =>
-  (scope[TAILWIND] as Rewrite)(scope, name, defaults, props, rightToLeft());
+export function classProps(scope: Record<PropertyKey, any>, name: string, defaults: Record<string, any> | undefined, props: Record<string, any>): Record<string, any> {
+  const rtl = rightToLeft();
+  return guest(() => (scope[TAILWIND] as Rewrite)(scope, name, defaults, props, rtl));
+}
 
 /** The scope a root's content is in: its only child, through context providers and Fragments. */
 function tailwindIn(children: React.ReactNode): React.ReactElement<Record<PropertyKey, any>> | undefined {
@@ -47,6 +50,6 @@ export function rootProps<P extends { className?: string; children?: React.React
   const { children: _children, mode: _mode, config: _config, ...styles } = props as Record<string, any>;
   // (By its props: the element itself is the children the render's collected under.)
   const done = scopeCache(scope.props as object, () => new Map<string, Record<string, any>>());
-  if (!done.has(props.className!)) done.set(props.className!, (scope.type as unknown as Record<symbol, Rewrite>)[TAILWIND](scope.props, name, undefined, styles));
+  if (!done.has(props.className!)) done.set(props.className!, guest(() => (scope.type as unknown as Record<symbol, Rewrite>)[TAILWIND](scope.props, name, undefined, styles)));
   return { ...props, ...done.get(props.className!), className: undefined };
 }

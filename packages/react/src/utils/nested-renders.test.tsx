@@ -450,3 +450,126 @@ describe("markup written in a Row or Column, with a block or a component of the 
     }
   });
 });
+
+describe("a render the user's code starts while Elements renders (a custom tool's exporter or head, `onError`, …)", () => {
+  // It's a render of its own, as one a component starts is. One a custom tool's exporter or head started, or an
+  // `onError` function, shared the outer render's scope: the first `onError`, `idPrefix` and direction set in the
+  // render won, so a block that failed after it was left out of an email whose render should have failed, and each
+  // render listed the parts the other left out.
+  const InnerBroken = (): React.ReactElement => {
+    throw new Error("inner data");
+  };
+  const inner = <Email><Row><Column><Paragraph>Inner</Paragraph><InnerBroken /><Paragraph>{"inner after"}</Paragraph></Column></Row></Email>;
+  const hostile = { onError: "omit", idPrefix: "inner-", textDirection: "rtl" } as const;
+  const listed = (parts: { omitted: Array<{ component: string; position: string }> }) => JSON.stringify({ ...parts, omitted: parts.omitted.map((e) => [e.component, e.position]) });
+
+  it("keeps the outer render's onError: a block that fails after a custom tool's exporter starts one fails the render", async () => {
+    const { registerTool, renderToHtmlParts } = await import("../index");
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
+    try {
+      const Nested = registerTool({ name: "nested_render", renderer: { exporters: { email: () => (renderToHtmlParts(inner, { onError: "omit" }), "<b>nested</b>") } } });
+      const Broken = registerTool({ name: "broken_after", renderer: { exporters: { email: () => { throw new Error("broken exporter"); } } } });
+      const email = <Email><Row><Column><Nested /><Broken /></Column></Row></Email>;
+      expect(() => renderToHtml(email)).toThrow(/broken exporter/);
+      expect(renderToHtmlParts(email, { onError: () => {} }).omitted.map((e) => e.component)).toEqual(["broken_after"]);
+    } finally {
+      error.mockRestore();
+    }
+  });
+
+  it("leaves the outer render as it is without it, and gives what it gives alone, wherever the user's code starts it", async () => {
+    const { registerTool, renderToHtmlParts } = await import("../index");
+    const { Markdown } = await import("../markdown");
+    const asyncRenderers = await import("../async");
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    try {
+      // The renders each place starts: each renderer, with an `onError`, `idPrefix` and direction of its own.
+      const renders: Record<string, () => unknown> = {
+        html: () => renderToHtml(inner, hostile),
+        parts: () => listed(renderToHtmlParts(inner, hostile)),
+        text: () => renderToPlainText(inner, hostile),
+        json: () => JSON.stringify(renderToJson(inner, hostile)),
+        "async html": () => asyncRenderers.renderToHtml(inner, hostile),
+        "async parts": async () => listed(await asyncRenderers.renderToHtmlParts(inner, hostile)),
+        "async text": () => asyncRenderers.renderToPlainText(inner, hostile),
+        "async json": async () => JSON.stringify(await asyncRenderers.renderToJson(inner, hostile)),
+      };
+      const alone: Record<string, unknown> = {};
+      for (const [name, render] of Object.entries(renders)) alone[name] = await render();
+      let active = false;
+      const started: Array<{ where: string; name: string; got: unknown }> = [];
+      const hook = (where: string) => {
+        if (active) for (const [name, render] of Object.entries(renders)) started.push({ where, name, got: render() });
+      };
+      // (Async, it waits for the async ones it starts.)
+      const waiting = async (where: string) => {
+        hook(where);
+        await Promise.all(started.map((s) => s.got));
+      };
+      // Each place the user's code runs in a render.
+      const Tool = registerTool({
+        name: "hooked_tool",
+        renderer: { exporters: { email: () => (hook("exporter"), "<b>tool</b>") }, head: { css: () => (hook("head"), ".hooked { color: #c00; }") } },
+      });
+      const Broken = registerTool({ name: "hooked_broken", renderer: { exporters: { email: () => { throw new Error("broken exporter"); } } } });
+      const Mine = () => (hook("component"), <Paragraph>{`mine ${useId()}`}</Paragraph>);
+      const AsyncMine = async () => (await waiting("async component"), <Paragraph>async mine</Paragraph>);
+      const link = "[A link](https://example.com/a)";
+      const content = (
+        <Row>
+          <Column>
+            <Mine />
+            <Tool />
+            <Markdown url={(url) => (hook("Markdown url"), url)}>{link}</Markdown>
+            <Broken />
+            <Paragraph>After</Paragraph>
+          </Column>
+        </Row>
+      );
+      const Template = () => (hook("wrapper"), useId(), <Email>{content}</Email>);
+      const AsyncTemplate = async () => (await waiting("async wrapper"), <Email>{content}<Row><Column><AsyncMine /></Column></Row></Email>);
+      const onError = () => hook("onError");
+      const outer: Record<string, (options: object) => unknown> = {
+        html: (options) => renderToHtml(<Template />, options),
+        parts: (options) => listed(renderToHtmlParts(<Template />, options)),
+        text: (options) => renderToPlainText(<Template />, options),
+        json: (options) => JSON.stringify(renderToJson(<Template />, options)),
+        "async html": (options) => asyncRenderers.renderToHtml(<AsyncTemplate />, options),
+        "async parts": async (options) => listed(await asyncRenderers.renderToHtmlParts(<AsyncTemplate />, options)),
+        "async text": (options) => asyncRenderers.renderToPlainText(<AsyncTemplate />, options),
+        "async json": async (options) => JSON.stringify(await asyncRenderers.renderToJson(<AsyncTemplate />, options)),
+      };
+      const given = async (render: () => unknown) => {
+        try {
+          return await render();
+        } catch (thrown) {
+          return `threw ${(thrown as Error).message}`;
+        }
+      };
+      const places = new Set<string>();
+      // The render's own `onError` (it fails, as the block after the custom tool does), and a function.
+      for (const options of [{}, { onError }]) {
+        for (const [name, render] of Object.entries(outer)) {
+          active = false;
+          const stubbed = await given(() => render(options));
+          active = true;
+          started.length = 0;
+          const got = await given(() => render(options));
+          active = false;
+          const label = `${name}, ${"onError" in options ? "onError function" : "throwing"}`;
+          expect(got, label).toEqual(stubbed);
+          if (!("onError" in options)) expect(String(got), label).toMatch(name.endsWith("json") ? /^\{/ : /^threw .*broken exporter/);
+          for (const s of started) {
+            places.add(s.where);
+            expect(await s.got, `${s.name} in ${s.where}, in ${label}`).toEqual(alone[s.name]);
+          }
+        }
+      }
+      expect([...places].sort()).toEqual(["Markdown url", "async component", "async wrapper", "component", "exporter", "head", "onError", "wrapper"]);
+    } finally {
+      error.mockRestore();
+      warn.mockRestore();
+    }
+  });
+});

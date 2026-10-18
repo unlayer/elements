@@ -31,7 +31,7 @@ import { rootName } from "./root-type";
 import { rootConfig, rootMode, type RootConfigProps } from "../context/layer-config";
 import { BODY_DEFAULTS, ROW_DEFAULTS, COLUMN_DEFAULTS } from "./container-defaults";
 import { contentSlotWidth, pinImageSrc, type SlotContext } from "./image-sizing";
-import { failedBefore, sayOnce, setRenderConfig, withRenderScope } from "./render-scope";
+import { failedBefore, sayOnce, setRenderConfig, withOwnScope } from "./render-scope";
 import { renderBody } from "./render-to-html";
 import { collect, KEPT, normalizedChildren, normalizedRoot } from "../model";
 import type { Recorded } from "./collect";
@@ -402,7 +402,7 @@ export function renderRowToJson(element: React.ReactElement): DesignRow {
 
   const counters: Record<string, number> = {};
   // A render of its own, as renderToJson's: the same row gives the same ids every time. What's in it is collected.
-  return withRenderScope(() => {
+  return withOwnScope(() => {
     const row = normalizedChildren(element, undefined, "Row").find((c): c is React.ReactElement => React.isValidElement(c));
     // Left out (its Columns don't fit its layout), it's no row.
     if (!row) throw new Error("[Unlayer] renderRowToJson: the Row is left out.");
@@ -419,10 +419,11 @@ export interface RenderToJsonOptions {
 }
 
 export function renderToJson(element: React.ReactElement, options?: RenderToJsonOptions): DesignJSON {
-  return withRenderScope(() => designJson(element, options));
+  return withOwnScope(() => designJson(element, options));
 }
 
-function designJson(element: React.ReactElement, options?: RenderToJsonOptions): DesignJSON {
+/** renderToJson in the render's scope (the async renderers' too, which collected the template in it). */
+export function designJson(element: React.ReactElement, options?: RenderToJsonOptions): DesignJSON {
   // Accept a user wrapper component (e.g. <MyEmail/>) by unwrapping to its root,
   // matching renderToHtml which renders wrappers through React.
   element = unwrapForJson(element, options?.idPrefix);

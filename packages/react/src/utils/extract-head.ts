@@ -18,7 +18,7 @@ import { BODY_DEFAULTS, ROW_DEFAULTS, COLUMN_DEFAULTS } from "./container-defaul
 import { headTags, KEPT, normalizedRoot } from "../model";
 import { getDisplayName } from "./unwrap-root";
 import { elementsIn, extractSemanticProps, nextCounter } from "./render-to-json";
-import { failed, failedBefore, recall } from "./render-scope";
+import { failed, failedBefore, guest, recall } from "./render-scope";
 import { whereIs } from "./collect";
 import { threw } from "../engine/errors";
 import { RenderError } from "@unlayer-internal/shared-elements";
@@ -119,17 +119,16 @@ export function extractHeadFromTree(
   const call = (head: ComponentHead | undefined, values: Record<string, any>, name: string, record?: object, own = false) => {
     if (!head || !(head.css || head.js || head.tags)) return;
     const args: HeadArgs = [values, bodyValues ?? values, own ? { ...told } : told];
-    let css, js, given;
+    let given;
     try {
-      css = head.css?.(...args);
-      js = head.js?.(...args);
-      given = head.tags?.(...args);
+      // (A custom tool's head, and the `headConfig` the heads are told, are the user's: see `guest`.)
+      given = guest(() => ({ css: head.css?.(...args), js: head.js?.(...args), tags: head.tags?.(...args) }));
     } catch (error) {
       return failed(error instanceof RenderError ? error : new RenderError(`${name}'s head failed: ${threw(error)}`, name, whereIs(record) ?? name, error));
     }
-    if (css) styles.push(css);
-    if (js) scripts.push(js);
-    if (given) tags.push(...given);
+    if (given.css) styles.push(given.css);
+    if (given.js) scripts.push(given.js);
+    if (given.tags) tags.push(...given.tags);
   };
 
   /** A container's values (with the id the HTML gives it), its phone and desktop styles, and its head. */

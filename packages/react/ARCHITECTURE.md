@@ -57,7 +57,13 @@ Row, Column and built-in block mapped from its props are kept for the head (`rem
 (a custom tool's own head maps its block itself: its code could read its props otherwise). Body calls each Row as it
 is (`renderOwn`: Elements' own components call no hooks), not through a walk. The design's values are made as copies
 (`pxMerged`): no object of the design is the defaults', and its px lengths' bare zeros are `0px` as they're made.
-Body rendered by an app's own React (a live preview) makes a scope of its own.
+Each render function makes a scope of its own, whatever is rendering around it (the async renderers run the
+synchronous renders in theirs, through `utils/internals.ts`), and the user's code runs outside the render's scope
+(`guest`): a component, a template wrapper, a custom tool's exporter and head (and `toSafeHtml`, `headConfig`), an
+`onError` function, a Tailwind rewrite (its plugins). So a render that code starts is a render of its own, and Body
+that React renders there, or in an app's own React render (a live preview), makes a scope of its own; Body reached by a
+render function renders in that render's. The scope is the module's only while a render runs synchronously, never
+across an `await`: async code passes it on itself.
 
 ## The engine (`src/engine`)
 
