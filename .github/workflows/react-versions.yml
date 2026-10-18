@@ -1,0 +1,69 @@
+# React versions
+#
+# Elements renders templates with its own renderer (src/engine), which must
+# render as each React it supports does: the react package's suite on each
+# one (its react and react-dom swapped in), in React's development build
+# (the full suite) and its production build (the engine's, the renderers'
+# and the regression tests: React's act(), which the component tests need,
+# is in its development build only). It holds the walker against
+# react-dom/server on hand-written and random trees, useId()s included
+# (src/engine/differential.test.tsx), React's react-server build with a
+# hook it lacks (src/regression/react-server-build.test.ts, React 19), and
+# a hook the dispatcher doesn't know (src/engine/dispatcher.test.tsx).
+#
+# A workflow of its own, called by test.yml (pushes and pull requests) and by
+# publish.yml, whose publish job waits for it: a release ships only a commit
+# every React passed. `github.sha` is the caller's, so it tests the commit the
+# caller tests or publishes.
+name: React versions
+
+on:
+  workflow_call:
+
+jobs:
+  react-versions:
+    name: React ${{ matrix.react }} (${{ matrix.build }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        react: ["18.0.0", "18.2.0", "18.3.1", "19.1", "19.2", "latest"]
+        build: [development, production]
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9.7.0
+
+      - name: Authenticate npm registry
+        run: echo "//registry.npmjs.org/:_authToken=${{ secrets.TEST_NPM_TOKEN }}" > ~/.npmrc
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Install React ${{ matrix.react }}
+        run: |
+          pnpm --filter @unlayer/react-elements add -D react@${{ matrix.react }} react-dom@${{ matrix.react }}
+          node -e "console.log('React', require('./packages/react/node_modules/react/package.json').version)"
+
+      - name: Build
+        run: pnpm --filter @unlayer-internal/shared-elements build && pnpm --filter @unlayer/react-elements build
+
+      - name: Tests (React's development build)
+        if: matrix.build == 'development'
+        run: pnpm --filter @unlayer/react-elements exec vitest run
+
+      - name: Tests (React's production build)
+        if: matrix.build == 'production'
+        env:
+          NODE_ENV: production
+        run: pnpm --filter @unlayer/react-elements exec vitest run src/engine src/async src/regression src/utils/render-errors.test.tsx src/utils/nested-renders.test.tsx --exclude src/regression/client-render.test.tsx

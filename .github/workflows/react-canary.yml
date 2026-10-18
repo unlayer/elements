@@ -1,0 +1,53 @@
+name: React canary
+
+# Weekly, the react package's renderer (src/engine) against React's canary: what changes in React before it ships.
+# It reports and doesn't block: a failure here is a heads-up to update the React version table
+# (packages/react/src/engine/react-compat.ts) or the walker before that React is released.
+on:
+  schedule:
+    - cron: '0 6 * * 1' # Mondays at 6am UTC
+  workflow_dispatch:
+
+jobs:
+  canary:
+    name: React canary (fuzz)
+    runs-on: ubuntu-latest
+    continue-on-error: true
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9.7.0
+
+      - name: Authenticate npm registry
+        run: echo "//registry.npmjs.org/:_authToken=${{ secrets.TEST_NPM_TOKEN }}" > ~/.npmrc
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Install React's canary
+        run: |
+          pnpm --filter @unlayer/react-elements add -D react@canary react-dom@canary
+          node -e "console.log('React', require('./packages/react/node_modules/react/package.json').version)"
+
+      - name: Build
+        run: pnpm --filter @unlayer-internal/shared-elements build && pnpm --filter @unlayer/react-elements build
+
+      # The walker against react-dom/server on random trees (useId()s included) and on random markup where templates
+      # have it, random templates against the last release, and the rest of the engine's tests (the self-check of an
+      # unknown React version among them).
+      - name: Fuzz
+        env:
+          WALKER_FUZZ_SEEDS: 5000
+          TEMPLATE_SEEDS: 1000
+          GENERATED_SEEDS: 3000
+        run: pnpm --filter @unlayer/react-elements exec vitest run src/engine src/regression/generated.test.tsx

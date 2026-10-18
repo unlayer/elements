@@ -13,6 +13,21 @@ import {
   type ClassDeclaration,
   type TailwindHandle,
 } from "./index";
+import { CLASSES, declarationReader, type Compiler } from "./declarations";
+import { parseSheet } from "./css";
+import { CONFIGS } from "./load";
+
+// Tailwind as it is, its compilers counted once compiled: a handle compiles a fresh one after building many classes.
+const compiled = vi.hoisted(() => ({ count: 0 }));
+vi.mock("tailwindcss", async (actual) => {
+  const tailwind = await actual<Record<string, any>>();
+  const compile = async (...args: unknown[]) => {
+    const compiler = await tailwind.compile(...args);
+    compiled.count++;
+    return compiler;
+  };
+  return { ...tailwind, compile };
+});
 
 const config = { theme: { extend: { colors: { brand: "#007291" } } } };
 let tw: TailwindHandle;
@@ -86,6 +101,105 @@ describe("classNameToDeclarations", () => {
     ]);
   });
 
+  it("knows a class by its own name in its rule's selector, wherever it is there (after a variant's `.group` or `.dark`)", async () => {
+    const reasons = (handle: TailwindHandle, className: string) => classNameToDeclarations(handle, className).ignored.map(({ className, reason }) => `${className}: ${reason}`);
+    // `group` is a class no rule is for: it stays the user's, though rules for other classes have it.
+    expect(reasons(tw, "group [.group:hover_&]:underline [.dark_&]:p-2 in-hover:p-1")).toEqual([
+      "group: Tailwind has no such class",
+      "[.group:hover_&]:underline: it applies only for `.group:hover &`",
+      "[.dark_&]:p-2: it applies only for `.dark &`",
+      "in-hover:p-1: it applies only for `:where(*:hover) &`",
+    ]);
+    // A config's own variants (a plugin's `addVariant`).
+    const variants = { handler: ({ addVariant }: { addVariant: (name: string, selector: string) => void }) => (addVariant("group-on", ".group:hover &"), addVariant("peer-on", ".peer:checked ~ &")) };
+    expect(reasons(await loadTailwind({ plugins: [variants] }), "peer group-on:text-white peer-on:underline")).toEqual([
+      "peer: Tailwind has no such class",
+      "group-on:text-white: it applies only for `.group:hover &`",
+      "peer-on:underline: it applies only for `.peer:checked ~ &`",
+    ]);
+  });
+
+  it("gives a class string the same declarations whatever its compiler built before", async () => {
+    // Tailwind's compiler builds every class it's been given, in an order of its own, each with the theme's variables
+    // and the registered properties it uses: a class string read after thousands of others reads as on its own.
+    const theme = { theme: { extend: { colors: { brand: "#007291", accent: "var(--color-blue-500)" } } } };
+    const others: string[] = [];
+    for (const color of ["red-500", "blue-500", "gray-100", "brand", "accent", "black", "white"])
+      for (const utility of ["text", "bg", "border", "ring", "shadow", "from", "via", "to", "outline", "decoration", "divide"]) others.push(`${utility}-${color}`, `hover:${utility}-${color}`, `max-sm:${utility}-${color}/50`);
+    for (const n of [0, 1, 2, 4, 8, 16]) for (const utility of ["p", "px", "pl", "m", "-mt", "w", "max-w", "space-y", "translate-x", "ring", "ring-offset", "border", "outline"]) others.push(`${utility}-${n}`, `md:${utility}-${n}`, `!${utility}-${n}`);
+    for (const size of ["sm", "md", "lg", "xl"]) others.push(`shadow-${size}`, `rounded-${size}`, `blur-${size}`, `drop-shadow-${size}`, `inset-shadow-${size}`, `text-${size}`);
+    others.push("font-sans", "font-serif", "leading-6", "tracking-wide", "rotate-3", "scale-95", "bg-linear-to-r", "border-dashed", "italic", "underline");
+    for (let i = 0; i < 2000; i++) others.push(`w-[${i}px]`, `text-[#${(i * 40503).toString(16).padStart(6, "0").slice(-6)}]`, `[--tw-x-${i % 9}:${i}px]`);
+    const strings = [
+      "bg-brand text-white text-accent opacity-50 bg-black/50 text-brand/75",
+      "text-lg leading-6",
+      "border border-2 border-dashed border-red-500",
+      "shadow-md shadow-red-500/50 ring-2 ring-blue-500 ring-offset-2 inset-shadow-sm",
+      "max-sm:p-2 md:p-8 hover:bg-blue-500 max-[480px]:text-sm",
+      "!p-4 p-2 px-4 pl-1 py-[3px]",
+      "font-sans font-serif rounded-lg rounded-t-none translate-x-2 rotate-3",
+      "bg-linear-to-r from-red-500 via-white to-blue-500",
+      "[--tw-x-3:9px] w-[var(--tw-x-3)] w-1/2 -mt-2",
+      "space-y-4 dark:bg-black nonsense",
+    ];
+    const fresh = await Promise.all(strings.map((_, i) => loadTailwind({ ...theme, fresh: i })));
+    const warmed = await loadTailwind({ ...theme, warmed: true });
+    // (Read without waiting from here on: a compiler it compiles meanwhile isn't swapped in.)
+    for (const other of others.slice(0, 50).reverse()) classNameToDeclarations(warmed, other);
+    classNameToDeclarations(warmed, others.join(" "));
+    for (const [i, className] of strings.entries()) expect(classNameToDeclarations(warmed, className), className).toEqual(classNameToDeclarations(fresh[i], className));
+    // (Thousands of classes built: about half a second here, ten on a CI runner.)
+  }, 60_000);
+
+  it("reads the classes after one it can't read as before: a class can't change how the stylesheet reads", async () => {
+    const handle = await loadTailwind({ ...config, hostile: true });
+    const unreadable = "it isn't a class Tailwind can read here";
+    const asFresh = (after: string) => {
+      for (const normal of ["text-red-500", "p-2", "bg-blue-500/50", "before:content-['a']"]) expect(classNameToDeclarations(handle, normal), `${normal} after ${after}`).toEqual(classNameToDeclarations(tw, normal));
+    };
+    // Brackets, parentheses, braces or quotes left open (an escaped one doesn't close), a comment: refused, never built.
+    for (const hostile of ["[color:x(]", "[color:/*]", "[color:*/]", "bg-[x\\]", "[color:x{]", "[content:'a]", "[content:'a\\']"]) {
+      expect(classNameToDeclarations(handle, `${hostile} text-red-500`).ignored, hostile).toEqual([{ className: hostile, reason: unreadable }]);
+      asFresh(hostile);
+    }
+    // Quotes in a value, escaped ones in its selector: built, and read as CSS reads them.
+    for (const quoted of ['[background-image:image-set("x.png"_1x)]', "[content:'a\\'b']", '[content:"a\\"b"]']) {
+      expect(classNameToDeclarations(handle, quoted).ignored, quoted).toEqual([]);
+      asFresh(quoted);
+    }
+    expect(classNameToDeclarations(handle, '[background-image:image-set("x.png"_1x)]').declarations.map((d) => d.value)).toEqual(['image-set("x.png" 1x)']);
+    // What Tailwind can read stays readable: quotes and brackets closed, an escape in a string.
+    expect(classNameToDeclarations(handle, "before:content-['\\201C'] font-['Open_Sans'] [&>*]:p-2 max-[480px]:p-1").ignored.map((i) => i.reason)).not.toContain(unreadable);
+  });
+
+  it("keeps every class reading as on a fresh handle, whatever hostile classes it's given (fuzzed)", async () => {
+    // `TAILWIND_POISON_FUZZ_RUNS=5000` for a longer run, `TAILWIND_POISON_FUZZ_SEED` for other inputs.
+    const runs = Number(process.env.TAILWIND_POISON_FUZZ_RUNS ?? 300);
+    const handle = await loadTailwind({ ...config, fuzzed: true });
+    const normals = ["text-red-500", "p-2", "px-4", "bg-blue-500/50", "font-bold", "rounded-md", "border-2", "md:p-4", "hover:underline", "max-sm:text-sm", "w-[10px]", "text-[#123456]", "leading-6", "shadow-md", "before:content-['a']", "font-['Open_Sans']", "bg-[url(x.png)]", "text-brand"];
+    const opens = ["[color:", "bg-[", "[content:", "before:content-[", "[background-image:", "w-[", "font-[", "[--x:", "max-[", "[&"];
+    const parts = ["x", "1px", "(", ")", "[", "]", "{", "}", '"', "'", "\\", '\\"', "/*", "*/", "_", "url(", "a.png", ";", ":", "@media", "&", ".x", ",", "!important", "<", "%", "#", "\\72"];
+    const r = random(Number(process.env.TAILWIND_POISON_FUZZ_SEED ?? 20261018));
+    const pick = (list: string[]) => list[Math.floor(r() * list.length)];
+    const expected = new Map(normals.map((normal) => [normal, classNameToDeclarations(tw, normal)]));
+    const bad: string[] = [];
+    for (let run = 0; run < runs && bad.length < 5; run++) {
+      const tokens: string[] = [];
+      for (let n = Math.floor(r() * 3); n >= 0; n--) tokens.push(pick(normals));
+      for (let n = Math.floor(r() * 4); n > 0; n--) {
+        let hostile = pick(opens);
+        for (let k = 1 + Math.floor(r() * 4); k > 0; k--) hostile += pick(parts);
+        tokens.splice(Math.floor(r() * (tokens.length + 1)), 0, hostile + (r() < 0.6 ? "]" : ""));
+      }
+      classNameToDeclarations(handle, tokens.join(" "));
+      for (const normal of normals) {
+        const read = classNameToDeclarations(handle, normal);
+        if (JSON.stringify(read) !== JSON.stringify(expected.get(normal))) bad.push(`${JSON.stringify(tokens.join(" "))}: then \`${normal}\` reads ${JSON.stringify(read)}`);
+      }
+    }
+    expect(bad).toEqual([]);
+  }, 120000);
+
   it("takes only a compiled Tailwind", () => {
     expect(() => classNameToDeclarations({ config } as TailwindHandle, "p-2")).toThrow(/takes the compiled Tailwind/);
   });
@@ -100,6 +214,76 @@ describe("loadTailwind", () => {
     expect(warn).not.toHaveBeenCalled();
   });
 
+  it("keeps the configs used last compiled: one used longer ago is compiled again, and its handle keeps working", async () => {
+    // A server rendering each customer's theme: the 50 themes used last stay compiled, not every one it has rendered.
+    const themed = (i: number) => ({ theme: { extend: { colors: { brand: `#${(0x100000 + i).toString(16)}` } } } });
+    const handles: TailwindHandle[] = [];
+    for (let i = 0; i < CONFIGS; i++) handles.push(await loadTailwind(themed(i)));
+    // Used again (an equal config: the same handle), it's the last to go.
+    expect(await loadTailwind(themed(0))).toBe(handles[0]);
+    await loadTailwind(themed(CONFIGS));
+    expect(await loadTailwind(themed(0))).toBe(handles[0]);
+    const again = await loadTailwind(themed(1));
+    expect(again).not.toBe(handles[1]);
+    for (const handle of [handles[1], again]) expect(classNameToDeclarations(handle, "text-brand").declarations[0].value).toBe("#100001");
+  });
+
+  it("compiles a fresh compiler past the classes it keeps, reading as before", async () => {
+    const handle = await loadTailwind({ theme: { extend: { colors: { brand: "#007291" } } }, fresh: "classes" });
+    const before = classNameToDeclarations(handle, "text-brand shadow-md max-sm:p-2 border");
+    const count = compiled.count;
+    for (let i = 0; i <= CLASSES; i += 500) classNameToDeclarations(handle, Array.from({ length: 500 }, (_, j) => `w-[${i + j}px]`).join(" "));
+    await vi.waitFor(() => expect(compiled.count).toBe(count + 1));
+    expect(classNameToDeclarations(handle, "text-brand shadow-md max-sm:p-2 border")).toEqual(before);
+    expect(classNameToDeclarations(handle, "w-[3px]").declarations[0].value).toBe("3px");
+  });
+
+  it("compiles a config changed in place as it is now, the handles given before working as they did", async () => {
+    // It was known by the object: the theme it had when it was first compiled, whatever it said after.
+    const theme = { theme: { extend: { colors: { brand: "#ff0000" } } } };
+    const red = await loadTailwind(theme);
+    theme.theme.extend.colors.brand = "#0000ff";
+    const blue = await loadTailwind(theme);
+    expect(blue).not.toBe(red);
+    expect(classNameToDeclarations(blue, "text-brand").declarations[0].value).toBe("#0000ff");
+    expect(classNameToDeclarations(red, "text-brand").declarations[0].value).toBe("#ff0000");
+    // Changed back, it's the handle of that text again; equal to another config, that one's.
+    theme.theme.extend.colors.brand = "#ff0000";
+    expect(await loadTailwind(theme)).toBe(red);
+    expect(await loadTailwind({ theme: { extend: { colors: { brand: "#0000ff" } } } })).toBe(blue);
+    // A handle's fresh compiler (past the classes it keeps) is compiled from what it was compiled from.
+    theme.theme.extend.colors.brand = "#00ff00";
+    const count = compiled.count;
+    for (let i = 0; i <= CLASSES; i += 500) classNameToDeclarations(red, Array.from({ length: 500 }, (_, j) => `w-[${i + j}px]`).join(" "));
+    await vi.waitFor(() => expect(compiled.count).toBe(count + 1));
+    expect(classNameToDeclarations(red, "text-brand").declarations[0].value).toBe("#ff0000");
+    theme.theme.extend.colors.brand = "#ff0000";
+    // The async renderers, given the same object changed between renders.
+    const template = () => <Tailwind config={theme}><Email><Row><Column><Paragraph className="text-brand">Hi</Paragraph></Column></Row></Email></Tailwind>;
+    expect(await renderToHtml(template())).toContain("color: #ff0000");
+    theme.theme.extend.colors.brand = "#0000ff";
+    expect(await renderToHtml(template())).toContain("color: #0000ff");
+    expect(warn).not.toHaveBeenCalled();
+  });
+
+  it("compiles a config with functions changed in place again where what isn't a function changed, saying so once", async () => {
+    // (Its functions can't be compared: one changed in place isn't seen.)
+    const withPlugin = { plugins: [() => {}], theme: { extend: { colors: { brand: "#ff0000" } } } };
+    const red = await loadTailwind(withPlugin);
+    expect(await loadTailwind(withPlugin)).toBe(red);
+    withPlugin.theme.extend.colors.brand = "#0000ff";
+    const blue = await loadTailwind(withPlugin);
+    expect(blue).not.toBe(red);
+    expect(classNameToDeclarations(blue, "text-brand").declarations[0].value).toBe("#0000ff");
+    expect(await loadTailwind(withPlugin)).toBe(blue);
+    withPlugin.theme.extend.colors.brand = "#00ff00";
+    expect(classNameToDeclarations(await loadTailwind(withPlugin), "text-brand").declarations[0].value).toBe("#00ff00");
+    const said = warn.mock.calls.map((call) => String(call[0]));
+    expect(said.filter((message) => /changed since it was compiled/.test(message))).toEqual([
+      "[Unlayer] loadTailwind: a config with functions (plugins) changed since it was compiled, so it's compiled again: give a changed config as a new object (a function changed in place isn't seen).",
+    ]);
+  });
+
   it("says a config with functions is compiled again for each object", async () => {
     const plugin = () => {};
     const withPlugin = { plugins: [plugin] };
@@ -108,6 +292,148 @@ describe("loadTailwind", () => {
     expect(await loadTailwind({ plugins: [plugin] })).not.toBe(handle);
     expect(warn).toHaveBeenCalledTimes(2);
     expect(String(warn.mock.calls[0][0])).toMatch(/config holds functions \(plugins\).*define it once, outside your components/);
+  });
+});
+
+describe("the stylesheet's reader", () => {
+  it("reads CSS as CSS does: an escape, a string, a comment or a bracket in a rule doesn't change how the rules after it read", () => {
+    const sheet = parseSheet(
+      [
+        ".a\\(\\] { color: red; }",
+        '.b\\"x { content: "}"; }',
+        ".c { content: '/* not a comment {'; }",
+        "/* a comment: } { */",
+        '.d { background: url("a;b.png"); margin: 1px; }',
+        ".e\\{ { color: x(}); }",
+        ".f { color: blue; }",
+      ].join("\n")
+    );
+    expect(sheet.clean).toBe(true);
+    expect(sheet.rules.map((rule) => [rule.token, rule.declarations.map((d) => `${d.property}: ${d.value}`)])).toEqual([
+      ["a(]", ["color: red"]],
+      ['b"x', ['content: "}"']],
+      ["c", ["content: '/* not a comment {'"]],
+      ["d", ['background: url("a;b.png")', "margin: 1px"]],
+      ["e{", ["color: x(})"]],
+      ["f", ["color: blue"]],
+    ]);
+    // What runs to its end (a block, a bracket, a string, a comment left open) or closes what isn't open isn't clean.
+    for (const css of [".a { color: red;", ".a { color: x(; } .b { color: red; }", ".a { content: 'x; }\n", ".a { color: red; } /* x", ".a { color: red; } } .b { color: red; }"]) expect(parseSheet(css).clean, css).toBe(false);
+  });
+});
+
+describe("a handle's reader of classes", () => {
+  /** A compiler that gives each class it's built a rule, as Tailwind gives the stylesheet of all so far. */
+  const counting = () => {
+    const built: string[] = [];
+    return { built, build: (classes: string[]) => (built.push(...classes), built.map((c) => `.${c} { margin: 1px; }`).join("\n")) };
+  };
+  /** A compiler whose stylesheet, once it has built `evil`, never reads cleanly: as Tailwind keeps every class it built. */
+  const poisoned = () => {
+    const built: string[] = [];
+    return { built, build: (classes: string[]) => (built.push(...classes), built.map((c) => (c === "evil" ? `.${c} { color: x(; }` : `.${c} { margin: 1px; }`)).join("\n")) };
+  };
+  const settled = () => new Promise((resolve) => setTimeout(resolve, 0));
+
+  it("swaps its compiler for a fresh one past its classes, once that's ready, the old one read till then", async () => {
+    const old = counting();
+    const fresh = counting();
+    let ready!: (compiler: Compiler) => void;
+    const renew = vi.fn(() => new Promise<Compiler>((resolve) => (ready = resolve)));
+    const read = declarationReader(old, renew, 3);
+    read("a b");
+    read("b c");
+    expect(renew).not.toHaveBeenCalled();
+    read("d");
+    read("e");
+    expect(renew).toHaveBeenCalledTimes(1);
+    expect(old.built).toEqual(["a", "b", "c", "d", "e"]);
+    ready(fresh);
+    await Promise.resolve();
+    expect(read("a f").declarations.map((d) => d.className)).toEqual(["a", "f"]);
+    expect(fresh.built).toEqual(["a", "f"]);
+    expect(old.built).toHaveLength(5);
+  });
+
+  it("drops the classes of a build it can't read cleanly, keeps reading the others, and compiles a fresh compiler without them", async () => {
+    const compilers = [poisoned(), poisoned(), poisoned()];
+    const ready: Array<(compiler: Compiler) => void> = [];
+    const renew = vi.fn(() => new Promise<Compiler>((resolve) => ready.push(resolve)));
+    const read = declarationReader(compilers[0], renew);
+    const classes = (className: string) => read(className).declarations.map((d) => d.className);
+    const because = (reason: string) => (className: string) => read(className).ignored.filter((i) => i.reason === reason).map((i) => i.className);
+    const unreadable = because("it isn't a class Tailwind can read here");
+    const waiting = because("it's read once Tailwind has compiled again, after a class it couldn't read");
+    expect(classes("a")).toEqual(["a"]);
+    // `evil` and `b`, built together, are left out till a fresh compiler is ready; `a` reads as before.
+    expect(waiting("b evil")).toEqual(["b", "evil"]);
+    expect(classes("a")).toEqual(["a"]);
+    expect(renew).toHaveBeenCalledTimes(1);
+    // Till it's ready, nothing more is built on the one that can't read.
+    expect(waiting("c")).toEqual(["c"]);
+    expect(compilers[0].built).toEqual(["a", "b", "evil"]);
+    ready[0](compilers[1]);
+    await Promise.resolve();
+    // On the fresh one, each class of that build is built alone first: `b` reads, `evil` is refused for good.
+    expect(classes("b c a")).toEqual(["b", "c", "a"]);
+    expect(unreadable("evil")).toEqual(["evil"]);
+    expect(renew).toHaveBeenCalledTimes(2);
+    ready[1](compilers[2]);
+    await Promise.resolve();
+    expect(classes("evil d")).toEqual(["d"]);
+    expect(unreadable("evil")).toEqual(["evil"]);
+    expect(compilers[2].built).toEqual(["d"]);
+    expect(renew).toHaveBeenCalledTimes(2);
+  });
+
+  it("asks again for a fresh compiler that failed, on the next read that needs one", async () => {
+    const compilers = [poisoned(), poisoned()];
+    let failing = 2;
+    const renew = vi.fn(() => (failing-- > 0 ? Promise.reject(new Error("out of memory")) : Promise.resolve<Compiler>(compilers[1])));
+    const read = declarationReader(compilers[0], renew);
+    const classes = (className: string) => read(className).declarations.map((d) => d.className);
+    expect(classes("a b evil")).toEqual([]);
+    await settled();
+    expect(renew).toHaveBeenCalledTimes(1);
+    // Each class it can't build yet asks again (one at a time), till one is compiled.
+    expect(classes("a c")).toEqual([]);
+    expect(renew).toHaveBeenCalledTimes(2);
+    expect(classes("c")).toEqual([]);
+    expect(renew).toHaveBeenCalledTimes(2);
+    await settled();
+    expect(classes("c")).toEqual([]);
+    expect(renew).toHaveBeenCalledTimes(3);
+    await settled();
+    expect(classes("a b c")).toEqual(["a", "b", "c"]);
+    expect(compilers[1].built).toEqual(["a", "b", "c"]);
+    expect(renew).toHaveBeenCalledTimes(3);
+  });
+
+  it("stops asking for a fresh compiler after three fail in a row, and says why it reads no new class", async () => {
+    const renew = vi.fn(() => Promise.reject(new Error("out of memory")));
+    const read = declarationReader(poisoned(), renew);
+    for (const className of ["a evil", "b", "c", "d", "e"]) {
+      read(className);
+      await settled();
+    }
+    expect(renew).toHaveBeenCalledTimes(3);
+    expect(read("f evil").ignored).toEqual([
+      { className: "f", reason: "Tailwind couldn't compile again after a class it couldn't read (out of memory)" },
+      { className: "evil", reason: "Tailwind couldn't compile again after a class it couldn't read (out of memory)" },
+    ]);
+  });
+
+  it("keeps its compiler where a fresh one fails, asking again on the next build past its classes, three times in a row at most", async () => {
+    const old = counting();
+    const renew = vi.fn(() => Promise.reject(new Error("no Tailwind")));
+    const read = declarationReader(old, renew, 1);
+    for (const className of ["a b", "c", "d", "e"]) {
+      read(className);
+      await settled();
+    }
+    expect(read("a c e").declarations.map((d) => d.className)).toEqual(["a", "c", "e"]);
+    expect(old.built).toEqual(["a", "b", "c", "d", "e"]);
+    expect(renew).toHaveBeenCalledTimes(3);
   });
 });
 
@@ -138,6 +464,23 @@ describe("the async renderers, with <Tailwind config>", () => {
     expect(parts.body).toContain("color: #007291");
   });
 
+  it("compile it with the compiler of its own copy of Elements, whichever copy's Tailwind entry loaded last", async () => {
+    // Another copy of Elements in the app (another version, a package still on one), whose Tailwind entry loaded after.
+    const LOADER = Symbol.for("@unlayer/react-elements/tailwind-loader");
+    const global = globalThis as Record<symbol, unknown>;
+    const own = global[LOADER];
+    const other = vi.fn(async () => {
+      throw new Error("another copy's compiler");
+    });
+    global[LOADER] = other;
+    try {
+      expect(await renderToHtml(template)).toContain("color: #007291");
+      expect(other).not.toHaveBeenCalled();
+    } finally {
+      global[LOADER] = own;
+    }
+  });
+
   it("take Tailwind's default theme from a <Tailwind> without a config, and `tw` as it is", async () => {
     const plain = await renderToJson(
       <Tailwind>
@@ -159,6 +502,30 @@ describe("the async renderers, with <Tailwind config>", () => {
       </Tailwind>
     );
     expect(given.body.values.backgroundColor).toBe("#007291");
+  });
+
+  it("keep what they compiled their own: a synchronous render the user's code starts in theirs needs `tw`, as anywhere else", async () => {
+    // It found the async render's compiled config while that render ran, and rendered there only.
+    const { registerTool, renderToHtml: renderToHtmlSync } = await import("../index");
+    const inner = <Tailwind config={config}><Email><Row><Column><Paragraph className="text-brand">Inner</Paragraph></Column></Row></Email></Tailwind>;
+    const said: string[] = [];
+    const nested = () => {
+      try {
+        renderToHtmlSync(inner);
+        said.push("rendered");
+      } catch (error) {
+        said.push(String((error as Error).message));
+      }
+    };
+    const Nested = registerTool({ name: "tailwind_nested", renderer: { exporters: { email: () => (nested(), "<b>nested</b>") } } });
+    const onError = () => nested();
+    const Broken = () => {
+      throw new Error("broken");
+    };
+    nested();
+    expect(await renderToHtml(<Tailwind config={config}><Email><Row><Column><Nested /><Broken /><Paragraph className="text-brand">Outer</Paragraph></Column></Row></Email></Tailwind>, { onError })).toContain("color: #007291");
+    expect(said).toHaveLength(3);
+    expect(new Set(said)).toEqual(new Set(['[Unlayer] <Tailwind config> needs `tw`: `await loadTailwind(config)` from "@unlayer/react-elements/tailwind", or the async renderers ("@unlayer/react-elements/async"), which compile it (these are synchronous).']));
   });
 
   it("find a <Tailwind> a template returns, and render its components once", async () => {
@@ -208,3 +575,14 @@ describe("the async renderers, with <Tailwind config>", () => {
     expect(design.body.rows[0].columns[0].contents[0].values.color).toBe("#007291");
   });
 });
+
+/** A seeded random number generator (mulberry32): the same inputs every run. */
+function random(seed: number): () => number {
+  let a = seed >>> 0;
+  return () => {
+    a = (a + 0x6d2b79f5) >>> 0;
+    let t = Math.imul(a ^ (a >>> 15), 1 | a);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}

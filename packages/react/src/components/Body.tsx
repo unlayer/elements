@@ -3,12 +3,13 @@ import type { RenderMode, UnlayerConfig, BodyValues } from "@unlayer-internal/sh
 import { mergeValues } from "@unlayer-internal/shared-elements";
 import { BodyExporters } from "@unlayer/exporters";
 import { mapSemanticProps, type SemanticProps } from "../utils/semantic-props";
-import { cssUrl, hatch, nextHtmlId, safeName, textDirectionOf } from "../utils/create-component";
+import { cssUrl, hatch, nextHtmlId, OWN, safeName, textDirectionOf } from "../utils/create-component";
 import type { SizeInput } from "../types";
 import { BODY_DEFAULTS } from "../utils/container-defaults";
-import { withRenderScope } from "../utils/render-scope";
-import { childrenHtml, rootDefaults } from "../utils/normalize";
-import { isTailwindError, rootProps } from "../utils/tailwind";
+import { ROOT } from "../utils/root-type";
+import { contentHtml } from "../utils/root-content";
+import { rootProps } from "../utils/tailwind";
+import { ownMarkup } from "../engine";
 import { useProvidedConfig } from "../context/UnlayerProvider";
 import { rootConfig } from "../context/layer-config";
 
@@ -161,7 +162,8 @@ const Body: React.FC<BodyProps> = (given) => {
 
   // Its config: its `config` prop (a render function passes its options there), its `textDirection`, the nearest
   // <UnlayerProvider>'s (from its context where React has one: not in Server Components), then the defaults.
-  const resolvedConfig: UnlayerConfig = rootConfig(props, useProvidedConfig());
+  // (Rendered by the render functions, it has their config, and reads no context of an app's render it's called in.)
+  const resolvedConfig: UnlayerConfig = rootConfig(props, ownMarkup() ? undefined : useProvidedConfig());
 
   // Resolve mode: explicit prop > config > default
   const mode: RenderMode = modeProp ?? resolvedConfig.mode ?? "web";
@@ -201,43 +203,19 @@ const Body: React.FC<BodyProps> = (given) => {
   // Without this, Row falls back to BODY_DEFAULTS.contentWidth ("500px") and
   // <Body contentWidth="…"> is silently ignored for layout.
   // Fragments and user components expanded: their rows get the context too.
-  let innerHTML = "";
-  if (children) {
-    try {
-      // A render of its own when Body is rendered straight through React (not renderToHtml).
-      innerHTML = withRenderScope(() => {
-        // What its content gives it (a <Font default>'s family), where it sets none: the body's, and its rows'.
-        const given = rootDefaults(props);
-        Object.assign(values, given);
-        Object.assign(valuesWithMeta, given);
-        // One React render collects the rows and blocks; each is then rendered with Body's settings.
-        return childrenHtml(children, (child) => React.cloneElement(child as React.ReactElement<any>, { _config, bodyValues: values }), { ...props, mode });
-      }, true);
-    } catch (error) {
-      if (isTailwindError(error)) throw error;
-      console.error("Body: Failed to render children:", error);
-      innerHTML = "";
-    }
-  }
+  // One walk collects the rows and blocks; each is then rendered with Body's settings (see root-content.ts).
+  const innerHTML = children ? contentHtml(props, resolvedConfig, _config, mode, NAMES[mode] ?? "Body", values, valuesWithMeta) : "";
 
-  try {
-    // Its `style` and `className` on the body (see hatch); a right-to-left one's direction and language there too, as
-    // Gmail drops the <html>'s.
-    const at = /<[a-z]+ [^>]*u_body[^>]*?(?=\/?>)/;
-    let html = hatch(renderBodyToHtml(innerHTML, valuesWithMeta, mode, previewText), at, style, className, semanticProps);
-    if (textDirectionOf(resolvedConfig.textDirection) === "rtl") html = html.replace(at, (tag) => `${tag} dir="rtl"${_lang ? ` lang="${safeName(_lang)}"` : ""}`);
-
-    return <div dangerouslySetInnerHTML={{ __html: html }} />;
-  } catch (error) {
-    console.error("Body rendering failed:", error);
-    return (
-      <div className={className} style={style}>
-        {children}
-      </div>
-    );
-  }
+  // Its `style` and `className` on the body (see hatch); a right-to-left one's direction and language there too, as
+  // Gmail drops the <html>'s.
+  const at = /<[a-z]+ [^>]*u_body[^>]*?(?=\/?>)/;
+  let html = hatch(renderBodyToHtml(innerHTML, valuesWithMeta, mode, previewText), at, style, className, semanticProps);
+  if (textDirectionOf(resolvedConfig.textDirection) === "rtl") html = html.replace(at, (tag) => `${tag} dir="rtl"${_lang ? ` lang="${safeName(_lang)}"` : ""}`);
+  return <div dangerouslySetInnerHTML={{ __html: html }} />;
 };
 
 Body.displayName = "Body";
+(Body as unknown as Record<symbol, boolean>)[OWN] = true;
+(Body as unknown as Record<symbol, string>)[ROOT] = "Body";
 
 export default Body;

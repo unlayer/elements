@@ -1,4 +1,5 @@
 import { HtmlExporters, HtmlDefaults } from "@unlayer/exporters";
+import { html } from "../exporters/html";
 import type { HtmlValues } from "../types";
 import { createItemComponent, type ItemComponentProps } from "../utils/create-component";
 import { mapSemanticProps, type SemanticProps } from "../utils/semantic-props";
@@ -35,7 +36,8 @@ const Html = createItemComponent<HtmlValues, SemanticProps<HtmlValues>>({
   defaultValues: DEFAULT_VALUES,
   propMapper: (props) => mapSemanticProps(props, DEFAULT_VALUES, "Html"),
   displayName: "Html",
-  exporters: HtmlExporters,
+  // The web and document HTML without react-dom (see exporters/markup.ts).
+  exporters: { ...HtmlExporters, web: html, document: html },
 });
 
 export default Html;

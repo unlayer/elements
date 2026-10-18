@@ -20,11 +20,6 @@ export default defineConfig({
   sourcemap: true,
   clean: true,
   external: ['react', 'react-dom', '@unlayer/react-elements'],
-  // The CommonJS build can load another module of react-dom's with the `require` it's loaded with; the module build
-  // uses Node's (see src/utils/server-renderer.ts), so it has no stand-in for `require`.
-  esbuildOptions(options, { format }) {
-    options.define = { ...options.define, __UNLAYER_CJS__: String(format === 'cjs') };
-  },
   esbuildPlugins: [
     {
       // `import text from "…?raw"`: the file's text, built in (Tailwind's default theme, as Vite reads it in tests).

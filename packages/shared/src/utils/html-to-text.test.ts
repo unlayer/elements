@@ -42,6 +42,21 @@ describe("htmlToPlainText", () => {
     expect(htmlToPlainText(html)).toBe("https://example.com");
   });
 
+  it("keeps a heading's links as a paragraph's, in each `links` mode, their URLs as written (not in capitals)", () => {
+    const html = '<h1><a href="https://example.com/Pay?id=A1&amp;b=2">Pay invoice</a></h1><h3>See <strong><a href="https://example.com/Terms">terms</a></strong></h3><h2><a href="https://example.com/Docs">https://example.com/Docs</a></h2>';
+    expect(htmlToPlainText(html)).toBe("PAY INVOICE (https://example.com/Pay?id=A1&b=2)\n\nSee terms (https://example.com/Terms)\n\nhttps://example.com/Docs");
+    expect(htmlToPlainText(html, { links: "after" })).toBe("PAY INVOICE [1]\n\nSee terms [2]\n\nhttps://example.com/Docs\n\n[1] https://example.com/Pay?id=A1&b=2\n[2] https://example.com/Terms");
+    expect(htmlToPlainText(html, { links: "none" })).toBe("PAY INVOICE\n\nSee terms\n\nhttps://example.com/Docs");
+    expect(htmlToPlainText(html, { uppercaseHeadings: false })).toMatch(/^Pay invoice \(https:\/\/example\.com\/Pay\?id=A1&b=2\)\n/);
+  });
+
+  it("keeps a link's whole URL, whichever quote its attribute is in, and a link in preformatted text", () => {
+    expect(htmlToPlainText(`<p><a href="https://example.com/it's">a</a> <a title='x > y' href='https://example.com/"q"'>b</a> <a data-href="x" href="https://example.com/c">c</a></p>`)).toBe(
+      `a (https://example.com/it's) b (https://example.com/"q") c (https://example.com/c)`
+    );
+    expect(htmlToPlainText('<pre>run <a href="https://example.com/cli">the CLI</a>\n  then</pre>', { links: "after" })).toBe("run the CLI [1]\n  then\n\n[1] https://example.com/cli");
+  });
+
   // Line breaks
   it("converts <br> to newlines", () => {
     expect(htmlToPlainText("Line 1<br>Line 2")).toBe("Line 1\nLine 2");

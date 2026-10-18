@@ -1025,7 +1025,7 @@ Note.PreviewProps = { name: "Ana", note: <em>your trial ends soon</em> };
     console.error = () => undefined;
     try {
       const check = await verifyConversion(Original, Leaves);
-      expect(check.designWarnings).toEqual([expect.stringMatching(/^\[Unlayer\] <Broken> threw while rendering/)]);
+      expect(check.designWarnings).toEqual(["[Unlayer] no data (in <Broken> at Row 1 › Column 1 › Broken)"]);
     } finally {
       console.error = error;
     }

@@ -8,6 +8,7 @@
 // Config
 export { DEFAULT_CONFIG } from "./config";
 export type { UnlayerConfig, HeadConfig } from "./config";
+export { RenderError, type OnError } from "./render-error";
 
 // Types
 export type {
@@ -72,7 +73,7 @@ export {
 
 // Utils - Value merging
 export { mergeValues } from "./utils/merge-values";
-export { cssValueSafe, normalizeColor, normalizeCssValues, normalizeFontStack, pxZeros } from "./utils/css-values";
+export { cssValueSafe, normalizeColor, normalizeCssValues, normalizeFontStack, pxMerged, pxZeros } from "./utils/css-values";
 
 // Utils - Semantic props
 export {

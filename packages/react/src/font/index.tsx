@@ -2,7 +2,7 @@
  * @unlayer/react-elements/font: `<Font>`, a web font for a template.
  */
 import type React from "react";
-import { recordForHead } from "../head/record";
+import { headEntry } from "../head/record";
 import { fontFamilyOf, fontTags, fontUrlInDesign, primaryFamily, type FontProps } from "../utils/font-design";
 
 export { fontFamilyOf, fontTags, type FontProps };
@@ -26,19 +26,17 @@ function fontInDesign(font: FontProps, body: Parameters<typeof fontUrlInDesign>[
  * </Email>
  * ```
  */
-export function Font(props: FontProps): React.ReactElement {
-  // While a template is collected, what it gives the head and the root is recorded; it renders nothing.
-  return recordForHead(
-    {
-      kind: "head",
-      tags: (mode: string) => fontTags(props, mode),
-      root: props.default ? { fontFamily: fontFamilyOf(props) } : undefined,
-      design: (body: Parameters<typeof fontInDesign>[1]) => fontInDesign(props, body),
-    },
-    "Font"
-  );
+export function Font(_: FontProps): React.ReactElement | null {
+  // What it gives the head and the root is recorded where the template is collected; it renders nothing.
+  return null;
 }
 
 Font.displayName = "Font";
+headEntry(Font, (props: FontProps) => ({
+  kind: "head",
+  tags: (mode: string) => fontTags(props, mode),
+  root: props.default ? { fontFamily: fontFamilyOf(props) } : undefined,
+  design: (body: Parameters<typeof fontInDesign>[1]) => fontInDesign(props, body),
+}));
 
 export default Font;

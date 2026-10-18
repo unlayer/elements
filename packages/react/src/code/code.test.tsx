@@ -85,6 +85,16 @@ describe("CodeBlock", () => {
     expect(listLanguages()).toContain("brainfudge");
     expect(highlightCode("+", { language: "brainfudge" })).toContain('<span style="color: #b0326f">+</span>');
   });
+
+  it("says a bounded number of languages it has no grammar for (a fence's label is whoever writes the Markdown's)", () => {
+    const said = () => warn.mock.calls.map((c) => String(c[0]));
+    for (let round = 0; round < 2; round++) for (let i = 0; i < 60; i++) highlightCode("x", { language: `unknown-${i}` });
+    // Twenty at most (each once), then once that no more are said; none again.
+    expect(said().length).toBeLessThanOrEqual(21);
+    expect(said().at(-1)).toBe("[Unlayer] CodeBlock: more languages with no grammar are shown without colors, and not said.");
+    highlightCode("x", { language: "unknown-later" });
+    expect(said().length).toBeLessThanOrEqual(21);
+  });
 });
 
 describe("CodeInline", () => {

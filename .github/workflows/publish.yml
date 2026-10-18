@@ -1,7 +1,8 @@
 # Release & Publish
 #
 # Gated publish flow, one package at a time:
-#   1. PR merged to main → triggers build & test
+#   1. PR merged to main → triggers build & test, and the react package's
+#      suite on each React it supports (react-versions.yml)
 #   2. Each package publishes only when its code changed since its last
 #      release tag (Elements: v*, migrate: migrate-v*, preview: preview-v*)
 #   3. A reviewer approves each publish in the Actions UI (environment gate)
@@ -170,9 +171,18 @@ jobs:
           echo "preview=$PREVIEW" >> $GITHUB_OUTPUT
           echo "Elements changed: $ELEMENTS, migrate changed: $MIGRATE, preview changed: $PREVIEW"
 
+  # The react package's suite on each React it supports, for this run's commit: Elements publishes only when every
+  # one passes (test.yml runs it too, but nothing waits for that run).
+  react-versions:
+    name: React versions
+    needs: changes
+    if: needs.changes.outputs.elements == 'true'
+    uses: ./.github/workflows/react-versions.yml
+    secrets: inherit
+
   publish:
     name: Publish @unlayer/react-elements
-    needs: [build-and-test, changes]
+    needs: [build-and-test, changes, react-versions]
     if: needs.changes.outputs.elements == 'true'
     runs-on: ubuntu-latest
     outputs:

@@ -3,23 +3,23 @@
  * components, Suspense (`use()` on React 19, thrown promises on React 18) and `<Tailwind config>` are resolved
  * first; the HTML, plain text and design are then what Elements' synchronous renderers make, from the same render.
  */
-import React from "react";
+import type React from "react";
 import {
   renderToHtml as renderHtml,
-  renderToPlainText as renderText,
-  renderToJson as renderJson,
-  renderToHtmlParts as renderParts,
   type DesignJSON,
   type HtmlParts,
   type PlainTextOptions,
   type RenderToHtmlOptions,
+  type RenderToJsonOptions,
   type UnlayerConfig,
 } from "@unlayer/react-elements";
 import type { TailwindConfig, TailwindHandle } from "@unlayer/react-elements/tailwind";
-import { asyncComponent, renderAll } from "./stream";
 import { prettyHtml } from "./pretty";
+import { collectWaiting, take } from "./collect";
+import type { CollectOptions, Flat } from "../engine";
+import type { Engine, Renders } from "../utils/internals";
 
-export type { DesignJSON, HtmlParts, PlainTextOptions, RenderToHtmlOptions };
+export type { DesignJSON, HtmlParts, PlainTextOptions, RenderToHtmlOptions, RenderToJsonOptions };
 
 /**
  * HTML formatted for reading, as the renderers' `pretty` formats it (with prettier, an optional peer dependency):
@@ -34,109 +34,74 @@ export interface PrettyOption {
   pretty?: boolean;
 }
 
-// Shared with the main entry (one for every copy of Elements a process loads).
-const TAILWIND = Symbol.for("@unlayer/react-elements/tailwind");
-const LOOKUPS = Symbol.for("@unlayer/react-elements/tailwind-scopes");
-const FRAMES = Symbol.for("@unlayer/react-elements/collecting");
-const ASYNCS = Symbol.for("@unlayer/react-elements/async-collections");
+// Shared with the Tailwind entry, a bundle of its own (the package's entries share nothing else but the main one): the
+// compiler it registers when it loads.
 const LOADER = Symbol.for("@unlayer/react-elements/tailwind-loader");
-const PROVIDER = Symbol.for("@unlayer/react-elements/provider");
-const MEMO = Symbol.for("react.memo");
-const ROOTS = new Set(["Body", "Email", "Page", "Document"]);
 
-interface Collection {
-  nonce: string;
-  recorded: Array<{ kind: string; props?: { tw?: unknown; config?: TailwindConfig } }>;
-  async: (element: React.ReactElement) => React.ReactElement;
+interface Collected {
+  recorded: Array<{ kind: string; props?: { tw?: unknown; config?: TailwindConfig }; load?: Load }>;
 }
+type Load = (config?: TailwindConfig) => Promise<TailwindHandle>;
+/** A render's scope (see utils/render-scope.ts): what it compiled for its <Tailwind config>s, for their rewrites. */
+type Scope = { tailwind?: unknown };
 interface Internals {
-  guard(children: React.ReactNode, collection: Collection): React.ReactNode;
-  parse(html: string, collection: Collection): unknown;
-  unwrap(element: React.ReactElement, api: string, scope: WeakMap<object, unknown>): React.ReactElement;
-  withScope<T>(scope: WeakMap<object, unknown>, run: () => T): T;
+  newScope(): Scope;
+  withScope<T>(scope: Scope, run: () => T): T;
+  unwrapAsync(element: React.ReactElement, scope: Scope, steps: typeof take, idPrefix?: string, api?: string): Promise<React.ReactElement>;
+  collectAsync(root: React.ReactElement, scope: Scope, options: Partial<UnlayerConfig> | undefined, collect: (node: React.ReactNode, walk: CollectOptions) => Promise<Flat>): Promise<Collected>;
+  /** Whether a type is one of Elements' roots, of any copy (see utils/root-type.ts). */
+  isRoot(type: unknown): boolean;
+  engine: Engine;
+  /** The synchronous renders, in the scope they're run in (the render functions make one of their own). */
+  renders: Renders;
 }
-
-let renders = 0;
-/** A collection's nonce, as the main entry's are (see normalize.tsx): not a random number, which prerendering frameworks reject. */
-const nonce = () => [++renders, (globalThis.performance?.timeOrigin ?? 0) * 1e3, (globalThis.performance?.now() ?? 0) * 1e6].map((n) => Math.floor(n).toString(36)).join("_");
-
-const isAsync = (type: unknown) => (type as { [Symbol.toStringTag]?: string } | null)?.[Symbol.toStringTag] === "AsyncFunction";
 
 /**
- * An async template (`async function Welcome()`) called, until a root or a template React can call comes out; one in
- * a context provider, an <UnlayerProvider>, a Fragment or a <Tailwind> too, which then hold what it gives.
+ * Elements' Tailwind compiler, for a `<Tailwind config>` of a copy of Elements that doesn't carry its own (an older
+ * one): the Tailwind entry's loaded last, never loaded otherwise.
  */
-async function resolved(element: React.ReactElement, depth = 0): Promise<React.ReactElement> {
-  if (depth > 20 || !React.isValidElement(element)) return element;
-  let type = element.type as any;
-  while (type?.$$typeof === MEMO) type = type.type;
-  if (isAsync(type)) {
-    let out: unknown;
-    try {
-      out = await type({ ...type.defaultProps, ...(element.props as object) });
-    } catch (error) {
-      throw Object.assign(new Error(`[Unlayer] <${type.displayName || type.name}> threw while rendering: ${String((error as Error)?.message ?? error)}`), { cause: error });
-    }
-    return React.isValidElement(out) ? resolved(out, depth + 1) : element;
-  }
-  const inside = React.Children.toArray((element.props as { children?: React.ReactNode }).children);
-  const wrapper = type === React.Fragment || type?.[TAILWIND] || type?.[PROVIDER] || ((type?.$$typeof === Symbol.for("react.provider") || type?.$$typeof === Symbol.for("react.context")) && "value" in (element.props as object));
-  if (wrapper && inside.length === 1 && React.isValidElement(inside[0])) return React.cloneElement(element, undefined, await resolved(inside[0], depth + 1));
-  return element;
-}
-
-/** Elements' Tailwind compiler, when a template has a `<Tailwind config>`: the Tailwind entry's, never loaded otherwise. */
-async function tailwindLoader(): Promise<(config?: TailwindConfig) => Promise<TailwindHandle>> {
+async function tailwindLoader(): Promise<Load> {
   const loaded = (globalThis as Record<symbol, unknown>)[LOADER];
-  if (typeof loaded === "function") return loaded as (config?: TailwindConfig) => Promise<TailwindHandle>;
+  if (typeof loaded === "function") return loaded as Load;
   // Not where a bundler would follow it (into `tailwindcss`, an optional peer dependency): loaded when it runs.
   return (await import(/* webpackIgnore: true */ /* @vite-ignore */ "@unlayer/react-elements/tailwind")).loadTailwind;
 }
 
 /**
- * Renders `element` once, resolving what's async in it: its root first (an async template), then its content, in
- * React's streaming render (the template's components, with their context, run there, once), which the synchronous
- * render `run` makes the output from.
+ * Renders `element` once, resolving what's async in it: its root first (an async template, or one that `use()`s a
+ * promise), then its content, walked waiting for its async components, Suspense and `use()` (siblings at once, the
+ * output in tree order); the synchronous render `run` makes the output from that, in the same scope. A template with
+ * no root is its own content (what it rendered) where `api` names the render function (in what it says of one); the
+ * design, which needs a root, names none.
  */
-async function render<T>(element: React.ReactElement, api: string, run: (root: React.ReactElement) => T): Promise<T> {
+async function render<T>(element: React.ReactElement, options: Partial<UnlayerConfig> | undefined, run: (renders: Renders, root: React.ReactElement) => T, api?: string): Promise<T> {
   const internals = (renderHtml as unknown as Record<symbol, Internals>)[Symbol.for("@unlayer/react-elements/internals")];
-  const scope = new WeakMap<object, unknown>();
-  const root = internals.unwrap(await resolved(element), api, scope);
-  const children = (root.props as { children?: React.ReactNode } | null)?.children;
-  const configs: Array<TailwindConfig | undefined> = [];
-  if (ROOTS.has((root.type as { displayName?: string })?.displayName ?? "") && children && typeof children === "object") {
-    const collection: Collection = { nonce: nonce(), recorded: [], async: asyncComponent };
-    const shared = globalThis as Record<symbol, unknown>;
-    const frames = (shared[FRAMES] ??= []) as unknown[];
-    const asyncs = (shared[ASYNCS] ??= new Map()) as Map<string, Collection>;
-    // Its components run while it's under way, after awaits too: its frame stays, and its ids name it.
-    frames.push(collection);
-    asyncs.set(collection.nonce, collection);
-    let html: string;
-    try {
-      html = await renderAll(React.createElement(React.Fragment, null, internals.guard(children, collection)), `unlayer-collect-${collection.nonce}-`);
-    } finally {
-      frames.splice(frames.indexOf(collection), 1);
-      asyncs.delete(collection.nonce);
-    }
-    // The collected template, for the render after (see the main entry's normalize.tsx).
-    scope.set(children as object, { nodes: internals.parse(html, collection), collection, told: new Set() });
-    for (const r of collection.recorded) if (r.kind === "tailwind" && !r.props?.tw) configs.push(r.props?.config);
+  const scope = internals.newScope();
+  const root = await internals.unwrapAsync(element, scope, take, options?.idPrefix, api);
+  const content = internals.isRoot(root.type) ? (root.props as { children?: React.ReactNode } | null)?.children : api && root;
+  const scopes: Array<{ config?: TailwindConfig; load?: Load }> = [];
+  if (content && typeof content === "object") {
+    const collected = await internals.collectAsync(root, scope, options, (node, walk) => collectWaiting(internals.engine, node, walk));
+    for (const r of collected.recorded) if (r.kind === "tailwind" && !r.props?.tw) scopes.push({ config: r.props?.config, load: typeof r.load === "function" ? r.load : undefined });
   }
-  const handles = new Map<unknown, TailwindHandle>();
-  if (configs.length) {
-    const load = await tailwindLoader();
-    for (const config of configs) if (!handles.has(config)) handles.set(config, await load(config));
+  // Each scope's config compiled by its copy's compiler (an older copy's by the one loaded last), once each.
+  const handles = new Map<Load, Map<unknown, TailwindHandle>>();
+  for (const { config, load: own } of scopes) {
+    const load = own ?? (await tailwindLoader());
+    const compiled = handles.get(load) ?? new Map<unknown, TailwindHandle>();
+    handles.set(load, compiled);
+    if (!compiled.has(config)) compiled.set(config, await load(config));
   }
-  // The handles, for the <Tailwind config> elements to find while it renders (the Tailwind entry's lookups).
-  const lookups = ((globalThis as Record<symbol, unknown>)[LOOKUPS] ??= []) as Array<(config?: TailwindConfig) => unknown>;
-  const lookup = (config?: TailwindConfig) => handles.get(config);
-  lookups.push(lookup);
-  try {
-    return internals.withScope(scope, () => run(root));
-  } finally {
-    lookups.splice(lookups.indexOf(lookup), 1);
-  }
+  // The handles, in the render's scope, which gives them to its <Tailwind config>s' rewrites: a <Tailwind> says which
+  // it is, by its type (an older copy's doesn't: any compiled for its config). A render the user's code starts has a
+  // scope of its own, without them.
+  scope.tailwind = (config: TailwindConfig | undefined, type?: unknown) => {
+    const own = handles.get((type as Record<symbol, Load> | undefined)?.[LOADER] as Load)?.get(config);
+    if (own) return own;
+    for (const compiled of handles.values()) if (compiled.has(config)) return compiled.get(config);
+    return undefined;
+  };
+  return internals.withScope(scope, () => run(internals.renders, root));
 }
 
 /**
@@ -145,23 +110,23 @@ async function render<T>(element: React.ReactElement, api: string, run: (root: R
  */
 export async function renderToHtml(element: React.ReactElement, options?: RenderToHtmlOptions & PrettyOption): Promise<string> {
   const { pretty, ...rest } = options ?? {};
-  const html = await render(element, "renderToHtml", (root) => renderHtml(root, rest));
+  const html = await render(element, rest, (renders, root) => renders.html(root, rest), "renderToHtml");
   return pretty ? prettyHtml(html) : html;
 }
 
 /** `renderToPlainText`, for templates that load data as they render (see renderToHtml), with the same options. */
 export function renderToPlainText(element: React.ReactElement, config?: Partial<UnlayerConfig> & PlainTextOptions): Promise<string> {
-  return render(element, "renderToPlainText", (root) => renderText(root, config));
+  return render(element, config, (renders, root) => renders.text(root, config), "renderToPlainText");
 }
 
-/** `renderToJson`, for templates that load data as they render (see renderToHtml). */
-export function renderToJson(element: React.ReactElement): Promise<DesignJSON> {
-  return render(element, "renderToJson", (root) => renderJson(root));
+/** `renderToJson`, for templates that load data as they render (see renderToHtml), with the same options. */
+export function renderToJson(element: React.ReactElement, options?: RenderToJsonOptions): Promise<DesignJSON> {
+  return render(element, options, (renders, root) => renders.json(root, options));
 }
 
 /** `renderToHtmlParts`, for templates that load data as they render (see renderToHtml); with `pretty`, its head and body formatted. */
 export async function renderToHtmlParts(element: React.ReactElement, config?: Partial<UnlayerConfig> & PrettyOption): Promise<HtmlParts> {
   const { pretty, ...rest } = config ?? {};
-  const parts = await render(element, "renderToHtmlParts", (root) => renderParts(root, rest));
+  const parts = await render(element, rest, (renders, root) => renders.parts(root, rest), "renderToHtmlParts");
   return pretty ? { ...parts, head: await prettyHtml(parts.head), body: await prettyHtml(parts.body) } : parts;
 }

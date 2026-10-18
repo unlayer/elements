@@ -218,3 +218,34 @@ describe("the body's link style", () => {
     }
   });
 });
+
+describe("the head, made in the same render as the HTML", () => {
+  it("maps no Row, Column or block again: it takes the values their HTML mapped, and writes the same CSS", () => {
+    const config = (Paragraph as unknown as Record<string, { propMapper: (props: object) => object }>).__unlayerItemConfig;
+    const own = config.propMapper;
+    let calls = 0;
+    config.propMapper = (props) => (calls++, own(props));
+    try {
+      const template = (
+        <Email>
+          <Row padding="0 4px" mobile={{ padding: "2px" }}>
+            <Column padding={8} mobile={{ padding: 3 }}>
+              <Paragraph linkStyle={{ inherit: false, linkColor: "#ff0000" }} mobile={{ fontSize: "12px" }}>
+                Hello
+              </Paragraph>
+            </Column>
+          </Row>
+        </Email>
+      );
+      const { css } = renderToHtmlParts(template);
+      expect(calls).toBe(0);
+      // (The CSS the head would write mapping them itself.)
+      expect(css).toMatch(/#u_content_paragraph_1 a\b[^}]*color: #ff0000/);
+      expect(css).toContain("#u_content_paragraph_1 .v-font-size { font-size: 12px !important; }");
+      expect(css).toContain("#u_row_1.v-row-padding { padding: 2px !important; }");
+      expect(css).toContain("#u_column_1 .v-col-padding { padding: 3px !important; }");
+    } finally {
+      config.propMapper = own;
+    }
+  });
+});

@@ -1,6 +1,7 @@
 import React from "react";
-import { afterEach, beforeEach, describe, expect, it, vi, type MockInstance } from "vitest";
-import { Column, Email, Row, renderToHtml, renderToJson, renderToPlainText } from "../index";
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi, type MockInstance } from "vitest";
+import { Column, Email, Html, Row, renderToHtml, renderToJson, renderToPlainText } from "../index";
+import { Tailwind, loadTailwind, type TailwindHandle } from "../tailwind";
 import { Markdown, safeUrl, sanitizeHtml, type MarkdownProps } from "./index";
 
 let warn: MockInstance;
@@ -108,6 +109,8 @@ describe("Markdown", () => {
     expect(blocks({ markdown: "<b>x</b>", html: "escape" })).toEqual([["text", "&lt;b&gt;x&lt;/b&gt;"]]);
     expect(blocks({ markdown: "<div>x</div>\n\nText", html: "drop" })).toEqual([["text", "Text"]]);
     expect(sanitizeHtml('<p style="background: url(javascript:x)">a < b</p><!--[if mso]><x><![endif]-->')).toBe("<p>a &lt; b</p>");
+    // Old Internet Explorer's filters load images too, and so would CSS's `image()`.
+    expect(sanitizeHtml('<p style="filter: progid:DXImageTransform.Microsoft.AlphaImageLoader(src=x.png)">a</p><p style="background: image(x.png)">b</p>')).toBe("<p>a</p><p>b</p>");
     // A numeric reference past Unicode's range reads as U+FFFD, as in a browser, instead of throwing.
     expect(blocks({ markdown: '<a href="&#99999999;x" style="color: &#x110000;">a</a>' })).toHaveLength(1);
   });
@@ -117,3 +120,211 @@ describe("Markdown", () => {
     expect(blocks({ children: "Hello\nworld", breaks: true })).toEqual([["text", "Hello<br/>world"]]);
   });
 });
+
+/** Random inputs the sanitizer is given (`SANITIZE_FUZZ_RUNS=300000` for a longer run, `SANITIZE_FUZZ_SEED` for others). */
+const FUZZ_RUNS = Number(process.env.SANITIZE_FUZZ_RUNS ?? 2000);
+
+/** The elements an HTML parser makes of HTML in a page's body. */
+const parsed = (html: string) => [...new DOMParser().parseFromString(`<!doctype html><body>${html}`, "text/html").body.querySelectorAll("*")];
+
+/** Whether a style (as the browser reads it: its escapes decoded, its spaces gone) could load or run something. */
+const loads = (style: string) =>
+  /expression|javascript:|behavior|-moz-binding|progid|url\(|image\(|image-set\(|\/\*/i.test(style.replace(/\\([\da-f]{1,6})\s?|\\(.)/gi, (_, hex, ch) => (hex ? String.fromCodePoint(Math.min(parseInt(hex, 16), 0x10ffff)) : ch)).replace(/\s/g, ""));
+
+describe("sanitizeHtml", () => {
+  it("leaves no tag that what's around a part it takes out joins into", () => {
+    const markdown = "<div>\n<scr<script></script>ipt>alert(1)</script>\n</div>";
+    // (`<scr<script>` is one tag to a browser, named `scr<script`: left out, as is the `</script>` after it.)
+    expect(sanitizeHtml(markdown)).toBe("<div>\nipt>alert(1)\n</div>");
+    const [[type, html]] = blocks({ markdown });
+    expect([type, parsed(html).map((e) => e.localName)]).toEqual(["html", ["div"]]);
+    expect(renderToHtml(email({ markdown }))).not.toMatch(/<script/i);
+    expect(sanitizeHtml("<<script>script>alert(1)<</script>/script>")).toBe("&lt;/script>");
+    expect(sanitizeHtml("<scr<style>x</style>ipt>a</script>")).toBe("xipt>a");
+  });
+
+  it("reads tags and attributes as a browser does, and writes back only those that display", () => {
+    const cases: Array<[string, string]> = [
+      ["<img/src=x/onerror=alert(1)>", '<img src="x/onerror=alert(1)">'],
+      ['<a href="java&#x09;script:alert(1)">a</a><a href="&#x6A;avascript:x">b</a><a href=" &#106avascript:x">c</a><a href="javascript&colon;x">d</a>', "<a>a</a><a>b</a><a>c</a><a>d</a>"],
+      ['<p style="background:url&lpar;x)">a</p><p style="b\\61 ckground: \\75 rl(x)">b</p><p style="width: expr/**/ession(1)">c</p><p style="color: red">d</p>', '<p>a</p><p>b</p><p>c</p><p style="color: red">d</p>'],
+      ['<a href="https://example.com" href="javascript:x" onclick="x()" data-x="1" aria-label="Go" title=\'say "hi" `x`\'>a</a>', '<a href="https://example.com" aria-label="Go" title="say &quot;hi&quot; &#96;x&#96;">a</a>'],
+      ["<custom-tag><o:p>Kept text</o:p></custom-tag><form action=x><input value=y><button>Go</button></form>", "Kept textGo"],
+      ['<svg onload="alert(1)"/>after<svg><script>alert(1)</script></svg>end<math><mi>x</mi></math><template><img src=x></template><svg/onload=alert(1)>gone', "afterend"],
+      ["<!doctype html><?xml version='1.0'?><![CDATA[x]]><!-- a --><!--> b<!---> c<!-- open", " b c"],
+      ["a < b > c & d &copy; <b>e", "a &lt; b > c & d &copy; <b>e"],
+      ['a <a href="x', "a "],
+      ["<b>bold</b> <img src=x onerror=alert(1)", "<b>bold</b> "],
+      ["<b\u0000>x</b>\u0000", "x</b>\ufffd"],
+      ["<td nowrap background=cid:logo colspan=2><br/><hr noshade /></td>", '<td nowrap background="cid:logo" colspan="2"><br /><hr noshade /></td>'],
+      ["<base href=//evil><meta http-equiv=refresh content=0><link rel=stylesheet href=x><embed src=x>text", "text"],
+    ];
+    for (const [html, kept] of cases) expect([html, sanitizeHtml(html)]).toEqual([html, kept]);
+  });
+
+  it("keeps no class whose arbitrary value could load or run something, whatever renders it later", () => {
+    const cases: Array<[string, string]> = [
+      ['<p class="note bg-[url(https://x.test/a.gif)] p-2">a</p>', '<p class="note p-2">a</p>'],
+      ['<p class="[background:u&#114;l(x)] max-[480px]:[background:u\\72l(x)] [behavior:x] [--x:image-set(a.png_1x)]">a</p>', "<p>a</p>"],
+      ['<p class="bg-&#91;url(x)] hover:bg-[u/**/rl(x)] [filter:progid:x] text-red-500">a</p>', '<p class="text-red-500">a</p>'],
+      // What isn't one (a class of yours) and arbitrary values that load nothing stay as written.
+      ['<p class="expression-box w-[calc(100%-2px)] bg-[#ff0000] font-[&#39;Open_Sans&#39;]">a</p>', '<p class="expression-box w-[calc(100%-2px)] bg-[#ff0000] font-[&#39;Open_Sans&#39;]">a</p>'],
+    ];
+    for (const [html, kept] of cases) expect([html, sanitizeHtml(html)]).toEqual([html, kept]);
+    // The design, which any renderer may render again (in a <Tailwind>), holds none.
+    expect(blocks({ markdown: '<div class="bg-[url(https://x.test/a.gif)] note">a</div>' })).toEqual([["html", '<div class="note">a</div>']]);
+  });
+
+  it("reads a long input in one pass, whatever it leaves open", () => {
+    const start = performance.now();
+    for (const open of ['<a x="', "<b ", "<!", "<", "<script>", "<x y=", "<!--"]) expect(sanitizeHtml(`<p>${open.repeat(40000)}text`).length).toBeLessThan(400000);
+    expect(performance.now() - start).toBeLessThan(2000);
+  });
+
+  it("keeps only display tags and safe attributes, whatever hostile fragments it's given (fuzzed)", () => {
+    // Every element and attribute a browser reads from its output is on the allowlists, no URL runs code, no style
+    // loads or runs anything, and sanitizing its output again changes nothing.
+    const fragments = [
+      "<scr", "ipt>", "<script>", "</script>", "<!--", "-->", "--!>", "<svg/onload=alert(1)>", "<img src=x onerror=alert(1)>", "<img/src=", "/onerror=",
+      "javascript:alert(1)", "&#x6A;avascript:", "java&#x09;script:", "&#106;", "&colon;", "&lpar;", "<iframe", "<iframe src=x>", "<style>", "</style>",
+      "<math>", "<math><mi><mglyph>", "<svg><style>", "<template>", "<noscript>", "<textarea>", "</textarea>", "<title>", "<xmp>", "<plaintext>",
+      "<base href=", "<meta http-equiv=refresh content=0;url=javascript:alert(1)>", "<form action=", "<object data=", "<embed src=", "<link rel=",
+      "<a href=", '<a href="', "<a href=java&#x0A;script:x>", "<td background=javascript:x>", '<p style="', "background:url(", "\\75 rl(", "expression(",
+      "/*", "*/", "-moz-binding:", "behavior:", "<details open ontoggle=alert(1)>", "<font color=red>", "<div>", "</div>", "<b>", "</", "<", "<!", "<?xml ",
+      "<!doctype html>", "<![CDATA[", "]]>", '"', "'", "`", ">", "/", "=", " ", "\n", "\t", "\0", "&#0;", "text", "data:text/html,", "data:image/png;base64,AA", "cid:x",
+      ' class="', " class=", "bg-[", "[background:", "&#91;", "]", "u&#114;l(", "u\\72l(", "u/**/rl(", "image(", "progid:", "&#32;", "p-2", "&lpar;",
+      ' class="bg-[url(x)] p-2', " class='[background:u&#114;l(x)]", ' class="p-2&#32;bg-[u\\72l(x)]"', " class=bg-&#91;url(x)]", ' class="[filter:progid:x]',
+    ];
+    const kept = new Set("a abbr address article aside b bdi bdo big blockquote br caption center cite code col colgroup dd del details dfn div dl dt em figcaption figure font footer h1 h2 h3 h4 h5 h6 header hr i img ins kbd li main mark nav ol p pre q s samp section small span strike strong sub summary sup table tbody td tfoot th thead time tr tt u ul var wbr".split(" "));
+    const attributes = new Set("abbr align alt axis background bgcolor border cellpadding cellspacing char charoff cite class clear color colspan compact datetime dir face frame headers height href hreflang hspace id lang name noshade nowrap open rel reversed role rowspan rules scope size span src start style summary target title type valign value vspace width".split(" "));
+    // A URL's scheme as the browser resolves it (a relative one on the page's; one it can't parse goes nowhere), and CSS
+    // as it reads it, its escapes decoded.
+    const scheme = (url: string) => {
+      try {
+        const { protocol, href } = new URL(url, "https://example.com/");
+        return protocol === "data:" ? (/^data:image\/(png|gif|jpe?g|webp)[;,]/i.test(href) ? "image" : "data") : protocol.slice(0, -1);
+      } catch {
+        return "none";
+      }
+    };
+    const r = random(Number(process.env.SANITIZE_FUZZ_SEED ?? 20261018));
+    const bad: string[] = [];
+    for (let run = 0; run < FUZZ_RUNS && bad.length < 5; run++) {
+      let input = "";
+      for (let n = 1 + Math.floor(r() * 16); n > 0; n--) input += fragments[Math.floor(r() * fragments.length)];
+      const out = sanitizeHtml(input);
+      const wrong = (why: string) => bad.push(`${JSON.stringify(input)} → ${JSON.stringify(out)}: ${why}`);
+      if (sanitizeHtml(out) !== out) wrong("not idempotent");
+      for (const element of parsed(out)) {
+        if (!kept.has(element.localName) || element.namespaceURI !== "http://www.w3.org/1999/xhtml") wrong(`<${element.localName}>`);
+        for (const { name, value } of element.attributes) {
+          if (!attributes.has(name) && !/^aria-[a-z]+$/.test(name)) wrong(`attribute ${name}`);
+          if ((name === "href" || name === "cite") && !["https", "http", "mailto", "tel", "none"].includes(scheme(value))) wrong(`${name}=${value}`);
+          if ((name === "src" || name === "background") && !["https", "http", "cid", "image", "none"].includes(scheme(value))) wrong(`${name}=${value}`);
+          if (name === "style" && loads(value)) wrong(`style=${value}`);
+          // (A class's arbitrary value, what Tailwind would inline: from its first bracket.)
+          if (name === "class") for (const token of value.split(/[\t\n\f\r ]+/)) if (/[[(]/.test(token) && loads(token.slice(token.search(/[[(]/)))) wrong(`class ${token}`);
+        }
+      }
+    }
+    expect(bad).toEqual([]);
+  }, FUZZ_RUNS * 5 + 30000);
+});
+
+describe("Markdown in a <Tailwind>", () => {
+  let tw: TailwindHandle;
+  beforeAll(async () => {
+    tw = await loadTailwind();
+  });
+  /** The HTML of each block in the design. */
+  const design = (content: React.ReactNode) =>
+    renderToJson(
+      <Tailwind tw={tw}>
+        <Email>
+          <Row>
+            <Column>{content}</Column>
+          </Row>
+        </Email>
+      </Tailwind>
+    ).body.rows[0].columns[0].contents.map((c: any) => c.values.text ?? c.values.html);
+  const styles = (html: string) => parsed(html).map((element) => element.getAttribute("style") ?? "");
+
+  it("inlines no class into its HTML that could load or run something, as its sanitizer keeps no such style", () => {
+    // Arbitrary values and properties, written plain or hidden from a check: an HTML reference (`&#114;`), a CSS escape
+    // (`\\72`), a comment Tailwind takes out.
+    const vectors = [
+      "[background:url(https://x.test/a.gif)]",
+      "bg-[url(https://x.test/a.gif)]",
+      "bg-[u&#114;l(https://x.test/a.gif)]",
+      "bg-[u&#x72;l(https://x.test/a.gif)]",
+      "bg-[u\\72l(https://x.test/a.gif)]",
+      "bg-[u\\rl(https://x.test/a.gif)]",
+      "[background:URL(https://x.test/a.gif)]",
+      "[background:u/**/rl(https://x.test/a.gif)]",
+      "[list-style-image:url(https://x.test/a.gif)]",
+      "[behavior:url(x.htc)]",
+      "[-moz-binding:url(x.xml)]",
+      "[background:expression(alert(1))]",
+      "[filter:progid:DXImageTransform.Microsoft.AlphaImageLoader(src=https://x.test/a.png)]",
+      "[background:image(https://x.test/a.png)]",
+    ];
+    for (const vector of vectors) {
+      // In a raw HTML block, and in a paragraph's HTML; the other classes inlined.
+      for (const markdown of [`<div class="${vector} text-red-500">a</div>`, `Text <span class="${vector} text-red-500">a</span>`]) {
+        const [html] = design(<Markdown markdown={markdown} />);
+        expect([vector, styles(html)]).toEqual([vector, ["color: #fb2c36"]]);
+      }
+    }
+    // The sanitizer left them out; what Tailwind inlines into sanitized HTML is checked again (as a block holding
+    // Markdown's HTML is marked).
+    expect(design(<Html html={'<div class="[background:url(https://x.test/a.gif)] text-red-500">a</div>'} {...({ _sanitized: true } as {})} />)).toEqual(['<div style="color: #fb2c36">a</div>']);
+    expect(warn.mock.calls.map((call) => String(call[0]))).toContain(
+      "[Unlayer] Html can't inline `[background:url(https://x.test/a.gif)]`'s `background` in its markup: it could load or run something, which Markdown's sanitized HTML doesn't allow."
+    );
+    // A phone, breakpoint or hover variant is in no style, inline or in the head.
+    const variants = renderToHtml(<Tailwind tw={tw}><Email><Row><Column><Markdown markdown={'<div class="sm:bg-[url(https://x.test/a.gif)] max-sm:bg-[url(https://x.test/a.gif)] hover:bg-[url(https://x.test/a.gif)]">a</div>'} /></Column></Row></Email></Tailwind>);
+    expect(variants).toContain(">a</div>");
+    expect(variants).not.toContain("x.test");
+  });
+
+  it("inlines your own markup's classes as written: only Markdown's HTML is sanitized", () => {
+    expect(design(<Html html={'<div class="bg-[url(https://x.test/a.gif)]">a</div>'} />)).toEqual(['<div style="background-image: url(https://x.test/a.gif)">a</div>']);
+  });
+
+  it("inlines nothing that loads or runs anything, whatever classes its HTML is given (fuzzed)", () => {
+    // An arbitrary value or property (`bg-[…]`, `[background:…]`) of random parts, some hiding a `url(` from a check
+    // (an HTML reference, a CSS escape, a comment Tailwind takes out), its brackets, quotes and comments closed or not.
+    const opens = ["bg-[", "[background:", "[background-image:", "[list-style-image:", "[behavior:", "[-moz-binding:", "[border-image:", "[color:"];
+    const parts = ["url(", "URL(", "u&#114;l(", "u&#x72;l(", "u\\72l(", "u\\72_l(", "u\\rl(", "u/**/rl(", "image-set(", "expression(", "x&lpar;", "x&#40;", "javascript:", "https://x.test/a.gif", "x", "_", "&amp;", ",", ")", "(", "[", "]", "/*", "*/", "\\", "'", "&quot;"];
+    const r = random(Number(process.env.SANITIZE_FUZZ_SEED ?? 20261018));
+    const pick = (list: string[]) => list[Math.floor(r() * list.length)];
+    const bad: string[] = [];
+    let dropped = 0;
+    for (let run = 0; run < FUZZ_RUNS / 10 && bad.length < 5; run++) {
+      let value = "";
+      for (let n = 1 + Math.floor(r() * 5); n > 0; n--) value += pick(parts);
+      const className = `${pick(opens)}${value}${r() < 0.5 ? ")" : ""}${r() < 0.8 ? "]" : ""} text-red-500`;
+      if (!sanitizeHtml(`<b class="${className}">`).includes(className)) dropped++;
+      for (const html of design(<Markdown markdown={`<div class="${className}">a</div>\n\nText <span class="${className}">b</span>`} />)) {
+        for (const style of styles(html)) if (loads(style)) bad.push(`${JSON.stringify(className)} → ${JSON.stringify(style)}`);
+        // (What Tailwind can't read doesn't stop it reading the rest.)
+        if (!html.includes("color: #fb2c36")) bad.push(`${JSON.stringify(className)} → ${JSON.stringify(html)}: no color`);
+      }
+    }
+    expect(bad).toEqual([]);
+    // (The inputs reach the checks: the sanitizer left many out, and Tailwind couldn't read others.)
+    expect(dropped).toBeGreaterThan(FUZZ_RUNS / 100);
+    expect(warn.mock.calls.filter((call) => String(call[0]).includes("isn't a class Tailwind can read here")).length).toBeGreaterThan(FUZZ_RUNS / 100);
+  }, FUZZ_RUNS * 5 + 30000);
+});
+
+/** A seeded random number generator (mulberry32): the same inputs every run. */
+function random(seed: number): () => number {
+  let a = seed >>> 0;
+  return () => {
+    a = (a + 0x6d2b79f5) >>> 0;
+    let t = Math.imul(a ^ (a >>> 15), 1 | a);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
