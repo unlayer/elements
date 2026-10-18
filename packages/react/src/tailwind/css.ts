@@ -12,7 +12,11 @@ export interface Declaration {
 }
 
 export interface Rule {
-  /** The class it's for, unescaped (`max-sm:p-2`), and the selector around it (`:hover`, `:where(` … `)`). */
+  /**
+   * The class it's for, unescaped (`max-sm:p-2`), and the selector around it (`:hover`, `:where(` … `)`, a variant's
+   * `.group:hover `). Tailwind writes each class's rules in a rule of its own (`.max-sm\:p-2 { … }`), its variants'
+   * selectors nested in it: the class is that rule's, wherever it is in the selector.
+   */
   token: string;
   before: string;
   after: string;
@@ -114,7 +118,7 @@ function declarations(body: string): Declaration[] {
   return out;
 }
 
-const CLASS = /\.((?:\\[0-9a-fA-F]{1,6}\s?|\\[^\n0-9a-fA-F]|[\w -￿-])+)/;
+const CLASS = /\.((?:\\[0-9a-fA-F]{1,6}\s?|\\[^\n0-9a-fA-F]|[\w -￿-])+)/g;
 
 /** A class name as a selector escapes it, unescaped (`max-sm\:p-2` → `max-sm:p-2`). */
 export function unescape(name: string): string {
@@ -123,25 +127,27 @@ export function unescape(name: string): string {
 
 export function parseSheet(css: string): Sheet {
   const sheet: Sheet = { rules: [], vars: new Map(), initial: new Map() };
-  const walk = (blocks: Block[], at: string[], parent?: string) => {
+  // (`owner`: the class of the rule a nested one is in, where that rule is for one class.)
+  const walk = (blocks: Block[], at: string[], parent?: string, owner?: string) => {
     for (const block of blocks) {
       const { prelude } = block;
-      if (/^@layer\b/i.test(prelude)) walk(block.children, at, parent);
+      if (/^@layer\b/i.test(prelude)) walk(block.children, at, parent, owner);
       else if (/^@property\b/i.test(prelude)) {
         const initial = declarations(block.body).find((d) => d.property === "initial-value");
         if (initial) sheet.initial.set(prelude.slice(9).trim(), initial.value);
       } else if (prelude.startsWith("@")) {
         // In a rule (`.x { @media … { … } }`), what's in it is that rule's.
-        if (parent) add(parent, [...at, prelude], block.body);
-        walk(block.children, [...at, prelude], parent);
+        if (parent) add(parent, [...at, prelude], block.body, owner);
+        walk(block.children, [...at, prelude], parent, owner);
       } else {
         const selector = parent && prelude.includes("&") ? prelude.replace(/&/g, parent) : parent ? `${parent} ${prelude}` : prelude;
-        add(selector, at, block.body);
-        walk(block.children, at, selector);
+        const own = parent ? owner : [...prelude.matchAll(CLASS)].find((m) => m[0] === prelude)?.[1];
+        add(selector, at, block.body, own);
+        walk(block.children, at, selector, own);
       }
     }
   };
-  const add = (selector: string, at: string[], body: string) => {
+  const add = (selector: string, at: string[], body: string, owner?: string) => {
     const list = declarations(body);
     if (!list.length) return;
     const selectors = split(selector, ",").map((s) => s.trim());
@@ -150,12 +156,14 @@ export function parseSheet(css: string): Sheet {
       return;
     }
     for (const one of selectors) {
-      const match = CLASS.exec(one);
+      // Its class: the one its rule is for, else the first.
+      const classes = [...one.matchAll(CLASS)];
+      const match = classes.find((m) => m[1] === owner) ?? classes[0];
       if (!match) continue;
       sheet.rules.push({
         token: unescape(match[1]),
-        before: one.slice(0, match.index),
-        after: one.slice(match.index + match[0].length),
+        before: one.slice(0, match.index!),
+        after: one.slice(match.index! + match[0].length),
         at,
         declarations: list,
         order: sheet.rules.length,

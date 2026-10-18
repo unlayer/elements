@@ -46,7 +46,11 @@ function conditionOf(rule: Rule): ClassCondition | { reason: string } {
     else if (query && widthOf(query) && when === "always") when = widthOf(query)!;
     else return { reason: `it applies only for ${at}` };
   }
-  if (rule.before.trim()) return { reason: `it styles other elements (\`${rule.before}.${rule.token}${rule.after}\`)` };
+  if (rule.before.trim()) {
+    // Inside a variant's selector (`.group:hover &`), or a selector for others in it (`:where(& > *)`).
+    const inside = rule.before.split("(").length > rule.before.split(")").length;
+    return { reason: inside ? `it styles other elements (\`${rule.before}.${rule.token}${rule.after}\`)` : `it applies only for \`${rule.before}&${rule.after}\`` };
+  }
   const after = rule.after.trim();
   if (after === ":hover") return when === "always" ? "hover" : { reason: "Elements has no hover style for one screen size" };
   if (after) return { reason: `it applies only for \`${after}\`` };

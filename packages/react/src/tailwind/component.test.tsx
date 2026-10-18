@@ -314,6 +314,10 @@ describe("<Tailwind>: classes in an Html block's markup", () => {
       "[Unlayer] Html can't inline class `max-sm:p-1` in its markup: it applies on phones only, which needs a stylesheet.",
       "[Unlayer] Html can't inline class `sm:p-4` in its markup: it applies above a screen width only, which needs a stylesheet.",
     ]);
+    // A variant's own class (`group`) stays yours; a class that applies only inside it is said, and goes.
+    warn.mockClear();
+    expect(block(<Html html={'<div class="group mine"><p class="[.group:hover_&]:underline p-2">x</p></div>'} />).html).toBe('<div class="group mine"><p style="padding: 8px">x</p></div>');
+    expect(warnings()).toEqual(["[Unlayer] Html ignores class `[.group:hover_&]:underline` in its markup: it applies only for `.group:hover &`."]);
   });
 
   it("reads tags and attributes as a browser does: what isn't a class attribute, or isn't in a tag, stays as written", () => {

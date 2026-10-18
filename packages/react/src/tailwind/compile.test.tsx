@@ -100,6 +100,24 @@ describe("classNameToDeclarations", () => {
     ]);
   });
 
+  it("knows a class by its own name in its rule's selector, wherever it is there (after a variant's `.group` or `.dark`)", async () => {
+    const reasons = (handle: TailwindHandle, className: string) => classNameToDeclarations(handle, className).ignored.map(({ className, reason }) => `${className}: ${reason}`);
+    // `group` is a class no rule is for: it stays the user's, though rules for other classes have it.
+    expect(reasons(tw, "group [.group:hover_&]:underline [.dark_&]:p-2 in-hover:p-1")).toEqual([
+      "group: Tailwind has no such class",
+      "[.group:hover_&]:underline: it applies only for `.group:hover &`",
+      "[.dark_&]:p-2: it applies only for `.dark &`",
+      "in-hover:p-1: it applies only for `:where(*:hover) &`",
+    ]);
+    // A config's own variants (a plugin's `addVariant`).
+    const variants = { handler: ({ addVariant }: { addVariant: (name: string, selector: string) => void }) => (addVariant("group-on", ".group:hover &"), addVariant("peer-on", ".peer:checked ~ &")) };
+    expect(reasons(await loadTailwind({ plugins: [variants] }), "peer group-on:text-white peer-on:underline")).toEqual([
+      "peer: Tailwind has no such class",
+      "group-on:text-white: it applies only for `.group:hover &`",
+      "peer-on:underline: it applies only for `.peer:checked ~ &`",
+    ]);
+  });
+
   it("gives a class string the same declarations whatever its compiler built before", async () => {
     // Tailwind's compiler builds every class it's been given, in an order of its own, each with the theme's variables
     // and the registered properties it uses: a class string read after thousands of others reads as on its own.
