@@ -1,7 +1,7 @@
 /**
  * A root's content as HTML, as Body puts it in the body: collected once (src/model), markup among the rows as it is,
  * and each Row and block rendered by Elements with the root's config and body values. A template with no root (Rows,
- * a block, markup: see unwrap-root.ts's `Why.rendered`) is that content alone, with no body around it, so its rows
+ * a block, markup: see unwrap-root.ts's `Unwrapped`) is that content alone, with no body around it, so its rows
  * are numbered and rendered as the head and the plain text read them, from the same render.
  */
 import React from "react";

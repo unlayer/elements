@@ -48,7 +48,7 @@ type Scope = object;
 interface Internals {
   newScope(): Scope;
   withScope<T>(scope: Scope, run: () => T): T;
-  unwrapAsync(element: React.ReactElement, steps: typeof take, idPrefix?: string): Promise<React.ReactElement>;
+  unwrapAsync(element: React.ReactElement, scope: Scope, steps: typeof take, idPrefix?: string): Promise<React.ReactElement>;
   collectAsync(root: React.ReactElement, scope: Scope, options: Partial<UnlayerConfig> | undefined, collect: (node: React.ReactNode, walk: CollectOptions) => Promise<Flat>): Promise<Collected>;
   /** Whether a type is one of Elements' roots, of any copy (see utils/root-type.ts). */
   isRoot(type: unknown): boolean;
@@ -77,7 +77,7 @@ async function tailwindLoader(): Promise<Load> {
 async function render<T>(element: React.ReactElement, options: Partial<UnlayerConfig> | undefined, run: (renders: Renders, root: React.ReactElement) => T, rootless = true): Promise<T> {
   const internals = (renderHtml as unknown as Record<symbol, Internals>)[Symbol.for("@unlayer/react-elements/internals")];
   const scope = internals.newScope();
-  const root = await internals.unwrapAsync(element, take, options?.idPrefix);
+  const root = await internals.unwrapAsync(element, scope, take, options?.idPrefix);
   const content = internals.isRoot(root.type) ? (root.props as { children?: React.ReactNode } | null)?.children : rootless && root;
   const scopes: Array<{ config?: TailwindConfig; load?: Load }> = [];
   if (content && typeof content === "object") {

@@ -62,7 +62,7 @@ type LayoutContext = Pick<
  */
 function unwrapForJson(element: React.ReactElement, idPrefix?: string): React.ReactElement {
   try {
-    return unwrapRoot(element, {}, idPrefix);
+    return unwrapRoot(element, idPrefix).root;
   } catch (cause) {
     if ((cause as Error | undefined)?.message !== ASYNC_TEMPLATE) throw cause;
     throw new Error(`[Unlayer] renderToJson: could not unwrap <${componentName(element) || "wrapper"}>. ${UNWRAP_ADVICE} (${ASYNC_TEMPLATE})`);

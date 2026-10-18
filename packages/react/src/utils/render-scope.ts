@@ -10,6 +10,7 @@
  */
 import { escapeKeepingTags, type OnError, type RenderError } from "@unlayer-internal/shared-elements";
 import { omits, reportOmitted } from "../engine/errors";
+import type { Unwrapped } from "./unwrap-root";
 
 export interface Scope {
   cache: WeakMap<object, unknown>;
@@ -23,6 +24,8 @@ export interface Scope {
   failed: WeakSet<object>;
   /** Whether its root reads right to left (see setRenderConfig): Tailwind's logical sides follow it. */
   rtl?: boolean;
+  /** What its template unwrapped to: its root, the providers' config, where its content starts (see unwrap-root.ts). */
+  unwrapped?: Unwrapped;
 }
 
 export const newScope = (): Scope => ({ cache: new WeakMap(), values: new WeakMap(), omitted: [], failed: new WeakSet() });
@@ -95,6 +98,15 @@ export const failedBefore = (record: object | undefined): boolean => !!record &&
 
 /** The parts this render left out. */
 export const omissions = (): RenderError[] => scoped?.omitted ?? [];
+
+/** What this render's template unwrapped to (see unwrap-root.ts). */
+export const unwrapped = (): Unwrapped | undefined => scoped?.unwrapped;
+
+/** `found`, what this render's template unwraps to, kept for the rest of the render (its scope's). */
+export function keepUnwrapped(found: Unwrapped): Unwrapped {
+  if (scoped) scoped.unwrapped = found;
+  return found;
+}
 
 /** Runs `run` in `scope` (a render function's own; an async renderer collects a template in it first, then renders in it). */
 export function withScope<T>(scope: Scope | undefined, run: () => T): T {

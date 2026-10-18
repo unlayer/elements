@@ -12,10 +12,10 @@ import type React from "react";
 import type { CollectOptions, Flat, Part, Task, Wait } from "../engine";
 import type { Hole } from "../engine/output";
 import type { Engine } from "../utils/internals";
-import type { Steps } from "../utils/unwrap-root";
+import type { Steps, Unwrapped } from "../utils/unwrap-root";
 
-/** The root a template's wrappers lead to, awaiting what each waits for (its promise, or what it `use()`d). */
-export async function take(steps: Steps): Promise<React.ReactElement> {
+/** What a template's wrappers lead to (its root), awaiting what each waits for (its promise, or what it `use()`d). */
+export async function take(steps: Steps): Promise<Unwrapped> {
   let step = steps.next();
   while (!step.done) {
     let value: unknown;

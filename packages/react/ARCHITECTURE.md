@@ -28,11 +28,14 @@ model                                Email > Row > Column > blocks, Elements' on
   the root move inside it, around its content. An async wrapper, or one that `use()`s or throws a promise (React 18's
   Suspense: react-i18next's `useTranslation`), is awaited by the async renderers (`take` in `src/async/collect.ts`, along
   `unwrapSteps`), and called again once it settles; the synchronous ones throw for it. A template with no root (Rows, a
-  block, markup) gives what it rendered instead (`Why.rendered`: its wrappers made again with what they returned, not
-  called again), which renders as a root's content does, without the root's markup (`utils/root-content.ts`): walked
-  once, its Rows and blocks rendered with the render's config and numbered as the head numbers them, its head and
-  plain text from the same walk, and in the async renderers waited for as a root's content is. `renderToJson()` says it
-  needs a root, without walking it.
+  block, markup) gives what it rendered instead (`Unwrapped.rendered`: its wrappers made again with what they returned,
+  not called again), which renders as a root's content does, without the root's markup (`utils/root-content.ts`):
+  walked once, its Rows and blocks rendered with the render's config and numbered as the head numbers them, its head
+  and plain text from the same walk, and in the async renderers waited for as a root's content is. `renderToJson()`
+  says it needs a root, without walking it. What unwrapping finds (the root, the `<UnlayerProvider>`s' config, where
+  the wrappers left the tree for the content) is the render's, in its scope, known by the elements unwrapping made or
+  reached, never kept on the template's own elements: a root kept between renders, returned by a wrapper that calls
+  `useId()` in one, has its own ids in the next.
 - **Walk.** The engine renders the root's content once per render. It asks a collector (`utils/record.tsx`) about each
   element: a Row, Column or block (of any copy of Elements, by its markers), a `<Tailwind>` scope or a `<Head>`/`<Font>`
   entry is recorded where it is, and what's inside it (a Row's Columns, rich text's markup, a `<Head>`'s tags) walked
@@ -213,12 +216,18 @@ row or block is left out of the HTML, the plain text and the design (the slower 
    an `await`; a render Elements runs in, or that runs in it, keeps its own.
 3. **One model per render.** The HTML, the head, the plain text and the design are made from the same collected
    content, in one scope: they can't disagree, and a failed part is in none of them.
-4. **Tree order.** Output, records, ids and the error a render throws don't depend on when promises settle.
-5. **Components run once per render**, but as React runs them again: a component that sets its state while rendering,
+4. **A render's output depends only on its arguments.** All per-render state lives in that render's scope: the module
+   holds no facts keyed by the user's elements, every render function makes a scope of its own, and the ambient scope
+   is cleared before any of the user's code runs (`guest`), so a render's output and errors depend only on that call's
+   arguments, whatever rendered before or around it (the regression templates rendered again from kept elements in a
+   shuffled order give their reviewed bytes, and random templates sharing kept elements give the same output after any
+   other, and at once).
+5. **Tree order.** Output, records, ids and the error a render throws don't depend on when promises settle.
+6. **Components run once per render**, but as React runs them again: a component that sets its state while rendering,
    and one `use()` suspends, which is called again once the promise settles.
-6. **Nothing is left out silently.** A part that fails throws, or is left out where `onError` says, and said.
-7. **No randomness, no date**, so Next.js's Cache Components can prerender pages that render emails.
-8. **Across copies of Elements** (a package's ESM and CommonJS builds, a package still on another version) only type
+7. **Nothing is left out silently.** A part that fails throws, or is left out where `onError` says, and said.
+8. **No randomness, no date**, so Next.js's Cache Components can prerender pages that render emails.
+9. **Across copies of Elements** (a package's ESM and CommonJS builds, a package still on another version) only type
    markers are shared, by `Symbol.for`: a Row's, Column's and block's (`@unlayer/react-elements/records`, and their
    `__unlayerRender`/`__unlayerItemConfig` statics), a root's (`…/root`, its name), a `<Head>`/`<Font>` entry's
    (`…/head-entry`), a `<Tailwind>`'s rewrite (`…/tailwind`), an `<UnlayerProvider>`'s (`…/provider`), so one copy's
@@ -248,6 +257,7 @@ row or block is left out of the HTML, the plain text and the design (the slower 
 | `idPrefix`: the walker's against react-dom's `identifierPrefix`, and every renderer's | `src/engine/differential.test.tsx`, `src/utils/render-to-html.test.tsx` |
 | React's react-server build (React 19): a render, and each ESM entry loading (none imports by name what it lacks) | `src/regression/react-server-build.test.ts` |
 | Renders inside an app's render, and inside each other | `src/utils/nested-renders.test.tsx`, `src/regression/edge-cases.test.tsx` |
+| A render's output whatever rendered before or around it: elements kept between renders, random templates sharing them (and async renders at once), the regression templates rendered again in a shuffled order, a render started from each place the user's code runs | `src/regression/render-isolation.test.tsx` (`ISOLATION_RUNS=2000` for more), `src/regression/patterns.test.tsx`, `src/utils/nested-renders.test.tsx` |
 | What suspends wherever it is (the template, a wrapper around it, a component, a class, a block's children, a template with no root): the async renderers wait, the synchronous ones say so | `src/async/async.test.tsx` |
 | A template with no root: each component run once, its ids the head's, its failed parts as a root's | `src/utils/user-components.test.tsx` |
 | Two copies of Elements: the module and CommonJS builds loaded together, either's components rendered by the other's renderers; another copy's Rows | `src/regression/node-exit.test.ts`, `src/regression/react-copies.test.tsx` |
