@@ -5,12 +5,13 @@
  */
 import { createElement } from "react";
 
+/** What's been said, each once: a hundred at most, as a list's keys can come from data (then once that no more are). */
 const said = new Set<string>();
 
 function warnOnce(key: string, message: string): void {
-  if (said.has(key)) return;
+  if (said.has(key) || said.size > 100) return;
   said.add(key);
-  console.error(message);
+  console.error(said.size > 100 ? "[Unlayer] More warnings about keys in lists aren't said." : message);
 }
 
 type DevElement = { $$typeof?: unknown; key: string | null; _store?: { validated?: unknown } };

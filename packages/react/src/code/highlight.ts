@@ -64,6 +64,7 @@ export const escapeHtml = (text: string) => text.replace(/[&<>"]/g, (ch) => ESCA
 /** CSS that can't end the attribute it's written in. */
 export const attribute = (css: string) => css.replace(/[<>"]/g, "");
 
+/** The languages said to have no grammar, each once: twenty at most, as a fence's label is whoever writes the Markdown's. */
 const warned = new Set<string>();
 
 /** A token's style in a theme: its scope's, or its parent's (`title.function` → `title`). */
@@ -78,9 +79,13 @@ export function highlightLines(code: string, language: string | undefined, theme
   let html: string;
   if (language && hljs.getLanguage(language)) html = hljs.highlight(code, { language, ignoreIllegals: true }).value;
   else {
-    if (language && !warned.has(language)) {
+    if (language && !warned.has(language) && warned.size <= 20) {
       warned.add(language);
-      console.warn(`[Unlayer] ${component} has no grammar for \`${language}\`, so it's shown without colors: add one with registerLanguage() from "@unlayer/react-elements/code".`);
+      console.warn(
+        warned.size > 20
+          ? `[Unlayer] ${component}: more languages with no grammar are shown without colors, and not said.`
+          : `[Unlayer] ${component} has no grammar for \`${language}\`, so it's shown without colors: add one with registerLanguage() from "@unlayer/react-elements/code".`
+      );
     }
     html = escapeHtml(code);
   }

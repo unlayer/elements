@@ -516,6 +516,19 @@ describe("React's warnings about a template", () => {
       error.mockRestore();
     }
   });
+
+  it.skipIf(process.env.NODE_ENV === "production")("say a bounded number of them (a list's keys can come from data), then once that no more are said", () => {
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
+    try {
+      const Pairs = ({ ids }: { ids: number[] }) => <>{ids.flatMap((id) => [<Paragraph key={`id-${id}`}>a</Paragraph>, <Paragraph key={`id-${id}`}>b</Paragraph>])}</>;
+      for (let batch = 0; batch < 3; batch++) renderToHtml(<Email><Row><Column><Pairs ids={Array.from({ length: 100 }, (_, i) => batch * 100 + i)} /></Column></Row></Email>);
+      const said = error.mock.calls.map((call) => String(call[0])).filter((m) => m.startsWith("[Unlayer]"));
+      expect(said.length).toBeLessThanOrEqual(101);
+      expect(said.at(-1)).toBe("[Unlayer] More warnings about keys in lists aren't said.");
+    } finally {
+      error.mockRestore();
+    }
+  });
 });
 
 describe("keys in lists of lists", () => {

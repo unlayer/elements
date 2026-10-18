@@ -8,6 +8,7 @@ import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import React, { Component, createContext, forwardRef, Fragment, memo, Suspense, useContext, useId, useMemo, useReducer, useRef, useState } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { renderStatic } from "./index";
+import { cssNames } from "./attributes";
 
 const SEEDS = Number(process.env.WALKER_FUZZ_SEEDS ?? 300);
 const Theme = createContext("light");
@@ -83,6 +84,12 @@ describe("the walker against react-dom/server", () => {
       throw never;
     };
     same(<div><Suspense fallback={<i>loading</i>}><Ids /><Later /></Suspense><Ids /></div>);
+  });
+
+  it("keeps a bounded number of style names worked out (a style's keys can come from data), and writes the rest the same", () => {
+    const style = Object.fromEntries(Array.from({ length: 3000 }, (_, i) => [`dataProp${i}`, i % 2 ? 1 : "a"])) as React.CSSProperties;
+    for (let round = 0; round < 2; round++) expect(renderStatic(<div style={style} />)).toBe(renderToStaticMarkup(<div style={style} />));
+    expect(cssNames.size).toBeLessThanOrEqual(1000);
   });
 
   it("writes each attribute, style and child as react-dom does, on every kind of element", () => {

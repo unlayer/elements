@@ -117,8 +117,8 @@ const UNITLESS_NUMBERS = new Set(
       ]
 );
 
-/** Style properties' names as CSS writes them (`marginTop`: `margin-top`), worked out once each. */
-const cssNames = new Map<string, string>();
+/** Style properties' names as CSS writes them (`marginTop`: `margin-top`), worked out once each: a thousand kept at most (a style's keys can come from data). */
+export const cssNames = new Map<string, string>();
 
 /** A `style` prop as React writes it: its declarations in order, names in kebab case, numbers in px where they take a unit. */
 export function style(value: unknown): string {
@@ -132,7 +132,10 @@ export function style(value: unknown): string {
     if (name.indexOf("--") === 0) declaration = `${escapeText(name)}:${escapeText(("" + css).trim())}`;
     else {
       let property = cssNames.get(name);
-      if (property === undefined) cssNames.set(name, (property = escapeText(name.replace(/([A-Z])/g, "-$1").toLowerCase().replace(/^ms-/, "-ms-"))));
+      if (property === undefined) {
+        property = escapeText(name.replace(/([A-Z])/g, "-$1").toLowerCase().replace(/^ms-/, "-ms-"));
+        if (cssNames.size < 1000) cssNames.set(name, property);
+      }
       declaration = `${property}:${typeof css === "number" ? (css !== 0 && !UNITLESS_NUMBERS.has(name) ? `${css}px` : "" + css) : escapeText(("" + css).trim())}`;
     }
     out += out ? ";" + declaration : declaration;
