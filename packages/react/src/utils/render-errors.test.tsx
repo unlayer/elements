@@ -202,6 +202,19 @@ describe("a Row or Column whose exporter fails", () => {
     expect(given.map((e) => e.position)).toEqual(["Row 2", "Row 3 › Column 2"]);
   });
 
+  it("gives errors that keep nothing of the render: which Row or Column failed is the render's (its scope's)", async () => {
+    // A module's map from the errors to their records kept a Row's record, and its props, for as long as an error
+    // from `omitted` was kept.
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    failing(RowExporters as never, "#ff0000", 1);
+    failing(ColumnExporters as never, "#00ff00", 1);
+    const { containerOf } = await import("./container-render");
+    for (const parts of [renderToHtmlParts(rows(red, cells(true)), { onError: "omit" }), await asyncRenderers.renderToHtmlParts(rows(red, cells(true)), { onError: "omit" })]) {
+      expect(parts.omitted.map((e) => e.component)).toEqual(["Row", "Column"]);
+      for (const error of parts.omitted) expect(containerOf(error)).toBeUndefined();
+    }
+  });
+
   it("leaves a Row out with its last Column, and a Row with a layout gives its other Columns their cells", () => {
     vi.spyOn(console, "error").mockImplementation(() => {});
     failing(ColumnExporters as never, "#00ff00", 1);
