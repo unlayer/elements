@@ -78,7 +78,7 @@ across an `await`: async code passes it on itself.
 |--|--|
 | `walk.ts` | The walker: elements, components, Context, Fragments, memo, forwardRef, lazy, Suspense, classes; where something suspends, the async walk's `wait` (src/async/collect.ts) or a throw to the nearest `<Suspense>` |
 | `dispatcher.ts` | Elements' hooks dispatcher, put in React's slot around each component call |
-| `host.ts`, `attributes.ts` | Host markup (`<div>`, `<img>`, …) as react-dom writes it for the installed React: void, custom and preformatted elements; form controls (a `<select>`'s value marking its options, the format context the walker carries for it); each attribute and style by React 18's property table or React 19's switch; escaping. The walker and the string exporters write with it |
+| `host.ts`, `attributes.ts` | Host markup (`<div>`, `<img>`, …) as react-dom writes it for the installed React: void, custom and preformatted elements; form controls (a `<select>`'s value marking its options, the format context the walker carries for it); a `<style>`'s, `<script>`'s and `<title>`'s text (React 18 escapes it, React 19 writes it as given); each attribute and style by React 18's property table or React 19's switch; escaping. In a `<Head>`, a `<style>`'s and `<script>`'s text is written as given in every React. The walker and the string exporters write with it |
 | `output.ts` | The walk's output (text, markup, records, holes, boundaries, errors), flattened in tree order into the content's tree |
 | `tree-id.ts` | Where a component is in the tree (Fizz's tree context), and `useId()` from it |
 | `react-compat.ts` | What the walker relies on, per React version, and where React's dispatcher slot is |
@@ -266,7 +266,7 @@ row or block is left out of the HTML, the plain text and the design (the slower 
 
 | What | Tests |
 |--|--|
-| The walker writes what react-dom writes, ids included, on hand-written and random trees; each attribute on each kind of element; every element React writes its own way (form controls, resources React 19 hoists, where it doesn't); random markup where templates have it (a template with no root, a Page's, a component's in a Column, the async renderers'); and what it means to write otherwise, listed | `src/engine/differential.test.tsx` (`WALKER_FUZZ_SEEDS=5000` and `TEMPLATE_SEEDS=1000` for more) |
+| The walker writes what react-dom writes, ids included, on hand-written and random trees; each attribute on each kind of element; every element React writes its own way (form controls, a style's, script's and title's text, resources React 19 hoists, where it doesn't); random markup where templates have it (a template with no root, a Page's, a component's in a Column, the async renderers'); and what it means to write otherwise, listed | `src/engine/differential.test.tsx` (`WALKER_FUZZ_SEEDS=5000` and `TEMPLATE_SEEDS=1000` for more) |
 | The string exporters write what `@unlayer/exporters` writes with react-dom (12k cases; React 19's attributes); pages and documents render with react-dom/server made to throw | `src/exporters/parity.test.tsx`, `react-19.test.ts`, `no-react-dom.test.tsx` |
 | Every hook of the installed React; an unknown one's error; the slot put back | `src/engine/dispatcher.test.tsx` |
 | The version table and the self-check | `src/engine/react-compat.test.ts` |

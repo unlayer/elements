@@ -84,7 +84,7 @@ export interface Walker {
 export interface Task {
   tree: TreeContext;
   contexts: ContextStack | null;
-  /** Where markup is (the `<select>` its options are in): see host.ts. */
+  /** Where markup is (a `<select>` its options are in, a <Head>): see host.ts. */
   format: Format;
   frame: Frame;
   /** A boundary's own component, whose return value its record keeps (`output`: see src/model/elements.ts's keptMarkup). */
@@ -177,7 +177,7 @@ export const errorPart = (w: Walker, error: unknown, frame: Frame): ErrorPart =>
 export function walkNode(w: Walker, node: unknown, task: Task, out: Part[]): void {
   if (node === null || node === undefined || typeof node === "boolean") return;
   if (typeof node === "string") {
-    if (node) out.push(escapeText(node));
+    if (node) out.push(task.format.raw ? node : escapeText(node));
     return;
   }
   if (typeof node === "number") return void out.push("" + node);
@@ -319,12 +319,15 @@ function walkRecord(w: Walker, node: RecordNode, task: Task, out: Part[]): void 
   const part: RecordPart = { t: "record", record: node.record, parts: [], quiet: node.quiet };
   out.push(part);
   if (node.children === undefined) return;
-  const tree = task.tree;
+  const { tree, format } = task;
   task.tree = pushTreeContext(tree, 3, 1);
+  // (A quiet record's are a <Head>'s tags: the document's head, see host.ts.)
+  if (node.quiet) task.format = { head: true };
   try {
     walkNode(w, node.children, task, part.parts);
   } finally {
     task.tree = tree;
+    task.format = format;
   }
 }
 
@@ -540,7 +543,7 @@ function walkHost(w: Walker, type: string, props: Record<string, any>, task: Tas
   try {
     validateHost(type, props);
     open = openTag(type, props, format);
-    body = propsBody(type, props);
+    body = propsBody(type, props, format);
   } catch (error) {
     throw positioned(w, error, type, placeFrame(task.frame, type));
   }
@@ -549,6 +552,8 @@ function walkHost(w: Walker, type: string, props: Record<string, any>, task: Tas
   let into = out;
   if (w.collector) {
     const part: HostPart = { t: "host", tag: type, open, close, parts: [] };
+    // (A <Head>'s `<style>` or `<script>`: its text as it is, but for what would end it.)
+    if (format.head && (type === "style" || type === "script")) part.raw = true;
     out.push(part);
     into = part.parts;
   } else out.push(open);

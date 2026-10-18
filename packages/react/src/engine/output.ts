@@ -9,6 +9,7 @@
  * whole, the markup a record is in (`<p>Hello <Name /></p>`: "cut" by it), and its records with what's inside them.
  */
 import type { RenderError } from "./errors";
+import { rawText } from "./host";
 
 export interface HostPart {
   t: "host";
@@ -17,6 +18,8 @@ export interface HostPart {
   open: string;
   close: string;
   parts: Part[];
+  /** Its text is written as it is, but for what would end it (a <Head>'s `<style>` or `<script>`: see host.ts). */
+  raw?: boolean;
 }
 export interface RecordPart {
   t: "record";
@@ -109,7 +112,7 @@ function resolve(parts: Part[], into: Item[], found: Found): ErrorPart | typeof 
         const stop = resolve(part.parts, inside, found);
         if (stop) return stop;
         if (inside.every((item) => typeof item === "string" || item.kind === "markup")) {
-          const inner = htmlOf(inside);
+          const inner = part.raw ? rawText(part.tag, htmlOf(inside)) : htmlOf(inside);
           into.push({ kind: "markup", tag: part.tag, html: part.open + inner + part.close, inner: part.close ? inner : undefined });
         } else into.push({ kind: "cut", tag: part.tag, open: part.open, close: part.close, items: inside });
         break;

@@ -79,7 +79,36 @@ describe("Head", () => {
         {content}
       </Page>
     );
-    expect(html).toContain("<style>a > b { color: red } <\\/style><script>alert(1)</script></style>");
+    expect(html).toContain("<style>a > b { color: red } </\\73 tyle><script>alert(1)</script></style>");
+  });
+
+  it("writes a style's CSS, a script's text and a title as written wherever they are in it: in a component of yours too, in every React", () => {
+    const Brand = () => <style>{"body{font-family:'Inter',sans-serif} .a > .b{color:red}"}</style>;
+    const Css = ({ css }: { css: string }) => css;
+    const name = "Ada";
+    const data = { "@type": "Organization", name: "A & B </script>" };
+    const parts = renderToHtmlParts(
+      <Page>
+        <Head>
+          <Brand />
+          <style>
+            {".x > a { color: red } "}
+            <Css css={"p::after { content: '>' }"} />
+          </style>
+          <script type="application/ld+json">{JSON.stringify(data)}</script>
+          <title>Hi {name} & bye</title>
+        </Head>
+        {content}
+      </Page>
+    );
+    expect(parts.tags).toEqual([
+      [
+        "<style>body{font-family:'Inter',sans-serif} .a > .b{color:red}</style>",
+        "<style>.x > a { color: red } p::after { content: '>' }</style>",
+        '<script type="application/ld+json">{"@type":"Organization","name":"A & B </\\u0073cript>"}</script>',
+        "<title>Hi Ada &amp; bye</title>",
+      ].join(""),
+    ]);
   });
 
   it("says the design can't hold it, once per render", () => {

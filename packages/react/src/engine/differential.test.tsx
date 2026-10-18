@@ -104,7 +104,7 @@ describe("the walker against react-dom/server", () => {
   it("writes each attribute, style and child as react-dom does, on every kind of element", () => {
     const tags = [
       "div", "a", "img", "span", "td", "tr", "table", "input", "textarea", "pre", "listing", "svg", "path", "foreignObject", "math", "mi", "my-el", "font-face", "button", "form",
-      "select", "option", "optgroup", "object", "menuitem", "meta", "link", "noscript", "picture", "iframe", "hr", "br", "base", "wbr", "html", "head", "body",
+      "select", "option", "optgroup", "object", "menuitem", "title", "style", "script", "meta", "link", "noscript", "picture", "iframe", "hr", "br", "base", "wbr", "html", "head", "body",
       "DIV", "IMG", "SELECT", "Title",
     ];
     const names = [
@@ -204,6 +204,45 @@ describe("the walker against react-dom/server", () => {
     expect(different).toEqual([]);
   });
 
+  it("writes a style's, a script's and a title's text as react-dom does: escaped in React 18, as written in React 19 (but what would end it)", () => {
+    const Css = () => "a > b { c: 'd' }";
+    const trees = [
+      h("style", null, "body{font-family:'Inter',sans-serif} .a > .b{color:red} </style><x> <style </STYLE"),
+      h("style", { media: "print", nonce: "n" }, ["a>b"]),
+      h("style", null, "a{}", "b{}"),
+      h("style", null, [["a>b"]]),
+      h("style", null, 1),
+      h("style", null, true),
+      h("style", null, BigInt(7)),
+      h("style", null, h("b", null, "x")),
+      h("style", null, h(Css)),
+      h("style", { dangerouslySetInnerHTML: { __html: "a>b{x:'y'}" } }),
+      h("style", { dangerouslySetInnerHTML: { __html: "x" } }, "a"),
+      h("style", { precedence: "p" }, "a>b"),
+      h("style", { href: "h" }, "a>b"),
+      h("svg", null, h("style", null, "a>b")),
+      h("script", null, "if (a < b && c > 'd') {} </script><SCRIPT"),
+      h("script", { type: "application/ld+json" }, '{"a":"</script>"}'),
+      h("script", null, 1),
+      h("script", null, ["a", "b"]),
+      h("script", null, ["a<"]),
+      h("script", null, h("b", null, "x")),
+      h("script", null, h(Css)),
+      h("script", { dangerouslySetInnerHTML: { __html: "a<b" } }),
+      h("script", { async: true }, "x<"),
+      h("script", { src: "x.js" }),
+      h("svg", null, h("title", null, "a", "b")),
+      h("svg", null, h("title", null, "A & B")),
+      h("svg", null, h("title", null, 5)),
+      h("svg", null, h("title", null, h("b"))),
+      h("svg", null, h("title", { dangerouslySetInnerHTML: { __html: "<b>" } })),
+      h("noscript", null, h("title", null, "x"), h("meta", { name: "a" }), h("link", { rel: "icon", href: "x" }), h("style", { precedence: "p", href: "h" }, "a>b"), h("script", { async: true, src: "s.js" })),
+      h("div", null, h("title", { itemProp: "name" }, "x", "y"), h("meta", { itemProp: "x", content: "y" }), h("link", { itemProp: "x", rel: "icon", href: "x" }), h("link", { rel: "icon" }), h("link", { rel: "icon", href: "" })),
+    ];
+    const different = trees.map((tree) => [attempt(() => renderStatic(tree)), attempt(() => reactDom(tree))]).filter(([walker, dom]) => walker !== dom);
+    expect(different).toEqual([]);
+  });
+
   it("differs from react-dom only where it means to: React 19's hoisting, its document singletons and forms' actions", () => {
     // Each tree, what the walker writes on React 19, and why react-dom 19 writes otherwise (React 18 writes what the
     // walker writes: the walker gives what it gives there).
@@ -212,6 +251,7 @@ describe("the walker against react-dom/server", () => {
       [h("div", null, h("title", null, "T")), "<div><title>T</title></div>", "it moves a <title> to the start of the markup: Elements' markup is a part of a document (<Head> puts tags in the head)"],
       [h("div", null, h("meta", { name: "x", content: "y" })), '<div><meta name="x" content="y"/></div>', "it moves a <meta> to the start"],
       [h("div", null, h("link", { rel: "icon", href: "x.ico" })), '<div><link rel="icon" href="x.ico"/></div>', "it moves a <link> to the start"],
+      [h("div", null, h("style", { precedence: "default", href: "x" }, "a>b{}")), '<div><style precedence="default" href="x">a>b{}</style></div>', "it moves a <style precedence href> to the start, as `data-precedence`"],
       [h("div", null, h("script", { async: true, src: "x.js" })), '<div><script async="" src="x.js"></script></div>', "it moves an async <script> to the start"],
       [h("div", null, h("img", { src: "x.png" })), '<div><img src="x.png"/></div>', "it adds a <link rel=\"preload\"> for an image, which an email has no use for"],
       [h("html", null, h("body", null, "x")), "<html><body>x</body></html>", "it adds a <head> to an <html> at the top, and moves what it hoists there"],
@@ -303,10 +343,11 @@ const show = (value: unknown) => (typeof value === "function" ? "fn" : typeof va
 const between = (body: string) => body.slice(body.indexOf('<hr id="start"/>') + 16, body.indexOf('<hr id="end"/>'));
 
 /**
- * An element where React 19 writes it in place: a <meta> or <link> in a <noscript> (React 19 hoists them elsewhere: see
- * "differs … only where it means to"), anything else in a <div> (not the document's own <html>, <head> or <body>).
+ * An element where React 19 writes it in place: a <title>, <meta>, <link>, <style> or <script> in a <noscript> (React
+ * 19 hoists them elsewhere: see "differs … only where it means to"), anything else in a <div> (not the document's own
+ * <html>, <head> or <body>).
  */
-const wrapped = (node: React.ReactElement) => h(/^(meta|link)$/.test(String(node.type)) ? "noscript" : "div", null, node);
+const wrapped = (node: React.ReactElement) => h(/^(title|meta|link|style|script)$/.test(String(node.type)) ? "noscript" : "div", null, node);
 
 /** A seeded random number generator (mulberry32). */
 function random(seed: number) {
@@ -369,8 +410,8 @@ function randomMarkup(seed: number): React.ReactElement {
 
 /**
  * One of the elements React writes its own way, with random props, holding `child()`ren: form controls (a select's
- * options inside optgroups, Fragments, components, tables, foreign content), resources (where React 19 writes them in
- * place), custom elements, preformatted text, and markup around them. `valid`: none React
+ * options inside optgroups, Fragments, components, tables, foreign content), raw text, titles and resources (where
+ * React 19 writes them in place), custom elements, preformatted text, and markup around them. `valid`: none React
  * rejects (a textarea's value and children, `dangerouslySetInnerHTML` and children).
  */
 function markup(r: ReturnType<typeof random>, depth: number, child: () => React.ReactNode, valid = false): React.ReactNode {
@@ -402,8 +443,14 @@ function markup(r: ReturnType<typeof random>, depth: number, child: () => React.
       return h("button", maybe({ name: "n", type: "submit", formAction: "javascript:x", formTarget: "t", id: "b" }), some());
     case 5:
       return h("form", maybe({ action: "/a", target: "_blank", method: "post", encType: "x", id: "f", name: "f" }), some());
+    case 6:
+      return h("style", maybe({ media: "print", nonce: "n", precedence: "p", type: "text/css" }), r.pick([text(), [text()], [text(), text()], 1, true, h("b", null, "x")]));
+    case 7:
+      return h("script", maybe({ type: "application/ld+json", async: true, nonce: "n" }), r.pick([text(), [text()], [text(), text()], 1, h("b", null, "x")]));
+    case 8:
+      return h(r.next() < 0.5 ? "svg" : "noscript", null, h("title", null, r.pick([text(), [text(), text()], 5])), h("style", null, text()), h("script", null, text()), some(1));
     case 9:
-      return h("div", null, h("meta", { ...hoistable, content: text() }), h("link", { ...hoistable, rel: "icon", href: "x" }), h("link", { rel: "icon" }));
+      return h("div", null, h("title", hoistable, r.pick([text(), [text(), text()]])), h("meta", { ...hoistable, content: text() }), h("link", { ...hoistable, rel: "icon", href: "x" }), h("link", { rel: "icon" }));
     case 10:
       return h("object", maybe({ data: r.pick(["x.swf", "", "javascript:x", true]), type: "t" }), some(1));
     case 11:

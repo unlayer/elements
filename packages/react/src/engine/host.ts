@@ -1,7 +1,10 @@
 /**
  * Host markup (`<div>`, `<p>`, …) written as react-dom's static render writes it, for the installed React: its
  * attributes (attributes.ts); void, preformatted and custom elements; a `<select>`'s value marking its `<option>`s, an
- * `<input>`'s, `<textarea>`'s, `<button>`'s and `<form>`'s own rules. The walker writes the markup of a template with
+ * `<input>`'s, `<textarea>`'s, `<button>`'s and `<form>`'s own rules; a `<style>`'s, `<script>`'s and `<title>`'s text
+ * (React 18 writes it as any text, escaped; React 19 its one child as it is, but for what would end it). In a <Head>,
+ * a `<style>`'s and `<script>`'s text is written as it is in every React (but for what would end it), and a
+ * `<title>`'s children rendered: those tags are the document's head. The walker writes the markup of a template with
  * it, and the string exporters (src/exporters) the markup of their blocks.
  *
  * Not written as react-dom 19 writes it, on purpose (src/engine/differential.test.tsx lists each): its hoisting (a
@@ -16,36 +19,44 @@ import { REACT_18 } from "./react-compat";
 export { escapeText };
 
 /**
- * Where markup is (react-dom's format context): the value of the `<select>` it's in, which marks its `<option>`s, and
- * whether it's in a table, a row or a table's section (whose children start afresh).
+ * Where markup is (react-dom's format context): the value of the `<select>` it's in, which marks its `<option>`s;
+ * whether it's in a table, a row or a table's section (whose children start afresh); whether it's a <Head>'s; and
+ * whether it's the text of a <Head>'s `<style>` or `<script>`, written as it is.
  */
 export interface Format {
   selected?: unknown;
   table?: boolean;
+  head?: boolean;
+  raw?: boolean;
 }
 export const TOP: Format = {};
 
 /** Where what's in a `type` element is, as react-dom works it out. */
 export function childFormat(format: Format, type: string, props: Record<string, any>): Format {
+  const head = format.head;
   switch (type) {
     case "select":
-      return { selected: props.value != null ? props.value : props.defaultValue };
+      return { selected: props.value != null ? props.value : props.defaultValue, head };
     case "table":
     case "thead":
     case "tbody":
     case "tfoot":
     case "colgroup":
     case "tr":
-      return { table: true };
+      return { table: true, head };
     case "svg":
     case "math":
     case "foreignObject":
-      return TOP;
+      return { head };
     case "noscript":
     case "picture":
-      if (!REACT_18) return TOP;
+      if (!REACT_18) return { head };
+      break;
+    case "style":
+    case "script":
+      if (head) return { head, raw: true };
   }
-  return format.table ? TOP : format;
+  return format.table ? { head } : format;
 }
 
 export const VOID = new Set(["area", "base", "br", "col", "embed", "hr", "img", "input", "keygen", "link", "meta", "param", "source", "track", "wbr"]);
@@ -126,11 +137,11 @@ function optionText(children: unknown): string {
 }
 
 /**
- * What's in the element when its props say it (`dangerouslySetInnerHTML`, a `<textarea>`'s value), else undefined: its
- * children are walked. react-dom starts a `<pre>`, `<textarea>` or `<listing>` whose text starts with a newline with
- * one more (the parser drops it).
+ * What's in the element when its props say it (`dangerouslySetInnerHTML`, a `<textarea>`'s value, React 19's text of a
+ * `<style>`, `<script>` or `<title>`), else undefined: its children are walked. react-dom starts a `<pre>`,
+ * `<textarea>` or `<listing>` whose text starts with a newline with one more (the parser drops it).
  */
-export function propsBody(type: string, props: Record<string, any>): string | undefined {
+export function propsBody(type: string, props: Record<string, any>, format: Format = TOP): string | undefined {
   const html = props.dangerouslySetInnerHTML;
   if (type === "textarea") return textareaText(props);
   if (html != null) {
@@ -138,7 +149,14 @@ export function propsBody(type: string, props: Record<string, any>): string | un
     const body = given == null ? "" : "" + given;
     return (type === "pre" || type === "listing") && typeof given === "string" && given[0] === "\n" ? "\n" + body : body;
   }
-  return type === "menuitem" ? "" : undefined;
+  if (type === "menuitem") return "";
+  if (REACT_18 || format.head || !/^(style|script|title)$/.test(type)) return undefined;
+  // React 19: a script's text if it's a string; a style's or a title's one child (none for more than one).
+  const children = props.children;
+  if (type === "script") return typeof children === "string" ? escapeScript(children) : "";
+  const child = Array.isArray(children) ? (children.length < 2 ? children[0] : null) : children;
+  if (child == null || typeof child === "function" || typeof child === "symbol") return "";
+  return type === "style" ? escapeStyle("" + child) : escapeText("" + child);
 }
 
 /** A `<textarea>`'s text: its value, else its default value, else its one child. */
@@ -155,3 +173,10 @@ function textareaText(props: Record<string, any>): string {
 
 /** The newline react-dom adds before a `<pre>`'s or `<listing>`'s text children that start with one. */
 export const leadingNewline = (type: string, children: unknown): string => ((type === "pre" || type === "listing") && typeof children === "string" && children[0] === "\n" ? "\n" : "");
+
+/** A `<style>`'s text as React 19 writes it: what would end one (`</style`) or start one escaped, as CSS reads it. */
+export const escapeStyle = (text: string) => text.replace(/(<\/|<)(s)(tyle)/gi, (_, before: string, s: string, after: string) => before + (s === "s" ? "\\73 " : "\\53 ") + after);
+/** A `<script>`'s text as React 19 writes it: what would end one (`</script`) or start one escaped, as JavaScript reads it. */
+export const escapeScript = (text: string) => text.replace(/(<\/|<)(s)(cript)/gi, (_, before: string, s: string, after: string) => before + (s === "s" ? "\\u0073" : "\\u0053") + after);
+/** A <Head>'s `<style>`'s or `<script>`'s text, written as it is: what would end it escaped. */
+export const rawText = (type: string, text: string) => (type === "style" ? escapeStyle(text) : escapeScript(text));
