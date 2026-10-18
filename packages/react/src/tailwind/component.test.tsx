@@ -70,6 +70,22 @@ describe("<Tailwind>: classes as each component's props", () => {
     expect(block(<Paragraph className="my-4 px-2">Hi</Paragraph>).containerPadding).toBe("16px 8px");
     expect(block(<Paragraph className="mt-6">Hi</Paragraph>).containerPadding).toBe("24px 10px 10px");
     expect(block(<Html html="<b>x</b>" className="m-2 p-2" />).containerPadding).toBe("16px");
+    // In one unit, or with a zero, they add up too.
+    expect(block(<Paragraph className="p-[5%] m-[2%]">Hi</Paragraph>).containerPadding).toBe("7%");
+    expect(block(<Paragraph className="p-[5%] m-0">Hi</Paragraph>).containerPadding).toBe("5%");
+    expect(warnings()).toEqual([]);
+  });
+
+  it("keeps a block's padding where its margin can't be added to it, and says so", () => {
+    // Whatever the classes' order: the padding is the block's own.
+    for (const className of ["p-[5%] m-2", "m-2 p-[5%]"]) expect(block(<Paragraph className={className}>Hi</Paragraph>).containerPadding).toBe("5%");
+    expect(block(<Paragraph className="pt-[5%] m-2">Hi</Paragraph>).containerPadding).toBe("5% 8px 8px");
+    expect([...new Set(warnings())]).toEqual([
+      "[Unlayer] Paragraph ignores `margin: 8px` from class `m-2`: its `containerPadding` can't add it to `padding: 5%`.",
+      "[Unlayer] Paragraph ignores `margin: 8px` from class `m-2`: its `containerPadding` can't add it to `padding-top: 5%`.",
+    ]);
+    // Said once for a margin on several sides.
+    expect(warnings()).toHaveLength(3);
   });
 
   it("gives Button its colors, inner padding, corners, border, width and hover colors", () => {

@@ -5,7 +5,7 @@
  * is the component's. Props given explicitly win; what a component can't take is reported, never dropped quietly.
  */
 import { TABLES } from "./tables";
-import { shorthand, sidesOf, type Margins } from "./row";
+import { plus, shorthand, sidesOf, type Margins } from "./row";
 import { rowRewrite } from "./inherit";
 import { PROP_ALIASES } from "@unlayer-internal/shared-elements";
 import { BodyDefaults } from "@unlayer/exporters";
@@ -213,8 +213,10 @@ export function classesToProps(name: string, found: ClassDeclarations, explicit:
       if (value === undefined) drop(d);
       else out.set(prop as string, { value, d });
     }
-    // Spacing: a block's margins and padding are both the padding around it, added up.
+    // Spacing: a block's margins and padding are both the padding around it, added up; where they can't be (`5%` and
+    // `8px`), the padding, its own, stays and the margin is said.
     const spacing = new Map<string, Sides>();
+    const said = new Set<ClassDeclaration>();
     for (const kind of ["padding", "margin"] as const) {
       b[kind].forEach((d, i) => {
         if (!d) return;
@@ -226,7 +228,9 @@ export function classesToProps(name: string, found: ClassDeclarations, explicit:
         }
         const sides = spacing.get(prop) ?? (spacing.set(prop, []), spacing.get(prop)!);
         const was = sides[i];
-        sides[i] = was && /px$/.test(was.value) && /px$/.test(d.value) ? { ...d, value: `${parseFloat(was.value) + parseFloat(d.value)}px` } : d;
+        const sum = !was ? d.value : /px$/.test(was.value) && /px$/.test(d.value) ? `${parseFloat(was.value) + parseFloat(d.value)}px` : plus(was.value, d.value);
+        if (sum !== undefined) sides[i] = was ? { ...d, value: sum } : d;
+        else if (!said.has(d) && said.add(d)) ignore(d, `: its \`${prop}\` can't add it to \`${was!.property}: ${was!.value}\``);
       });
     }
     for (const [prop, sides] of spacing) {

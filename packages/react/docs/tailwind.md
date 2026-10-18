@@ -95,7 +95,7 @@ Colors come out as hex, or `rgba()` when translucent: Tailwind's `oklch()` palet
 | `text-left`, `text-center`, `text-right` | `Paragraph`, `Heading`, `Button`, `Image`, `Divider` / `Menu`, `Social` | `textAlign` / `align` (a Button's is where it sits in its column: its label stays centered) |
 | `p-*` | `Row`, `Column`, `Button` | `padding` (a Button's is inside it; a Row's insets its content, see below) |
 | `m-*` | `Column` | the space around it: its gutter (see [Card grids](#card-grids)) |
-| `p-*`, `m-*` | content blocks | `containerPadding`, margins and padding added up; sides the classes don't set keep 10px |
+| `p-*`, `m-*` | content blocks | `containerPadding`, margins and padding added up (where they can't be, as `5%` and `8px`, the padding stays and Elements says the margin is ignored); sides the classes don't set keep 10px |
 | `border*`, `border-{color}`, `border-dashed` | `Column`, `Button` / `Divider` | the `border` sides / its line (the top border); a width without a color class is in the text color, as Tailwind's `currentColor` |
 | `rounded-*` | `Column`, `Button` | `borderRadius` |
 | `w-*` | `Button`, `Image`, `Divider` / root | `width` (pixels or %; an Image's `w-auto` is its auto width) / `contentWidth` |

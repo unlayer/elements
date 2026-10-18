@@ -50,7 +50,7 @@ const SIDES = ["Top", "Right", "Bottom", "Left"];
 const px = (value: string) => (ZERO.test(value) ? 0 : /^\d*\.?\d+px$/.test(value) ? parseFloat(value) : NaN);
 
 /** Two lengths added: in one unit, or one of them zero; undefined where they can't be. */
-function plus(a: string, b: string): string | undefined {
+export function plus(a: string, b: string): string | undefined {
   if (ZERO.test(b)) return a;
   if (ZERO.test(a)) return b;
   const [x, y] = [LENGTH.exec(a), LENGTH.exec(b)];
