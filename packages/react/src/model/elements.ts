@@ -154,8 +154,8 @@ function recordHtml(c: Collected, scoped: Scoped, render: (element: React.ReactE
  * (worked out once: the HTML, the head and the design ask for the same).
  */
 function styled(c: Collected, { item, tw }: Scoped, props: Record<string, any>): Record<string, any> {
-  // (Classes in a block's `html` are inlined too.)
-  if (tw === undefined || !(props.className || /\sclass=/i.test(props.html))) return props;
+  // (Classes in a block's `html` are inlined too: one that has a class attribute, however it's written.)
+  if (tw === undefined || !(props.className || /class/i.test(props.html))) return props;
   c.styled ??= new Map();
   const r = recordOf(item);
   if (!c.styled.has(r)) {

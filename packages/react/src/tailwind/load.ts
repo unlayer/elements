@@ -77,7 +77,7 @@ async function compile(config: TailwindConfig | undefined, source = config): Pro
     props: (name: string, className: string, explicit: Record<string, any>, defaults?: Record<string, any>, rtl = false) => {
       // Classes in its markup (an Html block's, a Paragraph's `html`): inline styles.
       const html = explicit.html;
-      if (typeof html === "string" && /\sclass\s*=/i.test(html)) explicit = { ...explicit, html: inlineClasses(html, declarations, (text) => console.warn(`[Unlayer] ${name} ${text}.`), rtl) };
+      if (typeof html === "string" && /class/i.test(html)) explicit = { ...explicit, html: inlineClasses(html, declarations, (text) => console.warn(`[Unlayer] ${name} ${text}.`), rtl) };
       return classesToProps(name, declarations(className), explicit, defaults, false, rtl);
     },
   };

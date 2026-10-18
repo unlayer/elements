@@ -4,6 +4,8 @@
  * pass as a browser reads it and written again: what's left out can't join what's around it into a tag.
  */
 
+import { commentEnd, rawTextEnd, readTag, type Attribute } from "../utils/html-tags";
+
 const ESCAPES: Record<string, string> = { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "`": "&#96;" };
 
 /** Text as HTML; an entity reference written in it (`&copy;`) is kept, as Markdown keeps it. */
@@ -68,64 +70,11 @@ const ATTRIBUTES = new Set(
 );
 const URL_ATTRIBUTES: Record<string, "link" | "image"> = { href: "link", src: "image", background: "image", cite: "link" };
 
-/** A tag as a browser reads it: `<img/src=x/onerror=…>` is an `img` whose `src` is `x/onerror=…`. */
-interface Tag {
-  close: boolean;
-  name: string;
-  attributes: Array<[name: string, value: string | undefined]>;
-  selfClosing: boolean;
-  /** Where it ends (after its `>`). */
-  end: number;
-}
-
-// A tag's parts, as a browser's tokenizer reads them (whitespace is HTML's: no vertical tab, no non-breaking space).
-const TAG = /<(\/?)([a-z][^\t\n\f\r />]*)/iy;
-const GAP = /[\t\n\f\r /]*/y;
-const NAME = /[^\t\n\f\r />][^\t\n\f\r />=]*/y;
-const EQUALS = /[\t\n\f\r ]*=[\t\n\f\r ]*/y;
-const VALUE = /"([^"]*)"|'([^']*)'|([^\t\n\f\r >"'][^\t\n\f\r >]*)/y;
-/** A comment, a doctype, CDATA, `<?xml …>` or `</ …>` (each a comment to a browser), to where it ends. */
-const COMMENT = /<!--(?:-?>|[\s\S]*?--!?>|[\s\S]*)|<(?:[!?]|\/(?![a-z]))[^>]*>?/iy;
-
-/** What `re` matches at `i` (its `lastIndex` then where the match ends). */
-const at = (re: RegExp, s: string, i: number) => ((re.lastIndex = i), re.exec(s));
-
-/**
- * The tag at `start` (a `<`): undefined where none starts there, null where the input ends in it (before its `>`, or in
- * a quote left open).
- */
-function readTag(s: string, start: number): Tag | null | undefined {
-  const tag = at(TAG, s, start);
-  if (!tag) return undefined;
-  const attributes: Tag["attributes"] = [];
-  for (let i = TAG.lastIndex; ; ) {
-    const gap = at(GAP, s, i)![0];
-    i = GAP.lastIndex;
-    if (i >= s.length) return null;
-    if (s[i] === ">") return { close: !!tag[1], name: tag[2].toLowerCase(), attributes, selfClosing: gap.endsWith("/"), end: i + 1 };
-    const name = at(NAME, s, i)![0].toLowerCase();
-    i = NAME.lastIndex;
-    let value: string | undefined;
-    if (at(EQUALS, s, i)) {
-      i = EQUALS.lastIndex;
-      value = "";
-      // (`x=>`: an empty value, and the tag's end.)
-      if (s[i] !== ">") {
-        const given = at(VALUE, s, i);
-        if (!given) return null;
-        value = given[1] ?? given[2] ?? given[3];
-        i = VALUE.lastIndex;
-      }
-    }
-    attributes.push([name, value]);
-  }
-}
-
 /** A kept tag's attributes, written again: those on the list, each once (the first of a name, as a browser reads it). */
-function keptAttributes(list: Tag["attributes"]): string {
+function keptAttributes(list: Attribute[]): string {
   let kept = "";
   const seen = new Set<string>();
-  for (const [key, value] of list) {
+  for (const { name: key, value } of list) {
     if (seen.has(key)) continue;
     seen.add(key);
     if (!ATTRIBUTES.has(key) && !/^aria-[a-z]+$/.test(key)) continue;
@@ -161,8 +110,9 @@ export function sanitizeHtml(html: string): string {
     const lt = s.indexOf("<", i);
     if (lt < 0) return out + s.slice(i);
     out += s.slice(i, lt);
-    if (at(COMMENT, s, lt)) {
-      i = COMMENT.lastIndex;
+    const comment = commentEnd(s, lt);
+    if (comment !== undefined) {
+      i = comment;
       continue;
     }
     const tag = readTag(s, lt);
@@ -177,8 +127,8 @@ export function sanitizeHtml(html: string): string {
     if (KEPT.has(tag.name)) out += tag.close ? `</${tag.name}>` : `<${tag.name}${keptAttributes(tag.attributes)}${tag.selfClosing ? " /" : ""}>`;
     else if (!tag.close && WITH_CONTENT.test(tag.name) && !(tag.selfClosing && /^(svg|math)$/.test(tag.name))) {
       // Left out to its end tag (or the input's end), with what's in it. (An empty `<svg … />` has nothing in it.)
-      const end = at(new RegExp(`</${tag.name}(?=[\\t\\n\\f\\r />]|$)`, "gi"), s, i);
-      i = (end && readTag(s, end.index)?.end) || s.length;
+      const end = rawTextEnd(s, tag.name, i);
+      i = readTag(s, end)?.end || s.length;
     }
   }
   return out;

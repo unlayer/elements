@@ -23,7 +23,8 @@ import {
   renderRowToJson,
   UnlayerProvider,
 } from "../index";
-import { Tailwind, loadTailwind, renderToJson as renderToJsonAsync, type TailwindHandle } from "./index";
+import { Tailwind, classNameToDeclarations, loadTailwind, renderToJson as renderToJsonAsync, type TailwindHandle } from "./index";
+import { inlineClasses } from "./html";
 
 const config = { theme: { extend: { colors: { brand: "#007291" } } } };
 let tw: TailwindHandle;
@@ -295,7 +296,7 @@ describe("<Tailwind>: classes in an Html block's markup", () => {
     );
     const [html, paragraph] = renderToJson(element).body.rows[0].columns[0].contents;
     expect(html.values.html).toBe(
-      '<p class="mine" style="padding: 16px; color: #fb2c36; color: blue">Hi <a href="https://example.com" style="font-weight: 700; text-decoration: underline">there</a></p><br style="display: block" /><!-- <i class="p-2"> -->'
+      '<p class="mine" style="padding: 16px; color: #fb2c36; color: blue">Hi <a href="https://example.com" style="font-weight: 700; text-decoration: underline">there</a></p><br style="display: block"/><!-- <i class="p-2"> -->'
     );
     // Logical sides (`px-2`, `rounded-s-md`) as physical ones, which email clients read.
     expect(paragraph.values.text).toBe('Total: <span style="border-top-left-radius: 6px; border-bottom-left-radius: 6px; padding-left: 8px; padding-right: 8px; font-weight: 700; color: #007291">$10</span>');
@@ -314,6 +315,80 @@ describe("<Tailwind>: classes in an Html block's markup", () => {
       "[Unlayer] Html can't inline class `sm:p-4` in its markup: it applies above a screen width only, which needs a stylesheet.",
     ]);
   });
+
+  it("reads tags and attributes as a browser does: what isn't a class attribute, or isn't in a tag, stays as written", () => {
+    const cases: Array<[string, string]> = [
+      // `class=` in another attribute's value; the first `class` of a tag (a browser ignores the others).
+      ['<div title=" class=x">Hi</div>', '<div title=" class=x">Hi</div>'],
+      ['<div title=" class=x" class="p-2 mine">Hi</div>', '<div title=" class=x" class="mine" style="padding: 8px">Hi</div>'],
+      ["<p data-x='class=\"p-4\"' class=p-2>a</p>", "<p data-x='class=\"p-4\"' style=\"padding: 8px\">a</p>"],
+      ['<p class="p-2" class="p-4 mine">a</p>', '<p style="padding: 8px">a</p>'],
+      // A `/` between attributes, a name in capitals, an unquoted value (`block/` isn't Tailwind's).
+      ['<p/CLASS="p-2">a</p><br class=block/>', '<p style="padding: 8px">a</p><br class=block/>'],
+      // In a comment, in raw text, in a `<` that starts no tag, in a tag the markup ends in: text, as written.
+      ['<!--> <b class="p-2">x</b><!-- <i class="p-2"> -->', '<!--> <b style="padding: 8px">x</b><!-- <i class="p-2"> -->'],
+      ['<textarea><b class="p-2"></textarea><title><i class="p-2"></title><style>.a{} <b class="p-2"></style><script>"<b class=\'p-2\'>"</script>', '<textarea><b class="p-2"></textarea><title><i class="p-2"></title><style>.a{} <b class="p-2"></style><script>"<b class=\'p-2\'>"</script>'],
+      ['a < b class="p-2"> c', 'a < b class="p-2"> c'],
+      ['<p>x</p><p class="p-2', '<p>x</p><p class="p-2'],
+      // The element's own style after the classes', as it's written (its references and quotes kept).
+      ['<p style=color:blue class=p-2>a</p>', '<p style="padding: 8px; color:blue">a</p>'],
+      ["<p class=\"p-2 mine\" title=\"&copy;\" style='font-family: \"A\"; content: \"&copy;\";'>a</p>", '<p class="mine" title="&copy;" style="padding: 8px; font-family: &quot;A&quot;; content: &quot;&copy;&quot;">a</p>'],
+    ];
+    for (const [markup, inlined] of cases) expect([markup, block(<Html html={markup} />).html]).toEqual([markup, inlined]);
+    expect(warnings()).toEqual([]);
+  });
+
+  it("never throws, changes nothing but class attributes and the styles they give, and inlining again changes nothing, whatever fragments it's given (fuzzed)", () => {
+    // `TAILWIND_FUZZ_RUNS=100000` for a longer run, `TAILWIND_FUZZ_SEED` for other inputs.
+    const runs = Number(process.env.TAILWIND_FUZZ_RUNS ?? 600);
+    const fragments = [
+      "<p", "<div", "<span", "<br", "<img src=x", "<a href='x'", ">", "/>", " ", "\n", "\t", "/", "=", '"', "'", "`", "\0",
+      ' class="', " class='", " class=", " CLASS=", "class", ' title="', " title='", ' style="', " style='color: blue'", ' style="color: red;"', " style", ' dir="rtl"', " dir=ltr",
+      "p-4", " text-red-500", " mine", " md:p-2", " hidden", " md:block", " ps-4", " max-sm:p-1", " hover:underline", " dark:text-white", " w-[10px]", " group", " group-hover:underline",
+      "&amp;", "&quot;", "&#39;", "&copy;", "&", "<!--", "-->", "--!>", "<!-->", "<!", "<?x ", "</", "</p>", "</div>", "</span>", "<script>", "</script>", "<style>", "</style>",
+      "<textarea>", "</textarea>", "<title>", "</title>", "<xmp>", "<plaintext>", "<noscript>", "<svg>", "</svg>", "<math>", "<table><tr><td", "text", "Hi", "<", "<<",
+    ];
+    const read = (className: string) => classNameToDeclarations(tw, className);
+    const none = (className: string) => ({ declarations: [], ignored: className.split(/\s+/).filter(Boolean).map((name) => ({ className: name, reason: "Tailwind has no such class" })) });
+    const parse = (html: string) => new DOMParser().parseFromString(`<!doctype html><body>${html}`, "text/html").body;
+    // What a browser reads both as, but for each element's class (fewer classes) and style (the inlined ones before its own).
+    const differ = (a: Node, b: Node): string | undefined => {
+      if (a.nodeType !== b.nodeType || a.nodeName !== b.nodeName) return `${a.nodeName} → ${b.nodeName}`;
+      if (a instanceof Element && b instanceof Element) {
+        const rest = (e: Element) => [...e.attributes].filter((x) => x.name !== "class" && x.name !== "style").map((x) => `${x.name}=${x.value}`).join(" ");
+        if (rest(a) !== rest(b)) return `<${a.localName} ${rest(a)}> → <${b.localName} ${rest(b)}>`;
+        const classes = (e: Element) => (e.getAttribute("class") ?? "").split(/[\t\n\f\r ]+/).filter(Boolean);
+        if (classes(b).some((name) => !classes(a).includes(name))) return `class ${a.getAttribute("class")} → ${b.getAttribute("class")}`;
+        const style = (e: Element) => (e.getAttribute("style") ?? "").replace(/;\s*$/, "");
+        if (!style(b).endsWith(style(a))) return `style ${a.getAttribute("style")} → ${b.getAttribute("style")}`;
+      } else if (a.nodeValue !== b.nodeValue) return `${JSON.stringify(a.nodeValue)} → ${JSON.stringify(b.nodeValue)}`;
+      if (a.childNodes.length !== b.childNodes.length) return `${a.nodeName}'s ${a.childNodes.length} children → ${b.childNodes.length}`;
+      for (let i = 0; i < a.childNodes.length; i++) {
+        const why = differ(a.childNodes[i], b.childNodes[i]);
+        if (why) return why;
+      }
+      return undefined;
+    };
+    const r = random(Number(process.env.TAILWIND_FUZZ_SEED ?? 20261018));
+    const bad: string[] = [];
+    for (let run = 0; run < runs && bad.length < 5; run++) {
+      let input = "";
+      for (let n = 1 + Math.floor(r() * 24); n > 0; n--) input += fragments[Math.floor(r() * fragments.length)];
+      const wrong = (why: string, out = "") => bad.push(`${JSON.stringify(input)} → ${JSON.stringify(out)}: ${why}`);
+      let out: string;
+      try {
+        out = inlineClasses(input, read, () => {});
+        if (inlineClasses(input, none, () => {}) !== input) wrong("changed with no class to inline", inlineClasses(input, none, () => {}));
+      } catch (error) {
+        wrong(`throws ${error}`);
+        continue;
+      }
+      if (inlineClasses(out, read, () => {}) !== out) wrong("not idempotent", out);
+      const why = differ(parse(input), parse(out));
+      if (why) wrong(why, out);
+    }
+    expect(bad).toEqual([]);
+  }, 60000);
 });
 
 describe("<Tailwind>: logical sides (`ps-*`, `border-e-*`, `rounded-ss-*`, `text-start`) follow the text direction", () => {
@@ -949,3 +1024,14 @@ describe("<Tailwind config> with the synchronous renderers", () => {
     expect(() => renderToJson(<Tailwind tw={{ config: undefined }}>{template(undefined, "p-2").props.children}</Tailwind>)).toThrow('[Unlayer] <Tailwind tw> takes `await loadTailwind(config)` from "@unlayer/react-elements/tailwind".');
   });
 });
+
+/** A seeded random number generator (mulberry32): the same inputs every run. */
+function random(seed: number): () => number {
+  let a = seed >>> 0;
+  return () => {
+    a = (a + 0x6d2b79f5) >>> 0;
+    let t = Math.imul(a ^ (a >>> 15), 1 | a);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
