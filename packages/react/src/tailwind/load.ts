@@ -21,14 +21,19 @@ export interface HandleResolver extends Resolver {
   declarations(className: string): ClassDeclarations;
 }
 
-/** A config as text with its keys sorted, so equal configs compile once; undefined when it holds functions (plugins). */
-export function configKey(config: unknown, seen = new Set<unknown>()): string | undefined {
+/**
+ * A config as text with its keys sorted, so equal configs compile once; undefined when it holds what isn't data: a
+ * function (a plugin), unless `mark` is what to write for one (what else of it can be read: see withFunctions).
+ */
+export function configKey(config: unknown, mark?: string, seen = new Set<unknown>()): string | undefined {
   if (config === undefined) return "";
-  if (config === null || ["string", "number", "boolean"].includes(typeof config)) return JSON.stringify(config);
-  if (seen.has(config) || typeof config !== "object" || (!Array.isArray(config) && Object.getPrototypeOf(config) !== Object.prototype && Object.getPrototypeOf(config) !== null)) return undefined;
+  const type = typeof config;
+  if (config === null || type === "string" || type === "number" || type === "boolean") return JSON.stringify(config);
+  if (type === "function") return mark;
+  if (seen.has(config) || type !== "object" || (!Array.isArray(config) && Object.getPrototypeOf(config) !== Object.prototype && Object.getPrototypeOf(config) !== null)) return undefined;
   seen.add(config);
-  const entries = Array.isArray(config) ? config.map((v) => configKey(v, seen)) : Object.keys(config).sort().map((k) => {
-    const v = configKey((config as Record<string, unknown>)[k], seen);
+  const entries = Array.isArray(config) ? config.map((v) => configKey(v, mark, seen)) : Object.keys(config).sort().map((k) => {
+    const v = configKey((config as Record<string, unknown>)[k], mark, seen);
     return v === undefined ? undefined : `${JSON.stringify(k)}:${v}`;
   });
   seen.delete(config);
@@ -63,9 +68,10 @@ async function compiler(config: TailwindConfig | undefined): Promise<Compiler> {
   });
 }
 
-async function compile(config: TailwindConfig | undefined): Promise<TailwindHandle> {
+/** A handle for `config`, compiled from `source` (a copy of it, or the config itself where it can't be copied). */
+async function compile(config: TailwindConfig | undefined, source = config): Promise<TailwindHandle> {
   // (A fresh compiler past the classes one keeps: see declarationReader.)
-  const declarations = declarationReader(await compiler(config), () => compiler(config));
+  const declarations = declarationReader(await compiler(source), () => compiler(source));
   const resolver: HandleResolver = {
     declarations,
     props: (name: string, className: string, explicit: Record<string, any>, defaults?: Record<string, any>, rtl = false) => {
@@ -81,14 +87,20 @@ async function compile(config: TailwindConfig | undefined): Promise<TailwindHand
 /** The configs kept compiled (about 1.3 MB each, and their classes), the ones used last: a server rendering each customer's theme keeps these. */
 export const CONFIGS = 50;
 
-// By its text, the last used last; by the object, its text (or, for a config with functions, its handle).
+// By its text, the one used last last; one with functions by the object, with the text of the rest as it was compiled.
 const byKey = new Map<string, Promise<TailwindHandle>>();
-const byConfig = new WeakMap<object, string | Promise<TailwindHandle>>();
+const byObject = new WeakMap<object, { rest?: string; loading: Promise<TailwindHandle> }>();
+const changed = new WeakSet<object>();
 
 /**
  * Compiles Tailwind for a config (React Email's `<Tailwind config>` takes the same), kept for later calls: one with
- * the same config (the same object, or one equal to it) gets the same handle, while it's among the 50 used last.
- * Pass it to `<Tailwind tw={tw}>`.
+ * the same config (one equal to it, or the same object as it is now) gets the same handle, while it's among the 50 used
+ * last. Pass it to `<Tailwind tw={tw}>`. A config is known by what it holds when it's called: one changed in place
+ * (a color made another) is compiled as it is then, and the handles given before keep what they were compiled from.
+ *
+ * A config with functions (plugins) can't be known by what it holds: it's compiled once per object, so define it
+ * once, outside your components, and give a changed one as a new object. (One whose data changed in place is
+ * compiled again, saying so; one whose functions did isn't.)
  *
  * @example
  * ```tsx
@@ -97,29 +109,32 @@ const byConfig = new WeakMap<object, string | Promise<TailwindHandle>>();
  * ```
  */
 export function loadTailwind(config?: TailwindConfig): Promise<TailwindHandle> {
-  const object = config && typeof config === "object" ? config : undefined;
-  const known = object && byConfig.get(object);
-  if (known && typeof known !== "string") return known;
-  const key = known ?? configKey(config);
-  if (key === undefined) {
-    console.warn("[Unlayer] loadTailwind: the config holds functions (plugins), so it's compiled again for each config object: define it once, outside your components.");
-  }
-  let loading = key === undefined ? undefined : byKey.get(key);
+  const key = configKey(config);
+  if (key === undefined) return withFunctions(config!);
+  let loading = byKey.get(key);
   if (!loading) {
-    loading = compile(config);
+    // (From a copy: one changed in place after is another config, which its handle's fresh compilers don't read.)
+    const compiling = (loading = compile(config, config && structuredClone(config)));
     // One that failed (Tailwind not installed) is tried again next time.
-    loading.catch(() => {
-      if (key !== undefined && byKey.get(key) === loading) byKey.delete(key);
-      if (object && byConfig.get(object) === loading) byConfig.delete(object);
-    });
+    compiling.catch(() => void (byKey.get(key) === compiling && byKey.delete(key)));
   }
-  if (key !== undefined) {
-    // Used last, it goes last; past CONFIGS, the one used longest ago goes (a handle given out keeps working).
-    byKey.delete(key);
-    byKey.set(key, loading);
-    if (byKey.size > CONFIGS) byKey.delete(byKey.keys().next().value!);
-  }
-  if (object) byConfig.set(object, key ?? loading);
+  // Used last, it goes last; past CONFIGS, the one used longest ago goes (a handle given out keeps working).
+  byKey.delete(key);
+  byKey.set(key, loading);
+  if (byKey.size > CONFIGS) byKey.delete(byKey.keys().next().value!);
+  return loading;
+}
+
+/** A config with functions (see loadTailwind), by the object: compiled again where the rest of it (its data) changed. */
+function withFunctions(config: TailwindConfig): Promise<TailwindHandle> {
+  const rest = configKey(config, "ƒ");
+  const known = byObject.get(config);
+  if (known && known.rest === rest) return known.loading;
+  if (!known) console.warn("[Unlayer] loadTailwind: the config holds functions (plugins), so it's compiled again for each config object: define it once, outside your components.");
+  else if (!changed.has(config) && changed.add(config)) console.warn("[Unlayer] loadTailwind: a config with functions (plugins) changed since it was compiled, so it's compiled again: give a changed config as a new object (a function changed in place isn't seen).");
+  const loading = compile(config);
+  byObject.set(config, { rest, loading });
+  loading.catch(() => void (byObject.get(config)?.loading === loading && byObject.delete(config)));
   return loading;
 }
 

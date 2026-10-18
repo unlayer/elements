@@ -169,6 +169,52 @@ describe("loadTailwind", () => {
     expect(classNameToDeclarations(handle, "w-[3px]").declarations[0].value).toBe("3px");
   });
 
+  it("compiles a config changed in place as it is now, the handles given before working as they did", async () => {
+    // It was known by the object: the theme it had when it was first compiled, whatever it said after.
+    const theme = { theme: { extend: { colors: { brand: "#ff0000" } } } };
+    const red = await loadTailwind(theme);
+    theme.theme.extend.colors.brand = "#0000ff";
+    const blue = await loadTailwind(theme);
+    expect(blue).not.toBe(red);
+    expect(classNameToDeclarations(blue, "text-brand").declarations[0].value).toBe("#0000ff");
+    expect(classNameToDeclarations(red, "text-brand").declarations[0].value).toBe("#ff0000");
+    // Changed back, it's the handle of that text again; equal to another config, that one's.
+    theme.theme.extend.colors.brand = "#ff0000";
+    expect(await loadTailwind(theme)).toBe(red);
+    expect(await loadTailwind({ theme: { extend: { colors: { brand: "#0000ff" } } } })).toBe(blue);
+    // A handle's fresh compiler (past the classes it keeps) is compiled from what it was compiled from.
+    theme.theme.extend.colors.brand = "#00ff00";
+    const count = compiled.count;
+    for (let i = 0; i <= CLASSES; i += 500) classNameToDeclarations(red, Array.from({ length: 500 }, (_, j) => `w-[${i + j}px]`).join(" "));
+    await vi.waitFor(() => expect(compiled.count).toBe(count + 1));
+    expect(classNameToDeclarations(red, "text-brand").declarations[0].value).toBe("#ff0000");
+    theme.theme.extend.colors.brand = "#ff0000";
+    // The async renderers, given the same object changed between renders.
+    const template = () => <Tailwind config={theme}><Email><Row><Column><Paragraph className="text-brand">Hi</Paragraph></Column></Row></Email></Tailwind>;
+    expect(await renderToHtml(template())).toContain("color: #ff0000");
+    theme.theme.extend.colors.brand = "#0000ff";
+    expect(await renderToHtml(template())).toContain("color: #0000ff");
+    expect(warn).not.toHaveBeenCalled();
+  });
+
+  it("compiles a config with functions changed in place again where what isn't a function changed, saying so once", async () => {
+    // (Its functions can't be compared: one changed in place isn't seen.)
+    const withPlugin = { plugins: [() => {}], theme: { extend: { colors: { brand: "#ff0000" } } } };
+    const red = await loadTailwind(withPlugin);
+    expect(await loadTailwind(withPlugin)).toBe(red);
+    withPlugin.theme.extend.colors.brand = "#0000ff";
+    const blue = await loadTailwind(withPlugin);
+    expect(blue).not.toBe(red);
+    expect(classNameToDeclarations(blue, "text-brand").declarations[0].value).toBe("#0000ff");
+    expect(await loadTailwind(withPlugin)).toBe(blue);
+    withPlugin.theme.extend.colors.brand = "#00ff00";
+    expect(classNameToDeclarations(await loadTailwind(withPlugin), "text-brand").declarations[0].value).toBe("#00ff00");
+    const said = warn.mock.calls.map((call) => String(call[0]));
+    expect(said.filter((message) => /changed since it was compiled/.test(message))).toEqual([
+      "[Unlayer] loadTailwind: a config with functions (plugins) changed since it was compiled, so it's compiled again: give a changed config as a new object (a function changed in place isn't seen).",
+    ]);
+  });
+
   it("says a config with functions is compiled again for each object", async () => {
     const plugin = () => {};
     const withPlugin = { plugins: [plugin] };
