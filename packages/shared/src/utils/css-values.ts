@@ -148,13 +148,14 @@ function copy<T>(value: T): T {
   return out as T;
 }
 
-/** A key the schema types as px lengths: a padding or margin, a box of them, a radius, a width, a font size. */
-const PX_KEY = /(padding|margin|radius|width|spacing|fontsize)$/i;
+/** What a key the schema types as px lengths ends in: a padding or margin, a box of them, a radius, a width, a font size. */
+const PX_ENDINGS = ["padding", "margin", "radius", "width", "spacing", "fontsize"];
+const PX_KEY = new RegExp(`(${PX_ENDINGS.join("|")})$`, "i");
+/** Their last letters (lowercase char codes): most keys end in none of them, and aren't tested further. */
+const PX_LAST = new Set(PX_ENDINGS.map((ending) => ending.charCodeAt(ending.length - 1)));
 const PX_LENGTHS = /^\s*((-?[\d.]+px|0)(\s+|$))+$/;
 function pxKey(key: string): boolean {
-  // (Most keys don't end in one of their last letters: g, s, h, e.)
-  const last = key.charCodeAt(key.length - 1) | 32;
-  return (last === 103 || last === 115 || last === 104 || last === 101) && PX_KEY.test(key);
+  return PX_LAST.has(key.charCodeAt(key.length - 1) | 32) && PX_KEY.test(key);
 }
 
 function isPlainObject(value: unknown): value is Record<string, unknown> {

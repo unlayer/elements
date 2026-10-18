@@ -794,6 +794,11 @@ describe("renderToJson lengths", () => {
     expect(design.body.rows[0].columns[0].values).toMatchObject({ padding: "0px 16px", borderRadius: "0px 4px", border: { borderLeftWidth: "0px" } });
   });
 
+  it("in the body's margins too: documentMargin, popupCloseButton_margin", () => {
+    const body = renderToJson(<Document values={{ documentMargin: "0 0 12px", popupCloseButton_margin: "0" } as never}><Row><Column><Paragraph>Hi</Paragraph></Column></Row></Document>).body.values as any;
+    expect(body).toMatchObject({ documentMargin: "0px 0px 12px", popupCloseButton_margin: "0px" });
+  });
+
   it("leaves a length in another unit as it is, and the HTML as it was", () => {
     expect(blockOf(one(<Paragraph containerPadding="1em 0">Hi</Paragraph>)).containerPadding).toBe("1em 0");
     expect(blockOf(one(<Paragraph containerPadding="0 auto">Hi</Paragraph>)).containerPadding).toBe("0 auto");
