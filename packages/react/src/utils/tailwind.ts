@@ -5,12 +5,12 @@
  * whose content is one is rewritten by it too. The main entry knows no more of Tailwind than that.
  */
 import React from "react";
-import { scopeCache } from "./render-scope";
+import { rightToLeft, scopeCache } from "./render-scope";
 
 /** A scope's rewrite: on its component type, in its recorded props, and on the errors it throws (passed on as they are). */
 export const TAILWIND = Symbol.for("@unlayer/react-elements/tailwind");
 
-type Rewrite = (scope: Record<PropertyKey, any>, name: string, defaults: Record<string, any> | undefined, props: Record<string, any>) => Record<string, any>;
+type Rewrite = (scope: Record<PropertyKey, any>, name: string, defaults: Record<string, any> | undefined, props: Record<string, any>, rtl?: boolean) => Record<string, any>;
 
 /** On a scope's component type (the Tailwind entry's <Tailwind>): its copy's compiler, for the async renderers. */
 export const TAILWIND_LOADER = Symbol.for("@unlayer/react-elements/tailwind-loader");
@@ -19,13 +19,14 @@ export const TAILWIND_LOADER = Symbol.for("@unlayer/react-elements/tailwind-load
 export const isTailwindError = (error: unknown): boolean => !!(error as Record<symbol, unknown> | null)?.[TAILWIND];
 
 /**
- * A component's props as the scope it's in (its recorded props) rewrites them. A Row's can hold a function under
- * `[TAILWIND]`, which src/model/elements.ts gives the Row's children (its Columns), its props and the root's, to change
+ * A component's props as the scope it's in (its recorded props) rewrites them, in the render's direction (logical
+ * sides, `ps-4`, are the right in a right-to-left root). A Row's can hold a function under `[TAILWIND]`, which
+ * src/model/elements.ts gives the Row's children (its Columns), its props, the root's and the direction, to change
  * (Tailwind's padding classes, which inset the content as in CSS, and text styles for the text inside); so can a
  * Column's `style` and the root's props, for a Row without one.
  */
 export const classProps = (scope: Record<PropertyKey, any>, name: string, defaults: Record<string, any> | undefined, props: Record<string, any>): Record<string, any> =>
-  (scope[TAILWIND] as Rewrite)(scope, name, defaults, props);
+  (scope[TAILWIND] as Rewrite)(scope, name, defaults, props, rightToLeft());
 
 /** The scope a root's content is in: its only child, through context providers and Fragments. */
 function tailwindIn(children: React.ReactNode): React.ReactElement<Record<PropertyKey, any>> | undefined {

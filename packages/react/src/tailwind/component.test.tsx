@@ -21,6 +21,7 @@ import {
   renderToJson,
   renderToPlainText,
   renderRowToJson,
+  UnlayerProvider,
 } from "../index";
 import { Tailwind, loadTailwind, renderToJson as renderToJsonAsync, type TailwindHandle } from "./index";
 
@@ -312,6 +313,110 @@ describe("<Tailwind>: classes in an Html block's markup", () => {
       "[Unlayer] Html can't inline class `max-sm:p-1` in its markup: it applies on phones only, which needs a stylesheet.",
       "[Unlayer] Html can't inline class `sm:p-4` in its markup: it applies above a screen width only, which needs a stylesheet.",
     ]);
+  });
+});
+
+describe("<Tailwind>: logical sides (`ps-*`, `border-e-*`, `rounded-ss-*`, `text-start`) follow the text direction", () => {
+  type Props = Record<string, unknown>;
+  const RTL = { textDirection: "rtl" };
+  const one = (root: Props, content: React.ReactNode, row = "") => (
+    <Tailwind tw={tw}>
+      <Email {...root}>
+        <Row className={row}>{content}</Row>
+      </Email>
+    </Tailwind>
+  );
+  /** A border's four widths, `top right bottom left`. */
+  const widths = (border: Record<string, string>) => ["Top", "Right", "Bottom", "Left"].map((side) => border[`border${side}Width`] ?? "-").join(" ");
+  const columnOf = (root: Props) => {
+    const element = one(root, <Column className="bg-white ps-4 pe-2 max-sm:ps-1 border-s-2 border-e-4 rounded-ss-sm rounded-se-md rounded-ee-lg rounded-es-xl"><Paragraph>Hi</Paragraph></Column>);
+    const { values } = renderToJson(element).body.rows[0].columns[0];
+    return { values: { padding: values.padding, phone: values._override?.mobile?.padding, border: widths(values.border), radius: values.borderRadius }, html: renderToHtml(element) };
+  };
+
+  it("on a Column: its padding, borders and corners, in the design and the HTML", () => {
+    const ltr = columnOf({});
+    expect(ltr.values).toEqual({ padding: "0px 8px 0px 16px", phone: "0px 8px 0px 4px", border: "- 4px - 2px", radius: "4px 6px 8px 12px" });
+    const rtl = columnOf(RTL);
+    expect(rtl.values).toEqual({ padding: "0px 16px 0px 8px", phone: "0px 4px 0px 8px", border: "- 2px - 4px", radius: "6px 4px 12px 8px" });
+    expect(rtl.html).toMatch(/class="v-col-padding[^"]*" style="[^"]*padding: 0px 16px 0px 8px;border-top: 0px solid transparent;border-left: 4px solid #000000;border-right: 2px solid #000000;[^"]*border-radius: 6px 4px 12px 8px;/);
+    // `ltr` and `auto` (which the email can't resolve) read as left to right.
+    for (const textDirection of ["ltr", "auto"]) expect(columnOf({ textDirection }).values).toEqual(ltr.values);
+    expect(warnings()).toEqual([]);
+  });
+
+  it("on blocks: their spacing, a Button's padding, border and corners, and the alignment, theirs or around them", () => {
+    const blocks = (root: Props) =>
+      renderToJson(
+        one(
+          root,
+          <Column className="text-end">
+            <Paragraph className="ps-4 me-2 text-start">A</Paragraph>
+            <Heading>B</Heading>
+            <Button href="https://example.com" className="ps-6 pe-3 border-e-2 rounded-s-lg">C</Button>
+            <Image src="https://example.com/a.png" className="text-start" />
+          </Column>
+        )
+      ).body.rows[0].columns[0].contents.map(({ values: v }: { values: Record<string, any> }) => [v.containerPadding, v.textAlign, v.padding, v.border && widths(v.border), v.borderRadius].filter((x) => x !== undefined));
+    expect(blocks({})).toEqual([["10px 8px 10px 16px", "left"], ["10px", "right"], ["10px", "right", "10px 12px 10px 24px", "- 2px - -", "8px 4px 4px 8px"], ["10px", "left"]]);
+    expect(blocks(RTL)).toEqual([["10px 16px 10px 8px", "right"], ["10px", "left"], ["10px", "left", "10px 24px 10px 12px", "- - - 2px", "4px 8px 8px 4px"], ["10px", "right"]]);
+  });
+
+  it("on a Row: its padding classes go to the Column on that side (the first is on the right), and its Columns' margins between them", () => {
+    const columns = (root: Props) =>
+      renderToJson(one(root, [<Column key={1} className="me-2"><Paragraph>1</Paragraph></Column>, <Column key={2} className="ms-2"><Paragraph>2</Paragraph></Column>], "ps-8 pe-4 py-2")).body.rows[0].columns.map(
+        ({ values: v }: { values: Record<string, any> }) => [v.padding, v._override?.mobile?.padding]
+      );
+    expect(columns({})).toEqual([["8px 8px 8px 32px", "8px 16px 8px 32px"], ["8px 16px 8px 8px", "8px 16px 8px 32px"]]);
+    // Mirrored: stacked on phones, the first is still on top, 8px from the next.
+    expect(columns(RTL)).toEqual([["8px 32px 8px 8px", "8px 32px 8px 16px"], ["8px 8px 8px 16px", "8px 32px 8px 16px"]]);
+    // A physical class is the side it says: the left is the last Column's, right to left.
+    const physical = (root: Props, row: string) => renderToJson(one(root, [<Column key={1}><Paragraph>1</Paragraph></Column>, <Column key={2}><Paragraph>2</Paragraph></Column>], row)).body.rows[0].columns.map((c: any) => c.values.padding);
+    expect([physical({}, "pl-8"), physical({}, "pr-8")]).toEqual([["0px 0px 0px 32px", "0px"], ["0px", "0px 32px 0px 0px"]]);
+    expect([physical(RTL, "pl-8"), physical(RTL, "pr-8")]).toEqual([["0px", "0px 0px 0px 32px"], ["0px 32px 0px 0px", "0px"]]);
+  });
+
+  it("in an Html block's markup: an element's own `dir`, else the nearest around it in the markup, else the root's", () => {
+    const markup = '<p class="ps-3 border-e-2 rounded-ss-md text-start">a</p><div dir="ltr"><p class="ps-3">b<br class="block"><span dir="rtl" class="pe-1">c</span></p></div><p dir="ltr" class="pe-1">d</p><p class="pe-1">e</p>';
+    const html = (root: Props) => renderToJson(one(root, <Column><Html html={markup} /></Column>)).body.rows[0].columns[0].contents[0].values.html;
+    expect(html({})).toBe(
+      '<p style="border-top-left-radius: 6px; border-right-style: solid; border-right-width: 2px; padding-left: 12px; text-align: start">a</p><div dir="ltr"><p style="padding-left: 12px">b<br style="display: block"><span dir="rtl" style="padding-left: 4px">c</span></p></div><p dir="ltr" style="padding-right: 4px">d</p><p style="padding-right: 4px">e</p>'
+    );
+    expect(html(RTL)).toBe(
+      '<p style="border-top-right-radius: 6px; border-left-style: solid; border-left-width: 2px; padding-right: 12px; text-align: start">a</p><div dir="ltr"><p style="padding-left: 12px">b<br style="display: block"><span dir="rtl" style="padding-left: 4px">c</span></p></div><p dir="ltr" style="padding-right: 4px">d</p><p style="padding-left: 4px">e</p>'
+    );
+    // The HTML has the same.
+    expect(renderToHtml(one(RTL, <Column><Html html={markup} /></Column>))).toContain(html(RTL));
+  });
+
+  it("follow the direction the root renders in: its config, an <UnlayerProvider>'s, the renderer's; the async renderers' too, each render its own", async () => {
+    const template = (root: Props = {}) => one(root, <Column className="ps-4 max-sm:ps-1"><Paragraph>Hi</Paragraph></Column>);
+    const padding = (design: any) => design.body.rows[0].columns[0].values.padding;
+    /** The body's direction, the Column's padding and its phone padding (the head's CSS). */
+    const html = (out: string) => [/<body[^>]*dir="(\w+)"/.exec(out)?.[1], /class="v-col-padding[^"]*" style="[^"]*padding: ([^;]+);/.exec(out)?.[1], /#u_column_1 \.v-col-padding \{ padding: ([^!]+) !important/.exec(out)?.[1]];
+    const right = ["rtl", "0px 16px 0px 0px", "0px 4px 0px 0px"];
+    expect(padding(renderToJson(template({ config: { textDirection: "rtl" } })))).toBe("0px 16px 0px 0px");
+    expect(html(renderToHtml(template({ config: { textDirection: "rtl" } })))).toEqual(right);
+    const provided = <UnlayerProvider config={{ textDirection: "rtl" }}>{template()}</UnlayerProvider>;
+    expect([renderToJson(provided).body.values.textDirection, padding(renderToJson(provided))]).toEqual(["rtl", "0px 16px 0px 0px"]);
+    expect(html(renderToHtml(provided))).toEqual(right);
+    expect(html(renderToHtml(template(), { textDirection: "rtl" }))).toEqual(right);
+    // Rendered by React itself, as a Server Component would.
+    expect(renderToStaticMarkup(template(RTL))).toMatch(/class="v-col-padding[^"]*" style="[^"]*padding: 0px 16px 0px 0px;/);
+    // At once, a right-to-left render and a left-to-right one.
+    const asyncOne = (root: Props) => (
+      <Tailwind config={config}>
+        <Email {...root}>
+          <Row>
+            <Column className="ps-4">
+              <Paragraph>Hi</Paragraph>
+            </Column>
+          </Row>
+        </Email>
+      </Tailwind>
+    );
+    const [rtl, ltr] = await Promise.all([renderToJsonAsync(asyncOne(RTL)), renderToJsonAsync(asyncOne({}))]);
+    expect([padding(rtl), padding(ltr)]).toEqual(["0px 16px 0px 0px", "0px 0px 0px 16px"]);
   });
 });
 

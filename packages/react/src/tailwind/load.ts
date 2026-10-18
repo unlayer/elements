@@ -68,11 +68,11 @@ async function compile(config: TailwindConfig | undefined): Promise<TailwindHand
   const declarations = declarationReader(await compiler(config), () => compiler(config));
   const resolver: HandleResolver = {
     declarations,
-    props: (name: string, className: string, explicit: Record<string, any>, defaults?: Record<string, any>) => {
+    props: (name: string, className: string, explicit: Record<string, any>, defaults?: Record<string, any>, rtl = false) => {
       // Classes in its markup (an Html block's, a Paragraph's `html`): inline styles.
       const html = explicit.html;
-      if (typeof html === "string" && /\sclass\s*=/i.test(html)) explicit = { ...explicit, html: inlineClasses(html, declarations, (text) => console.warn(`[Unlayer] ${name} ${text}.`)) };
-      return classesToProps(name, declarations(className), explicit, defaults);
+      if (typeof html === "string" && /\sclass\s*=/i.test(html)) explicit = { ...explicit, html: inlineClasses(html, declarations, (text) => console.warn(`[Unlayer] ${name} ${text}.`), rtl) };
+      return classesToProps(name, declarations(className), explicit, defaults, false, rtl);
     },
   };
   return Object.freeze({ config, [TAILWIND]: resolver }) as TailwindHandle;

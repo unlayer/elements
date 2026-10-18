@@ -23,9 +23,9 @@ export interface TailwindProps {
 /** On a compiled Tailwind (its resolver), on <Tailwind> (its rewrite), and on its errors: one for every copy of Elements. */
 export const TAILWIND = Symbol.for("@unlayer/react-elements/tailwind");
 
-/** What a handle does with a component's classes: its props, explicit ones kept over those from classes. */
+/** What a handle does with a component's classes: its props, explicit ones kept over those from classes (`rtl`: in a right-to-left document). */
 export interface Resolver {
-  props(name: string, className: string, explicit: Record<string, any>, defaults?: Record<string, any>): Record<string, any>;
+  props(name: string, className: string, explicit: Record<string, any>, defaults?: Record<string, any>, rtl?: boolean): Record<string, any>;
 }
 
 // The handles an async renderer compiled, by config and by the <Tailwind> it's for (this copy's), while it renders
@@ -46,10 +46,13 @@ function resolver({ tw, config }: TailwindProps): Resolver {
   );
 }
 
-/** A component's props with its `className` (and classes in its `html`) turned into props: the scope's rewrite. */
-function rewrite(scope: TailwindProps, name: string, defaults: Record<string, any> | undefined, props: Record<string, any>): Record<string, any> {
+/**
+ * A component's props with its `className` (and classes in its `html`) turned into props: the scope's rewrite. `rtl`:
+ * the render's root reads right to left, as the main entry's render says (an older copy of it gives none).
+ */
+function rewrite(scope: TailwindProps, name: string, defaults: Record<string, any> | undefined, props: Record<string, any>, rtl?: boolean): Record<string, any> {
   const { className, ...explicit } = props;
-  return resolver(scope).props(name, className ?? "", explicit, defaults);
+  return resolver(scope).props(name, className ?? "", explicit, defaults, rtl);
 }
 
 const ROOTS = new Set(["Body", "Email", "Page", "Document"]);

@@ -13,7 +13,7 @@
  * Divider's without a text class of its own is the text color around it, set here (the root's `textColor`, the
  * editor's default, where no class sets one).
  *
- * A Row's rewrite (src/model/elements.ts gives it the Row's Columns, its props and the root's) does both, then places the
+ * A Row's rewrite (src/model/elements.ts gives it the Row's Columns, its props, the root's and the direction) does both, then places the
  * Row's padding and its Columns' margins (see row.ts). The root's rewrite, a Column's and a Row's are the same: a Row
  * takes its own, else one of its Columns', else the root's.
  */
@@ -53,10 +53,10 @@ function tableProps(p: Props): Props {
 }
 
 /** The props a block takes from the text styles around it: those it doesn't set itself (by its classes or props). */
-function inherited(name: string, defaults: Props, props: Props, decls: ClassDeclaration[]): Props {
+function inherited(name: string, defaults: Props, props: Props, decls: ClassDeclaration[], rtl: boolean): Props {
   const own = name === "Button" ? decls.filter((d) => d.property !== "color") : decls;
   if (!own.length) return {};
-  const from = classesToProps(name === "Table" ? "Paragraph" : name, { declarations: own, ignored: [] }, {}, name === "Table" ? {} : defaults, true);
+  const from = classesToProps(name === "Table" ? "Paragraph" : name, { declarations: own, ignored: [] }, {}, name === "Table" ? {} : defaults, true, rtl);
   const { mobile, style: _style, ...base } = name === "Table" ? tableProps(from) : from;
   const out: Props = {};
   for (const [prop, value] of Object.entries(base)) if (!given(props, prop, name)) out[prop] = value;
@@ -73,8 +73,8 @@ function paint(into: Props, props: Props, at: string, color: string): void {
   into.mobile = { ...mobile, border: { ...mobile.border, [at.slice(7)]: color } };
 }
 
-/** A Column with its text blocks given the text styles around them (the root's, the Row's, its own). */
-function inColumn(column: React.ReactElement<Props>, rootText: ClassDeclaration[], rowText: ClassDeclaration[], root: Props | undefined, say: (text: string) => void): React.ReactElement<Props> {
+/** A Column with its text blocks given the text styles around them (the root's, the Row's, its own), in a right-to-left document with `rtl`. */
+function inColumn(column: React.ReactElement<Props>, rootText: ClassDeclaration[], rowText: ClassDeclaration[], root: Props | undefined, say: (text: string) => void, rtl: boolean): React.ReactElement<Props> {
   const keys = column.props.style?.[TAILWIND];
   const ownText: ClassDeclaration[] = keys?.text ?? [];
   const around = [...rootText, ...rowText];
@@ -95,7 +95,7 @@ function inColumn(column: React.ReactElement<Props>, rootText: ClassDeclaration[
     const name: string = item?.name;
     const next: Props = {};
     for (const at of child.props.style?.[TAILWIND]?.current ?? []) paint(next, child.props, at, color(decls));
-    if (TAKES.has(name)) Object.assign(next, inherited(name, item.defaultValues ?? {}, child.props, decls));
+    if (TAKES.has(name)) Object.assign(next, inherited(name, item.defaultValues ?? {}, child.props, decls, rtl));
     else if (!TEXTLESS.has(name)) markup = true;
     return Object.keys(next).length ? React.cloneElement(child, next) : child;
   });
@@ -133,11 +133,12 @@ export function rowRewrite(padding: string | undefined, phone: string | undefine
     if (!said.has(text)) console.warn(`[Unlayer] ${text}.`);
     said.add(text);
   };
-  return (children: React.ReactNode[], props: Props, root?: Props): React.ReactNode[] => {
+  // (`rtl`: the document reads right to left; an older copy of Elements gives none.)
+  return (children: React.ReactNode[], props: Props, root?: Props, rtl = false): React.ReactNode[] => {
     const rootText: ClassDeclaration[] = root?.[PASSED] ?? [];
     const rowText: ClassDeclaration[] = props[PASSED] ?? [];
-    let list = children.map((child) => (isColumn(child) ? inColumn(child, rootText, rowText, root, say) : child));
-    if (padding !== undefined || phone !== undefined || list.some((child) => isColumn(child) && child.props.style?.[TAILWIND]?.margin)) list = inset(list, props, root);
+    let list = children.map((child) => (isColumn(child) ? inColumn(child, rootText, rowText, root, say, rtl) : child));
+    if (padding !== undefined || phone !== undefined || list.some((child) => isColumn(child) && child.props.style?.[TAILWIND]?.margin)) list = inset(list, props, root, rtl);
     return list;
   };
 }

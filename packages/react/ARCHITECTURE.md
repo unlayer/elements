@@ -224,7 +224,9 @@ row or block is left out of the HTML, the plain text and the design (the slower 
    by its marker, or an older copy's by its name and its code: `utils/root-type.ts`; a component of yours named like
    one is called as written) as their own copy's (`utils/own-root.ts`), so the copy whose renderer was called renders
    the whole template in its render's scope, whichever copy its components are of; a `<Tailwind>`'s rewrites find the
-   Columns of that render's Rows by their marker (`src/tailwind/column.ts`).
+   Columns of that render's Rows by their marker (`src/tailwind/column.ts`), and get the render's direction (its root's
+   resolved `textDirection`, which the render scope holds, as its `onError`) as an argument, never reading a scope
+   themselves (from an older copy, none: left to right).
 
 ## Where it's tested
 

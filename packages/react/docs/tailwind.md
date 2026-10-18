@@ -79,7 +79,7 @@ Inside a `<Tailwind>`, `class` attributes in the markup of an `Html` block (and 
 // <p style="padding-top: 8px; padding-bottom: 8px; font-size: 14px; line-height: 1.4286; color: #6a7282">Sent by <a href="https://example.com" style="font-weight: 700; text-decoration: underline">Acme</a></p>
 ```
 
-An element's own `style` wins over its classes, as in the browser. Classes Tailwind doesn't know stay in the attribute, for a stylesheet of your own. Phone, breakpoint and hover variants (`max-sm:`, `sm:`, `hover:`) can't be inline styles: they're left out with a warning, as are classes that don't apply in an email. Script and style elements and comments are left as they are.
+An element's own `style` wins over its classes, as in the browser. Logical sides (`ps-*`, `border-e-*`, `rounded-ss-*`) are the element's: its own `dir` attribute, else the nearest element around it in the markup with one, else the root's direction (see [Right to left](#right-to-left)). Classes Tailwind doesn't know stay in the attribute, for a stylesheet of your own. Phone, breakpoint and hover variants (`max-sm:`, `sm:`, `hover:`) can't be inline styles: they're left out with a warning, as are classes that don't apply in an email. Script and style elements and comments are left as they are.
 
 ## What each class becomes
 
@@ -103,9 +103,11 @@ Colors come out as hex, or `rgba()` when translucent: Tailwind's `oklch()` palet
 | `hover:bg-*`, `hover:text-*` | `Button` | `hoverBackgroundColor`, `hoverColor` (without them it keeps its colors on hover) |
 | `hidden` | `Row`, content blocks | `hideOnDesktop` and `hideOnMobile` |
 
-A Row's `p-*` classes inset its content, as in CSS: they go to its Columns' padding, added to theirs (top and bottom to each Column, left to the first and right to the last; on phones, where Columns stack, the sides to each, the top to the first and the bottom to the last), so a `bg-*` covers them. A Column's `m-*` classes are the space around it, between it and the next, added the same way. That's unlike the Row's `padding` prop, which is the editor's, around the row, outside its content background (see Row in the [React API reference](../README.md)).
+A Row's `p-*` classes inset its content, as in CSS: they go to its Columns' padding, added to theirs (top and bottom to each Column, left to the first and right to the last, or right to left the right to the first and the left to the last; on phones, where Columns stack, the sides to each, the top to the first and the bottom to the last), so a `bg-*` covers them. A Column's `m-*` classes are the space around it, between it and the next, added the same way. That's unlike the Row's `padding` prop, which is the editor's, around the row, outside its content background (see Row in the [React API reference](../README.md)).
 
 A Button's `text-left`, `text-center` and `text-right` are its `textAlign`: where the button sits in its column, as `text-center` on its container places an inline-block link in CSS. Its label stays centered in it, so on a fixed or full-width button (`w-48`, `w-full`) `text-left` doesn't move the label to the left, as it would in CSS.
+
+Logical classes (`ps-*`, `pe-*`, `ms-*`, `me-*`, `border-s-*`, `border-e-*`, `rounded-s-*`, `rounded-ss-*`, `text-start`, `text-end`) start on the left, or on the right in a right-to-left template: see [Right to left](#right-to-left).
 
 A border width without a color class (`border`, `border-t-2`) is drawn in the text color, as Tailwind's `currentColor` is (from its preflight): a Button's in its label's color, a Column's or a Divider's in its own text color class's, else the text color around it (a Row's, the root's, the body's default black).
 
@@ -132,6 +134,29 @@ A `Row`'s, a `Column`'s or the root's text color, alignment, font family, size, 
 - **Case, italics and decoration** (`uppercase`, `italic`, `underline`) have no props on any block: they stay an inline style on the container, which the text inside takes as in CSS (HTML only, said).
 
 Without classes around them, blocks keep their defaults (a Paragraph's 14px, left-aligned), as the editor's do.
+
+## Right to left
+
+Tailwind's logical classes follow the template's direction, as CSS's logical properties do: in `<Email textDirection="rtl">` (or a root `config`, an `<UnlayerProvider>` or renderer option that sets `textDirection: "rtl"`), inline start is the right. Email clients read only physical sides, so each class becomes the side it is in that direction, in the HTML and the design alike:
+
+```tsx
+<Tailwind tw={tw}>
+  <Email textDirection="rtl">
+    <Row>
+      <Column className="ps-4 border-s-2 rounded-s-lg">
+        <Paragraph className="text-start">مرحبا</Paragraph>
+      </Column>
+    </Row>
+  </Email>
+</Tailwind>
+// The Column: padding="0px 16px 0px 0px", its border on the right, borderRadius="0px 8px 8px 0px"; the Paragraph
+// textAlign="right". Left to right, the same classes are the left.
+```
+
+- `ps-*`, `pe-*`, `ms-*`, `me-*`, `border-s-*` and `border-e-*` (widths and colors), `rounded-s-*`, `rounded-e-*` and the corners (`rounded-ss-*`, `rounded-se-*`, `rounded-es-*`, `rounded-ee-*`), and `text-start` and `text-end`, theirs or around them.
+- A Row's Columns are laid out from the right, so the Row's padding on the right is the first Column's and its padding on the left the last Column's, whether a class says `pe-*` or `pl-*`; stacked on phones, the first is still on top.
+- In an Html block's markup, an element's own `dir="rtl"` or `dir="ltr"` decides for it and what's in it, over the root's (`ltr` inside a right-to-left email keeps its logical sides on the left). An element whose end tag is left out (a `<p>` or `<li>` can be) is taken to hold what follows it, up to its parent's end tag.
+- `textDirection: "auto"` (and `dir="auto"`), which depends on the text, reads as left to right. Logical classes no prop takes (`start-*`, `float-start`, `scroll-ms-*`) stay as they are in an inline style, which the browser places by the direction.
 
 ## Images
 

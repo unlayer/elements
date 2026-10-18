@@ -16,6 +16,8 @@ export interface Scope {
   omitted: RenderError[];
   /** Rows and blocks whose exporters failed, by their records: left out of the head and the design too. */
   failed: WeakSet<object>;
+  /** Whether its root reads right to left (see setRenderConfig): Tailwind's logical sides follow it. */
+  rtl?: boolean;
 }
 
 export const newScope = (): Scope => ({ cache: new WeakMap(), values: new WeakMap(), omitted: [], failed: new WeakSet() });
@@ -47,16 +49,21 @@ export function sayOnce(message: string): void {
 }
 
 /**
- * The render's `onError` and `idPrefix`, where its root's config says them (the render functions, or Body rendered
- * on its own): the first config given in a render wins.
+ * The render's `onError`, `idPrefix` and direction, where its root's config says them (the render functions, or Body
+ * rendered on its own): the first config given in a render wins.
  */
-export function setRenderConfig(config: { onError?: OnError; idPrefix?: unknown }): void {
+export function setRenderConfig(config: { onError?: OnError; idPrefix?: unknown; textDirection?: unknown }): void {
   if (!scoped) return;
   if (config.onError !== undefined) scoped.onError ??= config.onError;
   if (typeof config.idPrefix === "string") scoped.idPrefix ??= config.idPrefix;
+  // (As Body reads it for the body's `dir`: see textDirectionOf.)
+  const dir = config.textDirection;
+  scoped.rtl ??= typeof dir == "string" && dir.trim().toLowerCase() == "rtl";
 }
 
 export const onError = (): OnError | undefined => scoped?.onError;
+/** Whether the render's root reads right to left (its config's `textDirection`, as its body's `dir`). */
+export const rightToLeft = (): boolean => !!scoped?.rtl;
 /** What the template's `useId()`s start with in this render (see UnlayerConfig's `idPrefix`). */
 export const idPrefix = (): string | undefined => scoped?.idPrefix;
 
