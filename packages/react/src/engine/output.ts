@@ -22,7 +22,7 @@ export interface RecordPart {
   t: "record";
   record: object;
   parts: Part[];
-  /** It writes nothing: in the records, not in the content. */
+  /** It writes nothing: in the records, not in the content; what's inside it is its record's own (`content`: a <Head>'s tags). */
   quiet?: boolean;
 }
 export interface Hole {
@@ -120,6 +120,7 @@ function resolve(parts: Part[], into: Item[], found: Found): ErrorPart | typeof 
         const stop = resolve(part.parts, inside, found);
         if (stop) return stop;
         if (!part.quiet) into.push({ kind: "record", record: part.record, items: inside });
+        else (part.record as { content?: Item[] }).content = inside;
         break;
       }
       case "hole": {

@@ -3,6 +3,7 @@
  * Row, Column, block, scope and head entry it renders, where it renders it, in the content the collecting walk gives.
  */
 import type React from "react";
+import type { Item } from "../engine/output";
 
 /** Where it is in the template (`Row 3 › Column 1 › Button`), worked out for the errors that name it (see `whereIs`). */
 type Placed = { where?: () => string };
@@ -17,9 +18,10 @@ export type Recorded = Placed &
     | { kind: "tailwind"; props: Record<string, any>; load?: unknown }
     /**
      * What a component gives the document's head, and the root's props unless it sets them (a <Font>); `design`, what
-     * it gives the design (a <Font>'s URL on the fonts of its family).
+     * it gives the design (a <Font>'s URL on the fonts of its family). `children` (a <Head>'s) are walked inside it, as
+     * the template's content is: its tags are the HTML of what they render (`content`).
      */
-    | { kind: "head"; tags: (mode: string) => string[]; root?: Record<string, unknown>; json?: string; design?: (body: any) => void }
+    | { kind: "head"; tags: (mode: string) => string[]; root?: Record<string, unknown>; json?: string; design?: (body: any) => void; children?: React.ReactNode; content?: Item[] }
     /** `rich`: text with elements in it, rendered inside its record (see record.tsx). */
     | { kind: "block"; type: React.ComponentType<any>; props: Record<string, any>; rich?: boolean }
     /** A component of the template's own; `output`, what it returned (see src/model's keptMarkup). */

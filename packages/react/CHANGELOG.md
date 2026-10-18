@@ -25,7 +25,7 @@
 
 - **Web fonts: `@unlayer/react-elements/font`.** `<Font>` declares a web font once for the template: the head loads it (Outlook, which ignores web fonts, gets the fallback), and with `default` it's the template's font, in the HTML and the design. See [Web fonts](./docs/fonts.md).
 
-- **Head tags: `@unlayer/react-elements/head`.** `<Head>` puts `<meta>`, `<link>`, `<style>` and `<title>` tags of your own in the document's head (HTML only: `renderToJson()` says so).
+- **Head tags: `@unlayer/react-elements/head`.** `<Head>` puts `<meta>`, `<link>`, `<style>` and `<title>` tags of your own in the document's head (HTML only: `renderToJson()` says so). Components of yours in it render as the template's do: with its context, waited for by the async renderers, and failing as theirs fail (with `onError: "omit"`, left out of the head and listed).
 
 - **Async templates: `@unlayer/react-elements/async`.** The same renderers for templates that `await` or suspend, and a `pretty` option for readable HTML. See [Async templates](./docs/async.md).
 

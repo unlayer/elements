@@ -14,6 +14,7 @@ import { rootName } from "./root-type";
 import { TAILWIND, TAILWIND_LOADER } from "./tailwind";
 import { UNLAYER_CONFIG_KEY, UNLAYER_RENDER_KEY } from "./create-component";
 import { boundary, recordNode } from "../engine/records";
+import { htmlOf } from "../engine/output";
 import { checked, checkKeys } from "../engine/keys";
 import type { Collector } from "../engine";
 
@@ -108,7 +109,19 @@ export function collector(options: Options): Collector {
       // (With its copy's compiler, which the async renderers compile its config with.)
       return { record: (position) => container(placed({ kind: "tailwind", props: { ...props, [TAILWIND]: type[TAILWIND] }, load: type[TAILWIND_LOADER] }, position), options, "Tailwind") };
     }
-    if (typeof type[HEAD_ENTRY] === "function") return { record: (position) => recordNode(placed({ ...type[HEAD_ENTRY](props) }, position), undefined, true) };
+    if (typeof type[HEAD_ENTRY] === "function") {
+      const name = displayName(type);
+      return {
+        name,
+        record: (position) => {
+          const record = placed({ ...type[HEAD_ENTRY](props) }, position);
+          // A <Head>'s tags: what's in it, walked here as the template's content is (its components wait, fail and are
+          // left out as theirs do), as HTML.
+          record.tags ??= () => [htmlOf(record.content)];
+          return recordNode(record, guard(record.children, options, name), true);
+        },
+      };
+    }
     const kind = kindOf(type);
     if (kind === "row" || kind === "column") {
       const name = kind === "row" ? "Row" : "Column";

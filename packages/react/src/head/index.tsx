@@ -2,17 +2,12 @@
  * @unlayer/react-elements/head: `<Head>`, tags of your own for the document's head (meta, link, style, title).
  */
 import React from "react";
-import { renderToHtml } from "@unlayer/react-elements";
 import { headEntry } from "./record";
 
 export interface HeadProps {
   /** `<meta>`, `<link>`, `<style>` and `<title>` elements. */
   children?: React.ReactNode;
 }
-
-/** The main entry's static markup (the engine's: see src/utils/internals.ts). */
-const render = (node: React.ReactNode): string =>
-  (renderToHtml as unknown as Record<symbol, { render: (node: React.ReactElement) => string }>)[Symbol.for("@unlayer/react-elements/internals")].render(<>{node}</>);
 
 /** Tags as written: a `<style>`'s CSS isn't escaped (React 18 would write `a > b` as `a &gt; b`), and can't end it. */
 function asWritten(node: React.ReactNode): React.ReactNode {
@@ -27,7 +22,8 @@ function asWritten(node: React.ReactNode): React.ReactNode {
 
 /**
  * Head - Tags of your own for the document's head: `<meta>`, `<link>`, `<style>`, `<title>`. Place it in an Email,
- * Page or Document (or a component of yours there); it renders nothing in the body. The HTML's head has them before
+ * Page or Document (or a component of yours there); it renders nothing in the body. Components of yours in it render
+ * as the template's do (its context, the async renderers waiting for them, `onError`). The HTML's head has them before
  * Elements' styles (a rule of yours that overrides one of them needs `!important`, as in most email CSS); the design
  * for the visual editor can't hold them (`renderToJson` says so).
  *
@@ -50,6 +46,7 @@ export function Head(_: HeadProps): React.ReactElement | null {
 Head.displayName = "Head";
 headEntry(Head, ({ children }: HeadProps) => ({
   kind: "head",
-  tags: () => [render(asWritten(children))],
+  // Walked where the template is collected, as its content is: its tags are the HTML they render.
+  children: asWritten(children),
   json: "[Unlayer] <Head>'s tags are kept in HTML but not in the design for the visual editor.",
 }));

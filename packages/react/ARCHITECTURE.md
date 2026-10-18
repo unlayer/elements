@@ -35,7 +35,8 @@ model                                Email > Row > Column > blocks, Elements' on
   needs a root, without walking it.
 - **Walk.** The engine renders the root's content once per render. It asks a collector (`utils/record.tsx`) about each
   element: a Row, Column or block (of any copy of Elements, by its markers), a `<Tailwind>` scope or a `<Head>`/`<Font>`
-  entry is recorded where it is, and what's inside it (a Row's Columns, rich text's markup) walked inside its record;
+  entry is recorded where it is, and what's inside it (a Row's Columns, rich text's markup, a `<Head>`'s tags) walked
+  inside its record (a head entry's is its own, not the content's: its tags are the HTML they render);
   everything else (your components, markup, Fragments, Context, Suspense) is rendered as react-dom's static server
   render would. Each component of the template's own in a list is in a boundary, the part that's left out when it fails
   and the render leaves failed parts out (see Errors). What the walk gives is the content as a tree (`Item` in
@@ -170,7 +171,7 @@ A string-returning renderer (`renderToHtml`, `renderToPlainText`) and `renderToJ
 or the function.
 
 What's left out: a component of the template's own in a list (the root's children, a Row's, a Column's, a text
-block's), with what it rendered; markup React rejects (`<hr style="…">` given a string), where it is; a Row whose
+block's, a `<Head>`'s), with what it rendered; markup React rejects (`<hr style="…">` given a string), where it is; a Row whose
 Columns don't fit its layout; a block whose exporter fails (its id goes to the next block, in the HTML and the design);
 a Row or Column whose own HTML fails (its exporter, or mapping its props: `utils/container-render.ts`), a Column with
 its cell (the Row is made again without it, its Columns after it moving up; with no Column left, the Row is left out

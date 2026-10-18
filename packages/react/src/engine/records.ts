@@ -1,8 +1,8 @@
 /**
  * What a collecting walk's collector gives the walker to walk in place of an element it records (see
  * utils/record.tsx): a record, whose children (a Row's Columns, a rich text block's markup) are walked inside it, or
- * which writes nothing (`quiet`: a <Head>'s entry); and a boundary around a component of the template's own, the part
- * left out when it fails (`onError: "omit"`).
+ * which writes nothing (`quiet`: a <Head>'s entry, whose children are its own content, its tags); and a boundary around
+ * a component of the template's own, the part left out when it fails (`onError: "omit"`).
  *
  * They're the walker's own nodes, never React's: what's walked inside a record is that record's content in the walk's
  * output (output.ts), so the template comes out as a tree of its records, its markup and its text.
