@@ -973,6 +973,17 @@ describe("<Tailwind>: an Image's width classes", () => {
     expect(warnings()).toEqual(["[Unlayer] Image can't hold both `width: 50%` and `max-width: 320px` from its classes (the editor's image has one width), so it's 50%."]);
   });
 
+  it("hold a min width too, as CSS does (it wins over the max width)", () => {
+    // 320px of the 480px the block has; 400px is 83.33%.
+    expect(src("w-64 min-w-xs")).toMatchObject({ autoWidth: false, maxWidth: "66.67%" });
+    expect(src("w-96 min-w-xs")).toMatchObject({ autoWidth: false, maxWidth: "80%" });
+    expect(src("w-64 min-w-[400px] max-w-xs")).toMatchObject({ autoWidth: false, maxWidth: "83.33%" });
+    expect(src("min-w-xs max-w-[400px]")).toMatchObject({ autoWidth: false, maxWidth: "83.33%" });
+    expect(warnings()).toEqual([]);
+    expect(src("w-1/2 min-w-xs")).toMatchObject({ maxWidth: "50%" });
+    expect(warnings()).toEqual(["[Unlayer] Image can't hold both `width: 50%` and `min-width: 320px` from its classes (the editor's image has one width), so it's 50%."]);
+  });
+
   it("take `w-auto` as the editor's auto width", () => {
     expect(src("w-auto")).toMatchObject({ autoWidth: true, maxWidth: "100%" });
     expect(src("w-auto max-w-xs")).toMatchObject({ autoWidth: false, maxWidth: "66.67%" });
@@ -994,6 +1005,49 @@ describe("<Tailwind>: an Image's width classes", () => {
     expect(capped).toMatch(/max-width: 320(\.\d+)?px/);
     expect(auto).toMatch(/width: 100%/);
     expect(auto).not.toMatch(/width: ?auto/);
+  });
+});
+
+describe("<Tailwind>: the root's width classes", () => {
+  const width = (className: string, root: Record<string, unknown> = {}) => design(<Paragraph>Hi</Paragraph>, { className, ...root }).body.values.contentWidth;
+
+  it("are one content width, as CSS sizes the box: the max width caps the width, the min width wins over both", () => {
+    expect(width("w-[600px] max-w-[800px]")).toBe("600px");
+    expect(width("max-w-[800px] w-[600px]")).toBe("600px");
+    expect(width("max-w-[500px] w-[600px]")).toBe("500px");
+    expect(width("w-[600px] max-w-[500px]")).toBe("500px");
+    expect(width("w-[600px] min-w-[640px]")).toBe("640px");
+    expect(width("w-[600px] min-w-[640px] max-w-[620px]")).toBe("640px");
+    expect(width("w-[600px] min-w-[500px] max-w-[800px]")).toBe("600px");
+    expect(width("max-w-[700px] min-w-[640px]")).toBe("700px");
+    // A width alone, a max width alone (the box is as wide as it allows), the whole window capped.
+    expect(width("w-[600px]")).toBe("600px");
+    expect(width("max-w-[640px]")).toBe("640px");
+    expect(width("w-full max-w-[640px]")).toBe("640px");
+    expect(width("w-1/2 max-w-[80%]")).toBe("50%");
+    expect(warnings()).toEqual([]);
+  });
+
+  it("keep the width where which one wins depends on the window's width, and say so", () => {
+    expect(width("w-[600px] max-w-[90%]")).toBe("600px");
+    expect(width("w-[80%] min-w-[500px]")).toBe("80%");
+    expect(warnings()).toEqual([
+      "[Unlayer] Email can't hold both `width: 600px` and `max-width: 90%` from its classes (the design has one content width), so it's 600px.",
+      "[Unlayer] Email can't hold both `width: 80%` and `min-width: 500px` from its classes (the design has one content width), so it's 80%.",
+    ]);
+  });
+
+  it("leave a min width alone in the HTML, and lose to a `contentWidth` given", () => {
+    const body = design(<Paragraph>Hi</Paragraph>, { className: "min-w-[640px]" }).body.values;
+    expect(body.contentWidth).toBe(design(<Paragraph>Hi</Paragraph>).body.values.contentWidth);
+    expect(warnings()).toEqual(["[Unlayer] Email `min-width: 640px` from class `min-w-[640px]` is kept in HTML (an inline style) but not in the design for the visual editor."]);
+    expect(width("w-[600px] max-w-[800px]", { contentWidth: "700px" })).toBe("700px");
+  });
+
+  it.each(Object.keys(MODES) as Mode[])("%s: the HTML is that wide", (mode) => {
+    const html = renderToHtml(nested({ root: "w-[600px] max-w-[800px]" }, <Paragraph>Hi</Paragraph>, MODES[mode]));
+    expect(html).toMatch(/\b600px/);
+    expect(html).not.toMatch(/\b800px/);
   });
 });
 

@@ -42,6 +42,7 @@ interface Table {
   radius?: string | null;
   width?: string | null;
   maxWidth?: string | null;
+  minWidth?: string | null;
   hoverBg?: string | null;
   hoverColor?: string | null;
 }
@@ -68,6 +69,7 @@ const SIMPLE: Record<string, keyof Table> = {
   "text-align": "textAlign",
   width: "width",
   "max-width": "maxWidth",
+  "min-width": "minWidth",
   display: "display",
 };
 const SIDES = ["Top", "Right", "Bottom", "Left"];
@@ -129,18 +131,39 @@ export function given(explicit: Record<string, any>, prop: string, name = ""): b
   const look = (p: string) =>
     [explicit, explicit.values].some((o) => plain(o) && (o[p] !== undefined || Object.entries(o).some(([k, v]) => !/^(mobile|_override|values)$/.test(k) && plain(v) && v[p] !== undefined)));
   const aliases = Object.entries(PROP_ALIASES[name] ?? {}).flatMap(([alias, props]) => (props.split(" ").includes(prop) ? [alias] : []));
-  // An image's width and maxWidth are one setting.
-  return look(prop) || aliases.some(look) || (prop === "width" && look("maxWidth")) || (prop === "maxWidth" && look("width"));
+  // An image's width, max and min width are one setting.
+  return look(prop) || aliases.some(look) || (/^(width|maxWidth|minWidth)$/.test(prop) && ["width", "maxWidth"].some(look));
 }
 
 /**
- * An image's display width from a width and a max width, as the browser shows it on a desktop: the smaller one,
- * where that can be told without the column's width (both in pixels, both percentages, or one of them 100%).
+ * Two lengths compared without the width of the box around them (`a` minus `b`, by its sign): in the same unit, or a
+ * length in pixels and 100%, the whole box, which is as wide as that on a desktop. Undefined where it depends.
  */
-function oneWidth(width: string, max: string): string | undefined {
-  if (width === "100%") return max;
-  if (max === "100%") return width;
-  return /%$/.test(width) === /%$/.test(max) ? (parseFloat(width) <= parseFloat(max) ? width : max) : undefined;
+function compare(a: string, b: string): number | undefined {
+  if (/%$/.test(a) === /%$/.test(b)) return parseFloat(a) - parseFloat(b);
+  return a === "100%" ? 1 : b === "100%" ? -1 : undefined;
+}
+
+/**
+ * One width from a width and the bounds on it, as CSS sizes a box on a desktop: the max width caps the width, and
+ * the min width wins over both (`max(min, min(max, width))`). Undefined where that depends on the width of the box
+ * around it (see compare).
+ */
+function bounded(width: string, min: string | undefined, max: string | undefined): string | undefined {
+  let out = width;
+  for (const [bound, wins] of [[max, (c: number) => c > 0], [min, (c: number) => c < 0]] as const) {
+    if (bound === undefined) continue;
+    const c = compare(out, bound);
+    if (c === undefined) return undefined;
+    if (wins(c)) out = bound;
+  }
+  return out;
+}
+
+/** "both `width: 50%` and `max-width: 320px`", or three of them "together": the lengths one width can't hold. */
+function together(lengths: Array<[string, string | undefined]>): string {
+  const given = lengths.filter(([, value]) => value !== undefined).map(([property, value]) => `\`${property}: ${value}\``);
+  return given.length === 2 ? `both ${given.join(" and ")}` : `${given.slice(0, -1).join(", ")} and ${given.at(-1)} together`;
 }
 
 /** A simple value as the prop takes it (`rtl`: in a right-to-left document); undefined where it can't. */
@@ -157,6 +180,7 @@ function convert(key: string, value: string, rtl: boolean): unknown {
     }
     case "width":
     case "maxWidth":
+    case "minWidth":
       return value === "0" ? "0px" : /^\d*\.?\d+(px|%)$/.test(value) ? value : undefined;
     default:
       return value;
@@ -202,6 +226,8 @@ export function classesToProps(name: string, found: ClassDeclarations, explicit:
   if (name === "Image") found = { ...found, declarations: found.declarations.map((d) => (d.property === "width" && d.value === "auto" ? { ...d, value: "100%" } : d)) };
 
   const table: Table = { ...(own.container ? {} : BLOCK), ...(own.text ? TEXT : {}), ...own };
+  // The one prop a width and the bounds on it all go to, where there's one (the root's content width; see propsOf).
+  const sized = table.width && table.maxWidth === table.width && table.minWidth === table.width ? table.width : undefined;
   const phoneable = new Set(`${own.container ? "" : "containerPadding"},${own.phone ?? ""}`.split(",").filter(Boolean));
   const onPhones = (prop: string) => phoneable.has(prop) || (/^border(Top|Right|Bottom|Left)/.test(prop) && phoneable.has("border"));
   const boxes: Record<ClassDeclaration["when"], Box> = { always: box(), phone: box(), desktop: box(), hover: box() };
@@ -212,11 +238,28 @@ export function classesToProps(name: string, found: ClassDeclarations, explicit:
   const propsOf = (b: Box, under: (prop: string) => unknown, drop = ignore): Found => {
     const out: Found = new Map();
     for (const [key, d] of b.one) {
-      if (key === "display") continue;
+      if (key === "display" || (sized && /^(width|maxWidth|minWidth)$/.test(key))) continue;
       const prop = table[key as keyof Table];
       const value = typeof prop === "string" ? convert(key, d.value, rtl) : undefined;
       if (value === undefined) drop(d);
       else out.set(prop as string, { value, d });
+    }
+    // One prop for a width and its bounds (the root's content width): the one width CSS gives them (see bounded).
+    if (sized) {
+      const [width, min, max] = (["width", "minWidth", "maxWidth"] as const).map((key) => {
+        const d = b.one.get(key);
+        const value = d && (convert(key, d.value, rtl) as string | undefined);
+        if (d && value === undefined) drop(d);
+        return value === undefined ? undefined : { value, d: d! };
+      });
+      // (A min width alone bounds no width: it's a class no prop takes.)
+      if (!width && !max) {
+        if (min) drop(min.d);
+      } else {
+        const one = bounded(width?.value ?? "100%", min?.value, max?.value);
+        if (one === undefined) warn(`can't hold ${together([["width", width?.value], ["min-width", min?.value], ["max-width", max?.value]])} from its classes (the design has one content width), so it's ${(width ?? max)!.value}`);
+        out.set(sized, { value: one ?? (width ?? max)!.value, d: (width ?? max)!.d });
+      }
     }
     // Spacing: a block's margins and padding are both the padding around it, added up; where they can't be (`5%` and
     // `8px`), the padding, its own, stays and the margin is said.
@@ -305,14 +348,18 @@ export function classesToProps(name: string, found: ClassDeclarations, explicit:
   }
   if (onPhones("borderTopColor")) bare(onPhone, (prop, value) => (mobile[prop] = value), "mobile.", base);
 
-  // An Image has one display width: a width and a max width give the one the browser shows (see oneWidth).
+  // An Image has one display width: a width, a max and a min width give the one the browser shows (see bounded), on
+  // phones too, where its desktop ones apply unless it has its own.
   if (name === "Image") {
-    const [width, max] = [result.width, result.maxWidth];
+    const [width, max, min] = [result.width, result.maxWidth, result.minWidth];
+    delete result.minWidth;
+    // (A min width alone bounds no width: it's a class no prop takes.)
+    if (min !== undefined && width === undefined && max === undefined) keep(boxes.always.one.get("minWidth")!);
     for (const [into, w, m] of [[result, width, max], [mobile, mobile.width ?? width, mobile.maxWidth ?? max]] as const) {
-      if (w === undefined || m === undefined || (into === mobile && mobile.width === undefined && mobile.maxWidth === undefined)) continue;
-      const one = oneWidth(w, m);
-      if (one === undefined) warn(`can't hold both \`width: ${w}\` and \`max-width: ${m}\` from its classes (the editor's image has one width), so it's ${w}`);
-      into.width = one ?? w;
+      if ([w, m, min].filter((v) => v !== undefined).length < 2 || (into === mobile && mobile.width === undefined && mobile.maxWidth === undefined)) continue;
+      const one = bounded(w ?? "100%", min, m);
+      if (one === undefined) warn(`can't hold ${together([["width", w], ["min-width", min], ["max-width", m]])} from its classes (the editor's image has one width), so it's ${w ?? m}`);
+      into.width = one ?? w ?? m;
       delete into.maxWidth;
     }
   }
