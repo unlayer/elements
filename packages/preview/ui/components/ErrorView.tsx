@@ -4,7 +4,9 @@ export function ErrorView({ error }: { error: TemplateError }) {
   const where = error.file ? `${error.file}${error.line ? `:${error.line}:${error.column ?? 1}` : ""}` : undefined;
   return (
     <div className="error-view" role="alert">
-      <div className="error-kind">{error.phase === "load" ? "The template doesn't compile" : "The template threw while rendering"}</div>
+      <div className="error-kind">
+        {error.phase === "load" ? "The template doesn't compile" : error.timedOut ? "The template didn't finish rendering" : "The template threw while rendering"}
+      </div>
       <h2 className="error-message">{error.message.split("\n")[0]}</h2>
       {where && <div className="error-where">{where}</div>}
       {error.frame && <pre className="error-frame">{error.frame}</pre>}

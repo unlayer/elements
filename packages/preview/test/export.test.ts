@@ -52,6 +52,21 @@ describe("export", () => {
     expect(existsSync(path.join(outDir, "welcome.html"))).toBe(true);
   });
 
+  it("fails a template that doesn't finish rendering, and exports the others", async () => {
+    const stuck = path.join(fixture.emails, "stuck.tsx");
+    await writeFile(stuck, 'import { Email } from "@unlayer/react-elements";\nasync function Never() { await new Promise(() => {}); return null; }\nexport default function Stuck() { return <Email><Never /></Email>; }\n');
+    try {
+      const outDir = path.join(fixture.root, "out-stuck");
+      const { code, stdout, stderr } = await cli(["export", "--dir", fixture.emails, "--outDir", outDir, "--render-timeout", "3"]);
+      expect(code).toBe(1);
+      expect(stderr).toMatch(/✗ stuck\.tsx: The template didn't finish rendering in 3 seconds/);
+      expect(stdout).toMatch(/✓ welcome\.tsx/);
+      expect(existsSync(path.join(outDir, "welcome.html"))).toBe(true);
+    } finally {
+      await rm(stuck);
+    }
+  });
+
   it("refuses to write into the templates folder", async () => {
     await expect(exportTemplates({ dir: fixture.emails, outDir: fixture.emails })).rejects.toThrow(/holds the templates/);
   });

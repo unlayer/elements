@@ -10,6 +10,7 @@
  */
 
 import { createServer, transformWithOxc, type Plugin, type ViteDevServer } from "vite";
+import { AsyncLocalStorage } from "node:async_hooks";
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { formatError, type TemplateError } from "./errors.js";
@@ -113,33 +114,68 @@ const CAPTURED = { error: "error", warn: "warn", info: "info", log: "log", debug
 
 type Captured = keyof typeof CAPTURED;
 
+/** Where the console output of the render running in this async context goes. */
+const consoleLogs = new AsyncLocalStorage<LogEntry[]>();
+let capturing = 0;
+let originalConsole: Record<Captured, (...args: unknown[]) => void> | undefined;
+
 /**
- * Runs `fn` with console output captured: Elements reports render problems
- * through the console, and with `check --json` or `render --json` stdout must
- * carry only JSON.
+ * Runs `fn` with its console output in `logs`: Elements reports render
+ * problems through the console, and with `check --json` or `render --json`
+ * stdout must carry only JSON. The output is told apart by async context, so
+ * a render that timed out and goes on in the background (see renderNow) logs
+ * into its own list, never into a later render's or onto the console; the
+ * console is put back once no render is running.
  */
-async function captureConsole<T>(fn: () => Promise<T>): Promise<{ value: T; logs: LogEntry[] }> {
-  const logs: LogEntry[] = [];
+async function captureConsole<T>(fn: () => Promise<T>, logs: LogEntry[] = []): Promise<{ value: T; logs: LogEntry[] }> {
   const methods = Object.keys(CAPTURED) as Captured[];
-  const originals = Object.fromEntries(methods.map((method) => [method, console[method]])) as Record<Captured, (...args: unknown[]) => void>;
-  for (const method of methods) {
-    const level = CAPTURED[method];
-    console[method] = (...args: unknown[]) => {
-      // React formats its warnings with %s placeholders.
-      let message = args.map(formatLogArg).join(" ");
-      if (typeof args[0] === "string" && args[0].includes("%s")) {
-        let i = 1;
-        message = args[0].replace(/%[sdo]/g, () => formatLogArg(args[i++]));
-      }
-      // Each output renders the template again, so the same message can repeat.
-      if (!logs.some((log) => log.level === level && log.message === message)) logs.push({ level, message });
-    };
+  if (capturing++ === 0) {
+    const originals = Object.fromEntries(methods.map((method) => [method, console[method]])) as Record<Captured, (...args: unknown[]) => void>;
+    originalConsole = originals;
+    for (const method of methods) {
+      const level = CAPTURED[method];
+      console[method] = (...args: unknown[]) => {
+        const into = consoleLogs.getStore();
+        if (!into) return originals[method].apply(console, args);
+        // React formats its warnings with %s placeholders.
+        let message = args.map(formatLogArg).join(" ");
+        if (typeof args[0] === "string" && args[0].includes("%s")) {
+          let i = 1;
+          message = args[0].replace(/%[sdo]/g, () => formatLogArg(args[i++]));
+        }
+        // Each output renders the template again, so the same message can repeat.
+        if (!into.some((log) => log.level === level && log.message === message)) into.push({ level, message });
+      };
+    }
   }
   try {
-    return { value: await fn(), logs };
+    return { value: await consoleLogs.run(logs, fn), logs };
   } finally {
-    for (const method of methods) console[method] = originals[method];
+    if (--capturing === 0 && originalConsole) {
+      for (const method of methods) console[method] = originalConsole[method];
+      originalConsole = undefined;
+    }
   }
+}
+
+/** Renders that timed out and haven't finished since (see renderNow). */
+let stillRunning = 0;
+
+/**
+ * How many renders timed out and are still running: nothing can stop them, so
+ * one that waits on an open connection or a timer keeps the process alive
+ * after a one-off command is done.
+ */
+export function rendersStillRunning(): number {
+  return stillRunning;
+}
+
+/** How long a template may take to load and render by default. */
+export const DEFAULT_RENDER_TIMEOUT_MS = 30_000;
+
+function seconds(ms: number): string {
+  const value = Math.round((ms / 1000) * 10) / 10;
+  return `${value} second${value === 1 ? "" : "s"}`;
 }
 
 /**
@@ -187,6 +223,8 @@ export interface LoaderOptions {
   watch: boolean;
   /** More Vite plugins for loading templates (e.g. to import SVGs, MDX or a custom file type). */
   plugins?: unknown[];
+  /** How long a template may take to load and render before it fails (default: 30 seconds). */
+  renderTimeoutMs?: number;
 }
 
 /**
@@ -203,7 +241,7 @@ export async function loadVitePlugins(file: string): Promise<unknown[]> {
   return plugins.flat();
 }
 
-export async function createLoader({ project, watch, plugins = [] }: LoaderOptions): Promise<TemplateLoader> {
+export async function createLoader({ project, watch, plugins = [], renderTimeoutMs = DEFAULT_RENDER_TIMEOUT_MS }: LoaderOptions): Promise<TemplateLoader> {
   const server = await createServer({
     root: project.root,
     configFile: false,
@@ -277,11 +315,43 @@ export async function createLoader({ project, watch, plugins = [] }: LoaderOptio
     }
   }
 
+  /**
+   * Loads and renders a template, or fails it when it takes longer than the
+   * render timeout: one whose data never comes would otherwise hold up every
+   * render after it. Nothing can stop it, so it goes on in the background;
+   * what it returns or logs from then on is dropped, and it can't replace a
+   * newer render (a changed file is loaded again, from scratch).
+   */
   async function renderNow(file: string, options: RenderOptions): Promise<RenderResult> {
     const started = performance.now();
+    const elapsed = () => Math.round(performance.now() - started);
     // What the template and the modules it imports log while they load is the template's too.
-    const { value, logs } = await captureConsole(() => loadAndRender(file, options));
-    return { ...value, logs, durationMs: Math.round(performance.now() - started) };
+    const logs: LogEntry[] = [];
+    const rendering = captureConsole(() => loadAndRender(file, options), logs).then(({ value }): RenderResult => ({ ...value, logs, durationMs: elapsed() }));
+    let timer: NodeJS.Timeout | undefined;
+    const timedOut = new Promise<undefined>((resolve) => {
+      timer = setTimeout(() => resolve(undefined), renderTimeoutMs);
+    });
+    try {
+      const result = await Promise.race([rendering, timedOut]);
+      if (result) return result;
+    } finally {
+      clearTimeout(timer);
+    }
+    stillRunning++;
+    const done = () => void stillRunning--;
+    rendering.then(done, done);
+    return {
+      ok: false,
+      error: {
+        message: `The template didn't finish rendering in ${seconds(renderTimeoutMs)}: it, or a module it imports, waits for something that doesn't come, such as a fetch that doesn't answer or a promise that never settles. If it needs longer, raise --render-timeout.`,
+        phase: "render",
+        timedOut: true,
+        file: path.relative(project.root, file),
+      },
+      logs: [...logs],
+      durationMs: elapsed(),
+    };
   }
 
   function enqueue<T>(fn: () => Promise<T>): Promise<T> {

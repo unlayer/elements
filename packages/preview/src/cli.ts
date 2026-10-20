@@ -5,6 +5,7 @@
  */
 
 import { spawn } from "node:child_process";
+import { once } from "node:events";
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import { parseArgs } from "node:util";
@@ -13,13 +14,16 @@ import { checkTemplates, formatCheckReport } from "./server/check.js";
 import { startDevServer } from "./server/dev-server.js";
 import { UsageError, type TemplateError } from "./server/errors.js";
 import { exportTemplates } from "./server/export.js";
-import { loadVitePlugins } from "./server/loader.js";
+import { loadVitePlugins, rendersStillRunning } from "./server/loader.js";
 import { shown } from "./server/paths.js";
 import { renderTemplates } from "./server/render.js";
 import { screenshotVariants, takeScreenshots } from "./server/screenshot.js";
 
 const VITE_PLUGINS_HELP = `  --vite-plugins <path> A module whose default export is an array of Vite plugins
                         (or a function returning one) to load templates with`;
+
+const RENDER_TIMEOUT_HELP = `  --render-timeout <s>  Seconds a template may take to render before it fails
+                        (default: 30)`;
 
 const PROJECT_ID_HELP = `  --project-id <id>     The Unlayer project the Editor view opens designs in
                         (default: UNLAYER_PROJECT_ID, or none)`;
@@ -35,6 +39,7 @@ Options:
   --port <number>       The port (default: 3000, or the next free one)
   --open                Open the preview in your browser
 ${PROJECT_ID_HELP}
+${RENDER_TIMEOUT_HELP}
 ${VITE_PLUGINS_HELP}
 `,
   export: `Usage: elements-preview export [options]
@@ -48,6 +53,7 @@ Options:
   --plainText           Write plain text instead of HTML
   --design              Also write each template's design JSON (<name>.design.json, opens in the Unlayer builder)
   --extension <ext>     The file extension (default: html, or txt with --plainText)
+${RENDER_TIMEOUT_HELP}
 ${VITE_PLUGINS_HELP}
 `,
   build: `Usage: elements-preview build [options]
@@ -60,6 +66,7 @@ Options:
   --dir <path>          The templates folder (default: emails)
   --outDir <path>       Where to write the build (default: .elements-preview)
 ${PROJECT_ID_HELP}
+${RENDER_TIMEOUT_HELP}
 ${VITE_PLUGINS_HELP}
 `,
   start: `Usage: elements-preview start [options]
@@ -86,6 +93,7 @@ Options:
   --json                Print the report as JSON (its shape is in the README)
   --strict              Fail on what's to check too, not only on what's to fix
   --offline             Don't request the links and images; check the HTML only
+${RENDER_TIMEOUT_HELP}
 ${VITE_PLUGINS_HELP}
 
 Exit codes: 0 nothing to fix; 1 something to fix (with --strict, or to check);
@@ -111,6 +119,7 @@ Options:
   --width <px>          The desktop width (default: 680; a Document: its page width)
   --browser <path>      The browser (default: CHROME_PATH, or the first one found)
   --json                Print the result as JSON
+${RENDER_TIMEOUT_HELP}
 ${VITE_PLUGINS_HELP}
 
 Exit codes: 0 every screenshot taken; 1 a template failed to render or shoot;
@@ -133,6 +142,7 @@ Options:
   --json                Print each template as a line of JSON
   --check               Also run check's checks: check { ok, toFix, toCheck, notes }
   --offline             With --check, don't request the links and images
+${RENDER_TIMEOUT_HELP}
 ${VITE_PLUGINS_HELP}
 
 Exit codes: 0 every template rendered (with --check, nothing to fix); 1 one
@@ -200,6 +210,17 @@ function failSetup(error: unknown): never {
   fail((error as Error).message);
 }
 
+/**
+ * Ends a one-off command whose output is written while a template that timed
+ * out is still rendering: it may wait on a connection or a timer that would
+ * keep the process running long after the command is done.
+ */
+async function endIfStillRendering(): Promise<void> {
+  if (!rendersStillRunning()) return;
+  for (const stream of [process.stdout, process.stderr]) if (stream.writableLength > 0) await once(stream, "drain");
+  process.exit(process.exitCode);
+}
+
 function useColor(): boolean {
   return Boolean(process.stdout.isTTY) && !process.env.NO_COLOR && process.env.TERM !== "dumb";
 }
@@ -236,6 +257,7 @@ export async function run(argv: string[]): Promise<void> {
         outDir: { type: "string" },
         "vite-plugins": { type: "string" },
         "project-id": { type: "string" },
+        "render-timeout": { type: "string" },
         pretty: { type: "boolean", default: false },
         plainText: { type: "boolean", default: false },
         design: { type: "boolean", default: false },
@@ -274,6 +296,17 @@ export async function run(argv: string[]): Promise<void> {
   if (port !== undefined && (!Number.isInteger(port) || port < 1 || port > 65535)) fail(`--port must be a port number, not ${values.port}`);
   const projectId = command === "dev" || command === "build" ? projectIdFrom(values["project-id"]) : undefined;
   const oneOff = command === "check" || command === "screenshot" || command === "render";
+  let renderTimeoutMs: number | undefined;
+  if (values["render-timeout"] !== undefined) {
+    const seconds = Number(values["render-timeout"]);
+    if (!Number.isFinite(seconds) || seconds <= 0) {
+      const error = new UsageError(`--render-timeout must be a number of seconds, not ${values["render-timeout"]}`);
+      if (oneOff) failCommand(error, values.json);
+      failSetup(error);
+    }
+    // setTimeout's longest delay.
+    renderTimeoutMs = Math.min(seconds * 1000, 2 ** 31 - 1);
+  }
   let plugins: unknown[] | undefined;
   if (values["vite-plugins"]) {
     try {
@@ -288,13 +321,13 @@ export async function run(argv: string[]): Promise<void> {
   if (command === "check") {
     let report;
     try {
-      report = await checkTemplates({ dir: values.dir, templates: positionals.slice(1), network: !values.offline, strict: values.strict, plugins });
+      report = await checkTemplates({ dir: values.dir, templates: positionals.slice(1), network: !values.offline, strict: values.strict, plugins, renderTimeoutMs });
     } catch (error) {
       failCommand(error, values.json);
     }
     process.stdout.write(values.json ? `${JSON.stringify(report, null, 2)}\n` : formatCheckReport(report, { color: useColor(), dir: shown(path.resolve(values.dir)) }));
     process.exitCode = report.ok ? 0 : 1;
-    return;
+    return endIfStillRendering();
   }
 
   if (command === "render") {
@@ -308,6 +341,7 @@ export async function run(argv: string[]): Promise<void> {
         check: values.check,
         network: !values.offline,
         plugins,
+        renderTimeoutMs,
         // With --json each template is printed as soon as it's done.
         onTemplate: values.json ? (template) => process.stdout.write(`${JSON.stringify(template)}\n`) : undefined,
       });
@@ -324,7 +358,7 @@ export async function run(argv: string[]): Promise<void> {
       for (const finding of template.check?.toFix ?? []) process.stderr.write(`  ✗ ${template.path}: ${finding.message.split("\n")[0]}\n`);
     }
     process.exitCode = result.failed ? 1 : 0;
-    return;
+    return endIfStillRendering();
   }
 
   if (command === "screenshot") {
@@ -342,6 +376,7 @@ export async function run(argv: string[]): Promise<void> {
         width,
         browser: values.browser,
         plugins,
+        renderTimeoutMs,
         onScreenshot: values.json ? undefined : (_, screenshot) => process.stdout.write(`${screenshot.file}\n`),
       });
     } catch (error) {
@@ -357,13 +392,13 @@ export async function run(argv: string[]): Promise<void> {
       }
     }
     process.exitCode = result.failed ? 1 : 0;
-    return;
+    return endIfStillRendering();
   }
 
   if (command === "dev") {
     let server;
     try {
-      server = await startDevServer({ dir: values.dir, port, strictPort: port !== undefined, plugins, projectId });
+      server = await startDevServer({ dir: values.dir, port, strictPort: port !== undefined, plugins, projectId, renderTimeoutMs });
     } catch (error) {
       fail((error as Error).message);
     }
@@ -397,6 +432,7 @@ export async function run(argv: string[]): Promise<void> {
         dir: values.dir,
         outDir: values.outDir ?? "out",
         plugins,
+        renderTimeoutMs,
         pretty: values.pretty,
         plainText: values.plainText,
         design: values.design,
@@ -418,13 +454,13 @@ export async function run(argv: string[]): Promise<void> {
     process.stdout.write(`\n${done} of ${result.templates.length} templates exported to ${shown(result.outDir)}\n`);
     if (result.templates.length === 0) process.stdout.write(`No templates found in ${values.dir}. Templates are .tsx, .jsx or .js files with an export default.\n`);
     if (result.failed) process.exitCode = 1;
-    return;
+    return endIfStillRendering();
   }
 
   if (command === "build") {
     let result;
     try {
-      result = await buildPreview({ dir: values.dir, outDir: values.outDir, plugins, projectId });
+      result = await buildPreview({ dir: values.dir, outDir: values.outDir, plugins, projectId, renderTimeoutMs });
     } catch (error) {
       failSetup(error);
     }
@@ -436,7 +472,7 @@ export async function run(argv: string[]): Promise<void> {
       `\n${result.templates} templates built to ${where}${result.failed.length ? `, ${result.failed.length} with errors (shown in the preview)` : ""}.\n` +
         `Host the folder on any static host, or run: ${COMMAND} start${values.outDir && values.outDir !== ".elements-preview" ? ` --outDir ${where}` : ""}\n`
     );
-    return;
+    return endIfStillRendering();
   }
 
   if (command === "start") {

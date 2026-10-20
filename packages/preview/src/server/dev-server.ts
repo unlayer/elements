@@ -30,6 +30,8 @@ export interface DevServerOptions {
   uiDir?: string;
   /** More Vite plugins for loading templates (see loadVitePlugins). */
   plugins?: unknown[];
+  /** How long a template may take to load and render before it fails (default: 30 seconds). */
+  renderTimeoutMs?: number;
   /** The Unlayer project the Editor view opens designs in (none: the editor's defaults). */
   projectId?: number;
 }
@@ -52,7 +54,7 @@ export async function startDevServer(options: DevServerOptions): Promise<DevServ
   }
   const uiDir = options.uiDir ?? defaultUiDir();
   const project = inspectProject(dir);
-  const loader: TemplateLoader = await createLoader({ project, watch: true, plugins: options.plugins });
+  const loader: TemplateLoader = await createLoader({ project, watch: true, plugins: options.plugins, renderTimeoutMs: options.renderTimeoutMs });
   const checks = createChecks(loader, dir);
 
   let templates: TemplateEntry[] = await discoverTemplates(dir);

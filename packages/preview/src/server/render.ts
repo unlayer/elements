@@ -24,6 +24,8 @@ export interface RenderTemplatesOptions {
   network?: boolean;
   /** More Vite plugins for loading templates (see loadVitePlugins). */
   plugins?: unknown[];
+  /** How long a template may take to load and render before it fails (default: 30 seconds). */
+  renderTimeoutMs?: number;
   timeoutMs?: number;
   fetch?: typeof fetch;
   /** Called with each template as soon as it's rendered (and checked). */
@@ -61,7 +63,7 @@ export interface RenderTemplatesResult {
 /** Renders the templates named (a UsageError when one isn't there, or when Elements isn't installed). */
 export async function renderTemplates(options: RenderTemplatesOptions): Promise<RenderTemplatesResult> {
   const { dir, project, selected } = await selectProjectTemplates(options.dir, options.templates, "render");
-  const loader = await createLoader({ project, watch: false, plugins: options.plugins });
+  const loader = await createLoader({ project, watch: false, plugins: options.plugins, renderTimeoutMs: options.renderTimeoutMs });
   const context: FindingsContext = {
     project,
     checks: createChecks(loader, dir),

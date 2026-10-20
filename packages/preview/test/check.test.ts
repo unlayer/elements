@@ -71,6 +71,19 @@ export default function Noisy() {
 }
 `;
 
+// A template whose data never comes: its async component waits for a promise that never settles.
+const STUCK = `import { Email, Row, Column, Paragraph } from "@unlayer/react-elements";
+
+async function Order() {
+  await new Promise(() => {});
+  return <Paragraph>Never shown</Paragraph>;
+}
+
+export default function Stuck() {
+  return <Email><Row><Column><Order /></Column></Row></Email>;
+}
+`;
+
 beforeAll(async () => {
   fixture = await fixtureCopy("check");
   await writeFile(path.join(fixture.emails, "needs-fixes.tsx"), NEEDS_FIXES);
@@ -210,6 +223,26 @@ export default function NoAlt() {
       ])
     );
     expect(template.toCheck).toEqual(expect.arrayContaining([expect.objectContaining({ kind: "warning", message: "Using sample data" })]));
+  });
+
+  it("fails a template that doesn't finish rendering, and checks the others", async () => {
+    const stuck = path.join(fixture.root, "stuck");
+    await mkdir(stuck);
+    await writeFile(path.join(stuck, "stuck.tsx"), STUCK);
+    await writeFile(path.join(stuck, "ok.tsx"), NO_KEYS.replace("NoKeys", "Ok").replace("items.map((item) => <Paragraph>", "items.map((item) => <Paragraph key={item}>"));
+    const { code, stdout } = await cli(["check", "--dir", stuck, "--json", "--offline", "--render-timeout", "3"]);
+    expect(code).toBe(1);
+    const report = JSON.parse(stdout);
+    expect(report.templates.map((t: any) => [t.path, t.ok])).toEqual([
+      ["stuck.tsx", false],
+      ["ok.tsx", true],
+    ]);
+    expect(report.templates[0].toFix).toEqual([
+      expect.objectContaining({ kind: "render", message: expect.stringMatching(/^The template didn't finish rendering in 3 seconds/), file: expect.stringMatching(/stuck\.tsx$/) }),
+    ]);
+    const invalid = await cli(["check", "--dir", stuck, "--json", "--render-timeout", "soon"]);
+    expect(invalid.code).toBe(2);
+    expect(JSON.parse(invalid.stderr).error).toMatch(/--render-timeout must be a number of seconds/);
   });
 
   it("refuses templates and folders that aren't there", async () => {

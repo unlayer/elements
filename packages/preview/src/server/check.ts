@@ -27,6 +27,8 @@ export interface CheckOptions {
   strict?: boolean;
   /** More Vite plugins for loading templates (see loadVitePlugins). */
   plugins?: unknown[];
+  /** How long a template may take to load and render before it fails (default: 30 seconds). */
+  renderTimeoutMs?: number;
   /** How long each URL has to answer (default: the link check's). */
   timeoutMs?: number;
   fetch?: typeof fetch;
@@ -110,7 +112,7 @@ export async function checkTemplates(options: CheckOptions): Promise<CheckReport
   const { dir, project, selected } = await selectProjectTemplates(options.dir, options.templates ?? [], "check");
   const network = options.network !== false;
   const strict = options.strict === true;
-  const loader = await createLoader({ project, watch: false, plugins: options.plugins });
+  const loader = await createLoader({ project, watch: false, plugins: options.plugins, renderTimeoutMs: options.renderTimeoutMs });
   const context: FindingsContext = { project, checks: createChecks(loader, dir), network, timeoutMs: options.timeoutMs, fetch: options.fetch };
   const templates: CheckedTemplate[] = [];
   try {

@@ -47,7 +47,7 @@ The top bar has the template's name (its render time and whether it's live are i
 - **Editor**: the template's design JSON in the [Unlayer editor](https://unlayer.com), to check how it opens there. Each render loads it again; changes made in the editor aren't saved to your file. The editor comes from `editor.unlayer.com`, so this view needs an internet connection (the others don't). Images from `static/` are copied into the design it gets, since the editor's page can't load them from localhost. It opens without an Unlayer project; pass `--project-id` (or set `UNLAYER_PROJECT_ID`) to open it in yours, with your project's settings.
 - **Code**: the template's source, the HTML, the plain text and the design JSON, highlighted, to copy or download.
 - **Checks**: the button says "All clear", or how many things there are to fix (something broken) or to check, in the color of the worst. It opens a drawer with three sections:
-  - **Rendering**: what Elements and React report while rendering (a column too many, a block left out), and a design JSON (the template then won't open in the Unlayer editor) or plain text that can't be made. A template that doesn't compile or throws shows its error, with the file, line and code, in place of the preview; the preview keeps running and recovers when you fix the file.
+  - **Rendering**: what Elements and React report while rendering (a column too many, a block left out), and a design JSON (the template then won't open in the Unlayer editor) or plain text that can't be made. A template that doesn't compile or throws shows its error, with the file, line and code, in place of the preview, and so does one that doesn't finish rendering in 30 seconds (see [Render timeout](#render-timeout)); the preview keeps running and recovers when you fix the file.
   - **Email clients**: the HTML and CSS the email uses that Gmail, Outlook, Apple Mail, Yahoo Mail, Samsung Email or Thunderbird don't support, from [caniemail.com](https://www.caniemail.com), with the block it's on and the template lines it likely comes from. Elements' own email HTML uses some CSS on purpose, with fallbacks for the clients that ignore it; those are listed apart, as handled by Elements.
   - **Links & images**: links that go nowhere, relative or `http:` URLs, links to localhost, images without alt text, SVG and `data:` images most clients block, `/static/` images to host before sending, and HTML over Gmail's 102 KB clipping limit. Each URL is requested, so broken links (404), hosts that don't exist, non-images and large images show too.
 - **Props** (the drawer's other tab): render with other props than `PreviewProps`, without changing the file.
@@ -69,6 +69,7 @@ The preview follows your system's light or dark appearance.
 | `--port <number>` | `3000` | The port. When it's taken, the next free one is used, unless you set it. |
 | `--open` | | Open the preview in your browser |
 | `--project-id <id>` | `UNLAYER_PROJECT_ID`, or none | The Unlayer project the Editor view opens designs in |
+| `--render-timeout <s>` | `30` | Seconds a template may take to render before it fails (see [Render timeout](#render-timeout)) |
 
 The server listens on localhost only and answers only requests addressed to localhost.
 
@@ -84,6 +85,7 @@ Renders every template with its `PreviewProps` to `out/<path>.html` (`emails/bil
 | `--plainText` | | Write plain text instead of HTML |
 | `--design` | | Also write each template's design JSON (`<name>.design.json`) for the Unlayer builder |
 | `--extension <ext>` | `html` | The file extension, e.g. `blade.php` (`txt` with `--plainText`) |
+| `--render-timeout <s>` | `30` | Seconds a template may take to render before it fails (see [Render timeout](#render-timeout)) |
 
 It exits with 1 when a template fails, after exporting the others; with `--plainText`, a template whose plain text can't be made fails too, and gets no file. It exits with 2, before writing anything, when two templates would write the same file (`welcome.jsx` and `welcome.tsx` both export to `welcome.html`): rename one of them. Export is for backends that can't run JavaScript, or platforms that only take HTML; when your code can call Elements, render at send time with the real data instead (`renderToHtml`).
 
@@ -116,6 +118,7 @@ Name templates by their path in the templates folder (`welcome.tsx`) or from the
 | `--json` | | Print the report as JSON (below) |
 | `--strict` | | Fail on what's to check too, not only on what's to fix |
 | `--offline` | | Don't request the links' and images' URLs; check the HTML only |
+| `--render-timeout <s>` | `30` | Seconds a template may take to render before it fails (see [Render timeout](#render-timeout)) |
 
 | Exit code | |
 | --- | --- |
@@ -204,6 +207,7 @@ npx elements-preview screenshot welcome.tsx --all
 | `--width <px>` | `680` | The desktop (and dark) width. A `Document` is taken at its page's width (A4: 794 px) unless you set one |
 | `--browser <path>` | `CHROME_PATH`, or the one found | The browser to use |
 | `--json` | | Print `{ ok, browser, outDir, templates: [{ path, ok, mode, screenshots: [{ variant, width, height, file }], warnings, error? }] }` |
+| `--render-timeout <s>` | `30` | Seconds a template may take to render before it fails (see [Render timeout](#render-timeout)) |
 
 Templates are named as for `check` (`.` takes them all). Each page loads the templates folder's `static/` files as the preview does, and waits for its images and web fonts; an image that doesn't load is reported. Templates are taken one at a time, in one browser tab.
 
@@ -239,6 +243,7 @@ Templates are named as for `check` (`.` takes them all); name at least one.
 | `--json` | | Print each template as a line of JSON (without it: one template's HTML) |
 | `--check` | | Also run `check`'s checks on each template |
 | `--offline` | | With `--check`, don't request the links' and images' URLs |
+| `--render-timeout <s>` | `30` | Seconds a template may take to render before it fails (see [Render timeout](#render-timeout)) |
 
 | Exit code | |
 | --- | --- |
@@ -257,6 +262,7 @@ New fields may be added; existing ones keep their meaning.
 | `--dir <path>` | `emails` | The templates folder (`build`) |
 | `--outDir <path>` | `.elements-preview` | Where to write the build (`build`), or the build to serve (`start`) |
 | `--project-id <id>` | `UNLAYER_PROJECT_ID`, or none | The Unlayer project the Editor view opens designs in (`build`) |
+| `--render-timeout <s>` | `30` | Seconds a template may take to render before it fails (`build`; see [Render timeout](#render-timeout)) |
 | `--port <number>` | `3000` | The port (`start`) |
 | `--open` | | Open it in your browser (`start`) |
 
@@ -294,6 +300,10 @@ A build is plain static files with relative paths, so it works on any static hos
   ```
 
 A build contains each template's source code and its `PreviewProps`, so whoever can open it can read them. Keep real customer data and secrets out of `PreviewProps`, and put the deployment behind your host's access protection when the templates are private.
+
+### Render timeout
+
+A template has 30 seconds to load and render. One that takes longer, because it (or a module it imports) waits for something that doesn't come, such as a fetch that doesn't answer or a promise that never settles, fails as a template that throws does, and the other templates render as usual. The preview shows the error until you fix the file and save; `check` counts it as to fix, and `check`, `render`, `export` and `screenshot` exit with 1; a `build` shows it in the preview. Give templates longer with `--render-timeout <seconds>` on any of these commands and `dev`.
 
 ### Vite plugins
 

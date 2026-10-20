@@ -18,6 +18,8 @@ export interface TemplateError {
   stack?: string;
   /** Whether loading the module failed (a syntax or import error) rather than rendering it. */
   phase: "load" | "render";
+  /** It didn't finish rendering in the render timeout (it waits for something that doesn't come). */
+  timedOut?: boolean;
 }
 
 // eslint-disable-next-line no-control-regex

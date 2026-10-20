@@ -1,8 +1,8 @@
-import { readFile, writeFile } from "node:fs/promises";
+import { mkdir, readFile, writeFile } from "node:fs/promises";
 import http from "node:http";
 import { createRequire } from "node:module";
 import path from "node:path";
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { startDevServer, type DevServer } from "../src/server/dev-server";
 import { fixtureCopy } from "./helpers";
 
@@ -19,15 +19,15 @@ afterAll(async () => {
   await fixture?.cleanup();
 });
 
-async function post(route: string, body: unknown) {
-  const res = await fetch(server.url + route, { method: "POST", body: JSON.stringify(body) });
+async function post(route: string, body: unknown, on: DevServer = server) {
+  const res = await fetch(on.url + route, { method: "POST", body: JSON.stringify(body) });
   return { status: res.status, body: (await res.json()) as any };
 }
 
 /** Resolves with the next `change` event's data. */
-function nextChange(): Promise<{ files: string[]; templates: Array<{ path: string }> }> {
+function nextChange(on: DevServer = server): Promise<{ files: string[]; templates: Array<{ path: string }> }> {
   return new Promise((resolve, reject) => {
-    const req = http.get(`${server.url}/api/events`, (res) => {
+    const req = http.get(`${on.url}/api/events`, (res) => {
       let buffer = "";
       res.setEncoding("utf8");
       res.on("data", (chunk: string) => {
@@ -237,5 +237,104 @@ describe("dev server", () => {
     } else {
       expect(body.error).toMatchObject({ phase: "render", file: "emails/throws.tsx", line: 4 });
     }
+  });
+});
+
+// A template whose data never comes: its async component waits for a promise that never settles.
+const STUCK = `import { Email, Row, Column, Paragraph } from "@unlayer/react-elements";
+
+async function Order() {
+  console.log("Fetching the order");
+  await new Promise(() => {});
+  return <Paragraph>Never shown</Paragraph>;
+}
+
+export default function Stuck() {
+  return <Email><Row><Column><Order /></Column></Row></Email>;
+}
+`;
+
+// A module that takes longer to load than the render timeout, and logs when it's done.
+const SLOW_DATA = `console.log("Loading the order");
+await new Promise((resolve) => setTimeout(resolve, 4500));
+console.log("Loaded the order late");
+export const order = { id: "late" };
+`;
+
+const LATE = `import { Email, Row, Column, Paragraph } from "@unlayer/react-elements";
+import { order } from "./_data/order";
+
+export default function Late() {
+  return <Email><Row><Column><Paragraph>Order {order.id}</Paragraph></Column></Row></Email>;
+}
+`;
+
+describe("dev server, with a template that doesn't finish rendering", () => {
+  let stuckServer: DevServer;
+  let stuckFixture: Awaited<ReturnType<typeof fixtureCopy>>;
+  const RENDER_TIMEOUT_MS = 3000;
+
+  beforeAll(async () => {
+    stuckFixture = await fixtureCopy("dev-stuck");
+    await writeFile(path.join(stuckFixture.emails, "stuck.tsx"), STUCK);
+    stuckServer = await startDevServer({ dir: stuckFixture.emails, port: 0, uiDir: path.join(stuckFixture.root, "no-ui"), renderTimeoutMs: RENDER_TIMEOUT_MS });
+  });
+
+  afterAll(async () => {
+    await stuckServer?.close();
+    await stuckFixture?.cleanup();
+  });
+
+  it("drops what a render that timed out returns or logs later", async () => {
+    // Before any render: what a render logs is captured on top of this, and what isn't a render's reaches it.
+    const printed = vi.spyOn(console, "log");
+    try {
+      await mkdir(path.join(stuckFixture.emails, "_data"), { recursive: true });
+      await writeFile(path.join(stuckFixture.emails, "_data", "order.ts"), SLOW_DATA);
+      await writeFile(path.join(stuckFixture.emails, "late.tsx"), LATE);
+      // Until the server lists it.
+      while (!(await (await fetch(`${stuckServer.url}/api/templates`)).json()).templates.some((t: { path: string }) => t.path === "late.tsx")) {
+        await new Promise((r) => setTimeout(r, 50));
+      }
+      const late = (await post("/api/render", { path: "late.tsx" }, stuckServer)).body;
+      expect(late).toMatchObject({ ok: false, error: { timedOut: true }, logs: [{ level: "log", message: "Loading the order" }] });
+
+      const change = nextChange(stuckServer);
+      await new Promise((r) => setTimeout(r, 100));
+      await writeFile(path.join(stuckFixture.emails, "_data", "order.ts"), 'export const order = { id: "fixed" };\n');
+      await change;
+      const fixed = (await post("/api/render", { path: "late.tsx" }, stuckServer)).body;
+      expect(fixed).toMatchObject({ ok: true, logs: [] });
+      expect(fixed.text).toContain("Order fixed");
+
+      // Once the first load is done, the template still renders with the fixed module, and what the first load logged is nowhere.
+      await new Promise((r) => setTimeout(r, 2500));
+      const after = (await post("/api/render", { path: "late.tsx" }, stuckServer)).body;
+      expect(after).toMatchObject({ ok: true, logs: [] });
+      expect(after.text).toContain("Order fixed");
+      expect(printed.mock.calls.flat().join("\n")).not.toMatch(/Loading the order|Loaded the order late/);
+    } finally {
+      printed.mockRestore();
+    }
+  });
+
+  it("fails it after the render timeout, renders the others, and renders it again once it's fixed", async () => {
+    const stuck = (await post("/api/render", { path: "stuck.tsx" }, stuckServer)).body;
+    expect(stuck).toMatchObject({ ok: false, error: { phase: "render", timedOut: true, file: "emails/stuck.tsx" } });
+    expect(stuck.error.message).toMatch(/^The template didn't finish rendering in 3 seconds/);
+    expect(stuck.logs).toEqual([{ level: "log", message: "Fetching the order" }]);
+    // Its checks don't render it again.
+    expect((await post("/api/links", { path: "stuck.tsx" }, stuckServer)).body.applicable).toBe(false);
+
+    // The others aren't held up behind it.
+    expect((await post("/api/render", { path: "welcome.tsx" }, stuckServer)).body.ok).toBe(true);
+
+    const change = nextChange(stuckServer);
+    await new Promise((r) => setTimeout(r, 100));
+    await writeFile(path.join(stuckFixture.emails, "stuck.tsx"), STUCK.replace("await new Promise(() => {});", "await Promise.resolve();").replace("Never shown", "Order 42"));
+    await change;
+    const fixed = (await post("/api/render", { path: "stuck.tsx" }, stuckServer)).body;
+    expect(fixed.ok).toBe(true);
+    expect(fixed.text).toContain("Order 42");
   });
 });

@@ -32,6 +32,8 @@ export interface TemplateError {
   frame?: string;
   stack?: string;
   phase: "load" | "render";
+  /** It didn't finish rendering in the render timeout. */
+  timedOut?: boolean;
 }
 
 export type RenderMode = "email" | "web" | "document";

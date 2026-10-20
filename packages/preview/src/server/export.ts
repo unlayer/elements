@@ -29,6 +29,8 @@ export interface ExportOptions {
   extension?: string;
   /** More Vite plugins for loading templates (see loadVitePlugins). */
   plugins?: unknown[];
+  /** How long a template may take to load and render before it fails (default: 30 seconds). */
+  renderTimeoutMs?: number;
 }
 
 export interface ExportedTemplate {
@@ -67,7 +69,7 @@ export async function exportTemplates(options: ExportOptions): Promise<ExportRes
     path.join(outDir, `${base(template)}.${extension}`),
     ...(options.design ? [path.join(outDir, `${base(template)}.design.json`)] : []),
   ]);
-  const loader = await createLoader({ project, watch: false, plugins: options.plugins });
+  const loader = await createLoader({ project, watch: false, plugins: options.plugins, renderTimeoutMs: options.renderTimeoutMs });
   const results: ExportedTemplate[] = [];
   try {
     await mkdir(outDir, { recursive: true });

@@ -79,6 +79,8 @@ export interface ScreenshotOptions {
   browser?: string;
   /** More Vite plugins for loading templates (see loadVitePlugins). */
   plugins?: unknown[];
+  /** How long a template may take to load and render before it fails (default: 30 seconds). */
+  renderTimeoutMs?: number;
   /** How long a page has to load its images and fonts (default 15 s). */
   timeoutMs?: number;
   /** Called with each screenshot written. */
@@ -211,7 +213,7 @@ export async function takeScreenshots(options: ScreenshotOptions): Promise<Scree
   const timeoutMs = options.timeoutMs ?? 15_000;
 
   const { default: puppeteer } = await import("puppeteer-core");
-  const loader = await createLoader({ project, watch: false, plugins: options.plugins });
+  const loader = await createLoader({ project, watch: false, plugins: options.plugins, renderTimeoutMs: options.renderTimeoutMs });
   const server = await startPageServer(dir, await darkModeScript());
   const templates: ScreenshotTemplate[] = [];
   let instance: Awaited<ReturnType<typeof puppeteer.launch>> | undefined;

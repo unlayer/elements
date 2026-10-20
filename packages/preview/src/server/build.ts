@@ -29,6 +29,8 @@ export interface BuildOptions {
   uiDir?: string;
   /** Vite plugins for loading templates (see LoaderOptions.plugins). */
   plugins?: unknown[];
+  /** How long a template may take to load and render before it fails (default: 30 seconds). */
+  renderTimeoutMs?: number;
   /** The Unlayer project the Editor view opens designs in (none: the editor's defaults). */
   projectId?: number;
 }
@@ -67,7 +69,7 @@ export async function buildPreview(options: BuildOptions): Promise<BuildResult> 
   const staticDir = path.join(dir, "static");
   const appFiles = await listFiles(uiDir);
   const staticFiles = existsSync(staticDir) ? (await listFiles(staticDir)).map((file) => `static/${file}`) : [];
-  const loader = await createLoader({ project, watch: false, plugins: options.plugins });
+  const loader = await createLoader({ project, watch: false, plugins: options.plugins, renderTimeoutMs: options.renderTimeoutMs });
   const checks = createChecks(loader, dir);
   const failed: BuildResult["failed"] = [];
   const written = new Set<string>();
