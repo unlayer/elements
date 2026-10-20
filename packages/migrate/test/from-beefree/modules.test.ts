@@ -37,6 +37,14 @@ describe("text modules", () => {
     expect(warnings).toEqual([]);
   });
 
+  it("the legacy `text` module's links keep their own color, as Beefree exports them; its link color is for links without one", () => {
+    const html = '<p><a href="https://example.com/a" style="color: #000000;">Own</a> and <a href="https://example.com/b">module</a></p>';
+    const linked = (linkColor?: string) => convert(module("text", { text: { html, style: {}, computedStyle: linkColor ? { linkColor } : {} }, style: {} }), { computed: { linkColor: "#0068A5" } }).block;
+    expect(linked("#f7dd72").values.text).toBe('<p style="margin: 0;"><a href="https://example.com/a" style="color: #000000;">Own</a> and <a href="https://example.com/b" style="color: #f7dd72;">module</a></p>');
+    // Without a link color of its own, the body's.
+    expect(linked().values.text).toBe('<p style="margin: 0;"><a href="https://example.com/a" style="color: #000000;">Own</a> and <a href="https://example.com/b" style="color: #0068A5;">module</a></p>');
+  });
+
   it("keeps a wrapper that sets more than the block can hold", () => {
     const { block } = convert(module("text", { text: { html: '<div style="direction: rtl; font-size: 13px;"><p>שלום</p></div>', style: {} }, style: {} }));
     expect(block.values.text).toBe('<div style="direction: rtl; font-size: 13px;"><p style="margin: 0;">שלום</p></div>');

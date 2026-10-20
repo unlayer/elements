@@ -90,8 +90,8 @@ export interface CleanOptions {
   /** Paragraphs get `margin: 0` (and this spacing below each but the last), as Beefree exports them. */
   paragraphs?: { spacing?: string };
   /**
-   * Links' color, as Beefree exports them: the module's link color on every link (over the link's own), else the
-   * body's on links without one of their own.
+   * Links' color, as Beefree exports them: `color` on every link (over the link's own: a `paragraph`'s link color),
+   * else `fallback` on links without one of their own (the legacy `text` module's, or the body's).
    */
   links?: { color?: string; fallback?: string };
 }

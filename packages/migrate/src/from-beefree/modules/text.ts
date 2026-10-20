@@ -15,8 +15,17 @@ function directed(html: string, direction: unknown, ctx: ModuleContext): string 
   return (own === "rtl" || own === "ltr") && own !== ctx.direction ? withDirection(html, own) : html;
 }
 
-/** Links in the module's link color, else the body's (Beefree exports each link with its color). */
+/**
+ * Links in the module's link color, over their own, else the body's (Beefree exports each link of a `paragraph`,
+ * `list` or `heading` with its color).
+ */
 const linkOptions = (linkColor: unknown, ctx: ModuleContext) => ({ color: color(linkColor) || undefined, fallback: ctx.linkColor });
+
+/**
+ * The legacy module's links in their own color, as Beefree exports them: the module's link color, else the body's,
+ * is for links without one.
+ */
+const legacyLinkOptions = (linkColor: unknown, ctx: ModuleContext) => ({ fallback: color(linkColor) || ctx.linkColor });
 
 /**
  * A block's link color, for its links (Beefree's links are written with it) and the ones added in the editor: set
@@ -34,7 +43,7 @@ const withColor = (values: Values, ctx: ModuleContext): Values => ({ color: ctx.
 export function text(descriptor: Record<string, any>, ctx: ModuleContext): ModuleResult {
   const source = descriptor.text ?? {};
   const style = source.style ?? {};
-  const { html, lifted } = legacyText(String(source.html ?? ""), { paragraphs: {}, links: linkOptions(source.computedStyle?.linkColor, ctx) });
+  const { html, lifted } = legacyText(String(source.html ?? ""), { paragraphs: {}, links: legacyLinkOptions(source.computedStyle?.linkColor, ctx) });
   const values: Values = {};
   // Beefree exports the wrapper's size and font, and the module's color and line height.
   const size = px(lifted.fontSize) ?? px(style["font-size"]) ?? px(style.size);
