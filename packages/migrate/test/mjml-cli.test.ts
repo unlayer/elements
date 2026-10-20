@@ -145,6 +145,23 @@ describe("--from mjml", () => {
     expect((await run(dir, "emails", "--from", "mjml", "--out", "migrated", "--overwrite")).code).toBe(0);
   });
 
+  it("shows a right-to-left template's columns where MJML does, on desktop and on phones", async () => {
+    const columns = '<mj-column><mj-text align="right">ראשון</mj-text></mj-column><mj-column><mj-text align="right">שני</mj-text></mj-column>';
+    const dir = project({
+      // MJML's sections show their columns left to right whatever <mjml dir> says.
+      "emails/page.mjml": `<mjml dir="rtl"><mj-body><mj-section>${columns}</mj-section></mj-body></mjml>`,
+      // Right to left where a section says so.
+      "emails/sections.mjml": `<mjml dir="rtl"><mj-body><mj-section direction="rtl">${columns}</mj-section></mj-body></mjml>`,
+    });
+    const { code, out, err } = await run(dir, "emails", "--from", "mjml", "--out", "migrated", "--design");
+    expect(code, out + err).toBe(0);
+    expect(out).toMatch(/^✓ emails\/page\.mjml: .*mjml dir rtl not kept/m);
+    expect(out).toMatch(/^✓ emails\/sections\.mjml: /m);
+    expect(out).not.toContain("moved");
+    expect(JSON.parse(read(dir, "migrated/page.design.json")).body.values.textDirection).toBeUndefined();
+    expect(JSON.parse(read(dir, "migrated/sections.design.json")).body.values.textDirection).toBe("rtl");
+  });
+
   it("fails a template with a block kept as MJML's HTML with --strict, writing it only with --force", async () => {
     const dir = project({ "emails/hero.mjml": HERO });
     const strict = await run(dir, "emails", "--from", "mjml", "--strict", "--out", "migrated");

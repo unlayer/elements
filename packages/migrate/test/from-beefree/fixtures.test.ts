@@ -83,9 +83,12 @@ describe("the committed Beefree templates", () => {
     if (lostContent(check)) expect(failureCauses(check, design).filter((cause) => cause.startsWith("other"))).toEqual([]);
   });
 
-  it("the check passes outright where neither known difference applies", () => {
+  it("the check passes outright where neither known difference applies, in the export's styles", () => {
     const file = "toptile-legacy/signup-email.json";
     const { design } = beefreeToDesign(fs.readFileSync(path.join(ROOT, file)));
-    expect(lostContent(compareText(fs.readFileSync(path.join(ROOT, file.replace(/\.json$/, ".html")), "utf8"), render(design).html))).toBe(false);
+    const check = compareText(fs.readFileSync(path.join(ROOT, file.replace(/\.json$/, ".html")), "utf8"), render(design).html);
+    expect(lostContent(check)).toBe(false);
+    // Its links in their own black, as the export has them, not the module's pale yellow link color.
+    expect(check.styles).toEqual([]);
   });
 });

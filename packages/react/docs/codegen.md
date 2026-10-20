@@ -184,9 +184,11 @@ Each setting that differs from the component's default is a prop, written as you
 - **Columns**: `backgroundColor`, `padding`, `borderRadius`, `border`, and phone padding as `mobile={{ padding }}`.
 - **Text**: a Paragraph's text as `html`, which renders as the design has it (a Paragraph's children are text, with inline JSX as rich text); a Heading's as children when it's plain text (words with nothing React would escape), else its `text`. A Heading's `headingType`; text styles as flat props.
 - **Buttons**: the text as children, the link as `href` (and `target` when it isn't a new tab), colors as `color`, `backgroundColor`, `hoverColor`, `hoverBackgroundColor`, a fixed width as `width`.
-- **Images**: `src` (a URL, or `{ url, width, height }` with the image's natural size, and `autoWidth: true` when its width is automatic), a fixed width as `width={32}` where its percent of the column is a whole pixel (as renderToJson writes a px width: Elements then renders exactly that), else `width="45.5%"`, `alt`, `action` (its link).
-- **Menus, social icons, tables and videos**: `items`, `icons` (and `iconType`), `headers` and `data` (or `columns` and `rows` for an empty grid), `videoUrl` (or `video`, which keeps the editor's URL).
+- **Images**: `src` (a URL, or `{ url, width, height }` with the image's natural size, and `autoWidth: true` when its width is automatic), a fixed width as `width={32}` where its percent of the column is a whole pixel (as renderToJson writes a px width: Elements then renders exactly that), else `width="45.5%"`, `alt`, `action` (its link, as a web link to its URL).
+- **Menus, social icons, tables and videos**: `items` (or `menu`, which keeps the editor's keys for its items, each link a web link to its URL), `icons` (and `iconType`), `headers` and `data` (or `columns` and `rows` for an empty grid), `videoUrl` (or `video`, which keeps the editor's URL).
 - **Phone and visibility settings**: `mobile={{ … }}`, `hideOnMobile`, `hideOnDesktop`.
+
+A link is the URL the builder exports for it: the editor saves a link as an action (a web page, an email, a phone call, a text message) with templates its export fills in, so an email link is `href="mailto:support@example.com?subject=Help"` (its subject and body encoded as the builder encodes them, empty ones left out), a phone call `tel:…`, a text message `sms:…`. The builder opens such a URL as that action again. A link to a page section, or of a link type of your own, is written as its URL too, which the builder opens as a web link (said); a link with more than a URL holds (code it runs, a class, a download, data attributes) is written as the design has it (said too), and Elements' HTML doesn't write those as the builder does.
 
 A text block without a color of its own shows the body's text color in the editor; Elements always writes a color, so the code gives it that one. Likewise in a right-to-left design: the editor shows a text block without an alignment left-aligned, where Elements would align it right, so the code sets `textAlign="left"`.
 
@@ -230,6 +232,7 @@ Each warning names where it is (`Row 2, column 1, block 3: …`). They say:
 - the editor's Lexical `paragraph` block is a Paragraph, a `text` block with the same HTML;
 - a builder flag is `false` (`selectable`, `draggable`, `duplicatable`, `deletable`, `hideable`): renderToJson writes them as `true`;
 - an image's fixed width is in px: the design keeps it as the percent of its column it is;
+- a link is written as its URL where the builder opens that URL as a web link (a page section's), or as the design has it where a URL can't hold it (code it runs, a class, a download, data attributes);
 - a value comes back in the form Elements writes it, not as the design has it (a row's `noStackMobile` at the top of its values goes to its phone settings, where the exporters read it);
 - row, column and block ids aren't kept (the editor gives new ones), a document's headers and footers are left out, the design's schema version isn't this Elements' (open and save it in the editor first), a popup design is written as a `<Page>`.
 
@@ -241,10 +244,10 @@ Each warning names where it is (`Row 2, column 1, block 3: …`). They say:
 - a value missing and the same value at the builder's default (the builder fills defaults in; an image without `autoWidth` is sized automatically);
 - a text block's missing color and the body's text color;
 - `textJson` beside `text` (`text` is what the builder renders and exports), and a Lexical `paragraph` block as a `text` block with its HTML;
-- colors and font stacks written another way, links in their other shape (a URL string and `{ name: "web", values: { href } }`), paddings written shorter (`0px 0px` and `0px`), and a bare zero in a px length (`0 0 12px` and `0px 0px 12px`: renderToJson writes `0px`, as the design's schema types it);
+- colors and font stacks written another way, links in their other shape (a URL string and `{ name: "web", values: { href } }`; an email, phone call or text message link and a web link to the URL it exports, which the builder opens as that link), paddings written shorter (`0px 0px` and `0px`), and a bare zero in a px length (`0 0 12px` and `0px 0px 12px`: renderToJson writes `0px`, as the design's schema types it);
 - device settings that are off (`hideMobile: false`) and empty ones, and a row's `noStackMobile` at the top of its values (read as its phone setting, where the exporters read it);
 - a font without its family's web font URL where another font of that family has it (the builder loads a family's web font for all its fonts, and a `<Font>` writes its URL on each).
 
-What doesn't come back: builder flags set to `false` (above), a px image width (it comes back as a percent), and blocks without an Elements component (they come back as HTML blocks, or not at all).
+What doesn't come back: builder flags set to `false` (above), a px image width (it comes back as a percent), a link to a page section or of a link type of your own (it comes back as a web link to its URL), and blocks without an Elements component (they come back as HTML blocks, or not at all).
 
 The code is Elements code from then on: it doesn't bring back the React components, logic or data a template had before it was a design (a design made from Elements code comes back as its rows and blocks, with the values it rendered).

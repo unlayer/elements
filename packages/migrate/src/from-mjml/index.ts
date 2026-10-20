@@ -19,7 +19,7 @@ import { designFont } from "./blocks";
 import type { Context } from "./context";
 import { colorValue, px } from "./css";
 import { readHead } from "./head";
-import { bodyRows } from "./layout";
+import { bodyRows, columnsLeftToRight } from "./layout";
 import { parseMjml } from "./parse";
 import type { Design, DesignRow, MjmlToDesignOptions, MjmlToDesignResult, Note, Values } from "./types";
 
@@ -72,7 +72,13 @@ export async function mjmlToDesign(source: string, options: MjmlToDesignOptions 
   const head = readHead(headNode, { warnings, info });
   const body = resolveAttributes(bodyNode, headAttributes(headNode));
   const bodyFont = commonFont(body);
-  const ctx: Context = { head, headNode, root: document, bodyFont, warnings, info, fallbacks: [], jobs: [], declared: [] };
+  // Elements lays out every row's columns in the email's direction (right to left: the first on the right), where MJML
+  // lays out each section's and group's by its own `direction`, left to right unless it says otherwise, whatever
+  // <mjml dir> says (that's the page's): right to left only where none shows its columns left to right.
+  const rtl = String(document.attributes?.dir ?? "").trim().toLowerCase() === "rtl";
+  const direction = rtl && !columnsLeftToRight(body) ? "rtl" : "ltr";
+  if (rtl && direction === "ltr") warnings.push({ reason: "mjml dir rtl not kept: its sections show their columns left to right, which Elements would reverse in a right-to-left email" });
+  const ctx: Context = { head, headNode, root: document, bodyFont, direction, warnings, info, fallbacks: [], jobs: [], declared: [] };
   const width = Number.isFinite(px(body.attrs.width)) ? px(body.attrs.width) : 600;
   const rows = bodyRows(body, width, ctx);
   // Blocks compiling (a job may start another: a Social block that ends up as MJML's HTML).
@@ -100,7 +106,7 @@ export async function mjmlToDesign(source: string, options: MjmlToDesignOptions 
     fontFamily: rows.length ? designFont(bodyFont, ctx) : { label: designFont(bodyFont, ctx).label, value: bodyFont },
     textColor: "#000000",
     ...(head.preview ? { preheaderText: head.preview } : {}),
-    ...(String(document.attributes?.dir ?? "").toLowerCase() === "rtl" ? { textDirection: "rtl" } : {}),
+    ...(direction === "rtl" ? { textDirection: "rtl" } : {}),
   };
   return { design: numbered(rows, bodyValues), warnings, fallbacks: ctx.fallbacks, info, document, declared: ctx.declared, ...(head.title ? { title: head.title } : {}) };
 }

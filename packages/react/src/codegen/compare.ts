@@ -12,8 +12,10 @@
  * - `textJson` where a block has `text` (what the builder renders and exports), and the editor's Lexical
  *   `paragraph` block as a `text` block with its HTML.
  * - Colors and font stacks written another way (`rgb(0, 0, 0)` and `#000000`), links in their other shape (a URL
- *   string and `{ name: "web", values: { href } }`), paddings written shorter (`0px 0px` and `0px`), and a bare zero
- *   in a px length (`0 0 12px` and `0px 0px 12px`: renderToJson writes `0px`, as the design's schema types it).
+ *   string and `{ name: "web", values: { href } }`; an email, phone or text message action and a web link to the URL
+ *   it exports, which the builder reads back as that action), paddings written shorter (`0px 0px` and `0px`), and a
+ *   bare zero in a px length (`0 0 12px` and `0px 0px 12px`: renderToJson writes `0px`, as the design's schema
+ *   types it).
  * - Device settings that are off (`hideMobile: false`) and empty ones, and a row's `noStackMobile` at the top of its
  *   values (the exporters read it from its phone settings).
  * - A font without its family's web font URL, where another font of the family has it: the builder loads the web
@@ -22,6 +24,7 @@
 import { generateHtmlFromTextJson, mergeValues, normalizeCssValues, pxZeros } from "@unlayer-internal/shared-elements";
 import { EDITOR_BODY_DEFAULTS, EDITOR_COLUMN_DEFAULTS, EDITOR_ROW_DEFAULTS, editorBlockDefaults } from "./defaults";
 import { deviceSettings } from "./device";
+import { editorLink } from "./links";
 import { deepEqual, isPlainObject, type Plain } from "./values";
 
 export interface DesignDifference {
@@ -34,9 +37,14 @@ export interface DesignDifference {
 
 const TEXT_TYPES = new Set(["text", "paragraph", "heading"]);
 
-/** A link in the shape the components keep (see `mapSemanticProps`). */
+/**
+ * A link as the builder shows it: the URL it exports and where it opens, where the builder reads it back from them
+ * (an email action and a web link to its `mailto:` URL are one, see links.ts); else in the shape the components keep
+ * (see `mapSemanticProps`).
+ */
 function link(value: unknown): unknown {
-  if (typeof value === "string") return { name: "web", values: { href: value, target: "_blank" } };
+  const exported = editorLink(value);
+  if (exported && !("lost" in exported) && exported.kept) return { name: "web", values: { href: exported.url, target: exported.target } };
   if (!isPlainObject(value) || !("name" in value) || !isPlainObject(value.attrs)) return value;
   const { href, target, ...custom } = value.attrs;
   if (href === undefined && target === undefined) return value;

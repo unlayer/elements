@@ -12,6 +12,11 @@ export interface Context {
   root: MjmlNode;
   /** The body's font stack: blocks with another one name theirs. */
   bodyFont: string;
+  /**
+   * The email's direction in Elements, which lays out every row's columns in it: right to left for `<mjml dir="rtl">`
+   * where MJML shows no section's columns left to right.
+   */
+  direction: "ltr" | "rtl";
   warnings: Note[];
   info: Note[];
   fallbacks: Fallback[];
