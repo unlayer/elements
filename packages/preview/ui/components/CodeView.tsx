@@ -21,7 +21,7 @@ const TABS: Array<{ id: CodeTab; label: string }> = [
   { id: "json", label: "Design JSON" },
 ];
 
-export function codeFor(result: RenderOk, tab: CodeTab): { text: string; ext: string; type: string; note?: string } {
+export function codeFor(result: RenderOk, tab: CodeTab): { text: string; ext: string; type: string; note?: string; hint?: string } {
   switch (tab) {
     case "source":
       return { text: result.source, ext: "", type: "text/plain" };
@@ -30,7 +30,7 @@ export function codeFor(result: RenderOk, tab: CodeTab): { text: string; ext: st
     case "text":
       return { text: result.text, ext: "txt", type: "text/plain", note: result.textError };
     case "json":
-      return { text: formatJson(result.json), ext: "json", type: "application/json", note: result.jsonError };
+      return { text: formatJson(result.json), ext: "json", type: "application/json", note: result.jsonError, hint: "It opens in the Unlayer builder with loadDesign()" };
   }
 }
 
@@ -42,6 +42,8 @@ export function CodeView({ result, templatePath, tab, onTab }: CodeViewProps) {
   const lines = code.text.split("\n");
   const language: CodeLanguage = tab === "source" ? sourceLanguage(templatePath) : tab === "html" ? "html" : tab === "json" ? "json" : "text";
   const html = useMemo(() => highlight(code.text, language), [code.text, language]);
+  // No plain text or design JSON (the note says why): nothing to copy or download.
+  const empty = code.text === "";
 
   return (
     <div className="code-view">
@@ -58,6 +60,7 @@ export function CodeView({ result, templatePath, tab, onTab }: CodeViewProps) {
           <button
             className="button"
             aria-label={copied ? "Copied" : "Copy"}
+            disabled={empty}
             onClick={async () => {
               if (await copyText(code.text)) {
                 setCopied(true);
@@ -69,8 +72,8 @@ export function CodeView({ result, templatePath, tab, onTab }: CodeViewProps) {
             <span className="label">{copied ? "Copied" : "Copy"}</span>
           </button>
         </Tip>
-        <Tip label={`Download ${filename}`} align="end">
-          <button className="button" aria-label="Download" onClick={() => downloadText(filename, code.text, code.type)}>
+        <Tip label={code.hint ? `Download ${filename}: ${code.hint.charAt(0).toLowerCase()}${code.hint.slice(1)}` : `Download ${filename}`} align="end">
+          <button className="button" aria-label="Download" disabled={empty} onClick={() => downloadText(filename, code.text, code.type)}>
             <DownloadIcon />
             <span className="label">Download</span>
           </button>

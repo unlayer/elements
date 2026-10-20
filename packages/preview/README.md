@@ -40,18 +40,18 @@ TypeScript, JSX, your `tsconfig.json` path aliases (`@/components/...`) and impo
 
 ## The preview
 
-The top bar has the template's name (its render time and whether it's live are in the tooltip), the views in the middle, and on the right the preview's width and dark mode, **Checks** and **Export**.
+The top bar has the template's name (its render time and whether it's live are in the tooltip), the views in the middle, and on the right the preview's width and dark mode, **Checks** and **Copy for AI**.
 
 - **Preview**: the template as an email, page or document, at desktop or phone width. Drag the frame's edges for any width (it shows the width as you drag); double-click an edge to go back.
 - **Dark mode** (the sun and moon): what email clients do to an email's colors for readers in dark mode. By default every color flips, as in the Gmail apps and Outlook.com; the arrow next to it switches to light colors only, as in Apple Mail and Outlook on phones. It catches unreadable text and logos that vanish. It flips the colors written on the elements themselves, as Elements writes them; a color set only by a stylesheet (text in an Html block with no color of its own, an unstyled link) keeps its light-mode color.
 - **Editor**: the template's design JSON in the [Unlayer editor](https://unlayer.com), to check how it opens there. Each render loads it again; changes made in the editor aren't saved to your file. The editor comes from `editor.unlayer.com`, so this view needs an internet connection (the others don't). Images from `static/` are copied into the design it gets, since the editor's page can't load them from localhost. It opens without an Unlayer project; pass `--project-id` (or set `UNLAYER_PROJECT_ID`) to open it in yours, with your project's settings.
-- **Code**: the template's source, the HTML, the plain text and the design JSON, highlighted, to copy or download.
+- **Code**: the template's source, the HTML, the plain text and the design JSON (it opens in the Unlayer builder with `loadDesign()`), highlighted, each to copy or download.
 - **Checks**: the button says "All clear", or how many things there are to fix (something broken) or to check, in the color of the worst. It opens a drawer with three sections:
   - **Rendering**: what Elements and React report while rendering (a column too many, a block left out), and a design JSON (the template then won't open in the Unlayer editor) or plain text that can't be made. A template that doesn't compile or throws shows its error, with the file, line and code, in place of the preview, and so does one that doesn't finish rendering in 30 seconds (see [Render timeout](#render-timeout)); the preview keeps running and recovers when you fix the file.
   - **Email clients**: the HTML and CSS the email uses that Gmail, Outlook, Apple Mail, Yahoo Mail, Samsung Email or Thunderbird don't support, from [caniemail.com](https://www.caniemail.com), with the block it's on and the template lines it likely comes from. Elements' own email HTML uses some CSS on purpose, with fallbacks for the clients that ignore it; those are listed apart, as handled by Elements.
   - **Links & images**: links that go nowhere, relative or `http:` URLs, links to localhost, images without alt text, SVG and `data:` images most clients block, `/static/` images to host before sending, and HTML over Gmail's 102 KB clipping limit. Each URL is requested, so broken links (404), hosts that don't exist, non-images and large images show too.
 - **Props** (the drawer's other tab): render with other props than `PreviewProps`, without changing the file.
-- **Export**: download the HTML, plain text or design JSON (it opens in the Unlayer builder with `loadDesign()`), copy the HTML, or **Copy for AI**: the template, its problems, compatibility and link findings as one prompt to paste into an AI assistant.
+- **Copy for AI**: the template, its problems, compatibility and link findings as one prompt to paste into an AI assistant.
 
 `elements-preview check` runs the same checks from a terminal, and `elements-preview screenshot --dark` takes the same dark mode.
 

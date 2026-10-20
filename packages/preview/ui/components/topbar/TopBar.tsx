@@ -1,10 +1,10 @@
-import type { RenderMode, RenderOk, RenderResponse } from "../../api";
+import type { RenderMode, RenderResponse } from "../../api";
 import type { LiveState } from "../../hooks/useLiveChanges";
 import type { SectionSummary } from "../checks/summary";
 import { ChecksButton } from "./ChecksButton";
+import { CopyForAiButton } from "./CopyForAiButton";
 import { DarkToggle, type DarkVariant } from "./DarkToggle";
 import { DeviceToggle, type Device } from "./DeviceToggle";
-import { ExportMenu } from "./ExportMenu";
 import { TemplateTitle } from "./TemplateTitle";
 import { ViewSwitch, type View } from "./ViewSwitch";
 
@@ -28,9 +28,8 @@ interface TopBarProps {
   onCopyForAi?(): Promise<boolean>;
 }
 
-/** The template's name, the view switch in the middle, and the preview's controls, checks and export on the right. */
+/** The template's name, the view switch in the middle, and the preview's controls, the checks and Copy for AI on the right. */
 export function TopBar(props: TopBarProps) {
-  const okResult: RenderOk | undefined = props.result?.ok ? props.result : undefined;
   return (
     <header className="topbar">
       <TemplateTitle path={props.templatePath} result={props.result} mode={props.mode} live={props.live} builtAt={props.builtAt} />
@@ -43,7 +42,7 @@ export function TopBar(props: TopBarProps) {
           </>
         )}
         <ChecksButton summary={props.checks} open={props.drawerOpen} onClick={props.onDrawer} />
-        <ExportMenu templatePath={props.templatePath} result={okResult} onCopyForAi={props.onCopyForAi} />
+        <CopyForAiButton onCopy={props.onCopyForAi} />
       </div>
     </header>
   );

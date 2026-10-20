@@ -1,4 +1,4 @@
-/** Copy and download helpers for the code view and the export menu. */
+/** Copy and download helpers for the code view, the props and Copy for AI. */
 
 export async function copyText(text: string): Promise<boolean> {
   try {

@@ -474,7 +474,6 @@ h3 {
 
 /* Menus and popovers */
 
-.menu,
 .split {
   position: relative;
   display: inline-flex;
@@ -500,12 +499,6 @@ h3 {
   font-size: 12px;
 }
 
-.menu-items {
-  display: flex;
-  flex-direction: column;
-}
-
-.menu-items button,
 .option {
   display: flex;
   align-items: center;
@@ -518,11 +511,6 @@ h3 {
   white-space: nowrap;
 }
 
-.menu-items button .icon {
-  color: var(--text-muted);
-}
-
-.menu-items button:hover:not(:disabled),
 .option:hover {
   background: var(--bg-hover);
 }
@@ -904,8 +892,8 @@ h3 {
   font-weight: 600;
 }
 
-/* What Export just did shows even where its label is hidden. */
-.menu .button.has-status .label {
+/* What Copy for AI just did shows even where its label is hidden. */
+.copy-ai.has-status .label {
   display: inline !important;
 }
 
@@ -1548,11 +1536,11 @@ h3 {
 }
 
 @container main (max-width: 999px) {
-  .menu .button .label {
+  .copy-ai .label {
     display: none;
   }
 
-  .menu .button {
+  .copy-ai {
     padding: 0 8px;
     gap: 4px;
   }

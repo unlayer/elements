@@ -102,13 +102,6 @@ export const ChecksIcon = () => (
   </Svg>
 );
 
-export const ExportIcon = () => (
-  <Svg>
-    <path d="M12 15V3M7 8l5-5 5 5" />
-    <path d="M5 14v5a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-5" />
-  </Svg>
-);
-
 export const DownloadIcon = () => (
   <Svg>
     <path d="M12 3v12M7 10l5 5 5-5" />
