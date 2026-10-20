@@ -238,6 +238,8 @@ describe("links: the URL the editor exports for each", () => {
     "a page section": { name: "anchor", values: { href: "pricing" }, attrs: { href: "#{{href}}", target: "_self" } },
     "a web page with a query its link type adds": { name: "web", values: { href: "https://example.com/", target: "_blank", source: "news letter" }, attrs: { ...WEB, "+href": "?utm_source={{source}}" } },
   };
+  /** A link with attributes beside its URL and target, which the components' links don't take. */
+  const ATTRIBUTES = { name: "web", values: { href: "https://example.com/", target: "_blank", title: "Our site" }, attrs: { ...WEB, rel: "nofollow", title: "{{title}}", "x-track": "cta" } };
   /** The pinned exporters' URL for a link and its target: their popup's close button is a link they fill in. */
   const exported = (link: unknown) => {
     const tag = /<a [^>]*>/.exec(BodyExporters.popup!("", { popupCloseButton_action: link, _meta: { htmlID: "u_body" } } as never, undefined as never))![0];
@@ -264,6 +266,28 @@ describe("links: the URL the editor exports for each", () => {
     expect(editorLink({ name: "email", values: { email: "a@b.com", cc: "c@d.com" }, attrs: { href: "mailto:{{email}}?cc={{cc}}" } })).toEqual({ url: "mailto:a@b.com?cc=c%40d.com", target: "_blank", kept: false });
     // A web link is one whatever its templates.
     expect(editorLink(SAVED["a web page with a query its link type adds"])).toMatchObject({ kept: true });
+    // Any other attribute: the components' links are a URL and where it opens.
+    expect(editorLink(ATTRIBUTES)).toEqual({ lost: ["rel", "title", "x-track"] });
+    // One the exporters fill in empty isn't there.
+    expect(editorLink({ name: "web", values: { href: "https://example.com", target: "_blank", title: "" }, attrs: { ...WEB, title: "{{title}}" } })).toMatchObject({ url: "https://example.com", kept: true });
+  });
+
+  it("writes a link with attributes the components don't take as the design has it, and compares it with them", () => {
+    const link = ATTRIBUTES;
+    const source = design([
+      { type: "button", values: { text: "Go", href: link } },
+      { type: "image", values: { src: { url: "https://example.com/a.png" }, action: link } },
+      { type: "menu", values: { menu: { items: [{ key: "1606923979749", text: "Home", link }] } } },
+    ]);
+    const { code, warnings, differences } = roundTrip(source);
+    expect(code.match(/rel: "nofollow"/g)).toHaveLength(3);
+    // Each block's link, which a URL can't hold (and the Image's action, as Elements writes a web link, without its templates).
+    expect(warnings.filter((warning) => warning.includes("link has `rel` and `title` and `x-track`, which a URL can't hold"))).toHaveLength(3);
+    expect(differences).toEqual([]);
+    // The URL alone (what the code was before) is another link: what it lacks shows.
+    const button = (href: unknown) => design([{ type: "button", values: { text: "Go", href } }]);
+    const where = "body.rows[0].columns[0].contents[0].values.href";
+    expect(compareDesigns(button(link), button({ name: "web", values: { href: "https://example.com/", target: "_blank" } })).map((d) => d.path)).toEqual([`${where}.values.title`, `${where}.attrs`]);
   });
 
   it("writes them in the code, whose HTML links where the editor's does", () => {

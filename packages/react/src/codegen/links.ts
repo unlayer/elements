@@ -22,7 +22,7 @@ export const READ_BACK = new Set(["web", "email", "phone", "sms"]);
 /**
  * A link as the editor exports it: its URL (`""` for none) and where it opens; `kept` where the builder reads the
  * same action back from that URL. `lost`: what it has beside them, which no URL holds (code it runs, a class, a
- * download, data attributes).
+ * download, a `rel`, a `title`, data attributes, any other attribute).
  */
 export type EditorLink = { url: string; target: string; kept: boolean } | { lost: string[] };
 
@@ -90,10 +90,14 @@ export function editorLink(link: unknown): EditorLink | undefined {
   const given: Plain = isPlainObject(link.values) ? link.values : {};
   const values: Plain = own ? { ...given } : { ...action?.fields };
   for (const [key, value] of Object.entries(own ? (action?.fields ?? {}) : given)) if (value !== undefined && (!own || values[key] === undefined)) values[key] = value;
+  // What it has beside its URL and where it opens, which are all a component's link takes (a Button's `href` and
+  // `target`, an Image's action, a Menu item's `href` and `target`): any other attribute, unless it's filled in empty.
+  const others = new Set(Object.keys(attrs ?? {}).map((key) => key.replace(/^\+/, "")));
+  for (const key of ["href", "target", "onClick", "class", "download"]) others.delete(key);
   const lost = [
     ...["onClick", "class"].filter((key) => fill(key, attrs, values)),
     ...(fill("download", attrs, values) === "true" ? ["download"] : []),
-    ...Object.keys(attrs ?? {}).filter((key) => key.startsWith("data-") && (fill(key, attrs, values) || values[key])),
+    ...[...others].filter((key) => fill(key, attrs, values) || (key.startsWith("data-") && values[key])),
   ];
   if (lost.length) return { lost };
   return {
