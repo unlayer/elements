@@ -108,13 +108,23 @@ function formatLogArg(arg: unknown): string {
   }
 }
 
-/** Runs `fn` with console output captured (Elements reports render problems through the console). */
+/** The console methods captured while a template loads and renders, and the level each one's output gets. */
+const CAPTURED = { error: "error", warn: "warn", info: "info", log: "log", debug: "log" } as const;
+
+type Captured = keyof typeof CAPTURED;
+
+/**
+ * Runs `fn` with console output captured: Elements reports render problems
+ * through the console, and with `check --json` or `render --json` stdout must
+ * carry only JSON.
+ */
 async function captureConsole<T>(fn: () => Promise<T>): Promise<{ value: T; logs: LogEntry[] }> {
   const logs: LogEntry[] = [];
-  const levels = ["error", "warn", "info", "log"] as const;
-  const originals = Object.fromEntries(levels.map((level) => [level, console[level]])) as Record<(typeof levels)[number], (...args: unknown[]) => void>;
-  for (const level of levels) {
-    console[level] = (...args: unknown[]) => {
+  const methods = Object.keys(CAPTURED) as Captured[];
+  const originals = Object.fromEntries(methods.map((method) => [method, console[method]])) as Record<Captured, (...args: unknown[]) => void>;
+  for (const method of methods) {
+    const level = CAPTURED[method];
+    console[method] = (...args: unknown[]) => {
       // React formats its warnings with %s placeholders.
       let message = args.map(formatLogArg).join(" ");
       if (typeof args[0] === "string" && args[0].includes("%s")) {
@@ -128,7 +138,7 @@ async function captureConsole<T>(fn: () => Promise<T>): Promise<{ value: T; logs
   try {
     return { value: await fn(), logs };
   } finally {
-    for (const level of levels) console[level] = originals[level];
+    for (const method of methods) console[method] = originals[method];
   }
 }
 
@@ -215,9 +225,10 @@ export async function createLoader({ project, watch, plugins = [] }: LoaderOptio
   // One render at a time: renders capture the console, which is global.
   let queue: Promise<unknown> = Promise.resolve();
 
-  async function renderNow(file: string, options: RenderOptions): Promise<RenderResult> {
-    const started = performance.now();
-    const elapsed = () => Math.round(performance.now() - started);
+  type Rendered = Omit<RenderedTemplate, "logs" | "durationMs"> | Omit<FailedTemplate, "logs" | "durationMs">;
+
+  /** Loads the template (again, after a change) and renders its HTML, plain text and design JSON. */
+  async function loadAndRender(file: string, options: RenderOptions): Promise<Rendered> {
     let mod: Record<string, unknown>;
     let runtime: Record<string, any>;
     try {
@@ -225,7 +236,7 @@ export async function createLoader({ project, watch, plugins = [] }: LoaderOptio
       mod = await server.ssrLoadModule(file);
     } catch (error) {
       if (error instanceof Error) server.ssrFixStacktrace(error);
-      return { ok: false, error: formatError(error, project.root, "load"), logs: [], durationMs: elapsed() };
+      return { ok: false, error: formatError(error, project.root, "load") };
     }
     const exported = mod.default as any;
     // A function component, or a memo/forwardRef one (an object), can carry PreviewProps.
@@ -234,49 +245,43 @@ export async function createLoader({ project, watch, plugins = [] }: LoaderOptio
       return {
         ok: false,
         error: { message: "This file has no default export. Export the template: export default function Welcome() { … }", phase: "load", file: path.relative(project.root, file) },
-        logs: [],
-        durationMs: elapsed(),
       };
     }
     const props = options.props !== undefined ? options.props : previewProps;
-    const { value, logs } = await captureConsole(async () => {
+    try {
+      const element = runtime.isValidElement(exported) ? exported : runtime.createElement(exported, (props ?? {}) as object);
+      // Prefer the async renderers: they render async components and load the <Tailwind> configs a template uses.
+      const renderers = runtime.loadAsyncRenderers ? await runtime.loadAsyncRenderers() : runtime.Elements;
+      const html: string = await renderers.renderToHtml(element);
+      let text = "";
+      let textError: string | undefined;
       try {
-        const element = runtime.isValidElement(exported) ? exported : runtime.createElement(exported, (props ?? {}) as object);
-        // Prefer the async renderers: they render async components and load the <Tailwind> configs a template uses.
-        const renderers = runtime.loadAsyncRenderers ? await runtime.loadAsyncRenderers() : runtime.Elements;
-        const html: string = await renderers.renderToHtml(element);
-        let text = "";
-        let textError: string | undefined;
-        try {
-          text = await renderers.renderToPlainText(element);
-        } catch (error) {
-          textError = formatError(error, project.root, "render").message;
-        }
-        let json: unknown = null;
-        let jsonError: string | undefined;
-        try {
-          json = await renderers.renderToJson(element);
-        } catch (error) {
-          jsonError = formatError(error, project.root, "render").message;
-        }
-        return { ok: true as const, html, text, textError, json, jsonError };
+        text = await renderers.renderToPlainText(element);
       } catch (error) {
-        if (error instanceof Error) {
-          server.ssrFixStacktrace(error);
-          if (error.cause instanceof Error) server.ssrFixStacktrace(error.cause);
-        }
-        return { ok: false as const, error: formatError(error, project.root, "render") };
+        textError = formatError(error, project.root, "render").message;
       }
-    });
-    if (!value.ok) return { ok: false, error: value.error, logs, durationMs: elapsed(), previewProps };
-    return {
-      ...value,
-      mode: detectMode(value.html),
-      logs,
-      durationMs: elapsed(),
-      previewProps,
-      props,
-    };
+      let json: unknown = null;
+      let jsonError: string | undefined;
+      try {
+        json = await renderers.renderToJson(element);
+      } catch (error) {
+        jsonError = formatError(error, project.root, "render").message;
+      }
+      return { ok: true, html, text, textError, json, jsonError, mode: detectMode(html), previewProps, props };
+    } catch (error) {
+      if (error instanceof Error) {
+        server.ssrFixStacktrace(error);
+        if (error.cause instanceof Error) server.ssrFixStacktrace(error.cause);
+      }
+      return { ok: false, error: formatError(error, project.root, "render"), previewProps };
+    }
+  }
+
+  async function renderNow(file: string, options: RenderOptions): Promise<RenderResult> {
+    const started = performance.now();
+    // What the template and the modules it imports log while they load is the template's too.
+    const { value, logs } = await captureConsole(() => loadAndRender(file, options));
+    return { ...value, logs, durationMs: Math.round(performance.now() - started) };
   }
 
   function enqueue<T>(fn: () => Promise<T>): Promise<T> {

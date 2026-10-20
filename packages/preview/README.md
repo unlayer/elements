@@ -174,7 +174,7 @@ Name templates by their path in the templates folder (`welcome.tsx`) or from the
 
 | Field | |
 | --- | --- |
-| `kind` | `render` (doesn't compile or throws, or Elements left a block out), `warning` (from Elements or React), `log` (other console output), `design` (no design JSON), `text` (no plain text), `client` (email client compatibility), `link`, `image`, `size` (Gmail clipping) |
+| `kind` | `render` (doesn't compile or throws, or Elements left a block out), `warning` (from Elements or React), `log` (other console output: what the template and the modules it imports log, also while they load; it's never printed, so stdout has only the JSON), `design` (no design JSON), `text` (no plain text), `client` (email client compatibility), `link`, `image`, `size` (Gmail clipping) |
 | `block` | The Elements block: `Button 1`, `Html 2` (a `client` finding lists every block, comma-separated) |
 | `file`, `line`, `column`, `frame` | A `render` error's file (from the working directory), position and surrounding code |
 | `line`, `lines` | A `client` finding's first template line, and every line that likely brings it in |

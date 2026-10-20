@@ -1,6 +1,6 @@
-import { writeFile } from "node:fs/promises";
+import { rm, writeFile } from "node:fs/promises";
 import path from "node:path";
-import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { renderTemplates } from "../src/server/render";
 import { UsageError } from "../src/server/errors";
 import { cli, fixtureCopy } from "./helpers";
@@ -94,6 +94,24 @@ describe("elements-preview render", () => {
     expect(templates.map((t) => t.path)).toContain("welcome.tsx");
     expect(templates.find((t) => t.path === "needs-fixes.tsx")).toMatchObject({ ok: false, check: { ok: false } });
     expect(templates.find((t) => t.path === "broken.tsx")).toMatchObject({ ok: false, error: { line: 1 } });
+  });
+
+  it("prints only JSON with --json when a template logs while it loads", async () => {
+    await writeFile(path.join(fixture.emails, "noisy.tsx"), 'import { Email } from "@unlayer/react-elements";\nconsole.log("[dotenv] injecting env (2) from .env");\nconsole.warn("Using sample data");\nexport default function Noisy() { return <Email />; }\n');
+    const spies = (["log", "warn"] as const).map((level) => vi.spyOn(console, level).mockImplementation(() => undefined));
+    let result: Awaited<ReturnType<typeof cli>>;
+    let printed: string;
+    try {
+      result = await cli(["render", "noisy.tsx", "--dir", fixture.emails, "--json"]);
+    } finally {
+      printed = spies.flatMap((spy) => spy.mock.calls.flat()).join("\n");
+      for (const spy of spies) spy.mockRestore();
+      await rm(path.join(fixture.emails, "noisy.tsx"));
+    }
+    // Nothing reached the console: it would be printed before the JSON.
+    expect(printed).toBe("");
+    expect(result.code).toBe(0);
+    expect(JSON.parse(result.stdout)).toMatchObject({ path: "noisy.tsx", ok: true, warnings: ["Using sample data"] });
   });
 
   it("prints one template's HTML without --json", async () => {

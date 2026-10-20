@@ -1,6 +1,6 @@
 import { mkdir, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { checkTemplates, formatCheckReport } from "../src/server/check";
 import { UsageError } from "../src/server/errors";
 import { cli, fixtureCopy } from "./helpers";
@@ -50,6 +50,24 @@ const BAD_URL = `import { Email, Row, Column, Html } from "@unlayer/react-elemen
 
 export default function BadUrl() {
   return <Email><Row><Column><Html html={'<img src="/static/%" alt="Logo">'} /></Column></Row></Email>;
+}
+`;
+
+// A template and a module it imports that log while they load, as dotenv does by default.
+const NOISY_ENV = `console.log("[dotenv] injecting env (2) from .env");
+console.debug("[dotenv] debug");
+console.warn("Using sample data");
+export const name = "Ada";
+`;
+
+const NOISY = `import { Email, Row, Column, Paragraph } from "@unlayer/react-elements";
+import { name } from "./_lib/env";
+
+console.info("Loading the data");
+
+export default function Noisy() {
+  console.log("Rendering for " + name);
+  return <Email><Row><Column><Paragraph>Hi {name}</Paragraph></Column></Row></Email>;
 }
 `;
 
@@ -164,6 +182,34 @@ export default function NoAlt() {
     } finally {
       await rm(path.join(fixture.root, "more", "no-alt.tsx"));
     }
+  });
+
+  it("prints only JSON with --json, with what a template and its imports log while they load among its findings", async () => {
+    const noisy = path.join(fixture.root, "noisy");
+    await mkdir(path.join(noisy, "_lib"), { recursive: true });
+    await writeFile(path.join(noisy, "_lib", "env.ts"), NOISY_ENV);
+    await writeFile(path.join(noisy, "noisy.tsx"), NOISY);
+    const spies = (["log", "info", "debug", "warn", "error"] as const).map((level) => vi.spyOn(console, level).mockImplementation(() => undefined));
+    let result: Awaited<ReturnType<typeof cli>>;
+    let printed: string;
+    try {
+      result = await cli(["check", "--dir", noisy, "--json", "--offline"]);
+    } finally {
+      printed = spies.flatMap((spy) => spy.mock.calls.flat()).join("\n");
+      for (const spy of spies) spy.mockRestore();
+    }
+    // Nothing reached the console: it would be printed before the JSON.
+    expect(printed).toBe("");
+    const report = JSON.parse(result.stdout);
+    const [template] = report.templates;
+    expect(template.notes.map((f: any) => [f.kind, f.message])).toEqual(
+      expect.arrayContaining([
+        ["log", "[dotenv] injecting env (2) from .env"],
+        ["log", "Loading the data"],
+        ["log", "Rendering for Ada"],
+      ])
+    );
+    expect(template.toCheck).toEqual(expect.arrayContaining([expect.objectContaining({ kind: "warning", message: "Using sample data" })]));
   });
 
   it("refuses templates and folders that aren't there", async () => {
