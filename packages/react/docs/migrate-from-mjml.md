@@ -24,7 +24,7 @@ A folder with three templates and a partial they include:
 ```
 
 - `✓`: converted, with the same content as MJML's HTML. The line says how much is editable, which blocks were kept as HTML, and the kinds of difference (`column vertical alignment not kept`, `columns stack on narrower screens`). What looks different is listed below it, under `looks different:`.
-- `✗`: failed. The template couldn't be converted (MJML 3, no `<mj-body>`, a file that isn't UTF-8), an `mj-include` couldn't be read, its content differs from MJML's, or, with `--strict`, it has any difference. Without `--strict`, a template whose content differs is still written and flagged: that's a converter bug, please report it.
+- `✗`: failed. The template couldn't be converted (MJML 3, no `<mj-body>`, a file that isn't UTF-8), an `mj-include` couldn't be read, its content differs from MJML's or clear text in it turned too faint to read, or, with `--strict`, it has any difference. Without `--strict`, a template whose content differs is still written and flagged: that's a converter bug, please report it.
 - `-`: skipped. A file without an `<mjml>` root is a partial: it's read where a template includes it, and never written.
 - `?` doesn't appear in an MJML run. It marks a template with nothing to check against, and MJML compiles every template. See [Beefree templates](./migrate-from-beefree.md), where it does.
 
@@ -110,9 +110,11 @@ The converter resolves MJML's attribute cascade as MJML does: `mj-attributes` wi
 | `mj-spacer` | An empty `Divider` as tall as the space, which the editor shows and resizes. |
 | `mj-table` | `Table`, when it's a plain grid (text in each cell, no spans, no colors or borders of its own). |
 
-What doesn't carry over exactly is listed, per template, as a difference: column `vertical-align` (email columns sit at the top), a section's background image and rounded corners, a section's `direction="rtl"`, an image's `border-radius`, `height` and `fluid-on-mobile`, a button's `height`, `mj-style` rules for other screens or states (`@media`, `:hover`), and `mj-html-attributes`. `mj-style` rules that apply at any width are written on the text they style.
+What doesn't carry over exactly is listed, per template, as a difference: column `vertical-align` (email columns sit at the top), a section's background image and rounded corners, a section's or `mj-group`'s `direction="rtl"` in a left-to-right email, an image's `border-radius`, `height` and `fluid-on-mobile`, a button's `height`, `mj-style` rules for other screens or states (`@media`, `:hover`), and `mj-html-attributes`. `mj-style` rules that apply at any width are written on the text they style.
 
 On phones, MJML stacks columns below 480px (or its `mj-breakpoint`), and Elements below the content width plus 20px: 620px for a 600px email. Between the two, MJML shows the columns side by side, where Elements stacks them. The run lists it as `columns stack on narrower screens`.
+
+Elements lays out every Row's columns in the email's direction: with `textDirection="rtl"`, right to left, the first on the right. MJML lays out each section's and group's columns by its own `direction`, left to right unless it says `rtl`, whatever `<mjml dir>` says. So `<mjml dir="rtl">` becomes a right-to-left email only when no section or group shows two or more columns left to right; otherwise the email stays left to right, with its columns where MJML shows them, and the run lists it as `mjml dir rtl not kept`. A section or group with `direction="rtl"` in a left-to-right email shows its columns in order. Phones stack columns in order in both.
 
 ## What stays MJML's HTML
 
@@ -153,7 +155,7 @@ npx @unlayer/migrate emails --from mjml
 MJML's own compile. The converter compiles each original with the `mjml` version `@unlayer/migrate` pins (5.4.1, not the one in your project), with its includes resolved as above, renders the migrated code with Elements, and compares the two HTML documents as a React Email migration does. Nothing is fetched: the check reads the HTML, it doesn't load images or fonts.
 
 - **Content** must be the same: every word, link, image and image `alt` text, in the same order, on desktop and on a phone, with no new words, and every block reaching the visual editor. Anything the converter can't map is kept as MJML's HTML, so a content difference is a bug in the converter.
-- **How it looks** (a text style, where a line sits, a phone width other than Elements' 480px) is listed under `looks different:`, to fix in the editor or the code.
+- **How it looks** (a text style, where a line sits, a phone width other than Elements' 480px) is listed under `looks different:`, to fix in the editor or the code. One fails the template: text that reads clearly in MJML's HTML and is too faint to read in the migration. The words are there, but a reader can't make them out: the run says `text now hard to read`, with the colors (`"Read more" is #f7dd72 on #ffffff`).
 - **Declared differences** are content changes that are the editor's own way of writing a block. The Social block writes each icon's `alt` text as "Facebook icon", and MJML's built-in icons (white glyphs MJML draws on a colored square) become the editor's icon for the network. The converter declares each one, naming the image it changes, and the check expects exactly those: they're listed as differences (`social icon alt text is “<network> icon”`), not as `✗`. Any other content change still fails the template, and `--strict` fails declared differences as it does any other.
 
 ## Tuning by hand
@@ -162,7 +164,7 @@ The converter writes each block with the props it resolved. To tidy a migrated t
 
 | MJML | Elements | Notes |
 |------|----------|-------|
-| `<mjml lang dir>` | `Email` `lang`, `textDirection` | `textDirection="rtl"` marks each text block right-to-left, and text blocks start on the right. |
+| `<mjml lang dir>` | `Email` `lang`, `textDirection` | `dir="rtl"` becomes `textDirection="rtl"` only when no section or group shows two or more columns left to right, since `textDirection="rtl"` lays out every Row's columns right to left and MJML's `dir` doesn't. Otherwise the email stays left to right, and the run lists it (`mjml dir rtl not kept`). `textDirection="rtl"` also marks each text block right-to-left, and text blocks start on the right. |
 | `<mj-section>` | `Row`, with a [column layout](../README.md#column-layouts) | `ColumnLayouts.TwoEqual`, or `cells={[3, 7]}` for `width="30%"` and `width="70%"` columns. |
 | `<mj-column>` | `Column` | `padding`, `background-color`, `border-radius` → `padding`, `backgroundColor`, `borderRadius`; `border` → a `border` object with each side's width, style and color. |
 | `<mj-text>` | `Paragraph` or `Heading` | `font-size`, `color`, `font-weight`, `font-family`, `align`, `line-height` → `fontSize`, `color`, `fontWeight`, `fontFamily`, `textAlign`, `lineHeight`; `padding` → `containerPadding`. |
@@ -206,7 +208,7 @@ For what the run lists as a difference:
 | `<mj-image>` width on phones | A fixed `width` is a share of the column, so the image gets smaller on phones, where MJML keeps it. Add `mobile={{ width: "120px" }}` to keep it; for `fluid-on-mobile`, `mobile={{ autoWidth: true }}` fills the column, up to the image's own width. |
 | `<mj-style>` media queries for phones | Phone settings: `mobile={{ fontSize: "26px", textAlign: "center" }}` on a block, `mobile={{ padding: "16px" }}` on a Column or Row (`containerPadding` on a block), and `hideOnMobile` or `hideOnDesktop` on a block or Row. |
 | `<mj-wrapper>` border or rounded corners | A border or radius around several Rows doesn't carry over. With one Column, give the Column `backgroundColor` and `borderRadius`. |
-| `<mj-section direction="rtl">` | Columns render in source order: write them in the order you want. For a right-to-left email, set `textDirection="rtl"` on the root. |
+| `<mj-section direction="rtl">`, `<mj-group direction="rtl">` | In a left-to-right email, columns render in source order, left to right: write them in the order you want. In a right-to-left email (`textDirection="rtl"` on the root), every Row's columns render right to left, the first on the right. Phones stack them in source order in both. |
 | `<mj-navbar hamburger="hamburger">` | No collapsing menu. Use a `Menu` with `hideOnMobile` and a second one with `layout="vertical"` and `hideOnDesktop`. |
 | `<mj-table>` cell styles, `colspan`, images in cells | `Table` applies one style to every header cell and one to every body cell. For a layout table (an order line with a thumbnail), use a Row with Columns. |
 | Hover styles | Emails don't carry hover CSS. A Button's `hoverBackgroundColor` and `hoverColor` apply to web pages (`Page`). |

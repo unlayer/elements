@@ -24,7 +24,7 @@ A template of another version fails, and says so, rather than being read as well
 
 ## Put the HTML export beside it
 
-A Beefree template renders in Beefree, so the check needs Beefree's own HTML for it. Export each template's HTML from Beefree and save it beside the JSON, with the same name: `welcome.json` and `welcome.html`. The migration is then checked against it, as MJML templates are checked against MJML's compile: every word, link, image and `alt` text must be the same, on desktop and on a phone, and how it looks is listed.
+A Beefree template renders in Beefree, so the check needs Beefree's own HTML for it. Export each template's HTML from Beefree and save it beside the JSON, with the same name: `welcome.json` and `welcome.html`. The migration is then checked against it, as MJML templates are checked against MJML's compile: every word, link, image and `alt` text must be the same, on desktop and on a phone, with no clear text turned too faint to read (`text now hard to read`), and how it looks is listed.
 
 A template without its export is converted and written, but **unverified**: neither `✓` nor `✗`, but `?`, and not counted as a failure, so the run can end with `0`. With `--strict`, an unverified template fails, and isn't written unless you pass `--force`.
 
