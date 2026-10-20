@@ -51,8 +51,25 @@ describe("mj-body and mj-head", () => {
   });
 
   it("writes the right-to-left direction of <mjml dir>", async () => {
-    const { design } = await convert(`<mjml dir="rtl"><mj-body>${section(column("<mj-text>مرحبا</mj-text>"))}</mj-body></mjml>`);
+    const { design, warnings } = await convert(`<mjml dir="rtl"><mj-body>${section(column("<mj-text>مرحبا</mj-text>"))}</mj-body></mjml>`);
     expect(design.body.values.textDirection).toBe("rtl");
+    expect(warnings).toEqual([]);
+  });
+
+  it("<mjml dir=\"rtl\">: right to left only where no section shows its columns left to right (Elements would reverse them)", async () => {
+    const rtl = (body: string) => convert(`<mjml dir="rtl"><mj-body>${body}</mj-body></mjml>`);
+    const two = column("<mj-text>א</mj-text>") + column("<mj-text>ב</mj-text>");
+    // MJML's sections lay their columns out left to right whatever <mjml dir> says.
+    const page = await rtl(section(column("<mj-text>א</mj-text>")) + section(two));
+    expect(page.design.body.values.textDirection).toBeUndefined();
+    expect(page.warnings).toContainEqual({ reason: "mjml dir rtl not kept: its sections show their columns left to right, which Elements would reverse in a right-to-left email" });
+    expect(page.design.body.rows[1].columns.map((c) => (c.contents[0] as Block).values.text)).toEqual(["א", "ב"]);
+    // Sections (and groups) that show their columns right to left: a right-to-left email, which shows them so.
+    const sections = await rtl(section(two, 'direction="rtl"') + section(`<mj-group direction="rtl">${two}</mj-group>`));
+    expect(sections.design.body.values.textDirection).toBe("rtl");
+    expect(sections.warnings.filter((w) => /direction|dir/.test(w.reason))).toEqual([]);
+    // A group left to right is one too.
+    expect((await rtl(section(`<mj-group>${two}</mj-group>`))).design.body.values.textDirection).toBeUndefined();
   });
 
   it("reports a breakpoint other than Elements' stacking width, and CSS for other widths or states", async () => {
@@ -169,6 +186,18 @@ describe("mj-section and mj-column", () => {
   it("gives a full-width section's background to the whole row, and a background image to the row", async () => {
     const { design } = await convert(doc(section(column("<mj-text>A</mj-text>"), 'full-width="full-width" background-color="#000" background-url="https://example.com/bg.jpg" background-size="cover" background-repeat="no-repeat"')));
     expect(design.body.rows[0].values).toMatchObject({ backgroundColor: "#000000", backgroundImage: { url: "https://example.com/bg.jpg", fullWidth: true, size: "cover", repeat: "no-repeat", position: "top-center" } });
+  });
+
+  it("reports a section or group whose columns MJML shows right to left in a left-to-right email (phones stack them as written)", async () => {
+    const two = column("<mj-text>A</mj-text>") + column("<mj-text>B</mj-text>");
+    const { design, warnings } = await convert(doc(section(two, 'direction="rtl"') + section(`<mj-group direction="rtl">${two}</mj-group>`) + section(column("<mj-text>C</mj-text>"), 'direction="rtl"')));
+    expect(design.body.values.textDirection).toBeUndefined();
+    expect(design.body.rows[0].columns.map((c) => (c.contents[0] as Block).values.text)).toEqual(["A", "B"]);
+    // Once each, and not for a section with one column, whose direction shows nothing.
+    expect(warnings.filter((w) => /direction/.test(w.reason))).toEqual([
+      { reason: "section direction rtl not kept: its columns show left to right" },
+      { reason: "group direction rtl not kept: its columns show left to right" },
+    ]);
   });
 
   it("keeps an mj-group's columns side by side on phones", async () => {

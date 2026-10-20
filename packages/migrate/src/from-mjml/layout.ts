@@ -64,6 +64,18 @@ export function cellsFor(widths: number[]): number[] {
   return rounded.map((w) => w / shared);
 }
 
+/** A section's or group's columns (and a section's groups): what its `direction` lays out side by side. */
+const sideBySide = (node: Resolved) => node.children.filter((c) => c.tag === "mj-column" || (node.tag === "mj-section" && c.tag === "mj-group"));
+
+/**
+ * Whether a section or group shows two or more columns left to right, as MJML lays them out unless its `direction`
+ * says otherwise (whatever `<mjml dir>` says: that's the page's).
+ */
+export function columnsLeftToRight(node: Resolved): boolean {
+  if ((node.tag === "mj-section" || node.tag === "mj-group") && sideBySide(node).length > 1 && node.attrs.direction !== "rtl") return true;
+  return node.children.some((c) => ["mj-wrapper", "mj-section", "mj-group"].includes(c.tag) && columnsLeftToRight(c));
+}
+
 export function bodyRows(body: Resolved, width: number, ctx: Context): DesignRow[] {
   const rows: DesignRow[] = [];
   for (const child of body.children) {
@@ -239,7 +251,12 @@ function sectionRows(section: Resolved, width: number, outer: Outer, ctx: Contex
   const groups = new Set(placed.map((p) => p.group));
   const noStack = placed.length > 1 && groups.size === 1 && !groups.has(undefined);
   if (placed.some((p) => p.group) && !noStack) note(ctx, "mj-group beside other columns: its columns stack on phones with the others");
-  if (a.direction === "rtl") note(ctx, "section direction rtl not kept: its columns show left to right");
+  // Columns MJML shows right to left in a left-to-right email, which Elements lays out in order (phones stack them in
+  // order in both).
+  if (ctx.direction === "ltr") {
+    if (parts.length > 1 && a.direction === "rtl") note(ctx, "section direction rtl not kept: its columns show left to right");
+    for (const group of parts) if (group.tag === "mj-group" && sideBySide(group).length > 1 && group.attrs.direction === "rtl") note(ctx, "group direction rtl not kept: its columns show left to right");
+  }
 
   const rows: DesignRow[] = [];
   if (!placed.length) {
