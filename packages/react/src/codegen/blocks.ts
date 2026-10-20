@@ -139,8 +139,9 @@ interface Link {
 
 /**
  * A link as Elements' components take it: the URL the editor exports for it (an email's `mailto:…`, see links.ts) and
- * where it opens. Undefined where it has more than a URL holds (code it runs, a class), which is said: it's written
- * as the design has it. A link the builder doesn't read back from its URL (a page section's) is said too.
+ * where it opens, all a component's link takes. Undefined where it has more than a URL holds (code it runs, a class,
+ * a `rel`, any other attribute), which is said: it's written as the design has it. A link the builder doesn't read
+ * back from its URL (a page section's) is said too.
  */
 function linkOf(link: unknown, ctx: BlockContext, whose = "its"): Link | undefined {
   const exported = editorLink(link);
