@@ -179,11 +179,16 @@ describe("dev server", () => {
     const footer = path.join(fixture.emails, "_components", "footer.tsx");
     const change = nextChange();
     await new Promise((r) => setTimeout(r, 100));
-    await writeFile(footer, (await readFile(footer, "utf8")).replace("Sent by", "Sent with care by"));
+    // welcome.tsx imports the footer, and was rendered (and its modules loaded) by the tests above.
+    expect((await post("/api/render", { path: "welcome.tsx" })).body.text).toContain("Sent with care by Acme");
+    const source = await readFile(footer, "utf8");
+    expect(source).toContain("Sent with care by");
+    await writeFile(footer, source.replace("Sent with care by", "Sent with thanks by"));
     const event = await change;
     expect(event.files).toContain(path.join("_components", "footer.tsx"));
     const { body } = await post("/api/render", { path: "welcome.tsx" });
-    expect(body.text).toContain("Sent with care by Acme");
+    expect(body.text).toContain("Sent with thanks by Acme");
+    expect(body.text).not.toContain("Sent with care by");
   });
 
   it("lists a new template and drops a deleted one", async () => {
