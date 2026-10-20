@@ -15,6 +15,9 @@ import * as Elements from "../index";
 import { UNLAYER_CONFIG_KEY } from "../utils/create-component";
 import guide from "../../docs/codegen.md?raw";
 import { Font } from "../font/index";
+import { BodyExporters } from "@unlayer/exporters";
+import { editorLink } from "./links";
+import type { Plain } from "./values";
 
 const quiet = <T,>(run: () => T): T => {
   const spies = (["warn", "error"] as const).map((level) => vi.spyOn(console, level).mockImplementation(() => {}));
@@ -213,6 +216,72 @@ describe("Elements templates come back as they render", () => {
     expect(compareDesigns(design, back)).toEqual([]);
     expect(html).toContain("max-width: 32px");
     expect(html).toContain("max-width: 92px");
+  });
+});
+
+describe("links: the URL the editor exports for each", () => {
+  const EMAIL = "mailto:{{email}}?subject={{subject}}&body={{body}}";
+  const WEB = { href: "{{href}}", target: "{{target}}" };
+  /** Links as the editor saves them: an action, its values and the templates they fill in. */
+  const SAVED: Record<string, Plain> = {
+    "an email": { name: "email", values: { href: "", target: "_blank", email: "support@example.com", subject: "Help & questions?", body: "Hi,\nI have a question" }, attrs: { href: EMAIL } },
+    "an email without a subject": { name: "email", values: { email: "hi@example.com", subject: "", body: "Hello" }, attrs: { href: EMAIL } },
+    "an email without a subject or body": { name: "email", values: { email: "hi@example.com", subject: "", body: "" }, attrs: { href: EMAIL } },
+    // (Where the address is shorter than its placeholder, the editor doesn't encode the subject.)
+    "an email without an address": { name: "email", values: { email: "", subject: "Hi there", body: "" }, attrs: { href: EMAIL } },
+    "an email with a merge tag and markup in its subject": { name: "email", values: { email: "hi@example.com", subject: "Hi {{first_name}} <3", body: "" }, attrs: { href: EMAIL } },
+    "a phone call": { name: "phone", values: { href: "", target: "_blank", phone: "+14154154151" }, attrs: { href: "tel:{{phone}}" } },
+    "a text message": { name: "sms", values: { phone: "+14154154150" }, attrs: { href: "sms:{{phone}}" } },
+    "a web page": { name: "web", values: { href: "https://example.com/a b?q=1&r=2", target: "_self" }, attrs: WEB },
+    "a web page from a list of options": { name: "web", values: { href: { label: "Home", value: "https://example.com" }, target: "_blank" }, attrs: WEB },
+    "the empty web link": { name: "web", values: { href: "", target: "_blank" }, attrs: WEB },
+    "a page section": { name: "anchor", values: { href: "pricing" }, attrs: { href: "#{{href}}", target: "_self" } },
+    "a web page with a query its link type adds": { name: "web", values: { href: "https://example.com/", target: "_blank", source: "news letter" }, attrs: { ...WEB, "+href": "?utm_source={{source}}" } },
+  };
+  /** The pinned exporters' URL for a link and its target: their popup's close button is a link they fill in. */
+  const exported = (link: unknown) => {
+    const tag = /<a [^>]*>/.exec(BodyExporters.popup!("", { popupCloseButton_action: link, _meta: { htmlID: "u_body" } } as never, undefined as never))![0];
+    const attr = (name: string) => (new RegExp(` ${name}="([^"]*)"`).exec(tag)?.[1] ?? "").replace(/&quot;/g, '"').replace(/&lt;/g, "<").replace(/&gt;/g, ">");
+    return { url: attr("href"), target: attr("target") };
+  };
+
+  it.each(Object.entries(SAVED))("%s: as the pinned exporters fill it in", (_, link) => {
+    expect(editorLink(link)).toMatchObject(exported(link));
+  });
+
+  it("reads a link without its templates (a design the editor didn't save) as its link editor does: with its action's", () => {
+    expect(editorLink({ name: "email", values: { email: "support@example.com", subject: "Help" } })).toEqual({ url: "mailto:support@example.com?subject=Help", target: "_blank", kept: true });
+    expect(editorLink({ name: "phone", values: { phone: "+15550100" } })).toEqual({ url: "tel:+15550100", target: "_blank", kept: true });
+    expect(editorLink({ name: "web", values: { href: "https://example.com" } })).toEqual({ url: "https://example.com", target: "_blank", kept: true });
+    expect(editorLink("https://example.com")).toEqual({ url: "https://example.com", target: "_blank", kept: true });
+  });
+
+  it("says what a URL can't hold, and which actions the builder doesn't read back from their URL", () => {
+    expect(editorLink({ name: "close_popup", attrs: { onClick: "closePopup()" }, values: {} })).toEqual({ lost: ["onClick"] });
+    expect(editorLink({ name: "web", values: { href: "https://example.com", target: "_blank", class: "cta" }, attrs: { ...WEB, "data-id": "{{id}}" } })).toEqual({ lost: ["class", "data-id"] });
+    expect(editorLink(SAVED["a page section"])).toMatchObject({ kept: false });
+    // An email link of the embedder's, which the builder reads back as its own (with a subject and body).
+    expect(editorLink({ name: "email", values: { email: "a@b.com", cc: "c@d.com" }, attrs: { href: "mailto:{{email}}?cc={{cc}}" } })).toEqual({ url: "mailto:a@b.com?cc=c%40d.com", target: "_blank", kept: false });
+    // A web link is one whatever its templates.
+    expect(editorLink(SAVED["a web page with a query its link type adds"])).toMatchObject({ kept: true });
+  });
+
+  it("writes them in the code, whose HTML links where the editor's does", () => {
+    const keep = ["an email", "an email without a subject", "a phone call", "a text message", "a web page"];
+    const source = design([
+      ...keep.map((name) => ({ type: "button", values: { text: name, href: SAVED[name] } })),
+      { type: "image", values: { src: { url: "https://example.com/a.png" }, action: SAVED["an email without a subject or body"] } },
+      { type: "menu", values: { menu: { items: [{ key: "1606923979749", text: "Call", link: SAVED["a phone call"] }, { key: "1606923979750", text: "Write", link: SAVED["an email"] }] } } },
+    ]);
+    const { code, warnings, differences } = roundTrip(source);
+    expect(code).not.toMatch(/\{\{(href|target|email|subject|body|phone)\}\}/);
+    expect(warnings).toEqual([]);
+    expect(differences).toEqual([]);
+    const html = Elements.renderToHtml(React.createElement(evaluate(code)));
+    const hrefs = [...html.matchAll(/<a [^>]*?href="([^"]*)"/g)].map(([, href]) => href.replace(/&amp;/g, "&"));
+    for (const name of [...keep, "an email without a subject or body"]) expect(hrefs, name).toContain(exported(SAVED[name]).url);
+    expect(hrefs.filter((href) => href === exported(SAVED["a phone call"]).url)).toHaveLength(2);
+    expect(hrefs.filter((href) => href === exported(SAVED["an email"]).url)).toHaveLength(2);
   });
 });
 

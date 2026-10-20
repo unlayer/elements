@@ -7,7 +7,8 @@
  * here (Html, Table, Video, a custom tool) takes only that. They live in this entry, not beside each component, so
  * the main entry, which every bundle has, doesn't carry them.
  */
-const ROOT = "container bg=backgroundColor color=textColor fontFamily width=contentWidth maxWidth=contentWidth";
+// Its width and the bounds on it are its one content width (see props.ts).
+const ROOT = "container bg=backgroundColor color=textColor fontFamily width=contentWidth maxWidth=contentWidth minWidth=contentWidth";
 const TEXT = "text phone=fontSize,lineHeight,textAlign";
 
 export const TABLES: Record<string, string> = {
@@ -23,8 +24,8 @@ export const TABLES: Record<string, string> = {
   Heading: TEXT,
   // Its padding is inside it; its margins are around it.
   Button: "text bg=backgroundColor padding border radius=borderRadius width hoverBg=hoverBackgroundColor hoverColor phone=fontSize,lineHeight,textAlign,padding,width",
-  // An image has no corners of its own to round.
-  Image: "width maxWidth textAlign phone=width,textAlign",
+  // An image has no corners of its own to round; its width, max and min width are its one display width (see props.ts).
+  Image: "width maxWidth minWidth textAlign phone=width,textAlign",
   // Its line is its top border.
   Divider: "border=borderTop width textAlign phone=width,textAlign",
   Menu: "text color=textColor lineHeight= textAlign=align phone=fontSize",

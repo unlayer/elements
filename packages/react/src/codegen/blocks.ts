@@ -13,6 +13,7 @@ import { contentSlotWidth, pinImageSrc, toPx, type SlotContext } from "../utils/
 import { deepEqual, isPlainObject, omit, type Plain } from "./values";
 import type { ModuleState } from "./state";
 import { dropFixedFlags, warnLost } from "./warnings";
+import { editorLink, READ_BACK } from "./links";
 
 export interface BlockContext {
   /** "Row 2, column 1, block 3": where the block is, for warnings. */
@@ -131,15 +132,34 @@ function textProp(prop: "html" | "text"): OwnProps {
   };
 }
 
-/** A link as `href` (a string, with `target`) where it's the plain web link the string makes. */
-function linkProps(link: unknown): Array<[string, unknown]> | undefined {
-  if (!isPlainObject(link) || link.name !== "web" || Object.keys(link).some((key) => key !== "name" && key !== "values")) return undefined;
-  const values = link.values;
-  if (!isPlainObject(values) || typeof values.href !== "string" || Object.keys(values).some((key) => key !== "href" && key !== "target")) return undefined;
-  const target = values.target ?? "_blank";
-  if (typeof target !== "string") return undefined;
-  return [["href", values.href], ...(target !== "_blank" ? ([["target", target]] as Array<[string, unknown]>) : [])];
+interface Link {
+  href: string;
+  target: string;
 }
+
+/**
+ * A link as Elements' components take it: the URL the editor exports for it (an email's `mailto:…`, see links.ts) and
+ * where it opens. Undefined where it has more than a URL holds (code it runs, a class), which is said: it's written
+ * as the design has it. A link the builder doesn't read back from its URL (a page section's) is said too.
+ */
+function linkOf(link: unknown, ctx: BlockContext, whose = "its"): Link | undefined {
+  const exported = editorLink(link);
+  if (!exported) return undefined;
+  const action = isPlainObject(link) && typeof link.name === "string" ? link.name : undefined;
+  const name = action !== undefined ? `"${action}" link` : "link";
+  if ("lost" in exported) {
+    ctx.state.warn(`${ctx.where}: ${whose} ${name} has ${exported.lost.map((key) => `\`${key}\``).join(" and ")}, which a URL can't hold, so it's written as the design has it (Elements' HTML doesn't write ${exported.lost.length > 1 ? "them" : "it"} as the builder does).`);
+    return undefined;
+  }
+  if (!exported.kept) ctx.state.warn(`${ctx.where}: ${whose} ${name} is written as the URL the builder exports for it (${exported.url ? `\`${exported.url}\`` : "none"}), which the builder opens as ${action !== undefined && READ_BACK.has(action) ? `its own ${name}` : "a web link"}.`);
+  return { href: exported.url, target: exported.target };
+}
+
+/** No link: the builder's empty one. */
+const noLink = (link: Link) => link.href === "" && link.target === "_blank";
+
+/** A link in the shape the design keeps it: a web link to its URL. */
+const webLink = (link: Link) => ({ name: "web", values: { href: link.href, target: link.target } });
 
 const OWN_PROPS: Record<string, OwnProps> = {
   Paragraph: textProp("html"),
@@ -154,9 +174,12 @@ const OWN_PROPS: Record<string, OwnProps> = {
   Button: (rest, props, defaults, ctx) => {
     const { href, ...others } = textProp("text")(rest, props, defaults, ctx);
     if (href !== undefined && !deepEqual(href, defaults.href)) {
-      const link = linkProps(href);
-      if (link) link.forEach(([name, value]) => props.add(name, value));
-      else props.add("href", href);
+      const link = linkOf(href, ctx);
+      if (!link) props.add("href", href);
+      else if (!noLink(link)) {
+        props.add("href", link.href);
+        if (link.target !== "_blank") props.add("target", link.target);
+      }
     }
     // A fixed width is `width`; other sizes whole (Button reads a `size` with a width and no `autoWidth` as fixed).
     const { size } = others;
@@ -169,11 +192,17 @@ const OWN_PROPS: Record<string, OwnProps> = {
   },
 
   Image: (rest, props, defaults, ctx) => {
-    const { src, altText, ...others } = rest;
+    const { src, altText, action, ...others } = rest;
     const available = contentSlotWidth({ ...ctx.slot, containerPadding: rest.containerPadding ?? defaults.containerPadding });
     if (src !== undefined) imageSrc(src, props, defaults.src, available, (text) => ctx.state.warn(`${ctx.where}: ${text}.`));
     if (typeof altText === "string" && altText !== "") props.add("alt", altText);
     else if (altText !== undefined && altText !== "") others.altText = altText;
+    // Its link (`action`) is written whole, as a web link to the URL.
+    if (action !== undefined && !deepEqual(action, defaults.action)) {
+      const link = linkOf(action, ctx);
+      if (!link) others.action = action;
+      else if (!noLink(link)) others.action = webLink(link);
+    }
     return others;
   },
 
@@ -184,12 +213,18 @@ const OWN_PROPS: Record<string, OwnProps> = {
     return others;
   },
 
-  Menu: (rest, props, defaults) => {
+  Menu: (rest, props, defaults, ctx) => {
     const { menu, ...others } = rest;
     if (menu === undefined || deepEqual(menu, defaults.menu)) return others;
-    const items = isPlainObject(menu) && Object.keys(menu).length === 1 && Array.isArray(menu.items) ? menuItems(menu.items) : undefined;
+    if (!isPlainObject(menu) || !Array.isArray(menu.items)) {
+      others.menu = menu;
+      return others;
+    }
+    const links = menu.items.map((item: unknown, i: number) => (isPlainObject(item) && item.link !== undefined ? linkOf(item.link, ctx, `its item ${i + 1}'s`) : undefined));
+    const items = Object.keys(menu).length === 1 ? menuItems(menu.items, links) : undefined;
     if (items) props.add("items", items);
-    else others.menu = menu;
+    // The items as the design has them (the editor's keys), each link a web link to its URL.
+    else others.menu = { ...menu, items: menu.items.map((item: Plain, i: number) => (links[i] ? { ...item, link: webLink(links[i]) } : item)) };
     return others;
   },
 
@@ -265,14 +300,13 @@ function imageSrc(src: unknown, props: Props, defaults: Plain, available: number
   } else props.add("src", { ...natural, ...(autoWidth !== undefined ? { autoWidth } : {}), ...(maxWidth !== undefined ? { maxWidth } : {}) });
 }
 
-/** Menu items as the `items` shorthand writes them (keys numbered from 1, web links), or undefined. */
-function menuItems(items: unknown[]): Plain[] | undefined {
+/** Menu items as the `items` shorthand writes them (keys numbered from 1, each a link: `links`), or undefined. */
+function menuItems(items: unknown[], links: Array<Link | undefined>): Plain[] | undefined {
   const out: Plain[] = [];
   for (const [i, item] of items.entries()) {
-    if (!isPlainObject(item) || item.key !== String(i + 1) || typeof item.text !== "string" || Object.keys(item).some((key) => !["key", "text", "link"].includes(key))) return undefined;
-    const link = linkProps(item.link);
-    if (!link || link.length > 2) return undefined;
-    out.push({ text: item.text, ...Object.fromEntries(link) });
+    const link = links[i];
+    if (!link || !isPlainObject(item) || item.key !== String(i + 1) || typeof item.text !== "string" || Object.keys(item).some((key) => !["key", "text", "link"].includes(key))) return undefined;
+    out.push({ text: item.text, href: link.href, ...(link.target !== "_blank" ? { target: link.target } : {}) });
   }
   return out;
 }
