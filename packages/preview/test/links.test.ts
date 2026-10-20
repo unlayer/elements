@@ -118,6 +118,22 @@ describe("link and image checks", () => {
     expect(byUrl("https://example.org/plans")).toEqual([expect.stringMatching(/^A placeholder address/)]);
   });
 
+  it("requests an image with empty alt text: a note doesn't stand for a check of the URL", async () => {
+    const requested: string[] = [];
+    const fetchTable = fakeFetch({ "https://acme.dev/gone.png": { status: 404, type: "text/html" } });
+    const report = await checkLinks(html('<img src="https://acme.dev/gone.png" alt=""><a href="https://acme.dev/{{id}}">Order</a>'), {
+      dir: DIR,
+      fetch: (input, init) => {
+        requested.push(String(input));
+        return fetchTable(input, init);
+      },
+    });
+    const messages = report.findings.filter((f) => f.url === "https://acme.dev/gone.png").map((f) => `${f.level}: ${f.message}`);
+    expect(messages).toEqual(["error: It answers 404.", expect.stringMatching(/^info: Empty alt text/)]);
+    // A merge tag is still filled in later, so not requested.
+    expect(requested).toEqual(["https://acme.dev/gone.png"]);
+  });
+
   it("warns when Gmail would clip the email", async () => {
     const report = await checkLinks(html(`<p>${"x".repeat(GMAIL_CLIP_BYTES)}</p>`), { dir: DIR, network: false });
     expect(report.findings[0]).toMatchObject({ kind: "email", level: "warning", message: expect.stringMatching(/Gmail clips/) });

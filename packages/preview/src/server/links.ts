@@ -115,6 +115,11 @@ export function isPlaceholderUrl(url: string): boolean {
   }
 }
 
+/** Merge tags and placeholders an email service fills in ({{url}}, *|UNSUB|*, %recipient.url%). */
+function isMergeTag(url: string): boolean {
+  return /\{\{|\}\}|\*\||\|\*|%[a-z_.]+%|\[\[/i.test(url);
+}
+
 /** A URL's path decoded, or undefined when it doesn't decode (`%`, `%zz`, a % escape that isn't UTF-8). */
 function decoded(text: string): string | undefined {
   try {
@@ -129,8 +134,7 @@ function staticFindings(item: Found, dir: string): LinkFinding[] {
   const base = { kind: item.kind, url: item.url, block: item.block, label: item.kind === "image" ? item.alt ?? undefined : item.label };
   const out: LinkFinding[] = [];
   const url = item.url;
-  // Merge tags and placeholders an email service fills in ({{url}}, *|UNSUB|*, %recipient.url%).
-  if (/\{\{|\}\}|\*\||\|\*|%[a-z_.]+%|\[\[/i.test(url)) {
+  if (isMergeTag(url)) {
     return [{ ...base, level: "info", message: "A merge tag: filled in when the email is sent, so not checked." }];
   }
   // Not requested (see checkLinks), but still checked for what the HTML alone shows.
@@ -247,7 +251,8 @@ export async function checkLinks(html: string, options: LinkCheckOptions): Promi
   for (const item of items) {
     const found = staticFindings(item, options.dir);
     findings.push(...found);
-    const skip = found.some((f) => f.level === "error" || f.level === "info") || isPlaceholderUrl(item.url);
+    // A note (empty alt text) says nothing about whether the URL answers: only what can't be requested is skipped.
+    const skip = found.some((f) => f.level === "error") || isMergeTag(item.url) || isPlaceholderUrl(item.url);
     if (!skip && /^https?:/i.test(item.url)) toRequest.set(item.url, [...(toRequest.get(item.url) ?? []), item]);
   }
   const network = options.network !== false;

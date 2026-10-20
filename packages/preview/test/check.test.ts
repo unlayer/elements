@@ -1,4 +1,4 @@
-import { mkdir, writeFile } from "node:fs/promises";
+import { mkdir, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { checkTemplates, formatCheckReport } from "../src/server/check";
@@ -143,6 +143,27 @@ describe("check", () => {
     expect(report.templates.map((t) => t.path).sort()).toEqual(["bad-url.tsx", "left-out.tsx", "no-keys.tsx"]);
     const badUrl = report.templates.find((t) => t.path === "bad-url.tsx")!;
     expect(badUrl.toFix).toEqual([expect.objectContaining({ kind: "image", url: "/static/%", message: expect.stringMatching(/^A malformed URL/) })]);
+  });
+
+  it("fails a broken image that has no alt text", async () => {
+    await writeFile(
+      path.join(fixture.root, "more", "no-alt.tsx"),
+      `import { Email, Row, Column, Image } from "@unlayer/react-elements";
+export default function NoAlt() {
+  return <Email><Row><Column><Image src="https://acme.dev/gone.png" /></Column></Row></Email>;
+}
+`
+    );
+    const notFound = (async () => new Response(null, { status: 404, headers: { "content-type": "text/html" } })) as typeof fetch;
+    try {
+      const report = await checkTemplates({ dir: path.join(fixture.root, "more"), templates: ["no-alt.tsx"], fetch: notFound });
+      const [template] = report.templates;
+      expect(template.toFix).toEqual([expect.objectContaining({ kind: "image", url: "https://acme.dev/gone.png", status: 404, message: "It answers 404." })]);
+      expect(template.notes).toEqual(expect.arrayContaining([expect.objectContaining({ kind: "image", message: expect.stringMatching(/^Empty alt text/) })]));
+      expect(report.ok).toBe(false);
+    } finally {
+      await rm(path.join(fixture.root, "more", "no-alt.tsx"));
+    }
   });
 
   it("refuses templates and folders that aren't there", async () => {
