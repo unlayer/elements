@@ -305,11 +305,22 @@ describe("text that can't be made out on one side", () => {
     expect(check.styles).toContainEqual({ property: "shown", original: "invisible (#ffffff on #ffffff)", converted: "shown", words: ["Internal", "reference", "4471"] });
   });
 
+  it("is content when clear text turns too faint to read: a black link in pale yellow on white, and the other way", () => {
+    const link = (color: string) => page(`<p>Read <a href="https://example.com/guide" style="color:${color}">the guide</a> first.</p>`);
+    expect(compareText(link("#000000"), link("#f7dd72")).styles).toContainEqual({ property: "shown", original: "shown", converted: "hard to read (#f7dd72 on #ffffff)", words: ["the", "guide"] });
+    expect(compareText(link("#f7dd72"), link("#000000")).styles).toContainEqual({ property: "shown", original: "hard to read (#f7dd72 on #ffffff)", converted: "shown", words: ["the", "guide"] });
+    // Still a color difference too.
+    expect(compareText(link("#000000"), link("#f7dd72")).styles).toContainEqual(expect.objectContaining({ property: "color", original: "#000000", converted: "#f7dd72" }));
+  });
+
   it("isn't listed where it reads the same, faint on both sides, or on an image", () => {
     expect(compareText(badge("background-color:#0f766e;"), badge("background-color:#115e59;")).styles.filter((s) => s.property === "shown")).toEqual([]);
     // A faint watermark kept as faint.
     const faint = page('<p style="color:#eeeeee">Draft</p>');
     expect(compareText(faint, page('<p style="color:#f2f2f2">Draft</p>')).styles.filter((s) => s.property === "shown")).toEqual([]);
+    // Lighter but still read (a color, not content), or light gray made fainter (not clear to begin with).
+    expect(compareText(page('<p style="color:#333333">Footer</p>'), page('<p style="color:#999999">Footer</p>')).styles.filter((s) => s.property === "shown")).toEqual([]);
+    expect(compareText(page('<p style="color:#999999">Footer</p>'), page('<p style="color:#dddddd">Footer</p>')).styles.filter((s) => s.property === "shown")).toEqual([]);
     // On an image, what's behind the text isn't known: not claimed either way.
     const hero = (bg: string) => page(`<div style="${bg}"><p style="color:#ffffff">Summer sale</p></div>`);
     expect(compareText(hero("background-image:url(https://example.com/hero.jpg)"), hero("background-image:url(https://example.com/hero.jpg)")).styles).toEqual([]);

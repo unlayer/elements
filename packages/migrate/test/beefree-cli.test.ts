@@ -127,6 +127,18 @@ describe("--from beefree", () => {
     expect(strict.out).toMatch(/✗ templates\/playground\/kids-fall-collection\.json: check failed with --strict: .*social icon alt text is “<network> icon”/);
   });
 
+  it("fails links the migration leaves too faint to read, and doesn't call it a converter bug", async () => {
+    const dir = project([CHECKED]);
+    const template = path.join(dir, "templates", `${CHECKED}.json`);
+    // Links the export has in black, pale yellow (the module's link color) in the template: as the migration had them.
+    fs.writeFileSync(template, fs.readFileSync(template, "utf8").replaceAll("underline; color: #000000;", "underline; color: #f7dd72;"));
+    const { code, out } = await run(dir, "templates", "--from", "beefree", "--out", "migrated");
+    expect(code).toBe(2);
+    expect(out).toContain('✗ templates/toptile-legacy/signup-email.json: written, but it failed the check: text now hard to read: "95%−ile isn\'t that good 3−2−1 Thursday newsletter" is #f7dd72 on #ffffff');
+    expect(out).toContain("color #000000 → #f7dd72");
+    expect(out).not.toContain("converter bug");
+  });
+
   it("still fails content a declaration doesn't name: another alt text on a social icon", async () => {
     const dir = project(["playground/kids-fall-collection"]);
     const exported = path.join(dir, "templates/playground/kids-fall-collection.html");

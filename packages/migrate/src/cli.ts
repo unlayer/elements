@@ -1539,7 +1539,8 @@ export function lookProblems(check: CheckParts): string[] {
 
 /**
  * Where text shows that differs, as a reader finds it: "text no longer visible: "Watch update" is #000000 on #15171a",
- * "text in the inbox preview only, no longer in the email: …", "text no longer shown on screens 768px and wider: …".
+ * "text now hard to read: "Read more" is #f7dd72 on #ffffff", "text in the inbox preview only, no longer in the email:
+ * …", "text no longer shown on screens 768px and wider: …".
  */
 function shownChange(c: StyleChange): string {
   const where = `${wider(c.width)}${c.dark ? " in dark mode" : ""}${c.phone ? " on phones" : ""}`;
@@ -1548,6 +1549,10 @@ function shownChange(c: StyleChange): string {
   const [was, is] = [invisible(c.original), invisible(c.converted)];
   if (c.original === "shown" && is !== undefined) return `text no longer visible${where}: ${text} is ${is}`;
   if (was !== undefined && c.converted === "shown") return `text now visible${where}: ${text} was ${was} in the original`;
+  const faint = (value: string) => /^hard to read \((.*)\)$/.exec(value)?.[1];
+  const [wasFaint, isFaint] = [faint(c.original), faint(c.converted)];
+  if (c.original === "shown" && isFaint !== undefined) return `text now hard to read${where}: ${text} is ${isFaint}`;
+  if (wasFaint !== undefined && c.converted === "shown") return `text no longer hard to read${where}: ${text} was ${wasFaint} in the original`;
   if (c.original === "in the email" && c.converted === "the inbox preview only") return `text in the inbox preview only, no longer in the email${where}: ${text}`;
   if (c.original === "the inbox preview only" && c.converted === "in the email") return `inbox preview text now shown in the email${where}: ${text}`;
   if (c.original === "shown" && c.converted === "hidden") return `text no longer shown${where}: ${text}`;
@@ -1567,6 +1572,9 @@ function blocksLost(count: number): string {
   return `${count} block${count === 1 ? "" : "s"} the editor wouldn't get`;
 }
 
+/** Text a style leaves unreadable (the check's "shown" difference for it), as opposed to text shown or not. */
+const UNREADABLE = /^(invisible|hard to read) \(/;
+
 /**
  * Whether the migration lost or added content, a converter bug: words, links or images (on any screen, in dark mode,
  * with a prop flipped), text moved between the inbox preview and the email, shown or hidden at some width, or shown
@@ -1578,7 +1586,7 @@ function lostContent(result: FileResult): boolean {
     Boolean(
       c.missing?.length || c.added?.length || c.missingAttributes?.length || c.addedAttributes?.length ||
       c.phone?.missing.length || c.phone?.added.length || c.phone?.missingAttributes?.length || c.phone?.addedAttributes?.length ||
-      c.lostShown?.length || c.styles?.some((s) => s.property === "shown" && !/^invisible/.test(s.original) && !/^invisible/.test(s.converted))
+      c.lostShown?.length || c.styles?.some((s) => s.property === "shown" && !UNREADABLE.test(s.original) && !UNREADABLE.test(s.converted))
     );
   return lost({ ...result, missing: result.missingText, added: result.addedText }) || (result.variants ?? []).some(lost);
 }
