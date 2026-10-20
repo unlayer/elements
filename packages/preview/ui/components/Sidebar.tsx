@@ -2,6 +2,7 @@ import { useMemo, useState, type RefObject } from "react";
 import type { TemplateEntry } from "../api";
 import { ChevronRightIcon } from "./icons";
 import { NoTemplates } from "./NoTemplates";
+import { UnlayerMark } from "./UnlayerMark";
 
 interface Folder {
   name: string;
@@ -91,7 +92,9 @@ export function Sidebar({ templates, selected, dir, onSelect, filterRef }: Sideb
     <aside className="sidebar">
       <div className="sidebar-header">
         <div className="brand">
-          <span className="brand-mark" aria-hidden />
+          <span className="brand-mark" aria-hidden>
+            <UnlayerMark />
+          </span>
           Elements preview
         </div>
         {dir && (

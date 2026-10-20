@@ -659,12 +659,12 @@ h3 {
   font-weight: 600;
 }
 
+/* As wide as the folder's indent below it. */
 .brand-mark {
+  display: inline-flex;
+  justify-content: center;
   width: 18px;
-  height: 18px;
-  border-radius: 5px;
-  background: var(--accent);
-  box-shadow: inset 0 -6px 0 rgb(255 255 255 / 25%);
+  color: var(--text);
 }
 
 .sidebar-dir {
