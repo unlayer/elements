@@ -163,7 +163,7 @@ function bounded(width: string, min: string | undefined, max: string | undefined
 /** "both `width: 50%` and `max-width: 320px`", or three of them "together": the lengths one width can't hold. */
 function together(lengths: Array<[string, string | undefined]>): string {
   const given = lengths.filter(([, value]) => value !== undefined).map(([property, value]) => `\`${property}: ${value}\``);
-  return given.length === 2 ? `both ${given.join(" and ")}` : `${given.slice(0, -1).join(", ")} and ${given.at(-1)} together`;
+  return given.length === 2 ? `both ${given.join(" and ")}` : `${given.slice(0, -1).join(", ")} and ${given[given.length - 1]} together`;
 }
 
 /** A simple value as the prop takes it (`rtl`: in a right-to-left document); undefined where it can't. */
