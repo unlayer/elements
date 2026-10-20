@@ -1,5 +1,5 @@
 import { existsSync } from "node:fs";
-import { writeFile } from "node:fs/promises";
+import { readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import type { Browser, Page } from "puppeteer-core";
@@ -97,5 +97,26 @@ describe.skipIf(!runnable)("preview app", () => {
 
     await page.waitForFunction(() => document.querySelector(".code-text")?.textContent?.includes("Slow data arrived"), WAIT);
     expect(await codeState()).toMatchObject({ title: "slow", copy: true, download: true, copyForAi: true });
+  }, 120_000);
+
+  it("lists the templates and renders the selected one again when the server is back", async () => {
+    await page.goto(`${server.url}/preview/welcome.tsx`);
+    await page.click('button[aria-label="Code"]');
+    await (await page.waitForSelector('.code-bar [role="tab"]:nth-child(2)', WAIT))!.click();
+    await page.waitForFunction(() => document.querySelector(".code-text")?.textContent?.includes("Welcome, Ada"), WAIT);
+
+    // The server stops; while it's down a template is added and the open one changes; it starts again.
+    const port = server.port;
+    await server.close();
+    await page.waitForSelector(".reconnecting", WAIT);
+    await writeFile(path.join(fixture.emails, "added.tsx"), 'import { Email } from "@unlayer/react-elements";\nexport default function Added() { return <Email />; }\n');
+    const welcome = path.join(fixture.emails, "welcome.tsx");
+    await writeFile(welcome, (await readFile(welcome, "utf8")).replace("Welcome, {name}", "Hello again, {name}"));
+    server = await startDevServer({ dir: fixture.emails, port, strictPort: true, uiDir: UI });
+
+    // Without another change, the page lists the new template and shows the new version.
+    await page.waitForSelector('button[title="added.tsx"]', WAIT);
+    await page.waitForFunction(() => document.querySelector(".code-text")?.textContent?.includes("Hello again, Ada"), WAIT);
+    expect(await page.$(".reconnecting")).toBeNull();
   }, 120_000);
 });

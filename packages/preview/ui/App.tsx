@@ -90,8 +90,15 @@ export function App() {
   }, [selected, override, templates, render]);
 
   // Any file can change what a template renders (a shared component, a data file): a new template list renders
-  // the selected template again (the effect above).
-  const live = useLiveChanges((event) => setTemplates(event.templates));
+  // the selected template again (the effect above). After the server was away (restarted), the list, the project
+  // and the selected template's render are fetched again: what changed meanwhile came with no event.
+  const live = useLiveChanges(
+    (event) => setTemplates(event.templates),
+    () => {
+      api.meta().then(setMeta).catch(() => undefined);
+      api.templates().then((r) => setTemplates(r.templates)).catch(() => undefined);
+    }
+  );
 
   // The checks of each successful render run by themselves, for the Checks button's count.
   const checkKey = selected && result?.ok ? `${selected}|${version}` : undefined;
