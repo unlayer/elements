@@ -40,7 +40,7 @@ TypeScript, JSX, your `tsconfig.json` path aliases (`@/components/...`) and impo
 
 ## The preview
 
-The top bar has the template's name (its render time and whether it's live are in the tooltip), the views in the middle, and on the right the preview's width and dark mode, **Checks** and **Copy for AI**.
+The top bar has the template's name (its render time and whether it's live are in the tooltip), the views in the middle, and on the right the preview's width and dark mode, **Checks** and **Copy for AI**. Everything the views, the checks and Copy for AI show is the selected template's: right after you pick one that takes a while to render, they say it's rendering until it's done.
 
 - **Preview**: the template as an email, page or document, at desktop or phone width. Drag the frame's edges for any width (it shows the width as you drag); double-click an edge to go back.
 - **Dark mode** (the sun and moon): what email clients do to an email's colors for readers in dark mode. By default every color flips, as in the Gmail apps and Outlook.com; the arrow next to it switches to light colors only, as in Apple Mail and Outlook on phones. It catches unreadable text and logos that vanish. It flips the colors written on the elements themselves, as Elements writes them; a color set only by a stylesheet (text in an Html block with no color of its own, an unstyled link) keeps its light-mode color.

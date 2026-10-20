@@ -28,7 +28,8 @@ export function App() {
   const [meta, setMeta] = useState<Meta>();
   const [templates, setTemplates] = useState<TemplateEntry[]>();
   const [selected, select] = useSelectedTemplate();
-  const [result, setResult] = useState<RenderResponse>();
+  // The last render, with the template it's of.
+  const [lastRender, setLastRender] = useState<{ path: string; result: RenderResponse }>();
   const [rendering, setRendering] = useState(false);
   const [overrides, setOverrides] = useState<Record<string, unknown>>({});
   // Each template's last successful render: its props stay editable while the file doesn't compile.
@@ -66,16 +67,22 @@ export function App() {
     try {
       const next = await api.render(path, props);
       if (seq !== renderSeq.current) return;
-      setResult(next);
+      setLastRender({ path, result: next });
       if (next.ok) setLastOk((all) => ({ ...all, [path]: next }));
       setVersion((v) => v + 1);
     } catch (error) {
       if (seq !== renderSeq.current) return;
-      setResult({ ok: false, logs: [], durationMs: 0, error: { message: (error as Error).message, phase: "load" } });
+      setLastRender({ path, result: { ok: false, logs: [], durationMs: 0, error: { message: (error as Error).message, phase: "load" } } });
     } finally {
       if (seq === renderSeq.current) setRendering(false);
     }
   }, []);
+
+  // Everything shown, checked, copied or downloaded is the selected template's own render. Right after another
+  // template is selected, the last render is still the previous template's: until the new one comes, the views
+  // say it's rendering and there's nothing to copy, download or check, rather than the previous template's
+  // content under the new one's name.
+  const result = lastRender?.path === selected ? lastRender?.result : undefined;
 
   const override = selected ? overrides[selected] : undefined;
   useEffect(() => {
@@ -128,7 +135,7 @@ export function App() {
     document.title = name ? `${name} · Elements preview` : "Elements preview";
   }, [selected]);
 
-  const loadingFirst = !result && (rendering || !templates);
+  const waiting = !result && (rendering || !templates);
   const failed = result && !result.ok ? result : undefined;
 
   return (
@@ -169,8 +176,9 @@ export function App() {
             {rendering && <div className="progress" aria-hidden />}
             {templates && templates.length === 0 ? (
               <NoTemplates dir={meta?.dir} />
-            ) : loadingFirst ? (
-              <div className="empty muted">
+            ) : waiting ? (
+              // Shown only when it takes a moment, so a quick switch between templates doesn't flash it.
+              <div className="empty muted rendering" role="status">
                 <span className="spinner" aria-hidden /> Rendering…
               </div>
             ) : failed ? (
