@@ -5,7 +5,6 @@
  */
 
 import { spawn } from "node:child_process";
-import { once } from "node:events";
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import { parseArgs } from "node:util";
@@ -13,6 +12,7 @@ import { buildPreview, startStaticServer } from "./server/build.js";
 import { checkTemplates, formatCheckReport } from "./server/check.js";
 import { startDevServer } from "./server/dev-server.js";
 import { UsageError, type TemplateError } from "./server/errors.js";
+import { flushed } from "./server/flush.js";
 import { exportTemplates } from "./server/export.js";
 import { loadVitePlugins, rendersStillRunning } from "./server/loader.js";
 import { shown } from "./server/paths.js";
@@ -217,7 +217,7 @@ function failSetup(error: unknown): never {
  */
 async function endIfStillRendering(): Promise<void> {
   if (!rendersStillRunning()) return;
-  for (const stream of [process.stdout, process.stderr]) if (stream.writableLength > 0) await once(stream, "drain");
+  await Promise.all([flushed(process.stdout), flushed(process.stderr)]);
   process.exit(process.exitCode);
 }
 

@@ -1,3 +1,7 @@
+import { createWriteStream } from "node:fs";
+import { spawn } from "node:child_process";
+import { mkdtemp, readFile, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 import { browserCandidates, findBrowser } from "../src/server/browser";
@@ -14,6 +18,7 @@ import { aiPrompt } from "../ui/components/aiPrompt";
 import { prepareDesign } from "../ui/editor/prepareDesign";
 import { absoluteStaticUrls, staticPaths } from "../ui/editor/staticUrls";
 import { FIXTURE } from "./helpers";
+import { flushed } from "../src/server/flush";
 
 const EMAILS = path.join(FIXTURE, "emails");
 
@@ -449,5 +454,51 @@ describe("the checks' counts", () => {
     expect(countLabel({ count: 1, fix: 1, tone: "bad", pending: false })).toBe("1 to fix");
     const all = combine([{ count: 3, fix: 3, tone: "bad", pending: false }, { count: 1, fix: 0, tone: "warn", pending: false }]);
     expect(countLabel(all)).toBe("3 to fix, 1 to check");
+  });
+});
+
+describe("flushed", () => {
+  it("waits for what's written to a stream to be written out, with less buffered than needs a drain", async () => {
+    const dir = await mkdtemp(path.join(tmpdir(), "elements-preview-flush-"));
+    try {
+      // A file stream writes asynchronously, as stdout does to a pipe on macOS: a small report stays buffered a moment.
+      const stream = createWriteStream(path.join(dir, "report.json"));
+      await new Promise((resolve) => stream.once("open", resolve));
+      expect(stream.write('{"ok":false}\n')).toBe(true);
+      expect(stream.writableLength).toBeGreaterThan(0);
+      // No write returned false, so the stream won't emit "drain".
+      expect(stream.writableNeedDrain).toBe(false);
+      const done = await Promise.race([flushed(stream).then(() => "flushed"), new Promise((resolve) => setTimeout(resolve, 2000, "timed out"))]);
+      expect(done).toBe("flushed");
+      expect(stream.writableLength).toBe(0);
+      expect(await readFile(path.join(dir, "report.json"), "utf8")).toBe('{"ok":false}\n');
+      stream.destroy();
+      // A destroyed stream, and one with nothing buffered (stdout here), don't hold it up.
+      await flushed(stream);
+      await flushed(process.stdout);
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("waits for a pipe whose reader is slow, as stdout's can be", async () => {
+    // A process that starts reading its stdin after a moment: until then, the pipe to it fills up.
+    const child = spawn(process.execPath, ["-e", "setTimeout(() => process.stdin.resume(), 300); process.stdin.on('end', () => process.exit(0));"], { stdio: ["pipe", "ignore", "inherit"] });
+    const pipe = child.stdin;
+    try {
+      // Written until the pipe is full and a write stays buffered, short of a drain.
+      let written = 0;
+      while (pipe.writableLength === 0 && written < 1 << 24) written += pipe.write("x".repeat(1024)) ? 1024 : 0;
+      expect(pipe.writableLength).toBeGreaterThan(0);
+      expect(pipe.writableNeedDrain).toBe(false);
+      const started = Date.now();
+      const done = await Promise.race([flushed(pipe).then(() => "flushed"), new Promise((resolve) => setTimeout(resolve, 5000, "timed out"))]);
+      expect(done).toBe("flushed");
+      expect(Date.now() - started).toBeGreaterThanOrEqual(100);
+      expect(pipe.writableLength).toBe(0);
+    } finally {
+      pipe.end();
+      child.kill();
+    }
   });
 });
