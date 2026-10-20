@@ -51,6 +51,11 @@ const LINKS = [
   { name: "email", values: { email: "hi@example.com", subject: "Hello", body: "" } },
   { name: "web", values: { href: "https://example.com/attrs", target: "_blank" }, attrs: { href: "{{href}}", target: "{{target}}" } },
   "https://example.com/string",
+  // As the editor saves them: their templates, and what they keep of other link types.
+  { name: "email", values: { href: "", target: "_blank", email: "support@example.com", subject: "Help & more?", body: "Hi,\nthere" }, attrs: { href: "mailto:{{email}}?subject={{subject}}&body={{body}}" } },
+  { name: "phone", values: { href: "", target: "_blank", phone: "+15550100" }, attrs: { href: "tel:{{phone}}" } },
+  { name: "sms", values: { phone: "+15550100" }, attrs: { href: "sms:{{phone}}" } },
+  { name: "web", values: { href: "", target: "_blank" }, attrs: { href: "{{href}}", target: "{{target}}" } },
 ];
 const URLS = ["https://example.com/a.png", "https://cdn.example.com/photo.jpg?w=1200&q=80"];
 

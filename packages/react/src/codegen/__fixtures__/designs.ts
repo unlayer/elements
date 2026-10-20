@@ -101,9 +101,49 @@ export const DESIGNS: Record<string, DesignCase> = {
     code: ['href="https://example.com/shop"', 'target="_self"', 'color="#ffffff"', 'backgroundColor="#111827"', 'hoverBackgroundColor="#374151"', 'borderRadius="6px"', "Shop now"],
     absent: ["hoverColor"],
   },
+  // A link the editor saves is an action, `{ name, values, attrs }`, whose `attrs` are the templates it fills in with
+  // `values` (see codegen/links.ts): the code has the URL it exports.
   "button: an email link": {
     design: design([block("button", { text: "Write to us", href: { name: "email", values: { email: "hi@example.com", subject: "Hello" } } })]),
-    code: ['href={{ name: "email", values: { email: "hi@example.com", subject: "Hello" } }}'],
+    code: ['href="mailto:hi@example.com?subject=Hello"'],
+    absent: ['name: "email"', "target="],
+  },
+  "button: an email link as the editor saves it (its template, what it keeps of other link types, a subject and body to encode)": {
+    design: design([block("button", { text: "Write to us", href: { name: "email", values: { href: "", target: "_blank", email: "support@example.com", subject: "Help & questions?", body: "Hi,\nI have a question" }, attrs: { href: "mailto:{{email}}?subject={{subject}}&body={{body}}" } } })]),
+    code: ['"mailto:support@example.com?subject=Help%20%26%20questions%3F&body=Hi%2C%0AI%20have%20a%20question"'],
+    absent: ["{{email}}", "attrs"],
+  },
+  "button: an email link without a subject (the editor leaves empty ones out)": {
+    design: design([block("button", { text: "Write to us", href: { name: "email", values: { email: "hi@example.com", subject: "", body: "Hello" }, attrs: { href: "mailto:{{email}}?subject={{subject}}&body={{body}}" } } })]),
+    code: ['href="mailto:hi@example.com?body=Hello"'],
+  },
+  "button: a phone link": {
+    design: design([block("button", { text: "Call us", href: { name: "phone", values: { href: "", target: "_blank", phone: "+14154154151" }, attrs: { href: "tel:{{phone}}" } } })]),
+    code: ['href="tel:+14154154151"'],
+  },
+  "button: a text message link": {
+    design: design([block("button", { text: "Text us", href: { name: "sms", values: { phone: "+14154154150" }, attrs: { href: "sms:{{phone}}" } } })]),
+    code: ['href="sms:+14154154150"'],
+  },
+  "button: a web link as the editor saves it (with its templates)": {
+    design: design([block("button", { text: "Visit", href: { name: "web", values: { href: "https://example.com", target: "_self" }, attrs: { href: "{{href}}", target: "{{target}}" } } })]),
+    code: ['href="https://example.com"', 'target="_self"'],
+    absent: ["attrs"],
+  },
+  "button: the editor's empty link is no link": {
+    design: design([block("button", { text: "Nowhere", href: { name: "web", values: { href: "", target: "_blank" }, attrs: { href: "{{href}}", target: "{{target}}" } } })]),
+    code: ["<Button>Nowhere</Button>"],
+  },
+  "button: a link to a page section, which the builder reads back as a web link": {
+    design: design([block("button", { text: "Down", href: { name: "anchor", values: { href: "pricing" }, attrs: { href: "#{{href}}", target: "_self" } } })]),
+    code: ['href="#pricing"', 'target="_self"'],
+    warnings: [/Row 1, column 1, block 1: its "anchor" link is written as the URL the builder exports for it \(`#pricing`\), which the builder opens as a web link\./],
+    losses: ["body.rows[0].columns[0].contents[0].values.href.name", "body.rows[0].columns[0].contents[0].values.href.values.href"],
+  },
+  "button: a link that runs code: as the design has it, said": {
+    design: design([block("button", { text: "Track", href: { name: "track", values: { href: "https://example.com" }, attrs: { href: "{{href}}", onClick: "track()" } } })]),
+    code: ['onClick: "track()"'],
+    warnings: [/Row 1, column 1, block 1: its "track" link has `onClick`, which a URL can't hold/],
   },
   "button: fixed width": {
     design: design([block("button", { text: "Wide", size: { autoWidth: false, width: "60%" } })]),
@@ -139,6 +179,14 @@ export const DESIGNS: Record<string, DesignCase> = {
     design: design([block("image", { src: { url: "https://example.com/a.png" }, action: { name: "web", values: { href: "https://example.com", target: "_blank" } } })]),
     code: ['action={{ name: "web", values: { href: "https://example.com", target: "_blank" } }}'],
   },
+  "image: an email link": {
+    design: design([block("image", { src: { url: "https://example.com/a.png" }, action: { name: "email", values: { email: "hi@example.com", subject: "Hello", body: "" }, attrs: { href: "mailto:{{email}}?subject={{subject}}&body={{body}}" } } })]),
+    code: ['action={{ name: "web", values: { href: "mailto:hi@example.com?subject=Hello", target: "_blank" } }}'],
+  },
+  "image: the editor's empty link is no link": {
+    design: design([block("image", { src: { url: "https://example.com/a.png" }, action: { name: "web", values: { href: "", target: "_blank" }, attrs: { href: "{{href}}", target: "{{target}}" } } })]),
+    code: ['<Image src="https://example.com/a.png" />'],
+  },
   "image: a width in px": {
     design: design([block("image", { src: { url: "https://example.com/a.png", autoWidth: false, maxWidth: "200px" } })]),
     code: ['<Image src="https://example.com/a.png" width={200} />'],
@@ -159,9 +207,13 @@ export const DESIGNS: Record<string, DesignCase> = {
     design: design([block("menu", { menu: { items: [{ key: "1", text: "Docs", link: { name: "web", values: { href: "https://example.com/docs", target: "_blank" } } }, { key: "2", text: "Blog", link: { name: "web", values: { href: "https://example.com/blog", target: "_self" } } }] }, separator: "|", layout: "vertical" })]),
     code: ['{ text: "Docs", href: "https://example.com/docs" }', 'target: "_self"', 'separator="|"', 'layout="vertical"'],
   },
-  "menu: an item that isn't a web link": {
+  "menu: an item that calls a phone number": {
     design: design([block("menu", { menu: { items: [{ key: "1", text: "Call", link: { name: "phone", values: { phone: "+15550100" } } }] } })]),
-    code: ['menu={{ items: [{ key: "1", text: "Call", link: { name: "phone", values: { phone: "+15550100" } } }] }}'],
+    code: ['items={[{ text: "Call", href: "tel:+15550100" }]}'],
+  },
+  "menu: the editor's item keys, kept, and its links as their URLs": {
+    design: design([block("menu", { menu: { items: [{ key: "1606923979749", text: "Mail", link: { name: "email", values: { email: "hi@example.com", subject: "Hi there", body: "" }, attrs: { href: "mailto:{{email}}?subject={{subject}}&body={{body}}" } } }] } })]),
+    code: ['menu={{ items: [{ key: "1606923979749", text: "Mail", link: { name: "web", values: { href: "mailto:hi@example.com?subject=Hi%20there", target: "_blank" } } }] }}'],
   },
   "social: icons": {
     design: design([block("social", { icons: { iconType: "rounded", icons: [{ name: "Facebook", url: "https://facebook.com/acme" }, { name: "X", url: "https://x.com/acme" }] }, iconSize: 24 })]),
