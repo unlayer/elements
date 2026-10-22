@@ -316,23 +316,34 @@ const html = E.renderToHtml(h(T.Tailwind, { tw }, email("bg-gray-100", "text-red
 const json = await T.renderToJson(h(T.Tailwind, { config: { theme: { extend: { colors: { brand: "#007291" } } } } }, email(undefined, "text-brand")));
 console.log(JSON.stringify({ html: html.includes("#f3f4f6") && html.includes("#fb2c36"), json: json.body.rows[0].columns[0].contents[0].values.color }));`,
   };
+  // Tailwind CSS 3 as its package is (no `exports`, a PostCSS plugin required by its `main`), which installs with
+  // Elements: the peer dependency takes any Tailwind, so a project's own doesn't fail the install.
+  const tailwind3 = (dir: string) => {
+    const modules = path.join(dir, "node_modules/tailwindcss");
+    fs.mkdirSync(path.join(modules, "lib"), { recursive: true });
+    fs.writeFileSync(path.join(modules, "package.json"), JSON.stringify({ name: "tailwindcss", version: "3.4.17", main: "lib/index.js" }));
+    fs.writeFileSync(path.join(modules, "lib/index.js"), 'module.exports = function tailwindcss() { return { postcssPlugin: "tailwindcss", plugins: [] }; };\nmodule.exports.postcss = true;\n');
+  };
+  const cases = { without: "without tailwindcss installed", older: "with Tailwind CSS 3 installed", with: "Tailwind to compile" } as const;
   for (const format of ["module", "commonjs"] as const) {
-    for (const installed of [false, true]) {
-      it(`loads ${installed ? "Tailwind to compile" : "without tailwindcss installed"} (${format})`, () => {
+    for (const [installed, name] of Object.entries(cases) as [keyof typeof cases, string][]) {
+      it(`loads ${name} (${format})`, () => {
         expect(fs.existsSync(path.join(dist, "tailwind.cjs")), "build the package first (pnpm build)").toBe(true);
         const dir = project(react, reactDom, format);
         try {
-          if (installed) fs.symlinkSync(fs.realpathSync(path.join(root, "node_modules/tailwindcss")), path.join(dir, "node_modules/tailwindcss"), "dir");
+          if (installed === "with") fs.symlinkSync(fs.realpathSync(path.join(root, "node_modules/tailwindcss")), path.join(dir, "node_modules/tailwindcss"), "dir");
+          if (installed === "older") tailwind3(dir);
           const load =
             format === "module"
               ? `import * as E from "@unlayer/react-elements"; import * as T from "@unlayer/react-elements/tailwind"; import React from "react";`
               : `const E = require("@unlayer/react-elements"); const T = require("@unlayer/react-elements/tailwind"); const React = require("react");`;
-          const body = `${template}\n${installed ? scripts.with : scripts.without}`;
+          const body = `${template}\n${installed === "with" ? scripts.with : scripts.without}`;
           fs.writeFileSync(path.join(dir, "tailwind.js"), format === "module" ? `${load}\n${body}` : `${load}\n(async () => {\n${body}\n})();`);
           const run = spawnSync(process.execPath, ["tailwind.js"], { cwd: dir, encoding: "utf8", timeout: 20_000 });
           expect(run.status, run.stderr).toBe(0);
           const out = JSON.parse(run.stdout.trim().split("\n").pop()!);
-          if (installed) expect(out).toEqual({ html: true, json: "#007291" });
+          if (installed === "with") expect(out).toEqual({ html: true, json: "#007291" });
+          else if (installed === "older") expect(out).toEqual({ plain: true, same: true, error: "[Unlayer] loadTailwind needs Tailwind CSS 4, and the tailwindcss installed is Tailwind CSS 3 or older (a PostCSS plugin): upgrade it with `npm install tailwindcss@4` (it's an optional peer dependency of @unlayer/react-elements)." });
           else expect(out).toEqual({ plain: true, same: true, error: expect.stringMatching(/loadTailwind needs Tailwind CSS 4: install it/) });
         } finally {
           fs.rmSync(dir, { recursive: true, force: true });
@@ -392,6 +403,41 @@ async function Broken() { await later(null); throw boom; }
         fs.rmSync(dir, { recursive: true, force: true });
       }
     }, 30_000);
+  }
+
+  // `pretty` loads prettier (an optional peer dependency) when it's asked to format: it says what to install without
+  // it, and to upgrade prettier 2, which installs with Elements (the peer dependency takes any prettier, so a
+  // project's own doesn't fail the install). Prettier 2 as its package is: no `exports`, no `plugins/` folder.
+  const prettier2 = (dir: string) => {
+    const modules = path.join(dir, "node_modules/prettier");
+    fs.mkdirSync(modules, { recursive: true });
+    fs.writeFileSync(path.join(modules, "package.json"), JSON.stringify({ name: "prettier", version: "2.8.8", main: "./index.js", browser: "./standalone.js" }));
+    for (const file of ["index.js", "standalone.js"]) fs.writeFileSync(path.join(modules, file), 'module.exports = { version: "2.8.8", format: (text) => text };\n');
+    fs.writeFileSync(path.join(modules, "parser-html.js"), "module.exports = { parsers: {} };\n");
+  };
+  const prettiers = { without: "without prettier installed", older: "with prettier 2 installed", with: "with prettier 3" } as const;
+  for (const format of ["module", "commonjs"] as const) {
+    for (const [installed, name] of Object.entries(prettiers) as [keyof typeof prettiers, string][]) {
+      it(`format with \`pretty\`, or say what to install (${name}, ${format})`, () => {
+        expect(fs.existsSync(path.join(dist, "async.cjs")), "build the package first (pnpm build)").toBe(true);
+        const dir = project(own[0], own[1], format);
+        try {
+          if (installed === "with") fs.symlinkSync(fs.realpathSync(path.join(root, "node_modules/prettier")), path.join(dir, "node_modules/prettier"), "dir");
+          if (installed === "older") prettier2(dir);
+          const load = format === "module" ? `import * as A from "@unlayer/react-elements/async";` : `const A = require("@unlayer/react-elements/async");`;
+          const body = `const out = await A.pretty("<div><p>Hi</p></div>").then((html) => ({ html }), (e) => ({ error: e.message }));\nconsole.info(JSON.stringify(out));`;
+          fs.writeFileSync(path.join(dir, "pretty.js"), format === "module" ? `${load}\n${body}` : `${load}\n(async () => {\n${body}\n})();`);
+          const run = spawnSync(process.execPath, ["pretty.js"], { cwd: dir, encoding: "utf8", timeout: 20_000 });
+          expect(run.status, run.stderr).toBe(0);
+          const out = JSON.parse(run.stdout.trim().split("\n").pop()!);
+          if (installed === "with") expect(out).toEqual({ html: "<div><p>Hi</p></div>\n" });
+          else if (installed === "older") expect(out).toEqual({ error: "[Unlayer] `pretty` needs prettier 3, and prettier 2.8.8 is installed: upgrade it with `npm install prettier@3` (an optional peer dependency of @unlayer/react-elements)." });
+          else expect(out).toEqual({ error: "[Unlayer] `pretty` needs prettier: install it with `npm install prettier` (an optional peer dependency of @unlayer/react-elements)." });
+        } finally {
+          fs.rmSync(dir, { recursive: true, force: true });
+        }
+      }, 30_000);
+    }
   }
 });
 
