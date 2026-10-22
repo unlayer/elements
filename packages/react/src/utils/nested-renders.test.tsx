@@ -7,7 +7,7 @@
  */
 import { describe, it, expect, vi } from "vitest";
 import React, { useId, useMemo, useState } from "react";
-import { renderToString } from "react-dom/server";
+import { renderToPipeableStream, renderToStaticMarkup, renderToString } from "react-dom/server";
 // @ts-ignore react-dom/server.browser has no types of its own (the same API as react-dom/server).
 import { renderToString as renderToStringWithBrowserBuild } from "react-dom/server.browser";
 import { renderToHtml, renderToPlainText } from "./render-to-html";
@@ -33,6 +33,41 @@ describe("a page that renders on the server", () => {
       return <pre>{`${html.includes("Hello from the template")}, zoom=${zoom}`}</pre>;
     }
     expect(renderToString(<PreviewPage />)).toBe("<pre>true, zoom=1</pre>");
+  });
+});
+
+/** Where a stream of react-dom's is written: nowhere (Node's streams aren't in this test's environment). */
+const sink = () => ({ write: () => true, end: () => {}, destroy: () => {}, on() { return this; } }) as unknown as NodeJS.WritableStream;
+
+describe("a page that renders on the server, with a Context Provider around a component that renders an email", () => {
+  // As react-dom's own render inside a render (renderToStaticMarkup in a component) reads them: the page's providers
+  // are the page's. An email gets a value of the page's as a prop, or a provider of its own in what's rendered.
+  it("gives the email the template's own providers, not the page's, in react-dom's renders and its streaming one", async () => {
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
+    try {
+      const Brand = React.createContext("default");
+      const Reads = () => <Paragraph>{`brand=${React.useContext(Brand)}`}</Paragraph>;
+      const email = (own?: string) => <Email>{own ? <Brand.Provider value={own}><Row><Column><Reads /></Column></Row></Brand.Provider> : <Row><Column><Reads /></Column></Row>}</Email>;
+      const ReactDomReads = () => <>{`brand=${React.useContext(Brand)}`}</>;
+      expect(renderToPlainText(email()).trim()).toBe("brand=default");
+      const seen: string[][] = [];
+      function Preview() {
+        const read = useMemo(() => [renderToPlainText(email()).trim(), renderToPlainText(email("its own")).trim()], []);
+        seen.push(read);
+        return <pre>{read.join(", ")}</pre>;
+      }
+      // (react-dom's render inside a component of react-dom's render, which has no hooks: React 18's would lose them.)
+      const ReactDom = () => (seen.push([renderToStaticMarkup(<ReactDomReads />)]), null);
+      const page = <Brand.Provider value="the page's"><main><Preview /><ReactDom /></main></Brand.Provider>;
+      renderToString(page);
+      await new Promise<void>((resolve, reject) => {
+        const stream = renderToPipeableStream(page, { onAllReady: () => (stream.pipe(sink()), resolve()), onShellError: reject });
+      });
+      expect(seen).toEqual([0, 1].flatMap(() => [["brand=default", "brand=its own"], ["brand=default"]]));
+      expect(error).not.toHaveBeenCalled();
+    } finally {
+      error.mockRestore();
+    }
   });
 });
 

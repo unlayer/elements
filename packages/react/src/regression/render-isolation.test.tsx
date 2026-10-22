@@ -6,8 +6,8 @@
  *   ISOLATION_RUNS=2000 ISOLATION_SEED=7 pnpm vitest run src/regression/render-isolation.test.tsx
  */
 import { describe, expect, it, vi } from "vitest";
-import React, { memo, Suspense, useId, useState } from "react";
-import { renderToStaticMarkup } from "react-dom/server";
+import React, { Component, createContext, memo, Suspense, useContext, useId, useState } from "react";
+import { renderToPipeableStream, renderToStaticMarkup, renderToString } from "react-dom/server";
 import { renderToHtml, renderToHtmlParts, renderToPlainText } from "../utils/render-to-html";
 import { renderRowToJson, renderToJson } from "../utils/render-to-json";
 import { Email, Page, Row, Column, Paragraph, Html, UnlayerProvider, registerTool } from "../index";
@@ -151,6 +151,169 @@ describe("an email rendered inside a component", () => {
     } finally {
       error.mockRestore();
     }
+  });
+});
+
+describe("a context the template doesn't provide", () => {
+  // react-dom's renders leave what their providers gave in the context once they're done: its streaming render, the
+  // values of the last part it waited for (a page's tenant, theme or locale); renderToString and renderToStaticMarkup,
+  // those of a render that failed or suspended inside a provider. A template reads the context's default, as
+  // react-dom's own static render (0.2's renderer) does, never what another request's render provided.
+  type Brand = { name: string };
+  const tenant: Brand = { name: "Tenant A Inc" };
+  const BRAND: Brand = { name: "Default Brand" };
+
+  /** A react-dom streaming render of a page, `around` its content, to its end: a part it waits for is inside. */
+  const streamed = (around: (page: React.ReactNode) => React.ReactElement) =>
+    new Promise<void>((resolve, reject) => {
+      let ready = false;
+      const data = new Promise((done) => setTimeout(done, 5)).then(() => void (ready = true));
+      const Slow = () => {
+        if (!ready) throw data;
+        return <p>loaded</p>;
+      };
+      const page = around(<main><Suspense fallback={<i>…</i>}><Slow /></Suspense></main>);
+      // (Written nowhere: Node's streams aren't in this test's environment.)
+      const sink = { write: () => true, end: () => {}, destroy: () => {}, on: () => sink } as unknown as NodeJS.WritableStream;
+      const stream = renderToPipeableStream(page, { onShellReady: () => void stream.pipe(sink), onAllReady: resolve, onShellError: reject });
+    });
+  const tenantPage = (context: React.Context<any>, value: unknown) => streamed((page) => <context.Provider value={value}>{page}</context.Provider>);
+  /** renderToString of a page that fails inside a provider (the app catches it), and of one that suspends there. */
+  const failed = (context: React.Context<any>, value: unknown) => {
+    const Fails = () => {
+      throw new Error("the page failed");
+    };
+    expect(() => renderToString(<context.Provider value={value}><Fails /></context.Provider>)).toThrow("the page failed");
+  };
+  const suspended = (context: React.Context<any>, value: unknown) => {
+    const Never = () => {
+      throw new Promise(() => {});
+    };
+    renderToString(<context.Provider value={value}><Suspense fallback="…"><Never /></Suspense></context.Provider>);
+  };
+  const footer = (context: React.Context<Brand>) => {
+    const Footer = () => <Paragraph>{`(c) ${useContext(context).name}`}</Paragraph>;
+    return <Email><Row><Column><Footer /></Column></Row></Email>;
+  };
+  const text = (email: React.ReactElement) => renderToPlainText(email).trim();
+  /** What a component reading it gives, in a template. */
+  const read = (context: React.Context<unknown>) => {
+    const Reads = () => <Paragraph>{String(useContext(context))}</Paragraph>;
+    return text(<Email><Row><Column><Reads /></Column></Row></Email>);
+  };
+
+  it("reads its default after react-dom streamed another request's page that provided it, as react-dom's own render does", async () => {
+    const Brand = createContext(BRAND);
+    expect(text(footer(Brand))).toBe("(c) Default Brand");
+    await tenantPage(Brand, tenant);
+    // (react-dom left the page's value in the context.)
+    expect((Brand as unknown as { _currentValue: Brand })._currentValue).toBe(tenant);
+    expect(text(footer(Brand))).toBe("(c) Default Brand");
+    expect(renderToHtml(footer(Brand))).not.toContain("Tenant A");
+    expect(JSON.stringify(renderToJson(footer(Brand)))).not.toContain("Tenant A");
+    expect((await asyncRenderers.renderToPlainText(footer(Brand))).trim()).toBe("(c) Default Brand");
+    const Reads = () => <>{useContext(Brand).name}</>;
+    expect(renderToStaticMarkup(<Reads />)).toBe("Default Brand");
+    // One no render has read before.
+    const Fresh = createContext(BRAND);
+    await tenantPage(Fresh, tenant);
+    expect(text(footer(Fresh))).toBe("(c) Default Brand");
+  });
+
+  it("reads it so in every way a component can: useContext, use(), a Consumer, a class's contextType", async () => {
+    const Brand = createContext(BRAND);
+    await tenantPage(Brand, tenant);
+    const use = (React as unknown as { use?: (usable: unknown) => Brand }).use;
+    const Hook = () => <Paragraph>{`hook ${useContext(Brand).name}`}</Paragraph>;
+    const Used = () => <Paragraph>{`use ${use!(Brand).name}`}</Paragraph>;
+    const Consumer = () => <Brand.Consumer>{(brand) => <Paragraph>{`consumer ${brand.name}`}</Paragraph>}</Brand.Consumer>;
+    class Classy extends Component {
+      static contextType = Brand;
+      render() {
+        return <Paragraph>{`class ${(this.context as Brand).name}`}</Paragraph>;
+      }
+    }
+    const kinds = use ? ["hook", "use", "consumer", "class"] : ["hook", "consumer", "class"];
+    const email = <Email><Row><Column><Hook />{use ? <Used /> : null}<Consumer /><Classy /></Column></Row></Email>;
+    for (const output of [renderToPlainText(email), await asyncRenderers.renderToPlainText(email)]) {
+      expect(output.split("\n").map((line) => line.trim()).filter(Boolean)).toEqual(kinds.map((kind) => `${kind} Default Brand`));
+    }
+  });
+
+  it("reads a default of undefined, an object default as itself, and a context no render ever provided", async () => {
+    const Maybe = createContext<string | undefined>(undefined);
+    const Same = createContext(BRAND);
+    const Never = createContext("never provided");
+    await streamed((page) => <Maybe.Provider value="tenant"><Same.Provider value={tenant}>{page}</Same.Provider></Maybe.Provider>);
+    const Reads = () => <Paragraph>{`${String(useContext(Maybe))} ${useContext(Same) === BRAND} ${useContext(Never)}`}</Paragraph>;
+    expect(text(<Email><Row><Column><Reads /></Column></Row></Email>)).toBe("undefined true never provided");
+  });
+
+  it("reads the template's own provider, and the providers around a component that starts a render, whatever another render left", async () => {
+    const Brand = createContext(BRAND);
+    await tenantPage(Brand, tenant);
+    const Footer = () => <Paragraph>{`(c) ${useContext(Brand).name}`}</Paragraph>;
+    expect(text(<Email><Brand.Provider value={{ name: "Its own" }}><Row><Column><Footer /></Column></Row></Brand.Provider></Email>)).toBe("(c) Its own");
+    let inner = "";
+    const Starts = () => ((inner = text(footer(Brand))), <Paragraph>outer</Paragraph>);
+    renderToHtml(<Email><Brand.Provider value={{ name: "The outer email" }}><Row><Column><Starts /></Column></Row></Brand.Provider></Email>);
+    expect(inner).toBe("(c) The outer email");
+  });
+
+  it("reads its default in async renders at once, when react-dom streams another page while they wait", async () => {
+    const Brand = createContext(BRAND);
+    // (One only read once they've waited: no render has read it before.)
+    const Later = createContext(BRAND);
+    let open = false;
+    const gate = streamed((page) => <Brand.Provider value={tenant}><Later.Provider value={tenant}>{page}</Later.Provider></Brand.Provider>).then(() => void (open = true));
+    const Before = () => <Paragraph>{`before ${useContext(Brand).name}`}</Paragraph>;
+    const After = () => {
+      if (!open) throw gate;
+      return <Paragraph>{`after ${useContext(Brand).name} ${useContext(Later).name}`}</Paragraph>;
+    };
+    const rows = <Row><Column><Before /><After /></Column></Row>;
+    const own = { name: "Its own" };
+    const [plain, provided] = await Promise.all([
+      asyncRenderers.renderToPlainText(<Email>{rows}</Email>),
+      asyncRenderers.renderToPlainText(<Email><Brand.Provider value={own}><Later.Provider value={own}>{rows}</Later.Provider></Brand.Provider></Email>),
+    ]);
+    expect((Brand as unknown as { _currentValue: Brand })._currentValue).toBe(tenant);
+    expect(plain.split(/\n+/).map((line) => line.trim())).toEqual(["before Default Brand", "after Default Brand Default Brand"]);
+    expect(provided.split(/\n+/).map((line) => line.trim())).toEqual(["before Its own", "after Its own Its own"]);
+  });
+
+  it("reads its default after renderToString failed or suspended inside a provider of it, once a render has read it", () => {
+    const Brand = createContext(BRAND);
+    expect(text(footer(Brand))).toBe("(c) Default Brand");
+    failed(Brand, tenant);
+    // (react-dom left the page's value in the context: renderToString's own.)
+    expect((Brand as unknown as { _currentValue2: Brand })._currentValue2).toBe(tenant);
+    expect(text(footer(Brand))).toBe("(c) Default Brand");
+    renderToString(<p />);
+    suspended(Brand, tenant);
+    expect(text(footer(Brand))).toBe("(c) Default Brand");
+  });
+
+  it("can't know the default where neither of React's values holds it and no render has read the context before: reads what's there till react-dom puts it back", async () => {
+    // React keeps a context's default nowhere but in those two values (`_currentValue`, react-dom's streaming
+    // render's, and `_currentValue2`, renderToString's and renderToStaticMarkup's). Where they differ, one of them is
+    // what a render left: Elements reads the default it last saw both hold, else the second (the one only
+    // renderToString and renderToStaticMarkup write, and put back once they've rendered without failing or
+    // suspending inside a provider). The cases that remain, listed in ARCHITECTURE.md (invariant 4):
+    const First = createContext<unknown>("default");
+    failed(First, "tenant");
+    expect(read(First)).toBe("tenant");
+    renderToString(<p />);
+    expect(read(First)).toBe("default");
+    // Both another render's, the same value.
+    const Both = createContext<unknown>("default");
+    await tenantPage(Both, "tenant");
+    failed(Both, "tenant");
+    expect(read(Both)).toBe("tenant");
+    renderToString(<p />);
+    expect(read(Both)).toBe("tenant");
+    await streamed((page) => <>{page}</>);
+    expect(read(Both)).toBe("default");
   });
 });
 
