@@ -30,10 +30,17 @@ import swift from "highlight.js/lib/languages/swift";
 import typescript from "highlight.js/lib/languages/typescript";
 import xml from "highlight.js/lib/languages/xml";
 import yaml from "highlight.js/lib/languages/yaml";
-import type { LanguageFn } from "highlight.js";
+import type { LanguageFn as HighlightLanguage } from "highlight.js";
 import { themeOf, type CodeTheme, type CodeThemeName } from "./themes";
 
-const BUILT_IN: Record<string, LanguageFn> = { bash, c, cpp, csharp, css, diff, go, graphql, ini, java, javascript, json, kotlin, markdown, php, plaintext, python, ruby, rust, scss, shell, sql, swift, typescript, xml, yaml };
+/**
+ * A language as highlight.js defines it: a function of highlight.js's API giving the language's grammar (a
+ * `highlight.js/lib/languages/…` module's default export, or one of your own). Elements' own type, not highlight.js's
+ * `LanguageFn`, so its types don't need highlight.js installed: it's built into this entry, not a dependency.
+ */
+type LanguageFn = (hljs: any) => object;
+
+const BUILT_IN: Record<string, HighlightLanguage> = { bash, c, cpp, csharp, css, diff, go, graphql, ini, java, javascript, json, kotlin, markdown, php, plaintext, python, ruby, rust, scss, shell, sql, swift, typescript, xml, yaml };
 
 /** Elements' own highlight.js, its languages registered the first time it's used (nothing runs when it loads). */
 let engine: ReturnType<typeof core.newInstance> | undefined;
@@ -50,7 +57,7 @@ const highlighter = () => {
  * `registerLanguage("elixir", (await import("highlight.js/lib/languages/elixir")).default)`.
  */
 export function registerLanguage(name: string, language: LanguageFn): void {
-  highlighter().registerLanguage(name, language);
+  highlighter().registerLanguage(name, language as HighlightLanguage);
 }
 
 /** The languages (and their aliases' targets) code can be highlighted in. */

@@ -168,3 +168,14 @@ export const _alias_image: ImageProps = { align: "center" };
 export const _alias_divider: DividerProps = { align: "center" };
 // @ts-expect-error an alias takes what its prop takes
 export const _alias_reject: ParagraphProps = { align: "middle" };
+
+// ── registerLanguage: highlight.js's language modules (typed by highlight.js, where it's installed) and your own ──
+// Elements' types don't import highlight.js (it's built in, not a dependency), and still take what it defines.
+import type { registerLanguage } from "./code";
+import type elixir from "highlight.js/lib/languages/elixir";
+type Language = Parameters<typeof registerLanguage>[1];
+declare const elixirModule: typeof elixir;
+export const _language_module: Language = elixirModule;
+export const _language_own: Language = (hljs) => ({ name: "Pipes", contains: [hljs.QUOTE_STRING_MODE, { scope: "keyword", match: /\|>/ }] });
+// @ts-expect-error a language is the function that defines it, not its name
+export const _language_reject: Language = "elixir";

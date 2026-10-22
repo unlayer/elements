@@ -135,6 +135,8 @@ function textProp(prop: "html" | "text"): OwnProps {
 interface Link {
   href: string;
   target: string;
+  /** The design's is a web link with no URL in its values (a Menu item's given no `href`), which a Menu keeps. */
+  bare?: boolean;
 }
 
 /**
@@ -153,7 +155,8 @@ function linkOf(link: unknown, ctx: BlockContext, whose = "its"): Link | undefin
     return undefined;
   }
   if (!exported.kept) ctx.state.warn(`${ctx.where}: ${whose} ${name} is written as the URL the builder exports for it (${exported.url ? `\`${exported.url}\`` : "none"}), which the builder opens as ${action !== undefined && READ_BACK.has(action) ? `its own ${name}` : "a web link"}.`);
-  return { href: exported.url, target: exported.target };
+  const bare = exported.url === "" && isPlainObject(link) && link.name === "web" && isPlainObject(link.values) && link.values.href === undefined;
+  return { href: exported.url, target: exported.target, ...(bare ? { bare } : {}) };
 }
 
 /** No link: the builder's empty one. */
@@ -224,8 +227,15 @@ const OWN_PROPS: Record<string, OwnProps> = {
     const links = menu.items.map((item: unknown, i: number) => (isPlainObject(item) && item.link !== undefined ? linkOf(item.link, ctx, `its item ${i + 1}'s`) : undefined));
     const items = Object.keys(menu).length === 1 ? menuItems(menu.items, links) : undefined;
     if (items) props.add("items", items);
-    // The items as the design has them (the editor's keys), each link a web link to its URL.
-    else others.menu = { ...menu, items: menu.items.map((item: Plain, i: number) => (links[i] ? { ...item, link: webLink(links[i]) } : item)) };
+    // The items as the design has them (the editor's keys), each link a web link to its URL (one with none as it is).
+    else
+      others.menu = {
+        ...menu,
+        items: menu.items.map((item: Plain, i: number) => {
+          const link = links[i];
+          return link && !link.bare ? { ...item, link: webLink(link) } : item;
+        }),
+      };
     return others;
   },
 
@@ -307,7 +317,8 @@ function menuItems(items: unknown[], links: Array<Link | undefined>): Plain[] | 
   for (const [i, item] of items.entries()) {
     const link = links[i];
     if (!link || !isPlainObject(item) || item.key !== String(i + 1) || typeof item.text !== "string" || Object.keys(item).some((key) => !["key", "text", "link"].includes(key))) return undefined;
-    out.push({ text: item.text, href: link.href, ...(link.target !== "_blank" ? { target: link.target } : {}) });
+    // An item given no `href` has a link with none (`{ target: "_blank" }`), `href: ""` one with an empty URL.
+    out.push({ text: item.text, ...(link.bare ? {} : { href: link.href }), ...(link.target !== "_blank" ? { target: link.target } : {}) });
   }
   return out;
 }

@@ -10,7 +10,7 @@ npm install @unlayer/react-elements
 pnpm add @unlayer/react-elements
 ```
 
-Elements works with React 18 and 19 (tested with 18.0 to 18.3, 19.0 to 19.3, and React's canary), in Node.js, edge runtimes, browsers and Next.js's Server Components alike. It renders templates with a renderer of its own, which uses React's hooks as React's server renderer does, so before its first render it checks the installed React: a newer React it isn't tested with renders if that check passes (with one warning in development), and if it fails, every render throws `[Unlayer] unsupported React x.y.z: <what failed>`. To render anyway, set `UNLAYER_SKIP_REACT_CHECK=1` in the environment. `react-dom` stays a peer dependency because the editor's exporters import it, though no render calls it. How it works: [ARCHITECTURE.md](./ARCHITECTURE.md).
+Elements works with React 18 and 19 (its tests run on React 18.0, 18.2, 18.3, 19.1, 19.2 and 19.3, the latest, in React's development and production builds, and its renderer is checked against React's canary every week), in Node.js, edge runtimes, browsers and Next.js's Server Components alike. It renders templates with a renderer of its own, which uses React's hooks as React's server renderer does, so before its first render it checks the installed React: a newer React it isn't tested with renders if that check passes (with one warning in development), and if it fails, every render throws `[Unlayer] unsupported React x.y.z: <what failed>`. To render anyway, set `UNLAYER_SKIP_REACT_CHECK=1` in the environment. `react-dom` stays a peer dependency because the editor's exporters import it, though no render calls it. How it works: [ARCHITECTURE.md](./ARCHITECTURE.md).
 
 ## Quick Start
 
@@ -86,7 +86,7 @@ See [when to choose Elements](https://github.com/unlayer/elements/blob/main/pack
 
 These props have non-obvious shapes that **must** be followed exactly:
 
-- **fontFamily**: Accepts a plain family-name string (`fontFamily="Georgia"`) or, for a full stack, `{ label, value }` (recommended).
+- **fontFamily**: Accepts a string, a family name or a whole stack (`fontFamily="Georgia"`, `fontFamily="Georgia, serif"`), or `{ label, value }` (recommended for a stack: `label` is the name the visual editor's font menu shows, where a string is both).
   ```tsx
   fontFamily={{ label: "Arial", value: "arial, sans-serif" }}
   ```
@@ -494,7 +494,7 @@ Without options, the text is written as 0.2 wrote it, but for preformatted text 
 
 ### Async templates and `pretty`
 
-The renderers above are synchronous: an async component, or one that suspends, fails the render, naming it. For templates that load data as they render, use the same renderers from `@unlayer/react-elements/async`. They return Promises, and resolve async templates, async components (anywhere, on React 18 too), Suspense (`use()` on React 19, thrown promises on React 18) and `<Tailwind config>`, with each component run once and sibling components loading at once. A part that fails rejects the render with a `RenderError`, as in the synchronous renderers (see [Errors](#errors)). Their `renderToHtml` and `renderToHtmlParts` also take `pretty: true` to format the HTML for reading (with `prettier`, an optional peer dependency); Outlook's conditional comments are kept as they were. See the [async guide](https://github.com/unlayer/elements/blob/main/packages/react/docs/async.md), including what React 18 supports.
+The renderers above are synchronous: an async component, or one that suspends, fails the render, naming it. For templates that load data as they render, use the same renderers from `@unlayer/react-elements/async`. They return Promises, and resolve async templates, async components (anywhere, on React 18 too), Suspense (`use()` on React 19, thrown promises on React 18) and `<Tailwind config>`, with each component run once and sibling components loading at once. A part that fails rejects the render with a `RenderError`, as in the synchronous renderers (see [Errors](#errors)). Their `renderToHtml` and `renderToHtmlParts` also take `pretty: true` to format the HTML for reading (with `prettier`, an optional peer dependency); Outlook's conditional comments are kept as they were. See the [async guide](https://github.com/unlayer/elements/blob/main/packages/react/docs/async.md), including what React 18 supports (and its types: TypeScript needs React's canary types for an async component in JSX).
 
 ```tsx
 import { renderToHtml } from "@unlayer/react-elements/async";
@@ -636,7 +636,7 @@ import type {
 
 ## Common Font Stacks
 
-fontFamily must always be an object. Here are ready-to-use stacks:
+`fontFamily` takes a string or `{ label, value }` (see [Critical Rules](#critical-rules)); for a stack, the object gives the visual editor a short name to show. Here are ready-to-use stacks:
 
 ```tsx
 const sansFont = { label: "Sans Serif", value: "system-ui, -apple-system, BlinkMacSystemFont, sans-serif" };

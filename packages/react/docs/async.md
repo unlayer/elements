@@ -55,6 +55,8 @@ The template's root is resolved first: an async template is called and awaited (
 | Components that throw a promise (Suspense) | ✓ | ✓ |
 | `use(promise)` | ✓ | ✗ (React 18 has no `use`) |
 
+With React 18's types (`@types/react` 18), TypeScript rejects an async component written as JSX: `error TS2786: 'Receipt' cannot be used as a JSX component` (its `Promise<Element>` isn't a `ReactNode` there). React's canary types allow it: add `/// <reference types="react/canary" />` to a `.d.ts` file in your project (or `"react/canary"` to `compilerOptions.types`). They change types only, nothing at runtime. React 19's types allow async components as they are.
+
 ## `pretty`
 
 `renderToHtml` and `renderToHtmlParts` take `pretty: true` to format the HTML for reading: indented, a tag per line where whitespace allows it.
