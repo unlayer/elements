@@ -559,12 +559,14 @@ function walkHost(w: Walker, type: string, props: Record<string, any>, task: Tas
     throw positioned(w, error, type, placeFrame(task.frame, type));
   }
   const close = VOID.has(type) ? "" : `</${type}>`;
+  const inner = childFormat(format, type, props);
   // A collecting walk's markup is content (output.ts): its records are in it, where they are.
   let into = out;
   if (w.collector) {
     const part: HostPart = { t: "host", tag: type, open, close, parts: [] };
-    // (A <Head>'s `<style>` or `<script>`: its text as it is, but for what would end it.)
-    if (format.head && (type === "style" || type === "script")) part.raw = true;
+    // (A <Head>'s `<style>` or `<script>`: its text as it is, whatever writes it, but for what would end it or what
+    // it's in. Markup in it is that text.)
+    if (inner.raw && !format.raw) Object.assign(part, { raw: true, ends: format.ends });
     out.push(part);
     into = part.parts;
   } else out.push(open);
@@ -573,7 +575,7 @@ function walkHost(w: Walker, type: string, props: Record<string, any>, task: Tas
   else {
     const lead = leadingNewline(type, props.children);
     if (lead) into.push(lead);
-    task.format = childFormat(format, type, props);
+    task.format = inner;
     try {
       walkNode(w, props.children, task, into);
     } finally {

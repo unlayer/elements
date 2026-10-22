@@ -79,6 +79,23 @@ describe("classNameToDeclarations", () => {
     expect(read("!p-4")).toEqual(["!p-4 always padding: 16px !important"]);
   });
 
+  it("works out variables that use each other many times over at once, leaving out (and saying) a value past 4,096 characters", () => {
+    // `--v0` uses `--v1` twice, which uses `--v2` twice, and so on: 2^n characters, from n × 30 of classes (which a
+    // Markdown's HTML can carry, as its sanitizer keeps them).
+    const chain = (n: number, property: string) => [...Array.from({ length: n }, (_, i) => `[--v${i}:var(--v${i + 1})_var(--v${i + 1})]`), `[--v${n}:x]`, `[${property}:var(--v0)]`].join(" ");
+    expect(read(chain(4, "font-family"))).toEqual([`[font-family:var(--v0)] always font-family: ${Array(16).fill("x").join(" ")}`]);
+    expect(read(chain(11, "font-family"))[0]).toHaveLength(4095 + "[font-family:var(--v0)] always font-family: ".length);
+    const start = performance.now();
+    for (const n of [12, 20, 31]) {
+      expect(classNameToDeclarations(tw, chain(n, "color")), `${n}`).toEqual({
+        declarations: [],
+        ignored: [{ className: "[color:var(--v0)]", reason: "`color`'s variables come to more than 4096 characters" }],
+      });
+    }
+    // (Without the limit, 31 would run the process out of memory.)
+    expect(performance.now() - start).toBeLessThan(5000);
+  }, 30000);
+
   it("says when each applies: phones, above a breakpoint, on hover", () => {
     expect(read("max-sm:p-2 max-[480px]:text-sm md:p-8 hover:bg-blue-500")).toEqual([
       "hover:bg-blue-500 hover background-color: #2b7fff",
