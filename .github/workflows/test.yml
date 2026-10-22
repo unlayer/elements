@@ -244,11 +244,15 @@ jobs:
       # in a real Next.js app — exactly like a consumer would.
       # Catches SSR, bundling, and Server Component compatibility issues
       # that unit tests can't detect.
+      # The tarball has its license: pnpm adds the repository's only where no file in the package matches LICENSE,
+      # which THIRD_PARTY_LICENSES.md does (a 0.3.0 build had none).
       - name: Pack react-elements
         run: |
           cd packages/react
           pnpm pack --pack-destination /tmp
-          echo "TARBALL=$(ls /tmp/unlayer-react-elements-*.tgz)" >> $GITHUB_ENV
+          TARBALL=$(ls /tmp/unlayer-react-elements-*.tgz)
+          tar tzf "$TARBALL" | grep -qx package/LICENSE || { echo "::error::$TARBALL has no LICENSE"; exit 1; }
+          echo "TARBALL=$TARBALL" >> $GITHUB_ENV
 
       - name: Next.js integration build
         run: |
