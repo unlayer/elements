@@ -343,8 +343,9 @@ describe("renderToJson", () => {
     }
     expect(() => renderToJson(<Boom />)).toThrow(expect.objectContaining({ component: "Boom", cause }));
     const Later = async () => <Email />;
+    expect(() => renderToJson(<Later />)).toThrow(RenderError);
     expect(() => renderToJson(<Later />)).toThrow(
-      `[Unlayer] renderToJson: could not unwrap <Later>. Pass the root element (<Email>…</Email>), or a function component that returns one. (async and suspending templates need "@unlayer/react-elements/async"'s renderers, or their data loaded first and passed as props)`
+      `[Unlayer] renderToJson: async and suspending templates need "@unlayer/react-elements/async"'s renderers, or their data loaded first and passed as props (in <Later>)`
     );
   });
 

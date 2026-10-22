@@ -2,7 +2,7 @@
 
 Upgrading? See [upgrading](./docs/upgrading.md): what changed in 0.3 and in 0.2, and what to check.
 
-## Unreleased
+## 0.3.0 (2026-10-22)
 
 ### New
 
@@ -100,13 +100,15 @@ Upgrading? See [upgrading](./docs/upgrading.md): what changed in 0.3 and in 0.2,
 
 - **A link in a heading keeps its URL in the plain text.** `renderToPlainText()` wrote `# [Pay invoice](https://example.com/pay)` as `PAY INVOICE`, as it did a Heading whose text or children hold a link and an `<h1>` to `<h6>` in an Html block: the link was in the HTML and the design, but not in the text email. A heading's links are now written as a paragraph's, in each `links` mode (`PAY INVOICE (https://example.com/pay)`), and a URL is never put in capitals, nor a link's text that is its URL. A URL with a `'` in it (`https://example.com/it's`, as a Button, a Menu item, an Image's link, a Table cell or markup can write it) was cut off at the `'`, and an `href` after a `data-href` gave that one's URL: each link's own URL is now whole.
 
+- **Types for CommonJS projects and `moduleResolution: "node"`.** A TypeScript project that compiles to CommonJS (`module: "node16"` or `"nodenext"`, without `"type": "module"`) got Elements' ES module types for its `require()`s (arethetypeswrong: "Masquerading as ESM"), and the CommonJS ones (`.d.cts`) went unused. Each entry's `import` now resolves to its `.d.ts` types and its `require` to its `.d.cts` ones. With `moduleResolution: "node"` (TypeScript's `node10`), the entries other than the main one (`/tailwind`, `/code`, …) had no types (TS2307): `typesVersions` gives them. The JavaScript each import or `require()` loads is the same.
+
 ### Changed
 
 - **Text starts on the right in a right-to-left template.** With `textDirection="rtl"`, a Paragraph and a Heading default to `textAlign="right"`, as in the editor; 0.2 left them on the left unless you set it. Set `textAlign="left"` where you want 0.2's alignment.
 
 - **Links and rules written straight in a Column render.** 0.2 left markup written in a Column out without a word. Now a bare `<a>` is a Paragraph and a bare `<hr>` a Divider; a link holding more than text (an image) or an `<hr>` with a style is an Html block, as written. Other markup is still left out, now with a warning.
 
-- **The error for an async or suspending template names the async renderers.** The synchronous renderers still throw for one, now with: `async and suspending templates need "@unlayer/react-elements/async"'s renderers, or their data loaded first and passed as props`.
+- **The error for an async or suspending template names the async renderers.** The synchronous renderers still throw for one, now a `RenderError` naming it (`error.component`), as for an async component inside the template: `[Unlayer] renderToHtml: async and suspending templates need "@unlayer/react-elements/async"'s renderers, or their data loaded first and passed as props (in <Receipt>)`.
 
 - **A part of a template that fails fails the render.** A component that throws (or is async, or suspends, in a synchronous render), markup React rejects (a `style` string), a Row whose Columns don't fit its layout and a block whose exporter fails were left out with a console message (an exporter's as a red box in the email), so an email missing a part could go out; the async renderers already threw for a component that did. Every renderer now throws a `RenderError` naming the part and where it is, `renderToJson()` and `renderToPlainText()` too: the HTML, the text and the design never disagree. (`renderToJson()` doesn't render the HTML, which no design needs, so an exporter that fails fails the HTML and the text but not the design: nothing is sent that it disagrees with.) Set `onError: "omit"` to leave failed parts out as before, now listed. Error boundaries don't catch while Elements renders, as in React's server renderer.
 

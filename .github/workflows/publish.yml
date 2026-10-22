@@ -332,11 +332,13 @@ jobs:
       # version numbers, then npm publish handles OIDC trusted publishing.
       # npm publish alone does NOT understand catalog: and would ship broken deps.
       # No --provenance flag yet: the repository is public now, so it can be added.
+      # A version can't be changed once it's on npm: the tarball must have its license (see test.yml's pack step).
       - name: Publish to npm (trusted publishing)
         working-directory: packages/react
         run: |
           pnpm pack --pack-destination /tmp
           TARBALL=$(ls /tmp/unlayer-react-elements-*.tgz)
+          tar tzf "$TARBALL" | grep -qx package/LICENSE || { echo "::error::$TARBALL has no LICENSE"; exit 1; }
           npm publish "$TARBALL" --access public
 
       - name: Tag release
@@ -508,6 +510,7 @@ jobs:
         run: |
           pnpm pack --pack-destination /tmp
           TARBALL=$(ls /tmp/unlayer-migrate-*.tgz)
+          tar tzf "$TARBALL" | grep -qx package/LICENSE || { echo "::error::$TARBALL has no LICENSE"; exit 1; }
           npm publish "$TARBALL" --access public
 
       - name: Tag release
