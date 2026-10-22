@@ -256,6 +256,15 @@ jobs:
           if grep -nE "(from|import) '(highlight\.js|marked)" dist/*.d.ts dist/*.d.cts; then echo "::error::the types import a package built into Elements"; exit 1; fi
           echo "TARBALL=$TARBALL" >> $GITHUB_ENV
 
+      # migrate has no LICENSE of its own: its tarball gets the repository's from pnpm (as publish.yml checks, where
+      # a missing one would fail the release instead).
+      - name: Pack migrate
+        run: |
+          cd packages/migrate
+          pnpm pack --pack-destination /tmp
+          MIGRATE_TARBALL=$(ls /tmp/unlayer-migrate-*.tgz)
+          tar tzf "$MIGRATE_TARBALL" | grep -qx package/LICENSE || { echo "::error::$MIGRATE_TARBALL has no LICENSE"; exit 1; }
+
       - name: Next.js integration build
         run: |
           cd tests/nextjs-integration
