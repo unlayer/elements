@@ -252,9 +252,11 @@ row or block is left out of the HTML, the plain text and the design (the slower 
    inside a provider the second. So `defaultOf` in `engine/dispatcher.ts` takes the default from where they agree, and
    keeps the value they last agreed on, while no render of React's was running, per context (a fact of the context, not
    of a render: a default never changes); where they differ, it's that, else the second, which react-dom's streaming
-   render never sets. What it can't know, it reads as React has it: the second's value where it's a failed
-   renderToString's and no render has seen the context before, and a value both hold, the same, from two such renders,
-   till a render of react-dom's puts one of them back (`src/regression/render-isolation.test.tsx` pins each case).
+   render never sets. What it can't know, it reads as React has it: before any render has seen the context
+   with the two agreeing, the second's value where a renderToString left it (one that failed or suspended inside a
+   provider of it) or gives it (one Elements runs inside); and a value both hold, the same, from two such renders, till
+   a render of react-dom's puts one of them back (`src/regression/render-isolation.test.tsx` pins the first and the
+   last).
 5. **Tree order.** Output, records, ids and the error a render throws don't depend on when promises settle.
 6. **Components run once per render**, but as React runs them again: a component that sets its state while rendering,
    and one `use()` suspends, which is called again once the promise settles.
