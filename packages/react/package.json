@@ -54,48 +54,113 @@
   "module": "./dist/index.js",
   "exports": {
     ".": {
-      "types": "./dist/index.d.ts",
-      "import": "./dist/index.js",
-      "require": "./dist/index.cjs"
+      "import": {
+        "types": "./dist/index.d.ts",
+        "default": "./dist/index.js"
+      },
+      "require": {
+        "types": "./dist/index.d.cts",
+        "default": "./dist/index.cjs"
+      }
     },
     "./tailwind": {
-      "types": "./dist/tailwind.d.ts",
-      "import": "./dist/tailwind.js",
-      "require": "./dist/tailwind.cjs"
+      "import": {
+        "types": "./dist/tailwind.d.ts",
+        "default": "./dist/tailwind.js"
+      },
+      "require": {
+        "types": "./dist/tailwind.d.cts",
+        "default": "./dist/tailwind.cjs"
+      }
     },
     "./font": {
-      "types": "./dist/font.d.ts",
-      "import": "./dist/font.js",
-      "require": "./dist/font.cjs"
+      "import": {
+        "types": "./dist/font.d.ts",
+        "default": "./dist/font.js"
+      },
+      "require": {
+        "types": "./dist/font.d.cts",
+        "default": "./dist/font.cjs"
+      }
     },
     "./head": {
-      "types": "./dist/head.d.ts",
-      "import": "./dist/head.js",
-      "require": "./dist/head.cjs"
+      "import": {
+        "types": "./dist/head.d.ts",
+        "default": "./dist/head.js"
+      },
+      "require": {
+        "types": "./dist/head.d.cts",
+        "default": "./dist/head.cjs"
+      }
     },
     "./code": {
-      "types": "./dist/code.d.ts",
-      "import": "./dist/code.js",
-      "require": "./dist/code.cjs"
+      "import": {
+        "types": "./dist/code.d.ts",
+        "default": "./dist/code.js"
+      },
+      "require": {
+        "types": "./dist/code.d.cts",
+        "default": "./dist/code.cjs"
+      }
     },
     "./markdown": {
-      "types": "./dist/markdown.d.ts",
-      "import": "./dist/markdown.js",
-      "require": "./dist/markdown.cjs"
+      "import": {
+        "types": "./dist/markdown.d.ts",
+        "default": "./dist/markdown.js"
+      },
+      "require": {
+        "types": "./dist/markdown.d.cts",
+        "default": "./dist/markdown.cjs"
+      }
     },
     "./async": {
-      "types": "./dist/async.d.ts",
-      "import": "./dist/async.js",
-      "require": "./dist/async.cjs"
+      "import": {
+        "types": "./dist/async.d.ts",
+        "default": "./dist/async.js"
+      },
+      "require": {
+        "types": "./dist/async.d.cts",
+        "default": "./dist/async.cjs"
+      }
     },
     "./codegen": {
-      "types": "./dist/codegen.d.ts",
-      "import": "./dist/codegen.js",
-      "require": "./dist/codegen.cjs"
+      "import": {
+        "types": "./dist/codegen.d.ts",
+        "default": "./dist/codegen.js"
+      },
+      "require": {
+        "types": "./dist/codegen.d.cts",
+        "default": "./dist/codegen.cjs"
+      }
     },
     "./package.json": "./package.json"
   },
   "types": "./dist/index.d.ts",
+  "typesVersions": {
+    "*": {
+      "tailwind": [
+        "./dist/tailwind.d.ts"
+      ],
+      "font": [
+        "./dist/font.d.ts"
+      ],
+      "head": [
+        "./dist/head.d.ts"
+      ],
+      "code": [
+        "./dist/code.d.ts"
+      ],
+      "markdown": [
+        "./dist/markdown.d.ts"
+      ],
+      "async": [
+        "./dist/async.d.ts"
+      ],
+      "codegen": [
+        "./dist/codegen.d.ts"
+      ]
+    }
+  },
   "files": [
     "dist",
     "README.md",
