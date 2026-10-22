@@ -83,7 +83,7 @@ An element's own `style` wins over its classes, as in the browser. Logical sides
 
 ## What each class becomes
 
-Colors come out as hex, or `rgba()` when translucent: Tailwind's `oklch()` palette and opacity modifiers (`bg-black/50`) are converted, since email clients don't read them. Sizes come out in pixels (`1rem` is `16px`), with Tailwind's variables and `calc()` worked out.
+Colors come out as hex, or `rgba()` when translucent: Tailwind's `oklch()` palette and opacity modifiers (`bg-black/50`) are converted, since email clients don't read them. Sizes come out in pixels (`1rem` is `16px`), with Tailwind's variables and `calc()` worked out. A declaration whose variables come to more than 4,096 characters (variables that use each other over and over, as a class string from untrusted HTML can make them: Tailwind's own come to about 300) isn't inlined, and Elements says so, as for a variable that isn't set.
 
 | Classes | Component | Prop |
 |---------|-----------|------|

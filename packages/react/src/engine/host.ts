@@ -3,9 +3,10 @@
  * attributes (attributes.ts); void, preformatted and custom elements; a `<select>`'s value marking its `<option>`s, an
  * `<input>`'s, `<textarea>`'s, `<button>`'s and `<form>`'s own rules; a `<style>`'s, `<script>`'s and `<title>`'s text
  * (React 18 writes it as any text, escaped; React 19 its one child as it is, but for what would end it). In a <Head>,
- * a `<style>`'s and `<script>`'s text is written as it is in every React (but for what would end it), and a
- * `<title>`'s children rendered: those tags are the document's head. The walker writes the markup of a template with
- * it, and the string exporters (src/exporters) the markup of their blocks.
+ * a `<style>`'s and `<script>`'s text is written as it is in every React, whatever writes it (but for what would end
+ * it, or what it's in: see `rawText`), and a `<title>`'s children rendered: those tags are the document's head. The
+ * walker writes the markup of a template with it, and the string exporters (src/exporters) the markup of their
+ * blocks.
  *
  * Not written as react-dom 19 writes it, on purpose (src/engine/differential.test.tsx lists each): its hoisting (a
  * `<title>`, `<meta>`, `<link>`, `<style precedence href>` or async `<script>` moved to the start of the markup, and
@@ -20,43 +21,69 @@ export { escapeText };
 
 /**
  * Where markup is (react-dom's format context): the value of the `<select>` it's in, which marks its `<option>`s;
- * whether it's in a table, a row or a table's section (whose children start afresh); whether it's a <Head>'s; and
- * whether it's the text of a <Head>'s `<style>` or `<script>`, written as it is.
+ * whether it's in a table, a row or a table's section (whose children start afresh); whether it's a <Head>'s; and in
+ * a <Head>, whether it's the text of a `<style>` or `<script>`, written as it is (`raw`), whether it's under an `<svg>`
+ * or `<math>` (`foreign`), and the elements around it whose content runs to their own end tag (`ends`).
  */
 export interface Format {
   selected?: unknown;
   table?: boolean;
   head?: boolean;
   raw?: boolean;
+  foreign?: boolean;
+  ends?: readonly string[];
 }
 export const TOP: Format = {};
 
-/** Where what's in a `type` element is, as react-dom works it out. */
+/** Where what's in a `type` element is, as react-dom works it out (in a <Head>, as the document's parser reads it). */
 export function childFormat(format: Format, type: string, props: Record<string, any>): Format {
-  const head = format.head;
+  const inner = markupFormat(format, type, props);
+  return format.head ? headFormat(format, inner, type) : inner;
+}
+
+function markupFormat(format: Format, type: string, props: Record<string, any>): Format {
   switch (type) {
     case "select":
-      return { selected: props.value != null ? props.value : props.defaultValue, head };
+      return { selected: props.value != null ? props.value : props.defaultValue };
     case "table":
     case "thead":
     case "tbody":
     case "tfoot":
     case "colgroup":
     case "tr":
-      return { table: true, head };
+      return { table: true };
     case "svg":
     case "math":
     case "foreignObject":
-      return { head };
+      return {};
     case "noscript":
     case "picture":
-      if (!REACT_18) return { head };
+      if (!REACT_18) return {};
       break;
-    case "style":
-    case "script":
-      if (head) return { head, raw: true };
   }
-  return format.table ? { head } : format;
+  return format.table ? {} : format;
+}
+
+/** The elements whose content a parser reads to their own end tag (as text: what's in them can't be markup). */
+const TO_END_TAG = new Set(["style", "script", "title", "textarea", "noscript", "noembed", "noframes", "iframe", "xmp"]);
+
+/**
+ * In a <Head>, what's in a `type` element: a `<style>`'s or `<script>`'s content is its text as it is, markup in it
+ * too, to the end of the outermost (`raw`); but under an `<svg>` or `<math>`, where a parser may read it as markup, it's
+ * escaped as any text (`foreign`, to the end of it: what's in their HTML parts too). `ends`: the elements around it,
+ * outermost first, whose content runs to their own end tag, a `<title>`'s, or a `<noscript>`'s where scripts run.
+ */
+function headFormat(format: Format, inner: Format, type: string): Format {
+  if (format.raw) return format;
+  const tag = type.toLowerCase();
+  const foreign = format.foreign || tag === "svg" || tag === "math";
+  return {
+    ...inner,
+    head: true,
+    foreign: foreign || undefined,
+    ends: !foreign && TO_END_TAG.has(tag) ? [...(format.ends ?? []), tag] : format.ends,
+    raw: (!foreign && (type === "style" || type === "script")) || undefined,
+  };
 }
 
 export const VOID = new Set(["area", "base", "br", "col", "embed", "hr", "img", "input", "keygen", "link", "meta", "param", "source", "track", "wbr"]);
@@ -178,5 +205,19 @@ export const leadingNewline = (type: string, children: unknown): string => ((typ
 export const escapeStyle = (text: string) => text.replace(/(<\/|<)(s)(tyle)/gi, (_, before: string, s: string, after: string) => before + (s === "s" ? "\\73 " : "\\53 ") + after);
 /** A `<script>`'s text as React 19 writes it: what would end one (`</script`) or start one escaped, as JavaScript reads it. */
 export const escapeScript = (text: string) => text.replace(/(<\/|<)(s)(cript)/gi, (_, before: string, s: string, after: string) => before + (s === "s" ? "\\u0073" : "\\u0053") + after);
-/** A <Head>'s `<style>`'s or `<script>`'s text, written as it is: what would end it escaped. */
-export const rawText = (type: string, text: string) => (type === "style" ? escapeStyle(text) : escapeScript(text));
+/**
+ * A <Head>'s `<style>`'s or `<script>`'s text (`type`), written as it is, whatever wrote it: what would end it escaped,
+ * as React 19 escapes it, and the end tag of each element it's in that runs to one (`ends`: a `<noscript>`'s, a
+ * `<title>`'s), its first letter escaped as CSS or JavaScript reads it (`</\6e oscript`, `</\u006eoscript`).
+ */
+export function rawText(type: string, text: string, ends: readonly string[] = []): string {
+  let out = type === "style" ? escapeStyle(text) : escapeScript(text);
+  for (const end of ends) {
+    if (end === type) continue;
+    out = out.replace(new RegExp(`</(${end[0]})(?=${end.slice(1)})`, "gi"), (_, first: string) => {
+      const hex = first.charCodeAt(0).toString(16);
+      return "</" + (type === "style" ? `\\${hex} ` : `\\u${hex.padStart(4, "0")}`);
+    });
+  }
+  return out;
+}

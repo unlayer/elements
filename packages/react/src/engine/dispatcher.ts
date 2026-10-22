@@ -4,7 +4,8 @@
  * synchronously around each component call, and the one that was there back after (in `finally`, never across an
  * await), so a render it runs inside (the app's react-dom render, Next.js's Server Components) keeps its own.
  *
- * Server semantics, as react-dom's static render has them: context from the walker's provider stack, `useId` from the
+ * Server semantics, as react-dom's static render has them: context from the walker's provider stack (else its
+ * default, whatever renders around it or before it provided), `useId` from the
  * tree position, initial state (a state set while rendering renders the component again, its last render counts),
  * effects never run, `use()` of a pending thenable suspends. A hook it doesn't know (a newer React's) throws a named
  * error, instead of React's "dispatcher.useX is not a function".
@@ -29,9 +30,33 @@ export const contextOf = (usable: any): any => (usable?.$$typeof === CONSUMER ||
 
 export function readContext(stack: ContextStack | null, usable: unknown): unknown {
   const context = contextOf(usable);
+  // (Worked out where it's provided too, so it's seen while React's values still hold it: see `defaultOf`.)
+  const fallback = defaultOf(context);
   for (let s = stack; s; s = s.next) if (s.context === context) return s.value;
-  // No provider in this render: the value it has now, as react-dom reads it (its default, or an outer render's).
-  return (context as { _currentValue?: unknown })._currentValue;
+  // No provider in the walk, nor around the component that started it: its default, as react-dom's static render
+  // reads it inside any render (never a value a react-dom render around it, or before it, provided).
+  return fallback;
+}
+
+/** The default each context was last seen to have (see `defaultOf`). */
+const defaults = new WeakMap<object, unknown>();
+
+/**
+ * A context's default. React keeps it only in two values, which its renders set while they render and don't always
+ * put back: `_currentValue` (react-dom's streaming render's, and its client's: after a stream, what the last part it
+ * waited for was given) and `_currentValue2` (renderToString's and renderToStaticMarkup's, and other secondary
+ * renderers': after one that failed or suspended inside a provider, what it was given there). Where they agree, that's
+ * it (seen, when no render of React's is running, where they'd hold its values); where they differ, one is what a
+ * render left: the default last seen, else `_currentValue2`, which react-dom's streaming render never sets. (React 18's
+ * `_defaultValue` is a server context's, null for these.)
+ */
+function defaultOf(context: any): unknown {
+  const value = context._currentValue;
+  if (value === context._currentValue2) {
+    if (typeof context === "object" && !hostRunning()) defaults.set(context, value);
+    return value;
+  }
+  return defaults.has(context) ? defaults.get(context) : context._currentValue2;
 }
 
 // ── The component being called ──
@@ -224,6 +249,12 @@ export const theSlot = (): Slot | null => (slot === undefined ? (slot = slotOf()
 
 /** The dispatcher of the render the walker runs inside (the app's react-dom render, Next.js's), or null. */
 let host: unknown = null;
+
+/** Whether a render other than Elements' is running around this call (the app's react-dom render, Next.js's). */
+function hostRunning(): boolean {
+  const current = theSlot()?.get() ?? null;
+  return current === DISPATCHER ? host !== null : current !== null;
+}
 
 /**
  * Calls `fn` as the component `state` describes: this dispatcher in React's slot, and the one there before put back

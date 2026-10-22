@@ -4,7 +4,7 @@
  * apply in an email (an unknown class, `dark:`, `focus:`, a rule for other elements) is listed with why.
  */
 import { parseSheet, type Rule, type Sheet } from "./css";
-import { emailValue } from "./values";
+import { emailValue, MAX_VALUE, TOO_LONG } from "./values";
 
 /** When a declaration applies: everywhere, on phones (`max-sm:`), above a breakpoint (`sm:`, `md:` …), or on hover. */
 export type ClassCondition = "always" | "phone" | "desktop" | "hover";
@@ -204,8 +204,9 @@ export function declarationReader(compiler: Compiler, renew?: () => Promise<Comp
       for (const d of rule.declarations) {
         if (d.property.startsWith("--")) continue;
         const value = emailValue(d.value, (name) => own[when].get(name) ?? own.always.get(name) ?? sheet.vars.get(name) ?? sheet.initial.get(name));
-        if (value === undefined) {
-          if (!ignored.some((i) => i.className === rule.token)) ignored.push({ className: rule.token, reason: `\`${d.property}\` uses a variable Tailwind doesn't set` });
+        if (value === undefined || value === TOO_LONG) {
+          const reason = value === TOO_LONG ? `\`${d.property}\`'s variables come to more than ${MAX_VALUE} characters` : `\`${d.property}\` uses a variable Tailwind doesn't set`;
+          if (!ignored.some((i) => i.className === rule.token)) ignored.push({ className: rule.token, reason });
         }
         else declarations.push({ className: rule.token, property: d.property, value, when, important: d.important });
       }

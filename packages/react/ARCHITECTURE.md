@@ -78,7 +78,7 @@ across an `await`: async code passes it on itself.
 |--|--|
 | `walk.ts` | The walker: elements, components, Context, Fragments, memo, forwardRef, lazy, Suspense, classes; where something suspends, the async walk's `wait` (src/async/collect.ts) or a throw to the nearest `<Suspense>` |
 | `dispatcher.ts` | Elements' hooks dispatcher, put in React's slot around each component call |
-| `host.ts`, `attributes.ts` | Host markup (`<div>`, `<img>`, …) as react-dom writes it for the installed React: void, custom and preformatted elements; form controls (a `<select>`'s value marking its options, the format context the walker carries for it); a `<style>`'s, `<script>`'s and `<title>`'s text (React 18 escapes it, React 19 writes it as given); each attribute and style by React 18's property table or React 19's switch; escaping. In a `<Head>`, a `<style>`'s and `<script>`'s text is written as given in every React. The walker and the string exporters write with it |
+| `host.ts`, `attributes.ts` | Host markup (`<div>`, `<img>`, …) as react-dom writes it for the installed React: void, custom and preformatted elements; form controls (a `<select>`'s value marking its options, the format context the walker carries for it); a `<style>`'s, `<script>`'s and `<title>`'s text (React 18 escapes it, React 19 writes it as given); each attribute and style by React 18's property table or React 19's switch; escaping. In a `<Head>`, a `<style>`'s and `<script>`'s text is written as given in every React, whatever writes it (a string, a component, a list, markup: the whole of what's between its tags is its text), but for its own end tag and that of each element it's in whose content runs to its end tag (a `<noscript>`, a `<title>`), escaped as CSS or JavaScript reads them; under an `<svg>` or `<math>`, where a parser may read it as markup, it's escaped as any text (`head.test.tsx` fuzzes it against a browser's parser). The walker and the string exporters write with it |
 | `output.ts` | The walk's output (text, markup, records, holes, boundaries, errors), flattened in tree order into the content's tree |
 | `tree-id.ts` | Where a component is in the tree (Fizz's tree context), and `useId()` from it |
 | `react-compat.ts` | What the walker relies on, per React version, and where React's dispatcher slot is |
@@ -102,7 +102,9 @@ around it, as that render would: react-dom puts its context back after a render 
 (an exporter's) only when its own dispatcher is there.
 
 What the hooks do is what React's server renderer does: context from the walker's provider stack (a context no
-provider in the walk gives has the value React has for it then: its default, or an outer render's), `useId` from the
+provider in the walk, or around the component that started it, gives has its default, as react-dom's static render
+reads it inside any render: never what a react-dom render around it, or one before it, provided; see invariant 4),
+`useId` from the
 tree position, initial state (a state set while rendering renders the component again, its last render counts, as in
 React), `useSyncExternalStore`'s server snapshot, effects and `useInsertionEffect`/`useLayoutEffect` never run,
 `useOptimistic`/`useActionState` their initial state, react-dom's `useFormStatus` not pending, `useEffectEvent`'s
@@ -241,7 +243,18 @@ row or block is left out of the HTML, the plain text and the design (the slower 
    `engine/walk.ts`), so its `useId()`s continue the document's and a context it has no provider of its own for reads
    the value it has there, as React's renders inside a render do. A render started outside any component's call (by a
    template wrapper, an exporter, a head, `onError`, a Tailwind plugin) starts at the top, as alone
-   (`src/utils/nested-renders.test.tsx` holds both).
+   (`src/utils/nested-renders.test.tsx` holds both). The providers of a render of React's own around it (an app's
+   react-dom render) aren't the walk's: a context neither gives reads its default, as react-dom's static render reads
+   it inside one. React keeps a context's default only in the two values its renders set while they render
+   (`_currentValue`, react-dom's streaming and client renders'; `_currentValue2`, renderToString's and
+   renderToStaticMarkup's), and they don't always put them back: a stream leaves the first holding what its last part
+   that waited was given (another request's tenant, theme or locale), and renderToString one that failed or suspended
+   inside a provider the second. So `defaultOf` in `engine/dispatcher.ts` takes the default from where they agree, and
+   keeps the value they last agreed on, while no render of React's was running, per context (a fact of the context, not
+   of a render: a default never changes); where they differ, it's that, else the second, which react-dom's streaming
+   render never sets. What it can't know, it reads as React has it: the second's value where it's a failed
+   renderToString's and no render has seen the context before, and a value both hold, the same, from two such renders,
+   till a render of react-dom's puts one of them back (`src/regression/render-isolation.test.tsx` pins each case).
 5. **Tree order.** Output, records, ids and the error a render throws don't depend on when promises settle.
 6. **Components run once per render**, but as React runs them again: a component that sets its state while rendering,
    and one `use()` suspends, which is called again once the promise settles.
@@ -278,7 +291,7 @@ row or block is left out of the HTML, the plain text and the design (the slower 
 | `idPrefix`: the walker's against react-dom's `identifierPrefix`, and every renderer's | `src/engine/differential.test.tsx`, `src/utils/render-to-html.test.tsx` |
 | React's react-server build (React 19): a render, and each ESM entry loading (none imports by name what it lacks) | `src/regression/react-server-build.test.ts` |
 | Renders inside an app's render, and inside each other | `src/utils/nested-renders.test.tsx`, `src/regression/edge-cases.test.tsx` |
-| A render's output whatever rendered before or around it: elements kept between renders, random templates sharing them (and async renders at once), the regression templates rendered again in a shuffled order, a render started from each place the user's code runs | `src/regression/render-isolation.test.tsx` (`ISOLATION_RUNS=2000` for more), `src/regression/patterns.test.tsx`, `src/utils/nested-renders.test.tsx` |
+| A render's output whatever rendered before or around it: elements kept between renders, random templates sharing them (and async renders at once), the regression templates rendered again in a shuffled order, a render started from each place the user's code runs, a context the template doesn't provide after react-dom's renders left another request's value in it, and inside one that provides it | `src/regression/render-isolation.test.tsx` (`ISOLATION_RUNS=2000` for more), `src/regression/patterns.test.tsx`, `src/utils/nested-renders.test.tsx` |
 | What suspends wherever it is (the template, a wrapper around it, a component, a class, a block's children, a template with no root): the async renderers wait, the synchronous ones say so | `src/async/async.test.tsx` |
 | A template with no root: each component run once, its ids the head's, its failed parts as a root's | `src/utils/user-components.test.tsx` |
 | Two copies of Elements: the module and CommonJS builds loaded together, either's components rendered by the other's renderers; another copy's Rows | `src/regression/node-exit.test.ts`, `src/regression/react-copies.test.tsx` |
