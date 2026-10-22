@@ -1,5 +1,6 @@
 import React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
+import { JSDOM, VirtualConsole } from "jsdom";
 import { afterEach, beforeEach, describe, expect, it, vi, type MockInstance } from "vitest";
 import { Column, Document, Email, Page, Paragraph, RenderError, Row, renderToHtml, renderToHtmlParts, renderToJson, renderToPlainText } from "../index";
 import * as asyncRenderers from "../async";
@@ -26,6 +27,33 @@ const tags = (
     <title>Hi &amp; bye</title>
   </Head>
 );
+/** Random head contents the fuzz renders (`HEAD_FUZZ_RUNS=5000` for a longer run, `HEAD_FUZZ_SEED` for others). */
+const HEAD_FUZZ_RUNS = Number(process.env.HEAD_FUZZ_RUNS ?? 150);
+
+/** A window where scripts run, whose document a parse writes into (one: a window of jsdom's each would add up). */
+let scripted: Window | undefined;
+
+/**
+ * What `read` reads of HTML as a browser parses it: where scripts don't run, and where they do (a <noscript>'s content
+ * is then text, to its end tag). (Markup put in a document runs no script.)
+ */
+function parse<T>(html: string, read: (document: Document) => T): T[] {
+  scripted ??= new JSDOM("", { runScripts: "dangerously", virtualConsole: new VirtualConsole() }).window as unknown as Window;
+  scripted.document.documentElement.innerHTML = html;
+  return [read(new DOMParser().parseFromString(html, "text/html")), read(scripted.document)];
+}
+
+/** A seeded random number generator (mulberry32): the same inputs every run. */
+function random(seed: number): () => number {
+  let a = seed >>> 0;
+  return () => {
+    a = (a + 0x6d2b79f5) >>> 0;
+    let t = Math.imul(a ^ (a >>> 15), 1 | a);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
 const written = [
   '<meta name="color-scheme" content="light dark"/>',
   '<link rel="preconnect" href="https://fonts.gstatic.com"/>',
@@ -110,6 +138,95 @@ describe("Head", () => {
       ].join(""),
     ]);
   });
+
+  it("can't end a style's or a script's text early, whatever writes it: a component of yours, a list, text in parts, markup, what it's in", () => {
+    // A tenant's brand color from the database, a product name in JSON-LD: data a component of yours writes.
+    const brand = "red}</style><script>alert(document.cookie)</script><style>";
+    const BrandCss = ({ color }: { color: string }) => `.brand{color:${color}}`;
+    const JsonLd = ({ data }: { data: object }) => JSON.stringify(data);
+    const Css = ({ css }: { css: string }) => css;
+    const img = "<img src=x onerror=alert(1)>";
+    const cases: Array<[React.ReactNode, string]> = [
+      [<style><BrandCss color={brand} /></style>, "<style>.brand{color:red}</\\73 tyle><script>alert(document.cookie)</script><\\73 tyle>}</style>"],
+      [<script type="application/ld+json" data-own="yes"><JsonLd data={{ name: "</script><script>alert(1)</script>" }} /></script>, '<script type="application/ld+json" data-own="yes">{"name":"</\\u0073cript><\\u0073cript>alert(1)</\\u0073cript>"}</script>'],
+      [<style>{"a{} </sty"}{"le><script>alert(1)</script>"}</style>, "<style>a{} </\\73 tyle><script>alert(1)</script></style>"],
+      [<style>{[<Css key="a" css="a{} </st" />, "yle>", <Css key="b" css={img} />]}</style>, `<style>a{} </\\73 tyle>${img}</style>`],
+      [<style>{"a{}"}<style>{"b{}"}</style>{img}</style>, `<style>a{}<\\73 tyle>b{}</\\73 tyle>${img}</style>`],
+      // Where a style isn't raw text (an <svg>'s, a <math>'s): its text escaped as any.
+      [<svg><style>{img}</style></svg>, "<svg><style>&lt;img src=x onerror=alert(1)&gt;</style></svg>"],
+      [React.createElement("SVG", null, <style>{img}</style>), "<SVG><style>&lt;img src=x onerror=alert(1)&gt;</style></SVG>"],
+      [<math><mi><style>{img}</style></mi></math>, "<math><mi><style>&lt;img src=x onerror=alert(1)&gt;</style></mi></math>"],
+      // In what runs to its own end tag (a <noscript> where scripts run, a <title>), its end tag too.
+      [<noscript><style>{`</noscript>${img}`}</style></noscript>, `<noscript><style></\\6e oscript>${img}</style></noscript>`],
+      [<noscript><script data-own="yes"><Css css={`</NOSCRIPT>${img}`} /></script></noscript>, `<noscript><script data-own="yes"></\\u004eOSCRIPT>${img}</script></noscript>`],
+      [<title><style>{`</title>${img}`}</style></title>, `<title><style></\\74 itle>${img}</style></title>`],
+    ];
+    for (const [tag, written] of cases) {
+      const page = <Page><Head>{tag}</Head>{content}</Page>;
+      expect(renderToHtmlParts(page).tags.join("")).toBe(written);
+      // Parsed, it has no script but the template's, and no element its text would make.
+      expect(parse(renderToHtml(page), (document) => document.querySelectorAll("script:not([data-own]), img, [onerror], [onload]").length), written).toEqual([0, 0]);
+    }
+  });
+
+  it("can't end a style's or a script's text early, or start an element, whatever hostile text it's given (fuzzed)", () => {
+    // Random head content (styles, scripts, titles, noscripts, svg, math and other elements whose text runs to their
+    // end tag, in each other), its text hostile fragments, written as text, by components, in lists and in parts.
+    // Parsed as a browser parses it (where scripts run, and where they don't), it has the template's elements and no
+    // other, and each piece of text is in the element it was written in, as the same content with harmless text has.
+    const fragments = [
+      "</style>", "</STYLE ", "</style/", "<style>", "</script>", "<script>", "<SCRIPT>", "</sCrIpT >", "</sty", "le>", "</scr", "ipt>", "<scr", "<!--", "-->",
+      "</noscript>", "</title>", "</iframe>", "</xmp>", "</noembed>", "</noframes>", "</textarea>", "</svg>", "</math>", "</foreignObject>", "<math><mi>",
+      "<svg onload=alert(1)>", "<img src=x onerror=alert(1)>", "<![CDATA[", "]]>", "&lt;", "&amp;", "\\", "'", '"', "{", "}", "</", "<", ">", "/", " ", "x",
+    ];
+    const tags = ["style", "style", "script", "script", "title", "noscript", "svg", "math", "mi", "foreignObject", "desc", "b", "iframe", "xmp", "noembed", "noframes", "STYLE", "SVG"];
+    type Spec = { tag: string; id: number; type?: string; children: Spec[] } | { text: number; how: "string" | "component" | "list" | "parts" };
+    const Text = ({ text }: { text: string }) => text;
+    const node = (spec: Spec, texts: string[], key?: number): React.ReactNode => {
+      if ("text" in spec) {
+        const text = texts[spec.text];
+        const half = Math.floor(text.length / 2);
+        if (spec.how === "string") return text;
+        if (spec.how === "component") return <Text key={key} text={text} />;
+        if (spec.how === "parts") return <React.Fragment key={key}>{text.slice(0, half)}{text.slice(half)}</React.Fragment>;
+        return <React.Fragment key={key}>{[text.slice(0, half), <Text key="b" text={text.slice(half)} />]}</React.Fragment>;
+      }
+      return React.createElement(spec.tag, { key, "data-t": spec.id, type: spec.tag === "script" ? spec.type : undefined }, ...spec.children.map((child, i) => node(child, texts, i)));
+    };
+    /** Where each piece of text is (the template's element it's in, by its `data-t`), and the elements there are. */
+    const layout = (document: Document) => {
+      const where: string[] = [];
+      const texts = document.createTreeWalker(document, 4 /* NodeFilter.SHOW_TEXT */);
+      for (let text = texts.nextNode(); text; text = texts.nextNode())
+        for (const [mark] of (text as Text).data.matchAll(/([QZ])\d+\1/g)) where.push(`${mark} in ${text.parentElement?.closest("[data-t]")?.getAttribute("data-t") ?? text.parentElement?.localName}`);
+      const elements = [...document.querySelectorAll("*")].map((element) => element.getAttribute("data-t") ?? element.localName);
+      return { where: where.sort(), elements: elements.sort() };
+    };
+    // (The two parsers differ where they should: a <noscript>'s content is text where scripts run.)
+    expect(parse("<head><noscript><style></noscript><img></style>", (document) => document.querySelectorAll("img").length)).toEqual([0, 1]);
+    const r = random(Number(process.env.HEAD_FUZZ_SEED ?? 20261022));
+    const pick = <T,>(list: readonly T[]) => list[Math.floor(r() * list.length)];
+    const bad: string[] = [];
+    for (let run = 0; run < HEAD_FUZZ_RUNS && bad.length < 3; run++) {
+      let ids = 0;
+      let count = 0;
+      const spec = (depth: number): Spec =>
+        depth > 0 && (depth > 3 || r() < 0.4)
+          ? { text: count++, how: pick(["string", "component", "list", "parts"] as const) }
+          : { tag: pick(tags), id: ids++, type: r() < 0.3 ? pick(["application/ld+json", "text/plain"]) : undefined, children: Array.from({ length: 1 + Math.floor(r() * 3) }, () => spec(depth + 1)) };
+      const specs = Array.from({ length: 1 + Math.floor(r() * 3) }, () => spec(0));
+      const hostile = Array.from({ length: count }, (_, i) => {
+        let text = "";
+        for (let n = 1 + Math.floor(r() * 6); n > 0; n--) text += pick(fragments);
+        return `Q${i}Q${text}Z${i}Z`;
+      });
+      const harmless = hostile.map((_, i) => `Q${i}QxZ${i}Z`);
+      const html = (texts: string[]) => renderToHtml(<Page><Head>{specs.map((s, i) => node(s, texts, i))}</Head>{content}</Page>);
+      const [expected, got] = [harmless, hostile].map((texts) => parse(html(texts), layout));
+      if (JSON.stringify(got) !== JSON.stringify(expected)) bad.push(`${JSON.stringify(renderToHtmlParts(<Page><Head>{specs.map((s, i) => node(s, hostile, i))}</Head></Page>).tags)}`);
+    }
+    expect(bad).toEqual([]);
+  }, HEAD_FUZZ_RUNS * 300 + 30000);
 
   it("says the design can't hold it, once per render", () => {
     const email = (

@@ -207,6 +207,7 @@ describe("the walker against react-dom/server", () => {
 
   it("writes a style's, a script's and a title's text as react-dom does: escaped in React 18, as written in React 19 (but what would end it)", () => {
     const Css = () => "a > b { c: 'd' }";
+    const Hostile = ({ text }: { text: string }) => text;
     const trees = [
       h("style", null, "body{font-family:'Inter',sans-serif} .a > .b{color:red} </style><x> <style </STYLE"),
       h("style", { media: "print", nonce: "n" }, ["a>b"]),
@@ -229,6 +230,16 @@ describe("the walker against react-dom/server", () => {
       h("script", null, ["a<"]),
       h("script", null, h("b", null, "x")),
       h("script", null, h(Css)),
+      // What would end one, from a component, a list, or where it is (react-dom's, outside a <Head>: see head.test.tsx).
+      h("style", null, h(Hostile, { text: "red}</style><script>alert(1)</script><style>" })),
+      h("style", null, [h(Css, { key: "a" }), "</style><script>alert(1)</script>"]),
+      h("script", { type: "application/ld+json" }, h(Hostile, { text: '{"name":"</script><script>alert(1)</script>"}' })),
+      h("script", null, [h(Hostile, { key: "a", text: "</scr" }), "ipt><img src=x onerror=alert(1)>"]),
+      h("svg", null, h("style", null, "<img src=x onerror=alert(1)>")),
+      h("SVG", null, h("style", null, "<img src=x onerror=alert(1)>")),
+      h("math", null, h("mi", null, h("style", null, "<img src=x onerror=alert(1)>"))),
+      h("noscript", null, h("style", null, "</noscript><img src=x onerror=alert(1)>"), h("script", null, "</noscript><img src=x onerror=alert(1)>")),
+      h("title", null, h("style", null, "</title><img src=x onerror=alert(1)>")),
       h("script", { dangerouslySetInnerHTML: { __html: "a<b" } }),
       h("script", { async: true }, "x<"),
       h("script", { src: "x.js" }),
