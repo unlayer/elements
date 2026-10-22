@@ -71,7 +71,7 @@ export function isElementsType(type: any): boolean {
   return !!type?.[UNLAYER_RENDER_KEY] || isRoot(type) || CONTAINER_NAMES.has(type?.displayName);
 }
 
-/** Thrown for a template that is async or suspends: renderToHtml renders synchronously. */
+/** Said for a template that is async or suspends: the synchronous renderers can't wait for it. */
 export const ASYNC_TEMPLATE =
   'async and suspending templates need "@unlayer/react-elements/async"\'s renderers, or their data loaded first and passed as props';
 
@@ -141,9 +141,10 @@ function* waiting<T>(call: () => T): Generator<PromiseLike<unknown>, T, unknown>
  * Wrappers called (plain functions, `memo`, `forwardRef`, nested in any order) until a root element comes out. It
  * stops at an element that isn't a root when a wrapper doesn't return an element (null, an array), saying why in
  * `unread`, and what the template rendered in `rendered`. What a wrapper waits for (an async one's promise, `use()`, a
- * thrown promise) is yielded: the async renderers wait for it, the synchronous ones throw.
+ * thrown promise) is yielded: the async renderers wait for it, the synchronous ones throw, naming the wrapper
+ * (`waits.name`, set as each is called).
  */
-function* steps(element: React.ReactElement, idPrefix?: string): Steps {
+function* steps(element: React.ReactElement, idPrefix?: string, waits: { name?: string } = {}): Steps {
   let current = element;
   let unread: string | undefined;
   // With no root, how what the template rendered is made again (`rendered`): each step's element, around what's
@@ -162,6 +163,7 @@ function* steps(element: React.ReactElement, idPrefix?: string): Steps {
     // (Its `useId()`s' prefix: the render's, else the <UnlayerProvider>s' around it.)
     const prefix = idPrefix ?? provided?.idPrefix;
     const state = hookState(name, tree, contexts, typeof prefix === "string" ? prefix : "");
+    waits.name = name;
     const out = yield* waiting(() => callComponent(fn, props, second, state));
     tree = out.tree;
     if (!isThenable(out.value)) return out.value;
@@ -188,6 +190,7 @@ function* steps(element: React.ReactElement, idPrefix?: string): Steps {
     // A lazy template (`React.lazy(() => import("./Welcome"))`): the component it loads, waited for as a wrapper that
     // suspends is (the synchronous renderers say it's async till it has loaded); one that fails to load, named.
     if (type?.$$typeof === LAZY) {
+      waits.name = "lazy";
       try {
         current = React.createElement((yield* waiting(() => type._init(type._payload))) as React.ElementType, props);
       } catch (error) {
@@ -241,6 +244,7 @@ function* steps(element: React.ReactElement, idPrefix?: string): Steps {
     else if (type?.prototype?.isReactComponent) {
       // A class (react-intl's <IntlProvider>): constructed and rendered, inside the providers around it.
       const around = contexts;
+      waits.name = nameOf(type);
       produced = yield* waiting(() => callClass(type, props, around));
     } else break;
     again.push((inside) => replayed(type, props, tree !== at, inside));
@@ -261,17 +265,18 @@ function* steps(element: React.ReactElement, idPrefix?: string): Steps {
 }
 
 /**
- * What a template unwraps to in this render (see steps), kept in its scope; one that waits for something fails, with
- * what to do. What it unwrapped to already (the async renderers' synchronous render, after they waited for it) is as
- * it was.
+ * What a template unwraps to in this render (see steps), kept in its scope; one that waits for something fails in
+ * `api` (a render function) with a RenderError naming the wrapper that waits, and what to do. What it unwrapped to
+ * already (the async renderers' synchronous render, after they waited for it) is as it was.
  */
-export function unwrapRoot(element: React.ReactElement, idPrefix?: string): Unwrapped {
+export function unwrapRoot(element: React.ReactElement, api: string, idPrefix?: string): Unwrapped {
   const found = unwrapped();
   if (found && (element === found.root || element === found.rendered)) return found;
-  const step = steps(element, idPrefix).next();
+  const waits: { name?: string } = {};
+  const step = steps(element, idPrefix, waits).next();
   if (step.done) return keepUnwrapped(step.value);
   step.value.then(undefined, () => {});
-  throw new Error(ASYNC_TEMPLATE);
+  throw new RenderError(`${api}: ${ASYNC_TEMPLATE}`, waits.name ?? nameOf(element.type), "");
 }
 
 /** The steps to what a template unwraps to, which the async renderers take, waiting where they wait. */
@@ -311,19 +316,12 @@ export const nestedRoot = (root: string): string => unreadSaid("template", `its 
  * is already an Elements component (or plain HTML), or what this render's
  * template rendered, is returned as it is. A template with no root gives what it
  * rendered (see `Unwrapped`), its wrappers not called again; with a warning where
- * a root in it can't be reached: its settings aren't read. A wrapper that throws
- * fails the render (a RenderError naming it).
+ * a root in it can't be reached: its settings aren't read. A wrapper that throws,
+ * or is async or suspends, fails the render (a RenderError naming it).
  */
 export function htmlRoot(element: React.ReactElement, api: string, idPrefix?: string): React.ReactElement {
   if (typeof element.type === "string" || isElementsType(element.type) || element === unwrapped()?.rendered) return element;
-  let found: Unwrapped;
-  try {
-    found = unwrapRoot(element, idPrefix);
-  } catch (cause) {
-    // An async template can't be rendered synchronously: say why.
-    if (cause instanceof Error && cause.message === ASYNC_TEMPLATE) throw new Error(`[Unlayer] ${api}: ${ASYNC_TEMPLATE}.`);
-    throw cause;
-  }
+  const found = unwrapRoot(element, api, idPrefix);
   if (isRoot(found.root.type)) return found.root;
   sayUnread(found, element, api);
   return found.rendered ?? element;

@@ -273,7 +273,7 @@ describe("the async renderers", () => {
     expect(renderToHtmlSync(<Lazy />)).toBe(renderToHtmlSync(<Welcome />));
     const Pending = lazily();
     expect(() => renderToHtmlSync(<Pending />)).toThrow('[Unlayer] renderToHtml: async and suspending templates need "@unlayer/react-elements/async"');
-    expect(() => renderToJsonSync(<Pending />)).toThrow(/renderToJson: could not unwrap <wrapper>.*async and suspending templates need/);
+    expect(() => renderToJsonSync(<Pending />)).toThrow(`[Unlayer] renderToJson: ${TEMPLATE}`);
     // One that fails to load rejects with its error, naming it.
     const Missing = React.lazy(() => Promise.reject(new Error("no such chunk")));
     const failed = await renderToHtml(<Missing />).catch((error: unknown) => error);
@@ -314,7 +314,7 @@ describe("the async renderers", () => {
       warn.mockRestore();
     }
     expect(() => renderToHtmlSync(elements[1])).toThrow(`[Unlayer] renderToHtml: ${TEMPLATE}`);
-    expect(() => renderToJsonSync(elements[1])).toThrow(/renderToJson: could not unwrap <wrapper>.*async and suspending templates need/);
+    expect(() => renderToJsonSync(elements[1])).toThrow(`[Unlayer] renderToJson: ${TEMPLATE}`);
     // A template in it that fails fails the render, naming it: its fallback can't make the document.
     const Broken = async (): Promise<React.ReactElement> => {
       await later(null);
@@ -523,5 +523,30 @@ describe("the async renderers", () => {
       error.mockRestore();
     }
     expect(calls).toBe(0);
+  });
+
+  it("say it for an async or suspending template too, in each synchronous renderer: a RenderError naming it", () => {
+    const Receipt = async () => <Email><Row><Column><Paragraph>later</Paragraph></Column></Row></Email>;
+    const Wrapper = ({ children }: { children: React.ReactNode }) => <>{suspending("Loaded").read()}{children}</>;
+    const Pending = React.lazy(() => new Promise<never>(() => {}));
+    const templates: Array<[React.ReactElement, string]> = [
+      [<Receipt />, "Receipt"],
+      [<UnlayerProvider config={{ textDirection: "rtl" }}><Receipt /></UnlayerProvider>, "Receipt"],
+      [<Wrapper><Receipt /></Wrapper>, "Wrapper"],
+      [<Pending />, "lazy"],
+    ];
+    const renders = { renderToHtml: renderToHtmlSync, renderToHtmlParts: renderToHtmlPartsSync, renderToPlainText: renderToPlainTextSync, renderToJson: renderToJsonSync };
+    for (const [template, name] of templates) {
+      for (const [api, render] of Object.entries(renders)) {
+        let thrown: unknown;
+        try {
+          render(template);
+        } catch (error) {
+          thrown = error;
+        }
+        expect(thrown, `${api}(<${name} />)`).toBeInstanceOf(RenderError);
+        expect(thrown).toMatchObject({ message: `[Unlayer] ${api}: ${TEMPLATE}, or their data loaded first and passed as props (in <${name}>)`, component: name, position: "" });
+      }
+    }
   });
 });

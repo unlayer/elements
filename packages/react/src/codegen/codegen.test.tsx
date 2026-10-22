@@ -217,6 +217,24 @@ describe("Elements templates come back as they render", () => {
     expect(html).toContain("max-width: 32px");
     expect(html).toContain("max-width: 92px");
   });
+
+  it("writes a menu item without a link without one: its design's link has no URL", () => {
+    const template = (
+      <Elements.Email>
+        <Elements.Row>
+          <Elements.Column>
+            <Elements.Menu items={[{ text: "Terms", href: "https://example.com/terms" }, { text: "No link" }]} />
+          </Elements.Column>
+        </Elements.Row>
+      </Elements.Email>
+    );
+    const { code, design, back, html } = backAgain(template);
+    expect(inline(code)).toContain(inline(`{ text: "No link" }`));
+    const items = (d: Plain) => (d as any).body.rows[0].columns[0].contents[0].values.menu.items;
+    expect(items(design)[1].link).toEqual({ name: "web", values: { target: "_blank" } });
+    expect(items(back)).toEqual(items(design));
+    expect(html).toBe(Elements.renderToHtml(template));
+  });
 });
 
 describe("links: the URL the editor exports for each", () => {
@@ -288,6 +306,21 @@ describe("links: the URL the editor exports for each", () => {
     const button = (href: unknown) => design([{ type: "button", values: { text: "Go", href } }]);
     const where = "body.rows[0].columns[0].contents[0].values.href";
     expect(compareDesigns(button(link), button({ name: "web", values: { href: "https://example.com/", target: "_blank" } })).map((d) => d.path)).toEqual([`${where}.values.title`, `${where}.attrs`]);
+  });
+
+  it("keeps a menu item's web link without a URL as the design has it, with no URL", () => {
+    const bare = { name: "web", values: { target: "_self" } };
+    // Written with the `items` shorthand, and as the design has them (the editor's item keys).
+    const source = design([
+      { type: "menu", values: { menu: { items: [{ key: "1", text: "Home", link: bare }] } } },
+      { type: "menu", values: { menu: { items: [{ key: "1606923979749", text: "Home", link: bare }] } } },
+    ]);
+    const { code, warnings, design: back } = roundTrip(source);
+    expect(inline(code)).toContain(inline(`items={[{ text: "Home", target: "_self" }]}`));
+    expect(code).not.toContain("href");
+    expect(warnings).toEqual([]);
+    const links = (d: Plain) => (d as any).body.rows[0].columns[0].contents.map((block: any) => JSON.stringify(block.values.menu.items[0].link));
+    expect(links(back)).toEqual(links(source));
   });
 
   it("writes them in the code, whose HTML links where the editor's does", () => {
