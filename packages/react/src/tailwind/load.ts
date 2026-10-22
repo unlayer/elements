@@ -51,6 +51,12 @@ async function compiler(config: TailwindConfig | undefined): Promise<Compiler> {
     throw Object.assign(new Error('[Unlayer] loadTailwind needs Tailwind CSS 4: install it with `npm install tailwindcss` (it\'s an optional peer dependency of @unlayer/react-elements).'), { cause });
   }
   const run = (tailwind.compile ?? tailwind.default?.compile) as (css: string, options: Record<string, unknown>) => Promise<Compiler>;
+  // An older Tailwind installs with Elements (the peer dependency takes any version, so a project's Tailwind 3 doesn't
+  // fail the install), but has no `compile`: Tailwind CSS 3's is a PostCSS plugin.
+  if (typeof run !== "function") {
+    const older = (tailwind.default ?? tailwind)?.postcss === true ? "Tailwind CSS 3 or older (a PostCSS plugin)" : "another one (it has no `compile`)";
+    throw new Error(`[Unlayer] loadTailwind needs Tailwind CSS 4, and the tailwindcss installed is ${older}: upgrade it with \`npm install tailwindcss@4\` (it's an optional peer dependency of @unlayer/react-elements).`);
+  }
   // Tailwind's theme and utilities, no reset (an email has its own), and the config as React Email's <Tailwind> takes it.
   const input = `@layer theme, base, components, utilities;\n@import "tailwindcss/theme.css" layer(theme);\n@import "tailwindcss/utilities.css" layer(utilities);\n${config ? "@config;\n" : ""}`;
   return run(input, {

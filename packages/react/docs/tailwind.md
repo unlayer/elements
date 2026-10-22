@@ -6,7 +6,7 @@ Style Elements components with Tailwind classes, as with React Email's `<Tailwin
 npm install @unlayer/react-elements tailwindcss
 ```
 
-Tailwind CSS 4 is an optional peer dependency. Only `@unlayer/react-elements/tailwind` loads it; the main entry never does.
+Tailwind CSS 4 is an optional peer dependency. Only `@unlayer/react-elements/tailwind` loads it; the main entry never does. A project's own Tailwind CSS 3 stays installed (the peer dependency takes any version), but compiling with it fails, saying to upgrade it: `npm install tailwindcss@4`.
 
 ## Render a template with classes
 

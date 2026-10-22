@@ -42,7 +42,7 @@ The code imports from `@unlayer/react-elements` (and `@unlayer/react-elements/fo
 
 ## Formatting
 
-The code is already written as prettier formats it (80 columns, two spaces, double quotes). To format it with your project's settings, `formatElements()` runs prettier (an optional peer dependency) when it's installed, and gives the code back as it is when it isn't:
+The code is already written as prettier formats it (80 columns, two spaces, double quotes). To format it with your project's settings, `formatElements()` runs prettier 3 (an optional peer dependency) when it's installed, and gives the code back as it is when it isn't (or prettier 2 is):
 
 ```ts
 import { designToElements, formatElements } from "@unlayer/react-elements/codegen";
