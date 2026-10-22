@@ -58,8 +58,13 @@ jobs:
         run: pnpm --filter @unlayer/from-react-email typecheck && pnpm --filter @unlayer/migrate typecheck
 
       # ── Bundle size budget ──────────────────────────────────────
-      # Fail if the react-elements ESM bundle exceeds 198.5KB.
-      # Current size: about 198.3KB (0.1.22: about 76KB). Raised from 198KB
+      # Fail if the react-elements ESM bundle exceeds 200KB.
+      # Current size: about 199.9KB (0.1.22: about 76KB). Raised from 198.5KB
+      # (about 1.5KB): a context a template doesn't provide reads its default
+      # (React's two values for it compared, the default seen kept per
+      # context), and a <Head>'s style and script text is escaped whole,
+      # whatever writes it, against its end tag and those of what it's in (the
+      # format context a head's walk carries). Raised from 198KB
       # (about 0.3KB): the plain text reads links before headings and
       # preformatted text, each attribute whole, with their URLs set aside
       # till the end, and doesn't wrap the URLs listed after the text.
@@ -150,7 +155,7 @@ jobs:
         run: |
           BUNDLE="packages/react/dist/index.js"
           SIZE=$(wc -c < "$BUNDLE" | tr -d ' ')
-          MAX_SIZE=198500
+          MAX_SIZE=200000
           echo "Bundle: $BUNDLE"
           echo "Size: $SIZE bytes (budget: $MAX_SIZE bytes)"
           if [ "$SIZE" -gt "$MAX_SIZE" ]; then
