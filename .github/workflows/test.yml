@@ -246,14 +246,15 @@ jobs:
       # that unit tests can't detect.
       # The tarball has its license: pnpm adds the repository's only where no file in the package matches LICENSE,
       # which THIRD_PARTY_LICENSES.md does (a 0.3.0 build had none). And its types import nothing built into the
-      # package (highlight.js, marked), which consumers don't install (a 0.3.0 build's did: TS2307 without skipLibCheck).
+      # package (highlight.js, marked), which consumers don't install (a 0.3.0 build's did: TS2307 without skipLibCheck):
+      # no import or export from them in either quotes, and no `import("…")` type (a comment may name them).
       - name: Pack react-elements
         run: |
           cd packages/react
           pnpm pack --pack-destination /tmp
           TARBALL=$(ls /tmp/unlayer-react-elements-*.tgz)
           tar tzf "$TARBALL" | grep -qx package/LICENSE || { echo "::error::$TARBALL has no LICENSE"; exit 1; }
-          if grep -nE "(from|import) '(highlight\.js|marked)" dist/*.d.ts dist/*.d.cts; then echo "::error::the types import a package built into Elements"; exit 1; fi
+          if grep -nE "[\"'(](highlight\.js|marked)[/\"']" dist/*.d.ts dist/*.d.cts | grep -vE "^[^:]+:[0-9]+:[[:space:]]*(\*|/\*|//)"; then echo "::error::the types import a package built into Elements"; exit 1; fi
           echo "TARBALL=$TARBALL" >> $GITHUB_ENV
 
       # migrate has no LICENSE of its own: its tarball gets the repository's from pnpm (as publish.yml checks, where
