@@ -667,6 +667,7 @@ jobs:
         run: |
           pnpm pack --pack-destination /tmp
           TARBALL=$(ls /tmp/unlayer-elements-preview-*.tgz)
+          tar tzf "$TARBALL" | grep -qx package/LICENSE || { echo "::error::$TARBALL has no LICENSE"; exit 1; }
           npm publish "$TARBALL" --access public
 
       - name: Tag release
