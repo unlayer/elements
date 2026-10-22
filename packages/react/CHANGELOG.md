@@ -1,6 +1,6 @@
 # @unlayer/react-elements
 
-## Unreleased
+## 0.3.0 (2026-10-22)
 
 ### New
 
@@ -97,6 +97,8 @@
 - **A template with no root renders as a root's content.** Rows, a block or markup rendered with no Email, Page, Document or Body around them (`renderToHtml(<Rows />)`) rendered apart from their head: every Row was `u_row_1` and a web row, in an email too, and the head was made from the template's `children`, not from what it rendered, its components run again for it. Its content now renders as a root's does, without the root's markup: walked once, each component run once, its Rows and blocks rendered with the render's config and in its mode, numbered as the head numbers them; a part that fails is a `RenderError` naming it and where it is, or is left out with `onError`. The async renderers wait for what's async in it, and compile a `<Tailwind config>` around it, as for a root's content. `renderToJson()` still says it needs a root.
 
 - **A link in a heading keeps its URL in the plain text.** `renderToPlainText()` wrote `# [Pay invoice](https://example.com/pay)` as `PAY INVOICE`, as it did a Heading whose text or children hold a link and an `<h1>` to `<h6>` in an Html block: the link was in the HTML and the design, but not in the text email. A heading's links are now written as a paragraph's, in each `links` mode (`PAY INVOICE (https://example.com/pay)`), and a URL is never put in capitals, nor a link's text that is its URL. A URL with a `'` in it (`https://example.com/it's`, as a Button, a Menu item, an Image's link, a Table cell or markup can write it) was cut off at the `'`, and an `href` after a `data-href` gave that one's URL: each link's own URL is now whole.
+
+- **Types for CommonJS projects and `moduleResolution: "node"`.** A TypeScript project that compiles to CommonJS (`module: "node16"` or `"nodenext"`, without `"type": "module"`) got Elements' ES module types for its `require()`s (arethetypeswrong: "Masquerading as ESM"), and the CommonJS ones (`.d.cts`) went unused. Each entry's `import` now resolves to its `.d.ts` types and its `require` to its `.d.cts` ones. With `moduleResolution: "node"` (TypeScript's `node10`), the entries other than the main one (`/tailwind`, `/code`, …) had no types (TS2307): `typesVersions` gives them. The JavaScript each import or `require()` loads is the same.
 
 ### Changed
 
