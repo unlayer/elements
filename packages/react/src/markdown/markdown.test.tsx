@@ -291,6 +291,17 @@ describe("Markdown in a <Tailwind>", () => {
     expect(design(<Html html={'<div class="bg-[url(https://x.test/a.gif)]">a</div>'} />)).toEqual(['<div style="background-image: url(https://x.test/a.gif)">a</div>']);
   });
 
+  /** Classes whose variables use each other twice over, `n` deep, the last `x`, for `property`. */
+  const chain = (n: number, property: string) => [...Array.from({ length: n }, (_, i) => `[--v${i}:var(--v${i + 1})_var(--v${i + 1})]`), `[--v${n}:x]`, `[${property}:var(--v0)]`].join(" ");
+
+  it("renders a class string whose variables come to too much at once, leaving out (and saying) what can't be inlined", () => {
+    const start = performance.now();
+    const markdown = `Hello\n\n<p class="${chain(31, "font-family")} text-red-500">raw</p>\n`;
+    expect(styles(design(<Markdown markdown={markdown} />)[1])).toEqual(["color: #fb2c36"]);
+    expect(warn.mock.calls.map((call) => String(call[0]))).toContain("[Unlayer] Html ignores class `[font-family:var(--v0)]` in its markup: `font-family`'s variables come to more than 4096 characters.");
+    expect(performance.now() - start).toBeLessThan(5000);
+  }, 30000);
+
   it("inlines nothing that loads or runs anything, whatever classes its HTML is given (fuzzed)", () => {
     // An arbitrary value or property (`bg-[…]`, `[background:…]`) of random parts, some hiding a `url(` from a check
     // (an HTML reference, a CSS escape, a comment Tailwind takes out), its brackets, quotes and comments closed or not.
@@ -303,7 +314,9 @@ describe("Markdown in a <Tailwind>", () => {
     for (let run = 0; run < FUZZ_RUNS / 10 && bad.length < 5; run++) {
       let value = "";
       for (let n = 1 + Math.floor(r() * 5); n > 0; n--) value += pick(parts);
-      const className = `${pick(opens)}${value}${r() < 0.5 ? ")" : ""}${r() < 0.8 ? "]" : ""} text-red-500`;
+      // Some with variables that use each other twice over (2^n characters, past what memory holds at 31 unchecked).
+      const vars = r() < 0.3 ? chain(1 + Math.floor(r() * 31), pick(["font-family", "background", "letter-spacing"])) : "";
+      const className = `${pick(opens)}${value}${r() < 0.5 ? ")" : ""}${r() < 0.8 ? "]" : ""} ${vars} text-red-500`;
       if (!sanitizeHtml(`<b class="${className}">`).includes(className)) dropped++;
       for (const html of design(<Markdown markdown={`<div class="${className}">a</div>\n\nText <span class="${className}">b</span>`} />)) {
         for (const style of styles(html)) if (loads(style)) bad.push(`${JSON.stringify(className)} → ${JSON.stringify(style)}`);

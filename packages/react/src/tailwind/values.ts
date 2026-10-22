@@ -9,22 +9,46 @@ import { skip, split } from "./css";
 /** A variable's value, as written (it may use others). */
 export type Lookup = (name: string) => string | undefined;
 
-/** `value` with each `var()` replaced; undefined when one is unset and has no fallback (the declaration is invalid). */
-function resolveVars(value: string, lookup: Lookup, depth = 0): string | undefined {
+/**
+ * The most a declaration's value comes to with its variables replaced: 4,096 characters. Tailwind's own utilities come
+ * to about 300 at most (`transition`'s list of properties), and an email client clips a whole message past about 100 KB
+ * (Gmail at 102 KB). Variables that use each other twice over (`--a: var(--b) var(--b)`) double it at each step: some
+ * thirty steps, under a kilobyte of classes (which a Markdown's HTML can carry), would take more memory than a process
+ * has. A declaration whose variables come to more isn't inlined, and that's said, as for a variable that isn't set.
+ */
+export const MAX_VALUE = 4096;
+
+/** What `emailValue` gives for a declaration whose variables come to more than MAX_VALUE characters. */
+export const TOO_LONG = Symbol("too long");
+
+type Resolved = string | undefined | typeof TOO_LONG;
+
+/**
+ * `value` with each `var()` replaced; undefined when one is unset and has no fallback (the declaration is invalid), or
+ * TOO_LONG past MAX_VALUE. Each variable is worked out once per declaration (`known`), however many times it's used.
+ */
+function resolveVars(value: string, lookup: Lookup, known: Map<string, Resolved>, depth = 0): Resolved {
   if (depth > 32) return undefined;
   let out = "";
   let from = 0;
   for (let at = value.indexOf("var(", from); at >= 0; at = value.indexOf("var(", from)) {
     const end = skip(value, at + 3);
-    const [name, ...fallback] = split(value.slice(at + 4, end - 1), ",");
-    const set = lookup(name.trim());
-    const resolved =
-      set !== undefined ? resolveVars(set, lookup, depth + 1) : fallback.length ? resolveVars(fallback.join(",").trim(), lookup, depth + 1) : undefined;
-    if (resolved === undefined) return undefined;
+    const [written, ...fallback] = split(value.slice(at + 4, end - 1), ",");
+    const name = written.trim();
+    const set = lookup(name);
+    let resolved: Resolved;
+    if (set === undefined) resolved = fallback.length ? resolveVars(fallback.join(",").trim(), lookup, known, depth + 1) : undefined;
+    else if (known.has(name)) resolved = known.get(name);
+    else known.set(name, (resolved = resolveVars(set, lookup, known, depth + 1)));
+    if (resolved === undefined || resolved === TOO_LONG) return resolved;
     out += value.slice(from, at) + resolved;
+    if (out.length > MAX_VALUE) return TOO_LONG;
     from = end;
   }
-  return out + value.slice(from);
+  // (A value without variables is as written: only what they put in it counts.)
+  if (!from) return value;
+  out += value.slice(from);
+  return out.length > MAX_VALUE ? TOO_LONG : out;
 }
 
 const round = (n: number) => String(parseFloat(n.toFixed(4)) || 0);
@@ -103,10 +127,13 @@ function calcs(value: string): string {
   return out + value.slice(from);
 }
 
-/** A declaration's value for an email; undefined when a variable it uses isn't set (as the browser drops it). */
-export function emailValue(value: string, lookup: Lookup): string | undefined {
-  const resolved = resolveVars(value, lookup);
-  if (resolved === undefined) return undefined;
+/**
+ * A declaration's value for an email; undefined when a variable it uses isn't set (as the browser drops it), TOO_LONG
+ * when its variables come to more than MAX_VALUE characters.
+ */
+export function emailValue(value: string, lookup: Lookup): string | undefined | typeof TOO_LONG {
+  const resolved = resolveVars(value, lookup, new Map());
+  if (resolved === undefined || resolved === TOO_LONG) return resolved;
   const pixels = calcs(resolved).replace(/(^|[\s(,])(-?(?:\d+\.?\d*|\.\d+))rem\b/g, (_, before: string, n: string) => `${before}${round(parseFloat(n) * 16)}px`);
   return emailColors(pixels).replace(/\s+/g, " ").trim();
 }
