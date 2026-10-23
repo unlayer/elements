@@ -7,11 +7,12 @@
  * settings are written into the head's CSS, where a value could end the
  * `<style>` element or add rules, so they're tested too.
  */
-import { describe, expect, it, vi } from "vitest";
+import { beforeAll, describe, expect, it, vi } from "vitest";
 import React from "react";
 import { renderToHtml } from "../utils/render-to-html";
 import { renderToJson } from "../utils/render-to-json";
-import { Email, Page, Document, Row, Column, Paragraph, Heading, Button, Image, Menu, Social, Html } from "../index";
+import { Email, Page, Document, Row, Column, Paragraph, Heading, Button, Image, Menu, Social, Html, Divider } from "../index";
+import { Tailwind, loadTailwind, type TailwindHandle } from "../tailwind";
 
 const PAYLOADS = [
   '"><x-pwn></x-pwn>', "'><x-pwn></x-pwn>", '" x-pwn="1', "' x-pwn='1", "</p></div></td></tr></table><x-pwn></x-pwn>",
@@ -85,6 +86,62 @@ describe.each(Object.entries(ROOTS))("%s", (_, Root) => {
 
   it("the title option can't add markup", () => {
     for (const payload of PAYLOADS) expect(injected(renderToHtml(<Root>{content(payload)}</Root>, { title: payload, lang: payload })), payload).toEqual([]);
+  });
+});
+
+describe("a Tailwind class from data", () => {
+  // Arbitrary values whose quotes or brackets would end the `style="…"` the exporters write a prop into, or start a tag
+  // (Tailwind reads `_` as a space: a class has none).
+  const CLASSES = (property: string) => [`[${property}:'"><x-pwn></x-pwn>']`, `[${property}:'"_x-pwn="1']`, `[${property}:\\22><x-pwn></x-pwn>]`, `[${property}:'\\3c_x-pwn_\\3e']`, `[${property}:'<x-pwn></x-pwn>']`];
+  const BLOCKS: Record<string, (className: string) => React.ReactElement> = {
+    Paragraph: (className) => <Paragraph className={className}>Hi</Paragraph>,
+    Heading: (className) => <Heading className={className}>Hi</Heading>,
+    Button: (className) => <Button href="https://example.com" className={className}>Go</Button>,
+    Menu: (className) => <Menu className={className} items={[{ text: "Home", href: "https://example.com" }]} />,
+    Divider: (className) => <Divider className={className} />,
+    Image: (className) => <Image className={className} src="https://example.com/a.png" alt="x" />,
+    markup: (className) => <Html html={`<p class="${className.replace(/"/g, "&quot;")}">Hi</p>`} />,
+  };
+  const PROPERTIES = ["color", "background-color", "font-size", "font-family", "padding", "border-color", "width", "text-transform"];
+  let tw: TailwindHandle;
+  beforeAll(async () => {
+    tw = await loadTailwind();
+  });
+
+  it.each(Object.entries(ROOTS))("%s: can't add markup through a prop, an inline style, or the text styles a container passes on", (_, Root) => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    try {
+      for (const property of PROPERTIES) {
+        for (const className of CLASSES(property)) {
+          for (const [name, block] of Object.entries(BLOCKS)) {
+            const html = renderToHtml(
+              <Tailwind tw={tw}>
+                <Root className={className}>
+                  <Row className={className}>
+                    <Column className={className}>{block(className)}</Column>
+                  </Row>
+                </Root>
+              </Tailwind>
+            );
+            expect(injected(html), `${name} ${className}`).toEqual([]);
+          }
+        }
+      }
+      // Said, as each class no prop can take.
+      expect(warn.mock.calls.map((call) => String(call[0]))).toContainEqual(expect.stringMatching(/^\[Unlayer\] Paragraph ignores `color: '"><x-pwn><\/x-pwn>'` from class `\[color:'"><x-pwn><\/x-pwn>'\]`: it could end the HTML attribute it's written in, start a tag, or end its CSS\.$/));
+    } finally {
+      warn.mockRestore();
+    }
+  });
+
+  it("keeps a font family's names in double quotes (`font-[\"Open_Sans\"]`), in single ones", () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    try {
+      const design = renderToJson(<Tailwind tw={tw}><Email><Row><Column><Paragraph className={'font-["Open_Sans"] [color:#123456]'}>Hi</Paragraph></Column></Row></Email></Tailwind>);
+      expect(design.body.rows[0].columns[0].contents[0].values).toMatchObject({ fontFamily: { value: "'Open Sans'" }, color: "#123456" });
+    } finally {
+      warn.mockRestore();
+    }
   });
 });
 

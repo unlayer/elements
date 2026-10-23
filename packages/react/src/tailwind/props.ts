@@ -7,7 +7,7 @@
 import { TABLES } from "./tables";
 import { plus, shorthand, sidesOf, type Margins } from "./row";
 import { rowRewrite } from "./inherit";
-import { PROP_ALIASES } from "@unlayer-internal/shared-elements";
+import { PROP_ALIASES, cssValueSafe } from "@unlayer-internal/shared-elements";
 import { BodyDefaults } from "@unlayer/exporters";
 
 
@@ -119,6 +119,18 @@ function add(into: Box, d: ClassDeclaration, rtl: boolean): void {
   into.other.push(d);
 }
 
+/**
+ * A class's value as a prop can take it, or undefined where it can't: the editor's exporters write props into a
+ * `style="…"` (or a `<style>`) as they are, so nothing that ends an attribute or starts a tag (`"`, `<`, `>`, or a CSS
+ * escape of one of them or of `'`), and nothing CSS can't hold there (see cssValueSafe). A font family's names in
+ * double quotes are in single ones, as the exporters write them. (An arbitrary value from data,
+ * `[color:'"><img …>']`, can't add markup that way.)
+ */
+function propValue({ property, value }: ClassDeclaration): string | undefined {
+  const written = property === "font-family" ? value.replace(/"([^"'\\<>]*)"/g, "'$1'") : value;
+  return /["<>]|\\(?:["'<>]|0{0,4}(?:22|27|3c|3e)(?![\da-f]))/i.test(written) || !cssValueSafe(written) ? undefined : written;
+}
+
 const LENGTH = /^(\d*\.?\d+)(px|%|em)?$/;
 const plain = (v: unknown): v is Record<string, any> => !!v && typeof v === "object" && !Array.isArray(v);
 
@@ -219,6 +231,15 @@ export function classesToProps(name: string, found: ClassDeclarations, props: Re
     warn(`\`${d.property}: ${d.value}\` from class \`${d.className}\` is kept in HTML (an inline style) but not in the design for the visual editor`);
   };
   for (const { className, reason } of found.ignored) warn(`ignores class \`${className}\`: ${reason}`);
+  // What can't be a prop's value (see propValue) is no one's: not a prop's, an inline style's, or the text's inside.
+  found = {
+    ...found,
+    declarations: found.declarations.flatMap((d) => {
+      const value = propValue(d);
+      if (value === undefined) ignore(d, ": it could end the HTML attribute it's written in, start a tag, or end its CSS");
+      return value === undefined ? [] : [value === d.value ? d : { ...d, value }];
+    }),
+  };
 
   // A Row's, a Column's or the root's text styles are its text blocks' (inherit.ts gives them), as CSS inherits them:
   // the root's color and font family are the body's too, as the editor has them.
