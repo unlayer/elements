@@ -92,6 +92,59 @@ describe.each(Object.entries(ROOTS))("%s", (_, Root) => {
   });
 });
 
+describe("values that aren't strings, as data gives them (an array from a JSON body, an object with toString, a number)", () => {
+  const SHAPES: Record<string, (v: string) => unknown> = { array: (v) => [v], "object with toString": (v) => ({ toString: () => v }) };
+  const NOT_TEXT: Record<string, (v: unknown) => React.ReactElement> = {
+    "Button target": (v) => <Row><Column><Button href="https://example.com" target={v as never}>Go</Button></Column></Row>,
+    "Menu item target": (v) => <Row><Column><Menu items={[{ text: "Home", href: "https://example.com", target: v as never }]} /></Column></Row>,
+    "Menu item text": (v) => <Row><Column><Menu items={[{ text: v as never, href: "https://example.com" }]} /></Column></Row>,
+    "Button link": (v) => <Row><Column><Button href={v as never}>Go</Button></Column></Row>,
+    "Image link": (v) => <Row><Column><Image src="https://example.com/a.png" width="100px" alt="x" href={v as never} /></Column></Row>,
+    "Menu link": (v) => <Row><Column><Menu items={[{ text: "Home", href: v as never }]} /></Column></Row>,
+    "Social link": (v) => <Row><Column><Social icons={[{ name: "Twitter", url: v as never }]} /></Column></Row>,
+    "Social name": (v) => <Row><Column><Social icons={[{ name: v as never, url: "https://twitter.com/x" }]} /></Column></Row>,
+  };
+  const cases = Object.entries(ROOTS).flatMap(([mode, Root]) => Object.keys(NOT_TEXT).map((name) => [mode, name, Root] as const));
+
+  it.each(cases)("%s: a %s can't add markup", (_, name, Root) => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    // (A page's or a document's Menu renders its text as React does: an object that isn't an element fails, as there.)
+    const html = (element: React.ReactElement) => {
+      try {
+        return renderToHtml(element);
+      } catch (error) {
+        if (Root !== Email && name === "Menu item text" && /Objects are not valid as a React child/.test(String(error))) return "";
+        throw error;
+      }
+    };
+    try {
+      for (const [shape, make] of Object.entries(SHAPES)) {
+        for (const payload of PAYLOADS) expect(injected(html(<Root>{NOT_TEXT[name](make(payload))}</Root>)), `${shape} ${payload}`).toEqual([]);
+      }
+      // A number holds no markup: it renders.
+      expect(renderToHtml(<Root>{NOT_TEXT[name](5)}</Root>)).toContain("<");
+    } finally {
+      warn.mockRestore();
+    }
+  });
+
+  it("a link's target that isn't a string is a new tab (`_blank`), in the HTML and the design, and a Button's is said", () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    try {
+      for (const target of [["_self"], { toString: () => "_self" }, 5]) {
+        const targets = (html: string) => Array.from(new DOMParser().parseFromString(html, "text/html").querySelectorAll("a")).map((a) => a.getAttribute("target"));
+        expect(targets(renderToHtml(<Email><Row><Column><Button href="https://example.com" target={target as never}>Go</Button></Column></Row></Email>)), String(target)).toEqual(["_blank"]);
+        expect(targets(renderToHtml(<Email><Row><Column><Menu items={[{ text: "Home", href: "https://example.com", target: target as never }]} /></Column></Row></Email>)), String(target)).toEqual(["_blank"]);
+        const design = renderToJson(<Email><Row><Column><Button href="https://example.com" target={target as never}>Go</Button></Column></Row></Email>);
+        expect(design.body.rows[0].columns[0].contents[0].values.href).toEqual({ name: "web", values: { href: "https://example.com", target: "_blank" } });
+      }
+      expect(warn).toHaveBeenCalledWith("[Unlayer] Button's target isn't text, so the link opens in a new tab (_blank).");
+    } finally {
+      warn.mockRestore();
+    }
+  });
+});
+
 describe("a Tailwind class from data", () => {
   // Arbitrary values whose quotes or brackets would end the `style="…"` the exporters write a prop into, or start a tag
   // (Tailwind reads `_` as a space: a class has none).
