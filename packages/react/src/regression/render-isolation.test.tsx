@@ -5,9 +5,13 @@
  *
  *   ISOLATION_RUNS=2000 ISOLATION_SEED=7 pnpm vitest run src/regression/render-isolation.test.tsx
  */
-import { describe, expect, it, vi } from "vitest";
-import React, { Component, createContext, memo, Suspense, useContext, useId, useState } from "react";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
+import React, { Component, createContext, memo, Suspense, useContext, useEffect, useId, useState } from "react";
+import { flushSync } from "react-dom";
+import { createRoot, type Root } from "react-dom/client";
 import { renderToPipeableStream, renderToStaticMarkup, renderToString } from "react-dom/server";
+import { act } from "../test-utils";
+import { isIdleDispatcher, theSlot } from "../engine/dispatcher";
 import { renderToHtml, renderToHtmlParts, renderToPlainText } from "../utils/render-to-html";
 import { renderRowToJson, renderToJson } from "../utils/render-to-json";
 import { Email, Page, Row, Column, Paragraph, Html, UnlayerProvider, registerTool } from "../index";
@@ -314,6 +318,175 @@ describe("a context the template doesn't provide", () => {
     expect(read(Both)).toBe("tenant");
     await streamed((page) => <>{page}</>);
     expect(read(Both)).toBe("default");
+  });
+
+  it("after renderToString failed inside a provider of it: reads its default inside a later stream once a render has read it, and what the failed one left before", async () => {
+    /** What a template reads in a component of a react-dom stream (no provider of the context in it). */
+    const inStream = async (context: React.Context<unknown>) => {
+      let seen = "";
+      const Page = () => ((seen = read(context)), <div />);
+      await streamed((page) => <><Page />{page}</>);
+      return seen;
+    };
+    // Read before: the default it learned, inside the stream and alone. react-dom's stream never sets the value the
+    // failed renderToString left (`_currentValue2`): it's still there after.
+    const Learned = createContext<unknown>("default");
+    expect(read(Learned)).toBe("default");
+    failed(Learned, "TenantB");
+    expect(await inStream(Learned)).toBe("default");
+    expect((Learned as unknown as { _currentValue2: unknown })._currentValue2).toBe("TenantB");
+    expect(read(Learned)).toBe("default");
+    // Never read before: what the failed render left, inside the stream and alone (0.2.1, which rendered with
+    // react-dom's renderToStaticMarkup, had react-dom put it back first), till a renderToString puts it back.
+    const Fresh = createContext<unknown>("default");
+    failed(Fresh, "TenantB");
+    expect(await inStream(Fresh)).toBe("TenantB");
+    expect(read(Fresh)).toBe("TenantB");
+    renderToString(<p />);
+    expect(read(Fresh)).toBe("default");
+    expect(await inStream(Fresh)).toBe("default");
+  });
+});
+
+describe("a context's default, learned around an app's renders", () => {
+  // Elements learns a context's default where React's two values for it agree while no render of React's is running
+  // (see a context the template doesn't provide, above): its first ordinary render. Before that, inside an app's
+  // renderToString, it reads what that render provides there; after, its default.
+  const tenant = "TenantA";
+  /** A context, and what a template reading it renders (its plain text). */
+  const brand = <T,>(fallback: T) => {
+    const Brand = createContext<T>(fallback);
+    const Footer = () => <Paragraph>{`brand=${String(useContext(Brand))}`}</Paragraph>;
+    const email = <Email><Row><Column><Footer /></Column></Row></Email>;
+    return { Brand, email, read: () => renderToPlainText(email).trim() };
+  };
+  /** What a component of an app's renderToString reads, `value` provided around it. */
+  const inRenderToString = (Brand: React.Context<any>, read: () => string, value: unknown) => {
+    let seen = "";
+    const Page = () => ((seen = read()), <div />);
+    renderToString(<Brand.Provider value={value}><Page /></Brand.Provider>);
+    return seen;
+  };
+  /** renderToString of a page that fails inside a provider of `Brand` (the app catches it): its value stays in `_currentValue2`. */
+  const failedInside = (Brand: React.Context<any>, value: unknown) => {
+    const Fails = () => {
+      throw new Error("the page failed");
+    };
+    expect(() => renderToString(<Brand.Provider value={value}><Fails /></Brand.Provider>)).toThrow("the page failed");
+    expect((Brand as unknown as { _currentValue2: unknown })._currentValue2).toBe(value);
+  };
+  /** A client render to its end: act() in development, flushSync in production builds (which have no act()). */
+  const onClient = (root: Root, element: React.ReactElement) => (process.env.NODE_ENV === "production" ? flushSync(() => root.render(element)) : act(() => root.render(element)));
+  const acting = (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT;
+  beforeAll(() => void ((globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true));
+  afterAll(() => void ((globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = acting));
+  /** `element` rendered on the client to its end, and unmounted. */
+  const client = (element: React.ReactElement) => {
+    const root = createRoot(document.createElement("div"));
+    try {
+      onClient(root, element);
+      return root;
+    } finally {
+      onClient(root, <></>);
+    }
+  };
+
+  it("reads an app's renderToString provider on a context it hasn't learned, and its default once learned", () => {
+    const { Brand, read } = brand("default");
+    expect(inRenderToString(Brand, read, tenant)).toBe("brand=TenantA");
+    expect(inRenderToString(Brand, read, tenant)).toBe("brand=TenantA");
+    // Learned by a render alone (or in an effect, or after a client render: below).
+    expect(read()).toBe("brand=default");
+    expect(inRenderToString(Brand, read, tenant)).toBe("brand=default");
+  });
+
+  it("reads one value for a context throughout a render that starts inside an app's renderToString and goes on after it", async () => {
+    const Brand = createContext("default");
+    let open = false;
+    const gate = new Promise((done) => setTimeout(done, 5)).then(() => void (open = true));
+    // The wrapper reads it inside renderToString; the content's components, after renderToString returned (the walk waits).
+    const Later = () => {
+      if (!open) throw gate;
+      return <Paragraph>{`later=${useContext(Brand)}`}</Paragraph>;
+    };
+    const Welcome = () => (
+      <Email>
+        <Row>
+          <Column>
+            <Paragraph>{`wrapper=${useContext(Brand)}`}</Paragraph>
+            <Brand.Consumer>{(value) => <Paragraph>{`consumer=${value}`}</Paragraph>}</Brand.Consumer>
+            <Later />
+          </Column>
+        </Row>
+      </Email>
+    );
+    const started = () => {
+      let text: Promise<string> | undefined;
+      const Page = () => ((text = asyncRenderers.renderToPlainText(<Welcome />)), <div />);
+      renderToString(<Brand.Provider value={tenant}><Page /></Brand.Provider>);
+      return text!.then((plain) => plain.split(/\n+/).map((line) => line.trim()));
+    };
+    // Not learned yet: renderToString's value, throughout (React's values agree on the default after it returned).
+    expect(await started()).toEqual(["wrapper=TenantA", "consumer=TenantA", "later=TenantA"]);
+    expect((await asyncRenderers.renderToPlainText(<Welcome />)).split(/\n+/).map((line) => line.trim())).toEqual(["wrapper=default", "consumer=default", "later=default"]);
+    expect(await started()).toEqual(["wrapper=default", "consumer=default", "later=default"]);
+  });
+
+  it("learns a default of undefined", () => {
+    const { Brand, read } = brand<string | undefined>(undefined);
+    expect(read()).toBe("brand=undefined");
+    failedInside(Brand, "TenantB");
+    expect(read()).toBe("brand=undefined");
+    renderToString(<p />);
+  });
+
+  it("learns after a client render: React leaves its idle dispatcher in the slot, which is no render running", () => {
+    client(<p>an app's client render</p>);
+    // (React's ContextOnlyDispatcher, its hooks one function: a React that changes it fails here, not by never learning.)
+    expect(isIdleDispatcher(theSlot()?.get())).toBe(true);
+    const { Brand, read } = brand("default");
+    expect(read()).toBe("brand=default");
+    failedInside(Brand, "TenantB");
+    expect(read()).toBe("brand=default");
+    renderToString(<p />);
+  });
+
+  it("learns in an effect of a client render, where React's dispatcher is idle", async () => {
+    const { Brand, read } = brand("default");
+    const seen: string[] = [];
+    const Preview = () => {
+      useEffect(() => void seen.push(read()), []);
+      return <div />;
+    };
+    client(<Preview />);
+    await new Promise((done) => setTimeout(done, 0));
+    expect(seen).toEqual(["brand=default"]);
+    failedInside(Brand, "TenantB");
+    expect(read()).toBe("brand=default");
+    renderToString(<p />);
+  });
+
+  it("learns nothing while a client render runs: its dispatchers aren't idle", () => {
+    const { Brand, read } = brand("default");
+    expect(read()).toBe("brand=default");
+    // React's two values agree on another value while the client render reads it: one renderToString left, and the
+    // client's provider's. It's read there, not learned.
+    failedInside(Brand, "TenantB");
+    const seen: Array<[boolean, string]> = [];
+    const Preview = ({ n }: { n: number }) => (seen.push([isIdleDispatcher(theSlot()?.get()), read()]), <div>{n}</div>);
+    const root = createRoot(document.createElement("div"));
+    try {
+      onClient(root, <Brand.Provider value="TenantB"><Preview n={1} /></Brand.Provider>);
+      onClient(root, <Brand.Provider value="TenantB"><Preview n={2} /></Brand.Provider>);
+    } finally {
+      onClient(root, <></>);
+    }
+    // Mounting and updating, a host: what's there is read, not learned.
+    expect(seen.map(([idle]) => idle)).toEqual(seen.map(() => false));
+    expect(seen.map(([, text]) => text)).toEqual(seen.map(() => "brand=TenantB"));
+    expect(seen.length).toBeGreaterThanOrEqual(2);
+    expect(read()).toBe("brand=default");
+    renderToString(<p />);
   });
 });
 

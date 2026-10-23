@@ -187,6 +187,12 @@ export const PROP_ALIASES: Record<string, Record<string, string>> = {
 const LINK_KEYS = ["href", "action"] as const;
 
 /**
+ * A link's target, which the exporters write into a `target="…"` as it is: one that could end the attribute or start
+ * a tag (`"`, `'`, `<`, `>`, a backtick) is a new tab (`_blank`) instead.
+ */
+const safeTarget = (target: unknown) => (typeof target === "string" && /["'<>`]/.test(target) ? "_blank" : target);
+
+/**
  * A link in the schema's storage shape: `"https://…"` is `{ name: "web", values: { href, target } }` (`target`, the
  * component's, a new tab where it gives none), and a link given in `attrs` has its `href` and `target` in `values`.
  */
@@ -283,8 +289,10 @@ export function mapSemanticProps<T extends Record<string, any>>(
   //    renderToHtml. Genuine custom attrs (class, data-*, …) are preserved.
   // Applied to both the flat prop and the `values` escape hatch. (Render-time
   // `normalizeLinkValue` also reads `attrs` as a defensive fallback.)
-  // A flat `target` (Button, Link) is the link's: a new tab only where none is given.
-  const target = userProps.target ?? "_blank";
+  // A flat `target` (Button, Link) is the link's: a new tab only where none is given (or where it's one that could end
+  // its attribute, said).
+  const target = safeTarget(userProps.target ?? "_blank") as string;
+  if (target !== (userProps.target ?? "_blank")) console.warn(`[Unlayer] ${componentType}'s target ${JSON.stringify(userProps.target)} could end its HTML attribute or start a tag, so the link opens in a new tab (_blank).`);
   if ("target" in userProps) delete userProps.target;
   for (const key of LINK_KEYS) {
     if (userProps[key] !== undefined) userProps[key] = canonicalizeLink(userProps[key], target);
@@ -425,12 +433,16 @@ export function normalizeLinkValue(value: unknown): Record<string, any> | undefi
 /**
  * A link whose URL the exporters write into an `href="…"` as it is: `"`, `<`
  * and `>`, which a URL can't hold unencoded, are percent-encoded (as a browser
- * would), so a URL can't end the attribute (or Outlook's conditional comment).
+ * would), so a URL can't end the attribute (or Outlook's conditional comment);
+ * and whose target can't either (see safeTarget).
  * An email service's placeholder in the form `<%name%>` (SendGrid's
  * `<%asm_group_unsubscribe_raw_url%>`) is kept: the service fills it in as
  * written, and it can end neither.
  */
-function safeLink(link: Record<string, any>): Record<string, any> {
+function safeLink(given: Record<string, any>): Record<string, any> {
+  // Its target too (see safeTarget).
+  const target = safeTarget(given.target);
+  const link = target === given.target ? given : { ...given, target };
   // A URL that isn't a string (an array from a JSON body or `?url[]=`) is written as its text: escaped as one.
   return link.url == null ? link : { ...link, url: String(link.url).replace(/<%[\w.]+%>|["<>]/g, (c) => (c.length > 1 ? c : encodeURIComponent(c))) };
 }

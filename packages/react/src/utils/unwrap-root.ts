@@ -18,7 +18,7 @@ import type { UnlayerConfig } from "@unlayer-internal/shared-elements";
 import { UNLAYER_RENDER_KEY } from "./create-component";
 import { RECORDS } from "./collect";
 import { TAILWIND } from "./tailwind";
-import { callClass, callComponent, contextOf, hookState, passesThrough, ROOT_TREE, RenderError, type ContextStack, type TreeContext } from "../engine";
+import { callClass, callComponent, contextOf, hookState, passesThrough, renderFallbacks, ROOT_TREE, RenderError, type ContextStack, type Fallbacks, type TreeContext } from "../engine";
 import { nameOf, threw } from "../engine/errors";
 import { isRoot } from "./root-type";
 import { guest, keepUnwrapped, sayOnce, unwrapped } from "./render-scope";
@@ -103,6 +103,8 @@ export interface Unwrapped {
   provided?: Partial<UnlayerConfig>;
   /** Where its root's content starts in the tree, where its wrappers moved it (see contentTree). */
   tree?: TreeContext;
+  /** What its wrappers read for contexts no provider gives, which the rest of the render reads too (see the engine's `readContext`). */
+  fallbacks?: Fallbacks;
 }
 
 export type Steps = Generator<PromiseLike<unknown>, Unwrapped, unknown>;
@@ -155,6 +157,8 @@ function* steps(element: React.ReactElement, idPrefix?: string, waits: { name?: 
   // Context providers around the root (`<Theme.Provider value="dark"><Email>…`): the root's content goes in them.
   const providers: React.ReactElement[] = [];
   let contexts: ContextStack | null = null;
+  // (What it reads for contexts no provider gives, which its content's walk reads too: see the engine's renderFallbacks.)
+  const fallbacks: Fallbacks = renderFallbacks();
   let tree = ROOT_TREE;
   // The config of the <UnlayerProvider>s among them, the inner one's keys over the outer's (see providedConfig).
   let provided: Partial<UnlayerConfig> | undefined;
@@ -162,7 +166,7 @@ function* steps(element: React.ReactElement, idPrefix?: string, waits: { name?: 
   function* called(fn: (props: any, second?: unknown) => unknown, props: Record<string, unknown>, second: unknown, name: string): Generator<PromiseLike<unknown>, unknown, unknown> {
     // (Its `useId()`s' prefix: the render's, else the <UnlayerProvider>s' around it.)
     const prefix = idPrefix ?? provided?.idPrefix;
-    const state = hookState(name, tree, contexts, typeof prefix === "string" ? prefix : "");
+    const state = hookState(name, tree, contexts, typeof prefix === "string" ? prefix : "", fallbacks);
     waits.name = name;
     const out = yield* waiting(() => callComponent(fn, props, second, state));
     tree = out.tree;
@@ -245,7 +249,7 @@ function* steps(element: React.ReactElement, idPrefix?: string, waits: { name?: 
       // A class (react-intl's <IntlProvider>): constructed and rendered, inside the providers around it.
       const around = contexts;
       waits.name = nameOf(type);
-      produced = yield* waiting(() => callClass(type, props, around));
+      produced = yield* waiting(() => callClass(type, props, around, fallbacks));
     } else break;
     again.push((inside) => replayed(type, props, tree !== at, inside));
     if (!React.isValidElement(produced)) {
@@ -257,11 +261,11 @@ function* steps(element: React.ReactElement, idPrefix?: string, waits: { name?: 
   }
   if (!isRoot(current.type)) {
     const rendered = again.reduceRight<React.ReactNode>((inside, wrap) => wrap(inside), (returned ? returned.value : current) as React.ReactNode) as React.ReactElement;
-    return { root: current, unread, rendered, provided };
+    return { root: current, unread, rendered, provided, fallbacks };
   }
   const own = (current.props as { children?: React.ReactNode }).children;
   const children = providers.reduceRight<React.ReactNode>((inside, provider) => React.cloneElement(provider, undefined, inside), own);
-  return { root: providers.length ? React.cloneElement(current, undefined, children) : current, provided, tree: tree !== ROOT_TREE ? tree : undefined };
+  return { root: providers.length ? React.cloneElement(current, undefined, children) : current, provided, tree: tree !== ROOT_TREE ? tree : undefined, fallbacks };
 }
 
 /**
