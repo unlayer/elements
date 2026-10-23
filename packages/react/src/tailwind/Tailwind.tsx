@@ -32,6 +32,8 @@ export const TAILWIND = Symbol.for("@unlayer/react-elements/tailwind");
 export interface Resolver {
   props(name: string, className: string, explicit: Record<string, any>, defaults?: Record<string, any>, rtl?: boolean, render?: object): Record<string, any>;
   prepare?(records: readonly unknown[], render?: object): void;
+  /** Where its classes can't be read till Tailwind has compiled again: when they can (the async renderers wait for it). */
+  ready?(): Promise<void> | undefined;
 }
 
 /**
