@@ -626,9 +626,9 @@ describe("a render's classes", () => {
     beforeEach(() => void (error = vi.spyOn(console, "error").mockImplementation(() => {})));
     afterEach(() => error.mockRestore());
 
-    it.each(["boom-now", "vboom-now:p-[3px]"])("fail the component whose class it is (%s), from the first render, every time, and leave the others' classes be", async (bad) => {
+    it.each(["boom-now", "vboom-now:p-[3px]", "group-vboom-now:p-[3px]", "hover:boom-now!"])("fail the component whose class it is (%s), from the first render, every time, and leave the others' classes be", async (bad) => {
       const handle = await loadTailwind({ plugins: [plugin] });
-      const name = bad.startsWith("v") ? "vboom" : "boom";
+      const name = bad.includes("vboom") ? "vboom" : "boom";
       for (let i = 0; i < 3; i++) {
         expect(() => renderToHtmlNow(template(handle, bad))).toThrow(`[Unlayer] ${name} (in <Paragraph> at Row 1 › Column 1 › Paragraph 2)`);
         // With `onError: "omit"`, that block is left out, and listed; the others keep their classes.
@@ -637,6 +637,38 @@ describe("a render's classes", () => {
         expect([/padding: ?7px/.test(parts.body), />\s*B\s*</.test(parts.body), /padding: ?9px/.test(parts.body)]).toEqual([true, false, true]);
       }
       expect(() => classNameToDeclarations(handle, bad)).toThrow(name);
+    });
+
+    it("fail the component whose class it is where another utility gives the class CSS too, first and later, synchronous and async", async () => {
+      // A static utility of the same name (`.boom-now`, bold) beside the plugin's, which throws for it: the class has
+      // CSS from one and the plugin's error from the other.
+      const both = ({ matchUtilities, addUtilities }: any) => {
+        plugin({ matchUtilities, matchVariant: () => {} });
+        addUtilities({ ".boom-now": { fontWeight: "bold" }, ".now": { color: "green" } });
+      };
+      const page = (handle: TailwindHandle) => (
+        <Tailwind tw={handle}>
+          <Email>
+            <Row>
+              <Column>
+                <Paragraph className="boom-now">FAIL</Paragraph>
+                <Paragraph className="now">OK</Paragraph>
+              </Column>
+            </Row>
+          </Email>
+        </Tailwind>
+      );
+      const pinned = "[Unlayer] boom (in <Paragraph> at Row 1 › Column 1 › Paragraph)";
+      const shown = (body: string) => [/>\s*FAIL\s*</.test(body), />\s*OK\s*</.test(body), /color: ?(green|#008000)/.test(body)];
+      for (const render of [(tw: TailwindHandle) => renderToHtmlPartsNow(page(tw), { onError: "omit" }), (tw: TailwindHandle) => renderToHtmlParts(page(tw), { onError: "omit" })]) {
+        const handle = await loadTailwind({ plugins: [both] });
+        for (let i = 0; i < 3; i++) {
+          const parts = await render(handle);
+          expect(parts.omitted.map((e) => e.message)).toEqual([pinned]);
+          expect(shown(parts.body)).toEqual([false, true, true]);
+        }
+        expect(() => renderToHtmlNow(page(handle))).toThrow(pinned);
+      }
     });
 
     it("change nothing in another render on the same handle, synchronous or async, at once or right after", async () => {
