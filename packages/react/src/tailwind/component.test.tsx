@@ -242,6 +242,52 @@ describe("<Tailwind>: props given win over classes", () => {
     expect(column.padding).toBe("5px");
     expect(column._override.mobile.padding).toBe("8px");
   });
+
+  it("but not a prop given as `undefined`: a wrapper forwarding optional props it wasn't given keeps its classes, in the design and the HTML", () => {
+    // Your own components, passing on what they're given (`color={props.color}`): unset, it's `undefined`.
+    type Optional = { color?: string; fontSize?: string; bg?: string; padding?: string; width?: number };
+    const Text = (p: Optional) => (
+      <Paragraph className="text-blue-500 text-lg max-sm:text-sm uppercase" color={p.color} fontSize={p.fontSize} mobile={{ fontSize: p.fontSize }} style={{ textTransform: p.color }}>
+        Hi
+      </Paragraph>
+    );
+    const Cta = (p: Optional) => (
+      <Button href="https://example.com" className="bg-red-500 text-black px-6" backgroundColor={p.bg} color={p.color} padding={p.padding} buttonColors={{ hoverColor: "#00ff00", color: p.color }}>
+        Go
+      </Button>
+    );
+    const Title = (p: Optional) => <Heading className="text-brand text-2xl" color={p.color} fontSize={p.fontSize}>Title</Heading>;
+    const Picture = (p: Optional) => <Image src="https://example.com/a.png" className="w-32" width={p.width} />;
+    const template = (forward: boolean) => {
+      const given = (props: Record<string, unknown>) => (forward ? props : {});
+      return (
+        <Tailwind tw={tw}>
+          <Email className="bg-gray-100 max-w-[640px]" {...given({ backgroundColor: undefined, contentWidth: undefined })}>
+            <Row className="bg-white" {...given({ columnsBackgroundColor: undefined, backgroundColor: undefined })}>
+              <Column className="bg-zinc-50 rounded-lg p-6" {...given({ backgroundColor: undefined, borderRadius: undefined, padding: undefined })}>
+                {forward ? <Text /> : <Paragraph className="text-blue-500 text-lg max-sm:text-sm uppercase">Hi</Paragraph>}
+                {forward ? <Cta /> : <Button href="https://example.com" className="bg-red-500 text-black px-6" buttonColors={{ hoverColor: "#00ff00" }}>Go</Button>}
+                {forward ? <Title /> : <Heading className="text-brand text-2xl">Title</Heading>}
+                {forward ? <Picture /> : <Image src="https://example.com/a.png" className="w-32" />}
+              </Column>
+            </Row>
+          </Email>
+        </Tailwind>
+      );
+    };
+    const forwarded = renderToJson(template(true));
+    expect(forwarded).toEqual(renderToJson(template(false)));
+    expect(renderToHtml(template(true))).toBe(renderToHtml(template(false)));
+    const [text, cta, title, picture] = forwarded.body.rows[0].columns[0].contents.map((c: any) => c.values);
+    expect(text).toMatchObject({ color: "#2b7fff", fontSize: "18px", _override: { mobile: { fontSize: "14px" } } });
+    expect(cta.buttonColors).toMatchObject({ backgroundColor: "#fb2c36", color: "#000", hoverColor: "#00ff00" });
+    expect(title).toMatchObject({ color: "#007291", fontSize: "24px" });
+    // (128px of the 572px the Column's padding leaves it.)
+    expect(picture.src.maxWidth).toBe("22.38%");
+    expect(forwarded.body.values).toMatchObject({ backgroundColor: "#f3f4f6", contentWidth: "640px" });
+    expect(forwarded.body.rows[0].values.columnsBackgroundColor).toBe("#fff");
+    expect(forwarded.body.rows[0].columns[0].values).toMatchObject({ backgroundColor: "#fafafa", borderRadius: "8px", padding: "24px" });
+  });
 });
 
 describe("<Tailwind>: screen sizes", () => {

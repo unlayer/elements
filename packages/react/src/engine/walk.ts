@@ -14,7 +14,7 @@
  * output is the template's content as a tree (output.ts).
  */
 import type React from "react";
-import { callWithHooks, contextOf, hookState, readContext, SUSPEND, track, type ContextStack, type HookState } from "./dispatcher";
+import { callWithHooks, contextOf, hookState, readContext, SUSPEND, track, type ContextStack, type Fallbacks, type HookState } from "./dispatcher";
 import { ASYNC_IN_SYNC, childFrame, nameOf, placeFrame, positionOf, RenderError, threw, type Frame } from "./errors";
 import { childFormat, escapeText, leadingNewline, openTag, propsBody, validateHost, VOID, type Format } from "./host";
 import { REACT_18 } from "./react-compat";
@@ -70,6 +70,8 @@ export interface Walker {
   frameless?: (type: unknown) => boolean;
   /** What the `useId()`s start with (the render's `idPrefix`). */
   idPrefix?: string;
+  /** What its top-level render reads for contexts no provider gives, once each (see the dispatcher's `readContext`). */
+  fallbacks: Fallbacks;
   collector?: Collector;
   /** Boundaries leave out what fails (`onError: "omit"`); an async walk's always catch, flattening decides. */
   omit: boolean;
@@ -96,15 +98,16 @@ export interface Task {
  * Body; a render the template's code starts): its providers are around that walk, as React's nested renders read the
  * values of the render they're in, and its place in the tree is where that walk's ids start, so they're the document's.
  * By design, the one thing outside a render's scope its output depends on (ARCHITECTURE.md, invariant 4): `guest`
- * doesn't clear it, and a render started outside any component's call starts at the top.
+ * doesn't clear it, and a render started outside any component's call starts at the top. A walk started there reads
+ * the contexts no provider gives as the walk calling it does (its `fallbacks`): one value each in a top-level render.
  */
-let calling: { tree: TreeContext; contexts: ContextStack | null } | null = null;
+let calling: { tree: TreeContext; contexts: ContextStack | null; fallbacks: Fallbacks } | null = null;
 export const caller = () => calling;
 
 /** `fn`, called as a component at `task` (see `calling`). */
-function asCaller<T>(task: Task, fn: () => T): T {
+function asCaller<T>(w: Walker, task: Task, fn: () => T): T {
   const outer = calling;
-  calling = { tree: task.tree, contexts: task.contexts };
+  calling = { tree: task.tree, contexts: task.contexts, fallbacks: w.fallbacks };
   try {
     return fn();
   } finally {
@@ -198,7 +201,7 @@ export function walkNode(w: Walker, node: unknown, task: Task, out: Part[]): voi
   if (!REACT_18) {
     // React 19 renders what a promise child resolves to, as `use()` would, and a context's value.
     if (isThenable(object)) return walkThenable(w, object, task, out);
-    if (tag === CONTEXT) return walkNode(w, readContext(task.contexts, object), task, out);
+    if (tag === CONTEXT) return walkNode(w, readContext(task.contexts, object, w.fallbacks), task, out);
   }
   const keys = Object.prototype.toString.call(object) === "[object Object]" ? `object with keys {${Object.keys(object).join(", ")}}` : Object.prototype.toString.call(object);
   throw fatal(w, `Objects are not valid as a React child (found: ${keys}). If you meant to render a collection of children, use an array instead`, task.frame);
@@ -257,9 +260,9 @@ function walkElement(w: Walker, element: React.ReactElement, task: Task, out: Pa
         return withContext(w, type._context, props, task, out);
       case CONTEXT:
         // React 18: a Consumer (the context, or in development an object with `_context`). React 19: the provider.
-        return REACT_18 ? walkNode(w, returned(keep, props.children(readContext(task.contexts, type))), task, out) : withContext(w, type, props, task, out);
+        return REACT_18 ? walkNode(w, returned(keep, props.children(readContext(task.contexts, type, w.fallbacks))), task, out) : withContext(w, type, props, task, out);
       case CONSUMER:
-        return walkNode(w, returned(keep, props.children(readContext(task.contexts, type._context))), task, out);
+        return walkNode(w, returned(keep, props.children(readContext(task.contexts, type._context, w.fallbacks))), task, out);
       case CLIENT_REF:
         throw clientReference(w, type, task);
     }
@@ -374,11 +377,11 @@ function walkFunction(w: Walker, fn: Function, named: unknown, props: Record<str
   const frame = w.frameless?.(named) ? task.frame : childFrame(task.frame, name);
   // Not called when nothing can wait for it (and the promise it gives back could reject unhandled).
   if (!w.wait && isAsyncFunction(fn)) throw new SyncSuspend(name, frame);
-  const state = hookState(name, task.tree, task.contexts, w.idPrefix);
+  const state = hookState(name, task.tree, task.contexts, w.idPrefix, w.fallbacks);
   if (!w.bare?.(named)) return callAndWalk(w, state, fn, props, secondArg, frame, task, out, keep);
   let result: unknown;
   try {
-    result = asCaller(task, () => fn(props, secondArg));
+    result = asCaller(w, task, () => fn(props, secondArg));
   } catch (error) {
     throw positioned(w, error, name, frame);
   }
@@ -388,7 +391,7 @@ function walkFunction(w: Walker, fn: Function, named: unknown, props: Record<str
 function callAndWalk(w: Walker, state: HookState, fn: Function, props: Record<string, any>, secondArg: unknown, frame: Frame, task: Task, out: Part[], keep?: Record<string, any>): void {
   let result: unknown;
   try {
-    result = asCaller(task, () => call(state, fn, props, secondArg));
+    result = asCaller(w, task, () => call(state, fn, props, secondArg));
   } catch (thrown) {
     const thenable = suspension(thrown, state);
     if (!thenable) throw positioned(w, failure(thrown), state.name, frame);
@@ -448,7 +451,7 @@ function walkResult(w: Walker, state: HookState, result: unknown, frame: Frame, 
 function walkClass(w: Walker, Ctor: any, given: Record<string, any>, task: Task, out: Part[], keep?: Record<string, any>, frame = childFrame(task.frame, nameOf(Ctor))): void {
   let result: unknown;
   try {
-    result = asCaller(task, () => renderClass(Ctor, given, task.contexts));
+    result = asCaller(w, task, () => renderClass(Ctor, given, task.contexts, w.fallbacks));
   } catch (thrown) {
     const thenable = suspension(thrown);
     if (!thenable) throw positioned(w, failure(thrown), frame.name, frame);
@@ -469,9 +472,9 @@ function walkClass(w: Walker, Ctor: any, given: Record<string, any>, task: Task,
 }
 
 /** A class component constructed and rendered as a server renders one (its state from getDerivedStateFromProps, or componentWillMount). */
-export function renderClass(Ctor: any, given: Record<string, any>, contexts: ContextStack | null): unknown {
+export function renderClass(Ctor: any, given: Record<string, any>, contexts: ContextStack | null, fallbacks?: Fallbacks): unknown {
   const props = withDefaults(Ctor, given) as Record<string, any>;
-  const context = Ctor.contextType ? readContext(contexts, Ctor.contextType) : {};
+  const context = Ctor.contextType ? readContext(contexts, Ctor.contextType, fallbacks) : {};
   const queue: unknown[] = [];
   const updater = {
     isMounted: () => false,

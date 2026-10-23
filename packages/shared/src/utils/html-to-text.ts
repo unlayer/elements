@@ -58,6 +58,12 @@ function without(html: string, test: (tag: string) => boolean): string {
 }
 
 /**
+ * Markup without its tags. An email service's tag (`<%first_name%>`, SendGrid's; `<%= name %>`) isn't one: it's text
+ * to a browser too (a tag's name starts with a letter), which the service fills in, so it stays.
+ */
+const untagged = (html: string) => html.replace(/<(?!%[^<>]*%>)[^>]+>/g, "");
+
+/**
  * Decode HTML entities (named and numeric).
  */
 function decodeEntities(text: string): string {
@@ -117,7 +123,7 @@ export function htmlToPlainText(html: string, options: PlainTextOptions = {}): s
     const [, ...quoted] = /\shref\s*=\s*(?:"([^"]+)"|'([^']+)'|([^\s"'>]+))/i.exec(attributes) ?? [];
     const href = quoted.find(Boolean);
     if (!href) return link;
-    const clean = content.replace(/<[^>]+>/g, "").trim();
+    const clean = untagged(content).trim();
     // Skip if link text is the same as URL (avoid duplication)
     if (clean === href || clean === decodeEntities(href)) return url(href);
     return links === "none" ? clean : links === "after" ? `${clean} [${listed.push(href)}]` : `${clean} (${url(href)})`;
@@ -127,17 +133,17 @@ export function htmlToPlainText(html: string, options: PlainTextOptions = {}): s
   // Preformatted text (code) as it is, spaces and lines kept (but at their ends): set aside until the end.
   const pre: string[] = [];
   // A line of its own, unless it ends a table cell (code with line numbers: a row per line).
-  text = text.replace(/<pre\b[^>]*>([\s\S]*?)<\/pre>(\s*<\/t[dh]>)?/gi, (_, content: string, cell?: string) => `\u0000${pre.push(restore(decodeEntities(content.replace(/<[^>]+>/g, ""))).replace(/[^\S\n]+$/gm, "")) - 1}\u0000${cell ?? "\n"}`);
+  text = text.replace(/<pre\b[^>]*>([\s\S]*?)<\/pre>(\s*<\/t[dh]>)?/gi, (_, content: string, cell?: string) => `\u0000${pre.push(restore(decodeEntities(untagged(content))).replace(/[^\S\n]+$/gm, "")) - 1}\u0000${cell ?? "\n"}`);
 
   // 4. Convert headings: h1-h2 → UPPERCASE, h3-h6 → as-is
   text = text.replace(/<h[12][^>]*>([\s\S]*?)<\/h[12]>/gi, (_, content) => {
-    const clean = content.replace(/<[^>]+>/g, "").trim();
-    // Entities stay as written, to decode below (`&amp;` uppercased wouldn't).
-    const upper = clean.replace(/&#?\w+;|[^&]+|&/g, (part: string) => (/^&#?\w+;$/.test(part) || !uppercaseHeadings ? part : part.toUpperCase()));
+    const clean = untagged(content).trim();
+    // Entities stay as written, to decode below (`&amp;` uppercased wouldn't), and an email service's tags as they are.
+    const upper = clean.replace(/<%[^<>]*%>|&#?\w+;|[^&<]+|[&<]/g, (part: string) => (/^(&#?\w+;|<%[^<>]*%>)$/.test(part) || !uppercaseHeadings ? part : part.toUpperCase()));
     return "\n" + upper + "\n";
   });
   text = text.replace(/<h[3-6][^>]*>([\s\S]*?)<\/h[3-6]>/gi, (_, content) => {
-    const clean = content.replace(/<[^>]+>/g, "").trim();
+    const clean = untagged(content).trim();
     return "\n" + clean + "\n";
   });
 
@@ -153,7 +159,7 @@ export function htmlToPlainText(html: string, options: PlainTextOptions = {}): s
 
   // 7. Convert list items
   text = text.replace(/<li[^>]*>([\s\S]*?)<\/li>/gi, (_, content) => {
-    const clean = content.replace(/<[^>]+>/g, "").trim();
+    const clean = untagged(content).trim();
     return "- " + clean + "\n";
   });
 
@@ -165,7 +171,7 @@ export function htmlToPlainText(html: string, options: PlainTextOptions = {}): s
   text = text.replace(/<\/(?:td|th)>/gi, "\t");
 
   // 11. Remove all remaining HTML tags
-  text = text.replace(/<[^>]+>/g, "");
+  text = untagged(text);
 
   // 12. Decode HTML entities
   text = decodeEntities(text);
