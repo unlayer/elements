@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { normalizeColor, normalizeCssValues, normalizeFontStack, pxZeros } from "./css-values";
+import { cssValueSafe, normalizeColor, normalizeCssValues, normalizeFontStack, pxZeros } from "./css-values";
 
 describe("normalizeColor", () => {
   it("writes opaque rgb()/rgba() as hex, in comma or space syntax", () => {
@@ -116,5 +116,12 @@ describe("pxZeros", () => {
 
   it("leaves other keys, and lengths in another unit, as they are", () => {
     expect(pxZeros({ lineHeight: "0", text: "0 0", marginal: "0", margin: "0 auto", padding: "1em 0" })).toEqual({ lineHeight: "0", text: "0 0", marginal: "0", margin: "0 auto", padding: "1em 0" });
+  });
+});
+
+describe("cssValueSafe", () => {
+  it("takes an image's whole data URL in base64, whose `;` is in the URL, and nothing that ends a declaration", () => {
+    for (const value of ["url(data:image/png;base64,iVBORw0KGgo+/A==)", "url('data:image/gif;base64,R0lGOD')", "url(data:image/png;base64,A) center / cover", "url(data:image/png,x)", "12px"]) expect([value, cssValueSafe(value)]).toEqual([value, true]);
+    for (const value of ["url(data:image/png;base64,AAAA);color:red", "url(data:image/svg+xml;base64,AAAA)", "url('data:image/png;base64,AAAA)", "url(data:image/png;charset=x;base64,AAAA)", "red;color:blue", "16px</style>", "a}", "calc(1px"]) expect([value, cssValueSafe(value)]).toEqual([value, false]);
   });
 });
