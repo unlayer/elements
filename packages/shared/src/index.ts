@@ -73,6 +73,7 @@ export {
 
 // Utils - Value merging
 export { mergeValues } from "./utils/merge-values";
+export { codePoint, entities } from "./utils/entities";
 export { cssValueSafe, normalizeColor, normalizeCssValues, normalizeFontStack, pxMerged, pxZeros } from "./utils/css-values";
 
 // Utils - Semantic props

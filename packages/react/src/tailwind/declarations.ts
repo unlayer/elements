@@ -69,12 +69,14 @@ export interface Compiler {
 
 /**
  * A plugin's function that threw for a class (`error`), or gave CSS that couldn't be read (none): a utility's or a
- * variant's (`variant`), by its name, with the keys of its values that give the value it was given (where one does).
+ * variant's (`variant`), by its name, with the keys of its values that give the value it was given (where one does),
+ * else that value (`value`: a class's arbitrary or bare value).
  */
 export interface PluginFailure {
   name: string;
   variant?: boolean;
   keys?: string[];
+  value?: string;
   error?: unknown;
 }
 
@@ -96,18 +98,35 @@ function partsOf(token: string): [string[], string] {
   return [variants, token.slice(from).replace(/^!|!$/g, "").replace(/^-/, "")];
 }
 
-/** Whether a variant or utility of a class (`boom-now`, `boom-[x]`, `boom`) is the one a failure was for. */
-function named(part: string, { name, keys }: PluginFailure): boolean {
-  if (part === name) return !keys || keys.includes("DEFAULT");
+/**
+ * Whether a variant or utility of a class (`boom-now`, `boom-[x]`, `boom`) is the one a failure was for: by its name
+ * and value (`loose`: by its name, any value).
+ */
+function named(part: string, { name, keys, value }: PluginFailure, loose?: boolean): boolean {
+  if (part === name) return loose || !keys || keys.includes("DEFAULT");
   if (!part.startsWith(name + "-")) return false;
-  const value = part.slice(name.length + 1);
-  return !keys || value.startsWith("[") || keys.includes(value) || keys.includes(value.replace(/\/[^/]*$/, ""));
+  const given = part.slice(name.length + 1);
+  // (Its modifier aside, `/50`, outside its brackets.)
+  const bare = given.replace(/\/[^/\]]*$/, "");
+  if (loose || keys?.includes(given) || keys?.includes(bare)) return true;
+  if (keys) return false;
+  // An arbitrary value as Tailwind reads it (its type hint aside, `_` a space), or a bare one.
+  const arbitrary = /^\[(?:[\w-]+:)?([\s\S]*)\]$/.exec(bare)?.[1];
+  return value === undefined || (arbitrary ?? bare).replace(/_/g, " ") === value;
 }
 
-/** Whether a class is one a plugin's failure was for: by its utility, or a variant's by its variants. */
-const owns = (token: string, failure: PluginFailure) => {
+/** A variant and the variants inside it (`group-vboom-now` holds `vboom-now`), as Tailwind's compound variants hold them. */
+function* inner(variant: string): Generator<string> {
+  for (let part = variant; ; part = part.replace(/^(group|peer|not|in|has)-/, "")) {
+    yield part;
+    if (!/^(group|peer|not|in|has)-/.test(part)) return;
+  }
+}
+
+/** Whether a class is one a plugin's failure was for: by its utility, or a variant's by its variants (`loose`: see named). */
+const owns = (token: string, failure: PluginFailure, loose?: boolean) => {
   const [variants, utility] = partsOf(token);
-  return failure.variant ? variants.some((v) => named(v, failure)) : named(utility, failure);
+  return failure.variant ? variants.some((v) => [...inner(v)].some((part) => named(part, failure, loose))) : named(utility, failure, loose);
 };
 
 /**
@@ -305,14 +324,16 @@ export function declarationReader(compiler: Compiler, renew?: () => Promise<Comp
     if (seen.size > limit) fresh();
     return true;
   };
-  // What plugins' functions threw while a build built `tokens` (kept from Tailwind, which built the class as one with no
-  // CSS: see load.ts's `guarded`), on the classes of it it was for (with no CSS, a utility or a variant of that name and
-  // value), each thrown where it's read; one none was found for is thrown now.
+  // What plugins' functions threw while a build built `tokens` (kept from Tailwind, which built the class's CSS without
+  // what the function gave: see guard.ts), on the classes of it it was for, each thrown where it's read, in every render
+  // that reads it (whatever another utility gives the class): those of the utility or variant of that name and value;
+  // else of that name; else the build's classes with no CSS; else all its classes.
   const blame = (tokens: string[], plugins: PluginFailure[]) => {
     for (const failure of plugins) {
-      const own = tokens.filter((token) => !byToken.has(token) && owns(token, failure));
-      for (const token of own) failed.set(token, failure.error);
-      if (!own.length && failure.error !== undefined) thrown ??= { error: failure.error };
+      let own = tokens.filter((token) => owns(token, failure));
+      if (!own.length) own = tokens.filter((token) => owns(token, failure, true));
+      if (!own.length) own = tokens.filter((token) => !byToken.has(token));
+      for (const token of own.length ? own : tokens) failed.set(token, failure.error);
     }
   };
   const tokensOf = (className: string) => [...new Set(String(className).split(/\s+/).filter(Boolean))];

@@ -148,7 +148,7 @@ async function compile(config: TailwindConfig | undefined, source = config): Pro
       const html = explicit.html;
       if (typeof html === "string" && /class/i.test(html)) explicit = { ...explicit, html: inlineClasses(html, read, warn, rtl, explicit._sanitized ? unsafeStyle : undefined) };
       const found = read(className);
-      if (missed) throw Object.assign(new RenderError(`<Tailwind> can't read the class \`${missed.className}\` now: ${missed.reason}. Render again then (the async renderers wait for it)`, name, ""), { [TAILWIND]: true });
+      if (missed) throw Object.assign(new RenderError(`<Tailwind> can't read the class \`${missed.className}\` now: ${missed.reason}. Render again then (the async renderers wait for it)`, name, ""), { [TAILWIND]: { compiling: true } });
       // Classes past the render's first CLASSES: said once in the render, where they're first met.
       if (capped.first !== undefined && !capped.said && (capped.said = true)) warn(`ignores class \`${capped.first}\`, and the render's other classes past its first ${CLASSES} different ones: a render reads ${CLASSES} at most`);
       return classesToProps(name, { ...found, ignored: found.ignored.filter((i) => i.reason !== OVER) }, explicit, defaults, false, rtl);
