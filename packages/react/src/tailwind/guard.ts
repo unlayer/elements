@@ -3,11 +3,13 @@
  * and builds them all again with the next new one, so a plugin's function that throws for one class (a class from
  * data) would fail every build after it: every render's with that handle, other tenants' too. What such a function
  * (a utility's or component's for a value, `matchUtilities` and `matchComponents`; a variant's, `matchVariant`) throws
- * while a build runs, or gives that can't be read as CSS (a quote or a bracket left open, a comment: see `readable`), is
- * logged instead, and the class gives no CSS; the reader (declarations.ts) fails the component whose class it was, where
- * it's read, or leaves the class out.
+ * while a build runs, or gives that the compiler would throw for (see `compilable` and `selectors`), is logged
+ * instead, and the class gives no CSS; the reader (declarations.ts) fails the component whose class it was, where it's
+ * read. What can't be read as CSS (a quote or a bracket left open, a comment: see `readable`) is logged too, and the
+ * class left out; nothing (`undefined` or `null`, as a function returns for a value it doesn't take) is no CSS, the
+ * class one Tailwind doesn't have, as Tailwind 3 took it.
  */
-import { readable, type PluginFailure } from "./declarations";
+import { APPLY, readable, type PluginFailure } from "./declarations";
 
 type Api = Record<string, any>;
 type Fn = (this: unknown, ...args: any[]) => unknown;
@@ -22,6 +24,45 @@ function keysOf(values: unknown, value: unknown): Pick<PluginFailure, "keys" | "
 const clean = (out: unknown, depth = 0): boolean =>
   typeof out === "string" ? readable(out) : out && typeof out === "object" && depth < 32 ? Object.entries(out).every(([key, value]) => readable(key) && clean(value, depth + 1)) : true;
 
+/** What a plugin's function gave, for an error that says it: its type, or the text of what it is. */
+const what = (out: unknown): string => (Array.isArray(out) ? "a list" : out && typeof out === "object" ? "an object" : `\`${typeof out === "string" ? JSON.stringify(out) : String(out)}\``);
+
+/**
+ * What a utility's or component's function gave, as Tailwind's compiler can take it: each `@apply` in it an APPLY
+ * declaration of its classes, which the reader applies (Tailwind's compiler throws for one of a class or a variant it
+ * doesn't have, or of the class itself, and then for every build after it). It throws (an Error saying so) where the
+ * compiler would: for a list holding nothing (`[null]`), and for what nests more than 32 deep.
+ */
+function compilable(out: unknown, name: string): unknown {
+  let applies = 0;
+  const walk = (value: unknown, depth: number): unknown => {
+    if (depth > 32) throw new Error(`<Tailwind>: the plugin's \`${name}\` function gives CSS nested more than 32 deep`);
+    if (Array.isArray(value)) {
+      if (value.some((item) => item == null)) throw new Error(`<Tailwind>: the plugin's \`${name}\` function gives a list holding ${what(value.find((item) => item == null))}, which Tailwind can't compile`);
+      return value.map((item) => walk(item, depth + 1));
+    }
+    if (!value || typeof value !== "object") return value;
+    return Object.fromEntries(
+      Object.entries(value).map(([key, inner]) =>
+        /^@apply(\s|$)/.test(key) ? [`${APPLY}${applies++}`, applied(key.slice(6).trim(), name)] : [key, walk(inner, depth + 1)]
+      )
+    );
+  };
+  return walk(out, 0);
+}
+
+/** An `@apply`'s classes, as an APPLY declaration's value (URL-encoded: CSS reads it as written). */
+function applied(classes: string, name: string): string {
+  if (!classes) throw new Error(`<Tailwind>: the plugin's \`${name}\` function gives an \`@apply\` with no class in it`);
+  return encodeURIComponent(classes).replace(/[!'()*~]/g, (c) => `%${c.charCodeAt(0).toString(16).toUpperCase()}`);
+}
+
+/** What a variant's function gave, where Tailwind's compiler can take it: a selector, or a list of them (it throws otherwise). */
+function selectors(out: unknown, name: string): unknown {
+  if (typeof out === "string" || (Array.isArray(out) && out.every((item) => typeof item === "string"))) return out;
+  throw new Error(`<Tailwind>: the plugin's \`${name}\` variant gives ${what(out)}, not a selector or a list of them`);
+}
+
 /**
  * `config` with its plugins' (and its presets' plugins') functions for a class kept from throwing into a build
  * (`building()`): each failure goes to `log`, the class giving no CSS (a utility nothing, a variant no selector).
@@ -32,15 +73,14 @@ export function guarded<T>(config: T, log: PluginFailure[], building: () => bool
   const guard = (fn: Fn, name: string, variant: boolean, values: unknown): Fn =>
     function (value, extra) {
       if (!building()) return fn.call(this, value, extra);
-      let out: unknown;
       try {
-        out = fn.call(this, value, extra);
+        const out = fn.call(this, value, extra);
+        if (out == null) return variant ? [] : {};
+        if (clean(out)) return variant ? selectors(out, name) : compilable(out, name);
+        log.push({ name, variant, ...keysOf(values, value) });
       } catch (error) {
         log.push({ name, variant, ...keysOf(values, value), error });
-        return variant ? [] : {};
       }
-      if (clean(out)) return out;
-      log.push({ name, variant, ...keysOf(values, value) });
       return variant ? [] : {};
     };
   const api = (given: Api): Api => {
