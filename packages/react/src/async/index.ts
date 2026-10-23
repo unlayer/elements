@@ -40,16 +40,14 @@ const LOADER = Symbol.for("@unlayer/react-elements/tailwind-loader");
 const TAILWIND = Symbol.for("@unlayer/react-elements/tailwind");
 
 /**
- * Until none of `handles` is compiling again after a class it couldn't read (see the Tailwind entry's
+ * When none of `handles` is compiling again after a class it couldn't read (see the Tailwind entry's
  * declarationReader), whose classes a synchronous render couldn't read till then: a few rounds at most, as another
- * render's class can make one compile again while this waits.
+ * render's class can make one compile again while this waits. Nothing (undefined) where none is: the render isn't put
+ * off a tick for it.
  */
-async function compiled(handles: unknown[]): Promise<void> {
-  for (let round = 0; round < 4; round++) {
-    const waits = handles.map((handle) => (handle as Record<symbol, { ready?(): Promise<void> | undefined }> | null)?.[TAILWIND]?.ready?.()).filter(Boolean);
-    if (!waits.length) return;
-    await Promise.all(waits);
-  }
+function compiled(handles: unknown[], rounds = 4): Promise<void> | undefined {
+  const waits = handles.map((handle) => (handle as Record<symbol, { ready?(): Promise<void> | undefined }> | null)?.[TAILWIND]?.ready?.()).filter(Boolean);
+  return waits.length && rounds ? Promise.all(waits).then(() => compiled(handles, rounds - 1)) : undefined;
 }
 
 interface Collected {
@@ -122,7 +120,8 @@ async function render<T>(element: React.ReactElement, options: Partial<UnlayerCo
     return undefined;
   };
   // (Right before the render, which is synchronous: nothing compiles again in between.)
-  await compiled([...given, ...[...handles.values()].flatMap((compiled) => [...compiled.values()])]);
+  const waiting = compiled([...given, ...[...handles.values()].flatMap((compiled) => [...compiled.values()])]);
+  if (waiting) await waiting;
   return internals.withScope(scope, () => run(internals.renders, root));
 }
 
