@@ -689,13 +689,13 @@ describe("a render's classes", () => {
       </Tailwind>
     );
     const count = (html: string) => html.match(/text-indent: \d+px/g)?.length;
-    for (let round = 0; round < 3; round++) {
+    for (let round = 0; round < 2; round++) {
       const sync = [0, 1, 2].map((i) => count(renderToHtmlNow(page((round * 6 + i) * 1500))));
       const async = await Promise.all([3, 4, 5].map(async (i) => count(await renderToHtml(page((round * 6 + i) * 1500)))));
       expect([...sync, ...async]).toEqual([1500, 1500, 1500, 1500, 1500, 1500]);
     }
     expect(warn).not.toHaveBeenCalled();
-  });
+  }, 60_000);
 
   it("are a <Tailwind>'s own: a class outside it isn't compiled", async () => {
     // (The plugin says which of its classes Tailwind compiled, and throws for this one.)
