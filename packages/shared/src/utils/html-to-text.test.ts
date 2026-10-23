@@ -22,6 +22,14 @@ describe("htmlToPlainText", () => {
     expect(htmlToPlainText("<h2>Features</h2>")).toBe("FEATURES");
   });
 
+  it("keeps an email service's tags (`<%first_name%>`), which a browser reads as text too: in headings as written", () => {
+    expect(htmlToPlainText("<p>Hi <%first_name%>, <b>bold</b> <%= user.name %></p><h1>Hi <%first_name%></h1><ul><li>For <%company%></li></ul>")).toBe(
+      "Hi <%first_name%>, bold <%= user.name %>\n\nHI <%first_name%>\n- For <%company%>"
+    );
+    // What isn't one is still a tag.
+    expect(htmlToPlainText("<p>a<%b c>d</p>")).toBe("ad");
+  });
+
   it("uppercases an h1/h2 around its entities, which still decode (`Q&A`, not `Q&AMP;A`)", () => {
     expect(htmlToPlainText("<h1>Q&amp;A &lt;3 caf\u00e9</h1>")).toBe("Q&A <3 CAF\u00c9");
   });

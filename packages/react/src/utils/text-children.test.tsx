@@ -220,6 +220,49 @@ describe("an email service's <%name%> tag in text", () => {
   });
 });
 
+describe("an email service's tag in the plain text", () => {
+  it("stays, in a Paragraph with inline markup as in one of text (as 0.2.1 kept it), a Heading and a Button; so do other services' tags", () => {
+    const tags = "<%first_name%> {{last_name}} *|FNAME|* %%Company%%";
+    const template = (
+      <Email>
+        <Row>
+          <Column>
+            <Paragraph>
+              Hi {tags}, <b>bold</b> and <a href="https://example.com">a link</a>
+            </Paragraph>
+            <Paragraph>Hi {tags}</Paragraph>
+            <Heading>{`Hello ${tags}`}</Heading>
+            <Button href="https://example.com">{`Go ${tags}`}</Button>
+          </Column>
+        </Row>
+      </Email>
+    );
+    const text = renderToPlainText(template);
+    expect(text).toContain(`Hi ${tags}, bold and a link (https://example.com)`);
+    expect(text).toContain(`Hi ${tags}\n`);
+    expect(text).toContain("HELLO <%first_name%> {{LAST_NAME}} *|FNAME|* %%COMPANY%%");
+    expect(text).toContain(`Go ${tags} (https://example.com)`);
+  });
+
+  it("doesn't change how the HTML escapes what's around it", () => {
+    const template = (
+      <Email>
+        <Row>
+          <Column>
+            <Paragraph>
+              {"<%name%><img src=x onerror=alert(1)> <% x %><svg onload=alert(2)>"} <b>b</b>
+            </Paragraph>
+          </Column>
+        </Row>
+      </Email>
+    );
+    const html = renderToHtml(template);
+    expect(html).toContain("<%name%>&lt;img src=x onerror=alert(1)&gt; &lt;% x %&gt;&lt;svg onload=alert(2)&gt; <b>b</b>");
+    expect(new DOMParser().parseFromString(html, "text/html").querySelectorAll("img, svg")).toHaveLength(0);
+    expect(renderToPlainText(template)).toContain("<%name%><img src=x onerror=alert(1)> <% x %><svg onload=alert(2)> b");
+  });
+});
+
 describe("Menu item text in an email", () => {
   // The email exporter writes it as HTML, as 0.1.22 wrote it as given: an entity and a single quote (a template's
   // string) stay as written; markup is escaped, and a double quote, also in a template tag: it's in an aria-label too.
