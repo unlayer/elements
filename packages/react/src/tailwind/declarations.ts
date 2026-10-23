@@ -63,6 +63,15 @@ export interface Compiler {
 }
 
 /**
+ * A class string's declarations, read with a compiler; `prepare` builds the classes of one it hasn't built, at once,
+ * without reading them (a render's, before they're read one component at a time: see declarationReader).
+ */
+export interface DeclarationReader {
+  (className: string): ClassDeclarations;
+  prepare(className: string): void;
+}
+
+/**
  * The classes a compiler builds before a fresh one takes over. Tailwind's keeps every class it has built, and each new
  * one builds and reads again the stylesheet of them all: about 1 ms per 300 classes (7 ms at 2,000), and memory that
  * grows with each, as classes made from data (`w-[123px]`) keep coming. An app's own classes, hundreds to a couple of
@@ -85,6 +94,13 @@ const WAITING = "it's read once Tailwind has compiled again, after a class it co
  * good: the reader keeps its compiler, and after a build that didn't read cleanly reads no new class (and says so).
  */
 const RENEWALS = 3;
+
+/**
+ * The classes of a build that didn't read cleanly that are built alone, one at a time, to find the one that was why
+ * (see declarationReader): past them, the others are refused too. Each build is Tailwind's whole stylesheet again, so
+ * the many classes of one build (a render's) can't each be built alone.
+ */
+export const SUSPECTS = 100;
 
 /**
  * Whether Tailwind can build a class without changing how what it builds after it reads: its brackets, parentheses,
@@ -112,7 +128,12 @@ function readable(token: string): boolean {
  * built: a class string reads the same whatever its compiler built before. A class that could change how the
  * stylesheet reads isn't built (`readable`); a build whose stylesheet still doesn't read cleanly is left out (its
  * classes said, the classes before it read as they did), and a fresh compiler takes over, on which each of that
- * build's classes is built alone first: the one that was why is never built again.
+ * build's classes is built alone first (SUSPECTS of them at most: the others are refused): the one that was why is
+ * never built again.
+ *
+ * Each build is Tailwind's whole stylesheet again (it keeps every class it built), so classes are best built many at
+ * once: `prepare` builds a render's, all the classes its components and their markup are given, before they're read
+ * one component at a time (which would take the square of their number: seconds for a few thousand).
  *
  * So after such a build, which `readable` refuses every known cause of, new classes aren't read till the fresh compiler
  * is ready (`WAITING`, said): a render that meets one before reads it as left out, and a later one reads it. That can't
@@ -122,7 +143,7 @@ function readable(token: string): boolean {
  * changing how the next reads), and a spare compiler kept ready would double each handle's compiling and memory for a
  * case no known class reaches.
  */
-export function declarationReader(compiler: Compiler, renew?: () => Promise<Compiler>, limit = CLASSES): (className: string) => ClassDeclarations {
+export function declarationReader(compiler: Compiler, renew?: () => Promise<Compiler>, limit = CLASSES): DeclarationReader {
   let seen = new Set<string>();
   let sheet = empty();
   let byToken = new Map<string, Rule[]>();
@@ -131,6 +152,8 @@ export function declarationReader(compiler: Compiler, renew?: () => Promise<Comp
   let dirty = false;
   const suspects = new Set<string>();
   const refused = new Set<string>();
+  // Suspects built alone since the last build that didn't read cleanly (see SUSPECTS).
+  let alone = 0;
   // Fresh compilers that failed in a row (see RENEWALS), and the last one's error.
   let failures = 0;
   let failure = "";
@@ -169,30 +192,39 @@ export function declarationReader(compiler: Compiler, renew?: () => Promise<Comp
     if (seen.size > limit) fresh();
     return true;
   };
-  return (className) => {
-    const tokens = [...new Set(String(className).split(/\s+/).filter(Boolean))];
+  const tokensOf = (className: string) => [...new Set(String(className).split(/\s+/).filter(Boolean))];
+  // The classes not built yet, built: a suspect alone, the rest at once.
+  const need = (tokens: string[]) => {
     const unread = tokens.filter((token) => !seen.has(token) && !refused.has(token) && readable(token));
-    if (unread.length) {
-      for (const token of unread) if (!dirty && suspects.delete(token) && !build([token])) refused.add(token);
-      const rest = unread.filter((token) => !seen.has(token) && !refused.has(token) && !suspects.has(token));
-      if (rest.length && !dirty && !build(rest)) rest.forEach((token) => suspects.add(token));
-      if (dirty) fresh();
+    if (!unread.length) return;
+    for (const token of unread) if (!dirty && suspects.delete(token) && (alone++ >= SUSPECTS || !build([token]))) refused.add(token);
+    const rest = unread.filter((token) => !seen.has(token) && !refused.has(token) && !suspects.has(token));
+    if (rest.length && !dirty && !build(rest)) {
+      rest.forEach((token) => suspects.add(token));
+      alone = 0;
     }
+    if (dirty) fresh();
+  };
+  const read = (className: string): ClassDeclarations => {
+    const tokens = tokensOf(className);
+    need(tokens);
     const ignored: ClassDeclarations["ignored"] = [];
+    // (Each class once, with the first reason it isn't read.)
+    const left = new Set<string>();
+    const leave = (className: string, reason: string) => void (!left.has(className) && left.add(className) && ignored.push({ className, reason }));
     const applied: Array<{ rule: Rule; when: ClassCondition }> = [];
     for (const token of tokens) {
       // One not built on this compiler: refused, or waiting for a fresh one (see declarationReader).
       if (!seen.has(token)) {
-        const reason = refused.has(token) || !readable(token) || !renew ? UNREADABLE : failures < RENEWALS ? WAITING : `Tailwind couldn't compile again after a class it couldn't read (${failure})`;
-        ignored.push({ className: token, reason });
+        leave(token, refused.has(token) || !readable(token) || !renew ? UNREADABLE : failures < RENEWALS ? WAITING : `Tailwind couldn't compile again after a class it couldn't read (${failure})`);
         continue;
       }
       const rules = byToken.get(token);
-      if (!rules?.length) ignored.push({ className: token, reason: "Tailwind has no such class" });
+      if (!rules?.length) leave(token, "Tailwind has no such class");
       for (const rule of rules ?? []) {
         const when = conditionOf(rule);
         if (typeof when === "string") applied.push({ rule, when });
-        else if (!ignored.some((i) => i.className === token)) ignored.push({ className: token, ...when });
+        else leave(token, when.reason);
       }
     }
     applied.sort((a, b) => a.rule.order - b.rule.order);
@@ -204,14 +236,12 @@ export function declarationReader(compiler: Compiler, renew?: () => Promise<Comp
       for (const d of rule.declarations) {
         if (d.property.startsWith("--")) continue;
         const value = emailValue(d.value, (name) => own[when].get(name) ?? own.always.get(name) ?? sheet.vars.get(name) ?? sheet.initial.get(name));
-        if (value === undefined || value === TOO_LONG) {
-          const reason = value === TOO_LONG ? `\`${d.property}\`'s variables come to more than ${MAX_VALUE} characters` : `\`${d.property}\` uses a variable Tailwind doesn't set`;
-          if (!ignored.some((i) => i.className === rule.token)) ignored.push({ className: rule.token, reason });
-        }
+        if (value === undefined || value === TOO_LONG) leave(rule.token, value === TOO_LONG ? `\`${d.property}\`'s variables come to more than ${MAX_VALUE} characters` : `\`${d.property}\` uses a variable Tailwind doesn't set`);
         else declarations.push({ className: rule.token, property: d.property, value, when, important: d.important });
       }
     }
     // `!important` wins over the rest, wherever it is.
     return { declarations: [...declarations.filter((d) => !d.important), ...declarations.filter((d) => d.important)], ignored };
   };
+  return Object.assign(read, { prepare: (className: string) => need(tokensOf(className)) });
 }

@@ -425,6 +425,21 @@ describe("Markdown in a <Tailwind>", () => {
     expect(variants).not.toContain("x.test");
   });
 
+  it("renders Markdown from data in about the time its size calls for: elements nested deep in one with a class, many classes", () => {
+    // Each about 300 KB. Nested 30,000 deep took seconds, growing with the square of the depth; 9,000 classes Tailwind
+    // hadn't built, in one paragraph or one to a paragraph, took minutes (each read alone built its whole stylesheet again).
+    const n = 9000;
+    for (const [markdown, style] of [
+      ['<div class="p-1">' + "<div>".repeat(30_000) + "x" + "</div>".repeat(30_000) + "</div>", "padding: 4px"],
+      [Array.from({ length: n }, (_, i) => `<span class="p-[${i}px]">x</span>`).join(" "), "padding: 8999px"],
+      [Array.from({ length: n }, (_, i) => `<span class="m-[${i}px]">x</span>`).join("\n\n"), "margin: 8999px"],
+    ]) {
+      const start = performance.now();
+      expect(renderToHtml(<Tailwind tw={tw}><Email><Row><Column><Markdown markdown={markdown} /></Column></Row></Email></Tailwind>)).toContain(style);
+      expect(performance.now() - start).toBeLessThan(5000);
+    }
+  }, 120_000);
+
   it("inlines your own markup's classes as written: only Markdown's HTML is sanitized", () => {
     expect(design(<Html html={'<div class="bg-[url(https://x.test/a.gif)]">a</div>'} />)).toEqual(['<div style="background-image: url(https://x.test/a.gif)">a</div>']);
   });
