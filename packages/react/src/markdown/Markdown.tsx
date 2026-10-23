@@ -1,10 +1,11 @@
 import React from "react";
-import { Lexer, Parser, type Token, type Tokens } from "marked";
+import { Parser, type Token, type Tokens } from "marked";
 import { Divider, Heading, Html, Image, Paragraph, Table, renderToHtml } from "@unlayer/react-elements";
 import type { DividerProps, HeadingProps, HtmlProps, ImageProps, ParagraphProps, TableProps } from "@unlayer/react-elements";
 import { CodeBlock, codeInline, highlightCode, type CodeBlockProps, type CodeInlineOptions } from "@unlayer/react-elements/code";
 import { escapeAttribute, escapeText, safeUrl, sanitizeHtml } from "./sanitize";
-import { Limited, TABLE_CELLS, tooLarge, type TooLarge } from "./limits";
+import { TABLE_CELLS, tooLarge, type TooLarge } from "./limits";
+import { Bounded } from "./inline";
 
 /** The blocks Markdown becomes, by its element: props each one gets (over Markdown's own defaults). */
 export interface MarkdownBlocks {
@@ -80,7 +81,8 @@ const STYLES: Required<Omit<MarkdownStyles, "a" | "strong" | "em" | "del">> = {
 
 /** Text taken off the indentation all its lines share (blank lines aside). */
 function dedent(text: string): string {
-  const lines = text.replace(/^\s*\n/, "").replace(/\s+$/, "").split("\n");
+  // trimEnd(), not replace(/\s+$/): a regex tries each of a long run of spaces that isn't at the end, to its end.
+  const lines = text.replace(/^\s*\n/, "").trimEnd().split("\n");
   // A loop, not Math.min(...lines): a spread of a long text's lines overflows the stack.
   let indent = Infinity;
   for (const l of lines) if (l.trim()) indent = Math.min(indent, /^[ \t]*/.exec(l)![0].length);
@@ -341,8 +343,8 @@ class Writer {
  */
 export function Markdown(props: MarkdownProps): React.ReactElement {
   const source = dedent(props.markdown ?? textOf(props.children));
-  // (Its tables and its quotes' and lists' nesting kept to what its size calls for: see limits.ts.)
-  const tokens = new Lexer({ gfm: true, breaks: !!props.breaks, tokenizer: new Limited(Math.max(TABLE_CELLS, source.length)) }).lex(source);
+  // (Its tables, its quotes' and lists' nesting and its inline syntax kept to what its size calls for: see limits.ts and inline.ts.)
+  const tokens = new Bounded({ breaks: !!props.breaks, cells: Math.max(TABLE_CELLS, source.length), size: source.length }).lex(source);
   return <>{new Writer(props).blocks(tokens)}</>;
 }
 

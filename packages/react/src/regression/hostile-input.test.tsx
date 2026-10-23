@@ -2,16 +2,19 @@
  * Values that often come from users (a name, a link, a language) can't add
  * markup: each is given markup that would add an element or an attribute, in
  * every mode, and the parsed output must have neither. Raw HTML is what the
- * Html block and the `text` prop of Heading and Button are for, so they aren't
- * tested; design props (colors, sizes) come from the template's author. Phone
- * settings are written into the head's CSS, where a value could end the
- * `<style>` element or add rules, so they're tested too.
+ * Html block, the `text` prop of Heading and Button, Paragraph's `html` and a
+ * Table's cells (`headers`, `data`: HTML, as the editor's table holds them) are
+ * for, so they're written as given (pinned below); style props (colors, sizes,
+ * a Menu's separator) are written as given too, as in 0.2.1, and come from the
+ * template's author (only `style`, phone settings and Tailwind classes are
+ * checked). Phone settings are written into the head's CSS, where a value could
+ * end the `<style>` element or add rules, so they're tested too.
  */
 import { beforeAll, describe, expect, it, vi } from "vitest";
 import React from "react";
 import { renderToHtml } from "../utils/render-to-html";
 import { renderToJson } from "../utils/render-to-json";
-import { Email, Page, Document, Row, Column, Paragraph, Heading, Button, Image, Link, Menu, Social, Html, Divider } from "../index";
+import { Email, Page, Document, Row, Column, Paragraph, Heading, Button, Image, Link, Menu, Social, Html, Divider, Table } from "../index";
 import { Tailwind, loadTailwind, type TailwindHandle } from "../tailwind";
 
 const PAYLOADS = [
@@ -287,6 +290,14 @@ describe("a Tailwind class from data", () => {
     } finally {
       warn.mockRestore();
     }
+  });
+});
+
+describe("a Table's cells", () => {
+  // HTML, as the editor's table holds them: written as given, so data put in them is escaped first (see the README).
+  it.each(Object.entries(ROOTS))("%s: are written as given, markup and all", (_, Root) => {
+    const html = renderToHtml(<Root><Row><Column><Table headers={["<b>Plan</b>", "A &amp; B"]} data={[["<i>Pro</i>", "<x-pwn></x-pwn>"]]} /></Column></Row></Root>);
+    expect([html.includes("<b>Plan</b>"), html.includes("A &amp; B"), html.includes("<i>Pro</i>"), injected(html)]).toEqual([true, true, true, ["element"]]);
   });
 });
 
