@@ -30,6 +30,13 @@ export const tooLarge = ({ columns, rows, cells }: TooLarge) =>
  */
 export class Limited extends Tokenizer {
   private depth = 0;
+  /**
+   * Whether the lexer has read on since the last quote or list (it looks for a space first, at each place it reads a
+   * block): where it hasn't, marked is reading that quote or list again, with the lines after it (a quote's lazy
+   * continuation), and the cells its tables were charged (`charged`) are given back first, so each table is charged once.
+   */
+  private reading = true;
+  private charged = 0;
 
   /** `cells`: the cells the Markdown's tables can have (see TABLE_CELLS). */
   constructor(private cells: number) {
@@ -55,6 +62,12 @@ export class Limited extends Tokenizer {
     return table;
   }
 
+  space(src: string): Tokens.Space | undefined {
+    const space = super.space(src);
+    if (!space) this.reading = true;
+    return space;
+  }
+
   blockquote(src: string): Tokens.Blockquote | undefined {
     return this.nested(() => super.blockquote(src));
   }
@@ -63,12 +76,20 @@ export class Limited extends Tokenizer {
     return this.nested(() => super.list(src));
   }
 
-  /** A quote or a list, read one level deeper, unless that's past NESTING. */
+  /** A quote or a list, read one level deeper, unless that's past NESTING; its tables charged once (see `reading`). */
   private nested<T>(read: () => T | undefined): T | undefined {
     if (this.depth >= NESTING) return undefined;
+    const again = this.reading ? 0 : this.charged;
+    this.cells += again;
+    const cells = this.cells;
     this.depth++;
     try {
-      return read();
+      const token = read();
+      if (token) {
+        this.charged = cells - this.cells;
+        this.reading = false;
+      } else this.cells -= again;
+      return token;
     } finally {
       this.depth--;
     }

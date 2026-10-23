@@ -202,6 +202,20 @@ describe("Markdown from data: no more than its size calls for", () => {
     expect(() => renderToHtml(email({ markdown: `${fit}\n${fit}\n${fit}` }))).toThrow(/A table of 20 columns and 24 rows is 500 cells/);
   });
 
+  it("charges a table once where marked reads the quotes it's in again (with a line after them that continues them)", () => {
+    const row = (n: number, text: string) => "|" + `${text}|`.repeat(n);
+    const quoted = (prefix: string, lines: string[]) => lines.map((line) => prefix + line).join("\n");
+    // 930 cells, all written out, three quotes deep: marked reads the quotes around it again for the line after them,
+    // which charged it three times (2,790 cells, more than the Markdown's 2,153 characters).
+    const table = [row(30, "h"), row(30, "-"), ...Array.from({ length: 30 }, () => row(30, "x"))];
+    const html = renderToHtml(email({ markdown: `${quoted("> > > ", table)}\nand more` }));
+    expect(new DOMParser().parseFromString(html, "text/html").querySelectorAll("blockquote td")).toHaveLength(900);
+    // Each table is still charged: three of 500 cells with short rows, two quotes deep, fail on the third.
+    const sparse = `${quoted("> > ", [row(20, "h"), row(20, "-"), ...Array.from({ length: 24 }, () => "|x|")])}\nlazy\n\n`;
+    expect(() => renderToHtml(email({ markdown: sparse.repeat(2) }))).not.toThrow();
+    expect(() => renderToHtml(email({ markdown: sparse.repeat(3) }))).toThrow(/A table of 20 columns and 24 rows is 500 cells/);
+  });
+
   it("leaves out the list or quote a table that's too large is in, as it leaves out the table", () => {
     const markdown = `Before\n\n${padded(4096).replace(/^/gm, "> ")}\n\nAfter`;
     expect(() => renderToHtml(email({ markdown }))).toThrow(/A table of \d+ columns .* \(in <Markdown> at Row 1 › Column 1 › Markdown\)$/);
