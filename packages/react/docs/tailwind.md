@@ -1,6 +1,6 @@
 # Tailwind CSS in Elements
 
-Style Elements components with Tailwind classes, as with React Email's `<Tailwind>`: `className="bg-gray-100 p-6 text-lg"` on an `Email`, `Row`, `Column`, `Button` or `Paragraph`. Each class becomes the component's own props, so the same template renders to email HTML, web pages and print documents, and `renderToJson()` gives a design the visual editor can still edit. Props you set yourself win over classes.
+Style Elements components with Tailwind classes, as with React Email's `<Tailwind>`: `className="bg-gray-100 p-6 text-lg"` on an `Email`, `Row`, `Column`, `Button` or `Paragraph`. Each class becomes the component's own props, so the same template renders to email HTML, web pages and print documents, and `renderToJson()` gives a design the visual editor can still edit. Props you set yourself win over classes; a prop given as `undefined` (a wrapper of yours passing on an optional prop it wasn't given, `color={props.color}`) isn't set, so the class's value stays.
 
 ```bash
 npm install @unlayer/react-elements tailwindcss
@@ -226,7 +226,7 @@ classNameToDeclarations(tw, "bg-gray-100 max-sm:p-2 dark:bg-black");
 - Put the text styles a section shares on its Row or Column (`text-white text-center`), as in CSS: the text blocks inside take them, unless they set their own. To place a Button, use `text-center` on it or its container; its label is always centered.
 - For cards in a panel, put the panel's background and padding on the Row (`bg-white px-6 py-4`) and margins on the cards (`mr-2`, `ml-2`), as in CSS. To keep `rounded-*` corners, make the gutters at each corner equal (`p-2` with `mr-2`/`ml-2`).
 - Read the warnings after rendering. Replace each ignored class with the component's prop, or with markup in a `Paragraph`'s `html` (`<em>`, `<u>`) for text styles no prop has. A class kept in HTML only is fine for HTML; for a design someone edits in the visual editor, prefer a prop.
-- A prop and a class for the same thing: the prop wins. Don't pass both.
+- A prop and a class for the same thing: the prop wins (one given as `undefined` doesn't count). Don't pass both.
 - Tailwind's `sm:` is a breakpoint, not a phone variant: use `max-sm:` for phone-only styles.
 
 See the [React API reference](../README.md) for each component's props, and [Migrate from React Email](./migrate-from-react-email.md) to convert whole React Email templates instead.
