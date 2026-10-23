@@ -190,6 +190,35 @@ describe("a Tailwind class from data", () => {
     }
   });
 
+  it("writes no `url()` whose URL isn't a web one or relative (`javascript:`), however it's written, and says so", () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    // As the browser reads a style: its references and CSS escapes decoded, its spaces gone.
+    const read = (style: string) => style.replace(/&#(\d+);?/g, (_, n) => String.fromCodePoint(Number(n))).replace(/\\([\da-f]{1,6})\s?|\\(.)/gi, (_, hex, ch) => (hex ? String.fromCodePoint(parseInt(hex, 16)) : ch)).replace(/\s/g, "");
+    const styles = (html: string) => Array.from(new DOMParser().parseFromString(html, "text/html").querySelectorAll("[style]")).map((e) => read(e.getAttribute("style")!));
+    const render = (className: string) =>
+      renderToHtml(
+        <Tailwind tw={tw}>
+          <Email className={className}>
+            <Row className={className}>
+              <Column className={className}>
+                <Paragraph className={className}>Hi</Paragraph>
+              </Column>
+            </Row>
+          </Email>
+        </Tailwind>
+      );
+    try {
+      for (const className of ["bg-[url(javascript:alert(1))]", "bg-[url('javascript:alert(1)')]", 'bg-[url("JavaScript:alert(1)")]', "bg-[url(j\\61vascript:alert(1))]", "bg-[u\\72l(javascript:alert(1))]", "[background:url(vbscript:msgbox(1))]", "[background-image:url(data:text/html,x)]", "[list-style-image:url(javascript:alert(1))]"]) {
+        expect([className, styles(render(className)).filter((style) => /url\(["']?(?!https?:|\/)/i.test(style))]).toEqual([className, []]);
+      }
+      expect(warn.mock.calls.map((call) => String(call[0]))).toContain("[Unlayer] Column ignores `background-image: url(javascript:alert(1))` from class `bg-[url(javascript:alert(1))]`: its URL isn't a web one (`http:` or `https:`), a relative one, or an image's data URL.");
+      // A web URL, a relative one and an image's data URL are kept.
+      for (const url of ["https://example.com/a.png", "/images/a.png", "data:image/png,x"]) expect(styles(render(`bg-[url(${url})]`)).some((style) => style.includes(`url(${url})`)), url).toBe(true);
+    } finally {
+      warn.mockRestore();
+    }
+  });
+
   it("keeps a font family's names in double quotes (`font-[\"Open_Sans\"]`), in single ones", () => {
     const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
     try {
