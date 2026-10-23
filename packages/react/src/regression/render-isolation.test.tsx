@@ -391,6 +391,15 @@ describe("a context's default, learned around an app's renders", () => {
     }
   };
 
+  it("reads an app's renderToString provider on a context it hasn't learned, and its default once learned", () => {
+    const { Brand, read } = brand("default");
+    expect(inRenderToString(Brand, read, tenant)).toBe("brand=TenantA");
+    expect(inRenderToString(Brand, read, tenant)).toBe("brand=TenantA");
+    // Learned by a render alone (or in an effect, or after a client render: below).
+    expect(read()).toBe("brand=default");
+    expect(inRenderToString(Brand, read, tenant)).toBe("brand=default");
+  });
+
   it("reads one value for a context throughout a render that starts inside an app's renderToString and goes on after it", async () => {
     const Brand = createContext("default");
     let open = false;
@@ -421,6 +430,14 @@ describe("a context's default, learned around an app's renders", () => {
     expect(await started()).toEqual(["wrapper=TenantA", "consumer=TenantA", "later=TenantA"]);
     expect((await asyncRenderers.renderToPlainText(<Welcome />)).split(/\n+/).map((line) => line.trim())).toEqual(["wrapper=default", "consumer=default", "later=default"]);
     expect(await started()).toEqual(["wrapper=default", "consumer=default", "later=default"]);
+  });
+
+  it("learns a default of undefined", () => {
+    const { Brand, read } = brand<string | undefined>(undefined);
+    expect(read()).toBe("brand=undefined");
+    failedInside(Brand, "TenantB");
+    expect(read()).toBe("brand=undefined");
+    renderToString(<p />);
   });
 
   it("learns after a client render: React leaves its idle dispatcher in the slot, which is no render running", () => {
