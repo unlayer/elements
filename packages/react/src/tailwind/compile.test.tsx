@@ -706,6 +706,27 @@ describe("a render's classes", () => {
     expect(fine(await renderToHtml(page("text-red-500 p-[6px]")), 6)).toEqual([true, true]);
   });
 
+  it("render, from the async renderers, after Tailwind compiles again for a class of their own it couldn't read", async () => {
+    // The same theme, on a handle no render used: the async render's own class is the one Tailwind can't read, and its
+    // render waits for the fresh compiler (twice: the class is built alone, then refused) where a synchronous one fails.
+    const handle = await loadTailwind({ theme: { extend: { colors: { weird: 'red"' } } }, render: "async first" });
+    const page = (
+      <Tailwind tw={handle}>
+        <Email>
+          <Row>
+            <Column>
+              <Paragraph className="text-weird p-[5px]">x</Paragraph>
+              <Paragraph className="text-red-500 p-[6px]">y</Paragraph>
+            </Column>
+          </Row>
+        </Email>
+      </Tailwind>
+    );
+    const html = await renderToHtml(page);
+    expect([/padding: ?5px/.test(html), /padding: ?6px/.test(html), html.includes("#fb2c36")]).toEqual([true, true, true]);
+    expect(warn.mock.calls.map((call) => String(call[0]))).toContain("[Unlayer] Paragraph ignores class `text-weird`: it isn't a class Tailwind can read here.");
+  });
+
   it("past a compiler's classes, compile on without an error or a class left out, for renders at once and one after another", async () => {
     // Each render's 1,500 new classes: past CLASSES, a fresh compiler takes over once ready, the old one read till then.
     const handle = await loadTailwind({ ...config, render: "renewals" });
