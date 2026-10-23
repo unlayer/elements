@@ -28,6 +28,11 @@ export interface Scope {
   unwrapped?: Unwrapped;
   /** What an async render compiled for its <Tailwind config>s (the async entry's lookup: see utils/tailwind.ts). */
   tailwind?: unknown;
+  /**
+   * Where an async render renders again in it (after Tailwind compiles again: see async/index.ts), the parts it had
+   * left out before: one left out again isn't listed or said again.
+   */
+  listed?: number;
 }
 
 export const newScope = (): Scope => ({ cache: new WeakMap(), values: new WeakMap(), omitted: [], failed: new WeakSet() });
@@ -96,6 +101,8 @@ export function failed(error: RenderError, record?: object): void {
 /** A part the render left out (what a collecting walk left out, a Row that doesn't fit): listed and said. */
 export function omitted(error: RenderError): void {
   const policy = scoped?.onError;
+  // (Its message says the part: its component and where it is.)
+  if (scoped?.listed && scoped.omitted.slice(0, scoped.listed).some((e) => e.message === error.message)) return;
   scoped?.omitted.push(error);
   // (A function's the user's: see `guest`.)
   guest(() => reportOmitted(policy, error));

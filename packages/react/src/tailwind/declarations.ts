@@ -104,8 +104,10 @@ function partsOf(token: string): [string[], string] {
  */
 function named(part: string, { name, keys, value }: PluginFailure, loose?: boolean): boolean {
   if (part === name) return loose || !keys || keys.includes("DEFAULT");
-  if (!part.startsWith(name + "-")) return false;
-  const given = part.slice(name.length + 1);
+  // (Tailwind reads a value right after `@`, `@foo`, as after a name and a dash.)
+  const start = name === "@" ? "@" : name + "-";
+  if (!part.startsWith(start)) return false;
+  const given = part.slice(start.length);
   // (Its modifier aside, `/50`, outside its brackets.)
   const bare = given.replace(/\/[^/\]]*$/, "");
   if (loose || keys?.includes(given) || keys?.includes(bare)) return true;
@@ -134,10 +136,20 @@ const owns = (token: string, failure: PluginFailure, loose?: boolean) => {
  * without reading them (a render's, before they're read one component at a time: see declarationReader).
  */
 export interface DeclarationReader {
-  (className: string): ClassDeclarations;
-  prepare(className: string): void;
+  (className: string, scope?: ReadScope): ClassDeclarations;
+  prepare(className: string, scope?: ReadScope): void;
   /** Where a class can't be read till a fresh compiler is ready (see declarationReader): when it is. */
   ready?(): Promise<void> | undefined;
+}
+
+/**
+ * What one render (or one class string) read: what a plugin's function threw (or gave that couldn't be read) while a
+ * build of its classes ran that no class of the build was found for (see declarationReader's `blame`), with the classes
+ * of that build that could have been why. It fails where the render reads one of them, in that render only: kept off
+ * the compiler, whose classes other renders read.
+ */
+export interface ReadScope {
+  strays: Array<{ tokens: Set<string>; error: unknown }>;
 }
 
 /**
@@ -157,7 +169,7 @@ export const OVER = `it's past the first ${CLASSES} different classes of the ren
  * last cleared). Classes made from data (a Markdown's, thousands in one attribute) can't take more memory than that,
  * as each class Tailwind builds takes memory while it builds them; an app's own, hundreds, don't get there.
  */
-export function capped(read: DeclarationReader): DeclarationReader & { first?: string; said?: boolean } {
+export function capped(read: DeclarationReader, scope: ReadScope = { strays: [] }): DeclarationReader & { first?: string; said?: boolean } {
   const names = new Set<string>();
   const admit = (className: string) => {
     const kept: string[] = [];
@@ -168,12 +180,12 @@ export function capped(read: DeclarationReader): DeclarationReader & { first?: s
   const reader = Object.assign(
     (className: string): ClassDeclarations => {
       const [kept, left] = admit(className);
-      const found = read(kept.join(" "));
+      const found = read(kept.join(" "), scope);
       if (!left.length) return found;
       reader.first ??= left[0];
       return { ...found, ignored: [...found.ignored, ...[...new Set(left)].map((className) => ({ className, reason: OVER }))] };
     },
-    { prepare: (className: string) => read.prepare(admit(className)[0].join(" ")) } as { prepare(className: string): void; first?: string; said?: boolean }
+    { prepare: (className: string) => read.prepare(admit(className)[0].join(" "), scope) } as { prepare(className: string): void; first?: string; said?: boolean }
   );
   return reader;
 }
@@ -182,6 +194,17 @@ const empty = (): Sheet => ({ rules: [], vars: new Map(), initial: new Map(), cl
 
 /** Why a class isn't read: Tailwind's stylesheet of it couldn't be read as written (see `readable`). */
 const UNREADABLE = "it isn't a class Tailwind can read here";
+
+/** Why a class isn't read: Tailwind doesn't have it. */
+const UNKNOWN = "Tailwind has no such class";
+
+/**
+ * The declaration a plugin's `@apply` is given to Tailwind as (its classes URL-encoded: see guard.ts), and how deep
+ * classes applying classes are read. Tailwind's compiler throws for an `@apply` of a class or a variant it doesn't have,
+ * or of the class itself, and then for every build after it; here such an `@apply` fails where its class is read.
+ */
+export const APPLY = "--unlayer-apply-";
+const APPLIES = 8;
 
 /** Why a class isn't read yet: built with one that didn't read cleanly, or after it, so Tailwind is compiling again. */
 export const WAITING = "it's read once Tailwind has compiled again, after a class it couldn't read";
@@ -270,6 +293,8 @@ export function declarationReader(compiler: Compiler, renew?: () => Promise<Comp
   // The classes this compiler built that a plugin's function threw for (their error, thrown where they're read) or gave
   // CSS that couldn't be read for (undefined): built again on a fresh compiler, as its plugin is called again there.
   let failed = new Map<string, unknown>();
+  // Strays of the builds of the read under way (see blame), for its scope.
+  let strays: ReadScope["strays"] = [];
   // The fresh compiler being compiled (see `ready`), and whether a class waits for it.
   let pending: Promise<void> | undefined;
   let waiting = false;
@@ -327,13 +352,17 @@ export function declarationReader(compiler: Compiler, renew?: () => Promise<Comp
   // What plugins' functions threw while a build built `tokens` (kept from Tailwind, which built the class's CSS without
   // what the function gave: see guard.ts), on the classes of it it was for, each thrown where it's read, in every render
   // that reads it (whatever another utility gives the class): those of the utility or variant of that name and value;
-  // else of that name; else the build's classes with no CSS; else all its classes.
+  // else of that name. One no class of the build was found for is a stray (see ReadScope), for the render that built
+  // them, on the build's classes with no CSS, else on all its classes: not kept, as the build may hold others' classes.
   const blame = (tokens: string[], plugins: PluginFailure[]) => {
     for (const failure of plugins) {
       let own = tokens.filter((token) => owns(token, failure));
       if (!own.length) own = tokens.filter((token) => owns(token, failure, true));
-      if (!own.length) own = tokens.filter((token) => !byToken.has(token));
-      for (const token of own.length ? own : tokens) failed.set(token, failure.error);
+      if (own.length) for (const token of own) failed.set(token, failure.error);
+      else {
+        const plain = tokens.filter((token) => !byToken.has(token));
+        strays.push({ tokens: new Set(plain.length ? plain : tokens), error: failure.error });
+      }
     }
   };
   const tokensOf = (className: string) => [...new Set(String(className).split(/\s+/).filter(Boolean))];
@@ -359,18 +388,50 @@ export function declarationReader(compiler: Compiler, renew?: () => Promise<Comp
       throw error;
     }
   };
-  const read = (className: string): ClassDeclarations => {
+  // The classes a class's plugin applies (`@apply`, see APPLY), read as its own declarations, for `when`.
+  const applying = new Set<string>();
+  const apply = (token: string, classes: string, when: ClassCondition, important: boolean, leave: (className: string, reason: string) => void, scope: ReadScope): ClassDeclaration[] => {
+    const names = classes.split(/\s+/).filter(Boolean);
+    const own = names.filter((name) => name !== "!important");
+    if (applying.has(token)) throw new Error(`<Tailwind> can't read \`${token}\`: it applies itself (\`@apply\`), a circular dependency`);
+    if (applying.size >= APPLIES || own.length > SUSPECTS) throw new Error(`<Tailwind> can't read \`${token}\`: it applies (\`@apply\`) classes more than ${APPLIES} deep, or more than ${SUSPECTS} at once`);
+    applying.add(token);
+    let found: ClassDeclarations;
+    try {
+      found = read(own.join(" "), scope);
+    } finally {
+      applying.delete(token);
+    }
+    for (const { className, reason } of found.ignored) {
+      if (reason === UNKNOWN) throw new Error(`<Tailwind> can't read \`${token}\`: it applies (\`@apply\`) \`${className}\`, a class Tailwind doesn't have`);
+      leave(token, reason === WAITING || reason.startsWith(STUCK) ? reason : `its \`@apply\` of \`${className}\` isn't read: ${reason}`);
+    }
+    const declarations: ClassDeclaration[] = [];
+    for (const d of found.declarations) {
+      const at = when === "always" ? d.when : d.when === "always" || d.when === when ? when : undefined;
+      if (at) declarations.push({ ...d, className: token, when: at, important: d.important || important || names.includes("!important") });
+      else leave(token, `its \`@apply\` of \`${d.className}\` applies for ${d.when} within ${when}, which Elements has no setting for`);
+    }
+    return declarations;
+  };
+  const read = (className: string, scope: ReadScope = { strays: [] }): ClassDeclarations => {
     const tokens = tokensOf(className);
-    need(tokens);
+    try {
+      need(tokens);
+    } finally {
+      scope.strays.push(...strays.splice(0));
+    }
     const ignored: ClassDeclarations["ignored"] = [];
     // (Each class once, with the first reason it isn't read.)
     const left = new Set<string>();
     const leave = (className: string, reason: string) => void (!left.has(className) && left.add(className) && ignored.push({ className, reason }));
     const applied: Array<{ rule: Rule; when: ClassCondition }> = [];
     for (const token of tokens) {
-      // One a plugin's function failed for: its error, or a class Tailwind can't read here.
-      if (failed.has(token)) {
-        const error = failed.get(token);
+      // One a plugin's function failed for: its error, or a class Tailwind can't read here; in this render, one of a
+      // build a stray failure was in.
+      const stray = scope.strays.find((stray) => stray.tokens.has(token));
+      if (failed.has(token) || stray) {
+        const error = stray ? stray.error : failed.get(token);
         if (error !== undefined) throw error;
         leave(token, UNREADABLE);
         continue;
@@ -381,7 +442,7 @@ export function declarationReader(compiler: Compiler, renew?: () => Promise<Comp
         continue;
       }
       const rules = byToken.get(token);
-      if (!rules?.length) leave(token, "Tailwind has no such class");
+      if (!rules?.length) leave(token, UNKNOWN);
       for (const rule of rules ?? []) {
         const when = conditionOf(rule);
         if (typeof when === "string") applied.push({ rule, when });
@@ -395,6 +456,7 @@ export function declarationReader(compiler: Compiler, renew?: () => Promise<Comp
     const declarations: ClassDeclaration[] = [];
     for (const { rule, when } of applied) {
       for (const d of rule.declarations) {
+        if (d.property.startsWith(APPLY)) declarations.push(...apply(rule.token, decodeURIComponent(d.value), when, d.important, leave, scope));
         if (d.property.startsWith("--")) continue;
         const value = emailValue(d.value, (name) => own[when].get(name) ?? own.always.get(name) ?? sheet.vars.get(name) ?? sheet.initial.get(name));
         if (value === undefined || value === TOO_LONG) leave(rule.token, value === TOO_LONG ? `\`${d.property}\`'s variables come to more than ${MAX_VALUE} characters` : `\`${d.property}\` uses a variable Tailwind doesn't set`);
@@ -404,5 +466,12 @@ export function declarationReader(compiler: Compiler, renew?: () => Promise<Comp
     // `!important` wins over the rest, wherever it is.
     return { declarations: [...declarations.filter((d) => !d.important), ...declarations.filter((d) => d.important)], ignored };
   };
-  return Object.assign(read, { prepare: (className: string) => need(tokensOf(className), true), ready: () => ((dirty || waiting) && renewing ? pending : undefined) });
+  const prepare = (className: string, scope: ReadScope = { strays: [] }) => {
+    try {
+      need(tokensOf(className), true);
+    } finally {
+      scope.strays.push(...strays.splice(0));
+    }
+  };
+  return Object.assign(read, { prepare, ready: () => ((dirty || waiting) && renewing ? pending : undefined) });
 }

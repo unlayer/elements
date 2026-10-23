@@ -251,6 +251,61 @@ describe("Markdown from data: no more than its size calls for", () => {
     expect(renderToHtml(email({ markdown: "> ".repeat(10) + "x" })).match(/<blockquote/g)).toHaveLength(10);
   });
 
+  it("reads inline Markdown in time linear in its size, however its delimiters are left open or nested", () => {
+    // Each 100 KB on one line, or on many: marked looks ahead from each opener to the line's end (or the paragraph's)
+    // for what closes it, and from each place an email or a URL could start for one, so these took up to a minute
+    // (`*a `), or overflowed the stack (emphasis nested deep). Past what an email's Markdown takes, the rest is text.
+    const fill = (unit: string) => unit.repeat(Math.ceil(102400 / unit.length)).slice(0, 102400);
+    const shapes: [string, string, boolean?][] = [];
+    for (const unit of ["*a ", "*a **a ", "_a __a ", "**a *", "<a *", "~a ~~a ", "[a](", "![a](", "[a](b ", "[a](b (", "[a](<", "[`a](", "`a``b```c", "<a ", "[[[a]]](", "a*b", "http", "a_", "a <?a ", "a <!a "]) {
+      shapes.push([unit, fill(unit)], [unit + "\\n", fill(unit + "\n").replace(/\n$/, ")")]);
+    }
+    shapes.push(
+      ["*a nested", "*a ".repeat(17000) + "b" + " a*".repeat(17000)],
+      ["~~a nested", "~~a ".repeat(12800) + "b" + " a~~".repeat(12800)],
+      ["a URL trimmed", "http://a" + "&a;".repeat(34000)],
+      ["an email's characters", "a.".repeat(51200) + "@"],
+      ["spaces, with breaks", "a" + " ".repeat(102400) + "b", true]
+    );
+    for (const [shape, markdown, breaks] of shapes) {
+      const start = performance.now();
+      const html = renderToHtml(email({ markdown, html: "escape", breaks }));
+      expect([shape, html.length > 100000, performance.now() - start < 3000]).toEqual([shape, true, true]);
+    }
+  }, 180_000);
+
+  it("nests emphasis, strikethrough and links 32 deep: deeper, their delimiters are text", () => {
+    const depth = (html: string) => {
+      let deepest = 0;
+      for (let e: Element | null = new DOMParser().parseFromString(html, "text/html").body.querySelector("em"), at = 1; e; e = e.querySelector(":scope > em"), at++) deepest = at;
+      return deepest;
+    };
+    expect(depth(renderToHtml(email({ markdown: "*a ".repeat(32) + "b" + " a*".repeat(32) })))).toBe(32);
+    const deeper = renderToHtml(email({ markdown: "*a ".repeat(40) + "b" + " a*".repeat(40) }));
+    expect(depth(deeper)).toBe(32);
+    expect(new DOMParser().parseFromString(deeper, "text/html").body.textContent).toContain("*a *a b a* a*");
+  });
+
+  it("renders the rest of a Markdown's inline syntax as text past the work it can take, leaving nothing out", () => {
+    const markdown = "*a ".repeat(40000) + "\n\nAfter: **bold** and [a link](https://e.test).";
+    const body = new DOMParser().parseFromString(renderToHtml(email({ markdown, html: "escape" })), "text/html").body;
+    expect(body.textContent).toContain("After: **bold** and [a link](https://e.test).");
+    expect(body.querySelector("strong")).toBeNull();
+    // Under it, as written.
+    expect(renderToHtml(email({ markdown: "*a ".repeat(400) + "\n\nAfter: **bold** and [a link](https://e.test)." }))).toContain("<strong>bold</strong>");
+  });
+
+  it("reads an email's emphasis, strikethrough and links as marked does, many and long ones too", () => {
+    // What an email's Markdown has, many times over: each read as marked reads it.
+    const markdown = Array.from({ length: 400 }, (_, i) => `Para ${i}: *em* and **strong** and ~~gone~~, a [link](https://e.test/${i}) and ![img](https://e.test/${i}.png), a * stray star, a [bracket] and an _under_score_word_. *${"Long emphasis that runs on. ".repeat(20).trim()}*`).join("\n\n");
+    const html = renderToHtml(email({ markdown, html: "escape" }));
+    expect(html.match(/<em>em<\/em>/g)).toHaveLength(400);
+    expect(html.match(/<strong>strong<\/strong>/g)).toHaveLength(400);
+    expect(html.match(/<del>gone<\/del>/g)).toHaveLength(400);
+    expect(html.match(/href="https:\/\/e.test\/\d+"/g)).toHaveLength(400);
+    expect(html.match(/<em>Long emphasis/g)).toHaveLength(400);
+  });
+
   it("renders a very long Markdown: its lines and blocks aren't spread into one call, which would overflow the stack", () => {
     for (const markdown of ["a\n".repeat(130000), "a\n\n".repeat(130000)]) {
       const plain = renderToPlainText(email({ markdown }));
