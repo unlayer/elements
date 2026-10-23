@@ -7,7 +7,7 @@
 import { TABLES } from "./tables";
 import { plus, shorthand, sidesOf, type Margins } from "./row";
 import { rowRewrite } from "./inherit";
-import { PROP_ALIASES } from "@unlayer-internal/shared-elements";
+import { PROP_ALIASES, cssValueSafe } from "@unlayer-internal/shared-elements";
 import { BodyDefaults } from "@unlayer/exporters";
 
 
@@ -119,8 +119,30 @@ function add(into: Box, d: ClassDeclaration, rtl: boolean): void {
   into.other.push(d);
 }
 
+/**
+ * A class's value as a prop can take it, or undefined where it can't: the editor's exporters write props into a
+ * `style="…"` (or a `<style>`) as they are, so nothing that ends an attribute or starts a tag (`"`, `<`, `>`, or a CSS
+ * escape of one of them or of `'`), and nothing CSS can't hold there (see cssValueSafe). A font family's names in
+ * double quotes are in single ones, as the exporters write them. (An arbitrary value from data,
+ * `[color:'"><img …>']`, can't add markup that way.)
+ */
+function propValue({ property, value }: ClassDeclaration): string | undefined {
+  const written = property === "font-family" ? value.replace(/"([^"'\\<>]*)"/g, "'$1'") : value;
+  return /["<>]|\\(?:["'<>]|0{0,4}(?:22|27|3c|3e)(?![\da-f]))/i.test(written) || !cssValueSafe(written) ? undefined : written;
+}
+
 const LENGTH = /^(\d*\.?\d+)(px|%|em)?$/;
 const plain = (v: unknown): v is Record<string, any> => !!v && typeof v === "object" && !Array.isArray(v);
+
+/**
+ * Props without those given as `undefined`: a prop passed as `undefined` (a wrapper of yours forwarding one it wasn't
+ * given, `color={props.color}`) is one not given, as `given` reads it, so a class sets it.
+ */
+const defined = (props: Record<PropertyKey, any> | undefined): Record<PropertyKey, any> => {
+  const out: Record<PropertyKey, any> = {};
+  if (props) for (const key of [...Object.keys(props), ...Object.getOwnPropertySymbols(props)]) if (props[key] !== undefined) out[key] = props[key];
+  return out;
+};
 
 /**
  * Whether a prop of component `name` is given explicitly: flat, in a group (`buttonColors.color`,
@@ -190,12 +212,13 @@ function convert(key: string, value: string, rtl: boolean): unknown {
 type Found = Map<string, { value: unknown; d: ClassDeclaration }>;
 
 /**
- * Turns a component's classes into its props. `explicit`: the props it's given (they win); `defaults`: its default
+ * Turns a component's classes into its props. `props`: the props it's given (they win; one given as `undefined` isn't, see defined); `defaults`: its default
  * values (what a phone shows where only a breakpoint variant, `sm:`, sets a prop). `quiet`: for text styles a block
  * takes from around it (see inherit.ts), what it can't take is passed over, not said or inlined. `rtl`: the document
  * reads right to left, so logical sides and alignment (`ps-4`, `rounded-ss-md`, `text-start`) start on the right.
  */
-export function classesToProps(name: string, found: ClassDeclarations, explicit: Record<string, any>, defaults: Record<string, any> = {}, quiet = false, rtl = false): Record<string, any> {
+export function classesToProps(name: string, found: ClassDeclarations, props: Record<string, any>, defaults: Record<string, any> = {}, quiet = false, rtl = false): Record<string, any> {
+  const explicit = defined(props);
   const own = read(TABLES[name] ?? "");
   const warn = (text: string) => quiet || console.warn(`[Unlayer] ${name} ${text}.`);
   const has = (prop: string) => given(explicit, prop, name);
@@ -208,6 +231,15 @@ export function classesToProps(name: string, found: ClassDeclarations, explicit:
     warn(`\`${d.property}: ${d.value}\` from class \`${d.className}\` is kept in HTML (an inline style) but not in the design for the visual editor`);
   };
   for (const { className, reason } of found.ignored) warn(`ignores class \`${className}\`: ${reason}`);
+  // What can't be a prop's value (see propValue) is no one's: not a prop's, an inline style's, or the text's inside.
+  found = {
+    ...found,
+    declarations: found.declarations.flatMap((d) => {
+      const value = propValue(d);
+      if (value === undefined) ignore(d, ": it could end the HTML attribute it's written in, start a tag, or end its CSS");
+      return value === undefined ? [] : [value === d.value ? d : { ...d, value }];
+    }),
+  };
 
   // A Row's, a Column's or the root's text styles are its text blocks' (inherit.ts gives them), as CSS inherits them:
   // the root's color and font family are the body's too, as the editor has them.
@@ -394,7 +426,7 @@ export function classesToProps(name: string, found: ClassDeclarations, explicit:
   if (display(boxes.hover)) warn(`has no hover style for \`display\` (class \`${display(boxes.hover)!.className}\`)`);
 
   // Phone props: those given in `mobile` (or `values._override.mobile`) win; borders are one object there.
-  const theirs = { ...explicit.values?._override?.mobile, ...explicit.mobile };
+  const theirs = { ...explicit.values?._override?.mobile, ...defined(explicit.mobile) };
   const phone: Record<string, any> = {};
   for (const [prop, value] of Object.entries(mobile)) {
     if (/^border(Top|Right|Bottom|Left)/.test(prop)) {
@@ -406,7 +438,7 @@ export function classesToProps(name: string, found: ClassDeclarations, explicit:
   for (const [prop, value] of Object.entries(result)) {
     const group = Object.keys(defaults).find((g) => g !== prop && plain(defaults[g]) && prop in defaults[g] && plain(explicit[g]));
     if (group) {
-      out[group] = { [prop]: value, ...out[group] };
+      out[group] = { [prop]: value, ...defined(out[group]) };
       delete out[prop];
     }
   }
@@ -436,7 +468,8 @@ export function classesToProps(name: string, found: ClassDeclarations, explicit:
   }
   if (name === "Column" && (keys.margin || keys.text || keys.current)) keys.row = rowRewrite(undefined, undefined, (text) => console.warn(`[Unlayer] Row ${text}.`));
   // Its own style wins; the keys from classes are listed (under the scope's symbol), as they're said here already.
-  if (keys.length || keys.margin || keys.text || keys.current) out.style = { ...style, ...explicit.style, [TAILWIND]: keys };
-  if (Object.keys(phoneRest).length) out.mobile = { ...phoneRest, ...explicit.mobile, ...(phone.border && explicit.mobile?.border ? { border: { ...phone.border, ...explicit.mobile.border } } : {}) };
+  if (keys.length || keys.margin || keys.text || keys.current) out.style = { ...style, ...defined(explicit.style), [TAILWIND]: keys };
+  const mobileGiven = defined(explicit.mobile);
+  if (Object.keys(phoneRest).length) out.mobile = { ...phoneRest, ...mobileGiven, ...(phone.border && mobileGiven.border ? { border: { ...phone.border, ...defined(mobileGiven.border) } } : {}) };
   return out;
 }

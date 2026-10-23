@@ -1,7 +1,8 @@
 import React from "react";
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi, type MockInstance } from "vitest";
-import { Column, Email, Html, Row, renderToHtml, renderToJson, renderToPlainText } from "../index";
+import { Column, Email, Html, RenderError, Row, renderToHtml, renderToHtmlParts, renderToJson, renderToPlainText } from "../index";
 import { Tailwind, loadTailwind, type TailwindHandle } from "../tailwind";
+import * as asyncRenderers from "../async";
 import { Markdown, safeUrl, sanitizeHtml, type MarkdownProps } from "./index";
 
 let warn: MockInstance;
@@ -118,6 +119,122 @@ describe("Markdown", () => {
   it("takes off the indentation a template literal gives, and with `breaks` keeps line breaks", () => {
     expect(blocks({ children: "\n    Hello\n    world\n  " })).toEqual([["text", "Hello\nworld"]]);
     expect(blocks({ children: "Hello\nworld", breaks: true })).toEqual([["text", "Hello<br/>world"]]);
+  });
+
+  it("writes a table in a quote or a list as a top-level one's cells: its raw HTML, URLs, link attributes and styles as the props say", () => {
+    const cells = '| a | b |\n|---|--:|\n| <img src="https://tracker.example/p.gif"> <b>raw</b> | [x](https://example.com/x) ![p](https://example.com/p.png) **bold** |';
+    const nested = { quote: cells.replace(/^/gm, "> "), list: `- item\n\n${cells.replace(/^/gm, "  ")}` };
+    for (const [where, markdown] of Object.entries(nested)) {
+      const [[, html]] = blocks({ markdown, html: "escape", styles: { a: "color: #2563eb", strong: "color: #111111" }, linkAttributes: { target: "_self" } });
+      const elements = parsed(html);
+      expect([where, elements.map((e) => e.localName).filter((n) => /^(table|thead|tbody|tr|th|td)$/.test(n))]).toEqual([where, ["table", "thead", "tr", "th", "th", "tbody", "tr", "td", "td"]]);
+      // Raw HTML shown as text, as in a top-level table's cells; the links and images Markdown makes, as the props say.
+      expect([where, elements.filter((e) => e.localName === "b" || (e.localName === "img" && /tracker/.test(e.getAttribute("src")!)))]).toEqual([where, []]);
+      expect(html).toContain("&lt;b&gt;raw&lt;/b&gt;");
+      expect(html).toContain('<a href="https://example.com/x" target="_self" style="color: #2563eb">x</a>');
+      expect(html).toContain('<strong style="color: #111111">bold</strong>');
+      expect(html).toContain('<td align="right">');
+      // Left out (`drop`), or kept as the sanitizer keeps it.
+      expect(parsed(blocks({ markdown, html: "drop" })[0][1] as string).filter((e) => e.localName === "b" || /tracker/.test(e.getAttribute("src") ?? ""))).toEqual([]);
+      expect(blocks({ markdown, html: "drop" })[0][1]).not.toContain("raw</b>");
+      expect(blocks({ markdown })[0][1]).toContain("<b>raw</b>");
+      // A URL policy that leaves every link and image out leaves out theirs too, in a table in a quote or a list as anywhere.
+      const none = parsed(blocks({ markdown, html: "escape", url: () => undefined })[0][1] as string);
+      expect([where, none.filter((e) => (e.localName === "a" && e.hasAttribute("href")) || e.localName === "img")]).toEqual([where, []]);
+    }
+  });
+});
+
+describe("Markdown from data: no more than its size calls for", () => {
+  let error: MockInstance;
+  beforeEach(() => {
+    error = vi.spyOn(console, "error").mockImplementation(() => {});
+  });
+  afterEach(() => error.mockRestore());
+
+  /** A table about `bytes` long: n columns, and n rows of one `|`, which marked fills out to the header's width (n² cells). */
+  const padded = (bytes: number) => {
+    const n = Math.floor(bytes / 6);
+    return "|" + "a|".repeat(n) + "\n|" + "-|".repeat(n) + "\n" + "|\n".repeat(n);
+  };
+
+  it("fails on a table marked would fill out to more cells than the Markdown has characters (or 1,000), as a component of yours fails", async () => {
+    for (const kb of [1, 5, 20, 100]) {
+      const markdown = padded(kb * 1024);
+      const start = performance.now();
+      let thrown: unknown;
+      try {
+        renderToHtml(email({ markdown }));
+      } catch (e) {
+        thrown = e;
+      }
+      expect(thrown).toBeInstanceOf(RenderError);
+      expect((thrown as RenderError).message).toMatch(/^\[Unlayer\] A table of \d+ columns and \d+ rows is \d+ cells, more than the Markdown can render: .* \(in <Markdown> at Row 1 › Column 1 › Markdown\)$/);
+      // (Without reading the rows: well under a second however large, where filling it out took seconds and gigabytes.)
+      expect(performance.now() - start).toBeLessThan(5000);
+    }
+    // With `onError: "omit"` it's left out of the HTML, the plain text and the design, listed, and the rest renders.
+    const markdown = `# Before\n\n${padded(5 * 1024)}\nAfter`;
+    const parts = renderToHtmlParts(email({ markdown }), { onError: "omit" });
+    expect(parts.omitted.map((e) => [e.component, e.position])).toEqual([["Markdown", "Row 1 › Column 1 › Markdown"]]);
+    expect(parts.body).not.toContain("u_content_table");
+    expect(renderToJson(email({ markdown }), { onError: "omit" }).body.rows[0].columns[0].contents.map((c: any) => c.type)).toEqual(["heading", "text"]);
+    expect(renderToPlainText(email({ markdown }), { onError: "omit" })).toMatch(/BEFORE[\s\S]*After/);
+    expect(parts.body.length).toBeLessThan(100_000);
+    expect(error.mock.calls.map((call) => String(call[0]))).toContain(`[Unlayer] Left out: ${parts.omitted[0].message.replace(/^\[Unlayer\] /, "")}`);
+    // The async renderers alike.
+    const async = await asyncRenderers.renderToHtmlParts(email({ markdown }), { onError: "omit" });
+    expect([async.omitted.map((e) => e.position), async.body.includes("u_content_table")]).toEqual([["Row 1 › Column 1 › Markdown"], false]);
+    await expect(asyncRenderers.renderToHtml(email({ markdown }))).rejects.toThrow(/A table of \d+ columns/);
+  });
+
+  it("renders a table whose cells are written out, however large, and one with short rows up to 1,000 cells", () => {
+    const row = (n: number, text: string) => "|" + `${text}|`.repeat(n) + "\n";
+    const large = row(30, "head") + row(30, "-") + row(30, "cell").repeat(200);
+    expect(blocks({ markdown: large })[0][1]).toMatchObject({ rows: { length: 200 } });
+    // 20 columns, 49 rows of one cell: 1,000 cells, the rest filled out.
+    const sparse = row(20, "h") + row(20, "-") + "|x|\n".repeat(49);
+    expect(blocks({ markdown: sparse })[0][1]).toMatchObject({ rows: { length: 49 } });
+    expect(() => renderToHtml(email({ markdown: sparse + "|x|\n" }))).toThrow(/A table of 20 columns and 50 rows is 1020 cells/);
+    // The cells are the Markdown's in all: tables that fit one by one don't together.
+    const fit = row(20, "h") + row(20, "-") + "|x|\n".repeat(24);
+    expect(blocks({ markdown: `${fit}\n${fit}` }).map(([type]) => type)).toEqual(["table", "table"]);
+    expect(() => renderToHtml(email({ markdown: `${fit}\n${fit}\n${fit}` }))).toThrow(/A table of 20 columns and 24 rows is 500 cells/);
+  });
+
+  it("leaves out the list or quote a table that's too large is in, as it leaves out the table", () => {
+    const markdown = `Before\n\n${padded(4096).replace(/^/gm, "> ")}\n\nAfter`;
+    expect(() => renderToHtml(email({ markdown }))).toThrow(/A table of \d+ columns .* \(in <Markdown> at Row 1 › Column 1 › Markdown\)$/);
+    const parts = renderToHtmlParts(email({ markdown }), { onError: "omit" });
+    expect(parts.omitted).toHaveLength(1);
+    expect(parts.body).not.toContain("<blockquote");
+    expect(renderToJson(email({ markdown }), { onError: "omit" }).body.rows[0].columns[0].contents.map((c: any) => c.values.text)).toEqual(["Before", "After"]);
+  });
+
+  it("nests quotes and lists 32 deep: deeper, their markers are text, and the rest of the email renders", () => {
+    for (const markdown of [">".repeat(2500) + " deep", "> - ".repeat(2000) + "deep", "> ".repeat(50000) + "deep", "- ".repeat(5000) + "deep"]) {
+      const start = performance.now();
+      const html = renderToHtml(
+        <Email>
+          <Row>
+            <Column>
+              <Markdown markdown={markdown} />
+              <Html html="<p>The rest</p>" />
+            </Column>
+          </Row>
+        </Email>
+      );
+      const body = new DOMParser().parseFromString(html, "text/html").body;
+      let depth = 0;
+      for (let e: Element | null = body.querySelector("blockquote, ul"); e; e = e.querySelector(":scope > blockquote, :scope > li > ul, :scope > ul, :scope > li > blockquote, :scope > p > blockquote")) depth++;
+      expect(depth).toBeGreaterThan(0);
+      expect(depth).toBeLessThanOrEqual(32);
+      expect(body.textContent).toContain("deep");
+      expect(body.textContent).toContain("The rest");
+      expect(performance.now() - start).toBeLessThan(5000);
+    }
+    // Under the limit, as deep as written.
+    expect(renderToHtml(email({ markdown: "> ".repeat(10) + "x" })).match(/<blockquote/g)).toHaveLength(10);
   });
 });
 

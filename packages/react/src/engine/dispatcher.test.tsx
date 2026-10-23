@@ -8,7 +8,7 @@ import React, { createContext, useState } from "react";
 import * as ReactDom from "react-dom";
 import { renderToStaticMarkup } from "react-dom/server";
 import { renderStatic } from "./index";
-import { theSlot } from "./dispatcher";
+import { isIdleDispatcher, theSlot } from "./dispatcher";
 
 const R = React as unknown as Record<string, any>;
 const has = (name: string) => typeof R[name] === "function";
@@ -16,6 +16,35 @@ const Theme = createContext("default");
 
 /** What a component gives with the walker and with react-dom/server: the same, where react-dom can render it. */
 const both = (element: React.ReactElement) => ({ walker: renderStatic(element), reactDom: renderToStaticMarkup(element) });
+
+describe("an idle dispatcher (React's between its client renders: no render running, where a context's default is learned)", () => {
+  const invalid = () => {
+    throw new Error("Invalid hook call");
+  };
+  const hooks = ["useState", "useEffect", "useContext", "useCallback", "useMemo", "useReducer", "useRef"];
+  it("is none, or one whose hooks are one function (React's ContextOnlyDispatcher), compared without calling anything", () => {
+    expect(isIdleDispatcher(null)).toBe(true);
+    expect(isIdleDispatcher(undefined)).toBe(true);
+    const calls: string[] = [];
+    const contextOnly = new Proxy(Object.fromEntries(hooks.map((hook) => [hook, invalid])), { get: (target, key) => (calls.push(String(key)), target[key as string]) });
+    expect(isIdleDispatcher(contextOnly)).toBe(true);
+    expect(calls.every((key) => hooks.includes(key))).toBe(true);
+  });
+
+  it("isn't a running render's: React Server Components' shares one function for most hooks, but not useContext", () => {
+    const unsupported = () => {
+      throw new Error("This Hook is not supported in Server Components.");
+    };
+    const flight = { ...Object.fromEntries(hooks.map((hook) => [hook, unsupported])), useContext: () => {
+      throw new Error("Cannot read a Client Context from a Server Component.");
+    } };
+    expect(isIdleDispatcher(flight)).toBe(false);
+    // A server's or a client's, with a function each, and a shape this doesn't know: hosts (the safe side, no learning).
+    expect(isIdleDispatcher(Object.fromEntries(hooks.map((hook) => [hook, () => hook])))).toBe(false);
+    expect(isIdleDispatcher({})).toBe(false);
+    expect(isIdleDispatcher({ useState: 1, useEffect: 1, useContext: 1, useCallback: 1 })).toBe(false);
+  });
+});
 
 describe("the hooks dispatcher", () => {
   it("implements every hook this React exports, as its server renderer does", () => {
