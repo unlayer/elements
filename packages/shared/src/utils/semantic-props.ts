@@ -12,6 +12,7 @@
 
 import type { DeviceProps, ValuesInput } from "../types";
 import { cssSafeValues, normalizeCssValues } from "./css-values";
+import { entities } from "./entities";
 import { textToTextJson, htmlToTextJson } from "./lexical-helpers";
 
 /**
@@ -189,17 +190,24 @@ const LINK_KEYS = ["href", "action"] as const;
 const JAVASCRIPT_URL = /^[\u0000-\u001F ]*j[\r\n\t]*a[\r\n\t]*v[\r\n\t]*a[\r\n\t]*s[\r\n\t]*c[\r\n\t]*r[\r\n\t]*i[\r\n\t]*p[\r\n\t]*t[\r\n\t]*:/i;
 
 /**
- * A URL that can't run code: a `javascript:` URL (as React 19 tells one: controls and spaces before it, tabs and line
- * breaks in it, any case) as the one react-dom 19 writes for it, which throws; any other as it is.
+ * A URL that can't run code: a `javascript:` URL as React 19 tells one (controls and spaces before it, tabs and line
+ * breaks in it, any case) as the one react-dom 19 writes for it, which throws; any other as it is, byte for byte.
+ * `raw`: one written into an attribute as it is (the editor's exporters write a link's URL so), which a browser reads
+ * with its character references decoded (`&#106;avascript:`, `javascript&colon;`), as it's read here then; React
+ * escapes its own (`&` as `&amp;`), so a reference in one stays text.
  */
-export const unrunUrl = (url: string): string => (JAVASCRIPT_URL.test(url) ? "javascript:throw new Error('React has blocked a javascript: URL as a security precaution.')" : url);
+export const unrunUrl = (url: string, raw?: boolean): string => (JAVASCRIPT_URL.test(raw ? entities(url) : url) ? "javascript:throw new Error('React has blocked a javascript: URL as a security precaution.')" : url);
 
-/** A link of any shape (`"…"`, `{ url }`, `{ name, values: { href } }`) with its URL as unrunUrl writes it (a list or a number as its text). */
+/**
+ * A link of any shape (`"…"`, `{ url, customAttrs }`, `{ name, values: { href }, attrs: { href } }`) with its URLs as
+ * unrunUrl writes them (a list or a number as its text).
+ */
 function unrunLink(link: any): any {
-  const blocked = (url: unknown) => url != null && unrunUrl(String(url)) !== String(url);
-  if (typeof link !== "object" || link === null) return blocked(link) ? unrunUrl(String(link)) : link;
-  if (blocked(link.url)) link = { ...link, url: unrunUrl(String(link.url)) };
-  if (blocked(link.values?.href)) link = { ...link, values: { ...link.values, href: unrunUrl(String(link.values.href)) } };
+  const unrun = (url: unknown) => unrunUrl(String(url), true);
+  const blocked = (url: unknown) => url != null && unrun(url) !== String(url);
+  if (typeof link !== "object" || link === null) return blocked(link) ? unrun(link) : link;
+  if (blocked(link.url)) link = { ...link, url: unrun(link.url) };
+  for (const key of ["values", "attrs", "customAttrs"]) if (blocked(link[key]?.href)) link = { ...link, [key]: { ...link[key], href: unrun(link[key].href) } };
   return link;
 }
 

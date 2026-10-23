@@ -11,7 +11,7 @@ import { beforeAll, describe, expect, it, vi } from "vitest";
 import React from "react";
 import { renderToHtml } from "../utils/render-to-html";
 import { renderToJson } from "../utils/render-to-json";
-import { Email, Page, Document, Row, Column, Paragraph, Heading, Button, Image, Menu, Social, Html, Divider } from "../index";
+import { Email, Page, Document, Row, Column, Paragraph, Heading, Button, Image, Link, Menu, Social, Html, Divider } from "../index";
 import { Tailwind, loadTailwind, type TailwindHandle } from "../tailwind";
 
 const PAYLOADS = [
@@ -154,14 +154,20 @@ describe("a link's `javascript:` URL, as data gives it", () => {
     "Button href, same tab": (url) => <Button href={url} target="_self">Go</Button>,
     "Button link's storage shape": (url) => <Button href={{ name: "web", values: { href: url, target: "_self" } } as never}>Go</Button>,
     "Button values": (url) => <Button values={{ href: url } as never}>Go</Button>,
+    "Button link's attrs": (url) => <Button href={{ name: "web", attrs: { href: url } } as never}>Go</Button>,
     "Image action": (url) => <Image src="https://example.com/a.png" width="100px" alt="x" action={url as never} />,
     "Menu item": (url) => <Menu items={[{ text: "Shop", href: url, target: "_self" }]} />,
     "Menu values": (url) => <Menu values={{ menu: { items: [{ key: "1", text: "Shop", link: { name: "web", values: { href: url, target: "_self" } } }] } } as never} />,
+    "Menu values' attrs": (url) => <Menu values={{ menu: { items: [{ key: "1", text: "Shop", link: { name: "web", attrs: { href: url } } }] } } as never} />,
+    "Menu values' render shape": (url) => <Menu values={{ menu: { items: [{ key: "1", text: "Shop", link: { url: "", customAttrs: { href: url } } }] } } as never} />,
     "Social icon": (url) => <Social icons={[{ name: "Facebook", url }]} />,
+    "Link": (url) => <Link href={url}>Read</Link>,
     "Heading's inline link": (url) => <Heading>Read <a href={url}>this</a></Heading>,
     "Paragraph's inline link": (url) => <Paragraph>Read <a href={url}>this</a></Paragraph>,
   };
-  const URLS = ["javascript:alert(1)", " \u0001JavaScript:alert(1)", "java\tscr\nipt:alert(1)"];
+  // And written with character references, which the exporters write as they are, and a browser decodes: a numeric one, a
+  // hex one, and named ones (`&colon;`, `&Tab;`, `&NewLine;`, in any case and without their `;`).
+  const URLS = ["javascript:alert(1)", " \u0001JavaScript:alert(1)", "java\tscr\nipt:alert(1)", "&#106;avascript:alert(1)", "&#x6A;avascript:alert(1)", "javascript&colon;alert(1)", "java&Tab;script:alert(1)", "java&NewLine;script&COLON;alert(1)", "&#0000106avascript:alert(1)"];
   /** Each link's and image's URL in the HTML, as a browser reads it. */
   const urls = (html: string) => Array.from(new DOMParser().parseFromString(html, "text/html").querySelectorAll("a[href], img[src]")).map((e) => e.getAttribute(e.tagName === "A" ? "href" : "src")!);
   /** A URL that runs code: `javascript:` as a browser reads a URL (controls and spaces before, tabs and line breaks dropped). */
@@ -174,10 +180,17 @@ describe("a link's `javascript:` URL, as data gives it", () => {
         const template = <Root><Row><Column>{LINKS[name](url)}</Column></Row></Root>;
         expect([url, urls(renderToHtml(template)).filter(runs)]).toEqual([url, []]);
         // In the design too: a link the editor opens and exports is the URL that throws.
-        if (!/inline/.test(name)) expect([url, JSON.stringify(renderToJson(template)).includes("React has blocked a javascript: URL")]).toEqual([url, true]);
+        if (!/inline|^Link$/.test(name)) expect([url, JSON.stringify(renderToJson(template)).includes("React has blocked a javascript: URL")]).toEqual([url, true]);
       }
     } finally {
       warn.mockRestore();
+    }
+  });
+
+  it("leaves a URL that isn't one as it is, its character references too", () => {
+    for (const url of ["https://example.com/?a=1&b=2", "https://example.com/?a=1&amp;b=2&copy=3", "https://example.com/&#106;avascript", "mailto:a@b.test?subject=a&body=b"]) {
+      const design = renderToJson(<Email><Row><Column><Button href={url}>Go</Button></Column></Row></Email>);
+      expect(design.body.rows[0].columns[0].contents[0].values.href.values.href).toBe(url);
     }
   });
 
