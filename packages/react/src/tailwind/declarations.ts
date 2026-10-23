@@ -126,9 +126,10 @@ const WAITING = "it's read once Tailwind has compiled again, after a class it co
 const RENEWALS = 3;
 
 /**
- * The classes of a build that didn't read cleanly that are built alone, one at a time, to find the one that was why
- * (see declarationReader): past them, the others are refused too. Each build is Tailwind's whole stylesheet again, so
- * the many classes of one build (a render's) can't each be built alone.
+ * The classes of a build that didn't read cleanly that are built alone on one compiler, one at a time, to find the one
+ * that was why (see declarationReader): past them, the others wait for a fresh compiler, on which as many more are
+ * built alone. Each build is Tailwind's whole stylesheet again, so the many classes of one build (a render's) can't
+ * each be built alone on one compiler.
  */
 export const SUSPECTS = 100;
 
@@ -158,8 +159,8 @@ function readable(token: string): boolean {
  * built: a class string reads the same whatever its compiler built before. A class that could change how the
  * stylesheet reads isn't built (`readable`); a build whose stylesheet still doesn't read cleanly is left out (its
  * classes said, the classes before it read as they did), and a fresh compiler takes over, on which each of that
- * build's classes is built alone first (SUSPECTS of them at most: the others are refused): the one that was why is
- * never built again.
+ * build's classes is built alone first (SUSPECTS of them on one compiler: the others wait for the next): the one that
+ * was why is never built again, and only it.
  *
  * Each build is Tailwind's whole stylesheet again (it keeps every class it built), so classes are best built many at
  * once: `prepare` builds a render's, all the classes its components and their markup are given, before they're read
@@ -181,8 +182,9 @@ export function declarationReader(compiler: Compiler, renew?: () => Promise<Comp
   // Whether the compiler built a stylesheet that didn't read cleanly: nothing more is built on it.
   let dirty = false;
   const suspects = new Set<string>();
+  // Only classes built alone and seen to fail.
   const refused = new Set<string>();
-  // Suspects built alone since the last build that didn't read cleanly (see SUSPECTS).
+  // Suspects built alone on this compiler (see SUSPECTS).
   let alone = 0;
   // Fresh compilers that failed in a row (see RENEWALS), and the last one's error.
   let failures = 0;
@@ -198,7 +200,7 @@ export function declarationReader(compiler: Compiler, renew?: () => Promise<Comp
         sheet = empty();
         byToken = new Map();
         renewing = dirty = false;
-        failures = 0;
+        failures = alone = 0;
       },
       (error) => {
         renewing = false;
@@ -223,17 +225,19 @@ export function declarationReader(compiler: Compiler, renew?: () => Promise<Comp
     return true;
   };
   const tokensOf = (className: string) => [...new Set(String(className).split(/\s+/).filter(Boolean))];
-  // The classes not built yet, built: a suspect alone, the rest at once.
+  // The classes not built yet, built: a suspect alone (past SUSPECTS on this compiler, on the next one), the rest at once.
   const need = (tokens: string[]) => {
     const unread = tokens.filter((token) => !seen.has(token) && !refused.has(token) && readable(token));
     if (!unread.length) return;
-    for (const token of unread) if (!dirty && suspects.delete(token) && (alone++ >= SUSPECTS || !build([token]))) refused.add(token);
-    const rest = unread.filter((token) => !seen.has(token) && !refused.has(token) && !suspects.has(token));
-    if (rest.length && !dirty && !build(rest)) {
-      rest.forEach((token) => suspects.add(token));
-      alone = 0;
+    let later = false;
+    for (const token of unread) {
+      if (dirty || !suspects.has(token)) continue;
+      if (alone >= SUSPECTS) later = true;
+      else if ((suspects.delete(token), alone++, !build([token]))) refused.add(token);
     }
-    if (dirty) fresh();
+    const rest = unread.filter((token) => !seen.has(token) && !refused.has(token) && !suspects.has(token));
+    if (rest.length && !dirty && !build(rest)) rest.forEach((token) => suspects.add(token));
+    if (dirty || later) fresh();
   };
   const read = (className: string): ClassDeclarations => {
     const tokens = tokensOf(className);

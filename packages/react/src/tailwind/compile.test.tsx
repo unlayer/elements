@@ -418,22 +418,40 @@ describe("a handle's reader of classes", () => {
     expect(build).toHaveBeenCalledTimes(1);
   });
 
-  it(`builds alone at most ${SUSPECTS} of the classes of a build it can't read cleanly, refusing the others`, async () => {
+  it(`builds alone at most ${SUSPECTS} of the classes of a build it can't read cleanly on one compiler, the others on the next: only the one that was why is refused`, async () => {
     // A render's classes are built at once: built alone, each one Tailwind's whole stylesheet again, they'd take the
-    // square of their number.
-    const compilers = [poisoned(), poisoned()];
+    // square of their number. One render with a build that didn't read cleanly can't take an app's `p-4` away from
+    // the renders after it, on a handle every tenant shares.
+    const compilers = [poisoned(), poisoned(), poisoned(), poisoned()];
     const ready: Array<(compiler: Compiler) => void> = [];
-    const read = declarationReader(compilers[0], () => new Promise<Compiler>((resolve) => ready.push(resolve)));
-    const classes = [...Array.from({ length: SUSPECTS + 50 }, (_, i) => `c${i}`), "evil"].join(" ");
+    const renew = vi.fn(() => new Promise<Compiler>((resolve) => ready.push(resolve)));
+    const read = declarationReader(compilers[0], renew);
+    const tokens = [...Array.from({ length: SUSPECTS + 50 }, (_, i) => `c${i}`), "p-4", "evil"];
+    const classes = tokens.join(" ");
+    const reasons = (found: { ignored: Array<{ reason: string }> }) => [...new Set(found.ignored.map((i) => i.reason))];
     read.prepare(classes);
     ready[0](compilers[1]);
     await Promise.resolve();
     const build = vi.spyOn(compilers[1], "build");
-    const { declarations, ignored } = read(classes);
+    const first = read(classes);
     expect(build).toHaveBeenCalledTimes(SUSPECTS);
-    expect(declarations.map((d) => d.className)).toEqual(Array.from({ length: SUSPECTS }, (_, i) => `c${i}`));
-    expect(ignored.map((i) => i.className)).toEqual([...Array.from({ length: 50 }, (_, i) => `c${SUSPECTS + i}`), "evil"]);
-    expect(new Set(ignored.map((i) => i.reason))).toEqual(new Set(["it isn't a class Tailwind can read here"]));
+    expect(first.declarations.map((d) => d.className)).toEqual(tokens.slice(0, SUSPECTS));
+    // The others wait for the next compiler (asked for now), not refused.
+    expect(first.ignored.map((i) => i.className)).toEqual(tokens.slice(SUSPECTS));
+    expect(reasons(first)).toEqual(["it's read once Tailwind has compiled again, after a class it couldn't read"]);
+    expect(renew).toHaveBeenCalledTimes(2);
+    ready[1](compilers[2]);
+    await Promise.resolve();
+    // On it, they're built alone: `p-4` reads, `evil` is refused for good.
+    const second = read(classes);
+    expect(second.declarations.map((d) => d.className)).toEqual(tokens.slice(SUSPECTS, -1));
+    expect(read("evil").ignored).toEqual([{ className: "evil", reason: "it isn't a class Tailwind can read here" }]);
+    ready[2](compilers[3]);
+    await Promise.resolve();
+    const third = read(classes);
+    expect(third.declarations.map((d) => d.className)).toEqual(tokens.slice(0, -1));
+    expect(third.ignored).toEqual([{ className: "evil", reason: "it isn't a class Tailwind can read here" }]);
+    expect(compilers[3].built).not.toContain("evil");
   });
 
   it("asks again for a fresh compiler that failed, on the next read that needs one", async () => {
