@@ -62,7 +62,7 @@ const Social = createItemComponent<SocialValues, SocialSemanticProps>({
     const { icons, iconType, ...rest } = props;
     const base: Partial<SocialValues> = mapSemanticProps((Array.isArray(icons) || iconType !== undefined ? rest : props) as SemanticProps<SocialValues>, DEFAULT_VALUES, "Social");
     // Map shorthand icons array → exporter format; an iconType passed without them is threaded into the nested group.
-    if (Array.isArray(icons)) base.icons = { iconType: iconType ?? base.icons?.iconType ?? "circle", icons: icons.map((icon: SocialIcon) => ({ name: icon.name, url: icon.url })) };
+    if (Array.isArray(icons)) base.icons = { iconType: iconType ?? base.icons?.iconType ?? "circle", icons: icons.map((icon: SocialIcon) => ({ name: icon.name, url: icon.url ?? undefined })) };
     else if (iconType !== undefined) base.icons = { ...DEFAULT_ICONS, ...base.icons, iconType };
     // The exporter does arithmetic on iconSize/spacing (icon box sizing and the container max-width), so coerce a px
     // string or number down to a number. A non-px unit ("50%", "1.5em") is invalid here: dropped, so mergeValues

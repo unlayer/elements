@@ -9,7 +9,7 @@ import { Tailwind, type Resolver, type TailwindConfig, type TailwindHandle } fro
 // runtime has no file to read it from.
 /*! Includes tailwindcss's default theme (MIT License, Copyright (c) Tailwind Labs, Inc.): see THIRD_PARTY_LICENSES.md */
 import theme from "tailwindcss/theme.css?raw";
-import { declarationReader, type ClassDeclarations, type Compiler, type DeclarationReader } from "./declarations";
+import { capped, declarationReader, OVER, CLASSES, type ClassDeclarations, type Compiler, type DeclarationReader } from "./declarations";
 import { classesToProps } from "./props";
 import { classNamesIn, inlineClasses } from "./html";
 import { unsafeStyle } from "../markdown/sanitize";
@@ -23,9 +23,9 @@ export interface HandleResolver extends Resolver {
 }
 
 /**
- * The classes in what a render collected (each record's component's `className`, and those in its `html`, as a
- * rewrite reads them), all built at once by `declarations`, before the render rewrites any (see Tailwind.tsx's
- * `prepare`).
+ * The classes of the records in a render's scopes with a handle (each record's component's `className`, and those in
+ * its `html`, as a rewrite reads them), all built at once by `declarations`, before the render rewrites any (see
+ * Tailwind.tsx's `prepare`).
  */
 function prepareRecords(declarations: DeclarationReader, records: readonly unknown[]): void {
   const names: string[] = [];
@@ -98,15 +98,32 @@ async function compile(config: TailwindConfig | undefined, source = config): Pro
   const declarations = declarationReader(await compiler(source), () => compiler(source));
   // What renders collected, prepared (once per render, whichever of its scopes asks: each gives the same list).
   const prepared = new WeakSet<object>();
+  // Each render's classes, read together (see capped), by the render (the main entry's key for it); each call's where
+  // there's none.
+  const renders = new WeakMap<object, ReturnType<typeof capped>>();
+  const reader = (render?: object) => {
+    let read = render && renders.get(render);
+    if (!read) {
+      read = capped(declarations);
+      if (render) renders.set(render, read);
+    }
+    return read;
+  };
   const resolver: HandleResolver = {
-    declarations,
-    prepare: (records) => void (!prepared.has(records) && prepared.add(records) && prepareRecords(declarations, records)),
-    props: (name: string, className: string, explicit: Record<string, any>, defaults?: Record<string, any>, rtl = false) => {
+    declarations: (className) => capped(declarations)(className),
+    prepare: (records, render) => void (!prepared.has(records) && prepared.add(records) && prepareRecords(reader(render), records)),
+    props: (name: string, className: string, explicit: Record<string, any>, defaults?: Record<string, any>, rtl = false, render?: object) => {
+      const read = reader(render);
+      const warn = (text: string) => console.warn(`[Unlayer] ${name} ${text}.`);
+      read.first = undefined;
       // Classes in its markup (an Html block's, a Paragraph's `html`): inline styles; in Markdown's sanitized HTML, none
       // its sanitizer wouldn't keep in a `style` (your own markup's are as you wrote them).
       const html = explicit.html;
-      if (typeof html === "string" && /class/i.test(html)) explicit = { ...explicit, html: inlineClasses(html, declarations, (text) => console.warn(`[Unlayer] ${name} ${text}.`), rtl, explicit._sanitized ? unsafeStyle : undefined) };
-      return classesToProps(name, declarations(className), explicit, defaults, false, rtl);
+      if (typeof html === "string" && /class/i.test(html)) explicit = { ...explicit, html: inlineClasses(html, read, warn, rtl, explicit._sanitized ? unsafeStyle : undefined) };
+      const found = read(className);
+      // Classes past the render's first CLASSES: said once in the render, where they're first met.
+      if (read.first !== undefined && !read.said && (read.said = true)) warn(`ignores class \`${read.first}\`, and the render's other classes past its first ${CLASSES} different ones: a render reads ${CLASSES} at most`);
+      return classesToProps(name, { ...found, ignored: found.ignored.filter((i) => i.reason !== OVER) }, explicit, defaults, false, rtl);
     },
   };
   return Object.freeze({ config, [TAILWIND]: resolver }) as TailwindHandle;

@@ -16,7 +16,7 @@ import { whereIs } from "../utils/collect";
 import { RenderError } from "../engine";
 import { failed, failedBefore, guest, rightToLeft, sayOnce } from "../utils/render-scope";
 import { containerOf } from "../utils/container-render";
-import { classProps, prepareClasses, TAILWIND } from "../utils/tailwind";
+import { classProps, isTailwindError, prepareClasses, TAILWIND } from "../utils/tailwind";
 import { OWN, UNLAYER_CONFIG_KEY } from "../utils/create-component";
 import { inlineHtml } from "../utils/inline-html";
 import { closestName } from "../utils/closest-name";
@@ -147,21 +147,59 @@ function recordHtml(c: Collected, scoped: Scoped, render: (element: React.ReactE
 }
 
 /**
- * A recorded Row's, Column's or block's props, with its `className` turned into props by the <Tailwind> it's in
- * (worked out once: the HTML, the head and the design ask for the same).
+ * The Rows, Columns and blocks in a <Tailwind> (`tw`, its record) and in the render's others with its `tw` (or
+ * `config`), not in one inside it with another: the records whose classes its handle rewrites, built at once, once per
+ * render (one list for the scopes of a handle). Worked out once per render, for every scope.
  */
-function styled(c: Collected, { item, tw }: Scoped, props: Record<string, any>): Record<string, any> {
+function inScope(c: Collected, tw: object): object[] {
+  if (!c.scopes) {
+    const scopes = (c.scopes = new Map<object, object[]>());
+    const byHandle = new Map<unknown, object[]>();
+    const walk = (items: readonly Item[], list?: object[]) => {
+      for (const item of items) {
+        if (typeof item === "string" || item.kind === "markup") continue;
+        let inner = list;
+        if (item.kind === "record") {
+          const r = recordOf(item);
+          if (r.kind === "tailwind") {
+            const key = r.props?.tw ?? r.props?.config ?? r;
+            scopes.set(r, (inner = byHandle.get(key) ?? byHandle.set(key, []).get(key)!));
+          } else if (list && r.kind !== "boundary") list.push(r);
+        }
+        walk(item.items, inner);
+      }
+    };
+    walk(c.content);
+  }
+  return c.scopes.get(tw) ?? [];
+}
+
+/**
+ * A recorded Row's, Column's or block's props, with its `className` turned into props by the <Tailwind> it's in
+ * (worked out once: the HTML, the head and the design ask for the same); null where reading its classes failed (a
+ * Tailwind plugin threw) and the render leaves it out (`onError: "omit"`).
+ */
+function styled(c: Collected, { item, tw }: Scoped, props: Record<string, any>): Record<string, any> | null {
   // (Classes in a block's `html` are inlined too: one that has a class attribute, however it's written.)
   if (tw === undefined || !(props.className || /class/i.test(props.html))) return props;
   c.styled ??= new Map();
   const r = recordOf(item);
   if (!c.styled.has(r)) {
-    // (First, the classes of all the render collected, built at once: see prepareClasses.)
-    if (!c.styled.has(tw)) c.styled.set(tw, (prepareClasses(tw.props, c.recorded), {}));
+    // (First, the classes of the records in its scope, built at once: see prepareClasses.)
+    if (!c.styled.has(tw)) c.styled.set(tw, (prepareClasses(tw.props, inScope(c, tw)), {}));
     const type = r.type as any;
     const config = type?.[UNLAYER_CONFIG_KEY];
     const [name, defaults] = r.kind === "row" ? ["Row", ROW_DEFAULTS] : r.kind === "column" ? ["Column", COLUMN_DEFAULTS] : [config?.name ?? type?.displayName ?? "Block", config?.defaultValues];
-    c.styled.set(r, classProps(tw.props, name, defaults, props));
+    let own: Record<string, any> | null;
+    try {
+      own = classProps(tw.props, name, defaults, props);
+    } catch (error) {
+      // What reading its classes threw (a Tailwind plugin's error) is its: it fails the render, or it's left out.
+      if (isTailwindError(error) || error instanceof RenderError) throw error;
+      failed(new RenderError(`${String((error as Error)?.message ?? error)}`, name, whereIs(r) ?? name, error), r);
+      own = null;
+    }
+    c.styled.set(r, own);
   }
   return c.styled.get(r)!;
 }
@@ -252,10 +290,13 @@ function made(c: Collected, scoped: Scoped, r: ReturnType<typeof recordOf>): Rea
         sayOnce(`[Unlayer] ${config.name} ignores the prop \`${key}\`${near ? `: did you mean \`${near}\`?` : "."}`);
       }
     }
-    return jsx((config?.contentType !== "custom" && BLOCKS[config?.name]) || r.type, { ...styled(c, scoped, props), _record: r });
+    const own = styled(c, scoped, props);
+    return own && jsx((config?.contentType !== "custom" && BLOCKS[config?.name]) || r.type, { ...own, _record: r });
   }
-  if (r.kind === "column") return jsxs(Column, { ...styled(c, scoped, r.props), children: elements(c, item.items, "column", tw), _record: r });
-  const props: Record<PropertyKey, any> = { ...styled(c, scoped, r.props) };
+  const own = styled(c, scoped, r.props);
+  if (!own) return null;
+  if (r.kind === "column") return jsxs(Column, { ...own, children: elements(c, item.items, "column", tw), _record: r });
+  const props: Record<PropertyKey, any> = { ...own };
   let list = elements(c, item.items, "row", tw);
   // Columns whose own HTML failed in this render (`onError: "omit"`), by their places among the Columns: left out with
   // their cells, and the Row with the last of them (see `recordHtml`).
