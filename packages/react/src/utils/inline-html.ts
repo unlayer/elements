@@ -6,6 +6,8 @@
  * Paragraph's classes are inlined as styles, a Heading's or Button's kept as they are); other elements (a div, a table, an image) leave only their text, so no block gets into a paragraph; and
  * nothing that runs code (React writes no event handler; a `javascript:` URL or a CSS expression is left out).
  */
+import { decoded } from "./entities";
+
 const INLINE = /^(strong|b|em|i|u|s|a|br|span|code|sup|sub|small|mark)$/;
 
 export function inlineHtml(html: string): string {
@@ -15,10 +17,11 @@ export function inlineHtml(html: string): string {
       if (!INLINE.test(tag)) return "";
       if (close) return tag === "br" ? "" : `</${tag}>`;
       let kept = "";
-      // As React writes attributes: name="escaped value".
+      // As React writes attributes: name="escaped value"; read as the browser reads it (its references decoded, the
+      // characters it leaves out of a URL's scheme dropped), so `&#106;avascript:` in markup written as HTML is one too.
       for (const [attribute, key, value] of attributes.matchAll(/\s([\w-]+)="([^"]*)"/g)) {
         const allowed = /^(style|title|class)$/.test(key) || (tag === "a" && /^(href|target|rel)$/.test(key));
-        if (allowed && !/(java|vb)script:|expression\(|^data:/i.test(value.replace(/[\s\u0000-\u001f]|&[#\w]+;?/g, ""))) kept += attribute;
+        if (allowed && !/(java|vb)script:|expression\(|^data:/i.test(decoded(value))) kept += attribute;
       }
       return `<${tag}${kept}${tag === "br" ? "/" : ""}>`;
     })

@@ -42,7 +42,7 @@
   - A link in a Paragraph's or a Heading's children is `text (url)`, as their HTML now holds it (see "Inline JSX in Paragraph, Heading and Button children" next); 0.2 kept only its text.
   - A template that now renders otherwise has the text of what it renders: one in an `<UnlayerProvider config={{ mode: "email" }}>` is an email now (see "`<UnlayerProvider config>` configures the templates inside it" below), so its Menu items, their separators and its Social icons are on lines of their own, as in any email's text.
 
-- **Inline JSX in Paragraph, Heading and Button children.** Formatting tags (with their `style` and `class`), `<Link>`, and components that return them (react-intl's `<FormattedMessage>`, react-i18next's `<Trans>`) are kept, rendered with the template's context. 0.2 kept only their text. Text in them is still escaped.
+- **Inline JSX in Paragraph, Heading and Button children.** Formatting tags (with their `style` and `class`), `<Link>`, and components that return them (react-intl's `<FormattedMessage>`, react-i18next's `<Trans>`) are kept, rendered with the template's context. 0.2 kept only their text. Text in them is still escaped. A URL that runs code is left out however its characters are written (`&#106;avascript:`, `javascript&colon;`, in markup a component of yours writes as HTML).
 
 - **A `<Font>`'s URL in the design.** `renderToJson()` writes a `<Font>`'s stylesheet URL on the design's fonts of its family (the body's and each block's `fontFamily`, matched by the stack's first family, as the editor matches fonts), where the editor keeps a web font: the editor loads it and exports its `<link>`. Before, a `<Font>` without `default` loaded the font in the HTML only, and the editor showed its fallback.
 

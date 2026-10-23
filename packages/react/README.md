@@ -237,7 +237,7 @@ Must be child of Row. Count must match layout (a Row that doesn't fit its layout
 - `fontFamily?: { label: string, value: string }`
 - aliases: `align` for `textAlign`, `textColor` for `color`
 
-Text in children is escaped, as React shows it. Other elements (a `div`, a `table`, an image) leave only their text, so no block gets into a paragraph, and nothing that runs code is kept (event handlers, `javascript:` URLs). A component that is async or suspends fails a synchronous render, naming it (see [Errors](#errors)). The design (`renderToJson()`) keeps the same HTML, and the plain text writes links as `text (url)`.
+Text in children is escaped, as React shows it. Other elements (a `div`, a `table`, an image) leave only their text, so no block gets into a paragraph, and nothing that runs code is kept (event handlers, `javascript:` URLs however they're written: `&#106;avascript:`, `javascript&colon;`, in markup a component writes as HTML). A component that is async or suspends fails a synchronous render, naming it (see [Errors](#errors)). The design (`renderToJson()`) keeps the same HTML, and the plain text writes links as `text (url)`.
 
 A Paragraph is a text block in the design, and renders as the editor exports that block: plain text in no `<p>`, and its line height as given (`140%`, which text of another size inside it inherits as a fixed height, as in the editor).
 

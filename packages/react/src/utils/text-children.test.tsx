@@ -155,6 +155,43 @@ describe("rich text children of Paragraph, Heading and Button", () => {
     }
   });
 
+  it("leave out a URL that runs code however its characters are written: references, control characters, in markup given as HTML", () => {
+    const hostile = [
+      '<a href="&#106;avascript:alert(1)">a</a>',
+      '<a href="javascript&colon;alert(1)">b</a>',
+      '<a href="javascript&#58;alert(1)">c</a>',
+      '<a href="&#x6A;avascript&#x3A;alert(1)">d</a>',
+      '<a href="java&Tab;script:alert(1)">e</a>',
+      '<a href="&#0000106avascript&#58alert(1)">f</a>',
+      '<a href=" &#x0A;vbscript&colon;msgbox(1)">g</a>',
+      '<a href="&#100;ata:text/html,x">h</a>',
+      '<span style="width: expression&lpar;alert(1))">i</span>',
+    ].join(" ");
+    const template = (
+      <Email>
+        <Row>
+          <Column>
+            {/* Markup a component of yours writes as HTML (dangerouslySetInnerHTML), and a URL given as a string, which React escapes. */}
+            <Paragraph>
+              Hi <span dangerouslySetInnerHTML={{ __html: hostile }} /> <a href={"&#106;avascript:x"}>kept</a>
+            </Paragraph>
+          </Column>
+        </Row>
+      </Email>
+    );
+    const html = renderToHtml(template);
+    const text = (renderToJson(template).body.rows[0].columns[0].contents[0].values as { text: string }).text;
+    for (const markup of [html, text]) {
+      const doc = new DOMParser().parseFromString(markup, "text/html");
+      const urls = [...doc.querySelectorAll("a[href]")].map((a) => a.getAttribute("href")!.replace(/[\u0000- ]/g, ""));
+      // The one a string gave stays text, as the browser reads it (`&#106;avascript:x`, a relative URL).
+      expect(urls).toEqual(["&#106;avascript:x"]);
+      expect([...doc.querySelectorAll("[style]")].map((e) => e.getAttribute("style")).filter((s) => /expression/i.test(s!))).toEqual([]);
+      expect(doc.body.textContent).toMatch(/a b c d e f g h i/);
+    }
+    expect(text).toContain('<span><a>a</a> <a>b</a> <a>c</a> <a>d</a> <a>e</a> <a>f</a> <a>g</a> <a>h</a> <span>i</span></span> <a href="&amp;#106;avascript:x">kept</a>');
+  });
+
   it("leave text given as strings exactly as before", () => {
     const strings = <Email><Row><Column><Paragraph>Hi {name}</Paragraph><Heading>{"A <b>b</b>"}</Heading><Button href="#">{["Go", " now"]}</Button></Column></Row></Email>;
     const [paragraph, heading, button] = renderToJson(strings).body.rows[0].columns[0].contents as Array<{ values: { text: string } }>;
