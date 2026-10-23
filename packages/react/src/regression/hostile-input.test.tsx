@@ -145,6 +145,48 @@ describe("values that aren't strings, as data gives them (an array from a JSON b
   });
 });
 
+describe("a link's `javascript:` URL, as data gives it", () => {
+  const BLOCKED = "javascript:throw new Error('React has blocked a javascript: URL as a security precaution.')";
+  // Each block's link as a template or a design gives it (a prop, the link's storage shape, `values`), with a URL as
+  // React 19 tells a `javascript:` one (controls and spaces before it, tabs and line breaks in it, any case).
+  const LINKS: Record<string, (url: string) => React.ReactElement> = {
+    "Button href": (url) => <Button href={url}>Go</Button>,
+    "Button href, same tab": (url) => <Button href={url} target="_self">Go</Button>,
+    "Button link's storage shape": (url) => <Button href={{ name: "web", values: { href: url, target: "_self" } } as never}>Go</Button>,
+    "Button values": (url) => <Button values={{ href: url } as never}>Go</Button>,
+    "Image action": (url) => <Image src="https://example.com/a.png" width="100px" alt="x" action={url as never} />,
+    "Menu item": (url) => <Menu items={[{ text: "Shop", href: url, target: "_self" }]} />,
+    "Menu values": (url) => <Menu values={{ menu: { items: [{ key: "1", text: "Shop", link: { name: "web", values: { href: url, target: "_self" } } }] } } as never} />,
+    "Social icon": (url) => <Social icons={[{ name: "Facebook", url }]} />,
+    "Heading's inline link": (url) => <Heading>Read <a href={url}>this</a></Heading>,
+    "Paragraph's inline link": (url) => <Paragraph>Read <a href={url}>this</a></Paragraph>,
+  };
+  const URLS = ["javascript:alert(1)", " \u0001JavaScript:alert(1)", "java\tscr\nipt:alert(1)"];
+  /** Each link's and image's URL in the HTML, as a browser reads it. */
+  const urls = (html: string) => Array.from(new DOMParser().parseFromString(html, "text/html").querySelectorAll("a[href], img[src]")).map((e) => e.getAttribute(e.tagName === "A" ? "href" : "src")!);
+  /** A URL that runs code: `javascript:` as a browser reads a URL (controls and spaces before, tabs and line breaks dropped). */
+  const runs = (url: string) => /^javascript:/i.test(url.replace(/^[\u0000-\u0020]+/, "").replace(/[\t\n\r]/g, "")) && !url.startsWith(BLOCKED);
+
+  it.each(Object.entries(ROOTS).flatMap(([mode, Root]) => Object.keys(LINKS).map((name) => [mode, name, Root] as const)))("%s: a %s runs nothing (0.2.1 wrote some as given)", (_, name, Root) => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    try {
+      for (const url of URLS) {
+        const template = <Root><Row><Column>{LINKS[name](url)}</Column></Row></Root>;
+        expect([url, urls(renderToHtml(template)).filter(runs)]).toEqual([url, []]);
+        // In the design too: a link the editor opens and exports is the URL that throws.
+        if (!/inline/.test(name)) expect([url, JSON.stringify(renderToJson(template)).includes("React has blocked a javascript: URL")]).toEqual([url, true]);
+      }
+    } finally {
+      warn.mockRestore();
+    }
+  });
+
+  it("is written as react-dom 19 writes it, a URL that throws, where a Button's link would run", () => {
+    const html = renderToHtml(<Page><Row><Column><Button href="javascript:alert(1)" target="_self">Go</Button></Column></Row></Page>);
+    expect(urls(html)).toEqual([BLOCKED]);
+  });
+});
+
 describe("a Tailwind class from data", () => {
   // Arbitrary values whose quotes or brackets would end the `style="…"` the exporters write a prop into, or start a tag
   // (Tailwind reads `_` as a space: a class has none).
