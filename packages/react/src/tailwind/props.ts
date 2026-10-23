@@ -9,6 +9,7 @@ import { plus, shorthand, sidesOf, type Margins } from "./row";
 import { rowRewrite } from "./inherit";
 import { PROP_ALIASES, cssValueSafe } from "@unlayer-internal/shared-elements";
 import { BodyDefaults } from "@unlayer/exporters";
+import { unsafeUrl } from "../markdown/sanitize";
 
 
 const TAILWIND = Symbol.for("@unlayer/react-elements/tailwind");
@@ -231,13 +232,16 @@ export function classesToProps(name: string, found: ClassDeclarations, props: Re
     warn(`\`${d.property}: ${d.value}\` from class \`${d.className}\` is kept in HTML (an inline style) but not in the design for the visual editor`);
   };
   for (const { className, reason } of found.ignored) warn(`ignores class \`${className}\`: ${reason}`);
-  // What can't be a prop's value (see propValue) is no one's: not a prop's, an inline style's, or the text's inside.
+  // What can't be a prop's value (see propValue) is no one's: not a prop's, an inline style's, or the text's inside;
+  // nor is a `url()` that isn't a web, relative or image data URL (`bg-[url(javascript:…)]`: see unsafeUrl).
   found = {
     ...found,
     declarations: found.declarations.flatMap((d) => {
       const value = propValue(d);
       if (value === undefined) ignore(d, ": it could end the HTML attribute it's written in, start a tag, or end its CSS");
-      return value === undefined ? [] : [value === d.value ? d : { ...d, value }];
+      else if (unsafeUrl(value)) ignore(d, ": its URL isn't a web one (`http:` or `https:`), a relative one, or an image's data URL");
+      else return [value === d.value ? d : { ...d, value }];
+      return [];
     }),
   };
 

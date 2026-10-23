@@ -9,9 +9,9 @@ import { Tailwind, type Resolver, type TailwindConfig, type TailwindHandle } fro
 // runtime has no file to read it from.
 /*! Includes tailwindcss's default theme (MIT License, Copyright (c) Tailwind Labs, Inc.): see THIRD_PARTY_LICENSES.md */
 import theme from "tailwindcss/theme.css?raw";
-import { declarationReader, type ClassDeclarations, type Compiler } from "./declarations";
+import { declarationReader, type ClassDeclarations, type Compiler, type DeclarationReader } from "./declarations";
 import { classesToProps } from "./props";
-import { inlineClasses } from "./html";
+import { classNamesIn, inlineClasses } from "./html";
 import { unsafeStyle } from "../markdown/sanitize";
 
 /** Shared by every copy of Elements a process loads: a handle from one works with the others. */
@@ -20,6 +20,23 @@ export const TAILWIND = Symbol.for("@unlayer/react-elements/tailwind");
 /** A handle's resolver: the props a component's classes give it, and the declarations a class string gives. */
 export interface HandleResolver extends Resolver {
   declarations(className: string): ClassDeclarations;
+}
+
+/**
+ * The classes in what a render collected (each record's component's `className`, and those in its `html`, as a
+ * rewrite reads them), all built at once by `declarations`, before the render rewrites any (see Tailwind.tsx's
+ * `prepare`).
+ */
+function prepareRecords(declarations: DeclarationReader, records: readonly unknown[]): void {
+  const names: string[] = [];
+  for (const record of records) {
+    const props = (record as { props?: unknown } | null)?.props;
+    if (!props || typeof props !== "object") continue;
+    const { className, html } = props as Record<string, unknown>;
+    if (className) names.push(String(className));
+    if (typeof html === "string" && /class/i.test(html)) for (const name of classNamesIn(html)) names.push(name);
+  }
+  declarations.prepare(names.join(" "));
 }
 
 /**
@@ -79,8 +96,11 @@ async function compiler(config: TailwindConfig | undefined): Promise<Compiler> {
 async function compile(config: TailwindConfig | undefined, source = config): Promise<TailwindHandle> {
   // (A fresh compiler past the classes one keeps: see declarationReader.)
   const declarations = declarationReader(await compiler(source), () => compiler(source));
+  // What renders collected, prepared (once per render, whichever of its scopes asks: each gives the same list).
+  const prepared = new WeakSet<object>();
   const resolver: HandleResolver = {
     declarations,
+    prepare: (records) => void (!prepared.has(records) && prepared.add(records) && prepareRecords(declarations, records)),
     props: (name: string, className: string, explicit: Record<string, any>, defaults?: Record<string, any>, rtl = false) => {
       // Classes in its markup (an Html block's, a Paragraph's `html`): inline styles; in Markdown's sanitized HTML, none
       // its sanitizer wouldn't keep in a `style` (your own markup's are as you wrote them).

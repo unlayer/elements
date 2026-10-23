@@ -214,7 +214,7 @@ Must be child of Row. Count must match layout (a Row that doesn't fit its layout
 ### Button
 - `text?: string` — `"Button"` (or use children: text and inline JSX)
 - `href?: string | Href` — plain string auto-wrapped
-- `target?: string` — where the link opens: `"_blank"` (a new tab, the default), `"_self"`, … (one with a `"`, `'`, `<`, `>` or a backtick, which could end its HTML attribute, is a new tab, said)
+- `target?: string` — where the link opens: `"_blank"` (a new tab, the default), `"_self"`, … (one with a `"`, `'`, `<`, `>` or a backtick, which could end its HTML attribute, or one that isn't a string, is a new tab, said)
 - `backgroundColor?: string` — `"#0879A1"`
 - `color?: string` — `"#FFFFFF"`
 - `hoverBackgroundColor?: string`
@@ -356,7 +356,7 @@ Forces the next block onto a new page in document output. It is inert in email a
 - `align?: "left" | "center" | "right"` — `"center"` (or its alias `textAlign`)
 
 ### Menu
-- `items?: { text: string, href: string, target?: string }[]` — shorthand (a `target` that could end its HTML attribute is a new tab)
+- `items?: { text: string, href: string, target?: string }[]` — shorthand (a `target` that could end its HTML attribute, or isn't a string, is a new tab)
 - `layout?: "horizontal" | "vertical"` — `"horizontal"`
 - `separator?: string` — `"|"`
 - `align?: "left" | "center" | "right"` — `"center"` (or its alias `textAlign`)

@@ -1,7 +1,8 @@
 // @vitest-environment node
 import React from "react";
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi, type MockInstance } from "vitest";
-import { Column, Email, Paragraph, Row } from "../index";
+import { Column, Email, Html, Paragraph, Row, renderToHtml as renderToHtmlNow, renderToHtmlParts as renderToHtmlPartsNow } from "../index";
+import { Markdown } from "../markdown";
 import {
   Tailwind,
   classNameToDeclarations,
@@ -13,17 +14,20 @@ import {
   type ClassDeclaration,
   type TailwindHandle,
 } from "./index";
-import { CLASSES, declarationReader, type Compiler } from "./declarations";
+import { CLASSES, SUSPECTS, declarationReader, type Compiler } from "./declarations";
 import { parseSheet } from "./css";
 import { CONFIGS } from "./load";
 
-// Tailwind as it is, its compilers counted once compiled: a handle compiles a fresh one after building many classes.
-const compiled = vi.hoisted(() => ({ count: 0 }));
+// Tailwind as it is, its compilers counted once compiled (a handle compiles a fresh one after building many classes),
+// and their builds (each one Tailwind's whole stylesheet again).
+const compiled = vi.hoisted(() => ({ count: 0, builds: 0 }));
 vi.mock("tailwindcss", async (actual) => {
   const tailwind = await actual<Record<string, any>>();
   const compile = async (...args: unknown[]) => {
     const compiler = await tailwind.compile(...args);
     compiled.count++;
+    const build = compiler.build;
+    compiler.build = (candidates: string[]) => (compiled.builds++, build.call(compiler, candidates));
     return compiler;
   };
   return { ...tailwind, compile };
@@ -403,6 +407,35 @@ describe("a handle's reader of classes", () => {
     expect(renew).toHaveBeenCalledTimes(2);
   });
 
+  it("builds the classes `prepare` is given at once, without reading them: reading them after builds nothing", () => {
+    const compiler = counting();
+    const build = vi.fn(compiler.build);
+    const read = declarationReader({ build });
+    read.prepare("a b  c a");
+    expect([build.mock.calls.length, compiler.built]).toEqual([1, ["a", "b", "c"]]);
+    expect(read("c a").declarations.map((d) => d.className)).toEqual(["a", "c"]);
+    read.prepare("b c");
+    expect(build).toHaveBeenCalledTimes(1);
+  });
+
+  it(`builds alone at most ${SUSPECTS} of the classes of a build it can't read cleanly, refusing the others`, async () => {
+    // A render's classes are built at once: built alone, each one Tailwind's whole stylesheet again, they'd take the
+    // square of their number.
+    const compilers = [poisoned(), poisoned()];
+    const ready: Array<(compiler: Compiler) => void> = [];
+    const read = declarationReader(compilers[0], () => new Promise<Compiler>((resolve) => ready.push(resolve)));
+    const classes = [...Array.from({ length: SUSPECTS + 50 }, (_, i) => `c${i}`), "evil"].join(" ");
+    read.prepare(classes);
+    ready[0](compilers[1]);
+    await Promise.resolve();
+    const build = vi.spyOn(compilers[1], "build");
+    const { declarations, ignored } = read(classes);
+    expect(build).toHaveBeenCalledTimes(SUSPECTS);
+    expect(declarations.map((d) => d.className)).toEqual(Array.from({ length: SUSPECTS }, (_, i) => `c${i}`));
+    expect(ignored.map((i) => i.className)).toEqual([...Array.from({ length: 50 }, (_, i) => `c${SUSPECTS + i}`), "evil"]);
+    expect(new Set(ignored.map((i) => i.reason))).toEqual(new Set(["it isn't a class Tailwind can read here"]));
+  });
+
   it("asks again for a fresh compiler that failed, on the next read that needs one", async () => {
     const compilers = [poisoned(), poisoned()];
     let failing = 2;
@@ -451,6 +484,61 @@ describe("a handle's reader of classes", () => {
     expect(read("a c e").declarations.map((d) => d.className)).toEqual(["a", "c", "e"]);
     expect(old.built).toEqual(["a", "b", "c", "d", "e"]);
     expect(renew).toHaveBeenCalledTimes(3);
+  });
+});
+
+describe("a render's classes", () => {
+  it("are built at once, before its components are rewritten one at a time: their classes, their markup's, a Markdown's blocks'", async () => {
+    // Each build is Tailwind's whole stylesheet again: a class at a time, a few thousand took seconds (and markup from
+    // data, as many as it has).
+    const handle = await loadTailwind({ ...config, render: "at once" });
+    const n = 300;
+    const template = (
+      <Tailwind tw={handle}>
+        <Email className="bg-white">
+          <Row className="bg-gray-100">
+            <Column className="p-1">
+              {Array.from({ length: n }, (_, i) => <Paragraph key={i} className={`p-[${i}px]`}>x</Paragraph>)}
+              {/* A scope of its own for each (a component that wraps itself in one): the render's classes are built once. */}
+              {Array.from({ length: n }, (_, i) => <Tailwind key={`tw${i}`} tw={handle}><Paragraph className={`pt-[${i}px]`}>x</Paragraph></Tailwind>)}
+              {Array.from({ length: n }, (_, i) => <Html key={`html${i}`} html={`<p class="m-[${i}px]">x</p>`} />)}
+              <Markdown markdown={Array.from({ length: n }, (_, i) => `<span class="w-[${i}px]">x</span>`).join("\n\n")} />
+              <Markdown markdown={Array.from({ length: n }, (_, i) => `<span class="h-[${i}px]">x</span>`).join(" ")} />
+            </Column>
+          </Row>
+        </Email>
+      </Tailwind>
+    );
+    for (const render of [() => renderToHtmlNow(template), () => renderToHtml(template)]) {
+      const builds = compiled.builds;
+      const html = await render();
+      for (const style of [/padding: ?299px/, /padding: ?299px 10px 10px/, /margin: 299px/, /width: 299px/, /height: 299px/]) expect(html).toMatch(style);
+      // The root's classes, then the render's.
+      expect(compiled.builds - builds).toBeLessThanOrEqual(2);
+    }
+  });
+
+  it("fail the render as before where a plugin throws for one of them (Tailwind's error, said where the render was)", async () => {
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
+    try {
+      const plugin = ({ matchUtilities }: any) => matchUtilities({ boom: (value: string) => (value === "now" ? (() => { throw new Error("boom"); })() : { color: "red" }) }, { values: { now: "now", later: "later" } });
+      const handle = await loadTailwind({ plugins: [plugin] });
+      const template = (
+        <Tailwind tw={handle}>
+          <Email>
+            <Row>
+              <Column>
+                <Paragraph className="p-1">A</Paragraph>
+                <Paragraph className="boom-now">B</Paragraph>
+              </Column>
+            </Row>
+          </Email>
+        </Tailwind>
+      );
+      expect(() => renderToHtmlPartsNow(template, { onError: "omit" })).toThrow("[Unlayer] boom (in <Body> at Email › Body)");
+    } finally {
+      error.mockRestore();
+    }
   });
 });
 
