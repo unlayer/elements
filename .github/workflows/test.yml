@@ -58,8 +58,12 @@ jobs:
         run: pnpm --filter @unlayer/from-react-email typecheck && pnpm --filter @unlayer/migrate typecheck
 
       # ── Bundle size budget ──────────────────────────────────────
-      # Fail if the react-elements ESM bundle exceeds 204.5KB.
-      # Current size: about 204.5KB (0.1.22: about 76KB). Raised from 203KB
+      # Fail if the react-elements ESM bundle exceeds 206KB.
+      # Current size: about 205.7KB (0.1.22: about 76KB). Raised from 204.5KB
+      # (about 1.3KB): the editor's exporters' own links (a Button's, an
+      # Image's, a Menu's, a Social's) are given no URL that runs code, in
+      # the HTML and the design, and a null Menu item or Social icon is
+      # skipped. Raised from 203KB
       # (about 1.8KB): a javascript: URL is written as one that throws with
       # React 18 too, a render's Tailwind scopes are given only the records
       # in them, with a key for the render (its first 2,000 classes are
@@ -173,7 +177,7 @@ jobs:
         run: |
           BUNDLE="packages/react/dist/index.js"
           SIZE=$(wc -c < "$BUNDLE" | tr -d ' ')
-          MAX_SIZE=204500
+          MAX_SIZE=206000
           echo "Bundle: $BUNDLE"
           echo "Size: $SIZE bytes (budget: $MAX_SIZE bytes)"
           if [ "$SIZE" -gt "$MAX_SIZE" ]; then

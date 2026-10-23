@@ -35,8 +35,22 @@ export interface PrettyOption {
 }
 
 // Shared with the Tailwind entry, a bundle of its own (the package's entries share nothing else but the main one): the
-// compiler it registers when it loads.
+// compiler it registers when it loads, and a handle's resolver.
 const LOADER = Symbol.for("@unlayer/react-elements/tailwind-loader");
+const TAILWIND = Symbol.for("@unlayer/react-elements/tailwind");
+
+/**
+ * Until none of `handles` is compiling again after a class it couldn't read (see the Tailwind entry's
+ * declarationReader), whose classes a synchronous render couldn't read till then: a few rounds at most, as another
+ * render's class can make one compile again while this waits.
+ */
+async function compiled(handles: unknown[]): Promise<void> {
+  for (let round = 0; round < 4; round++) {
+    const waits = handles.map((handle) => (handle as Record<symbol, { ready?(): Promise<void> | undefined }> | null)?.[TAILWIND]?.ready?.()).filter(Boolean);
+    if (!waits.length) return;
+    await Promise.all(waits);
+  }
+}
 
 interface Collected {
   recorded: Array<{ kind: string; props?: { tw?: unknown; config?: TailwindConfig }; load?: Load }>;
@@ -80,9 +94,15 @@ async function render<T>(element: React.ReactElement, options: Partial<UnlayerCo
   const root = await internals.unwrapAsync(element, scope, take, options?.idPrefix, api);
   const content = internals.isRoot(root.type) ? (root.props as { children?: React.ReactNode } | null)?.children : api && root;
   const scopes: Array<{ config?: TailwindConfig; load?: Load }> = [];
+  // The handles its <Tailwind tw>s are given.
+  const given: unknown[] = [];
   if (content && typeof content === "object") {
     const collected = await internals.collectAsync(root, scope, options, (node, walk) => collectWaiting(internals.engine, node, walk));
-    for (const r of collected.recorded) if (r.kind === "tailwind" && !r.props?.tw) scopes.push({ config: r.props?.config, load: typeof r.load === "function" ? r.load : undefined });
+    for (const r of collected.recorded) {
+      if (r.kind !== "tailwind") continue;
+      if (r.props?.tw) given.push(r.props.tw);
+      else scopes.push({ config: r.props?.config, load: typeof r.load === "function" ? r.load : undefined });
+    }
   }
   // Each scope's config compiled by its copy's compiler (an older copy's by the one loaded last), once each.
   const handles = new Map<Load, Map<unknown, TailwindHandle>>();
@@ -101,6 +121,8 @@ async function render<T>(element: React.ReactElement, options: Partial<UnlayerCo
     for (const compiled of handles.values()) if (compiled.has(config)) return compiled.get(config);
     return undefined;
   };
+  // (Right before the render, which is synchronous: nothing compiles again in between.)
+  await compiled([...given, ...[...handles.values()].flatMap((compiled) => [...compiled.values()])]);
   return internals.withScope(scope, () => run(internals.renders, root));
 }
 

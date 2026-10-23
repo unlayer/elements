@@ -57,10 +57,58 @@ function conditionOf(rule: Rule): ClassCondition | { reason: string } {
   return hoverable ? { reason: "it applies only on hover" } : when;
 }
 
-/** Tailwind's compiler, as `loadTailwind` gives it: `build` takes classes and gives the stylesheet for all so far. */
+/**
+ * Tailwind's compiler, as `loadTailwind` gives it: `build` takes classes and gives the stylesheet for all so far;
+ * `failures`, what its plugins' functions for a class's value threw (or gave that couldn't be read) while it built,
+ * kept from Tailwind (see load.ts's `guarded`), for the reader to take after each build.
+ */
 export interface Compiler {
   build(candidates: string[]): string;
+  failures?: PluginFailure[];
 }
+
+/**
+ * A plugin's function that threw for a class (`error`), or gave CSS that couldn't be read (none): a utility's or a
+ * variant's (`variant`), by its name, with the keys of its values that give the value it was given (where one does).
+ */
+export interface PluginFailure {
+  name: string;
+  variant?: boolean;
+  keys?: string[];
+  error?: unknown;
+}
+
+/** A class's variants and its utility (`hover:-boom-now/50!`: `hover`, `boom-now/50`), its important and negative marks aside. */
+function partsOf(token: string): [string[], string] {
+  const variants: string[] = [];
+  let depth = 0;
+  let from = 0;
+  for (let i = 0; i < token.length; i++) {
+    const c = token[i];
+    if (c === "\\") i++;
+    else if (c === "[" || c === "(") depth++;
+    else if (c === "]" || c === ")") depth--;
+    else if (c === ":" && !depth) {
+      variants.push(token.slice(from, i));
+      from = i + 1;
+    }
+  }
+  return [variants, token.slice(from).replace(/^!|!$/g, "").replace(/^-/, "")];
+}
+
+/** Whether a variant or utility of a class (`boom-now`, `boom-[x]`, `boom`) is the one a failure was for. */
+function named(part: string, { name, keys }: PluginFailure): boolean {
+  if (part === name) return !keys || keys.includes("DEFAULT");
+  if (!part.startsWith(name + "-")) return false;
+  const value = part.slice(name.length + 1);
+  return !keys || value.startsWith("[") || keys.includes(value) || keys.includes(value.replace(/\/[^/]*$/, ""));
+}
+
+/** Whether a class is one a plugin's failure was for: by its utility, or a variant's by its variants. */
+const owns = (token: string, failure: PluginFailure) => {
+  const [variants, utility] = partsOf(token);
+  return failure.variant ? variants.some((v) => named(v, failure)) : named(utility, failure);
+};
 
 /**
  * A class string's declarations, read with a compiler; `prepare` builds the classes of one it hasn't built, at once,
@@ -69,6 +117,8 @@ export interface Compiler {
 export interface DeclarationReader {
   (className: string): ClassDeclarations;
   prepare(className: string): void;
+  /** Where a class can't be read till a fresh compiler is ready (see declarationReader): when it is. */
+  ready?(): Promise<void> | undefined;
 }
 
 /**
@@ -115,7 +165,10 @@ const empty = (): Sheet => ({ rules: [], vars: new Map(), initial: new Map(), cl
 const UNREADABLE = "it isn't a class Tailwind can read here";
 
 /** Why a class isn't read yet: built with one that didn't read cleanly, or after it, so Tailwind is compiling again. */
-const WAITING = "it's read once Tailwind has compiled again, after a class it couldn't read";
+export const WAITING = "it's read once Tailwind has compiled again, after a class it couldn't read";
+
+/** How the reason a class isn't read starts where Tailwind can't compile again (see RENEWALS). */
+export const STUCK = "Tailwind couldn't compile again";
 
 /**
  * Fresh compilers that can fail in a row. One compiles the config this one was compiled from, so one that fails (out of
@@ -138,7 +191,7 @@ export const SUSPECTS = 100;
  * braces and quotes closed (`\` escaping the character after it, as in CSS), no comment in it. Tailwind's compiler
  * keeps every class it builds, so one that isn't (`[color:x(]`) is never built.
  */
-function readable(token: string): boolean {
+export function readable(token: string): boolean {
   if (/\/\*|\*\//.test(token)) return false;
   const open: string[] = [];
   for (let i = 0; i < token.length; i++) {
@@ -160,10 +213,13 @@ function readable(token: string): boolean {
  * stylesheet reads isn't built (`readable`); a build whose stylesheet still doesn't read cleanly is left out (its
  * classes said, the classes before it read as they did), and a fresh compiler takes over, on which each of that
  * build's classes is built alone first (SUSPECTS of them on one compiler: the others wait for the next), where a
- * class string holding it is read: the one that was why is never built again, and only it. A build that throws (a
- * plugin's error, thrown on) is one that didn't read cleanly: Tailwind keeps its classes, and throws again on the next
- * build with a new one, so its class is found alone on a fresh compiler, where the component whose class it is reads
- * it, and the error comes out there.
+ * class string holding it is read: the one that was why is never built again, and only it. What a plugin's function
+ * for a class throws, or gives that can't be read, is kept from the build (see guard.ts) and blamed on its class,
+ * thrown where that's read (or the class left out): the compiler stays clean, for this render's other classes and other
+ * renders'. A build that throws all the same (not a plugin's function) is one that didn't read cleanly: Tailwind keeps
+ * its classes, and throws again on the next build with a new one. While a fresh compiler is compiled, `ready` gives
+ * when it's ready, for the async renderers to wait for; a synchronous render can't, and fails where it needs a class
+ * built (see load.ts).
  *
  * Each build is Tailwind's whole stylesheet again (it keeps every class it built), so classes are best built many at
  * once: `prepare` builds a render's, all the classes its components and their markup are given, before they're read
@@ -189,8 +245,15 @@ export function declarationReader(compiler: Compiler, renew?: () => Promise<Comp
   const refused = new Set<string>();
   // Suspects built alone on this compiler (see SUSPECTS).
   let alone = 0;
-  // What the last build threw (a plugin's error), thrown once the build is taken as one that didn't read cleanly.
+  // What the last build threw, thrown once the build is taken as one that didn't read cleanly; or what a plugin threw
+  // for a class of it that no class of it was found for (see blame).
   let thrown: { error: unknown } | undefined;
+  // The classes this compiler built that a plugin's function threw for (their error, thrown where they're read) or gave
+  // CSS that couldn't be read for (undefined): built again on a fresh compiler, as its plugin is called again there.
+  let failed = new Map<string, unknown>();
+  // The fresh compiler being compiled (see `ready`), and whether a class waits for it.
+  let pending: Promise<void> | undefined;
+  let waiting = false;
   // Fresh compilers that failed in a row (see RENEWALS), and the last one's error.
   let failures = 0;
   let failure = "";
@@ -198,13 +261,14 @@ export function declarationReader(compiler: Compiler, renew?: () => Promise<Comp
   const fresh = () => {
     if (!renew || renewing || failures >= RENEWALS) return;
     renewing = true;
-    renew().then(
+    pending = renew().then(
       (next) => {
         compiler = next;
         seen = new Set();
+        failed = new Map();
         sheet = empty();
         byToken = new Map();
-        renewing = dirty = false;
+        renewing = dirty = waiting = false;
         failures = alone = 0;
       },
       (error) => {
@@ -216,12 +280,15 @@ export function declarationReader(compiler: Compiler, renew?: () => Promise<Comp
   };
   const build = (tokens: string[]): boolean => {
     let css: string;
+    let plugins: PluginFailure[] | undefined;
     try {
       css = compiler.build(tokens);
     } catch (error) {
       // (Tailwind keeps the classes it was given, and builds them again with the next new one, throwing again.)
       thrown = { error };
       return !(dirty = true);
+    } finally {
+      plugins = compiler.failures?.splice(0);
     }
     const next = parseSheet(css);
     if (!next.clean) return !(dirty = true);
@@ -234,8 +301,19 @@ export function declarationReader(compiler: Compiler, renew?: () => Promise<Comp
       if (rules) rules.push(rule);
       else byToken.set(rule.token, [rule]);
     }
+    if (plugins?.length) blame(tokens, plugins);
     if (seen.size > limit) fresh();
     return true;
+  };
+  // What plugins' functions threw while a build built `tokens` (kept from Tailwind, which built the class as one with no
+  // CSS: see load.ts's `guarded`), on the classes of it it was for (with no CSS, a utility or a variant of that name and
+  // value), each thrown where it's read; one none was found for is thrown now.
+  const blame = (tokens: string[], plugins: PluginFailure[]) => {
+    for (const failure of plugins) {
+      const own = tokens.filter((token) => !byToken.has(token) && owns(token, failure));
+      for (const token of own) failed.set(token, failure.error);
+      if (!own.length && failure.error !== undefined) thrown ??= { error: failure.error };
+    }
   };
   const tokensOf = (className: string) => [...new Set(String(className).split(/\s+/).filter(Boolean))];
   // The classes not built yet, built: a suspect alone (past SUSPECTS on this compiler, on the next one), where a class
@@ -252,6 +330,7 @@ export function declarationReader(compiler: Compiler, renew?: () => Promise<Comp
     }
     const rest = unread.filter((token) => !seen.has(token) && !refused.has(token) && !suspects.has(token));
     if (rest.length && !dirty && !build(rest)) rest.forEach((token) => suspects.add(token));
+    if (later) waiting = true;
     if (dirty || later) fresh();
     if (thrown) {
       const { error } = thrown;
@@ -268,9 +347,16 @@ export function declarationReader(compiler: Compiler, renew?: () => Promise<Comp
     const leave = (className: string, reason: string) => void (!left.has(className) && left.add(className) && ignored.push({ className, reason }));
     const applied: Array<{ rule: Rule; when: ClassCondition }> = [];
     for (const token of tokens) {
+      // One a plugin's function failed for: its error, or a class Tailwind can't read here.
+      if (failed.has(token)) {
+        const error = failed.get(token);
+        if (error !== undefined) throw error;
+        leave(token, UNREADABLE);
+        continue;
+      }
       // One not built on this compiler: refused, or waiting for a fresh one (see declarationReader).
       if (!seen.has(token)) {
-        leave(token, refused.has(token) || !readable(token) || !renew ? UNREADABLE : failures < RENEWALS ? WAITING : `Tailwind couldn't compile again after a class it couldn't read (${failure})`);
+        leave(token, refused.has(token) || !readable(token) || !renew ? UNREADABLE : failures < RENEWALS ? WAITING : `${STUCK} after a class it couldn't read (${failure})`);
         continue;
       }
       const rules = byToken.get(token);
@@ -297,5 +383,5 @@ export function declarationReader(compiler: Compiler, renew?: () => Promise<Comp
     // `!important` wins over the rest, wherever it is.
     return { declarations: [...declarations.filter((d) => !d.important), ...declarations.filter((d) => d.important)], ignored };
   };
-  return Object.assign(read, { prepare: (className: string) => need(tokensOf(className), true) });
+  return Object.assign(read, { prepare: (className: string) => need(tokensOf(className), true), ready: () => ((dirty || waiting) && renewing ? pending : undefined) });
 }

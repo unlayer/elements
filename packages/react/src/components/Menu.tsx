@@ -57,7 +57,8 @@ const Menu = createItemComponent<MenuValues, MenuSemanticProps>({
     const { items, ...rest } = props;
 
     if (Array.isArray(items)) {
-      const mapped = items.map((item: MenuItem, i: number) => ({
+      // (An item of null or undefined, from nullable data, is none.)
+      const mapped = items.filter((item) => item != null).map((item: MenuItem, i: number) => ({
         key: String(i + 1),
         text: item.text,
         link: {
