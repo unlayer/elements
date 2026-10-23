@@ -24,7 +24,7 @@ const SAFE_NAME = new RegExp(`^[${NAME_START}][${NAME_START}\\-.0-9\\u00B7\\u030
  * any React (React 18 writes it as given), so a link from data runs nothing. (A character reference in it can't make
  * one: its `&` is written `&amp;`.)
  */
-const url = unrunUrl;
+const url = (value: string) => unrunUrl(value);
 /** A value React writes as text, a `javascript:` URL as url() writes it; others as they are. */
 export const unrun = (value: unknown) => (value == null || typeof value == "boolean" || typeof value == "function" || typeof value == "symbol" ? value : url("" + value));
 
