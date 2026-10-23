@@ -16,7 +16,7 @@ import { whereIs } from "../utils/collect";
 import { RenderError } from "../engine";
 import { failed, failedBefore, guest, rightToLeft, sayOnce } from "../utils/render-scope";
 import { containerOf } from "../utils/container-render";
-import { classProps, TAILWIND } from "../utils/tailwind";
+import { classProps, prepareClasses, TAILWIND } from "../utils/tailwind";
 import { OWN, UNLAYER_CONFIG_KEY } from "../utils/create-component";
 import { inlineHtml } from "../utils/inline-html";
 import { closestName } from "../utils/closest-name";
@@ -156,6 +156,8 @@ function styled(c: Collected, { item, tw }: Scoped, props: Record<string, any>):
   c.styled ??= new Map();
   const r = recordOf(item);
   if (!c.styled.has(r)) {
+    // (First, the classes of all the render collected, built at once: see prepareClasses.)
+    if (!c.styled.has(tw)) c.styled.set(tw, (prepareClasses(tw.props, c.recorded), {}));
     const type = r.type as any;
     const config = type?.[UNLAYER_CONFIG_KEY];
     const [name, defaults] = r.kind === "row" ? ["Row", ROW_DEFAULTS] : r.kind === "column" ? ["Column", COLUMN_DEFAULTS] : [config?.name ?? type?.displayName ?? "Block", config?.defaultValues];

@@ -23,9 +23,14 @@ export interface TailwindProps {
 /** On a compiled Tailwind (its resolver), on <Tailwind> (its rewrite), and on its errors: one for every copy of Elements. */
 export const TAILWIND = Symbol.for("@unlayer/react-elements/tailwind");
 
-/** What a handle does with a component's classes: its props, explicit ones kept over those from classes (`rtl`: in a right-to-left document). */
+/**
+ * What a handle does with a component's classes: its props, explicit ones kept over those from classes (`rtl`: in a
+ * right-to-left document); and, before a render rewrites any, the classes in its components' props (`records`, each
+ * with its component's `props`), all built at once (`prepare`: see the rewrite's).
+ */
 export interface Resolver {
   props(name: string, className: string, explicit: Record<string, any>, defaults?: Record<string, any>, rtl?: boolean): Record<string, any>;
+  prepare?(records: readonly unknown[]): void;
 }
 
 /**
@@ -56,6 +61,26 @@ function rewrite(scope: TailwindProps, name: string, defaults: Record<string, an
   const { className, ...explicit } = props;
   return resolver(scope, compiled).props(name, className ?? "", explicit, defaults, rtl);
 }
+
+/**
+ * Before a render rewrites any component's props: what it collected (`records`, each with its component's `props`,
+ * whose `className` and `html` are read; the same list for each scope in the render), their classes built at once by
+ * the scope's handle, once per render. Tailwind builds its whole stylesheet again for each class it hasn't built, so
+ * the classes met one component at a time would take the square of their number. The main entry calls it, where the
+ * scope's rewrite has it (an older copy's doesn't), with one object, which a later release can give more in; what it
+ * returns isn't read. A scope without a handle is left for the rewrite to say, at the component it's for; what
+ * Tailwind throws (a plugin's error) fails the render, as it does there.
+ */
+function prepare({ scope, records, compiled }: { scope: TailwindProps; records: readonly unknown[]; compiled?: unknown }): void {
+  let handle: Resolver;
+  try {
+    handle = resolver(scope, compiled);
+  } catch {
+    return;
+  }
+  handle.prepare?.(records);
+}
+(rewrite as unknown as Record<string, unknown>).prepare = prepare;
 
 const ROOTS = new Set(["Body", "Email", "Page", "Document"]);
 

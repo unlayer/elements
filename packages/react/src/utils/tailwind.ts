@@ -37,6 +37,16 @@ export function classProps(scope: Record<PropertyKey, any>, name: string, defaul
   return guest(() => (scope[TAILWIND] as Rewrite)(scope, name, defaults, props, rtl, compiled));
 }
 
+/**
+ * Before a scope rewrites any of a render's components: what the render collected (`records`, the same list for each
+ * scope in it, each with its component's `props`), whose classes the scope's rewrite builds at once where it can (the
+ * Tailwind entry's `prepare`), as Tailwind builds its whole stylesheet again for each class it hasn't built.
+ */
+export function prepareClasses(scope: Record<PropertyKey, any>, records: readonly object[]): void {
+  const compiled = compiledTailwind();
+  guest(() => scope[TAILWIND].prepare?.({ scope, records, compiled }));
+}
+
 /** The scope a root's content is in: its only child, through context providers and Fragments. */
 function tailwindIn(children: React.ReactNode): React.ReactElement<Record<PropertyKey, any>> | undefined {
   // The elements themselves (not copies, as React.Children gives): a render asks with the same one each time.

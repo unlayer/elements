@@ -440,6 +440,25 @@ describe("<Tailwind>: classes in an Html block's markup", () => {
     expect(warnings()).toEqual([]);
   });
 
+  it("reads markup in time linear in its size: an end tag ends what's open in it once, the classes are read at once", () => {
+    // Elements nested 60,000 deep in an element with a class, ended by their end tags or by others' (`</span>`, which
+    // ends none of them), and 30,000 tags with a class of their own each: an end tag read every element still open, and
+    // each tag's classes were read alone (with Tailwind, each read of a class it hasn't built builds its whole stylesheet).
+    const n = 60_000;
+    // (A reader that reads nothing, at no cost: the time is the markup's.)
+    const reader = Object.assign((_: string) => ({ declarations: [], ignored: [] }), { prepare: vi.fn((_: string) => {}) });
+    for (const [html, prepared] of [
+      ['<div class="p-1">' + "<div>".repeat(n) + "x" + "</div>".repeat(n) + "</div>", "p-1"],
+      ['<div class="p-1">' + "<div>".repeat(n) + "x" + "</span>".repeat(n) + "</div>", "p-1"],
+      [Array.from({ length: n / 2 }, (_, i) => `<span class="x${i}">x</span>`).join(""), Array.from({ length: n / 2 }, (_, i) => `x${i}`).join(" ")],
+    ] as const) {
+      const start = performance.now();
+      inlineClasses(html, reader, () => {});
+      expect(performance.now() - start).toBeLessThan(2000);
+      expect(reader.prepare).toHaveBeenLastCalledWith(prepared);
+    }
+  });
+
   it("never throws, changes nothing but class attributes and the styles they give, and inlining again changes nothing, whatever fragments it's given (fuzzed)", () => {
     // `TAILWIND_FUZZ_RUNS=100000` for a longer run, `TAILWIND_FUZZ_SEED` for other inputs.
     const runs = Number(process.env.TAILWIND_FUZZ_RUNS ?? 600);
