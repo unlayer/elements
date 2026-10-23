@@ -105,6 +105,8 @@
 
 ### Changed
 
+- **A `javascript:` URL runs nothing, with React 18 too.** A `javascript:` URL in a link or image Elements writes (a Menu item's and a Social icon's on a page or in a document, a `<Link>`'s, markup a component of yours renders) is written as react-dom 19 writes it, a URL that throws (`javascript:throw new Error('React has blocked a javascript: URL as a security precaution.')`), whichever React is installed, however it's written (control characters or spaces before it, tabs or line breaks in it, any case); a character reference in one stays text. With React 18, 0.2 wrote it as given, as react-dom 18 does. Links the editor's exporters write themselves (a Button's and an Image's, and an email's Menu and Social) are as 0.2 wrote them.
+
 - **An app's `renderToString` providers reach a template only till Elements learns the context's default.** 0.2 rendered with react-dom's `renderToStaticMarkup`, so inside an app's `renderToString` a context the template doesn't provide read the app's provider value. 0.3 renders templates itself, and reads the app's value there only before it has learned that context's default, on its first ordinary render; after that, the default. Put the provider inside the element you render, or pass the value as a prop.
 
 - **Text starts on the right in a right-to-left template.** With `textDirection="rtl"`, a Paragraph and a Heading default to `textAlign="right"`, as in the editor; 0.2 left them on the left unless you set it. Set `textAlign="left"` where you want 0.2's alignment.
