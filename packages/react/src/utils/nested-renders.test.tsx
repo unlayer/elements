@@ -71,6 +71,29 @@ describe("a page that renders on the server, with a Context Provider around a co
   });
 });
 
+describe("a template's component that renders another template, inside an app's renderToString", () => {
+  it("gives that render the outer walk's providers over the app's, and the outer render's value for a context neither provides", () => {
+    // (A context no render has read before: inside an app's renderToString, that render's value; see
+    // src/regression/render-isolation.test.tsx.)
+    const Brand = React.createContext("default");
+    const Theme = React.createContext("light");
+    const Inner = () => <Paragraph>{`theme=${React.useContext(Theme)} brand=${React.useContext(Brand)}`}</Paragraph>;
+    let inner = "";
+    const Starts = () => {
+      inner = renderToPlainText(<Email><Row><Column><Inner /></Column></Row></Email>).trim();
+      return <Paragraph>{`outer brand=${React.useContext(Brand)}`}</Paragraph>;
+    };
+    let outer = "";
+    const Page = () => {
+      outer = renderToPlainText(<Email><Theme.Provider value="the outer email's"><Row><Column><Starts /></Column></Row></Theme.Provider></Email>).trim();
+      return <div />;
+    };
+    renderToString(<Brand.Provider value="TenantA"><Theme.Provider value="the page's"><Page /></Theme.Provider></Brand.Provider>);
+    expect(inner).toBe("theme=the outer email's brand=TenantA");
+    expect(outer).toBe("outer brand=TenantA");
+  });
+});
+
 describe("a page that renders with react-dom's browser build (react-dom/server.browser)", () => {
   it("can work out the template's design and HTML while it renders, and use hooks after (as 0.1.22 could)", () => {
     function EditorPage() {

@@ -5,7 +5,7 @@
  * await), so a render it runs inside (the app's react-dom render, Next.js's Server Components) keeps its own.
  *
  * Server semantics, as react-dom's static render has them: context from the walker's provider stack (else its
- * default, whatever renders around it or before it provided), `useId` from the
+ * default, whatever renders around it or before it provided: see `defaultOf`), `useId` from the
  * tree position, initial state (a state set while rendering renders the component again, its last render counts),
  * effects never run, `use()` of a pending thenable suspends. A hook it doesn't know (a newer React's) throws a named
  * error, instead of React's "dispatcher.useX is not a function".
@@ -28,17 +28,27 @@ const CONSUMER = Symbol.for("react.consumer");
 /** The context a `useContext` argument names: React 19's Consumer, React 18's development Consumer, or the context. */
 export const contextOf = (usable: any): any => (usable?.$$typeof === CONSUMER || (usable?._context && usable.$$typeof === CONTEXT) ? usable._context : usable);
 
-export function readContext(stack: ContextStack | null, usable: unknown): unknown {
+/** What a render reads for each context no provider in it gives, worked out at its first read (see `readContext`). */
+export type Fallbacks = Map<object, unknown>;
+
+/**
+ * A context's value: the nearest provider's in the walk (or around the component that started it), else its fallback
+ * (see `defaultOf`), worked out once per render (`fallbacks`, the top-level render's, which the renders it starts
+ * share: see the engine's Walker), so a render that starts inside an app's render and goes on after it (an async one)
+ * reads one value for it throughout.
+ */
+export function readContext(stack: ContextStack | null, usable: unknown, fallbacks?: Fallbacks): unknown {
   const context = contextOf(usable);
   // (Worked out where it's provided too, so it's seen while React's values still hold it: see `defaultOf`.)
-  const fallback = defaultOf(context);
+  let fallback: unknown;
+  if (!fallbacks || typeof context !== "object" || context === null) fallback = defaultOf(context);
+  else if (fallbacks.has(context)) fallback = fallbacks.get(context);
+  else fallbacks.set(context, (fallback = defaultOf(context)));
   for (let s = stack; s; s = s.next) if (s.context === context) return s.value;
-  // No provider in the walk, nor around the component that started it: its default, as react-dom's static render
-  // reads it inside any render (never a value a react-dom render around it, or before it, provided).
   return fallback;
 }
 
-/** The default each context was last seen to have (see `defaultOf`). */
+/** The default each context was last seen to have, outside React's renders (see `defaultOf`). */
 const defaults = new WeakMap<object, unknown>();
 
 /**
@@ -46,9 +56,11 @@ const defaults = new WeakMap<object, unknown>();
  * put back: `_currentValue` (react-dom's streaming render's, and its client's: after a stream, what the last part it
  * waited for was given) and `_currentValue2` (renderToString's and renderToStaticMarkup's, and other secondary
  * renderers': after one that failed or suspended inside a provider, what it was given there). Where they agree, that's
- * it (seen, when no render of React's is running, where they'd hold its values); where they differ, one is what a
- * render left: the default last seen, else `_currentValue2`, which react-dom's streaming render never sets. (React 18's
- * `_defaultValue` is a server context's, null for these.)
+ * it (learned when no render of React's is running, where they'd hold its values: each time, so a value learned
+ * wrong, both left the same by two renders, is learned right again); where they differ, one is what a render left:
+ * the default learned, else `_currentValue2`, which react-dom's streaming render never sets. So inside an app's
+ * renderToString, a context Elements hasn't learned yet reads that render's value. (React 18's `_defaultValue` is a
+ * server context's, null for these.)
  */
 function defaultOf(context: any): unknown {
   const value = context._currentValue;
@@ -68,6 +80,8 @@ export interface HookState {
   contexts: ContextStack | null;
   /** What its `useId()`s start with (the render's `idPrefix`). */
   idPrefix: string;
+  /** What its render reads for contexts no provider gives (see `readContext`). */
+  fallbacks?: Fallbacks;
   /** useId calls so far (React's localIdCounter): more than 0 gives its children a fork of the tree. */
   localId: number;
   /** Thenables `use()` was given, by call order, kept when it's called again (React's thenableState). */
@@ -82,8 +96,8 @@ export interface HookState {
   rerender: boolean;
 }
 
-export function hookState(name: string, tree: TreeContext, contexts: ContextStack | null, idPrefix = ""): HookState {
-  return { name, tree, contexts, idPrefix, localId: 0, thenables: [], thenableIndex: 0, hookIndex: 0, rerender: false };
+export function hookState(name: string, tree: TreeContext, contexts: ContextStack | null, idPrefix = "", fallbacks?: Fallbacks): HookState {
+  return { name, tree, contexts, idPrefix, fallbacks, localId: 0, thenables: [], thenableIndex: 0, hookIndex: 0, rerender: false };
 }
 
 /** Thrown by `use()` of a pending thenable (the walker reads `suspendedOn`). */
@@ -179,14 +193,20 @@ const notWhileRendering = (what: string) => () => {
 const NOT_PENDING = Object.freeze({ pending: false, data: null, method: null, action: null });
 const MEMO_CACHE_SENTINEL = Symbol.for("react.memo_cache_sentinel");
 
+/** A context's value for the component being called. */
+function contextValue(context: unknown): unknown {
+  const state = current();
+  return readContext(state.contexts, context, state.fallbacks);
+}
+
 const HOOKS = {
-  readContext: (context: unknown) => readContext(current().contexts, context),
-  useContext: (context: unknown) => readContext(current().contexts, context),
+  readContext: contextValue,
+  useContext: contextValue,
   use(usable: any) {
     const state = current();
     if (usable !== null && typeof usable === "object") {
       if (typeof usable.then === "function") return useThenable(state, usable);
-      if (usable.$$typeof === CONTEXT || usable.$$typeof === CONSUMER) return readContext(state.contexts, usable);
+      if (usable.$$typeof === CONTEXT || usable.$$typeof === CONSUMER) return readContext(state.contexts, usable, state.fallbacks);
     }
     throw new Error("[Unlayer] An unsupported type was passed to use(): " + String(usable));
   },

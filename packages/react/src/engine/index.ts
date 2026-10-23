@@ -5,7 +5,7 @@
  * See ARCHITECTURE.md.
  */
 import React, { cloneElement } from "react";
-import { asHost, type ContextStack, type HookState } from "./dispatcher";
+import { asHost, type ContextStack, type Fallbacks, type HookState } from "./dispatcher";
 import { childFrame, nameOf, omits, positionOf, RenderError, rootFrame, threw, type OnError } from "./errors";
 import { flatten, type Flat, type Part } from "./output";
 import { checkReact } from "./self-test";
@@ -33,9 +33,11 @@ export interface CollectOptions {
   frameless?: (type: unknown) => boolean;
   /** What the `useId()`s start with (React's `identifierPrefix`). */
   idPrefix?: string;
+  /** What the render reads for contexts no provider gives, its template's wrappers' (see unwrap-root.ts). */
+  fallbacks?: Fallbacks;
 }
 
-type WalkerOptions = Pick<CollectOptions, "onError" | "collector" | "passes" | "frameless" | "idPrefix">;
+type WalkerOptions = Pick<CollectOptions, "onError" | "collector" | "passes" | "frameless" | "idPrefix" | "fallbacks">;
 
 const walker = (options: Partial<WalkerOptions>, wait?: Wait): Walker => ({
   wait,
@@ -43,11 +45,18 @@ const walker = (options: Partial<WalkerOptions>, wait?: Wait): Walker => ({
   passes: options.passes,
   frameless: options.frameless,
   idPrefix: options.idPrefix,
+  fallbacks: options.fallbacks ?? renderFallbacks(),
   omit: omits(options.onError),
   suspense: 0,
   made: new WeakSet(),
   fatal: new WeakSet(),
 });
+
+/**
+ * What a render reads for contexts no provider gives: the walk's calling it (see `caller`), so one value each in a
+ * top-level render however many it starts, else its own.
+ */
+export const renderFallbacks = (): Fallbacks => caller()?.fallbacks ?? new Map();
 
 /** Where a walk starts: where the component that started it is, if the walker is calling one (see `caller`). */
 const task = (root: string, tree?: TreeContext): Task => ({ tree: tree ?? caller()?.tree ?? ROOT_TREE, contexts: caller()?.contexts ?? null, format: TOP, frame: rootFrame(root), watch: null });
@@ -166,10 +175,10 @@ export function callComponent(fn: (props: any, second?: unknown) => unknown, pro
 }
 
 /** A template wrapper that's a class (react-intl's <IntlProvider>), constructed and rendered inside `contexts`: as callComponent. */
-export function callClass(Ctor: any, props: Record<string, unknown>, contexts: ContextStack | null): unknown {
+export function callClass(Ctor: any, props: Record<string, unknown>, contexts: ContextStack | null, fallbacks?: Fallbacks): unknown {
   checkReact();
   try {
-    return renderClass(Ctor, props, contexts);
+    return renderClass(Ctor, props, contexts, fallbacks);
   } catch (thrown) {
     const thenable = suspension(thrown);
     if (thenable) throw thenable;
@@ -178,5 +187,5 @@ export function callClass(Ctor: any, props: Record<string, unknown>, contexts: C
   }
 }
 
-export { hookState, readContext, contextOf, type ContextStack, type HookState } from "./dispatcher";
+export { hookState, readContext, contextOf, type ContextStack, type Fallbacks, type HookState } from "./dispatcher";
 export { ROOT_TREE } from "./tree-id";

@@ -5,9 +5,12 @@
  *
  *   ISOLATION_RUNS=2000 ISOLATION_SEED=7 pnpm vitest run src/regression/render-isolation.test.tsx
  */
-import { describe, expect, it, vi } from "vitest";
-import React, { Component, createContext, memo, Suspense, useContext, useId, useState } from "react";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
+import React, { Component, createContext, memo, Suspense, useContext, useEffect, useId, useState } from "react";
+import { flushSync } from "react-dom";
+import { createRoot, type Root } from "react-dom/client";
 import { renderToPipeableStream, renderToStaticMarkup, renderToString } from "react-dom/server";
+import { act } from "../test-utils";
 import { renderToHtml, renderToHtmlParts, renderToPlainText } from "../utils/render-to-html";
 import { renderRowToJson, renderToJson } from "../utils/render-to-json";
 import { Email, Page, Row, Column, Paragraph, Html, UnlayerProvider, registerTool } from "../index";
@@ -342,6 +345,83 @@ describe("a context the template doesn't provide", () => {
     expect(read(Fresh)).toBe("default");
     expect(await inStream(Fresh)).toBe("default");
   });
+});
+
+describe("a context's default, learned around an app's renders", () => {
+  // Elements learns a context's default where React's two values for it agree while no render of React's is running
+  // (see a context the template doesn't provide, above): its first ordinary render. Before that, inside an app's
+  // renderToString, it reads what that render provides there; after, its default.
+  const tenant = "TenantA";
+  /** A context, and what a template reading it renders (its plain text). */
+  const brand = <T,>(fallback: T) => {
+    const Brand = createContext<T>(fallback);
+    const Footer = () => <Paragraph>{`brand=${String(useContext(Brand))}`}</Paragraph>;
+    const email = <Email><Row><Column><Footer /></Column></Row></Email>;
+    return { Brand, email, read: () => renderToPlainText(email).trim() };
+  };
+  /** What a component of an app's renderToString reads, `value` provided around it. */
+  const inRenderToString = (Brand: React.Context<any>, read: () => string, value: unknown) => {
+    let seen = "";
+    const Page = () => ((seen = read()), <div />);
+    renderToString(<Brand.Provider value={value}><Page /></Brand.Provider>);
+    return seen;
+  };
+  /** renderToString of a page that fails inside a provider of `Brand` (the app catches it): its value stays in `_currentValue2`. */
+  const failedInside = (Brand: React.Context<any>, value: unknown) => {
+    const Fails = () => {
+      throw new Error("the page failed");
+    };
+    expect(() => renderToString(<Brand.Provider value={value}><Fails /></Brand.Provider>)).toThrow("the page failed");
+    expect((Brand as unknown as { _currentValue2: unknown })._currentValue2).toBe(value);
+  };
+  /** A client render to its end: act() in development, flushSync in production builds (which have no act()). */
+  const onClient = (root: Root, element: React.ReactElement) => (process.env.NODE_ENV === "production" ? flushSync(() => root.render(element)) : act(() => root.render(element)));
+  const acting = (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT;
+  beforeAll(() => void ((globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true));
+  afterAll(() => void ((globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = acting));
+  /** `element` rendered on the client to its end, and unmounted. */
+  const client = (element: React.ReactElement) => {
+    const root = createRoot(document.createElement("div"));
+    try {
+      onClient(root, element);
+      return root;
+    } finally {
+      onClient(root, <></>);
+    }
+  };
+
+  it("reads one value for a context throughout a render that starts inside an app's renderToString and goes on after it", async () => {
+    const Brand = createContext("default");
+    let open = false;
+    const gate = new Promise((done) => setTimeout(done, 5)).then(() => void (open = true));
+    // The wrapper reads it inside renderToString; the content's components, after renderToString returned (the walk waits).
+    const Later = () => {
+      if (!open) throw gate;
+      return <Paragraph>{`later=${useContext(Brand)}`}</Paragraph>;
+    };
+    const Welcome = () => (
+      <Email>
+        <Row>
+          <Column>
+            <Paragraph>{`wrapper=${useContext(Brand)}`}</Paragraph>
+            <Brand.Consumer>{(value) => <Paragraph>{`consumer=${value}`}</Paragraph>}</Brand.Consumer>
+            <Later />
+          </Column>
+        </Row>
+      </Email>
+    );
+    const started = () => {
+      let text: Promise<string> | undefined;
+      const Page = () => ((text = asyncRenderers.renderToPlainText(<Welcome />)), <div />);
+      renderToString(<Brand.Provider value={tenant}><Page /></Brand.Provider>);
+      return text!.then((plain) => plain.split(/\n+/).map((line) => line.trim()));
+    };
+    // Not learned yet: renderToString's value, throughout (React's values agree on the default after it returned).
+    expect(await started()).toEqual(["wrapper=TenantA", "consumer=TenantA", "later=TenantA"]);
+    expect((await asyncRenderers.renderToPlainText(<Welcome />)).split(/\n+/).map((line) => line.trim())).toEqual(["wrapper=default", "consumer=default", "later=default"]);
+    expect(await started()).toEqual(["wrapper=default", "consumer=default", "later=default"]);
+  });
+
 });
 
 describe("a render", () => {
