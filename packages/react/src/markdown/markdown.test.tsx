@@ -352,6 +352,29 @@ describe("Markdown from data: no more than its size calls for", () => {
     expect(blocks({ markdown }).at(-1)).toEqual(["text", "After the quote."]);
   });
 
+  it("highlights its code blocks while their sizes squared add up to 8,192²: past that, a block is shown without colors, and said once", () => {
+    // highlight.js's time grows with a block's size squared on some code: 100 KB of INI in a fence took 27 s, and 40
+    // KB of Markdown 2.2 s.
+    const fill = (unit: string, n: number) => unit.repeat(Math.ceil(n / unit.length)).slice(0, n);
+    for (const [language, unit] of [["ini", ".e1"], ["markdown", "["], ["java", "$a"]]) {
+      const start = performance.now();
+      const html = renderToHtml(email({ markdown: "```" + language + "\n" + fill(unit, 102400) + "\n```", html: "escape" }));
+      expect([language, html.includes(fill(unit, 1000)), performance.now() - start < 3000]).toEqual([language, true, true]);
+    }
+    const said = () => warn.mock.calls.map((call) => String(call[0])).filter((message) => message.startsWith("[Unlayer] Markdown"));
+    expect(said()).toEqual(Array(3).fill("[Unlayer] Markdown: 1 of its code blocks is shown without colors: its code blocks' sizes squared add up to more than the 67108864 highlight.js is given for one Markdown (on some code its time grows with a block's size squared)."));
+    warn.mockClear();
+    // Sixteen blocks of 2,048 characters are 8,192²; the four after them (in a list too) are shown without colors.
+    const block = (i: number) => "```js\n" + `${i};`.padEnd(2048, "1") + "\n```";
+    const markdown = Array.from({ length: 18 }, (_, i) => block(i)).join("\n\n") + `\n\n- item\n\n  ${block(18).replace(/\n/g, "\n  ")}\n\n${block(19)}`;
+    const colored = (value: string) => value.includes('<span style="color');
+    const values = renderToJson(email({ markdown })).body.rows[0].columns[0].contents.map((c: any) => c.values.html ?? c.values.text);
+    expect(values.map(colored)).toEqual([...Array(16).fill(true), false, false, false, false]);
+    expect(said()).toEqual([
+      "[Unlayer] Markdown: 4 of its code blocks are shown without colors: its code blocks' sizes squared add up to more than the 67108864 highlight.js is given for one Markdown (on some code its time grows with a block's size squared).",
+    ]);
+  });
+
   it("reads a long task list in time linear in its size, its items as marked reads them", () => {
     // marked took each task item's `[ ]` out of what's left to read by looking for it from the end, again for each
     // item: 400 KB of task items took 13 s.
