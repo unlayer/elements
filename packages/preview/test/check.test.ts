@@ -5,6 +5,9 @@ import { checkTemplates, formatCheckReport } from "../src/server/check";
 import { UsageError } from "../src/server/errors";
 import { cli, fixtureCopy } from "./helpers";
 
+/** The URL Elements writes for a `javascript:` one, as react-dom 19 does: it throws. */
+const BLOCKED = "javascript:throw new Error('React has blocked a javascript: URL as a security precaution.')";
+
 let fixture: Awaited<ReturnType<typeof fixtureCopy>>;
 
 // The problems needs-fixes.tsx in the showcase has: links that go nowhere, run script or are relative, and flexbox.
@@ -110,7 +113,8 @@ describe("check", () => {
     expect(template.toFix.map((f) => [f.kind, f.block, f.url])).toEqual([
       ["link", "Paragraph 1", "#"],
       ["link", "Paragraph 1", "/pricing"],
-      ["link", "Button 1", "javascript:alert(1)"],
+      // (Elements writes a javascript: URL as one that throws: still not a link.)
+      ["link", "Button 1", BLOCKED],
     ]);
     const flex = template.toCheck.find((f) => f.feature === "display:flex");
     expect(flex).toMatchObject({ kind: "client", level: "warning", block: "Html 1", line: 11 });
@@ -150,7 +154,8 @@ describe("check", () => {
     const text = formatCheckReport(report);
     const lines = text.trimEnd().split("\n");
     expect(lines[0]).toMatch(/^✗ needs-fixes\.tsx \(email, \d+ KB\): 3 to fix, \d+ to check/);
-    expect(lines).toContain("    fix    Button 1 · “Click me” → javascript:alert(1) · Email clients don't run javascript: links.");
+    // (The URL cut to 60 characters.)
+    expect(lines).toContainEqual(expect.stringMatching(/^ {4}fix {4}Button 1 · “Click me” → javascript:throw new Error\('React has blocked .*… · Email clients don't run javascript: links\.$/));
     expect(lines).toContain("    fix    Paragraph 1 · “terms” → # · This link goes nowhere: give it a URL.");
     expect(lines.some((line) => /^ {4}check {2}Html 1 · line 11 · `display:flex` isn't supported in /.test(line))).toBe(true);
     expect(lines.some((line) => /^✓ landing\.tsx \(web, \d+ KB\)/.test(line))).toBe(true);

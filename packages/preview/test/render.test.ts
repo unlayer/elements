@@ -57,8 +57,9 @@ describe("render", () => {
     expect(failed).toBe(1);
     const [needsFixes, welcome] = templates;
     expect(needsFixes).toMatchObject({ path: "needs-fixes.tsx", ok: false, mode: "email", check: { ok: false } });
-    expect(needsFixes.html).toContain("javascript:alert(1)");
-    expect(needsFixes.check?.toFix.map((f) => [f.kind, f.url])).toEqual([["link", "javascript:alert(1)"]]);
+    // (Elements writes the template's javascript: URL as one that throws, as react-dom 19 does: still not a link.)
+    expect(needsFixes.html).toContain("javascript:throw new Error(");
+    expect(needsFixes.check?.toFix.map((f) => [f.kind, f.url])).toEqual([["link", "javascript:throw new Error('React has blocked a javascript: URL as a security precaution.')"]]);
     expect(welcome).toMatchObject({ ok: true, check: { ok: true, toFix: [] } });
   });
 
