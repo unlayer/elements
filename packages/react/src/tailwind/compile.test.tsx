@@ -631,9 +631,10 @@ describe("a render's classes", () => {
   }, 60_000);
 
   it("are a <Tailwind>'s own: a class outside it isn't compiled", async () => {
-    const plugin = ({ matchUtilities }: any) => matchUtilities({ boom: (value: string) => (value === "now" ? (() => { throw new Error("boom"); })() : { color: "red" }) }, { values: { now: "now" } });
+    // (The plugin says which of its classes Tailwind compiled, and throws for this one.)
+    const called: string[] = [];
+    const plugin = ({ matchUtilities }: any) => matchUtilities({ boom: (value: string) => (called.push(value), value === "now" ? (() => { throw new Error("boom"); })() : { color: "red" }) }, { values: { now: "now", later: "later" } });
     const handle = await loadTailwind({ plugins: [plugin] });
-    const candidates = compiled.candidates;
     const html = renderToHtmlNow(
       <Email>
         <Row>
@@ -644,14 +645,15 @@ describe("a render's classes", () => {
         <Tailwind tw={handle}>
           <Row>
             <Column>
-              <Paragraph className="p-[7px]">In</Paragraph>
+              <Paragraph className="p-[7px] boom-later">In</Paragraph>
             </Column>
           </Row>
         </Tailwind>
       </Email>
     );
     expect([/padding: ?7px/.test(html), />\s*Out\s*</.test(html)]).toEqual([true, true]);
-    expect(compiled.candidates - candidates).toBe(1);
+    expect(called).toContain("later");
+    expect(called).not.toContain("now");
   });
 });
 
