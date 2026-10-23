@@ -32,8 +32,17 @@ export function safeUrl(url: string, kind: "link" | "image"): string | undefined
  * from a check (`expr/**\/ession(`), counts as one. A `style` it keeps passes; so does what a <Tailwind> inlines into
  * Markdown's HTML for its classes (src/tailwind/html.ts).
  */
-export const unsafeStyle = (css: string) =>
-  /expression|javascript:|vbscript:|behavior|-moz-binding|progid|url\(|image\(|image-set\(|\/\*/i.test(tight(entities(css).replace(/\\(?:([\da-f]{1,6})[\t\n\f\r ]?|([\s\S]))/gi, (_, hex?: string, ch?: string) => (hex ? codePoint(parseInt(hex, 16)) : ch!))));
+export const unsafeStyle = (css: string) => /expression|javascript:|vbscript:|behavior|-moz-binding|progid|url\(|image\(|image-set\(|\/\*/i.test(readCss(css));
+
+/** CSS as the browser reads it: its references and escapes decoded (`\75 rl(`), its spaces and control characters gone. */
+const readCss = (css: string) => tight(entities(css).replace(/\\(?:([\da-f]{1,6})[\t\n\f\r ]?|([\s\S]))/gi, (_, hex?: string, ch?: string) => (hex ? codePoint(parseInt(hex, 16)) : ch!)));
+
+/**
+ * Whether CSS has a `url()` whose URL isn't a web one (`http:`, `https:`), a relative one, or a PNG, GIF, JPEG or WebP
+ * data URL, read as the browser reads it (see unsafeStyle): a class's `bg-[url(javascript:…)]`, which a <Tailwind>
+ * doesn't write (src/tailwind/props.ts).
+ */
+export const unsafeUrl = (css: string) => /url\(["']?(?!https?:|data:image\/(?:png|gif|jpe?g|webp)[;,]|(?![a-z][\w+.-]*:))/i.test(readCss(css));
 
 /** The elements kept, as an email or a page shows them: text and its formatting, links, images, lists, tables, sections. */
 const KEPT = new Set(

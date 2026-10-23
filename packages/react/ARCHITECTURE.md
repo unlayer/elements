@@ -287,7 +287,9 @@ row or block is left out of the HTML, the plain text and the design (the slower 
    whole template in its render's scope, whichever copy its components are of; a `<Tailwind>`'s rewrites find the
    Columns of that render's Rows by their marker (`src/tailwind/column.ts`), and get the render's direction (its
    root's resolved `textDirection`, which the render scope holds, as its `onError`) as an argument, never reading a
-   scope themselves (from an older copy, none: left to right).
+   scope themselves (from an older copy, none: left to right). Before a render rewrites any component, it gives a
+   `<Tailwind>`'s rewrite the props of all it collected, where the rewrite has a `prepare` (one object, so a later
+   release can add to it; an older copy's has none), so their classes are compiled at once (`utils/tailwind.ts`).
 
 ## Where it's tested
 

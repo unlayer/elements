@@ -188,9 +188,10 @@ const LINK_KEYS = ["href", "action"] as const;
 
 /**
  * A link's target, which the exporters write into a `target="…"` as it is: one that could end the attribute or start
- * a tag (`"`, `'`, `<`, `>`, a backtick) is a new tab (`_blank`) instead.
+ * a tag (`"`, `'`, `<`, `>`, a backtick), or that isn't a string (an array from a JSON body, written as its text), is
+ * a new tab (`_blank`) instead.
  */
-const safeTarget = (target: unknown) => (typeof target === "string" && /["'<>`]/.test(target) ? "_blank" : target);
+const safeTarget = (target: unknown) => (target != null && (typeof target !== "string" || /["'<>`]/.test(target)) ? "_blank" : target);
 
 /**
  * A link in the schema's storage shape: `"https://…"` is `{ name: "web", values: { href, target } }` (`target`, the
@@ -290,9 +291,9 @@ export function mapSemanticProps<T extends Record<string, any>>(
   // Applied to both the flat prop and the `values` escape hatch. (Render-time
   // `normalizeLinkValue` also reads `attrs` as a defensive fallback.)
   // A flat `target` (Button, Link) is the link's: a new tab only where none is given (or where it's one that could end
-  // its attribute, said).
+  // its attribute or isn't a string, said).
   const target = safeTarget(userProps.target ?? "_blank") as string;
-  if (target !== (userProps.target ?? "_blank")) console.warn(`[Unlayer] ${componentType}'s target ${JSON.stringify(userProps.target)} could end its HTML attribute or start a tag, so the link opens in a new tab (_blank).`);
+  if (target !== (userProps.target ?? "_blank")) console.warn(`[Unlayer] ${componentType}'s target ${typeof userProps.target === "string" ? `${JSON.stringify(userProps.target)} could end its HTML attribute or start a tag` : "isn't text"}, so the link opens in a new tab (_blank).`);
   if ("target" in userProps) delete userProps.target;
   for (const key of LINK_KEYS) {
     if (userProps[key] !== undefined) userProps[key] = canonicalizeLink(userProps[key], target);
@@ -492,7 +493,8 @@ export function normalizeValuesForExporter<T extends Record<string, any>>(
       ...out.menu,
       items: out.menu.items.map((item: any) => {
         if (!item) return item;
-        const next = mode === "email" && typeof item.text === "string" ? { ...item, text: menuText(item.text) } : item;
+        // (In an email, text that isn't a string, an array from a JSON body, is its text, escaped as text is.)
+        const next = mode === "email" && item.text != null ? { ...item, text: menuText(String(item.text)) } : item;
         const link = linkOf(next.link);
         return link === next.link ? next : { ...next, link };
       }),
@@ -500,9 +502,10 @@ export function normalizeValuesForExporter<T extends Record<string, any>>(
   }
 
   // Social icons each carry a `url`, written into an href as it is, and a `name`, which an email writes into its
-  // `title`, `alt` and image URL as it is too (a web page or a document escapes it).
+  // `title`, `alt` and image URL as it is too (a web page or a document escapes it); a name that isn't a string (an
+  // array from a JSON body) is its text.
   if (componentName === "Social" && out.icons && Array.isArray(out.icons.icons)) {
-    const named = (icon: any) => (mode === "email" && typeof icon.name === "string" ? { ...icon, name: escapeText(icon.name, true) } : icon);
+    const named = (icon: any) => (icon.name == null || (mode !== "email" && typeof icon.name === "string") ? icon : { ...icon, name: mode === "email" ? escapeText(String(icon.name), true) : String(icon.name) });
     out.icons = { ...out.icons, icons: out.icons.icons.map((icon: any) => (icon && typeof icon === "object" ? named(safeLink(icon)) : icon)) };
   }
 

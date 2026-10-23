@@ -107,7 +107,7 @@ These are pinned in `pnpm-workspace.yaml` via the catalog feature and updated au
 - The CI pipeline checks:
   - TypeScript compilation
   - Unit tests
-  - Bundle size budget (the main entry's ESM must be under 202.5KB: `MAX_SIZE` in `.github/workflows/test.yml`)
+  - Bundle size budget (the main entry's ESM must be under 203KB: `MAX_SIZE` in `.github/workflows/test.yml`)
   - Next.js integration test (Server Components)
 
 ### Versioning

@@ -6,8 +6,8 @@
  * a phone or breakpoint variant changes it). The markup is read as a browser reads it
  * (src/utils/html-tags.ts), and only the class attributes and the styles they give are written again.
  */
-import type { ClassCondition, ClassDeclaration, ClassDeclarations } from "./declarations";
-import { commentEnd, rawTextEnd, readTag, type Attribute } from "../utils/html-tags";
+import type { ClassCondition, ClassDeclaration, ClassDeclarations, DeclarationReader } from "./declarations";
+import { commentEnd, rawTextEnd, readTag, type Attribute, type Tag } from "../utils/html-tags";
 
 // Logical sides as in a left-to-right document, and those a right-to-left one changes: email clients read only physical ones.
 const SIDES: Record<string, string[]> = { inline: ["left", "right"], block: ["top", "bottom"], "inline-start": ["left"], "inline-end": ["right"], "block-start": ["top"], "block-end": ["bottom"] };
@@ -50,22 +50,10 @@ function physical(property: string, rtl: boolean): string[] {
 }
 
 /**
- * `html` with Tailwind's classes inlined; `warn` says what isn't. `rtl`: the document reads right to left. An element
- * reads as its own `dir` says (`rtl`, or `ltr` and `auto`, which can't be told here, as left to right), else as the
- * element it's in, else as the document: its logical sides are those. (An element whose end tag is left out, as a
- * `<p>` or `<li>` can be, is taken to hold what follows it up to its parent's end tag.) A tag's first `class` is its
- * class, as a browser reads it (the others are left out once it's rewritten); comments, raw text (`<script>`,
- * `<style>`, `<textarea>`, …) and what isn't a tag stay as they are. `unsafe`: CSS sanitized markup can't have (see
- * src/markdown/sanitize.ts), each declaration that is left out and said.
+ * Each tag in `html` as a browser reads it, with where it starts (`lt`): comments, raw text (`<script>`, `<style>`,
+ * `<textarea>`, …) and what isn't a tag passed over, up to a tag the markup ends in (left as it is).
  */
-export function inlineClasses(html: string, read: (className: string) => ClassDeclarations, warn: (text: string) => void, rtl = false, unsafe?: (css: string) => boolean): string {
-  const said = new Set<string>();
-  const once = (text: string) => !said.has(text) && (said.add(text), warn(text));
-  // The elements open where a tag is, each with whether it reads right to left.
-  const open: Array<{ tag: string; rtl: boolean }> = [];
-  let out = "";
-  // Where the input is written out to.
-  let written = 0;
+function tags(html: string, visit: (tag: Tag, lt: number) => void): void {
   for (let i = 0; i < html.length; ) {
     const lt = html.indexOf("<", i);
     if (lt < 0) break;
@@ -79,14 +67,63 @@ export function inlineClasses(html: string, read: (className: string) => ClassDe
       i = lt + 1;
       continue;
     }
-    // (A tag the markup ends in is left as it is.)
     if (!tag) break;
     i = tag.end;
+    visit(tag, lt);
+    if (!tag.close && RAW_TEXT.test(tag.name)) i = tag.name === "plaintext" ? html.length : rawTextEnd(html, tag.name, i);
+  }
+}
+
+/** A class attribute's names, as written. */
+const namesOf = (value: string | undefined) => [...(value ?? "").matchAll(NAMES)].map((m) => m[0]);
+/** A name as Tailwind reads it, its references decoded; undefined where that has a space other than HTML's in it (none of Tailwind's). */
+const tailwindName = (name: string) => {
+  const read = decode(name);
+  return /\s/.test(read) ? undefined : read;
+};
+
+/** The class names in `html`, each tag's (its first class attribute's), as inlineClasses reads them: to read them all at once. */
+export function classNamesIn(html: string): string[] {
+  const out: string[] = [];
+  tags(html, (tag) => {
+    if (tag.close) return;
+    for (const name of namesOf(tag.attributes.find((a) => a.name === "class")?.value)) {
+      const read = tailwindName(name);
+      if (read !== undefined) out.push(read);
+    }
+  });
+  return out;
+}
+
+/**
+ * `html` with Tailwind's classes inlined; `warn` says what isn't. `rtl`: the document reads right to left. An element
+ * reads as its own `dir` says (`rtl`, or `ltr` and `auto`, which can't be told here, as left to right), else as the
+ * element it's in, else as the document: its logical sides are those. (An element whose end tag is left out, as a
+ * `<p>` or `<li>` can be, is taken to hold what follows it up to its parent's end tag.) A tag's first `class` is its
+ * class, as a browser reads it (the others are left out once it's rewritten); comments, raw text (`<script>`,
+ * `<style>`, `<textarea>`, …) and what isn't a tag stay as they are. `unsafe`: CSS sanitized markup can't have (see
+ * src/markdown/sanitize.ts), each declaration that is left out and said.
+ *
+ * Its classes are read at once first (`read.prepare`, where the reader has one): Tailwind builds its whole stylesheet
+ * again for each class it hasn't built, so classes read one tag at a time would take the square of their number.
+ */
+export function inlineClasses(html: string, read: ((className: string) => ClassDeclarations) | DeclarationReader, warn: (text: string) => void, rtl = false, unsafe?: (css: string) => boolean): string {
+  ("prepare" in read ? read.prepare : read)(classNamesIn(html).join(" "));
+  const said = new Set<string>();
+  const once = (text: string) => !said.has(text) && (said.add(text), warn(text));
+  // The elements open where a tag is, each with whether it reads right to left, and where each name's are among them:
+  // an end tag ends the last of its name and what's open in it, each element once.
+  const open: Array<{ tag: string; rtl: boolean }> = [];
+  const at = new Map<string, number[]>();
+  let out = "";
+  // Where the input is written out to.
+  let written = 0;
+  tags(html, (tag, lt) => {
     if (tag.close) {
       // It ends, and what's still open in it (as the browser ends them).
-      const at = open.map((e) => e.tag).lastIndexOf(tag.name);
-      if (at >= 0) open.length = at;
-      continue;
+      const places = at.get(tag.name);
+      if (places?.length) for (const end = places[places.length - 1]; open.length > end; ) at.get(open.pop()!.tag)!.pop();
+      return;
     }
     const first = (name: string) => tag.attributes.find((a) => a.name === name);
     const dir = first("dir")?.value?.trim().toLowerCase();
@@ -96,9 +133,12 @@ export function inlineClasses(html: string, read: (className: string) => ClassDe
       out += html.slice(written, lt) + rewritten;
       written = tag.end;
     }
-    if (RAW_TEXT.test(tag.name)) i = tag.name === "plaintext" ? html.length : rawTextEnd(html, tag.name, i);
-    else if (!VOID.test(tag.name)) open.push({ tag: tag.name, rtl: right });
-  }
+    if (!RAW_TEXT.test(tag.name) && !VOID.test(tag.name)) {
+      const places = at.get(tag.name) ?? (at.set(tag.name, []), at.get(tag.name)!);
+      places.push(open.length);
+      open.push({ tag: tag.name, rtl: right });
+    }
+  });
   return out + html.slice(written);
 }
 
@@ -108,11 +148,10 @@ export function inlineClasses(html: string, read: (className: string) => ClassDe
  * inlined declarations (or one is added after its attributes). The rest is as written.
  */
 function classes(text: string, attributes: Attribute[], nameEnd: number, offset: number, rtl: boolean, read: (className: string) => ClassDeclarations, once: (text: string) => void, unsafe?: (css: string) => boolean): string | undefined {
-  const list = attributes.filter((a) => a.name === "class");
-  const given = [...(list[0]?.value ?? "").matchAll(NAMES)].map((m) => m[0]);
+  const first = attributes.findIndex((a) => a.name === "class");
+  const given = namesOf(attributes[first]?.value);
   if (!given.length) return undefined;
-  // (A name with a space other than HTML's in it isn't one of Tailwind's.)
-  const names = given.map((name) => (/\s/.test(decode(name)) ? undefined : decode(name)));
+  const names = given.map(tailwindName);
   const found = read(names.filter((name) => name !== undefined).join(" "));
   const yours = new Set<string>();
   for (const { className: name, reason } of found.ignored) {
@@ -146,13 +185,12 @@ function classes(text: string, attributes: Attribute[], nameEnd: number, offset:
   }
   // Each edit: what's from `start` to `end` (in the markup) written as `with`.
   const edits: Array<{ start: number; end: number; with: string }> = [];
-  // Where an attribute left out starts: with the gap before it, unless the next one starts where it ends (after its
-  // quote), which that gap then keeps apart from what's before it.
-  const before = (a: Attribute) => {
-    const at = attributes.indexOf(a);
-    return attributes[at + 1]?.start === a.end ? a.start : at > 0 ? attributes[at - 1].end : nameEnd;
-  };
-  list.forEach((a, i) => edits.push(i === 0 && kept.length ? { start: a.start, end: a.end, with: `class="${kept.join(" ").replace(/"/g, "&quot;")}"` } : { start: before(a), end: a.end, with: "" }));
+  // Where an attribute left out (the `at`th) starts: with the gap before it, unless the next one starts where it ends
+  // (after its quote), which that gap then keeps apart from what's before it.
+  const before = (a: Attribute, at: number) => (attributes[at + 1]?.start === a.end ? a.start : at > 0 ? attributes[at - 1].end : nameEnd);
+  attributes.forEach((a, at) => {
+    if (a.name === "class") edits.push(at === first && kept.length ? { start: a.start, end: a.end, with: `class="${kept.join(" ").replace(/"/g, "&quot;")}"` } : { start: before(a, at), end: a.end, with: "" });
+  });
   // The element's own style wins over its classes, as in the browser: after them.
   const own = attributes.find((a) => a.name === "style");
   const style = css.map(escape).join("; ");
