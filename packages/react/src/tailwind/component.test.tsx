@@ -244,9 +244,11 @@ describe("<Tailwind>: props given win over classes", () => {
     expect(column._override.mobile.padding).toBe("8px");
   });
 
-  it("but not a prop given as `undefined`: a wrapper forwarding optional props it wasn't given keeps its classes, in the design and the HTML", () => {
-    // Your own components, passing on what they're given (`color={props.color}`): unset, it's `undefined`.
-    type Optional = { color?: string; fontSize?: string; bg?: string; padding?: string; width?: number };
+  it.each([undefined, null])("but not a prop given as `%s`: a wrapper forwarding optional props it wasn't given (or data's null) keeps its classes, in the design and the HTML", (missing) => {
+    // Your own components, passing on what they're given (`color={props.color}`): unset, it's `undefined`; from data,
+    // it may be `null`.
+    type Optional = { color?: string | null; fontSize?: string | null; bg?: string | null; padding?: string | null; width?: number | null };
+    const none = { color: missing, fontSize: missing, bg: missing, padding: missing, width: missing } as const;
     const Text = (p: Optional) => (
       <Paragraph className="text-blue-500 text-lg max-sm:text-sm uppercase" color={p.color} fontSize={p.fontSize} mobile={{ fontSize: p.fontSize }} style={{ textTransform: p.color }}>
         Hi
@@ -258,18 +260,18 @@ describe("<Tailwind>: props given win over classes", () => {
       </Button>
     );
     const Title = (p: Optional) => <Heading className="text-brand text-2xl" color={p.color} fontSize={p.fontSize}>Title</Heading>;
-    const Picture = (p: Optional) => <Image src="https://example.com/a.png" className="w-32" width={p.width} />;
+    const Picture = (p: Optional) => <Image src="https://example.com/a.png" className="w-32" width={p.width as number} />;
     const template = (forward: boolean) => {
-      const given = (props: Record<string, unknown>) => (forward ? props : {});
+      const given = (props: Record<string, unknown>) => (forward ? Object.fromEntries(Object.keys(props).map((key) => [key, missing])) : {});
       return (
         <Tailwind tw={tw}>
           <Email className="bg-gray-100 max-w-[640px]" {...given({ backgroundColor: undefined, contentWidth: undefined })}>
             <Row className="bg-white" {...given({ columnsBackgroundColor: undefined, backgroundColor: undefined })}>
               <Column className="bg-zinc-50 rounded-lg p-6" {...given({ backgroundColor: undefined, borderRadius: undefined, padding: undefined })}>
-                {forward ? <Text /> : <Paragraph className="text-blue-500 text-lg max-sm:text-sm uppercase">Hi</Paragraph>}
-                {forward ? <Cta /> : <Button href="https://example.com" className="bg-red-500 text-black px-6" buttonColors={{ hoverColor: "#00ff00" }}>Go</Button>}
-                {forward ? <Title /> : <Heading className="text-brand text-2xl">Title</Heading>}
-                {forward ? <Picture /> : <Image src="https://example.com/a.png" className="w-32" />}
+                {forward ? <Text {...none} /> : <Paragraph className="text-blue-500 text-lg max-sm:text-sm uppercase">Hi</Paragraph>}
+                {forward ? <Cta {...none} /> : <Button href="https://example.com" className="bg-red-500 text-black px-6" buttonColors={{ hoverColor: "#00ff00" }}>Go</Button>}
+                {forward ? <Title {...none} /> : <Heading className="text-brand text-2xl">Title</Heading>}
+                {forward ? <Picture {...none} /> : <Image src="https://example.com/a.png" className="w-32" />}
               </Column>
             </Row>
           </Email>

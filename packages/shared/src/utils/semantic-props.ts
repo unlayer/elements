@@ -357,7 +357,8 @@ export function mapSemanticProps<T extends Record<string, any>>(
   const flat: Record<string, any> = {};
   for (const key of Object.keys(userProps)) {
     const value = userProps[key];
-    if (value === undefined) continue;
+    // (A prop given as `null`, as data gives one it hasn't, is one not given: `color: ;` isn't a color.)
+    if (value == null) continue;
     if (nestedGroups.has(key)) nested[key] = value;
     else {
       const group = owners.get(key);

@@ -265,6 +265,11 @@ describe("mapSemanticProps", () => {
       expect("fontSize" in result).toBe(false);
     });
 
+    it("skips null values, as data gives a prop it hasn't: the default stays, not an empty style", () => {
+      const result = mapSemanticProps({ fontSize: null, color: null, textAlign: null, backgroundColor: null, borderRadius: "8px" } as never, BUTTON_DEFAULTS, "Button");
+      expect(result).toEqual({ borderRadius: "8px" });
+    });
+
     it("handles _meta in defaults without grouping into it", () => {
       const result = mapSemanticProps(
         { backgroundColor: "#fff" },
