@@ -1,7 +1,7 @@
 // @vitest-environment node
 import React from "react";
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi, type MockInstance } from "vitest";
-import { Column, Email, Html, Paragraph, Row, renderToHtml as renderToHtmlNow, renderToHtmlParts as renderToHtmlPartsNow } from "../index";
+import { Column, Email, Html, Paragraph, Row, renderToHtml as renderToHtmlNow, renderToHtmlParts as renderToHtmlPartsNow, renderToJson as renderToJsonNow } from "../index";
 import { Markdown } from "../markdown";
 import {
   Tailwind,
@@ -14,7 +14,7 @@ import {
   type ClassDeclaration,
   type TailwindHandle,
 } from "./index";
-import { CLASSES, SUSPECTS, declarationReader, type Compiler } from "./declarations";
+import { CLASSES, SUSPECTS, declarationReader, type Compiler, type PluginFailure, type ReadScope } from "./declarations";
 import { parseSheet } from "./css";
 import { CONFIGS } from "./load";
 
@@ -407,6 +407,26 @@ describe("a handle's reader of classes", () => {
     expect(renew).toHaveBeenCalledTimes(2);
   });
 
+  it("keeps a plugin's error it finds no class of a build for to the render that built them: there, its classes with no CSS fail", () => {
+    // A failure whose name no class of the build has (Tailwind called the function for a class the reader can't tie
+    // it to): `odd`, with no CSS, could be why; `a`, with CSS, couldn't. Another render's classes aren't a part of it.
+    const failures: PluginFailure[] = [];
+    const built: string[] = [];
+    const compiler: Compiler = {
+      failures,
+      build: (classes) => (built.push(...classes), classes.includes("odd") && failures.push({ name: "elsewhere", error: new Error("stray") }), built.filter((c) => c !== "odd").map((c) => `.${c} { margin: 1px; }`).join("\n")),
+    };
+    const read = declarationReader(compiler);
+    const render: ReadScope = { strays: [] };
+    read.prepare("a odd", render);
+    expect(read("a", render).declarations.map((d) => d.className)).toEqual(["a"]);
+    expect(() => read("odd", render)).toThrow("stray");
+    expect(() => read("a odd", render)).toThrow("stray");
+    // Another render reads them as Tailwind gives them: `odd` as a class Tailwind doesn't have.
+    expect(read("odd a").ignored).toEqual([{ className: "odd", reason: "Tailwind has no such class" }]);
+    expect(read("a").declarations.map((d) => d.className)).toEqual(["a"]);
+  });
+
   it("builds the classes `prepare` is given at once, without reading them: reading them after builds nothing", () => {
     const compiler = counting();
     const build = vi.fn(compiler.build);
@@ -679,6 +699,95 @@ describe("a render's classes", () => {
       expect(bad.status === "rejected" && String(bad.reason.message)).toContain("[Unlayer] vboom (in <Paragraph>");
       expect(good.status === "fulfilled" && fine(good.value, 14)).toEqual([true, true]);
       expect(fine(renderToHtmlNow(other(handle, 15)), 15)).toEqual([true, true]);
+    });
+
+    it("fail only the component whose class holds a variant named `@` (`@boom:`) its function throws for, not one with a class Tailwind doesn't have", async () => {
+      // Tailwind reads `@boom` as the `@` variant and `boom`, with no dash: a failure was tied to no class of the build,
+      // and fell on its classes with no CSS, `text-nope` too, every render's.
+      const at = ({ matchVariant }: any) => matchVariant("@", (value: string) => (value === "boom" ? (() => { throw new Error("at boom"); })() : "&:hover"), { values: { boom: "boom", ok: "ok" } });
+      const handle = await loadTailwind({ plugins: [at] });
+      const page = (
+        <Tailwind tw={handle}>
+          <Email>
+            <Row>
+              <Column>
+                <Paragraph className="@boom:p-[3px]">A</Paragraph>
+                <Paragraph className="text-nope p-[5px]">B</Paragraph>
+              </Column>
+            </Row>
+          </Email>
+        </Tailwind>
+      );
+      for (let i = 0; i < 2; i++) {
+        const parts = renderToHtmlPartsNow(page, { onError: "omit" });
+        expect(parts.omitted.map((e) => e.message)).toEqual(["[Unlayer] at boom (in <Paragraph> at Row 1 › Column 1 › Paragraph)"]);
+        expect([/padding: ?5px/.test(parts.body), />\s*B\s*</.test(parts.body)]).toEqual([true, true]);
+      }
+      expect(classNameToDeclarations(handle, "text-nope").ignored).toEqual([{ className: "text-nope", reason: "Tailwind has no such class" }]);
+    });
+
+    it("read a class its function gives nothing for (`if (!ok) return;`) as one Tailwind doesn't have, every time, changing nothing in another render", async () => {
+      // `undefined` and `null`, as a function gives for a value it doesn't take, which Tailwind 4's compiler throws for
+      // (and then for every build after it), where Tailwind 3 gave the class no CSS.
+      const sizes: Record<string, string> = { sm: "12px" };
+      const nothing = ({ matchUtilities, matchVariant }: any) => {
+        matchUtilities({ fs: (value: string) => (sizes[value] ? { fontSize: sizes[value] } : undefined) }, { values: { sm: "sm", lg: "lg" }, type: "any" });
+        matchVariant("vnone", (value: string) => (value === "ok" ? "&:hover" : null), { values: { ok: "ok", no: "no" } });
+      };
+      let n = 30;
+      for (const bad of ["fs-lg", "fs-[huge]", "vnone-no:p-[3px]"]) {
+        const handle = await loadTailwind({ plugins: [nothing] });
+        for (const render of [(t: React.ReactElement) => renderToHtmlPartsNow(t, { onError: "omit" }), (t: React.ReactElement) => renderToHtmlParts(t, { onError: "omit" }), (t: React.ReactElement) => renderToHtmlPartsNow(t)]) {
+          for (let i = 0; i < 2; i++) {
+            warn.mockClear();
+            const parts = await render(template(handle, bad));
+            expect(parts.omitted).toEqual([]);
+            expect([/padding: ?7px/.test(parts.body), />\s*B\s*</.test(parts.body), /padding: ?9px/.test(parts.body)]).toEqual([true, true, true]);
+            expect(warn).toHaveBeenCalledWith(`[Unlayer] Paragraph ignores class \`${bad}\`: Tailwind has no such class.`);
+            expect(fine(renderToHtmlNow(other(handle, ++n)), n)).toEqual([true, true]);
+          }
+        }
+        expect(JSON.stringify(renderToJsonNow(template(handle, bad)))).toContain('"B"');
+      }
+    });
+
+    // What Tailwind's compiler can't compile, which it throws for, and then for every build after it: an `@apply` of a
+    // class or a variant it doesn't have, or of the class itself, or of nothing; a list holding nothing; a variant
+    // that isn't a selector.
+    const rejected = ({ matchUtilities, matchVariant }: any) => {
+      const gives: Record<string, unknown> = { bad: { "@apply not-a-class": {} }, variant: { "@apply nope:p-1": {} }, self: { "@apply ap-self": {} }, empty: { "@apply": {} }, list: { color: [null] }, ok: { color: "red" } };
+      matchUtilities({ ap: (value: string) => gives[value] }, { values: Object.fromEntries(Object.keys(gives).map((k) => [k, k])) });
+      matchVariant("vobj", (value: string) => (value === "bad" ? {} : "&:hover"), { values: { bad: "bad", ok: "ok" } });
+    };
+    it.each([
+      ["ap-bad", "<Tailwind> can't read `ap-bad`: it applies (`@apply`) `not-a-class`, a class Tailwind doesn't have"],
+      ["ap-variant", "<Tailwind> can't read `ap-variant`: it applies (`@apply`) `nope:p-1`, a class Tailwind doesn't have"],
+      ["ap-self", "<Tailwind> can't read `ap-self`: it applies itself (`@apply`), a circular dependency"],
+      ["ap-empty", "<Tailwind>: the plugin's `ap` function gives an `@apply` with no class in it"],
+      ["ap-list", "<Tailwind>: the plugin's `ap` function gives a list holding `null`, which Tailwind can't compile"],
+      ["vobj-bad:p-[3px]", "<Tailwind>: the plugin's `vobj` variant gives an object, not a selector or a list of them"],
+    ])("fail the component whose class it is where Tailwind can't compile what its function gives (%s), every time, changing nothing in another render", async (bad, message) => {
+      const handle = await loadTailwind({ plugins: [rejected] });
+      const failure = `[Unlayer] ${message} (in <Paragraph> at Row 1 › Column 1 › Paragraph 2)`;
+      for (let i = 0; i < 3; i++) {
+        expect(() => renderToHtmlNow(template(handle, bad))).toThrow(failure);
+        for (const parts of [renderToHtmlPartsNow(template(handle, bad), { onError: "omit" }), await renderToHtmlParts(template(handle, bad), { onError: "omit" })]) {
+          expect(parts.omitted.map((e) => e.message)).toEqual([failure]);
+          expect([/padding: ?7px/.test(parts.body), />\s*B\s*</.test(parts.body), /padding: ?9px/.test(parts.body)]).toEqual([true, false, true]);
+        }
+        expect(fine(renderToHtmlNow(other(handle, 40 + i)), 40 + i)).toEqual([true, true]);
+        expect(() => renderToJsonNow(template(handle, bad))).toThrow(failure);
+      }
+    });
+
+    it("apply what its function gives `@apply` of, as Tailwind does: where the `@apply` is, with the variants and the `!important` it's under", async () => {
+      const applies = ({ matchUtilities }: any) =>
+        matchUtilities({ btn: (value: string) => ({ "@apply px-[4px] py-[2px]": {}, backgroundColor: value, "&:hover": { "@apply text-[#ff0000]": {} }, "@media (width < 40rem)": { "@apply p-[1px]": {} } }) }, { values: { blue: "#0000ff" } });
+      const handle = await loadTailwind({ plugins: [applies] });
+      const each = (className: string) => classNameToDeclarations(handle, className).declarations.map((d) => `${d.className} ${d.when} ${d.property}: ${d.value}${d.important ? " !important" : ""}`);
+      const own = (className: string, as: string, important = "") => each(className).map((d) => d.replace(/^\S+/, as) + important);
+      expect(each("btn-blue")).toEqual([...own("px-[4px] py-[2px]", "btn-blue"), "btn-blue always background-color: #0000ff", ...own("hover:text-[#ff0000]", "btn-blue"), ...own("max-sm:p-[1px]", "btn-blue")]);
+      expect(each("btn-blue!")).toEqual(each("btn-blue").map((d) => d.replace("btn-blue", "btn-blue!") + " !important"));
     });
   });
 
