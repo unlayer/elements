@@ -315,6 +315,33 @@ describe("a context the template doesn't provide", () => {
     await streamed((page) => <>{page}</>);
     expect(read(Both)).toBe("default");
   });
+
+  it("after renderToString failed inside a provider of it: reads its default inside a later stream once a render has read it, and what the failed one left before", async () => {
+    /** What a template reads in a component of a react-dom stream (no provider of the context in it). */
+    const inStream = async (context: React.Context<unknown>) => {
+      let seen = "";
+      const Page = () => ((seen = read(context)), <div />);
+      await streamed((page) => <><Page />{page}</>);
+      return seen;
+    };
+    // Read before: the default it learned, inside the stream and alone. react-dom's stream never sets the value the
+    // failed renderToString left (`_currentValue2`): it's still there after.
+    const Learned = createContext<unknown>("default");
+    expect(read(Learned)).toBe("default");
+    failed(Learned, "TenantB");
+    expect(await inStream(Learned)).toBe("default");
+    expect((Learned as unknown as { _currentValue2: unknown })._currentValue2).toBe("TenantB");
+    expect(read(Learned)).toBe("default");
+    // Never read before: what the failed render left, inside the stream and alone (0.2.1, which rendered with
+    // react-dom's renderToStaticMarkup, had react-dom put it back first), till a renderToString puts it back.
+    const Fresh = createContext<unknown>("default");
+    failed(Fresh, "TenantB");
+    expect(await inStream(Fresh)).toBe("TenantB");
+    expect(read(Fresh)).toBe("TenantB");
+    renderToString(<p />);
+    expect(read(Fresh)).toBe("default");
+    expect(await inStream(Fresh)).toBe("default");
+  });
 });
 
 describe("a render", () => {
