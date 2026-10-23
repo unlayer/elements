@@ -1,6 +1,6 @@
 /**
  * What Markdown from data can't make Markdown's parser (marked) or the blocks it becomes take more than its size
- * calls for: tables marked fills out cell by cell.
+ * calls for: tables marked fills out cell by cell, and quotes and lists it reads by calling itself.
  */
 import { Tokenizer, type Tokens } from "marked";
 
@@ -14,6 +14,9 @@ import { Tokenizer, type Tokens } from "marked";
  */
 export const TABLE_CELLS = 1000;
 
+/** How deep quotes and lists nest (together): deeper, a quote's `>` and a list's marker are text. */
+export const NESTING = 32;
+
 /** A table past the cells left for a Markdown's tables: its size, nothing of it read but its header. */
 export type TooLarge = { columns: number; rows: number; cells: number };
 
@@ -23,9 +26,11 @@ export const tooLarge = ({ columns, rows, cells }: TooLarge) =>
 
 /**
  * marked's tokenizer, keeping to those limits: a table past the cells left is a table token with no rows and its
- * size in `tooLarge`, which isn't filled out.
+ * size in `tooLarge`, which isn't filled out; a quote or a list deeper than NESTING isn't one (its text is a paragraph).
  */
 export class Limited extends Tokenizer {
+  private depth = 0;
+
   /** `cells`: the cells the Markdown's tables can have (see TABLE_CELLS). */
   constructor(private cells: number) {
     super();
@@ -48,5 +53,24 @@ export class Limited extends Tokenizer {
     const table = super.table(src);
     if (table) this.cells -= table.header.length * (table.rows.length + 1);
     return table;
+  }
+
+  blockquote(src: string): Tokens.Blockquote | undefined {
+    return this.nested(() => super.blockquote(src));
+  }
+
+  list(src: string): Tokens.List | undefined {
+    return this.nested(() => super.list(src));
+  }
+
+  /** A quote or a list, read one level deeper, unless that's past NESTING. */
+  private nested<T>(read: () => T | undefined): T | undefined {
+    if (this.depth >= NESTING) return undefined;
+    this.depth++;
+    try {
+      return read();
+    } finally {
+      this.depth--;
+    }
   }
 }

@@ -210,6 +210,32 @@ describe("Markdown from data: no more than its size calls for", () => {
     expect(parts.body).not.toContain("<blockquote");
     expect(renderToJson(email({ markdown }), { onError: "omit" }).body.rows[0].columns[0].contents.map((c: any) => c.values.text)).toEqual(["Before", "After"]);
   });
+
+  it("nests quotes and lists 32 deep: deeper, their markers are text, and the rest of the email renders", () => {
+    for (const markdown of [">".repeat(2500) + " deep", "> - ".repeat(2000) + "deep", "> ".repeat(50000) + "deep", "- ".repeat(5000) + "deep"]) {
+      const start = performance.now();
+      const html = renderToHtml(
+        <Email>
+          <Row>
+            <Column>
+              <Markdown markdown={markdown} />
+              <Html html="<p>The rest</p>" />
+            </Column>
+          </Row>
+        </Email>
+      );
+      const body = new DOMParser().parseFromString(html, "text/html").body;
+      let depth = 0;
+      for (let e: Element | null = body.querySelector("blockquote, ul"); e; e = e.querySelector(":scope > blockquote, :scope > li > ul, :scope > ul, :scope > li > blockquote, :scope > p > blockquote")) depth++;
+      expect(depth).toBeGreaterThan(0);
+      expect(depth).toBeLessThanOrEqual(32);
+      expect(body.textContent).toContain("deep");
+      expect(body.textContent).toContain("The rest");
+      expect(performance.now() - start).toBeLessThan(5000);
+    }
+    // Under the limit, as deep as written.
+    expect(renderToHtml(email({ markdown: "> ".repeat(10) + "x" })).match(/<blockquote/g)).toHaveLength(10);
+  });
 });
 
 /** Random inputs the sanitizer is given (`SANITIZE_FUZZ_RUNS=300000` for a longer run, `SANITIZE_FUZZ_SEED` for others). */

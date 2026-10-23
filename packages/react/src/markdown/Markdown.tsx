@@ -339,7 +339,7 @@ class Writer {
  */
 export function Markdown(props: MarkdownProps): React.ReactElement {
   const source = dedent(props.markdown ?? textOf(props.children));
-  // (Its tables kept to what its size calls for: see limits.ts.)
+  // (Its tables and its quotes' and lists' nesting kept to what its size calls for: see limits.ts.)
   const tokens = new Lexer({ gfm: true, breaks: !!props.breaks, tokenizer: new Limited(Math.max(TABLE_CELLS, source.length)) }).lex(source);
   return <>{new Writer(props).blocks(tokens)}</>;
 }
