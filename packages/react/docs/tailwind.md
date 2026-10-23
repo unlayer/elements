@@ -72,7 +72,7 @@ Outside a `<Tailwind>`, `className` is a class name on the component's element i
 
 ## Classes in HTML markup
 
-Inside a `<Tailwind>`, `class` attributes in the markup of an `Html` block (and of a Paragraph's `html`) become inline styles, with the same conversions (hex colors, pixels, logical sides as physical ones), since email clients don't read a stylesheet's classes:
+Inside a `<Tailwind>`, `class` attributes in the markup of an `Html` block (and of a Paragraph's `html`, a Heading's or Button's `text`, the markup in a Paragraph's, Heading's or Button's children, and a `<Link>` or an `<a>` on its own in a Column) become inline styles, with the same conversions (hex colors, pixels, logical sides as physical ones), since email clients don't read a stylesheet's classes:
 
 ```tsx
 <Html html={'<p class="text-sm text-gray-500 py-2">Sent by <a class="font-bold underline" href="https://example.com">Acme</a></p>'} />

@@ -179,15 +179,13 @@ function inScope(c: Collected, tw: object): object[] {
  * (worked out once: the HTML, the head and the design ask for the same); null where reading its classes failed (a
  * Tailwind plugin threw) and the render leaves it out (`onError: "omit"`).
  */
-function styled(c: Collected, { item, tw }: Scoped, props: Record<string, any>): Record<string, any> | null {
-  // (Classes in a block's `html` are inlined too: one that has a class attribute, however it's written.)
-  if (tw === undefined || !(props.className || /class/i.test(props.html))) return props;
+function styled(c: Collected, tw: Record<string, any> | undefined, r: Record<string, any>, props: Record<string, any>, type: any = r.type): Record<string, any> | null {
+  // (Classes in a block's `html` or `text` are inlined too: one that has a class attribute, however it's written.)
+  if (tw === undefined || !(props.className || /class/i.test(props.html) || /class/i.test(props.text))) return props;
   c.styled ??= new Map();
-  const r = recordOf(item);
   if (!c.styled.has(r)) {
     // (First, the classes of the records in its scope, built at once: see prepareClasses.)
     if (!c.styled.has(tw)) c.styled.set(tw, (prepareClasses(tw.props, inScope(c, tw)), {}));
-    const type = r.type as any;
     const config = type?.[UNLAYER_CONFIG_KEY];
     const [name, defaults] = r.kind === "row" ? ["Row", ROW_DEFAULTS] : r.kind === "column" ? ["Column", COLUMN_DEFAULTS] : [config?.name ?? type?.displayName ?? "Block", config?.defaultValues];
     let own: Record<string, any> | null;
@@ -202,6 +200,16 @@ function styled(c: Collected, { item, tw }: Scoped, props: Record<string, any>):
     c.styled.set(r, own);
   }
   return c.styled.get(r)!;
+}
+
+/**
+ * A block markup in a Column is (a link alone, a <Link>, is a Paragraph holding it: see asBlock), its markup's classes
+ * inlined by the <Tailwind> it's in, as a block's are (once per render, by `key`); none where reading them failed.
+ */
+function restyled(c: Collected, tw: Record<string, any> | undefined, key: object, block: React.ReactElement<any>): React.ReactElement[] {
+  if (block.type !== Paragraph && block.type !== Html) return [block];
+  const own = styled(c, tw, key, block.props, block.type);
+  return own === block.props ? [block] : own ? [jsx(block.type, own)] : [];
 }
 
 /** Props any block takes beside its values (its defaults' keys); `font…` in camel case (`fontsize` is a slip). */
@@ -290,10 +298,10 @@ function made(c: Collected, scoped: Scoped, r: ReturnType<typeof recordOf>): Rea
         sayOnce(`[Unlayer] ${config.name} ignores the prop \`${key}\`${near ? `: did you mean \`${near}\`?` : "."}`);
       }
     }
-    const own = styled(c, scoped, props);
+    const own = styled(c, tw, r, props);
     return own && jsx((config?.contentType !== "custom" && BLOCKS[config?.name]) || r.type, { ...own, _record: r });
   }
-  const own = styled(c, scoped, r.props);
+  const own = styled(c, tw, r, r.props);
   if (!own) return null;
   if (r.kind === "column") return jsxs(Column, { ...own, children: elements(c, item.items, "column", tw), _record: r });
   const props: Record<PropertyKey, any> = { ...own };
@@ -393,7 +401,7 @@ export function elements(c: Collected, items: readonly Item[], place: Place, tw?
       return;
     }
     const kept = inColumn && !inside ? keptMarkup(c, item) : undefined;
-    if (kept) return void out.push(kept);
+    if (kept) return void out.push(...restyled(c, tw, r, kept));
     // Markup it renders, where it isn't kept, is named after it in the messages that say so.
     const Named = () => null;
     Named.displayName = nameOf(r.element);
@@ -428,7 +436,7 @@ export function elements(c: Collected, items: readonly Item[], place: Place, tw?
       const block = asBlock(item);
       // (A component's markup is said where it's left out, above.)
       if (!block && !owner) sayOnce(`[Unlayer] Column: <${item.tag}> isn't a block, so it's left out. Put HTML in an <Html> block.`);
-      if (block) out.push(block);
+      if (block) out.push(...restyled(c, tw, item, block));
     }
   }
   return out;
