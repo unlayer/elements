@@ -14,6 +14,10 @@ function asNone(withNull: React.ReactElement, without: React.ReactElement) {
   }
 }
 describe("Menu Component", () => {
+  it("skips a null or undefined item (nullable data), in each root", () => {
+    asNone(<Menu items={[{ text: "Home", href: "https://example.com/" }, null as never, { text: "Shop", href: "https://example.com/shop" }, undefined as never]} />, <Menu items={[{ text: "Home", href: "https://example.com/" }, { text: "Shop", href: "https://example.com/shop" }]} />);
+  });
+
   it("takes an item's `href` of null (nullable data) as none, in each root", () => {
     asNone(<Menu items={[{ text: "Go", href: null as never }, { text: "Home", href: "https://example.com/" }]} />, <Menu items={[{ text: "Go" }, { text: "Home", href: "https://example.com/" }]} />);
   });

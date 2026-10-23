@@ -23,6 +23,7 @@ import {
   normalizeValuesForExporter,
   DEFAULT_CONFIG,
   cssValueSafe,
+  unrunLinks,
 } from "@unlayer-internal/shared-elements";
 
 
@@ -267,8 +268,10 @@ export function createItemComponent<
   TValues extends Record<string, any> = any,
   TSemanticProps = any
 >(
-  config: ItemComponentConfig<TValues, TSemanticProps>
+  given: ItemComponentConfig<TValues, TSemanticProps>
 ): React.FC<ItemComponentProps<TSemanticProps>> {
+  // A built-in block's links with no URL that runs code, in the HTML and the design alike (see unrunLinks).
+  const config = given.contentType ? given : { ...given, propMapper: (props: Parameters<typeof given.propMapper>[0]) => unrunLinks(given.propMapper(props), given.name) };
   // Inner render function — no hooks, safe to call as a plain function (Column does this)
   function renderFn(
     props: ItemComponentProps<TSemanticProps>

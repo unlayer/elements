@@ -291,7 +291,9 @@ row or block is left out of the HTML, the plain text and the design (the slower 
    `<Tailwind>`'s rewrite the props of the Rows, Columns and blocks in its scopes with that `tw` (or `config`), where
    the rewrite has a `prepare` (one object, so a later release can add to it; an older copy's has none), so their
    classes are compiled at once (`utils/tailwind.ts`); what reading a component's own classes throws (a Tailwind
-   plugin's error) is that component's, which `onError: "omit"` leaves out (`model/elements.ts`'s `styled`); and
+   plugin's error for one of them, which never reaches Tailwind's compiler, kept for every render: `src/tailwind/guard.ts`)
+   is that component's, which `onError: "omit"` leaves out (`model/elements.ts`'s `styled`), and a class that can't be
+   read while Tailwind compiles again fails the render, which the async renderers wait for; and
    it gives the rewrites a key of its own (each call outside a render, its own), by which a handle reads a render's
    classes together: its first 2,000 different ones, so classes from data can't take more memory than that
    (`src/tailwind/declarations.ts`'s `capped`).

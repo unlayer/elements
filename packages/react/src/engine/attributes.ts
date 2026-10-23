@@ -3,6 +3,7 @@
  * which props it writes, under which name, and how it writes their values, its `style` included; and text, escaped as
  * React escapes it. The walker's host markup (host.ts) and the string exporters (src/exporters) both write with these.
  */
+import { unrunUrl } from "@unlayer-internal/shared-elements";
 import { REACT_18, REACT_19_3 } from "./react-compat";
 
 const MATCH_HTML = /["'&<>]/;
@@ -18,13 +19,12 @@ const NAME_START = ":A-Z_a-z\\u00C0-\\u00D6\\u00D8-\\u00F6\\u00F8-\\u02FF\\u0370
 /** An attribute name React writes (others it leaves out). */
 const SAFE_NAME = new RegExp(`^[${NAME_START}][${NAME_START}\\-.0-9\\u00B7\\u0300-\\u036F\\u203F-\\u2040]*$`);
 
-const JAVASCRIPT_URL = /^[\u0000-\u001F ]*j[\r\n\t]*a[\r\n\t]*v[\r\n\t]*a[\r\n\t]*s[\r\n\t]*c[\r\n\t]*r[\r\n\t]*i[\r\n\t]*p[\r\n\t]*t[\r\n\t]*:/i;
 /**
  * A URL attribute's value: a `javascript:` URL (as React 19 tells one) as one that throws, as React 19 writes it, with
  * any React (React 18 writes it as given), so a link from data runs nothing. (A character reference in it can't make
  * one: its `&` is written `&amp;`.)
  */
-const url = (value: string) => (JAVASCRIPT_URL.test(value) ? "javascript:throw new Error('React has blocked a javascript: URL as a security precaution.')" : value);
+const url = unrunUrl;
 /** A value React writes as text, a `javascript:` URL as url() writes it; others as they are. */
 export const unrun = (value: unknown) => (value == null || typeof value == "boolean" || typeof value == "function" || typeof value == "symbol" ? value : url("" + value));
 

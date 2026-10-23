@@ -16,12 +16,13 @@ const digest = (html: string) => createHash("sha256").update(html).digest("hex")
 
 /**
  * Where a document is written otherwise than react-dom 18 wrote it (the snapshot): a `javascript:` link, which
- * Elements writes as react-dom 19 does, as a URL that throws, with any React (see attributes.ts). Each one's digest,
- * the snapshot's and the one written now, by root.
+ * Elements writes as react-dom 19 does, as a URL that throws, with any React (see attributes.ts), the editor's exporters'
+ * own links too (a Button's, an Image's: see unrunLinks). Each one's digest, the snapshot's and the one written now, by
+ * root.
  */
 const BLOCKED: Record<string, Record<string, [string, string]>> = {
-  Page: { 'link 8: "javascript:alert(1)"': ["cb5c73844884eb5f608c", "3fd387d8fdb6876b1540"] },
-  Document: { 'link 8: "javascript:alert(1)"': ["0107f525ae7ac69fda05", "1bf602a8c2f6dda9aaf4"] },
+  Page: { 'link 8: "javascript:alert(1)"': ["cb5c73844884eb5f608c", "0cc7c54651e42795bbee"] },
+  Document: { 'link 8: "javascript:alert(1)"': ["0107f525ae7ac69fda05", "bf6a9d1c77778cdc7242"] },
 };
 
 describe.each([
