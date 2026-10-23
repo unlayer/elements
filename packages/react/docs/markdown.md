@@ -89,6 +89,12 @@ Inside text, bold, italics, strikethrough, links, images and line breaks are HTM
 
 A table in a list or a quote is written as a top-level one's cells are: `html`, `url`, `linkAttributes`, `imageAttributes`, `styles` and `inlineCode` apply to its cells too.
 
+## Markdown from data: what it can't make a render do
+
+Markdown your users write can't make a render take more than its size calls for:
+
+- **Tables**: a Markdown's tables can have, in all, as many cells as the Markdown has characters, or 1,000 where that's more, each row counted as wide as the header (marked, the parser, fills a short row out to the header's width). A table whose cells are all written out (each one at least its `|`) always fits, however large. One that doesn't, a table whose short rows would be filled out past that (`|a|b|…|` and rows of `|`: a few kilobytes of them are millions of cells, and a `Table` writes about 350 bytes of HTML for each), fails as a component of yours fails: a `RenderError` naming the Markdown and where it is (`A table of 853 columns and 853 rows is 728462 cells, more than the Markdown can render: … (in <Markdown> at Row 1 › Column 1 › Markdown)`), or, with `onError: "omit"`, left out and listed while the Markdown's other blocks render (a table in a list or a quote, with that list or quote). See [Errors](../README.md#errors). The 1,000 are for tables with short rows: 20 columns and 50 rows is about 350 KB of HTML, more than three times what Gmail shows before it clips a message (102 KB).
+
 ## Plain text
 
 `renderToPlainText()` reads the blocks as it reads any template: headings in capitals (`h1`, `h2`), links as `text (url)` (a heading's too: `# [Pay invoice](https://example.com/pay)` is `PAY INVOICE (https://example.com/pay)`, its URL as written), list items with a dash, code with its indentation.
@@ -97,4 +103,4 @@ A table in a list or a quote is written as a top-level one's cells are: `html`, 
 
 - Put `<Markdown>` in a `Column`, never straight in a `Row` or the root.
 - Style blocks with `blocks` and markup with `styles`. Don't post-process the HTML.
-- For Markdown from users, pass `html="escape"` (or `"drop"`) and keep the default URL checks.
+- For Markdown from users, pass `html="escape"` (or `"drop"`) and keep the default URL checks. Render it with `onError: "omit"` (or a function) where a table too large for it should leave the rest of the email rendering.

@@ -2,7 +2,8 @@
  * What the other entries ("@unlayer/react-elements/async", "/tailwind", "/head") use of the main one's internals,
  * on `renderToHtml` (no export of its own): a render's scope, a template collected waiting for what's async in it
  * (the waiting itself is the async entry's: see src/async/collect.ts), the synchronous renders in that scope (the
- * render functions make one of their own), and the engine's static markup.
+ * render functions make one of their own), the engine's static markup, and a part of a template that's left out alone
+ * when it fails (Markdown's).
  */
 import type React from "react";
 import type { UnlayerConfig } from "@unlayer-internal/shared-elements";
@@ -14,6 +15,7 @@ import { rootConfig, type RootConfigProps } from "../context/layer-config";
 import { htmlDocument, htmlParts, plainText } from "./render-to-html";
 import { designJson } from "./render-to-json";
 import { errorPart, flatten, PENDING, renderStatic, track, walkAsync, type CollectOptions, type Flat } from "../engine";
+import { boundary } from "../engine/records";
 
 export const INTERNALS = Symbol.for("@unlayer/react-elements/internals");
 
@@ -59,4 +61,10 @@ export type Engine = typeof engine;
 const renders = { html: htmlDocument, parts: htmlParts, text: plainText, json: designJson };
 export type Renders = typeof renders;
 
-export const internals = { newScope, withScope, unwrapAsync, collectAsync, isRoot, render: renderStatic, engine, renders };
+/**
+ * `child` as a part of the template that's left out alone when it fails (`onError: "omit"`), as each component in a
+ * Column is: what a component renders isn't (it fails with the component), but for this (Markdown's table that's too large).
+ */
+const part = (child: React.ReactElement): React.ReactElement => boundary({ kind: "boundary", element: child }, child);
+
+export const internals = { newScope, withScope, unwrapAsync, collectAsync, isRoot, render: renderStatic, engine, renders, part };

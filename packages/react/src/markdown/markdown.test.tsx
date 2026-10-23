@@ -1,7 +1,8 @@
 import React from "react";
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi, type MockInstance } from "vitest";
-import { Column, Email, Html, Row, renderToHtml, renderToJson, renderToPlainText } from "../index";
+import { Column, Email, Html, RenderError, Row, renderToHtml, renderToHtmlParts, renderToJson, renderToPlainText } from "../index";
 import { Tailwind, loadTailwind, type TailwindHandle } from "../tailwind";
+import * as asyncRenderers from "../async";
 import { Markdown, safeUrl, sanitizeHtml, type MarkdownProps } from "./index";
 
 let warn: MockInstance;
@@ -141,6 +142,73 @@ describe("Markdown", () => {
       const none = parsed(blocks({ markdown, html: "escape", url: () => undefined })[0][1] as string);
       expect([where, none.filter((e) => (e.localName === "a" && e.hasAttribute("href")) || e.localName === "img")]).toEqual([where, []]);
     }
+  });
+});
+
+describe("Markdown from data: no more than its size calls for", () => {
+  let error: MockInstance;
+  beforeEach(() => {
+    error = vi.spyOn(console, "error").mockImplementation(() => {});
+  });
+  afterEach(() => error.mockRestore());
+
+  /** A table about `bytes` long: n columns, and n rows of one `|`, which marked fills out to the header's width (n² cells). */
+  const padded = (bytes: number) => {
+    const n = Math.floor(bytes / 6);
+    return "|" + "a|".repeat(n) + "\n|" + "-|".repeat(n) + "\n" + "|\n".repeat(n);
+  };
+
+  it("fails on a table marked would fill out to more cells than the Markdown has characters (or 1,000), as a component of yours fails", async () => {
+    for (const kb of [1, 5, 20, 100]) {
+      const markdown = padded(kb * 1024);
+      const start = performance.now();
+      let thrown: unknown;
+      try {
+        renderToHtml(email({ markdown }));
+      } catch (e) {
+        thrown = e;
+      }
+      expect(thrown).toBeInstanceOf(RenderError);
+      expect((thrown as RenderError).message).toMatch(/^\[Unlayer\] A table of \d+ columns and \d+ rows is \d+ cells, more than the Markdown can render: .* \(in <Markdown> at Row 1 › Column 1 › Markdown\)$/);
+      // (Without reading the rows: well under a second however large, where filling it out took seconds and gigabytes.)
+      expect(performance.now() - start).toBeLessThan(5000);
+    }
+    // With `onError: "omit"` it's left out of the HTML, the plain text and the design, listed, and the rest renders.
+    const markdown = `# Before\n\n${padded(5 * 1024)}\nAfter`;
+    const parts = renderToHtmlParts(email({ markdown }), { onError: "omit" });
+    expect(parts.omitted.map((e) => [e.component, e.position])).toEqual([["Markdown", "Row 1 › Column 1 › Markdown"]]);
+    expect(parts.body).not.toContain("u_content_table");
+    expect(renderToJson(email({ markdown }), { onError: "omit" }).body.rows[0].columns[0].contents.map((c: any) => c.type)).toEqual(["heading", "text"]);
+    expect(renderToPlainText(email({ markdown }), { onError: "omit" })).toMatch(/BEFORE[\s\S]*After/);
+    expect(parts.body.length).toBeLessThan(100_000);
+    expect(error.mock.calls.map((call) => String(call[0]))).toContain(`[Unlayer] Left out: ${parts.omitted[0].message.replace(/^\[Unlayer\] /, "")}`);
+    // The async renderers alike.
+    const async = await asyncRenderers.renderToHtmlParts(email({ markdown }), { onError: "omit" });
+    expect([async.omitted.map((e) => e.position), async.body.includes("u_content_table")]).toEqual([["Row 1 › Column 1 › Markdown"], false]);
+    await expect(asyncRenderers.renderToHtml(email({ markdown }))).rejects.toThrow(/A table of \d+ columns/);
+  });
+
+  it("renders a table whose cells are written out, however large, and one with short rows up to 1,000 cells", () => {
+    const row = (n: number, text: string) => "|" + `${text}|`.repeat(n) + "\n";
+    const large = row(30, "head") + row(30, "-") + row(30, "cell").repeat(200);
+    expect(blocks({ markdown: large })[0][1]).toMatchObject({ rows: { length: 200 } });
+    // 20 columns, 49 rows of one cell: 1,000 cells, the rest filled out.
+    const sparse = row(20, "h") + row(20, "-") + "|x|\n".repeat(49);
+    expect(blocks({ markdown: sparse })[0][1]).toMatchObject({ rows: { length: 49 } });
+    expect(() => renderToHtml(email({ markdown: sparse + "|x|\n" }))).toThrow(/A table of 20 columns and 50 rows is 1020 cells/);
+    // The cells are the Markdown's in all: tables that fit one by one don't together.
+    const fit = row(20, "h") + row(20, "-") + "|x|\n".repeat(24);
+    expect(blocks({ markdown: `${fit}\n${fit}` }).map(([type]) => type)).toEqual(["table", "table"]);
+    expect(() => renderToHtml(email({ markdown: `${fit}\n${fit}\n${fit}` }))).toThrow(/A table of 20 columns and 24 rows is 500 cells/);
+  });
+
+  it("leaves out the list or quote a table that's too large is in, as it leaves out the table", () => {
+    const markdown = `Before\n\n${padded(4096).replace(/^/gm, "> ")}\n\nAfter`;
+    expect(() => renderToHtml(email({ markdown }))).toThrow(/A table of \d+ columns .* \(in <Markdown> at Row 1 › Column 1 › Markdown\)$/);
+    const parts = renderToHtmlParts(email({ markdown }), { onError: "omit" });
+    expect(parts.omitted).toHaveLength(1);
+    expect(parts.body).not.toContain("<blockquote");
+    expect(renderToJson(email({ markdown }), { onError: "omit" }).body.rows[0].columns[0].contents.map((c: any) => c.values.text)).toEqual(["Before", "After"]);
   });
 });
 

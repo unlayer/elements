@@ -1,9 +1,10 @@
 import React from "react";
 import { Lexer, Parser, type Token, type Tokens } from "marked";
-import { Divider, Heading, Html, Image, Paragraph, Table } from "@unlayer/react-elements";
+import { Divider, Heading, Html, Image, Paragraph, Table, renderToHtml } from "@unlayer/react-elements";
 import type { DividerProps, HeadingProps, HtmlProps, ImageProps, ParagraphProps, TableProps } from "@unlayer/react-elements";
 import { CodeBlock, codeInline, highlightCode, type CodeBlockProps, type CodeInlineOptions } from "@unlayer/react-elements/code";
 import { escapeAttribute, escapeText, safeUrl, sanitizeHtml } from "./sanitize";
+import { Limited, TABLE_CELLS, tooLarge, type TooLarge } from "./limits";
 
 /** The blocks Markdown becomes, by its element: props each one gets (over Markdown's own defaults). */
 export interface MarkdownBlocks {
@@ -93,8 +94,30 @@ const textOf = (node: React.ReactNode): string =>
  */
 const SANITIZED = { _sanitized: true } as {};
 
+/**
+ * In place of a block Markdown can't render (a table past the cells its tables can have, or the list or quote it's
+ * in): it fails as a component of yours fails, under the render's `onError` (a RenderError naming the Markdown and
+ * where it is; with `onError: "omit"`, left out alone and listed, the Markdown's other blocks rendering).
+ */
+function Unrendered({ reason }: { reason: string }): React.ReactElement {
+  throw new Error(reason);
+}
+// (Named as the Markdown it's in, so the error's position is the Markdown's.)
+Unrendered.displayName = "Markdown";
+
+/** A part of the template left out alone when it fails, as the main entry makes one (see its utils/internals.ts). */
+type Part = (child: React.ReactElement) => React.ReactElement;
+const part: Part = (renderToHtml as unknown as Record<symbol, { part?: Part } | undefined>)[Symbol.for("@unlayer/react-elements/internals")]?.part ?? ((child) => child);
+
+const unrendered = (key: number, reason: string) => part(<Unrendered key={key} reason={reason} />);
+
+type Table = Tokens.Table & { tooLarge?: TooLarge };
+
 /** Turns Markdown's tokens into Elements blocks and the HTML in their text. */
 class Writer {
+  /** Why the block being written can't render (a table in its list or quote is too large: see Unrendered). */
+  private failed: string | undefined;
+
   constructor(private props: MarkdownProps) {}
 
   private style(tag: keyof MarkdownStyles): string {
@@ -198,7 +221,7 @@ class Writer {
       case "html":
         return this.raw(token.text);
       case "table":
-        return this.table(token as Tokens.Table);
+        return this.table(token as Table);
       default:
         return sanitizeHtml(Parser.parse([token]));
     }
@@ -208,10 +231,21 @@ class Writer {
    * A table in a list or quote, as HTML (laid out as marked writes one): its cells as a top-level table's, their raw
    * HTML, links and styles as the props say.
    */
-  private table(token: Tokens.Table): string {
+  private table(token: Table): string {
+    if (token.tooLarge) {
+      this.failed ??= tooLarge(token.tooLarge);
+      return "";
+    }
     const row = (cells: Tokens.TableCell[], tag: "th" | "td") => `<tr>\n${cells.map((cell) => `<${tag}${cell.align ? ` align="${cell.align}"` : ""}>${this.inline(cell.tokens)}</${tag}>\n`).join("")}</tr>\n`;
     const body = token.rows.map((cells) => row(cells, "td")).join("");
     return `<table>\n<thead>\n${row(token.header, "th")}</thead>\n${body && `<tbody>${body}</tbody>`}</table>\n`;
+  }
+
+  /** A block of HTML (a list's, a quote's), or what fails in its place where a table in it can't render. */
+  private written(key: number, html: string, props: Partial<ParagraphProps> | undefined): React.ReactNode {
+    const failed = this.failed;
+    this.failed = undefined;
+    return failed ? unrendered(key, failed) : <Paragraph key={key} {...props} html={html} {...SANITIZED} />;
   }
 
   list(token: Tokens.List): string {
@@ -260,13 +294,14 @@ class Writer {
         case "text":
           return <Paragraph key={key} {...blocks.paragraph} html={"tokens" in token && token.tokens ? this.inline(token.tokens) : this.text(token.text)} {...SANITIZED} />;
         case "list":
-          return <Paragraph key={key} {...blocks.list} html={this.list(token as Tokens.List)} {...SANITIZED} />;
+          return this.written(key, this.list(token as Tokens.List), blocks.list);
         case "blockquote":
-          return <Paragraph key={key} {...blocks.blockquote} html={this.quote(token as Tokens.Blockquote)} {...SANITIZED} />;
+          return this.written(key, this.quote(token as Tokens.Blockquote), blocks.blockquote);
         case "hr":
           return <Divider key={key} {...blocks.divider} />;
         case "table": {
-          const table = token as Tokens.Table;
+          const table = token as Table;
+          if (table.tooLarge) return unrendered(key, tooLarge(table.tooLarge));
           return <Table key={key} {...blocks.table} headers={table.header.map((cell) => this.inline(cell.tokens))} data={table.rows.map((row) => row.map((cell) => this.inline(cell.tokens)))} />;
         }
         case "code": {
@@ -304,7 +339,8 @@ class Writer {
  */
 export function Markdown(props: MarkdownProps): React.ReactElement {
   const source = dedent(props.markdown ?? textOf(props.children));
-  const tokens = Lexer.lex(source, { gfm: true, breaks: !!props.breaks });
+  // (Its tables kept to what its size calls for: see limits.ts.)
+  const tokens = new Lexer({ gfm: true, breaks: !!props.breaks, tokenizer: new Limited(Math.max(TABLE_CELLS, source.length)) }).lex(source);
   return <>{new Writer(props).blocks(tokens)}</>;
 }
 
