@@ -4,6 +4,8 @@ import { Column, Email, Html, RenderError, Row, renderToHtml, renderToHtmlParts,
 import { Tailwind, loadTailwind, type TailwindHandle } from "../tailwind";
 import * as asyncRenderers from "../async";
 import { Markdown, safeUrl, sanitizeHtml, type MarkdownProps } from "./index";
+import { Lexer } from "marked";
+import { Bounded } from "./inline";
 
 let warn: MockInstance;
 beforeEach(() => {
@@ -312,6 +314,64 @@ describe("Markdown from data: no more than its size calls for", () => {
       expect(plain.match(/a/g)?.length).toBe(130000);
     }
   }, 60_000);
+
+  it("reads quotes in time linear in their size, however lines without a `>` continue them, and lists, quotes and code in them", async () => {
+    // marked reads a quote a chunk at a time (up to a line without a `>` that continues it), and after each chunk the
+    // lines left, and where the chunk ends in a list that list again with all of them: 100 KB of `>- a\nb\n` took 6.6
+    // s, and blocked the event loop as long. And each quote looked to its end, so 50 KB of quotes that end at once
+    // (`> ```\na\n`) took 1.1 s.
+    const fill = (unit: string, bytes: number) => unit.repeat(Math.ceil(bytes / unit.length)).slice(0, bytes);
+    const shapes: [string, number][] = [">- a\nb\n", "> - a\nb\n", "> 1) a\nb\n", ">>- a\nb\n", ">- >- a\nb\n", "> - a\n>   - b\nc\n", "> - [ ] a\nb\n", ">a\nb\n", "> a\nb\n", "> a\n=\n", "> | a |\n|-|\nb\n"].map((unit) => [unit, 102400]);
+    shapes.push(["> ```\na\n", 51200]);
+    for (const [unit, bytes] of shapes) {
+      const start = performance.now();
+      const html = renderToHtml(email({ markdown: fill(unit, bytes), html: "escape" }), { onError: "omit" });
+      expect([unit, html.length > 100000, performance.now() - start < 3000]).toEqual([unit, true, true]);
+    }
+    const start = performance.now();
+    await asyncRenderers.renderToHtml(email({ markdown: fill(">- a\nb\n", 102400), html: "escape" }), { onError: "omit" });
+    expect(performance.now() - start).toBeLessThan(3000);
+  }, 180_000);
+
+  it("past the work its quotes can take, ends each quote at its first line without a `>`, leaving nothing out", () => {
+    const words = (html: string) => new DOMParser().parseFromString(html, "text/html").body.textContent!.match(/\b[abc]\d+\b/g)!;
+    const numbered = (n: number) => Array.from({ length: n }, (_, i) => `>- a${i}\nb${i}\n`).join("");
+    // Under it, as marked reads them: the line without a `>` continues the list item in the quote.
+    const few = renderToHtml(email({ markdown: numbered(3) }));
+    expect(new DOMParser().parseFromString(few, "text/html").querySelectorAll("blockquote li")).toHaveLength(3);
+    expect(few).toMatch(/<li[^>]*>a0\s*b0<\/li>/);
+    // Past it, each quote is its `>` lines, and the line after it a paragraph: each word once, in order.
+    const many = renderToHtml(email({ markdown: `${numbered(3000)}\nc0` }));
+    expect(words(many)).toEqual([...Array.from({ length: 3000 }, (_, i) => [`a${i}`, `b${i}`]).flat(), "c0"]);
+  }, 60_000);
+
+  it("keeps what follows a quote that holds lists continued by lines without a `>` (marked read past the quote into it)", () => {
+    // marked's quote counted a character more for each list it read again, and the text after it lost as many.
+    const markdown = ">- a\nb\n>- c\nd\n>- e\nf\n\nAfter the quote.";
+    expect(renderToPlainText(email({ markdown }))).toMatch(/\nAfter the quote\.\s*$/);
+    expect(blocks({ markdown }).at(-1)).toEqual(["text", "After the quote."]);
+  });
+
+  it("reads a long task list in time linear in its size, its items as marked reads them", () => {
+    // marked took each task item's `[ ]` out of what's left to read by looking for it from the end, again for each
+    // item: 400 KB of task items took 13 s.
+    const markdown = "- [ ] a\n- [x] b\n".repeat(25000);
+    const start = performance.now();
+    const html = renderToHtml(email({ markdown }));
+    expect(performance.now() - start).toBeLessThan(3000);
+    expect([html.match(/&#9744;|☐/g)?.length, html.match(/&#9745;|☑/g)?.length]).toEqual([25000, 25000]);
+    // The tokens marked makes of task items: tight and loose lists, nested ones, in quotes, with code or a link after
+    // the box, a box that isn't one (no text after it, or not at the item's start), and many items.
+    const samples = [
+      "- [ ] one\n- [x] two\n  - [ ] nested\n  - [X] nested `code`\n- plain",
+      "- [ ] loose\n\n- [x] [a link](https://e.test)\n\n  More text.\n",
+      "> - [ ] quoted\n> - [x] task\n>   more\nlazy\n",
+      "- [ ]\n- [x]   \n- a [ ] b\n1. [x] ordered\n2) [ ] other\n",
+      "* [ ] [ ] twice\n* [x] **bold** ~~gone~~\n\n  [ ] a paragraph\n",
+      Array.from({ length: 300 }, (_, i) => `- [${i % 3 ? " " : "x"}] item ${i}\n${i % 7 ? "" : "\n"}`).join(""),
+    ];
+    for (const sample of samples) expect([sample, new Bounded({ breaks: false, cells: 1e6, size: sample.length }).lex(sample)]).toEqual([sample, new Lexer({ gfm: true }).lex(sample)]);
+  });
 });
 
 /** Random inputs the sanitizer is given (`SANITIZE_FUZZ_RUNS=300000` for a longer run, `SANITIZE_FUZZ_SEED` for others). */

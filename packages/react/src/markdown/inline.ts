@@ -9,7 +9,7 @@
  * links nest INLINE_NESTING deep: deeper, their delimiters are text.
  */
 import { Lexer, type Links, type Token, type Tokens } from "marked";
-import { Limited } from "./limits";
+import { Limited, QUOTE_BASE, QUOTE_WORK } from "./limits";
 import { autolinkReach, brReach, codeReach, linkReach, reflinkReach, runEnd, tagReach, textReach, urlReach } from "./reach";
 
 /** The steps a Markdown's inline syntax can take for each of its characters, and BASE more (see the comment above). */
@@ -27,8 +27,8 @@ class Inline extends Limited {
   /** Steps left: below zero, the work is spent. */
   left: number;
 
-  constructor(cells: number, work: number, private breaks: boolean) {
-    super(cells);
+  constructor(cells: number, quotes: number, work: number, private breaks: boolean) {
+    super(cells, quotes);
     this.left = work;
   }
 
@@ -48,8 +48,12 @@ class Inline extends Limited {
     return false;
   }
 
-  /** Counts the rules marked runs over the text itself (not from where it reads): its own copy of them, so others' lexers aren't counted. */
+  /**
+   * Counts the rules marked runs over the text itself (not from where it reads): its own copy of them, so others'
+   * lexers aren't counted (and with no task item found by marked: see limits.ts).
+   */
   count(): void {
+    this.own();
     const inline = { ...this.rules.inline };
     for (const name of ["emStrongRDelimAst", "emStrongRDelimUnd", "delRDelim", "_backpedal"] as const) inline[name] = counted(inline[name], this);
     this.rules = { ...this.rules, inline };
@@ -140,7 +144,7 @@ function counted(rule: RegExp, inline: Inline): RegExp {
 
 /**
  * marked's lexer for a Markdown of `size` characters: its tables and its quotes' and lists' nesting kept to `cells`
- * and NESTING (see limits.ts), its inline syntax to the work and the nesting above.
+ * and NESTING, its quotes to QUOTE_WORK (see limits.ts), its inline syntax to the work and the nesting above.
  */
 export class Bounded extends Lexer {
   /** How deep in emphasis, strikethrough and links the inline lexer is reading. */
@@ -148,7 +152,7 @@ export class Bounded extends Lexer {
   private reader: Inline;
 
   constructor({ breaks, cells, size }: { breaks: boolean; cells: number; size: number }) {
-    const inline = new Inline(cells, BASE + WORK * size, breaks);
+    const inline = new Inline(cells, QUOTE_BASE + QUOTE_WORK * size, BASE + WORK * size, breaks);
     super({ gfm: true, breaks, tokenizer: inline });
     inline.count();
     this.reader = inline;
