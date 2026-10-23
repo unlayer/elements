@@ -270,10 +270,23 @@ export const theSlot = (): Slot | null => (slot === undefined ? (slot = slotOf()
 /** The dispatcher of the render the walker runs inside (the app's react-dom render, Next.js's), or null. */
 let host: unknown = null;
 
+/**
+ * Whether a dispatcher in React's slot is no running render's: none, or React's between its client renders (its
+ * ContextOnlyDispatcher, which React 18 and 19 leave in the slot after the first one, and hold during effects), whose
+ * hooks are one function that throws "Invalid hook call". Its identities are compared, nothing on it called. A running
+ * render's hooks differ (the server's, the client's mount and update ones; React Server Components' share one function
+ * for most, but not for useContext), so it's a host; and so is a shape this doesn't know, where defaults then aren't
+ * learned (the safe side).
+ */
+export function isIdleDispatcher(d: any): boolean {
+  if (d == null) return true;
+  return typeof d.useState === "function" && d.useState === d.useEffect && d.useState === d.useContext && d.useState === d.useCallback;
+}
+
 /** Whether a render other than Elements' is running around this call (the app's react-dom render, Next.js's). */
 function hostRunning(): boolean {
   const current = theSlot()?.get() ?? null;
-  return current === DISPATCHER ? host !== null : current !== null;
+  return !isIdleDispatcher(current === DISPATCHER ? host : current);
 }
 
 /**

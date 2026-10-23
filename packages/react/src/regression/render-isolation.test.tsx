@@ -11,6 +11,7 @@ import { flushSync } from "react-dom";
 import { createRoot, type Root } from "react-dom/client";
 import { renderToPipeableStream, renderToStaticMarkup, renderToString } from "react-dom/server";
 import { act } from "../test-utils";
+import { isIdleDispatcher, theSlot } from "../engine/dispatcher";
 import { renderToHtml, renderToHtmlParts, renderToPlainText } from "../utils/render-to-html";
 import { renderRowToJson, renderToJson } from "../utils/render-to-json";
 import { Email, Page, Row, Column, Paragraph, Html, UnlayerProvider, registerTool } from "../index";
@@ -422,6 +423,54 @@ describe("a context's default, learned around an app's renders", () => {
     expect(await started()).toEqual(["wrapper=default", "consumer=default", "later=default"]);
   });
 
+  it("learns after a client render: React leaves its idle dispatcher in the slot, which is no render running", () => {
+    client(<p>an app's client render</p>);
+    // (React's ContextOnlyDispatcher, its hooks one function: a React that changes it fails here, not by never learning.)
+    expect(isIdleDispatcher(theSlot()?.get())).toBe(true);
+    const { Brand, read } = brand("default");
+    expect(read()).toBe("brand=default");
+    failedInside(Brand, "TenantB");
+    expect(read()).toBe("brand=default");
+    renderToString(<p />);
+  });
+
+  it("learns in an effect of a client render, where React's dispatcher is idle", async () => {
+    const { Brand, read } = brand("default");
+    const seen: string[] = [];
+    const Preview = () => {
+      useEffect(() => void seen.push(read()), []);
+      return <div />;
+    };
+    client(<Preview />);
+    await new Promise((done) => setTimeout(done, 0));
+    expect(seen).toEqual(["brand=default"]);
+    failedInside(Brand, "TenantB");
+    expect(read()).toBe("brand=default");
+    renderToString(<p />);
+  });
+
+  it("learns nothing while a client render runs: its dispatchers aren't idle", () => {
+    const { Brand, read } = brand("default");
+    expect(read()).toBe("brand=default");
+    // React's two values agree on another value while the client render reads it: one renderToString left, and the
+    // client's provider's. It's read there, not learned.
+    failedInside(Brand, "TenantB");
+    const seen: Array<[boolean, string]> = [];
+    const Preview = ({ n }: { n: number }) => (seen.push([isIdleDispatcher(theSlot()?.get()), read()]), <div>{n}</div>);
+    const root = createRoot(document.createElement("div"));
+    try {
+      onClient(root, <Brand.Provider value="TenantB"><Preview n={1} /></Brand.Provider>);
+      onClient(root, <Brand.Provider value="TenantB"><Preview n={2} /></Brand.Provider>);
+    } finally {
+      onClient(root, <></>);
+    }
+    // Mounting and updating, a host: what's there is read, not learned.
+    expect(seen.map(([idle]) => idle)).toEqual(seen.map(() => false));
+    expect(seen.map(([, text]) => text)).toEqual(seen.map(() => "brand=TenantB"));
+    expect(seen.length).toBeGreaterThanOrEqual(2);
+    expect(read()).toBe("brand=default");
+    renderToString(<p />);
+  });
 });
 
 describe("a render", () => {
