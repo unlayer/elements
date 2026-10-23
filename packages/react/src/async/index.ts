@@ -54,8 +54,11 @@ interface Collected {
   recorded: Array<{ kind: string; props?: { tw?: unknown; config?: TailwindConfig }; load?: Load }>;
 }
 type Load = (config?: TailwindConfig) => Promise<TailwindHandle>;
-/** A render's scope (see utils/render-scope.ts): what it compiled for its <Tailwind config>s, for their rewrites. */
-type Scope = { tailwind?: unknown };
+/**
+ * A render's scope (see utils/render-scope.ts): what it compiled for its <Tailwind config>s, for their rewrites; the
+ * parts it left out, and how many of them were left out before it rendered again.
+ */
+type Scope = { tailwind?: unknown; omitted: unknown[]; listed?: number };
 interface Internals {
   newScope(): Scope;
   withScope<T>(scope: Scope, run: () => T): T;
@@ -132,6 +135,8 @@ async function render<T>(element: React.ReactElement, options: Partial<UnlayerCo
     } catch (error) {
       const wait = again > 0 && (error as Record<symbol, { compiling?: boolean }> | null)?.[TAILWIND]?.compiling ? compiled(all) : undefined;
       if (!wait) throw error;
+      // (What it left out so far is listed and said: it isn't again.)
+      scope.listed = scope.omitted.length;
       await wait;
     }
   }

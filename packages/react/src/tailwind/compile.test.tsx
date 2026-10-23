@@ -836,6 +836,38 @@ describe("a render's classes", () => {
     expect(warn.mock.calls.map((call) => String(call[0]))).toContain("[Unlayer] Paragraph ignores class `text-weird`: it isn't a class Tailwind can read here.");
   });
 
+  it("list and say each part they leave out once, where they render again after Tailwind compiles again", async () => {
+    // Parts left out before the class that makes Tailwind compile again (a component of yours that throws, a class a
+    // plugin throws for): the render that failed for that class had listed and said them.
+    const boom = ({ matchUtilities }: any) => matchUtilities({ boom: (value: string) => (value === "now" ? (() => { throw new Error("boom"); })() : { color: "red" }) }, { values: { now: "now" } });
+    const handle = await loadTailwind({ theme: { extend: { colors: { weird: 'red"' } } }, plugins: [boom] });
+    const Broken = () => {
+      throw new Error("broken");
+    };
+    const page = (
+      <Tailwind tw={handle}>
+        <Email>
+          <Row>
+            <Column>
+              <Broken />
+            </Column>
+          </Row>
+          <Row>
+            <Column>
+              <Paragraph className="boom-now">y</Paragraph>
+              <Paragraph className="text-weird p-[5px]">x</Paragraph>
+            </Column>
+          </Row>
+        </Email>
+      </Tailwind>
+    );
+    const onError = vi.fn();
+    const parts = await renderToHtmlParts(page, { onError });
+    expect(parts.omitted.map((e) => e.message)).toEqual(["[Unlayer] broken (in <Broken> at Row 1 › Column 1 › Broken)", "[Unlayer] boom (in <Paragraph> at Row 2 › Column 1 › Paragraph)"]);
+    expect(onError.mock.calls.map(([e]) => e)).toEqual(parts.omitted);
+    expect(/padding: ?5px/.test(parts.body)).toBe(true);
+  });
+
   it("past a compiler's classes, compile on without an error or a class left out, for renders at once and one after another", async () => {
     // Each render's 1,500 new classes: past CLASSES, a fresh compiler takes over once ready, the old one read till then.
     const handle = await loadTailwind({ ...config, render: "renewals" });
