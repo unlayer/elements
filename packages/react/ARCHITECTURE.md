@@ -288,8 +288,10 @@ row or block is left out of the HTML, the plain text and the design (the slower 
    Columns of that render's Rows by their marker (`src/tailwind/column.ts`), and get the render's direction (its
    root's resolved `textDirection`, which the render scope holds, as its `onError`) as an argument, never reading a
    scope themselves (from an older copy, none: left to right). Before a render rewrites any component, it gives a
-   `<Tailwind>`'s rewrite the props of all it collected, where the rewrite has a `prepare` (one object, so a later
-   release can add to it; an older copy's has none), so their classes are compiled at once (`utils/tailwind.ts`); and
+   `<Tailwind>`'s rewrite the props of the Rows, Columns and blocks in its scopes with that `tw` (or `config`), where
+   the rewrite has a `prepare` (one object, so a later release can add to it; an older copy's has none), so their
+   classes are compiled at once (`utils/tailwind.ts`); what reading a component's own classes throws (a Tailwind
+   plugin's error) is that component's, which `onError: "omit"` leaves out (`model/elements.ts`'s `styled`); and
    it gives the rewrites a key of its own (each call outside a render, its own), by which a handle reads a render's
    classes together: its first 2,000 different ones, so classes from data can't take more memory than that
    (`src/tailwind/declarations.ts`'s `capped`).

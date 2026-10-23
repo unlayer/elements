@@ -23,9 +23,9 @@ export interface HandleResolver extends Resolver {
 }
 
 /**
- * The classes in what a render collected (each record's component's `className`, and those in its `html`, as a
- * rewrite reads them), all built at once by `declarations`, before the render rewrites any (see Tailwind.tsx's
- * `prepare`).
+ * The classes of the records in a render's scopes with a handle (each record's component's `className`, and those in
+ * its `html`, as a rewrite reads them), all built at once by `declarations`, before the render rewrites any (see
+ * Tailwind.tsx's `prepare`).
  */
 function prepareRecords(declarations: DeclarationReader, records: readonly unknown[]): void {
   const names: string[] = [];

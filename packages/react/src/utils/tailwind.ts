@@ -46,9 +46,9 @@ export function classProps(scope: Record<PropertyKey, any>, name: string, defaul
 }
 
 /**
- * Before a scope rewrites any of a render's components: what the render collected (`records`, the same list for each
- * scope in it, each with its component's `props`), whose classes the scope's rewrite builds at once where it can (the
- * Tailwind entry's `prepare`), as Tailwind builds its whole stylesheet again for each class it hasn't built.
+ * Before a scope rewrites any of a render's components: the records in it (`records`, each with its component's
+ * `props`), whose classes the scope's rewrite builds at once where it can (the Tailwind entry's `prepare`), as Tailwind
+ * builds its whole stylesheet again for each class it hasn't built.
  */
 export function prepareClasses(scope: Record<PropertyKey, any>, records: readonly object[]): void {
   const compiled = compiledTailwind();

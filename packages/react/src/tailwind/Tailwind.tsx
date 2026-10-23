@@ -64,13 +64,14 @@ function rewrite(scope: TailwindProps, name: string, defaults: Record<string, an
 }
 
 /**
- * Before a render rewrites any component's props: what it collected (`records`, each with its component's `props`,
- * whose `className` and `html` are read; the same list for each scope in the render), their classes built at once by
- * the scope's handle, once per render. Tailwind builds its whole stylesheet again for each class it hasn't built, so
- * the classes met one component at a time would take the square of their number. The main entry calls it, where the
- * scope's rewrite has it (an older copy's doesn't), with one object, which a later release can give more in; what it
- * returns isn't read. A scope without a handle is left for the rewrite to say, at the component it's for; what
- * Tailwind throws (a plugin's error) fails the render, as it does there.
+ * Before a render rewrites any component's props: the records in its scopes with this handle (`records`, each with
+ * its component's `props`, whose `className` and `html` are read; the same list for each of those scopes), their
+ * classes built at once by the scope's handle, once per render. Tailwind builds its whole stylesheet again for each
+ * class it hasn't built, so the classes met one component at a time would take the square of their number. The main
+ * entry calls it, where the scope's rewrite has it (an older copy's doesn't), with one object, which a later release
+ * can give more in; what it returns isn't read. A scope without a handle is left for the rewrite to say, at the
+ * component it's for; what Tailwind throws (a plugin's error) fails the render, and a later one where the component
+ * whose class it was reads it (see declarationReader).
  */
 function prepare({ scope, records, compiled, render }: { scope: TailwindProps; records: readonly unknown[]; compiled?: unknown; render?: object }): void {
   let handle: Resolver;

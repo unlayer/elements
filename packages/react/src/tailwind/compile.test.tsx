@@ -590,27 +590,68 @@ describe("a render's classes", () => {
     }
   });
 
-  it("fail the render as before where a plugin throws for one of them (Tailwind's error, said where the render was)", async () => {
+  it("fail the render as before where a plugin throws for one of them, then where its class is: only it is refused, the others read", async () => {
+    // Tailwind keeps the classes of a build that threw, and builds them again with the next new one (throwing again),
+    // so a fresh compiler takes over, on which each of them is built alone where a component reads it.
     const error = vi.spyOn(console, "error").mockImplementation(() => {});
     try {
       const plugin = ({ matchUtilities }: any) => matchUtilities({ boom: (value: string) => (value === "now" ? (() => { throw new Error("boom"); })() : { color: "red" }) }, { values: { now: "now", later: "later" } });
-      const handle = await loadTailwind({ plugins: [plugin] });
-      const template = (
+      const template = (handle: TailwindHandle) => (
         <Tailwind tw={handle}>
           <Email>
             <Row>
               <Column>
-                <Paragraph className="p-1">A</Paragraph>
+                <Paragraph className="p-[7px]">A</Paragraph>
                 <Paragraph className="boom-now">B</Paragraph>
+                <Paragraph className="p-[9px]">C</Paragraph>
               </Column>
             </Row>
           </Email>
         </Tailwind>
       );
-      expect(() => renderToHtmlPartsNow(template, { onError: "omit" })).toThrow("[Unlayer] boom (in <Body> at Email › Body)");
+      const once = await loadTailwind({ plugins: [plugin] });
+      expect(() => renderToHtmlNow(template(once))).toThrow("[Unlayer] boom (in <Body> at Email › Body)");
+      await vi.waitFor(() => expect(() => renderToHtmlNow(template(once))).toThrow("[Unlayer] boom (in <Paragraph> at Row 1 › Column 1 › Paragraph 2)"), { timeout: 10_000, interval: 10 });
+      await vi.waitFor(() => {
+        const html = renderToHtmlNow(template(once));
+        expect([/padding: ?7px/.test(html), />\s*B\s*</.test(html), /padding: ?9px/.test(html)]).toEqual([true, true, true]);
+      }, { timeout: 10_000, interval: 10 });
+      expect(classNameToDeclarations(once, "boom-now").ignored).toEqual([{ className: "boom-now", reason: "it isn't a class Tailwind can read here" }]);
+      // With `onError: "omit"`, the block whose class threw is left out, once it's known.
+      const omitting = await loadTailwind({ plugins: [plugin] });
+      expect(() => renderToHtmlPartsNow(template(omitting), { onError: "omit" })).toThrow("[Unlayer] boom (in <Body> at Email › Body)");
+      await vi.waitFor(() => {
+        const parts = renderToHtmlPartsNow(template(omitting), { onError: "omit" });
+        expect(parts.omitted.map((e) => e.message)).toEqual(["[Unlayer] boom (in <Paragraph> at Row 1 › Column 1 › Paragraph 2)"]);
+        expect([/padding: ?7px/.test(parts.body), />\s*B\s*</.test(parts.body)]).toEqual([true, false]);
+      }, { timeout: 10_000, interval: 10 });
     } finally {
       error.mockRestore();
     }
+  }, 60_000);
+
+  it("are a <Tailwind>'s own: a class outside it isn't compiled", async () => {
+    const plugin = ({ matchUtilities }: any) => matchUtilities({ boom: (value: string) => (value === "now" ? (() => { throw new Error("boom"); })() : { color: "red" }) }, { values: { now: "now" } });
+    const handle = await loadTailwind({ plugins: [plugin] });
+    const candidates = compiled.candidates;
+    const html = renderToHtmlNow(
+      <Email>
+        <Row>
+          <Column>
+            <Paragraph className="boom-now">Out</Paragraph>
+          </Column>
+        </Row>
+        <Tailwind tw={handle}>
+          <Row>
+            <Column>
+              <Paragraph className="p-[7px]">In</Paragraph>
+            </Column>
+          </Row>
+        </Tailwind>
+      </Email>
+    );
+    expect([/padding: ?7px/.test(html), />\s*Out\s*</.test(html)]).toEqual([true, true]);
+    expect(compiled.candidates - candidates).toBe(1);
   });
 });
 
