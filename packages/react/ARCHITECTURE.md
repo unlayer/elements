@@ -78,7 +78,7 @@ across an `await`: async code passes it on itself.
 |--|--|
 | `walk.ts` | The walker: elements, components, Context, Fragments, memo, forwardRef, lazy, Suspense, classes; where something suspends, the async walk's `wait` (src/async/collect.ts) or a throw to the nearest `<Suspense>` |
 | `dispatcher.ts` | Elements' hooks dispatcher, put in React's slot around each component call |
-| `host.ts`, `attributes.ts` | Host markup (`<div>`, `<img>`, …) as react-dom writes it for the installed React: void, custom and preformatted elements; form controls (a `<select>`'s value marking its options, the format context the walker carries for it); a `<style>`'s, `<script>`'s and `<title>`'s text (React 18 escapes it, React 19 writes it as given); each attribute and style by React 18's property table or React 19's switch; escaping. In a `<Head>`, a `<style>`'s and `<script>`'s text is written as given in every React, whatever writes it (a string, a component, a list, markup: the whole of what's between its tags is its text), but for its own end tag and that of each element it's in whose content runs to its end tag (a `<noscript>`, a `<title>`), escaped as CSS or JavaScript reads them; under an `<svg>` or `<math>`, where a parser may read it as markup, it's escaped as any text (`head.test.tsx` fuzzes it against a browser's parser). The walker and the string exporters write with it |
+| `host.ts`, `attributes.ts` | Host markup (`<div>`, `<img>`, …) as react-dom writes it for the installed React: void, custom and preformatted elements; form controls (a `<select>`'s value marking its options, the format context the walker carries for it); a `<style>`'s, `<script>`'s and `<title>`'s text (React 18 escapes it, React 19 writes it as given); each attribute and style by React 18's property table or React 19's switch, but a `javascript:` URL (`href`, `src`, `action`, `formAction`, `xlinkHref`, an `<object>`'s `data`), which React 18 writes as given, is written as React 19 writes it, a URL that throws, with any React; escaping. In a `<Head>`, a `<style>`'s and `<script>`'s text is written as given in every React, whatever writes it (a string, a component, a list, markup: the whole of what's between its tags is its text), but for its own end tag and that of each element it's in whose content runs to its end tag (a `<noscript>`, a `<title>`), escaped as CSS or JavaScript reads them; under an `<svg>` or `<math>`, where a parser may read it as markup, it's escaped as any text (`head.test.tsx` fuzzes it against a browser's parser). The walker and the string exporters write with it |
 | `output.ts` | The walk's output (text, markup, records, holes, boundaries, errors), flattened in tree order into the content's tree |
 | `tree-id.ts` | Where a component is in the tree (Fizz's tree context), and `useId()` from it |
 | `react-compat.ts` | What the walker relies on, per React version, and where React's dispatcher slot is |
@@ -288,8 +288,13 @@ row or block is left out of the HTML, the plain text and the design (the slower 
    Columns of that render's Rows by their marker (`src/tailwind/column.ts`), and get the render's direction (its
    root's resolved `textDirection`, which the render scope holds, as its `onError`) as an argument, never reading a
    scope themselves (from an older copy, none: left to right). Before a render rewrites any component, it gives a
-   `<Tailwind>`'s rewrite the props of all it collected, where the rewrite has a `prepare` (one object, so a later
-   release can add to it; an older copy's has none), so their classes are compiled at once (`utils/tailwind.ts`).
+   `<Tailwind>`'s rewrite the props of the Rows, Columns and blocks in its scopes with that `tw` (or `config`), where
+   the rewrite has a `prepare` (one object, so a later release can add to it; an older copy's has none), so their
+   classes are compiled at once (`utils/tailwind.ts`); what reading a component's own classes throws (a Tailwind
+   plugin's error) is that component's, which `onError: "omit"` leaves out (`model/elements.ts`'s `styled`); and
+   it gives the rewrites a key of its own (each call outside a render, its own), by which a handle reads a render's
+   classes together: its first 2,000 different ones, so classes from data can't take more memory than that
+   (`src/tailwind/declarations.ts`'s `capped`).
 
 ## Where it's tested
 

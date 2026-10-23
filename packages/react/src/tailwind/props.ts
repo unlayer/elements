@@ -233,13 +233,13 @@ export function classesToProps(name: string, found: ClassDeclarations, props: Re
   };
   for (const { className, reason } of found.ignored) warn(`ignores class \`${className}\`: ${reason}`);
   // What can't be a prop's value (see propValue) is no one's: not a prop's, an inline style's, or the text's inside;
-  // nor is a `url()` that isn't a web, relative or image data URL (`bg-[url(javascript:…)]`: see unsafeUrl).
+  // nor is a `url()` that isn't a web, relative, attachment or image data URL (`bg-[url(javascript:…)]`: see unsafeUrl).
   found = {
     ...found,
     declarations: found.declarations.flatMap((d) => {
       const value = propValue(d);
       if (value === undefined) ignore(d, ": it could end the HTML attribute it's written in, start a tag, or end its CSS");
-      else if (unsafeUrl(value)) ignore(d, ": its URL isn't a web one (`http:` or `https:`), a relative one, or an image's data URL");
+      else if (unsafeUrl(value)) ignore(d, ": its URL isn't a web one (`http:` or `https:`), a relative one, an inline attachment's (`cid:`), or an image's data URL");
       else return [value === d.value ? d : { ...d, value }];
       return [];
     }),

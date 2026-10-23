@@ -296,6 +296,8 @@ export function mapSemanticProps<T extends Record<string, any>>(
   if (target !== (userProps.target ?? "_blank")) console.warn(`[Unlayer] ${componentType}'s target ${typeof userProps.target === "string" ? `${JSON.stringify(userProps.target)} could end its HTML attribute or start a tag` : "isn't text"}, so the link opens in a new tab (_blank).`);
   if ("target" in userProps) delete userProps.target;
   for (const key of LINK_KEYS) {
+    // A link given as null (nullable data) is none, as one left out is.
+    if (userProps[key] === null) delete userProps[key];
     if (userProps[key] !== undefined) userProps[key] = canonicalizeLink(userProps[key], target);
     if (result[key] !== undefined) result[key] = canonicalizeLink(result[key], target);
   }

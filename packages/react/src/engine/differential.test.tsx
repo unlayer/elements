@@ -5,7 +5,9 @@
  * every element and kind of attribute React writes its own way, then random ones, alone and where templates have
  * markup (`WALKER_FUZZ_SEEDS=5000` for a longer run, `TEMPLATE_SEEDS` for the templates'; CI's weekly canary runs it on
  * React's canary). Where the walker means to differ (React 19's hoisting, its document singletons, forms' function
- * actions, an error in a <Suspense>), the differences are listed, each with why.
+ * actions, an error in a <Suspense>, React 18's `javascript:` URLs), the differences are listed, each with why; react-dom
+ * 18's markup is compared with its `javascript:` URLs written as the walker writes them, as react-dom 19 does
+ * (`blockedUrls`).
  */
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import React, { Component, createContext, forwardRef, Fragment, memo, Suspense, useContext, useId, useMemo, useReducer, useRef, useState } from "react";
@@ -15,6 +17,7 @@ import { cssNames } from "./attributes";
 import { REACT_18 } from "./react-compat";
 import { Column, Page, Row, renderToHtmlParts, renderToJson } from "../index";
 import * as asyncRenderers from "../async";
+import { BLOCKED_URL, blockedUrls } from "../test-utils";
 
 const SEEDS = Number(process.env.WALKER_FUZZ_SEEDS ?? 300);
 const TEMPLATE_SEEDS = Number(process.env.TEMPLATE_SEEDS ?? 40);
@@ -46,8 +49,12 @@ function Stateful({ children }: { children?: React.ReactNode }) {
   return <p data-state={`${count} ${reduced} ${ref.current} ${memo}`}>{children}</p>;
 }
 
-/** react-dom's markup, but for React 19's image preloads (hoisted resource hints), which the walker doesn't write. */
-const reactDom = (node: React.ReactElement) => renderToStaticMarkup(node).replace(/<link rel="preload" as="image"[^>]*\/>/g, "");
+/**
+ * react-dom's markup, but for React 19's image preloads (hoisted resource hints), which the walker doesn't write, and
+ * with a `javascript:` URL as the walker writes it with any React, as react-dom 19 does (see "differs … only where it
+ * means to").
+ */
+const reactDom = (node: React.ReactElement) => blockedUrls(renderToStaticMarkup(node).replace(/<link rel="preload" as="image"[^>]*\/>/g, ""));
 const same = (node: React.ReactElement) => expect(renderStatic(node)).toBe(reactDom(node));
 
 // React's development warnings for these trees (an attribute it doesn't know, a list without keys), and the walker's.
@@ -255,7 +262,7 @@ describe("the walker against react-dom/server", () => {
     expect(different).toEqual([]);
   });
 
-  it("differs from react-dom only where it means to: React 19's hoisting, its document singletons and forms' actions", () => {
+  it("differs from react-dom only where it means to: React 19's hoisting, its document singletons and forms' actions, React 18's `javascript:` URLs", () => {
     // Each tree, what the walker writes on React 19, and why react-dom 19 writes otherwise (react-dom 18 writes them as
     // the walker does).
     const action = () => {};
@@ -283,6 +290,22 @@ describe("the walker against react-dom/server", () => {
         expect([why, renderStatic(tree)]).toEqual([why, walker]);
         expect([why, dom]).not.toEqual([why, walker]);
       }
+    }
+    // Where it differs from react-dom 18 (react-dom 19 writes them as the walker does): a `javascript:` URL, which
+    // react-dom 18 writes as given, is written as one that throws, so markup from data (a link's URL) runs nothing.
+    const blocked: Array<[React.ReactElement, string]> = [
+      [h("a", { href: "javascript:alert(1)" }, "x"), `<a href="${BLOCKED_URL}">x</a>`],
+      [h("a", { href: [" \u0001java\tscript:alert(1)"] }, "x"), `<a href="${BLOCKED_URL}">x</a>`],
+      [h("img", { src: "JavaScript:x" }), `<img src="${BLOCKED_URL}"/>`],
+      [h("form", { action: "javascript:x" }, h("button", { formAction: "javascript:x" }, "b")), REACT_18 ? `<form action="${BLOCKED_URL}"><button formaction="${BLOCKED_URL}">b</button></form>` : `<form action="${BLOCKED_URL}"><button formAction="${BLOCKED_URL}">b</button></form>`],
+      [h("svg", null, h("use", { xlinkHref: "javascript:x" })), `<svg><use xlink:href="${BLOCKED_URL}"></use></svg>`],
+      [h("object", { data: "javascript:x" }), `<object data="${BLOCKED_URL}"></object>`],
+    ];
+    for (const [tree, walker] of blocked) {
+      const dom = renderToStaticMarkup(tree).replace(/<link rel="preload" as="image"[^>]*\/>/g, "");
+      expect(renderStatic(tree)).toBe(walker);
+      if (REACT_18) expect(dom).not.toBe(walker);
+      else expect(dom).toBe(walker);
     }
   });
 

@@ -38,11 +38,11 @@ export const unsafeStyle = (css: string) => /expression|javascript:|vbscript:|be
 const readCss = (css: string) => tight(entities(css).replace(/\\(?:([\da-f]{1,6})[\t\n\f\r ]?|([\s\S]))/gi, (_, hex?: string, ch?: string) => (hex ? codePoint(parseInt(hex, 16)) : ch!)));
 
 /**
- * Whether CSS has a `url()` whose URL isn't a web one (`http:`, `https:`), a relative one, or a PNG, GIF, JPEG or WebP
- * data URL, read as the browser reads it (see unsafeStyle): a class's `bg-[url(javascript:…)]`, which a <Tailwind>
- * doesn't write (src/tailwind/props.ts).
+ * Whether CSS has a `url()` whose URL isn't a web one (`http:`, `https:`), a relative one, an inline attachment's
+ * (`cid:`, an email's) or a PNG, GIF, JPEG or WebP data URL, read as the browser reads it (see unsafeStyle): a class's
+ * `bg-[url(javascript:…)]`, which a <Tailwind> doesn't write (src/tailwind/props.ts).
  */
-export const unsafeUrl = (css: string) => /url\(["']?(?!https?:|data:image\/(?:png|gif|jpe?g|webp)[;,]|(?![a-z][\w+.-]*:))/i.test(readCss(css));
+export const unsafeUrl = (css: string) => /url\(["']?(?!https?:|cid:|data:image\/(?:png|gif|jpe?g|webp)[;,]|(?![a-z][\w+.-]*:))/i.test(readCss(css));
 
 /** The elements kept, as an email or a page shows them: text and its formatting, links, images, lists, tables, sections. */
 const KEPT = new Set(

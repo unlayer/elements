@@ -15,7 +15,14 @@ export const TAILWIND = Symbol.for("@unlayer/react-elements/tailwind");
  * (`compiled`: an async render's handles for its <Tailwind config>s, the async entry's lookup, from the render's
  * scope), so a render the user's code starts, which has a scope of its own, doesn't find another's.
  */
-type Rewrite = (scope: Record<PropertyKey, any>, name: string, defaults: Record<string, any> | undefined, props: Record<string, any>, rtl?: boolean, compiled?: unknown) => Record<string, any>;
+type Rewrite = (scope: Record<PropertyKey, any>, name: string, defaults: Record<string, any> | undefined, props: Record<string, any>, rtl?: boolean, compiled?: unknown, render?: object) => Record<string, any>;
+
+/**
+ * The render's key (one per call outside a render): a scope's rewrite reads a render's classes together, its first
+ * 2,000 different ones (the Tailwind entry's `capped`), so classes from data can't take more memory than that.
+ */
+const RENDER = {};
+const renderKey = (): object => scopeCache(RENDER, () => ({}));
 
 /** On a scope's component type (the Tailwind entry's <Tailwind>): its copy's compiler, for the async renderers. */
 export const TAILWIND_LOADER = Symbol.for("@unlayer/react-elements/tailwind-loader");
@@ -34,17 +41,19 @@ export const isTailwindError = (error: unknown): boolean => !!(error as Record<s
 export function classProps(scope: Record<PropertyKey, any>, name: string, defaults: Record<string, any> | undefined, props: Record<string, any>): Record<string, any> {
   const rtl = rightToLeft();
   const compiled = compiledTailwind();
-  return guest(() => (scope[TAILWIND] as Rewrite)(scope, name, defaults, props, rtl, compiled));
+  const render = renderKey();
+  return guest(() => (scope[TAILWIND] as Rewrite)(scope, name, defaults, props, rtl, compiled, render));
 }
 
 /**
- * Before a scope rewrites any of a render's components: what the render collected (`records`, the same list for each
- * scope in it, each with its component's `props`), whose classes the scope's rewrite builds at once where it can (the
- * Tailwind entry's `prepare`), as Tailwind builds its whole stylesheet again for each class it hasn't built.
+ * Before a scope rewrites any of a render's components: the records in it (`records`, each with its component's
+ * `props`), whose classes the scope's rewrite builds at once where it can (the Tailwind entry's `prepare`), as Tailwind
+ * builds its whole stylesheet again for each class it hasn't built.
  */
 export function prepareClasses(scope: Record<PropertyKey, any>, records: readonly object[]): void {
   const compiled = compiledTailwind();
-  guest(() => scope[TAILWIND].prepare?.({ scope, records, compiled }));
+  const render = renderKey();
+  guest(() => scope[TAILWIND].prepare?.({ scope, records, compiled, render }));
 }
 
 /** The scope a root's content is in: its only child, through context providers and Fragments. */
@@ -67,6 +76,7 @@ export function rootProps<P extends { className?: string; children?: React.React
   // (By its props: the element itself is the children the render's collected under.)
   const done = scopeCache(scope.props as object, () => new Map<string, Record<string, any>>());
   const compiled = compiledTailwind();
-  if (!done.has(props.className!)) done.set(props.className!, guest(() => (scope.type as unknown as Record<symbol, Rewrite>)[TAILWIND](scope.props, name, undefined, styles, undefined, compiled)));
+  const render = renderKey();
+  if (!done.has(props.className!)) done.set(props.className!, guest(() => (scope.type as unknown as Record<symbol, Rewrite>)[TAILWIND](scope.props, name, undefined, styles, undefined, compiled, render)));
   return { ...props, ...done.get(props.className!), className: undefined };
 }

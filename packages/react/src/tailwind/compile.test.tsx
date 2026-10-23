@@ -20,14 +20,14 @@ import { CONFIGS } from "./load";
 
 // Tailwind as it is, its compilers counted once compiled (a handle compiles a fresh one after building many classes),
 // and their builds (each one Tailwind's whole stylesheet again).
-const compiled = vi.hoisted(() => ({ count: 0, builds: 0 }));
+const compiled = vi.hoisted(() => ({ count: 0, builds: 0, candidates: 0 }));
 vi.mock("tailwindcss", async (actual) => {
   const tailwind = await actual<Record<string, any>>();
   const compile = async (...args: unknown[]) => {
     const compiler = await tailwind.compile(...args);
     compiled.count++;
     const build = compiler.build;
-    compiler.build = (candidates: string[]) => (compiled.builds++, build.call(compiler, candidates));
+    compiler.build = (candidates: string[]) => (compiled.builds++, (compiled.candidates += candidates.length), build.call(compiler, candidates));
     return compiler;
   };
   return { ...tailwind, compile };
@@ -418,22 +418,40 @@ describe("a handle's reader of classes", () => {
     expect(build).toHaveBeenCalledTimes(1);
   });
 
-  it(`builds alone at most ${SUSPECTS} of the classes of a build it can't read cleanly, refusing the others`, async () => {
+  it(`builds alone at most ${SUSPECTS} of the classes of a build it can't read cleanly on one compiler, the others on the next: only the one that was why is refused`, async () => {
     // A render's classes are built at once: built alone, each one Tailwind's whole stylesheet again, they'd take the
-    // square of their number.
-    const compilers = [poisoned(), poisoned()];
+    // square of their number. One render with a build that didn't read cleanly can't take an app's `p-4` away from
+    // the renders after it, on a handle every tenant shares.
+    const compilers = [poisoned(), poisoned(), poisoned(), poisoned()];
     const ready: Array<(compiler: Compiler) => void> = [];
-    const read = declarationReader(compilers[0], () => new Promise<Compiler>((resolve) => ready.push(resolve)));
-    const classes = [...Array.from({ length: SUSPECTS + 50 }, (_, i) => `c${i}`), "evil"].join(" ");
+    const renew = vi.fn(() => new Promise<Compiler>((resolve) => ready.push(resolve)));
+    const read = declarationReader(compilers[0], renew);
+    const tokens = [...Array.from({ length: SUSPECTS + 50 }, (_, i) => `c${i}`), "p-4", "evil"];
+    const classes = tokens.join(" ");
+    const reasons = (found: { ignored: Array<{ reason: string }> }) => [...new Set(found.ignored.map((i) => i.reason))];
     read.prepare(classes);
     ready[0](compilers[1]);
     await Promise.resolve();
     const build = vi.spyOn(compilers[1], "build");
-    const { declarations, ignored } = read(classes);
+    const first = read(classes);
     expect(build).toHaveBeenCalledTimes(SUSPECTS);
-    expect(declarations.map((d) => d.className)).toEqual(Array.from({ length: SUSPECTS }, (_, i) => `c${i}`));
-    expect(ignored.map((i) => i.className)).toEqual([...Array.from({ length: 50 }, (_, i) => `c${SUSPECTS + i}`), "evil"]);
-    expect(new Set(ignored.map((i) => i.reason))).toEqual(new Set(["it isn't a class Tailwind can read here"]));
+    expect(first.declarations.map((d) => d.className)).toEqual(tokens.slice(0, SUSPECTS));
+    // The others wait for the next compiler (asked for now), not refused.
+    expect(first.ignored.map((i) => i.className)).toEqual(tokens.slice(SUSPECTS));
+    expect(reasons(first)).toEqual(["it's read once Tailwind has compiled again, after a class it couldn't read"]);
+    expect(renew).toHaveBeenCalledTimes(2);
+    ready[1](compilers[2]);
+    await Promise.resolve();
+    // On it, they're built alone: `p-4` reads, `evil` is refused for good.
+    const second = read(classes);
+    expect(second.declarations.map((d) => d.className)).toEqual(tokens.slice(SUSPECTS, -1));
+    expect(read("evil").ignored).toEqual([{ className: "evil", reason: "it isn't a class Tailwind can read here" }]);
+    ready[2](compilers[3]);
+    await Promise.resolve();
+    const third = read(classes);
+    expect(third.declarations.map((d) => d.className)).toEqual(tokens.slice(0, -1));
+    expect(third.ignored).toEqual([{ className: "evil", reason: "it isn't a class Tailwind can read here" }]);
+    expect(compilers[3].built).not.toContain("evil");
   });
 
   it("asks again for a fresh compiler that failed, on the next read that needs one", async () => {
@@ -518,27 +536,124 @@ describe("a render's classes", () => {
     }
   });
 
-  it("fail the render as before where a plugin throws for one of them (Tailwind's error, said where the render was)", async () => {
-    const error = vi.spyOn(console, "error").mockImplementation(() => {});
-    try {
-      const plugin = ({ matchUtilities }: any) => matchUtilities({ boom: (value: string) => (value === "now" ? (() => { throw new Error("boom"); })() : { color: "red" }) }, { values: { now: "now", later: "later" } });
-      const handle = await loadTailwind({ plugins: [plugin] });
-      const template = (
+  it(`are read ${CLASSES} different ones at most, the others left out and said once: classes from data take no more memory than that`, async () => {
+    const handle = await loadTailwind({ ...config, render: "capped" });
+    const many = Array.from({ length: CLASSES + 100 }, (_, i) => `indent-[${i}px]`);
+    const template = (
+      <Tailwind tw={handle}>
+        <Email>
+          <Row>
+            <Column>
+              <Markdown markdown={`<p class="${many.join(" ")}">x</p>`} />
+              {/* A class the render read before is read; a new one isn't. */}
+              <Paragraph className="indent-[5px] p-[3px]">late</Paragraph>
+            </Column>
+          </Row>
+        </Email>
+      </Tailwind>
+    );
+    for (const render of [() => renderToHtmlNow(template), () => renderToHtml(template)]) {
+      warn.mockClear();
+      const candidates = compiled.candidates;
+      const html = await render();
+      expect(html.match(/text-indent: ?\d+px/g)).toHaveLength(CLASSES + 1);
+      expect(html).toContain(`class="${many.slice(CLASSES).join(" ")}"`);
+      expect(html).not.toMatch(/padding: 3px/);
+      expect(compiled.candidates - candidates).toBeLessThanOrEqual(CLASSES);
+      const said = warn.mock.calls.map((call) => String(call[0])).filter((text) => text.includes(`${CLASSES} at most`));
+      expect(said).toEqual([`[Unlayer] Html ignores class \`indent-[${CLASSES}px]\`, and the render's other classes past its first ${CLASSES} different ones: a render reads ${CLASSES} at most.`]);
+    }
+    // A class string's, in classNameToDeclarations, as a render's.
+    const found = classNameToDeclarations(handle, many.join(" "));
+    expect(found.declarations).toHaveLength(CLASSES);
+    expect(found.ignored).toHaveLength(100);
+    expect(found.ignored[0]).toEqual({ className: `indent-[${CLASSES}px]`, reason: `it's past the first ${CLASSES} different classes of the render (or class string), all one reads` });
+  });
+
+  it(`are read ${CLASSES} different ones at most per render, not per handle`, async () => {
+    const handle = await loadTailwind({ ...config, render: "per render" });
+    for (const from of [0, 1500, 3000]) {
+      warn.mockClear();
+      const html = renderToHtmlNow(
         <Tailwind tw={handle}>
           <Email>
             <Row>
               <Column>
-                <Paragraph className="p-1">A</Paragraph>
-                <Paragraph className="boom-now">B</Paragraph>
+                <Html html={Array.from({ length: 1500 }, (_, i) => `<b class="indent-[${from + i}px]">x</b>`).join("")} />
               </Column>
             </Row>
           </Email>
         </Tailwind>
       );
-      expect(() => renderToHtmlPartsNow(template, { onError: "omit" })).toThrow("[Unlayer] boom (in <Body> at Email › Body)");
+      expect(html.match(/text-indent: \d+px/g)).toHaveLength(1500);
+      expect(warn).not.toHaveBeenCalled();
+    }
+  });
+
+  it("fail the render as before where a plugin throws for one of them, then where its class is: only it is refused, the others read", async () => {
+    // Tailwind keeps the classes of a build that threw, and builds them again with the next new one (throwing again),
+    // so a fresh compiler takes over, on which each of them is built alone where a component reads it.
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
+    try {
+      const plugin = ({ matchUtilities }: any) => matchUtilities({ boom: (value: string) => (value === "now" ? (() => { throw new Error("boom"); })() : { color: "red" }) }, { values: { now: "now", later: "later" } });
+      const template = (handle: TailwindHandle) => (
+        <Tailwind tw={handle}>
+          <Email>
+            <Row>
+              <Column>
+                <Paragraph className="p-[7px]">A</Paragraph>
+                <Paragraph className="boom-now">B</Paragraph>
+                <Paragraph className="p-[9px]">C</Paragraph>
+              </Column>
+            </Row>
+          </Email>
+        </Tailwind>
+      );
+      const once = await loadTailwind({ plugins: [plugin] });
+      expect(() => renderToHtmlNow(template(once))).toThrow("[Unlayer] boom (in <Body> at Email › Body)");
+      await vi.waitFor(() => expect(() => renderToHtmlNow(template(once))).toThrow("[Unlayer] boom (in <Paragraph> at Row 1 › Column 1 › Paragraph 2)"), { timeout: 10_000, interval: 10 });
+      await vi.waitFor(() => {
+        const html = renderToHtmlNow(template(once));
+        expect([/padding: ?7px/.test(html), />\s*B\s*</.test(html), /padding: ?9px/.test(html)]).toEqual([true, true, true]);
+      }, { timeout: 10_000, interval: 10 });
+      expect(classNameToDeclarations(once, "boom-now").ignored).toEqual([{ className: "boom-now", reason: "it isn't a class Tailwind can read here" }]);
+      // With `onError: "omit"`, the block whose class threw is left out, once it's known.
+      const omitting = await loadTailwind({ plugins: [plugin] });
+      expect(() => renderToHtmlPartsNow(template(omitting), { onError: "omit" })).toThrow("[Unlayer] boom (in <Body> at Email › Body)");
+      await vi.waitFor(() => {
+        const parts = renderToHtmlPartsNow(template(omitting), { onError: "omit" });
+        expect(parts.omitted.map((e) => e.message)).toEqual(["[Unlayer] boom (in <Paragraph> at Row 1 › Column 1 › Paragraph 2)"]);
+        expect([/padding: ?7px/.test(parts.body), />\s*B\s*</.test(parts.body)]).toEqual([true, false]);
+      }, { timeout: 10_000, interval: 10 });
     } finally {
       error.mockRestore();
     }
+  }, 60_000);
+
+  it("are a <Tailwind>'s own: a class outside it isn't compiled", async () => {
+    // (The plugin says which of its classes Tailwind compiled, and throws for this one.)
+    const called: string[] = [];
+    const plugin = ({ matchUtilities }: any) => matchUtilities({ boom: (value: string) => (called.push(value), value === "now" ? (() => { throw new Error("boom"); })() : { color: "red" }) }, { values: { now: "now", later: "later" } });
+    const handle = await loadTailwind({ plugins: [plugin] });
+    const html = renderToHtmlNow(
+      <Email>
+        <Row>
+          <Column>
+            <Paragraph className="boom-now">Out</Paragraph>
+          </Column>
+        </Row>
+        <Tailwind tw={handle}>
+          <Row>
+            <Column>
+              <Paragraph className="p-[7px] boom-later">In</Paragraph>
+            </Column>
+          </Row>
+        </Tailwind>
+      </Email>
+    );
+    expect([/padding: ?7px/.test(html), />\s*Out\s*</.test(html)]).toEqual([true, true]);
+    expect(called).toContain("later");
+    expect(called).not.toContain("now");
   });
 });
 
