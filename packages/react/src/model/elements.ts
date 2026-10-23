@@ -324,6 +324,11 @@ function columnsRewrite(list: React.ReactNode[]): unknown {
 /** Text among the rows, or straight in a Row or Column, as it reads. */
 const text = (html: string): React.ReactNode[] => [textOf(html)];
 
+/** `out.push(...list)` for a list of any length: a spread of a long one (Markdown's blocks) overflows the stack. */
+function append(out: React.ReactNode[], list: readonly React.ReactNode[]): void {
+  for (const node of list) out.push(node);
+}
+
 /**
  * What's among the rows, or in a Row or a Column, as Elements components. In a Row or Column, markup a record cuts
  * (`<p>Hello <Name />, welcome back</p>`, a `<div>` around a block) is left out whole, as 0.1.22 left it out, with
@@ -336,7 +341,7 @@ export function elements(c: Collected, items: readonly Item[], place: Place, tw?
   /** A record, `inside` markup it cuts. */
   const recorded = (item: RecordItem, inside: boolean) => {
     const r = recordOf(item);
-    if (r.kind === "tailwind") return void out.push(...elements(c, item.items, place, r, owner, inside));
+    if (r.kind === "tailwind") return void append(out, elements(c, item.items, place, r, owner, inside));
     if (r.kind !== "boundary") {
       const made = element(c, { item, tw });
       if (made) out.push(made);
@@ -353,13 +358,13 @@ export function elements(c: Collected, items: readonly Item[], place: Place, tw?
       c.told.add(r);
       console.warn(`Column: <${Named.displayName}> rendered markup that isn't a block, so it's left out. Put HTML in an <Html> block.`);
     }
-    out.push(...elements(c, item.items, place, tw, Named, inside));
+    append(out, elements(c, item.items, place, tw, Named, inside));
   };
   // Among the rows, and in markup a record cuts, the content as it's written: its records, and its markup between them.
   if (place === "root" || inMarkup) {
     for (const run of runs(items)) {
       if (!Array.isArray(run)) recorded(run, inMarkup);
-      else if (!inMarkup) out.push(...rootMarkup(run, owner));
+      else if (!inMarkup) append(out, rootMarkup(run, owner));
     }
     return out;
   }

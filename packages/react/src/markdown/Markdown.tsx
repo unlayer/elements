@@ -81,7 +81,9 @@ const STYLES: Required<Omit<MarkdownStyles, "a" | "strong" | "em" | "del">> = {
 /** Text taken off the indentation all its lines share (blank lines aside). */
 function dedent(text: string): string {
   const lines = text.replace(/^\s*\n/, "").replace(/\s+$/, "").split("\n");
-  const indent = Math.min(...lines.filter((l) => l.trim()).map((l) => /^[ \t]*/.exec(l)![0].length));
+  // A loop, not Math.min(...lines): a spread of a long text's lines overflows the stack.
+  let indent = Infinity;
+  for (const l of lines) if (l.trim()) indent = Math.min(indent, /^[ \t]*/.exec(l)![0].length);
   return Number.isFinite(indent) && indent ? lines.map((l) => l.slice(indent)).join("\n") : lines.join("\n");
 }
 

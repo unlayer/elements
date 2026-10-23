@@ -236,6 +236,13 @@ describe("Markdown from data: no more than its size calls for", () => {
     // Under the limit, as deep as written.
     expect(renderToHtml(email({ markdown: "> ".repeat(10) + "x" })).match(/<blockquote/g)).toHaveLength(10);
   });
+
+  it("renders a very long Markdown: its lines and blocks aren't spread into one call, which would overflow the stack", () => {
+    for (const markdown of ["a\n".repeat(130000), "a\n\n".repeat(130000)]) {
+      const plain = renderToPlainText(email({ markdown }));
+      expect(plain.match(/a/g)?.length).toBe(130000);
+    }
+  }, 60_000);
 });
 
 /** Random inputs the sanitizer is given (`SANITIZE_FUZZ_RUNS=300000` for a longer run, `SANITIZE_FUZZ_SEED` for others). */
