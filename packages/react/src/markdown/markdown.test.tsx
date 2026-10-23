@@ -119,6 +119,29 @@ describe("Markdown", () => {
     expect(blocks({ children: "\n    Hello\n    world\n  " })).toEqual([["text", "Hello\nworld"]]);
     expect(blocks({ children: "Hello\nworld", breaks: true })).toEqual([["text", "Hello<br/>world"]]);
   });
+
+  it("writes a table in a quote or a list as a top-level one's cells: its raw HTML, URLs, link attributes and styles as the props say", () => {
+    const cells = '| a | b |\n|---|--:|\n| <img src="https://tracker.example/p.gif"> <b>raw</b> | [x](https://example.com/x) ![p](https://example.com/p.png) **bold** |';
+    const nested = { quote: cells.replace(/^/gm, "> "), list: `- item\n\n${cells.replace(/^/gm, "  ")}` };
+    for (const [where, markdown] of Object.entries(nested)) {
+      const [[, html]] = blocks({ markdown, html: "escape", styles: { a: "color: #2563eb", strong: "color: #111111" }, linkAttributes: { target: "_self" } });
+      const elements = parsed(html);
+      expect([where, elements.map((e) => e.localName).filter((n) => /^(table|thead|tbody|tr|th|td)$/.test(n))]).toEqual([where, ["table", "thead", "tr", "th", "th", "tbody", "tr", "td", "td"]]);
+      // Raw HTML shown as text, as in a top-level table's cells; the links and images Markdown makes, as the props say.
+      expect([where, elements.filter((e) => e.localName === "b" || (e.localName === "img" && /tracker/.test(e.getAttribute("src")!)))]).toEqual([where, []]);
+      expect(html).toContain("&lt;b&gt;raw&lt;/b&gt;");
+      expect(html).toContain('<a href="https://example.com/x" target="_self" style="color: #2563eb">x</a>');
+      expect(html).toContain('<strong style="color: #111111">bold</strong>');
+      expect(html).toContain('<td align="right">');
+      // Left out (`drop`), or kept as the sanitizer keeps it.
+      expect(parsed(blocks({ markdown, html: "drop" })[0][1] as string).filter((e) => e.localName === "b" || /tracker/.test(e.getAttribute("src") ?? ""))).toEqual([]);
+      expect(blocks({ markdown, html: "drop" })[0][1]).not.toContain("raw</b>");
+      expect(blocks({ markdown })[0][1]).toContain("<b>raw</b>");
+      // A URL policy that leaves every link and image out leaves out theirs too, in a table in a quote or a list as anywhere.
+      const none = parsed(blocks({ markdown, html: "escape", url: () => undefined })[0][1] as string);
+      expect([where, none.filter((e) => (e.localName === "a" && e.hasAttribute("href")) || e.localName === "img")]).toEqual([where, []]);
+    }
+  });
 });
 
 /** Random inputs the sanitizer is given (`SANITIZE_FUZZ_RUNS=300000` for a longer run, `SANITIZE_FUZZ_SEED` for others). */

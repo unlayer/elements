@@ -49,7 +49,7 @@ The indentation every line shares (a template literal's) is taken off first. Ren
 | Quotes | `Paragraph` holding the `<blockquote>` |
 | An image on a line of its own (also inside a link) | `Image` (its link as the image's link) |
 | `---` | `Divider` |
-| Tables | `Table` |
+| Tables | `Table` (in a list or a quote, an HTML table in its `Paragraph`, its cells written as a `Table`'s are) |
 | Fenced and indented code | `CodeBlock` (see [Code](./code.md)) |
 | Raw HTML, and anything else | `Html` |
 
@@ -86,6 +86,8 @@ Inside text, bold, italics, strikethrough, links, images and line breaks are HTM
   `html="escape"` shows raw HTML as text, and `html="drop"` leaves it out. For Markdown your users write, use `"escape"` or `"drop"`.
 
 `sanitizeHtml(html)` and `safeUrl(url, kind)` are exported for markup you build yourself.
+
+A table in a list or a quote is written as a top-level one's cells are: `html`, `url`, `linkAttributes`, `imageAttributes`, `styles` and `inlineCode` apply to its cells too.
 
 ## Plain text
 

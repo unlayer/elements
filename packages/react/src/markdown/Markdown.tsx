@@ -197,9 +197,21 @@ class Writer {
         return `<hr${this.style("hr")} />`;
       case "html":
         return this.raw(token.text);
+      case "table":
+        return this.table(token as Tokens.Table);
       default:
         return sanitizeHtml(Parser.parse([token]));
     }
+  }
+
+  /**
+   * A table in a list or quote, as HTML (laid out as marked writes one): its cells as a top-level table's, their raw
+   * HTML, links and styles as the props say.
+   */
+  private table(token: Tokens.Table): string {
+    const row = (cells: Tokens.TableCell[], tag: "th" | "td") => `<tr>\n${cells.map((cell) => `<${tag}${cell.align ? ` align="${cell.align}"` : ""}>${this.inline(cell.tokens)}</${tag}>\n`).join("")}</tr>\n`;
+    const body = token.rows.map((cells) => row(cells, "td")).join("");
+    return `<table>\n<thead>\n${row(token.header, "th")}</thead>\n${body && `<tbody>${body}</tbody>`}</table>\n`;
   }
 
   list(token: Tokens.List): string {
