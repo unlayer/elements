@@ -79,6 +79,36 @@ export interface DeclarationReader {
  */
 export const CLASSES = 2000;
 
+/** Why a class isn't read: a render (or a class string) reads its first CLASSES different classes only (see capped). */
+export const OVER = `it's past the first ${CLASSES} different classes of the render (or class string), all one reads`;
+
+/**
+ * A reader of one render's classes (or one class string's): the first CLASSES different classes it's given are read,
+ * by `read`; the others aren't built or read, but listed with OVER (`first`: the first a read left out, since it was
+ * last cleared). Classes made from data (a Markdown's, thousands in one attribute) can't take more memory than that,
+ * as each class Tailwind builds takes memory while it builds them; an app's own, hundreds, don't get there.
+ */
+export function capped(read: DeclarationReader): DeclarationReader & { first?: string; said?: boolean } {
+  const names = new Set<string>();
+  const admit = (className: string) => {
+    const kept: string[] = [];
+    const left: string[] = [];
+    for (const token of String(className).split(/\s+/)) if (token) (names.has(token) || (names.size < CLASSES && names.add(token)) ? kept : left).push(token);
+    return [kept, left];
+  };
+  const reader = Object.assign(
+    (className: string): ClassDeclarations => {
+      const [kept, left] = admit(className);
+      const found = read(kept.join(" "));
+      if (!left.length) return found;
+      reader.first ??= left[0];
+      return { ...found, ignored: [...found.ignored, ...[...new Set(left)].map((className) => ({ className, reason: OVER }))] };
+    },
+    { prepare: (className: string) => read.prepare(admit(className)[0].join(" ")) } as { prepare(className: string): void; first?: string; said?: boolean }
+  );
+  return reader;
+}
+
 const empty = (): Sheet => ({ rules: [], vars: new Map(), initial: new Map(), clean: true });
 
 /** Why a class isn't read: Tailwind's stylesheet of it couldn't be read as written (see `readable`). */

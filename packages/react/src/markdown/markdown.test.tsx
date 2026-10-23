@@ -427,15 +427,18 @@ describe("Markdown in a <Tailwind>", () => {
 
   it("renders Markdown from data in about the time its size calls for: elements nested deep in one with a class, many classes", () => {
     // Each about 300 KB. Nested 30,000 deep took seconds, growing with the square of the depth; 9,000 classes Tailwind
-    // hadn't built, in one paragraph or one to a paragraph, took minutes (each read alone built its whole stylesheet again).
+    // hadn't built, in one paragraph or one to a paragraph, took minutes (each read alone built its whole stylesheet
+    // again), then hundreds of megabytes built at once: a render reads its first 2,000 (CLASSES), the others as written.
     const n = 9000;
-    for (const [markdown, style] of [
+    for (const [markdown, style, past] of [
       ['<div class="p-1">' + "<div>".repeat(30_000) + "x" + "</div>".repeat(30_000) + "</div>", "padding: 4px"],
-      [Array.from({ length: n }, (_, i) => `<span class="p-[${i}px]">x</span>`).join(" "), "padding: 8999px"],
-      [Array.from({ length: n }, (_, i) => `<span class="m-[${i}px]">x</span>`).join("\n\n"), "margin: 8999px"],
+      [Array.from({ length: n }, (_, i) => `<span class="p-[${i}px]">x</span>`).join(" "), "padding: 1999px", '<span class="p-[2000px]">'],
+      [Array.from({ length: n }, (_, i) => `<span class="m-[${i}px]">x</span>`).join("\n\n"), "margin: 1999px", '<span class="m-[8999px]">'],
     ]) {
       const start = performance.now();
-      expect(renderToHtml(<Tailwind tw={tw}><Email><Row><Column><Markdown markdown={markdown} /></Column></Row></Email></Tailwind>)).toContain(style);
+      const html = renderToHtml(<Tailwind tw={tw}><Email><Row><Column><Markdown markdown={markdown} /></Column></Row></Email></Tailwind>);
+      expect(html).toContain(style);
+      if (past) expect(html).toContain(past);
       expect(performance.now() - start).toBeLessThan(5000);
     }
   }, 120_000);

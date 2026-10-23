@@ -20,14 +20,14 @@ import { CONFIGS } from "./load";
 
 // Tailwind as it is, its compilers counted once compiled (a handle compiles a fresh one after building many classes),
 // and their builds (each one Tailwind's whole stylesheet again).
-const compiled = vi.hoisted(() => ({ count: 0, builds: 0 }));
+const compiled = vi.hoisted(() => ({ count: 0, builds: 0, candidates: 0 }));
 vi.mock("tailwindcss", async (actual) => {
   const tailwind = await actual<Record<string, any>>();
   const compile = async (...args: unknown[]) => {
     const compiler = await tailwind.compile(...args);
     compiled.count++;
     const build = compiler.build;
-    compiler.build = (candidates: string[]) => (compiled.builds++, build.call(compiler, candidates));
+    compiler.build = (candidates: string[]) => (compiled.builds++, (compiled.candidates += candidates.length), build.call(compiler, candidates));
     return compiler;
   };
   return { ...tailwind, compile };
@@ -515,6 +515,60 @@ describe("a render's classes", () => {
       for (const style of [/padding: ?299px/, /padding: ?299px 10px 10px/, /margin: 299px/, /width: 299px/, /height: 299px/]) expect(html).toMatch(style);
       // The root's classes, then the render's.
       expect(compiled.builds - builds).toBeLessThanOrEqual(2);
+    }
+  });
+
+  it(`are read ${CLASSES} different ones at most, the others left out and said once: classes from data take no more memory than that`, async () => {
+    const handle = await loadTailwind({ ...config, render: "capped" });
+    const many = Array.from({ length: CLASSES + 100 }, (_, i) => `indent-[${i}px]`);
+    const template = (
+      <Tailwind tw={handle}>
+        <Email>
+          <Row>
+            <Column>
+              <Markdown markdown={`<p class="${many.join(" ")}">x</p>`} />
+              {/* A class the render read before is read; a new one isn't. */}
+              <Paragraph className="indent-[5px] p-[3px]">late</Paragraph>
+            </Column>
+          </Row>
+        </Email>
+      </Tailwind>
+    );
+    for (const render of [() => renderToHtmlNow(template), () => renderToHtml(template)]) {
+      warn.mockClear();
+      const candidates = compiled.candidates;
+      const html = await render();
+      expect(html.match(/text-indent: ?\d+px/g)).toHaveLength(CLASSES + 1);
+      expect(html).toContain(`class="${many.slice(CLASSES).join(" ")}"`);
+      expect(html).not.toMatch(/padding: 3px/);
+      expect(compiled.candidates - candidates).toBeLessThanOrEqual(CLASSES);
+      const said = warn.mock.calls.map((call) => String(call[0])).filter((text) => text.includes(`${CLASSES} at most`));
+      expect(said).toEqual([`[Unlayer] Html ignores class \`indent-[${CLASSES}px]\`, and the render's other classes past its first ${CLASSES} different ones: a render reads ${CLASSES} at most.`]);
+    }
+    // A class string's, in classNameToDeclarations, as a render's.
+    const found = classNameToDeclarations(handle, many.join(" "));
+    expect(found.declarations).toHaveLength(CLASSES);
+    expect(found.ignored).toHaveLength(100);
+    expect(found.ignored[0]).toEqual({ className: `indent-[${CLASSES}px]`, reason: `it's past the first ${CLASSES} different classes of the render (or class string), all one reads` });
+  });
+
+  it(`are read ${CLASSES} different ones at most per render, not per handle`, async () => {
+    const handle = await loadTailwind({ ...config, render: "per render" });
+    for (const from of [0, 1500, 3000]) {
+      warn.mockClear();
+      const html = renderToHtmlNow(
+        <Tailwind tw={handle}>
+          <Email>
+            <Row>
+              <Column>
+                <Html html={Array.from({ length: 1500 }, (_, i) => `<b class="indent-[${from + i}px]">x</b>`).join("")} />
+              </Column>
+            </Row>
+          </Email>
+        </Tailwind>
+      );
+      expect(html.match(/text-indent: \d+px/g)).toHaveLength(1500);
+      expect(warn).not.toHaveBeenCalled();
     }
   });
 
