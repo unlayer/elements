@@ -8,9 +8,13 @@
  *
  * It's also the alarm for the pin: when the catalog moves @unlayer/exporters to a release whose HTML for these
  * blocks differs, this test fails until the string versions write the new release's HTML (compare its compiled
- * DividerExporters, HtmlExporters, MenuExporters and SocialExporters with these files).
+ * DividerExporters, HtmlExporters, MenuExporters and SocialExporters with these files). *
+ * Where they mean to differ: a `javascript:` URL (a link's, an icon's image), which the string versions write as
+ * react-dom 19 writes it, a URL that throws, with any React; react-dom 18 writes it as given (see attributes.ts). So
+ * the pinned exporters' HTML is compared with its `javascript:` URLs written so (`blockedUrls`).
  */
 import { describe, expect, it, vi } from "vitest";
+import { JSDOM, VirtualConsole } from "jsdom";
 import { DividerExporters, HtmlExporters, MenuExporters, SocialExporters } from "@unlayer/exporters";
 import { Column, Divider, Document, Html, Menu, Page, Row, Social, renderToHtml } from "../index";
 import { divider } from "./divider";
@@ -19,6 +23,7 @@ import { menu } from "./menu";
 import { social } from "./social";
 import { dividerValues, htmlCases, menuValues, socialCases } from "./parity-values";
 import { as, corpus } from "./test-corpus";
+import { blockedUrls } from "../test-utils";
 
 type Exporter = (...args: any[]) => string;
 
@@ -70,6 +75,7 @@ function compare(block: string, own: Exporter, cases: unknown[][]): { compared: 
       const mine = run(own, args);
       for (const [name, upstream] of UPSTREAM[block]) {
         const theirs = run(upstream, args);
+        if (theirs.html !== undefined) theirs.html = blockedUrls(theirs.html);
         compared++;
         if (mine.threw && theirs.threw) continue;
         if (mine.html !== theirs.html) differences.push(`${name}(${describeArgs(args)}): ${theirs.threw ? "throws" : JSON.stringify(theirs.html)} but the string version ${mine.threw ? "throws" : `gives ${JSON.stringify(mine.html)}`}`);
@@ -145,5 +151,57 @@ describe("for the values Elements gives them", () => {
       expect(cases.length, block).toBeGreaterThan(40);
       expect(compare(block, OWN[block], cases).differences).toEqual([]);
     }
+  });
+});
+
+describe("a `javascript:` URL", () => {
+  const BLOCKED = "javascript:throw new Error('React has blocked a javascript: URL as a security precaution.')";
+  it("is written as react-dom 19 writes it where the pinned exporters' react-dom is 18 (the values above have them)", () => {
+    const values = { menu: { items: [{ key: "1", text: "Go", link: { url: "javascript:alert(1)", target: "_self" } }] } };
+    expect(menu(values)).toBe(blockedUrls(MenuExporters.web(values as never) as string));
+    expect(menu(values)).toContain("javascript:throw new Error(&#x27;React has blocked");
+  });
+
+  // However it's written: React 19's test (C0 controls and spaces before it, tabs and line breaks in it, any case), in
+  // a list (written as its text), and given in a link's attributes.
+  const URLS: unknown[] = ["javascript:globalThis.__probe=1", " \u0001JavaScript:globalThis.__probe=1", "java\tscr\nipt:globalThis.__probe=1", ["javascript:globalThis.__probe=1"]];
+
+  /** The page's first link, clicked: its href, and whether the URL ran. */
+  async function click(html: string): Promise<{ href: string | null; ran: boolean }> {
+    const dom = new JSDOM(html, { url: "https://example.test/", runScripts: "dangerously", virtualConsole: new VirtualConsole() });
+    try {
+      const link = dom.window.document.querySelector("a")!;
+      link.click();
+      await new Promise((resolve) => setTimeout(resolve, 15));
+      return { href: link.getAttribute("href"), ran: (dom.window as unknown as { __probe?: number }).__probe === 1 };
+    } finally {
+      dom.window.close();
+    }
+  }
+
+  it("runs when a link holds one (the check below can see one run)", async () => {
+    expect(await click('<a href="javascript:globalThis.__probe=1" target="_self">Go</a>')).toEqual({ href: "javascript:globalThis.__probe=1", ran: true });
+  });
+
+  it.each([
+    ["a web page", Page],
+    ["a document", Document],
+  ] as const)("is written as one that throws, as react-dom 19 writes it, in a Menu's and a Social's links on %s, with any React", async (_, Root) => {
+    for (const url of URLS) {
+      const blocks = {
+        Menu: <Menu items={[{ text: "Go", href: url as string, target: "_self" }]} />,
+        Social: <Social icons={[{ name: "Facebook", url: url as string }]} />,
+        "Menu's link attributes": <Menu values={{ menu: { items: [{ key: "1", text: "Go", link: { name: "web", values: { href: "", target: "_self" }, attrs: { href: url } } }] } } as never} />,
+      };
+      for (const [name, block] of Object.entries(blocks)) expect([name, url, await click(renderToHtml(<Root><Row><Column>{block}</Column></Row></Root>))]).toEqual([name, url, { href: BLOCKED, ran: false }]);
+    }
+  });
+
+  it("is written so as an icon's image too, and one written as character references stays text", () => {
+    const html = (root: React.ReactElement) => new JSDOM(renderToHtml(root)).window.document;
+    const page = html(<Page><Row><Column><Social icons={{ iconType: "circle", icons: [{ name: "Facebook", url: "&#106;avascript:x", imgUrl: "javascript:x" }] } as never} /></Column></Row></Page>);
+    expect(page.querySelector("img")!.getAttribute("src")).toBe(BLOCKED);
+    // (Its `&` written as `&amp;`: the link is the text `&#106;avascript:x`, a relative URL.)
+    expect(page.querySelector("a")!.getAttribute("href")).toBe("&#106;avascript:x");
   });
 });

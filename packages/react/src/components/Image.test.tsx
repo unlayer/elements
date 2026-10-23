@@ -9,8 +9,22 @@ import { Column } from "./Column";
 import { ColumnLayouts, type ColumnLayout } from "../layouts/ColumnLayouts";
 import { renderToJson } from "../utils/render-to-json";
 import { renderToHtml } from "../utils/render-to-html";
+import * as Roots from "../index";
 
+
+/** A block given a link of null (nullable data) and the same block given none, in each root: the HTML and the design. */
+function asNone(withNull: React.ReactElement, without: React.ReactElement) {
+  for (const Root of [Roots.Email, Roots.Page, Roots.Document]) {
+    const tree = (block: React.ReactElement) => <Root><Roots.Row><Roots.Column>{block}</Roots.Column></Roots.Row></Root>;
+    expect(Roots.renderToHtml(tree(withNull)), Root.displayName).toBe(Roots.renderToHtml(tree(without)));
+    expect(Roots.renderToJson(tree(withNull))).toEqual(Roots.renderToJson(tree(without)));
+  }
+}
 describe("Image Component", () => {
+  it("takes an `action` of null (nullable data) as none, in each root", () => {
+    asNone(<Image src="https://example.com/a.png" alt="A" action={null as never} />, <Image src="https://example.com/a.png" alt="A" />);
+  });
+
   it("renders an img element", () => {
     const { container } = render(<Image src="https://example.com/photo.jpg" />);
     const img = container.querySelector("img");

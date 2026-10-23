@@ -211,9 +211,14 @@ describe("a Tailwind class from data", () => {
       for (const className of ["bg-[url(javascript:alert(1))]", "bg-[url('javascript:alert(1)')]", 'bg-[url("JavaScript:alert(1)")]', "bg-[url(j\\61vascript:alert(1))]", "bg-[u\\72l(javascript:alert(1))]", "[background:url(vbscript:msgbox(1))]", "[background-image:url(data:text/html,x)]", "[list-style-image:url(javascript:alert(1))]"]) {
         expect([className, styles(render(className)).filter((style) => /url\(["']?(?!https?:|\/)/i.test(style))]).toEqual([className, []]);
       }
-      expect(warn.mock.calls.map((call) => String(call[0]))).toContain("[Unlayer] Column ignores `background-image: url(javascript:alert(1))` from class `bg-[url(javascript:alert(1))]`: its URL isn't a web one (`http:` or `https:`), a relative one, or an image's data URL.");
-      // A web URL, a relative one and an image's data URL are kept.
-      for (const url of ["https://example.com/a.png", "/images/a.png", "data:image/png,x"]) expect(styles(render(`bg-[url(${url})]`)).some((style) => style.includes(`url(${url})`)), url).toBe(true);
+      expect(warn.mock.calls.map((call) => String(call[0]))).toContain("[Unlayer] Column ignores `background-image: url(javascript:alert(1))` from class `bg-[url(javascript:alert(1))]`: its URL isn't a web one (`http:` or `https:`), a relative one, an inline attachment's (`cid:`), or an image's data URL.");
+      // A web URL, a relative one, an inline attachment's (an email's `cid:`) and an image's data URL, in base64 too, are
+      // kept: a base64 one's `;` is in its URL, which CSS reads to its `)`.
+      for (const url of ["https://example.com/a.png", "/images/a.png", "cid:logo", "data:image/png,x", "data:image/png;base64,iVBORw0KGgo+/A==", "'data:image/gif;base64,R0lGOD'"])
+        expect(styles(render(`bg-[url(${url})]`)).some((style) => style.includes(`url(${url})`)), url).toBe(true);
+      // But only a whole one: a `;` after it, an image of another kind, or a quote it doesn't close ends the declaration.
+      for (const className of ["bg-[url(data:image/png;base64,AAAA);color:red]", "[background:url(data:image/png;base64,AAAA);color:red]", "bg-[url(data:image/svg+xml;base64,AAAA)]", "bg-[url('data:image/png;base64,AAAA)]", "bg-[url(data:image/png;charset=x;base64,AAAA)]"])
+        expect([className, styles(render(className)).filter((style) => /url\(|color:red/.test(style))]).toEqual([className, []]);
     } finally {
       warn.mockRestore();
     }

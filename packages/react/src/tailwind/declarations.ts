@@ -79,6 +79,36 @@ export interface DeclarationReader {
  */
 export const CLASSES = 2000;
 
+/** Why a class isn't read: a render (or a class string) reads its first CLASSES different classes only (see capped). */
+export const OVER = `it's past the first ${CLASSES} different classes of the render (or class string), all one reads`;
+
+/**
+ * A reader of one render's classes (or one class string's): the first CLASSES different classes it's given are read,
+ * by `read`; the others aren't built or read, but listed with OVER (`first`: the first a read left out, since it was
+ * last cleared). Classes made from data (a Markdown's, thousands in one attribute) can't take more memory than that,
+ * as each class Tailwind builds takes memory while it builds them; an app's own, hundreds, don't get there.
+ */
+export function capped(read: DeclarationReader): DeclarationReader & { first?: string; said?: boolean } {
+  const names = new Set<string>();
+  const admit = (className: string) => {
+    const kept: string[] = [];
+    const left: string[] = [];
+    for (const token of String(className).split(/\s+/)) if (token) (names.has(token) || (names.size < CLASSES && names.add(token)) ? kept : left).push(token);
+    return [kept, left];
+  };
+  const reader = Object.assign(
+    (className: string): ClassDeclarations => {
+      const [kept, left] = admit(className);
+      const found = read(kept.join(" "));
+      if (!left.length) return found;
+      reader.first ??= left[0];
+      return { ...found, ignored: [...found.ignored, ...[...new Set(left)].map((className) => ({ className, reason: OVER }))] };
+    },
+    { prepare: (className: string) => read.prepare(admit(className)[0].join(" ")) } as { prepare(className: string): void; first?: string; said?: boolean }
+  );
+  return reader;
+}
+
 const empty = (): Sheet => ({ rules: [], vars: new Map(), initial: new Map(), clean: true });
 
 /** Why a class isn't read: Tailwind's stylesheet of it couldn't be read as written (see `readable`). */
@@ -96,9 +126,10 @@ const WAITING = "it's read once Tailwind has compiled again, after a class it co
 const RENEWALS = 3;
 
 /**
- * The classes of a build that didn't read cleanly that are built alone, one at a time, to find the one that was why
- * (see declarationReader): past them, the others are refused too. Each build is Tailwind's whole stylesheet again, so
- * the many classes of one build (a render's) can't each be built alone.
+ * The classes of a build that didn't read cleanly that are built alone on one compiler, one at a time, to find the one
+ * that was why (see declarationReader): past them, the others wait for a fresh compiler, on which as many more are
+ * built alone. Each build is Tailwind's whole stylesheet again, so the many classes of one build (a render's) can't
+ * each be built alone on one compiler.
  */
 export const SUSPECTS = 100;
 
@@ -128,8 +159,11 @@ function readable(token: string): boolean {
  * built: a class string reads the same whatever its compiler built before. A class that could change how the
  * stylesheet reads isn't built (`readable`); a build whose stylesheet still doesn't read cleanly is left out (its
  * classes said, the classes before it read as they did), and a fresh compiler takes over, on which each of that
- * build's classes is built alone first (SUSPECTS of them at most: the others are refused): the one that was why is
- * never built again.
+ * build's classes is built alone first (SUSPECTS of them on one compiler: the others wait for the next), where a
+ * class string holding it is read: the one that was why is never built again, and only it. A build that throws (a
+ * plugin's error, thrown on) is one that didn't read cleanly: Tailwind keeps its classes, and throws again on the next
+ * build with a new one, so its class is found alone on a fresh compiler, where the component whose class it is reads
+ * it, and the error comes out there.
  *
  * Each build is Tailwind's whole stylesheet again (it keeps every class it built), so classes are best built many at
  * once: `prepare` builds a render's, all the classes its components and their markup are given, before they're read
@@ -151,9 +185,12 @@ export function declarationReader(compiler: Compiler, renew?: () => Promise<Comp
   // Whether the compiler built a stylesheet that didn't read cleanly: nothing more is built on it.
   let dirty = false;
   const suspects = new Set<string>();
+  // Only classes built alone and seen to fail.
   const refused = new Set<string>();
-  // Suspects built alone since the last build that didn't read cleanly (see SUSPECTS).
+  // Suspects built alone on this compiler (see SUSPECTS).
   let alone = 0;
+  // What the last build threw (a plugin's error), thrown once the build is taken as one that didn't read cleanly.
+  let thrown: { error: unknown } | undefined;
   // Fresh compilers that failed in a row (see RENEWALS), and the last one's error.
   let failures = 0;
   let failure = "";
@@ -168,7 +205,7 @@ export function declarationReader(compiler: Compiler, renew?: () => Promise<Comp
         sheet = empty();
         byToken = new Map();
         renewing = dirty = false;
-        failures = 0;
+        failures = alone = 0;
       },
       (error) => {
         renewing = false;
@@ -178,7 +215,15 @@ export function declarationReader(compiler: Compiler, renew?: () => Promise<Comp
     );
   };
   const build = (tokens: string[]): boolean => {
-    const next = parseSheet(compiler.build(tokens));
+    let css: string;
+    try {
+      css = compiler.build(tokens);
+    } catch (error) {
+      // (Tailwind keeps the classes it was given, and builds them again with the next new one, throwing again.)
+      thrown = { error };
+      return !(dirty = true);
+    }
+    const next = parseSheet(css);
     if (!next.clean) return !(dirty = true);
     // The stylesheet holds every class built so far, in Tailwind's order: read again, places stay comparable.
     sheet = next;
@@ -193,17 +238,26 @@ export function declarationReader(compiler: Compiler, renew?: () => Promise<Comp
     return true;
   };
   const tokensOf = (className: string) => [...new Set(String(className).split(/\s+/).filter(Boolean))];
-  // The classes not built yet, built: a suspect alone, the rest at once.
-  const need = (tokens: string[]) => {
+  // The classes not built yet, built: a suspect alone (past SUSPECTS on this compiler, on the next one), where a class
+  // string is read (not prepared: what building it throws comes out where it's read), the rest at once. What a build
+  // threw is thrown after.
+  const need = (tokens: string[], prepare?: boolean) => {
     const unread = tokens.filter((token) => !seen.has(token) && !refused.has(token) && readable(token));
     if (!unread.length) return;
-    for (const token of unread) if (!dirty && suspects.delete(token) && (alone++ >= SUSPECTS || !build([token]))) refused.add(token);
-    const rest = unread.filter((token) => !seen.has(token) && !refused.has(token) && !suspects.has(token));
-    if (rest.length && !dirty && !build(rest)) {
-      rest.forEach((token) => suspects.add(token));
-      alone = 0;
+    let later = false;
+    for (const token of unread) {
+      if (prepare || dirty || !suspects.has(token)) continue;
+      if (alone >= SUSPECTS) later = true;
+      else if ((suspects.delete(token), alone++, !build([token]))) refused.add(token);
     }
-    if (dirty) fresh();
+    const rest = unread.filter((token) => !seen.has(token) && !refused.has(token) && !suspects.has(token));
+    if (rest.length && !dirty && !build(rest)) rest.forEach((token) => suspects.add(token));
+    if (dirty || later) fresh();
+    if (thrown) {
+      const { error } = thrown;
+      thrown = undefined;
+      throw error;
+    }
   };
   const read = (className: string): ClassDeclarations => {
     const tokens = tokensOf(className);
@@ -243,5 +297,5 @@ export function declarationReader(compiler: Compiler, renew?: () => Promise<Comp
     // `!important` wins over the rest, wherever it is.
     return { declarations: [...declarations.filter((d) => !d.important), ...declarations.filter((d) => d.important)], ignored };
   };
-  return Object.assign(read, { prepare: (className: string) => need(tokensOf(className)) });
+  return Object.assign(read, { prepare: (className: string) => need(tokensOf(className), true) });
 }

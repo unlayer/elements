@@ -36,9 +36,12 @@ export function normalizeColor(value: string): string {
 /**
  * Whether a value can be written into a CSS declaration as it is: nothing that ends the declaration, the rule or
  * the `<style>` element (`16px</style><script>`, `;`, `}`), no comment that hides the rules after it (`/*`), and
- * every bracket closed by its own kind (`calc(12px` or `16px (]` would swallow the rules after it).
+ * every bracket closed by its own kind (`calc(12px` or `16px (]` would swallow the rules after it). A PNG, GIF, JPEG
+ * or WebP data URL in base64, whole (`url(data:image/png;base64,iVBOR…)`, quoted or not), can be: its `;` is in the
+ * URL, which CSS reads to its `)`, and base64 holds nothing that ends a declaration, a rule or an attribute.
  */
 export function cssValueSafe(text: string): boolean {
+  text = text.replace(/url\((')?data:image\/(?:png|gif|jpe?g|webp);base64,[a-z\d+/=]*\1\)/gi, "url()");
   if (/[<>{};]|\/\*|\*\//.test(text)) return false;
   const open: string[] = [];
   for (const c of text) {

@@ -22,8 +22,10 @@ export interface Collected {
   told: Set<object>;
   /** Each component's kept markup, worked out once. */
   kept?: Map<object, React.ReactElement | undefined>;
-  /** Props with their classes turned into props (see styled), by record. */
-  styled?: Map<object, Record<string, any>>;
+  /** Props with their classes turned into props (see styled), by record (null: left out). */
+  styled?: Map<object, Record<string, any> | null>;
+  /** The records in each <Tailwind> scope, by its record (see inScope). */
+  scopes?: Map<object, object[]>;
   /** The root's props (its classes as props, its mode), for a scope's rewrite of a Row (see utils/tailwind.ts). */
   root?: Record<PropertyKey, any>;
   /** Each Row, Column and block, as the Elements component it is, made once (see elements.ts), by record. */

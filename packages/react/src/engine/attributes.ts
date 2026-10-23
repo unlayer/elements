@@ -19,14 +19,21 @@ const NAME_START = ":A-Z_a-z\\u00C0-\\u00D6\\u00D8-\\u00F6\\u00F8-\\u02FF\\u0370
 const SAFE_NAME = new RegExp(`^[${NAME_START}][${NAME_START}\\-.0-9\\u00B7\\u0300-\\u036F\\u203F-\\u2040]*$`);
 
 const JAVASCRIPT_URL = /^[\u0000-\u001F ]*j[\r\n\t]*a[\r\n\t]*v[\r\n\t]*a[\r\n\t]*s[\r\n\t]*c[\r\n\t]*r[\r\n\t]*i[\r\n\t]*p[\r\n\t]*t[\r\n\t]*:/i;
-/** A URL attribute's value: React 19 writes a `javascript:` URL as one that throws. */
+/**
+ * A URL attribute's value: a `javascript:` URL (as React 19 tells one) as one that throws, as React 19 writes it, with
+ * any React (React 18 writes it as given), so a link from data runs nothing. (A character reference in it can't make
+ * one: its `&` is written `&amp;`.)
+ */
 const url = (value: string) => (JAVASCRIPT_URL.test(value) ? "javascript:throw new Error('React has blocked a javascript: URL as a security precaution.')" : value);
+/** A value React writes as text, a `javascript:` URL as url() writes it; others as they are. */
+export const unrun = (value: unknown) => (value == null || typeof value == "boolean" || typeof value == "function" || typeof value == "symbol" ? value : url("" + value));
 
 /**
  * How React writes a prop it knows: as a string (S), as a boolean attribute (B: present or not), as either (O), as a
- * number (N), a positive number (P), "true" or "false" (Y), a URL (U), or not at all (X).
+ * number (N), a positive number (P), "true" or "false" (Y), a URL (U: React 19's; L: React 18's, a string), or not at
+ * all (X).
  */
-type Kind = "S" | "B" | "O" | "N" | "P" | "Y" | "U" | "X";
+type Kind = "S" | "B" | "O" | "N" | "P" | "Y" | "U" | "L" | "X";
 
 /** The props React writes otherwise than as a string under their own name: the attribute's name, and how. */
 const RULES = new Map<string, [string, Kind]>();
@@ -49,8 +56,8 @@ if (REACT_18) {
   rule("contentEditable draggable spellCheck value", "Y", lower);
   rule("autoReverse externalResourcesRequired focusable preserveAlpha", "Y");
   rule("rowSpan start", "N", lower);
-  rule("src href action formAction", "S", lower);
-  RULES.set("xlinkHref", ["xlink:href", "S"]);
+  rule("src href action formAction", "L", lower);
+  RULES.set("xlinkHref", ["xlink:href", "L"]);
 } else {
   rule(`${BOOLEANS} inert${REACT_19_3 ? " credentialless" : ""}`, "B");
   rule("autoFocus multiple muted", "B", lower);
@@ -89,8 +96,9 @@ export function attribute(name: string, value: unknown): string {
       return (REACT_18 && typeof value === "boolean") || isNaN(value as number) || (kind === "P" && !((value as number) >= 1)) ? "" : written(attribute, value);
     case "U":
       return typeof value === "boolean" || (value === "" && (name === "src" || name === "href")) ? "" : written(attribute, url("" + value));
+    case "L":
     case "S":
-      return typeof value === "boolean" ? "" : written(attribute, value);
+      return typeof value === "boolean" ? "" : written(attribute, kind === "L" ? url("" + value) : value);
     default:
       // Any other: written as given, where it's a name an attribute can have (and a boolean only in data-* and aria-*).
       return !SAFE_NAME.test(attribute) || (typeof value === "boolean" && !/^(data|aria)-/i.test(attribute)) ? "" : written(attribute, value);

@@ -14,7 +14,7 @@
  * a function (a script that runs it). An email's or a page's markup is a part of the document Elements writes, which
  * has a head of its own (<Head>), and runs no script.
  */
-import { attribute, customAttribute, escapeText, objectData } from "./attributes";
+import { attribute, customAttribute, escapeText, objectData, unrun } from "./attributes";
 import { REACT_18, REACT_18_2 } from "./react-compat";
 
 export { escapeText };
@@ -131,7 +131,8 @@ export function openTag(type: string, props: Record<string, any>, format: Format
     else if (type === "input" ? /^(value|defaultValue|checked|defaultChecked)$/.test(key) : type === "select" || type === "textarea" ? key === "value" || key === "defaultValue" : type === "option" && key === "selected") continue;
     // A link to nowhere is written (React 19 leaves out other empty URLs).
     else if (value === "" && key === "href" && type === "a") open += ' href=""';
-    else open += !REACT_18 && type === "object" && key === "data" ? objectData(value) : attribute(key, value);
+    // (An <object>'s `data` is a URL: React 18 writes it as text, a `javascript:` one as React 19 does.)
+    else open += type === "object" && key === "data" ? (REACT_18 ? attribute(key, unrun(value)) : objectData(value)) : attribute(key, value);
   }
   if (later) for (const key of later) if (props[key] != null) open += attribute(key, props[key]);
   if (type === "input") {

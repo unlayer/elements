@@ -26,11 +26,12 @@ export const TAILWIND = Symbol.for("@unlayer/react-elements/tailwind");
 /**
  * What a handle does with a component's classes: its props, explicit ones kept over those from classes (`rtl`: in a
  * right-to-left document); and, before a render rewrites any, the classes in its components' props (`records`, each
- * with its component's `props`), all built at once (`prepare`: see the rewrite's).
+ * with its component's `props`), all built at once (`prepare`: see the rewrite's). `render`: the render's key (each
+ * render's classes are read together: a render reads its first 2,000 different ones), where the main entry gives one.
  */
 export interface Resolver {
-  props(name: string, className: string, explicit: Record<string, any>, defaults?: Record<string, any>, rtl?: boolean): Record<string, any>;
-  prepare?(records: readonly unknown[]): void;
+  props(name: string, className: string, explicit: Record<string, any>, defaults?: Record<string, any>, rtl?: boolean, render?: object): Record<string, any>;
+  prepare?(records: readonly unknown[], render?: object): void;
 }
 
 /**
@@ -57,28 +58,29 @@ function resolver({ tw, config }: TailwindProps, compiled?: unknown): Resolver {
  * the render's root reads right to left, as the main entry's render says (an older copy of it gives none); `compiled`:
  * what the render compiled, where it's an async render's (see Compiled).
  */
-function rewrite(scope: TailwindProps, name: string, defaults: Record<string, any> | undefined, props: Record<string, any>, rtl?: boolean, compiled?: unknown): Record<string, any> {
+function rewrite(scope: TailwindProps, name: string, defaults: Record<string, any> | undefined, props: Record<string, any>, rtl?: boolean, compiled?: unknown, render?: object): Record<string, any> {
   const { className, ...explicit } = props;
-  return resolver(scope, compiled).props(name, className ?? "", explicit, defaults, rtl);
+  return resolver(scope, compiled).props(name, className ?? "", explicit, defaults, rtl, render);
 }
 
 /**
- * Before a render rewrites any component's props: what it collected (`records`, each with its component's `props`,
- * whose `className` and `html` are read; the same list for each scope in the render), their classes built at once by
- * the scope's handle, once per render. Tailwind builds its whole stylesheet again for each class it hasn't built, so
- * the classes met one component at a time would take the square of their number. The main entry calls it, where the
- * scope's rewrite has it (an older copy's doesn't), with one object, which a later release can give more in; what it
- * returns isn't read. A scope without a handle is left for the rewrite to say, at the component it's for; what
- * Tailwind throws (a plugin's error) fails the render, as it does there.
+ * Before a render rewrites any component's props: the records in its scopes with this handle (`records`, each with
+ * its component's `props`, whose `className` and `html` are read; the same list for each of those scopes), their
+ * classes built at once by the scope's handle, once per render. Tailwind builds its whole stylesheet again for each
+ * class it hasn't built, so the classes met one component at a time would take the square of their number. The main
+ * entry calls it, where the scope's rewrite has it (an older copy's doesn't), with one object, which a later release
+ * can give more in; what it returns isn't read. A scope without a handle is left for the rewrite to say, at the
+ * component it's for; what Tailwind throws (a plugin's error) fails the render, and a later one where the component
+ * whose class it was reads it (see declarationReader).
  */
-function prepare({ scope, records, compiled }: { scope: TailwindProps; records: readonly unknown[]; compiled?: unknown }): void {
+function prepare({ scope, records, compiled, render }: { scope: TailwindProps; records: readonly unknown[]; compiled?: unknown; render?: object }): void {
   let handle: Resolver;
   try {
     handle = resolver(scope, compiled);
   } catch {
     return;
   }
-  handle.prepare?.(records);
+  handle.prepare?.(records, render);
 }
 (rewrite as unknown as Record<string, unknown>).prepare = prepare;
 
