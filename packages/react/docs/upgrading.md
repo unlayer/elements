@@ -37,6 +37,8 @@ React 18 and 19 are supported (the tests run on React 18.0, 18.2, 18.3, 19.1, 19
 
 ### Also changed
 
+- **A `javascript:` URL runs nothing, with React 18 too.** In a link or image Elements writes (a Menu item's or Social icon's on a page or in a document, a `<Link>`'s, markup a component of yours renders), it's written as react-dom 19 writes it, a URL that throws when clicked; on React 18, 0.2 wrote it as given. Links the editor's exporters write themselves (a Button's, an Image's, an email's Menu and Social) are as before.
+- **A link given as `null` is no link.** `<Button href={null}>` and `<Image action={null}>` failed to render in 0.2; they render without a link now, as with none.
 - **Zero lengths in the design are `0px`.** `containerPadding="0 0 12px"` is `"0px 0px 12px"` in the design, which Unlayer's design validation accepts. Lengths in other units, and the HTML, are as before.
 - **A Paragraph's `text` and string children show as typed in the editor too.** The design stores them escaped, as the HTML has them. The `html` prop and inline JSX are HTML, as before.
 - **A Row whose Columns don't fit its `layout` fails the render**, the HTML, the plain text and the design alike: `A Row with the TwoEqual layout, for 2 Columns, has 1 (in <Row> at Row 2)`. 0.2 rendered no rows at all (and its design kept the Row); with `onError: "omit"`, 0.3 leaves out only that Row and renders the others.
