@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import React from "react";
 import { render } from "@testing-library/react";
 import Button from "./Button";
@@ -177,6 +177,19 @@ describe("Button Component", () => {
       const { container } = render(<Button href="https://example.com" target="_self">Go</Button>);
       expect(container.querySelector("a")!.getAttribute("target")).toBe("_self");
       expect(link(<Button href="https://example.com" target="_self">Go</Button>)).toEqual({ name: "web", values: { href: "https://example.com", target: "_self" } });
+    });
+
+    it("a new tab (`_blank`) for one that could end its HTML attribute or start a tag, said", () => {
+      const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+      try {
+        const hostile = '"><img src=x onerror=alert(1)>';
+        const { container } = render(<Button href="https://example.com" target={hostile}>Go</Button>);
+        expect([container.querySelector("a")!.getAttribute("target"), container.querySelectorAll("img").length]).toEqual(["_blank", 0]);
+        expect(link(<Button href="https://example.com" target={hostile}>Go</Button>)).toEqual({ name: "web", values: { href: "https://example.com", target: "_blank" } });
+        expect(warn).toHaveBeenCalledWith(`[Unlayer] Button's target ${JSON.stringify(hostile)} could end its HTML attribute or start a tag, so the link opens in a new tab (_blank).`);
+      } finally {
+        warn.mockRestore();
+      }
     });
 
     it("a new tab (`_blank`) without one, as before", () => {

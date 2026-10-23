@@ -98,6 +98,8 @@
 
 - **A link in a heading keeps its URL in the plain text.** `renderToPlainText()` wrote `# [Pay invoice](https://example.com/pay)` as `PAY INVOICE`, as it did a Heading whose text or children hold a link and an `<h1>` to `<h6>` in an Html block: the link was in the HTML and the design, but not in the text email. A heading's links are now written as a paragraph's, in each `links` mode (`PAY INVOICE (https://example.com/pay)`), and a URL is never put in capitals, nor a link's text that is its URL. A URL with a `'` in it (`https://example.com/it's`, as a Button, a Menu item, an Image's link, a Table cell or markup can write it) was cut off at the `'`, and an `href` after a `data-href` gave that one's URL: each link's own URL is now whole.
 
+- **A Button's `target` is its link's.** `<Button href="…" target="_self">` opened in a new tab: 0.2 typed the prop but left it out. A target that could end its HTML attribute or start a tag (`"`, `'`, `<`, `>`, a backtick: one from data), a Button's or a Menu item's, is a new tab (`_blank`) instead, said for a Button.
+
 - **Types for CommonJS projects and `moduleResolution: "node"`.** A TypeScript project that compiles to CommonJS (`module: "node16"` or `"nodenext"`, without `"type": "module"`) got Elements' ES module types for its `require()`s (arethetypeswrong: "Masquerading as ESM"), and the CommonJS ones (`.d.cts`) went unused. Each entry's `import` now resolves to its `.d.ts` types and its `require` to its `.d.cts` ones. With `moduleResolution: "node"` (TypeScript's `node10`), the entries other than the main one (`/tailwind`, `/code`, …) had no types (TS2307): `typesVersions` gives them. The JavaScript each import or `require()` loads is the same.
 
 ### Changed
