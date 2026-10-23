@@ -186,6 +186,37 @@ export const PROP_ALIASES: Record<string, Record<string, string>> = {
 
 const LINK_KEYS = ["href", "action"] as const;
 
+const JAVASCRIPT_URL = /^[\u0000-\u001F ]*j[\r\n\t]*a[\r\n\t]*v[\r\n\t]*a[\r\n\t]*s[\r\n\t]*c[\r\n\t]*r[\r\n\t]*i[\r\n\t]*p[\r\n\t]*t[\r\n\t]*:/i;
+
+/**
+ * A URL that can't run code: a `javascript:` URL (as React 19 tells one: controls and spaces before it, tabs and line
+ * breaks in it, any case) as the one react-dom 19 writes for it, which throws; any other as it is.
+ */
+export const unrunUrl = (url: string): string => (JAVASCRIPT_URL.test(url) ? "javascript:throw new Error('React has blocked a javascript: URL as a security precaution.')" : url);
+
+/** A link of any shape (`"…"`, `{ url }`, `{ name, values: { href } }`) with its URL as unrunUrl writes it (a list or a number as its text). */
+function unrunLink(link: any): any {
+  const blocked = (url: unknown) => url != null && unrunUrl(String(url)) !== String(url);
+  if (typeof link !== "object" || link === null) return blocked(link) ? unrunUrl(String(link)) : link;
+  if (blocked(link.url)) link = { ...link, url: unrunUrl(String(link.url)) };
+  if (blocked(link.values?.href)) link = { ...link, values: { ...link.values, href: unrunUrl(String(link.values.href)) } };
+  return link;
+}
+
+/**
+ * A block's values with no link URL that runs code (see unrunUrl), in the HTML and the design alike: its `href` and
+ * `action` (Button, Image, Video), a Menu's items' links and a Social's icons' URLs, however they were given. The
+ * editor's exporters write those links as they are, in every mode (0.2.1 did too).
+ */
+export function unrunLinks<T>(values: T, name: string): T {
+  if (!values || typeof values !== "object") return values;
+  const out: Record<string, any> = { ...values };
+  for (const key of LINK_KEYS) if (out[key] != null) out[key] = unrunLink(out[key]);
+  if (name === "Menu" && Array.isArray(out.menu?.items)) out.menu = { ...out.menu, items: out.menu.items.map((item: any) => (item?.link != null ? { ...item, link: unrunLink(item.link) } : item)) };
+  if (name === "Social" && Array.isArray(out.icons?.icons)) out.icons = { ...out.icons, icons: out.icons.icons.map((icon: any) => (icon?.url != null ? { ...icon, url: unrunLink(icon.url) } : icon)) };
+  return out as T;
+}
+
 /**
  * A link's target, which the exporters write into a `target="…"` as it is: one that could end the attribute or start
  * a tag (`"`, `'`, `<`, `>`, a backtick), or that isn't a string (an array from a JSON body, written as its text), is

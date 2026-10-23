@@ -14,6 +14,10 @@ function asNone(withNull: React.ReactElement, without: React.ReactElement) {
   }
 }
 describe("Social Component", () => {
+  it("skips a null or undefined icon (nullable data), in each root", () => {
+    asNone(<Social icons={[null as never, { name: "Facebook", url: "https://facebook.com/x" }, undefined as never]} />, <Social icons={[{ name: "Facebook", url: "https://facebook.com/x" }]} />);
+  });
+
   it("takes an icon's `url` of null (nullable data) as none, in each root", () => {
     asNone(<Social icons={[{ name: "Facebook", url: null as never }, { name: "X", url: "https://x.com/a" }]} />, <Social icons={[{ name: "Facebook" } as never, { name: "X", url: "https://x.com/a" }]} />);
   });
