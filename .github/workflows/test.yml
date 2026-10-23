@@ -58,8 +58,13 @@ jobs:
         run: pnpm --filter @unlayer/from-react-email typecheck && pnpm --filter @unlayer/migrate typecheck
 
       # ── Bundle size budget ──────────────────────────────────────
-      # Fail if the react-elements ESM bundle exceeds 202.5KB.
-      # Current size: about 202.2KB (0.1.22: about 76KB). Raised from 200KB
+      # Fail if the react-elements ESM bundle exceeds 203KB.
+      # Current size: about 202.7KB (0.1.22: about 76KB). Raised from 202.5KB
+      # (about 0.4KB): a render gives a <Tailwind>'s rewrite what it
+      # collected, so its classes are compiled at once (one at a time, a
+      # few thousand from data took seconds), and a link's target, a Menu
+      # item's text or a Social icon's name that isn't a string is a new tab
+      # or its text. Raised from 200KB
       # (about 2.2KB): rich text in children reads a link's URL with its
       # character references decoded (the Markdown sanitizer's decoder, now
       # shared), a link's target that could end its attribute is a new tab,
@@ -163,7 +168,7 @@ jobs:
         run: |
           BUNDLE="packages/react/dist/index.js"
           SIZE=$(wc -c < "$BUNDLE" | tr -d ' ')
-          MAX_SIZE=202500
+          MAX_SIZE=203000
           echo "Bundle: $BUNDLE"
           echo "Size: $SIZE bytes (budget: $MAX_SIZE bytes)"
           if [ "$SIZE" -gt "$MAX_SIZE" ]; then
