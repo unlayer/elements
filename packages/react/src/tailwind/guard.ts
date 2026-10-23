@@ -12,11 +12,10 @@ import { readable, type PluginFailure } from "./declarations";
 type Api = Record<string, any>;
 type Fn = (this: unknown, ...args: any[]) => unknown;
 
-/** The keys of a function's `values` that give `value` (none: undefined, any of the function's classes). */
-function keysOf(values: unknown, value: unknown): string[] | undefined {
-  if (!values || typeof values !== "object") return undefined;
-  const keys = Object.keys(values).filter((key) => (values as Record<string, unknown>)[key] === value);
-  return keys.length ? keys : undefined;
+/** The keys of a function's `values` that give `value`; where none does, the value (a class's arbitrary or bare one). */
+function keysOf(values: unknown, value: unknown): Pick<PluginFailure, "keys" | "value"> {
+  const keys = values && typeof values === "object" ? Object.keys(values).filter((key) => (values as Record<string, unknown>)[key] === value) : [];
+  return keys.length ? { keys } : typeof value === "string" ? { value } : {};
 }
 
 /** Whether what a plugin's function gave reads as CSS: each string in it, a key or a value, as `readable` takes a class. */
@@ -37,11 +36,11 @@ export function guarded<T>(config: T, log: PluginFailure[], building: () => bool
       try {
         out = fn.call(this, value, extra);
       } catch (error) {
-        log.push({ name, variant, keys: keysOf(values, value), error });
+        log.push({ name, variant, ...keysOf(values, value), error });
         return variant ? [] : {};
       }
       if (clean(out)) return out;
-      log.push({ name, variant, keys: keysOf(values, value) });
+      log.push({ name, variant, ...keysOf(values, value) });
       return variant ? [] : {};
     };
   const api = (given: Api): Api => {

@@ -197,11 +197,13 @@ describe("a `javascript:` URL", () => {
     }
   });
 
-  it("is written so as an icon's image too, and one written as character references stays text", () => {
+  it("is written so as an icon's image too, and as a block's link however it's written", () => {
     const html = (root: React.ReactElement) => new JSDOM(renderToHtml(root)).window.document;
+    // A block's link written with a character reference: the editor's exporters write it as it is in an email (where a
+    // browser decodes it) and the design holds it so, so it's the URL that throws in every mode.
     const page = html(<Page><Row><Column><Social icons={{ iconType: "circle", icons: [{ name: "Facebook", url: "&#106;avascript:x", imgUrl: "javascript:x" }] } as never} /></Column></Row></Page>);
     expect(page.querySelector("img")!.getAttribute("src")).toBe(BLOCKED);
-    // (Its `&` written as `&amp;`: the link is the text `&#106;avascript:x`, a relative URL.)
-    expect(page.querySelector("a")!.getAttribute("href")).toBe("&#106;avascript:x");
+    expect(page.querySelector("a")!.getAttribute("href")).toBe(BLOCKED);
+    // (Markup React writes escapes its `&`, so a reference in it stays text: see text-children.test.tsx.)
   });
 });

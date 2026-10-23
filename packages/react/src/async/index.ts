@@ -120,9 +120,21 @@ async function render<T>(element: React.ReactElement, options: Partial<UnlayerCo
     return undefined;
   };
   // (Right before the render, which is synchronous: nothing compiles again in between.)
-  const waiting = compiled([...given, ...[...handles.values()].flatMap((compiled) => [...compiled.values()])]);
+  const all = [...given, ...[...handles.values()].flatMap((compiled) => [...compiled.values()])];
+  const waiting = compiled(all);
   if (waiting) await waiting;
-  return internals.withScope(scope, () => run(internals.renders, root));
+  // A class of its own Tailwind couldn't read makes it compile again as it renders: it waits, and renders again, in
+  // its scope (what it worked out kept, its components not run again), a few times at most (each such class is built
+  // alone first, then refused).
+  for (let again = 3; ; again--) {
+    try {
+      return internals.withScope(scope, () => run(internals.renders, root));
+    } catch (error) {
+      const wait = again > 0 && (error as Record<symbol, { compiling?: boolean }> | null)?.[TAILWIND]?.compiling ? compiled(all) : undefined;
+      if (!wait) throw error;
+      await wait;
+    }
+  }
 }
 
 /**
