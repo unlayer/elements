@@ -6,8 +6,23 @@ import Body from "./Body";
 import Row from "./Row";
 import { Column } from "./Column";
 import { renderToJson } from "../utils/render-to-json";
+import * as Roots from "../index";
 
+
+/** A block given a link of null (nullable data) and the same block given none, in each root: the HTML and the design. */
+function asNone(withNull: React.ReactElement, without: React.ReactElement) {
+  for (const Root of [Roots.Email, Roots.Page, Roots.Document]) {
+    const tree = (block: React.ReactElement) => <Root><Roots.Row><Roots.Column>{block}</Roots.Column></Roots.Row></Root>;
+    expect(Roots.renderToHtml(tree(withNull)), Root.displayName).toBe(Roots.renderToHtml(tree(without)));
+    expect(Roots.renderToJson(tree(withNull))).toEqual(Roots.renderToJson(tree(without)));
+  }
+}
 describe("Button Component", () => {
+  it("takes an `href` or `action` of null (nullable data) as none, in each root", () => {
+    asNone(<Button href={null as never}>Go</Button>, <Button>Go</Button>);
+    asNone(<Button action={null as never}>Go</Button>, <Button>Go</Button>);
+  });
+
   it("renders an anchor element with button text", () => {
     const { container } = render(<Button>Click me</Button>);
     const link = container.querySelector("a");

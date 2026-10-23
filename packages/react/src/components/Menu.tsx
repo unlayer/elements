@@ -62,7 +62,8 @@ const Menu = createItemComponent<MenuValues, MenuSemanticProps>({
         text: item.text,
         link: {
           name: "web",
-          values: { href: item.href, target: item.target ?? "_blank" },
+          // (An href of null, from nullable data, is none, as one left out is.)
+          values: { href: item.href ?? undefined, target: item.target ?? "_blank" },
         },
       }));
       const base: Partial<MenuValues> = mapSemanticProps(rest as SemanticProps<MenuValues>, DEFAULT_VALUES, "Menu");
