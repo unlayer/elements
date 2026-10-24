@@ -149,20 +149,32 @@ function counted(rule: RegExp, inline: Inline): RegExp {
   })(rule.source, rule.flags);
 }
 
+/** The work a Markdown can take: its inline syntax's (see WORK) and its quotes' and list items' lines' (QUOTE_WORK). */
+export interface Work {
+  inline: number;
+  quotes: number;
+}
+
 /**
  * marked's lexer for a Markdown of `size` characters: its tables and its quotes' and lists' nesting kept to `cells`
- * and NESTING, its quotes to QUOTE_WORK (see limits.ts), its inline syntax to the work and the nesting above.
+ * and NESTING, its quotes to QUOTE_WORK (see limits.ts), its inline syntax to the work and the nesting above; or to
+ * `work`, where that's given (the render's: see work.ts).
  */
 export class Bounded extends Lexer {
   /** How deep in emphasis, strikethrough and links the inline lexer is reading. */
   depth = 0;
   private reader: Inline;
 
-  constructor({ breaks, cells, size }: { breaks: boolean; cells: number; size: number }) {
-    const inline = new Inline(cells, QUOTE_BASE + QUOTE_WORK * size, BASE + WORK * size, breaks);
+  constructor({ breaks, cells, size, work }: { breaks: boolean; cells: number; size: number; work?: Work }) {
+    const inline = new Inline(cells, work?.quotes ?? QUOTE_BASE + QUOTE_WORK * size, work?.inline ?? BASE + WORK * size, breaks);
     super({ gfm: true, breaks, tokenizer: inline });
     inline.count();
     this.reader = inline;
+  }
+
+  /** The work it has left (below zero, spent). */
+  get left(): Work {
+    return { inline: this.reader.left, quotes: this.reader.quotesLeft };
   }
 
   blockTokens(src: string, tokens?: Token[], lastParagraphClipped?: boolean): Token[];

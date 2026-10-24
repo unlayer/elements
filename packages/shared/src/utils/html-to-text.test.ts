@@ -238,8 +238,24 @@ describe("htmlToPlainText", () => {
       expect(htmlToPlainText("<pre>\n" + " ".repeat(1000) + "x  \n</pre>")).toBe("\n" + " ".repeat(1000) + "x\n");
     });
 
+    it("reads a tag whose name has a word boundary at each character (`a-a-…`) once, after an element it leaves out", () => {
+      // Each of the name's starts a boundary ends was a name of its own (an element left out ends at a tag of any of
+      // them): 40 KB of `A-` took 1.3 s and 0.9 GB, 100 KB ran out of memory.
+      for (const unit of ["A-", "a-", "a-B-", "a--"]) {
+        const page = (bytes: number) => {
+          const name = fill(unit, bytes) + "a";
+          return `<div data-skip-in-text="true"></div><${name}>x</${name}><p data-skip-in-text="true"><${name}><p>y</p></${name.toUpperCase()}></p>z`;
+        };
+        const small = Math.max(time(page(4096)), 1);
+        const large = time(page(40960));
+        expect([unit, large < 20 * small || large < 50, large < 500]).toEqual([unit, true, true]);
+        // As before: the paragraph left out ends at its own `</p>`, past the tags of the long name.
+        expect(htmlToPlainText(page(100))).toBe("xz");
+      }
+    });
+
     it("costs about ten times as much for ten times as much of any short shape (random, seeded)", () => {
-      const pieces = ["<a ", '<a href="x">', "</a>", "<li>", "</li>", "<h1>", "</h1>", "<h3>", "<pre>", "</pre>", "</td>", "<img ", '<img alt="a" ', "alt=", '"', "'", ">", "/>", "<", "<!--", "-->", "<head", "</head>", "<style", "<script", "<br", " ", "\t", "\n", "\r", "\u2028", "a", "&", "&amp;", "<%", "%>", "<p>", "</p>", '<div data-skip-in-text="true">', "<div>", "</div>", "<hr", "-", "x-"];
+      const pieces = ["<a ", '<a href="x">', "</a>", "<li>", "</li>", "<h1>", "</h1>", "<h3>", "<pre>", "</pre>", "</td>", "<img ", '<img alt="a" ', "alt=", '"', "'", ">", "/>", "<", "<!--", "-->", "<head", "</head>", "<style", "<script", "<br", " ", "\t", "\n", "\r", "\u2028", "a", "&", "&amp;", "<%", "%>", "<p>", "</p>", '<div data-skip-in-text="true">', "<div>", "</div>", "<hr", "-", "x-", "a-", "A-", "<a-a-", "</A-A-"];
       let seed = 7;
       const random = (n: number) => ((seed = (Math.imul(seed, 1103515245) + 12345) >>> 0), Math.floor((seed / 2 ** 32) * n));
       const slow: string[] = [];
@@ -247,8 +263,10 @@ describe("htmlToPlainText", () => {
         let unit = "";
         for (let i = 0, n = 1 + random(5); i < n; i++) unit += pieces[random(pieces.length)];
         const options = [{}, { links: "after" as const }, { skip: ["img", ".promo"] }][random(3)];
-        const small = Math.max(time(fill(unit, 10240), options), 1);
-        const large = time(fill(unit, 102400), options);
+        // Sometimes after an element left out and a tag's `<`: a unit of a name's characters is then one long name.
+        const head = random(4) ? "" : '<div data-skip-in-text="true"></div><';
+        const small = Math.max(time(head + fill(unit, 10240), options), 1);
+        const large = time(head + fill(unit, 102400), options);
         if (large > 20 * small && large > 50) slow.push(`${JSON.stringify(unit)}: ${small.toFixed(1)} ms for 10 KB, ${large.toFixed(1)} ms for 100 KB`);
       }
       expect(slow).toEqual([]);

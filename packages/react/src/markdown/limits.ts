@@ -146,6 +146,11 @@ export class Limited extends Tokenizer {
     return this.joins(["text", "paragraph"]) ? super.def(src) : undefined;
   }
 
+  /** The work its quotes and list items' lines have left: below zero, it's spent. */
+  get quotesLeft(): number {
+    return this.work;
+  }
+
   space(src: string): Tokens.Space | undefined {
     const space = super.space(src);
     if (!space) this.reading = true;
