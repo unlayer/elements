@@ -57,7 +57,9 @@ export function roundTrip(design: Plain, options?: DesignToElementsOptions): Rou
   return { code, warnings, design: back, differences: compareDesigns(design, back) };
 }
 
-export const PACKAGE = path.resolve(__dirname, "../..");
+// (Read by codegen's own tests only. Not with `path`, which the production test run, React's production build, loads
+// as an empty module, where a regression test evaluates generated code.)
+export const PACKAGE = __dirname.replace(/[\\/]src[\\/]codegen[\\/]?$/, "");
 
 /** Diagnostics for `modules` (path → code) type-checked with the package's tsconfig.typecheck.json. */
 export function typecheck(modules: Map<string, string>): string[] {
