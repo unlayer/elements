@@ -4,14 +4,14 @@
  * (the waiting itself is the async entry's: see src/async/collect.ts), the synchronous renders in that scope (the
  * render functions make one of their own), the engine's static markup, a part of a template that's left out alone
  * when it fails (Markdown's), and what a component shares with the rest of its render (the work left to the Markdown
- * and code entries' blocks: see render-shared.ts).
+ * and code entries' blocks: see render-scope.ts's sharedByRender).
  */
 import type React from "react";
 import type { UnlayerConfig } from "@unlayer-internal/shared-elements";
 import { collectedFrom, collecting, type Collected } from "../model";
 import { isElementsType, providedConfig, sayUnread, unwrapSteps, type Steps, type Unwrapped } from "./unwrap-root";
 import { isRoot, rootName, ROOTLESS } from "./root-type";
-import { newScope, setRenderConfig, withScope, type Scope } from "./render-scope";
+import { newScope, renderDone, setRenderConfig, sharedByRender, withScope, type Scope } from "./render-scope";
 import { rootConfig, type RootConfigProps } from "../context/layer-config";
 import { htmlDocument, htmlParts, plainText } from "./render-to-html";
 import { designJson } from "./render-to-json";
@@ -28,7 +28,7 @@ export const INTERNALS = Symbol.for("@unlayer/react-elements/internals");
  */
 async function unwrapAsync(element: React.ReactElement, scope: Scope, take: (steps: Steps) => Promise<Unwrapped>, idPrefix?: string, api?: string): Promise<React.ReactElement> {
   if (typeof element.type === "string" || isElementsType(element.type)) return element;
-  const found = (scope.unwrapped = await take(unwrapSteps(element, idPrefix)));
+  const found = (scope.unwrapped = await take(unwrapSteps(element, withScope(scope, sharedByRender), idPrefix)));
   if (isRoot(found.root.type)) return found.root;
   if (api) withScope(scope, () => sayUnread(found, element, api));
   return found.rendered ?? element;
@@ -68,4 +68,4 @@ export type Renders = typeof renders;
  */
 const part = (child: React.ReactElement): React.ReactElement => boundary({ kind: "boundary", element: child }, child);
 
-export const internals = { newScope, withScope, unwrapAsync, collectAsync, isRoot, render: renderStatic, engine, renders, part, shared: renderShared };
+export const internals = { newScope, withScope, unwrapAsync, collectAsync, isRoot, render: renderStatic, engine, renders, part, shared: renderShared, done: renderDone };
