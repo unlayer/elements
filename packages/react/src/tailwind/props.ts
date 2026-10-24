@@ -136,12 +136,12 @@ const LENGTH = /^(\d*\.?\d+)(px|%|em)?$/;
 const plain = (v: unknown): v is Record<string, any> => !!v && typeof v === "object" && !Array.isArray(v);
 
 /**
- * Props without those given as `undefined`: a prop passed as `undefined` (a wrapper of yours forwarding one it wasn't
- * given, `color={props.color}`) is one not given, as `given` reads it, so a class sets it.
+ * Props without those given as `undefined` or `null`: a prop passed as either (a wrapper of yours forwarding one it
+ * wasn't given, `color={props.color}`, or data's `null`) is one not given, as `given` reads it, so a class sets it.
  */
 const defined = (props: Record<PropertyKey, any> | undefined): Record<PropertyKey, any> => {
   const out: Record<PropertyKey, any> = {};
-  if (props) for (const key of [...Object.keys(props), ...Object.getOwnPropertySymbols(props)]) if (props[key] !== undefined) out[key] = props[key];
+  if (props) for (const key of [...Object.keys(props), ...Object.getOwnPropertySymbols(props)]) if (props[key] != null) out[key] = props[key];
   return out;
 };
 
@@ -152,7 +152,7 @@ const defined = (props: Record<PropertyKey, any> | undefined): Record<PropertyKe
  */
 export function given(explicit: Record<string, any>, prop: string, name = ""): boolean {
   const look = (p: string) =>
-    [explicit, explicit.values].some((o) => plain(o) && (o[p] !== undefined || Object.entries(o).some(([k, v]) => !/^(mobile|_override|values)$/.test(k) && plain(v) && v[p] !== undefined)));
+    [explicit, explicit.values].some((o) => plain(o) && (o[p] != null || Object.entries(o).some(([k, v]) => !/^(mobile|_override|values)$/.test(k) && plain(v) && v[p] != null)));
   const aliases = Object.entries(PROP_ALIASES[name] ?? {}).flatMap(([alias, props]) => (props.split(" ").includes(prop) ? [alias] : []));
   // An image's width, max and min width are one setting.
   return look(prop) || aliases.some(look) || (/^(width|maxWidth|minWidth)$/.test(prop) && ["width", "maxWidth"].some(look));

@@ -117,10 +117,21 @@ const unrendered = (key: number, reason: string) => part(<Unrendered key={key} r
 
 type Table = Tokens.Table & { tooLarge?: TooLarge };
 
+/**
+ * The code a Markdown's blocks can be highlighted with: their sizes squared, together. highlight.js's time can grow
+ * with a block's size squared (see the code entry's HIGHLIGHT_LIMIT, the most it's given at once: this is that
+ * squared), so this is a block of 8,192 characters, or many smaller ones (64 of 1,024, a thousand of 256), about 0.4 s
+ * at the most; past it a block is shown without colors. 46 MB of READMEs and docs held more in 21 of 4,782 documents.
+ */
+const CODE_WORK = 8192 ** 2;
+
 /** Turns Markdown's tokens into Elements blocks and the HTML in their text. */
 class Writer {
   /** Why the block being written can't render (a table in its list or quote is too large: see Unrendered). */
   private failed: string | undefined;
+  /** What's left of CODE_WORK, and the code blocks past it (shown without colors). */
+  private codeLeft = CODE_WORK;
+  plain = 0;
 
   constructor(private props: MarkdownProps) {}
 
@@ -196,9 +207,21 @@ class Writer {
     return this.props.breaks ? html.replace(/\n/g, "<br/>") : html;
   }
 
-  private code(token: Tokens.Code): string {
+  /** A code block's language, where highlighting it fits in what's left of CODE_WORK; past it none (no colors). */
+  private language(token: Tokens.Code, given: string | undefined): string | undefined {
+    const language = token.lang?.trim().split(/\s+/)[0] || given;
+    const work = token.text.length ** 2;
+    if (!language || work <= this.codeLeft) {
+      if (language) this.codeLeft -= work;
+      return language;
+    }
+    this.plain++;
+    return undefined;
+  }
+
+  private codeBlock(token: Tokens.Code): string {
     const { language, ...options } = this.props.blocks?.code ?? {};
-    return highlightCode(token.text, { ...options, language: token.lang?.trim().split(/\s+/)[0] || language });
+    return highlightCode(token.text, { ...options, language: this.language(token, language) });
   }
 
   /** A block inside a list or quote, as HTML. */
@@ -219,7 +242,7 @@ class Writer {
       case "checkbox":
         return this.inline([token]);
       case "code":
-        return this.code(token as Tokens.Code);
+        return this.codeBlock(token as Tokens.Code);
       case "hr":
         return `<hr${this.style("hr")} />`;
       case "html":
@@ -310,7 +333,7 @@ class Writer {
         }
         case "code": {
           const { language, ...options } = blocks.code ?? {};
-          return <CodeBlock key={key} {...options} language={(token as Tokens.Code).lang?.trim().split(/\s+/)[0] || language} code={(token as Tokens.Code).text} />;
+          return <CodeBlock key={key} {...options} language={this.language(token as Tokens.Code, language)} code={(token as Tokens.Code).text} />;
         }
         case "html": {
           const html = this.raw(token.text);
@@ -345,7 +368,13 @@ export function Markdown(props: MarkdownProps): React.ReactElement {
   const source = dedent(props.markdown ?? textOf(props.children));
   // (Its tables, its quotes' and lists' nesting and its inline syntax kept to what its size calls for: see limits.ts and inline.ts.)
   const tokens = new Bounded({ breaks: !!props.breaks, cells: Math.max(TABLE_CELLS, source.length), size: source.length }).lex(source);
-  return <>{new Writer(props).blocks(tokens)}</>;
+  const writer = new Writer(props);
+  const blocks = writer.blocks(tokens);
+  if (writer.plain)
+    console.warn(
+      `[Unlayer] Markdown: ${writer.plain} of its code blocks ${writer.plain > 1 ? "are" : "is"} shown without colors: its code blocks' sizes squared add up to more than the ${CODE_WORK} highlight.js is given for one Markdown (on some code its time grows with a block's size squared).`
+    );
+  return <>{blocks}</>;
 }
 
 Markdown.displayName = "Markdown";

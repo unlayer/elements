@@ -6,18 +6,26 @@
  * while a build runs, or gives that the compiler would throw for (see `compilable` and `selectors`), is logged
  * instead, and the class gives no CSS; the reader (declarations.ts) fails the component whose class it was, where it's
  * read. What can't be read as CSS (a quote or a bracket left open, a comment: see `readable`) is logged too, and the
- * class left out; nothing (`undefined` or `null`, as a function returns for a value it doesn't take) is no CSS, the
- * class one Tailwind doesn't have, as Tailwind 3 took it.
+ * class left out; nothing (`undefined`, `null` or `false`, as a function returns for a value it doesn't take) is no
+ * CSS, the class one Tailwind doesn't have, as Tailwind 3 took it.
  */
 import { APPLY, readable, type PluginFailure } from "./declarations";
 
 type Api = Record<string, any>;
 type Fn = (this: unknown, ...args: any[]) => unknown;
 
-/** The keys of a function's `values` that give `value`; where none does, the value (a class's arbitrary or bare one). */
-function keysOf(values: unknown, value: unknown): Pick<PluginFailure, "keys" | "value"> {
-  const keys = values && typeof values === "object" ? Object.keys(values).filter((key) => (values as Record<string, unknown>)[key] === value) : [];
-  return keys.length ? { keys } : typeof value === "string" ? { value } : {};
+/** The keys of `map` (a function's `values` or `modifiers`) that give `value`. */
+const keysIn = (map: unknown, value: unknown): string[] => (map && typeof map === "object" ? Object.keys(map).filter((key) => (map as Record<string, unknown>)[key] === value) : []);
+
+/**
+ * What a function was given, to tie its failure to its class: its value (as Tailwind gave it: an arbitrary one
+ * decoded, `(--x)` as `var(--x)`) and the keys of its `values` that give it, and its modifier, with the keys of its
+ * `modifiers` that give that.
+ */
+function given(values: unknown, modifiers: unknown, value: unknown, extra: unknown): Pick<PluginFailure, "keys" | "value" | "modifier" | "modifierKeys"> {
+  const keys = keysIn(values, value);
+  const modifier = (extra as { modifier?: unknown } | null | undefined)?.modifier;
+  return { ...(keys.length ? { keys } : {}), ...(typeof value === "string" ? { value } : {}), ...(typeof modifier === "string" ? { modifier, modifierKeys: keysIn(modifiers, modifier) } : {}) };
 }
 
 /** Whether what a plugin's function gave reads as CSS: each string in it, a key or a value, as `readable` takes a class. */
@@ -34,6 +42,10 @@ const what = (out: unknown): string => (Array.isArray(out) ? "a list" : out && t
  * compiler would: for a list holding nothing (`[null]`), and for what nests more than 32 deep.
  */
 function compilable(out: unknown, name: string): unknown {
+  // (CSS is an object, or a list of them: Tailwind reads a string, a number or a function as no CSS, or as characters.)
+  const css = (item: unknown) => !!item && typeof item === "object";
+  const bad = Array.isArray(out) ? out.find((item) => !css(item)) : out;
+  if (!css(out) || (Array.isArray(out) && out.some((item) => !css(item)))) throw new Error(`<Tailwind>: the plugin's \`${name}\` function gives ${Array.isArray(out) ? `a list holding ${what(bad)}` : what(out)}, not CSS (an object, or a list of them)`);
   let applies = 0;
   const walk = (value: unknown, depth: number): unknown => {
     if (depth > 32) throw new Error(`<Tailwind>: the plugin's \`${name}\` function gives CSS nested more than 32 deep`);
@@ -70,16 +82,16 @@ function selectors(out: unknown, name: string): unknown {
  */
 export function guarded<T>(config: T, log: PluginFailure[], building: () => boolean): T {
   if (!config || typeof config !== "object") return config;
-  const guard = (fn: Fn, name: string, variant: boolean, values: unknown): Fn =>
+  const guard = (fn: Fn, name: string, variant: boolean, options?: Api): Fn =>
     function (value, extra) {
       if (!building()) return fn.call(this, value, extra);
       try {
         const out = fn.call(this, value, extra);
-        if (out == null) return variant ? [] : {};
+        if (out == null || out === false) return variant ? [] : {};
         if (clean(out)) return variant ? selectors(out, name) : compilable(out, name);
-        log.push({ name, variant, ...keysOf(values, value) });
+        log.push({ name, variant, ...given(options?.values, options?.modifiers, value, extra) });
       } catch (error) {
-        log.push({ name, variant, ...keysOf(values, value), error });
+        log.push({ name, variant, ...given(options?.values, options?.modifiers, value, extra), error });
       }
       return variant ? [] : {};
     };
@@ -88,8 +100,8 @@ export function guarded<T>(config: T, log: PluginFailure[], building: () => bool
     for (const method of ["matchUtilities", "matchComponents"])
       if (typeof given[method] === "function")
         own[method] = (fns: Record<string, unknown>, options?: Api) =>
-          given[method](Object.fromEntries(Object.entries(fns ?? {}).map(([name, fn]) => [name, typeof fn === "function" ? guard(fn as Fn, name, false, options?.values) : fn])), options);
-    if (typeof given.matchVariant === "function") own.matchVariant = (name: string, fn: unknown, options?: Api) => given.matchVariant(name, typeof fn === "function" ? guard(fn as Fn, name, true, options?.values) : fn, options);
+          given[method](Object.fromEntries(Object.entries(fns ?? {}).map(([name, fn]) => [name, typeof fn === "function" ? guard(fn as Fn, name, false, options) : fn])), options);
+    if (typeof given.matchVariant === "function") own.matchVariant = (name: string, fn: unknown, options?: Api) => given.matchVariant(name, typeof fn === "function" ? guard(fn as Fn, name, true, options) : fn, options);
     return own;
   };
   const handler = (fn: unknown) => (typeof fn === "function" ? function (this: unknown, given: Api) { return fn.call(this, api(given)); } : fn);

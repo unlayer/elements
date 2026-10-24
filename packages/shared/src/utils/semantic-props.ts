@@ -213,13 +213,14 @@ function unrunLink(link: any): any {
 
 /**
  * A block's values with no link URL that runs code (see unrunUrl), in the HTML and the design alike: its `href` and
- * `action` (Button, Image, Video), a Menu's items' links and a Social's icons' URLs, however they were given. The
- * editor's exporters write those links as they are, in every mode (0.2.1 did too).
+ * `action` (Button, Image, Video), a Video's URL (an email's link to it), a Menu's items' links and a Social's icons'
+ * URLs, however they were given. The editor's exporters write those links as they are, in every mode (0.2.1 did too).
  */
 export function unrunLinks<T>(values: T, name: string): T {
   if (!values || typeof values !== "object") return values;
   const out: Record<string, any> = { ...values };
   for (const key of LINK_KEYS) if (out[key] != null) out[key] = unrunLink(out[key]);
+  if (name === "Video" && out.video && typeof out.video === "object" && out.video.url != null) out.video = { ...out.video, url: unrunLink(out.video.url) };
   if (name === "Menu" && Array.isArray(out.menu?.items)) out.menu = { ...out.menu, items: out.menu.items.map((item: any) => (item?.link != null ? { ...item, link: unrunLink(item.link) } : item)) };
   if (name === "Social" && Array.isArray(out.icons?.icons)) out.icons = { ...out.icons, icons: out.icons.icons.map((icon: any) => (icon?.url != null ? { ...icon, url: unrunLink(icon.url) } : icon)) };
   return out as T;
@@ -357,7 +358,8 @@ export function mapSemanticProps<T extends Record<string, any>>(
   const flat: Record<string, any> = {};
   for (const key of Object.keys(userProps)) {
     const value = userProps[key];
-    if (value === undefined) continue;
+    // (A prop given as `null`, as data gives one it hasn't, is one not given: `color: ;` isn't a color.)
+    if (value == null) continue;
     if (nestedGroups.has(key)) nested[key] = value;
     else {
       const group = owners.get(key);
@@ -485,9 +487,14 @@ function safeLink(given: Record<string, any>): Record<string, any> {
   // Its target too (see safeTarget).
   const target = safeTarget(given.target);
   const link = target === given.target ? given : { ...given, target };
-  // A URL that isn't a string (an array from a JSON body or `?url[]=`) is written as its text: escaped as one.
-  return link.url == null ? link : { ...link, url: String(link.url).replace(/<%[\w.]+%>|["<>]/g, (c) => (c.length > 1 ? c : encodeURIComponent(c))) };
+  return link.url == null ? link : { ...link, url: attributeUrl(link.url) };
 }
+
+/**
+ * A URL the exporters write into an attribute as it is (a link's `href`, an image's `src`), with what can end it
+ * percent-encoded (see safeLink). One that isn't a string (an array from a JSON body or `?url[]=`) is its text.
+ */
+const attributeUrl = (url: unknown) => String(url).replace(/<%[\w.]+%>|["<>]/g, (c) => (c.length > 1 ? c : encodeURIComponent(c)));
 
 /**
  * Normalize all link/action fields on an item's values to the render-value
@@ -547,7 +554,16 @@ export function normalizeValuesForExporter<T extends Record<string, any>>(
   // array from a JSON body) is its text.
   if (componentName === "Social" && out.icons && Array.isArray(out.icons.icons)) {
     const named = (icon: any) => (icon.name == null || (mode !== "email" && typeof icon.name === "string") ? icon : { ...icon, name: mode === "email" ? escapeText(String(icon.name), true) : String(icon.name) });
-    out.icons = { ...out.icons, icons: out.icons.icons.map((icon: any) => (icon && typeof icon === "object" ? named(safeLink(icon)) : icon)) };
+    // And an image of its own (`imgUrl`), which an email writes into its `src` as it is.
+    const imaged = (icon: any) => (icon.imgUrl == null ? icon : { ...icon, imgUrl: attributeUrl(icon.imgUrl) });
+    out.icons = { ...out.icons, icons: out.icons.icons.map((icon: any) => (icon && typeof icon === "object" ? imaged(named(safeLink(icon))) : icon)) };
+  }
+
+  // A Video's URL and thumbnail, which an email writes into its link's `href` and its image's `src` as they are.
+  if (componentName === "Video" && mode === "email" && out.video && typeof out.video === "object") {
+    const video = { ...out.video };
+    for (const key of ["url", "thumbnail"]) if (video[key] != null) video[key] = attributeUrl(video[key]);
+    out.video = video;
   }
 
   return out as T;

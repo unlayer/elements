@@ -14,7 +14,9 @@ import { beforeAll, describe, expect, it, vi } from "vitest";
 import React from "react";
 import { renderToHtml } from "../utils/render-to-html";
 import { renderToJson } from "../utils/render-to-json";
-import { Email, Page, Document, Row, Column, Paragraph, Heading, Button, Image, Link, Menu, Social, Html, Divider, Table } from "../index";
+import { Email, Page, Document, Row, Column, Paragraph, Heading, Button, Image, Link, Menu, Social, Html, Divider, Table, Video } from "../index";
+import { designToElements } from "../codegen";
+import { evaluate } from "../codegen/test-harness";
 import { Tailwind, loadTailwind, type TailwindHandle } from "../tailwind";
 
 const PAYLOADS = [
@@ -57,6 +59,14 @@ const CASES: Record<string, (v: string) => React.ReactElement> = {
   // A link's target, written into its `target="…"` as it is.
   "Button target": (v) => <Row><Column><Button href="https://example.com" target={v}>Go</Button></Column></Row>,
   "Menu item target": (v) => <Row><Column><Menu items={[{ text: "Home", href: "https://example.com", target: v }]} /></Column></Row>,
+  // A row's anchor, which the exporters write into an `<a name="…">` (0.2.1 did too).
+  "Row anchor": (v) => <Row anchor={`top${v}`}><Column><Paragraph>Hello</Paragraph></Column></Row>,
+  "Row anchor in values": (v) => <Row values={{ anchor: `top${v}` }}><Column><Paragraph>Hello</Paragraph></Column></Row>,
+  // A video's link and thumbnail, which an email writes into an `href` and a `src` as they are (0.2.1 did too).
+  "Video link": (v) => <Row><Column><Video video={{ url: `https://youtu.be/${v}`, type: "youtube", videoId: "abc", thumbnail: "https://img.youtube.com/vi/abc/0.jpg" }} /></Column></Row>,
+  "Video thumbnail": (v) => <Row><Column><Video values={{ video: { url: "https://youtu.be/abc", type: "youtube", videoId: "abc", thumbnail: `https://example.com/${v}.jpg` } }} /></Column></Row>,
+  // A social icon's own image, which an email writes into its `src` as it is.
+  "Social icon image": (v) => <Row><Column><Social values={{ icons: { iconType: "circle", icons: [{ name: "Custom", url: "https://example.com", imgUrl: `https://example.com/${v}.png` }] } } as never} /></Column></Row>,
   "Social link": (v) => <Row><Column><Social icons={[{ name: "Twitter", url: `https://twitter.com/${v}` }]} /></Column></Row>,
   "Social name": (v) => <Row><Column><Social icons={[{ name: v, url: "https://twitter.com/x" }]} /></Column></Row>,
   "text in a Column": (v) => <Row><Column>{v}</Column></Row>,
@@ -92,6 +102,48 @@ describe.each(Object.entries(ROOTS))("%s", (_, Root) => {
 
   it("the title option can't add markup", () => {
     for (const payload of PAYLOADS) expect(injected(renderToHtml(<Root>{content(payload)}</Root>, { title: payload, lang: payload })), payload).toEqual([]);
+  });
+});
+
+describe("a design's values, as designToElements writes them", () => {
+  // The code it writes renders a design's values through the same components: a row's anchor, a video's link and
+  // thumbnail, an icon's own image (0.2.1 wrote them as given, and the codegen now takes them from a design).
+  const designOf = (mode: string, payload: string, url = `https://youtu.be/${payload}`) => ({
+    counters: {},
+    schemaVersion: 16,
+    body: {
+      values: { displayMode: mode },
+      rows: [
+        {
+          cells: [1],
+          values: { anchor: `promo${payload}` },
+          columns: [
+            {
+              values: {},
+              contents: [
+                { type: "video", values: { video: { url, videoId: "abc", type: "youtube", thumbnail: `https://img.example/${payload}.jpg` } } },
+                { type: "social", values: { icons: { iconType: "circle", icons: [{ name: "Custom", url: "https://example.com", imgUrl: `https://example.com/${payload}.png` }] } } },
+              ],
+            },
+          ],
+        },
+      ],
+    },
+  });
+
+  it.each(Object.keys(ROOTS))("%s: can't add markup, or link to a URL that runs code", (mode) => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    try {
+      for (const payload of PAYLOADS) {
+        const Template = evaluate(designToElements(designOf(mode, payload)).code);
+        expect(injected(renderToHtml(<Template />)), payload).toEqual([]);
+      }
+      const Template = evaluate(designToElements(designOf(mode, "x", "&#106;avascript:alert(1)")).code);
+      const links = Array.from(new DOMParser().parseFromString(renderToHtml(<Template />), "text/html").querySelectorAll("a[href]")).map((a) => a.getAttribute("href")!);
+      expect(links.filter((href) => /^javascript:/i.test(href) && !href.startsWith("javascript:throw new Error('React has blocked"))).toEqual([]);
+    } finally {
+      warn.mockRestore();
+    }
   });
 });
 
@@ -164,6 +216,8 @@ describe("a link's `javascript:` URL, as data gives it", () => {
     "Menu values' attrs": (url) => <Menu values={{ menu: { items: [{ key: "1", text: "Shop", link: { name: "web", attrs: { href: url } } }] } } as never} />,
     "Menu values' render shape": (url) => <Menu values={{ menu: { items: [{ key: "1", text: "Shop", link: { url: "", customAttrs: { href: url } } }] } } as never} />,
     "Social icon": (url) => <Social icons={[{ name: "Facebook", url }]} />,
+    "Video link": (url) => <Video video={{ url, type: "youtube", videoId: "abc", thumbnail: "https://img.youtube.com/vi/abc/0.jpg" }} />,
+    "Video values": (url) => <Video values={{ video: { url, type: "youtube", videoId: "abc", thumbnail: "https://img.youtube.com/vi/abc/0.jpg" } }} />,
     "Link": (url) => <Link href={url}>Read</Link>,
     "Heading's inline link": (url) => <Heading>Read <a href={url}>this</a></Heading>,
     "Paragraph's inline link": (url) => <Paragraph>Read <a href={url}>this</a></Paragraph>,

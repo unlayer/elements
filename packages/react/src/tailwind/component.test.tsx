@@ -10,6 +10,7 @@ import {
   Heading,
   Html,
   Image,
+  Link,
   Menu,
   Page,
   Paragraph,
@@ -23,7 +24,7 @@ import {
   renderRowToJson,
   UnlayerProvider,
 } from "../index";
-import { Tailwind, classNameToDeclarations, loadTailwind, renderToJson as renderToJsonAsync, type TailwindHandle } from "./index";
+import { Tailwind, classNameToDeclarations, loadTailwind, renderToHtml as renderToHtmlAsync, renderToJson as renderToJsonAsync, type TailwindHandle } from "./index";
 import { inlineClasses } from "./html";
 
 const config = { theme: { extend: { colors: { brand: "#007291" } } } };
@@ -243,9 +244,11 @@ describe("<Tailwind>: props given win over classes", () => {
     expect(column._override.mobile.padding).toBe("8px");
   });
 
-  it("but not a prop given as `undefined`: a wrapper forwarding optional props it wasn't given keeps its classes, in the design and the HTML", () => {
-    // Your own components, passing on what they're given (`color={props.color}`): unset, it's `undefined`.
-    type Optional = { color?: string; fontSize?: string; bg?: string; padding?: string; width?: number };
+  it.each([undefined, null])("but not a prop given as `%s`: a wrapper forwarding optional props it wasn't given (or data's null) keeps its classes, in the design and the HTML", (missing) => {
+    // Your own components, passing on what they're given (`color={props.color}`): unset, it's `undefined`; from data,
+    // it may be `null`.
+    type Optional = { color?: string | null; fontSize?: string | null; bg?: string | null; padding?: string | null; width?: number | null };
+    const none = { color: missing, fontSize: missing, bg: missing, padding: missing, width: missing } as const;
     const Text = (p: Optional) => (
       <Paragraph className="text-blue-500 text-lg max-sm:text-sm uppercase" color={p.color} fontSize={p.fontSize} mobile={{ fontSize: p.fontSize }} style={{ textTransform: p.color }}>
         Hi
@@ -257,18 +260,18 @@ describe("<Tailwind>: props given win over classes", () => {
       </Button>
     );
     const Title = (p: Optional) => <Heading className="text-brand text-2xl" color={p.color} fontSize={p.fontSize}>Title</Heading>;
-    const Picture = (p: Optional) => <Image src="https://example.com/a.png" className="w-32" width={p.width} />;
+    const Picture = (p: Optional) => <Image src="https://example.com/a.png" className="w-32" width={p.width as number} />;
     const template = (forward: boolean) => {
-      const given = (props: Record<string, unknown>) => (forward ? props : {});
+      const given = (props: Record<string, unknown>) => (forward ? Object.fromEntries(Object.keys(props).map((key) => [key, missing])) : {});
       return (
         <Tailwind tw={tw}>
           <Email className="bg-gray-100 max-w-[640px]" {...given({ backgroundColor: undefined, contentWidth: undefined })}>
             <Row className="bg-white" {...given({ columnsBackgroundColor: undefined, backgroundColor: undefined })}>
               <Column className="bg-zinc-50 rounded-lg p-6" {...given({ backgroundColor: undefined, borderRadius: undefined, padding: undefined })}>
-                {forward ? <Text /> : <Paragraph className="text-blue-500 text-lg max-sm:text-sm uppercase">Hi</Paragraph>}
-                {forward ? <Cta /> : <Button href="https://example.com" className="bg-red-500 text-black px-6" buttonColors={{ hoverColor: "#00ff00" }}>Go</Button>}
-                {forward ? <Title /> : <Heading className="text-brand text-2xl">Title</Heading>}
-                {forward ? <Picture /> : <Image src="https://example.com/a.png" className="w-32" />}
+                {forward ? <Text {...none} /> : <Paragraph className="text-blue-500 text-lg max-sm:text-sm uppercase">Hi</Paragraph>}
+                {forward ? <Cta {...none} /> : <Button href="https://example.com" className="bg-red-500 text-black px-6" buttonColors={{ hoverColor: "#00ff00" }}>Go</Button>}
+                {forward ? <Title {...none} /> : <Heading className="text-brand text-2xl">Title</Heading>}
+                {forward ? <Picture {...none} /> : <Image src="https://example.com/a.png" className="w-32" />}
               </Column>
             </Row>
           </Email>
@@ -349,6 +352,51 @@ describe("<Tailwind>: classes in an Html block's markup", () => {
     const email = renderToHtml(element);
     expect(email).toContain('style="padding: 16px; color: #fb2c36; color: blue"');
     expect(email).not.toMatch(/class="[^"]*(text-red|font-bold|text-brand)/);
+    expect(warnings()).toEqual([]);
+  });
+
+  it("are inline styles in a Heading's and a Button's children, and on a <Link> on its own in a Column, as in a Paragraph's: in every mode, the HTML and the design", async () => {
+    // (Classes in their children's markup stayed as written, which email clients don't read, and weren't said.)
+    const content = (
+      <Row>
+        <Column>
+          <Heading>
+            Welcome to <span className="text-indigo-600">Acme</span>
+          </Heading>
+          <Heading>
+            Read{" "}
+            <Link href="https://e.test" className="text-indigo-600 no-underline">
+              this
+            </Link>
+          </Heading>
+          <Button href="https://e.test">
+            <span className="text-yellow-300 font-bold">Go</span>
+          </Button>
+          <Link href="https://e.test/all" className="text-indigo-600 font-semibold no-underline">
+            All
+          </Link>
+          <a href="https://e.test/raw" className="font-semibold">
+            Raw
+          </a>
+        </Column>
+      </Row>
+    );
+    const indigo = "#4f39f6";
+    for (const Root of [Email, Page, Document]) {
+      const element = (
+        <Tailwind tw={tw}>
+          <Root>{content}</Root>
+        </Tailwind>
+      );
+      for (const html of [renderToHtml(element), await renderToHtmlAsync(element)]) {
+        expect(html).not.toMatch(/class="[^"]*(text-indigo|text-yellow|font-bold|font-semibold|no-underline)/);
+        expect([html.match(/color: ?#4f39f6/g)?.length ?? 0, /color: ?#ffdf20[^"]*font-weight: 700|font-weight: 700[^"]*color: ?#ffdf20/.test(html), /font-weight: 600/.test(html)]).toEqual([3, true, true]);
+      }
+      const texts = renderToJson(element).body.rows[0].columns[0].contents.map((c: any) => c.values.text);
+      expect(texts[0]).toBe(`Welcome to <span style="color: ${indigo}">Acme</span>`);
+      expect(texts[1]).toBe(`Read <a href="https://e.test" target="_blank" rel="noopener" style="color: ${indigo}; text-decoration: none">this</a>`);
+      expect(texts.slice(2).map((t: string) => t.match(/style="[^"]*"/)?.[0])).toEqual(['style="font-weight: 700; color: #ffdf20"', `style="font-weight: 600; color: ${indigo}; text-decoration: none"`, 'style="font-weight: 600"']);
+    }
     expect(warnings()).toEqual([]);
   });
 
