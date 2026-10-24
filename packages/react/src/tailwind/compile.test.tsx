@@ -14,7 +14,7 @@ import {
   type ClassDeclaration,
   type TailwindHandle,
 } from "./index";
-import { CLASSES, SUSPECTS, declarationReader, type Compiler, type PluginFailure, type ReadScope } from "./declarations";
+import { BEYOND, CHARACTERS, CLASSES, CLASS_LIMITS, COMPILED, SUSPECTS, declarationReader, type Compiler, type PluginFailure, type ReadScope } from "./declarations";
 import { parseSheet } from "./css";
 import { CONFIGS } from "./load";
 
@@ -407,6 +407,57 @@ describe("a handle's reader of classes", () => {
     expect(renew).toHaveBeenCalledTimes(2);
   });
 
+  /** A compiler whose build throws for `junk` (`keep`: and keeps it, throwing on every build after it, as Tailwind can). */
+  const throwing = (keep = false) => {
+    const built: string[] = [];
+    let kept = false;
+    const css = (c: string) => `.${c.replace(/[^\w-]/g, "\\$&")} { margin: 1px; }`;
+    return {
+      built,
+      build: (classes: string[]) => {
+        if (kept || classes.includes("junk")) {
+          kept ||= keep;
+          throw new Error("Invalid code point");
+        }
+        built.push(...classes);
+        return built.map(css).join("\n");
+      },
+    };
+  };
+
+  it("finds the class a build threw for by halves where the compiler builds on after it: only it is refused, and the render goes on", () => {
+    // Tailwind threw for a class from data (an escape it couldn't decode) without keeping it: one render's class can't
+    // leave every later render, another tenant's, waiting for a fresh compiler, synchronous ones failing.
+    const compiler = throwing();
+    const read = declarationReader(compiler);
+    const tokens = Array.from({ length: 40 }, (_, i) => `c${i}`);
+    read.prepare([...tokens.slice(0, 20), "junk", ...tokens.slice(20)].join(" "));
+    expect(read(tokens.join(" ")).declarations.map((d) => d.className).sort()).toEqual([...tokens].sort());
+    expect(read("junk").ignored).toEqual([{ className: "junk", reason: "it isn't a class Tailwind can read here" }]);
+    expect(read("d junk").declarations.map((d) => d.className)).toEqual(["d"]);
+    expect(compiler.built).not.toContain("junk");
+  });
+
+  it("takes a build that threw as one it can't read where the compiler throws on every build after it (it kept the class)", async () => {
+    const renew = vi.fn(() => new Promise<Compiler>(() => {}));
+    const read = declarationReader(throwing(true), renew);
+    expect(() => read("a junk")).toThrow("Invalid code point");
+    expect(read("b").ignored).toEqual([{ className: "b", reason: "it's read once Tailwind has compiled again, after a class it couldn't read" }]);
+    expect(renew).toHaveBeenCalledTimes(1);
+  });
+
+  it(`compiles a fresh compiler past ${COMPILED} characters of classes built, as past ${CLASSES} classes`, () => {
+    const renew = vi.fn(() => new Promise<Compiler>(() => {}));
+    const read = declarationReader(counting(), renew);
+    // Classes of 507 characters, as many as stay within COMPILED, then a few more.
+    const long = (i: number) => `c${String(i).padStart(5, "0")}-${"x".repeat(500)}`;
+    const within = Math.floor(COMPILED / 507);
+    for (let i = 0; i < within; i += 50) read(Array.from({ length: Math.min(50, within - i) }, (_, j) => long(i + j)).join(" "));
+    expect(renew).not.toHaveBeenCalled();
+    for (let i = within; i < within + 3; i++) read(long(i));
+    expect(renew).toHaveBeenCalledTimes(1);
+  });
+
   it("keeps a plugin's error it finds no class of a build for to the render that built them: there, its classes with no CSS fail", () => {
     // A failure whose name no class of the build has (Tailwind called the function for a class the reader can't tie
     // it to): `odd`, with no CSS, could be why; `a`, with CSS, couldn't. Another render's classes aren't a part of it.
@@ -580,14 +631,14 @@ describe("a render's classes", () => {
       expect(html).toContain(`class="${many.slice(CLASSES).join(" ")}"`);
       expect(html).not.toMatch(/padding: 3px/);
       expect(compiled.candidates - candidates).toBeLessThanOrEqual(CLASSES);
-      const said = warn.mock.calls.map((call) => String(call[0])).filter((text) => text.includes(`${CLASSES} at most`));
-      expect(said).toEqual([`[Unlayer] Html ignores class \`indent-[${CLASSES}px]\`, and the render's other classes past its first ${CLASSES} different ones: a render reads ${CLASSES} at most.`]);
+      const said = warn.mock.calls.map((call) => String(call[0])).filter((text) => text.includes("a render reads that many at most"));
+      expect(said).toEqual([`[Unlayer] Html ignores class \`indent-[${CLASSES}px]\`, and the render's other classes past its first ${CLASSES} different ones or ${CHARACTERS} characters of them: a render reads that many at most.`]);
     }
     // A class string's, in classNameToDeclarations, as a render's.
     const found = classNameToDeclarations(handle, many.join(" "));
     expect(found.declarations).toHaveLength(CLASSES);
     expect(found.ignored).toHaveLength(100);
-    expect(found.ignored[0]).toEqual({ className: `indent-[${CLASSES}px]`, reason: `it's past the first ${CLASSES} different classes of the render (or class string), all one reads` });
+    expect(found.ignored[0]).toEqual({ className: `indent-[${CLASSES}px]`, reason: `it's past the first ${CLASSES} different classes of the render (or class string), or ${CHARACTERS} characters of them, all one reads` });
   });
 
   it(`are read ${CLASSES} different ones at most per render, not per handle`, async () => {
@@ -982,6 +1033,192 @@ describe("a render's classes", () => {
     expect(called).toContain("later");
     expect(called).not.toContain("now");
   });
+});
+
+describe("a class from data, before Tailwind's compiler", () => {
+  // Tailwind's build takes time growing faster than a class's size with some shapes, and keeps every class it built:
+  // each `&` of an arbitrary variant is the whole selector again, chained compound variants are cubic, variants or
+  // brackets thousands deep overflow its stack. One tenant's class (a CMS's markup, a className from data) failed or
+  // slowed every later render on a shared handle.
+  const amp = (kb: number) => `[${"&:hover".repeat(Math.ceil((kb * 1024) / 7))}]:p-1`;
+  const long = (n: number) => `bg-[url(https://example.com/${"a".repeat(n - 34)}.png)]`;
+  const page = (handle: TailwindHandle, html: string, className = "") => (
+    <Tailwind tw={handle}>
+      <Email>
+        <Row>
+          <Column>
+            <Heading className={className}>Order shipped</Heading>
+            <Paragraph html={html} />
+          </Column>
+        </Row>
+      </Email>
+    </Tailwind>
+  );
+  const colors = ["red", "green", "amber", "violet", "sky", "pink", "lime", "teal", "rose", "indigo", "orange", "cyan", "fuchsia", "emerald", "slate", "zinc", "stone", "yellow", "purple", "blue"];
+
+  it(`never gives Tailwind a class past ${CLASS_LIMITS.characters} characters, ${CLASS_LIMITS.variants} variants, ${CLASS_LIMITS.ampersands} \`&\` in its variants or brackets ${CLASS_LIMITS.depth} deep; at them, it does`, async () => {
+    const handle = await loadTailwind({ ...config, limits: true });
+    const at = [long(512), "hover:focus:sm:md:max-lg:first:group-hover:p-1", "[&_p&_a&_b&_i]:p-1", `w-[calc(${"(".repeat(6)}1px${")".repeat(6)})]`];
+    const past = [long(513), "hover:focus:sm:md:max-lg:first:odd:group-hover:p-1", "[&_p&_a&_b&_i&_u]:p-1", `w-[calc(${"(".repeat(7)}1px${")".repeat(7)})]`];
+    expect(at[0]).toHaveLength(512);
+    for (const className of at) {
+      const candidates = compiled.candidates;
+      expect([className, classNameToDeclarations(handle, className).ignored.filter((i) => i.reason.startsWith(BEYOND))]).toEqual([className, []]);
+      expect(compiled.candidates - candidates).toBe(1);
+    }
+    const reasons = [
+      `Tailwind isn't given a class of more than ${CLASS_LIMITS.characters} characters`,
+      `Tailwind isn't given a class of more than ${CLASS_LIMITS.variants} variants`,
+      `Tailwind isn't given more than ${CLASS_LIMITS.ampersands} \`&\` in a class's variants`,
+      `Tailwind isn't given brackets nested more than ${CLASS_LIMITS.depth} deep`,
+    ];
+    for (const [i, className] of past.entries()) {
+      const candidates = compiled.candidates;
+      expect(classNameToDeclarations(handle, `${className} p-2`).ignored).toEqual([{ className, reason: reasons[i] }]);
+      expect(compiled.candidates - candidates).toBeLessThanOrEqual(1);
+    }
+    // The longest class this repo's examples and docs hold, a radial gradient, is far within them.
+    expect(classNameToDeclarations(handle, "bg-[radial-gradient(ellipse_at_bottom_left,rgba(99,102,241,0.04),transparent_50%)]").declarations).toHaveLength(1);
+  });
+
+  it("leaves a class past them as written, said once in a render, its start only", async () => {
+    const handle = await loadTailwind({ ...config, limits: "said" });
+    const hostile = amp(20);
+    const template = (
+      <Tailwind tw={handle}>
+        <Email>
+          <Row>
+            <Column>
+              <Paragraph className={`${hostile} text-red-500`}>a</Paragraph>
+              <Paragraph className={`${"group-".repeat(500)}hover:p-1 text-red-500`}>b</Paragraph>
+              <Paragraph html={`<span class="${hostile} underline">c</span>`} />
+            </Column>
+          </Row>
+        </Email>
+      </Tailwind>
+    );
+    for (const render of [() => renderToHtmlNow(template), () => renderToHtml(template)]) {
+      warn.mockClear();
+      const html = await render();
+      expect(html.match(/color: ?#fb2c36/g)?.length).toBeGreaterThanOrEqual(2);
+      expect(html).toMatch(/text-decoration: ?underline/);
+      expect(html).toContain(`class="${hostile}"`);
+      expect(warn.mock.calls.map((call) => String(call[0])).filter((text) => text.includes(BEYOND))).toEqual([
+        `[Unlayer] Paragraph ignores class \`${hostile.slice(0, 60)}…\`, and the render's other classes like it: Tailwind isn't given a class of more than ${CLASS_LIMITS.characters} characters. A class is read with at most ${CLASS_LIMITS.characters} characters, ${CLASS_LIMITS.variants} variants, ${CLASS_LIMITS.ampersands} \`&\` in its variants and brackets ${CLASS_LIMITS.depth} deep, as Tailwind takes time growing faster than a class's size past them.`,
+      ]);
+    }
+  });
+
+  it.each(["sync", "async"] as const)("%s: one tenant's 100 KB `[&:hover…]:` in its markup leaves every later render on the handle right and fast", async (mode) => {
+    // The hostile render failed with `Invalid string length`, and so did 20 of 20 later renders with a class Tailwind
+    // hadn't built, 40 s later too; a 20 KB one made each later build take 0.6 s and the process 75 MB more.
+    const handle = await loadTailwind({ ...config, tenants: mode });
+    const render = (element: React.ReactElement) => (mode === "sync" ? renderToHtmlNow(element) : renderToHtml(element));
+    expect(await render(page(handle, "<p>Hi</p>", "text-blue-600"))).toContain("color: #155dfc");
+    for (const kb of [100, 40, 20]) expect(await render(page(handle, `<p class="${amp(kb)}">Hi</p>`))).toContain("Order shipped");
+    const heap = process.memoryUsage().heapUsed;
+    let slowest = 0;
+    for (const [i, color] of colors.entries()) {
+      const start = performance.now();
+      const html = await render(page(handle, `<p class="text-${color}-${(1 + (i % 9)) * 100}">Hi</p>`, `text-${color}-${(1 + ((i + 3) % 9)) * 100} font-bold`));
+      slowest = Math.max(slowest, performance.now() - start);
+      expect(html).toContain("font-weight: 700");
+    }
+    expect(slowest).toBeLessThan(250);
+    expect((process.memoryUsage().heapUsed - heap) / 1e6).toBeLessThan(64);
+  }, 60_000);
+
+  it("reads chained compound variants (`group-group-…-hover:`) from data in no time: they're left out", async () => {
+    // Tailwind's build took 3 s for 8 KB of them, 12 s with `in-`, blocking the event loop.
+    const handle = await loadTailwind({ ...config, compounds: true });
+    for (const prefix of ["group-", "in-"]) {
+      const className = `${prefix.repeat(Math.ceil(8192 / prefix.length))}hover:p-1`;
+      const start = performance.now();
+      const html = renderToHtmlNow(page(handle, `<p class="${className}">Hi</p>`, `${className} text-red-500`));
+      expect(performance.now() - start).toBeLessThan(250);
+      expect(html).toContain("color: #fb2c36");
+    }
+  }, 60_000);
+
+  it("renders a synchronous batch on one handle whatever one recipient's class: the others aren't told to render again", async () => {
+    // `max-sm:` 3,000 times overflowed Tailwind's stack, and nested `calc(` did the same: the 50 ordinary recipients
+    // after it failed ("can't read the class … now. Render again").
+    const handle = await loadTailwind({ ...config, batch: true });
+    const email = (name: string, className: string) => (
+      <Tailwind tw={handle}>
+        <Email>
+          <Row>
+            <Column>
+              <Heading className="text-2xl font-bold">Hi {name}</Heading>
+              <Paragraph html={`<span class="${className}">Your order shipped</span>`} />
+            </Column>
+          </Row>
+        </Email>
+      </Tailwind>
+    );
+    renderToHtmlNow(email("warm", "text-gray-700"));
+    for (const hostile of ["max-sm:".repeat(3000) + "p-1", `w-[calc(${"(".repeat(10_000)}1px${")".repeat(10_000)})]`, `w-[${"var(--a,".repeat(2000)}1px${")".repeat(2000)}]`]) {
+      const recipients = [{ name: "mallory", className: hostile }];
+      const ordinary = ["text-blue-600", "text-green-700", "text-rose-500", "underline", "italic", "text-sm", "font-semibold", "text-[#123456]"];
+      for (let i = 0; i < 50; i++) recipients.push({ name: `user${i}`, className: `${ordinary[i % ordinary.length]} p-[${i}px]` });
+      let ok = 0;
+      for (const { name, className } of recipients) if (renderToHtmlNow(email(name, className)).includes(`Hi ${name}`)) ok++;
+      expect(ok).toBe(51);
+    }
+  }, 60_000);
+
+  it("gives Tailwind no class within them that makes its build throw, leaves it unable to read the next one, or takes more than a few milliseconds (fuzzed)", async () => {
+    // `TAILWIND_LIMITS_FUZZ_RUNS=20000` for a longer run, `TAILWIND_LIMITS_FUZZ_SEED` for other inputs. A fresh handle
+    // every 200 classes: in a synchronous loop, the fresh compiler past CLASSES isn't ready, and each build is the
+    // stylesheet of all the classes so far.
+    const runs = Number(process.env.TAILWIND_LIMITS_FUZZ_RUNS ?? 1500);
+    const r = random(Number(process.env.TAILWIND_LIMITS_FUZZ_SEED ?? 20261024));
+    const pick = <T,>(list: T[]) => list[Math.floor(r() * list.length)];
+    const variants = ["hover", "focus", "sm", "max-sm", "max-[480px]", "min-[600px]", "dark", "print", "rtl", "first", "odd", "group-hover", "peer-focus", "not-hover", "in-focus", "has-checked", "group-[.a]", "peer-[&:hover]", "[&:hover]", "[&_p]", "[&>*]", "[&:not(&)]", "[@media(width<480px)]", "[@supports(display:grid)]", "[&:is(a,b)]", "aria-checked", "data-[state=open]", "supports-[display:grid]", "@container", "*", "**", "[[data-x]_&]", "[&::before]", "before", "placeholder", "marker"];
+    const utilities = ["p-1", "-m-2", "w-[100px]", "text-red-500", "bg-[#123]", "bg-red-500/50", "text-[length:var(--x)]", "p-(--x)", "[color:red]", "[--x:1px]", "content-['a']", "bg-[url(https://e.com/a.png)]", "bg-[linear-gradient(red,blue)]", "w-[calc(100%-2px)]", "w-[min(10px,calc(1px+2px))]", "shadow-[0_0_0_1px_rgba(0,0,0,0.1)]", "font-[Open_Sans]", "text-[13px]/[20px]", "rounded-[50%]", "[grid-area:1/1/2/2]", "aspect-[16/9]", "text-[rgb(1_2_3/50%)]", "text-[\\23ff0000]", "content-['\\\\']", "content-['é😀']", "bg-[url(data:image/png;base64,AAAA)]", "w-[theme(spacing.4)]", "p-[--spacing(2)]", "!p-1", "p-1!", "w-1/2", "border-[length:2px]"];
+    const junk = ["(", ")", "[", "]", "{", "}", "'", '"', "\\", "&", ",", "_", ":", ";", "!", "@", "#", "%", "/", "*", "+", "-", ".", "=", ">", "<", "~", "^", "|", "$", "?", "é", "😀", "\u0000", "\u200b", "a", "0", "var(", "calc(", "url(", "theme(", "--x", "&_", "&:"];
+    const made = () => {
+      const kind = Math.floor(r() * 3);
+      let cls = "";
+      if (kind === 0) {
+        for (let n = Math.floor(r() * 4); n > 0; n--) cls += pick(variants) + ":";
+        cls += pick(utilities);
+        for (let n = Math.floor(r() * 3); n > 0; n--) {
+          const at = Math.floor(r() * (cls.length + 1));
+          cls = cls.slice(0, at) + pick(junk) + cls.slice(at);
+        }
+      } else if (kind === 1) for (let n = 1 + Math.floor(r() * 120); n > 0; n--) cls += pick(r() < 0.5 ? junk : [...variants, ...utilities, ":"]);
+      else cls = `${"group-".repeat(Math.floor(r() * 7))}${pick(variants)}:[${"&_x".repeat(1 + Math.floor(r() * 4))}${"_y".repeat(Math.floor(r() * 200))}]:${pick(utilities)}`;
+      // Grown by repeating a piece of it.
+      if (r() < 0.3) {
+        const at = Math.floor(r() * cls.length);
+        cls = cls.slice(0, at) + cls.slice(at, at + 1 + Math.floor(r() * 8)).repeat(1 + Math.floor(r() * 60)) + cls.slice(at);
+      }
+      return cls.replace(/\s/g, "_").slice(0, 512);
+    };
+    // And the class Tailwind's build threw for (an escape of no character, past U+10FFFF), which left Elements
+    // waiting for a fresh compiler for every class after it.
+    const known = ["--xborder-[length:2px]^w-[min(10px,calc(1px+2px))]text-[\\23ff0000]/"];
+    const bad: string[] = [];
+    let handle = tw;
+    let slowest = { ms: 0, className: "" };
+    for (let run = 0; run < runs + known.length && bad.length < 5; run++) {
+      if (run % 200 === 0) handle = await loadTailwind({ ...config, fuzz: run });
+      const className = known[run] ?? made();
+      const start = performance.now();
+      try {
+        classNameToDeclarations(handle, className);
+      } catch (error) {
+        bad.push(`${JSON.stringify(className)} throws ${String(error)}`);
+      }
+      const ms = performance.now() - start;
+      if (ms > slowest.ms) slowest = { ms, className };
+      const next = classNameToDeclarations(handle, `p-[${run + 1000}px]`);
+      if (!next.declarations.length) bad.push(`after ${JSON.stringify(className)}: ${JSON.stringify(next.ignored)}`);
+    }
+    expect(bad).toEqual([]);
+    expect([slowest.ms < 100, slowest.className]).toEqual([true, slowest.className]);
+  }, 120_000);
 });
 
 describe("the async renderers, with <Tailwind config>", () => {

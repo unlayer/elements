@@ -6,7 +6,7 @@
  * a phone or breakpoint variant changes it). The markup is read as a browser reads it
  * (src/utils/html-tags.ts), and only the class attributes and the styles they give are written again.
  */
-import { OVER, type ClassCondition, type ClassDeclaration, type ClassDeclarations, type DeclarationReader } from "./declarations";
+import { BEYOND, OVER, type ClassCondition, type ClassDeclaration, type ClassDeclarations, type DeclarationReader } from "./declarations";
 import { commentEnd, rawTextEnd, readTag, type Attribute, type Tag } from "../utils/html-tags";
 
 // Logical sides as in a left-to-right document, and those a right-to-left one changes: email clients read only physical ones.
@@ -155,9 +155,9 @@ function classes(text: string, attributes: Attribute[], nameEnd: number, offset:
   const found = read(names.filter((name) => name !== undefined).join(" "));
   const yours = new Set<string>();
   for (const { className: name, reason } of found.ignored) {
-    // Not Tailwind's: one of yours, left for your stylesheet; past the render's classes (see capped): not read, left
-    // as written (said once for the render).
-    if (reason === "Tailwind has no such class" || reason === OVER) yours.add(name);
+    // Not Tailwind's: one of yours, left for your stylesheet; past the render's classes, or past what Tailwind is given
+    // of one (see capped): not read, left as written (said once for the render).
+    if (reason === "Tailwind has no such class" || reason === OVER || reason.startsWith(BEYOND)) yours.add(name);
     else once(`ignores class \`${name}\` in its markup: ${reason}`);
   }
   const kept = given.filter((_, i) => names[i] === undefined || yours.has(names[i]!));
