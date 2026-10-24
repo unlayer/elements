@@ -8,6 +8,18 @@
 /** Where `pattern` (global) next matches in a text, at or after a place, or -1: the text read once for it. */
 export type Next = (from: number) => number;
 
+/** The first place in `sorted` (ascending) whose number is `value` or more: a binary search. */
+function firstFrom(sorted: ArrayLike<number>, value: number): number {
+  let low = 0;
+  let high = sorted.length;
+  while (low < high) {
+    const mid = (low + high) >> 1;
+    if (sorted[mid] < value) low = mid + 1;
+    else high = mid;
+  }
+  return low;
+}
+
 /**
  * Where `pattern` (global, its matches never overlapping) matches in `text`, each found once, as far as asked: in any
  * order, a place is a binary search.
@@ -25,13 +37,7 @@ export function places(text: string, pattern: RegExp): Next {
         read = match.index + 1;
       }
     }
-    let low = 0;
-    let high = at.length;
-    while (low < high) {
-      const mid = (low + high) >> 1;
-      if (at[mid] < from) low = mid + 1;
-      else high = mid;
-    }
+    const low = firstFrom(at, from);
     return low < at.length ? at[low] : -1;
   };
 }
@@ -39,6 +45,25 @@ export function places(text: string, pattern: RegExp): Next {
 const WORD = /\w/;
 /** Whether `char` is a regex word character (`\w`); none past the text's end. */
 export const isWord = (char: string | undefined) => char !== undefined && WORD.test(char);
+
+/**
+ * `text` with parts of it replaced, read from each `<` on: `read` gives for one where the part starting there ends and
+ * what replaces it, else where to look for the next `<` from (nothing replaced), or nothing, which ends the reading.
+ */
+export function rewrite(text: string, read: (at: number) => [end: number, by: string] | number | undefined): string {
+  let out = "";
+  let kept = 0;
+  for (let at = text.indexOf("<"); at >= 0; ) {
+    const part = read(at);
+    if (part === undefined) break;
+    if (typeof part === "number") at = text.indexOf("<", part);
+    else {
+      out += text.slice(kept, at) + part[1];
+      at = text.indexOf("<", (kept = part[0]));
+    }
+  }
+  return out + text.slice(kept);
+}
 
 /**
  * Each element `<name…>…close` in `text` replaced, as `/<name[^>]*>([\s\S]*?)close/gi` replaces them (`name` the start
@@ -55,34 +80,23 @@ export function replaceElements(
 ): string {
   const gt = places(text, />/g);
   const end = places(text, close);
-  let out = "";
-  let kept = 0;
-  for (let at = text.indexOf("<"); at >= 0; at = text.indexOf("<", at)) {
+  return rewrite(text, (at) => {
     name.lastIndex = at;
-    if (!name.test(text) || (bounded && isWord(text[name.lastIndex]))) {
-      at++;
-      continue;
-    }
+    if (!name.test(text) || (bounded && isWord(text[name.lastIndex]))) return at + 1;
     // Its start tag's `>`, then its end tag: where there's none, there's none after a later start either.
     const open = gt(name.lastIndex);
-    if (open < 0) break;
-    const closing = end(open + 1);
-    if (closing < 0) break;
+    const closing = open < 0 ? -1 : end(open + 1);
+    if (closing < 0) return;
     close.lastIndex = closing;
     let stop = closing + close.exec(text)![0].length;
     let extra: string | undefined;
     if (after) {
       after.lastIndex = stop;
-      const more = after.exec(text);
-      if (more) {
-        extra = more[0];
-        stop += extra.length;
-      }
+      extra = after.exec(text)?.[0];
+      if (extra) stop += extra.length;
     }
-    out += text.slice(kept, at) + replace(text.slice(at, stop), text.slice(open + 1, closing), extra);
-    kept = at = stop;
-  }
-  return out + text.slice(kept);
+    return [stop, replace(text.slice(at, stop), text.slice(open + 1, closing), extra)];
+  });
 }
 
 /**
@@ -91,20 +105,12 @@ export function replaceElements(
  */
 export function replaceTags(text: string, name: RegExp, replace: (tag: string) => string): string {
   const gt = places(text, />/g);
-  let out = "";
-  let kept = 0;
-  for (let at = text.indexOf("<"); at >= 0; at = text.indexOf("<", at)) {
+  return rewrite(text, (at) => {
     name.lastIndex = at;
-    if (!name.test(text)) {
-      at++;
-      continue;
-    }
+    if (!name.test(text)) return at + 1;
     const close = gt(name.lastIndex);
-    if (close < 0) break;
-    out += text.slice(kept, at) + replace(text.slice(at, close + 1));
-    kept = at = close + 1;
-  }
-  return out + text.slice(kept);
+    return close < 0 ? undefined : [close + 1, replace(text.slice(at, close + 1))];
+  });
 }
 
 /**
@@ -136,21 +142,14 @@ export function attributeEnds(text: string): Int32Array {
  */
 export function removeBetween(text: string, open: RegExp, close: RegExp): string {
   const end = places(text, close);
-  let out = "";
-  let kept = 0;
-  for (let at = text.indexOf("<"); at >= 0; at = text.indexOf("<", at)) {
+  return rewrite(text, (at) => {
     open.lastIndex = at;
-    if (!open.test(text)) {
-      at++;
-      continue;
-    }
+    if (!open.test(text)) return at + 1;
     const closing = end(open.lastIndex);
-    if (closing < 0) break;
+    if (closing < 0) return;
     close.lastIndex = closing;
-    out += text.slice(kept, at);
-    kept = at = closing + close.exec(text)![0].length;
-  }
-  return out + text.slice(kept);
+    return [closing + close.exec(text)![0].length, ""];
+  });
 }
 
 /**
@@ -176,37 +175,20 @@ export function replaceAltImages(text: string, replace: (alt: string) => string)
       ends.push(end);
       working.push(end >= 0 ? found.length - 1 : working.length ? working[working.length - 1] : -1);
     }
-    let low = 0;
-    let high = found.length;
-    while (low < high) {
-      const mid = (low + high) >> 1;
-      if (found[mid] < before) low = mid + 1;
-      else high = mid;
-    }
-    return low - 1;
+    return firstFrom(found, before) - 1;
   };
-  let out = "";
-  let kept = 0;
   const start = /<img/iy;
-  for (let at = text.indexOf("<"); at >= 0; at = text.indexOf("<", at)) {
+  return rewrite(text, (at) => {
     start.lastIndex = at;
-    if (!start.test(text)) {
-      at++;
-      continue;
-    }
+    if (!start.test(text)) return at + 1;
     const first = gt(at + 4);
-    if (first < 0) break;
+    if (first < 0) return;
     const last = lastBefore(first);
     const alt = last >= 0 ? working[last] : -1;
-    if (alt < 0 || found[alt] < at + 5) {
-      at++;
-      continue;
-    }
+    if (alt < 0 || found[alt] < at + 5) return at + 1;
     const value = found[alt] + 5;
-    out += text.slice(kept, at) + replace(text.slice(value, quote(value)));
-    kept = at = ends[alt] + 1;
-  }
-  return out + text.slice(kept);
+    return [ends[alt] + 1, replace(text.slice(value, quote(value)))];
+  });
 }
 
 /**
@@ -218,26 +200,15 @@ export function untagged(text: string): string {
   if (!text.includes("<")) return text;
   const gt = places(text, />/g);
   const angle = places(text, /[<>]/g);
-  let out = "";
-  let kept = 0;
-  for (let at = text.indexOf("<"); at >= 0; at = text.indexOf("<", at)) {
+  return rewrite(text, (at) => {
     if (text[at + 1] === "%") {
       const end = angle(at + 2);
-      if (end > at + 2 && text[end] === ">" && text[end - 1] === "%") {
-        at++;
-        continue;
-      }
+      if (end > at + 2 && text[end] === ">" && text[end - 1] === "%") return at + 1;
     }
     const close = gt(at + 1);
-    if (close < 0) break;
-    if (close === at + 1) {
-      at++;
-      continue;
-    }
-    out += text.slice(kept, at);
-    kept = at = close + 1;
-  }
-  return out + text.slice(kept);
+    if (close < 0) return;
+    return close === at + 1 ? at + 1 : [close + 1, ""];
+  });
 }
 
 const VOID = /^(area|br|col|embed|hr|img|input|link|meta|source|wbr)$/i;
@@ -290,26 +261,17 @@ export function withoutElements(html: string, test: (tag: string) => boolean): s
       index.set(name, { at, sums, below });
     }
   };
-  let out = "";
-  let kept = 0;
   const open = /<([a-z][\w-]*)/iy;
-  for (let at = html.indexOf("<"); at >= 0; at = html.indexOf("<", at)) {
+  return rewrite(html, (at) => {
     open.lastIndex = at;
     const m = open.exec(html);
-    if (!m) {
-      at++;
-      continue;
-    }
+    if (!m) return at + 1;
     // Its name: the longest start of its letters, digits, `_` and `-` that a word boundary ends.
     let nameEnd = at + 1 + m[1].length;
     while (isWord(html[nameEnd - 1]) === isWord(html[nameEnd])) nameEnd--;
     const close = gt(nameEnd);
-    if (close < 0) break;
-    const tag = html.slice(at, close + 1);
-    if (!test(tag)) {
-      at = close + 1;
-      continue;
-    }
+    if (close < 0) return;
+    if (!test(html.slice(at, close + 1))) return close + 1;
     let end = close + 1;
     const name = html.slice(at + 1, nameEnd);
     if (html[close - 1] !== "/" && !VOID.test(name)) {
@@ -317,21 +279,12 @@ export function withoutElements(html: string, test: (tag: string) => boolean): s
       const group = index!.get(name.toLowerCase());
       if (group) {
         // The first of its name's tags after its start tag, and where the depth from there first falls below it.
-        let low = 0;
-        let high = group.at.length;
-        while (low < high) {
-          const mid = (low + high) >> 1;
-          if (group.at[mid] <= end) low = mid + 1;
-          else high = mid;
-        }
-        const ends = group.below[low];
+        const ends = group.below[firstFrom(group.at, end + 1)];
         if (ends > 0) end = group.at[ends - 1];
       }
     }
-    out += html.slice(kept, at);
-    kept = at = end;
-  }
-  return out + html.slice(kept);
+    return [end, ""];
+  });
 }
 
 /**
@@ -342,22 +295,11 @@ export function withoutElements(html: string, test: (tag: string) => boolean): s
 export function replaceLinks(text: string, replace: (link: string, attributes: string, content: string) => string): string {
   const close = places(text, /<\/a>/gi);
   let ends: Int32Array | undefined;
-  let out = "";
-  let kept = 0;
-  for (let at = text.indexOf("<"); at >= 0; at = text.indexOf("<", at)) {
-    if ((text[at + 1] !== "a" && text[at + 1] !== "A") || isWord(text[at + 2])) {
-      at++;
-      continue;
-    }
+  return rewrite(text, (at) => {
+    if ((text[at + 1] !== "a" && text[at + 1] !== "A") || isWord(text[at + 2])) return at + 1;
     ends ??= attributeEnds(text);
     const open = ends[at + 2];
     const closing = open < 0 ? -1 : close(open + 1);
-    if (closing < 0) {
-      at++;
-      continue;
-    }
-    out += text.slice(kept, at) + replace(text.slice(at, closing + 4), text.slice(at + 2, open), text.slice(open + 1, closing));
-    kept = at = closing + 4;
-  }
-  return out + text.slice(kept);
+    return closing < 0 ? at + 1 : [closing + 4, replace(text.slice(at, closing + 4), text.slice(at + 2, open), text.slice(open + 1, closing))];
+  });
 }
