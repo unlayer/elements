@@ -7,20 +7,23 @@
  */
 
 import React from "react";
-import { collecting, RECORDS } from "./collect";
-import { recordBlock, whileCollecting } from "./record";
+import { RECORDS } from "./collect";
 import type { ExporterName } from "@unlayer/types";
 
 /** Exporter map keyed by display mode. Defined locally until added to @unlayer/types. */
 type ItemExporters = Partial<Record<ExporterName, (...args: any[]) => string>>;
 import type { RenderMode, UnlayerConfig } from "@unlayer-internal/shared-elements";
-import type { DeviceProps, SizeInput } from "../types";
-import { contentSlotWidth, pinImageSrc } from "./image-sizing";
+import type { ContentValues, DeviceProps, SizeInput } from "../types";
+import type { ValuesInput } from "@unlayer-internal/shared-elements";
+import { contentSlotWidth, DEFAULT_CONTAINER_PADDING, pinImageSrc, toPx } from "./image-sizing";
+import { guest, remember } from "./render-scope";
 import {
   mergeValues,
   generateHtmlFromTextJson,
   normalizeValuesForExporter,
   DEFAULT_CONFIG,
+  cssValueSafe,
+  unrunLinks,
 } from "@unlayer-internal/shared-elements";
 
 
@@ -37,13 +40,31 @@ export const UNLAYER_RENDER_KEY = "__unlayerRender";
  */
 export const UNLAYER_CONFIG_KEY = "__unlayerItemConfig";
 
+/** On this copy's roots and kept markup: Elements' own components, as its Rows, Columns and blocks are. */
+export const OWN = Symbol("@unlayer/react-elements/own");
+
+/**
+ * Elements' own components (roots, Rows, Columns, blocks, kept markup), which call no hooks: the engine renders
+ * Elements' markup calling them as they are (see the engine's renderStatic).
+ */
+export const isOwn = (type: unknown): boolean => {
+  const t = type as Record<PropertyKey, unknown> | null;
+  return !!t && !!(t[OWN] || t[UNLAYER_RENDER_KEY] || t[RECORDS]);
+};
+
 /**
  * Base props that all item components support
  */
 export interface BaseItemComponentProps extends DeviceProps {
   children?: React.ReactNode;
+  /** Class names on the element it renders (a Paragraph's or Heading's text, a Button's link, an Image's img); HTML only. */
   className?: string;
+  /** Inline CSS on that element, after the renderer's own (a prop given wins over the same property); HTML only. */
   style?: React.CSSProperties;
+  /** The builder's settings every block has (an anchor, a display condition, …), beside its own values. */
+  values?: ValuesInput<ContentValues>;
+  /** Left out of the plain text (`renderToPlainText`), as a footer or a button often is. */
+  skipInText?: boolean;
   mode?: RenderMode;
   /** Padding of the content wrapper around this item — a number (→ px) or a CSS
    *  string ("10px", "16px 24px"). Applied by the containing Column. */
@@ -106,6 +127,9 @@ export interface ItemComponentConfig<TValues, TSemanticProps> {
   /** Skip the content-container wrapper when this component's exporter returns
    *  an empty string for an unsupported mode. */
   omitEmptyOutput?: boolean;
+
+  /** The tag that renders it, which its `style` and `className` go on (see hatch): its first by default. */
+  at?: RegExp;
 }
 
 /**
@@ -118,37 +142,28 @@ export type ItemComponentProps<TSemanticProps> = BaseItemComponentProps &
 // Internal: rendering helpers (merged from render-component.tsx)
 // ============================================
 
-interface ErrorFallbackProps {
-  type: string;
-  error: Error;
-  className?: string;
-  style?: React.CSSProperties;
-}
+/** A tag's attribute `name` set: `edit` gives its value from the one it has, or it's added as `value` (a `$` in it as it is). */
+const attr = (tag: string, name: string, value: string, edit: (own: string) => string) =>
+  tag.includes(` ${name}="`) ? tag.replace(new RegExp(` ${name}="([^"]*)`), (_, own: string) => ` ${name}="${edit(own)}`) : tag.replace(/^<[\w:-]+/, (open) => `${open} ${name}="${value}"`);
 
-/** Error fallback component shown when an exporter throws. */
-const ErrorFallback: React.FC<ErrorFallbackProps> = ({
-  type,
-  className,
-  style
-}) => (
-  <div className={className} style={style}>
-    <div
-      style={{
-        padding: "20px",
-        backgroundColor: "#fee",
-        border: "1px solid #fcc",
-        borderRadius: "4px",
-        color: "#c33",
-        textAlign: "center",
-        fontFamily: "system-ui, sans-serif"
-      }}
-    >
-      <strong>{type} failed to render.</strong>
-      <br />
-      <small>Check console for details.</small>
-    </div>
-  </div>
-);
+/**
+ * A component's `style` and `className` on the tag that renders it (`at`, in its HTML): the escape hatch for CSS no
+ * prop takes. Its declarations go after the tag's own, so they win, except where a prop of the component (`given`)
+ * sets the same property: props win. Inline, as email clients need; a value that could end the attribute is left out.
+ */
+export function hatch(html: string, at: RegExp, style: unknown, className: unknown, given: Record<string, unknown>): string {
+  const css = Object.entries(style ?? {})
+    .filter(([key, value]) => value != null && value !== "" && given[key] === undefined)
+    .map(([key, value]) => `${key.replace(/[A-Z]/g, "-$&").toLowerCase()}:${typeof value == "number" && !/^(lineHeight|fontWeight|opacity|zIndex|flex|order)/.test(key) ? `${value}px` : value}`)
+    .filter((d) => cssValueSafe(d) && !/["\\]/.test(d))
+    .join(";");
+  const names = className ? safeName(className, true) : "";
+  if (!css && !names) return html;
+  return html.replace(at, (tag) => {
+    const named = names ? attr(tag, "class", names, (own) => `${names} ${own}`) : tag;
+    return css ? attr(named, "style", css, (own) => `${withoutTrailing(own)};${css}`) : named;
+  });
+}
 
 interface RenderConfig<T = any> {
   type: string;
@@ -159,9 +174,11 @@ interface RenderConfig<T = any> {
   args?: any[];
   /** Column/body context merged into the exporter `meta` (8th arg). */
   metaContext?: Record<string, any>;
-  innerHTML?: string;
   _config?: UnlayerConfig;
   exporter: Function;
+  /** Where its `style` and `className` go, and the props that win over them (see hatch). */
+  at?: RegExp;
+  given?: Record<string, unknown>;
 }
 
 /**
@@ -184,92 +201,59 @@ export function nextHtmlId(config: any, prefix: string): string {
  */
 export function safeName(value: unknown, spaces = false): string {
   const text = String(value ?? "");
+  // (Most are ids and class names Elements gives, which hold none of it.)
+  if (/^[\w-]*$/.test(text)) return text;
   // Class names apart on lines or by tabs stay apart, as the browser reads them.
   return spaces ? text.replace(/[\t\n\f\r]/g, " ").replace(/["'<>&`\u0000-\u001f\u007f]/g, "") : text.replace(/["'<>&`\s\u0000-\u001f\u007f]/g, "");
+}
+
+/** `style` without the whitespace and `;`s it ends in (as `/[\s;]*$/` finds them: from its end, read once). */
+function withoutTrailing(style: string): string {
+  let end = style.length;
+  while (end && /[\s;]/.test(style[end - 1])) end--;
+  return style.slice(0, end);
+}
+
+/**
+ * Values with their background image's URL as the editor's exporters can write it, in `url('…')` in a style attribute:
+ * what could end either (quotes, brackets, spaces, `<`, `>`, `\`) percent-encoded, as a browser would, the same
+ * address (the design keeps it as given). With `defaults`, the image takes them where it sets none.
+ */
+export function cssUrl(values: Record<string, any>, defaults?: Record<string, any>): void {
+  const image = values.backgroundImage;
+  if (image) values.backgroundImage = { ...defaults, ...image, url: String(image.url ?? "").replace(/[\t-\r "'()<>\\]/g, escape) };
 }
 
 /** A block's or row's `_meta` with its id and class names kept to what they can hold (see `safeName`). */
 export const safeMeta = <T extends { htmlID?: unknown; htmlClassNames?: unknown }>(meta: T) => ({ ...meta, htmlID: safeName(meta.htmlID), htmlClassNames: safeName(meta.htmlClassNames, true) });
 
-/** Add _meta fields if not present. */
-function ensureMeta(values: any, type: string, index: number = 0): any {
-  return {
-    ...values,
-    _meta: {
-      htmlID: `u_content_${type.toLowerCase()}_${index + 1}`,
-      htmlClassNames: `u_content_${type.toLowerCase()}`,
-      ...(values._meta || {})
-    }
-  };
+/** A text block (left-aligned by default) in a right-to-left document starts on the right, unless it's aligned. */
+export function rtlAlign(values: Record<string, any>, defaults: Record<string, any>, direction: unknown): void {
+  if (textDirectionOf(direction) === "rtl" && values.textAlign === undefined && defaults.textAlign === "left") values.textAlign = "right";
 }
 
-/**
- * Render a component by calling its exporter and wrapping the HTML output.
- * Handles error boundaries, exporterConfig construction, and container vs item calling conventions.
- */
 /** A direction the `dir` attribute takes (ltr, rtl, auto). Anything else is dropped: it's written into markup. */
 export function textDirectionOf(value: unknown): "ltr" | "rtl" | "auto" | undefined {
   const dir = typeof value === "string" ? value.trim().toLowerCase() : "";
   return dir === "ltr" || dir === "rtl" || dir === "auto" ? dir : undefined;
 }
 
+/**
+ * Render a component by calling its exporter and wrapping the HTML output. An exporter that throws fails the block
+ * (the Column rendering it says which, as `onError` says).
+ */
 function renderComponent<T = any>(config: RenderConfig<T>): JSX.Element {
-  const { type, values, mode, className, style, args = [], innerHTML, _config, exporter, metaContext } = config;
-
-  try {
-    // Build exporterConfig from _config (falls back to defaults)
-    const cfg = _config ?? DEFAULT_CONFIG;
-    const exporterConfig = {
-      generateHtmlFromTextJson,
-      toSafeHtml: cfg.toSafeHtml,
-      textDirection: textDirectionOf(cfg.textDirection),
-      cdnBaseUrl: cfg.cdnBaseUrl,
-    };
-
-    // Call exporter with appropriate arguments
-    let html: string;
-    if (innerHTML !== undefined) {
-      // Container components (Row, Body) take innerHTML first
-      html = exporter(innerHTML, values, ...args);
-    } else {
-      // Content components take values first
-      // Item exporters signature: (values, index, colIndex, cells, bodyValues, rowValues, embeddedValues, meta)
-      // Args 2-7 are deprecated positional params; the 8th arg is a meta object with all context
-      const meta = {
-        exporterConfig,
-        mergeTagState: cfg.mergeTagState,
-        ...(metaContext ?? {}),
-      };
-      html = exporter(values, ...args, undefined, meta);
-    }
-
-    // Ensure string output
-    html = typeof html === "string" ? html : String(html);
-
-    // Return rendered component
-    return (
-      <div
-        className={className}
-        style={style}
-        dangerouslySetInnerHTML={{ __html: html }}
-      />
-    );
-  } catch (error) {
-    console.error(`${type} rendering failed:`, error);
-    return (
-      <ErrorFallback
-        type={type}
-        error={error as Error}
-        className={className}
-        style={style}
-      />
-    );
-  }
+  const { values, className, style, args = [], _config, exporter, metaContext, at, given } = config;
+  // exporterConfig from _config (falls back to defaults)
+  const cfg = _config ?? DEFAULT_CONFIG;
+  const exporterConfig = { generateHtmlFromTextJson, toSafeHtml: cfg.toSafeHtml, textDirection: textDirectionOf(cfg.textDirection), cdnBaseUrl: cfg.cdnBaseUrl };
+  // Item exporters' signature: (values, index, colIndex, cells, bodyValues, rowValues, embeddedValues, meta). Args 2-7
+  // are deprecated positional params; the 8th arg is a meta object with all context. (A custom tool's exporter, and
+  // the config's `toSafeHtml`, are the user's: see `guest`.)
+  const html = guest(() => exporter(values, ...args, undefined, { exporterConfig, mergeTagState: cfg.mergeTagState, ...metaContext }));
+  // A string, with its `style` and `className` on the tag that renders it
+  return <div dangerouslySetInnerHTML={{ __html: hatch(String(html), at ?? /<[a-z][^>]*>/, style, className, given ?? {}) }} />;
 }
-
-// ============================================
-// Public API
-// ============================================
 
 /**
  * Create an item component (Button, Heading, Paragraph, etc.)
@@ -291,46 +275,30 @@ export function createItemComponent<
   TValues extends Record<string, any> = any,
   TSemanticProps = any
 >(
-  config: ItemComponentConfig<TValues, TSemanticProps>
+  given: ItemComponentConfig<TValues, TSemanticProps>
 ): React.FC<ItemComponentProps<TSemanticProps>> {
+  // A built-in block's links with no URL that runs code, in the HTML and the design alike (see unrunLinks).
+  const config = given.contentType ? given : { ...given, propMapper: (props: Parameters<typeof given.propMapper>[0]) => unrunLinks(given.propMapper(props), given.name) };
   // Inner render function — no hooks, safe to call as a plain function (Column does this)
   function renderFn(
     props: ItemComponentProps<TSemanticProps>
   ): React.ReactElement | null {
-    const {
-      // Base props
-      mode: modeProp,
-      className,
-      style,
-
-      // Internal props
-      index = 0,
-      _metaHtmlId,
-      colIndex = 0,
-      cells = [],
-      bodyValues = {},
-      rowValues = {},
-      columnValues = {},
-      _config,
-
-      // Children
-      children,
-
-      // Rest are semantic props
-      ...restProps
-    } = props as ItemComponentProps<TSemanticProps>;
+    // Base props, then internal props (from the Column), children, and the semantic props.
+    const { mode: modeProp, className, style, index = 0, _metaHtmlId, colIndex = 0, cells = [], bodyValues = {}, rowValues = {}, columnValues = {}, _config, _record: _r, children, ...restProps } =
+      props as ItemComponentProps<TSemanticProps> & { _record?: unknown };
 
     // Resolve mode: explicit prop > _config > default
     const mode: RenderMode = modeProp ?? _config?.mode ?? "web";
 
     // 1. Map semantic props to values format (handles dual API)
-    const mappedValues = config.propMapper({
-      children,
-      ...restProps
-    } as TSemanticProps & { children?: React.ReactNode });
+    const mappedValues = config.propMapper({ children, ...restProps } as TSemanticProps & { children?: React.ReactNode });
 
-    // 2. Merge with defaults
+    // A text block in a right-to-left document starts on the right, unless it's aligned (see rtlAlign).
+    rtlAlign(mappedValues, config.defaultValues, _config?.textDirection ?? bodyValues.textDirection);
+
+    // 2. Merge with defaults (a built-in block's, which the head reuses: see remember)
     const finalValues = mergeValues(config.defaultValues, mappedValues);
+    if (!config.contentType) remember(_r as object | undefined, finalValues);
 
     // 3. Ensure _meta is present. The Column-allocated id wins so every
     //    instance is unique; the index fallback covers standalone renders.
@@ -347,72 +315,46 @@ export function createItemComponent<
     //    "500px" (matches BodyDefaults.contentWidth and the exporter's image
     //    fallback width), so a standalone item (no Body) sizes the same as the
     //    editor and the value is a CSS string everywhere it might be consumed.
-    const safeBodyValues = {
-      contentWidth: "500px",
-      ...bodyValues
-    };
+    const safeBodyValues = { contentWidth: "500px", ...bodyValues };
 
     // 5. Resolve link/action fields to the exporter's render-value shape.
     //    Skipped on the renderToJson path (which uses propMapper directly)
     //    so JSON output preserves the schema's storage shape.
-    const valuesForExporter = normalizeValuesForExporter(
-      valuesWithMeta as Record<string, any>,
-      config.name,
-      mode
-    );
+    const valuesForExporter = normalizeValuesForExporter(valuesWithMeta as Record<string, any>, config.name, mode);
 
-    // 5b. Convert a fixed (px) image pin to the editor's canonical percent now
+    // 5b. The block's padding, which the design gives every block (10px unless it sets one): the exporters size an
+    //     image or a video's thumbnail in the slot it leaves, as the editor does.
+    const forExporter = valuesForExporter as Record<string, any>;
+    forExporter.containerPadding ??= DEFAULT_CONTAINER_PADDING;
+    // 5c. Convert a fixed (px) image pin to the editor's canonical percent now
     //     that the column geometry is known (Column threads columnValues/cells/
     //     bodyValues). Guarded on `src.autoWidth === false`, so only pinned
     //     images are touched; responsive images and non-image blocks pass through.
-    const exportSrc = (valuesForExporter as Record<string, any>).src;
+    const exportSrc = forExporter.src;
+    let exporter = (config.exporters[mode] || config.exporters.web)!;
     if (exportSrc && typeof exportSrc === "object" && exportSrc.autoWidth === false) {
-      const availableWidth = contentSlotWidth({
-        bodyValues: safeBodyValues,
-        rowValues,
-        rowCells: cells,
-        columnIndex: colIndex,
-        columnValues,
-        containerPadding:
-          (props as { containerPadding?: unknown; values?: { containerPadding?: unknown } })
-            .containerPadding ??
-          (props as { values?: { containerPadding?: unknown } }).values?.containerPadding,
-      });
-      (valuesForExporter as Record<string, any>).src = pinImageSrc(exportSrc, availableWidth);
+      const available = contentSlotWidth({ bodyValues: safeBodyValues, rowValues, rowCells: cells, columnIndex: colIndex, columnValues, containerPadding: forExporter.containerPadding });
+      const px = toPx(exportSrc.maxWidth);
+      // The percent the design stores (see render-to-json.ts), which the exporter sizes the image by.
+      forExporter.src = pinImageSrc(exportSrc, available);
+      if (px! < available) {
+        // A px width narrower than the slot keeps that px as its max-width (and its width attribute, Outlook's), where
+        // the exporter writes the px it works out from the percent (2 decimals): `64px`, not `63.97px`.
+        const own = exporter;
+        exporter = (...args: any[]) => String(own(...(args as Parameters<typeof own>))).replace(/<img [^>]*max-width: [\d.]+px[^>]*>/g, (tag) => tag.replace(/(max-width: |width=")[\d.]+/g, `$1${px}`));
+      }
     }
 
-    // 6. Resolve exporter for this mode (fallback to web)
-    const exporter = (config.exporters[mode] || config.exporters.web)!;
-
     // 7. Render using utility (handles all boilerplate)
-    return renderComponent<TValues>({
-      type: config.name,
-      values: valuesForExporter as TValues,
-      mode,
-      className,
-      style,
-      args: [index, colIndex, cells, safeBodyValues, rowValues],
-      // The 8th arg the exporters actually read: column/body context for
-      // width-aware rendering (Image's available-width calc), mirroring the editor.
-      metaContext: {
-        columnIndex: colIndex,
-        columnValues,
-        rowCells: cells,
-        rowValues,
-        bodyValues: safeBodyValues,
-      },
-      _config,
-      exporter,
-    });
+    // `metaContext`: the 8th arg the exporters actually read: column/body context for width-aware rendering (Image's
+    // available-width calc), mirroring the editor.
+    const metaContext = { columnIndex: colIndex, columnValues, rowCells: cells, rowValues, bodyValues: safeBodyValues };
+    return renderComponent<TValues>({ type: config.name, values: valuesForExporter as TValues, mode, className, style, args: [index, colIndex, cells, safeBodyValues, rowValues], metaContext, _config, exporter, at: config.at, given: restProps as Record<string, unknown> });
   }
 
-  // Outer React component — hook-free, works in both Server and Client Components
-  const ItemComponent: React.FC<ItemComponentProps<TSemanticProps>> = (
-    props
-  ) => {
-    if (collecting()) return whileCollecting(() => recordBlock(ItemComponent, props as Record<string, any>), () => renderFn(props), ItemComponent.displayName ?? "Block");
-    return renderFn(props);
-  };
+  // Outer React component — hook-free, works in both Server and Client Components. A collecting walk records it (see
+  // record.tsx); rendered, it's its exporter's HTML.
+  const ItemComponent: React.FC<ItemComponentProps<TSemanticProps>> = (props) => renderFn(props);
 
   // Set display name for React DevTools
   ItemComponent.displayName = config.displayName || config.name;

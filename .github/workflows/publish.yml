@@ -1,7 +1,8 @@
 # Release & Publish
 #
 # Gated publish flow, one package at a time:
-#   1. PR merged to main → triggers build & test
+#   1. PR merged to main → triggers build & test, and the react package's
+#      suite on each React it supports (react-versions.yml)
 #   2. Each package publishes only when its code changed since its last
 #      release tag (Elements: v*, migrate: migrate-v*)
 #   3. A reviewer approves each publish in the Actions UI (environment gate)
@@ -160,9 +161,18 @@ jobs:
           echo "migrate=$MIGRATE" >> $GITHUB_OUTPUT
           echo "Elements changed: $ELEMENTS, migrate changed: $MIGRATE"
 
+  # The react package's suite on each React it supports, for this run's commit: Elements publishes only when every
+  # one passes (test.yml runs it too, but nothing waits for that run).
+  react-versions:
+    name: React versions
+    needs: changes
+    if: needs.changes.outputs.elements == 'true'
+    uses: ./.github/workflows/react-versions.yml
+    secrets: inherit
+
   publish:
     name: Publish @unlayer/react-elements
-    needs: [build-and-test, changes]
+    needs: [build-and-test, changes, react-versions]
     if: needs.changes.outputs.elements == 'true'
     runs-on: ubuntu-latest
     outputs:
@@ -322,11 +332,13 @@ jobs:
       # version numbers, then npm publish handles OIDC trusted publishing.
       # npm publish alone does NOT understand catalog: and would ship broken deps.
       # No --provenance flag yet: the repository is public now, so it can be added.
+      # A version can't be changed once it's on npm: the tarball must have its license (see test.yml's pack step).
       - name: Publish to npm (trusted publishing)
         working-directory: packages/react
         run: |
           pnpm pack --pack-destination /tmp
           TARBALL=$(ls /tmp/unlayer-react-elements-*.tgz)
+          tar tzf "$TARBALL" | grep -qx package/LICENSE || { echo "::error::$TARBALL has no LICENSE"; exit 1; }
           npm publish "$TARBALL" --access public
 
       - name: Tag release
@@ -498,6 +510,7 @@ jobs:
         run: |
           pnpm pack --pack-destination /tmp
           TARBALL=$(ls /tmp/unlayer-migrate-*.tgz)
+          tar tzf "$TARBALL" | grep -qx package/LICENSE || { echo "::error::$TARBALL has no LICENSE"; exit 1; }
           npm publish "$TARBALL" --access public
 
       - name: Tag release

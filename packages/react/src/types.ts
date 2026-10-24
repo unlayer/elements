@@ -42,6 +42,7 @@ export type {
   MenuItem,
   // Utility types
   RenderMode,
+  ValuesInput,
   MobileProps,
   DeviceProps,
 } from "@unlayer-internal/shared-elements";
@@ -85,6 +86,21 @@ export type BorderInput = {
   [K in keyof NonNullable<ColumnValues["border"]>]?: K extends `${string}Width`
     ? SizeInput
     : NonNullable<ColumnValues["border"]>[K];
+};
+
+/** Imported locally for the aliases below. */
+import type { TextAlign } from "@unlayer-internal/shared-elements";
+
+/** `align`, as HTML and React Email name it, for a block's `textAlign`. */
+export type AlignAlias = {
+  /** Alias of `textAlign` (which wins where both are given). */
+  align?: TextAlign;
+};
+
+/** `textColor` for a text block's `color`. */
+export type TextColorAlias = {
+  /** Alias of `color` (which wins where both are given). */
+  textColor?: string;
 };
 
 /** Heading levels (h1–h6). */

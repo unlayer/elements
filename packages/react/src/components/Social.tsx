@@ -1,4 +1,5 @@
 import { SocialExporters, SocialDefaults } from "@unlayer/exporters";
+import { social } from "../exporters/social";
 import type { SocialValues, SocialIcon, SizeInput } from "../types";
 import { createItemComponent, type ItemComponentProps } from "../utils/create-component";
 import { mapSemanticProps, type SemanticProps } from "../utils/semantic-props";
@@ -15,6 +16,8 @@ type SocialSemanticProps = Omit<SemanticProps<SocialValues>, "iconSize" | "spaci
   iconSize?: SizeInput;
   /** Gap between icons in px — a number or px string. */
   spacing?: SizeInput;
+  /** Alias of `align` (which wins where both are given). */
+  textAlign?: SocialValues["align"];
 };
 
 export interface SocialProps
@@ -23,6 +26,8 @@ export interface SocialProps
   iconType?: "circle" | "rounded" | "squared";
   iconSize?: SizeInput;
   spacing?: SizeInput;
+  /** Alias of `align` (which wins where both are given). */
+  textAlign?: SocialValues["align"];
 }
 
 // Defaults from the editor schema
@@ -55,58 +60,25 @@ const Social = createItemComponent<SocialValues, SocialSemanticProps>({
   defaultValues: DEFAULT_VALUES,
   propMapper: (props) => {
     const { icons, iconType, ...rest } = props;
-
-    // The exporter does arithmetic on iconSize/spacing (icon box sizing and the
-    // container max-width), so coerce a px string or number down to a number.
-    const coerceSizes = (base: Partial<SocialValues>): Partial<SocialValues> => {
-      for (const key of ["iconSize", "spacing"] as const) {
-        const v = (base as Record<string, unknown>)[key];
-        if (typeof v === "string") {
-          // px count only — a non-px unit ("50%", "1.5em") is invalid here, so
-          // drop it and let mergeValues fall back to the schema default.
-          const m = /^(\d+(?:\.\d+)?)(?:px)?$/.exec(v.trim());
-          if (m) (base as Record<string, unknown>)[key] = parseFloat(m[1]);
-          else delete (base as Record<string, unknown>)[key];
-        }
-      }
-      return base;
-    };
-
-    // Map shorthand icons array → exporter format
-    if (Array.isArray(icons)) {
-      const mapped = icons.map((icon: SocialIcon) => ({
-        name: icon.name,
-        url: icon.url,
-      }));
-      const base: Partial<SocialValues> = mapSemanticProps(
-        rest as SemanticProps<SocialValues>,
-        DEFAULT_VALUES,
-        "Social"
-      );
-      base.icons = {
-        iconType: iconType ?? base.icons?.iconType ?? "circle",
-        icons: mapped,
-      };
-      return coerceSizes(base);
+    const base: Partial<SocialValues> = mapSemanticProps((Array.isArray(icons) || iconType !== undefined ? rest : props) as SemanticProps<SocialValues>, DEFAULT_VALUES, "Social");
+    // Map shorthand icons array → exporter format; an iconType passed without them is threaded into the nested group.
+    if (Array.isArray(icons)) base.icons = { iconType: iconType ?? base.icons?.iconType ?? "circle", icons: icons.filter((icon) => icon != null).map((icon: SocialIcon) => ({ name: icon.name, url: icon.url ?? undefined })) };
+    else if (iconType !== undefined) base.icons = { ...DEFAULT_ICONS, ...base.icons, iconType };
+    // The exporter does arithmetic on iconSize/spacing (icon box sizing and the container max-width), so coerce a px
+    // string or number down to a number. A non-px unit ("50%", "1.5em") is invalid here: dropped, so mergeValues
+    // falls back to the schema default.
+    for (const key of ["iconSize", "spacing"] as const) {
+      const v = (base as Record<string, unknown>)[key];
+      if (typeof v !== "string") continue;
+      const m = /^(\d+(?:\.\d+)?)(?:px)?$/.exec(v.trim());
+      if (m) (base as Record<string, unknown>)[key] = parseFloat(m[1]);
+      else delete (base as Record<string, unknown>)[key];
     }
-
-    // If iconType passed without shorthand icons, thread it into nested group
-    if (iconType !== undefined) {
-      const base: Partial<SocialValues> = mapSemanticProps(
-        rest as SemanticProps<SocialValues>,
-        DEFAULT_VALUES,
-        "Social"
-      );
-      base.icons = { ...DEFAULT_ICONS, ...base.icons, iconType };
-      return coerceSizes(base);
-    }
-
-    return coerceSizes(
-      mapSemanticProps(props as SemanticProps<SocialValues>, DEFAULT_VALUES, "Social")
-    );
+    return base;
   },
   displayName: "Social",
-  exporters: SocialExporters,
+  // The web HTML (a document's too) without react-dom (see exporters/markup.ts).
+  exporters: { ...SocialExporters, web: social },
 });
 
 export default Social;

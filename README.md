@@ -155,7 +155,7 @@ Generates email-safe HTML, responsive web HTML, and print-ready HTML for PDF gen
 
 ### Visual Builder Compatible
 
-Export Unlayer-compatible design JSON with `renderToJson()` to hand code-authored templates to the visual editor. Persist edited designs as JSON and export their HTML from the editor; edited JSON does not regenerate React source. See the [code-to-visual-editing workflow](./packages/react/docs/visual-editing.md).
+Export Unlayer-compatible design JSON with `renderToJson()` to hand code-authored templates to the visual editor. Persist edited designs as JSON and export their HTML from the editor, or turn a design back into Elements code with `designToElements()` from `@unlayer/react-elements/codegen`. See the [code-to-visual-editing workflow](./packages/react/docs/visual-editing.md) and [designs as Elements code](./packages/react/docs/codegen.md).
 
 ### TypeScript First
 
@@ -167,7 +167,7 @@ Built with TypeScript from the ground up — full type definitions, autocomplete
 
 ### Lightweight & Tree-Shakeable
 
-~12KB gzipped (under 60KB ESM), tree-shakeable, with zero client-side JavaScript required. Designed for performance-sensitive applications and server-side rendering environments.
+The main entry is about 215.7KB of ESM, unminified (about 61KB gzipped), and tree-shakeable; Tailwind, the async renderers, Markdown, code highlighting, fonts, the head and the design-to-code converter are entries of their own, loaded only where you import them. Zero client-side JavaScript required. Designed for performance-sensitive applications and server-side rendering environments.
 
 ## Real-World Use Cases
 

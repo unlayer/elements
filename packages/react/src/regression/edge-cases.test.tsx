@@ -2,16 +2,18 @@
  * Edges where Elements meets React's own rules, rendered with this build and with the last published Elements
  * (`@unlayer/react-elements-previous`): markup React rejects, pieces rendered on their own, odd children, React's
  * hooks and wrappers, and Elements' renders called inside another render (an app's server render, a component
- * Elements renders, the browser). 0.2.0 renders templates with React, which is stricter than 0.1.22's walk of the
- * tree and keeps a render's state in its module: these are where that shows. Wherever the previous release
- * rendered, this build must too (no throw), and show every word it showed (it may show more: what React shows).
+ * Elements renders, the browser). This build renders templates as React does, which is stricter than 0.1.22's walk
+ * of the tree: these are where that shows. Wherever the previous release rendered, this build must too (no throw),
+ * and show every word it showed (it may show more: what React shows). Markup React rejects fails the render, naming
+ * it; with `onError: "omit"` it's left out, and then the rest renders where the previous release did.
  */
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
-import React, { Component, Fragment, createContext, forwardRef, memo, useContext, useDeferredValue, useLayoutEffect, useMemo, useState, useSyncExternalStore, useTransition, act } from "react";
+import React, { Component, Fragment, createContext, forwardRef, memo, useContext, useDeferredValue, useLayoutEffect, useMemo, useState, useSyncExternalStore, useTransition } from "react";
 import { renderToString } from "react-dom/server";
 import { createRoot } from "react-dom/client";
 import * as current from "../index";
 import * as previous from "@unlayer/react-elements-previous";
+import { act } from "../test-utils";
 
 type Lib = typeof current;
 const releases = { current, previous: previous as unknown as Lib };
@@ -143,11 +145,15 @@ const CASES: Record<string, (L: Lib) => React.ReactElement> = {
   },
 };
 
+/** Markup React rejects: the render fails (a RenderError naming it), and leaves it out with `onError: "omit"`. */
+const REJECTED = new Set(["markup React rejects among the rows (a string style)", "markup React rejects in a component in a Column", "dangerouslySetInnerHTML given as a string", "children and dangerouslySetInnerHTML both", "a void element with children"]);
+
 type Api = "html" | "plain" | "json";
-const API: Record<Api, (L: Lib, element: React.ReactElement) => string[]> = {
-  html: (L, element) => words(L.renderToHtml(element)),
-  plain: (L, element) => L.renderToPlainText(element).split(/\s+/).filter(Boolean),
-  json: (L, element) => designWords(L.renderToJson(element)),
+type Options = { onError?: "omit" };
+const API: Record<Api, (L: Lib, element: React.ReactElement, options?: Options) => string[]> = {
+  html: (L, element, options) => words(L.renderToHtml(element, options)),
+  plain: (L, element, options) => L.renderToPlainText(element, options).split(/\s+/).filter(Boolean),
+  json: (L, element, options) => designWords(L.renderToJson(element, options)),
 };
 
 /** Where the render is called: directly, or from a page an app renders on the server, using hooks after. */
@@ -180,13 +186,15 @@ beforeAll(() => {
 });
 afterAll(() => vi.restoreAllMocks());
 
-describe.each(Object.entries(CASES))("%s", (_, build) => {
+describe.each(Object.entries(CASES))("%s", (name, build) => {
+  const options: Options | undefined = REJECTED.has(name) ? { onError: "omit" } : undefined;
   for (const api of Object.keys(API) as Api[]) {
     for (const [place, within] of Object.entries(PLACES)) {
       it(`${api}, ${place}: renders where the previous release did, with every word it showed`, () => {
+        if (options) expect(attempt(() => within(() => API[api](releases.current, build(releases.current)))).error).toBeInstanceOf(current.RenderError);
         const before = attempt(() => within(() => API[api](releases.previous, build(releases.previous))));
         if (before.error) return; // the previous release didn't render it: nothing to keep
-        const now = attempt(() => within(() => API[api](releases.current, build(releases.current))));
+        const now = attempt(() => within(() => API[api](releases.current, build(releases.current), options)));
         expect(now.error).toBeUndefined();
         expect(contains(now.words!, before.words!)).toEqual([]);
       });
@@ -197,25 +205,37 @@ describe.each(Object.entries(CASES))("%s", (_, build) => {
 describe("blocks and Rows of the previous release inside this one's (a package still on it, in a monorepo)", () => {
   const P = releases.previous;
   const C = releases.current;
-  const build = (B: Lib, R: Lib) => (
-    <C.Email>
+  const build = (B: Lib, R: Lib, E: Lib = C) => (
+    <E.Email backgroundColor="#f4f4f4">
       <R.Row><R.Column>
         <B.Paragraph color="#ff0000">Same text</B.Paragraph>
         <B.Button href="https://example.com">Go</B.Button>
-        <B.Image src="https://example.com/a.png" alt="A" width="120px" />
+        <B.Image src="https://example.com/a.png" alt="A" width="200px" />
       </R.Column></R.Row>
-    </C.Email>
+    </E.Email>
   );
   it.each([
-    ["its blocks in this release's Row", P, C],
-    ["its Row, Column and blocks", P, P],
-  ] as const)("render as this release's do: %s", (_, blocks, rows) => {
-    expect(C.renderToHtml(build(blocks, rows))).toBe(C.renderToHtml(build(C, C)));
-    expect(JSON.stringify(C.renderToJson(build(blocks, rows)))).toBe(JSON.stringify(C.renderToJson(build(C, C))));
+    ["its blocks in this release's Row", P, C, C],
+    ["its Row, Column and blocks", P, P, C],
+    // (Its root carries no marker: it's known by its name and its code, see utils/root-type.ts.)
+    ["its Email, Row, Column and blocks", P, P, P],
+  ] as const)("render as this release's do: %s", (_, blocks, rows, root) => {
+    expect(C.renderToHtml(build(blocks, rows, root))).toBe(C.renderToHtml(build(C, C)));
+    expect(JSON.stringify(C.renderToJson(build(blocks, rows, root)))).toBe(JSON.stringify(C.renderToJson(build(C, C))));
+  });
+
+  it.each(["Body", "Page", "Document"] as const)("render as this release's do: its %s", (name) => {
+    const template = (L: Lib) => {
+      const Root = L[name] as React.ComponentType<{ backgroundColor?: string; children?: React.ReactNode }>;
+      return <Root backgroundColor="#f4f4f4"><C.Row><C.Column><C.Paragraph>Same text</C.Paragraph></C.Column></C.Row></Root>;
+    };
+    expect(C.renderToHtml(template(P))).toBe(C.renderToHtml(template(C)));
+    expect(JSON.stringify(C.renderToJson(template(P)))).toBe(JSON.stringify(C.renderToJson(template(C))));
   });
 });
 
-describe("in the browser (a live preview)", () => {
+// (React's act(), which this needs, is in its development build only.)
+describe.skipIf(process.env.NODE_ENV === "production")("in the browser (a live preview)", () => {
   (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
   it("renders the email, and works out its design and HTML while rendering, as the previous release did", async () => {
     const shown: Record<string, string[]> = {};

@@ -18,25 +18,7 @@ import type { BodyValues, RowValues, ColumnValues } from "@unlayer-internal/shar
 
 // Body defaults from the editor schema.
 // Filter out popup-specific fields that aren't relevant for email/web rendering.
-const allBodyDefaults = BodyDefaults as Record<string, any>;
-const {
-  popupPosition: _p1,
-  popupDisplayDelay: _p2,
-  popupWidth: _p3,
-  popupHeight: _p4,
-  popupBackgroundColor: _p5,
-  popupBackgroundImage: _p6,
-  popupOverlay_backgroundColor: _p7,
-  popupCloseButton_position: _p8,
-  popupCloseButton_backgroundColor: _p9,
-  popupCloseButton_iconColor: _p10,
-  popupCloseButton_borderRadius: _p11,
-  popupCloseButton_margin: _p12,
-  popupCloseButton_action: _p13,
-  ...bodyRest
-} = allBodyDefaults;
-
-export const BODY_DEFAULTS = bodyRest as BodyValues;
+export const BODY_DEFAULTS = Object.fromEntries(Object.entries(BodyDefaults).filter(([key]) => !key.startsWith("popup"))) as BodyValues;
 
 export const ROW_DEFAULTS = { ...RowDefaults } as RowValues;
 

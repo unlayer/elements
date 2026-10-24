@@ -1,16 +1,15 @@
 import React from "react";
-import type { RenderMode, UnlayerConfig, RowValues } from "@unlayer-internal/shared-elements";
-import { validateColumnLayout } from "@unlayer-internal/shared-elements";
+import { escapeText, type RenderMode, type UnlayerConfig, type RowValues } from "@unlayer-internal/shared-elements";
 import type { ColumnLayout } from "@unlayer-internal/shared-elements";
 import { RowExporters } from "@unlayer/exporters";
 import { mapSemanticProps, type SemanticProps } from "../utils/semantic-props";
-import { nextHtmlId, safeMeta } from "../utils/create-component";
+import { nextHtmlId, safeMeta, hatch, cssUrl } from "../utils/create-component";
 import { bodyContentWidthPx } from "../utils/image-sizing";
 import type { DeviceProps, SizeInput } from "../types";
 import { ROW_DEFAULTS, BODY_DEFAULTS } from "../utils/container-defaults";
-import { looseText } from "../utils/render-scope";
-import { collecting, RECORDS } from "../utils/collect";
-import { recordContainer, whileCollecting } from "../utils/record";
+import { looseText, remember } from "../utils/render-scope";
+import { RECORDS } from "../utils/collect";
+import { renderContainer } from "../utils/container-render";
 
 /**
  * Row - Container for columns in a layout
@@ -36,12 +35,18 @@ export type RowProps = Omit<SemanticProps<RowValues>, "padding" | keyof DevicePr
   layout?: ColumnLayout;
   cells?: number[];
   mode?: RenderMode;
+  /** Class names on the row's container; HTML only. */
   className?: string;
+  /** Inline CSS on the row's container, after the renderer's own (a prop given wins over the same property); HTML only. */
   style?: React.CSSProperties;
   index?: number;
   bodyValues?: any;
   collection?: string;
-  /** Padding — a CSS string ("0 48px", "20px 40px") or a number (px). */
+  /**
+   * The editor's Row padding: around the row, outside its content box. A CSS string ("0 48px") or a number (px). With
+   * a `columnsBackgroundColor` it's outside that background and doesn't inset the content (said once per render): inset
+   * it with the Columns' `padding`. (A Row's Tailwind `p-*` classes do inset it, as in CSS.)
+   */
   padding?: SizeInput;
   /** @internal - Unlayer config threaded from UnlayerProvider via Body */
   _config?: UnlayerConfig;
@@ -245,8 +250,9 @@ function renderRow(props: RowProps): React.ReactElement | null {
     bodyValues = {},
     collection = "rows",
     _config,
+    _record,
     ...semanticProps
-  } = props;
+  } = props as RowProps & { _record?: object };
 
   // Resolve mode: explicit prop > _config > default
   const mode: RenderMode = modeProp ?? _config?.mode ?? "web";
@@ -254,32 +260,27 @@ function renderRow(props: RowProps): React.ReactElement | null {
   // Determine cells from layout or props. With neither, default to one equal
   // cell PER <Column> child (mirroring renderToJson) — `[1]` regardless of column
   // count left the 2nd/3rd column with no cell, rendering width="NaN".
-  // Its Columns, as React rendered them (see normalize.tsx).
+  // Its Columns, as they rendered (see src/model). (The renderers give it its layout's cells, and leave out
+  // or fail on, a Row whose Columns don't fit it.)
   const columnCount = React.Children.toArray(children).filter(
     (c) => React.isValidElement(c) && /^Column$/.test((c.type as any)?.displayName || (c.type as any)?.name || "")
   ).length;
-  let cells: number[];
-  if (layout) {
-    // The Columns as rendered, or as written (a condition's place included, as 0.1.22 counted them): either fits it.
-    if (columnCount !== layout.expectedColumns) validateColumnLayout(layout, React.Children.count(children));
-    cells = layout.cells;
-  } else if (propsCells) {
-    cells = propsCells;
-  } else {
-    cells = Array(Math.max(1, columnCount)).fill(1);
-  }
+  const cells: number[] = layout?.cells ?? propsCells ?? Array(Math.max(1, columnCount)).fill(1);
 
   // Merge body values with defaults
   const safeBodyValues = { ...DEFAULT_BODY_VALUES, ...bodyValues };
 
   // Map semantic props to values
-  const values = mapSemanticProps<RowValues>(
-    semanticProps as SemanticProps<RowValues>,
-    DEFAULT_VALUES,
-    "Row"
-  );
+  const values = mapSemanticProps<RowValues>(semanticProps as SemanticProps<RowValues>, DEFAULT_VALUES, "Row");
+  // (The head reuses them: see remember.)
+  remember(_record, values.backgroundImage ? { ...values } : values);
+  // A background image takes the editor's defaults where it sets none (full width, centered), as the design does; its
+  // URL as CSS takes it (see cssUrl).
+  cssUrl(values, DEFAULT_VALUES.backgroundImage);
 
   const valuesWithMeta = { ...values, cells, _meta: safeMeta({ htmlID: nextHtmlId(_config, "u_row"), htmlClassNames: "u_row", ...(values._meta || {}) }) };
+  // Its anchor, which the exporters write into an `<a name="…">` as it is (0.2.1 did too), escaped: it reads the same.
+  if (values.anchor) valuesWithMeta.anchor = escapeText(String(values.anchor), true);
 
   // Process Column children
   const innerHTML = processChildren(
@@ -291,29 +292,14 @@ function renderRow(props: RowProps): React.ReactElement | null {
     _config
   );
 
-  try {
-    const html = renderRowToHtml(innerHTML, valuesWithMeta, safeBodyValues, mode, cells, collection);
-
-    return (
-      <div
-        dangerouslySetInnerHTML={{ __html: html }}
-        className={className}
-        style={style}
-      />
-    );
-  } catch (error) {
-    console.error("Row rendering failed:", error);
-    return (
-      <div className={className} style={style}>
-        {children}
-      </div>
-    );
-  }
+  // Its `style` and `className` on its row (the box at the content width, see hatch). Its exporter, or a Column's,
+  // failing fails it, or that Row or Column is left out (see renderContainer, and `onError`).
+  const html = hatch(renderRowToHtml(innerHTML, valuesWithMeta, safeBodyValues, mode, cells, collection), /<div[^>]*class="u-row[ "][^>]*>/, style, className, semanticProps);
+  return <div dangerouslySetInnerHTML={{ __html: html }} />;
 }
 
-// While a template is collected, a Row records itself (see normalize.tsx); then it renders the collected tree.
-const Row: React.FC<RowProps> = (props) =>
-  collecting() ? whileCollecting(() => recordContainer("row", props), () => renderRow(props), "Row") : renderRow(props);
+// A collecting walk records a Row (see utils/record.tsx); rendered, it's the collected Row's HTML.
+const Row: React.FC<RowProps> = (props) => renderContainer("Row", (props as { _record?: object })._record, "Row", () => renderRow(props));
 
 Row.displayName = "Row";
 (Row as unknown as Record<symbol, boolean>)[RECORDS] = true;

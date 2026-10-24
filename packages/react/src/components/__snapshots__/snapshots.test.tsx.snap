@@ -42,8 +42,8 @@ exports[`Render Snapshots > Body + Row + Column + Items > full tree email 1`] = 
     <tr>
       <td class="v-container-padding-padding" style="overflow-wrap:break-word;word-break:break-word;padding:10px;font-family:arial,helvetica,sans-serif;" align="left">
         
-  <div class="v-color v-line-height v-font-weight v-font-family v-font-size v-letter-spacing v-text-align" style="font-size: 14px; color: #000000; line-height: 1.4;  text-align: left; word-wrap: break-word;">
-    <p style="margin: 0px; margin-block-start: 0px; margin-block-end: 0px;">Hello</p>
+  <div class="v-color v-text-align v-line-height v-font-weight v-font-family v-font-size v-letter-spacing" style="font-size: 14px; color: #000000; line-height: 140%; text-align: left; word-wrap: break-word;">
+    Hello
   </div>
 
       </td>
@@ -127,8 +127,8 @@ exports[`Render Snapshots > Body + Row + Column + Items > full tree web 1`] = `
     
   <div id="u_content_paragraph_1" class="u_content_paragraph v-container-padding-padding" style="overflow-wrap: break-word;padding: 10px;">
     
-  <div class="v-color v-line-height v-font-weight v-font-family v-font-size v-letter-spacing v-text-align" style="font-size: 14px; color: #000000; line-height: 1.4;  text-align: left; word-wrap: break-word;">
-    <p style="margin: 0px; margin-block-start: 0px; margin-block-end: 0px;">Hello</p>
+  <div class="v-color v-text-align v-line-height v-font-weight v-font-family v-font-size v-letter-spacing" style="font-size: 14px; color: #000000; line-height: 140%; text-align: left; word-wrap: break-word;">
+    Hello
   </div>
 
   </div>
@@ -263,7 +263,7 @@ exports[`Render Snapshots > Image > email 1`] = `
   <tbody><tr>
     <td class="v-text-align" style="padding-right: 0px;padding-left: 0px;" align="center">
       
-      <img align="center" border="0" src="https://example.com/img.png" alt="" title="" style="outline: none;text-decoration: none;-ms-interpolation-mode: bicubic;clear: both;display: inline-block !important;border: none;height: auto;float: none;width: 100%;max-width: 500px;" width="500" class="v-src-width v-src-max-width">
+      <img align="center" border="0" src="https://example.com/img.png" alt="" title="" style="outline: none;text-decoration: none;-ms-interpolation-mode: bicubic;clear: both;display: inline-block !important;border: none;height: auto;float: none;width: 100%;max-width: 480px;" width="480" class="v-src-width v-src-max-width">
       
     </td>
   </tr>
@@ -275,7 +275,7 @@ exports[`Render Snapshots > Image > web 1`] = `
 "<div>
 <div class="v-text-align" style="position:relative;line-height:0px;text-align:center">
   
-  <img alt="" class="v-src-width v-src-max-width" src="https://example.com/img.png" style="width: 100%;max-width: 500px;" title="">
+  <img alt="" class="v-src-width v-src-max-width" src="https://example.com/img.png" style="width: 100%;max-width: 480px;" title="">
   
 </div>
 </div>"
@@ -295,7 +295,7 @@ exports[`Render Snapshots > Menu > web 1`] = `"<div></div>"`;
 
 exports[`Render Snapshots > Paragraph > email 1`] = `
 "<div>
-  <div class="v-color v-line-height v-font-weight v-font-family v-font-size v-letter-spacing v-text-align" style="font-size: 14px; color: #000000; line-height: 1.4;  text-align: left; word-wrap: break-word;">
+  <div class="v-color v-text-align v-line-height v-font-weight v-font-family v-font-size v-letter-spacing" style="font-size: 14px; color: #000000; line-height: 140%; text-align: left; word-wrap: break-word;">
     
   </div>
 </div>"
@@ -303,7 +303,7 @@ exports[`Render Snapshots > Paragraph > email 1`] = `
 
 exports[`Render Snapshots > Paragraph > web 1`] = `
 "<div>
-  <div class="v-color v-line-height v-font-weight v-font-family v-font-size v-letter-spacing v-text-align" style="font-size: 14px; color: #000000; line-height: 1.4;  text-align: left; word-wrap: break-word;">
+  <div class="v-color v-text-align v-line-height v-font-weight v-font-family v-font-size v-letter-spacing" style="font-size: 14px; color: #000000; line-height: 140%; text-align: left; word-wrap: break-word;">
     
   </div>
 </div>"
@@ -381,7 +381,7 @@ exports[`Render Snapshots > Video > email 1`] = `
   <tbody><tr>
     <td style="padding-right: 0px; padding-left: 0px;" align="center">
       
-      <img align="center" border="0" src="https://cdn.tools.unlayer.com/video/placeholder.png" alt="Video" title="Video" style="outline: none;text-decoration: none;-ms-interpolation-mode: bicubic;clear: both;display: block !important;border: none;height: auto;float: none;width: 100%;max-width: 500px;" width="500" class="fullwidth" aria-label="video thumbnail">
+      <img align="center" border="0" src="https://cdn.tools.unlayer.com/video/placeholder.png" alt="Video" title="Video" style="outline: none;text-decoration: none;-ms-interpolation-mode: bicubic;clear: both;display: block !important;border: none;height: auto;float: none;width: 100%;max-width: 480px;" width="480" class="fullwidth" aria-label="video thumbnail">
       
     </td>
   </tr>
@@ -393,7 +393,7 @@ exports[`Render Snapshots > Video > web 1`] = `
 "<div>
 <div style="position: relative; padding-bottom: 56.25%; height: 0; overflow: hidden; max-width: 100%;">
   
-    <img aria-label="video placeholder" src="https://cdn.tools.unlayer.com/video/placeholder.png" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%;" width="500" height="281.25">
+    <img aria-label="video placeholder" src="https://cdn.tools.unlayer.com/video/placeholder.png" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%;" width="480" height="270">
     
   
   

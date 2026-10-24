@@ -79,22 +79,14 @@ const Video = createItemComponent<VideoValues, VideoSemanticProps>({
 
     if (typeof videoUrl === "string") {
       const parsed = parseVideoUrl(videoUrl);
-      const base: Partial<VideoValues> = mapSemanticProps(
-        rest as SemanticProps<VideoValues>,
-        DEFAULT_VALUES,
-        "Video"
-      );
+      const base: Partial<VideoValues> = mapSemanticProps(rest as SemanticProps<VideoValues>, DEFAULT_VALUES, "Video");
       if (parsed) {
         base.video = { ...DEFAULT_VIDEO, ...parsed };
       }
       return base;
     }
 
-    return mapSemanticProps(
-      props as SemanticProps<VideoValues>,
-      DEFAULT_VALUES,
-      "Video"
-    );
+    return mapSemanticProps(props as SemanticProps<VideoValues>, DEFAULT_VALUES, "Video");
   },
   displayName: "Video",
   exporters: VideoExporters,

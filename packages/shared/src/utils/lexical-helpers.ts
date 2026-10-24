@@ -138,7 +138,7 @@ function paragraphNodeToHtml(node: any, childrenHtml: string): string {
   // Custom paragraph styles (e.g. background-color) come first so the
   // resets below win if they overlap.
   if (node.style) {
-    styleParts.push(String(node.style).replace(/;+\s*$/, ""));
+    styleParts.push(withoutTrailingSemicolons(String(node.style)));
   }
 
   if (!isInlineTool) {
@@ -261,6 +261,53 @@ export function generateHtmlFromTextJson(textJson: string): string {
   }
 }
 
+const TEXT_ENTITIES: Record<string, string> = { "&": "&amp;", "<": "&lt;", ">": "&gt;" };
+
+/** What textToTextJson writes before and after its text. */
+const PLAIN = textToTextJson("\u0000").split(JSON.stringify("\u0000")) as [string, string];
+
+/** A Lexical paragraph of plain text (`textToTextJson`'s): text nodes with no formatting, in a paragraph with none. */
+function plainParagraph(node: any): boolean {
+  return (
+    (node?.type === "paragraph" || node?.type === "extended-paragraph") &&
+    !node.format && !node.indent && !node.style && !dirAttribute(node.direction) &&
+    (node.children ?? []).every((child: any) => (child?.type === "text" || child?.type === "extended-text") && !child.format && !child.style)
+  );
+}
+
+/**
+ * The HTML a text block holds (its `text`) for a textJson: what Elements writes in the design and renders, as the
+ * builder's text block exports it. HTML given (`htmlToTextJson`) is kept as it is; a paragraph of plain text (a
+ * Paragraph's `text` or string children) is that text, escaped, with no paragraph around it; other Lexical JSON
+ * (formatting, links, several paragraphs) is its HTML, as `generateHtmlFromTextJson` writes it.
+ *
+ * @param textJson - Lexical JSON string, or the HTML passthrough
+ * @returns The text block's HTML ("" for JSON it can't read)
+ */
+export function textJsonToText(textJson: string): string {
+  // Plain text as textToTextJson writes it (most Paragraphs'): its text, read without walking the tree.
+  if (textJson === EMPTY_TEXT_JSON) return "";
+  if (textJson.startsWith(PLAIN[0]) && textJson.endsWith(PLAIN[1])) {
+    try {
+      const text = JSON.parse(textJson.slice(PLAIN[0].length, -PLAIN[1].length));
+      if (typeof text === "string") return text.replace(/[&<>]/g, (c) => TEXT_ENTITIES[c]);
+    } catch {
+      // Not one text: read as any other.
+    }
+  }
+  try {
+    const parsed = JSON.parse(textJson);
+    if (parsed?.__html) return parsed.__html;
+    const paragraphs = parsed?.root?.children;
+    if (!Array.isArray(paragraphs)) return "";
+    if (paragraphs.length > 1 || !paragraphs.every(plainParagraph)) return nodeToHtml(parsed.root);
+    // (Its quotes kept: it's text, not an attribute.)
+    return (paragraphs[0]?.children ?? []).map((node: any) => String(node.text ?? "").replace(/[&<>]/g, (c) => TEXT_ENTITIES[c])).join("");
+  } catch {
+    return "";
+  }
+}
+
 /**
  * Convert an HTML string to a textJson-compatible value.
  *
@@ -283,4 +330,15 @@ export function generateHtmlFromTextJson(textJson: string): string {
 export function htmlToTextJson(html: string): string {
   if (!html) return EMPTY_TEXT_JSON;
   return JSON.stringify({ __html: html });
+}
+
+/**
+ * `style` without the `;`s and whitespace it ends in, as `.replace(/;+\s*$/, "")` leaves it: its last run of `;`s, where
+ * only whitespace follows, off. Read from its end: the regex tried again from each `;` of a long run something follows.
+ */
+function withoutTrailingSemicolons(style: string): string {
+  const trimmed = style.trimEnd();
+  let end = trimmed.length;
+  while (end && trimmed[end - 1] === ";") end--;
+  return end < trimmed.length ? style.slice(0, end) : style;
 }

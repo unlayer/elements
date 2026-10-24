@@ -2430,7 +2430,7 @@ function addCommand(folder: string): string {
  * one line per project (the nearest package.json). An Elements outside the supported range stopped the run before.
  */
 function installElements(written: string[], cwd: string): string[] {
-  const range = ownPackage().peerDependencies?.["@unlayer/react-elements"] ?? "^0.2.0";
+  const range = ownPackage().peerDependencies?.["@unlayer/react-elements"] ?? "^0.3.0";
   const lines = new Set<string>();
   for (const folder of new Set(written.map((file) => dirname(file)))) {
     // In the node_modules folders above it, as the project's own build finds it (require.resolve here would also read

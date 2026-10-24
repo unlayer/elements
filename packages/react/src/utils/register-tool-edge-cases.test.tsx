@@ -262,22 +262,40 @@ describe("edge: head contributions", () => {
 // Failure modes and hostile input
 // ---------------------------------------------------------------------------
 describe("edge: failure modes", () => {
-  it("a throwing exporter drops only its own block — siblings render, error logged", () => {
+  it("a throwing exporter fails the HTML and the text, not the design (which no exporter makes); with onError: \"omit\" only its block is left out, of all three", () => {
     const consoleError = vi.spyOn(console, "error").mockImplementation(() => {});
     const consoleWarn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const boom = new Error("boom");
     const Broken = registerElementsTool({
       name: "broken_tool",
       values: {},
-      renderer: { exporters: { email: () => { throw new Error("boom"); } } },
+      renderer: { exporters: { email: () => { throw boom; } } },
     } as any);
-    const html = renderToHtml(inEmail(<Broken />, <HeadToolSafe />));
-    // The broken block is omitted (no error card in sendable output)...
+    const email = inEmail(<Broken />, <HeadToolSafe />);
+    const said = "[Unlayer] broken_tool failed to render: boom (in <broken_tool> at Row 1 › Column 1 › broken_tool)";
+    // By default the render fails, naming the block and where it is (no error card in sendable output)...
+    for (const render of [() => renderToHtml(email), () => renderToPlainText(email)]) {
+      expect(render).toThrow(said);
+    }
+    // ...while renderToJson renders no HTML, so the design has the block: nothing is sent that it disagrees with.
+    expect(JSON.stringify(renderToJson(email))).toContain("broken_tool");
+    try {
+      renderToHtml(email);
+    } catch (error) {
+      expect(error).toMatchObject({ component: "broken_tool", position: "Row 1 › Column 1 › broken_tool", cause: boom });
+    }
+    // ...and left out, of the HTML and the design alike, the siblings and the document intact, said once.
+    consoleError.mockClear();
+    const omit = { onError: "omit" } as const;
+    const html = renderToHtml(email, omit);
     expect(html).not.toContain("broken_tool");
-    // ...siblings and the document survive intact
     expect(html).toContain("safe tool");
     expect(html.trimEnd().endsWith("</html>")).toBe(true);
-    // ...and the failure is loudly logged for the developer
-    expect(consoleError).toHaveBeenCalled();
+    expect(consoleError.mock.calls).toEqual([[said.replace("[Unlayer] ", "[Unlayer] Left out: "), boom]]);
+    const design = renderToJson(email, omit);
+    expect(JSON.stringify(design)).not.toContain("broken_tool");
+    expect(design.body.rows[0].columns[0].contents).toHaveLength(1);
+    expect(renderToHtmlParts(email, omit).omitted.map((e) => e.message)).toEqual([said]);
     consoleError.mockRestore();
     consoleWarn.mockRestore();
   });
@@ -392,7 +410,8 @@ describe("edge: composition", () => {
       },
     } as any);
     const html = renderToHtml(inEmail(<Probe className="x" style={{ color: "red" }} />));
-    expect(html).toContain("keys:</div>");
+    // (Its containerPadding is every block's, as in the design: the editor gives it to a tool's exporter too.)
+    expect(html).toContain("keys:containerPadding</div>");
   });
 
   it("renderToPlainText extracts custom tool text like any content", () => {

@@ -2,6 +2,10 @@ import { describe, it, expect } from "vitest";
 import React from "react";
 import { render } from "@testing-library/react";
 import Video, { parseVideoUrl } from "./Video";
+import Email from "./Email";
+import Row from "./Row";
+import { Column } from "./Column";
+import { renderToHtml } from "../utils/render-to-html";
 
 describe("parseVideoUrl", () => {
   it("parses youtube.com/watch?v= URL", () => {
@@ -81,5 +85,19 @@ describe("Video Component", () => {
 
   it("has correct displayName", () => {
     expect(Video.displayName).toBe("Video");
+  });
+
+  it("sizes its thumbnail in its slot: the column less the block's default 10px padding, as the editor does", () => {
+    const html = renderToHtml(
+      <Email>
+        <Row padding="24px 0px">
+          <Column padding="0px 24px">
+            <Video videoUrl="https://www.youtube.com/watch?v=dQw4w9WgXcQ" />
+          </Column>
+        </Row>
+      </Email>
+    );
+    // 500 content − 24px×2 column padding − 10px×2 block padding = 432.
+    expect(html).toMatch(/max-width: 432px;" width="432"/);
   });
 });

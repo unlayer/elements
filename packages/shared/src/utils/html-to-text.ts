@@ -7,6 +7,8 @@
  * Critical for email deliverability: spam filters penalize HTML-only emails.
  */
 
+import { removeBetween, replaceAltImages, replaceElements, replaceLinks, replaceTags, untagged, withoutElements } from "./html-scan";
+
 /**
  * Common HTML named entity map for decoding.
  *
@@ -18,77 +20,36 @@
  * handled separately below, so anything missing here still decodes if written
  * numerically.
  */
-const HTML_ENTITIES: Record<string, string> = {
-  // Core markup + whitespace
-  "&amp;": "&",
-  "&lt;": "<",
-  "&gt;": ">",
-  "&quot;": '"',
-  "&#39;": "'",
-  "&apos;": "'",
-  "&nbsp;": " ",
-  // Dashes, quotes, and typographic punctuation
-  "&mdash;": "—",
-  "&ndash;": "–",
-  "&laquo;": "«",
-  "&raquo;": "»",
-  "&lsquo;": "‘",
-  "&rsquo;": "’",
-  "&ldquo;": "“",
-  "&rdquo;": "”",
-  "&bull;": "•",
-  "&middot;": "·",
-  "&hellip;": "…",
-  // Currency
-  "&cent;": "¢",
-  "&pound;": "£",
-  "&yen;": "¥",
-  "&euro;": "€",
-  // Legal / trademark
-  "&copy;": "©",
-  "&reg;": "®",
-  "&trade;": "™",
-  "&sect;": "§",
-  "&para;": "¶",
-  // Math and misc symbols
-  "&deg;": "°",
-  "&plusmn;": "±",
-  "&times;": "×",
-  "&divide;": "÷",
-  "&micro;": "µ",
-  "&frac14;": "¼",
-  "&frac12;": "½",
-  "&frac34;": "¾",
-  // Latin-1 accented letters (common in European names/words)
-  "&szlig;": "ß",
-  "&agrave;": "à",
-  "&aacute;": "á",
-  "&acirc;": "â",
-  "&atilde;": "ã",
-  "&auml;": "ä",
-  "&aring;": "å",
-  "&aelig;": "æ",
-  "&ccedil;": "ç",
-  "&egrave;": "è",
-  "&eacute;": "é",
-  "&ecirc;": "ê",
-  "&euml;": "ë",
-  "&igrave;": "ì",
-  "&iacute;": "í",
-  "&icirc;": "î",
-  "&iuml;": "ï",
-  "&ntilde;": "ñ",
-  "&ograve;": "ò",
-  "&oacute;": "ó",
-  "&ocirc;": "ô",
-  "&otilde;": "õ",
-  "&ouml;": "ö",
-  "&oslash;": "ø",
-  "&ugrave;": "ù",
-  "&uacute;": "ú",
-  "&ucirc;": "û",
-  "&uuml;": "ü",
-};
+const HTML_ENTITIES: Record<string, string> = Object.fromEntries(
+  // Each name, then the character it stands for (`amp&lt<…`): the same map, written compactly for the bundle.
+  Array.from("amp&lt<gt>quot\"apos'nbsp mdash—ndash–laquo«raquo»lsquo‘rsquo’ldquo“rdquo”bull•middot·hellip…cent¢pound£yen¥euro€copy©reg®trade™sect§para¶deg°plusmn±times×divide÷microµfrac14¼frac12½frac34¾szligßagraveàaacuteáacircâatildeãaumläaringåaeligæccedilçegraveèeacuteéecircêeumlëigraveìiacuteíicircîiumlïntildeñograveòoacuteóocircôotildeõoumlöoslashøugraveùuacuteúucircûuumlü".matchAll(/([a-z\d]+)([^a-z\d])/gi), ([, name, char]) => [`&${name};`, char])
+);
+
+/** How `htmlToPlainText` writes plain text; each left out is as before. */
+export interface PlainTextOptions {
+  /** Wrap lines at this many characters, between words (default: no wrapping); the URLs `links: "after"` lists aren't. */
+  wordwrap?: number;
+  /** Links: "inline" (default) `text (url)`, "after" `text [1]` with the URLs listed at the end, or "none" (the text only); a heading's too, its URL as written. */
+  links?: "inline" | "after" | "none";
+  /** h1 and h2 in capitals (default true). */
+  uppercaseHeadings?: boolean;
+  /** Elements left out, with what's in them, by tag name (`"img"`) or class (`".footer"`). */
+  skip?: string[];
+}
+
+/**
+ * `text` without the whitespace but line breaks at its lines' ends, as `/[^\S\n]+$/gm` leaves it, read once: that regex
+ * tries again from each character of a run of spaces that no line ends (80,000 spaces then `x` took 11 s). A run that
+ * ends a line goes; in one that doesn't, what's before its last line break (`\r`, U+2028, U+2029) goes.
+ */
+function trimLineEnds(text: string): string {
+  return text.replace(/[^\S\n]+/g, (run: string, at: number) => {
+    const end = at + run.length;
+    if (end === text.length || text[end] === "\n") return "";
+    for (let i = run.length - 1; i > 0; i--) if (run[i] === "\r" || run[i] === "\u2028" || run[i] === "\u2029") return run.slice(i);
+    return run;
+  });
+}
 
 /**
  * Decode HTML entities (named and numeric).
@@ -122,57 +83,70 @@ function decodeEntities(text: string): string {
  * // "HELLO\nWorld"
  * ```
  */
-export function htmlToPlainText(html: string): string {
+export function htmlToPlainText(html: string, options: PlainTextOptions = {}): string {
   if (!html) return "";
 
   let text = html;
+  const { links = "inline", uppercaseHeadings = true, skip = [], wordwrap } = options;
 
-  // 1. Remove elements marked with data-skip-in-text (preview div, etc.)
-  text = text.replace(/<[^>]+data-skip-in-text="true"[^>]*>[\s\S]*?<\/[^>]+>/gi, "");
+  // 1. Remove elements marked with data-skip-in-text (preview div, a block's `skipInText`, etc.) and those `skip` names,
+  // with what's in them.
+  // (Each step reads the text once, whatever it holds: see html-scan.ts.)
+  text = withoutElements(text, (tag) => /data-skip-in-text="true"/.test(tag) || skip.some((s) => (s[0] === "." ? new RegExp(`\\sclass="([^"]*\\s)?${s.slice(1).replace(/\W/g, "\\$&")}[\\s"]`) : new RegExp(`^<${s}[\\s>/]`, "i")).test(tag)));
 
   // 2. Remove <head>, <style>, <script> blocks entirely
-  text = text.replace(/<head[\s\S]*?<\/head>/gi, "");
-  text = text.replace(/<style[\s\S]*?<\/style>/gi, "");
-  text = text.replace(/<script[\s\S]*?<\/script>/gi, "");
+  text = removeBetween(text, /<head/iy, /<\/head>/gi);
+  text = removeBetween(text, /<style/iy, /<\/style>/gi);
+  text = removeBetween(text, /<script/iy, /<\/script>/gi);
 
   // A line break, first: headings, links and list items keep theirs ("WELCOME BACK,<br>ADA").
   text = text.replace(/<br\s*\/?>/gi, "\n");
 
-  // 3. Convert headings: h1-h2 → UPPERCASE, h3-h6 → as-is
-  text = text.replace(/<h[12][^>]*>([\s\S]*?)<\/h[12]>/gi, (_, content) => {
-    const clean = content.replace(/<[^>]+>/g, "").trim();
-    // Entities stay as written, to decode below (`&amp;` uppercased wouldn't).
-    const upper = clean.replace(/&#?\w+;|[^&]+|&/g, (part: string) => (/^&#?\w+;$/.test(part) ? part : part.toUpperCase()));
+  // 3. Convert links, a heading's and preformatted text's too: <a href="url">text</a> → text (url), or text [1] with the
+  // URLs at the end, or text. Its URL (or its text, if that's the URL) is set aside until the end, so nothing changes it
+  // (a heading's capitals). An attribute's value, in either quote, is read whole (`href="…it's"`).
+  const urls: string[] = [];
+  const url = (href: string) => `\u0001${urls.push(decodeEntities(href)) - 1}\u0001`;
+  const listed: string[] = [];
+  text = replaceLinks(text, (link, attributes, content) => {
+    const [, ...quoted] = /\shref\s*=\s*(?:"([^"]+)"|'([^']+)'|([^\s"'>]+))/i.exec(attributes) ?? [];
+    const href = quoted.find(Boolean);
+    if (!href) return link;
+    const clean = untagged(content).trim();
+    // Skip if link text is the same as URL (avoid duplication)
+    if (clean === href || clean === decodeEntities(href)) return url(href);
+    return links === "none" ? clean : links === "after" ? `${clean} [${listed.push(href)}]` : `${clean} (${url(href)})`;
+  });
+  const restore = (text: string) => text.replace(/\u0001(\d+)\u0001/g, (_, i: string) => urls[Number(i)]);
+
+  // Preformatted text (code) as it is, spaces and lines kept (but at their ends): set aside until the end.
+  const pre: string[] = [];
+  // A line of its own, unless it ends a table cell (code with line numbers: a row per line).
+  text = replaceElements(text, /<pre/iy, /<\/pre>/gi, (_, content, cell) => `\u0000${pre.push(trimLineEnds(restore(decodeEntities(untagged(content))))) - 1}\u0000${cell ?? "\n"}`, { bounded: true, after: /\s*<\/t[dh]>/iy });
+
+  // 4. Convert headings: h1-h2 → UPPERCASE, h3-h6 → as-is
+  text = replaceElements(text, /<h[12]/iy, /<\/h[12]>/gi, (_, content) => {
+    const clean = untagged(content).trim();
+    // Entities stay as written, to decode below (`&amp;` uppercased wouldn't), and an email service's tags as they are.
+    const upper = clean.replace(/<%[^<>]*%>|&#?\w+;|[^&<]+|[&<]/g, (part: string) => (/^(&#?\w+;|<%[^<>]*%>)$/.test(part) || !uppercaseHeadings ? part : part.toUpperCase()));
     return "\n" + upper + "\n";
   });
-  text = text.replace(/<h[3-6][^>]*>([\s\S]*?)<\/h[3-6]>/gi, (_, content) => {
-    const clean = content.replace(/<[^>]+>/g, "").trim();
+  text = replaceElements(text, /<h[3-6]/iy, /<\/h[3-6]>/gi, (_, content) => {
+    const clean = untagged(content).trim();
     return "\n" + clean + "\n";
   });
 
-  // 4. Convert links: <a href="url">text</a> → text (url)
-  text = text.replace(/<a[^>]+href=["']([^"']+)["'][^>]*>([\s\S]*?)<\/a>/gi, (_, href, content) => {
-    const clean = content.replace(/<[^>]+>/g, "").trim();
-    // Skip if link text is the same as URL (avoid duplication)
-    if (clean === href || clean === decodeEntities(href)) {
-      return clean;
-    }
-    return `${clean} (${href})`;
-  });
-
   // 5. Convert images: <img alt="text"> → [text]
-  text = text.replace(/<img[^>]+alt=["']([^"']+)["'][^>]*\/?>/gi, (_, alt) => {
-    return `[${alt}]`;
-  });
+  text = replaceAltImages(text, (alt) => `[${alt}]`);
   // Remove images without alt text
-  text = text.replace(/<img[^>]*\/?>/gi, "");
+  text = replaceTags(text, /<img/iy, () => "");
 
   // 6. Convert horizontal rules
-  text = text.replace(/<hr[^>]*\/?>/gi, "\n---\n");
+  text = replaceTags(text, /<hr/iy, () => "\n---\n");
 
   // 7. Convert list items
-  text = text.replace(/<li[^>]*>([\s\S]*?)<\/li>/gi, (_, content) => {
-    const clean = content.replace(/<[^>]+>/g, "").trim();
+  text = replaceElements(text, /<li/iy, /<\/li>/gi, (_, content) => {
+    const clean = untagged(content).trim();
     return "- " + clean + "\n";
   });
 
@@ -184,7 +158,7 @@ export function htmlToPlainText(html: string): string {
   text = text.replace(/<\/(?:td|th)>/gi, "\t");
 
   // 11. Remove all remaining HTML tags
-  text = text.replace(/<[^>]+>/g, "");
+  text = untagged(text);
 
   // 12. Decode HTML entities
   text = decodeEntities(text);
@@ -202,7 +176,10 @@ export function htmlToPlainText(html: string): string {
   // Collapse 3+ consecutive newlines to 2
   text = text.replace(/\n{3,}/g, "\n\n");
   // Trim leading/trailing whitespace
-  text = text.trim();
+  text = restore(text.trim());
+  // Lines wrapped at `wordwrap` characters, between words (a longer word stays whole); the URLs listed after aren't.
+  if (wordwrap) text = text.replace(new RegExp(`(?![^\\n]{1,${wordwrap}}$)([^\\n]{1,${wordwrap}})\\s`, "g"), "$1\n");
+  if (listed.length) text += `\n\n${listed.map((href, i) => `[${i + 1}] ${decodeEntities(href)}`).join("\n")}`;
 
-  return text;
+  return text.replace(/\u0000(\d+)\u0000/g, (whole, i: string) => pre[Number(i)] ?? whole);
 }

@@ -12,6 +12,8 @@ import Divider from "../components/Divider";
 import Email from "../components/Email";
 import Page from "../components/Page";
 import Document from "../components/Document";
+import { renderToHtml } from "./render-to-html";
+import { RenderError } from "@unlayer-internal/shared-elements";
 import { ColumnLayouts } from "../layouts/ColumnLayouts";
 
 describe("renderToJson", () => {
@@ -330,11 +332,21 @@ describe("renderToJson", () => {
     expect(() => renderToJson(<NotARoot />)).toThrow("Root element must be <Body>");
   });
 
-  it("rethrows an actionable error when a wrapper throws while unwrapping", () => {
+  it("throws what a wrapper throws as renderToHtml does (a RenderError naming it), and says what to do for an async one", () => {
+    const cause = new Error("no data");
     const Boom = (): React.ReactElement => {
-      throw new Error("invalid hook call");
+      throw cause;
     };
-    expect(() => renderToJson(<Boom />)).toThrow("could not unwrap");
+    for (const render of [() => renderToJson(<Boom />), () => renderToHtml(<Boom />)]) {
+      expect(render).toThrow(RenderError);
+      expect(render).toThrow(/^\[Unlayer\] no data \(in <Boom>\)$/);
+    }
+    expect(() => renderToJson(<Boom />)).toThrow(expect.objectContaining({ component: "Boom", cause }));
+    const Later = async () => <Email />;
+    expect(() => renderToJson(<Later />)).toThrow(RenderError);
+    expect(() => renderToJson(<Later />)).toThrow(
+      `[Unlayer] renderToJson: async and suspending templates need "@unlayer/react-elements/async"'s renderers, or their data loaded first and passed as props (in <Later>)`
+    );
   });
 
   it("unwraps a wrapper that uses hooks, also while the app is rendering", () => {
@@ -551,19 +563,25 @@ describe("renderToJson", () => {
 });
 
 describe("renderToJson with markup React rejects in a Column", () => {
-  it("leaves it out, with a message, and keeps the blocks around it", () => {
+  const email = (
+    <Email><Row><Column>
+      <Paragraph>Before the rule</Paragraph>
+      {React.createElement("hr", { style: "border-top:1px solid #eee" } as never)}
+      <Paragraph>After the rule</Paragraph>
+    </Column></Row></Email>
+  );
+
+  it("fails, naming it", () => {
+    expect(() => renderToJson(email)).toThrow(/^\[Unlayer\] The `style` prop expects a mapping .* \(in <hr> at Row 1 › Column 1 › hr\)$/);
+  });
+
+  it("with onError: \"omit\", leaves it out, with a message, and keeps the blocks around it", () => {
     const error = vi.spyOn(console, "error").mockImplementation(() => {});
     try {
-      const design = renderToJson(
-        <Email><Row><Column>
-          <Paragraph>Before the rule</Paragraph>
-          {React.createElement("hr", { style: "border-top:1px solid #eee" } as never)}
-          <Paragraph>After the rule</Paragraph>
-        </Column></Row></Email>
-      );
+      const design = renderToJson(email, { onError: "omit" });
       const text = JSON.stringify(design.body.rows[0].columns[0].contents.map((c: any) => c.type));
       expect(text).toBe('["text","text"]');
-      expect(error.mock.calls.some((call) => String(call[0]).includes("<hr>"))).toBe(true);
+      expect(error.mock.calls.map((call) => String(call[0]))).toEqual([expect.stringMatching(/^\[Unlayer\] Left out: The `style` prop .*\(in <hr> at Row 1 › Column 1 › hr\)$/)]);
     } finally {
       error.mockRestore();
     }
@@ -645,16 +663,197 @@ describe("renderRowToJson", () => {
 });
 
 describe("renderToJson fonts prop", () => {
-  it("keeps the root's fonts out of the design (renderToHtml links them)", () => {
+  const INTER = "https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap";
+  const PAIR = "https://fonts.googleapis.com/css?family=Open+Sans:400,700|Lora";
+
+  it("puts each URL on the design's fonts of the families it names, as a <Font> does, so the editor loads them", () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    try {
+      // As the CLI starters write it: the root's font is the stylesheet's family.
+      const design = renderToJson(
+        <Email fonts={[{ url: INTER }, { url: PAIR }]} fontFamily={{ label: "Inter", value: "Inter, 'Helvetica Neue', Arial, sans-serif" }}>
+          <Row>
+            <Column>
+              <Heading fontFamily="'Open Sans', Arial, sans-serif">Hello</Heading>
+              <Paragraph fontFamily={{ label: "Lora", value: "Lora, serif", url: "https://example.com/own.css" }}>Its own</Paragraph>
+              <Paragraph fontFamily="Georgia, serif">Another family</Paragraph>
+            </Column>
+          </Row>
+        </Email>
+      ) as any;
+      expect(design.body.values.fontFamily).toEqual({ label: "Inter", value: "Inter, 'Helvetica Neue', Arial, sans-serif", url: INTER });
+      const [heading, own, other] = design.body.rows[0].columns[0].contents.map((c: any) => c.values.fontFamily);
+      expect(heading.url).toBe(PAIR);
+      // A font with its own URL keeps it; another family takes none.
+      expect(own.url).toBe("https://example.com/own.css");
+      expect(other.url).toBeUndefined();
+      expect(warn).not.toHaveBeenCalled();
+    } finally {
+      warn.mockRestore();
+    }
+  });
+
+  it("says, once a render, a URL the design can't hold: one naming no family a font in it has, or no family at all", () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    try {
+      const tree = (
+        <Email fonts={[{ url: "https://fonts.googleapis.com/css2?family=Inter" }, { url: "https://cdn.example.com/brand.css" }, { url: "https://cdn.example.com/brand.css" }]}>
+          <Row>
+            <Column>
+              <Paragraph>Hello</Paragraph>
+            </Column>
+          </Row>
+        </Email>
+      );
+      const design = renderToJson(tree);
+      expect(JSON.stringify(design)).not.toContain("fonts.googleapis.com");
+      const said = warn.mock.calls.map((c) => String(c[0]));
+      expect(said).toEqual([
+        expect.stringMatching(/^\[Unlayer\] Email `fonts` URL https:\/\/fonts\.googleapis\.com\/css2\?family=Inter is kept in HTML but not in the design/),
+        expect.stringMatching(/^\[Unlayer\] Email `fonts` URL https:\/\/cdn\.example\.com\/brand\.css is kept in HTML but not in the design/),
+      ]);
+      // The HTML links them all the same.
+      expect(renderToHtml(tree)).toContain('href="https://cdn.example.com/brand.css"');
+    } finally {
+      warn.mockRestore();
+    }
+  });
+
+  it("reads the families of a data: stylesheet's @font-face rules (as @unlayer/migrate writes a font file)", () => {
+    const css = "@font-face{font-family:'Brand Sans';src:url('https://cdn.example.com/brand.woff2') format('woff2');font-weight:400;font-style:normal}";
+    const url = `data:text/css,${encodeURIComponent(css)}`;
     const design = renderToJson(
-      <Email fonts={[{ url: "https://fonts.googleapis.com/css2?family=Inter" }]}>
+      <Email fonts={[{ url }]} fontFamily="'Brand Sans', Arial, sans-serif">
         <Row>
           <Column>
             <Paragraph>Hello</Paragraph>
           </Column>
         </Row>
       </Email>
+    ) as any;
+    expect(decodeURIComponent(design.body.values.fontFamily.url)).toBe(`data:text/css,${css}`);
+  });
+
+  it("leaves a <Font>'s URL where it put it", () => {
+    const design = renderToJson(
+      <Email fonts={[{ url: INTER }]} fontFamily={{ label: "Inter", value: "Inter, sans-serif", url: "https://example.com/inter.css" }}>
+        <Row>
+          <Column>
+            <Paragraph>Hello</Paragraph>
+          </Column>
+        </Row>
+      </Email>
+    ) as any;
+    expect(design.body.values.fontFamily.url).toBe("https://example.com/inter.css");
+  });
+});
+
+describe("renderToJson displayMode", () => {
+  const content = <Row><Column><Paragraph>Hi</Paragraph></Column></Row>;
+  it.each([
+    ["Email", <Email>{content}</Email>, "email"],
+    ["Page", <Page>{content}</Page>, "web"],
+    ["Document", <Document>{content}</Document>, "document"],
+    ["Body with a mode", <Body mode="email">{content}</Body>, "email"],
+    ["Body with none", <Body>{content}</Body>, "web"],
+  ] as const)("writes the mode the HTML renders in on the body: %s", (_, tree, mode) => {
+    expect((renderToJson(tree).body.values as any).displayMode).toBe(mode);
+  });
+
+  it("is the root's, over one given in its values", () => {
+    expect((renderToJson(<Email values={{ displayMode: "web" } as any}>{content}</Email>).body.values as any).displayMode).toBe("email");
+  });
+});
+
+describe("renderToJson lengths", () => {
+  // The design's schema types paddings, radii and border widths as px lengths: `0` is written `0px` there.
+  const one = (block: React.ReactElement, row: Record<string, unknown> = {}, column: Record<string, unknown> = {}) =>
+    renderToJson(
+      <Email>
+        <Row {...row}>
+          <Column {...column}>{block}</Column>
+        </Row>
+      </Email>
+    ) as any;
+  const blockOf = (design: any) => design.body.rows[0].columns[0].contents[0].values;
+
+  it("writes a bare zero in a px length as 0px: containerPadding=\"0 0 12px\"", () => {
+    expect(blockOf(one(<Paragraph containerPadding="0 0 12px">Hi</Paragraph>)).containerPadding).toBe("0px 0px 12px");
+    expect(blockOf(one(<Paragraph containerPadding="0">Hi</Paragraph>)).containerPadding).toBe("0px");
+  });
+
+  it("in every length a design holds, in each of its forms", () => {
+    const design = one(
+      <Button padding="0 24px" borderRadius="0" border={{ borderTopWidth: "0", borderTopStyle: "solid" }} mobile={{ padding: "0 12px 0" }}>Go</Button>,
+      { values: { padding: "0 0 8px 0" } },
+      { padding: "0 16px", borderRadius: "0 4px", border: { borderLeftWidth: "0" } }
     );
-    expect(JSON.stringify(design)).not.toContain("fonts.googleapis.com");
+    const button = blockOf(design);
+    expect(button).toMatchObject({ padding: "0px 24px", borderRadius: "0px", border: { borderTopWidth: "0px", borderTopStyle: "solid" } });
+    expect(button._override.mobile.padding).toBe("0px 12px 0px");
+    expect(design.body.rows[0].values.padding).toBe("0px 0px 8px 0px");
+    expect(design.body.rows[0].columns[0].values).toMatchObject({ padding: "0px 16px", borderRadius: "0px 4px", border: { borderLeftWidth: "0px" } });
+  });
+
+  it("in the body's margins too: documentMargin, popupCloseButton_margin", () => {
+    const body = renderToJson(<Document values={{ documentMargin: "0 0 12px", popupCloseButton_margin: "0" } as never}><Row><Column><Paragraph>Hi</Paragraph></Column></Row></Document>).body.values as any;
+    expect(body).toMatchObject({ documentMargin: "0px 0px 12px", popupCloseButton_margin: "0px" });
+  });
+
+  it("leaves a length in another unit as it is, and the HTML as it was", () => {
+    expect(blockOf(one(<Paragraph containerPadding="1em 0">Hi</Paragraph>)).containerPadding).toBe("1em 0");
+    expect(blockOf(one(<Paragraph containerPadding="0 auto">Hi</Paragraph>)).containerPadding).toBe("0 auto");
+    expect(blockOf(one(<Paragraph containerPadding="0px 8px">Hi</Paragraph>)).containerPadding).toBe("0px 8px");
+    // Text that isn't a length isn't touched.
+    expect(blockOf(one(<Paragraph>0</Paragraph>)).text).toBe("0");
+    // The HTML writes the padding as given.
+    expect(renderToHtml(<Email><Row><Column><Paragraph containerPadding="0 0 12px">Hi</Paragraph></Column></Row></Email>)).toMatch(/padding: ?0 0 12px/);
+  });
+});
+
+/**
+ * Text given as text shows as typed in the HTML, and in the editor that opens the design: the design's `text` is HTML,
+ * so text is escaped there as it is in the HTML. What's given as HTML stays HTML in both.
+ */
+describe("renderToJson: text shows in the editor as in the HTML", () => {
+  const typed = 'Use <b>bold</b> & <img src=x onerror="alert(1)"> &amp; <%name%>';
+  /** What a browser (and the editor's canvas) shows of an element: its text (spaces collapsed), and whether it holds elements. */
+  const seen = (at: Element) => ({ text: at.textContent!.replace(/\s+/g, " ").trim(), elements: at.querySelectorAll("b, img").length });
+  /** The block's text as the email shows it, and as the editor shows the design's (its `text` is HTML). */
+  const both = (Root: React.FC<any>, block: React.ReactElement) => {
+    const tree = <Root><Row><Column>{block}</Column></Row></Root>;
+    const page = new DOMParser().parseFromString(renderToHtml(tree), "text/html");
+    const design = document.createElement("div");
+    design.innerHTML = (renderToJson(tree).body.rows[0].columns[0].contents[0].values as any).text;
+    return { html: seen(page.querySelector("[id^='u_content_']")!), design: seen(design) };
+  };
+
+  it.each([["Email", Email], ["Page", Page], ["Document", Document]] as const)("a Paragraph's `text` and string children are text in both (%s)", (_, Root) => {
+    for (const block of [<Paragraph text={typed} />, <Paragraph>{typed}</Paragraph>]) {
+      const { html, design } = both(Root, block);
+      expect(html).toEqual({ text: typed, elements: 0 });
+      expect(design).toEqual(html);
+    }
+    const values = renderToJson(<Root><Row><Column><Paragraph text={typed} /></Column></Row></Root>).body.rows[0].columns[0].contents[0].values as any;
+    expect(values.text).toBe('Use &lt;b&gt;bold&lt;/b&gt; &amp; &lt;img src=x onerror="alert(1)"&gt; &amp;amp; &lt;%name%&gt;');
+    expect(values.textJson).toBeUndefined();
+    // Plain words are written as before.
+    expect((renderToJson(<Root><Row><Column><Paragraph text="Hello there" /></Column></Row></Root>).body.rows[0].columns[0].contents[0].values as any).text).toBe("Hello there");
+  });
+
+  it.each([["Email", Email], ["Page", Page], ["Document", Document]] as const)("a Paragraph's `html`, Heading's and Button's `text` stay HTML in both, their children text (%s)", (_, Root) => {
+    const html = "Use <b>bold</b> &amp; more";
+    expect(both(Root, <Paragraph html={html} />)).toEqual({ html: { text: "Use bold & more", elements: 1 }, design: { text: "Use bold & more", elements: 1 } });
+    expect((renderToJson(<Root><Row><Column><Paragraph html={html} /></Column></Row></Root>).body.rows[0].columns[0].contents[0].values as any).text).toBe(html);
+    for (const block of [<Heading text={html} />, <Button href="https://example.com" text={html} />]) {
+      const { html: shownInHtml, design } = both(Root, block);
+      expect(shownInHtml).toEqual({ text: "Use bold & more", elements: 1 });
+      expect(design).toEqual(shownInHtml);
+    }
+    for (const block of [<Heading>{typed}</Heading>, <Button href="https://example.com">{typed}</Button>]) {
+      const { html: shownInHtml, design } = both(Root, block);
+      expect(shownInHtml).toEqual({ text: typed, elements: 0 });
+      expect(design).toEqual(shownInHtml);
+    }
   });
 });
