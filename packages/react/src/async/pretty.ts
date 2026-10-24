@@ -22,7 +22,23 @@ export async function prettyHtml(html: string): Promise<string> {
     );
   }
   const comments: string[] = [];
-  const set = html.replace(/<!--[\s\S]*?-->/g, (comment) => `<!--unlayer-pretty-${comments.push(comment) - 1}-->`);
+  const set = setAside(html, comments);
   const formatted = await prettier.format(set, { parser: "html", plugins: [plugin], htmlWhitespaceSensitivity: "strict", printWidth: 120 });
   return formatted.replace(/<!--unlayer-pretty-(\d+)-->/g, (_, i: string) => comments[Number(i)]);
+}
+
+/**
+ * `html` with each comment (`<!--…-->`) set aside in `comments`, a placeholder in its place, as
+ * `/<!--[\s\S]*?-->/g` finds them: read once, where that regex looked from each `<!--` nothing closes to the end.
+ */
+function setAside(html: string, comments: string[]): string {
+  let out = "";
+  let kept = 0;
+  for (let open = html.indexOf("<!--"); open >= 0; open = html.indexOf("<!--", kept)) {
+    const close = html.indexOf("-->", open + 4);
+    if (close < 0) break;
+    out += `${html.slice(kept, open)}<!--unlayer-pretty-${comments.push(html.slice(open, close + 3)) - 1}-->`;
+    kept = close + 3;
+  }
+  return out + html.slice(kept);
 }

@@ -494,6 +494,14 @@ describe("the async renderers", () => {
     );
   });
 
+  it("sets the HTML's comments aside in time linear in its size, and fails as prettier does on one nothing closes", async () => {
+    // `/<!--[\s\S]*?-->/g` looked from each `<!--` nothing closes to the end: 400 KB of them took 11 s.
+    const start = performance.now();
+    await expect(formatted("<!--".repeat(102400))).rejects.toThrow();
+    expect(performance.now() - start).toBeLessThan(2000);
+    expect(await formatted("<p>a<!-- one --><!--two--></p>")).toContain("<!-- one --><!--two-->");
+  });
+
   it("write the plain text with the synchronous renderer's options", async () => {
     const email = (
       <Email>
