@@ -222,6 +222,45 @@ describe("rich text children of Paragraph, Heading and Button", () => {
     }
   });
 
+  it("cost about ten times as much for ten times as much markup of any short shape (random, seeded): a component's own HTML in them, a lone link", () => {
+    // Markup a component of yours writes as it is (`dangerouslySetInnerHTML`), as it reaches the text a block keeps: a
+    // <style> or <script> left open at its end takes the end tags after it out with it, so the `<`s before it have no
+    // `>` after them (the tags' regex read to the end from each of them: 100 KB took 4 to 16 s).
+    const pieces = ["<", ">", "</", "<style", "<script", "</style>", "</script >", "<a", "<b", "<br", "<x-y:z", "span", " ", "\t", "\n", "=", '"', "'", "x", "-", ":", "href", "style", "class", "javascript:", "&lt;%", "%&gt;", "<%", "%>", "&amp;", "/", "<!--", "-->"];
+    const ends = ["", "<a ", "<style>", "<span ", "<b>", "<script", "x"];
+    let seed = 5;
+    const random = (n: number) => ((seed = (Math.imul(seed, 1103515245) + 12345) >>> 0), Math.floor((seed / 2 ** 32) * n));
+    const fill = (head: string, unit: string, tail: string, bytes: number) => head + unit.repeat(Math.ceil(bytes / unit.length)).slice(0, bytes) + tail;
+    const Markup = ({ html }: { html: string }) => <span dangerouslySetInnerHTML={{ __html: html }} />;
+    const time = (html: string) => {
+      const start = performance.now();
+      renderToJson(
+        <Email><Row><Column>
+          <Paragraph>Hi <Markup html={html} /></Paragraph>
+          <Heading>Hi <Markup html={html} /></Heading>
+          <Button href="https://example.com">Go <Markup html={html} /></Button>
+          <Link href="https://example.com"><Markup html={html} /></Link>
+        </Column></Row></Email>
+      );
+      return performance.now() - start;
+    };
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const slow: string[] = [];
+    try {
+      for (let run = 0; run < 100; run++) {
+        let unit = "";
+        for (let i = 0, n = 1 + random(4); i < n; i++) unit += pieces[random(pieces.length)];
+        const [head, tail] = [ends[random(ends.length)], ends[random(ends.length)]];
+        const small = Math.max(time(fill(head, unit, tail, 10240)), 2);
+        const large = time(fill(head, unit, tail, 102400));
+        if (large > 20 * small && large > 100) slow.push(`${JSON.stringify([head, unit, tail])}: ${small.toFixed(1)} ms for 10 KB, ${large.toFixed(1)} ms for 100 KB`);
+      }
+    } finally {
+      warn.mockRestore();
+    }
+    expect(slow).toEqual([]);
+  }, 120_000);
+
   it("leave text given as strings exactly as before", () => {
     const strings = <Email><Row><Column><Paragraph>Hi {name}</Paragraph><Heading>{"A <b>b</b>"}</Heading><Button href="#">{["Go", " now"]}</Button></Column></Row></Email>;
     const [paragraph, heading, button] = renderToJson(strings).body.rows[0].columns[0].contents as Array<{ values: { text: string } }>;

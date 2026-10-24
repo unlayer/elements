@@ -170,6 +170,10 @@ describe("designToElements", () => {
       ["table 60×60", design([{ type: "table", values: { table: { headers: [{ cells: cells(60, "h") }], rows: Array.from({ length: 60 }, () => ({ cells: cells(60, "c") })) } } }])],
       ["menu of 1,000 items", design([{ type: "menu", values: { menu: { items: Array.from({ length: 1000 }, (_, i) => ({ key: `k${i}`, text: `t${i}`, link: { name: "web", values: { href: `https://e.test/${i}` } } })) } } }])],
       ["values 200 deep", nested(200)],
+      // A px length checked digit by digit every way it could split them: 50,000 digits took a second.
+      ["a padding of 100,000 digits", design([{ type: "text", values: { text: "<p>x</p>", containerPadding: `${"1".repeat(102400)}x` } }])],
+      // A `mailto:` link's empty fields looked for from inside each run of letters: 100,000 took seconds.
+      ["a mailto: link of 100,000 letters", design([{ type: "button", values: { text: "Write", href: { name: "web", values: { href: `mailto:${"a".repeat(102400)}` } } } }])],
     ];
     for (const [shape, source] of shapes) {
       const start = performance.now();

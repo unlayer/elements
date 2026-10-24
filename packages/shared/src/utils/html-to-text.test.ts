@@ -219,5 +219,40 @@ describe("htmlToPlainText", () => {
       expect(htmlToPlainText('<p class="footers">kept</p>', { skip: [".footer"] })).toBe("kept");
     });
   });
+
+  describe("in time linear in the HTML's size, whatever it holds", () => {
+    const fill = (unit: string, bytes: number) => unit.repeat(Math.ceil(bytes / unit.length)).slice(0, bytes);
+    const time = (html: string, options?: Parameters<typeof htmlToPlainText>[1]) => {
+      const start = performance.now();
+      htmlToPlainText(html, options);
+      return performance.now() - start;
+    };
+
+    it("reads tags nothing closes, and runs of spaces in preformatted text, once", () => {
+      // Each regex looked from each place it could start to the end where nothing ended it, again from the next: 40
+      // KB of `<img alt="a" ` took a minute, 80,000 spaces in a <pre> 11 s.
+      const shapes = ["<", "<<", '<img alt="a" ', "<a  ", "<a href=\"x\">", "<a '", "<li>", "<h1>", "<h3>", "<pre>", "<pre x", "<hr", "<img ", "<head", "<style", "<script", "<!--", "<a-0-0-0", '<div data-skip-in-text="true">', "<%\"", "<&"];
+      for (const unit of shapes) expect([unit, time(fill(unit, 102400)) < 500]).toEqual([unit, true]);
+      expect(time("<pre>\n" + " ".repeat(102400) + "x\n</pre>")).toBeLessThan(500);
+      // As before: its lines' trailing spaces off, its indentation kept.
+      expect(htmlToPlainText("<pre>\n" + " ".repeat(1000) + "x  \n</pre>")).toBe("\n" + " ".repeat(1000) + "x\n");
+    });
+
+    it("costs about ten times as much for ten times as much of any short shape (random, seeded)", () => {
+      const pieces = ["<a ", '<a href="x">', "</a>", "<li>", "</li>", "<h1>", "</h1>", "<h3>", "<pre>", "</pre>", "</td>", "<img ", '<img alt="a" ', "alt=", '"', "'", ">", "/>", "<", "<!--", "-->", "<head", "</head>", "<style", "<script", "<br", " ", "\t", "\n", "\r", "\u2028", "a", "&", "&amp;", "<%", "%>", "<p>", "</p>", '<div data-skip-in-text="true">', "<div>", "</div>", "<hr", "-", "x-"];
+      let seed = 7;
+      const random = (n: number) => ((seed = (Math.imul(seed, 1103515245) + 12345) >>> 0), Math.floor((seed / 2 ** 32) * n));
+      const slow: string[] = [];
+      for (let run = 0; run < 150; run++) {
+        let unit = "";
+        for (let i = 0, n = 1 + random(5); i < n; i++) unit += pieces[random(pieces.length)];
+        const options = [{}, { links: "after" as const }, { skip: ["img", ".promo"] }][random(3)];
+        const small = Math.max(time(fill(unit, 10240), options), 1);
+        const large = time(fill(unit, 102400), options);
+        if (large > 20 * small && large > 50) slow.push(`${JSON.stringify(unit)}: ${small.toFixed(1)} ms for 10 KB, ${large.toFixed(1)} ms for 100 KB`);
+      }
+      expect(slow).toEqual([]);
+    }, 60_000);
+  });
 });
 

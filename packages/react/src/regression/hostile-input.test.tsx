@@ -12,7 +12,7 @@
  */
 import { beforeAll, describe, expect, it, vi } from "vitest";
 import React from "react";
-import { renderToHtml } from "../utils/render-to-html";
+import { renderToHtml, renderToPlainText } from "../utils/render-to-html";
 import { renderToJson } from "../utils/render-to-json";
 import { Email, Page, Document, Row, Column, Paragraph, Heading, Button, Image, Link, Menu, Social, Html, Divider, Table, Video } from "../index";
 import { designToElements } from "../codegen";
@@ -65,6 +65,9 @@ const CASES: Record<string, (v: string) => React.ReactElement> = {
   // A video's link and thumbnail, which an email writes into an `href` and a `src` as they are (0.2.1 did too).
   "Video link": (v) => <Row><Column><Video video={{ url: `https://youtu.be/${v}`, type: "youtube", videoId: "abc", thumbnail: "https://img.youtube.com/vi/abc/0.jpg" }} /></Column></Row>,
   "Video thumbnail": (v) => <Row><Column><Video values={{ video: { url: "https://youtu.be/abc", type: "youtube", videoId: "abc", thumbnail: `https://example.com/${v}.jpg` } }} /></Column></Row>,
+  // A video's id, which a page's and a document's player writes into its `src` as it is (0.2.1 did too).
+  "Video id": (v) => <Row><Column><Video video={{ type: "youtube", videoId: `abc${v}`, thumbnail: "https://img.youtube.com/vi/abc/0.jpg" }} /></Column></Row>,
+  "Vimeo id in values": (v) => <Row><Column><Video values={{ video: { type: "vimeo", videoId: `76979871${v}`, thumbnail: "" } }} /></Column></Row>,
   // A social icon's own image, which an email writes into its `src` as it is.
   "Social icon image": (v) => <Row><Column><Social values={{ icons: { iconType: "circle", icons: [{ name: "Custom", url: "https://example.com", imgUrl: `https://example.com/${v}.png` }] } } as never} /></Column></Row>,
   "Social link": (v) => <Row><Column><Social icons={[{ name: "Twitter", url: `https://twitter.com/${v}` }]} /></Column></Row>,
@@ -122,6 +125,7 @@ describe("a design's values, as designToElements writes them", () => {
               values: {},
               contents: [
                 { type: "video", values: { video: { url, videoId: "abc", type: "youtube", thumbnail: `https://img.example/${payload}.jpg` } } },
+                { type: "video", values: { video: { videoId: `abc${payload}`, type: "youtube", thumbnail: "https://img.youtube.com/vi/abc/0.jpg" } } },
                 { type: "social", values: { icons: { iconType: "circle", icons: [{ name: "Custom", url: "https://example.com", imgUrl: `https://example.com/${payload}.png` }] } } },
               ],
             },
@@ -147,6 +151,45 @@ describe("a design's values, as designToElements writes them", () => {
   });
 });
 
+describe("a video's id, which a page's and a document's player writes into its URL as it is", () => {
+  const payload = 'abc" onload="alert(document.domain)';
+  const encoded = "abc%22%20onload%3D%22alert%28document.domain%29";
+  const PLAYERS = { youtube: "https://www.youtube.com/embed/", vimeo: "https://player.vimeo.com/video/" } as const;
+  const block = (json: any) => json.body.rows[0].columns[0].contents[0].values.video;
+  const designOf = (type: string, videoId: string) => ({
+    counters: {},
+    schemaVersion: 16,
+    body: { values: { displayMode: "web" }, rows: [{ cells: [1], values: {}, columns: [{ values: {}, contents: [{ type: "video", values: { video: { type, videoId, thumbnail: "" } } }] }] }] },
+  });
+
+  it.each(Object.keys(PLAYERS) as Array<keyof typeof PLAYERS>)("%s: is percent-encoded where it holds what an id doesn't, in the HTML, the design and the code designToElements writes", (type) => {
+    for (const element of [<Video video={{ type, videoId: payload, thumbnail: "" }} />, <Video values={{ video: { type, videoId: payload, thumbnail: "" } }} />]) {
+      for (const Root of [Page, Document]) {
+        const doc = new DOMParser().parseFromString(renderToHtml(<Root><Row><Column>{element}</Column></Row></Root>), "text/html");
+        const iframe = doc.querySelector("iframe")!;
+        expect(iframe.getAttribute("src")).toBe(PLAYERS[type] + encoded);
+        expect(iframe.hasAttribute("onload")).toBe(false);
+      }
+      for (const Root of Object.values(ROOTS)) expect(block(renderToJson(<Root><Row><Column>{element}</Column></Row></Root>)).videoId).toBe(encoded);
+    }
+    const { code } = designToElements(designOf(type, payload));
+    expect(code).toContain(encoded);
+    expect(code).not.toContain("onload=");
+    const Template = evaluate(code);
+    expect(new DOMParser().parseFromString(renderToHtml(<Template />), "text/html").querySelector("iframe")!.getAttribute("src")).toBe(PLAYERS[type] + encoded);
+  });
+
+  it("stays as it is where it's one the editor writes (a Vimeo one with its hash too)", () => {
+    for (const [type, videoId] of [["youtube", "dQw4w9WgXcQ"], ["youtube", "a.b_c%20-d"], ["vimeo", "76979871"], ["vimeo", "76979871/abcdef1234"]]) {
+      const element = <Page><Row><Column><Video video={{ type, videoId, thumbnail: "" }} /></Column></Row></Page>;
+      expect(block(renderToJson(element)).videoId).toBe(videoId);
+      expect(renderToHtml(element)).toContain(`src="${PLAYERS[type as keyof typeof PLAYERS]}${videoId}"`);
+      // (As its id, or in the `videoUrl` it's from.)
+      expect(designToElements(designOf(type, videoId)).code).toMatch(new RegExp(`["/]${videoId.replace(/[.%/]/g, "\\$&")}"`));
+    }
+  });
+});
+
 describe("values that aren't strings, as data gives them (an array from a JSON body, an object with toString, a number)", () => {
   const SHAPES: Record<string, (v: string) => unknown> = { array: (v) => [v], "object with toString": (v) => ({ toString: () => v }) };
   const NOT_TEXT: Record<string, (v: unknown) => React.ReactElement> = {
@@ -158,6 +201,7 @@ describe("values that aren't strings, as data gives them (an array from a JSON b
     "Menu link": (v) => <Row><Column><Menu items={[{ text: "Home", href: v as never }]} /></Column></Row>,
     "Social link": (v) => <Row><Column><Social icons={[{ name: "Twitter", url: v as never }]} /></Column></Row>,
     "Social name": (v) => <Row><Column><Social icons={[{ name: v as never, url: "https://twitter.com/x" }]} /></Column></Row>,
+    "Video id": (v) => <Row><Column><Video video={{ type: "youtube", videoId: v as never, thumbnail: "" }} /></Column></Row>,
   };
   const cases = Object.entries(ROOTS).flatMap(([mode, Root]) => Object.keys(NOT_TEXT).map((name) => [mode, name, Root] as const));
 
@@ -180,6 +224,25 @@ describe("values that aren't strings, as data gives them (an array from a JSON b
       expect(renderToHtml(<Root>{NOT_TEXT[name](5)}</Root>)).toContain("<");
     } finally {
       warn.mockRestore();
+    }
+  });
+
+  it("a content prop given as null (nullable data) is no content, as in 0.2.1: not the block's placeholder, with <Tailwind> too", async () => {
+    const blocks = (
+      <Row>
+        <Column>
+          <Html html={null as never} />
+          <Heading text={null as never} />
+          <Button text={null as never} href="https://example.com" />
+        </Column>
+      </Row>
+    );
+    const placeholders = /Hello, world!|>\s*Heading\s*<|>\s*Button\s*<|HEADING/;
+    for (const Root of Object.values(ROOTS)) {
+      const template = <Root>{blocks}</Root>;
+      const tw = await loadTailwind();
+      for (const html of [renderToHtml(template), renderToHtml(<Tailwind tw={tw}>{template}</Tailwind>), renderToPlainText(template)]) expect(html).not.toMatch(placeholders);
+      expect(renderToJson(template).body.rows[0].columns[0].contents.map((c: any) => c.values.html ?? c.values.text ?? null)).toEqual([null, null, null]);
     }
   });
 
@@ -331,6 +394,84 @@ describe("a Tailwind class from data", () => {
       // But only a whole one: a `;` after it, an image of another kind, or a quote it doesn't close ends the declaration.
       for (const className of ["bg-[url(data:image/png;base64,AAAA);color:red]", "[background:url(data:image/png;base64,AAAA);color:red]", "bg-[url(data:image/svg+xml;base64,AAAA)]", "bg-[url('data:image/png;base64,AAAA)]", "bg-[url(data:image/png;charset=x;base64,AAAA)]"])
         expect([className, styles(render(className)).filter((style) => /url\(|color:red/.test(style))]).toEqual([className, []]);
+    } finally {
+      warn.mockRestore();
+    }
+  });
+
+  // A template giving one class to the root, a Row and a Column (with a gutter), a Paragraph and markup in its children,
+  // a Button, an Image and an Html block's markup: every place a class is read.
+  const everywhere = (handle: TailwindHandle, className: string) => {
+    const attribute = className.replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+    return renderToHtml(
+      <Tailwind tw={handle}>
+        <Email className={className}>
+          <Row className={`bg-white ${className}`}>
+            <Column className={`bg-zinc-50 ${className}`}>
+              <Paragraph className={className}>Hi <span className={className}>there</span></Paragraph>
+              <Button href="https://example.com" className={className}>Go</Button>
+              <Image src="https://example.com/a.png" alt="x" className={className} />
+            </Column>
+            <Column className="bg-zinc-50 ml-2">
+              <Html html={`<p class="${attribute}">Hi</p>`} />
+            </Column>
+          </Row>
+        </Email>
+      </Tailwind>
+    );
+  };
+
+  it("costs about ten times as much for ten times as long a class of any short shape, arbitrary variants and values too (random, seeded)", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    // A class: what starts it (a utility taking a value, an arbitrary property, value or variant: `[@media(…)]:`,
+    // `max-[…]:`), a unit over and over, and what ends it.
+    const heads = ["", "p-[", "m-[", "mr-[", "px-[", "w-[", "max-w-[", "leading-[", "text-[", "tracking-[", "rounded-[", "border-[", "bg-[url(", "[margin:", "[color:a", "[padding:calc(", "[font-family:", "[@media(", "[@media_screen_and_(", "[@media_(max-width:", "max-[", "min-[", "sm:p-[", "hover:bg-["];
+    const pieces = ["0", "9", "1", ".", "1.5", "_", "__", "-", "+", "*", "(", ")", "px", "rem", "em", "%", "e", "<", ">", "=", ":", ",", "/", "!", "x", "a", "and", "calc(", "var(--x)", "'", '"', "\\", "[", "]", "!important", "\t"];
+    const tails = ["", "]", "x]", "]!", "px]", "x)]", ")]", "]:p-1", "width)]:p-1", "px)]:p-1", ")]:p-1", "x]:p-1", "b]!", ")width)]:p-1"];
+    let seed = 11;
+    const random = (n: number) => ((seed = (Math.imul(seed, 1103515245) + 12345) >>> 0), Math.floor((seed / 2 ** 32) * n));
+    const fill = (head: string, unit: string, tail: string, bytes: number) => head + unit.repeat(Math.ceil(bytes / unit.length)).slice(0, bytes) + tail;
+    // And the shapes a regex read in time growing with their size squared, or worse: a number from where it could
+    // start in a media query, an arbitrary value's number, the spaces before an `!important`.
+    const shapes: string[][] = [["[@media(", "9", "width)]:p-1"], ["[@media_(max-width:", ".", ")]:p-1"], ["[color:a", "_", "b]!"], ["leading-[", "0", "x]"], ["w-[", "0", "x]"], ["m-[", "0", "x]"], ["mr-[", "0", "x]"], ["px-[", "0", "x]"], ["[margin:", "0", "x]"], ["[padding:calc(", "0", "x)]"]];
+    for (let run = 0; run < 120; run++) {
+      let unit = "";
+      for (let i = 0, n = 1 + random(4); i < n; i++) unit += pieces[random(pieces.length)];
+      shapes.push([heads[random(heads.length)], unit, tails[random(tails.length)]]);
+    }
+    const slow: string[] = [];
+    try {
+      for (const [run, [head, unit, tail]] of shapes.entries()) {
+        // (A fresh handle for each: one compiles each new class with the ones it had, which grow.)
+        const handle = await loadTailwind({ theme: { extend: { colors: { [`run${run}`]: "#000000" } } } });
+        everywhere(handle, "p-2");
+        const time = (bytes: number) => {
+          const start = performance.now();
+          everywhere(handle, fill(head, unit, tail, bytes));
+          return performance.now() - start;
+        };
+        const small = Math.max(time(2048), 2);
+        const large = time(20480);
+        if (large > 20 * small && large > 100) slow.push(`${JSON.stringify([head, unit, tail])}: ${small.toFixed(1)} ms for 2 KB, ${large.toFixed(1)} ms for 20 KB`);
+      }
+    } finally {
+      warn.mockRestore();
+    }
+    expect(slow).toEqual([]);
+  }, 120_000);
+
+  it("reads a media query of many parts, each with two widths, in time linear in their number (its regex was exponential in it)", () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    try {
+      const time = (parts: number) => {
+        const start = performance.now();
+        everywhere(tw, `[@media${"(width<1px_or_width>2px)and".repeat(parts)}x]:p-1`);
+        everywhere(tw, `[@media${"(widthwidth)and".repeat(parts)}x]:p-1`);
+        return performance.now() - start;
+      };
+      time(4);
+      const [small, large] = [Math.max(time(12), 2), time(24)];
+      expect(large > 20 * small && large > 100, `${small.toFixed(1)} ms for 12 parts, ${large.toFixed(1)} ms for 24`).toBe(false);
     } finally {
       warn.mockRestore();
     }

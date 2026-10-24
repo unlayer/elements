@@ -138,7 +138,7 @@ function paragraphNodeToHtml(node: any, childrenHtml: string): string {
   // Custom paragraph styles (e.g. background-color) come first so the
   // resets below win if they overlap.
   if (node.style) {
-    styleParts.push(String(node.style).replace(/;+\s*$/, ""));
+    styleParts.push(withoutTrailingSemicolons(String(node.style)));
   }
 
   if (!isInlineTool) {
@@ -330,4 +330,15 @@ export function textJsonToText(textJson: string): string {
 export function htmlToTextJson(html: string): string {
   if (!html) return EMPTY_TEXT_JSON;
   return JSON.stringify({ __html: html });
+}
+
+/**
+ * `style` without the `;`s and whitespace it ends in, as `.replace(/;+\s*$/, "")` leaves it: its last run of `;`s, where
+ * only whitespace follows, off. Read from its end: the regex tried again from each `;` of a long run something follows.
+ */
+function withoutTrailingSemicolons(style: string): string {
+  const trimmed = style.trimEnd();
+  let end = trimmed.length;
+  while (end && trimmed[end - 1] === ";") end--;
+  return end < trimmed.length ? style.slice(0, end) : style;
 }

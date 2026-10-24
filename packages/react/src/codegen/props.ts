@@ -60,7 +60,9 @@ const ROOTS = new Set(["Email", "Page", "Document"]);
 const oneOf = (...allowed: string[]) => (value: unknown) => typeof value === "string" && allowed.includes(value);
 const ALIGN = oneOf("left", "center", "right", "justify");
 const VERTICAL = oneOf("top", "middle", "bottom");
-const NUMBER = String.raw`-?(?:\d+\.?\d*|\.\d+)`;
+// (`\d+(?:\.\d*)?`, not `\d+\.?\d*`: that splits a run of digits every way it can before a value that isn't one is
+// told, which took a second for 50,000 digits in a design's value.)
+const NUMBER = String.raw`-?(?:\d+(?:\.\d*)?|\.\d+)`;
 /** `number | ${number}px` */
 const PX = (value: unknown) => typeof value === "number" || (typeof value === "string" && new RegExp(`^${NUMBER}px$`).test(value));
 /** A box of px lengths, one to four (`8px 16px`). */

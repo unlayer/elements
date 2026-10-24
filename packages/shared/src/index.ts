@@ -81,13 +81,16 @@ export {
   escapeText,
   escapeKeepingTags,
   mapSemanticProps,
+  isContentProp,
   PROP_ALIASES,
   normalizeLinkValue,
   unrunLinks,
   unrunUrl,
+  safeVideoId,
   normalizeValuesForExporter,
 } from "./utils/semantic-props";
 export type { SemanticProps } from "./utils/semantic-props";
 
 // Utils - HTML to plain text
 export { htmlToPlainText, type PlainTextOptions } from "./utils/html-to-text";
+export { replaceTags, rewrite } from "./utils/html-scan";
