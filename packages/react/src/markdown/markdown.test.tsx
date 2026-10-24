@@ -375,8 +375,8 @@ describe("Markdown from data: no more than its size calls for", () => {
       unit ||= "a";
       const breaks = random(4) === 0;
       // (The seeded shapes stay the same: timing one again draws nothing.)
-      const { small, large, grows } = await growth((bytes) => time(fill(unit, bytes), breaks), [10240, 102400], { ratio: 20, floor: 100 });
-      if (grows) slow.push(`${JSON.stringify(unit)}: ${small.toFixed(1)} ms for 10 KB, ${large.toFixed(1)} ms for 100 KB`);
+      const { small, large, next, grows } = await growth((bytes) => time(fill(unit, bytes), breaks), [10240, 102400], { ratio: 20, floor: 100, next: 1024000 });
+      if (grows) slow.push(`${JSON.stringify(unit)}: ${small.toFixed(1)} ms for 10 KB, ${large.toFixed(1)} ms for 100 KB${next === undefined ? "" : `, ${next.toFixed(0)} ms for 1 MB`}`);
     }
     expect(slow).toEqual([]);
   }, 120_000);
