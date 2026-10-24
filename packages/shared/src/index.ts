@@ -81,6 +81,7 @@ export {
   escapeText,
   escapeKeepingTags,
   mapSemanticProps,
+  isContentProp,
   PROP_ALIASES,
   normalizeLinkValue,
   unrunLinks,

@@ -12,7 +12,7 @@
  */
 import { beforeAll, describe, expect, it, vi } from "vitest";
 import React from "react";
-import { renderToHtml } from "../utils/render-to-html";
+import { renderToHtml, renderToPlainText } from "../utils/render-to-html";
 import { renderToJson } from "../utils/render-to-json";
 import { Email, Page, Document, Row, Column, Paragraph, Heading, Button, Image, Link, Menu, Social, Html, Divider, Table, Video } from "../index";
 import { designToElements } from "../codegen";
@@ -180,6 +180,25 @@ describe("values that aren't strings, as data gives them (an array from a JSON b
       expect(renderToHtml(<Root>{NOT_TEXT[name](5)}</Root>)).toContain("<");
     } finally {
       warn.mockRestore();
+    }
+  });
+
+  it("a content prop given as null (nullable data) is no content, as in 0.2.1: not the block's placeholder, with <Tailwind> too", async () => {
+    const blocks = (
+      <Row>
+        <Column>
+          <Html html={null as never} />
+          <Heading text={null as never} />
+          <Button text={null as never} href="https://example.com" />
+        </Column>
+      </Row>
+    );
+    const placeholders = /Hello, world!|>\s*Heading\s*<|>\s*Button\s*<|HEADING/;
+    for (const Root of Object.values(ROOTS)) {
+      const template = <Root>{blocks}</Root>;
+      const tw = await loadTailwind();
+      for (const html of [renderToHtml(template), renderToHtml(<Tailwind tw={tw}>{template}</Tailwind>), renderToPlainText(template)]) expect(html).not.toMatch(placeholders);
+      expect(renderToJson(template).body.rows[0].columns[0].contents.map((c: any) => c.values.html ?? c.values.text ?? null)).toEqual([null, null, null]);
     }
   });
 

@@ -257,6 +257,9 @@ function aliasesOf(names: string): string[] {
   return list;
 }
 
+/** Whether a prop holds a block's content (its text or markup, a table's cells), not a style: one given as `null` is none. */
+export const isContentProp = (key: string): boolean => /^(text|html|headers|data)$/.test(key);
+
 /**
  * Universal semantic props mapper
  * Works for ANY component - no configuration needed!
@@ -358,8 +361,9 @@ export function mapSemanticProps<T extends Record<string, any>>(
   const flat: Record<string, any> = {};
   for (const key of Object.keys(userProps)) {
     const value = userProps[key];
-    // (A prop given as `null`, as data gives one it hasn't, is one not given: `color: ;` isn't a color.)
-    if (value == null) continue;
+    // (A style prop given as `null`, as data gives one it hasn't, is one not given: `color: ;` isn't a color. A content
+    // prop given as `null` is no content, as in 0.2.1, not the block's placeholder.)
+    if (value === undefined || (value === null && !isContentProp(key))) continue;
     if (nestedGroups.has(key)) nested[key] = value;
     else {
       const group = owners.get(key);

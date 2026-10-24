@@ -265,9 +265,14 @@ describe("mapSemanticProps", () => {
       expect("fontSize" in result).toBe(false);
     });
 
-    it("skips null values, as data gives a prop it hasn't: the default stays, not an empty style", () => {
+    it("skips null style values, as data gives a prop it hasn't: the default stays, not an empty style", () => {
       const result = mapSemanticProps({ fontSize: null, color: null, textAlign: null, backgroundColor: null, borderRadius: "8px" } as never, BUTTON_DEFAULTS, "Button");
       expect(result).toEqual({ borderRadius: "8px" });
+    });
+
+    it("keeps a content prop given as null: no content, as in 0.2.1, not the block's placeholder", () => {
+      expect(mapSemanticProps({ text: null, color: null } as never, BUTTON_DEFAULTS, "Button")).toEqual({ text: null });
+      expect(mapSemanticProps({ html: null } as never, {} as never, "Html")).toEqual({ html: null });
     });
 
     it("handles _meta in defaults without grouping into it", () => {

@@ -7,7 +7,7 @@
 import { TABLES } from "./tables";
 import { plus, shorthand, sidesOf, type Margins } from "./row";
 import { rowRewrite } from "./inherit";
-import { PROP_ALIASES, cssValueSafe } from "@unlayer-internal/shared-elements";
+import { PROP_ALIASES, cssValueSafe, isContentProp } from "@unlayer-internal/shared-elements";
 import { BodyDefaults } from "@unlayer/exporters";
 import { unsafeUrl } from "../markdown/sanitize";
 
@@ -136,12 +136,13 @@ const LENGTH = /^(\d*\.?\d+)(px|%|em)?$/;
 const plain = (v: unknown): v is Record<string, any> => !!v && typeof v === "object" && !Array.isArray(v);
 
 /**
- * Props without those given as `undefined` or `null`: a prop passed as either (a wrapper of yours forwarding one it
- * wasn't given, `color={props.color}`, or data's `null`) is one not given, as `given` reads it, so a class sets it.
+ * Props without those given as `undefined`, or as `null` but for content (`text`, `html`: none, as in 0.2.1): a prop
+ * passed so (a wrapper of yours forwarding one it wasn't given, `color={props.color}`, or data's `null`) is one not
+ * given, as `given` reads it, so a class sets it.
  */
 const defined = (props: Record<PropertyKey, any> | undefined): Record<PropertyKey, any> => {
   const out: Record<PropertyKey, any> = {};
-  if (props) for (const key of [...Object.keys(props), ...Object.getOwnPropertySymbols(props)]) if (props[key] != null) out[key] = props[key];
+  if (props) for (const key of [...Object.keys(props), ...Object.getOwnPropertySymbols(props)]) if (props[key] !== undefined && (props[key] !== null || (typeof key === "string" && isContentProp(key)))) out[key] = props[key];
   return out;
 };
 
