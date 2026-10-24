@@ -145,7 +145,16 @@ describe("CodeBlock", () => {
       // And up to the limit, highlighted: no shape of any grammar takes more than about a second.
       const highlighted = time(fill(head, unit, tail, HIGHLIGHT_LIMIT - 16), language);
       const shape = JSON.stringify([head, unit, tail]);
-      if ((large > 20 * small && large > 100) || highlighted > 2000) slow.push(`${language} ${shape}: ${small.toFixed(1)} ms for 10 KB, ${large.toFixed(1)} ms for 100 KB, ${highlighted.toFixed(0)} ms highlighted`);
+      // (A shape that looks slow is timed twice more, its fastest kept: a garbage collection or a busy machine in one
+      // timing isn't its cost. The seeded shapes stay the same: these timings draw nothing.)
+      const again = (bytes: number) => {
+        const start = performance.now();
+        highlightCode(fill(head, unit, tail, bytes), { language });
+        return performance.now() - start;
+      };
+      const slower = (large: number, small: number) => large > 20 * small && large > 100;
+      const [fast, quick] = slower(large, small) ? [Math.min(large, again(102400), again(102400)), Math.max(Math.min(small, again(10240), again(10240)), 2)] : [large, small];
+      if (slower(fast, quick) || highlighted > 2000) slow.push(`${language} ${shape}: ${quick.toFixed(1)} ms for 10 KB, ${fast.toFixed(1)} ms for 100 KB, ${highlighted.toFixed(0)} ms highlighted`);
     }
     expect(slow).toEqual([]);
   }, 120_000);
