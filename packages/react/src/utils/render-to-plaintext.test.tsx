@@ -13,6 +13,21 @@ import Heading from "../components/Heading";
 import Image from "../components/Image";
 
 describe("renderToPlainText", () => {
+  it("keeps text that spells the plain text's placeholders as written, not a button's URL", () => {
+    // `\u00010\u0001` beside a Button was that button's URL (a reset link's token); 0.2.1 kept it.
+    const text = renderToPlainText(
+      <Email>
+        <Row>
+          <Column>
+            <Paragraph>{"Name: \u00010\u0001"}</Paragraph>
+            <Button href="https://e.test/reset?token=SECRET">Reset password</Button>
+          </Column>
+        </Row>
+      </Email>
+    );
+    expect(text).toBe("Name: \u00010\u0001\n\nReset password (https://e.test/reset?token=SECRET)");
+  });
+
   it("extracts text from a Paragraph", () => {
     const text = renderToPlainText(
       <Body>

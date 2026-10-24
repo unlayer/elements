@@ -85,14 +85,41 @@ function decodeEntities(text: string): string {
  */
 export function htmlToPlainText(html: string, options: PlainTextOptions = {}): string {
   if (!html) return "";
+  // The placeholders below are U+0000 and U+0001 around a number: the HTML's own, as characters it doesn't hold, so
+  // text that spells one (`\u00010\u0001` beside a button) stays as written, not a link's URL.
+  const own = ownMarks(html);
+  return own.back(plainText(own.html, options));
+}
 
+/**
+ * `html` with its own U+0000 and U+0001 (what htmlToPlainText's placeholders are made of) as two private-use
+ * characters it holds none of, and how to put them back; where it holds all of those, without them.
+ */
+function ownMarks(html: string): { html: string; back: (text: string) => string } {
+  if (!/[\0\u0001]/.test(html)) return { html, back: (text) => text };
+  const held = new Set<number>();
+  for (let i = 0; i < html.length; i++) {
+    const code = html.charCodeAt(i);
+    if (code >= 0xe000 && code <= 0xf8ff) held.add(code);
+  }
+  const free: string[] = [];
+  for (let code = 0xe000; code <= 0xf8ff && free.length < 2; code++) if (!held.has(code)) free.push(String.fromCharCode(code));
+  if (free.length < 2) return { html: html.replace(/[\0\u0001]/g, ""), back: (text) => text };
+  const [nul, one] = free;
+  return { html: html.replace(/\0/g, nul).replace(/\u0001/g, one), back: (text) => text.split(nul).join("\0").split(one).join("\u0001") };
+}
+
+/** htmlToPlainText's text, of HTML that holds neither U+0000 nor U+0001 (see ownMarks). */
+function plainText(html: string, options: PlainTextOptions): string {
   let text = html;
   const { links = "inline", uppercaseHeadings = true, skip = [], wordwrap } = options;
 
   // 1. Remove elements marked with data-skip-in-text (preview div, a block's `skipInText`, etc.) and those `skip` names,
   // with what's in them.
   // (Each step reads the text once, whatever it holds: see html-scan.ts.)
-  text = withoutElements(text, (tag) => /data-skip-in-text="true"/.test(tag) || skip.some((s) => (s[0] === "." ? new RegExp(`\\sclass="([^"]*\\s)?${s.slice(1).replace(/\W/g, "\\$&")}[\\s"]`) : new RegExp(`^<${s}[\\s>/]`, "i")).test(tag)));
+  // (A name or class as written: its characters escaped, so `a+` is no pattern and `(` no error.)
+  const skipping = skip.map((s) => (s[0] === "." ? new RegExp(`\\sclass="([^"]*\\s)?${s.slice(1).replace(/\W/g, "\\$&")}[\\s"]`) : new RegExp(`^<${s.replace(/\W/g, "\\$&")}[\\s>/]`, "i")));
+  text = withoutElements(text, (tag) => /data-skip-in-text="true"/.test(tag) || skipping.some((s) => s.test(tag)));
 
   // 2. Remove <head>, <style>, <script> blocks entirely
   text = removeBetween(text, /<head/iy, /<\/head>/gi);
