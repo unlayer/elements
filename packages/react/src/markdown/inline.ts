@@ -8,7 +8,7 @@
  * Markdown as people write it takes, and past them the rest of its inline Markdown is text. Emphasis, strikethrough and
  * links nest INLINE_NESTING deep: deeper, their delimiters are text.
  */
-import { Lexer, type Links, type Token, type Tokens } from "marked";
+import { Lexer, type Links, type Token, type Tokens, type TokensList } from "marked";
 import { Limited, QUOTE_BASE, QUOTE_WORK } from "./limits";
 import { autolinkReach, brReach, codeReach, linkReach, reflinkReach, runEnd, tagReach, textReach, urlReach } from "./reach";
 
@@ -165,6 +165,18 @@ export class Bounded extends Lexer {
     this.reader = inline;
   }
 
+  blockTokens(src: string, tokens?: Token[], lastParagraphClipped?: boolean): Token[];
+  blockTokens(src: string, tokens?: TokensList, lastParagraphClipped?: boolean): TokensList;
+  /** marked reads each of its blocks from what's left of `src`: the text is kept, for the rules read from it (headings.ts). */
+  blockTokens(src: string, tokens: Token[] = [], lastParagraphClipped = false): Token[] {
+    this.reader.texts.push({ text: src, tokens });
+    try {
+      return super.blockTokens(src, tokens, lastParagraphClipped);
+    } finally {
+      this.reader.texts.pop();
+    }
+  }
+
   inlineTokens(src: string, tokens: Token[] = []): Token[] {
     if (this.reader.spent) {
       // Past the work: all of it, as text (with no looking for links to mask first).
@@ -172,11 +184,29 @@ export class Bounded extends Lexer {
       if (text) tokens.push(text);
       return tokens;
     }
+    // marked masks the reference links in the text (`[a][b]`, `[a]`) for its emphasis and strikethrough rules, with a
+    // search from each `[` up to 999 steps long (100 KB of `\[` took 0.4 s). Where the Markdown defines none, it masks
+    // nothing, and where the text has no `*`, `_` or `~`, nothing reads what it masks: there, it isn't run.
+    const inline = this.reader.rules.inline;
+    const search = inline.reflinkSearch;
+    if (!defines(this.tokens.links) || !DELIMITERS.test(src)) inline.reflinkSearch = NO_REFERENCE;
     this.depth++;
     try {
       return super.inlineTokens(src, tokens);
     } finally {
       this.depth--;
+      inline.reflinkSearch = search;
     }
   }
 }
+
+/** A search that finds nothing: for reference links where there are none to find. */
+const NO_REFERENCE = /(?!)/g;
+/** What marked's emphasis and strikethrough rules, the masked text's only readers, start with. */
+const DELIMITERS = /[*_~]/;
+
+/** Whether `links` (a Markdown's link definitions) holds one. */
+const defines = (links: Links): boolean => {
+  for (const _ in links) return true;
+  return false;
+};

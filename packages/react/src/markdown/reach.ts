@@ -179,8 +179,10 @@ const label = (src: string): number => {
  */
 const angles = (src: string, from: number, to: number, looks?: Looks): number => {
   const find = searches(src);
+  // (Its `<`s looked for up to `to`: from each `[` past it, to the end, `[` over and over took time growing with its size squared.)
+  const text = src.slice(0, to);
   let reach = 0;
-  for (let at = src.indexOf("<", from); at >= 0 && at < to; at = src.indexOf("<", at + 1)) {
+  for (let at = text.indexOf("<", from); at >= 0; at = text.indexOf("<", at + 1)) {
     const tag = tagEnd(src, at, find);
     const autolink = first(src, at + 1, AUTOLINK_END) + 1;
     reach = Math.max(reach, tag, autolink);

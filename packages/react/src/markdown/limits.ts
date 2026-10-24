@@ -4,6 +4,7 @@
  * chunk at a time (see quotes.ts).
  */
 import { Tokenizer, type Token, type Tokens } from "marked";
+import { headingCan, type Text } from "./headings";
 import { readQuote } from "./quotes";
 import { addTasks } from "./tasks";
 
@@ -34,9 +35,10 @@ export const TABLE_CELLS = 1000;
 export const NESTING = 32;
 
 /**
- * The work a Markdown's quotes can take for each of its characters, and QUOTE_BASE more (counted as quotes.ts counts
- * it): far more than Markdown as people write it takes. Past it, each quote ends at its first line without a `>`
- * (that line and the rest are read on outside it), so a lazy line no longer continues a quote's paragraph.
+ * The work a Markdown's quotes (counted as quotes.ts counts it) and the lines added to a list item's text can take,
+ * for each of its characters, and QUOTE_BASE more: far more than Markdown as people write it takes. Past it, each
+ * quote ends at its first line without a `>` (that line and the rest are read on outside it), so a lazy line no longer
+ * continues a quote's paragraph, and the rest of a list item's text is text.
  */
 export const QUOTE_WORK = 32;
 export const QUOTE_BASE = 1 << 22;
@@ -105,6 +107,45 @@ export class Limited extends Tokenizer {
     return table;
   }
 
+  /** The texts being read (the Markdown, a list item's, a quote's), the innermost last, and the blocks read from each so far (see Bounded's blockTokens). */
+  texts: Array<Text & { tokens: Token[] }> = [];
+
+  lheading(src: string): Tokens.Heading | undefined {
+    // Only where an underline can follow (see headings.ts): marked's rule reads to the end of the text for one.
+    const text = this.texts[this.texts.length - 1];
+    return text && !headingCan(this.rules.block.lheading, text, src) ? undefined : super.lheading(src);
+  }
+
+  /**
+   * Whether a line can be added to the text or paragraph before it, the work it takes counted: marked adds each of a
+   * list item's lines to the text before it, reading all of that again (its `endsWith`), so an item of many lines took
+   * time growing with their number squared (400 KB of `+ \[x]` and `@` lines, 1.9 s). Past the work, it can't.
+   */
+  private joins(kinds: string[]): boolean {
+    const text = this.texts[this.texts.length - 1];
+    const before = text?.tokens[text.tokens.length - 1];
+    if (!before || !kinds.includes(before.type)) return true;
+    if (this.work >= before.raw.length) {
+      this.work -= before.raw.length;
+      return true;
+    }
+    this.work = -1;
+    return false;
+  }
+
+  text(src: string): Tokens.Text | undefined {
+    // Past the work, the rest of what's being read is text, added to the text before it at once: nothing is left out.
+    return this.joins(["text"]) ? super.text(src) : { type: "text", raw: src, text: src, tokens: this.lexer.inline(src) };
+  }
+
+  code(src: string): Tokens.Code | undefined {
+    return this.joins(["text", "paragraph"]) ? super.code(src) : undefined;
+  }
+
+  def(src: string): Tokens.Def | undefined {
+    return this.joins(["text", "paragraph"]) ? super.def(src) : undefined;
+  }
+
   space(src: string): Tokens.Space | undefined {
     const space = super.space(src);
     if (!space) this.reading = true;
@@ -147,9 +188,19 @@ export class Limited extends Tokenizer {
     });
   }
 
-  /** Its own copy of marked's rules, where it finds no task item itself (its lists are given their tasks after: tasks.ts). */
+  /**
+   * Its own copy of marked's rules, where it finds no task item itself (its lists are given their tasks after: tasks.ts),
+   * and a paragraph's line is told whether it starts a table from it and the line after: marked's paragraph rule reads,
+   * for each of its lines, the table one could start with all the lines after it as its rows, which don't change
+   * whether one starts (none is a table too), so 100 KB of `|` over `-` took 5 s.
+   */
   own(): void {
-    this.rules = { ...this.rules, other: { ...this.rules.other, listIsTask: NOTHING } };
+    const block = { ...this.rules.block };
+    const table = block.table.source.replace(/(^|[^[])\^/g, "$1");
+    const rows = table.indexOf("(?:\\n((?:(?!");
+    const paragraph = block.paragraph.source;
+    if (rows > 0 && paragraph.split(table.slice(rows)).length === 2) block.paragraph = new RegExp(paragraph.replace(table.slice(rows), () => "(?:\\n|$)"), block.paragraph.flags);
+    this.rules = { ...this.rules, block, other: { ...this.rules.other, listIsTask: NOTHING } };
   }
 
   /** A quote or a list, read one level deeper, unless that's past NESTING; its tables charged once (see `reading`). */
