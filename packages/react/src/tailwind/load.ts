@@ -24,19 +24,26 @@ export interface HandleResolver extends Resolver {
   declarations(className: string): ClassDeclarations;
 }
 
+/** The props of a component (by its name) whose markup's classes its rewrite inlines: `html`, and a Heading's or a Button's `text`. */
+const markupProps = (name: string): readonly string[] => (name === "Heading" || name === "Button" ? ["html", "text"] : ["html"]);
+
 /**
  * The classes of the records in a render's scopes with a handle (each record's component's `className`, and those in
- * its `html`, as a rewrite reads them), all built at once by `declarations`, before the render rewrites any (see
- * Tailwind.tsx's `prepare`).
+ * its markup props, the ones its rewrite reads: see markupProps), all built at once by `declarations`, before the render
+ * rewrites any (see Tailwind.tsx's `prepare`). A block's name is its component's, as the main entry gives the rewrite
+ * (its config's, under the key create-component.tsx keeps it at, or its display name).
  */
 function prepareRecords(declarations: DeclarationReader, records: readonly unknown[]): void {
   const names: string[] = [];
   for (const record of records) {
-    const props = (record as { props?: unknown } | null)?.props;
+    const { props, type } = (record ?? {}) as { props?: unknown; type?: { __unlayerItemConfig?: { name?: string }; displayName?: string } };
     if (!props || typeof props !== "object") continue;
-    const { className, html } = props as Record<string, unknown>;
+    const { className } = props as Record<string, unknown>;
     if (className) names.push(String(className));
-    if (typeof html === "string" && /class/i.test(html)) for (const name of classNamesIn(html)) names.push(name);
+    for (const key of markupProps(type?.__unlayerItemConfig?.name ?? type?.displayName ?? "")) {
+      const html = (props as Record<string, unknown>)[key];
+      if (typeof html === "string" && /class/i.test(html)) for (const name of classNamesIn(html)) names.push(name);
+    }
   }
   declarations.prepare(names.join(" "));
 }
@@ -146,7 +153,7 @@ async function compile(config: TailwindConfig | undefined, source = config): Pro
       // Classes in its markup (an Html block's, a Paragraph's `html`, a Heading's or Button's `text`, its children's
       // markup): inline styles; in Markdown's sanitized HTML, none its sanitizer wouldn't keep in a `style` (your own
       // markup's are as you wrote them).
-      for (const key of name === "Heading" || name === "Button" ? ["html", "text"] : ["html"]) {
+      for (const key of markupProps(name)) {
         const html = explicit[key];
         if (typeof html === "string" && /class/i.test(html)) explicit = { ...explicit, [key]: inlineClasses(html, read, warn, rtl, explicit._sanitized ? unsafeStyle : undefined) };
       }

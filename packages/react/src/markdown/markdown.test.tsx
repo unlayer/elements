@@ -664,6 +664,22 @@ describe("Markdown in a <Tailwind>", () => {
     }
   }, 120_000);
 
+  it("renders headings with a class each in time linear in their number: their `text`'s classes are built at once", async () => {
+    // A heading's sanitized HTML is its `text`, whose classes were built one heading at a time, each build Tailwind's
+    // whole stylesheet again: 2,000 headings (73 KB) took 4.7 s.
+    const handle = await loadTailwind({ headings: true });
+    const time = (n: number) => {
+      const markdown = Array.from({ length: n }, (_, i) => `# <span class="w-[${i + 1}px]">x</span>`).join("\n\n");
+      const start = performance.now();
+      const html = renderToHtml(<Tailwind tw={handle}><Email><Row><Column><Markdown markdown={markdown} /></Column></Row></Email></Tailwind>);
+      expect(html).toMatch(new RegExp(`width: ?${n}px`));
+      return performance.now() - start;
+    };
+    time(20);
+    const [small, large] = [Math.max(time(200), 2), time(2000)];
+    expect(large > 20 * small && large > 100, `${small.toFixed(0)} ms for 200 headings, ${large.toFixed(0)} ms for 2,000`).toBe(false);
+  }, 60_000);
+
   it("inlines your own markup's classes as written: only Markdown's HTML is sanitized", () => {
     expect(design(<Html html={'<div class="bg-[url(https://x.test/a.gif)]">a</div>'} />)).toEqual(['<div style="background-image: url(https://x.test/a.gif)">a</div>']);
   });

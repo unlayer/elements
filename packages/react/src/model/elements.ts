@@ -164,7 +164,11 @@ function inScope(c: Collected, tw: object): object[] {
           if (r.kind === "tailwind") {
             const key = r.props?.tw ?? r.props?.config ?? r;
             scopes.set(r, (inner = byHandle.get(key) ?? byHandle.set(key, []).get(key)!));
-          } else if (list && r.kind !== "boundary") list.push(r);
+          } else if (list && r.kind !== "boundary") {
+            // A block with rich text: its markup, under the prop its rewrite reads it as (see made), for its classes.
+            const key = r.rich ? ((r.type as any)?.[UNLAYER_CONFIG_KEY]?.name === "Paragraph" ? "html" : "text") : undefined;
+            list.push(key ? { ...r, props: { ...r.props, [key]: markupOnly(item.items) } } : r);
+          }
         }
         walk(item.items, inner);
       }

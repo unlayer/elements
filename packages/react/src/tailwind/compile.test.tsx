@@ -581,7 +581,8 @@ describe("a render's classes", () => {
     // Each build is Tailwind's whole stylesheet again: a class at a time, a few thousand took seconds (and markup from
     // data, as many as it has).
     const handle = await loadTailwind({ ...config, render: "at once" });
-    const n = 300;
+    // (Within the render's first CLASSES classes.)
+    const [n, m] = [300, 120];
     const template = (
       <Tailwind tw={handle}>
         <Email className="bg-white">
@@ -593,6 +594,10 @@ describe("a render's classes", () => {
               {Array.from({ length: n }, (_, i) => <Html key={`html${i}`} html={`<p class="m-[${i}px]">x</p>`} />)}
               <Markdown markdown={Array.from({ length: n }, (_, i) => `<span class="w-[${i}px]">x</span>`).join("\n\n")} />
               <Markdown markdown={Array.from({ length: n }, (_, i) => `<span class="h-[${i}px]">x</span>`).join(" ")} />
+              {/* A Markdown's headings (sanitized HTML in each one's `text`), and markup in rich text children. */}
+              <Markdown markdown={Array.from({ length: m }, (_, i) => `# <span class="min-w-[${i}px]">x</span>`).join("\n\n")} />
+              {Array.from({ length: m }, (_, i) => <Paragraph key={`rich${i}`}>x <span className={`pb-[${i}px]`}>y</span></Paragraph>)}
+              {Array.from({ length: m }, (_, i) => <Button key={`button${i}`} href="https://example.com">Go <span className={`mb-[${i}px]`}>now</span></Button>)}
             </Column>
           </Row>
         </Email>
@@ -601,7 +606,7 @@ describe("a render's classes", () => {
     for (const render of [() => renderToHtmlNow(template), () => renderToHtml(template)]) {
       const builds = compiled.builds;
       const html = await render();
-      for (const style of [/padding: ?299px/, /padding: ?299px 10px 10px/, /margin: 299px/, /width: 299px/, /height: 299px/]) expect(html).toMatch(style);
+      for (const style of [/padding: ?299px/, /padding: ?299px 10px 10px/, /margin: 299px/, /width: 299px/, /height: 299px/, /min-width: ?119px/, /padding-bottom: ?119px/, /margin-bottom: ?119px/]) expect(html).toMatch(style);
       // The root's classes, then the render's.
       expect(compiled.builds - builds).toBeLessThanOrEqual(2);
     }
