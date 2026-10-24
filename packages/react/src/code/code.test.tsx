@@ -2,7 +2,7 @@ import React from "react";
 import { afterEach, beforeEach, describe, expect, it, vi, type MockInstance } from "vitest";
 import { Button, Column, Email, Heading, Page, Paragraph, Row, renderToHtml, renderToJson, renderToPlainText } from "../index";
 import { CodeBlock, CodeInline, codeInline, codeThemes, highlightCode, listLanguages, registerLanguage } from "./index";
-import { escapeHtml } from "./highlight";
+import { escapeHtml, HIGHLIGHT_LIMIT } from "./highlight";
 
 let warn: MockInstance;
 beforeEach(() => {
@@ -105,6 +105,50 @@ describe("CodeBlock", () => {
     // Up to it, highlighted (the slowest grammar's worst, 0.4 s).
     expect(highlightCode(fill("a = 1\n", 8192), { language: "ini" })).toContain('<span style="color: #b4530a">1</span>');
   });
+
+  it("takes off its code's trailing whitespace in time linear in its size, before any limit", () => {
+    // `/\s+$/` tried again from each character of a long run of spaces that `x` ends: 100,000 took 5.7 s, also with no
+    // language, before the 8,192 characters' limit.
+    for (const code of ["a" + " ".repeat(102400) + "x", "\n".repeat(102400) + "x", "a\t \r\n".repeat(25600) + "x  \n\n"]) {
+      for (const language of [undefined, "js"]) {
+        const start = performance.now();
+        const html = renderToHtml(email(<CodeBlock language={language} code={code} />));
+        expect([JSON.stringify(code.slice(0, 6)), language, performance.now() - start < 1000]).toEqual([JSON.stringify(code.slice(0, 6)), language, true]);
+        expect(html).toMatch(/x<\/code>/);
+      }
+    }
+    // As before: a leading line break and the trailing whitespace off, the rest kept.
+    expect(highlightCode("\n  a  \n\t\n ", {})).toContain("<code style=\"font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace; font-size: 13px; line-height: 20px; mso-line-height-rule: exactly\">  a</code>");
+  });
+
+  it("costs about ten times as much for ten times as much code of any short shape, in any language (random, seeded)", () => {
+    // Past HIGHLIGHT_LIMIT characters code is written without colors; up to it, it's highlighted (checked too).
+    const pieces = ["$", "{", "}", "(", "(", ")", "[", "]", "<", ">", "</", "/*", "*/", "//", "#", '"', "'", "`", "${", "\\", "-", "_", ".", "1", "e", "a", "=", ":", ";", ",", " ", "  ", "\t", "\n", "\n", "\r\n", "<!--", "-->", "<<EOF\n", "@", "%", "!", "?"];
+    const languages = [undefined, ...listLanguages()];
+    let seed = 7;
+    const random = (n: number) => ((seed = (Math.imul(seed, 1103515245) + 12345) >>> 0), Math.floor((seed / 2 ** 32) * n));
+    // A shape: a unit over and over, between a piece before it and one after it (`x` after spaces, say).
+    const fill = (head: string, unit: string, tail: string, bytes: number) => head + unit.repeat(Math.ceil(bytes / unit.length)).slice(0, bytes) + tail;
+    const time = (code: string, language: string | undefined) => {
+      const start = performance.now();
+      highlightCode(code, { language, lineNumbers: random(4) === 0 });
+      return performance.now() - start;
+    };
+    const slow: string[] = [];
+    for (let run = 0; run < 150; run++) {
+      let unit = "";
+      for (let i = 0, n = 1 + random(4); i < n; i++) unit += pieces[random(pieces.length)];
+      const [head, tail] = [random(2) ? pieces[random(pieces.length)] : "", random(3) ? pieces[random(pieces.length)] : ""];
+      const language = languages[random(languages.length)];
+      const small = Math.max(time(fill(head, unit, tail, 10240), language), 2);
+      const large = time(fill(head, unit, tail, 102400), language);
+      // And up to the limit, highlighted: no shape of any grammar takes more than about a second.
+      const highlighted = time(fill(head, unit, tail, HIGHLIGHT_LIMIT - 16), language);
+      const shape = JSON.stringify([head, unit, tail]);
+      if ((large > 20 * small && large > 100) || highlighted > 2000) slow.push(`${language} ${shape}: ${small.toFixed(1)} ms for 10 KB, ${large.toFixed(1)} ms for 100 KB, ${highlighted.toFixed(0)} ms highlighted`);
+    }
+    expect(slow).toEqual([]);
+  }, 120_000);
 
   it("writes a token nested deep in others (`${` over and over, in shell) with a style about as long as its theme's", () => {
     // Each token's style was its parents' written out, so the HTML grew with the code's size squared: 16 KB of `${`

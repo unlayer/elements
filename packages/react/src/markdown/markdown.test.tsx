@@ -6,6 +6,7 @@ import * as asyncRenderers from "../async";
 import { Markdown, safeUrl, sanitizeHtml, type MarkdownProps } from "./index";
 import { Lexer } from "marked";
 import { Bounded } from "./inline";
+import { TABLE_CELLS } from "./limits";
 
 let warn: MockInstance;
 beforeEach(() => {
@@ -267,7 +268,9 @@ describe("Markdown from data: no more than its size calls for", () => {
       ["~~a nested", "~~a ".repeat(12800) + "b" + " a~~".repeat(12800)],
       ["a URL trimmed", "http://a" + "&a;".repeat(34000)],
       ["an email's characters", "a.".repeat(51200) + "@"],
-      ["spaces, with breaks", "a" + " ".repeat(102400) + "b", true]
+      ["spaces, with breaks", "a" + " ".repeat(102400) + "b", true],
+      // A link's text of raw HTML nothing closes: marked reads from each `<` to the end, to see whether it runs past the `]`.
+      ...["<!--", "<?", "<![CDATA[", "<!a ", '<a b="', "<a "].map((open): [string, string] => [`[${open} …](x)`, `[${fill(open).slice(0, 102300)}](x)`])
     );
     for (const [shape, markdown, breaks] of shapes) {
       const start = performance.now();
@@ -314,6 +317,86 @@ describe("Markdown from data: no more than its size calls for", () => {
       expect(plain.match(/a/g)?.length).toBe(130000);
     }
   }, 60_000);
+
+  it("renders a code block of whitespace in time linear in its size, its colors off or not", () => {
+    // Its trailing whitespace taken off with a regex that tried again from each space: 100 KB of spaces then `x` took 6 s.
+    for (const markdown of ["```\n" + " ".repeat(102400) + "x\n```", "```js\n" + "\n".repeat(102400) + "x\n```", "- a\n\n  ```\n  " + " ".repeat(102400) + "x\n  ```"]) {
+      const start = performance.now();
+      const html = renderToHtml(email({ markdown, html: "escape" }));
+      expect([markdown.slice(0, 8), html.includes("x</code>"), performance.now() - start < 3000]).toEqual([markdown.slice(0, 8), true, true]);
+    }
+  });
+
+  it("reads a list item of many lines in time linear in its size: marked read the rest of it again for each line", () => {
+    // In a list item, marked reads one line at a time: before each, its setext heading rule read the rest of the item
+    // for an underline, and each line added to the text before it read all that text again. 200 KB took 6 s.
+    const fill = (unit: string) => unit.repeat(Math.ceil(204800 / unit.length)).slice(0, 204800);
+    for (const unit of ["- [a]: b\n!@", "+ \\[x]\n@", "- \n    -:http://;", "> 1. .<-\n[ ]", "1. `\nwww.", "- a\n    b\n", "- a\n[x]: y\n"]) {
+      const start = performance.now();
+      const html = renderToHtml(email({ markdown: fill(unit), html: "escape" }));
+      expect([unit, html.includes("@") || html.includes("www") || html.includes("b") || html.includes("y"), performance.now() - start < 3000]).toEqual([unit, true, true]);
+    }
+    // As marked reads them: headings underlined in list items, lines added to an item's text, code and definitions in it.
+    const samples = ["- a\n  b\n  ---\n- c\n  ===\n", "- a\nb\n=\n", "1. one\n   two\n\n       code\n   [x]: https://e.test\n   three\n", "> - a\n>   b\n>   -\n", "- a\n  \u2028b\n  -\n", "* x\ny\nz\n  ---\nw"];
+    for (const sample of samples) expect([sample, new Bounded({ breaks: false, cells: 1e6, size: sample.length }).lex(sample)]).toEqual([sample, new Lexer({ gfm: true }).lex(sample)]);
+  });
+
+  it("looks for reference links (`[a]`) only where the Markdown defines one", () => {
+    // marked masks the reference links in a paragraph from each `[`, up to 999 steps each: 1 MB of `\[` took 4 s, with
+    // none to mask. Defined, they're masked as marked masks them.
+    const start = performance.now();
+    renderToHtml(email({ markdown: "\\[".repeat(524288), html: "escape" }));
+    expect(performance.now() - start).toBeLessThan(2000);
+    const markdown = "Read *[the guide] and [faq]*, **[a][guide]**.\n\n[guide]: https://e.test/g\n[faq]: https://e.test/f";
+    expect(new Bounded({ breaks: false, cells: 1e6, size: markdown.length }).lex(markdown)).toEqual(new Lexer({ gfm: true }).lex(markdown));
+  });
+
+  it("costs about ten times as much for ten times as much of any short shape of blocks and inline syntax (random, seeded)", () => {
+    // What each round of review found one shape of at a time: rules that read the rest of the text from each place.
+    const pieces = [">", "> ", "- ", "--", "-", "* ", "+ ", "1. ", "1)", "# ", "=", "|", "|-|", ":-", "`", "```", "~~~", "~~", "_", "**", "[", "]", "(", ")", "![", "]:", "<", "<a>", "<div>", "<!--", "<?", "&", "\\", "a", "b", " ", "  ", "    ", "\t", "[ ]", "http://", "www.", "@", '"', "\\[", "[a]: b"];
+    let seed = 7;
+    const random = (n: number) => ((seed = (Math.imul(seed, 1103515245) + 12345) >>> 0), Math.floor((seed / 2 ** 32) * n));
+    const fill = (unit: string, bytes: number) => unit.repeat(Math.ceil(bytes / unit.length)).slice(0, bytes);
+    const time = (markdown: string, breaks: boolean) => {
+      const start = performance.now();
+      new Bounded({ breaks, cells: Math.max(TABLE_CELLS, markdown.length), size: markdown.length }).lex(markdown);
+      return performance.now() - start;
+    };
+    const slow: string[] = [];
+    for (let run = 0; run < 200; run++) {
+      // One to three lines of a few pieces each (blocks are read by lines), the last one ending the unit or not.
+      let unit = "";
+      for (let line = 0, lines = 1 + random(3); line < lines; line++) {
+        for (let i = 0, n = random(4); i < n; i++) unit += pieces[random(pieces.length)];
+        if (line < lines - 1 || random(4)) unit += random(6) ? "\n" : "\n\n";
+      }
+      unit ||= "a";
+      const breaks = random(4) === 0;
+      const small = Math.max(time(fill(unit, 10240), breaks), 2);
+      const large = time(fill(unit, 102400), breaks);
+      if (large > 20 * small && large > 100) slow.push(`${JSON.stringify(unit)}: ${small.toFixed(1)} ms for 10 KB, ${large.toFixed(1)} ms for 100 KB`);
+    }
+    expect(slow).toEqual([]);
+  }, 120_000);
+
+  it("reads lines a table can't start in time linear in their size: marked read every line after them first", async () => {
+    // A line under one that could be a table's header (`a` then `-`, a setext heading) was read with all the lines after
+    // it as the table's rows before marked told it isn't one: 100 KB of `a\n-\n` took 14 s. A paragraph's lines were
+    // too, to tell whether a table starts there (`|` then `-`: 5 s).
+    const fill = (unit: string) => unit.repeat(Math.ceil(102400 / unit.length)).slice(0, 102400);
+    for (const unit of ["a\n-\n", "a\n--\n", "a\n:-\n", "> --\n", "--    \n", "-\n~<!--    > ```\n", "a|b\n|-|\n", "|-|-|\n|-|\n", "- a\n  -\n", "|\n-\n", "a\n|\n-\n"]) {
+      const start = performance.now();
+      const html = renderToHtml(email({ markdown: fill(unit), html: "escape" }));
+      expect([unit, html.length > 100000, performance.now() - start < 3000]).toEqual([unit, true, true]);
+    }
+    const start = performance.now();
+    await asyncRenderers.renderToHtml(email({ markdown: fill("a\n-\n"), html: "drop" }));
+    expect(performance.now() - start).toBeLessThan(3000);
+    // As marked reads them: a heading underlined with `-`, and a table after many of them, with its rows.
+    const markdown = `${"Title\n-\n\n".repeat(500)}| a | b |\n|---|:-:|\n| 1 | 2 |\n| 3 | 4 |`;
+    expect(blocks({ markdown }).map(([type]) => type)).toEqual([...Array(500).fill("heading"), "table"]);
+    expect(blocks({ markdown }).at(-1)?.[1]).toMatchObject({ rows: { length: 2 } });
+  }, 120_000);
 
   it("reads quotes in time linear in their size, however lines without a `>` continue them, and lists, quotes and code in them", async () => {
     // marked reads a quote a chunk at a time (up to a line without a `>` that continues it), and after each chunk the

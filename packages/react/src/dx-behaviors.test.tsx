@@ -282,6 +282,15 @@ describe("DX: style and className, on the element each component renders", () =>
     return { tag: tag[1], style: /style="([^"]*)"/.exec(tag[0])![1], classes: /class="([^"]*)"/.exec(tag[0])![1] };
   };
 
+  it("writes its own style after the renderer's in time linear in what the renderer's holds", () => {
+    // The renderer's style lost its trailing spaces and `;`s to `/[\s;]*$/`, which tried again from each of a long run of
+    // them a value of a prop wrote (`color`): 100,000 took seconds.
+    const start = performance.now();
+    const html = renderToHtml(<Email><Row><Column><Paragraph color={"#000" + " ".repeat(102400) + "a"} style={{ textTransform: "uppercase" }}>Hi</Paragraph></Column></Row></Email>);
+    expect(performance.now() - start).toBeLessThan(1000);
+    expect(html).toMatch(/word-wrap: break-word;text-transform:uppercase"/);
+  });
+
   it.each(Object.keys(roots) as Array<keyof typeof roots>)("%s: inlined (its own style first), its class names before the renderer's", (mode) => {
     const out = renderToHtml(template(roots[mode]));
     // The root's body (or the wrapper in it, on a web page), the Row's container, the Column's cell.

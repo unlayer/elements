@@ -175,7 +175,8 @@ const px = (value: number | string) => (typeof value === "number" ? `${value}px`
 /** The code as email-safe HTML: inline styles only, the code's spaces and lines kept in every client, Outlook's too. */
 export function highlightCode(code: string, options: HighlightOptions = {}): string {
   const theme = themeOf(options.theme);
-  const lines = highlightLines(code.replace(/^\r?\n/, "").replace(/\s+$/, "").replace(/\r\n?/g, "\n"), options.language, theme);
+  // (Its trailing whitespace off with trimEnd: `/\s+$/` tries again from each of a long run's characters.)
+  const lines = highlightLines(code.replace(/^\r?\n/, "").trimEnd().replace(/\r\n?/g, "\n"), options.language, theme);
   const size = px(options.fontSize ?? 13);
   const ratio = typeof options.lineHeight === "number" ? options.lineHeight : options.lineHeight === undefined ? 1.5 : undefined;
   // In pixels where the size is: Outlook reads no ratio.

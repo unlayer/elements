@@ -212,15 +212,38 @@ function unrunLink(link: any): any {
 }
 
 /**
+ * A video's id, which a page's and a document's player writes into its `src="https://www.youtube.com/embed/…"` (or
+ * Vimeo's) as it is: what an id doesn't hold (the editor's are letters, digits, `.`, `_`, `%` and `-`, a Vimeo one's
+ * with a `/`) is percent-encoded, so an id from data (`abc" onload="…`) can't end the attribute. One that isn't a
+ * string or a number (an array from a JSON body) is its text.
+ */
+export function safeVideoId(id: unknown): unknown {
+  if (id == null || typeof id === "number") return id;
+  const encode = (c: string) => {
+    try {
+      // (`encodeURIComponent` keeps `!'()*~`: they're encoded too.)
+      return encodeURIComponent(c).replace(/[!'()*~]/g, (k) => `%${k.charCodeAt(0).toString(16).toUpperCase()}`);
+    } catch {
+      // (A lone surrogate, which has no UTF-8: U+FFFD's.)
+      return "%EF%BF%BD";
+    }
+  };
+  const safe = String(id).replace(/[^A-Za-z0-9._%/-]/gu, encode);
+  return safe === id ? id : safe;
+}
+
+/**
  * A block's values with no link URL that runs code (see unrunUrl), in the HTML and the design alike: its `href` and
  * `action` (Button, Image, Video), a Video's URL (an email's link to it), a Menu's items' links and a Social's icons'
  * URLs, however they were given. The editor's exporters write those links as they are, in every mode (0.2.1 did too).
+ * A Video's id too, which they write into its player's URL as it is (see safeVideoId).
  */
 export function unrunLinks<T>(values: T, name: string): T {
   if (!values || typeof values !== "object") return values;
   const out: Record<string, any> = { ...values };
   for (const key of LINK_KEYS) if (out[key] != null) out[key] = unrunLink(out[key]);
   if (name === "Video" && out.video && typeof out.video === "object" && out.video.url != null) out.video = { ...out.video, url: unrunLink(out.video.url) };
+  if (name === "Video" && out.video && typeof out.video === "object" && safeVideoId(out.video.videoId) !== out.video.videoId) out.video = { ...out.video, videoId: safeVideoId(out.video.videoId) };
   if (name === "Menu" && Array.isArray(out.menu?.items)) out.menu = { ...out.menu, items: out.menu.items.map((item: any) => (item?.link != null ? { ...item, link: unrunLink(item.link) } : item)) };
   if (name === "Social" && Array.isArray(out.icons?.icons)) out.icons = { ...out.icons, icons: out.icons.icons.map((icon: any) => (icon?.url != null ? { ...icon, url: unrunLink(icon.url) } : icon)) };
   return out as T;
@@ -256,6 +279,9 @@ function aliasesOf(names: string): string[] {
   if (!list) aliasLists.set(names, (list = names.split(" ")));
   return list;
 }
+
+/** Whether a prop holds a block's content (its text or markup, a table's cells), not a style: one given as `null` is none. */
+export const isContentProp = (key: string): boolean => /^(text|html|headers|data)$/.test(key);
 
 /**
  * Universal semantic props mapper
@@ -358,8 +384,9 @@ export function mapSemanticProps<T extends Record<string, any>>(
   const flat: Record<string, any> = {};
   for (const key of Object.keys(userProps)) {
     const value = userProps[key];
-    // (A prop given as `null`, as data gives one it hasn't, is one not given: `color: ;` isn't a color.)
-    if (value == null) continue;
+    // (A style prop given as `null`, as data gives one it hasn't, is one not given: `color: ;` isn't a color. A content
+    // prop given as `null` is no content, as in 0.2.1, not the block's placeholder.)
+    if (value === undefined || (value === null && !isContentProp(key))) continue;
     if (nestedGroups.has(key)) nested[key] = value;
     else {
       const group = owners.get(key);

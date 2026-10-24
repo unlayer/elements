@@ -100,6 +100,7 @@ Colors come out as hex, or `rgba()` when translucent: Tailwind's `oklch()` palet
 | `rounded-*` | `Column`, `Button` | `borderRadius` |
 | `w-*` | `Button`, `Image`, `Divider` / root | `width` (pixels or %; an Image's `w-auto` is its auto width) / `contentWidth` |
 | `max-w-*`, `min-w-*` | `Image` / root | its one width with `w-*`, as CSS sizes it: the max width caps the width, the min width wins over both (`w-[600px] max-w-[800px]` is 600px; see [Images](#images)) / `contentWidth` the same way (a `min-w-*` alone stays an inline style) |
+| `h-*` | `Image` | with an auto width (`h-12 w-auto`, or no `w-*`), the width the image's aspect ratio gives, where its size is given (`src={{ url, width, height }}`); see [Images](#images) |
 | `hover:bg-*`, `hover:text-*` | `Button` | `hoverBackgroundColor`, `hoverColor` (without them it keeps its colors on hover) |
 | `hidden` | `Row`, content blocks | `hideOnDesktop` and `hideOnMobile` |
 
@@ -161,6 +162,14 @@ Tailwind's logical classes follow the template's direction, as CSS's logical pro
 ## Images
 
 An Image's `w-*` and `max-w-*` are its display width, which is one setting in the editor (a percentage of its column): `w-32` is 128px, `w-1/2` half its column, `max-w-xs` at most 320px, and `w-auto` (or `w-full`) its auto width, as wide as its column allows. A width with a max width is the smaller of the two, as the browser shows it: `w-full max-w-xs` is 320px (where the column is wider), in the HTML and the design; a min width (`min-w-*`) wins over both, as in CSS (`w-48 min-w-xs` is 320px). A percentage with pixels (`w-1/2 max-w-xs`) depends on the column's width, so the width is used and Elements says so. The root's `w-*`, `max-w-*` and `min-w-*` are its content width the same way, a percentage with pixels depending on the window's width. As the editor's width is a percentage, a fixed width is a share of the column's: where the column is narrower (a phone), the image is too.
+
+A height with an auto width, as a logo is sized (`h-12 w-auto`, or `h-12` alone), is the width the image's aspect ratio gives it, as in the browser: the editor's image has a width, and its height follows from that. That needs the image's size, so give it in `src`:
+
+```tsx
+<Image src={{ url: "https://example.com/logo.png", width: 400, height: 100 }} alt="Acme" className="h-12 w-auto max-sm:h-8" />
+```
+
+is 192px wide (48px tall), and 128px on phones (32px tall), in the HTML and the design; an email's image for Outlook has its `height` too. Without the size (`src="https://example.com/logo.png"`) the height is left out, so the image isn't stretched: it keeps its auto width, and Elements says the height needs the image's size. A height with a width (`w-32 h-12`, `size-12`, or a `width` prop) stays an inline style, in the HTML only, as before.
 
 ## Card grids
 
