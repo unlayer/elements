@@ -215,6 +215,9 @@ export const CLASSES = 2000;
 export const CHARACTERS = 64 * 1024;
 export const COMPILED = 4 * CHARACTERS;
 
+/** How many times what a compiler takes (CLASSES, COMPILED) it builds while no fresh one is ready (see FULL). */
+export const CEILING = 4;
+
 /**
  * Why a class isn't read: a render (or a class string) reads its first CLASSES different classes, CHARACTERS of them,
  * only (see capped).
@@ -284,6 +287,15 @@ export const WAITING = "it's read once Tailwind has compiled again, after a clas
 
 /** How the reason a class isn't read starts where Tailwind can't compile again (see RENEWALS). */
 export const STUCK = "Tailwind couldn't compile again";
+
+/**
+ * Why a class isn't read yet: its compiler has built twice the classes one takes (CLASSES, COMPILED), and no fresh one is
+ * ready. A handle keeps one ready (compiled with it), which takes over at once; the next is compiled in the background,
+ * which a synchronous loop of renders doesn't let run: past twice what a compiler takes, each build would cost more than
+ * the last (Tailwind builds every class it has built again) and memory would grow with each, so new classes aren't
+ * built till the fresh one is ready.
+ */
+export const FULL = `Tailwind has built ${CEILING * CLASSES} different classes (or ${(CEILING * COMPILED) / 1024} KB of them) since its last fresh compiler, which is compiled once the app yields: yield between synchronous renders (\`await new Promise((resolve) => setImmediate(resolve))\`), or use the async renderers ("@unlayer/react-elements/tailwind"), which wait for it`;
 
 /**
  * Fresh compilers that can fail in a row. One compiles the config this one was compiled from, so one that fails (out of
@@ -381,32 +393,36 @@ export function beyond(token: string): string | undefined {
 
 /**
  * Reads classes with a compiler: each class built once, its rules read back from the latest stylesheet. Past `limit`
- * classes, a fresh compiler from `renew` (Tailwind compiles asynchronously) takes over once it's ready, with none
- * built: a class string reads the same whatever its compiler built before. A class that could change how the
- * stylesheet reads isn't built (`readable`); a build whose stylesheet still doesn't read cleanly is left out (its
- * classes said, the classes before it read as they did), and a fresh compiler takes over, on which each of that
- * build's classes is built alone first (SUSPECTS of them on one compiler: the others wait for the next), where a
- * class string holding it is read: the one that was why is never built again, and only it. What a plugin's function
- * for a class throws, or gives that can't be read, is kept from the build (see guard.ts) and blamed on its class,
- * thrown where that's read (or the class left out): the compiler stays clean, for this render's other classes and other
- * renders'. A build that throws all the same (not a plugin's function) is one that didn't read cleanly: Tailwind keeps
- * its classes, and throws again on the next build with a new one. While a fresh compiler is compiled, `ready` gives
- * when it's ready, for the async renderers to wait for; a synchronous render can't, and fails where it needs a class
- * built (see load.ts).
+ * classes (or COMPILED characters of them), a fresh compiler takes over, with none built: a class string reads the same
+ * whatever its compiler built before. One is kept ready (`ready`, compiled with the handle), so it takes over at once,
+ * synchronous renders too, where classes are next built; then another is asked for from `renew` (Tailwind compiles
+ * asynchronously), the spare once it's ready. A synchronous loop of renders never lets it compile: there, past twice
+ * `limit` with no fresh compiler ready, no class is built (FULL), as each build would cost more than the last and
+ * memory would grow; a render that needs one fails, saying to yield between renders or use the async renderers (see
+ * load.ts). A class that could change how the stylesheet reads isn't built (`readable`); a build whose stylesheet still
+ * doesn't read cleanly is left out (its classes said, the classes before it read as they did), and a fresh compiler
+ * takes over, on which each of that build's classes is built alone first (SUSPECTS of them on one compiler: the others
+ * wait for the next), where a class string holding it is read: the one that was why is never built again, and only it.
+ * What a plugin's function for a class throws, or gives that can't be read, is kept from the build (see guard.ts) and
+ * blamed on its class, thrown where that's read (or the class left out): the compiler stays clean, for this render's
+ * other classes and other renders'. A build that throws all the same (not a plugin's function) where Tailwind keeps its
+ * classes (it throws again on the next build with a new one) is one that didn't read cleanly; where it doesn't, the
+ * class that threw is found and refused (see isolate). While a fresh compiler is wanted and compiled, `ready` gives when
+ * it's ready, for the async renderers to wait for; a synchronous render can't, and fails where it needs a class built
+ * (see load.ts).
  *
  * Each build is Tailwind's whole stylesheet again (it keeps every class it built), so classes are best built many at
  * once: `prepare` builds a render's, all the classes its components and their markup are given, before they're read
  * one component at a time (which would take the square of their number: seconds for a few thousand).
  *
- * So after such a build, which `readable` refuses every known cause of, new classes aren't read till the fresh compiler
- * is ready (`WAITING`, said): a render that meets one before reads it as left out, and a later one reads it. That can't
- * be made synchronous: Tailwind compiles only asynchronously, and nothing more can be built on a compiler whose
- * stylesheet doesn't read cleanly (it keeps every class built). Reading on past the rule that broke it, from Tailwind's
- * rule boundaries, would trust how Tailwind prints CSS where the reader reads it as CSS does (what keeps one class from
- * changing how the next reads), and a spare compiler kept ready would double each handle's compiling and memory for a
- * case no known class reaches.
+ * After a build that didn't read cleanly, which `readable` refuses every known cause of, with no fresh compiler ready,
+ * new classes aren't read till one is (`WAITING`, said): a render that meets one before reads it as left out, and a
+ * later one reads it. That can't be made synchronous: Tailwind compiles only asynchronously, and nothing more can be
+ * built on a compiler whose stylesheet doesn't read cleanly (it keeps every class built). Reading on past the rule that
+ * broke it, from Tailwind's rule boundaries, would trust how Tailwind prints CSS where the reader reads it as CSS does
+ * (what keeps one class from changing how the next reads).
  */
-export function declarationReader(compiler: Compiler, renew?: () => Promise<Compiler>, limit = CLASSES): DeclarationReader {
+export function declarationReader(compiler: Compiler, renew?: () => Promise<Compiler>, limit = CLASSES, ready?: Compiler): DeclarationReader {
   let seen = new Set<string>();
   // The characters of the classes built (see COMPILED).
   let built = 0;
@@ -431,6 +447,8 @@ export function declarationReader(compiler: Compiler, renew?: () => Promise<Comp
   // The fresh compiler being compiled (see `ready`), and whether a class waits for it.
   let pending: Promise<void> | undefined;
   let waiting = false;
+  // A fresh compiler ready to take over (one compiled with the handle, then each asked for after one takes over).
+  let spare = ready;
   // Fresh compilers that failed in a row (see RENEWALS), and the last one's error.
   let failures = 0;
   let failure = "";
@@ -469,20 +487,36 @@ export function declarationReader(compiler: Compiler, renew?: () => Promise<Comp
     }
     return !dirty && !thrown;
   };
-  // Once at a time (one that fails leaves this one in use).
-  const fresh = () => {
+  // Whether this compiler is past what one takes (CLASSES, COMPILED), and twice that (see FULL).
+  const due = () => seen.size > limit || built > COMPILED;
+  const full = () => seen.size > CEILING * limit || built > CEILING * COMPILED;
+  /** A fresh compiler takes over: nothing built on it, the classes refused stay refused. */
+  const swap = (next: Compiler) => {
+    compiler = next;
+    seen = new Set();
+    built = 0;
+    failed = new Map();
+    sheet = empty();
+    byToken = new Map();
+    dirty = waiting = false;
+    alone = 0;
+  };
+  /**
+   * A fresh compiler asked for, once at a time (one that fails leaves this one in use): where this one is to be taken
+   * over by then (it didn't read cleanly, or classes wait, or it's past what it takes), it takes over, and another is
+   * asked for; else it's the spare.
+   */
+  const ask = () => {
     if (!renew || renewing || failures >= RENEWALS) return;
     renewing = true;
     pending = renew().then(
       (next) => {
-        compiler = next;
-        seen = new Set();
-        built = 0;
-        failed = new Map();
-        sheet = empty();
-        byToken = new Map();
-        renewing = dirty = waiting = false;
-        failures = alone = 0;
+        renewing = false;
+        failures = 0;
+        if (dirty || waiting || due()) {
+          swap(next);
+          ask();
+        } else spare = next;
       },
       (error) => {
         renewing = false;
@@ -491,6 +525,7 @@ export function declarationReader(compiler: Compiler, renew?: () => Promise<Comp
       }
     );
   };
+  const fresh = () => void (spare || ask());
   const build = (tokens: string[]): boolean => {
     let css: string;
     let plugins: PluginFailure[] | undefined;
@@ -520,7 +555,7 @@ export function declarationReader(compiler: Compiler, renew?: () => Promise<Comp
       else byToken.set(rule.token, [rule]);
     }
     if (plugins?.length) blame(tokens, plugins);
-    if (seen.size > limit || built > COMPILED) fresh();
+    if (due()) fresh();
     return true;
   };
   // What plugins' functions threw while a build built `tokens` (kept from Tailwind, which built the class's CSS without
@@ -545,8 +580,24 @@ export function declarationReader(compiler: Compiler, renew?: () => Promise<Comp
   // string is read (not prepared: what building it throws comes out where it's read), the rest at once. What a build
   // threw is thrown after.
   const need = (tokens: string[], prepare?: boolean) => {
-    const unread = tokens.filter((token) => !seen.has(token) && !refused.has(token) && readable(token) && !beyond(token));
+    const unbuilt = () => tokens.filter((token) => !seen.has(token) && !refused.has(token) && readable(token) && !beyond(token));
+    let unread = unbuilt();
     if (!unread.length) return;
+    // The spare takes over where this compiler is to be taken over, synchronously, and another is asked for: only where
+    // classes are built (a render's components read what it prepared on the compiler it prepared them on).
+    if (spare && (dirty || waiting || due())) {
+      swap(spare);
+      spare = undefined;
+      ask();
+      unread = unbuilt();
+    }
+    // Past CEILING times what a compiler takes, with no fresh one ready, nothing more is built (see FULL), unless none
+    // can come (fresh ones failed: see RENEWALS).
+    if (!dirty && full() && renew && failures < RENEWALS) {
+      waiting = true;
+      ask();
+      return;
+    }
     halves = HALVES;
     let later = false;
     for (const token of unread) {
@@ -614,7 +665,7 @@ export function declarationReader(compiler: Compiler, renew?: () => Promise<Comp
       }
       // One not built on this compiler: refused, or waiting for a fresh one (see declarationReader).
       if (!seen.has(token)) {
-        leave(token, beyond(token) ?? (refused.has(token) || !readable(token) || !renew ? UNREADABLE : failures < RENEWALS ? WAITING : `${STUCK} after a class it couldn't read (${failure})`));
+        leave(token, beyond(token) ?? (refused.has(token) || !readable(token) || !renew ? UNREADABLE : failures >= RENEWALS ? `${STUCK} after a class it couldn't read (${failure})` : !dirty && full() ? FULL : WAITING));
         continue;
       }
       const rules = byToken.get(token);
@@ -649,5 +700,6 @@ export function declarationReader(compiler: Compiler, renew?: () => Promise<Comp
       scope.strays.push(...strays.splice(0));
     }
   };
-  return Object.assign(read, { prepare, ready: () => ((dirty || waiting) && renewing ? pending : undefined) });
+  // (The async renderers wait for a fresh compiler where this one is past what it takes too, so they never grow it.)
+  return Object.assign(read, { prepare, ready: () => ((dirty || waiting || due()) && renewing ? pending : undefined) });
 }

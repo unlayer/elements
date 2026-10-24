@@ -19,6 +19,7 @@ import { designToElements } from "../codegen";
 import { evaluate } from "../codegen/test-harness";
 import { Tailwind, loadTailwind, type TailwindHandle } from "../tailwind";
 import { CLASS_LIMITS } from "../tailwind/declarations";
+import { Markdown } from "../markdown";
 
 const PAYLOADS = [
   '"><x-pwn></x-pwn>', "'><x-pwn></x-pwn>", '" x-pwn="1', "' x-pwn='1", "</p></div></td></tr></table><x-pwn></x-pwn>",
@@ -421,6 +422,22 @@ describe("a Tailwind class from data", () => {
       </Tailwind>
     );
   };
+
+  it("inlines in markup no value a prop can't take, a Markdown's sanitized HTML too, and says so", () => {
+    // A CSS escape of `"` and markup in a font's name: refused as a Paragraph's prop, it was written into a Markdown
+    // paragraph's `style`, `<img …>` and all (escaped, so it added no tag).
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const className = "font-['\\22><img_src=x_onerror=alert(1)>']";
+    try {
+      for (const block of [<Markdown markdown={`<p class="${className}">x</p>\n`} />, <Html html={`<p class="${className}">x</p>`} />, <Paragraph className={className}>x</Paragraph>]) {
+        const html = renderToHtml(<Tailwind tw={tw}><Email><Row><Column>{block}</Column></Row></Email></Tailwind>);
+        expect(html).not.toMatch(/onerror|\\22>/);
+      }
+      expect(warn.mock.calls.map((call) => String(call[0]))).toContain(`[Unlayer] Html ignores \`font-family: '\\22><img src=x onerror=alert(1)>'\` from class \`${className}\` in its markup: it could end the HTML attribute it's written in, start a tag, or end its CSS.`);
+    } finally {
+      warn.mockRestore();
+    }
+  });
 
   /** `body` with Tailwind given classes of any length (a class past CLASS_LIMITS isn't: see compile.test.tsx), its reading's own time then measured. */
   const unlimited = async (body: () => Promise<void> | void) => {

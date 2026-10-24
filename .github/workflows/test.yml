@@ -58,8 +58,11 @@ jobs:
         run: pnpm --filter @unlayer/from-react-email typecheck && pnpm --filter @unlayer/migrate typecheck
 
       # ── Bundle size budget ──────────────────────────────────────
-      # Fail if the react-elements ESM bundle exceeds 218KB.
-      # Current size: about 217.6KB (0.1.22: about 76KB). Raised from 216KB
+      # Fail if the react-elements ESM bundle exceeds 219.5KB.
+      # Current size: about 219.1KB (0.1.22: about 76KB). Raised from 218KB
+      # (about 1.5KB): a render's shared work kept to its own render (template
+      # wrappers, nested renders), code themes read by their own names, and
+      # plain text's skip names read as written. Raised from 216KB
       # (about 1.9KB): Markdown's and code's work is shared across a render,
       # not counted per block, plain text's tag names are indexed by their
       # parts, and a rich text block's markup is given to <Tailwind> with the
@@ -193,7 +196,7 @@ jobs:
         run: |
           BUNDLE="packages/react/dist/index.js"
           SIZE=$(wc -c < "$BUNDLE" | tr -d ' ')
-          MAX_SIZE=218000
+          MAX_SIZE=219500
           echo "Bundle: $BUNDLE"
           echo "Size: $SIZE bytes (budget: $MAX_SIZE bytes)"
           if [ "$SIZE" -gt "$MAX_SIZE" ]; then

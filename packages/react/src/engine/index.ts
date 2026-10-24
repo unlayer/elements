@@ -11,11 +11,11 @@ import { flatten, type Flat, type Part } from "./output";
 import { checkReact } from "./self-test";
 import { pushTreeContext, ROOT_TREE, type TreeContext } from "./tree-id";
 import { TOP } from "./host";
-import { call, caller, failure, positioned, renderClass, suspension, thrownBy, walkNode, type Collector, type Shared, type Task, type Wait, type Walker } from "./walk";
+import { call, caller, failure, positioned, renderClass, sharedNow, suspension, thrownBy, walkNode, type Collector, type Shared, type Task, type Wait, type Walker } from "./walk";
 
 export { RenderError, type OnError } from "./errors";
 export { flatten, htmlOf, PENDING, type Flat, type Item, type Markup, type Cut, type Part, type RecordItem } from "./output";
-export { errorPart, passesThrough, type Task, type Wait } from "./walk";
+export { errorPart, passesThrough, sharing, type Task, type Wait } from "./walk";
 export { track } from "./dispatcher";
 export type { TreeContext } from "./tree-id";
 export type { Collector, Recorded, Shared } from "./walk";
@@ -49,7 +49,7 @@ const walker = (options: Partial<WalkerOptions>, wait?: Wait): Walker => ({
   idPrefix: options.idPrefix,
   fallbacks: options.fallbacks ?? renderFallbacks(),
   // (A walk of no render of its own, Elements' own markup, shares the one calling it.)
-  shared: options.shared ?? caller()?.shared ?? {},
+  shared: options.shared ?? sharedNow() ?? {},
   omit: omits(options.onError),
   suspense: 0,
   made: new WeakSet(),
@@ -63,10 +63,11 @@ const walker = (options: Partial<WalkerOptions>, wait?: Wait): Walker => ({
 export const renderFallbacks = (): Fallbacks => caller()?.fallbacks ?? new Map();
 
 /**
- * What the component being called shares with the rest of its render (see Shared), or undefined where none is (outside
- * a walk's call of a component: React rendering it, code of the user's own outside a render).
+ * What the component or template wrapper being called shares with the rest of its render (see Shared), or undefined
+ * where none is: outside such a call (React rendering a component, code of the user's own outside a render, an async
+ * component's code after an `await`).
  */
-export const renderShared = (): Shared | undefined => caller()?.shared;
+export const renderShared = (): Shared | undefined => sharedNow();
 
 /** Where a walk starts: where the component that started it is, if the walker is calling one (see `caller`). */
 const task = (root: string, tree?: TreeContext): Task => ({ tree: tree ?? caller()?.tree ?? ROOT_TREE, contexts: caller()?.contexts ?? null, format: TOP, frame: rootFrame(root), watch: null });

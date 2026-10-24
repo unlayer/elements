@@ -6,7 +6,7 @@ import { CodeBlock, codeInline, highlightCode, type CodeBlockProps, type CodeInl
 import { escapeAttribute, escapeText, safeUrl, sanitizeHtml } from "./sanitize";
 import { tooLarge, type TooLarge } from "./limits";
 import { lexMarkdown } from "./work";
-import { charge, codeWork, CODE_WORK, sayInRender } from "../code/work";
+import { charge, codeWork, CODE_WORK, renderWork, sayWhenDone } from "../code/work";
 
 /** The blocks Markdown becomes, by its element: props each one gets (over Markdown's own defaults). */
 export interface MarkdownBlocks {
@@ -371,12 +371,23 @@ export function Markdown(props: MarkdownProps): React.ReactElement {
   const tokens = lexMarkdown(source, !!props.breaks);
   const writer = new Writer(props);
   const blocks = writer.blocks(tokens);
-  if (writer.plain)
-    sayInRender(
-      "markdown code",
-      `[Unlayer] Markdown: ${writer.plain} of its code blocks ${writer.plain > 1 ? "are" : "is"} shown without colors: ${writer.render ? "the render's" : "its"} code blocks' sizes squared add up to more than the ${CODE_WORK} highlight.js is given for one ${writer.render ? "render" : "Markdown"} (on some code its time grows with a block's size squared).`
+  if (writer.plain) {
+    // Said once the render's done, with the code blocks shown without colors in all its Markdown.
+    const plain = renderWork(PLAIN, () => ({ blocks: 0 })) ?? { blocks: 0 };
+    plain.blocks += writer.plain;
+    const are = () => (plain.blocks > 1 ? `${plain.blocks} code blocks in the render's Markdown are` : "1 code block in the render's Markdown is");
+    sayWhenDone("markdown code", () =>
+      console.warn(
+        writer.render
+          ? `[Unlayer] Markdown: ${are()} shown without colors: the render's code blocks' sizes squared add up to more than the ${CODE_WORK} highlight.js is given for one render (on some code its time grows with a block's size squared).`
+          : `[Unlayer] Markdown: ${plain.blocks} of its code blocks ${plain.blocks > 1 ? "are" : "is"} shown without colors: its code blocks' sizes squared add up to more than the ${CODE_WORK} highlight.js is given for one Markdown (on some code its time grows with a block's size squared).`
+      )
     );
+  }
   return <>{blocks}</>;
 }
 
 Markdown.displayName = "Markdown";
+
+/** The code blocks shown without colors in a render's Markdown, all of it (see Markdown). */
+const PLAIN = Symbol.for("@unlayer/react-elements/markdown-plain");
