@@ -19,8 +19,10 @@ import { parseSheet } from "./css";
 import { CONFIGS } from "./load";
 
 // Tailwind as it is, its compilers counted once compiled (a handle compiles a fresh one after building many classes),
-// and their builds (each one Tailwind's whole stylesheet again: `css`, the last one's length).
-const compiled = vi.hoisted(() => ({ count: 0, builds: 0, candidates: 0, css: 0 }));
+// and their builds. (Only where Elements' `import("tailwindcss")` gets this mock: vitest gives a factory's mock to one
+// of the imports of a module under way at once, Tailwind itself to the others, as where a test compiles while a fresh
+// compiler an earlier test's handle asked for is still compiling.)
+const compiled = vi.hoisted(() => ({ count: 0, builds: 0, candidates: 0 }));
 vi.mock("tailwindcss", async (actual) => {
   const tailwind = await actual<Record<string, any>>();
   const compile = async (...args: unknown[]) => {
@@ -30,13 +32,18 @@ vi.mock("tailwindcss", async (actual) => {
     compiler.build = (candidates: string[]) => {
       compiled.builds++;
       compiled.candidates += candidates.length;
-      const css: string = build.call(compiler, candidates);
-      compiled.css = css.length;
-      return css;
+      return build.call(compiler, candidates);
     };
     return compiler;
   };
   return { ...tailwind, compile };
+});
+// The stylesheets read, whichever compiler built them (each build is Tailwind's whole stylesheet again): `css`, the last
+// one's length. (Read where Elements imports this module once, so every build's is seen.)
+const sheets = vi.hoisted(() => ({ css: 0 }));
+vi.mock("./css", async (actual) => {
+  const css = await actual<typeof import("./css")>();
+  return { ...css, parseSheet: (text: string) => ((sheets.css = text.length), css.parseSheet(text)) };
 });
 
 const config = { theme: { extend: { colors: { brand: "#007291" } } } };
@@ -1087,9 +1094,10 @@ describe("a render's classes", () => {
       const sizes: number[] = [];
       for (let r = 0; r < 12; r++) {
         expect(renderToHtmlNow(page(handle, r * 400))).toMatch(new RegExp(`text-indent: ?${r * 400 + 399}px`));
-        sizes.push(compiled.css);
+        sizes.push(sheets.css);
       }
       // 2,400 classes on the first by the sixth render; the seventh's on the fresh one, which has 2,400 by the twelfth.
+      expect(sizes[5]).toBeGreaterThan(sizes[0] * 5);
       expect(sizes[11]).toBeLessThan(sizes[5] * 1.2);
       expect(sizes[6]).toBeLessThan(sizes[5] / 3);
     });
