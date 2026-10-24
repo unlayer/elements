@@ -82,7 +82,7 @@ export function serverReactHint(error: unknown): string | undefined {
 }
 
 /** What a component threw, for the RenderError that names it: its message, or what React Server Components lack. */
-export const threw = (error: unknown): string => serverReactHint(error) ?? String((error as Error)?.message ?? error);
+export const threw = (error: unknown): string => (serverReactHint(error) ?? String((error as Error)?.message ?? error)).replace(/^\[Unlayer\] /, "");
 
 export const ASYNC_IN_SYNC =
   'it is async or suspends, and this renderer is synchronous: render with "@unlayer/react-elements/async", or load its data first and pass it as props';

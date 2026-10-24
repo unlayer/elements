@@ -507,4 +507,6 @@ export const codeThemes: Record<CodeThemeName, CodeTheme> = {
   "solarized-dark": solarizedDark,
 };
 
-export const themeOf = (theme: CodeThemeName | CodeTheme | undefined): CodeTheme => (typeof theme === "object" && theme ? theme : codeThemes[theme ?? "light"] ?? light);
+export const themeOf = (theme: CodeThemeName | CodeTheme | undefined): CodeTheme =>
+  // (A name of its own only: `__proto__` or `constructor`, from data, is no theme.)
+  typeof theme === "object" && theme ? theme : Object.prototype.hasOwnProperty.call(codeThemes, theme ?? "light") ? codeThemes[theme ?? "light"] : light;

@@ -1,5 +1,5 @@
 import React from "react";
-import { afterEach, beforeAll, beforeEach, describe, expect, it, vi, type MockInstance } from "vitest";
+import { afterEach, beforeAll, beforeEach, describe, expect, it, onTestFinished, vi, type MockInstance } from "vitest";
 import { Column, Email, Html, RenderError, Row, renderToHtml, renderToHtmlParts, renderToJson, renderToPlainText } from "../index";
 import { Tailwind, loadTailwind, type TailwindHandle } from "../tailwind";
 import * as asyncRenderers from "../async";
@@ -446,7 +446,7 @@ describe("Markdown from data: no more than its size calls for", () => {
       expect([language, html.includes(fill(unit, 1000)), performance.now() - start < 3000]).toEqual([language, true, true]);
     }
     const said = () => warn.mock.calls.map((call) => String(call[0])).filter((message) => message.startsWith("[Unlayer] Markdown"));
-    expect(said()).toEqual(Array(3).fill("[Unlayer] Markdown: 1 of its code blocks is shown without colors: the render's code blocks' sizes squared add up to more than the 67108864 highlight.js is given for one render (on some code its time grows with a block's size squared)."));
+    expect(said()).toEqual(Array(3).fill("[Unlayer] Markdown: 1 code block in the render's Markdown is shown without colors: the render's code blocks' sizes squared add up to more than the 67108864 highlight.js is given for one render (on some code its time grows with a block's size squared)."));
     warn.mockClear();
     // Sixteen blocks of 2,048 characters are 8,192²; the four after them (in a list too) are shown without colors.
     const block = (i: number) => "```js\n" + `${i};`.padEnd(2048, "1") + "\n```";
@@ -455,7 +455,7 @@ describe("Markdown from data: no more than its size calls for", () => {
     const values = renderToJson(email({ markdown })).body.rows[0].columns[0].contents.map((c: any) => c.values.html ?? c.values.text);
     expect(values.map(colored)).toEqual([...Array(16).fill(true), false, false, false, false]);
     expect(said()).toEqual([
-      "[Unlayer] Markdown: 4 of its code blocks are shown without colors: the render's code blocks' sizes squared add up to more than the 67108864 highlight.js is given for one render (on some code its time grows with a block's size squared).",
+      "[Unlayer] Markdown: 4 code blocks in the render's Markdown are shown without colors: the render's code blocks' sizes squared add up to more than the 67108864 highlight.js is given for one render (on some code its time grows with a block's size squared).",
     ]);
   });
 
@@ -512,7 +512,7 @@ describe("Markdown from data, in a render of many blocks: no more than their siz
     expect(rows(template).map((blocks: string[]) => blocks.map(colored))).toEqual([[true], [false], [false], [false], [true]]);
     expect(said()).toEqual([
       "[Unlayer] CodeBlock: code is shown without colors: the sizes squared of the code blocks highlighted in this render add up to more than the 67108864 highlight.js is given for one render (on some code its time grows with a block's size squared).",
-      "[Unlayer] Markdown: 1 of its code blocks is shown without colors: the render's code blocks' sizes squared add up to more than the 67108864 highlight.js is given for one render (on some code its time grows with a block's size squared).",
+      "[Unlayer] Markdown: 1 code block in the render's Markdown is shown without colors: the render's code blocks' sizes squared add up to more than the 67108864 highlight.js is given for one render (on some code its time grows with a block's size squared).",
     ]);
     // An async render's parts share it as the synchronous render's do; each render has its own.
     expect(await asyncRenderers.renderToHtml(template)).toBe(renderToHtml(template));
@@ -536,6 +536,34 @@ describe("Markdown from data, in a render of many blocks: no more than their siz
     expect([counts[0], counts[11] > 100]).toEqual([1, true]);
     expect(said()).toEqual(["[Unlayer] Markdown: it takes marked more work to read than a render's Markdown can (32 steps for each of its characters, and about a million more for its inline syntax, four million for its quotes), so each quote ends at its first line without a `>`, and the rest of a list item's lines is text: nothing is left out."]);
     expect(rows(digest([<Markdown markdown={comment} />])).map((blocks: string[]) => blocks.length)).toEqual([1]);
+  });
+
+  it("gives its Markdown's tables, together, the cells one Markdown of their size can have: past them, a table is too large", () => {
+    // Each Markdown had a thousand cells of its own: 562 comments of a sparse table (20 columns, 49 rows of `|`, 182
+    // bytes), 100 KB, were 197 MB of HTML, and ran a 350 MB heap out of memory.
+    const table = "|" + "a|".repeat(20) + "\n|" + "-|".repeat(20) + "\n" + "|\n".repeat(49);
+    // (Each table left out is said: console.error.)
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
+    onTestFinished(() => error.mockRestore());
+    const tables = (template: React.ReactElement) => {
+      const html = renderToHtml(template, { onError: "omit" });
+      return (html.match(/<table[^>]*class="[^"]*u_content_table/g) ?? []).length;
+    };
+    const many = digest(Array.from({ length: 40 }, (_, i) => <Markdown key={i} html="escape" markdown={table} />));
+    const one = digest([<Markdown html="escape" markdown={Array(40).fill(table).join("\n\n")} />]);
+    expect([tables(many), tables(many) === tables(one)]).toEqual([tables(one), true]);
+    expect([tables(one) > 4, tables(one) < 10]).toEqual([true, true]);
+    expect(() => renderToHtml(many)).toThrow(/A table of 20 columns and 49 rows is 1000 cells, more than the Markdown can render: a render's Markdown tables can have, in all, as many cells as its Markdown has characters/);
+    // A table whose cells are written out fits, in a render of many as alone.
+    expect(tables(digest(Array.from({ length: 40 }, (_, i) => <Markdown key={i} markdown={"| a | b |\n|---|---|\n| 1 | 2 |"} />)))).toBe(40);
+  });
+
+  it("says once, when the render's done, how many of all its Markdown's code blocks are shown without colors", () => {
+    const fence = "```js\n" + "a;".repeat(4096) + "\n```";
+    renderToHtml(digest([<Markdown markdown={fence} />, <Markdown markdown={[fence, fence].join("\n\n")} />, <Markdown markdown={[fence, fence].join("\n\n")} />]));
+    expect(said().filter((message) => message.startsWith("[Unlayer] Markdown"))).toEqual([
+      "[Unlayer] Markdown: 4 code blocks in the render's Markdown are shown without colors: the render's code blocks' sizes squared add up to more than the 67108864 highlight.js is given for one render (on some code its time grows with a block's size squared).",
+    ]);
   });
 
   it("renders many blocks from data in about the time one of their size takes", () => {
