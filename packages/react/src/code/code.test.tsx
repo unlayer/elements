@@ -106,6 +106,21 @@ describe("CodeBlock", () => {
     expect(highlightCode(fill("a = 1\n", 8192), { language: "ini" })).toContain('<span style="color: #b4530a">1</span>');
   });
 
+  it("takes off its code's trailing whitespace in time linear in its size, before any limit", () => {
+    // `/\s+$/` tried again from each character of a long run of spaces that `x` ends: 100,000 took 5.7 s, also with no
+    // language, before the 8,192 characters' limit.
+    for (const code of ["a" + " ".repeat(102400) + "x", "\n".repeat(102400) + "x", "a\t \r\n".repeat(25600) + "x  \n\n"]) {
+      for (const language of [undefined, "js"]) {
+        const start = performance.now();
+        const html = renderToHtml(email(<CodeBlock language={language} code={code} />));
+        expect([JSON.stringify(code.slice(0, 6)), language, performance.now() - start < 1000]).toEqual([JSON.stringify(code.slice(0, 6)), language, true]);
+        expect(html).toMatch(/x<\/code>/);
+      }
+    }
+    // As before: a leading line break and the trailing whitespace off, the rest kept.
+    expect(highlightCode("\n  a  \n\t\n ", {})).toContain("<code style=\"font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace; font-size: 13px; line-height: 20px; mso-line-height-rule: exactly\">  a</code>");
+  });
+
   it("writes a token nested deep in others (`${` over and over, in shell) with a style about as long as its theme's", () => {
     // Each token's style was its parents' written out, so the HTML grew with the code's size squared: 16 KB of `${`
     // was more HTML than a string can hold.

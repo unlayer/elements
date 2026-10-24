@@ -315,6 +315,15 @@ describe("Markdown from data: no more than its size calls for", () => {
     }
   }, 60_000);
 
+  it("renders a code block of whitespace in time linear in its size, its colors off or not", () => {
+    // Its trailing whitespace taken off with a regex that tried again from each space: 100 KB of spaces then `x` took 6 s.
+    for (const markdown of ["```\n" + " ".repeat(102400) + "x\n```", "```js\n" + "\n".repeat(102400) + "x\n```", "- a\n\n  ```\n  " + " ".repeat(102400) + "x\n  ```"]) {
+      const start = performance.now();
+      const html = renderToHtml(email({ markdown, html: "escape" }));
+      expect([markdown.slice(0, 8), html.includes("x</code>"), performance.now() - start < 3000]).toEqual([markdown.slice(0, 8), true, true]);
+    }
+  });
+
   it("reads quotes in time linear in their size, however lines without a `>` continue them, and lists, quotes and code in them", async () => {
     // marked reads a quote a chunk at a time (up to a line without a `>` that continues it), and after each chunk the
     // lines left, and where the chunk ends in a list that list again with all of them: 100 KB of `>- a\nb\n` took 6.6
