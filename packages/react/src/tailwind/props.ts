@@ -7,10 +7,11 @@
 import { TABLES } from "./tables";
 import { plus, shorthand, sidesOf, type Margins } from "./row";
 import { rowRewrite } from "./inherit";
-import { PROP_ALIASES, cssValueSafe, isContentProp } from "@unlayer-internal/shared-elements";
+import { PROP_ALIASES, isContentProp } from "@unlayer-internal/shared-elements";
 import { BodyDefaults } from "@unlayer/exporters";
 import { unsafeUrl } from "../markdown/sanitize";
 import { heightAsWidth } from "./image-height";
+import { propValue } from "./written";
 
 
 const TAILWIND = Symbol.for("@unlayer/react-elements/tailwind");
@@ -121,17 +122,6 @@ function add(into: Box, d: ClassDeclaration, rtl: boolean): void {
   into.other.push(d);
 }
 
-/**
- * A class's value as a prop can take it, or undefined where it can't: the editor's exporters write props into a
- * `style="…"` (or a `<style>`) as they are, so nothing that ends an attribute or starts a tag (`"`, `<`, `>`, or a CSS
- * escape of one of them or of `'`), and nothing CSS can't hold there (see cssValueSafe). A font family's names in
- * double quotes are in single ones, as the exporters write them. (An arbitrary value from data,
- * `[color:'"><img …>']`, can't add markup that way.)
- */
-function propValue({ property, value }: ClassDeclaration): string | undefined {
-  const written = property === "font-family" ? value.replace(/"([^"'\\<>]*)"/g, "'$1'") : value;
-  return /["<>]|\\(?:["'<>]|0{0,4}(?:22|27|3c|3e)(?![\da-f]))/i.test(written) || !cssValueSafe(written) ? undefined : written;
-}
 
 // (Numbers as `\d*\.?\d+` reads them, but read once: that splits a run of digits at each place it could, again.)
 const LENGTH = /^(\d+(?:\.\d+)?|\.\d+)(px|%|em)?$/;
