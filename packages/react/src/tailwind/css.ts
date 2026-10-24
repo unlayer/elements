@@ -93,18 +93,24 @@ export function split(text: string, separator: string): string[] {
   return out;
 }
 
-/** CSS without its comments (as CSS reads them: not in a string or an escape). */
+/**
+ * CSS without its comments (as CSS reads them: not in a string or an escape). What can start one of them is found with a
+ * regex, from where the last ended, and the text between is copied whole: a loop over each character, appending each,
+ * took time growing with the stylesheet's size squared once Node 20 had optimized it (60 ms for 80 KB).
+ */
 function uncommented(text: string, open: () => void): string {
+  const special = /\/\*|[\\"']/g;
   let out = "";
-  for (let i = 0; i < text.length; ) {
-    const at = i;
-    if (text[i] === "/" && text[i + 1] === "*") i = end(text, i, open);
-    else {
-      i = text[i] === "\\" || text[i] === '"' || text[i] === "'" ? end(text, i, open) : i + 1;
-      out += text.slice(at, i);
+  let from = 0;
+  for (let found = special.exec(text); found; found = special.exec(text)) {
+    const to = end(text, found.index, open);
+    if (found[0] === "/*") {
+      out += text.slice(from, found.index);
+      from = to;
     }
+    special.lastIndex = to;
   }
-  return out;
+  return out + text.slice(from);
 }
 
 /** The blocks from `i`, to the `}` that closes them (`top`: to the end). What isn't closed, or closes nothing, is said to `open`. */
