@@ -1,6 +1,7 @@
 import React from "react";
 import { afterEach, beforeEach, describe, expect, it, vi, type MockInstance } from "vitest";
-import { Button, Column, Email, Heading, Page, Paragraph, Row, renderToHtml, renderToJson, renderToPlainText } from "../index";
+import { Button, Column, Email, Heading, Html, Page, Paragraph, Row, renderToHtml, renderToJson, renderToPlainText } from "../index";
+import * as asyncRenderers from "../async";
 import { CodeBlock, CodeInline, codeInline, codeThemes, highlightCode, listLanguages, registerLanguage } from "./index";
 import { escapeHtml, HIGHLIGHT_LIMIT } from "./highlight";
 
@@ -76,12 +77,23 @@ describe("CodeBlock", () => {
     expect(codeInline("x", { theme: "nord" })).toContain("color: #d8dee9; background-color: #2e3440");
   });
 
-  it("shows code it has no grammar for without colors, and says so once", () => {
+  it("shows code it has no grammar for without colors, and says so once in a render", () => {
+    const said = '[Unlayer] CodeBlock has no grammar for `brainfudge`, so it\'s shown without colors: add one with registerLanguage() from "@unlayer/react-elements/code".';
     expect(highlightCode("<b>x</b>", { language: "brainfudge" })).toContain("&lt;b&gt;x&lt;/b&gt;");
-    highlightCode("y", { language: "brainfudge" });
-    expect(warn.mock.calls.map((c) => String(c[0]))).toEqual([
-      '[Unlayer] CodeBlock has no grammar for `brainfudge`, so it\'s shown without colors: add one with registerLanguage() from "@unlayer/react-elements/code".',
-    ]);
+    // Outside a render, each time; in one, once (each render says it).
+    const email = (
+      <Email>
+        <Row>
+          <Column>
+            <CodeBlock language="brainfudge">y</CodeBlock>
+            <CodeBlock language="brainfudge">z</CodeBlock>
+          </Column>
+        </Row>
+      </Email>
+    );
+    renderToHtml(email);
+    renderToHtml(email);
+    expect(warn.mock.calls.map((c) => String(c[0]))).toEqual([said, said, said]);
     registerLanguage("brainfudge", () => ({ name: "brainfudge", contains: [{ scope: "keyword", match: /\+/ }] }));
     expect(listLanguages()).toContain("brainfudge");
     expect(highlightCode("+", { language: "brainfudge" })).toContain('<span style="color: #b0326f">+</span>');
@@ -171,14 +183,154 @@ describe("CodeBlock", () => {
     expect(highlightCode("console.log(`at ${line}`)", { language: "js", theme: "github-light" })).toContain('<span style="color: #032f62; color: #24292e">${line}</span>');
   });
 
-  it("says a bounded number of languages it has no grammar for (a fence's label is whoever writes the Markdown's)", () => {
+  it("says a bounded number of languages it has no grammar for in a render (a fence's label is whoever writes the Markdown's)", () => {
     const said = () => warn.mock.calls.map((c) => String(c[0]));
-    for (let round = 0; round < 2; round++) for (let i = 0; i < 60; i++) highlightCode("x", { language: `unknown-${i}` });
-    // Twenty at most (each once), then once that no more are said; none again.
-    expect(said().length).toBeLessThanOrEqual(21);
+    const blocks = Array.from({ length: 120 }, (_, i) => <CodeBlock key={i} language={`unknown-${i % 60}`}>x</CodeBlock>);
+    renderToHtml(
+      <Email>
+        <Row>
+          <Column>{blocks}</Column>
+        </Row>
+      </Email>
+    );
+    // Twenty at most in the render (each once), then once that no more are said.
+    expect(said().length).toBe(21);
     expect(said().at(-1)).toBe("[Unlayer] CodeBlock: more languages with no grammar are shown without colors, and not said.");
-    highlightCode("x", { language: "unknown-later" });
-    expect(said().length).toBeLessThanOrEqual(21);
+    // The next render says its own (it was a set for every render, said in the first only).
+    renderToHtml(
+      <Email>
+        <Row>
+          <Column>
+            <CodeBlock language="unknown-0">x</CodeBlock>
+          </Column>
+        </Row>
+      </Email>
+    );
+    expect(said().length).toBe(22);
+  });
+});
+
+describe("highlightCode() in a render", () => {
+  let warn: MockInstance;
+  beforeEach(() => {
+    warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+  });
+  afterEach(() => warn.mockRestore());
+  // (Ending in a `;`: none of it is trimmed, so `code(8192)` is all of a render's work.)
+  const code = (n: number) => "int a = 1;\n".repeat(Math.ceil(n / 11)).slice(0, n - 1) + ";";
+  const colored = (html: string) => (html.match(/<span style="/g) ?? []).length;
+  const budget = () => warn.mock.calls.map((c) => String(c[0])).filter((m) => m.includes("for one render"));
+
+  it("charges a template wrapper's highlightCode() calls to its render, as its CodeBlocks' are", async () => {
+    // A digest that highlights each comment itself: its wrapper ran with no render's work, 12 of 8 KB of `$a` 4.6 s.
+    function Digest({ list }: { list: string[] }) {
+      return (
+        <Email>
+          <Row>
+            <Column>
+              {list.map((c, i) => (
+                <Html key={i} html={highlightCode(c, { language: "java" })} />
+              ))}
+            </Column>
+          </Row>
+        </Email>
+      );
+    }
+    const list = [code(8000), code(8000), code(8000)];
+    for (const html of [renderToHtml(<Digest list={list} />), await asyncRenderers.renderToHtml(<Digest list={list} />)]) {
+      const blocks = html.split('<pre style="').slice(1).map(colored);
+      expect(blocks.map((n) => n > 0)).toEqual([true, false, false]);
+    }
+    expect(budget()).toHaveLength(2);
+  });
+
+  it("gives a render started inside a component's call its own work, its wrappers' calls included", () => {
+    function Snippet() {
+      return (
+        <Email>
+          <Row>
+            <Column>
+              <Html html={highlightCode("const a = 1;", { language: "javascript" })} />
+            </Column>
+          </Row>
+        </Email>
+      );
+    }
+    const alone = renderToHtml(<Snippet />);
+    let inner = "";
+    function Preview() {
+      inner = renderToHtml(<Snippet />);
+      return <Paragraph>preview</Paragraph>;
+    }
+    // The outer render's first block takes all of its work: the inner render has its own.
+    renderToHtml(
+      <Email>
+        <Row>
+          <Column>
+            <CodeBlock language="java" code={code(8192)} />
+            <Preview />
+          </Column>
+        </Row>
+      </Email>
+    );
+    expect([inner === alone, colored(inner) > 0]).toEqual([true, true]);
+    // And the inner render's wrapper takes none of the outer's.
+    function Big() {
+      return (
+        <Email>
+          <Row>
+            <Column>
+              <Html html={highlightCode(code(8192), { language: "java" })} />
+            </Column>
+          </Row>
+        </Email>
+      );
+    }
+    function First() {
+      renderToHtml(<Big />);
+      return null;
+    }
+    const small = (
+      <Row>
+        <Column>
+          <CodeBlock language="javascript" code="const a = 1;" />
+        </Column>
+      </Row>
+    );
+    expect(
+      renderToHtml(
+        <Email>
+          <Row>
+            <Column>
+              <First />
+            </Column>
+          </Row>
+          {small}
+        </Email>
+      )
+    ).toContain(renderToHtml(<Email>{small}</Email>).match(/<pre[\s\S]*<\/pre>/)![0]);
+  });
+
+  it("is a call of its own after an `await` in an async component (there, no render's work is known: CodeBlock's is)", async () => {
+    async function Comment({ c }: { c: string }) {
+      await Promise.resolve();
+      return <Html html={highlightCode(c, { language: "java" })} />;
+    }
+    const html = await asyncRenderers.renderToHtml(
+      <Email>
+        <Row>
+          <Column>
+            <Comment c={code(8000)} />
+            <Comment c={code(8000)} />
+          </Column>
+        </Row>
+      </Email>
+    );
+    expect(html.split('<pre style="').slice(1).map((block) => colored(block) > 0)).toEqual([true, true]);
+  });
+
+  it("reads a theme by its name only where it's one of the themes (`__proto__` from data is the default)", () => {
+    for (const theme of ["__proto__", "constructor", "toString"]) expect(highlightCode("a", { language: "js", theme: theme as "light" })).toBe(highlightCode("a", { language: "js" }));
   });
 });
 

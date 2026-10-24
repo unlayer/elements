@@ -109,15 +109,35 @@ export interface Task {
  * doesn't clear it, and a render started outside any component's call starts at the top. A walk started there reads
  * the contexts no provider gives as the walk calling it does (its `fallbacks`): one value each in a top-level render.
  */
-let calling: { tree: TreeContext; contexts: ContextStack | null; fallbacks: Fallbacks; shared: Shared } | null = null;
+let calling: { tree: TreeContext; contexts: ContextStack | null; fallbacks: Fallbacks } | null = null;
 export const caller = () => calling;
 
-/** `fn`, called as a component at `task` (see `calling`). */
-function asCaller<T>(w: Walker, task: Task, fn: () => T): T {
-  const outer = calling;
-  calling = { tree: task.tree, contexts: task.contexts, fallbacks: w.fallbacks, shared: w.shared };
+/**
+ * What the code running now shares with the rest of its render (see Shared): a component's while the walker calls it,
+ * a template wrapper's while its render calls it (see `sharing`), each render's own (one a component starts has its
+ * own). None outside such a call: an async component's code after an `await` runs when no call is, and can't be told
+ * from another render's.
+ */
+let shared: Shared | undefined;
+export const sharedNow = () => shared;
+
+/** `fn`, called with what `share` is shared with (see `shared`). */
+export function sharing<T>(share: Shared | undefined, fn: () => T): T {
+  const outer = shared;
+  shared = share;
   try {
     return fn();
+  } finally {
+    shared = outer;
+  }
+}
+
+/** `fn`, called as a component at `task` (see `calling`), with what its render's components share. */
+function asCaller<T>(w: Walker, task: Task, fn: () => T): T {
+  const outer = calling;
+  calling = { tree: task.tree, contexts: task.contexts, fallbacks: w.fallbacks };
+  try {
+    return sharing(w.shared, fn);
   } finally {
     calling = outer;
   }

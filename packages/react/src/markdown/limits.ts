@@ -48,7 +48,7 @@ export type TooLarge = { columns: number; rows: number; cells: number };
 
 /** What a table past the cells left is said with (see TooLarge). */
 export const tooLarge = ({ columns, rows, cells }: TooLarge) =>
-  `A table of ${columns} columns and ${rows} rows is ${cells} cells, more than the Markdown can render: its tables can have, in all, as many cells as it has characters, or ${TABLE_CELLS} where that's more (marked fills each row out to the header's width)`;
+  `A table of ${columns} columns and ${rows} rows is ${cells} cells, more than the Markdown can render: a render's Markdown tables can have, in all, as many cells as its Markdown has characters, or ${TABLE_CELLS} where that's more (marked fills each row out to the header's width)`;
 
 /**
  * marked's tokenizer, keeping to those limits: a table past the cells left is a table token with no rows and its
@@ -149,6 +149,11 @@ export class Limited extends Tokenizer {
   /** The work its quotes and list items' lines have left: below zero, it's spent. */
   get quotesLeft(): number {
     return this.work;
+  }
+
+  /** The cells its tables have left (see TABLE_CELLS). */
+  get cellsLeft(): number {
+    return this.cells;
   }
 
   space(src: string): Tokens.Space | undefined {

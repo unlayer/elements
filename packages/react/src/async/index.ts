@@ -69,6 +69,8 @@ interface Internals {
   engine: Engine;
   /** The synchronous renders, in the scope they're run in (the render functions make one of their own). */
   renders: Renders;
+  /** Says what the render's components left to say once it's done (an older main entry's has none). */
+  done?(scope: Scope): void;
 }
 
 /**
@@ -92,6 +94,15 @@ async function tailwindLoader(): Promise<Load> {
 async function render<T>(element: React.ReactElement, options: Partial<UnlayerConfig> | undefined, run: (renders: Renders, root: React.ReactElement) => T, api?: string): Promise<T> {
   const internals = (renderHtml as unknown as Record<symbol, Internals>)[Symbol.for("@unlayer/react-elements/internals")];
   const scope = internals.newScope();
+  try {
+    return await renderIn(internals, scope, element, options, run, api);
+  } finally {
+    internals.done?.(scope);
+  }
+}
+
+/** `render`'s, in its scope. */
+async function renderIn<T>(internals: Internals, scope: Scope, element: React.ReactElement, options: Partial<UnlayerConfig> | undefined, run: (renders: Renders, root: React.ReactElement) => T, api?: string): Promise<T> {
   const root = await internals.unwrapAsync(element, scope, take, options?.idPrefix, api);
   const content = internals.isRoot(root.type) ? (root.props as { children?: React.ReactNode } | null)?.children : api && root;
   const scopes: Array<{ config?: TailwindConfig; load?: Load }> = [];
