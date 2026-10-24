@@ -54,6 +54,12 @@ export interface Recorded {
 }
 export type Collector = (element: React.ReactElement) => Recorded | undefined;
 
+/**
+ * What the components of one render share (the work left to its Markdown and code blocks, together): the render's,
+ * keyed by whoever keeps something in it (see the engine's `renderShared`).
+ */
+export type Shared = Record<symbol, unknown>;
+
 /** What waits for `thenable` (an async walk's hole), and `fill`s the walk's output where it is once it settles. */
 export type Wait = (w: Walker, task: Task, out: Part[], thenable: PromiseLike<unknown>, fill: (task: Task, parts: Part[]) => void) => void;
 
@@ -72,6 +78,8 @@ export interface Walker {
   idPrefix?: string;
   /** What its top-level render reads for contexts no provider gives, once each (see the dispatcher's `readContext`). */
   fallbacks: Fallbacks;
+  /** What the components it calls share with the rest of their render (see Shared). */
+  shared: Shared;
   collector?: Collector;
   /** Boundaries leave out what fails (`onError: "omit"`); an async walk's always catch, flattening decides. */
   omit: boolean;
@@ -101,13 +109,13 @@ export interface Task {
  * doesn't clear it, and a render started outside any component's call starts at the top. A walk started there reads
  * the contexts no provider gives as the walk calling it does (its `fallbacks`): one value each in a top-level render.
  */
-let calling: { tree: TreeContext; contexts: ContextStack | null; fallbacks: Fallbacks } | null = null;
+let calling: { tree: TreeContext; contexts: ContextStack | null; fallbacks: Fallbacks; shared: Shared } | null = null;
 export const caller = () => calling;
 
 /** `fn`, called as a component at `task` (see `calling`). */
 function asCaller<T>(w: Walker, task: Task, fn: () => T): T {
   const outer = calling;
-  calling = { tree: task.tree, contexts: task.contexts, fallbacks: w.fallbacks };
+  calling = { tree: task.tree, contexts: task.contexts, fallbacks: w.fallbacks, shared: w.shared };
   try {
     return fn();
   } finally {

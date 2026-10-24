@@ -206,32 +206,59 @@ export interface ReadScope {
  */
 export const CLASSES = 2000;
 
-/** Why a class isn't read: a render (or a class string) reads its first CLASSES different classes only (see capped). */
-export const OVER = `it's past the first ${CLASSES} different classes of the render (or class string), all one reads`;
+/**
+ * The characters of the different classes a render reads, and a compiler builds before a fresh one takes over: each
+ * build is the stylesheet of every class built so far, so their length is a cost on every build after them too
+ * (2,000 classes of 512 characters made each later build take 0.1 s, and a process 300 MB). An app's own come to a
+ * few kilobytes.
+ */
+export const CHARACTERS = 64 * 1024;
+export const COMPILED = 4 * CHARACTERS;
 
 /**
- * A reader of one render's classes (or one class string's): the first CLASSES different classes it's given are read,
- * by `read`; the others aren't built or read, but listed with OVER (`first`: the first a read left out, since it was
- * last cleared). Classes made from data (a Markdown's, thousands in one attribute) can't take more memory than that,
- * as each class Tailwind builds takes memory while it builds them; an app's own, hundreds, don't get there.
+ * Why a class isn't read: a render (or a class string) reads its first CLASSES different classes, CHARACTERS of them,
+ * only (see capped).
  */
-export function capped(read: DeclarationReader, scope: ReadScope = { strays: [] }): DeclarationReader & { first?: string; said?: boolean } {
+export const OVER = `it's past the first ${CLASSES} different classes of the render (or class string), or ${CHARACTERS} characters of them, all one reads`;
+
+/**
+ * A reader of one render's classes (or one class string's): the first CLASSES different classes it's given, CHARACTERS
+ * of them, are read, by `read`; the others aren't built or read, but listed with OVER (`first`: the first a read left
+ * out, since it was last cleared). Classes made from data (a Markdown's, thousands in one attribute) can't take more
+ * memory or time than that, as each class Tailwind builds takes memory while it builds them, and time in each build
+ * after it; an app's own, hundreds, don't get there. A class past CLASS_LIMITS is never given to Tailwind, but listed
+ * with its reason (`beyond`: the first a read left out so, since it was last cleared).
+ */
+export function capped(read: DeclarationReader, scope: ReadScope = { strays: [] }): DeclarationReader & { first?: string; said?: boolean; beyond?: string; told?: boolean } {
   const names = new Set<string>();
+  let characters = 0;
   const admit = (className: string) => {
     const kept: string[] = [];
     const left: string[] = [];
-    for (const token of String(className).split(/\s+/)) if (token) (names.has(token) || (names.size < CLASSES && names.add(token)) ? kept : left).push(token);
-    return [kept, left];
+    const past: string[] = [];
+    for (const token of String(className).split(/\s+/)) {
+      if (!token) continue;
+      if (names.has(token)) kept.push(token);
+      else if (beyond(token)) past.push(token);
+      else if (names.size < CLASSES && characters + token.length <= CHARACTERS) {
+        names.add(token);
+        characters += token.length;
+        kept.push(token);
+      } else left.push(token);
+    }
+    return [kept, left, past];
   };
   const reader = Object.assign(
     (className: string): ClassDeclarations => {
-      const [kept, left] = admit(className);
+      const [kept, left, past] = admit(className);
       const found = read(kept.join(" "), scope);
-      if (!left.length) return found;
-      reader.first ??= left[0];
-      return { ...found, ignored: [...found.ignored, ...[...new Set(left)].map((className) => ({ className, reason: OVER }))] };
+      if (!left.length && !past.length) return found;
+      if (left.length) reader.first ??= left[0];
+      if (past.length) reader.beyond ??= past[0];
+      const ignored = [...new Set(past)].map((className) => ({ className, reason: beyond(className)! }));
+      return { ...found, ignored: [...found.ignored, ...ignored, ...[...new Set(left)].map((className) => ({ className, reason: OVER }))] };
     },
-    { prepare: (className: string) => read.prepare(admit(className)[0].join(" "), scope) } as { prepare(className: string): void; first?: string; said?: boolean }
+    { prepare: (className: string) => read.prepare(admit(className)[0].join(" "), scope) } as { prepare(className: string): void; first?: string; said?: boolean; beyond?: string; told?: boolean }
   );
   return reader;
 }
@@ -275,9 +302,16 @@ const RENEWALS = 3;
 export const SUSPECTS = 100;
 
 /**
+ * The builds one read takes, at most, to find the classes a build threw for where the compiler builds on after it
+ * (see declarationReader's `isolate`): a class Tailwind can't parse in a render's 2,000 is found in about 25.
+ */
+const HALVES = 64;
+
+/**
  * Whether Tailwind can build a class without changing how what it builds after it reads: its brackets, parentheses,
- * braces and quotes closed (`\` escaping the character after it, as in CSS), no comment in it. Tailwind's compiler
- * keeps every class it builds, so one that isn't (`[color:x(]`) is never built.
+ * braces and quotes closed (`\` escaping the character after it, as in CSS), no comment in it, no escape of a code
+ * point past U+10FFFF (`\23ff00`, which Tailwind's build throws for where it decodes it). Tailwind's compiler keeps
+ * every class it builds, so one that isn't (`[color:x(]`) is never built.
  */
 export function readable(token: string): boolean {
   if (/\/\*|\*\//.test(token)) return false;
@@ -285,6 +319,7 @@ export function readable(token: string): boolean {
   for (let i = 0; i < token.length; i++) {
     const c = token[i];
     const last = open[open.length - 1];
+    if (c === "\\" && parseInt(/^[\da-f]{0,6}/i.exec(token.slice(i + 1, i + 7))![0] || "0", 16) > 0x10ffff) return false;
     if (c === "\\") i++;
     else if (last === '"' || last === "'") c === last && open.pop();
     else if (c === '"' || c === "'") open.push(c);
@@ -292,6 +327,56 @@ export function readable(token: string): boolean {
     else if ((c === ")" || c === "]" || c === "}") && open.pop() !== c) return false;
   }
   return !open.length;
+}
+
+/**
+ * How much of a class Tailwind's compiler is given. Its build takes time growing faster than a class's size with some
+ * of their shapes, and keeps every class it built, building them all again with each new one: each `&` of an arbitrary
+ * variant is the whole selector again (100 KB of `[&:hover&:hover…]:` made a stylesheet longer than a string can be,
+ * which failed that build and every build after it, other renders' too; 20 KB took 0.6 s on every build after it),
+ * chained compound variants (`group-group-…-hover:`) take time cubic in their number (8 KB 3 s, 20 KB 40 s), and
+ * variants or brackets thousands deep overflow its stack, as `max-sm:` 3,000 times did. Within these a class builds in
+ * about a millisecond whatever its shape, and an app's own classes are far within them (a radial gradient's
+ * arbitrary value is about 80 characters). A class past one isn't given to Tailwind: it's left out and said, once a
+ * render (see capped).
+ */
+export const CLASS_LIMITS = { characters: 512, variants: 8, ampersands: 4, depth: 8 };
+
+/** How the reason a class past CLASS_LIMITS isn't read starts. */
+export const BEYOND = "Tailwind isn't given";
+
+/** Variants that take another variant (`group-hover`, `not-group-hover`): each counts as one of a class's variants. */
+const COMPOUND = /^(?:group|peer|not|in|has)-/;
+
+/** Why a class is past CLASS_LIMITS, or undefined where it isn't. */
+export function beyond(token: string): string | undefined {
+  const { characters, variants, ampersands, depth } = CLASS_LIMITS;
+  if (token.length > characters) return `${BEYOND} a class of more than ${characters} characters`;
+  let deepest = 0;
+  const open: string[] = [];
+  for (let i = 0; i < token.length; i++) {
+    const c = token[i];
+    const last = open[open.length - 1];
+    if (c === "\\") i++;
+    else if (last === '"' || last === "'") c === last && open.pop();
+    else if (c === '"' || c === "'") open.push(c);
+    else if (c === "(" || c === "[" || c === "{") deepest = Math.max(deepest, open.push(c));
+    else if (c === ")" || c === "]" || c === "}") open.pop();
+  }
+  if (deepest > depth) return `${BEYOND} brackets nested more than ${depth} deep`;
+  let count = 0;
+  let amps = 0;
+  for (let variant of partsOf(token)[0]) {
+    count++;
+    for (let m = COMPOUND.exec(variant); m; m = COMPOUND.exec(variant)) {
+      variant = variant.slice(m[0].length);
+      count++;
+    }
+    for (const c of variant) if (c === "&") amps++;
+  }
+  if (count > variants) return `${BEYOND} a class of more than ${variants} variants`;
+  if (amps > ampersands) return `${BEYOND} more than ${ampersands} \`&\` in a class's variants`;
+  return undefined;
 }
 
 /**
@@ -323,6 +408,8 @@ export function readable(token: string): boolean {
  */
 export function declarationReader(compiler: Compiler, renew?: () => Promise<Compiler>, limit = CLASSES): DeclarationReader {
   let seen = new Set<string>();
+  // The characters of the classes built (see COMPILED).
+  let built = 0;
   let sheet = empty();
   let byToken = new Map<string, Rule[]>();
   let renewing = false;
@@ -347,6 +434,41 @@ export function declarationReader(compiler: Compiler, renew?: () => Promise<Comp
   // Fresh compilers that failed in a row (see RENEWALS), and the last one's error.
   let failures = 0;
   let failure = "";
+  // Builds left in one read to find, by halves, the classes a build threw for (see isolate), and checks so far.
+  let halves = 0;
+  let checks = 0;
+  /**
+   * Whether the compiler builds on after a build threw: where Tailwind kept the class it threw for, it throws again on
+   * every build with a new class (this one, a custom property of nothing, new each time); where it didn't (a class it
+   * couldn't parse), it builds on.
+   */
+  const sound = () => {
+    halves--;
+    try {
+      return parseSheet(compiler.build([`[--unlayer-check-${checks++}:0]`])).clean;
+    } catch {
+      return false;
+    }
+  };
+  /**
+   * The classes of a build that threw on a compiler that builds on (see sound), by halves: each half built again, one
+   * that throws halved again, a class alone that throws refused for good. Past HALVES builds in one read, the classes
+   * left are suspects (see need) and what threw is thrown, as where the compiler doesn't build on.
+   */
+  const isolate = (tokens: string[], error: unknown): boolean => {
+    if (tokens.length === 1) return !!refused.add(tokens[0]);
+    if (halves <= 0) {
+      thrown = { error };
+      return false;
+    }
+    const half = tokens.length >> 1;
+    for (const part of [tokens.slice(0, half), tokens.slice(half)]) {
+      if (dirty || thrown) break;
+      halves--;
+      if (!build(part)) part.forEach((token) => !seen.has(token) && !refused.has(token) && suspects.add(token));
+    }
+    return !dirty && !thrown;
+  };
   // Once at a time (one that fails leaves this one in use).
   const fresh = () => {
     if (!renew || renewing || failures >= RENEWALS) return;
@@ -355,6 +477,7 @@ export function declarationReader(compiler: Compiler, renew?: () => Promise<Comp
       (next) => {
         compiler = next;
         seen = new Set();
+        built = 0;
         failed = new Map();
         sheet = empty();
         byToken = new Map();
@@ -374,7 +497,9 @@ export function declarationReader(compiler: Compiler, renew?: () => Promise<Comp
     try {
       css = compiler.build(tokens);
     } catch (error) {
-      // (Tailwind keeps the classes it was given, and builds them again with the next new one, throwing again.)
+      // Where Tailwind didn't keep what it threw for, the class that threw is found (see isolate); where it did, it
+      // builds those classes again with the next new one, throwing again.
+      if (halves > 0 && sound()) return isolate(tokens, error);
       thrown = { error };
       return !(dirty = true);
     } finally {
@@ -384,7 +509,10 @@ export function declarationReader(compiler: Compiler, renew?: () => Promise<Comp
     if (!next.clean) return !(dirty = true);
     // The stylesheet holds every class built so far, in Tailwind's order: read again, places stay comparable.
     sheet = next;
-    tokens.forEach((token) => seen.add(token));
+    for (const token of tokens) {
+      seen.add(token);
+      built += token.length;
+    }
     byToken = new Map();
     for (const rule of sheet.rules) {
       const rules = byToken.get(rule.token);
@@ -392,7 +520,7 @@ export function declarationReader(compiler: Compiler, renew?: () => Promise<Comp
       else byToken.set(rule.token, [rule]);
     }
     if (plugins?.length) blame(tokens, plugins);
-    if (seen.size > limit) fresh();
+    if (seen.size > limit || built > COMPILED) fresh();
     return true;
   };
   // What plugins' functions threw while a build built `tokens` (kept from Tailwind, which built the class's CSS without
@@ -417,8 +545,9 @@ export function declarationReader(compiler: Compiler, renew?: () => Promise<Comp
   // string is read (not prepared: what building it throws comes out where it's read), the rest at once. What a build
   // threw is thrown after.
   const need = (tokens: string[], prepare?: boolean) => {
-    const unread = tokens.filter((token) => !seen.has(token) && !refused.has(token) && readable(token));
+    const unread = tokens.filter((token) => !seen.has(token) && !refused.has(token) && readable(token) && !beyond(token));
     if (!unread.length) return;
+    halves = HALVES;
     let later = false;
     for (const token of unread) {
       if (prepare || dirty || !suspects.has(token)) continue;
@@ -485,7 +614,7 @@ export function declarationReader(compiler: Compiler, renew?: () => Promise<Comp
       }
       // One not built on this compiler: refused, or waiting for a fresh one (see declarationReader).
       if (!seen.has(token)) {
-        leave(token, refused.has(token) || !readable(token) || !renew ? UNREADABLE : failures < RENEWALS ? WAITING : `${STUCK} after a class it couldn't read (${failure})`);
+        leave(token, beyond(token) ?? (refused.has(token) || !readable(token) || !renew ? UNREADABLE : failures < RENEWALS ? WAITING : `${STUCK} after a class it couldn't read (${failure})`));
         continue;
       }
       const rules = byToken.get(token);
