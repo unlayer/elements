@@ -143,10 +143,13 @@ async function compile(config: TailwindConfig | undefined, source = config): Pro
         missed ??= found.ignored.find((i) => stale(i.reason));
         return found;
       }, { prepare: capped.prepare });
-      // Classes in its markup (an Html block's, a Paragraph's `html`): inline styles; in Markdown's sanitized HTML, none
-      // its sanitizer wouldn't keep in a `style` (your own markup's are as you wrote them).
-      const html = explicit.html;
-      if (typeof html === "string" && /class/i.test(html)) explicit = { ...explicit, html: inlineClasses(html, read, warn, rtl, explicit._sanitized ? unsafeStyle : undefined) };
+      // Classes in its markup (an Html block's, a Paragraph's `html`, a Heading's or Button's `text`, its children's
+      // markup): inline styles; in Markdown's sanitized HTML, none its sanitizer wouldn't keep in a `style` (your own
+      // markup's are as you wrote them).
+      for (const key of name === "Heading" || name === "Button" ? ["html", "text"] : ["html"]) {
+        const html = explicit[key];
+        if (typeof html === "string" && /class/i.test(html)) explicit = { ...explicit, [key]: inlineClasses(html, read, warn, rtl, explicit._sanitized ? unsafeStyle : undefined) };
+      }
       const found = read(className);
       if (missed) throw Object.assign(new RenderError(`<Tailwind> can't read the class \`${missed.className}\` now: ${missed.reason}. Render again then (the async renderers wait for it)`, name, ""), { [TAILWIND]: { compiling: true } });
       // Classes past the render's first CLASSES: said once in the render, where they're first met.

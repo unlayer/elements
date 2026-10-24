@@ -77,6 +77,9 @@ export interface PluginFailure {
   variant?: boolean;
   keys?: string[];
   value?: string;
+  /** The modifier it was given (`/50`'s, as Tailwind resolved it), where it was given one, and the keys giving it. */
+  modifier?: string;
+  modifierKeys?: string[];
   error?: unknown;
 }
 
@@ -98,23 +101,47 @@ function partsOf(token: string): [string[], string] {
   return [variants, token.slice(from).replace(/^!|!$/g, "").replace(/^-/, "")];
 }
 
+/** A class's value and its modifier (`blue/50`: `blue`, `50`), at its last `/` outside brackets. */
+function cut(given: string): [string, string | undefined] {
+  let depth = 0;
+  let at = -1;
+  for (let i = 0; i < given.length; i++) {
+    const c = given[i];
+    if (c === "\\") i++;
+    else if (c === "[" || c === "(") depth++;
+    else if (c === "]" || c === ")") depth--;
+    else if (c === "/" && !depth) at = i;
+  }
+  return at < 0 ? [given, undefined] : [given.slice(0, at), given.slice(at + 1)];
+}
+
+/** A value as Tailwind gives a plugin's function the class's: an arbitrary one's (`[…]`, `(--x)` as `var(--x)`), its type hint aside, `_` a space. */
+const decode = (part: string): string => {
+  const bracket = /^\[(?:[\w-]+:)?([\s\S]*)\]$/.exec(part)?.[1];
+  const paren = /^\((?:[\w-]+:)?(--[\s\S]*)\)$/.exec(part)?.[1];
+  return bracket !== undefined ? bracket.replace(/_/g, " ") : paren !== undefined ? `var(${paren})` : part;
+};
+
+/** Whether two values are the same but for whitespace (Tailwind writes spaces in a `calc()` around its operators). */
+const same = (a: string, b: string) => a.replace(/\s+/g, "") === b.replace(/\s+/g, "");
+
 /**
- * Whether a variant or utility of a class (`boom-now`, `boom-[x]`, `boom`) is the one a failure was for: by its name
- * and value (`loose`: by its name, any value).
+ * Whether a variant or utility of a class (`boom-now`, `boom-[x]`, `boom`) is the one a failure was for: by its name,
+ * its value (by its key, or as given) and its modifier (`loose`: by its name, any value).
  */
-function named(part: string, { name, keys, value }: PluginFailure, loose?: boolean): boolean {
-  if (part === name) return loose || !keys || keys.includes("DEFAULT");
+function named(part: string, { name, keys, value, modifier, modifierKeys }: PluginFailure, loose?: boolean): boolean {
+  if (part === name) return loose || ((!keys || keys.includes("DEFAULT")) && modifier === undefined);
   // (Tailwind reads a value right after `@`, `@foo`, as after a name and a dash.)
   const start = name === "@" ? "@" : name + "-";
   if (!part.startsWith(start)) return false;
+  if (loose) return true;
   const given = part.slice(start.length);
-  // (Its modifier aside, `/50`, outside its brackets.)
-  const bare = given.replace(/\/[^/\]]*$/, "");
-  if (loose || keys?.includes(given) || keys?.includes(bare)) return true;
-  if (keys) return false;
-  // An arbitrary value as Tailwind reads it (its type hint aside, `_` a space), or a bare one.
-  const arbitrary = /^\[(?:[\w-]+:)?([\s\S]*)\]$/.exec(bare)?.[1];
-  return value === undefined || (arbitrary ?? bare).replace(/_/g, " ") === value;
+  const [bare, mod] = cut(given);
+  // (A fraction's `/` is its value's, `w-1/2`: its key is all of it.)
+  if (mod !== undefined && modifier === undefined && keys?.includes(given)) return true;
+  if (mod === undefined ? modifier !== undefined : modifier === undefined || !(modifierKeys?.includes(mod) || same(decode(mod), modifier))) return false;
+  if (keys?.includes(bare)) return true;
+  return value === undefined ? !keys : same(decode(bare), value);
 }
 
 /** A variant and the variants inside it (`group-vboom-now` holds `vboom-now`), as Tailwind's compound variants hold them. */
@@ -351,17 +378,18 @@ export function declarationReader(compiler: Compiler, renew?: () => Promise<Comp
   };
   // What plugins' functions threw while a build built `tokens` (kept from Tailwind, which built the class's CSS without
   // what the function gave: see guard.ts), on the classes of it it was for, each thrown where it's read, in every render
-  // that reads it (whatever another utility gives the class): those of the utility or variant of that name and value;
-  // else of that name. One no class of the build was found for is a stray (see ReadScope), for the render that built
-  // them, on the build's classes with no CSS, else on all its classes: not kept, as the build may hold others' classes.
+  // that reads it (whatever another utility gives the class): those of the utility or variant of that name, value and
+  // modifier. One no class of the build was found for so is a stray (see ReadScope), for the render that built them, on
+  // the build's classes of that name, else those with no CSS, else all its classes: not kept, as the build may hold
+  // others' classes (an app's own `brand-blue`, where a user's `brand-(--x)` is the one).
   const blame = (tokens: string[], plugins: PluginFailure[]) => {
     for (const failure of plugins) {
-      let own = tokens.filter((token) => owns(token, failure));
-      if (!own.length) own = tokens.filter((token) => owns(token, failure, true));
+      const own = tokens.filter((token) => owns(token, failure));
       if (own.length) for (const token of own) failed.set(token, failure.error);
       else {
+        const loose = tokens.filter((token) => owns(token, failure, true));
         const plain = tokens.filter((token) => !byToken.has(token));
-        strays.push({ tokens: new Set(plain.length ? plain : tokens), error: failure.error });
+        strays.push({ tokens: new Set(loose.length ? loose : plain.length ? plain : tokens), error: failure.error });
       }
     }
   };

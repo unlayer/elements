@@ -71,6 +71,14 @@ export const escapeHtml = (text: string) => text.replace(/[&<>"]/g, (ch) => ESCA
 /** CSS that can't end the attribute it's written in. */
 export const attribute = (css: string) => css.replace(/[<>"]/g, "");
 
+/**
+ * The most code highlight.js is given at once, in characters. On some code the time it takes grows with the code's
+ * size squared, on long lines and on short ones (a line of `$a` in Java took 0.4 s for 8 KB and 6 s for 32 KB; C#, INI,
+ * shell and Ruby code on lines of 80 characters, 0.2 to 0.9 s for 20 KB), so a longer block is shown without colors
+ * (escaped, in the block's own style), and said.
+ */
+export const HIGHLIGHT_LIMIT = 8192;
+
 /** The languages said to have no grammar, each once: twenty at most, as a fence's label is whoever writes the Markdown's. */
 const warned = new Set<string>();
 
@@ -84,8 +92,13 @@ function styleOf(theme: CodeTheme, scope: string): string | undefined {
 export function highlightLines(code: string, language: string | undefined, theme: CodeTheme, component = "CodeBlock"): string[] {
   const hljs = highlighter();
   let html: string;
-  if (language && hljs.getLanguage(language)) html = hljs.highlight(code, { language, ignoreIllegals: true }).value;
-  else {
+  if (language && hljs.getLanguage(language)) {
+    if (code.length <= HIGHLIGHT_LIMIT) html = hljs.highlight(code, { language, ignoreIllegals: true }).value;
+    else {
+      console.warn(`[Unlayer] ${component}: its code is ${code.length} characters, more than the ${HIGHLIGHT_LIMIT} highlight.js is given at once (on some code its time grows with the code's size squared), so it's shown without colors.`);
+      html = escapeHtml(code);
+    }
+  } else {
     if (language && !warned.has(language) && warned.size <= 20) {
       warned.add(language);
       console.warn(
@@ -97,21 +110,44 @@ export function highlightLines(code: string, language: string | undefined, theme
     html = escapeHtml(code);
   }
   const lines: string[] = [""];
-  const open: Array<string | undefined> = [];
-  const style = () => open.filter(Boolean).join("; ");
+  // The style of each open token, with its parents' (see within).
+  const open: string[] = [];
   for (const [token, scopes] of [...html.matchAll(/<span class="([^"]*)">|<\/span>|[^<]+/g)]) {
     if (scopes !== undefined) {
       // highlight.js's classes, `hljs-title function_`: the scope `title.function`.
-      open.push(styleOf(theme, scopes.split(" ").map((s) => s.replace(/^hljs-/, "").replace(/_+$/, "")).join(".")));
+      open.push(within(open[open.length - 1] ?? "", styleOf(theme, scopes.split(" ").map((s) => s.replace(/^hljs-/, "").replace(/_+$/, "")).join("."))));
     } else if (token === "</span>") open.pop();
-    else
+    else {
+      const style = open[open.length - 1];
       token.split("\n").forEach((piece, i) => {
         if (i) lines.push("");
-        if (piece) lines[lines.length - 1] += style() ? `<span style="${attribute(style())}">${piece}</span>` : piece;
+        if (piece) lines[lines.length - 1] += style ? `<span style="${attribute(style)}">${piece}</span>` : piece;
       });
+    }
   }
   return lines;
 }
+
+/** How long a token's style can be with its parents' declarations all written out (see within). */
+const LONG = 512;
+
+/**
+ * A token's style inside its parent's: the parent's declarations, then its own. Past LONG characters (tokens nested
+ * dozens deep: `${` over and over, in shell), the parent's declarations its own override are left out, so a token's
+ * style is never much longer than its theme's, where it grew with how deep the token is (and with it, the HTML with
+ * the code's size squared: 16 KB of `${` was more HTML than a string can hold).
+ */
+function within(parent: string, own: string | undefined): string {
+  if (!own) return parent;
+  if (!parent) return own;
+  const style = `${parent}; ${own}`;
+  if (style.length <= LONG) return style;
+  const set = new Set(own.split(";").map(property));
+  set.delete("");
+  return [...parent.split(";").filter((declaration) => declaration.trim() && !set.has(property(declaration))).map((declaration) => declaration.trim()), own].join("; ");
+}
+
+const property = (declaration: string) => declaration.slice(0, declaration.indexOf(":") >>> 0).trim().toLowerCase();
 
 export interface HighlightOptions {
   /** A language highlight.js knows (`ts`, `tsx`, `html`, `bash`, …); without one the code isn't colored. */

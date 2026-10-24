@@ -1,7 +1,7 @@
 // @vitest-environment node
 import React from "react";
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi, type MockInstance } from "vitest";
-import { Column, Email, Html, Paragraph, Row, renderToHtml as renderToHtmlNow, renderToHtmlParts as renderToHtmlPartsNow, renderToJson as renderToJsonNow } from "../index";
+import { Button, Column, Email, Heading, Html, Link, Paragraph, Row, renderToHtml as renderToHtmlNow, renderToHtmlParts as renderToHtmlPartsNow, renderToJson as renderToJsonNow } from "../index";
 import { Markdown } from "../markdown";
 import {
   Tailwind,
@@ -726,16 +726,78 @@ describe("a render's classes", () => {
       expect(classNameToDeclarations(handle, "text-nope").ignored).toEqual([{ className: "text-nope", reason: "Tailwind has no such class" }]);
     });
 
+    it("fail only the component whose class its function throws for, by the value Tailwind gave it (`(--x)` as `var(--x)`, a `calc()` spaced, a theme's value), on a fresh compiler too", async () => {
+      // A user's Markdown (its raw HTML's classes kept) holds the class the plugin throws for; the app's own heading
+      // has a class of the same utility, built with it. Only the user's block fails, in that render, and the heading
+      // reads in every render after, synchronous and async.
+      const tint = ({ matchUtilities }: any) =>
+        matchUtilities({ brand: (value: string) => (/^#[0-9a-f]{6}$/i.test(value) && value !== "#ef4444" ? { color: value } : (() => { throw new Error(`brand: can't tint ${value}`); })()) }, { values: { blue: "#2563eb", red: "#ef4444" } });
+      const page = (handle: TailwindHandle, markdown: string) => (
+        <Tailwind tw={handle}>
+          <Email>
+            <Row>
+              <Column>
+                <Heading className="brand-blue">Digest</Heading>
+                <Markdown markdown={markdown} />
+              </Column>
+            </Row>
+          </Email>
+        </Tailwind>
+      );
+      const blue = (html: string) => /color: ?#2563eb[^"]*"[^>]*>\s*Digest/.test(html) || (/Digest/.test(html) && html.includes("#2563eb"));
+      for (const [bad, given] of [["brand-(--x)", "var(--x)"], ["brand-[calc(1px+2px)]", "calc(1px + 2px)"], ["brand-[#ef4444]", "#ef4444"]]) {
+        const handle = await loadTailwind({ plugins: [tint] });
+        for (const fresh of [false, true]) {
+          if (fresh) {
+            // Past a compiler's classes (renders of 900 new ones each, as data can give), a fresh one takes over.
+            const before = compiled.count;
+            for (let r = 0; r < 3; r++) renderToHtmlNow(page(handle, `<span class="${Array.from({ length: 900 }, (_, i) => `w-[${r * 1000 + i + 1}px]`).join(" ")}">a</span>`), { onError: "omit" });
+            await vi.waitFor(() => expect(compiled.count).toBeGreaterThan(before));
+            await new Promise((resolve) => setTimeout(resolve, 0));
+          }
+          const parts = renderToHtmlPartsNow(page(handle, `Hi <span class="${bad}">x</span>`), { onError: "omit" });
+          expect([bad, fresh, parts.omitted.map((e) => e.message)]).toEqual([bad, fresh, [`[Unlayer] brand: can't tint ${given} (in <Paragraph> at Row 1 › Column 1 › Markdown › Paragraph)`]]);
+          expect(blue(parts.body)).toBe(true);
+          expect(blue(renderToHtmlNow(page(handle, "Hello")))).toBe(true);
+          expect(blue(await renderToHtml(page(handle, "Hello")))).toBe(true);
+        }
+      }
+    });
+
+    it("fail only the component whose class's modifier its function throws for, not one of the same value without it", async () => {
+      const shadow = ({ matchUtilities }: any) =>
+        matchUtilities({ shadowx: (value: string, { modifier }: { modifier: string | null }) => (modifier && !/^\d+$/.test(modifier) ? (() => { throw new Error(`shadowx: bad opacity ${modifier}`); })() : { color: value }) }, { values: { sm: "#000000", md: "#111111" }, modifiers: "any" });
+      const handle = await loadTailwind({ plugins: [shadow] });
+      const page = (
+        <Tailwind tw={handle}>
+          <Email>
+            <Row>
+              <Column>
+                <Paragraph className="shadowx-md">headline</Paragraph>
+                <Paragraph className="shadowx-md/oops">user</Paragraph>
+              </Column>
+            </Row>
+          </Email>
+        </Tailwind>
+      );
+      for (let i = 0; i < 2; i++) {
+        const parts = renderToHtmlPartsNow(page, { onError: "omit" });
+        expect(parts.omitted.map((e) => e.message)).toEqual(["[Unlayer] shadowx: bad opacity oops (in <Paragraph> at Row 1 › Column 1 › Paragraph 2)"]);
+        expect(/headline/.test(parts.body) && parts.body.includes("#111111")).toBe(true);
+      }
+    });
+
     it("read a class its function gives nothing for (`if (!ok) return;`) as one Tailwind doesn't have, every time, changing nothing in another render", async () => {
       // `undefined` and `null`, as a function gives for a value it doesn't take, which Tailwind 4's compiler throws for
       // (and then for every build after it), where Tailwind 3 gave the class no CSS.
       const sizes: Record<string, string> = { sm: "12px" };
       const nothing = ({ matchUtilities, matchVariant }: any) => {
         matchUtilities({ fs: (value: string) => (sizes[value] ? { fontSize: sizes[value] } : undefined) }, { values: { sm: "sm", lg: "lg" }, type: "any" });
+        matchUtilities({ fz: (value: string) => !!sizes[value] && { fontSize: sizes[value] } }, { values: { sm: "sm", lg: "lg" } });
         matchVariant("vnone", (value: string) => (value === "ok" ? "&:hover" : null), { values: { ok: "ok", no: "no" } });
       };
       let n = 30;
-      for (const bad of ["fs-lg", "fs-[huge]", "vnone-no:p-[3px]"]) {
+      for (const bad of ["fs-lg", "fs-[huge]", "fz-lg", "vnone-no:p-[3px]"]) {
         const handle = await loadTailwind({ plugins: [nothing] });
         for (const render of [(t: React.ReactElement) => renderToHtmlPartsNow(t, { onError: "omit" }), (t: React.ReactElement) => renderToHtmlParts(t, { onError: "omit" }), (t: React.ReactElement) => renderToHtmlPartsNow(t)]) {
           for (let i = 0; i < 2; i++) {
@@ -755,7 +817,7 @@ describe("a render's classes", () => {
     // class or a variant it doesn't have, or of the class itself, or of nothing; a list holding nothing; a variant
     // that isn't a selector.
     const rejected = ({ matchUtilities, matchVariant }: any) => {
-      const gives: Record<string, unknown> = { bad: { "@apply not-a-class": {} }, variant: { "@apply nope:p-1": {} }, self: { "@apply ap-self": {} }, empty: { "@apply": {} }, list: { color: [null] }, ok: { color: "red" } };
+      const gives: Record<string, unknown> = { bad: { "@apply not-a-class": {} }, variant: { "@apply nope:p-1": {} }, self: { "@apply ap-self": {} }, empty: { "@apply": {} }, list: { color: [null] }, num: 42, str: "color: red", fn: () => 1, top: [{ color: "red" }, 5], ok: { color: "red" } };
       matchUtilities({ ap: (value: string) => gives[value] }, { values: Object.fromEntries(Object.keys(gives).map((k) => [k, k])) });
       matchVariant("vobj", (value: string) => (value === "bad" ? {} : "&:hover"), { values: { bad: "bad", ok: "ok" } });
     };
@@ -766,6 +828,10 @@ describe("a render's classes", () => {
       ["ap-empty", "<Tailwind>: the plugin's `ap` function gives an `@apply` with no class in it"],
       ["ap-list", "<Tailwind>: the plugin's `ap` function gives a list holding `null`, which Tailwind can't compile"],
       ["vobj-bad:p-[3px]", "<Tailwind>: the plugin's `vobj` variant gives an object, not a selector or a list of them"],
+      ["ap-num", "<Tailwind>: the plugin's `ap` function gives `42`, not CSS (an object, or a list of them)"],
+      ["ap-str", "<Tailwind>: the plugin's `ap` function gives `\"color: red\"`, not CSS (an object, or a list of them)"],
+      ["ap-fn", "<Tailwind>: the plugin's `ap` function gives `() => 1`, not CSS (an object, or a list of them)"],
+      ["ap-top", "<Tailwind>: the plugin's `ap` function gives a list holding `5`, not CSS (an object, or a list of them)"],
     ])("fail the component whose class it is where Tailwind can't compile what its function gives (%s), every time, changing nothing in another render", async (bad, message) => {
       const handle = await loadTailwind({ plugins: [rejected] });
       const failure = `[Unlayer] ${message} (in <Paragraph> at Row 1 › Column 1 › Paragraph 2)`;
