@@ -58,8 +58,14 @@ jobs:
         run: pnpm --filter @unlayer/from-react-email typecheck && pnpm --filter @unlayer/migrate typecheck
 
       # ── Bundle size budget ──────────────────────────────────────
-      # Fail if the react-elements ESM bundle exceeds 207KB.
-      # Current size: about 207KB (0.1.22: about 76KB). Raised from 206KB
+      # Fail if the react-elements ESM bundle exceeds 216KB.
+      # Current size: about 215.7KB (0.1.22: about 76KB). Raised from 207KB
+      # (about 8.7KB): HTML's plain text (htmlToPlainText) is read in time
+      # linear in its size by scanners of its own, where its regexes read
+      # unclosed tags again from each place they could start (40KB took a
+      # minute); a content prop given as null renders nothing, a Video's id
+      # can't end its player's URL, and rich text's markup is read in time
+      # linear in its size. Raised from 206KB
       # (about 1KB): a Row's anchor, a Video's link and thumbnail and a
       # Social icon's image are kept from adding markup, a Font's
       # javascript: URL loads nothing, Tailwind classes in a Heading's or a
@@ -183,7 +189,7 @@ jobs:
         run: |
           BUNDLE="packages/react/dist/index.js"
           SIZE=$(wc -c < "$BUNDLE" | tr -d ' ')
-          MAX_SIZE=207000
+          MAX_SIZE=216000
           echo "Bundle: $BUNDLE"
           echo "Size: $SIZE bytes (budget: $MAX_SIZE bytes)"
           if [ "$SIZE" -gt "$MAX_SIZE" ]; then
