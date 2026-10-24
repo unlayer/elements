@@ -3,6 +3,8 @@ import {
   mapSemanticProps,
   normalizeLinkValue,
   normalizeValuesForExporter,
+  safeVideoId,
+  unrunLinks,
 } from "./semantic-props";
 
 // Simulate Button defaults (has nested buttonColors, backgroundImage, border)
@@ -423,6 +425,32 @@ describe("normalizeValuesForExporter", () => {
       "Button"
     );
     expect(out.href).toEqual(RENDER_HREF);
+  });
+});
+
+describe("safeVideoId", () => {
+  it("percent-encodes what a video's id doesn't hold, so it can't end its player's `src`", () => {
+    expect(safeVideoId('abc" onload="alert(document.domain)')).toBe("abc%22%20onload%3D%22alert%28document.domain%29");
+    expect(safeVideoId("a'b<c>d`e&f?g#h")).toBe("a%27b%3Cc%3Ed%60e%26f%3Fg%23h");
+    // A lone surrogate has no UTF-8: U+FFFD's.
+    expect(safeVideoId("a\uD800b")).toBe("a%EF%BF%BDb");
+  });
+
+  it("keeps an id the editor writes as it is: a YouTube one, a Vimeo one (with its hash), and what its parser reads", () => {
+    for (const id of ["dQw4w9WgXcQ", "76979871", "76979871/abcdef1234", "a.b_c%20-d", ""]) expect(safeVideoId(id)).toBe(id);
+    expect(safeVideoId(76979871)).toBe(76979871);
+    expect(safeVideoId(undefined)).toBeUndefined();
+  });
+
+  it("writes one that isn't a string (an array from a JSON body) as its text", () => {
+    expect(safeVideoId(['abc" x="1'])).toBe("abc%22%20x%3D%221");
+  });
+
+  it("is a Video's id in its values (unrunLinks), and only a Video's", () => {
+    expect(unrunLinks({ video: { type: "youtube", videoId: 'abc"' } }, "Video")).toEqual({ video: { type: "youtube", videoId: "abc%22" } });
+    const video = { type: "vimeo", videoId: "76979871" };
+    expect(unrunLinks({ video }, "Video").video).toBe(video);
+    expect(unrunLinks({ video: { videoId: 'abc"' } }, "Image")).toEqual({ video: { videoId: 'abc"' } });
   });
 });
 

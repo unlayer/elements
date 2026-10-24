@@ -65,6 +65,9 @@ const CASES: Record<string, (v: string) => React.ReactElement> = {
   // A video's link and thumbnail, which an email writes into an `href` and a `src` as they are (0.2.1 did too).
   "Video link": (v) => <Row><Column><Video video={{ url: `https://youtu.be/${v}`, type: "youtube", videoId: "abc", thumbnail: "https://img.youtube.com/vi/abc/0.jpg" }} /></Column></Row>,
   "Video thumbnail": (v) => <Row><Column><Video values={{ video: { url: "https://youtu.be/abc", type: "youtube", videoId: "abc", thumbnail: `https://example.com/${v}.jpg` } }} /></Column></Row>,
+  // A video's id, which a page's and a document's player writes into its `src` as it is (0.2.1 did too).
+  "Video id": (v) => <Row><Column><Video video={{ type: "youtube", videoId: `abc${v}`, thumbnail: "https://img.youtube.com/vi/abc/0.jpg" }} /></Column></Row>,
+  "Vimeo id in values": (v) => <Row><Column><Video values={{ video: { type: "vimeo", videoId: `76979871${v}`, thumbnail: "" } }} /></Column></Row>,
   // A social icon's own image, which an email writes into its `src` as it is.
   "Social icon image": (v) => <Row><Column><Social values={{ icons: { iconType: "circle", icons: [{ name: "Custom", url: "https://example.com", imgUrl: `https://example.com/${v}.png` }] } } as never} /></Column></Row>,
   "Social link": (v) => <Row><Column><Social icons={[{ name: "Twitter", url: `https://twitter.com/${v}` }]} /></Column></Row>,
@@ -122,6 +125,7 @@ describe("a design's values, as designToElements writes them", () => {
               values: {},
               contents: [
                 { type: "video", values: { video: { url, videoId: "abc", type: "youtube", thumbnail: `https://img.example/${payload}.jpg` } } },
+                { type: "video", values: { video: { videoId: `abc${payload}`, type: "youtube", thumbnail: "https://img.youtube.com/vi/abc/0.jpg" } } },
                 { type: "social", values: { icons: { iconType: "circle", icons: [{ name: "Custom", url: "https://example.com", imgUrl: `https://example.com/${payload}.png` }] } } },
               ],
             },
@@ -147,6 +151,45 @@ describe("a design's values, as designToElements writes them", () => {
   });
 });
 
+describe("a video's id, which a page's and a document's player writes into its URL as it is", () => {
+  const payload = 'abc" onload="alert(document.domain)';
+  const encoded = "abc%22%20onload%3D%22alert%28document.domain%29";
+  const PLAYERS = { youtube: "https://www.youtube.com/embed/", vimeo: "https://player.vimeo.com/video/" } as const;
+  const block = (json: any) => json.body.rows[0].columns[0].contents[0].values.video;
+  const designOf = (type: string, videoId: string) => ({
+    counters: {},
+    schemaVersion: 16,
+    body: { values: { displayMode: "web" }, rows: [{ cells: [1], values: {}, columns: [{ values: {}, contents: [{ type: "video", values: { video: { type, videoId, thumbnail: "" } } }] }] }] },
+  });
+
+  it.each(Object.keys(PLAYERS) as Array<keyof typeof PLAYERS>)("%s: is percent-encoded where it holds what an id doesn't, in the HTML, the design and the code designToElements writes", (type) => {
+    for (const element of [<Video video={{ type, videoId: payload, thumbnail: "" }} />, <Video values={{ video: { type, videoId: payload, thumbnail: "" } }} />]) {
+      for (const Root of [Page, Document]) {
+        const doc = new DOMParser().parseFromString(renderToHtml(<Root><Row><Column>{element}</Column></Row></Root>), "text/html");
+        const iframe = doc.querySelector("iframe")!;
+        expect(iframe.getAttribute("src")).toBe(PLAYERS[type] + encoded);
+        expect(iframe.hasAttribute("onload")).toBe(false);
+      }
+      for (const Root of Object.values(ROOTS)) expect(block(renderToJson(<Root><Row><Column>{element}</Column></Row></Root>)).videoId).toBe(encoded);
+    }
+    const { code } = designToElements(designOf(type, payload));
+    expect(code).toContain(encoded);
+    expect(code).not.toContain("onload=");
+    const Template = evaluate(code);
+    expect(new DOMParser().parseFromString(renderToHtml(<Template />), "text/html").querySelector("iframe")!.getAttribute("src")).toBe(PLAYERS[type] + encoded);
+  });
+
+  it("stays as it is where it's one the editor writes (a Vimeo one with its hash too)", () => {
+    for (const [type, videoId] of [["youtube", "dQw4w9WgXcQ"], ["youtube", "a.b_c%20-d"], ["vimeo", "76979871"], ["vimeo", "76979871/abcdef1234"]]) {
+      const element = <Page><Row><Column><Video video={{ type, videoId, thumbnail: "" }} /></Column></Row></Page>;
+      expect(block(renderToJson(element)).videoId).toBe(videoId);
+      expect(renderToHtml(element)).toContain(`src="${PLAYERS[type as keyof typeof PLAYERS]}${videoId}"`);
+      // (As its id, or in the `videoUrl` it's from.)
+      expect(designToElements(designOf(type, videoId)).code).toMatch(new RegExp(`["/]${videoId.replace(/[.%/]/g, "\\$&")}"`));
+    }
+  });
+});
+
 describe("values that aren't strings, as data gives them (an array from a JSON body, an object with toString, a number)", () => {
   const SHAPES: Record<string, (v: string) => unknown> = { array: (v) => [v], "object with toString": (v) => ({ toString: () => v }) };
   const NOT_TEXT: Record<string, (v: unknown) => React.ReactElement> = {
@@ -158,6 +201,7 @@ describe("values that aren't strings, as data gives them (an array from a JSON b
     "Menu link": (v) => <Row><Column><Menu items={[{ text: "Home", href: v as never }]} /></Column></Row>,
     "Social link": (v) => <Row><Column><Social icons={[{ name: "Twitter", url: v as never }]} /></Column></Row>,
     "Social name": (v) => <Row><Column><Social icons={[{ name: v as never, url: "https://twitter.com/x" }]} /></Column></Row>,
+    "Video id": (v) => <Row><Column><Video video={{ type: "youtube", videoId: v as never, thumbnail: "" }} /></Column></Row>,
   };
   const cases = Object.entries(ROOTS).flatMap(([mode, Root]) => Object.keys(NOT_TEXT).map((name) => [mode, name, Root] as const));
 

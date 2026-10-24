@@ -86,6 +86,7 @@ export {
   normalizeLinkValue,
   unrunLinks,
   unrunUrl,
+  safeVideoId,
   normalizeValuesForExporter,
 } from "./utils/semantic-props";
 export type { SemanticProps } from "./utils/semantic-props";
