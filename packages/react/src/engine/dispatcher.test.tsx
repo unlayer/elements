@@ -117,5 +117,7 @@ describe("the hooks dispatcher", () => {
   it("needs getServerSnapshot for useSyncExternalStore, as React's server renderer does", () => {
     const Store = () => <i>{R.useSyncExternalStore(() => () => {}, () => "client")}</i>;
     expect(() => renderStatic(<Store />)).toThrow(/getServerSnapshot/);
+    // Said once as Elements' (it was `[Unlayer] [Unlayer] Missing getServerSnapshot…`).
+    expect(() => renderStatic(<Store />)).toThrow(/^\[Unlayer\] Missing getServerSnapshot, which useSyncExternalStore needs on a server\. \(in <Store>/);
   });
 });

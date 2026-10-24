@@ -147,7 +147,7 @@
 - `<Row noStackMobile>` works, `rgb()` colors render, phone settings match the editor's device CSS, and `renderToJson` keeps phone settings and hide-on-device options.
 - `Email`, `Page` and `Document` accept `fonts`, `textDirection` and `lang`.
 - Security: text placed straight in a Row or Column, Heading and Button children, Menu and Social text, link URLs, `previewText`, phone settings and `textDirection` are escaped.
-- Behavior changes: text children show as typed, link URLs percent-encode `"`, `<` and `>`, and rows from Fragments and components are email tables. See [upgrading](./docs/upgrading.md). ([#61](https://github.com/unlayer/elements/pull/61))
+- Behavior changes: text children show as typed, link URLs percent-encode `"`, `<` and `>`, and rows from Fragments and components are email tables. ([#61](https://github.com/unlayer/elements/pull/61))
 
 ## 0.1.22 (2026-09-22)
 

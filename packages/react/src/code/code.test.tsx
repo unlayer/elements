@@ -328,6 +328,10 @@ describe("highlightCode() in a render", () => {
     );
     expect(html.split('<pre style="').slice(1).map((block) => colored(block) > 0)).toEqual([true, true]);
   });
+
+  it("reads a theme by its name only where it's one of the themes (`__proto__` from data is the default)", () => {
+    for (const theme of ["__proto__", "constructor", "toString"]) expect(highlightCode("a", { language: "js", theme: theme as "light" })).toBe(highlightCode("a", { language: "js" }));
+  });
 });
 
 describe("CodeInline", () => {
