@@ -211,17 +211,11 @@ export function withRenderScope<T>(render: () => T): T {
 /**
  * Text placed straight in a Row or Column, as HTML: escaped, as React shows
  * text (raw HTML goes in an Html block). The editor has no place for it, so
- * the warning says where it belongs.
+ * the warning says where it belongs: once in a render for each container.
  */
-const warnedLoose = new Set<string>();
-
 export function looseText(child: string | number, container: string): string {
   const text = String(child);
-  // Said once per container, not on every render.
-  if (text.trim() && !warnedLoose.has(container)) {
-    warnedLoose.add(container);
-    console.warn(`${container}: text placed straight in a ${container} shows as text and isn't kept in the editor's design. Put it in a <Paragraph>, or HTML in an <Html> block.`);
-  }
+  if (text.trim()) sayOnce(`[Unlayer] ${container}: text placed straight in a ${container} shows as text and isn't kept in the editor's design. Put it in a <Paragraph>, or HTML in an <Html> block.`);
   // An email service's `<%name%>` tag stays as written, as in other text.
   return escapeKeepingTags(text, true);
 }
