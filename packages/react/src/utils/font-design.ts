@@ -1,8 +1,9 @@
 /**
  * A web font's stylesheet URL in the design, where the editor keeps it: on the `fontFamily` values of its family. A
- * `<Font>` (the font entry) and a root's `fonts` prop both write it here. Nothing in this file imports: the font entry
- * builds it in.
+ * `<Font>` (the font entry) and a root's `fonts` prop both write it here. It imports only what the main entry has
+ * (the font entry builds it in).
  */
+import { unrunUrl } from "@unlayer-internal/shared-elements";
 
 /** A URL that can't end its attribute or its CSS string: what could, percent-encoded. */
 export const safeUrl = (url: string) => url.trim().replace(/["'()<>\s\\]/g, (c) => `%${c.charCodeAt(0).toString(16).padStart(2, "0")}`);
@@ -88,7 +89,8 @@ export function fontFamilyOf(font: FontProps): { label: string; value: string; u
 
 /** The head tags that load a font. In an email Outlook doesn't see them: with a web font declared it can fall back to Times New Roman. */
 export function fontTags(font: FontProps, mode: string): string[] {
-  if (!font.url) return [];
+  // (None for a URL that runs code: `javascript:`, as React tells one.)
+  if (!font.url || unrunUrl(String(font.url)) !== String(font.url)) return [];
   const url = safeUrl(font.url);
   const tag = isFile(font)
     ? `<style type="text/css">@font-face { font-family: '${clean(font.family)}'; src: url('${url}')${font.format ? ` format('${clean(font.format)}')` : ""}; font-weight: ${clean(font.weight ?? 400)}; font-style: ${clean(font.style ?? "normal")}; }</style>`

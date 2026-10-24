@@ -159,6 +159,33 @@ describe("designToElements", () => {
     }
   });
 
+  it("writes code in time linear in the design's size: a large table, many menu items, values nested deep", async () => {
+    // The printer took the trailing spaces off all the code written so far at each line break, so the time grew with
+    // the code's size squared, and with the indentation of values nested deep faster: an editor's 100×100 table took
+    // 34 s, 1,000 menu items 13 s, a value 400 deep 47 s (and was 338 KB of code).
+    const cells = (n: number, text: string) => Array.from({ length: n }, (_, i) => ({ text: `${text}${i}` }));
+    const deep = (depth: number) => Array.from({ length: depth }).reduce<Plain>((value) => ({ a: value }), { x: 1 });
+    const nested = (depth: number) => design([{ type: "text", values: { text: "<p>x</p>", custom: deep(depth) } }]);
+    const shapes: [string, Plain][] = [
+      ["table 60×60", design([{ type: "table", values: { table: { headers: [{ cells: cells(60, "h") }], rows: Array.from({ length: 60 }, () => ({ cells: cells(60, "c") })) } } }])],
+      ["menu of 1,000 items", design([{ type: "menu", values: { menu: { items: Array.from({ length: 1000 }, (_, i) => ({ key: `k${i}`, text: `t${i}`, link: { name: "web", values: { href: `https://e.test/${i}` } } })) } } }])],
+      ["values 200 deep", nested(200)],
+    ];
+    for (const [shape, source] of shapes) {
+      const start = performance.now();
+      quiet(() => designToElements(source));
+      expect([shape, performance.now() - start < 1000]).toEqual([shape, true]);
+    }
+    // Deeper than 16, a value is written as its JSON, which gives it back the same: as prettier writes it.
+    const result = quiet(() => roundTrip(nested(200)));
+    expect(result.differences).toEqual([]);
+    expect(result.code).toContain(`JSON.parse(\n`);
+    expect(result.code.length).toBeLessThan(5000);
+    expect(await prettier.format(result.code, { parser: "typescript" })).toBe(result.code);
+    // Up to it, written out.
+    expect(quiet(() => designToElements(nested(14))).code).not.toContain("JSON.parse");
+  });
+
   it("formats with prettier, and the formatted code renders the same design", async () => {
     const source = design([{ type: "text", values: { text: "A long paragraph of plain words that a narrower print width wraps onto more lines than one" } }]);
     const { code } = designToElements(source);

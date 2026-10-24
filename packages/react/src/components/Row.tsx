@@ -1,5 +1,5 @@
 import React from "react";
-import type { RenderMode, UnlayerConfig, RowValues } from "@unlayer-internal/shared-elements";
+import { escapeText, type RenderMode, type UnlayerConfig, type RowValues } from "@unlayer-internal/shared-elements";
 import type { ColumnLayout } from "@unlayer-internal/shared-elements";
 import { RowExporters } from "@unlayer/exporters";
 import { mapSemanticProps, type SemanticProps } from "../utils/semantic-props";
@@ -279,6 +279,8 @@ function renderRow(props: RowProps): React.ReactElement | null {
   cssUrl(values, DEFAULT_VALUES.backgroundImage);
 
   const valuesWithMeta = { ...values, cells, _meta: safeMeta({ htmlID: nextHtmlId(_config, "u_row"), htmlClassNames: "u_row", ...(values._meta || {}) }) };
+  // Its anchor, which the exporters write into an `<a name="…">` as it is (0.2.1 did too), escaped: it reads the same.
+  if (values.anchor) valuesWithMeta.anchor = escapeText(String(values.anchor), true);
 
   // Process Column children
   const innerHTML = processChildren(

@@ -101,4 +101,18 @@ describe("Font", () => {
     );
     expect(tags[0]).toBe("<style type=\"text/css\">@font-face { font-family: 'X  body  color: red'; src: url('https://x.com/a.woff2%27%29%20;%20%3c/style%3e%3cscript%3e') format('woff2'); font-weight: 400; font-style: normal; }</style>");
   });
+
+  it("loads nothing from a URL that runs code (`javascript:`, as React tells one), a stylesheet or a font file", () => {
+    for (const url of ["javascript:alert(1)", " JavaScript:alert(1)", "java\tscript:alert(1)", "javascript:alert(1)//x.woff2"]) {
+      for (const Root of [Email, Page]) {
+        const { tags } = renderToHtmlParts(
+          <Root>
+            <Font family="Inter" url={url} />
+            {content}
+          </Root>
+        );
+        expect([url, tags.filter((tag) => /javascript/i.test(tag))]).toEqual([url, []]);
+      }
+    }
+  });
 });
