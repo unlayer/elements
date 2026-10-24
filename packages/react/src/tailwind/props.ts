@@ -10,6 +10,7 @@ import { rowRewrite } from "./inherit";
 import { PROP_ALIASES, cssValueSafe, isContentProp } from "@unlayer-internal/shared-elements";
 import { BodyDefaults } from "@unlayer/exporters";
 import { unsafeUrl } from "../markdown/sanitize";
+import { heightAsWidth } from "./image-height";
 
 
 const TAILWIND = Symbol.for("@unlayer/react-elements/tailwind");
@@ -223,7 +224,9 @@ export function classesToProps(name: string, found: ClassDeclarations, props: Re
   const explicit = defined(props);
   const own = read(TABLES[name] ?? "");
   const warn = (text: string) => quiet || console.warn(`[Unlayer] ${name} ${text}.`);
-  const has = (prop: string) => given(explicit, prop, name);
+  // (An Image whose height class gives its width has its `src.width` as its size, not a width given: see heightAsWidth.)
+  let sizedByHeight = false;
+  const has = (prop: string) => given(explicit, prop, name) && !(sizedByHeight && /^(width|maxWidth|minWidth)$/.test(prop));
   const ignore = (d: ClassDeclaration, why = "") => warn(`ignores \`${d.property}: ${d.value}\` from class \`${d.className}\`${why}`);
   // What no prop takes (unless a variant's, which can't apply as a style): inlined on the component's element.
   const style: Record<string, string> = {};
@@ -259,8 +262,13 @@ export function classesToProps(name: string, found: ClassDeclarations, props: Re
     }
     found = { ...found, declarations: rest };
   }
-  // `w-auto` on an Image is its responsive width, the editor's auto width.
-  if (name === "Image") found = { ...found, declarations: found.declarations.map((d) => (d.property === "width" && d.value === "auto" ? { ...d, value: "100%" } : d)) };
+  // An Image's height with an auto width (a logo's `h-12 w-auto`) is the width its aspect ratio gives (see
+  // image-height.ts); `w-auto` is its responsive width, the editor's auto width.
+  if (name === "Image") {
+    const byHeight = heightAsWidth(found.declarations, explicit, ignore);
+    sizedByHeight = byHeight.sized;
+    found = { ...found, declarations: byHeight.declarations.map((d) => (d.property === "width" && d.value === "auto" ? { ...d, value: "100%" } : d)) };
+  }
 
   const table: Table = { ...(own.container ? {} : BLOCK), ...(own.text ? TEXT : {}), ...own };
   // The one prop a width and the bounds on it all go to, where there's one (the root's content width; see propsOf).
@@ -440,7 +448,9 @@ export function classesToProps(name: string, found: ClassDeclarations, props: Re
   }
   const out: Record<PropertyKey, any> = { ...result, ...explicit };
   // A prop of a group given whole (`buttonColors={{ backgroundColor }}` with `text-white`): in it, under what it holds.
+  // (Not the width an Image's height gives: its `src`'s width is its size, and its display width the flat prop.)
   for (const [prop, value] of Object.entries(result)) {
+    if (sizedByHeight && /^(width|maxWidth)$/.test(prop)) continue;
     const group = Object.keys(defaults).find((g) => g !== prop && plain(defaults[g]) && prop in defaults[g] && plain(explicit[g]));
     if (group) {
       out[group] = { [prop]: value, ...defined(out[group]) };

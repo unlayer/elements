@@ -1103,6 +1103,68 @@ describe("<Tailwind>: an Image's width classes", () => {
     expect(warnings()).toEqual([]);
   });
 
+  // A logo sized by its height, as Tailwind users write one: the browser gives its width from its aspect ratio.
+  const logo = { url: "https://example.com/logo.png", width: 400, height: 100 };
+
+  it("take a height with an auto width (a logo's `h-12 w-auto`) as the width the image's size gives, on phones too", () => {
+    // 48px of a 400×100 logo is 192px wide: 40% of the 480px the block has.
+    for (const className of ["h-12 w-auto", "w-auto h-12", "h-12", "h-12 max-w-full"]) {
+      expect(block(<Image src={logo} className={className} />).src).toEqual({ ...logo, autoWidth: false, maxWidth: "40%" });
+    }
+    expect(block(<Image values={{ src: logo }} className="h-12 w-auto" />).src).toMatchObject({ autoWidth: false, maxWidth: "40%" });
+    // Phones: 32px is 128px wide (a phone's width in pixels, as `max-sm:w-32` gives it).
+    const phone = block(<Image src={logo} className="h-12 w-auto max-sm:h-8" />);
+    expect(phone.src).toMatchObject({ autoWidth: false, maxWidth: "40%" });
+    expect(phone._override.mobile.src).toEqual({ autoWidth: false, maxWidth: "128px" });
+    expect(block(<Image src={logo} className="max-sm:h-8" />)._override.mobile.src).toEqual({ autoWidth: false, maxWidth: "128px" });
+    // Above a breakpoint: the desktop width, phones keep the auto width.
+    const desktop = block(<Image src={logo} className="sm:h-12" />);
+    expect(desktop.src).toMatchObject({ autoWidth: false, maxWidth: "40%" });
+    expect(desktop._override.mobile.src).toMatchObject({ autoWidth: true });
+    expect(warnings()).toEqual([]);
+  });
+
+  it("leave a height out where the image's size isn't given, so it isn't stretched, and say so", () => {
+    for (const className of ["h-12 w-auto", "h-12"]) {
+      const values = block(<Image src="https://example.com/logo.png" className={className} />);
+      expect(values.src).toMatchObject({ autoWidth: true, maxWidth: "100%" });
+      expect(values.src.height).toBeUndefined();
+    }
+    expect(block(<Image src="https://example.com/logo.png" className="max-sm:h-8" />)._override?.mobile?.src).toBeUndefined();
+    expect([...new Set(warnings())]).toEqual([
+      "[Unlayer] Image ignores `height: 48px` from class `h-12`: an image's height gives its width only with the image's size (`src={{ url, width, height }}`), as its aspect ratio does in the browser; without it, the height would stretch the image.",
+      "[Unlayer] Image ignores `height: 32px` from class `max-sm:h-8`: an image's height gives its width only with the image's size (`src={{ url, width, height }}`), as its aspect ratio does in the browser; without it, the height would stretch the image.",
+    ]);
+  });
+
+  it("leave a height with a width as it was: the width is the image's, the height an inline style", () => {
+    expect(block(<Image src="https://example.com/logo.png" className="w-32 h-12" />).src).toMatchObject({ autoWidth: false, maxWidth: "26.67%" });
+    expect(block(<Image src={logo} width={300} className="h-12" />).src).toMatchObject({ autoWidth: false, maxWidth: "62.5%" });
+    expect(renderToHtml(nested({}, <Image src="https://example.com/logo.png" className="w-32 h-12" />))).toMatch(/<img [^>]*height: ?48px/);
+  });
+
+  it.each(Object.keys(MODES) as Mode[])("%s: a logo's height class keeps its aspect ratio in the HTML, sync and async", async (mode) => {
+    const content = (
+      <>
+        <Image src={logo} className="h-12 w-auto max-sm:h-8" />
+        <Image src="https://example.com/plain.png" className="h-12 w-auto" />
+      </>
+    );
+    for (const html of [renderToHtml(nested({}, content, MODES[mode])), await renderToHtmlAsync(nested({}, content, MODES[mode]))]) {
+      const sized = html.match(/<img [^>]*logo\.png[^>]*>/g)!;
+      const plain = html.match(/<img [^>]*plain\.png[^>]*>/g)!;
+      // As wide as 48px of it is: 192px (an email's image for Outlook has its height, 48, too).
+      expect(sized.some((tag) => /max-width: ?192px/.test(tag))).toBe(true);
+      if (mode === "Email") expect(sized.some((tag) => /width="192" height="48"/.test(tag))).toBe(true);
+      // Phones: 32px of it, 128px wide (a document, for print, has no phone styles).
+      if (mode !== "Document") expect(html).toMatch(/width: 128px !important/);
+      // Never a fixed height beside a width that isn't the ratio's.
+      for (const tag of [...sized, ...plain]) expect(tag).not.toMatch(/height: ?\d+px/);
+      expect(plain.join("")).not.toMatch(/height="48"/);
+      expect(plain.some((tag) => /width: 100%/.test(tag))).toBe(true);
+    }
+  });
+
   it.each(Object.keys(MODES) as Mode[])("%s: the HTML holds the max width, and `w-auto` stays in its column", (mode) => {
     const html = renderToHtml(
       nested(
