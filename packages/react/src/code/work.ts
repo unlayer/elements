@@ -1,8 +1,9 @@
 /**
  * The work a render's code blocks and Markdown share: what's left of each of their budgets for the whole render (see
- * the main entry's utils/render-shared.ts), so a template of many blocks (a digest of comments, each a <Markdown> of
- * its own) takes what one block of their size would, where each block had a budget of its own. Outside a render (a
- * component React renders, a highlightCode() call outside any), there's none: each block or call has its own.
+ * the main entry's sharedByRender, in utils/render-scope.ts), so a template of many blocks (a digest of comments, each a
+ * <Markdown> of its own) takes what one block of their size would, where each block had a budget of its own. It's
+ * reached from a component's or template wrapper's call; outside one (a component React renders, a highlightCode()
+ * call outside any render, an async component's code after an `await`), there's none: each block or call has its own.
  */
 import { renderToHtml } from "@unlayer/react-elements";
 
@@ -21,6 +22,18 @@ export function renderWork<T>(key: symbol, make: () => T): T | undefined {
 }
 
 const SAID = Symbol.for("@unlayer/react-elements/said");
+
+const DONE = Symbol.for("@unlayer/react-elements/when-done");
+
+/**
+ * Says what `say` says once the render's done, once for all of it under `key` (the last `say` given), as it can say
+ * what the whole render did; outside a render, at once.
+ */
+export function sayWhenDone(key: string, say: () => void): void {
+  const done = renderWork(DONE, () => new Map<string, () => void>());
+  if (done) done.set(key, say);
+  else say();
+}
 
 /** Says `message` once in the render, under `key` (each time outside one). */
 export function sayInRender(key: string, message: string): void {

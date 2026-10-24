@@ -14,20 +14,26 @@ import {
   type ClassDeclaration,
   type TailwindHandle,
 } from "./index";
-import { BEYOND, CHARACTERS, CLASSES, CLASS_LIMITS, COMPILED, SUSPECTS, declarationReader, type Compiler, type PluginFailure, type ReadScope } from "./declarations";
+import { BEYOND, CEILING, CHARACTERS, CLASSES, CLASS_LIMITS, COMPILED, FULL, SUSPECTS, declarationReader, type Compiler, type PluginFailure, type ReadScope } from "./declarations";
 import { parseSheet } from "./css";
 import { CONFIGS } from "./load";
 
 // Tailwind as it is, its compilers counted once compiled (a handle compiles a fresh one after building many classes),
-// and their builds (each one Tailwind's whole stylesheet again).
-const compiled = vi.hoisted(() => ({ count: 0, builds: 0, candidates: 0 }));
+// and their builds (each one Tailwind's whole stylesheet again: `css`, the last one's length).
+const compiled = vi.hoisted(() => ({ count: 0, builds: 0, candidates: 0, css: 0 }));
 vi.mock("tailwindcss", async (actual) => {
   const tailwind = await actual<Record<string, any>>();
   const compile = async (...args: unknown[]) => {
     const compiler = await tailwind.compile(...args);
     compiled.count++;
     const build = compiler.build;
-    compiler.build = (candidates: string[]) => (compiled.builds++, (compiled.candidates += candidates.length), build.call(compiler, candidates));
+    compiler.build = (candidates: string[]) => {
+      compiled.builds++;
+      compiled.candidates += candidates.length;
+      const css: string = build.call(compiler, candidates);
+      compiled.css = css.length;
+      return css;
+    };
     return compiler;
   };
   return { ...tailwind, compile };
@@ -404,7 +410,51 @@ describe("a handle's reader of classes", () => {
     expect(classes("evil d")).toEqual(["d"]);
     expect(unreadable("evil")).toEqual(["evil"]);
     expect(compilers[2].built).toEqual(["d"]);
-    expect(renew).toHaveBeenCalledTimes(2);
+    // (And one more asked for, to be ready: the spare, see the next test.)
+    expect(renew).toHaveBeenCalledTimes(3);
+  });
+
+  it("keeps a fresh compiler ready, which takes over at once, synchronously, where classes are next built past its classes; another is asked for", async () => {
+    // A synchronous loop of renders never lets a compiler compile: without one ready, it built on one compiler, each
+    // build costing more than the last (Tailwind builds every class it has built again), its memory growing.
+    const [old, spare, next] = [counting(), counting(), counting()];
+    let ready!: (compiler: Compiler) => void;
+    const renew = vi.fn(() => new Promise<Compiler>((resolve) => (ready = resolve)));
+    const read = declarationReader(old, renew, 3, spare);
+    read("a b");
+    read("c d");
+    // Past its classes: the spare takes over where classes are next built, not before (a render reads what it prepared).
+    expect(read("a b c d").declarations).toHaveLength(4);
+    expect(renew).not.toHaveBeenCalled();
+    expect(read("e").declarations.map((d) => d.className)).toEqual(["e"]);
+    expect([old.built, spare.built]).toEqual([["a", "b", "c", "d"], ["e"]]);
+    expect(renew).toHaveBeenCalledTimes(1);
+    ready(next);
+    await Promise.resolve();
+    // The one asked for is the spare: this one takes it past its classes again.
+    read("f g h");
+    expect(read("i").declarations.map((d) => d.className)).toEqual(["i"]);
+    expect(next.built).toEqual(["i"]);
+  });
+
+  it(`builds no new class past ${CEILING} times its classes with no fresh compiler ready, saying to yield or use the async renderers, and builds on once one is`, async () => {
+    let ready!: (compiler: Compiler) => void;
+    const renew = vi.fn(() => new Promise<Compiler>((resolve) => (ready = resolve)));
+    const old = counting();
+    const read = declarationReader(old, renew, 2);
+    for (let i = 0; i <= 2 * CEILING; i++) read(`c${i}`);
+    expect(old.built).toHaveLength(2 * CEILING + 1);
+    expect(read("x").ignored).toEqual([{ className: "x", reason: FULL }]);
+    expect(FULL).toContain("yield between synchronous renders");
+    expect(FULL).toContain("async renderers");
+    // The async renderers wait for it.
+    const waited = read.ready?.();
+    expect(waited).toBeInstanceOf(Promise);
+    const fresh = counting();
+    ready(fresh);
+    await waited;
+    expect(read("x c0").declarations.map((d) => d.className)).toEqual(["x", "c0"]);
+    expect(fresh.built).toEqual(["x", "c0"]);
   });
 
   /** A compiler whose build throws for `junk` (`keep`: and keeps it, throwing on every build after it, as Tailwind can). */
@@ -545,7 +595,8 @@ describe("a handle's reader of classes", () => {
     await settled();
     expect(classes("a b c")).toEqual(["a", "b", "c"]);
     expect(compilers[1].built).toEqual(["a", "b", "c"]);
-    expect(renew).toHaveBeenCalledTimes(3);
+    // (And one asked for once one took over, to be ready.)
+    expect(renew).toHaveBeenCalledTimes(4);
   });
 
   it("stops asking for a fresh compiler after three fail in a row, and says why it reads no new class", async () => {
@@ -804,12 +855,12 @@ describe("a render's classes", () => {
       for (const [bad, given] of [["brand-(--x)", "var(--x)"], ["brand-[calc(1px+2px)]", "calc(1px + 2px)"], ["brand-[#ef4444]", "#ef4444"]]) {
         const handle = await loadTailwind({ plugins: [tint] });
         for (const fresh of [false, true]) {
+          const before = compiled.count;
           if (fresh) {
-            // Past a compiler's classes (renders of 900 new ones each, as data can give), a fresh one takes over.
-            const before = compiled.count;
-            for (let r = 0; r < 3; r++) renderToHtmlNow(page(handle, `<span class="${Array.from({ length: 900 }, (_, i) => `w-[${r * 1000 + i + 1}px]`).join(" ")}">a</span>`), { onError: "omit" });
+            // Past a compiler's classes (renders of 900 new ones each, as data can give), a fresh one takes over: the
+            // one kept ready, at the next render that builds a class (the fourth), and another is compiled.
+            for (let r = 0; r <= 3; r++) renderToHtmlNow(page(handle, `<span class="${Array.from({ length: 900 }, (_, i) => `w-[${r * 1000 + i + 1}px]`).join(" ")}">a</span>`), { onError: "omit" });
             await vi.waitFor(() => expect(compiled.count).toBeGreaterThan(before));
-            await new Promise((resolve) => setTimeout(resolve, 0));
           }
           const parts = renderToHtmlPartsNow(page(handle, `Hi <span class="${bad}">x</span>`), { onError: "omit" });
           expect([bad, fresh, parts.omitted.map((e) => e.message)]).toEqual([bad, fresh, [`[Unlayer] brand: can't tint ${given} (in <Paragraph> at Row 1 › Column 1 › Markdown › Paragraph)`]]);
@@ -931,7 +982,9 @@ describe("a render's classes", () => {
         </Email>
       </Tailwind>
     );
-    expect(() => renderToHtmlNow(page("text-weird p-[5px]"))).toThrow("<Tailwind> can't read the class `text-weird` now: it's read once Tailwind has compiled again, after a class it couldn't read. Render again then (the async renderers wait for it) (in <Paragraph>)");
+    // (The compiler kept ready takes over and builds each class of that build alone: `text-weird` is refused, but leaves
+    // it unable to read too, so `p-[5px]` waits for the next one.)
+    expect(() => renderToHtmlNow(page("text-weird p-[5px]"))).toThrow("<Tailwind> can't read the class `p-[5px]` now: it's read once Tailwind has compiled again, after a class it couldn't read. Render again then (the async renderers wait for it) (in <Paragraph>)");
     expect(() => renderToHtmlNow(page("text-red-500 p-[6px]"))).toThrow("Render again then");
     // The async renderers wait for the fresh compiler, and read the class on it.
     expect(fine(await renderToHtml(page("text-red-500 p-[6px]")), 6)).toEqual([true, true]);
@@ -1012,6 +1065,59 @@ describe("a render's classes", () => {
     }
     expect(warn).not.toHaveBeenCalled();
   }, 60_000);
+
+  describe("in a synchronous loop of renders on one handle (a batch job), which never lets a fresh compiler compile", () => {
+    // Each build was Tailwind's whole stylesheet of every class the handle had built: a loop of renders with new classes
+    // (one `text-[#hex]` each, or a Markdown's 64 KB of them) cost more with each, its memory growing without end
+    // (150 Markdowns: 2.1 s for the last, 2.9 GB).
+    const page = (handle: TailwindHandle, from: number) => (
+      <Tailwind tw={handle}>
+        <Email>
+          <Row>
+            <Column>
+              <Html html={Array.from({ length: 400 }, (_, i) => `<b class="indent-[${from + i}px]">x</b>`).join("")} />
+            </Column>
+          </Row>
+        </Email>
+      </Tailwind>
+    );
+
+    it("swaps its compiler past its classes at once, for the one kept ready: the stylesheet built is a fresh one's", async () => {
+      const handle = await loadTailwind({ ...config, loop: "swap" });
+      const sizes: number[] = [];
+      for (let r = 0; r < 12; r++) {
+        expect(renderToHtmlNow(page(handle, r * 400))).toMatch(new RegExp(`text-indent: ?${r * 400 + 399}px`));
+        sizes.push(compiled.css);
+      }
+      // 2,400 classes on the first by the sixth render; the seventh's on the fresh one, which has 2,400 by the twelfth.
+      expect(sizes[11]).toBeLessThan(sizes[5] * 1.2);
+      expect(sizes[6]).toBeLessThan(sizes[5] / 3);
+    });
+
+    it(`builds no new class past ${CEILING} times a compiler's classes, failing the render that needs one with how to go on: yield, or render async`, async () => {
+      const handle = await loadTailwind({ ...config, loop: "ceiling" });
+      let failed: unknown;
+      let r = 0;
+      for (; r < 40 && !failed; r++) {
+        try {
+          renderToHtmlNow(page(handle, r * 400));
+        } catch (error) {
+          failed = error;
+        }
+      }
+      // The first compiler's 2,000 (and a render's), then the fresh one's to the ceiling.
+      expect(r * 400).toBeGreaterThan((1 + CEILING) * CLASSES);
+      expect(r * 400).toBeLessThan((1 + CEILING) * CLASSES + 2000);
+      expect(String((failed as Error)?.message)).toContain(`now: ${FULL} (in <Html>)`);
+      // A render whose classes its compiler built reads them as before (the last that rendered).
+      expect(renderToHtmlNow(page(handle, (r - 2) * 400))).toMatch(new RegExp(`text-indent: ?${(r - 2) * 400 + 399}px`));
+      // Once the app yields, a fresh compiler is ready: renders go on.
+      await new Promise((resolve) => setImmediate(resolve));
+      await vi.waitFor(() => expect(renderToHtmlNow(page(handle, r * 400))).toMatch(new RegExp(`text-indent: ?${r * 400 + 399}px`)));
+      // And the async renderers wait for one where they'd meet the ceiling.
+      for (let i = 1; i <= 30; i++) expect(await renderToHtml(page(handle, (r + i) * 400))).toMatch(new RegExp(`text-indent: ?${(r + i) * 400 + 399}px`));
+    }, 60_000);
+  });
 
   it("are a <Tailwind>'s own: a class outside it isn't compiled", async () => {
     // (The plugin says which of its classes Tailwind compiled, and throws for this one.)

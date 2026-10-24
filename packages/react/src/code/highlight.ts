@@ -32,7 +32,7 @@ import xml from "highlight.js/lib/languages/xml";
 import yaml from "highlight.js/lib/languages/yaml";
 import type { LanguageFn as HighlightLanguage } from "highlight.js";
 import { themeOf, type CodeTheme, type CodeThemeName } from "./themes";
-import { codeWork, CODE_WORK, paidFor, sayInRender } from "./work";
+import { codeWork, CODE_WORK, paidFor, renderWork, sayInRender } from "./work";
 
 /**
  * A language as highlight.js defines it: a function of highlight.js's API giving the language's grammar (a
@@ -98,8 +98,20 @@ function affordable(size: number, component: string): boolean {
   return false;
 }
 
-/** The languages said to have no grammar, each once: twenty at most, as a fence's label is whoever writes the Markdown's. */
-const warned = new Set<string>();
+/**
+ * Says `language` has no grammar, once in the render (each time outside one): twenty at most, as a fence's label is
+ * whoever writes the Markdown's.
+ */
+function noGrammar(language: string, component: string): void {
+  const said = renderWork(Symbol.for("@unlayer/react-elements/no-grammar"), () => new Set<string>()) ?? new Set<string>();
+  if (said.has(language) || said.size > 20) return;
+  said.add(language);
+  console.warn(
+    said.size > 20
+      ? `[Unlayer] ${component}: more languages with no grammar are shown without colors, and not said.`
+      : `[Unlayer] ${component} has no grammar for \`${language}\`, so it's shown without colors: add one with registerLanguage() from "@unlayer/react-elements/code".`
+  );
+}
 
 /** A token's style in a theme: its scope's, or its parent's (`title.function` → `title`). */
 function styleOf(theme: CodeTheme, scope: string): string | undefined {
@@ -120,14 +132,7 @@ export function highlightLines(code: string, language: string | undefined, theme
       html = escapeHtml(code);
     } else html = paid || affordable(code.length, component) ? hljs.highlight(code, { language, ignoreIllegals: true }).value : escapeHtml(code);
   } else {
-    if (language && !warned.has(language) && warned.size <= 20) {
-      warned.add(language);
-      console.warn(
-        warned.size > 20
-          ? `[Unlayer] ${component}: more languages with no grammar are shown without colors, and not said.`
-          : `[Unlayer] ${component} has no grammar for \`${language}\`, so it's shown without colors: add one with registerLanguage() from "@unlayer/react-elements/code".`
-      );
-    }
+    if (language) noGrammar(language, component);
     html = escapeHtml(code);
   }
   const lines: string[] = [""];

@@ -8,6 +8,7 @@
  */
 import { BEYOND, OVER, type ClassCondition, type ClassDeclaration, type ClassDeclarations, type DeclarationReader } from "./declarations";
 import { commentEnd, rawTextEnd, readTag, type Attribute, type Tag } from "../utils/html-tags";
+import { propValue } from "./written";
 
 // Logical sides as in a left-to-right document, and those a right-to-left one changes: email clients read only physical ones.
 const SIDES: Record<string, string[]> = { inline: ["left", "right"], block: ["top", "bottom"], "inline-start": ["left"], "inline-end": ["right"], "block-start": ["top"], "block-end": ["bottom"] };
@@ -177,6 +178,8 @@ function classes(text: string, attributes: Attribute[], nameEnd: number, offset:
   const css: string[] = [];
   for (const d of found.declarations) {
     if (d.when !== "always") once(`can't inline class \`${d.className}\` in its markup: it applies ${WHEN[d.when]}, which needs a stylesheet`);
+    // What a prop can't be written as, an inline style can't either (see propValue).
+    else if (propValue(d) === undefined) once(`ignores \`${d.property}: ${d.value}\` from class \`${d.className}\` in its markup: it could end the HTML attribute it's written in, start a tag, or end its CSS`);
     else if (!shown(d))
       for (const property of physical(d.property, rtl)) {
         const declaration = `${property}: ${d.value}${d.important ? " !important" : ""}`;

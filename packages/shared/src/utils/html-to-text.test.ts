@@ -147,6 +147,12 @@ describe("htmlToPlainText", () => {
   });
 
   // Skip elements
+  it("keeps the text's own U+0000 and U+0001, which spell its placeholders, as written", () => {
+    // Text spelling a link's placeholder (U+0001, its number, U+0001) was that link's URL; 0.2.1 kept it.
+    expect(htmlToPlainText("<p>Name: \u00010\u0001</p><a href='https://e.test/reset?token=1'>Reset</a>")).toBe("Name: \u00010\u0001\nReset (https://e.test/reset?token=1)");
+    expect(htmlToPlainText("<p>\u00011\u0001 \u00000\u0000</p><pre>code</pre><a href='https://a.test'>b</a>")).toBe("\u00011\u0001 \u00000\u0000\ncode\nb (https://a.test)");
+  });
+
   it("skips elements with data-skip-in-text attribute", () => {
     const html = '<div data-skip-in-text="true">hidden preview</div><p>Visible content</p>';
     expect(htmlToPlainText(html)).toBe("Visible content");
@@ -217,6 +223,10 @@ describe("htmlToPlainText", () => {
       expect(htmlToPlainText('<div data-skip-in-text="true"><div>nested <div>deep</div></div> gone</div><p>kept</p>')).toBe("kept");
       // A class that only starts like it isn't it.
       expect(htmlToPlainText('<p class="footers">kept</p>', { skip: [".footer"] })).toBe("kept");
+      // A name as written, never a pattern: `(` threw, `a+` read any run of `a`s.
+      expect(htmlToPlainText("<a+>x</a+><p>y</p>", { skip: ["a+"] })).toBe("y");
+      expect(htmlToPlainText("<aa>x</aa><p>y</p>", { skip: ["a+"] })).toBe("xy");
+      expect(htmlToPlainText("<p>(</p>", { skip: ["(", "[x", "*"] })).toBe("(");
     });
   });
 

@@ -172,9 +172,9 @@ export class Bounded extends Lexer {
     this.reader = inline;
   }
 
-  /** The work it has left (below zero, spent). */
-  get left(): Work {
-    return { inline: this.reader.left, quotes: this.reader.quotesLeft };
+  /** The work it has left (below zero, spent), and its tables' cells. */
+  get left(): Work & { cells: number } {
+    return { inline: this.reader.left, quotes: this.reader.quotesLeft, cells: this.reader.cellsLeft };
   }
 
   blockTokens(src: string, tokens?: Token[], lastParagraphClipped?: boolean): Token[];

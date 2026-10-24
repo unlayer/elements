@@ -18,10 +18,10 @@ import type { UnlayerConfig } from "@unlayer-internal/shared-elements";
 import { UNLAYER_RENDER_KEY } from "./create-component";
 import { RECORDS } from "./collect";
 import { TAILWIND } from "./tailwind";
-import { callClass, callComponent, contextOf, hookState, passesThrough, renderFallbacks, ROOT_TREE, RenderError, type ContextStack, type Fallbacks, type TreeContext } from "../engine";
+import { callClass, callComponent, contextOf, hookState, passesThrough, renderFallbacks, ROOT_TREE, RenderError, sharing, type ContextStack, type Fallbacks, type Shared, type TreeContext } from "../engine";
 import { nameOf, threw } from "../engine/errors";
 import { isRoot } from "./root-type";
-import { guest, keepUnwrapped, sayOnce, unwrapped } from "./render-scope";
+import { guest, keepUnwrapped, sayOnce, sharedByRender, unwrapped } from "./render-scope";
 
 const CONTAINER_NAMES = new Set(["Row", "Column"]);
 export const MEMO = Symbol.for("react.memo");
@@ -121,12 +121,13 @@ function replayed(type: any, props: object, forked: boolean, output: React.React
  * `call()` (a wrapper's: see the engine's callComponent) again each time it suspends, once what it suspended on
  * settles (`use()` of a pending promise, or a thrown one: React 18's Suspense), as React calls it again: what it
  * returns. What it waits for is yielded: the async renderers wait for it, the synchronous ones throw. It runs outside
- * the render's scope, as the content's components do: a render it starts is its own.
+ * the render's scope, as the content's components do: a render it starts is its own; with what the render's
+ * components share (`shared`: its Markdown's and code's work), as they do.
  */
-function* waiting<T>(call: () => T): Generator<PromiseLike<unknown>, T, unknown> {
+function* waiting<T>(call: () => T, shared: Shared): Generator<PromiseLike<unknown>, T, unknown> {
   for (;;) {
     try {
-      return guest(call);
+      return guest(() => sharing(shared, call));
     } catch (thrown) {
       if (!isThenable(thrown)) throw thrown;
       try {
@@ -144,9 +145,9 @@ function* waiting<T>(call: () => T): Generator<PromiseLike<unknown>, T, unknown>
  * stops at an element that isn't a root when a wrapper doesn't return an element (null, an array), saying why in
  * `unread`, and what the template rendered in `rendered`. What a wrapper waits for (an async one's promise, `use()`, a
  * thrown promise) is yielded: the async renderers wait for it, the synchronous ones throw, naming the wrapper
- * (`waits.name`, set as each is called).
+ * (`waits.name`, set as each is called). `shared`: what the render's components share, its wrappers too (the render's).
  */
-function* steps(element: React.ReactElement, idPrefix?: string, waits: { name?: string } = {}): Steps {
+function* steps(element: React.ReactElement, shared: Shared, idPrefix?: string, waits: { name?: string } = {}): Steps {
   let current = element;
   let unread: string | undefined;
   // With no root, how what the template rendered is made again (`rendered`): each step's element, around what's
@@ -168,7 +169,7 @@ function* steps(element: React.ReactElement, idPrefix?: string, waits: { name?: 
     const prefix = idPrefix ?? provided?.idPrefix;
     const state = hookState(name, tree, contexts, typeof prefix === "string" ? prefix : "", fallbacks);
     waits.name = name;
-    const out = yield* waiting(() => callComponent(fn, props, second, state));
+    const out = yield* waiting(() => callComponent(fn, props, second, state), shared);
     tree = out.tree;
     if (!isThenable(out.value)) return out.value;
     try {
@@ -196,7 +197,7 @@ function* steps(element: React.ReactElement, idPrefix?: string, waits: { name?: 
     if (type?.$$typeof === LAZY) {
       waits.name = "lazy";
       try {
-        current = React.createElement((yield* waiting(() => type._init(type._payload))) as React.ElementType, props);
+        current = React.createElement((yield* waiting(() => type._init(type._payload), shared)) as React.ElementType, props);
       } catch (error) {
         throw new RenderError(threw(error), "lazy", "", error);
       }
@@ -249,7 +250,7 @@ function* steps(element: React.ReactElement, idPrefix?: string, waits: { name?: 
       // A class (react-intl's <IntlProvider>): constructed and rendered, inside the providers around it.
       const around = contexts;
       waits.name = nameOf(type);
-      produced = yield* waiting(() => callClass(type, props, around, fallbacks));
+      produced = yield* waiting(() => callClass(type, props, around, fallbacks), shared);
     } else break;
     again.push((inside) => replayed(type, props, tree !== at, inside));
     if (!React.isValidElement(produced)) {
@@ -277,7 +278,7 @@ export function unwrapRoot(element: React.ReactElement, api: string, idPrefix?: 
   const found = unwrapped();
   if (found && (element === found.root || element === found.rendered)) return found;
   const waits: { name?: string } = {};
-  const step = steps(element, idPrefix, waits).next();
+  const step = steps(element, sharedByRender(), idPrefix, waits).next();
   if (step.done) return keepUnwrapped(step.value);
   step.value.then(undefined, () => {});
   throw new RenderError(`${api}: ${ASYNC_TEMPLATE}`, waits.name ?? nameOf(element.type), "");

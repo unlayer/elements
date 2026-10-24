@@ -9,7 +9,7 @@ import { Tailwind, type Resolver, type TailwindConfig, type TailwindHandle } fro
 // runtime has no file to read it from.
 /*! Includes tailwindcss's default theme (MIT License, Copyright (c) Tailwind Labs, Inc.): see THIRD_PARTY_LICENSES.md */
 import theme from "tailwindcss/theme.css?raw";
-import { BEYOND, CHARACTERS, CLASS_LIMITS, beyond, capped, declarationReader, OVER, CLASSES, STUCK, WAITING, type ClassDeclarations, type Compiler, type DeclarationReader, type PluginFailure } from "./declarations";
+import { BEYOND, CHARACTERS, CLASS_LIMITS, FULL, beyond, capped, declarationReader, OVER, CLASSES, STUCK, WAITING, type ClassDeclarations, type Compiler, type DeclarationReader, type PluginFailure } from "./declarations";
 import { guarded } from "./guard";
 import { RenderError } from "@unlayer/react-elements";
 import { classesToProps } from "./props";
@@ -115,12 +115,14 @@ async function compiler(config: TailwindConfig | undefined): Promise<Compiler> {
 }
 
 /** Why a class isn't read that's no fault of its own, but Tailwind's compiling again (see declarationReader). */
-const stale = (reason: string) => reason === WAITING || reason.startsWith(STUCK);
+const stale = (reason: string) => reason === WAITING || reason === FULL || reason.startsWith(STUCK);
 
 /** A handle for `config`, compiled from `source` (a copy of it, or the config itself where it can't be copied). */
 async function compile(config: TailwindConfig | undefined, source = config): Promise<TailwindHandle> {
-  // (A fresh compiler past the classes one keeps: see declarationReader.)
-  const declarations = declarationReader(await compiler(source), () => compiler(source));
+  // (A fresh compiler past the classes one keeps, one of them compiled with it, so a synchronous loop of renders, which
+  // never lets one compile, has one ready: see declarationReader.)
+  const first = await compiler(source);
+  const declarations = declarationReader(first, () => compiler(source), CLASSES, await compiler(source));
   // What renders collected, prepared (once per render, whichever of its scopes asks: each gives the same list).
   const prepared = new WeakSet<object>();
   // Each render's classes, read together (see capped), by the render (the main entry's key for it); each call's where
@@ -158,7 +160,7 @@ async function compile(config: TailwindConfig | undefined, source = config): Pro
         if (typeof html === "string" && /class/i.test(html)) explicit = { ...explicit, [key]: inlineClasses(html, read, warn, rtl, explicit._sanitized ? unsafeStyle : undefined) };
       }
       const found = read(className);
-      if (missed) throw Object.assign(new RenderError(`<Tailwind> can't read the class \`${missed.className}\` now: ${missed.reason}. Render again then (the async renderers wait for it)`, name, ""), { [TAILWIND]: { compiling: true } });
+      if (missed) throw Object.assign(new RenderError(`<Tailwind> can't read the class \`${missed.className}\` now: ${missed.reason}${missed.reason === FULL ? "" : ". Render again then (the async renderers wait for it)"}`, name, ""), { [TAILWIND]: { compiling: true } });
       // Classes past the render's first CLASSES (CHARACTERS of them), and past CLASS_LIMITS: said once in the render, where
       // they're first met (the start of one past the limits).
       if (capped.first !== undefined && !capped.said && (capped.said = true)) warn(`ignores class \`${capped.first}\`, and the render's other classes past its first ${CLASSES} different ones or ${CHARACTERS} characters of them: a render reads that many at most`);

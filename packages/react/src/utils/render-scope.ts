@@ -10,6 +10,7 @@
  */
 import { escapeKeepingTags, type OnError, type RenderError } from "@unlayer-internal/shared-elements";
 import { omits, reportOmitted } from "../engine/errors";
+import type { Shared } from "../engine";
 import type { Unwrapped } from "./unwrap-root";
 
 export interface Scope {
@@ -137,8 +138,38 @@ export function withScope<T>(scope: Scope | undefined, run: () => T): T {
   }
 }
 
-/** Runs a render function's render in a scope of its own, whatever's rendering around it. */
-export const withOwnScope = <T>(render: () => T): T => withScope(newScope(), render);
+/** Runs a render function's render in a scope of its own, whatever's rendering around it; said what's left once it's done. */
+export function withOwnScope<T>(render: () => T): T {
+  const scope = newScope();
+  try {
+    return withScope(scope, render);
+  } finally {
+    renderDone(scope);
+  }
+}
+
+const SHARED = {};
+
+/**
+ * What the components of this render share, whatever part of the template they're in: the work left to its Markdown
+ * and code blocks, together (see the code entry's work.ts), so a template of many blocks takes what one block of their
+ * size would. The render's own (each render function's; an async render's walk and the synchronous render after it
+ * alike), given to each component and template wrapper it calls, while it calls it (see the engine's `sharing`): they
+ * run outside its scope.
+ */
+export const sharedByRender = (): Shared => scopeCache(SHARED, () => ({}));
+
+/** What a render's components leave to say once it's done, by what it is (said once, with what the whole render did). */
+const DONE = Symbol.for("@unlayer/react-elements/when-done");
+
+/** Says what a render's components left to say once it's done (see DONE): the render functions', as each ends. */
+export function renderDone(scope: Scope): void {
+  const shared = scope.cache.get(SHARED) as Shared | undefined;
+  const done = shared?.[DONE] as Map<string, () => void> | undefined;
+  if (!done) return;
+  delete shared![DONE];
+  for (const say of done.values()) say();
+}
 
 /**
  * Runs code of the user's own (a component, a template wrapper, a custom tool's exporter or head, an `onError`
