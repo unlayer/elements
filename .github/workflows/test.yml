@@ -58,8 +58,14 @@ jobs:
         run: pnpm --filter @unlayer/from-react-email typecheck && pnpm --filter @unlayer/migrate typecheck
 
       # ── Bundle size budget ──────────────────────────────────────
-      # Fail if the react-elements ESM bundle exceeds 206KB.
-      # Current size: about 205.7KB (0.1.22: about 76KB). Raised from 204.5KB
+      # Fail if the react-elements ESM bundle exceeds 207KB.
+      # Current size: about 207KB (0.1.22: about 76KB). Raised from 206KB
+      # (about 1KB): a Row's anchor, a Video's link and thumbnail and a
+      # Social icon's image are kept from adding markup, a Font's
+      # javascript: URL loads nothing, Tailwind classes in a Heading's or a
+      # Button's children and on a lone <Link> are inlined, a prop given as
+      # null is one not given, and a <script>'s or <style>'s text is left
+      # out of rich text children. Raised from 204.5KB
       # (about 1.3KB): the editor's exporters' own links (a Button's, an
       # Image's, a Menu's, a Social's) are given no URL that runs code, in
       # the HTML and the design, and a null Menu item or Social icon is
@@ -177,7 +183,7 @@ jobs:
         run: |
           BUNDLE="packages/react/dist/index.js"
           SIZE=$(wc -c < "$BUNDLE" | tr -d ' ')
-          MAX_SIZE=206000
+          MAX_SIZE=207000
           echo "Bundle: $BUNDLE"
           echo "Size: $SIZE bytes (budget: $MAX_SIZE bytes)"
           if [ "$SIZE" -gt "$MAX_SIZE" ]; then

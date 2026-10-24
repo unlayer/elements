@@ -192,6 +192,36 @@ describe("rich text children of Paragraph, Heading and Button", () => {
     expect(text).toContain('<span><a>a</a> <a>b</a> <a>c</a> <a>d</a> <a>e</a> <a>f</a> <a>g</a> <a>h</a> <span>i</span></span> <a href="&amp;#106;avascript:x">kept</a>');
   });
 
+  it("leave out a <script>'s or <style>'s text in them, which React 19 writes as it is (markup in it isn't theirs), on React 18 and 19", () => {
+    const evil = "<a href='https://evil.test'>click</a> <b>bold</b>";
+    const content = (Block: typeof Paragraph | typeof Heading) => (
+      <Block>
+        Hi <style>{evil}</style> <script>{evil}</script> there
+      </Block>
+    );
+    for (const Root of [Email, Page, Document]) {
+      const template = (
+        <Root>
+          <Row>
+            <Column>
+              {content(Paragraph)}
+              {content(Heading)}
+              <Button href="https://e.test">
+                Go <style>{evil}</style>
+              </Button>
+            </Column>
+          </Row>
+        </Root>
+      );
+      const html = renderToHtml(template);
+      const texts = renderToJson(template).body.rows[0].columns[0].contents.map((c: any) => String(c.values.text ?? JSON.stringify(c.values.textJson)));
+      for (const markup of [html, ...texts]) {
+        expect(markup).not.toMatch(/evil\.test|<b>bold|>click<|&lt;a href/);
+      }
+      expect(texts[1]).toMatch(/^Hi\s+there$/);
+    }
+  });
+
   it("leave text given as strings exactly as before", () => {
     const strings = <Email><Row><Column><Paragraph>Hi {name}</Paragraph><Heading>{"A <b>b</b>"}</Heading><Button href="#">{["Go", " now"]}</Button></Column></Row></Email>;
     const [paragraph, heading, button] = renderToJson(strings).body.rows[0].columns[0].contents as Array<{ values: { text: string } }>;

@@ -2,6 +2,7 @@ import React from "react";
 import { afterEach, beforeEach, describe, expect, it, vi, type MockInstance } from "vitest";
 import { Button, Column, Email, Heading, Page, Paragraph, Row, renderToHtml, renderToJson, renderToPlainText } from "../index";
 import { CodeBlock, CodeInline, codeInline, codeThemes, highlightCode, listLanguages, registerLanguage } from "./index";
+import { escapeHtml } from "./highlight";
 
 let warn: MockInstance;
 beforeEach(() => {
@@ -84,6 +85,37 @@ describe("CodeBlock", () => {
     registerLanguage("brainfudge", () => ({ name: "brainfudge", contains: [{ scope: "keyword", match: /\+/ }] }));
     expect(listLanguages()).toContain("brainfudge");
     expect(highlightCode("+", { language: "brainfudge" })).toContain('<span style="color: #b0326f">+</span>');
+  });
+
+  it("highlights up to 8,192 characters at once: on some code highlight.js's time grows with its size squared, so a longer block is shown without colors, and said", () => {
+    // 40 KB took 4.4 s in INI and 2.2 s in Markdown; a line of `$a` in Java 6 s for 32 KB; C# on short lines too.
+    const fill = (unit: string, n: number) => unit.repeat(Math.ceil(n / unit.length)).slice(0, n);
+    const shapes: [string, string][] = [["ini", ".e1"], ["toml", ".e1"], ["markdown", "["], ["java", "$a"], ["csharp", "a a\n"], ["shell", "${"]];
+    for (const [language, unit] of shapes) {
+      const code = fill(unit, 40960).trim();
+      const start = performance.now();
+      const html = highlightCode(code, { language });
+      expect([language, performance.now() - start < 1000, html.includes(`${escapeHtml(code)}</code>`), html.includes("<span style=")]).toEqual([language, true, true, false]);
+    }
+    expect(warn.mock.calls[0][0]).toBe("[Unlayer] CodeBlock: its code is 40960 characters, more than the 8192 highlight.js is given at once (on some code its time grows with the code's size squared), so it's shown without colors.");
+    // In the block's own style.
+    const block = renderToHtml(email(<CodeBlock language="ini" theme="dark" code={fill(".e1", 40960)} />));
+    expect(block).toContain('bgcolor="#1b1f2a"');
+    expect(block).toMatch(/<pre style="[^"]*font-family: ui-monospace,[^"]*"><code[^>]*>\.e1\.e1/);
+    // Up to it, highlighted (the slowest grammar's worst, 0.4 s).
+    expect(highlightCode(fill("a = 1\n", 8192), { language: "ini" })).toContain('<span style="color: #b4530a">1</span>');
+  });
+
+  it("writes a token nested deep in others (`${` over and over, in shell) with a style about as long as its theme's", () => {
+    // Each token's style was its parents' written out, so the HTML grew with the code's size squared: 16 KB of `${`
+    // was more HTML than a string can hold.
+    const start = performance.now();
+    const html = highlightCode("${".repeat(4096), { language: "shell" });
+    expect(performance.now() - start).toBeLessThan(1000);
+    expect(html.length).toBeLessThan(4 * 1024 * 1024);
+    expect(html).toContain('<span style="color: #8a5a00">${</span>');
+    // Nested as code is: the parent's declarations, then the token's own, as written.
+    expect(highlightCode("console.log(`at ${line}`)", { language: "js", theme: "github-light" })).toContain('<span style="color: #032f62; color: #24292e">${line}</span>');
   });
 
   it("says a bounded number of languages it has no grammar for (a fence's label is whoever writes the Markdown's)", () => {

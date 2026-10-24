@@ -166,21 +166,25 @@ describe("a `javascript:` URL", () => {
   // a list (written as its text), and given in a link's attributes.
   const URLS: unknown[] = ["javascript:globalThis.__probe=1", " \u0001JavaScript:globalThis.__probe=1", "java\tscr\nipt:globalThis.__probe=1", ["javascript:globalThis.__probe=1"]];
 
-  /** The page's first link, clicked: its href, and whether the URL ran. */
-  async function click(html: string): Promise<{ href: string | null; ran: boolean }> {
+  /**
+   * The page's first link, clicked: its href, and whether the URL ran. JSDOM runs it a task later, later still on a
+   * busy machine: `until`, it's waited for (2 s at most), where it should run.
+   */
+  async function click(html: string, until = false): Promise<{ href: string | null; ran: boolean }> {
     const dom = new JSDOM(html, { url: "https://example.test/", runScripts: "dangerously", virtualConsole: new VirtualConsole() });
     try {
       const link = dom.window.document.querySelector("a")!;
+      const ran = () => (dom.window as unknown as { __probe?: number }).__probe === 1;
       link.click();
-      await new Promise((resolve) => setTimeout(resolve, 15));
-      return { href: link.getAttribute("href"), ran: (dom.window as unknown as { __probe?: number }).__probe === 1 };
+      for (let waits = 0; waits < (until ? 400 : 3) && !ran(); waits++) await new Promise((resolve) => setTimeout(resolve, 5));
+      return { href: link.getAttribute("href"), ran: ran() };
     } finally {
       dom.window.close();
     }
   }
 
   it("runs when a link holds one (the check below can see one run)", async () => {
-    expect(await click('<a href="javascript:globalThis.__probe=1" target="_self">Go</a>')).toEqual({ href: "javascript:globalThis.__probe=1", ran: true });
+    expect(await click('<a href="javascript:globalThis.__probe=1" target="_self">Go</a>', true)).toEqual({ href: "javascript:globalThis.__probe=1", ran: true });
   });
 
   it.each([

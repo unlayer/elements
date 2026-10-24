@@ -220,6 +220,8 @@ import { …, Image, type ImageProps } from "@unlayer/react-elements";
 />
 ```
 
+An object or a list nested more than 16 deep in a value (no design the builder saves holds one nearly that deep) is written as its JSON, `JSON.parse('{"a":…}')`, which gives it back the same: written out, its indentation made the code grow with its depth squared. The code is written in time linear in the design's size: a 200×200 table in about 0.1 s.
+
 ## What becomes `<Html>` or a TODO
 
 Blocks Elements has no component for (custom tools, forms, timers, carousels) are kept as `<Html>` blocks with their HTML when you pass the design's exported HTML (`html` option): each block's HTML is found by its id in it. They then open in the editor as HTML blocks, not as the tool they were. Without exported HTML, each is a `{/* TODO … */}` comment where it was, and a warning.

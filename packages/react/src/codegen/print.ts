@@ -106,7 +106,32 @@ function fits(next: Command, rest: Command[], width: number): boolean {
   return false;
 }
 
+/** `text` without the spaces and tabs it ends in (looked for from its end: a regex tries again from each space). */
+function trimEnd(text: string): string {
+  let end = text.length;
+  while (end && (text[end - 1] === " " || text[end - 1] === "\t")) end--;
+  return end === text.length ? text : text.slice(0, end);
+}
+
+const LINE_BREAK = /[\n\r\u2028\u2029]/;
+
+/** `text` without the spaces and tabs before each of its line breaks and at its end. */
+function trimLines(text: string): string {
+  if (!LINE_BREAK.test(text)) return trimEnd(text);
+  let trimmed = "";
+  let start = 0;
+  for (let i = 0; i < text.length; i++) {
+    if (!LINE_BREAK.test(text[i])) continue;
+    trimmed += trimEnd(text.slice(start, i)) + text[i];
+    start = i + 1;
+  }
+  return trimmed + trimEnd(text.slice(start));
+}
+
 function render(doc: Doc, width = 80): string {
+  // The lines written, and the one being written: their trailing spaces taken off once, at the end (taking them off
+  // the whole text at each line break took time growing with the code's size squared, and more).
+  const lines: string[] = [];
   let out = "";
   let column = 0;
   const cmds: Command[] = [[0, "break", doc]];
@@ -137,11 +162,13 @@ function render(doc: Doc, width = 80): string {
         column += 1;
       }
     } else {
-      out = out.replace(/[ \t]+$/, "") + "\n" + " ".repeat(ind);
+      lines.push(out);
+      out = " ".repeat(ind);
       column = ind;
     }
   }
-  return out.replace(/[ \t]+$/gm, "");
+  lines.push(out);
+  return lines.map(trimLines).join("\n");
 }
 
 // ── Values ──────────────────────────────────────────────────────────────────────────────────────────────────────
@@ -158,7 +185,31 @@ const ESCAPES: Record<string, string> = { "\\": "\\\\", "\n": "\\n", "\r": "\\r"
 
 const propertyKey = (key: string) => (isIdentifier(key) ? key : /^(0|[1-9]\d*)$/.test(key) ? key : stringLiteral(key));
 
-function valueDoc(value: unknown): Doc {
+/**
+ * How deep objects and lists in one another are written out. Deeper (a design's values hold nothing nearly as deep),
+ * one is written as its JSON (`JSON.parse('{"a":…}')`), which gives it back the same, where it's only JSON's values:
+ * written out, each level's indentation made the code grow with the depth squared (a value 400 deep was 338 KB).
+ */
+const DEEP = 16;
+
+/** Whether `value` is only what JSON writes as it is (so `JSON.parse(JSON.stringify(value))` is the same): worked out once for each object. */
+function isJson(value: unknown, known = new WeakMap<object, boolean>()): boolean {
+  if (value === null || typeof value === "string" || typeof value === "boolean" || typeof value === "number") return true;
+  if (typeof value !== "object" || isCode(value) || isCast(value) || !(Array.isArray(value) || isPlainObject(value))) return false;
+  let json = known.get(value);
+  if (json === undefined) {
+    json = Array.isArray(value) ? value.every((item) => item !== undefined && isJson(item, known)) : Object.values(value).every((item) => item === undefined || isJson(item, known));
+    known.set(value, json);
+  }
+  return json;
+}
+/** What isJson found, for the module being printed. */
+let JSONS = new WeakMap<object, boolean>();
+
+/** A value too deep to write out, as its JSON (as prettier writes the call: its string on a line of its own where it doesn't fit). */
+const jsonDoc = (value: unknown): Doc => group(["JSON.parse(", indent([softline, stringLiteral(JSON.stringify(value))]), ifBreak(","), softline, ")"]);
+
+function valueDoc(value: unknown, depth = 0): Doc {
   if (isCode(value)) return value.code;
   // (`as unknown` first: a value that isn't comparable to the type compiles too.)
   if (isCast(value)) return [valueDoc(value.value), " as unknown as ", value.type];
@@ -170,17 +221,19 @@ function valueDoc(value: unknown): Doc {
   if (Array.isArray(value)) {
     if (!value.length) return "[]";
     // A list of objects, or of lists, each with more than one item, is one per line (as prettier writes it).
+    if (depth >= DEEP && isJson(value, JSONS)) return jsonDoc(value);
     const items = value as unknown[];
     const rows = items.length > 1 && (items.every((item) => isPlainObject(item) && Object.keys(item).length > 1) || items.every((item) => Array.isArray(item) && item.length > 1));
-    return group(["[", indent([softline, join([",", line], items.map(valueDoc))]), ifBreak(","), softline, "]"], rows);
+    return group(["[", indent([softline, join([",", line], items.map((item) => valueDoc(item, depth + 1)))]), ifBreak(","), softline, "]"], rows);
   }
   if (isPlainObject(value)) {
     const entries = Object.entries(value).filter(([, item]) => item !== undefined);
     if (!entries.length) return "{}";
+    if (depth >= DEEP && isJson(value, JSONS)) return jsonDoc(value);
     // A string that doesn't fit beside its key goes on the next line, unless the key is short (prettier's rule).
     const property = ([key, item]: [string, unknown]): Doc => {
       const name = propertyKey(key);
-      return typeof item === "string" && name.length >= 5 ? group([name, ":", indent([line, valueDoc(item)])]) : [name, ": ", valueDoc(item)];
+      return typeof item === "string" && name.length >= 5 ? group([name, ":", indent([line, valueDoc(item, depth + 1)])]) : [name, ": ", valueDoc(item, depth + 1)];
     };
     return group(["{", indent([line, join([",", line], entries.map(property))]), ifBreak(","), line, "}"]);
   }
@@ -235,6 +288,7 @@ export interface ModuleSource {
 
 /** The module: imports and `export default function Name() { return (…); }`. */
 export function printModule({ imports, componentName, root }: ModuleSource): string {
+  JSONS = new WeakMap();
   const importDocs: Doc[] = imports.map(({ from, names }) => group(["import {", indent([line, join([",", line], names)]), ifBreak(","), line, "} from ", stringLiteral(from), ";"]));
   const returned = group(["return ", ifBreak("("), indent([softline, elementDoc(root)]), softline, ifBreak(")"), ";"]);
   const body: Doc = ["export default function ", componentName, "() {", indent([hardline, returned]), hardline, "}"];
