@@ -61,6 +61,14 @@ export function registerLanguage(name: string, language: LanguageFn): void {
   highlighter().registerLanguage(name, language as HighlightLanguage);
 }
 
+/**
+ * Whether code in `language` is highlighted (highlight.js has a grammar for it, or an alias of one), for the Markdown
+ * entry, which charges only that code to a render's work: on highlightCode, by a symbol, as it's no export of the code
+ * entry's (an older copy's has none).
+ */
+export const HAS_GRAMMAR = Symbol.for("@unlayer/react-elements/has-grammar");
+const hasGrammar = (language: string): boolean => !!highlighter().getLanguage(language);
+
 /** The languages (and their aliases' targets) code can be highlighted in. */
 export const listLanguages = (): string[] => highlighter().listLanguages();
 
@@ -229,3 +237,4 @@ export function highlightCode(code: string, options: HighlightOptions = {}): str
   } else inner = `<pre style="${attribute(pre)}"><code style="${font}">${lines.join("\n")}</code></pre>`;
   return `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="${attribute(theme.background)}" style="${box}"><tr><td style="padding: ${padding}">${inner}</td></tr></table>`;
 }
+Object.defineProperty(highlightCode, HAS_GRAMMAR, { value: hasGrammar });

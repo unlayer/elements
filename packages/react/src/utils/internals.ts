@@ -11,12 +11,11 @@ import type { UnlayerConfig } from "@unlayer-internal/shared-elements";
 import { collectedFrom, collecting, type Collected } from "../model";
 import { isElementsType, providedConfig, sayUnread, unwrapSteps, type Steps, type Unwrapped } from "./unwrap-root";
 import { isRoot, rootName, ROOTLESS } from "./root-type";
-import { newScope, renderDone, setRenderConfig, sharedByRender, withScope, type Scope } from "./render-scope";
+import { newScope, part, renderDone, setRenderConfig, sharedByRender, withScope, type Scope } from "./render-scope";
 import { rootConfig, type RootConfigProps } from "../context/layer-config";
 import { htmlDocument, htmlParts, plainText } from "./render-to-html";
 import { designJson } from "./render-to-json";
 import { errorPart, flatten, PENDING, renderShared, renderStatic, track, walkAsync, type CollectOptions, type Flat } from "../engine";
-import { boundary } from "../engine/records";
 
 export const INTERNALS = Symbol.for("@unlayer/react-elements/internals");
 
@@ -62,10 +61,5 @@ export type Engine = typeof engine;
 const renders = { html: htmlDocument, parts: htmlParts, text: plainText, json: designJson };
 export type Renders = typeof renders;
 
-/**
- * `child` as a part of the template that's left out alone when it fails (`onError: "omit"`), as each component in a
- * Column is: what a component renders isn't (it fails with the component), but for this (Markdown's table that's too large).
- */
-const part = (child: React.ReactElement): React.ReactElement => boundary({ kind: "boundary", element: child }, child);
 
 export const internals = { newScope, withScope, unwrapAsync, collectAsync, isRoot, render: renderStatic, engine, renders, part, shared: renderShared, done: renderDone };

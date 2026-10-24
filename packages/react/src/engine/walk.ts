@@ -113,22 +113,38 @@ let calling: { tree: TreeContext; contexts: ContextStack | null; fallbacks: Fall
 export const caller = () => calling;
 
 /**
- * What the code running now shares with the rest of its render (see Shared): a component's while the walker calls it,
- * a template wrapper's while its render calls it (see `sharing`), each render's own (one a component starts has its
- * own). None outside such a call: an async component's code after an `await` runs when no call is, and can't be told
- * from another render's.
+ * What the code running now shares with the rest of its render (see Shared): while a render runs (see the main entry's
+ * withScope), a component the walker calls, a template wrapper its render calls (see `sharing`), each render's own
+ * (one a component starts has its own). None outside a render's synchronous run: an async component's code after an
+ * `await` runs when none is, and can't be told from another render's.
+ *
+ * It's kept in one slot on globalThis (by Symbol.for), for every copy of Elements in the process (a package's ESM and
+ * CommonJS builds, a package still on another version), so a copy's Markdown and code entries read the render another
+ * copy runs (ARCHITECTURE.md, invariant 9). `version` is the shape of what the slot and the work in it hold: a copy
+ * that finds another version's keeps a slot of its own (its renders' blocks then share with each other, and another
+ * version's blocks have their own work, as each block once did). Bump SLOT_VERSION when what's kept in it changes.
  */
-let shared: Shared | undefined;
-export const sharedNow = () => shared;
+const SLOT = Symbol.for("@unlayer/react-elements/render-work");
+const SLOT_VERSION = 1;
+type Slot = { version: number; shared: Shared | undefined };
+const slot: Slot = (() => {
+  const global = globalThis as Record<symbol, Slot | undefined>;
+  const found = global[SLOT];
+  if (found?.version === SLOT_VERSION) return found;
+  const own: Slot = { version: SLOT_VERSION, shared: undefined };
+  if (!found) global[SLOT] = own;
+  return own;
+})();
+export const sharedNow = (): Shared | undefined => slot.shared;
 
-/** `fn`, called with what `share` is shared with (see `shared`). */
+/** `fn`, called with what `share` is shared with (see `slot`). */
 export function sharing<T>(share: Shared | undefined, fn: () => T): T {
-  const outer = shared;
-  shared = share;
+  const outer = slot.shared;
+  slot.shared = share;
   try {
     return fn();
   } finally {
-    shared = outer;
+    slot.shared = outer;
   }
 }
 

@@ -8,9 +8,11 @@
  * render of its own. The scope is the module's while a render runs synchronously: never kept across an `await`
  * (async code passes it on itself, as collectAsync does), so renders at once never see each other's.
  */
+import type React from "react";
 import { escapeKeepingTags, type OnError, type RenderError } from "@unlayer-internal/shared-elements";
 import { omits, reportOmitted } from "../engine/errors";
-import type { Shared } from "../engine";
+import { sharing, type Shared } from "../engine";
+import { boundary } from "../engine/records";
 import type { Unwrapped } from "./unwrap-root";
 
 export interface Scope {
@@ -127,12 +129,16 @@ export function keepUnwrapped(found: Unwrapped): Unwrapped {
   return found;
 }
 
-/** Runs `run` in `scope` (a render function's own; an async renderer collects a template in it first, then renders in it). */
+/**
+ * Runs `run` in `scope` (a render function's own; an async renderer collects a template in it first, then renders in
+ * it), with what its components share (see sharedByRender) for all of it: the user's code it runs (a Consumer's render
+ * prop, a custom tool's exporter, outside its scope: see `guest`) shares it too, and a render that code starts has its own.
+ */
 export function withScope<T>(scope: Scope | undefined, run: () => T): T {
   const outer = scoped;
   scoped = scope;
   try {
-    return run();
+    return scope ? sharing(sharedOf(scope), run) : run();
   } finally {
     scoped = outer;
   }
@@ -157,7 +163,23 @@ const SHARED = {};
  * alike), given to each component and template wrapper it calls, while it calls it (see the engine's `sharing`): they
  * run outside its scope.
  */
-export const sharedByRender = (): Shared => scopeCache(SHARED, () => ({}));
+export const sharedByRender = (): Shared => (scoped ? sharedOf(scoped) : {});
+
+/** `scope`'s (see sharedByRender), with how the copy of Elements that renders makes a part of its own (see `part`). */
+function sharedOf(scope: Scope): Shared {
+  let shared = scope.cache.get(SHARED) as Shared | undefined;
+  if (!shared) scope.cache.set(SHARED, (shared = { [PART]: part }));
+  return shared;
+}
+
+/**
+ * `child` as a part of the template that's left out alone when it fails (`onError: "omit"`), as each component in a
+ * Column is: what a component renders isn't (it fails with the component), but for this (Markdown's table that's too
+ * large). A node of the walker's own: the render's (under PART, in what it shares) is the one its walker reads, where
+ * the Markdown entry is another copy's (a package's CommonJS build, rendered by its ESM one).
+ */
+export const part = (child: React.ReactElement): React.ReactElement => boundary({ kind: "boundary", element: child }, child);
+const PART = Symbol.for("@unlayer/react-elements/part");
 
 /** What a render's components leave to say once it's done, by what it is (said once, with what the whole render did). */
 const DONE = Symbol.for("@unlayer/react-elements/when-done");
@@ -189,17 +211,11 @@ export function withRenderScope<T>(render: () => T): T {
 /**
  * Text placed straight in a Row or Column, as HTML: escaped, as React shows
  * text (raw HTML goes in an Html block). The editor has no place for it, so
- * the warning says where it belongs.
+ * the warning says where it belongs: once in a render for each container.
  */
-const warnedLoose = new Set<string>();
-
 export function looseText(child: string | number, container: string): string {
   const text = String(child);
-  // Said once per container, not on every render.
-  if (text.trim() && !warnedLoose.has(container)) {
-    warnedLoose.add(container);
-    console.warn(`${container}: text placed straight in a ${container} shows as text and isn't kept in the editor's design. Put it in a <Paragraph>, or HTML in an <Html> block.`);
-  }
+  if (text.trim()) sayOnce(`[Unlayer] ${container}: text placed straight in a ${container} shows as text and isn't kept in the editor's design. Put it in a <Paragraph>, or HTML in an <Html> block.`);
   // An email service's `<%name%>` tag stays as written, as in other text.
   return escapeKeepingTags(text, true);
 }

@@ -8,6 +8,7 @@
  */
 
 import { removeBetween, replaceAltImages, replaceElements, replaceLinks, replaceTags, untagged, withoutElements } from "./html-scan";
+import { TextMarks } from "./text-marks";
 
 /**
  * Common HTML named entity map for decoding.
@@ -54,17 +55,17 @@ function trimLineEnds(text: string): string {
 /**
  * Decode HTML entities (named and numeric).
  */
-function decodeEntities(text: string): string {
+function decode(text: string, marks: TextMarks): string {
   // Named entities
   let result = text.replace(/&\w+;/g, (match) => HTML_ENTITIES[match] ?? match);
 
-  // Numeric entities: &#123; and &#x1A;
-  result = result.replace(/&#(\d+);/g, (_, code) =>
-    String.fromCharCode(parseInt(code, 10))
-  );
-  result = result.replace(/&#x([0-9a-fA-F]+);/g, (_, code) =>
-    String.fromCharCode(parseInt(code, 16))
-  );
+  // Numeric entities: &#123; and &#x1A; (U+0000 and U+0001 as what stands for them: see text-marks.ts)
+  const char = (code: number) => {
+    const decoded = String.fromCharCode(code);
+    return decoded === "\0" || decoded === "\u0001" ? marks.standIn(decoded) : decoded;
+  };
+  result = result.replace(/&#(\d+);/g, (_, code) => char(parseInt(code, 10)));
+  result = result.replace(/&#x([0-9a-fA-F]+);/g, (_, code) => char(parseInt(code, 16)));
 
   return result;
 }
@@ -85,32 +86,17 @@ function decodeEntities(text: string): string {
  */
 export function htmlToPlainText(html: string, options: PlainTextOptions = {}): string {
   if (!html) return "";
-  // The placeholders below are U+0000 and U+0001 around a number: the HTML's own, as characters it doesn't hold, so
-  // text that spells one (`\u00010\u0001` beside a button) stays as written, not a link's URL.
-  const own = ownMarks(html);
-  return own.back(plainText(own.html, options));
+  // Its own U+0000 and U+0001 (what the placeholders are made of) kept out of their way: see text-marks.ts.
+  const marks = new TextMarks(html);
+  return marks.output(plainText(marks.input(), options, marks));
 }
 
-/**
- * `html` with its own U+0000 and U+0001 (what htmlToPlainText's placeholders are made of) as two private-use
- * characters it holds none of, and how to put them back; where it holds all of those, without them.
- */
-function ownMarks(html: string): { html: string; back: (text: string) => string } {
-  if (!/[\0\u0001]/.test(html)) return { html, back: (text) => text };
-  const held = new Set<number>();
-  for (let i = 0; i < html.length; i++) {
-    const code = html.charCodeAt(i);
-    if (code >= 0xe000 && code <= 0xf8ff) held.add(code);
-  }
-  const free: string[] = [];
-  for (let code = 0xe000; code <= 0xf8ff && free.length < 2; code++) if (!held.has(code)) free.push(String.fromCharCode(code));
-  if (free.length < 2) return { html: html.replace(/[\0\u0001]/g, ""), back: (text) => text };
-  const [nul, one] = free;
-  return { html: html.replace(/\0/g, nul).replace(/\u0001/g, one), back: (text) => text.split(nul).join("\0").split(one).join("\u0001") };
-}
+/** A `javascript:` URL, as a browser reads one (spaces and control characters before it, any case). */
+const BLOCKED = /^[\s\0-\x1f]*j\s*a\s*v\s*a\s*s\s*c\s*r\s*i\s*p\s*t\s*:/i;
 
-/** htmlToPlainText's text, of HTML that holds neither U+0000 nor U+0001 (see ownMarks). */
-function plainText(html: string, options: PlainTextOptions): string {
+/** htmlToPlainText's text, of HTML that holds neither U+0000 nor U+0001, nor decodes to them (see `marks`). */
+function plainText(html: string, options: PlainTextOptions, marks: TextMarks): string {
+  const decodeEntities = (text: string) => decode(text, marks);
   let text = html;
   const { links = "inline", uppercaseHeadings = true, skip = [], wordwrap } = options;
 
@@ -140,6 +126,9 @@ function plainText(html: string, options: PlainTextOptions): string {
     const href = quoted.find(Boolean);
     if (!href) return link;
     const clean = untagged(content).trim();
+    // A URL React blocks (`javascript:`, from data: written as React's `javascript:throw new Error(…)`) isn't one to
+    // show: the link's text, as a link without a URL is.
+    if (BLOCKED.test(decodeEntities(href))) return clean;
     // Skip if link text is the same as URL (avoid duplication)
     if (clean === href || clean === decodeEntities(href)) return url(href);
     return links === "none" ? clean : links === "after" ? `${clean} [${listed.push(href)}]` : `${clean} (${url(href)})`;
