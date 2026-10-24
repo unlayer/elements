@@ -8,6 +8,7 @@ import { Lexer } from "marked";
 import { Bounded } from "./inline";
 import { TABLE_CELLS } from "./limits";
 import { CodeBlock, highlightCode } from "../code";
+import { growth } from "../test-timing";
 
 let warn: MockInstance;
 beforeEach(() => {
@@ -352,7 +353,7 @@ describe("Markdown from data: no more than its size calls for", () => {
     expect(new Bounded({ breaks: false, cells: 1e6, size: markdown.length }).lex(markdown)).toEqual(new Lexer({ gfm: true }).lex(markdown));
   });
 
-  it("costs about ten times as much for ten times as much of any short shape of blocks and inline syntax (random, seeded)", () => {
+  it("costs about ten times as much for ten times as much of any short shape of blocks and inline syntax (random, seeded)", async () => {
     // What each round of review found one shape of at a time: rules that read the rest of the text from each place.
     const pieces = [">", "> ", "- ", "--", "-", "* ", "+ ", "1. ", "1)", "# ", "=", "|", "|-|", ":-", "`", "```", "~~~", "~~", "_", "**", "[", "]", "(", ")", "![", "]:", "<", "<a>", "<div>", "<!--", "<?", "&", "\\", "a", "b", " ", "  ", "    ", "\t", "[ ]", "http://", "www.", "@", '"', "\\[", "[a]: b"];
     let seed = 7;
@@ -373,9 +374,9 @@ describe("Markdown from data: no more than its size calls for", () => {
       }
       unit ||= "a";
       const breaks = random(4) === 0;
-      const small = Math.max(time(fill(unit, 10240), breaks), 2);
-      const large = time(fill(unit, 102400), breaks);
-      if (large > 20 * small && large > 100) slow.push(`${JSON.stringify(unit)}: ${small.toFixed(1)} ms for 10 KB, ${large.toFixed(1)} ms for 100 KB`);
+      // (The seeded shapes stay the same: timing one again draws nothing.)
+      const { small, large, grows } = await growth((bytes) => time(fill(unit, bytes), breaks), [10240, 102400], { ratio: 20, floor: 100 });
+      if (grows) slow.push(`${JSON.stringify(unit)}: ${small.toFixed(1)} ms for 10 KB, ${large.toFixed(1)} ms for 100 KB`);
     }
     expect(slow).toEqual([]);
   }, 120_000);
@@ -407,14 +408,22 @@ describe("Markdown from data: no more than its size calls for", () => {
     const fill = (unit: string, bytes: number) => unit.repeat(Math.ceil(bytes / unit.length)).slice(0, bytes);
     const shapes: [string, number][] = [">- a\nb\n", "> - a\nb\n", "> 1) a\nb\n", ">>- a\nb\n", ">- >- a\nb\n", "> - a\n>   - b\nc\n", "> - [ ] a\nb\n", ">a\nb\n", "> a\nb\n", "> a\n=\n", "> | a |\n|-|\nb\n"].map((unit) => [unit, 102400]);
     shapes.push(["> ```\na\n", 51200]);
-    for (const [unit, bytes] of shapes) {
+    // Each against a quarter of it, timed on the same machine, however fast: four times the size costs about four times
+    // as much, where marked's reading cost sixteen (`>- a\nb\n`: 0.45 s for 25 KB, 7.4 s for 100 KB).
+    const timed = async (render: () => unknown) => {
       const start = performance.now();
-      const html = renderToHtml(email({ markdown: fill(unit, bytes), html: "escape" }), { onError: "omit" });
-      expect([unit, html.length > 100000, performance.now() - start < 3000]).toEqual([unit, true, true]);
+      await render();
+      return performance.now() - start;
+    };
+    for (const [unit, bytes] of shapes) {
+      // (The last timed is the whole size: its HTML.)
+      let html = "";
+      const { small, large, grows } = await growth((size) => timed(() => (html = renderToHtml(email({ markdown: fill(unit, size), html: "escape" }), { onError: "omit" }))), [bytes / 4, bytes], { ratio: 8, floor: 100 });
+      expect([unit, html.length > 100000, grows ? `${small.toFixed(0)} ms for a quarter, ${large.toFixed(0)} ms` : "linear"]).toEqual([unit, true, "linear"]);
     }
-    const start = performance.now();
-    await asyncRenderers.renderToHtml(email({ markdown: fill(">- a\nb\n", 102400), html: "escape" }), { onError: "omit" });
-    expect(performance.now() - start).toBeLessThan(3000);
+    // The async renderers too.
+    const { small, large, grows } = await growth((size) => timed(() => asyncRenderers.renderToHtml(email({ markdown: fill(">- a\nb\n", size), html: "escape" }), { onError: "omit" })), [25600, 102400], { ratio: 8, floor: 100 });
+    expect(grows ? `${small.toFixed(0)} ms for a quarter, ${large.toFixed(0)} ms` : "linear").toBe("linear");
   }, 180_000);
 
   it("past the work its quotes can take, ends each quote at its first line without a `>`, leaving nothing out", () => {
