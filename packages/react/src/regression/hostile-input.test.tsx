@@ -20,6 +20,7 @@ import { evaluate } from "../codegen/test-harness";
 import { Tailwind, loadTailwind, type TailwindHandle } from "../tailwind";
 import { CLASS_LIMITS } from "../tailwind/declarations";
 import { Markdown } from "../markdown";
+import { growth } from "../test-timing";
 
 const PAYLOADS = [
   '"><x-pwn></x-pwn>', "'><x-pwn></x-pwn>", '" x-pwn="1', "' x-pwn='1", "</p></div></td></tr></table><x-pwn></x-pwn>",
@@ -477,6 +478,15 @@ describe("a Tailwind class from data", () => {
     }
   };
 
+  /**
+   * Whether Tailwind's own compiler reads a class of this shape in time growing with its size squared: a variant with
+   * an arbitrary value (`min-[…]:`, `max-[…]:`) holding `-`s. Tailwind looks a variant up by each prefix of it up to a
+   * `-` (`variants.has`), each a new string as long as that prefix: 20 KB of `var(--x)` in `min-[…]` took 45 ms, 2 KB
+   * 1.8 ms. A class from data is read with CLASS_LIMITS.characters at most (512), where it's about a short class's
+   * cost (see the test after the one that leaves them out).
+   */
+  const TAILWIND_SQUARED = (head: string, unit: string) => /^(min|max)-\[/.test(head) && unit.includes("-");
+
   it("costs about ten times as much for ten times as long a class of any short shape, arbitrary variants and values too (random, seeded; Tailwind given classes of any length)", () => unlimited(async () => {
     const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
     // A class: what starts it (a utility taking a value, an arbitrary property, value or variant: `[@media(…)]:`,
@@ -498,23 +508,50 @@ describe("a Tailwind class from data", () => {
     const slow: string[] = [];
     try {
       for (const [run, [head, unit, tail]] of shapes.entries()) {
-        // (A fresh handle for each: one compiles each new class with the ones it had, which grow.)
+        // Not a variant with a value whose `-`s Tailwind reads in time growing with the class's size squared (see
+        // TAILWIND_SQUARED): a class is read with CLASS_LIMITS.characters at most, which bounds it.
+        if (TAILWIND_SQUARED(head, unit)) continue;
+        // (A fresh handle for each: one compiles each new class with the ones it had, which grow. A size timed again,
+        // as one that looks slow is, is timed on another: a handle reads a class it built from what it built.)
         const handle = await loadTailwind({ theme: { extend: { colors: { [`run${run}`]: "#000000" } } } });
         everywhere(handle, "p-2");
-        const time = (bytes: number) => {
+        const timed = new Set<number>();
+        let again = 0;
+        const time = async (bytes: number) => {
+          const on = timed.has(bytes) ? await loadTailwind({ theme: { extend: { colors: { [`run${run}-again${again++}`]: "#000000" } } } }) : handle;
+          if (on !== handle) everywhere(on, "p-2");
+          timed.add(bytes);
           const start = performance.now();
-          everywhere(handle, fill(head, unit, tail, bytes));
+          everywhere(on, fill(head, unit, tail, bytes));
           return performance.now() - start;
         };
-        const small = Math.max(time(2048), 2);
-        const large = time(20480);
-        if (large > 20 * small && large > 100) slow.push(`${JSON.stringify([head, unit, tail])}: ${small.toFixed(1)} ms for 2 KB, ${large.toFixed(1)} ms for 20 KB`);
+        const { small, large, grows } = await growth(time, [2048, 20480], { ratio: 20, floor: 100 });
+        if (grows) slow.push(`${JSON.stringify([head, unit, tail])}: ${small.toFixed(1)} ms for 2 KB, ${large.toFixed(1)} ms for 20 KB`);
       }
     } finally {
       warn.mockRestore();
     }
     expect(slow).toEqual([]);
   }), 120_000);
+
+  it("reads a class at CLASS_LIMITS of each shape Tailwind reads in time growing with its size squared at about a short class's cost", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    try {
+      const { characters } = CLASS_LIMITS;
+      for (const [head, unit, tail] of [["min-[", "var(--x)", "x]:p-1"], ["max-[", "var(--x)", "x]:p-1"], ["min-[", "-", "px]:p-1"], ["max-[", "a-b", "]:p-1"]]) {
+        expect(TAILWIND_SQUARED(head, unit)).toBe(true);
+        const className = head + unit.repeat(Math.ceil(characters / unit.length)).slice(0, characters - head.length - tail.length) + tail;
+        expect(className).toHaveLength(characters);
+        const handle = await loadTailwind({ theme: { extend: { colors: { [`limit${head}${unit}`]: "#000000" } } } });
+        everywhere(handle, "p-2");
+        const start = performance.now();
+        everywhere(handle, className);
+        expect([className.slice(0, 20), performance.now() - start < 100]).toEqual([className.slice(0, 20), true]);
+      }
+    } finally {
+      warn.mockRestore();
+    }
+  });
 
   it("reads a media query of many parts, each with two widths, in time linear in their number (its regex was exponential in it)", () => unlimited(() => {
     const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
