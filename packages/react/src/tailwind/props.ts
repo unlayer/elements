@@ -133,7 +133,8 @@ function propValue({ property, value }: ClassDeclaration): string | undefined {
   return /["<>]|\\(?:["'<>]|0{0,4}(?:22|27|3c|3e)(?![\da-f]))/i.test(written) || !cssValueSafe(written) ? undefined : written;
 }
 
-const LENGTH = /^(\d*\.?\d+)(px|%|em)?$/;
+// (Numbers as `\d*\.?\d+` reads them, but read once: that splits a run of digits at each place it could, again.)
+const LENGTH = /^(\d+(?:\.\d+)?|\.\d+)(px|%|em)?$/;
 const plain = (v: unknown): v is Record<string, any> => !!v && typeof v === "object" && !Array.isArray(v);
 
 /**
@@ -196,7 +197,7 @@ function convert(key: string, value: string, rtl: boolean): unknown {
   switch (key) {
     case "lineHeight":
       // Unitless, as the editor writes line heights: a percentage.
-      return /^\d*\.?\d+$/.test(value) ? `${parseFloat((parseFloat(value) * 100).toFixed(2))}%` : value;
+      return /^(?:\d+(?:\.\d+)?|\.\d+)$/.test(value) ? `${parseFloat((parseFloat(value) * 100).toFixed(2))}%` : value;
     case "fontWeight":
       return /^\d+$/.test(value) ? Number(value) : value;
     case "textAlign": {
@@ -206,7 +207,7 @@ function convert(key: string, value: string, rtl: boolean): unknown {
     case "width":
     case "maxWidth":
     case "minWidth":
-      return value === "0" ? "0px" : /^\d*\.?\d+(px|%)$/.test(value) ? value : undefined;
+      return value === "0" ? "0px" : /^(?:\d+(?:\.\d+)?|\.\d+)(px|%)$/.test(value) ? value : undefined;
     default:
       return value;
   }

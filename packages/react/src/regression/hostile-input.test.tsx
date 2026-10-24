@@ -399,6 +399,84 @@ describe("a Tailwind class from data", () => {
     }
   });
 
+  // A template giving one class to the root, a Row and a Column (with a gutter), a Paragraph and markup in its children,
+  // a Button, an Image and an Html block's markup: every place a class is read.
+  const everywhere = (handle: TailwindHandle, className: string) => {
+    const attribute = className.replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+    return renderToHtml(
+      <Tailwind tw={handle}>
+        <Email className={className}>
+          <Row className={`bg-white ${className}`}>
+            <Column className={`bg-zinc-50 ${className}`}>
+              <Paragraph className={className}>Hi <span className={className}>there</span></Paragraph>
+              <Button href="https://example.com" className={className}>Go</Button>
+              <Image src="https://example.com/a.png" alt="x" className={className} />
+            </Column>
+            <Column className="bg-zinc-50 ml-2">
+              <Html html={`<p class="${attribute}">Hi</p>`} />
+            </Column>
+          </Row>
+        </Email>
+      </Tailwind>
+    );
+  };
+
+  it("costs about ten times as much for ten times as long a class of any short shape, arbitrary variants and values too (random, seeded)", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    // A class: what starts it (a utility taking a value, an arbitrary property, value or variant: `[@media(…)]:`,
+    // `max-[…]:`), a unit over and over, and what ends it.
+    const heads = ["", "p-[", "m-[", "mr-[", "px-[", "w-[", "max-w-[", "leading-[", "text-[", "tracking-[", "rounded-[", "border-[", "bg-[url(", "[margin:", "[color:a", "[padding:calc(", "[font-family:", "[@media(", "[@media_screen_and_(", "[@media_(max-width:", "max-[", "min-[", "sm:p-[", "hover:bg-["];
+    const pieces = ["0", "9", "1", ".", "1.5", "_", "__", "-", "+", "*", "(", ")", "px", "rem", "em", "%", "e", "<", ">", "=", ":", ",", "/", "!", "x", "a", "and", "calc(", "var(--x)", "'", '"', "\\", "[", "]", "!important", "\t"];
+    const tails = ["", "]", "x]", "]!", "px]", "x)]", ")]", "]:p-1", "width)]:p-1", "px)]:p-1", ")]:p-1", "x]:p-1", "b]!", ")width)]:p-1"];
+    let seed = 11;
+    const random = (n: number) => ((seed = (Math.imul(seed, 1103515245) + 12345) >>> 0), Math.floor((seed / 2 ** 32) * n));
+    const fill = (head: string, unit: string, tail: string, bytes: number) => head + unit.repeat(Math.ceil(bytes / unit.length)).slice(0, bytes) + tail;
+    // And the shapes a regex read in time growing with their size squared, or worse: a number from where it could
+    // start in a media query, an arbitrary value's number, the spaces before an `!important`.
+    const shapes: string[][] = [["[@media(", "9", "width)]:p-1"], ["[@media_(max-width:", ".", ")]:p-1"], ["[color:a", "_", "b]!"], ["leading-[", "0", "x]"], ["w-[", "0", "x]"], ["m-[", "0", "x]"], ["mr-[", "0", "x]"], ["px-[", "0", "x]"], ["[margin:", "0", "x]"], ["[padding:calc(", "0", "x)]"]];
+    for (let run = 0; run < 120; run++) {
+      let unit = "";
+      for (let i = 0, n = 1 + random(4); i < n; i++) unit += pieces[random(pieces.length)];
+      shapes.push([heads[random(heads.length)], unit, tails[random(tails.length)]]);
+    }
+    const slow: string[] = [];
+    try {
+      for (const [run, [head, unit, tail]] of shapes.entries()) {
+        // (A fresh handle for each: one compiles each new class with the ones it had, which grow.)
+        const handle = await loadTailwind({ theme: { extend: { colors: { [`run${run}`]: "#000000" } } } });
+        everywhere(handle, "p-2");
+        const time = (bytes: number) => {
+          const start = performance.now();
+          everywhere(handle, fill(head, unit, tail, bytes));
+          return performance.now() - start;
+        };
+        const small = Math.max(time(2048), 2);
+        const large = time(20480);
+        if (large > 20 * small && large > 100) slow.push(`${JSON.stringify([head, unit, tail])}: ${small.toFixed(1)} ms for 2 KB, ${large.toFixed(1)} ms for 20 KB`);
+      }
+    } finally {
+      warn.mockRestore();
+    }
+    expect(slow).toEqual([]);
+  }, 120_000);
+
+  it("reads a media query of many parts, each with two widths, in time linear in their number (its regex was exponential in it)", () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    try {
+      const time = (parts: number) => {
+        const start = performance.now();
+        everywhere(tw, `[@media${"(width<1px_or_width>2px)and".repeat(parts)}x]:p-1`);
+        everywhere(tw, `[@media${"(widthwidth)and".repeat(parts)}x]:p-1`);
+        return performance.now() - start;
+      };
+      time(4);
+      const [small, large] = [Math.max(time(12), 2), time(24)];
+      expect(large > 20 * small && large > 100, `${small.toFixed(1)} ms for 12 parts, ${large.toFixed(1)} ms for 24`).toBe(false);
+    } finally {
+      warn.mockRestore();
+    }
+  });
+
   it("keeps a font family's names in double quotes (`font-[\"Open_Sans\"]`), in single ones", () => {
     const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
     try {
