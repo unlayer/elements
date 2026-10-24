@@ -93,3 +93,4 @@ export type { SemanticProps } from "./utils/semantic-props";
 
 // Utils - HTML to plain text
 export { htmlToPlainText, type PlainTextOptions } from "./utils/html-to-text";
+export { replaceTags, rewrite } from "./utils/html-scan";
