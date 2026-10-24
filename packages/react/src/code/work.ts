@@ -5,13 +5,33 @@
  * reached from a component's or template wrapper's call; outside one (a component React renders, a highlightCode()
  * call outside any render, an async component's code after an `await`), there's none: each block or call has its own.
  */
+import type React from "react";
 import { renderToHtml } from "@unlayer/react-elements";
 
 type Shared = Record<symbol, unknown>;
 const INTERNALS = Symbol.for("@unlayer/react-elements/internals");
 
-/** What the component being rendered shares with the rest of its render, or undefined outside a render. */
-const shared = (): Shared | undefined => (renderToHtml as unknown as Record<symbol, { shared?: () => Shared | undefined } | undefined>)[INTERNALS]?.shared?.();
+/**
+ * Where the render running now keeps what its components share: one slot on globalThis for every copy of Elements of
+ * this protocol (see the engine's SLOT), so a render another copy runs (the main entry's ESM build, this entry's
+ * CommonJS one) is the one found. Where the slot is another version's, this copy's main entry keeps its own: its own
+ * renders are found through it, and another version's renders aren't (their blocks each have their own work).
+ */
+const SLOT = Symbol.for("@unlayer/react-elements/render-work");
+const SLOT_VERSION = 1;
+
+/** What the code running now shares with the rest of its render, or undefined outside a render. */
+function shared(): Shared | undefined {
+  const slot = (globalThis as Record<symbol, { version?: number; shared?: Shared } | undefined>)[SLOT];
+  if (slot?.version === SLOT_VERSION) return slot.shared;
+  return (renderToHtml as unknown as Record<symbol, { shared?: () => Shared | undefined } | undefined>)[INTERNALS]?.shared?.();
+}
+
+/**
+ * How the copy of Elements that's rendering makes a part of the template left out alone when it fails (a node of its
+ * walker's own: see the main entry's render-scope.ts), or undefined outside a render.
+ */
+export const renderPart = (): ((child: React.ReactElement) => React.ReactElement) | undefined => shared()?.[Symbol.for("@unlayer/react-elements/part")] as ((child: React.ReactElement) => React.ReactElement) | undefined;
 
 /** The render's work under `key`, `make`'s the first time in the render; undefined outside a render. */
 export function renderWork<T>(key: symbol, make: () => T): T | undefined {

@@ -13,6 +13,41 @@ import Heading from "../components/Heading";
 import Image from "../components/Image";
 
 describe("renderToPlainText", () => {
+  it("keeps text whose entities spell the plain text's placeholders (`&#1;0&#1;`) as 0.2.1 wrote it, not a URL or code", () => {
+    const text = renderToPlainText(
+      <Email>
+        <Row>
+          <Column>
+            <Html html="<pre>API_KEY=secret</pre>" />
+            <Paragraph>{"Name: &#1;0&#1; &#0;0&#0;"}</Paragraph>
+            <Button href="https://e.test/verify?t=XYZ">Verify</Button>
+          </Column>
+        </Row>
+      </Email>
+    );
+    expect(text).toBe("API_KEY=secret\n\nName: \u00010\u0001 \u00000\u0000\n\nVerify (https://e.test/verify?t=XYZ)");
+  });
+
+  it("leaves out a link's URL React blocks (`javascript:` from data), as inline links without one are", () => {
+    const blocked = "javascript:alert(1)";
+    const text = renderToPlainText(
+      <Email>
+        <Row>
+          <Column>
+            <Button href={blocked}>Pay now</Button>
+            <Menu items={[{ text: "Home", href: blocked }]} />
+            <Social icons={[{ name: "Facebook", url: blocked }]} />
+            <Paragraph>
+              Go <Link href={blocked}>there</Link>
+            </Paragraph>
+          </Column>
+        </Row>
+      </Email>
+    );
+    expect(text).not.toContain("javascript");
+    expect(text).toBe("Pay now\n\nHome\n\nGo there");
+  });
+
   it("keeps text that spells the plain text's placeholders as written, not a button's URL", () => {
     // `\u00010\u0001` beside a Button was that button's URL (a reset link's token); 0.2.1 kept it.
     const text = renderToPlainText(

@@ -421,9 +421,9 @@ describe("line breaks in Heading and Button text", () => {
 
 describe("text placed straight in a Row or Column", () => {
   const Name = () => name;
-  // Said once per container in a process, not on every render.
-  const warned: string[] = [];
   it.each([["email", Email], ["web", Page], ["document", Document]] as const)("shows as text, from a Fragment, a component or written there (%s)", (_, Root) => {
+    // Said once in each render for each container (it was once in a process, without the prefix).
+    const warned: string[] = [];
     const warn = vi.spyOn(console, "warn").mockImplementation((message) => void warned.push(String(message)));
     try {
       const html = renderToHtml(
@@ -436,7 +436,7 @@ describe("text placed straight in a Row or Column", () => {
       expect(html).not.toContain("<img src=x");
       expect(html.match(/&lt;img src=x onerror=&quot;alert\(1\)&quot;&gt; &amp; Co/g)).toHaveLength(4);
       expect(html).toContain("&amp; Co7");
-      expect(warned.filter((m) => m.includes("Put it in a <Paragraph>"))).toHaveLength(2);
+      expect(warned.filter((m) => m.includes("Put it in a <Paragraph>")).map((m) => m.slice(0, 30))).toEqual(["[Unlayer] Row: text placed str", "[Unlayer] Column: text placed "]);
     } finally {
       warn.mockRestore();
     }

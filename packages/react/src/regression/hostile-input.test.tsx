@@ -423,17 +423,44 @@ describe("a Tailwind class from data", () => {
     );
   };
 
-  it("inlines in markup no value a prop can't take, a Markdown's sanitized HTML too, and says so", () => {
-    // A CSS escape of `"` and markup in a font's name: refused as a Paragraph's prop, it was written into a Markdown
-    // paragraph's `style`, `<img …>` and all (escaped, so it added no tag).
+  it("inlines in markup what it can write safely, and leaves out what could end the attribute or run code, and says so", async () => {
+    // Markup's `style` is written escaped, so it takes a value a prop can't: a theme's font in double quotes (Tailwind's
+    // docs' config style), a `url("…")`, a string's `;` (left out in 1894c35, inlined before). Not a CSS escape of a
+    // quote and markup in a font's name (refused as a Paragraph's prop, it was written into a Markdown paragraph's
+    // `style`, `<img …>` and all, escaped), nor a `url(javascript:…)` (refused on a component, inlined in markup).
+    const handle = await loadTailwind({ theme: { extend: { fontFamily: { brand: ['"Brandon\'s Grotesque"', "Arial", "sans-serif"] } } } });
     const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
-    const className = "font-['\\22><img_src=x_onerror=alert(1)>']";
+    const markup = (className: string) => {
+      const html = renderToHtml(
+        <Tailwind tw={handle}>
+          <Email>
+            <Row>
+              <Column>
+                <Html html={`<div class="${className.replace(/"/g, "&quot;")}">block</div>`} />
+                <Paragraph>a <span className={className}>inline</span> b</Paragraph>
+              </Column>
+            </Row>
+          </Email>
+        </Tailwind>
+      );
+      return [/<div style="([^"]*)">block</.exec(html)?.[1], /<span style="([^"]*)">inline</.exec(html)?.[1]];
+    };
     try {
-      for (const block of [<Markdown markdown={`<p class="${className}">x</p>\n`} />, <Html html={`<p class="${className}">x</p>`} />, <Paragraph className={className}>x</Paragraph>]) {
-        const html = renderToHtml(<Tailwind tw={tw}><Email><Row><Column>{block}</Column></Row></Email></Tailwind>);
-        expect(html).not.toMatch(/onerror|\\22>/);
+      for (const [className, style] of [
+        ["font-brand", "font-family: &quot;Brandon's Grotesque&quot;, Arial, sans-serif"],
+        ['font-["Open_Sans",sans-serif]', "font-family: 'Open Sans',sans-serif"],
+        ['bg-[url("https://cdn.example.com/hero.png")]', "background-image: url('https://cdn.example.com/hero.png')"],
+        ['[font-feature-settings:"tnum"]', "font-feature-settings: &quot;tnum&quot;"],
+        ["bg-[url('/img/a.png?v=1;2')]", "background-image: url('/img/a.png?v=1;2')"],
+        ["bg-[url('data:image/svg+xml;base64,PHN2Zz4=')]", "background-image: url('data:image/svg+xml;base64,PHN2Zz4=')"],
+      ]) expect([className, ...markup(className)]).toEqual([className, style, style]);
+      for (const className of ["font-['\\22><img_src=x_onerror=alert(1)>']", "bg-[url(javascript:alert(1))]"]) {
+        for (const block of [<Markdown markdown={`<p class="${className}">x</p>\n`} />, <Html html={`<p class="${className}">x</p>`} />, <Paragraph className={className}>x</Paragraph>, <Paragraph>a <span className={className}>x</span></Paragraph>]) {
+          const html = renderToHtml(<Tailwind tw={handle}><Email><Row><Column>{block}</Column></Row></Email></Tailwind>);
+          expect(html).not.toMatch(/onerror|\\22>|javascript:alert/);
+        }
       }
-      expect(warn.mock.calls.map((call) => String(call[0]))).toContain(`[Unlayer] Html ignores \`font-family: '\\22><img src=x onerror=alert(1)>'\` from class \`${className}\` in its markup: it could end the HTML attribute it's written in, start a tag, or end its CSS.`);
+      expect(warn.mock.calls.map((call) => String(call[0]))).toContain("[Unlayer] Html ignores `background-image: url(javascript:alert(1))` from class `bg-[url(javascript:alert(1))]` in its markup: it could end the HTML attribute it's written in, start a tag, or end its CSS, or its URL isn't a web one, a relative one, an inline attachment's or an image's.");
     } finally {
       warn.mockRestore();
     }

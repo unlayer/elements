@@ -169,7 +169,7 @@ Built with TypeScript from the ground up — full type definitions, autocomplete
 
 ### Lightweight & Tree-Shakeable
 
-The main entry is about 219.1KB of ESM, unminified (about 62KB gzipped), and tree-shakeable; Tailwind, the async renderers, Markdown, code highlighting, fonts, the head and the design-to-code converter are entries of their own, loaded only where you import them. Zero client-side JavaScript required. Designed for performance-sensitive applications and server-side rendering environments.
+The main entry is about 221KB of ESM, unminified (about 62KB gzipped), and tree-shakeable; Tailwind, the async renderers, Markdown, code highlighting, fonts, the head and the design-to-code converter are entries of their own, loaded only where you import them. Zero client-side JavaScript required. Designed for performance-sensitive applications and server-side rendering environments.
 
 ## Real-World Use Cases
 
@@ -198,7 +198,7 @@ Publish the same content as an email campaign, a web archive, and a public landi
 | `<Document>` | Root wrapper — print/PDF optimized |
 | `<Row>` | Layout container with column layout support |
 | `<Column>` | Column inside a Row |
-| `<Button>` | CTA button with hover states and links |
+| `<Button>` | CTA button with links, and hover colors on web pages and documents |
 | `<Heading>` | Heading (h1–h4) |
 | `<Paragraph>` | Rich text with plain text or HTML content |
 | `<Image>` | Responsive image with alt text |

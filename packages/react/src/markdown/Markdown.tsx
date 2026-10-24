@@ -6,7 +6,7 @@ import { CodeBlock, codeInline, highlightCode, type CodeBlockProps, type CodeInl
 import { escapeAttribute, escapeText, safeUrl, sanitizeHtml } from "./sanitize";
 import { tooLarge, type TooLarge } from "./limits";
 import { lexMarkdown } from "./work";
-import { charge, codeWork, CODE_WORK, renderWork, sayWhenDone } from "../code/work";
+import { charge, codeWork, CODE_WORK, renderPart, renderWork, sayWhenDone } from "../code/work";
 
 /** The blocks Markdown becomes, by its element: props each one gets (over Markdown's own defaults). */
 export interface MarkdownBlocks {
@@ -114,7 +114,8 @@ Unrendered.displayName = "Markdown";
 type Part = (child: React.ReactElement) => React.ReactElement;
 const part: Part = (renderToHtml as unknown as Record<symbol, { part?: Part } | undefined>)[Symbol.for("@unlayer/react-elements/internals")]?.part ?? ((child) => child);
 
-const unrendered = (key: number, reason: string) => part(<Unrendered key={key} reason={reason} />);
+// (The rendering copy's, where it's another copy of Elements than the one this entry imports: see renderPart.)
+const unrendered = (key: number, reason: string) => (renderPart() ?? part)(<Unrendered key={key} reason={reason} />);
 
 type Table = Tokens.Table & { tooLarge?: TooLarge };
 
@@ -205,14 +206,18 @@ class Writer {
     return this.props.breaks ? html.replace(/\n/g, "<br/>") : html;
   }
 
-  /** A code block's language, where highlighting it fits in what's left of CODE_WORK; past it none (no colors). */
+  /**
+   * A code block's language, where highlighting it fits in what's left of CODE_WORK; past it none (no colors). Only
+   * code that's highlighted is charged: a fence in a language with no grammar (`dockerfile`, `mermaid`) isn't.
+   */
   private language(token: Tokens.Code, given: string | undefined): string | undefined {
     const language = token.lang?.trim().split(/\s+/)[0] || given;
+    if (!language || !highlighted(language)) return language;
     const work = token.text.length ** 2;
-    if (!language || work <= this.code.left) {
+    if (work <= this.code.left) {
       // (In a render, charged as it's read, in order: its CodeBlock, which renders after, isn't charged again.)
-      if (language && this.render) charge(this.render, token.text, work);
-      else if (language) this.code.left -= work;
+      if (this.render) charge(this.render, token.text, work);
+      else this.code.left -= work;
       return language;
     }
     this.plain++;
@@ -388,6 +393,9 @@ export function Markdown(props: MarkdownProps): React.ReactElement {
 }
 
 Markdown.displayName = "Markdown";
+
+/** Whether code in `language` is highlighted (see the code entry's HAS_GRAMMAR); where that can't be told, it is. */
+const highlighted = (language: string): boolean => (highlightCode as unknown as Record<symbol, ((language: string) => boolean) | undefined>)[Symbol.for("@unlayer/react-elements/has-grammar")]?.(language) ?? true;
 
 /** The code blocks shown without colors in a render's Markdown, all of it (see Markdown). */
 const PLAIN = Symbol.for("@unlayer/react-elements/markdown-plain");

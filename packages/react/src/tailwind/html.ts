@@ -8,7 +8,7 @@
  */
 import { BEYOND, OVER, type ClassCondition, type ClassDeclaration, type ClassDeclarations, type DeclarationReader } from "./declarations";
 import { commentEnd, rawTextEnd, readTag, type Attribute, type Tag } from "../utils/html-tags";
-import { propValue } from "./written";
+import { markupValue } from "./written";
 
 // Logical sides as in a left-to-right document, and those a right-to-left one changes: email clients read only physical ones.
 const SIDES: Record<string, string[]> = { inline: ["left", "right"], block: ["top", "bottom"], "inline-start": ["left"], "inline-end": ["right"], "block-start": ["top"], "block-end": ["bottom"] };
@@ -178,11 +178,11 @@ function classes(text: string, attributes: Attribute[], nameEnd: number, offset:
   const css: string[] = [];
   for (const d of found.declarations) {
     if (d.when !== "always") once(`can't inline class \`${d.className}\` in its markup: it applies ${WHEN[d.when]}, which needs a stylesheet`);
-    // What a prop can't be written as, an inline style can't either (see propValue).
-    else if (propValue(d) === undefined) once(`ignores \`${d.property}: ${d.value}\` from class \`${d.className}\` in its markup: it could end the HTML attribute it's written in, start a tag, or end its CSS`);
+    // What could end the `style` it's written in, or start a tag, or load what a prop can't (see markupValue).
+    else if (markupValue(d) === undefined) once(`ignores \`${d.property}: ${d.value}\` from class \`${d.className}\` in its markup: it could end the HTML attribute it's written in, start a tag, or end its CSS, or its URL isn't a web one, a relative one, an inline attachment's or an image's`);
     else if (!shown(d))
       for (const property of physical(d.property, rtl)) {
-        const declaration = `${property}: ${d.value}${d.important ? " !important" : ""}`;
+        const declaration = `${property}: ${markupValue(d)}${d.important ? " !important" : ""}`;
         if (!unsafe?.(declaration)) css.push(declaration);
         else once(`can't inline \`${d.className}\`'s \`${property}\` in its markup: it could load or run something, which Markdown's sanitized HTML doesn't allow`);
       }
