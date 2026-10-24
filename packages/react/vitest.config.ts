@@ -16,6 +16,9 @@ export default defineConfig({
   test: {
     environment: 'jsdom',
     setupFiles: ['./src/test-setup.ts'],
+    // Many tests here are a few seconds of CPU on a laptop and several times that on a CI runner running other tests at
+    // once (on GitHub's, a test of 0.2 s here took 3.1 s): their own timings say what's too slow, not vitest's default 5 s.
+    testTimeout: 30_000,
     // Tailwind's default theme, which the Tailwind entry builds in (`?raw`): its text (Vitest empties CSS otherwise).
     css: { include: [/tailwindcss\/theme\.css/] },
     globals: true,

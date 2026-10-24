@@ -253,8 +253,8 @@ describe("rich text children of Paragraph, Heading and Button", () => {
         for (let i = 0, n = 1 + random(4); i < n; i++) unit += pieces[random(pieces.length)];
         const [head, tail] = [ends[random(ends.length)], ends[random(ends.length)]];
         // (The seeded shapes stay the same: timing one again draws nothing.)
-        const { small, large, grows } = await growth((bytes) => time(fill(head, unit, tail, bytes)), [10240, 102400], { ratio: 20, floor: 100 });
-        if (grows) slow.push(`${JSON.stringify([head, unit, tail])}: ${small.toFixed(1)} ms for 10 KB, ${large.toFixed(1)} ms for 100 KB`);
+        const { small, large, next, grows } = await growth((bytes) => time(fill(head, unit, tail, bytes)), [10240, 102400], { ratio: 20, floor: 100, next: 1024000 });
+        if (grows) slow.push(`${JSON.stringify([head, unit, tail])}: ${small.toFixed(1)} ms for 10 KB, ${large.toFixed(1)} ms for 100 KB${next === undefined ? "" : `, ${next.toFixed(0)} ms for 1 MB`}`);
       }
     } finally {
       warn.mockRestore();
