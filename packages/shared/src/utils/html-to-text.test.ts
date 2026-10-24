@@ -147,6 +147,20 @@ describe("htmlToPlainText", () => {
   });
 
   // Skip elements
+  it("keeps text whose entities spell its placeholders as 0.2.1 wrote it, not a link's URL or preformatted text", () => {
+    // `&amp;#1;0&amp;#1;` (React's escape of `&#1;0&#1;`) was decoded twice, to U+0001, 0, U+0001, after the text's own
+    // U+0001s were set aside: then a link's placeholder, its URL in the text. 0.2.1 decodes it so too, as text.
+    expect(htmlToPlainText("<pre>KEY=secret</pre><p>Name: &amp;#1;0&amp;#1; &amp;#0;0&amp;#0; &#1;0&#1;</p><a href='https://e.test/v?t=1'>Verify</a>")).toBe("KEY=secret\nName: \u00010\u0001 \u00000\u0000 \u00010\u0001\nVerify (https://e.test/v?t=1)");
+    // Where what stands for them would be a private-use character the HTML holds as an entity, another is.
+    expect(htmlToPlainText("<p>&#xE000;&#57345;&amp;#1;</p><a href='https://e.test'>a</a>")).toBe("\ue000\ue001\u0001\na (https://e.test)");
+  });
+
+  it("leaves out a link's URL React blocks (`javascript:`), as a link without one", () => {
+    const blocked = "javascript:throw new Error(&#x27;React has blocked a javascript: URL as a security precaution.&#x27;)";
+    expect(htmlToPlainText(`<p><a href="${blocked}">Pay now</a> and <a href=" JavaScript:alert(1)">this</a></p>`)).toBe("Pay now and this");
+    expect(htmlToPlainText(`<a href="${blocked}">Pay now</a>`, { links: "after" })).toBe("Pay now");
+  });
+
   it("keeps the text's own U+0000 and U+0001, which spell its placeholders, as written", () => {
     // Text spelling a link's placeholder (U+0001, its number, U+0001) was that link's URL; 0.2.1 kept it.
     expect(htmlToPlainText("<p>Name: \u00010\u0001</p><a href='https://e.test/reset?token=1'>Reset</a>")).toBe("Name: \u00010\u0001\nReset (https://e.test/reset?token=1)");
