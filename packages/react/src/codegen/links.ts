@@ -61,7 +61,9 @@ function fill(key: string, attrs: Plain | undefined, values: Plain): string | un
   }
   if (key !== "href") return result;
   // Email clients (Outlook) break on a `mailto:` with an empty field, and a URL doesn't end in `?` or `&`.
-  if (result.startsWith("mailto:")) result = result.replace(/([?&]?)(\w+)=(&|$)/g, "$1");
+  // (A field's name is read from where its letters start: from inside them, a long run with no `=` was read again from
+  // each of its letters.)
+  if (result.startsWith("mailto:")) result = result.replace(/([?&]?)(?<!\w)(\w+)=(&|$)/g, "$1");
   result = result.replace(/[?&]$/, "");
   if (!result.trim()) return undefined;
   if (PLACEHOLDERS.includes(result) && template.includes(result) && !text(values[result.slice(2, -2)])) return undefined;
