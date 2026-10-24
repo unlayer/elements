@@ -196,7 +196,7 @@ Publish the same content as an email campaign, a web archive, and a public landi
 | `<Document>` | Root wrapper — print/PDF optimized |
 | `<Row>` | Layout container with column layout support |
 | `<Column>` | Column inside a Row |
-| `<Button>` | CTA button with hover states and links |
+| `<Button>` | CTA button with links, and hover colors on web pages and documents |
 | `<Heading>` | Heading (h1–h4) |
 | `<Paragraph>` | Rich text with plain text or HTML content |
 | `<Image>` | Responsive image with alt text |
