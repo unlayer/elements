@@ -261,12 +261,14 @@ import { Row, Column, ColumnLayouts } from '@unlayer/react-elements';
 
 For the full API reference, component props, design patterns, and common mistakes, see the **[React package documentation](./packages/react/README.md)**.
 
+Using a coding agent? Install the official **[`unlayer-elements` skill](https://github.com/unlayer/unlayer-skills)** (`npx skills add unlayer/unlayer-skills`): the structure, layouts, renderers, preview commands, and common mistakes.
+
 ## Packages
 
 | Package | Description | Published |
 |---------|-------------|-----------|
 | [`@unlayer/react-elements`](./packages/react) | React components and renderers | [![npm](https://img.shields.io/npm/v/@unlayer/react-elements.svg)](https://www.npmjs.com/package/@unlayer/react-elements) |
-| [`@unlayer/migrate`](./packages/migrate) | Migrate React Email templates to Elements, checked against the originals | Not yet |
+| [`@unlayer/migrate`](./packages/migrate) | Migrate React Email, MJML and Beefree templates to Elements, checked against the originals | [![npm](https://img.shields.io/npm/v/@unlayer/migrate.svg)](https://www.npmjs.com/package/@unlayer/migrate) |
 | [`@unlayer/from-react-email`](./packages/from-react-email) | The React Email → Elements converter, as a library | Private (bundled into `@unlayer/migrate`, API at `@unlayer/migrate/react-email`) |
 | [`@unlayer/convert-core`](./packages/convert-core) | Shared model for converters (Elements tree, report, TSX printer, layout check) | Internal |
 | [`@unlayer-internal/shared-elements`](./packages/shared) | Framework-agnostic shared logic | Internal |
@@ -278,7 +280,8 @@ Runnable projects you can clone and experiment with:
 
 | Example | Description |
 |---------|-------------|
-| [`examples/content-workflows`](./examples/content-workflows) | One React invoice → email + web + real PDF, five email providers, and editable design JSON |
+| [`examples/content-workflows`](./examples/content-workflows) | One React invoice → email + web + real PDF, fourteen email providers, and editable design JSON |
+| [`examples/i18n`](./examples/i18n) | One email in English and Arabic with react-intl, react-i18next, and next-intl, tested for translated text, `lang`, and `dir` |
 | [`examples/nextjs-app-router`](./examples/nextjs-app-router) | Next.js 15 App Router — renders an email with `renderToHtml()` in a Server Component, previews it at `/email-preview`, and serves the raw HTML from a Route Handler |
 
 ## Development
@@ -342,8 +345,10 @@ Yes. `registerElementsTool()` turns a custom tool definition into a first-class 
 Start with [when to use Elements](./packages/react/docs/README.md), or go directly to a runnable workflow:
 
 - [Build transactional emails in React](./packages/react/docs/transactional-email.md) — HTML and plain-text receipts, order confirmations, and password reset patterns.
-- [Send with Resend, AWS SES, Postmark, SendGrid, or Nodemailer](./packages/react/docs/email-providers.md) — provider setup and complete server-side integrations.
+- [Send with Resend, AWS SES, Postmark, SendGrid, Nodemailer, Mailgun, Brevo, and more](./packages/react/docs/email-providers.md) — provider setup and complete server-side integrations for fourteen providers.
 - [One React invoice to email, web, and PDF](./packages/react/docs/one-template-email-web-pdf.md) — share content across all three output modes.
+- [Translate emails with react-intl, react-i18next, or next-intl](./packages/react/docs/i18n.md) — load messages before rendering, and set language, direction, and alignment for right-to-left locales.
+- [Use Elements in a monorepo](./packages/react/docs/monorepo.md) — a shared emails package with npm, pnpm, Yarn, or Bun, and one copy of React.
 - [Generate a real PDF with Playwright](./packages/react/docs/react-to-pdf.md) — print document HTML with Chromium.
 - [Make code and AI-generated templates visually editable](./packages/react/docs/visual-editing.md) — `renderToJson()` → Unlayer `loadDesign()` → edited JSON and HTML.
 

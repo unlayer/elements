@@ -69,8 +69,10 @@ Agents can also preview Elements code without installing anything through the [E
 ## Task guides and runnable examples
 
 - [Transactional email in React](https://github.com/unlayer/elements/blob/main/packages/react/docs/transactional-email.md): render HTML and plain text, then send a receipt.
-- [Resend, AWS SES, Postmark, SendGrid, and Nodemailer](https://github.com/unlayer/elements/blob/main/packages/react/docs/email-providers.md): complete provider integrations.
+- [Resend, AWS SES, Postmark, SendGrid, Nodemailer, Mailgun, Brevo, and more](https://github.com/unlayer/elements/blob/main/packages/react/docs/email-providers.md): complete integrations for fourteen email providers.
 - [One React template to email, web, and PDF](https://github.com/unlayer/elements/blob/main/packages/react/docs/one-template-email-web-pdf.md): shared invoice content with output-specific roots.
+- [Translations with react-intl, react-i18next, and next-intl](https://github.com/unlayer/elements/blob/main/packages/react/docs/i18n.md): load messages before rendering, and right-to-left emails.
+- [Monorepos with npm, pnpm, Yarn, and Bun](https://github.com/unlayer/elements/blob/main/packages/react/docs/monorepo.md): a shared emails package that apps import, and one copy of React.
 - [React invoice PDF with Playwright](https://github.com/unlayer/elements/blob/main/packages/react/docs/react-to-pdf.md): generate actual PDF bytes from document HTML.
 - [React to Unlayer visual editing](https://github.com/unlayer/elements/blob/main/packages/react/docs/visual-editing.md): `renderToJson()`, editor loading, export, and supported tree constraints.
 - [Tailwind CSS in Elements](https://github.com/unlayer/elements/blob/main/packages/react/docs/tailwind.md): `className` with Tailwind classes on any component, as React Email's `<Tailwind>`, kept as props in the HTML and the design.

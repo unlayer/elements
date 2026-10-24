@@ -72,7 +72,7 @@ pnpm build
 pnpm --filter @unlayer/content-workflows-example render:email
 ```
 
-Expected: `examples/content-workflows/output/invoice.email.html`, `invoice.txt`, and `invoice.design.json`, containing invoice INV-1001, Ada Lovelace, and $49.00. No credentials or Chromium are needed for this step. See [Resend, AWS SES, Postmark, SendGrid, and Nodemailer](./email-providers.md) for the delivery step. For Next.js server routes and preview UI, use the [App Router example](../../../examples/nextjs-app-router).
+Expected: `examples/content-workflows/output/invoice.email.html`, `invoice.txt`, and `invoice.design.json`, containing invoice INV-1001, Ada Lovelace, and $49.00. No credentials or Chromium are needed for this step. See [email providers](./email-providers.md) (Resend, AWS SES, Postmark, SendGrid, Nodemailer, Mailgun, Brevo, and more) for the delivery step. For Next.js server routes and preview UI, use the [App Router example](../../../examples/nextjs-app-router).
 
 ## Constraints before delivery
 
