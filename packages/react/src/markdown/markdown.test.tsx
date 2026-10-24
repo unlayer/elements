@@ -1,6 +1,6 @@
 import React from "react";
 import { afterEach, beforeAll, beforeEach, describe, expect, it, onTestFinished, vi, type MockInstance } from "vitest";
-import { Column, Email, Html, RenderError, Row, renderToHtml, renderToHtmlParts, renderToJson, renderToPlainText } from "../index";
+import { Column, Email, Html, Paragraph, RenderError, Row, renderToHtml, renderToHtmlParts, renderToJson, renderToPlainText } from "../index";
 import { Tailwind, loadTailwind, type TailwindHandle } from "../tailwind";
 import * as asyncRenderers from "../async";
 import { Markdown, safeUrl, sanitizeHtml, type MarkdownProps } from "./index";
@@ -536,6 +536,32 @@ describe("Markdown from data, in a render of many blocks: no more than their siz
     expect([counts[0], counts[11] > 100]).toEqual([1, true]);
     expect(said()).toEqual(["[Unlayer] Markdown: it takes marked more work to read than a render's Markdown can (32 steps for each of its characters, and about a million more for its inline syntax, four million for its quotes), so each quote ends at its first line without a `>`, and the rest of a list item's lines is text: nothing is left out."]);
     expect(rows(digest([<Markdown markdown={comment} />])).map((blocks: string[]) => blocks.length)).toEqual([1]);
+  });
+
+  it("says what's past the render's work where it's rendered as markup too (in a Paragraph's children)", () => {
+    // Elements' own markup was walked with work of its own, which no render said once it was done.
+    const fence = "```java\n" + fill("int a = 1;\n", 7999) + ";\n```";
+    renderToHtml(
+      <Email>
+        <Row>
+          <Column>
+            <Paragraph>
+              x <Markdown markdown={fence + "\n\n" + fence} />
+            </Paragraph>
+          </Column>
+        </Row>
+      </Email>
+    );
+    expect(said().filter((message) => message.startsWith("[Unlayer] Markdown"))).toHaveLength(1);
+  });
+
+  it("charges only the code it highlights: a fence in a language with no grammar takes none of the render's work", () => {
+    // A `dockerfile` fence (no grammar: shown without colors) was charged as highlighted, and the Java after it lost
+    // its colors, said as past the work.
+    const code = fill("int a = 1;\n", 7999) + ";";
+    const markdown = "```dockerfile\n" + code + "\n```\n\n```java\n" + code.slice(0, 5000) + "\n```";
+    expect(rows(digest([<Markdown markdown={markdown} />]))[0].map(colored)).toEqual([false, true]);
+    expect(said()).toEqual(['[Unlayer] CodeBlock has no grammar for `dockerfile`, so it\'s shown without colors: add one with registerLanguage() from "@unlayer/react-elements/code".']);
   });
 
   it("gives its Markdown's tables, together, the cells one Markdown of their size can have: past them, a table is too large", () => {
