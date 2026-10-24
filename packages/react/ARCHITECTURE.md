@@ -280,8 +280,12 @@ row or block is left out of the HTML, the plain text and the design (the slower 
    given to each `<Tailwind>`'s rewrite as an argument, where it's found by the `<Tailwind>` it's for (a render the
    user's code starts, with a scope of its own, has none); a `<Tailwind>` carries its copy's compiler
    (`…/tailwind-loader`, on its type), which the async renderers compile its config with, so two copies' classes don't
-   mix (an older copy's `<Tailwind>`, which carries none, gets the compiler of the Tailwind entry loaded last). No
-   render state is shared: the render functions render a root of another copy (Body, Email, Page, Document, by its
+   mix (an older copy's `<Tailwind>`, which carries none, gets the compiler of the Tailwind entry loaded last). The
+   work a render's Markdown and code blocks share (their budgets: `src/code/work.ts`) is the one piece of render state
+   that is: the running render's, in one slot on globalThis (`…/render-work`, with the version of its shape), set for
+   the length of each render's synchronous run and each call of the user's code, so a copy's Markdown and code entries
+   read the render another copy runs (a copy that finds another version's slot keeps its own, and its blocks have
+   their own work in another version's render). No other render state is shared: the render functions render a root of another copy (Body, Email, Page, Document, by its
    marker, or an older copy's by its name and its code: `utils/root-type.ts`; a component of yours named like one is
    called as written) as their own copy's (`utils/own-root.ts`), so the copy whose renderer was called renders the
    whole template in its render's scope, whichever copy its components are of; a `<Tailwind>`'s rewrites find the

@@ -146,7 +146,7 @@ These props have non-obvious shapes that **must** be followed exactly:
 
 | Component | Description |
 |-----------|-------------|
-| `<Button>` | CTA button with hover states, links, and full styling |
+| `<Button>` | CTA button with links and full styling, and hover colors on web pages and documents |
 | `<Paragraph>` | Rich text: children (text and inline JSX) or the `html` prop |
 | `<Heading>` | Heading (h1–h6) with `headingType` prop |
 | `<Image>` | Responsive image with `src` / `altText` props |
@@ -217,8 +217,8 @@ Must be child of Row. Count must match layout (a Row that doesn't fit its layout
 - `target?: string` — where the link opens: `"_blank"` (a new tab, the default), `"_self"`, … (one with a `"`, `'`, `<`, `>` or a backtick, which could end its HTML attribute, or one that isn't a string, is a new tab, said)
 - `backgroundColor?: string` — `"#0879A1"`
 - `color?: string` — `"#FFFFFF"`
-- `hoverBackgroundColor?: string`
-- `hoverColor?: string`
+- `hoverBackgroundColor?: string` — on web pages and documents (`Page`, `Document`): an `Email` writes no hover CSS
+- `hoverColor?: string` — the same
 - `fontSize?: string` — `"14px"`
 - `fontWeight?: number` — `400`
 - `fontFamily?: { label: string, value: string }`

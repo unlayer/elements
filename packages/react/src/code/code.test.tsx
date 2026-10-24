@@ -1,6 +1,6 @@
 import React from "react";
 import { afterEach, beforeEach, describe, expect, it, vi, type MockInstance } from "vitest";
-import { Button, Column, Email, Heading, Html, Page, Paragraph, Row, renderToHtml, renderToJson, renderToPlainText } from "../index";
+import { Button, Column, Email, Heading, Html, Page, Paragraph, Row, registerTool, renderToHtml, renderToJson, renderToPlainText } from "../index";
 import * as asyncRenderers from "../async";
 import { CodeBlock, CodeInline, codeInline, codeThemes, highlightCode, listLanguages, registerLanguage } from "./index";
 import { escapeHtml, HIGHLIGHT_LIMIT } from "./highlight";
@@ -309,6 +309,43 @@ describe("highlightCode() in a render", () => {
         </Email>
       )
     ).toContain(renderToHtml(<Email>{small}</Email>).match(/<pre[\s\S]*<\/pre>/)![0]);
+  });
+
+  it("charges the user's code a render runs outside its components' calls to that render: a Consumer's render prop, a custom tool's exporter", () => {
+    // They ran with the work of whatever render was running: none at the top (12 of 8 KB all highlighted), the outer
+    // render's in one a component starts (the outer render's own block lost its colors).
+    const Theme = React.createContext("light");
+    const consumed = () => <Theme.Consumer>{(theme) => <Html html={highlightCode(code(8000), { language: "java", theme: theme as "light" })} />}</Theme.Consumer>;
+    const Snip = registerTool({ name: "work-snip", values: { code: "" }, renderer: { exporters: { email: (values: { code: string }) => `<div>${highlightCode(values.code, { language: "java" })}</div>` } } });
+    const blocks = (block: (i: number) => React.ReactElement) => (
+      <Email>
+        <Row>
+          <Column>{[0, 1, 2].map(block)}</Column>
+        </Row>
+      </Email>
+    );
+    const each = (html: string) => html.split('<pre style="').slice(1).map((b) => colored(b) > 0);
+    expect(each(renderToHtml(blocks((i) => <React.Fragment key={i}>{consumed()}</React.Fragment>)))).toEqual([true, false, false]);
+    expect(each(renderToHtml(blocks((i) => <Snip key={i} code={code(8000)} />)))).toEqual([true, false, false]);
+    // In a render a component starts: its own, and none of the outer one's.
+    const inner = () => blocks((i) => <React.Fragment key={i}>{i === 0 ? consumed() : null}</React.Fragment>);
+    const alone = renderToHtml(inner());
+    let nested = "";
+    function Embed() {
+      nested = renderToHtml(inner());
+      return <Paragraph>embedded</Paragraph>;
+    }
+    const outer = renderToHtml(
+      <Email>
+        <Row>
+          <Column>
+            <Embed />
+            <CodeBlock language="java" code={code(8000)} />
+          </Column>
+        </Row>
+      </Email>
+    );
+    expect([nested === alone, each(outer)]).toEqual([true, [true]]);
   });
 
   it("is a call of its own after an `await` in an async component (there, no render's work is known: CodeBlock's is)", async () => {

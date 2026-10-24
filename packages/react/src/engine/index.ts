@@ -11,7 +11,7 @@ import { flatten, type Flat, type Part } from "./output";
 import { checkReact } from "./self-test";
 import { pushTreeContext, ROOT_TREE, type TreeContext } from "./tree-id";
 import { TOP } from "./host";
-import { call, caller, failure, positioned, renderClass, sharedNow, suspension, thrownBy, walkNode, type Collector, type Shared, type Task, type Wait, type Walker } from "./walk";
+import { call, caller, failure, positioned, renderClass, sharedNow, sharing, suspension, thrownBy, walkNode, type Collector, type Shared, type Task, type Wait, type Walker } from "./walk";
 
 export { RenderError, type OnError } from "./errors";
 export { flatten, htmlOf, PENDING, type Flat, type Item, type Markup, type Cut, type Part, type RecordItem } from "./output";
@@ -42,7 +42,8 @@ export interface CollectOptions {
 type WalkerOptions = Pick<CollectOptions, "onError" | "collector" | "passes" | "frameless" | "idPrefix" | "fallbacks" | "shared">;
 
 const walker = (options: Partial<WalkerOptions>, wait?: Wait): Walker => ({
-  wait,
+  // (What it walks once something it waited for settles shares what the rest of it does: a Consumer's render prop.)
+  wait: wait && ((w, task, out, thenable, fill) => wait(w, task, out, thenable, (t, parts) => sharing(w.shared, () => fill(t, parts)))),
   collector: options.collector,
   passes: options.passes,
   frameless: options.frameless,
@@ -79,7 +80,7 @@ export function collect(node: React.ReactNode, options: CollectOptions): Flat {
   const t = task(options.root, options.tree);
   const out: Part[] = [];
   try {
-    walkNode(w, node, t, out);
+    sharing(w.shared, () => walkNode(w, node, t, out));
   } catch (error) {
     throw thrownBy(w, error, t.frame);
   }
@@ -96,7 +97,7 @@ export function walkAsync(node: React.ReactNode, options: CollectOptions, wait: 
   const t = task(options.root, options.tree);
   const out: Part[] = [];
   try {
-    walkNode(w, node, t, out);
+    sharing(w.shared, () => walkNode(w, node, t, out));
   } catch (error) {
     out.push({ t: "error", error: thrownBy(w, error, t.frame) as RenderError, fatal: true });
   }
