@@ -4,7 +4,7 @@
 #   1. PR merged to main → triggers build & test, and the react package's
 #      suite on each React it supports (react-versions.yml)
 #   2. Each package publishes only when its code changed since its last
-#      release tag (Elements: v*, migrate: migrate-v*)
+#      release tag (Elements: v*, migrate: migrate-v*, preview: preview-v*)
 #   3. A reviewer approves each publish in the Actions UI (environment gate)
 #   4. The package is published to npm via trusted publishing (OIDC)
 #
@@ -43,6 +43,7 @@ on:
         options:
           - react-elements
           - migrate
+          - elements-preview
         default: react-elements
       bump:
         description: 'Version bump type'
@@ -100,6 +101,7 @@ jobs:
     outputs:
       elements: ${{ steps.detect.outputs.elements }}
       migrate: ${{ steps.detect.outputs.migrate }}
+      preview: ${{ steps.detect.outputs.preview }}
 
     steps:
       - name: Checkout code (with tags)
@@ -124,7 +126,7 @@ jobs:
             exit 1
           fi
           last() { git tag -l "$1" --sort=-v:refname | head -1; }
-          for pattern in 'v*' 'migrate-v*'; do
+          for pattern in 'v*' 'migrate-v*' 'preview-v*'; do
             tag=$(last "$pattern")
             if [ -n "$tag" ] && ! git merge-base --is-ancestor "$tag" HEAD; then
               echo "::notice::$tag isn't an ancestor of this commit: nothing older than it is published."
@@ -146,20 +148,28 @@ jobs:
           if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
             ELEMENTS=$([ "${{ inputs.package }}" = "react-elements" ] && descends 'v*' && echo true || echo false)
             MIGRATE=$([ "${{ inputs.package }}" = "migrate" ] && descends 'migrate-v*' && echo true || echo false)
+            PREVIEW=$([ "${{ inputs.package }}" = "elements-preview" ] && descends 'preview-v*' && echo true || echo false)
           else
             ELEMENTS=$(changed 'v*' packages/react packages/shared pnpm-workspace.yaml)
             # Not Elements: migrate requires the Elements range committed in its package.json (the oldest
             # release the converter supports), not the newest, so an Elements release doesn't republish it.
             MIGRATE=$(changed 'migrate-v*' packages/migrate packages/from-react-email packages/convert-core pnpm-workspace.yaml pnpm-lock.yaml)
+            # The preview renders with the project's own Elements (a peer dependency): an Elements release doesn't republish it.
+            PREVIEW=$(changed 'preview-v*' packages/preview pnpm-workspace.yaml pnpm-lock.yaml)
           fi
           # The first version of a new package is published by hand (see above).
           if [ "$MIGRATE" = "true" ] && ! npm view @unlayer/migrate version >/dev/null 2>&1; then
             echo "::notice::@unlayer/migrate isn't on npm yet: publish its first version by hand, tag it migrate-v<version>, and add its trusted publisher."
             MIGRATE=false
           fi
+          if [ "$PREVIEW" = "true" ] && ! npm view @unlayer/elements-preview version >/dev/null 2>&1; then
+            echo "::notice::@unlayer/elements-preview isn't on npm yet: publish its first version by hand, tag it preview-v<version>, and add its trusted publisher."
+            PREVIEW=false
+          fi
           echo "elements=$ELEMENTS" >> $GITHUB_OUTPUT
           echo "migrate=$MIGRATE" >> $GITHUB_OUTPUT
-          echo "Elements changed: $ELEMENTS, migrate changed: $MIGRATE"
+          echo "preview=$PREVIEW" >> $GITHUB_OUTPUT
+          echo "Elements changed: $ELEMENTS, migrate changed: $MIGRATE, preview changed: $PREVIEW"
 
   # The react package's suite on each React it supports, for this run's commit: Elements publishes only when every
   # one passes (test.yml runs it too, but nothing waits for that run).
@@ -535,6 +545,153 @@ jobs:
           else
             gh release create "$TAG" \
               --title "@unlayer/migrate ${{ steps.version.outputs.version }}" \
+              --generate-notes \
+              --latest=false \
+              ${PREVIOUS:+--notes-start-tag "$PREVIOUS"}
+          fi
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  publish-preview:
+    name: Publish @unlayer/elements-preview
+    needs: [build-and-test, changes]
+    # Not after Elements: it renders with the project's own Elements, a peer dependency (>=0.2.0).
+    if: needs.changes.outputs.preview == 'true'
+    runs-on: ubuntu-latest
+    concurrency:
+      group: publish-preview
+      cancel-in-progress: false
+    environment: npm-publish
+    permissions:
+      contents: write
+      id-token: write
+      pull-requests: read
+
+    steps:
+      # The commit this run built and tested, not whatever main is when the approval lands.
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+
+      # Checked again here, where publishes run one at a time (see the Elements job).
+      - name: Check no newer commit was published
+        shell: bash
+        run: |
+          git fetch --tags --force origin
+          TAG=$(git tag -l 'preview-v*' --sort=-v:refname | head -1)
+          if [ -n "$TAG" ] && ! git merge-base --is-ancestor "$TAG" HEAD; then
+            echo "::error::$TAG was published from a newer commit than this run's: nothing older than it is published."
+            exit 1
+          fi
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9.7.0
+
+      - name: Setup Node.js 24 (with npm registry for OIDC)
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          registry-url: https://registry.npmjs.org
+
+      - name: Update npm for trusted publishing
+        run: npm install -g npm@12
+
+      - name: Get pnpm store directory
+        shell: bash
+        run: echo "STORE_PATH=$(pnpm store path --silent)" >> $GITHUB_ENV
+
+      - name: Setup pnpm cache
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.STORE_PATH }}
+          key: ${{ runner.os }}-pnpm-store-${{ hashFiles('**/pnpm-lock.yaml') }}
+          restore-keys: |
+            ${{ runner.os }}-pnpm-store-
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build packages
+        run: pnpm build
+
+      - name: Determine version bump
+        id: bump
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "type=${{ inputs.bump }}" >> $GITHUB_OUTPUT
+          else
+            LABELS=$(gh api "repos/${GITHUB_REPOSITORY}/commits/${GITHUB_SHA}/pulls" --jq '.[0].labels[].name' 2>/dev/null || echo "")
+            if echo "$LABELS" | grep -Fxq "release:major"; then
+              echo "type=major" >> $GITHUB_OUTPUT
+            elif echo "$LABELS" | grep -Fxq "release:minor"; then
+              echo "type=minor" >> $GITHUB_OUTPUT
+            else
+              echo "type=patch" >> $GITHUB_OUTPUT
+            fi
+          fi
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Determine version
+        id: version
+        working-directory: packages/preview
+        run: |
+          COMMITTED=$(node -p "require('./package.json').version")
+          CURRENT=$(npm view @unlayer/elements-preview version 2>/dev/null || echo "$COMMITTED")
+          echo "current=$CURRENT" >> $GITHUB_OUTPUT
+          npm version "$CURRENT" --no-git-tag-version --allow-same-version
+          VERSION=$(npm version ${{ steps.bump.outputs.type }} --no-git-tag-version)
+          VERSION="${VERSION#v}"
+          if [ "$COMMITTED" != "$VERSION" ] && [ "$(printf '%s\n%s\n' "$VERSION" "$COMMITTED" | sort -V | tail -1)" = "$COMMITTED" ]; then
+            npm version "$COMMITTED" --no-git-tag-version --allow-same-version
+            VERSION="$COMMITTED"
+          fi
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+
+      - name: Pre-publish summary
+        run: |
+          echo "## Publish Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| | |" >> $GITHUB_STEP_SUMMARY
+          echo "|---|---|" >> $GITHUB_STEP_SUMMARY
+          echo "| **Package** | \`@unlayer/elements-preview\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| **Version** | ${{ steps.version.outputs.current }} → ${{ steps.version.outputs.version }} (${{ steps.bump.outputs.type }}) |" >> $GITHUB_STEP_SUMMARY
+          echo "| **Trigger** | ${{ github.event_name }} |" >> $GITHUB_STEP_SUMMARY
+
+      - name: Publish to npm (trusted publishing)
+        working-directory: packages/preview
+        run: |
+          pnpm pack --pack-destination /tmp
+          TARBALL=$(ls /tmp/unlayer-elements-preview-*.tgz)
+          tar tzf "$TARBALL" | grep -qx package/LICENSE || { echo "::error::$TARBALL has no LICENSE"; exit 1; }
+          npm publish "$TARBALL" --access public
+
+      - name: Tag release
+        run: |
+          TAG="preview-v${{ steps.version.outputs.version }}"
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          if git ls-remote --tags origin | awk '{print $2}' | grep -Fxq "refs/tags/$TAG"; then
+            echo "Tag $TAG already exists — skipping"
+          else
+            git tag "$TAG"
+            git push origin "$TAG"
+          fi
+
+      # Not marked latest: the repository's latest release stays Elements.
+      - name: Create GitHub Release
+        run: |
+          TAG="preview-v${{ steps.version.outputs.version }}"
+          PREVIOUS=$(git ls-remote --tags --refs origin | sed 's#.*refs/tags/##' | grep -E '^preview-v[0-9]' | grep -vFx "$TAG" | sort -V | tail -1)
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            echo "Release $TAG already exists — skipping"
+          else
+            gh release create "$TAG" \
+              --title "@unlayer/elements-preview ${{ steps.version.outputs.version }}" \
               --generate-notes \
               --latest=false \
               ${PREVIOUS:+--notes-start-tag "$PREVIOUS"}

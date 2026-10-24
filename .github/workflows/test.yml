@@ -300,6 +300,14 @@ jobs:
           MIGRATE_TARBALL=$(ls /tmp/unlayer-migrate-*.tgz)
           tar tzf "$MIGRATE_TARBALL" | grep -qx package/LICENSE || { echo "::error::$MIGRATE_TARBALL has no LICENSE"; exit 1; }
 
+      # Nor has elements-preview: the same check.
+      - name: Pack elements-preview
+        run: |
+          cd packages/preview
+          pnpm pack --pack-destination /tmp
+          PREVIEW_TARBALL=$(ls /tmp/unlayer-elements-preview-*.tgz)
+          tar tzf "$PREVIEW_TARBALL" | grep -qx package/LICENSE || { echo "::error::$PREVIEW_TARBALL has no LICENSE"; exit 1; }
+
       - name: Next.js integration build
         run: |
           cd tests/nextjs-integration

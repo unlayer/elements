@@ -89,6 +89,8 @@ const html = renderToHtml(<WelcomeEmail />);
 
 **Try it in your browser:** the [Elements Playground](https://examples.unlayer.com/examples/elements-playground/) renders Elements code as an email, page, or document with nothing to install. Write plain JSX, export the HTML or design JSON, and open the result in the Unlayer builder.
 
+**Preview your templates while you edit them:** [`@unlayer/elements-preview`](./packages/preview) lists the templates in your `emails` folder, renders them with your project's Elements as you save, and checks them against email clients. `npm install -D @unlayer/elements-preview && npx elements-preview dev`.
+
 ## Email Client Compatibility Notes
 
 ### Targeted Clients
@@ -267,6 +269,7 @@ For the full API reference, component props, design patterns, and common mistake
 |---------|-------------|-----------|
 | [`@unlayer/react-elements`](./packages/react) | React components and renderers | [![npm](https://img.shields.io/npm/v/@unlayer/react-elements.svg)](https://www.npmjs.com/package/@unlayer/react-elements) |
 | [`@unlayer/migrate`](./packages/migrate) | Migrate React Email templates to Elements, checked against the originals | Not yet |
+| [`@unlayer/elements-preview`](./packages/preview) | Preview templates in the browser as you edit them, check email client support, export to HTML | Not yet |
 | [`@unlayer/from-react-email`](./packages/from-react-email) | The React Email → Elements converter, as a library | Private (bundled into `@unlayer/migrate`, API at `@unlayer/migrate/react-email`) |
 | [`@unlayer/convert-core`](./packages/convert-core) | Shared model for converters (Elements tree, report, TSX printer, layout check) | Internal |
 | [`@unlayer-internal/shared-elements`](./packages/shared) | Framework-agnostic shared logic | Internal |
