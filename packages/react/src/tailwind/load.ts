@@ -177,7 +177,10 @@ async function compile(config: TailwindConfig | undefined, source = config): Pro
   return Object.freeze({ config, [TAILWIND]: resolver }) as TailwindHandle;
 }
 
-/** The configs kept compiled (about 1.3 MB each, and their classes), the ones used last: a server rendering each customer's theme keeps these. */
+/**
+ * The configs kept compiled (about 2.6 MB each with the compiler kept ready, and their classes: 50 take about 130 MB),
+ * the ones used last: a server rendering each customer's theme keeps these.
+ */
 export const CONFIGS = 50;
 
 // By its text, the one used last last; one with functions by the object, with the text of the rest as it was compiled.
