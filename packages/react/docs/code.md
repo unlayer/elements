@@ -69,6 +69,8 @@ registerLanguage("elixir", elixir);
 
 Code longer than 8,192 characters is shown without colors (escaped, in the block's own style, as code in a language it has no grammar for), with a warning. On some code highlight.js's time grows with the code's size squared, on long lines and on short ones (a line of `$a` in Java took 0.4 s for 8 KB and 6 s for 32 KB; 40 KB of INI took 4.4 s), so a block from data can't take more than about 0.4 s to highlight. Code people write is far shorter: of 32,800 code blocks in 46 MB of READMEs and documentation, 21 were longer. `CodeInline` isn't highlighted, so it takes no more than its size calls for.
 
+A render's code is highlighted while the sizes squared of its blocks add up to 8,192² (a block of 8,192 characters, or many smaller ones: 64 of 1,024, a thousand of 256), about 0.4 s for the whole render: its `CodeBlock`s, a Markdown's code blocks (see [Markdown](./markdown.md#markdown-from-data-what-it-cant-make-a-render-do)) and the `highlightCode()` calls in its components, together, in the order they render. A block past that is shown without colors, said once in the render, so a template of many blocks from data can't take more than one block (12 `CodeBlock`s of 8 KB of `$a` in Java took 4.9 s, a block each; they now take 0.4 s). `highlightCode()` called outside a render highlights up to 8,192 characters each time.
+
 ### Themes
 
 `codeThemes.light` and `codeThemes.dark` are Elements' own. The others are ported from highlight.js's style sheets (their colors and font styles, as inline CSS; see `THIRD_PARTY_LICENSES.md` for their authors and licenses):

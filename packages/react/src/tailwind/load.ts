@@ -9,7 +9,7 @@ import { Tailwind, type Resolver, type TailwindConfig, type TailwindHandle } fro
 // runtime has no file to read it from.
 /*! Includes tailwindcss's default theme (MIT License, Copyright (c) Tailwind Labs, Inc.): see THIRD_PARTY_LICENSES.md */
 import theme from "tailwindcss/theme.css?raw";
-import { capped, declarationReader, OVER, CLASSES, STUCK, WAITING, type ClassDeclarations, type Compiler, type DeclarationReader, type PluginFailure } from "./declarations";
+import { BEYOND, CHARACTERS, CLASS_LIMITS, beyond, capped, declarationReader, OVER, CLASSES, STUCK, WAITING, type ClassDeclarations, type Compiler, type DeclarationReader, type PluginFailure } from "./declarations";
 import { guarded } from "./guard";
 import { RenderError } from "@unlayer/react-elements";
 import { classesToProps } from "./props";
@@ -24,19 +24,26 @@ export interface HandleResolver extends Resolver {
   declarations(className: string): ClassDeclarations;
 }
 
+/** The props of a component (by its name) whose markup's classes its rewrite inlines: `html`, and a Heading's or a Button's `text`. */
+const markupProps = (name: string): readonly string[] => (name === "Heading" || name === "Button" ? ["html", "text"] : ["html"]);
+
 /**
  * The classes of the records in a render's scopes with a handle (each record's component's `className`, and those in
- * its `html`, as a rewrite reads them), all built at once by `declarations`, before the render rewrites any (see
- * Tailwind.tsx's `prepare`).
+ * its markup props, the ones its rewrite reads: see markupProps), all built at once by `declarations`, before the render
+ * rewrites any (see Tailwind.tsx's `prepare`). A block's name is its component's, as the main entry gives the rewrite
+ * (its config's, under the key create-component.tsx keeps it at, or its display name).
  */
 function prepareRecords(declarations: DeclarationReader, records: readonly unknown[]): void {
   const names: string[] = [];
   for (const record of records) {
-    const props = (record as { props?: unknown } | null)?.props;
+    const { props, type } = (record ?? {}) as { props?: unknown; type?: { __unlayerItemConfig?: { name?: string }; displayName?: string } };
     if (!props || typeof props !== "object") continue;
-    const { className, html } = props as Record<string, unknown>;
+    const { className } = props as Record<string, unknown>;
     if (className) names.push(String(className));
-    if (typeof html === "string" && /class/i.test(html)) for (const name of classNamesIn(html)) names.push(name);
+    for (const key of markupProps(type?.__unlayerItemConfig?.name ?? type?.displayName ?? "")) {
+      const html = (props as Record<string, unknown>)[key];
+      if (typeof html === "string" && /class/i.test(html)) for (const name of classNamesIn(html)) names.push(name);
+    }
   }
   declarations.prepare(names.join(" "));
 }
@@ -134,7 +141,7 @@ async function compile(config: TailwindConfig | undefined, source = config): Pro
     props: (name: string, className: string, explicit: Record<string, any>, defaults?: Record<string, any>, rtl = false, render?: object) => {
       const capped = reader(render);
       const warn = (text: string) => console.warn(`[Unlayer] ${name} ${text}.`);
-      capped.first = undefined;
+      capped.first = capped.beyond = undefined;
       // A class that isn't read as Tailwind compiles again after a class it couldn't read (one another render may have
       // given) fails the render, which renders right once it has: never without the class's styles.
       let missed: { className: string; reason: string } | undefined;
@@ -146,15 +153,23 @@ async function compile(config: TailwindConfig | undefined, source = config): Pro
       // Classes in its markup (an Html block's, a Paragraph's `html`, a Heading's or Button's `text`, its children's
       // markup): inline styles; in Markdown's sanitized HTML, none its sanitizer wouldn't keep in a `style` (your own
       // markup's are as you wrote them).
-      for (const key of name === "Heading" || name === "Button" ? ["html", "text"] : ["html"]) {
+      for (const key of markupProps(name)) {
         const html = explicit[key];
         if (typeof html === "string" && /class/i.test(html)) explicit = { ...explicit, [key]: inlineClasses(html, read, warn, rtl, explicit._sanitized ? unsafeStyle : undefined) };
       }
       const found = read(className);
       if (missed) throw Object.assign(new RenderError(`<Tailwind> can't read the class \`${missed.className}\` now: ${missed.reason}. Render again then (the async renderers wait for it)`, name, ""), { [TAILWIND]: { compiling: true } });
-      // Classes past the render's first CLASSES: said once in the render, where they're first met.
-      if (capped.first !== undefined && !capped.said && (capped.said = true)) warn(`ignores class \`${capped.first}\`, and the render's other classes past its first ${CLASSES} different ones: a render reads ${CLASSES} at most`);
-      return classesToProps(name, { ...found, ignored: found.ignored.filter((i) => i.reason !== OVER) }, explicit, defaults, false, rtl);
+      // Classes past the render's first CLASSES (CHARACTERS of them), and past CLASS_LIMITS: said once in the render, where
+      // they're first met (the start of one past the limits).
+      if (capped.first !== undefined && !capped.said && (capped.said = true)) warn(`ignores class \`${capped.first}\`, and the render's other classes past its first ${CLASSES} different ones or ${CHARACTERS} characters of them: a render reads that many at most`);
+      // (Read again: the reads above set it.)
+      const big = capped.beyond as string | undefined;
+      if (big !== undefined && !capped.told && (capped.told = true)) {
+        const { characters, variants, ampersands, depth } = CLASS_LIMITS;
+        const shown = big.length > 60 ? `${big.slice(0, 60)}…` : big;
+        warn(`ignores class \`${shown}\`, and the render's other classes like it: ${beyond(big)}. A class is read with at most ${characters} characters, ${variants} variants, ${ampersands} \`&\` in its variants and brackets ${depth} deep, as Tailwind takes time growing faster than a class's size past them`);
+      }
+      return classesToProps(name, { ...found, ignored: found.ignored.filter((i) => i.reason !== OVER && !i.reason.startsWith(BEYOND)) }, explicit, defaults, false, rtl);
     },
   };
   return Object.freeze({ config, [TAILWIND]: resolver }) as TailwindHandle;

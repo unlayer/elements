@@ -11,14 +11,14 @@ import { flatten, type Flat, type Part } from "./output";
 import { checkReact } from "./self-test";
 import { pushTreeContext, ROOT_TREE, type TreeContext } from "./tree-id";
 import { TOP } from "./host";
-import { call, caller, failure, positioned, renderClass, suspension, thrownBy, walkNode, type Collector, type Task, type Wait, type Walker } from "./walk";
+import { call, caller, failure, positioned, renderClass, suspension, thrownBy, walkNode, type Collector, type Shared, type Task, type Wait, type Walker } from "./walk";
 
 export { RenderError, type OnError } from "./errors";
 export { flatten, htmlOf, PENDING, type Flat, type Item, type Markup, type Cut, type Part, type RecordItem } from "./output";
 export { errorPart, passesThrough, type Task, type Wait } from "./walk";
 export { track } from "./dispatcher";
 export type { TreeContext } from "./tree-id";
-export type { Collector, Recorded } from "./walk";
+export type { Collector, Recorded, Shared } from "./walk";
 
 export interface CollectOptions {
   collector: Collector;
@@ -35,9 +35,11 @@ export interface CollectOptions {
   idPrefix?: string;
   /** What the render reads for contexts no provider gives, its template's wrappers' (see unwrap-root.ts). */
   fallbacks?: Fallbacks;
+  /** What the render's components share (see Shared): the render's own, the same in each walk of it. */
+  shared?: Shared;
 }
 
-type WalkerOptions = Pick<CollectOptions, "onError" | "collector" | "passes" | "frameless" | "idPrefix" | "fallbacks">;
+type WalkerOptions = Pick<CollectOptions, "onError" | "collector" | "passes" | "frameless" | "idPrefix" | "fallbacks" | "shared">;
 
 const walker = (options: Partial<WalkerOptions>, wait?: Wait): Walker => ({
   wait,
@@ -46,6 +48,8 @@ const walker = (options: Partial<WalkerOptions>, wait?: Wait): Walker => ({
   frameless: options.frameless,
   idPrefix: options.idPrefix,
   fallbacks: options.fallbacks ?? renderFallbacks(),
+  // (A walk of no render of its own, Elements' own markup, shares the one calling it.)
+  shared: options.shared ?? caller()?.shared ?? {},
   omit: omits(options.onError),
   suspense: 0,
   made: new WeakSet(),
@@ -57,6 +61,12 @@ const walker = (options: Partial<WalkerOptions>, wait?: Wait): Walker => ({
  * top-level render however many it starts, else its own.
  */
 export const renderFallbacks = (): Fallbacks => caller()?.fallbacks ?? new Map();
+
+/**
+ * What the component being called shares with the rest of its render (see Shared), or undefined where none is (outside
+ * a walk's call of a component: React rendering it, code of the user's own outside a render).
+ */
+export const renderShared = (): Shared | undefined => caller()?.shared;
 
 /** Where a walk starts: where the component that started it is, if the walker is calling one (see `caller`). */
 const task = (root: string, tree?: TreeContext): Task => ({ tree: tree ?? caller()?.tree ?? ROOT_TREE, contexts: caller()?.contexts ?? null, format: TOP, frame: rootFrame(root), watch: null });

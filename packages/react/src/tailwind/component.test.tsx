@@ -1143,6 +1143,20 @@ describe("<Tailwind>: an Image's width classes", () => {
     expect(renderToHtml(nested({}, <Image src="https://example.com/logo.png" className="w-32 h-12" />))).toMatch(/<img [^>]*height: ?48px/);
   });
 
+  it("reads an image's size given as a string in time linear in its length, whatever it holds", () => {
+    // `\d*\.?\d+` read a run of digits again from each place it could split it: 30,000 digits then `x` took 1.1 s.
+    const time = (n: number) => {
+      const start = performance.now();
+      block(<Image src={{ url: "https://example.com/logo.png", width: "0".repeat(n) + "x", height: 100 }} className="h-12 w-auto" />);
+      return performance.now() - start;
+    };
+    time(100);
+    const [small, large] = [Math.max(time(3000), 2), time(30_000)];
+    expect(large > 20 * small && large > 100, `${small.toFixed(1)} ms for 3,000 digits, ${large.toFixed(1)} ms for 30,000`).toBe(false);
+    // A size that isn't one gives no width: the height is left out, as without a size.
+    expect(block(<Image src={{ url: "https://example.com/logo.png", width: "0".repeat(100) + "x", height: 100 }} className="h-12" />).src).toMatchObject({ autoWidth: true });
+  });
+
   it.each(Object.keys(MODES) as Mode[])("%s: a logo's height class keeps its aspect ratio in the HTML, sync and async", async (mode) => {
     const content = (
       <>
