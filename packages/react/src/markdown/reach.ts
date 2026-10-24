@@ -53,8 +53,11 @@ export const textReach = (src: string, breaks: boolean): number => {
 /** A URL or an email address marked links by itself: no further than the first whitespace. */
 export const urlReach = (src: string): number => first(src, 0, /\s/g) + 1;
 
+/** What can't be in an autolink. */
+const AUTOLINK_END = /[\s\x00-\x1f<>]/g;
+
 /** `<scheme:…>` or `<address@…>`: to its `>`, or what can't be in one. */
-export const autolinkReach = (src: string): number => first(src, 1, /[\s\x00-\x1f<>]/g) + 1;
+export const autolinkReach = (src: string): number => first(src, 1, AUTOLINK_END) + 1;
 
 /** Code: to the next run of as many backticks. */
 export const codeReach = (src: string): number => {
@@ -71,23 +74,56 @@ export const brReach = (src: string): number => {
   return src[end] === "\n" ? runEnd(src, end + 1, WHITESPACE) + 1 : end + 1;
 };
 
+/** Where a string is next in the text from a place, or -1: `src.indexOf`, or the same read once (see `searches`). */
+type Find = (text: string, from: number) => number;
+
+/**
+ * `src.indexOf`, reading the text for each string once: the places it's at, found as far as asked, so a search from
+ * each of many places (each `<` in a link's text) reads the text once for each string, wherever they are.
+ */
+const searches = (src: string): Find => {
+  const found = new Map<string, { at: number[]; read: number }>();
+  return (text, from) => {
+    let places = found.get(text);
+    if (!places) found.set(text, (places = { at: [], read: 0 }));
+    const { at } = places;
+    while ((!at.length || at[at.length - 1] < from) && places.read <= src.length) {
+      const next = src.indexOf(text, places.read);
+      places.read = next < 0 ? src.length + 1 : next + 1;
+      if (next >= 0) at.push(next);
+    }
+    // The first place at or after `from`.
+    let low = 0;
+    let high = at.length;
+    while (low < high) {
+      const mid = (low + high) >> 1;
+      if (at[mid] < from) low = mid + 1;
+      else high = mid;
+    }
+    return low < at.length ? at[low] : -1;
+  };
+};
+
 /** Raw HTML: a comment, a tag with its attributes (each quoted value to its quote), `<?…?>`, `<!…>`, CDATA. */
-export const tagReach = (src: string): number => {
+export const tagReach = (src: string): number => tagEnd(src, 0, (text, from) => src.indexOf(text, from));
+
+/** tagReach for the `<` at `start` of `src`, as a place in `src`, its searches by `find`. */
+function tagEnd(src: string, start: number, find: Find): number {
   const to = (end: string, from: number) => {
-    const at = src.indexOf(end, from);
+    const at = find(end, from);
     return at < 0 ? src.length : at + end.length;
   };
-  if (src.startsWith("<!--")) return to("-->", 4) + 1;
-  if (src.startsWith("<![CDATA[")) return to("]]>", 9) + 1;
-  if (src[1] === "?") return to("?>", 2) + 1;
-  if (src[1] === "!") {
-    const name = runEnd(src, 2, LETTERS);
-    return name > 2 && /\s/.test(src[name] ?? "") ? to(">", name) + 1 : name + 1;
+  if (src.startsWith("<!--", start)) return to("-->", start + 4) + 1;
+  if (src.startsWith("<![CDATA[", start)) return to("]]>", start + 9) + 1;
+  if (src[start + 1] === "?") return to("?>", start + 2) + 1;
+  if (src[start + 1] === "!") {
+    const name = runEnd(src, start + 2, LETTERS);
+    return name > start + 2 && /\s/.test(src[name] ?? "") ? to(">", name) + 1 : name + 1;
   }
-  if (src[1] === "/") return runEnd(src, runEnd(src, 2, TAG_NAME), WHITESPACE) + 2;
-  if (!/[a-zA-Z]/.test(src[1] ?? "")) return 2;
+  if (src[start + 1] === "/") return runEnd(src, runEnd(src, start + 2, TAG_NAME), WHITESPACE) + 2;
+  if (!/[a-zA-Z]/.test(src[start + 1] ?? "")) return start + 2;
   // A tag: its name, then attributes, each after whitespace, with a value or not.
-  let at = runEnd(src, 1, TAG_NAME);
+  let at = runEnd(src, start + 1, TAG_NAME);
   for (;;) {
     const space = runEnd(src, at, WHITESPACE);
     const end = src[space] === "/" ? space + 1 : space;
@@ -98,7 +134,7 @@ export const tagReach = (src: string): number => {
     const value = runEnd(src, equals + 1, WHITESPACE);
     const quote = src[value];
     if (quote === '"' || quote === "'") {
-      const close = src.indexOf(quote, value + 1);
+      const close = find(quote, value + 1);
       if (close < 0) return src.length;
       at = close + 1;
     } else {
@@ -106,7 +142,7 @@ export const tagReach = (src: string): number => {
       if (at === value) return value + 2;
     }
   }
-};
+}
 
 const LETTERS = /[a-zA-Z]*/y;
 const TAG_NAME = /[a-zA-Z][a-zA-Z0-9-]*/y;
@@ -136,22 +172,35 @@ const label = (src: string): number => {
   return -1 - src.length;
 };
 
-/** How far marked looks from each `<` in a link's text (from `from` to `to`): it reads raw HTML and autolinks there again. */
-const angles = (src: string, from: number, to: number): number => {
-  const text = src.slice(0, to);
+/**
+ * How far marked looks from each `<` in a link's text (from `from` to `to`): it reads raw HTML and autolinks there
+ * again. Each `<`'s search for what ends it (`-->`, `>`, a quote) goes on from where the one before found it: from each
+ * `<` again, `[` and `<!--` 25,000 times took 7 s.
+ */
+const angles = (src: string, from: number, to: number, looks?: Looks): number => {
+  const find = searches(src);
   let reach = 0;
-  for (let at = text.indexOf("<", from); at >= 0; at = text.indexOf("<", at + 1)) {
-    const rest = src.slice(at);
-    reach = Math.max(reach, at + Math.max(tagReach(rest), autolinkReach(rest)));
+  for (let at = src.indexOf("<", from); at >= 0 && at < to; at = src.indexOf("<", at + 1)) {
+    const tag = tagEnd(src, at, find);
+    const autolink = first(src, at + 1, AUTOLINK_END) + 1;
+    reach = Math.max(reach, tag, autolink);
+    if (looks) looks.steps += tag + autolink - 2 * at;
   }
   return reach;
 };
 
+/**
+ * What marked reads in a link's text besides its reach: from each `<` in it, the raw HTML or the autolink there, to see
+ * whether it runs past the text's `]` (at the most: it skips one that ends inside). An unclosed one, `<!--`, is read to
+ * the end from each, so `[` and `<!--` 25,000 times took 7 s: the inline lexer counts it (see inline.ts).
+ */
+export type Looks = { steps: number };
+
 /** `[text](url "title")`: its text, then from `(` its URL and title as marked tries them, and `)`. */
-export const linkReach = (src: string): number => {
+export const linkReach = (src: string, looks?: Looks): number => {
   const end = label(src);
   if (end < 0) return -1 - end;
-  const text = angles(src, 1, end);
+  const text = angles(src, 1, end, looks);
   if (src[end + 1] !== "(") return Math.max(text, end + 2);
   const start = runEnd(src, end + 2, WHITESPACE);
   // Its URL: `<…>`, or up to whitespace.
@@ -179,15 +228,15 @@ const after = (src: string, from: number): number => {
 };
 
 /** `[text][label]`, `[label][]` and `[label]`: the text, then the label, to their `]`. */
-export const reflinkReach = (src: string): number => {
+export const reflinkReach = (src: string, looks?: Looks): number => {
   const start = src[0] === "!" ? 2 : 1;
   // `[label]` (and `[]` after it): to the first bracket, its escapes skipped.
   let bracket = start;
   while (bracket < src.length && src[bracket] !== "[" && src[bracket] !== "]") bracket += src[bracket] === "\\" ? 2 : 1;
-  const plain = Math.max(bracket + 3, angles(src, start, bracket));
+  const plain = Math.max(bracket + 3, angles(src, start, bracket, looks));
   const end = label(src);
   if (end < 0) return Math.max(-1 - end, plain);
-  const text = Math.max(plain, angles(src, start, end));
+  const text = Math.max(plain, angles(src, start, end, looks));
   if (src[end + 1] !== "[") return Math.max(end + 2, text);
   let close = end + 2;
   while (close < src.length && src[close] !== "[" && src[close] !== "]") close += src[close] === "\\" ? 2 : 1;

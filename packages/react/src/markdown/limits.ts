@@ -75,6 +75,18 @@ export class Limited extends Tokenizer {
   }
 
   table(src: string): (Tokens.Table & { tooLarge?: TooLarge }) | undefined {
+    // Whether it's a table, as marked reads one, from its first two lines (its header and delimiter row): marked's rule
+    // reads every line after them as its rows before it tells, and no row makes a table not one. Read from the whole
+    // text, a line a table can't start (`a` over `-`, a setext heading) took time growing with the text after it.
+    const second = src.indexOf("\n");
+    const third = second < 0 ? -1 : src.indexOf("\n", second + 1);
+    if (third >= 0) {
+      const queued = this.lexer.inlineQueue.length;
+      const head = super.table(src.slice(0, third));
+      // (Its cells aren't the Markdown's: what they'd have marked read is left out.)
+      this.lexer.inlineQueue.length = queued;
+      if (!head) return undefined;
+    }
     const cap = this.rules.block.table.exec(src);
     if (cap && this.rules.other.tableDelimiter.test(cap[2])) {
       // As marked counts them: a column for each of the delimiter row's cells (the header must have as many), and a

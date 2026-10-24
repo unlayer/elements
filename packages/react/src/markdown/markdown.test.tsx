@@ -267,7 +267,9 @@ describe("Markdown from data: no more than its size calls for", () => {
       ["~~a nested", "~~a ".repeat(12800) + "b" + " a~~".repeat(12800)],
       ["a URL trimmed", "http://a" + "&a;".repeat(34000)],
       ["an email's characters", "a.".repeat(51200) + "@"],
-      ["spaces, with breaks", "a" + " ".repeat(102400) + "b", true]
+      ["spaces, with breaks", "a" + " ".repeat(102400) + "b", true],
+      // A link's text of raw HTML nothing closes: marked reads from each `<` to the end, to see whether it runs past the `]`.
+      ...["<!--", "<?", "<![CDATA[", "<!a ", '<a b="', "<a "].map((open): [string, string] => [`[${open} …](x)`, `[${fill(open).slice(0, 102300)}](x)`])
     );
     for (const [shape, markdown, breaks] of shapes) {
       const start = performance.now();
@@ -323,6 +325,24 @@ describe("Markdown from data: no more than its size calls for", () => {
       expect([markdown.slice(0, 8), html.includes("x</code>"), performance.now() - start < 3000]).toEqual([markdown.slice(0, 8), true, true]);
     }
   });
+
+  it("reads lines a table can't start in time linear in their size: marked read every line after them first", async () => {
+    // A line under one that could be a table's header (`a` then `-`, a setext heading) was read with all the lines after
+    // it as the table's rows before marked told it isn't one: 100 KB of `a\n-\n` took 14 s.
+    const fill = (unit: string) => unit.repeat(Math.ceil(102400 / unit.length)).slice(0, 102400);
+    for (const unit of ["a\n-\n", "a\n--\n", "a\n:-\n", "> --\n", "--    \n", "-\n~<!--    > ```\n", "a|b\n|-|\n", "|-|-|\n|-|\n", "- a\n  -\n"]) {
+      const start = performance.now();
+      const html = renderToHtml(email({ markdown: fill(unit), html: "escape" }));
+      expect([unit, html.length > 100000, performance.now() - start < 3000]).toEqual([unit, true, true]);
+    }
+    const start = performance.now();
+    await asyncRenderers.renderToHtml(email({ markdown: fill("a\n-\n"), html: "drop" }));
+    expect(performance.now() - start).toBeLessThan(3000);
+    // As marked reads them: a heading underlined with `-`, and a table after many of them, with its rows.
+    const markdown = `${"Title\n-\n\n".repeat(500)}| a | b |\n|---|:-:|\n| 1 | 2 |\n| 3 | 4 |`;
+    expect(blocks({ markdown }).map(([type]) => type)).toEqual([...Array(500).fill("heading"), "table"]);
+    expect(blocks({ markdown }).at(-1)?.[1]).toMatchObject({ rows: { length: 2 } });
+  }, 120_000);
 
   it("reads quotes in time linear in their size, however lines without a `>` continue them, and lists, quotes and code in them", async () => {
     // marked reads a quote a chunk at a time (up to a line without a `>` that continues it), and after each chunk the

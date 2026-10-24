@@ -77,12 +77,19 @@ class Inline extends Limited {
 
   link(src: string): Tokens.Link | Tokens.Image | undefined {
     if (src[0] !== "[" && !src.startsWith("![")) return super.link(src);
-    return this.deep ? undefined : this.within(src, linkReach(src), (part) => super.link(part));
+    if (this.deep || this.spent) return undefined;
+    // What marked reads from each `<` in its text is counted too (see Looks).
+    const looks = { steps: 0 };
+    const reach = linkReach(src, looks);
+    return this.spend(looks.steps) ? this.within(src, reach, (part) => super.link(part)) : undefined;
   }
 
   reflink(src: string, links: Links): Tokens.Link | Tokens.Image | Tokens.Text | undefined {
     if (src[0] !== "[" && !src.startsWith("![")) return super.reflink(src, links);
-    return this.deep ? undefined : this.within(src, reflinkReach(src), (part) => super.reflink(part, links));
+    if (this.deep || this.spent) return undefined;
+    const looks = { steps: 0 };
+    const reach = reflinkReach(src, looks);
+    return this.spend(looks.steps) ? this.within(src, reach, (part) => super.reflink(part, links)) : undefined;
   }
 
   emStrong(src: string, maskedSrc: string, prevChar?: string): Tokens.Em | Tokens.Strong | undefined {
