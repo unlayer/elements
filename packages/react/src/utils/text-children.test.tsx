@@ -3,6 +3,7 @@ import React from "react";
 import { renderToHtml, renderToPlainText } from "./render-to-html";
 import { renderToJson } from "./render-to-json";
 import { Email, Page, Document, Row, Column, Heading, Button, Paragraph, Menu, Link } from "../index";
+import { growth } from "../test-timing";
 
 // A value such as a user's name, with markup in it.
 const name = '<img src=x onerror="alert(1)"> & Co';
@@ -222,7 +223,7 @@ describe("rich text children of Paragraph, Heading and Button", () => {
     }
   });
 
-  it("cost about ten times as much for ten times as much markup of any short shape (random, seeded): a component's own HTML in them, a lone link", () => {
+  it("cost about ten times as much for ten times as much markup of any short shape (random, seeded): a component's own HTML in them, a lone link", async () => {
     // Markup a component of yours writes as it is (`dangerouslySetInnerHTML`), as it reaches the text a block keeps: a
     // <style> or <script> left open at its end takes the end tags after it out with it, so the `<`s before it have no
     // `>` after them (the tags' regex read to the end from each of them: 100 KB took 4 to 16 s).
@@ -251,9 +252,9 @@ describe("rich text children of Paragraph, Heading and Button", () => {
         let unit = "";
         for (let i = 0, n = 1 + random(4); i < n; i++) unit += pieces[random(pieces.length)];
         const [head, tail] = [ends[random(ends.length)], ends[random(ends.length)]];
-        const small = Math.max(time(fill(head, unit, tail, 10240)), 2);
-        const large = time(fill(head, unit, tail, 102400));
-        if (large > 20 * small && large > 100) slow.push(`${JSON.stringify([head, unit, tail])}: ${small.toFixed(1)} ms for 10 KB, ${large.toFixed(1)} ms for 100 KB`);
+        // (The seeded shapes stay the same: timing one again draws nothing.)
+        const { small, large, grows } = await growth((bytes) => time(fill(head, unit, tail, bytes)), [10240, 102400], { ratio: 20, floor: 100 });
+        if (grows) slow.push(`${JSON.stringify([head, unit, tail])}: ${small.toFixed(1)} ms for 10 KB, ${large.toFixed(1)} ms for 100 KB`);
       }
     } finally {
       warn.mockRestore();
