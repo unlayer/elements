@@ -18,6 +18,7 @@ import { Email, Page, Document, Row, Column, Paragraph, Heading, Button, Image, 
 import { designToElements } from "../codegen";
 import { evaluate } from "../codegen/test-harness";
 import { Tailwind, loadTailwind, type TailwindHandle } from "../tailwind";
+import { CLASS_LIMITS } from "../tailwind/declarations";
 
 const PAYLOADS = [
   '"><x-pwn></x-pwn>', "'><x-pwn></x-pwn>", '" x-pwn="1', "' x-pwn='1", "</p></div></td></tr></table><x-pwn></x-pwn>",
@@ -421,7 +422,18 @@ describe("a Tailwind class from data", () => {
     );
   };
 
-  it("costs about ten times as much for ten times as long a class of any short shape, arbitrary variants and values too (random, seeded)", async () => {
+  /** `body` with Tailwind given classes of any length (a class past CLASS_LIMITS isn't: see compile.test.tsx), its reading's own time then measured. */
+  const unlimited = async (body: () => Promise<void> | void) => {
+    const { characters } = CLASS_LIMITS;
+    CLASS_LIMITS.characters = Infinity;
+    try {
+      await body();
+    } finally {
+      CLASS_LIMITS.characters = characters;
+    }
+  };
+
+  it("costs about ten times as much for ten times as long a class of any short shape, arbitrary variants and values too (random, seeded; Tailwind given classes of any length)", () => unlimited(async () => {
     const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
     // A class: what starts it (a utility taking a value, an arbitrary property, value or variant: `[@media(…)]:`,
     // `max-[…]:`), a unit over and over, and what ends it.
@@ -458,9 +470,9 @@ describe("a Tailwind class from data", () => {
       warn.mockRestore();
     }
     expect(slow).toEqual([]);
-  }, 120_000);
+  }), 120_000);
 
-  it("reads a media query of many parts, each with two widths, in time linear in their number (its regex was exponential in it)", () => {
+  it("reads a media query of many parts, each with two widths, in time linear in their number (its regex was exponential in it)", () => unlimited(() => {
     const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
     try {
       const time = (parts: number) => {
@@ -475,7 +487,7 @@ describe("a Tailwind class from data", () => {
     } finally {
       warn.mockRestore();
     }
-  });
+  }));
 
   it("keeps a font family's names in double quotes (`font-[\"Open_Sans\"]`), in single ones", () => {
     const warn = vi.spyOn(console, "warn").mockImplementation(() => {});

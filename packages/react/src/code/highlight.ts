@@ -32,6 +32,7 @@ import xml from "highlight.js/lib/languages/xml";
 import yaml from "highlight.js/lib/languages/yaml";
 import type { LanguageFn as HighlightLanguage } from "highlight.js";
 import { themeOf, type CodeTheme, type CodeThemeName } from "./themes";
+import { codeWork, CODE_WORK, paidFor, sayInRender } from "./work";
 
 /**
  * A language as highlight.js defines it: a function of highlight.js's API giving the language's grammar (a
@@ -79,6 +80,24 @@ export const attribute = (css: string) => css.replace(/[<>"]/g, "");
  */
 export const HIGHLIGHT_LIMIT = 8192;
 
+/**
+ * Whether code of `size` characters can be highlighted in the render it's in, charged to what's left of the render's
+ * CODE_WORK (its code blocks', its Markdown's and its components' highlightCode() calls, together): past it, it's
+ * shown without colors, said once in the render. Outside a render, each call can (up to HIGHLIGHT_LIMIT).
+ */
+function affordable(size: number, component: string): boolean {
+  const work = codeWork();
+  if (!work || size ** 2 <= work.left) {
+    if (work) work.left -= size ** 2;
+    return true;
+  }
+  sayInRender(
+    "code",
+    `[Unlayer] ${component}: code is shown without colors: the sizes squared of the code blocks highlighted in this render add up to more than the ${CODE_WORK} highlight.js is given for one render (on some code its time grows with a block's size squared).`
+  );
+  return false;
+}
+
 /** The languages said to have no grammar, each once: twenty at most, as a fence's label is whoever writes the Markdown's. */
 const warned = new Set<string>();
 
@@ -88,16 +107,18 @@ function styleOf(theme: CodeTheme, scope: string): string | undefined {
   return undefined;
 }
 
-/** Each line of code, as HTML: its tokens in spans with the theme's styles (a token over several lines split at each). */
-export function highlightLines(code: string, language: string | undefined, theme: CodeTheme, component = "CodeBlock"): string[] {
+/**
+ * Each line of code, as HTML: its tokens in spans with the theme's styles (a token over several lines split at each);
+ * `paid`, where its render's work was charged for it already (see CodeWork).
+ */
+export function highlightLines(code: string, language: string | undefined, theme: CodeTheme, component = "CodeBlock", paid = false): string[] {
   const hljs = highlighter();
   let html: string;
   if (language && hljs.getLanguage(language)) {
-    if (code.length <= HIGHLIGHT_LIMIT) html = hljs.highlight(code, { language, ignoreIllegals: true }).value;
-    else {
+    if (code.length > HIGHLIGHT_LIMIT) {
       console.warn(`[Unlayer] ${component}: its code is ${code.length} characters, more than the ${HIGHLIGHT_LIMIT} highlight.js is given at once (on some code its time grows with the code's size squared), so it's shown without colors.`);
       html = escapeHtml(code);
-    }
+    } else html = paid || affordable(code.length, component) ? hljs.highlight(code, { language, ignoreIllegals: true }).value : escapeHtml(code);
   } else {
     if (language && !warned.has(language) && warned.size <= 20) {
       warned.add(language);
@@ -176,7 +197,7 @@ const px = (value: number | string) => (typeof value === "number" ? `${value}px`
 export function highlightCode(code: string, options: HighlightOptions = {}): string {
   const theme = themeOf(options.theme);
   // (Its trailing whitespace off with trimEnd: `/\s+$/` tries again from each of a long run's characters.)
-  const lines = highlightLines(code.replace(/^\r?\n/, "").trimEnd().replace(/\r\n?/g, "\n"), options.language, theme);
+  const lines = highlightLines(code.replace(/^\r?\n/, "").trimEnd().replace(/\r\n?/g, "\n"), options.language, theme, "CodeBlock", !!options.language && paidFor(code));
   const size = px(options.fontSize ?? 13);
   const ratio = typeof options.lineHeight === "number" ? options.lineHeight : options.lineHeight === undefined ? 1.5 : undefined;
   // In pixels where the size is: Outlook reads no ratio.

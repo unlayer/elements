@@ -213,6 +213,9 @@ export function untagged(text: string): string {
 
 const VOID = /^(area|br|col|embed|hr|img|input|link|meta|source|wbr)$/i;
 
+/** A name's tags: where each ends (after its `>`), and for each, where the element it's in ends (see withoutElements). */
+type Group = { at: Int32Array; below: Int32Array };
+
 /**
  * `html` without the elements `test` picks by their start tag (what's in them goes too, nested ones of their name
  * counted), as reading each start tag (`/<([a-z][\w-]*)\b[^>]*>/gi`) and then the tags of its name after it
@@ -221,10 +224,31 @@ const VOID = /^(area|br|col|embed|hr|img|input|link|meta|source|wbr)$/i;
  */
 export function withoutElements(html: string, test: (tag: string) => boolean): string {
   const gt = places(html, />/g);
-  let index: Map<string, { at: number[]; sums: number[]; below: Int32Array }> | undefined;
-  /** The tags of each name (a tag of `a-b` is one of `a` too: `<a\b` reads it), each `>` once, and where each closes. */
-  const build = () => {
-    const groups = new Map<string, { at: number[]; step: number[]; last: number }>();
+  /**
+   * The tag names, as the prefixes of each that a word boundary ends (`a-b` is `a`, `a-` and `a-b`, as `<a\b` reads
+   * it), lowercased, numbered: a prefix is the one before it (0, none) and a step, a run of word characters or of `-`
+   * (`a-b` is `a-`, then `b`). A prefix is found by stepping, never by its text, so a name with a boundary at each
+   * character (`a-a-a-…`) is as many steps, not as many names of up to its length (which took memory and time growing
+   * with the name's length squared: 1.3 s and 0.9 GB for 40 KB). -1 where there's none (`make` unset).
+   */
+  const steps = new Map<string, number>();
+  const step = (from: number, part: string, make: boolean): number => {
+    const key = `${from} ${part}`;
+    let to = steps.get(key);
+    if (to === undefined && make) steps.set(key, (to = steps.size + 1));
+    return to ?? -1;
+  };
+  /**
+   * Each tag of each prefix (a tag of `a-b` is one of `a` too: `<a\b` reads it), in the text's order: where it ends and
+   * the depth it changes its prefix's by (of a prefix's tags sharing a `>`, the first: the rest are in it), and each
+   * prefix's together (`order`, from `starts[prefix]`). Read where a tag is first picked.
+   */
+  let tags: { starts: Int32Array; order: Int32Array; ends: number[]; changes: number[] } | undefined;
+  const read = () => {
+    const prefixes: number[] = [];
+    const ends: number[] = [];
+    const changes: number[] = [];
+    const last: number[] = [];
     const tag = /<(\/?)([a-z][\w-]*)/iy;
     for (let at = html.indexOf("<"); at >= 0; at = html.indexOf("<", at + 1)) {
       tag.lastIndex = at;
@@ -234,32 +258,62 @@ export function withoutElements(html: string, test: (tag: string) => boolean): s
       const runEnd = nameStart + m[2].length;
       const close = gt(runEnd);
       if (close < 0) break;
-      for (let end = nameStart + 1; end <= runEnd; end++) {
-        if (isWord(html[end - 1]) === isWord(html[end])) continue;
-        const name = html.slice(nameStart, end).toLowerCase();
-        let group = groups.get(name);
-        if (!group) groups.set(name, (group = { at: [], step: [], last: -1 }));
-        // Of the tags of a name sharing a `>`, the first is read: the rest are in it.
-        if (close === group.last) continue;
-        group.last = close;
-        group.at.push(close + 1);
-        group.step.push(html[close - 1] === "/" ? 0 : m[1] ? -1 : 1);
+      const run = m[2].toLowerCase();
+      let prefix = 0;
+      let start = 0;
+      for (let end = 1; end <= run.length; end++) {
+        if (isWord(html[nameStart + end - 1]) === isWord(html[nameStart + end])) continue;
+        // (A step for each part, `a` then `-` then `a`: the prefix that ends here.)
+        prefix = step(prefix, run.slice(start, end), true);
+        start = end;
+        if (last[prefix] === close) continue;
+        last[prefix] = close;
+        prefixes.push(prefix);
+        ends.push(close + 1);
+        changes.push(html[close - 1] === "/" ? 0 : m[1] ? -1 : 1);
       }
     }
-    index = new Map();
-    for (const [name, { at, step }] of groups) {
-      // The depth after each tag, and for each, the first tag after it where the depth is lower (its element's end).
-      const sums = [0];
-      for (const s of step) sums.push(sums[sums.length - 1] + s);
-      const below = new Int32Array(sums.length).fill(-1);
+    const starts = new Int32Array(steps.size + 2);
+    for (const prefix of prefixes) starts[prefix + 1]++;
+    for (let prefix = 1; prefix < starts.length; prefix++) starts[prefix] += starts[prefix - 1];
+    const order = new Int32Array(prefixes.length);
+    const next = starts.slice();
+    prefixes.forEach((prefix, k) => (order[next[prefix]++] = k));
+    return { starts, order, ends, changes };
+  };
+  const groups = new Map<number, Group>();
+  /** The tags of `name` (lowercased; a word boundary after it, as between each of its parts), or none. */
+  const groupOf = (name: string): Group | undefined => {
+    tags ??= read();
+    let prefix = 0;
+    for (let start = 0, end = 1; end <= name.length; end++) {
+      if (end < name.length && isWord(name[end - 1]) === isWord(name[end])) continue;
+      if ((prefix = step(prefix, name.slice(start, end), false)) < 0) return undefined;
+      start = end;
+    }
+    let group = groups.get(prefix);
+    if (!group) {
+      // Its tags' ends; the depth after each, and for each, the first tag after it where the depth is lower (its
+      // element's end).
+      const { starts, order, ends, changes } = tags;
+      const count = starts[prefix + 1] - starts[prefix];
+      const at = new Int32Array(count);
+      const sums = new Int32Array(count + 1);
+      for (let k = 0; k < count; k++) {
+        const tag = order[starts[prefix] + k];
+        at[k] = ends[tag];
+        sums[k + 1] = sums[k] + changes[tag];
+      }
+      const below = new Int32Array(count + 1).fill(-1);
       const stack: number[] = [];
-      for (let k = sums.length - 1; k >= 0; k--) {
+      for (let k = count; k >= 0; k--) {
         while (stack.length && sums[stack[stack.length - 1]] >= sums[k]) stack.pop();
         below[k] = stack.length ? stack[stack.length - 1] : -1;
         stack.push(k);
       }
-      index.set(name, { at, sums, below });
+      groups.set(prefix, (group = { at, below }));
     }
+    return group;
   };
   const open = /<([a-z][\w-]*)/iy;
   return rewrite(html, (at) => {
@@ -275,8 +329,7 @@ export function withoutElements(html: string, test: (tag: string) => boolean): s
     let end = close + 1;
     const name = html.slice(at + 1, nameEnd);
     if (html[close - 1] !== "/" && !VOID.test(name)) {
-      if (!index) build();
-      const group = index!.get(name.toLowerCase());
+      const group = groupOf(name.toLowerCase());
       if (group) {
         // The first of its name's tags after its start tag, and where the depth from there first falls below it.
         const ends = group.below[firstFrom(group.at, end + 1)];

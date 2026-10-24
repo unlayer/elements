@@ -7,6 +7,7 @@ import { Markdown, safeUrl, sanitizeHtml, type MarkdownProps } from "./index";
 import { Lexer } from "marked";
 import { Bounded } from "./inline";
 import { TABLE_CELLS } from "./limits";
+import { CodeBlock, highlightCode } from "../code";
 
 let warn: MockInstance;
 beforeEach(() => {
@@ -445,7 +446,7 @@ describe("Markdown from data: no more than its size calls for", () => {
       expect([language, html.includes(fill(unit, 1000)), performance.now() - start < 3000]).toEqual([language, true, true]);
     }
     const said = () => warn.mock.calls.map((call) => String(call[0])).filter((message) => message.startsWith("[Unlayer] Markdown"));
-    expect(said()).toEqual(Array(3).fill("[Unlayer] Markdown: 1 of its code blocks is shown without colors: its code blocks' sizes squared add up to more than the 67108864 highlight.js is given for one Markdown (on some code its time grows with a block's size squared)."));
+    expect(said()).toEqual(Array(3).fill("[Unlayer] Markdown: 1 of its code blocks is shown without colors: the render's code blocks' sizes squared add up to more than the 67108864 highlight.js is given for one render (on some code its time grows with a block's size squared)."));
     warn.mockClear();
     // Sixteen blocks of 2,048 characters are 8,192²; the four after them (in a list too) are shown without colors.
     const block = (i: number) => "```js\n" + `${i};`.padEnd(2048, "1") + "\n```";
@@ -454,7 +455,7 @@ describe("Markdown from data: no more than its size calls for", () => {
     const values = renderToJson(email({ markdown })).body.rows[0].columns[0].contents.map((c: any) => c.values.html ?? c.values.text);
     expect(values.map(colored)).toEqual([...Array(16).fill(true), false, false, false, false]);
     expect(said()).toEqual([
-      "[Unlayer] Markdown: 4 of its code blocks are shown without colors: its code blocks' sizes squared add up to more than the 67108864 highlight.js is given for one Markdown (on some code its time grows with a block's size squared).",
+      "[Unlayer] Markdown: 4 of its code blocks are shown without colors: the render's code blocks' sizes squared add up to more than the 67108864 highlight.js is given for one render (on some code its time grows with a block's size squared).",
     ]);
   });
 
@@ -478,6 +479,91 @@ describe("Markdown from data: no more than its size calls for", () => {
     ];
     for (const sample of samples) expect([sample, new Bounded({ breaks: false, cells: 1e6, size: sample.length }).lex(sample)]).toEqual([sample, new Lexer({ gfm: true }).lex(sample)]);
   });
+});
+
+describe("Markdown from data, in a render of many blocks: no more than their size calls for", () => {
+  // A digest of comments, each a <Markdown> of its own (as notification emails are built): each had all the work a
+  // Markdown can take, so a render's time grew with their number: 12 comments of 8 KB of Java took 4.8 s, 60 took 23.5 s.
+  const fill = (unit: string, n: number) => unit.repeat(Math.ceil(n / unit.length)).slice(0, n);
+  const digest = (children: React.ReactNode[]) => (
+    <Email>
+      {children.map((child, i) => (
+        <Row key={i}>
+          <Column>{child}</Column>
+        </Row>
+      ))}
+    </Email>
+  );
+  /** Each row's blocks' HTML (or text). */
+  const rows = (template: React.ReactElement) => renderToJson(template).body.rows.map((row: any) => row.columns[0].contents.map((c: any) => String(c.values.html ?? c.values.text ?? "")));
+  const colored = (html: string) => html.includes('<span style="');
+  const said = () => warn.mock.calls.map((call) => String(call[0]));
+  const time = (render: () => unknown) => {
+    const start = performance.now();
+    render();
+    return performance.now() - start;
+  };
+
+  it("highlights its Markdown's and CodeBlocks' code while their sizes squared add up to 8,192², said once", async () => {
+    const code = fill("int a = 1;\n", 8000);
+    const fence = "```java\n" + code + "\n```";
+    const template = digest([<Markdown markdown={fence} />, <CodeBlock language="java" code={code} />, <Markdown markdown={fence} />, <CodeBlock language="java" code={code} />, <Markdown markdown={"```java\nint b;\n```"} />]);
+    // The first takes nearly all of it; a small block after the others still fits.
+    expect(rows(template).map((blocks: string[]) => blocks.map(colored))).toEqual([[true], [false], [false], [false], [true]]);
+    expect(said()).toEqual([
+      "[Unlayer] CodeBlock: code is shown without colors: the sizes squared of the code blocks highlighted in this render add up to more than the 67108864 highlight.js is given for one render (on some code its time grows with a block's size squared).",
+      "[Unlayer] Markdown: 1 of its code blocks is shown without colors: the render's code blocks' sizes squared add up to more than the 67108864 highlight.js is given for one render (on some code its time grows with a block's size squared).",
+    ]);
+    // An async render's parts share it as the synchronous render's do; each render has its own.
+    expect(await asyncRenderers.renderToHtml(template)).toBe(renderToHtml(template));
+    // Outside a render, each highlightCode() call has its own (up to 8,192 characters).
+    expect([highlightCode(code, { language: "java" }), highlightCode(code, { language: "java" })].map(colored)).toEqual([true, true]);
+  });
+
+  it("gives its Markdown's inline syntax, together, the work one Markdown of their size can take: past it, the rest is text", () => {
+    // `*a ` over and over takes marked about 0.7 million steps for 2 KB: alone, a comment of it has the million.
+    const comment = fill("*a ", 2048) + "\n\n*end*";
+    const emphasis = (blocks: string[]) => blocks.some((html) => /<em[^>]*>end<\/em>/.test(html));
+    expect(rows(digest([<Markdown markdown={comment} />])).map(emphasis)).toEqual([true]);
+    expect(rows(digest(Array.from({ length: 6 }, (_, i) => <Markdown key={i} markdown={comment} />))).map(emphasis)).toEqual([true, false, false, false, false, false]);
+    expect(said()).toEqual(["[Unlayer] Markdown: it takes marked more work to read than a render's Markdown can (32 steps for each of its characters, and about a million more for its inline syntax, four million for its quotes), so the rest of its inline syntax is text: nothing is left out."]);
+  });
+
+  it("gives its Markdown's quotes, together, the work one Markdown of their size can take: past it, each quote ends at its first line without a `>`", () => {
+    // A quote whose every other line continues it without a `>` takes marked about 0.6 million steps for 2 KB.
+    const comment = fill("> a\nb\n", 2048);
+    const counts = rows(digest(Array.from({ length: 12 }, (_, i) => <Markdown key={i} markdown={comment} />))).map((blocks: string[]) => blocks.length);
+    expect([counts[0], counts[11] > 100]).toEqual([1, true]);
+    expect(said()).toEqual(["[Unlayer] Markdown: it takes marked more work to read than a render's Markdown can (32 steps for each of its characters, and about a million more for its inline syntax, four million for its quotes), so each quote ends at its first line without a `>`, and the rest of a list item's lines is text: nothing is left out."]);
+    expect(rows(digest([<Markdown markdown={comment} />])).map((blocks: string[]) => blocks.length)).toEqual([1]);
+  });
+
+  it("renders many blocks from data in about the time one of their size takes", () => {
+    const java = "```java\n" + fill("$a", 8170) + "\n```";
+    const shapes: Array<[string, React.ReactElement]> = [
+      ["12 comments of 8 KB of Java", digest(Array.from({ length: 12 }, (_, i) => <Markdown key={i} markdown={java} />))],
+      ["12 CodeBlocks of 8 KB of Java", digest(Array.from({ length: 12 }, (_, i) => <CodeBlock key={i} language="java" code={fill("$a", 8190)} />))],
+      ["50 comments of 2 KB of `*a `", digest(Array.from({ length: 50 }, (_, i) => <Markdown key={i} markdown={fill("*a ", 2048)} />))],
+    ];
+    for (const [name, template] of shapes) expect([name, time(() => renderToHtml(template)) < 1500]).toEqual([name, true]);
+  });
+
+  it("costs about ten times as much for ten times as many blocks, and about what one Markdown of them all costs (random, seeded)", () => {
+    const pieces = ["*a ", "_a ", "**a ", "[a](", "> a\nb\n", ">- a\nb\n", "a\n-\n", "|\n-\n", "- a\n  b\n", "\\[", "<!--", "```java\n$a", "```ini\n-", "```csharp\ndef ", "```c\n//", "Some text. ", "\n\n"];
+    let seed = 7;
+    const random = (n: number) => ((seed = (Math.imul(seed, 1103515245) + 12345) >>> 0), Math.floor((seed / 2 ** 32) * n));
+    const slow: string[] = [];
+    for (let run = 0; run < 24; run++) {
+      const unit = pieces[random(pieces.length)] + (random(2) ? pieces[random(pieces.length)] : "");
+      const block = fill(unit, 2048);
+      const blocks = (n: number) => digest(Array.from({ length: n }, (_, i) => (random(4) || !block.startsWith("```") ? <Markdown key={i} markdown={block} /> : <CodeBlock key={i} language="java" code={block} />)));
+      const few = Math.max(time(() => renderToHtml(blocks(5))), 2);
+      const many = time(() => renderToHtml(blocks(50)));
+      const whole = time(() => renderToHtml(digest([<Markdown markdown={Array(50).fill(block).join("\n\n")} />])));
+      if ((many > 20 * few && many > 100) || many > 3 * whole + 1000) slow.push(`${JSON.stringify(unit)}: ${few.toFixed(0)} ms for 5 blocks of 2 KB, ${many.toFixed(0)} ms for 50, ${whole.toFixed(0)} ms for one of 100 KB`);
+    }
+    expect(slow).toEqual([]);
+  }, 120_000);
 });
 
 /** Random inputs the sanitizer is given (`SANITIZE_FUZZ_RUNS=300000` for a longer run, `SANITIZE_FUZZ_SEED` for others). */
@@ -663,6 +749,22 @@ describe("Markdown in a <Tailwind>", () => {
       expect(performance.now() - start).toBeLessThan(5000);
     }
   }, 120_000);
+
+  it("renders headings with a class each in time linear in their number: their `text`'s classes are built at once", async () => {
+    // A heading's sanitized HTML is its `text`, whose classes were built one heading at a time, each build Tailwind's
+    // whole stylesheet again: 2,000 headings (73 KB) took 4.7 s.
+    const handle = await loadTailwind({ headings: true });
+    const time = (n: number) => {
+      const markdown = Array.from({ length: n }, (_, i) => `# <span class="w-[${i + 1}px]">x</span>`).join("\n\n");
+      const start = performance.now();
+      const html = renderToHtml(<Tailwind tw={handle}><Email><Row><Column><Markdown markdown={markdown} /></Column></Row></Email></Tailwind>);
+      expect(html).toMatch(new RegExp(`width: ?${n}px`));
+      return performance.now() - start;
+    };
+    time(20);
+    const [small, large] = [Math.max(time(200), 2), time(2000)];
+    expect(large > 20 * small && large > 100, `${small.toFixed(0)} ms for 200 headings, ${large.toFixed(0)} ms for 2,000`).toBe(false);
+  }, 60_000);
 
   it("inlines your own markup's classes as written: only Markdown's HTML is sanitized", () => {
     expect(design(<Html html={'<div class="bg-[url(https://x.test/a.gif)]">a</div>'} />)).toEqual(['<div style="background-image: url(https://x.test/a.gif)">a</div>']);

@@ -169,7 +169,7 @@ Built with TypeScript from the ground up — full type definitions, autocomplete
 
 ### Lightweight & Tree-Shakeable
 
-The main entry is about 215.7KB of ESM, unminified (about 61KB gzipped), and tree-shakeable; Tailwind, the async renderers, Markdown, code highlighting, fonts, the head and the design-to-code converter are entries of their own, loaded only where you import them. Zero client-side JavaScript required. Designed for performance-sensitive applications and server-side rendering environments.
+The main entry is about 217.6KB of ESM, unminified (about 62KB gzipped), and tree-shakeable; Tailwind, the async renderers, Markdown, code highlighting, fonts, the head and the design-to-code converter are entries of their own, loaded only where you import them. Zero client-side JavaScript required. Designed for performance-sensitive applications and server-side rendering environments.
 
 ## Real-World Use Cases
 

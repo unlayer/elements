@@ -8,9 +8,13 @@
 import type { ClassDeclaration } from "./declarations";
 
 const plain = (v: unknown): v is Record<string, any> => !!v && typeof v === "object" && !Array.isArray(v);
-/** A positive length in pixels, as a number or a string (`400`, `"400"`, `"400px"`); undefined otherwise. */
+/**
+ * A positive length in pixels, as a number or a string (`400`, `"400"`, `"400px"`); undefined otherwise. (A string
+ * read once, and only one a size could be: `\d*\.?\d+` read a run of digits again from each place it could split it.)
+ */
 const pixels = (v: unknown): number | undefined => {
-  const n = typeof v === "number" ? v : typeof v === "string" && /^\d*\.?\d+(px)?$/.test(v.trim()) ? parseFloat(v) : NaN;
+  const text = typeof v === "string" ? v.trim() : "";
+  const n = typeof v === "number" ? v : text.length <= 24 && /^(?:\d+(?:\.\d+)?|\.\d+)(px)?$/.test(text) ? parseFloat(text) : NaN;
   return Number.isFinite(n) && n > 0 ? n : undefined;
 };
 
