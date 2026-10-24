@@ -173,9 +173,10 @@ describe("CodeBlock", () => {
 
   it("writes a token nested deep in others (`${` over and over, in shell) with a style about as long as its theme's", () => {
     // Each token's style was its parents' written out, so the HTML grew with the code's size squared: 16 KB of `${`
-    // was more HTML than a string can hold.
+    // was more HTML than a string can hold. (1,024 deep: past about 3,000, highlight.js's own recursion can run out of
+    // Node 20's stack before its code is optimized, and it then writes the code without colors.)
     const start = performance.now();
-    const html = highlightCode("${".repeat(4096), { language: "shell" });
+    const html = highlightCode("${".repeat(1024), { language: "shell" });
     expect(performance.now() - start).toBeLessThan(1000);
     expect(html.length).toBeLessThan(4 * 1024 * 1024);
     expect(html).toContain('<span style="color: #8a5a00">${</span>');
