@@ -27,12 +27,29 @@ export interface ClassDeclarations {
   ignored: Array<{ className: string; reason: string }>;
 }
 
+const AND = /and/iy;
+/**
+ * Whether a media query (its spaces out) is `(…)` parts, each with a width and no `(` or `)` in it, with `and` or
+ * nothing between them, as `/^(\([^()]*width[^()]*\)(and)?)+$/i` reads it: read once, where that regex tries each
+ * `width` in each part, which is exponential in their number.
+ */
+function widthParts(q: string): boolean {
+  for (let i = 0; i < q.length; ) {
+    const end = q.indexOf(")", i);
+    if (q[i] !== "(" || end < 0 || q.slice(i + 1, end).includes("(") || !/width/i.test(q.slice(i + 1, end))) return false;
+    AND.lastIndex = i = end + 1;
+    if (AND.test(q)) i += 3;
+  }
+  return q.length > 0;
+}
+
 /** Whether a media query is for small screens (an upper width bound), large ones (a lower bound), or neither. */
 function widthOf(query: string): "phone" | "desktop" | undefined {
   const q = query.replace(/\s+/g, "").replace(/^(only)?screen(and)?/i, "");
-  if (!/^(\([^()]*width[^()]*\)(and)?)+$/i.test(q) || /height|orientation|aspect|resolution/i.test(q)) return undefined;
-  const upper = /max-(?:device-)?width|width<=?|[\d.]+(?:px|em|rem)>=?width/i.test(q);
-  const lower = /min-(?:device-)?width|width>=?|[\d.]+(?:px|em|rem)<=?width/i.test(q);
+  if (!widthParts(q) || /height|orientation|aspect|resolution/i.test(q)) return undefined;
+  // (A number only from its run's start: from each digit of it, the number before `px` was read again.)
+  const upper = /max-(?:device-)?width|width<=?|(?:^|[^\d.])[\d.]+(?:px|em|rem)>=?width/i.test(q);
+  const lower = /min-(?:device-)?width|width>=?|(?:^|[^\d.])[\d.]+(?:px|em|rem)<=?width/i.test(q);
   return upper === lower ? undefined : upper ? "phone" : "desktop";
 }
 
@@ -41,7 +58,9 @@ function conditionOf(rule: Rule): ClassCondition | { reason: string } {
   let when: ClassCondition = "always";
   let hoverable = false;
   for (const at of rule.at) {
-    const query = /^@media\s+(.*)$/i.exec(at)?.[1];
+    // What follows `@media `, where it's one line, as `/^@media\s+(.*)$/i` reads it (which read the spaces again for each).
+    const media = /^@media\s+/i.exec(at);
+    const query = media && !/[\n\r\u2028\u2029]/.test(at.slice(media[0].length)) ? at.slice(media[0].length) : undefined;
     if (query && /^\(\s*hover\s*:\s*hover\s*\)$/i.test(query.trim())) hoverable = true;
     else if (query && widthOf(query) && when === "always") when = widthOf(query)!;
     else return { reason: `it applies only for ${at}` };

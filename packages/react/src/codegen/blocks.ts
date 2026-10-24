@@ -2,7 +2,7 @@
  * A design's content blocks as Elements components: each type's own props first (text, links, images, menu items,
  * icons, table data, a video), then its other values (see props.ts) and device settings (see device.ts).
  */
-import { generateHtmlFromTextJson } from "@unlayer-internal/shared-elements";
+import { generateHtmlFromTextJson, safeVideoId } from "@unlayer-internal/shared-elements";
 import { BLOCK_BASE, BLOCK_DEFAULTS, COMPONENT_OF_TYPE } from "./defaults";
 import { placeDevice } from "./device";
 import { attributes, lostThroughValues, placeValues, Props, withoutMeta } from "./props";
@@ -269,7 +269,8 @@ const OWN_PROPS: Record<string, OwnProps> = {
     if (video === undefined || deepEqual(video, defaults.video)) return others;
     const url = isPlainObject(video) ? videoUrl(video) : undefined;
     if (url) props.add("videoUrl", url);
-    else if (isPlainObject(video)) props.add("video", video);
+    // (Its id as the component renders it, what an id doesn't hold percent-encoded: see safeVideoId.)
+    else if (isPlainObject(video)) props.add("video", safeVideoId(video.videoId) === video.videoId ? video : { ...video, videoId: safeVideoId(video.videoId) });
     else others.video = video;
     return others;
   },

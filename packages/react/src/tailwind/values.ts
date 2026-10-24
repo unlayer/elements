@@ -67,7 +67,7 @@ function evaluate(text: string): Quantity {
       if (tokens[i++] !== ")") throw new Error("calc");
       return inner;
     }
-    const match = /^([+-]?)(?:(infinity)|((?:\d+\.?\d*|\.\d+)(?:e[+-]?\d+)?)([a-z%]*))$/i.exec(token ?? "");
+    const match = /^([+-]?)(?:(infinity)|((?:\d+(?:\.\d*)?|\.\d+)(?:e[+-]?\d+)?)([a-z%]*))$/i.exec(token ?? "");
     if (!match) throw new Error("calc");
     const sign = match[1] === "-" ? -1 : 1;
     if (match[2]) return { n: sign * Infinity, unit: "" };
@@ -134,6 +134,7 @@ function calcs(value: string): string {
 export function emailValue(value: string, lookup: Lookup): string | undefined | typeof TOO_LONG {
   const resolved = resolveVars(value, lookup, new Map());
   if (resolved === undefined || resolved === TOO_LONG) return resolved;
-  const pixels = calcs(resolved).replace(/(^|[\s(,])(-?(?:\d+\.?\d*|\.\d+))rem\b/g, (_, before: string, n: string) => `${before}${round(parseFloat(n) * 16)}px`);
+  // (A number as `\d+\.?\d*` reads one, but read once: that splits a run of digits at each place it could, again.)
+  const pixels = calcs(resolved).replace(/(^|[\s(,])(-?(?:\d+(?:\.\d*)?|\.\d+))rem\b/g, (_, before: string, n: string) => `${before}${round(parseFloat(n) * 16)}px`);
   return emailColors(pixels).replace(/\s+/g, " ").trim();
 }

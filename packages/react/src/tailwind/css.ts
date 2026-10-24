@@ -148,7 +148,9 @@ function declarations(body: string): Declaration[] {
     const property = part.slice(0, colon).trim();
     let value = part.slice(colon + 1).trim();
     const important = /!\s*important$/i.test(value);
-    if (important) value = value.replace(/\s*!\s*important$/i, "");
+    // (Its `!` is the value's last: what's before it, less the spaces before it, as `/\s*!\s*important$/` takes it off, which
+    // read the spaces again from each one of them.)
+    if (important) value = value.slice(0, value.lastIndexOf("!")).trimEnd();
     if (property && value) out.push({ property: property.startsWith("--") ? property : property.toLowerCase(), value, important });
   }
   return out;

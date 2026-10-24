@@ -46,10 +46,11 @@ export function sidesOf(value: unknown): string[] {
 export const shorthand = ([t, r, b, l]: string[]) => (l !== r ? `${t} ${r} ${b} ${l}` : b !== t ? `${t} ${r} ${b}` : r !== t ? `${t} ${r}` : t);
 
 const ZERO = /^0[a-z%]*$/;
-const LENGTH = /^(\d*\.?\d+)([a-z%]+)$/;
+// (Numbers as `\d*\.?\d+` reads them, but read once: see props.ts.)
+const LENGTH = /^(\d+(?:\.\d+)?|\.\d+)([a-z%]+)$/;
 const Z = "0px";
 const SIDES = ["Top", "Right", "Bottom", "Left"];
-const px = (value: string) => (ZERO.test(value) ? 0 : /^\d*\.?\d+px$/.test(value) ? parseFloat(value) : NaN);
+const px = (value: string) => (ZERO.test(value) ? 0 : /^(?:\d+(?:\.\d+)?|\.\d+)px$/.test(value) ? parseFloat(value) : NaN);
 
 /** Two lengths added: in one unit, or one of them zero; undefined where they can't be. */
 export function plus(a: string, b: string): string | undefined {

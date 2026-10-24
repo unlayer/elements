@@ -161,7 +161,7 @@ export function hatch(html: string, at: RegExp, style: unknown, className: unkno
   if (!css && !names) return html;
   return html.replace(at, (tag) => {
     const named = names ? attr(tag, "class", names, (own) => `${names} ${own}`) : tag;
-    return css ? attr(named, "style", css, (own) => `${own.replace(/[\s;]*$/, ";")}${css}`) : named;
+    return css ? attr(named, "style", css, (own) => `${withoutTrailing(own)};${css}`) : named;
   });
 }
 
@@ -205,6 +205,13 @@ export function safeName(value: unknown, spaces = false): string {
   if (/^[\w-]*$/.test(text)) return text;
   // Class names apart on lines or by tabs stay apart, as the browser reads them.
   return spaces ? text.replace(/[\t\n\f\r]/g, " ").replace(/["'<>&`\u0000-\u001f\u007f]/g, "") : text.replace(/["'<>&`\s\u0000-\u001f\u007f]/g, "");
+}
+
+/** `style` without the whitespace and `;`s it ends in (as `/[\s;]*$/` finds them: from its end, read once). */
+function withoutTrailing(style: string): string {
+  let end = style.length;
+  while (end && /[\s;]/.test(style[end - 1])) end--;
+  return style.slice(0, end);
 }
 
 /**
