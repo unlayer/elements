@@ -171,7 +171,11 @@ describe("a context the template doesn't provide", () => {
   const streamed = (around: (page: React.ReactNode) => React.ReactElement) =>
     new Promise<void>((resolve, reject) => {
       let ready = false;
-      const data = new Promise((done) => setTimeout(done, 5)).then(() => void (ready = true));
+      // (Its data comes once the shell is written, so the part always waits for it: from a timer, it could come before
+      // react-dom's scheduled render started, on a busy machine, which then rendered the page in one pass and left
+      // the context as it was.)
+      let release = () => {};
+      const data = new Promise<void>((done) => (release = done)).then(() => void (ready = true));
       const Slow = () => {
         if (!ready) throw data;
         return <p>loaded</p>;
@@ -179,7 +183,7 @@ describe("a context the template doesn't provide", () => {
       const page = around(<main><Suspense fallback={<i>…</i>}><Slow /></Suspense></main>);
       // (Written nowhere: Node's streams aren't in this test's environment.)
       const sink = { write: () => true, end: () => {}, destroy: () => {}, on: () => sink } as unknown as NodeJS.WritableStream;
-      const stream = renderToPipeableStream(page, { onShellReady: () => void stream.pipe(sink), onAllReady: resolve, onShellError: reject });
+      const stream = renderToPipeableStream(page, { onShellReady: () => (stream.pipe(sink), release()), onAllReady: resolve, onShellError: reject });
     });
   const tenantPage = (context: React.Context<any>, value: unknown) => streamed((page) => <context.Provider value={value}>{page}</context.Provider>);
   /** renderToString of a page that fails inside a provider (the app catches it), and of one that suspends there. */
