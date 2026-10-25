@@ -5,6 +5,7 @@ import { describe, expect, it, vi } from "vitest";
 import { Column, Email, Heading, Html, Paragraph, RenderError, Row, UnlayerProvider, renderToHtml as renderToHtmlSync, renderToHtmlParts as renderToHtmlPartsSync, renderToJson as renderToJsonSync, renderToPlainText as renderToPlainTextSync } from "../index";
 import { Tailwind } from "../tailwind";
 import { pretty as formatted, renderToHtml, renderToHtmlParts, renderToJson, renderToPlainText } from "./index";
+import { inTime, within } from "../test-timing";
 import * as tailwind from "../tailwind";
 import { Head } from "../head";
 import { Font } from "../font";
@@ -496,9 +497,9 @@ describe("the async renderers", () => {
 
   it("sets the HTML's comments aside in time linear in its size, and fails as prettier does on one nothing closes", async () => {
     // `/<!--[\s\S]*?-->/g` looked from each `<!--` nothing closes to the end: 400 KB of them took 11 s.
-    const start = performance.now();
-    await expect(formatted("<!--".repeat(102400))).rejects.toThrow();
-    expect(performance.now() - start).toBeLessThan(2000);
+    const timing = await within(2000, () => formatted("<!--".repeat(102400)).then(() => undefined, (error: unknown) => error));
+    expect(timing.result).toBeInstanceOf(Error);
+    expect(inTime(timing)).toBe(true);
     expect(await formatted("<p>a<!-- one --><!--two--></p>")).toContain("<!-- one --><!--two-->");
   });
 
