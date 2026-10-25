@@ -20,7 +20,7 @@ import { evaluate } from "../codegen/test-harness";
 import { Tailwind, loadTailwind, type TailwindHandle } from "../tailwind";
 import { CLASS_LIMITS } from "../tailwind/declarations";
 import { Markdown } from "../markdown";
-import { growth } from "../test-timing";
+import { growth, inTime, within } from "../test-timing";
 
 const PAYLOADS = [
   '"><x-pwn></x-pwn>', "'><x-pwn></x-pwn>", '" x-pwn="1', "' x-pwn='1", "</p></div></td></tr></table><x-pwn></x-pwn>",
@@ -542,29 +542,37 @@ describe("a Tailwind class from data", () => {
         expect(TAILWIND_SQUARED(head, unit)).toBe(true);
         const className = head + unit.repeat(Math.ceil(characters / unit.length)).slice(0, characters - head.length - tail.length) + tail;
         expect(className).toHaveLength(characters);
-        const handle = await loadTailwind({ theme: { extend: { colors: { [`limit${head}${unit}`]: "#000000" } } } });
-        everywhere(handle, "p-2");
-        const start = performance.now();
-        everywhere(handle, className);
-        expect([className.slice(0, 20), performance.now() - start < 100]).toEqual([className.slice(0, 20), true]);
+        // (Timed again on a fresh handle: one reads a class it built from what it built.)
+        let handles = 0;
+        const fresh = async () => {
+          const handle = await loadTailwind({ theme: { extend: { colors: { [`limit${head}${unit}${handles++}`]: "#000000" } } } });
+          everywhere(handle, "p-2");
+          return handle;
+        };
+        const first = await fresh();
+        const timing = await within(100, () => everywhere(first, className), { before: fresh, again: (handle) => everywhere(handle, className) });
+        expect([className.slice(0, 20), inTime(timing)]).toEqual([className.slice(0, 20), true]);
       }
     } finally {
       warn.mockRestore();
     }
   });
 
-  it("reads a media query of many parts, each with two widths, in time linear in their number (its regex was exponential in it)", () => unlimited(() => {
+  it("reads a media query of many parts, each with two widths, in time linear in their number (its regex was exponential in it)", () => unlimited(async () => {
     const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
     try {
-      const time = (parts: number) => {
+      // (Each timed on a fresh handle: one reads a class it built from what it built.)
+      let handles = 0;
+      const time = async (parts: number) => {
+        const handle = await loadTailwind({ theme: { extend: { colors: { [`media${handles++}`]: "#000000" } } } });
         const start = performance.now();
-        everywhere(tw, `[@media${"(width<1px_or_width>2px)and".repeat(parts)}x]:p-1`);
-        everywhere(tw, `[@media${"(widthwidth)and".repeat(parts)}x]:p-1`);
+        everywhere(handle, `[@media${"(width<1px_or_width>2px)and".repeat(parts)}x]:p-1`);
+        everywhere(handle, `[@media${"(widthwidth)and".repeat(parts)}x]:p-1`);
         return performance.now() - start;
       };
-      time(4);
-      const [small, large] = [Math.max(time(12), 2), time(24)];
-      expect(large > 20 * small && large > 100, `${small.toFixed(1)} ms for 12 parts, ${large.toFixed(1)} ms for 24`).toBe(false);
+      await time(4);
+      const { small, large, grows } = await growth(time, [12, 24], { ratio: 20, floor: 100 });
+      expect(grows, `${small.toFixed(1)} ms for 12 parts, ${large.toFixed(1)} ms for 24`).toBe(false);
     } finally {
       warn.mockRestore();
     }

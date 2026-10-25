@@ -26,6 +26,7 @@ import {
 } from "../index";
 import { Tailwind, classNameToDeclarations, loadTailwind, renderToHtml as renderToHtmlAsync, renderToJson as renderToJsonAsync, type TailwindHandle } from "./index";
 import { inlineClasses } from "./html";
+import { growth, inTime, within } from "../test-timing";
 
 const config = { theme: { extend: { colors: { brand: "#007291" } } } };
 let tw: TailwindHandle;
@@ -488,7 +489,7 @@ describe("<Tailwind>: classes in an Html block's markup", () => {
     expect(warnings()).toEqual([]);
   });
 
-  it("reads markup in time linear in its size: an end tag ends what's open in it once, the classes are read at once", () => {
+  it("reads markup in time linear in its size: an end tag ends what's open in it once, the classes are read at once", async () => {
     // Elements nested 60,000 deep in an element with a class, ended by their end tags or by others' (`</span>`, which
     // ends none of them), and 30,000 tags with a class of their own each: an end tag read every element still open, and
     // each tag's classes were read alone (with Tailwind, each read of a class it hasn't built builds its whole stylesheet).
@@ -500,9 +501,7 @@ describe("<Tailwind>: classes in an Html block's markup", () => {
       ['<div class="p-1">' + "<div>".repeat(n) + "x" + "</span>".repeat(n) + "</div>", "p-1"],
       [Array.from({ length: n / 2 }, (_, i) => `<span class="x${i}">x</span>`).join(""), Array.from({ length: n / 2 }, (_, i) => `x${i}`).join(" ")],
     ] as const) {
-      const start = performance.now();
-      inlineClasses(html, reader, () => {});
-      expect(performance.now() - start).toBeLessThan(2000);
+      expect(inTime(await within(2000, () => inlineClasses(html, reader, () => {})))).toBe(true);
       expect(reader.prepare).toHaveBeenLastCalledWith(prepared);
     }
   });
@@ -1143,7 +1142,7 @@ describe("<Tailwind>: an Image's width classes", () => {
     expect(renderToHtml(nested({}, <Image src="https://example.com/logo.png" className="w-32 h-12" />))).toMatch(/<img [^>]*height: ?48px/);
   });
 
-  it("reads an image's size given as a string in time linear in its length, whatever it holds", () => {
+  it("reads an image's size given as a string in time linear in its length, whatever it holds", async () => {
     // `\d*\.?\d+` read a run of digits again from each place it could split it: 30,000 digits then `x` took 1.1 s.
     const time = (n: number) => {
       const start = performance.now();
@@ -1151,8 +1150,8 @@ describe("<Tailwind>: an Image's width classes", () => {
       return performance.now() - start;
     };
     time(100);
-    const [small, large] = [Math.max(time(3000), 2), time(30_000)];
-    expect(large > 20 * small && large > 100, `${small.toFixed(1)} ms for 3,000 digits, ${large.toFixed(1)} ms for 30,000`).toBe(false);
+    const { small, large, grows } = await growth(time, [3000, 30_000], { ratio: 20, floor: 100 });
+    expect(grows, `${small.toFixed(1)} ms for 3,000 digits, ${large.toFixed(1)} ms for 30,000`).toBe(false);
     // A size that isn't one gives no width: the height is left out, as without a size.
     expect(block(<Image src={{ url: "https://example.com/logo.png", width: "0".repeat(100) + "x", height: 100 }} className="h-12" />).src).toMatchObject({ autoWidth: true });
   });
