@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { htmlToPlainText } from "./html-to-text";
+import { growth, inTime, within } from "../test-timing";
 
 describe("htmlToPlainText", () => {
   it("returns empty string for empty input", () => {
@@ -252,17 +253,17 @@ describe("htmlToPlainText", () => {
       return performance.now() - start;
     };
 
-    it("reads tags nothing closes, and runs of spaces in preformatted text, once", () => {
+    it("reads tags nothing closes, and runs of spaces in preformatted text, once", async () => {
       // Each regex looked from each place it could start to the end where nothing ended it, again from the next: 40
       // KB of `<img alt="a" ` took a minute, 80,000 spaces in a <pre> 11 s.
       const shapes = ["<", "<<", '<img alt="a" ', "<a  ", "<a href=\"x\">", "<a '", "<li>", "<h1>", "<h3>", "<pre>", "<pre x", "<hr", "<img ", "<head", "<style", "<script", "<!--", "<a-0-0-0", '<div data-skip-in-text="true">', "<%\"", "<&"];
-      for (const unit of shapes) expect([unit, time(fill(unit, 102400)) < 500]).toEqual([unit, true]);
-      expect(time("<pre>\n" + " ".repeat(102400) + "x\n</pre>")).toBeLessThan(500);
+      for (const unit of shapes) expect([unit, inTime(await within(500, () => htmlToPlainText(fill(unit, 102400))))]).toEqual([unit, true]);
+      expect(inTime(await within(500, () => htmlToPlainText("<pre>\n" + " ".repeat(102400) + "x\n</pre>")))).toBe(true);
       // As before: its lines' trailing spaces off, its indentation kept.
       expect(htmlToPlainText("<pre>\n" + " ".repeat(1000) + "x  \n</pre>")).toBe("\n" + " ".repeat(1000) + "x\n");
     });
 
-    it("reads a tag whose name has a word boundary at each character (`a-a-…`) once, after an element it leaves out", () => {
+    it("reads a tag whose name has a word boundary at each character (`a-a-…`) once, after an element it leaves out", async () => {
       // Each of the name's starts a boundary ends was a name of its own (an element left out ends at a tag of any of
       // them): 40 KB of `A-` took 1.3 s and 0.9 GB, 100 KB ran out of memory.
       for (const unit of ["A-", "a-", "a-B-", "a--"]) {
@@ -270,15 +271,15 @@ describe("htmlToPlainText", () => {
           const name = fill(unit, bytes) + "a";
           return `<div data-skip-in-text="true"></div><${name}>x</${name}><p data-skip-in-text="true"><${name}><p>y</p></${name.toUpperCase()}></p>z`;
         };
-        const small = Math.max(time(page(4096)), 1);
-        const large = time(page(40960));
-        expect([unit, large < 20 * small || large < 50, large < 500]).toEqual([unit, true, true]);
+        const { small, large, grows } = await growth((bytes) => time(page(bytes)), [4096, 40960], { ratio: 20, floor: 50 });
+        const whole = await within(500, () => htmlToPlainText(page(40960)));
+        expect([unit, grows ? `${small.toFixed(1)} ms for 4 KB, ${large.toFixed(1)} ms for 40 KB` : "linear", inTime(whole)]).toEqual([unit, "linear", true]);
         // As before: the paragraph left out ends at its own `</p>`, past the tags of the long name.
         expect(htmlToPlainText(page(100))).toBe("xz");
       }
     });
 
-    it("costs about ten times as much for ten times as much of any short shape (random, seeded)", () => {
+    it("costs about ten times as much for ten times as much of any short shape (random, seeded)", async () => {
       const pieces = ["<a ", '<a href="x">', "</a>", "<li>", "</li>", "<h1>", "</h1>", "<h3>", "<pre>", "</pre>", "</td>", "<img ", '<img alt="a" ', "alt=", '"', "'", ">", "/>", "<", "<!--", "-->", "<head", "</head>", "<style", "<script", "<br", " ", "\t", "\n", "\r", "\u2028", "a", "&", "&amp;", "<%", "%>", "<p>", "</p>", '<div data-skip-in-text="true">', "<div>", "</div>", "<hr", "-", "x-", "a-", "A-", "<a-a-", "</A-A-"];
       let seed = 7;
       const random = (n: number) => ((seed = (Math.imul(seed, 1103515245) + 12345) >>> 0), Math.floor((seed / 2 ** 32) * n));
@@ -289,9 +290,9 @@ describe("htmlToPlainText", () => {
         const options = [{}, { links: "after" as const }, { skip: ["img", ".promo"] }][random(3)];
         // Sometimes after an element left out and a tag's `<`: a unit of a name's characters is then one long name.
         const head = random(4) ? "" : '<div data-skip-in-text="true"></div><';
-        const small = Math.max(time(head + fill(unit, 10240), options), 1);
-        const large = time(head + fill(unit, 102400), options);
-        if (large > 20 * small && large > 50) slow.push(`${JSON.stringify(unit)}: ${small.toFixed(1)} ms for 10 KB, ${large.toFixed(1)} ms for 100 KB`);
+        // (The seeded shapes stay the same: timing one again draws nothing.)
+        const { small, large, grows } = await growth((bytes) => time(head + fill(unit, bytes), options), [10240, 102400], { ratio: 20, floor: 50 });
+        if (grows) slow.push(`${JSON.stringify(unit)}: ${small.toFixed(1)} ms for 10 KB, ${large.toFixed(1)} ms for 100 KB`);
       }
       expect(slow).toEqual([]);
     }, 60_000);
