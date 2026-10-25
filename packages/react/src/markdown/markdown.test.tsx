@@ -8,7 +8,18 @@ import { Lexer } from "marked";
 import { Bounded } from "./inline";
 import { TABLE_CELLS } from "./limits";
 import { CodeBlock, highlightCode } from "../code";
-import { growth } from "../test-timing";
+import { growth, inTime, within } from "../test-timing";
+
+/** `run`'s, saying nothing (a render timed again: see within). */
+const quietly = <T,>(run: () => T): T => {
+  const say = console.warn;
+  console.warn = () => {};
+  try {
+    return run();
+  } finally {
+    console.warn = say;
+  }
+};
 
 let warn: MockInstance;
 beforeEach(() => {
@@ -166,17 +177,18 @@ describe("Markdown from data: no more than its size calls for", () => {
   it("fails on a table marked would fill out to more cells than the Markdown has characters (or 1,000), as a component of yours fails", async () => {
     for (const kb of [1, 5, 20, 100]) {
       const markdown = padded(kb * 1024);
-      const start = performance.now();
-      let thrown: unknown;
-      try {
-        renderToHtml(email({ markdown }));
-      } catch (e) {
-        thrown = e;
-      }
+      // (Without reading the rows: well under a second however large, where filling it out took seconds and gigabytes.)
+      const timing = await within(5000, () => {
+        try {
+          renderToHtml(email({ markdown }));
+        } catch (e) {
+          return e;
+        }
+      });
+      const thrown = timing.result;
       expect(thrown).toBeInstanceOf(RenderError);
       expect((thrown as RenderError).message).toMatch(/^\[Unlayer\] A table of \d+ columns and \d+ rows is \d+ cells, more than the Markdown can render: .* \(in <Markdown> at Row 1 › Column 1 › Markdown\)$/);
-      // (Without reading the rows: well under a second however large, where filling it out took seconds and gigabytes.)
-      expect(performance.now() - start).toBeLessThan(5000);
+      expect(inTime(timing)).toBe(true);
     }
     // With `onError: "omit"` it's left out of the HTML, the plain text and the design, listed, and the rest renders.
     const markdown = `# Before\n\n${padded(5 * 1024)}\nAfter`;
@@ -230,19 +242,21 @@ describe("Markdown from data: no more than its size calls for", () => {
     expect(renderToJson(email({ markdown }), { onError: "omit" }).body.rows[0].columns[0].contents.map((c: any) => c.values.text)).toEqual(["Before", "After"]);
   });
 
-  it("nests quotes and lists 32 deep: deeper, their markers are text, and the rest of the email renders", () => {
+  it("nests quotes and lists 32 deep: deeper, their markers are text, and the rest of the email renders", async () => {
     for (const markdown of [">".repeat(2500) + " deep", "> - ".repeat(2000) + "deep", "> ".repeat(50000) + "deep", "- ".repeat(5000) + "deep"]) {
-      const start = performance.now();
-      const html = renderToHtml(
-        <Email>
-          <Row>
-            <Column>
-              <Markdown markdown={markdown} />
-              <Html html="<p>The rest</p>" />
-            </Column>
-          </Row>
-        </Email>
+      const timing = await within(5000, () =>
+        renderToHtml(
+          <Email>
+            <Row>
+              <Column>
+                <Markdown markdown={markdown} />
+                <Html html="<p>The rest</p>" />
+              </Column>
+            </Row>
+          </Email>
+        )
       );
+      const html = timing.result;
       const body = new DOMParser().parseFromString(html, "text/html").body;
       let depth = 0;
       for (let e: Element | null = body.querySelector("blockquote, ul"); e; e = e.querySelector(":scope > blockquote, :scope > li > ul, :scope > ul, :scope > li > blockquote, :scope > p > blockquote")) depth++;
@@ -250,13 +264,13 @@ describe("Markdown from data: no more than its size calls for", () => {
       expect(depth).toBeLessThanOrEqual(32);
       expect(body.textContent).toContain("deep");
       expect(body.textContent).toContain("The rest");
-      expect(performance.now() - start).toBeLessThan(5000);
+      expect(inTime(timing)).toBe(true);
     }
     // Under the limit, as deep as written.
     expect(renderToHtml(email({ markdown: "> ".repeat(10) + "x" })).match(/<blockquote/g)).toHaveLength(10);
   });
 
-  it("reads inline Markdown in time linear in its size, however its delimiters are left open or nested", () => {
+  it("reads inline Markdown in time linear in its size, however its delimiters are left open or nested", async () => {
     // Each 100 KB on one line, or on many: marked looks ahead from each opener to the line's end (or the paragraph's)
     // for what closes it, and from each place an email or a URL could start for one, so these took up to a minute
     // (`*a `), or overflowed the stack (emphasis nested deep). Past what an email's Markdown takes, the rest is text.
@@ -275,9 +289,8 @@ describe("Markdown from data: no more than its size calls for", () => {
       ...["<!--", "<?", "<![CDATA[", "<!a ", '<a b="', "<a "].map((open): [string, string] => [`[${open} …](x)`, `[${fill(open).slice(0, 102300)}](x)`])
     );
     for (const [shape, markdown, breaks] of shapes) {
-      const start = performance.now();
-      const html = renderToHtml(email({ markdown, html: "escape", breaks }));
-      expect([shape, html.length > 100000, performance.now() - start < 3000]).toEqual([shape, true, true]);
+      const timing = await within(3000, () => renderToHtml(email({ markdown, html: "escape", breaks })));
+      expect([shape, timing.result.length > 100000, inTime(timing)]).toEqual([shape, true, true]);
     }
   }, 180_000);
 
@@ -320,35 +333,32 @@ describe("Markdown from data: no more than its size calls for", () => {
     }
   }, 60_000);
 
-  it("renders a code block of whitespace in time linear in its size, its colors off or not", () => {
+  it("renders a code block of whitespace in time linear in its size, its colors off or not", async () => {
     // Its trailing whitespace taken off with a regex that tried again from each space: 100 KB of spaces then `x` took 6 s.
     for (const markdown of ["```\n" + " ".repeat(102400) + "x\n```", "```js\n" + "\n".repeat(102400) + "x\n```", "- a\n\n  ```\n  " + " ".repeat(102400) + "x\n  ```"]) {
-      const start = performance.now();
-      const html = renderToHtml(email({ markdown, html: "escape" }));
-      expect([markdown.slice(0, 8), html.includes("x</code>"), performance.now() - start < 3000]).toEqual([markdown.slice(0, 8), true, true]);
+      const timing = await within(3000, () => renderToHtml(email({ markdown, html: "escape" })));
+      expect([markdown.slice(0, 8), timing.result.includes("x</code>"), inTime(timing)]).toEqual([markdown.slice(0, 8), true, true]);
     }
   });
 
-  it("reads a list item of many lines in time linear in its size: marked read the rest of it again for each line", () => {
+  it("reads a list item of many lines in time linear in its size: marked read the rest of it again for each line", async () => {
     // In a list item, marked reads one line at a time: before each, its setext heading rule read the rest of the item
     // for an underline, and each line added to the text before it read all that text again. 200 KB took 6 s.
     const fill = (unit: string) => unit.repeat(Math.ceil(204800 / unit.length)).slice(0, 204800);
     for (const unit of ["- [a]: b\n!@", "+ \\[x]\n@", "- \n    -:http://;", "> 1. .<-\n[ ]", "1. `\nwww.", "- a\n    b\n", "- a\n[x]: y\n"]) {
-      const start = performance.now();
-      const html = renderToHtml(email({ markdown: fill(unit), html: "escape" }));
-      expect([unit, html.includes("@") || html.includes("www") || html.includes("b") || html.includes("y"), performance.now() - start < 3000]).toEqual([unit, true, true]);
+      const timing = await within(3000, () => renderToHtml(email({ markdown: fill(unit), html: "escape" })));
+      const html = timing.result;
+      expect([unit, html.includes("@") || html.includes("www") || html.includes("b") || html.includes("y"), inTime(timing)]).toEqual([unit, true, true]);
     }
     // As marked reads them: headings underlined in list items, lines added to an item's text, code and definitions in it.
     const samples = ["- a\n  b\n  ---\n- c\n  ===\n", "- a\nb\n=\n", "1. one\n   two\n\n       code\n   [x]: https://e.test\n   three\n", "> - a\n>   b\n>   -\n", "- a\n  \u2028b\n  -\n", "* x\ny\nz\n  ---\nw"];
     for (const sample of samples) expect([sample, new Bounded({ breaks: false, cells: 1e6, size: sample.length }).lex(sample)]).toEqual([sample, new Lexer({ gfm: true }).lex(sample)]);
   });
 
-  it("looks for reference links (`[a]`) only where the Markdown defines one", () => {
+  it("looks for reference links (`[a]`) only where the Markdown defines one", async () => {
     // marked masks the reference links in a paragraph from each `[`, up to 999 steps each: 1 MB of `\[` took 4 s, with
     // none to mask. Defined, they're masked as marked masks them.
-    const start = performance.now();
-    renderToHtml(email({ markdown: "\\[".repeat(524288), html: "escape" }));
-    expect(performance.now() - start).toBeLessThan(2000);
+    expect(inTime(await within(2000, () => renderToHtml(email({ markdown: "\\[".repeat(524288), html: "escape" }))))).toBe(true);
     const markdown = "Read *[the guide] and [faq]*, **[a][guide]**.\n\n[guide]: https://e.test/g\n[faq]: https://e.test/f";
     expect(new Bounded({ breaks: false, cells: 1e6, size: markdown.length }).lex(markdown)).toEqual(new Lexer({ gfm: true }).lex(markdown));
   });
@@ -387,13 +397,10 @@ describe("Markdown from data: no more than its size calls for", () => {
     // too, to tell whether a table starts there (`|` then `-`: 5 s).
     const fill = (unit: string) => unit.repeat(Math.ceil(102400 / unit.length)).slice(0, 102400);
     for (const unit of ["a\n-\n", "a\n--\n", "a\n:-\n", "> --\n", "--    \n", "-\n~<!--    > ```\n", "a|b\n|-|\n", "|-|-|\n|-|\n", "- a\n  -\n", "|\n-\n", "a\n|\n-\n"]) {
-      const start = performance.now();
-      const html = renderToHtml(email({ markdown: fill(unit), html: "escape" }));
-      expect([unit, html.length > 100000, performance.now() - start < 3000]).toEqual([unit, true, true]);
+      const timing = await within(3000, () => renderToHtml(email({ markdown: fill(unit), html: "escape" })));
+      expect([unit, timing.result.length > 100000, inTime(timing)]).toEqual([unit, true, true]);
     }
-    const start = performance.now();
-    await asyncRenderers.renderToHtml(email({ markdown: fill("a\n-\n"), html: "drop" }));
-    expect(performance.now() - start).toBeLessThan(3000);
+    expect(inTime(await within(3000, () => asyncRenderers.renderToHtml(email({ markdown: fill("a\n-\n"), html: "drop" }))))).toBe(true);
     // As marked reads them: a heading underlined with `-`, and a table after many of them, with its rows.
     const markdown = `${"Title\n-\n\n".repeat(500)}| a | b |\n|---|:-:|\n| 1 | 2 |\n| 3 | 4 |`;
     expect(blocks({ markdown }).map(([type]) => type)).toEqual([...Array(500).fill("heading"), "table"]);
@@ -445,14 +452,15 @@ describe("Markdown from data: no more than its size calls for", () => {
     expect(blocks({ markdown }).at(-1)).toEqual(["text", "After the quote."]);
   });
 
-  it("highlights its code blocks while their sizes squared add up to 8,192²: past that, a block is shown without colors, and said once", () => {
+  it("highlights its code blocks while their sizes squared add up to 8,192²: past that, a block is shown without colors, and said once", async () => {
     // highlight.js's time grows with a block's size squared on some code: 100 KB of INI in a fence took 27 s, and 40
     // KB of Markdown 2.2 s.
     const fill = (unit: string, n: number) => unit.repeat(Math.ceil(n / unit.length)).slice(0, n);
     for (const [language, unit] of [["ini", ".e1"], ["markdown", "["], ["java", "$a"]]) {
-      const start = performance.now();
-      const html = renderToHtml(email({ markdown: "```" + language + "\n" + fill(unit, 102400) + "\n```", html: "escape" }));
-      expect([language, html.includes(fill(unit, 1000)), performance.now() - start < 3000]).toEqual([language, true, true]);
+      const render = () => renderToHtml(email({ markdown: "```" + language + "\n" + fill(unit, 102400) + "\n```", html: "escape" }));
+      // (A render timed again says nothing: what the first said is what's read after.)
+      const timing = await within(3000, render, { again: () => quietly(render) });
+      expect([language, timing.result.includes(fill(unit, 1000)), inTime(timing)]).toEqual([language, true, true]);
     }
     const said = () => warn.mock.calls.map((call) => String(call[0])).filter((message) => message.startsWith("[Unlayer] Markdown"));
     expect(said()).toEqual(Array(3).fill("[Unlayer] Markdown: 1 code block in the render's Markdown is shown without colors: the render's code blocks' sizes squared add up to more than the 67108864 highlight.js is given for one render (on some code its time grows with a block's size squared)."));
@@ -468,13 +476,13 @@ describe("Markdown from data: no more than its size calls for", () => {
     ]);
   });
 
-  it("reads a long task list in time linear in its size, its items as marked reads them", () => {
+  it("reads a long task list in time linear in its size, its items as marked reads them", async () => {
     // marked took each task item's `[ ]` out of what's left to read by looking for it from the end, again for each
     // item: 400 KB of task items took 13 s.
     const markdown = "- [ ] a\n- [x] b\n".repeat(25000);
-    const start = performance.now();
-    const html = renderToHtml(email({ markdown }));
-    expect(performance.now() - start).toBeLessThan(3000);
+    const timing = await within(3000, () => renderToHtml(email({ markdown })));
+    expect(inTime(timing)).toBe(true);
+    const html = timing.result;
     expect([html.match(/&#9744;|☐/g)?.length, html.match(/&#9745;|☑/g)?.length]).toEqual([25000, 25000]);
     // The tokens marked makes of task items: tight and loose lists, nested ones, in quotes, with code or a link after
     // the box, a box that isn't one (no text after it, or not at the item's start), and many items.
@@ -601,17 +609,17 @@ describe("Markdown from data, in a render of many blocks: no more than their siz
     ]);
   });
 
-  it("renders many blocks from data in about the time one of their size takes", () => {
+  it("renders many blocks from data in about the time one of their size takes", async () => {
     const java = "```java\n" + fill("$a", 8170) + "\n```";
     const shapes: Array<[string, React.ReactElement]> = [
       ["12 comments of 8 KB of Java", digest(Array.from({ length: 12 }, (_, i) => <Markdown key={i} markdown={java} />))],
       ["12 CodeBlocks of 8 KB of Java", digest(Array.from({ length: 12 }, (_, i) => <CodeBlock key={i} language="java" code={fill("$a", 8190)} />))],
       ["50 comments of 2 KB of `*a `", digest(Array.from({ length: 50 }, (_, i) => <Markdown key={i} markdown={fill("*a ", 2048)} />))],
     ];
-    for (const [name, template] of shapes) expect([name, time(() => renderToHtml(template)) < 1500]).toEqual([name, true]);
+    for (const [name, template] of shapes) expect([name, inTime(await within(1500, () => renderToHtml(template), { again: () => quietly(() => renderToHtml(template)) }))]).toEqual([name, true]);
   });
 
-  it("costs about ten times as much for ten times as many blocks, and about what one Markdown of them all costs (random, seeded)", () => {
+  it("costs about ten times as much for ten times as many blocks, and about what one Markdown of them all costs (random, seeded)", async () => {
     const pieces = ["*a ", "_a ", "**a ", "[a](", "> a\nb\n", ">- a\nb\n", "a\n-\n", "|\n-\n", "- a\n  b\n", "\\[", "<!--", "```java\n$a", "```ini\n-", "```csharp\ndef ", "```c\n//", "Some text. ", "\n\n"];
     let seed = 7;
     const random = (n: number) => ((seed = (Math.imul(seed, 1103515245) + 12345) >>> 0), Math.floor((seed / 2 ** 32) * n));
@@ -620,10 +628,19 @@ describe("Markdown from data, in a render of many blocks: no more than their siz
       const unit = pieces[random(pieces.length)] + (random(2) ? pieces[random(pieces.length)] : "");
       const block = fill(unit, 2048);
       const blocks = (n: number) => digest(Array.from({ length: n }, (_, i) => (random(4) || !block.startsWith("```") ? <Markdown key={i} markdown={block} /> : <CodeBlock key={i} language="java" code={block} />)));
-      const few = Math.max(time(() => renderToHtml(blocks(5))), 2);
-      const many = time(() => renderToHtml(blocks(50)));
-      const whole = time(() => renderToHtml(digest([<Markdown markdown={Array(50).fill(block).join("\n\n")} />])));
-      if ((many > 20 * few && many > 100) || many > 3 * whole + 1000) slow.push(`${JSON.stringify(unit)}: ${few.toFixed(0)} ms for 5 blocks of 2 KB, ${many.toFixed(0)} ms for 50, ${whole.toFixed(0)} ms for one of 100 KB`);
+      // (Each template made once, in the order its blocks draw, so the seeded shapes stay the same however often one
+      // is timed.)
+      const templates: Record<number, React.ReactElement> = { 5: blocks(5), 50: blocks(50) };
+      const one = digest([<Markdown markdown={Array(50).fill(block).join("\n\n")} />]);
+      const { small: few, large, grows } = await growth((n) => time(() => renderToHtml(templates[n])), [5, 50], { ratio: 20, floor: 100 });
+      // And about what one Markdown of them all takes, the fastest of three where it looks more.
+      let many = large;
+      let whole = time(() => renderToHtml(one));
+      if (many > 3 * whole + 1000) {
+        for (let i = 0; i < 2; i++) many = Math.min(many, time(() => renderToHtml(templates[50])));
+        for (let i = 0; i < 2; i++) whole = Math.min(whole, time(() => renderToHtml(one)));
+      }
+      if (grows || many > 3 * whole + 1000) slow.push(`${JSON.stringify(unit)}: ${few.toFixed(0)} ms for 5 blocks of 2 KB, ${many.toFixed(0)} ms for 50, ${whole.toFixed(0)} ms for one of 100 KB`);
     }
     expect(slow).toEqual([]);
   }, 120_000);
@@ -683,10 +700,11 @@ describe("sanitizeHtml", () => {
     expect(blocks({ markdown: '<div class="bg-[url(https://x.test/a.gif)] note">a</div>' })).toEqual([["html", '<div class="note">a</div>']]);
   });
 
-  it("reads a long input in one pass, whatever it leaves open", () => {
-    const start = performance.now();
-    for (const open of ['<a x="', "<b ", "<!", "<", "<script>", "<x y=", "<!--"]) expect(sanitizeHtml(`<p>${open.repeat(40000)}text`).length).toBeLessThan(400000);
-    expect(performance.now() - start).toBeLessThan(2000);
+  it("reads a long input in one pass, whatever it leaves open", async () => {
+    const opens = ['<a x="', "<b ", "<!", "<", "<script>", "<x y=", "<!--"];
+    const timing = await within(2000, () => opens.map((open) => sanitizeHtml(`<p>${open.repeat(40000)}text`).length));
+    for (const length of timing.result) expect(length).toBeLessThan(400000);
+    expect(inTime(timing)).toBe(true);
   });
 
   it("keeps only display tags and safe attributes, whatever hostile fragments it's given (fuzzed)", () => {
@@ -795,7 +813,7 @@ describe("Markdown in a <Tailwind>", () => {
     expect(variants).not.toContain("x.test");
   });
 
-  it("renders Markdown from data in about the time its size calls for: elements nested deep in one with a class, many classes", () => {
+  it("renders Markdown from data in about the time its size calls for: elements nested deep in one with a class, many classes", async () => {
     // Each about 300 KB. Nested 30,000 deep took seconds, growing with the square of the depth; 9,000 classes Tailwind
     // hadn't built, in one paragraph or one to a paragraph, took minutes (each read alone built its whole stylesheet
     // again), then hundreds of megabytes built at once: a render reads its first 2,000 (CLASSES), the others as written.
@@ -805,28 +823,34 @@ describe("Markdown in a <Tailwind>", () => {
       [Array.from({ length: n }, (_, i) => `<span class="p-[${i}px]">x</span>`).join(" "), "padding: 1999px", '<span class="p-[2000px]">'],
       [Array.from({ length: n }, (_, i) => `<span class="m-[${i}px]">x</span>`).join("\n\n"), "margin: 1999px", '<span class="m-[8999px]">'],
     ]) {
-      const start = performance.now();
-      const html = renderToHtml(<Tailwind tw={tw}><Email><Row><Column><Markdown markdown={markdown} /></Column></Row></Email></Tailwind>);
+      // (Timed again on a fresh handle: one reads the classes it built from what it built.)
+      let again = 0;
+      const render = (handle: TailwindHandle) => renderToHtml(<Tailwind tw={handle}><Email><Row><Column><Markdown markdown={markdown} /></Column></Row></Email></Tailwind>);
+      const timing = await within(5000, () => render(tw), { before: () => loadTailwind({ again: again++ }), again: render });
+      const html = timing.result;
       expect(html).toContain(style);
       if (past) expect(html).toContain(past);
-      expect(performance.now() - start).toBeLessThan(5000);
+      expect(inTime(timing)).toBe(true);
     }
   }, 120_000);
 
   it("renders headings with a class each in time linear in their number: their `text`'s classes are built at once", async () => {
     // A heading's sanitized HTML is its `text`, whose classes were built one heading at a time, each build Tailwind's
     // whole stylesheet again: 2,000 headings (73 KB) took 4.7 s.
-    const handle = await loadTailwind({ headings: true });
-    const time = (n: number) => {
+    // (Each timed on a fresh handle: one reads the classes it built from what it built.)
+    let handles = 0;
+    const time = async (n: number) => {
+      const handle = await loadTailwind({ headings: handles++ });
       const markdown = Array.from({ length: n }, (_, i) => `# <span class="w-[${i + 1}px]">x</span>`).join("\n\n");
       const start = performance.now();
       const html = renderToHtml(<Tailwind tw={handle}><Email><Row><Column><Markdown markdown={markdown} /></Column></Row></Email></Tailwind>);
+      const ms = performance.now() - start;
       expect(html).toMatch(new RegExp(`width: ?${n}px`));
-      return performance.now() - start;
+      return ms;
     };
-    time(20);
-    const [small, large] = [Math.max(time(200), 2), time(2000)];
-    expect(large > 20 * small && large > 100, `${small.toFixed(0)} ms for 200 headings, ${large.toFixed(0)} ms for 2,000`).toBe(false);
+    await time(20);
+    const { small, large, grows } = await growth(time, [200, 2000], { ratio: 20, floor: 100 });
+    expect(grows, `${small.toFixed(0)} ms for 200 headings, ${large.toFixed(0)} ms for 2,000`).toBe(false);
   }, 60_000);
 
   it("inlines your own markup's classes as written: only Markdown's HTML is sanitized", () => {
@@ -836,12 +860,17 @@ describe("Markdown in a <Tailwind>", () => {
   /** Classes whose variables use each other twice over, `n` deep, the last `x`, for `property`. */
   const chain = (n: number, property: string) => [...Array.from({ length: n }, (_, i) => `[--v${i}:var(--v${i + 1})_var(--v${i + 1})]`), `[--v${n}:x]`, `[${property}:var(--v0)]`].join(" ");
 
-  it("renders a class string whose variables come to too much at once, leaving out (and saying) what can't be inlined", () => {
-    const start = performance.now();
+  it("renders a class string whose variables come to too much at once, leaving out (and saying) what can't be inlined", async () => {
     const markdown = `Hello\n\n<p class="${chain(31, "font-family")} text-red-500">raw</p>\n`;
-    expect(styles(design(<Markdown markdown={markdown} />)[1])).toEqual(["color: #fb2c36"]);
+    // (Timed again on a fresh handle, saying nothing: one reads the classes it built from what it built.)
+    let again = 0;
+    const timing = await within(5000, () => design(<Markdown markdown={markdown} />), {
+      before: () => loadTailwind({ chain: again++ }),
+      again: (handle) => quietly(() => renderToJson(<Tailwind tw={handle}><Email><Row><Column><Markdown markdown={markdown} /></Column></Row></Email></Tailwind>)),
+    });
+    expect(styles(timing.result[1])).toEqual(["color: #fb2c36"]);
     expect(warn.mock.calls.map((call) => String(call[0]))).toContain("[Unlayer] Html ignores class `[font-family:var(--v0)]` in its markup: `font-family`'s variables come to more than 4096 characters.");
-    expect(performance.now() - start).toBeLessThan(5000);
+    expect(inTime(timing)).toBe(true);
   }, 30000);
 
   it("inlines nothing that loads or runs anything, whatever classes its HTML is given (fuzzed)", () => {

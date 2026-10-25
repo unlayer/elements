@@ -6,6 +6,7 @@ import {
   textJsonToText,
   EMPTY_TEXT_JSON,
 } from "./lexical-helpers";
+import { inTime, within } from "../test-timing";
 
 // The inline margin reset every exported <p> must carry, matching the
 // editor's exported paragraphs (email clients strip head resets).
@@ -48,12 +49,10 @@ describe("generateHtmlFromTextJson", () => {
     expect(html.match(new RegExp(P_MARGIN_RESET, "g"))).toHaveLength(2);
   });
 
-  it("takes the `;`s off a paragraph's style in time linear in its size", () => {
+  it("takes the `;`s off a paragraph's style in time linear in its size", async () => {
     // `/;+\s*$/` tried again from each `;` of a long run something follows: 20,000 took 0.6 s.
     const paragraph = (style: string) => JSON.stringify({ root: { children: [{ children: [{ text: "Styled", type: "text", format: 0 }], type: "extended-paragraph", style }], type: "root" } });
-    const start = performance.now();
-    generateHtmlFromTextJson(paragraph(";".repeat(102400) + "x"));
-    expect(performance.now() - start).toBeLessThan(500);
+    expect(inTime(await within(500, () => generateHtmlFromTextJson(paragraph(";".repeat(102400) + "x"))))).toBe(true);
     expect(generateHtmlFromTextJson(paragraph("color: red;;  "))).toBe(`<p style="color: red; ${P_MARGIN_RESET}">Styled</p>`);
   });
 

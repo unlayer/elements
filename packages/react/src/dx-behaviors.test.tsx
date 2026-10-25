@@ -1,4 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
+import { inTime, within } from "./test-timing";
 import React from "react";
 import {
   renderToHtml,
@@ -282,12 +283,12 @@ describe("DX: style and className, on the element each component renders", () =>
     return { tag: tag[1], style: /style="([^"]*)"/.exec(tag[0])![1], classes: /class="([^"]*)"/.exec(tag[0])![1] };
   };
 
-  it("writes its own style after the renderer's in time linear in what the renderer's holds", () => {
+  it("writes its own style after the renderer's in time linear in what the renderer's holds", async () => {
     // The renderer's style lost its trailing spaces and `;`s to `/[\s;]*$/`, which tried again from each of a long run of
     // them a value of a prop wrote (`color`): 100,000 took seconds.
-    const start = performance.now();
-    const html = renderToHtml(<Email><Row><Column><Paragraph color={"#000" + " ".repeat(102400) + "a"} style={{ textTransform: "uppercase" }}>Hi</Paragraph></Column></Row></Email>);
-    expect(performance.now() - start).toBeLessThan(1000);
+    const timing = await within(1000, () => renderToHtml(<Email><Row><Column><Paragraph color={"#000" + " ".repeat(102400) + "a"} style={{ textTransform: "uppercase" }}>Hi</Paragraph></Column></Row></Email>));
+    expect(inTime(timing)).toBe(true);
+    const html = timing.result;
     expect(html).toMatch(/word-wrap: break-word;text-transform:uppercase"/);
   });
 

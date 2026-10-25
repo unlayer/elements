@@ -56,11 +56,19 @@ describe("the async walk", () => {
       await sleep(ms);
       return <Paragraph>{text}</Paragraph>;
     };
-    const t0 = Date.now();
-    const html = await renderToHtml(<Email><Row><Column><Late text="slow" ms={60} /><Late text="medium" ms={40} /><Late text="fast" ms={20} /></Column></Row></Email>);
-    // At once: about the slowest one's time, not the three's.
-    expect(Date.now() - t0).toBeLessThan(110);
+    const render = () => renderToHtml(<Email><Row><Column><Late text="slow" ms={300} /><Late text="medium" ms={200} /><Late text="fast" ms={100} /></Column></Row></Email>);
+    // At once: about the slowest one's time (300 ms), not the three's (600), the fastest of three renders where one
+    // takes longer (a busy machine's timers run late; this is waiting, not work, so the limit isn't scaled).
+    let start = performance.now();
+    const html = await render();
+    let ms = performance.now() - start;
     expect(started).toEqual(["slow", "medium", "fast"]);
+    for (let i = 0; i < 2 && ms >= 450; i++) {
+      start = performance.now();
+      await render();
+      ms = Math.min(ms, performance.now() - start);
+    }
+    expect(ms).toBeLessThan(450);
     expect(html.indexOf("slow")).toBeLessThan(html.indexOf("medium"));
     expect(html.indexOf("medium")).toBeLessThan(html.indexOf("fast"));
   });
