@@ -6,6 +6,7 @@ import { describe, expect, it, vi } from "vitest";
 import * as prettier from "prettier";
 import { DESIGNS, design } from "./__fixtures__/designs";
 import { designToElements } from "./design-to-elements";
+import { inTime, within } from "../test-timing";
 import { formatElements } from "./format";
 import { BLOCK_DEFAULTS } from "./defaults";
 import React from "react";
@@ -175,11 +176,7 @@ describe("designToElements", () => {
       // A `mailto:` link's empty fields looked for from inside each run of letters: 100,000 took seconds.
       ["a mailto: link of 100,000 letters", design([{ type: "button", values: { text: "Write", href: { name: "web", values: { href: `mailto:${"a".repeat(102400)}` } } } }])],
     ];
-    for (const [shape, source] of shapes) {
-      const start = performance.now();
-      quiet(() => designToElements(source));
-      expect([shape, performance.now() - start < 1000]).toEqual([shape, true]);
-    }
+    for (const [shape, source] of shapes) expect([shape, inTime(await within(1000, () => quiet(() => designToElements(source))))]).toEqual([shape, true]);
     // Deeper than 16, a value is written as its JSON, which gives it back the same: as prettier writes it.
     const result = quiet(() => roundTrip(nested(200)));
     expect(result.differences).toEqual([]);
