@@ -152,6 +152,16 @@ describe("designToElements", () => {
     expect(text).toBeGreaterThan(block);
   });
 
+  it("says where a row's or block's merge tag rule isn't applied in Elements' HTML", () => {
+    const rule = { mergeTagGroup: "products", mergeTagRule: "repeat" };
+    const { warnings } = designToElements(design([{ type: "text", values: { text: "<p>{{name}}</p>", ...rule } }, { type: "table", values: rule }], { row: rule }));
+    expect(warnings).toEqual([
+      expect.stringMatching(/^Row 1: its merge tag rule `products\.repeat` isn't applied/),
+      expect.stringMatching(/^Row 1, column 1, block 1: its merge tag rule `products\.repeat` isn't applied/),
+      expect.stringMatching(/^Row 1, column 1, block 2: its rows repeat by the merge tag rule `products\.repeat` only where the render's `mergeTagState`/),
+    ]);
+  });
+
   it("is pure: it imports nothing that renders or needs Node", () => {
     const modules = import.meta.glob<string>(["./*.ts", "!./*.test.ts", "!./test-harness.ts"], { query: "?raw", import: "default", eager: true });
     expect(Object.keys(modules)).toContain("./design-to-elements.ts");
