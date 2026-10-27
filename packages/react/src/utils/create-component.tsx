@@ -130,6 +130,10 @@ export interface ItemComponentConfig<TValues, TSemanticProps> {
 
   /** The tag that renders it, which its `style` and `className` go on (see hatch): its first by default. */
   at?: RegExp;
+
+  /** Values it takes that its defaults leave unset (the editor's export reads them where given), so a prop naming one
+   *  isn't said to be ignored. */
+  names?: readonly string[];
 }
 
 /**
@@ -386,6 +390,7 @@ export function createItemComponent<
     metaName: config.metaName,
     head: config.head,
     omitEmptyOutput: config.omitEmptyOutput,
+    names: config.names,
   };
 
   return ItemComponent;
