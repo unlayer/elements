@@ -353,6 +353,12 @@ describe("an email service's tag with quotes in rich text", () => {
 });
 
 describe("an email service's tag in the plain text", () => {
+  it("keeps a heading's tags as written in its capitals, every common service's (0.2.1 put them in capitals too)", () => {
+    const tags = ["{{ first_name | default: \"there\" }}", "{% if vip %}", "{{{raw}}}", "%recipient.first_name%", "%%=v(@name)=%%", "${first_name}", "{$first_name}", "<%name%>"];
+    const text = renderToPlainText(<Email><Row><Column><Heading>{`Welcome, ${tags.join(" ")}!`}</Heading></Column></Row></Email>);
+    expect(text).toContain(`WELCOME, ${tags.join(" ")}!`);
+  });
+
   it("stays, in a Paragraph with inline markup as in one of text (as 0.2.1 kept it), a Heading and a Button; so do other services' tags", () => {
     const tags = "<%first_name%> {{last_name}} *|FNAME|* %%Company%%";
     const template = (
@@ -372,7 +378,8 @@ describe("an email service's tag in the plain text", () => {
     const text = renderToPlainText(template);
     expect(text).toContain(`Hi ${tags}, bold and a link (https://example.com)`);
     expect(text).toContain(`Hi ${tags}\n`);
-    expect(text).toContain("HELLO <%first_name%> {{LAST_NAME}} *|FNAME|* %%COMPANY%%");
+    // A heading's capitals leave its tags as written: a service reads `{{ last_name }}`, not `{{ LAST_NAME }}`.
+    expect(text).toContain("HELLO <%first_name%> {{last_name}} *|FNAME|* %%Company%%");
     expect(text).toContain(`Go ${tags} (https://example.com)`);
   });
 
