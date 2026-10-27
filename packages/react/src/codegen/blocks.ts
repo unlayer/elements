@@ -361,6 +361,7 @@ function videoUrl(video: Plain): string | undefined {
 function withoutComponent(content: Plain, type: string, ctx: BlockContext): JsxChild {
   const values: Plain = isPlainObject(content.values) ? content.values : {};
   const name = type === "custom" && content.slug ? `custom "${content.slug}"` : `"${type || "untyped"}"`;
+  warnMergeTagRule(values, ctx.where, ctx.state, false);
   const html = blockHtml(ctx.state.html, values._meta?.htmlID);
   if (html === undefined) {
     ctx.state.warn(`${ctx.where}: a ${name} block has no Elements component and no exported HTML, so it's left out (a TODO comment marks where it was).`);
@@ -373,5 +374,7 @@ function withoutComponent(content: Plain, type: string, ctx: BlockContext): JsxC
   const defaults: Plain = { ...BLOCK_BASE, ...BLOCK_DEFAULTS.Html };
   if (values.containerPadding !== undefined && values.containerPadding !== defaults.containerPadding) props.add("containerPadding", values.containerPadding);
   placeDevice(values._override, props, defaults, "block");
+  // The builder's settings no prop sets, as every block keeps them (a display condition: written around it).
+  for (const [key, value] of Object.entries(BUILDER_ONLY)) if (key in values && !deepEqual(values[key], value)) props.values[key] = values[key];
   return { tag: "Html", attrs: attributes(props, ctx.state.types), children: [] };
 }

@@ -152,6 +152,18 @@ describe("designToElements", () => {
     expect(text).toBeGreaterThan(block);
   });
 
+  it("keeps a block it writes as an <Html> block's display condition and anchor, and says where its merge tag rule isn't applied", () => {
+    const condition = { type: "vip", label: "VIP only", description: "", before: "{% if customer.vip %}", after: "{% endif %}" };
+    const values = { _meta: { htmlID: "u_content_timer_1" }, displayCondition: condition, anchor: "sale", mergeTagGroup: "products", mergeTagRule: "repeat" };
+    const html = '<table id="u_content_timer_1"><tbody><tr><td><div class="v-container-padding-padding"><div class="countdown">VIP SALE ENDS Friday</div></div></td></tr></tbody></table>';
+    const { code, warnings } = designToElements(design([{ type: "timer", values }]), { html });
+    expect(warnings).toEqual([expect.stringMatching(/block 1: its merge tag rule `products\.repeat` isn't applied/), expect.stringMatching(/block 1: a "timer" block has no Elements component, so it's kept as an <Html> block/)]);
+    expect(code).toContain('anchor: "sale"');
+    const rendered = Elements.renderToHtml(React.createElement(evaluate(code)));
+    expect(rendered.indexOf("{% if customer.vip %}")).toBeGreaterThan(-1);
+    expect(rendered.indexOf("VIP SALE")).toBeGreaterThan(rendered.indexOf("{% if customer.vip %}"));
+  });
+
   it("says where a row's or block's merge tag rule isn't applied in Elements' HTML", () => {
     const rule = { mergeTagGroup: "products", mergeTagRule: "repeat" };
     const { warnings } = designToElements(design([{ type: "text", values: { text: "<p>{{name}}</p>", ...rule } }, { type: "table", values: rule }], { row: rule }));
