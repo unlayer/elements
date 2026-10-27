@@ -268,4 +268,31 @@ describe("Row layout with columns from components", () => {
       }
     });
   });
+
+  describe("displayCondition: the editor's, around the row, as its export writes it", () => {
+    const ROOTS = { Email, Page, Document } as const;
+    const condition = { type: "vip", label: "VIP only", description: "Customers in the VIP list", before: "{% if customer.vip %}", after: "{% endif %}" };
+
+    it.each(Object.keys(ROOTS) as Array<keyof typeof ROOTS>)("%s: the row's HTML is between its before and after, for the email service to show it only where it's met", (mode) => {
+      const Root = ROOTS[mode];
+      const html = renderToHtml(
+        <Root>
+          <Row><Column><Paragraph>Everyone</Paragraph></Column></Row>
+          <Row values={{ displayCondition: condition }}><Column><Paragraph>VIP discount</Paragraph></Column></Row>
+        </Root>
+      );
+      const [before, after] = [html.indexOf(condition.before), html.indexOf(condition.after)];
+      expect(before).toBeGreaterThan(html.indexOf("Everyone"));
+      expect(html.slice(before, after)).toContain("VIP discount");
+      expect(html.split(condition.before)).toHaveLength(2);
+      // The design keeps it, for the editor.
+      const design = renderToJson(<Root><Row values={{ displayCondition: condition }}><Column><Paragraph>VIP</Paragraph></Column></Row></Root>);
+      expect((design.body.rows[0].values as Record<string, unknown>).displayCondition).toEqual(condition);
+    });
+
+    it("leaves a row without one as it was", () => {
+      const row = (values?: Record<string, unknown>) => <Email><Row values={values}><Column><Paragraph>Hi</Paragraph></Column></Row></Email>;
+      expect(renderToHtml(row({ displayCondition: null }))).toBe(renderToHtml(row()));
+    });
+  });
 });

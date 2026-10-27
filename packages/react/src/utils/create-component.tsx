@@ -227,6 +227,16 @@ export function cssUrl(values: Record<string, any>, defaults?: Record<string, an
   if (image) values.backgroundImage = { ...defaults, ...image, url: String(image.url ?? "").replace(/\{\{[^{}]*\}\}|\{%[^{}]*%\}|[\t-\r "'()<>\\]/g, encoded) };
 }
 
+/**
+ * A row's or block's HTML inside its display condition, as the editor's export writes it: the condition's `before` and
+ * `after` (an email service's tags, `{% if customer.vip %}` and `{% endif %}`) around it, as given, so the service
+ * shows it only where it's met.
+ */
+export function withDisplayCondition(html: string, values: Record<string, any> | undefined): string {
+  const condition = values?.displayCondition;
+  return condition ? [condition.before, html, condition.after].join("\n") : html;
+}
+
 /** A block's or row's `_meta` with its id and class names kept to what they can hold (see `safeName`). */
 export const safeMeta = <T extends { htmlID?: unknown; htmlClassNames?: unknown }>(meta: T) => ({ ...meta, htmlID: safeName(meta.htmlID), htmlClassNames: safeName(meta.htmlClassNames, true) });
 

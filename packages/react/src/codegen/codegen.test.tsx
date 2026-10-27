@@ -140,6 +140,18 @@ describe("designToElements", () => {
     expect(warnings).toEqual([expect.stringMatching(/^Row 1, column 1, block 1: a "form" block/), expect.stringMatching(/^Row 1, column 2, block 1: a "carousel" block/)]);
   });
 
+  it("keeps a display condition, which the code's HTML writes around its row or block as the builder does", () => {
+    const condition = { type: "vip", label: "VIP only", description: "", before: "{% if customer.vip %}", after: "{% endif %}" };
+    const source = design([{ type: "text", values: { text: "<p>VIP discount</p>", displayCondition: condition } }], { row: { displayCondition: { ...condition, before: "{% if customer.vip_row %}" } } });
+    const { code, warnings } = designToElements(source);
+    expect(warnings).toEqual([]);
+    const html = Elements.renderToHtml(React.createElement(evaluate(code)));
+    const [row, block, text] = ["{% if customer.vip_row %}", "{% if customer.vip %}", "VIP discount"].map((part) => html.indexOf(part));
+    expect(row).toBeGreaterThan(-1);
+    expect(block).toBeGreaterThan(row);
+    expect(text).toBeGreaterThan(block);
+  });
+
   it("is pure: it imports nothing that renders or needs Node", () => {
     const modules = import.meta.glob<string>(["./*.ts", "!./*.test.ts", "!./test-harness.ts"], { query: "?raw", import: "default", eager: true });
     expect(Object.keys(modules)).toContain("./design-to-elements.ts");
