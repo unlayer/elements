@@ -193,6 +193,28 @@ describe("rich text children of Paragraph, Heading and Button", () => {
     expect(text).toContain('<span><a>a</a> <a>b</a> <a>c</a> <a>d</a> <a>e</a> <a>f</a> <a>g</a> <a>h</a> <span>i</span></span> <a href="&amp;#106;avascript:x">kept</a>');
   });
 
+  it("keep a kept attribute whole when its value holds a `<` or `>` beside quote references, so their quotes stay its own", () => {
+    const Markup = ({ html }: { html: string }) => <span dangerouslySetInnerHTML={{ __html: html }} />;
+    const values = ['&quot; onmouseover=x a=<', "&quot; onclick=x b=>", "a &lt; b &quot; onfocus=x <"];
+    for (const value of values) {
+      for (const Root of [Email, Page]) {
+        const markup = `<span title="${value}">hi</span> <a href="https://example.com" title="${value}">x</a>`;
+        const template = (
+          <Root><Row><Column>
+            <Paragraph>Review: <Markup html={markup} /></Paragraph>
+            <Heading>Review: <Markup html={markup} /></Heading>
+            <Button href="https://example.com">Go <Markup html={markup} /></Button>
+          </Column></Row></Root>
+        );
+        const texts = renderToJson(template).body.rows[0].columns[0].contents.map((c: any) => String(c.values.text));
+        for (const html of [renderToHtml(template), ...texts]) {
+          const doc = new DOMParser().parseFromString(html, "text/html");
+          expect([...doc.querySelectorAll("*")].flatMap((e) => [...e.attributes].map((a) => a.name)).filter((name) => /^on/i.test(name))).toEqual([]);
+        }
+      }
+    }
+  });
+
   it("leave out a comment, one left open too, so it can't hide the rest of the email", () => {
     const Markup = ({ html }: { html: string }) => <span dangerouslySetInnerHTML={{ __html: html }} />;
     for (const markup of ["Nice <!-- hidden", "Nice <!-- note --> shoes", "Nice <!--> shoes", "Nice <!x> shoes", "Nice <?x> shoes", "Nice <![CDATA[ x ]]> shoes"]) {
@@ -302,6 +324,22 @@ describe("rich text children of Paragraph, Heading and Button", () => {
     }
     expect(slow).toEqual([]);
   }, 120_000);
+
+  it("fail the render for an object or a date among them, as React's render does, not leave it out (the README's errors)", () => {
+    const order = { createdAt: new Date(0), total: { amount: 49, currency: "USD" } } as any;
+    const blocks = [
+      <Paragraph key="p">Ordered on {order.createdAt}.</Paragraph>,
+      <Heading key="h">Total {order.total}</Heading>,
+      <Button key="b" href="https://example.com">Pay {order.total}</Button>,
+      <Paragraph key="m">Ordered on <strong>{order.createdAt}</strong></Paragraph>,
+    ];
+    for (const block of blocks) {
+      const template = <Email><Row><Column>{block}</Column></Row></Email>;
+      for (const render of [renderToHtml, renderToJson, renderToPlainText] as Array<(t: React.ReactElement) => unknown>) expect(() => render(template)).toThrow(/Objects are not valid as a React child/);
+    }
+    // A Set is a collection, as React renders one, and null, booleans and undefined show nothing, as before.
+    expect(renderToHtml(<Email><Row><Column><Heading>A{new Set(["b", "c"]) as any}{null}{false}{undefined}</Heading></Column></Row></Email>)).toContain("Abc");
+  });
 
   it("leave text given as strings exactly as before", () => {
     const strings = <Email><Row><Column><Paragraph>Hi {name}</Paragraph><Heading>{"A <b>b</b>"}</Heading><Button href="#">{["Go", " now"]}</Button></Column></Row></Email>;

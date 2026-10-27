@@ -77,9 +77,10 @@ export function inlineHtml(html: string): string {
     let kept = "";
     // As React writes attributes: name="escaped value"; read as the browser reads it (its references decoded, the
     // characters it leaves out of a URL's scheme dropped), so `&#106;avascript:` in markup written as HTML is one too.
-    for (const [attribute, key, value] of attributes.matchAll(/\s([\w-]+)="([^"]*)"/g)) {
+    for (const [, key, value] of attributes.matchAll(/\s([\w-]+)="([^"]*)"/g)) {
       const allowed = /^(style|title|class)$/.test(key) || (tag === "a" && /^(href|target|rel)$/.test(key));
-      if (allowed && !/(java|vb)script:|expression\(|^data:/i.test(decoded(value))) kept += attribute;
+      // (Its `<` and `>` as references, the same value to a browser, so the tag is one to asWritten, read whole.)
+      if (allowed && !/(java|vb)script:|expression\(|^data:/i.test(decoded(value))) kept += ` ${key}="${value.replace(/</g, "&lt;").replace(/>/g, "&gt;")}"`;
     }
     return `<${tag}${kept}${tag === "br" ? "/" : ""}>`;
   });
@@ -89,8 +90,9 @@ export function inlineHtml(html: string): string {
 /**
  * Markup's text as text given as a string writes it: its quotes as written (React writes `'` as `&#x27;` and `"` as
  * `&quot;`, which an email service's tag can't read: `{{ name | default: "friend" }}`), and an email service's
- * <%name%> tag. A tag's attributes keep theirs (each tag read to the next `<` or `>`: once, whatever the text holds),
- * and the quotes come back before the <%name%> tags do, so no `>` of one is read as a tag's end.
+ * <%name%> tag. A tag's attributes keep theirs (each tag read to the next `<` or `>`, once, whatever the text holds:
+ * inlineHtml writes a kept attribute's `<` and `>` as references, so a tag is read whole), and the quotes come back
+ * before the <%name%> tags do, so no `>` of one is read as a tag's end.
  */
 export function asWritten(html: string): string {
   const quoted = html.replace(/<[^<>]*>|&#x27;|&quot;/g, (part) => (part === "&#x27;" ? "'" : part === "&quot;" ? '"' : part));
