@@ -17,6 +17,7 @@ import type { ContentValues, DeviceProps, SizeInput } from "../types";
 import type { ValuesInput } from "@unlayer-internal/shared-elements";
 import { contentSlotWidth, DEFAULT_CONTAINER_PADDING, pinImageSrc, toPx } from "./image-sizing";
 import { guest, remember } from "./render-scope";
+import { cssUrlValue } from "./css-url";
 import {
   mergeValues,
   generateHtmlFromTextJson,
@@ -219,16 +220,12 @@ function withoutTrailing(style: string): string {
 }
 
 /**
- * Values with their background image's URL as the editor's exporters can write it, in `url('…')` in a style attribute:
- * what could end either (quotes, brackets, spaces, `<`, `>`, `\`) percent-encoded, as a browser would, the same
- * address (the design keeps it as given). An email service's tag in it (`{{ campaign_id }}`, `{% … %}`) keeps its
- * spaces, as in 0.2.1, for the service to read it: the quoted `url('…')` and attributes it's written in hold them, and
- * it's filled in before an email client reads it. With `defaults`, the image takes them where it sets none.
+ * Values with their background image's URL as the editor's exporters can write it (see cssUrlValue); the design keeps
+ * it as given. With `defaults`, the image takes them where it sets none.
  */
 export function cssUrl(values: Record<string, any>, defaults?: Record<string, any>): void {
   const image = values.backgroundImage;
-  const encoded = (part: string) => (part.length > 1 ? part.replace(/[\t-\r"'()<>\\]/g, escape) : escape(part));
-  if (image) values.backgroundImage = { ...defaults, ...image, url: String(image.url ?? "").replace(/\{\{[^{}]*\}\}|\{%[^{}]*%\}|[\t-\r "'()<>\\]/g, encoded) };
+  if (image) values.backgroundImage = { ...defaults, ...image, url: cssUrlValue(String(image.url ?? "")) };
 }
 
 /**

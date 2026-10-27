@@ -59,7 +59,12 @@ jobs:
 
       # ── Bundle size budget ──────────────────────────────────────
       # Fail if the react-elements ESM bundle exceeds 221KB.
-      # Current size: about 222.1KB (0.1.22: about 76KB). Raised from 221KB
+      # Current size: about 223.8KB (0.1.22: about 76KB). Raised from 222.5KB
+      # (about 1.7KB): an email service's tags kept whole in background URLs
+      # with their encoding checked, rich text's comments left out and its
+      # double quotes as written, a lone Link's tags kept, a Table's cells from
+      # data written as text, and plain text's heading tags kept as written.
+      # Raised from 221KB
       # (about 1.1KB): display conditions written around rows and blocks, an
       # email service's tags kept whole in rich text and background URLs, a tag
       # that never ends left out of rich text, and a Table's typed props named.
@@ -204,7 +209,7 @@ jobs:
         run: |
           BUNDLE="packages/react/dist/index.js"
           SIZE=$(wc -c < "$BUNDLE" | tr -d ' ')
-          MAX_SIZE=222500
+          MAX_SIZE=224500
           echo "Bundle: $BUNDLE"
           echo "Size: $SIZE bytes (budget: $MAX_SIZE bytes)"
           if [ "$SIZE" -gt "$MAX_SIZE" ]; then
