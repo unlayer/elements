@@ -196,7 +196,7 @@ A text block without a color of its own shows the body's text color in the edito
 
 Anything a prop can't hold as it is goes in the component's `values` escape hatch, which the component merges under its props:
 
-- **Builder settings no prop sets**: an `anchor`, a display condition, `locked`, phone settings the `mobile` prop doesn't take.
+- **Builder settings no prop sets**: an `anchor`, a display condition (which Elements' HTML writes around its row or block, as the builder's export does), `locked`, phone settings the `mobile` prop doesn't take. A row's or block's merge tag rule (`mergeTagGroup`, `mergeTagRule`) is kept too, and said: Elements' HTML applies only a Table's, where the render's `mergeTagState` names it (see the README's UnlayerProvider).
 - **Values a prop would change or can't type**: a number where the prop writes px (`fontSize: 14`), a `lineHeight` number, a numeric `fontWeight` string, a font with more than its label and value on a block (the editor's web fonts), a value outside what a prop's type takes (an alignment like `start`), and settings a component's props don't list (a table's `headerColor`).
 
 Every component's `values` takes as many of its values as you set, at any depth (the defaults fill in the rest), so the code writes them as they are:

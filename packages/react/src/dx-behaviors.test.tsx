@@ -409,6 +409,27 @@ describe("DX: what a block can't use is said, not dropped quietly", () => {
       warn.mockRestore();
     }
   });
+
+  it("a Table's typed props its defaults leave unset (a header's color, a font): applied, so not said to be ignored", () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    try {
+      const font = { label: "Georgia", value: "georgia,serif" };
+      const html = renderToHtml(
+        <Body>
+          <Row>
+            <Column>
+              <Table headers={["A"]} data={[["1"]]} headerColor="#111111" contentColor="#222222" footerColor="#333333" headerFontFamily={font} contentFontFamily={font} footerFontFamily={font} contentFontWeight={700} contentLetterSpacing="3px" />
+            </Column>
+          </Row>
+        </Body>
+      );
+      expect(html).toContain("#111111");
+      expect(html).toContain("#222222");
+      expect(warn).not.toHaveBeenCalled();
+    } finally {
+      warn.mockRestore();
+    }
+  });
 });
 
 describe("DX: the names authors reach for (CSS's, React Email's) stand for the component's own prop", () => {

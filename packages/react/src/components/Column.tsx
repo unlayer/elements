@@ -1,7 +1,7 @@
 import React from "react";
 import type { RenderMode, UnlayerConfig, ColumnValues } from "@unlayer-internal/shared-elements";
 import { ColumnExporters, ContentExporters } from "@unlayer/exporters";
-import { UNLAYER_RENDER_KEY, UNLAYER_CONFIG_KEY, nextHtmlId, safeName, safeMeta, hatch } from "../utils/create-component";
+import { UNLAYER_RENDER_KEY, UNLAYER_CONFIG_KEY, nextHtmlId, safeName, safeMeta, hatch, withDisplayCondition } from "../utils/create-component";
 import { RenderError } from "@unlayer-internal/shared-elements";
 import { mapSemanticProps, type SemanticProps } from "../utils/semantic-props";
 import type { DeviceProps, SizeInput, BorderInput } from "../types";
@@ -193,8 +193,8 @@ function renderColumn(props: ColumnProps): React.ReactElement {
       _meta: { htmlID: contentHtmlId, htmlClassNames: `u_content_${componentName}`, ...(childProps.values?._meta?.htmlID ? { htmlID: safeName(childProps.values._meta.htmlID) } : {}) },
     };
     const content = renderContentToHtml(componentHTML, contentValues, bodyValues, mode);
-    // `skipInText`: the block isn't in the plain text.
-    innerHTML += childProps.skipInText ? content.replace(/<[a-z]+/, '$& data-skip-in-text="true"') : content;
+    // `skipInText`: the block isn't in the plain text. Inside its display condition, as the editor's export writes it.
+    innerHTML += withDisplayCondition(childProps.skipInText ? content.replace(/<[a-z]+/, '$& data-skip-in-text="true"') : content, childProps.values);
   }
 
   // Its `style` and `className` on its column cell (see hatch). Its exporter failing fails it, or leaves it out (see

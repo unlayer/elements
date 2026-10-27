@@ -57,6 +57,8 @@ const DEFAULT_VALUES = {
 const Table = createItemComponent<TableValues, TableSemanticProps>({
   name: "Table",
   defaultValues: DEFAULT_VALUES,
+  // Its typed values the editor's defaults leave unset (the body's color and font stand in for them).
+  names: ["headerColor", "headerFontFamily", "contentColor", "contentFontFamily", "contentFontWeight", "contentLetterSpacing", "footerColor", "footerFontFamily", "cellBackgroundColor", "cellColor", "cellPadding", "cellTextAlign", "cellVerticalAlign"],
   propMapper: (props) => {
     // `columns`/`rows` are top-level COUNTS, but the table data lives under the
     // nested `table` group whose keys also include `rows` — so routing the flat

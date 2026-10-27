@@ -130,6 +130,10 @@ export interface ItemComponentConfig<TValues, TSemanticProps> {
 
   /** The tag that renders it, which its `style` and `className` go on (see hatch): its first by default. */
   at?: RegExp;
+
+  /** Values it takes that its defaults leave unset (the editor's export reads them where given), so a prop naming one
+   *  isn't said to be ignored. */
+  names?: readonly string[];
 }
 
 /**
@@ -217,11 +221,24 @@ function withoutTrailing(style: string): string {
 /**
  * Values with their background image's URL as the editor's exporters can write it, in `url('…')` in a style attribute:
  * what could end either (quotes, brackets, spaces, `<`, `>`, `\`) percent-encoded, as a browser would, the same
- * address (the design keeps it as given). With `defaults`, the image takes them where it sets none.
+ * address (the design keeps it as given). An email service's tag in it (`{{ campaign_id }}`, `{% … %}`) keeps its
+ * spaces, as in 0.2.1, for the service to read it: the quoted `url('…')` and attributes it's written in hold them, and
+ * it's filled in before an email client reads it. With `defaults`, the image takes them where it sets none.
  */
 export function cssUrl(values: Record<string, any>, defaults?: Record<string, any>): void {
   const image = values.backgroundImage;
-  if (image) values.backgroundImage = { ...defaults, ...image, url: String(image.url ?? "").replace(/[\t-\r "'()<>\\]/g, escape) };
+  const encoded = (part: string) => (part.length > 1 ? part.replace(/[\t-\r"'()<>\\]/g, escape) : escape(part));
+  if (image) values.backgroundImage = { ...defaults, ...image, url: String(image.url ?? "").replace(/\{\{[^{}]*\}\}|\{%[^{}]*%\}|[\t-\r "'()<>\\]/g, encoded) };
+}
+
+/**
+ * A row's or block's HTML inside its display condition, as the editor's export writes it: the condition's `before` and
+ * `after` (an email service's tags, `{% if customer.vip %}` and `{% endif %}`) around it, as given, so the service
+ * shows it only where it's met.
+ */
+export function withDisplayCondition(html: string, values: Record<string, any> | undefined): string {
+  const condition = values?.displayCondition;
+  return condition ? [condition.before, html, condition.after].join("\n") : html;
 }
 
 /** A block's or row's `_meta` with its id and class names kept to what they can hold (see `safeName`). */
@@ -373,6 +390,7 @@ export function createItemComponent<
     metaName: config.metaName,
     head: config.head,
     omitEmptyOutput: config.omitEmptyOutput,
+    names: config.names,
   };
 
   return ItemComponent;

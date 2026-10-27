@@ -12,7 +12,7 @@ import { blockHtml, plainText } from "./text";
 import { contentSlotWidth, pinImageSrc, toPx, type SlotContext } from "../utils/image-sizing";
 import { deepEqual, isPlainObject, omit, type Plain } from "./values";
 import type { ModuleState } from "./state";
-import { dropFixedFlags, warnLost } from "./warnings";
+import { dropFixedFlags, warnLost, warnMergeTagRule } from "./warnings";
 import { editorLink, READ_BACK } from "./links";
 
 export interface BlockContext {
@@ -71,6 +71,7 @@ export function convertBlock(content: Plain, ctx: BlockContext): JsxChild {
 
   const props = new Props(component);
   let rest: Plain = isPlainObject(content.values) ? { ...content.values } : {};
+  warnMergeTagRule(rest, ctx.where, ctx.state, type === "table");
   rest = base(rest, props, ctx);
 
   // The editor's Lexical text (a "paragraph" block, or a text block with only its Lexical JSON): Elements writes a
