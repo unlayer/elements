@@ -273,6 +273,9 @@ describe("Row layout with columns from components", () => {
       for (const url of ["https://x.example/{{ a' ) b }}.png", "https://x.example/{{ a' }}.png", "https://x.example/a&#39;&#41;b.png", "https://x.example/a&apos;&rpar;b.png", "https://x.example/a&quot;b.png", "https://x.example/a&#x5c;b.png"]) {
         expect(declarations(url)).toEqual(plain);
       }
+      // Nor can a tag end a comment the URL is written in (Outlook's conditional comment, in an email).
+      const ends = (url: string) => renderToHtml(<Root><Row backgroundImage={{ url }}><Column><Heading>x</Heading></Column></Row></Root>).split(/--!?>/).length;
+      for (const url of ["https://x.example/{{ a --> b }}.png", "https://x.example/{% a --!> b %}.png", "https://x.example/<%a-->%>.png"]) expect(ends(url)).toBe(ends("https://x.example/plain.png"));
       // A reference that reads as a character that ends nothing stays as written (`&amp;`, as a copied URL has it).
       expect(renderToHtml(<Root><Row backgroundImage={{ url: "https://x.example/a.png?w=1&amp;h=2&q=80" }}><Column><Heading>x</Heading></Column></Row></Root>)).toContain("url('https://x.example/a.png?w=1&amp;h=2&q=80')");
     });

@@ -19,10 +19,12 @@ const ALWAYS = /[\u0000-\u001f"\\\u007f]/g;
 const REFERENCE = /&(?:#(?:x[\da-f]+|\d+)|[a-z]+);?/gi;
 
 /**
- * Whether a URL written in `url('…')` stays in its string to its end: each `'` in it ends the string or starts
- * another, and a bracket outside one would end `url(…)` (or open what its own `)` then closes).
+ * Whether a URL stays where the exporters write it: in `url('…')`, in its string to its end (each `'` in it ends the
+ * string or starts another, and a bracket outside one would end `url(…)` or open what its own `)` then closes), and in
+ * the comment an email's Outlook markup is in (a `-->` or `--!>` ends it).
  */
 function staysInString(url: string): boolean {
+  if (/--!?>/.test(url)) return false;
   let inString = true;
   for (const char of url) {
     if (char === "'") inString = !inString;
@@ -35,7 +37,8 @@ function staysInString(url: string): boolean {
  * `url` as the exporters can write it. A character reference that reads as a character that could end something
  * (`&#39;`, `&quot;`) is that character encoded, as the browser would read it before the CSS (one that reads as
  * another, `&amp;`, stays as written). A tag keeps all but a `"`, a `\` and control characters; where its quotes would
- * take a bracket out of the string, or leave the string open at the URL's end, the whole URL is encoded instead.
+ * take a bracket out of the string, or leave the string open at the URL's end, or it would end a comment, the whole
+ * URL is encoded instead.
  */
 export function cssUrlValue(url: string): string {
   const read = url.replace(REFERENCE, (reference) => {

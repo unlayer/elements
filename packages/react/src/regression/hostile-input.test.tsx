@@ -83,6 +83,8 @@ const ROOT_PROPS: Record<string, (v: string) => Record<string, unknown>> = {
   textDirection: (v) => ({ textDirection: v }),
   lang: (v) => ({ lang: v }),
   "font URL": (v) => ({ fonts: [{ url: `https://example.com/${v}.css` }] }),
+  // An id or class name given in the root's `values`, as on a Row, a Column or a block.
+  htmlId: (v) => ({ values: { _meta: { htmlID: `u_body${v}`, htmlClassNames: `u_body${v}` } } }),
 };
 const ROOTS = { email: Email, web: Page, document: Document } as const;
 
