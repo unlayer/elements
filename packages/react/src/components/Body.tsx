@@ -3,7 +3,7 @@ import type { RenderMode, UnlayerConfig, BodyValues } from "@unlayer-internal/sh
 import { mergeValues } from "@unlayer-internal/shared-elements";
 import { BodyExporters } from "@unlayer/exporters";
 import { mapSemanticProps, type SemanticProps } from "../utils/semantic-props";
-import { cssUrl, hatch, nextHtmlId, OWN, safeName, textDirectionOf } from "../utils/create-component";
+import { cssUrl, hatch, nextHtmlId, OWN, safeMeta, safeName, textDirectionOf } from "../utils/create-component";
 import type { SizeInput } from "../types";
 import { BODY_DEFAULTS } from "../utils/container-defaults";
 import { ROOT } from "../utils/root-type";
@@ -187,14 +187,14 @@ const Body: React.FC<BodyProps> = (given) => {
   // Its background image's URL as CSS takes it (see cssUrl); the design keeps it as given.
   cssUrl(values);
 
-  // Ensure _meta
+  // Ensure _meta, its id and class names kept to what they can hold, as a Row's and a block's are (see safeMeta)
   const valuesWithMeta = {
     ...values,
-    _meta: {
+    _meta: safeMeta({
       htmlID: nextHtmlId(_config, "u_body"),
       htmlClassNames: "u_body",
       ...(values._meta || {})
-    }
+    })
   };
 
   // Clone children with _config AND the body's resolved values so Row/Column
