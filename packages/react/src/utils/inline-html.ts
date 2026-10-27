@@ -65,6 +65,10 @@ export function inlineHtml(html: string): string {
     }
     return `<${tag}${kept}${tag === "br" ? "/" : ""}>`;
   });
+  // A single quote in text as written, as in text given as a string: React writes it as `&#x27;`, which an email
+  // service's tag can't read (`{{ name | default: 'friend' }}`). A tag's attributes keep theirs (each read to the next
+  // `<` or `>`: once, whatever the text holds; one is double-quoted, so a `'` in it would be its own anyway).
+  const quoted = tags.replace(/<[^<>]*>|&#x27;/g, (part) => (part === "&#x27;" ? "'" : part));
   // An email service's <%name%> tag stays as written, as in text given as a string.
-  return tags.replace(/&lt;%([\w.]+)%&gt;/g, "<%$1%>");
+  return quoted.replace(/&lt;%([\w.]+)%&gt;/g, "<%$1%>");
 }

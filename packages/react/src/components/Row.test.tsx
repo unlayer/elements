@@ -234,6 +234,24 @@ describe("Row layout with columns from components", () => {
       }
     });
 
+    it.each(Object.keys(ROOTS) as Array<keyof typeof ROOTS>)("%s: an email service's tag in the URL stays as written, its spaces too, for it to fill in, as in 0.2.1", (mode) => {
+      const Root = ROOTS[mode];
+      const url = "https://cdn.example.com/{{ campaign_id }}/{% if vip %}gold{% endif %}.png";
+      const html = renderToHtml(
+        <Root backgroundImage={{ url, fullWidth: true } as never}>
+          <Row backgroundImage={{ url }}>
+            <Column><Heading>Over the image</Heading></Column>
+          </Row>
+        </Root>
+      );
+      const urls = [...html.matchAll(/url\('([^']*)'\)/g)].map((m) => m[1]);
+      expect(urls.length).toBeGreaterThan(0);
+      expect(new Set(urls)).toEqual(new Set([url]));
+      // A space outside one is encoded, as before.
+      const spaced = renderToHtml(<Root><Row backgroundImage={{ url: "https://cdn.example.com/a b/{{ id }}.png" }}><Column><Heading>x</Heading></Column></Row></Root>);
+      expect(spaced).toContain("url('https://cdn.example.com/a%20b/{{ id }}.png')");
+    });
+
     it.each(Object.keys(ROOTS) as Array<keyof typeof ROOTS>)("%s: code generated from the design renders the same HTML", async (mode) => {
       const { designToElements } = await import("../codegen/design-to-elements");
       const { evaluate } = await import("../codegen/test-harness");

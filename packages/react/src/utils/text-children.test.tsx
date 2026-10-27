@@ -312,6 +312,27 @@ describe("an email service's <%name%> tag in text", () => {
   });
 });
 
+describe("an email service's tag with quotes in rich text", () => {
+  // React writes a `'` in text as `&#x27;`, which a Liquid tag can't read; text given as a string keeps it, as 0.2.1
+  // kept both.
+  const tag = "{{ first_name | default: 'friend' }}";
+  it.each([["email", Email], ["web", Page]] as const)("keeps its single quotes in a Paragraph, a Heading and a Button with inline markup, in the HTML and the design (%s)", (_, Root) => {
+    const template = (
+      <Root><Row><Column>
+        <Paragraph>Hi {tag}, <strong>thanks</strong> <a href="https://example.com" title="it's">x</a></Paragraph>
+        <Heading>Hi {tag}<br />more</Heading>
+        <Button href="https://example.com">Go {tag} <strong>now</strong></Button>
+      </Column></Row></Root>
+    );
+    const html = renderToHtml(template);
+    expect(html.split(tag)).toHaveLength(4);
+    const texts = renderToJson(template).body.rows[0].columns[0].contents.map((c: any) => String(c.values.text));
+    for (const text of texts) expect(text).toContain(tag);
+    // A tag's attributes keep theirs, as React wrote them.
+    expect(texts[0]).toContain('title="it&#x27;s"');
+  });
+});
+
 describe("an email service's tag in the plain text", () => {
   it("stays, in a Paragraph with inline markup as in one of text (as 0.2.1 kept it), a Heading and a Button; so do other services' tags", () => {
     const tags = "<%first_name%> {{last_name}} *|FNAME|* %%Company%%";
