@@ -2,6 +2,11 @@ import { describe, it, expect } from "vitest";
 import React from "react";
 import { render } from "@testing-library/react";
 import Table from "./Table";
+import Email from "./Email";
+import Row from "./Row";
+import { Column } from "./Column";
+import { renderToHtml } from "../utils/render-to-html";
+import { renderToJson } from "../utils/render-to-json";
 
 describe("Table Component", () => {
   it("renders a table element", () => {
@@ -116,6 +121,18 @@ describe("Table Component", () => {
     expect(container.querySelector("tbody .u-table-footer")?.textContent).toContain(
       "Footer"
     );
+  });
+
+  it("writes a cell or header from data that isn't a string (a quantity, a year, 0) as its text, in the HTML and the design", () => {
+    // JSON's numbers reach `data` as numbers whatever its type says (`JSON.parse` gives `any`).
+    const headers = ["Item", 2026] as unknown as string[];
+    const data = [["Wool Runner", 1], ["Gift card", 0], ["Sample", true]] as unknown as string[][];
+    const email = <Email><Row><Column><Table headers={headers} data={data} /></Column></Row></Email>;
+    const doc = new DOMParser().parseFromString(renderToHtml(email), "text/html");
+    const texts = [...doc.querySelectorAll("th, td")].map((cell) => cell.textContent!.trim());
+    for (const text of ["Item", "2026", "Wool Runner", "1", "Gift card", "0", "Sample", "true"]) expect(texts).toContain(text);
+    const table = (renderToJson(email).body.rows[0].columns[0].contents[0].values as any).table;
+    expect(table.rows.map((row: any) => row.cells.map((cell: any) => cell.text))).toEqual([["Wool Runner", "1"], ["Gift card", "0"], ["Sample", "true"]]);
   });
 
   it("has correct displayName", () => {
