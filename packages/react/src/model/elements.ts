@@ -18,7 +18,7 @@ import { failed, failedBefore, guest, rightToLeft, sayOnce } from "../utils/rend
 import { containerOf } from "../utils/container-render";
 import { classProps, isTailwindError, prepareClasses, TAILWIND } from "../utils/tailwind";
 import { OWN, UNLAYER_CONFIG_KEY } from "../utils/create-component";
-import { inlineHtml } from "../utils/inline-html";
+import { asWritten, inlineHtml } from "../utils/inline-html";
 import { closestName } from "../utils/closest-name";
 import { MEMO } from "../utils/unwrap-root";
 import { COLUMN_DEFAULTS, ROW_DEFAULTS } from "../utils/container-defaults";
@@ -259,7 +259,8 @@ const tagsOf = (html: string) => String(html.match(/<\/?[a-zA-Z][\w:-]*/g));
 const asBlock = (part: Part, props: Record<string, unknown> = {}, exact = false): React.ReactElement | undefined => {
   if (!/^(a|hr)$/.test(part.tag)) return undefined;
   const text = part.tag === "a" ? inlineHtml(part.html) : "";
-  if (text && (exact ? text === part.html : tagsOf(text) === tagsOf(part.html))) return React.createElement(Paragraph, { ...props, html: text });
+  // (A component's markup, kept whole: as text writes it, its quotes and <%name%> tags as written.)
+  if (text && (exact ? text === asWritten(part.html) : tagsOf(text) === tagsOf(part.html))) return React.createElement(Paragraph, { ...props, html: text });
   if (part.html === "<hr/>") return React.createElement(Divider, props);
   return exact ? undefined : React.createElement(Html, { ...props, html: part.html });
 };

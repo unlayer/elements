@@ -160,6 +160,16 @@ describe("Column Component", () => {
       ]);
     });
 
+    it("a <Link> to an email service's <%name%> tag, or with a quote in its text, is a Paragraph too, its URL as written", () => {
+      const email = column(
+        <Link key="u" href="<%asm_group_unsubscribe_raw_url%>">Unsubscribe</Link>,
+        <Link key="q" href="https://example.com">Don't miss "this"</Link>
+      );
+      expect(renderToHtml(email)).toContain('href="<%asm_group_unsubscribe_raw_url%>"');
+      expect(contents(email).map((c) => c.type)).toEqual(["text", "text"]);
+      expect(contents(email)[0].values).toMatchObject({ text: expect.stringContaining('href="<%asm_group_unsubscribe_raw_url%>"') });
+    });
+
     it("a bare <a> and <hr> as well; other markup is said, and left out", () => {
       const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
       try {

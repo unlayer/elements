@@ -94,6 +94,16 @@ export function htmlToPlainText(html: string, options: PlainTextOptions = {}): s
 /** A `javascript:` URL, as a browser reads one (spaces and control characters before it, any case). */
 const BLOCKED = /^[\s\0-\x1f]*j\s*a\s*v\s*a\s*s\s*c\s*r\s*i\s*p\s*t\s*:/i;
 
+/**
+ * An email service's tags a heading's capitals leave as written (`<%name%>`, `{{ name }}`, `{{{ raw }}}`, `{% if %}`,
+ * `*|FNAME|*`, `%%Name%%`, `%%=v(@x)=%%`, `%recipient.name%`, `${name}`, `{$name}`), and character references. The
+ * pattern reads a heading's text in parts: these, then text to the next character one can start with, then that
+ * character alone.
+ */
+const TAG = String.raw`<%[^<>]*%>|\{\{\{[^{}]*\}\}\}|\{\{[^{}]*\}\}|\{%[^{}]*%\}|\*\|[^|]*\|\*|%%[^%]*%%|%[\w.-]+%|\$\{[^{}]*\}|\{\$[^{}]*\}|&#?\w+;`;
+const SPANS = new RegExp(`${TAG}|[^&<{*%$]+|[&<{*%$]`, "g");
+const KEPT = new RegExp(`^(?:${TAG})$`);
+
 /** htmlToPlainText's text, of HTML that holds neither U+0000 nor U+0001, nor decodes to them (see `marks`). */
 function plainText(html: string, options: PlainTextOptions, marks: TextMarks): string {
   const decodeEntities = (text: string) => decode(text, marks);
@@ -140,11 +150,13 @@ function plainText(html: string, options: PlainTextOptions, marks: TextMarks): s
   // A line of its own, unless it ends a table cell (code with line numbers: a row per line).
   text = replaceElements(text, /<pre/iy, /<\/pre>/gi, (_, content, cell) => `\u0000${pre.push(trimLineEnds(restore(decodeEntities(untagged(content))))) - 1}\u0000${cell ?? "\n"}`, { bounded: true, after: /\s*<\/t[dh]>/iy });
 
-  // 4. Convert headings: h1-h2 → UPPERCASE, h3-h6 → as-is
+  // 4. Convert headings: h1-h2 → UPPERCASE (but entities and tags: see SPANS), h3-h6 → as-is
   text = replaceElements(text, /<h[12]/iy, /<\/h[12]>/gi, (_, content) => {
     const clean = untagged(content).trim();
-    // Entities stay as written, to decode below (`&amp;` uppercased wouldn't), and an email service's tags as they are.
-    const upper = clean.replace(/<%[^<>]*%>|&#?\w+;|[^&<]+|[&<]/g, (part: string) => (/^(&#?\w+;|<%[^<>]*%>)$/.test(part) || !uppercaseHeadings ? part : part.toUpperCase()));
+    // Entities stay as written, to decode below (`&amp;` uppercased wouldn't), and an email service's tags as they are
+    // (a service reads `{{ first_name }}`, not `{{ FIRST_NAME }}`): text is read to the next character a tag can start
+    // with, each tag to the first character that could end it, so once.
+    const upper = clean.replace(SPANS, (part: string) => (KEPT.test(part) || !uppercaseHeadings ? part : part.toUpperCase()));
     return "\n" + upper + "\n";
   });
   text = replaceElements(text, /<h[3-6]/iy, /<\/h[3-6]>/gi, (_, content) => {

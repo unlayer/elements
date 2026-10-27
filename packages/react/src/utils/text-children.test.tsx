@@ -193,6 +193,25 @@ describe("rich text children of Paragraph, Heading and Button", () => {
     expect(text).toContain('<span><a>a</a> <a>b</a> <a>c</a> <a>d</a> <a>e</a> <a>f</a> <a>g</a> <a>h</a> <span>i</span></span> <a href="&amp;#106;avascript:x">kept</a>');
   });
 
+  it("leave out a comment, one left open too, so it can't hide the rest of the email", () => {
+    const Markup = ({ html }: { html: string }) => <span dangerouslySetInnerHTML={{ __html: html }} />;
+    for (const markup of ["Nice <!-- hidden", "Nice <!-- note --> shoes", "Nice <!--> shoes", "Nice <!x> shoes", "Nice <?x> shoes", "Nice <![CDATA[ x ]]> shoes"]) {
+      for (const Root of [Email, Page]) {
+        const template = (
+          <Root><Row><Column>
+            <Paragraph>Review: <Markup html={markup} /></Paragraph>
+            <Paragraph>Total: $98</Paragraph>
+          </Column></Row></Root>
+        );
+        const html = renderToHtml(template);
+        const doc = new DOMParser().parseFromString(html, "text/html");
+        expect(doc.body.textContent).toContain("Total: $98");
+        const text = String(renderToJson(template).body.rows[0].columns[0].contents[0].values.text);
+        expect(text).not.toMatch(/<!|<\?/);
+      }
+    }
+  });
+
   it("leave out a tag that never ends (before a <style> or <script> left open, whose markup goes to the end), so its attributes aren't a tag's in the email", () => {
     const Markup = ({ html }: { html: string }) => <span dangerouslySetInnerHTML={{ __html: html }} />;
     const hostile = ["Nice <img src=x onerror=alert(1) <style>", "Nice <img src=x onerror=alert(1) <script>", "Nice <a href=x onmouseover=alert(1) <style>x", "Nice <img src=x onerror=alert(1)"];
@@ -313,13 +332,13 @@ describe("an email service's <%name%> tag in text", () => {
 });
 
 describe("an email service's tag with quotes in rich text", () => {
-  // React writes a `'` in text as `&#x27;`, which a Liquid tag can't read; text given as a string keeps it, as 0.2.1
-  // kept both.
-  const tag = "{{ first_name | default: 'friend' }}";
-  it.each([["email", Email], ["web", Page]] as const)("keeps its single quotes in a Paragraph, a Heading and a Button with inline markup, in the HTML and the design (%s)", (_, Root) => {
+  // React writes a `'` in text as `&#x27;` and a `"` as `&quot;`, which a Liquid tag can't read; text given as a string
+  // keeps them, as 0.2.1 kept them in a Heading's and a Button's.
+  it.each([["email", Email, "'"], ["web", Page, "'"], ["email", Email, '"'], ["web", Page, '"']] as const)("keeps its quotes in a Paragraph, a Heading and a Button with inline markup, in the HTML and the design (%s, %s)", (_, Root, quote) => {
+    const tag = `{{ first_name | default: ${quote}friend${quote} }}`;
     const template = (
       <Root><Row><Column>
-        <Paragraph>Hi {tag}, <strong>thanks</strong> <a href="https://example.com" title="it's">x</a></Paragraph>
+        <Paragraph>Hi {tag}, <strong>thanks</strong> <a href="https://example.com" title={`it's "it"`}>x</a></Paragraph>
         <Heading>Hi {tag}<br />more</Heading>
         <Button href="https://example.com">Go {tag} <strong>now</strong></Button>
       </Column></Row></Root>
@@ -329,11 +348,17 @@ describe("an email service's tag with quotes in rich text", () => {
     const texts = renderToJson(template).body.rows[0].columns[0].contents.map((c: any) => String(c.values.text));
     for (const text of texts) expect(text).toContain(tag);
     // A tag's attributes keep theirs, as React wrote them.
-    expect(texts[0]).toContain('title="it&#x27;s"');
+    expect(texts[0]).toContain('title="it&#x27;s &quot;it&quot;"');
   });
 });
 
 describe("an email service's tag in the plain text", () => {
+  it("keeps a heading's tags as written in its capitals, every common service's (0.2.1 put them in capitals too)", () => {
+    const tags = ["{{ first_name | default: \"there\" }}", "{% if vip %}", "{{{raw}}}", "%recipient.first_name%", "%%=v(@name)=%%", "${first_name}", "{$first_name}", "<%name%>"];
+    const text = renderToPlainText(<Email><Row><Column><Heading>{`Welcome, ${tags.join(" ")}!`}</Heading></Column></Row></Email>);
+    expect(text).toContain(`WELCOME, ${tags.join(" ")}!`);
+  });
+
   it("stays, in a Paragraph with inline markup as in one of text (as 0.2.1 kept it), a Heading and a Button; so do other services' tags", () => {
     const tags = "<%first_name%> {{last_name}} *|FNAME|* %%Company%%";
     const template = (
@@ -353,7 +378,8 @@ describe("an email service's tag in the plain text", () => {
     const text = renderToPlainText(template);
     expect(text).toContain(`Hi ${tags}, bold and a link (https://example.com)`);
     expect(text).toContain(`Hi ${tags}\n`);
-    expect(text).toContain("HELLO <%first_name%> {{LAST_NAME}} *|FNAME|* %%COMPANY%%");
+    // A heading's capitals leave its tags as written: a service reads `{{ last_name }}`, not `{{ LAST_NAME }}`.
+    expect(text).toContain("HELLO <%first_name%> {{last_name}} *|FNAME|* %%Company%%");
     expect(text).toContain(`Go ${tags} (https://example.com)`);
   });
 

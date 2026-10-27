@@ -72,7 +72,8 @@ const Table = createItemComponent<TableValues, TableSemanticProps>({
     if (headers || data || typeof columns === "number" || typeof rows === "number") {
       const base: Partial<TableValues> = mapSemanticProps(rest as SemanticProps<TableValues>, DEFAULT_VALUES, "Table");
       const colCount = headers ? headers.length : typeof columns === "number" ? columns : (data?.[0]?.length ?? 0);
-      const cellsOf = (row: string[]) => ({ cells: row.map((text) => ({ text, width: 0 })), height: 0 });
+      // A cell from data that isn't a string (JSON's numbers, a year, `0`) is its text; null is none (see mapSemanticProps).
+      const cellsOf = (row: unknown[]) => ({ cells: row.map((text) => ({ text: (text == null ? text : String(text)) as string, width: 0 })), height: 0 });
       // No data: an empty grid sized by `columns` × `rows`.
       const tableRows = data ? data.map(cellsOf) : typeof rows === "number" ? Array.from({ length: rows }, () => cellsOf(Array(colCount).fill(""))) : [];
       base.table = { headers: headers ? [cellsOf(headers)] : [], rows: tableRows, footers: [] };
