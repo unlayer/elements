@@ -4,8 +4,8 @@
  * and this keeps what text can hold. Inline formatting stays (with a link's href, target, rel and title, and
  * styles and classes, which the editor's text keeps too: a <Head>'s stylesheet styles them, and inside a <Tailwind> a
  * Paragraph's, Heading's or Button's classes are inlined as styles); other elements (a div, a table, an image) leave only their text, so no block gets into a paragraph; and
- * nothing that runs code (React writes no event handler; a `javascript:` URL or a CSS expression is left out), nor a
- * <script>'s or <style>'s text, which React 19 writes as it is.
+ * nothing that runs code (React writes no event handler; a `javascript:` URL or a CSS expression is left out, and a
+ * tag that never ends), nor a <script>'s or <style>'s text, which React 19 writes as it is.
  */
 import { replaceTags, rewrite } from "@unlayer-internal/shared-elements";
 import { decoded } from "./entities";
@@ -34,10 +34,22 @@ function withoutRaw(html: string): string {
   });
 }
 
+/**
+ * `html` to the first tag that never ends (no `>` after it: `<img src=x onerror=…` before an unclosed <style>, which
+ * takes the end tags after it out), as a browser reads such a tag: to the end, with what follows it. Kept, its
+ * attributes would be a tag's in the markup the text is written into.
+ */
+function toUnfinishedTag(html: string): string {
+  const start = /<\/?[a-zA-Z]/g;
+  start.lastIndex = html.lastIndexOf(">") + 1;
+  const at = start.exec(html)?.index;
+  return at === undefined ? html : html.slice(0, at);
+}
+
 export function inlineHtml(html: string): string {
-  // A <script>'s or <style>'s text isn't text (React 19 writes it as it is, markup and all): out, with them. Then each
-  // tag, as `/<(\/?)([a-zA-Z][\w:-]*)([^>]*)>/g` reads it, but read once (see replaceTags).
-  const tags = replaceTags(withoutRaw(html), /<\/?[a-zA-Z]/y, (written) => {
+  // A <script>'s or <style>'s text isn't text (React 19 writes it as it is, markup and all): out, with them, and a tag
+  // that never ends. Then each tag, as `/<(\/?)([a-zA-Z][\w:-]*)([^>]*)>/g` reads it, but read once (see replaceTags).
+  const tags = replaceTags(toUnfinishedTag(withoutRaw(html)), /<\/?[a-zA-Z]/y, (written) => {
     // (Its name, then its attributes to its `>`, the tag's last character.)
     const [start, close, name] = /^<(\/?)([a-zA-Z][\w:-]*)/.exec(written)!;
     const attributes = written.slice(start.length, -1);
@@ -53,6 +65,10 @@ export function inlineHtml(html: string): string {
     }
     return `<${tag}${kept}${tag === "br" ? "/" : ""}>`;
   });
+  // A single quote in text as written, as in text given as a string: React writes it as `&#x27;`, which an email
+  // service's tag can't read (`{{ name | default: 'friend' }}`). A tag's attributes keep theirs (each read to the next
+  // `<` or `>`: once, whatever the text holds; one is double-quoted, so a `'` in it would be its own anyway).
+  const quoted = tags.replace(/<[^<>]*>|&#x27;/g, (part) => (part === "&#x27;" ? "'" : part));
   // An email service's <%name%> tag stays as written, as in text given as a string.
-  return tags.replace(/&lt;%([\w.]+)%&gt;/g, "<%$1%>");
+  return quoted.replace(/&lt;%([\w.]+)%&gt;/g, "<%$1%>");
 }

@@ -198,4 +198,28 @@ describe("Column Component", () => {
       }
     });
   });
+
+  describe("a block's displayCondition: the editor's, around the block, as its export writes it", () => {
+    const condition = { type: "vip", label: "VIP only", description: "Customers in the VIP list", before: "{% if customer.vip %}", after: "{% endif %}" };
+
+    it("puts the block's HTML between its before and after, the blocks around it outside them", () => {
+      const html = renderToHtml(
+        <Email><Row><Column>
+          <Paragraph>Everyone</Paragraph>
+          <Button href="https://example.com" values={{ displayCondition: condition }}>VIP discount</Button>
+          <Heading>Everyone again</Heading>
+        </Column></Row></Email>
+      );
+      const [before, after] = [html.indexOf(condition.before), html.indexOf(condition.after)];
+      expect(html.indexOf("Everyone")).toBeLessThan(before);
+      expect(html.slice(before, after)).toContain("VIP discount");
+      expect(html.indexOf("Everyone again")).toBeGreaterThan(after);
+      expect(html.split(condition.before)).toHaveLength(2);
+    });
+
+    it("leaves a block without one as it was", () => {
+      const block = (values?: Record<string, unknown>) => <Email><Row><Column><Paragraph values={values}>Hi</Paragraph></Column></Row></Email>;
+      expect(renderToHtml(block({ displayCondition: null }))).toBe(renderToHtml(block()));
+    });
+  });
 });

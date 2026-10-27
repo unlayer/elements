@@ -3,7 +3,7 @@ import { escapeText, type RenderMode, type UnlayerConfig, type RowValues } from 
 import type { ColumnLayout } from "@unlayer-internal/shared-elements";
 import { RowExporters } from "@unlayer/exporters";
 import { mapSemanticProps, type SemanticProps } from "../utils/semantic-props";
-import { nextHtmlId, safeMeta, hatch, cssUrl } from "../utils/create-component";
+import { nextHtmlId, safeMeta, hatch, cssUrl, withDisplayCondition } from "../utils/create-component";
 import { bodyContentWidthPx } from "../utils/image-sizing";
 import type { DeviceProps, SizeInput } from "../types";
 import { ROW_DEFAULTS, BODY_DEFAULTS } from "../utils/container-defaults";
@@ -295,7 +295,8 @@ function renderRow(props: RowProps): React.ReactElement | null {
   // Its `style` and `className` on its row (the box at the content width, see hatch). Its exporter, or a Column's,
   // failing fails it, or that Row or Column is left out (see renderContainer, and `onError`).
   const html = hatch(renderRowToHtml(innerHTML, valuesWithMeta, safeBodyValues, mode, cells, collection), /<div[^>]*class="u-row[ "][^>]*>/, style, className, semanticProps);
-  return <div dangerouslySetInnerHTML={{ __html: html }} />;
+  // Inside its display condition, as the editor's export writes it (see withDisplayCondition).
+  return <div dangerouslySetInnerHTML={{ __html: withDisplayCondition(html, valuesWithMeta) }} />;
 }
 
 // A collecting walk records a Row (see utils/record.tsx); rendered, it's the collected Row's HTML.
