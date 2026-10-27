@@ -10,6 +10,12 @@ export interface UnlayerConfig {
   cdnBaseUrl: string;
   toSafeHtml?: (text: string, options?: any) => string;
   textDirection?: string;
+  /**
+   * The editor's merge tag state its Table exporter reads, not values for merge tags (Elements writes `{{name}}` as
+   * it is, for an email service to fill in): `{ mergeTags, mergeTagGroup, mergeTagRule }`, `mergeTags` as
+   * `unlayer.init({ mergeTags })` takes them. A Table whose values name the same group and rule has its rows between
+   * the rule's `before` and `after`.
+   */
   mergeTagState?: Record<string, any>;
   mode?: RenderMode;
   headConfig?: HeadConfig;

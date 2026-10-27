@@ -11,7 +11,7 @@ import { attributes, lostThroughValues, placeValues, Props, withoutMeta } from "
 import { codeValue, type Attr } from "./print";
 import type { ModuleState } from "./state";
 import { deepEqual, isPlainObject, type Plain } from "./values";
-import { dropFixedFlags, warnLost } from "./warnings";
+import { dropFixedFlags, warnLost, warnMergeTagRule } from "./warnings";
 
 export type RootName = "Email" | "Page" | "Document";
 
@@ -81,6 +81,7 @@ export function convertRow(row: Plain, cells: number[], columns: number, where: 
   const layout = columns === cells.length ? layoutAttr(cells) : { name: "cells", value: cells };
   props.attrs.push(layout);
   const rest = withoutMeta(isPlainObject(row.values) ? row.values : {}, props);
+  warnMergeTagRule(rest, where, state, false);
   // (renderToJson writes the row's cells in its values too.)
   delete rest.cells;
   dropFixedFlags(rest, where, state);

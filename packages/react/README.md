@@ -581,7 +581,7 @@ renderToJson(tree);  // emits { type: "custom", slug: "countdown", values } — 
 
 ## UnlayerProvider
 
-Set config once for every root inside it (`Email`, `Page`, `Document` or `Body`): the CDN for assets (`cdnBaseUrl`), merge tags (`mergeTagState`), text direction (`textDirection`), a sanitizer (`toSafeHtml`), head options (`headConfig`), what failed parts do (`onError`), the `useId()`s' prefix (`idPrefix`), and the mode of a `<Body>`:
+Set config once for every root inside it (`Email`, `Page`, `Document` or `Body`): the CDN for assets (`cdnBaseUrl`), a Table's merge tag rule (`mergeTagState`), text direction (`textDirection`), a sanitizer (`toSafeHtml`), head options (`headConfig`), what failed parts do (`onError`), the `useId()`s' prefix (`idPrefix`), and the mode of a `<Body>`:
 
 ```tsx
 import { UnlayerProvider, Email, Row, Column, ColumnLayouts, Social, Menu, renderToHtml, renderToJson } from '@unlayer/react-elements';
@@ -615,6 +615,29 @@ A root's config is merged key by key, the most specific first:
 4. `DEFAULT_CONFIG`.
 
 A key a level leaves out, or sets to `undefined`, comes from the level under it; an object value (`mergeTagState`, `headConfig`) is taken whole, not merged. `mode` sets a `<Body>`'s mode: `<Email>`, `<Page>` and `<Document>` keep theirs.
+
+`mergeTagState` holds no values for merge tags: Elements writes a tag (`{{first_name}}`, `*|FNAME|*`) as it is, in the HTML, the plain text and the design, for your email service to fill in, and values your code has go in as props. It's the editor's merge tag state, which its Table exporter reads to repeat a table's rows: `{ mergeTags, mergeTagGroup, mergeTagRule }`, with `mergeTags` your editor's merge tags as `unlayer.init({ mergeTags })` takes them. A Table whose `values` name the same group and rule has its rows between the rule's `before` and `after`:
+
+```tsx
+const mergeTags = {
+  products: {
+    name: "Products",
+    rules: { repeat: { name: "Repeat for each product", before: "{{#products}}", after: "{{/products}}" } },
+    mergeTags: { name: { name: "Name", value: "{{name}}" } },
+  },
+};
+
+renderToHtml(
+  <Email>
+    <Row><Column>
+      <Table headers={["Product"]} data={[["{{name}}"]]} values={{ mergeTagGroup: "products", mergeTagRule: "repeat" }} />
+    </Column></Row>
+  </Email>,
+  { mergeTagState: { mergeTags, mergeTagGroup: "products", mergeTagRule: "repeat" } }
+);
+```
+
+A render applies one Table rule this way. A row's or block's display condition (`values={{ displayCondition }}`, the editor's, with its `before` and `after`) is written around it, as the editor's export writes it; a row's or another block's merge tag rule isn't applied.
 
 The Provider works around the root or around a template component that returns one, through every render function (`renderToHtml`, `renderToHtmlParts`, `renderToPlainText`, `renderToJson`, and those from `@unlayer/react-elements/async`) and where React renders the tree itself (`renderToStaticMarkup`, a client component). The design keeps what it can hold of the config: `textDirection`. Put the Provider around the root: a Provider inside it doesn't configure it. Your components read the Provider's config with `useUnlayerConfig()`.
 

@@ -193,6 +193,28 @@ describe("rich text children of Paragraph, Heading and Button", () => {
     expect(text).toContain('<span><a>a</a> <a>b</a> <a>c</a> <a>d</a> <a>e</a> <a>f</a> <a>g</a> <a>h</a> <span>i</span></span> <a href="&amp;#106;avascript:x">kept</a>');
   });
 
+  it("leave out a tag that never ends (before a <style> or <script> left open, whose markup goes to the end), so its attributes aren't a tag's in the email", () => {
+    const Markup = ({ html }: { html: string }) => <span dangerouslySetInnerHTML={{ __html: html }} />;
+    const hostile = ["Nice <img src=x onerror=alert(1) <style>", "Nice <img src=x onerror=alert(1) <script>", "Nice <a href=x onmouseover=alert(1) <style>x", "Nice <img src=x onerror=alert(1)"];
+    for (const markup of hostile) {
+      for (const Root of [Email, Page]) {
+        const template = (
+          <Root><Row><Column>
+            <Paragraph>Review: <Markup html={markup} /></Paragraph>
+            <Heading>Review: <Markup html={markup} /></Heading>
+            <Button href="https://example.com">Go <Markup html={markup} /></Button>
+          </Column></Row></Root>
+        );
+        const texts = renderToJson(template).body.rows[0].columns[0].contents.map((c: any) => String(c.values.text));
+        for (const html of [renderToHtml(template), ...texts]) {
+          const doc = new DOMParser().parseFromString(html, "text/html");
+          expect([...doc.querySelectorAll("*")].flatMap((e) => [...e.attributes].map((a) => a.name)).filter((name) => /^on/i.test(name))).toEqual([]);
+        }
+        expect(texts[0]).toMatch(/^Review: <span>Nice ?$/);
+      }
+    }
+  });
+
   it("leave out a <script>'s or <style>'s text in them, which React 19 writes as it is (markup in it isn't theirs), on React 18 and 19", () => {
     const evil = "<a href='https://evil.test'>click</a> <b>bold</b>";
     const content = (Block: typeof Paragraph | typeof Heading) => (
@@ -287,6 +309,27 @@ describe("an email service's <%name%> tag in text", () => {
     if (mode === "email") expect(html).toContain("<%company%>");
     // Markup around it is still escaped.
     expect(renderToHtml(<Root><Row><Column><Heading>{"<%name%><b>bold</b>"}</Heading></Column></Row></Root>)).toContain("<%name%>&lt;b&gt;bold&lt;/b&gt;");
+  });
+});
+
+describe("an email service's tag with quotes in rich text", () => {
+  // React writes a `'` in text as `&#x27;`, which a Liquid tag can't read; text given as a string keeps it, as 0.2.1
+  // kept both.
+  const tag = "{{ first_name | default: 'friend' }}";
+  it.each([["email", Email], ["web", Page]] as const)("keeps its single quotes in a Paragraph, a Heading and a Button with inline markup, in the HTML and the design (%s)", (_, Root) => {
+    const template = (
+      <Root><Row><Column>
+        <Paragraph>Hi {tag}, <strong>thanks</strong> <a href="https://example.com" title="it's">x</a></Paragraph>
+        <Heading>Hi {tag}<br />more</Heading>
+        <Button href="https://example.com">Go {tag} <strong>now</strong></Button>
+      </Column></Row></Root>
+    );
+    const html = renderToHtml(template);
+    expect(html.split(tag)).toHaveLength(4);
+    const texts = renderToJson(template).body.rows[0].columns[0].contents.map((c: any) => String(c.values.text));
+    for (const text of texts) expect(text).toContain(tag);
+    // A tag's attributes keep theirs, as React wrote them.
+    expect(texts[0]).toContain('title="it&#x27;s"');
   });
 });
 

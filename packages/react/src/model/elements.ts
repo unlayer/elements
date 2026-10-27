@@ -219,7 +219,7 @@ function restyled(c: Collected, tw: Record<string, any> | undefined, key: object
 /** Props any block takes beside its values (its defaults' keys); `font…` in camel case (`fontsize` is a slip). */
 const KNOWN = /^(children|className|style|mode|values|containerPadding|hideOn(Mobile|Desktop)|mobile|skipInText|html|text|href|action|alt|src|width|maxWidth|items|icons|icon\w+|spacing|videoUrl|headers|data|columns|rows|font[A-Z]\w*|letterSpacing|color|lineHeight|textAlign|padding|border\w*|backgroundColor|hover\w*|_\w+)$/;
 
-type ItemConfig = { name: string; defaultValues: Record<string, unknown> };
+type ItemConfig = { name: string; defaultValues: Record<string, unknown>; names?: readonly string[] };
 
 /** A block's props: its values' names (flat too) and the names it takes for them (see PROP_ALIASES), once per block. */
 const propNames = new WeakMap<object, { names: string[]; known: Map<string, boolean> }>();
@@ -242,7 +242,7 @@ function namesOf(config: ItemConfig): { names: string[]; known: Map<string, bool
   let entry = propNames.get(config);
   if (!entry) {
     const values = config.defaultValues;
-    const names = Object.keys({ ...values, ...PROP_ALIASES[config.name] }).concat(...Object.values(values).map((v) => (v && typeof v == "object" ? Object.keys(v) : [])));
+    const names = Object.keys({ ...values, ...PROP_ALIASES[config.name] }).concat(config.names ?? [], ...Object.values(values).map((v) => (v && typeof v == "object" ? Object.keys(v) : [])));
     propNames.set(config, (entry = { names, known: new Map() }));
   }
   return entry;
