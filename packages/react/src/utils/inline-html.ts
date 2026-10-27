@@ -65,10 +65,16 @@ export function inlineHtml(html: string): string {
     }
     return `<${tag}${kept}${tag === "br" ? "/" : ""}>`;
   });
-  // A single quote in text as written, as in text given as a string: React writes it as `&#x27;`, which an email
-  // service's tag can't read (`{{ name | default: 'friend' }}`). A tag's attributes keep theirs (each read to the next
-  // `<` or `>`: once, whatever the text holds; one is double-quoted, so a `'` in it would be its own anyway).
-  const quoted = tags.replace(/<[^<>]*>|&#x27;/g, (part) => (part === "&#x27;" ? "'" : part));
-  // An email service's <%name%> tag stays as written, as in text given as a string.
+  return asWritten(tags);
+}
+
+/**
+ * Markup's text as text given as a string writes it: its quotes as written (React writes `'` as `&#x27;` and `"` as
+ * `&quot;`, which an email service's tag can't read: `{{ name | default: "friend" }}`), and an email service's
+ * <%name%> tag. A tag's attributes keep theirs (each tag read to the next `<` or `>`: once, whatever the text holds),
+ * and the quotes come back before the <%name%> tags do, so no `>` of one is read as a tag's end.
+ */
+export function asWritten(html: string): string {
+  const quoted = html.replace(/<[^<>]*>|&#x27;|&quot;/g, (part) => (part === "&#x27;" ? "'" : part === "&quot;" ? '"' : part));
   return quoted.replace(/&lt;%([\w.]+)%&gt;/g, "<%$1%>");
 }

@@ -313,13 +313,13 @@ describe("an email service's <%name%> tag in text", () => {
 });
 
 describe("an email service's tag with quotes in rich text", () => {
-  // React writes a `'` in text as `&#x27;`, which a Liquid tag can't read; text given as a string keeps it, as 0.2.1
-  // kept both.
-  const tag = "{{ first_name | default: 'friend' }}";
-  it.each([["email", Email], ["web", Page]] as const)("keeps its single quotes in a Paragraph, a Heading and a Button with inline markup, in the HTML and the design (%s)", (_, Root) => {
+  // React writes a `'` in text as `&#x27;` and a `"` as `&quot;`, which a Liquid tag can't read; text given as a string
+  // keeps them, as 0.2.1 kept them in a Heading's and a Button's.
+  it.each([["email", Email, "'"], ["web", Page, "'"], ["email", Email, '"'], ["web", Page, '"']] as const)("keeps its quotes in a Paragraph, a Heading and a Button with inline markup, in the HTML and the design (%s, %s)", (_, Root, quote) => {
+    const tag = `{{ first_name | default: ${quote}friend${quote} }}`;
     const template = (
       <Root><Row><Column>
-        <Paragraph>Hi {tag}, <strong>thanks</strong> <a href="https://example.com" title="it's">x</a></Paragraph>
+        <Paragraph>Hi {tag}, <strong>thanks</strong> <a href="https://example.com" title={`it's "it"`}>x</a></Paragraph>
         <Heading>Hi {tag}<br />more</Heading>
         <Button href="https://example.com">Go {tag} <strong>now</strong></Button>
       </Column></Row></Root>
@@ -329,7 +329,7 @@ describe("an email service's tag with quotes in rich text", () => {
     const texts = renderToJson(template).body.rows[0].columns[0].contents.map((c: any) => String(c.values.text));
     for (const text of texts) expect(text).toContain(tag);
     // A tag's attributes keep theirs, as React wrote them.
-    expect(texts[0]).toContain('title="it&#x27;s"');
+    expect(texts[0]).toContain('title="it&#x27;s &quot;it&quot;"');
   });
 });
 
