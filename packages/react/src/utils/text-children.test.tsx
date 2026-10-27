@@ -193,6 +193,25 @@ describe("rich text children of Paragraph, Heading and Button", () => {
     expect(text).toContain('<span><a>a</a> <a>b</a> <a>c</a> <a>d</a> <a>e</a> <a>f</a> <a>g</a> <a>h</a> <span>i</span></span> <a href="&amp;#106;avascript:x">kept</a>');
   });
 
+  it("leave out a comment, one left open too, so it can't hide the rest of the email", () => {
+    const Markup = ({ html }: { html: string }) => <span dangerouslySetInnerHTML={{ __html: html }} />;
+    for (const markup of ["Nice <!-- hidden", "Nice <!-- note --> shoes", "Nice <!--> shoes", "Nice <!x> shoes", "Nice <?x> shoes", "Nice <![CDATA[ x ]]> shoes"]) {
+      for (const Root of [Email, Page]) {
+        const template = (
+          <Root><Row><Column>
+            <Paragraph>Review: <Markup html={markup} /></Paragraph>
+            <Paragraph>Total: $98</Paragraph>
+          </Column></Row></Root>
+        );
+        const html = renderToHtml(template);
+        const doc = new DOMParser().parseFromString(html, "text/html");
+        expect(doc.body.textContent).toContain("Total: $98");
+        const text = String(renderToJson(template).body.rows[0].columns[0].contents[0].values.text);
+        expect(text).not.toMatch(/<!|<\?/);
+      }
+    }
+  });
+
   it("leave out a tag that never ends (before a <style> or <script> left open, whose markup goes to the end), so its attributes aren't a tag's in the email", () => {
     const Markup = ({ html }: { html: string }) => <span dangerouslySetInnerHTML={{ __html: html }} />;
     const hostile = ["Nice <img src=x onerror=alert(1) <style>", "Nice <img src=x onerror=alert(1) <script>", "Nice <a href=x onmouseover=alert(1) <style>x", "Nice <img src=x onerror=alert(1)"];

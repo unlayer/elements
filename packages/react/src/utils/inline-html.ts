@@ -35,6 +35,24 @@ function withoutRaw(html: string): string {
 }
 
 /**
+ * `html` without its comments (`<!--…-->`, to its end where none closes, as a browser reads one), nor what a browser
+ * reads as one (`<!…>`, `<?…>`): kept, one left open would hide the rest of the email.
+ */
+function withoutComments(html: string): string {
+  return rewrite(html, (at) => {
+    if (html.startsWith("<!--", at)) {
+      // (`<!-->` and `<!--->` end at once, as a browser reads them.)
+      const abrupt = html.startsWith(">", at + 4) ? at + 5 : html.startsWith("->", at + 4) ? at + 6 : -1;
+      const end = abrupt > 0 ? abrupt - 3 : html.indexOf("-->", at + 4);
+      return [end < 0 ? html.length : end + 3, ""];
+    }
+    if (html[at + 1] !== "!" && html[at + 1] !== "?") return at + 1;
+    const end = html.indexOf(">", at + 2);
+    return [end < 0 ? html.length : end + 1, ""];
+  });
+}
+
+/**
  * `html` to the first tag that never ends (no `>` after it: `<img src=x onerror=…` before an unclosed <style>, which
  * takes the end tags after it out), as a browser reads such a tag: to the end, with what follows it. Kept, its
  * attributes would be a tag's in the markup the text is written into.
@@ -47,9 +65,9 @@ function toUnfinishedTag(html: string): string {
 }
 
 export function inlineHtml(html: string): string {
-  // A <script>'s or <style>'s text isn't text (React 19 writes it as it is, markup and all): out, with them, and a tag
-  // that never ends. Then each tag, as `/<(\/?)([a-zA-Z][\w:-]*)([^>]*)>/g` reads it, but read once (see replaceTags).
-  const tags = replaceTags(toUnfinishedTag(withoutRaw(html)), /<\/?[a-zA-Z]/y, (written) => {
+  // A <script>'s or <style>'s text isn't text (React 19 writes it as it is, markup and all): out, with them, and
+  // comments and a tag that never ends. Then each tag, as `/<(\/?)([a-zA-Z][\w:-]*)([^>]*)>/g` reads it, but read once (see replaceTags).
+  const tags = replaceTags(toUnfinishedTag(withoutComments(withoutRaw(html))), /<\/?[a-zA-Z]/y, (written) => {
     // (Its name, then its attributes to its `>`, the tag's last character.)
     const [start, close, name] = /^<(\/?)([a-zA-Z][\w:-]*)/.exec(written)!;
     const attributes = written.slice(start.length, -1);
