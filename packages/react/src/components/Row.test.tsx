@@ -234,22 +234,47 @@ describe("Row layout with columns from components", () => {
       }
     });
 
-    it.each(Object.keys(ROOTS) as Array<keyof typeof ROOTS>)("%s: an email service's tag in the URL stays as written, its spaces too, for it to fill in, as in 0.2.1", (mode) => {
+    it.each(Object.keys(ROOTS) as Array<keyof typeof ROOTS>)("%s: an email service's tags in the URL stay as written, their quotes, brackets and spaces too, for it to fill in, as in 0.2.1", (mode) => {
       const Root = ROOTS[mode];
-      const url = "https://cdn.example.com/{{ campaign_id }}/{% if vip %}gold{% endif %}.png";
-      const html = renderToHtml(
-        <Root backgroundImage={{ url, fullWidth: true } as never}>
-          <Row backgroundImage={{ url }}>
-            <Column><Heading>Over the image</Heading></Column>
-          </Row>
-        </Root>
-      );
-      const urls = [...html.matchAll(/url\('([^']*)'\)/g)].map((m) => m[1]);
-      expect(urls.length).toBeGreaterThan(0);
-      expect(new Set(urls)).toEqual(new Set([url]));
-      // A space outside one is encoded, as before.
-      const spaced = renderToHtml(<Root><Row backgroundImage={{ url: "https://cdn.example.com/a b/{{ id }}.png" }}><Column><Heading>x</Heading></Column></Row></Root>);
-      expect(spaced).toContain("url('https://cdn.example.com/a%20b/{{ id }}.png')");
+      const urls = [
+        "https://cdn.example.com/{{ campaign_id }}/{% if vip %}gold{% endif %}.png",
+        "{{ hero_url | default: 'https://cdn.example.com/hero.png' }}",
+        "https://cdn.example.com/{% if tier > 1 %}gold{% else %}blue{% endif %}.png",
+        "https://cdn.example.com/%%=v(@hero)=%%.png",
+        "%%=Lookup('Heroes','Image','Id',@id)=%%",
+        "<%hero_url%>",
+      ];
+      for (const url of urls) {
+        const html = renderToHtml(
+          <Root backgroundImage={{ url, fullWidth: true } as never}>
+            <Row backgroundImage={{ url }}>
+              <Column><Heading>Over the image</Heading></Column>
+            </Row>
+          </Root>
+        );
+        expect(html).toContain(`url('${url}')`);
+        expect(html).not.toMatch(/url\('[^']*%(20|27|28|29|3C|3E)/);
+      }
+      // A space outside one is encoded, as before; a `"` in one too, which would end the attribute (a tag's strings
+      // go in single quotes there).
+      const row = (url: string) => renderToHtml(<Root><Row backgroundImage={{ url }}><Column><Heading>x</Heading></Column></Row></Root>);
+      expect(row("https://cdn.example.com/a b/{{ id }}.png")).toContain("url('https://cdn.example.com/a%20b/{{ id }}.png')");
+      expect(row('https://cdn.example.com/{{ hero | default: "x" }}.png')).toContain("url('https://cdn.example.com/{{ hero | default: %22x%22 }}.png')");
+    });
+
+    it.each(Object.keys(ROOTS) as Array<keyof typeof ROOTS>)("%s: a URL whose quotes, brackets or character references would end its string is encoded whole, so its row's style stays its own", (mode) => {
+      const Root = ROOTS[mode];
+      const declarations = (url: string) => {
+        const html = renderToHtml(<Root backgroundImage={{ url, fullWidth: true } as never}><Row backgroundImage={{ url }}><Column><Heading>x</Heading></Column></Row></Root>);
+        const doc = new DOMParser().parseFromString(html, "text/html");
+        return [...doc.querySelectorAll<HTMLElement>("[style*=background-image]")].map((box) => Array.from({ length: box.style.length }, (_, i) => box.style.item(i)).sort().join(" "));
+      };
+      const plain = declarations("https://x.example/plain.png");
+      for (const url of ["https://x.example/{{ a' ) b }}.png", "https://x.example/{{ a' }}.png", "https://x.example/a&#39;&#41;b.png", "https://x.example/a&apos;&rpar;b.png", "https://x.example/a&quot;b.png", "https://x.example/a&#x5c;b.png"]) {
+        expect(declarations(url)).toEqual(plain);
+      }
+      // A reference that reads as a character that ends nothing stays as written (`&amp;`, as a copied URL has it).
+      expect(renderToHtml(<Root><Row backgroundImage={{ url: "https://x.example/a.png?w=1&amp;h=2&q=80" }}><Column><Heading>x</Heading></Column></Row></Root>)).toContain("url('https://x.example/a.png?w=1&amp;h=2&q=80')");
     });
 
     it.each(Object.keys(ROOTS) as Array<keyof typeof ROOTS>)("%s: code generated from the design renders the same HTML", async (mode) => {
