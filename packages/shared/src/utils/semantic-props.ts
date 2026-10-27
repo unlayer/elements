@@ -149,8 +149,15 @@ const menuText = (text: string) =>
 function flattenChildrenText(node: any, breaks?: boolean): string {
   if (typeof node === "string" || typeof node === "number") return String(node);
   if (Array.isArray(node)) return node.map((child) => flattenChildrenText(child, breaks)).join("");
-  // An element (null, booleans and anything else show nothing).
-  return node && typeof node === "object" && "props" in node ? (breaks && node.type === "br" ? "<br/>" : flattenChildrenText(node.props?.children, breaks)) : "";
+  // (null, booleans, undefined and functions show nothing, as in React.)
+  if (!node || typeof node !== "object") return "";
+  if ("props" in node) return breaks && node.type === "br" ? "<br/>" : flattenChildrenText(node.props?.children, breaks);
+  // A Set or another collection, as React renders one; React's own objects (a portal, a lazy element) show nothing.
+  if (typeof node[Symbol.iterator] === "function") return Array.from(node as Iterable<unknown>, (child) => flattenChildrenText(child, breaks)).join("");
+  if ("$$typeof" in node) return "";
+  // A date or another object isn't text: the render fails, as React's does (`{String(order.createdAt)}` is text).
+  const found = Object.prototype.toString.call(node) === "[object Object]" ? `object with keys {${Object.keys(node).join(", ")}}` : Object.prototype.toString.call(node);
+  throw new Error(`Objects are not valid as a React child (found: ${found}). If you meant to render a collection of children, use an array instead`);
 }
 
 /**

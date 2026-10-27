@@ -325,6 +325,22 @@ describe("rich text children of Paragraph, Heading and Button", () => {
     expect(slow).toEqual([]);
   }, 120_000);
 
+  it("fail the render for an object or a date among them, as React's render does, not leave it out (the README's errors)", () => {
+    const order = { createdAt: new Date(0), total: { amount: 49, currency: "USD" } } as any;
+    const blocks = [
+      <Paragraph key="p">Ordered on {order.createdAt}.</Paragraph>,
+      <Heading key="h">Total {order.total}</Heading>,
+      <Button key="b" href="https://example.com">Pay {order.total}</Button>,
+      <Paragraph key="m">Ordered on <strong>{order.createdAt}</strong></Paragraph>,
+    ];
+    for (const block of blocks) {
+      const template = <Email><Row><Column>{block}</Column></Row></Email>;
+      for (const render of [renderToHtml, renderToJson, renderToPlainText] as Array<(t: React.ReactElement) => unknown>) expect(() => render(template)).toThrow(/Objects are not valid as a React child/);
+    }
+    // A Set is a collection, as React renders one, and null, booleans and undefined show nothing, as before.
+    expect(renderToHtml(<Email><Row><Column><Heading>A{new Set(["b", "c"]) as any}{null}{false}{undefined}</Heading></Column></Row></Email>)).toContain("Abc");
+  });
+
   it("leave text given as strings exactly as before", () => {
     const strings = <Email><Row><Column><Paragraph>Hi {name}</Paragraph><Heading>{"A <b>b</b>"}</Heading><Button href="#">{["Go", " now"]}</Button></Column></Row></Email>;
     const [paragraph, heading, button] = renderToJson(strings).body.rows[0].columns[0].contents as Array<{ values: { text: string } }>;
