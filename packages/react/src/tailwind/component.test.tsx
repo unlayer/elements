@@ -1105,6 +1105,16 @@ describe("<Tailwind>: an Image's width classes", () => {
   // A logo sized by its height, as Tailwind users write one: the browser gives its width from its aspect ratio.
   const logo = { url: "https://example.com/logo.png", width: 400, height: 100 };
 
+  it("take a width class on an image whose `src` gives its size (a `w-8` icon, a `w-48` logo), as on one whose `src` is a URL", () => {
+    for (const className of ["w-8", "w-48", "max-w-48", "w-48 max-w-full"]) {
+      const sized = block(<Image src={logo} className={className} />).src;
+      const plain = block(<Image src={logo.url} className={className} />).src;
+      expect(sized, className).toMatchObject({ autoWidth: plain.autoWidth, maxWidth: plain.maxWidth });
+      expect(sized.maxWidth, className).not.toBe("100%");
+    }
+    expect(warnings()).toEqual([]);
+  });
+
   it("take a height with an auto width (a logo's `h-12 w-auto`) as the width the image's size gives, on phones too", () => {
     // 48px of a 400×100 logo is 192px wide: 40% of the 480px the block has.
     for (const className of ["h-12 w-auto", "w-auto h-12", "h-12", "h-12 max-w-full"]) {
