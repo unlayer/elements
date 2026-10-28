@@ -5,6 +5,7 @@ import {
   type ItemComponentProps
 } from "../utils/create-component";
 import { mapSemanticProps, type SemanticProps } from "../utils/semantic-props";
+import { sayOnce } from "../utils/render-scope";
 
 /**
  * Heading semantic props — agent-friendly text/style types (replacing the loose
@@ -81,8 +82,16 @@ const DEFAULT_VALUES = {
 const Heading = createItemComponent<HeadingValues, HeadingSemanticProps>({
   name: "Heading",
   defaultValues: DEFAULT_VALUES,
-  // `level` and `as` are `headingType` (see PROP_ALIASES).
-  propMapper: (props) => mapSemanticProps(props as SemanticProps<HeadingValues>, DEFAULT_VALUES, "Heading"),
+  // `level` and `as` are `headingType` (see PROP_ALIASES). The editor's exporters write it as the tag's name, so one
+  // that isn't a tag name (one from data, with a space or a quote in it) is an h1, and said; a design's own stays.
+  propMapper: (props) => {
+    const mapped = mapSemanticProps(props as SemanticProps<HeadingValues>, DEFAULT_VALUES, "Heading");
+    if (mapped.headingType !== undefined && !/^[a-z][a-z\d]*$/i.test(String(mapped.headingType))) {
+      sayOnce("[Unlayer] Heading takes a level that's a tag name (h1 to h6): one that isn't is an h1.");
+      mapped.headingType = "h1";
+    }
+    return mapped;
+  },
   displayName: "Heading",
   // `style` and `className` go on its text element.
   at: /<[a-z\d]+ [^>]*v-text-align[^>]*>/,
