@@ -46,6 +46,15 @@ describe("htmlToPlainText", () => {
     expect(htmlToPlainText(html)).toBe("Click here (https://example.com)");
   });
 
+  it("reads an end tag with whitespace before its `>` (`</a\n>`, as prettier writes a long line's) as the end it is", () => {
+    const html = '<h1>Hi<\/h1\n><p><a href="https://a.example/x?utm=1">First</a\n      ></p\n><p><a href="https://b.example">Second</a  ></p>';
+    const text = htmlToPlainText(html);
+    expect(text).toContain("HI");
+    expect(text).toContain("First (https://a.example/x?utm=1)");
+    expect(text).toContain("Second (https://b.example)");
+    expect(text.split("\n").filter(Boolean)).toHaveLength(3);
+  });
+
   it("avoids duplicate URL when link text equals href", () => {
     const html = '<a href="https://example.com">https://example.com</a>';
     expect(htmlToPlainText(html)).toBe("https://example.com");
