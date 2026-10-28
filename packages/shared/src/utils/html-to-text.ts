@@ -107,7 +107,9 @@ const KEPT = new RegExp(`^(?:${TAG})$`);
 /** htmlToPlainText's text, of HTML that holds neither U+0000 nor U+0001, nor decodes to them (see `marks`). */
 function plainText(html: string, options: PlainTextOptions, marks: TextMarks): string {
   const decodeEntities = (text: string) => decode(text, marks);
-  let text = html;
+  // An end tag with whitespace before its `>` (`</a\n  >`, as prettier writes a line too long for its width) as the
+  // steps below read one: `</a>`. (Each read once: its name, then its whitespace.)
+  let text = html.replace(/<\/([a-zA-Z][\w:-]*)\s+>/g, "</$1>");
   const { links = "inline", uppercaseHeadings = true, skip = [], wordwrap } = options;
 
   // 1. Remove elements marked with data-skip-in-text (preview div, a block's `skipInText`, etc.) and those `skip` names,
