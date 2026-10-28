@@ -3,7 +3,10 @@ import type { TableValues, SizeInput, BorderInput } from "../types";
 import { createItemComponent, type ItemComponentProps } from "../utils/create-component";
 import { mapSemanticProps, type SemanticProps } from "../utils/semantic-props";
 
-type TableSemanticProps = Omit<SemanticProps<TableValues>, "padding" | "border"> & {
+/** Its values, and the editor's merge tag rule its rows repeat by (see the README's UnlayerProvider, mergeTagState). */
+type TableRuleValues = TableValues & { mergeTagGroup?: string; mergeTagRule?: string };
+
+type TableSemanticProps = Omit<SemanticProps<TableRuleValues>, "padding" | "border"> & {
   /** Column headers as string[] */
   headers?: string[];
   /** Row data as 2D string array */
@@ -15,7 +18,7 @@ type TableSemanticProps = Omit<SemanticProps<TableValues>, "padding" | "border">
 };
 
 export interface TableProps
-  extends Omit<ItemComponentProps<Omit<SemanticProps<TableValues>, "padding" | "border">>, "headers" | "data"> {
+  extends Omit<ItemComponentProps<Omit<SemanticProps<TableRuleValues>, "padding" | "border">>, "headers" | "data"> {
   headers?: string[];
   data?: string[][];
   /** Inner padding — a number (→ px) or CSS string. */

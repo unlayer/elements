@@ -144,8 +144,9 @@ const defined = (props: Record<PropertyKey, any> | undefined): Record<PropertyKe
  * `textAlign`: see PROP_ALIASES).
  */
 export function given(explicit: Record<string, any>, prop: string, name = ""): boolean {
+  // (An image's `src` with its natural size, `{ url, width, height }`, gives no width of its own: a class still sizes it.)
   const look = (p: string) =>
-    [explicit, explicit.values].some((o) => plain(o) && (o[p] != null || Object.entries(o).some(([k, v]) => !/^(mobile|_override|values)$/.test(k) && plain(v) && v[p] != null)));
+    [explicit, explicit.values].some((o) => plain(o) && (o[p] != null || Object.entries(o).some(([k, v]) => !/^(mobile|_override|values)$/.test(k) && !(k === "src" && /^(width|maxWidth|minWidth|height)$/.test(p)) && plain(v) && v[p] != null)));
   const aliases = Object.entries(PROP_ALIASES[name] ?? {}).flatMap(([alias, props]) => (props.split(" ").includes(prop) ? [alias] : []));
   // An image's width, max and min width are one setting.
   return look(prop) || aliases.some(look) || (/^(width|maxWidth|minWidth)$/.test(prop) && ["width", "maxWidth"].some(look));
@@ -443,7 +444,8 @@ export function classesToProps(name: string, found: ClassDeclarations, props: Re
   for (const [prop, value] of Object.entries(result)) {
     if (sizedByHeight && /^(width|maxWidth)$/.test(prop)) continue;
     const group = Object.keys(defaults).find((g) => g !== prop && plain(defaults[g]) && prop in defaults[g] && plain(explicit[g]));
-    if (group) {
+    // (An image's `src` holds its natural size: a width class is its display width, the flat prop, which wins.)
+    if (group && !(group === "src" && /^(width|maxWidth|minWidth|height)$/.test(prop))) {
       out[group] = { [prop]: value, ...defined(out[group]) };
       delete out[prop];
     }

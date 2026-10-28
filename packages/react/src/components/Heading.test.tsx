@@ -48,6 +48,23 @@ describe("Heading Component", () => {
     expect(container.innerHTML).not.toContain("[if mso]");
   });
 
+  it("writes a level that isn't a tag name (one from data) as h1, and says so, in the HTML and the design", () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    try {
+      for (const props of [{ level: "h2 x" }, { as: 'h1"' }, { headingType: "h1>" }, { values: { headingType: "h2/" } }]) {
+        const email = <Body><Row><Column><Heading {...(props as object)}>Title</Heading></Column></Row></Body>;
+        const doc = new DOMParser().parseFromString(renderToHtml(email), "text/html");
+        expect([...doc.querySelectorAll("h1")].some((el) => el.textContent === "Title"), JSON.stringify(props)).toBe(true);
+        expect((renderToJson(email).body.rows[0].columns[0].contents[0].values as any).headingType).toBe("h1");
+      }
+      expect(warn.mock.calls.some((call) => /Heading.*level/.test(String(call[0])))).toBe(true);
+      // Each of h1 to h6 stays itself.
+      for (const level of ["h1", "h2", "h3", "h4", "h5", "h6"] as const) expect(renderToHtml(<Body><Row><Column><Heading level={level}>T</Heading></Column></Row></Body>)).toContain(`<${level}`);
+    } finally {
+      warn.mockRestore();
+    }
+  });
+
   it("has correct displayName", () => {
     expect(Heading.displayName).toBe("Heading");
   });

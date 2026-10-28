@@ -179,3 +179,6 @@ export const _language_module: Language = elixirModule;
 export const _language_own: Language = (hljs) => ({ name: "Pipes", contains: [hljs.QUOTE_STRING_MODE, { scope: "keyword", match: /\|>/ }] });
 // @ts-expect-error a language is the function that defines it, not its name
 export const _language_reject: Language = "elixir";
+
+// The README's Table repeat rule: a Table's values name the editor's merge tag group and rule.
+export const _table_rule: TableProps = { headers: ["Product"], data: [["{{name}}"]], values: { mergeTagGroup: "products", mergeTagRule: "repeat" } };

@@ -318,6 +318,15 @@ describe("DX: style and className, on the element each component renders", () =>
     expect(out).toMatch(/;font-weight:700"/);
   });
 
+  it("keeps a declaration with double quotes (a font stack, `url(\"…\")`) as the browser reads it, on a block and a Row, as 0.2.1 did", () => {
+    const style = { fontFamily: '"Helvetica Neue", Arial, sans-serif', backgroundImage: 'url("https://x.example/a.png")' };
+    for (const out of [html(<Paragraph style={style}>Hi</Paragraph>), renderToHtml(<Email><Row style={style}><Column><Paragraph>Hi</Paragraph></Column></Row></Email>)]) {
+      const doc = new DOMParser().parseFromString(out, "text/html");
+      const styled = [...doc.querySelectorAll<HTMLElement>("[style]")].find((el) => el.style.fontFamily.includes("Helvetica Neue"));
+      expect(styled?.style.backgroundImage).toContain("x.example/a.png");
+    }
+  });
+
   it("keeps a `$` in a value as it is, on a tag without the attribute", () => {
     const out = html(<Html html='<a href="x" title="y">Hi</a>' style={{ fontFamily: "a$'b$&c$$d" }} className="e$$f" />);
     expect(out).toContain(`<div style="font-family:a$'b$&c$$d" class="e$$f"><a href="x" title="y">Hi</a></div>`);
