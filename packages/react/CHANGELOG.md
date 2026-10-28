@@ -34,7 +34,7 @@
 
 - **`<Link>`.** A link in text (`<Paragraph>Read <Link href="…">the docs</Link>.</Paragraph>`), or on its own in a Column, where it's a Paragraph holding it. Its `style` and `className` stay on the link, in the HTML and the design.
 
-- **`style`, `className` and `skipInText` on every component.** `style` and `className` go on the element a component renders (HTML only: `renderToJson()` says so), and `skipInText` leaves a block out of the plain text.
+- **`style`, `className` and `skipInText` on every component.** `style` and `className` go on the element a component renders (HTML only: `renderToJson()` says so), and `skipInText` leaves a block out of the plain text. A value with a `"` (a font stack's, `url("…")`) is kept, as 0.2.1 kept a Row's, written as `&quot;` so it can't end the attribute.
 
 - **Plain-text options, and `toPlainText()`.** `renderToPlainText()` takes `wordwrap`, `links` (`"inline"`, `"after"` or `"none"`), `uppercaseHeadings` and `skip` (tag names and classes, as written: `a+` is no pattern); `toPlainText(html, options)` gives the plain text of any HTML. It reads HTML in time linear in its size, whatever the HTML holds (a tag nothing closes, `<img alt="a" ` 40 KB over, took a minute; 80,000 spaces in a `<pre>`, 11 s), writing the same text as before. Without options, the text is written as 0.2 wrote it, but for these (0.2.1's text and this release's compared on every story, each block in each root, and the same HTML):
   - Preformatted text (`<pre>`, a CodeBlock's or in an Html block) keeps its indentation and blank lines, each line's trailing spaces aside, on lines of its own; 0.2 collapsed its spaces and ran it into the text after it. Markup in it gives its text, and a link its URL (an image or a rule in it, nothing).
@@ -114,6 +114,8 @@
 - **A root's id and class names given in `values._meta` can't add markup**, as a Row's, a Column's and a block's can't: they're kept to what an id and a class name can hold (0.2 wrote them as given).
 
 ### Changed
+
+- **A Heading's level is a tag name.** The editor's exporters write the level as the tag's name, so one that isn't (`level`, `as`, `headingType` or `values.headingType` from data, with a space or a quote) is an h1, and said (0.2 wrote any as given).
 
 - **An object or a date in a Paragraph's, Heading's or Button's text fails the render**, as React's render does and as the errors section says (`Ordered on {order.createdAt}`: write `{order.createdAt.toLocaleDateString()}`): 0.2 left it out without a word, so the email went without the date. A Set renders its items, as in React.
 

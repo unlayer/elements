@@ -193,6 +193,27 @@ describe("rich text children of Paragraph, Heading and Button", () => {
     expect(text).toContain('<span><a>a</a> <a>b</a> <a>c</a> <a>d</a> <a>e</a> <a>f</a> <a>g</a> <a>h</a> <span>i</span></span> <a href="&amp;#106;avascript:x">kept</a>');
   });
 
+  it("give only rich text's own elements and attributes for any markup a component writes (random, seeded)", () => {
+    const Markup = ({ html }: { html: string }) => <span dangerouslySetInnerHTML={{ __html: html }} />;
+    const pieces = ["<", ">", "</", "/", "<b>", "</b>", "<i>", "<div>", "</div>", "<img", "<svg", "<a", "<span", " ", "=", '"', "'", "x", "on", "load", "error", "src", "href", "title", "style", "&lt;", "&gt;", "&quot;", "<%", "%>", "<!--", "-->", "\n"];
+    const allowed = new Set(["strong", "b", "em", "i", "u", "s", "a", "br", "span", "code", "sup", "sub", "small", "mark"]);
+    let seed = 11;
+    const random = (n: number) => ((seed = (Math.imul(seed, 1103515245) + 12345) >>> 0), Math.floor((seed / 2 ** 32) * n));
+    const bad: string[] = [];
+    for (let run = 0; run < 400; run++) {
+      let markup = "";
+      for (let i = 0, n = 2 + random(14); i < n; i++) markup += pieces[random(pieces.length)];
+      const template = <Email><Row><Column><Paragraph>Hi <Markup html={markup} /> there</Paragraph></Column></Row></Email>;
+      const text = String(renderToJson(template).body.rows[0].columns[0].contents[0].values.text);
+      const doc = new DOMParser().parseFromString(`<div>${text}</div>`, "text/html");
+      for (const el of doc.body.firstElementChild!.querySelectorAll("*")) {
+        const odd = !allowed.has(el.tagName.toLowerCase()) || [...el.attributes].some((a) => !/^(style|title|class|href|target|rel)$/.test(a.name));
+        if (odd) bad.push(JSON.stringify(markup));
+      }
+    }
+    expect(bad).toEqual([]);
+  });
+
   it("keep a kept attribute whole when its value holds a `<` or `>` beside quote references, so their quotes stay its own", () => {
     const Markup = ({ html }: { html: string }) => <span dangerouslySetInnerHTML={{ __html: html }} />;
     const values = ['&quot; onmouseover=x a=<', "&quot; onclick=x b=>", "a &lt; b &quot; onfocus=x <"];
