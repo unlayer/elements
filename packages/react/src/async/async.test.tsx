@@ -2,7 +2,7 @@
 import React from "react";
 import { JSDOM } from "jsdom";
 import { describe, expect, it, vi } from "vitest";
-import { Column, Email, Heading, Html, Paragraph, RenderError, Row, UnlayerProvider, renderToHtml as renderToHtmlSync, renderToHtmlParts as renderToHtmlPartsSync, renderToJson as renderToJsonSync, renderToPlainText as renderToPlainTextSync } from "../index";
+import { Button, Column, Email, Heading, Html, Paragraph, RenderError, Row, UnlayerProvider, toPlainText, renderToHtml as renderToHtmlSync, renderToHtmlParts as renderToHtmlPartsSync, renderToJson as renderToJsonSync, renderToPlainText as renderToPlainTextSync } from "../index";
 import { Tailwind } from "../tailwind";
 import { pretty as formatted, renderToHtml, renderToHtmlParts, renderToJson, renderToPlainText } from "./index";
 import { inTime, within } from "../test-timing";
@@ -493,6 +493,20 @@ describe("the async renderers", () => {
     expect(await formatted(renderToHtmlSync(<Email><Row><Column><Paragraph>Hello Ada</Paragraph></Column></Row></Email>))).toBe(
       await renderToHtml(<Email><Row><Column><Paragraph>Hello Ada</Paragraph></Column></Row></Email>, { pretty: true })
     );
+  });
+
+  it("gives HTML whose plain text (toPlainText) has each link's own URL, its long lines' end tags split as prettier splits them", async () => {
+    const long = (n: number) => `https://example.com/track/${"campaign".repeat(6)}?utm_source=newsletter&utm_medium=email&utm_campaign=autumn&n=${n}`;
+    const email = (
+      <Email><Row><Column>
+        <Paragraph>Read <a href={long(1)}>the first story</a> and <a href={long(2)}>the second one</a>.</Paragraph>
+        <Button href={long(3)}>Shop now</Button>
+      </Column></Row></Email>
+    );
+    const text = toPlainText(await renderToHtml(email, { pretty: true }));
+    expect(text).toContain(`the first story (${long(1)})`);
+    expect(text).toContain(`the second one (${long(2)})`);
+    expect(text).toContain(`Shop now (${long(3)})`);
   });
 
   it("sets the HTML's comments aside in time linear in its size, and fails as prettier does on one nothing closes", async () => {
