@@ -144,9 +144,10 @@ const defined = (props: Record<PropertyKey, any> | undefined): Record<PropertyKe
  * `textAlign`: see PROP_ALIASES).
  */
 export function given(explicit: Record<string, any>, prop: string, name = ""): boolean {
-  // (An image's `src` with its natural size, `{ url, width, height }`, gives no width of its own: a class still sizes it.)
+  // (An image's `src` with its natural size, `{ url, width, height }`, gives no width of its own: a class still sizes it;
+  // its `maxWidth` is one, a display width given.)
   const look = (p: string) =>
-    [explicit, explicit.values].some((o) => plain(o) && (o[p] != null || Object.entries(o).some(([k, v]) => !/^(mobile|_override|values)$/.test(k) && !(k === "src" && /^(width|maxWidth|minWidth|height)$/.test(p)) && plain(v) && v[p] != null)));
+    [explicit, explicit.values].some((o) => plain(o) && (o[p] != null || Object.entries(o).some(([k, v]) => !/^(mobile|_override|values)$/.test(k) && !(k === "src" && /^(width|height)$/.test(p)) && plain(v) && v[p] != null)));
   const aliases = Object.entries(PROP_ALIASES[name] ?? {}).flatMap(([alias, props]) => (props.split(" ").includes(prop) ? [alias] : []));
   // An image's width, max and min width are one setting.
   return look(prop) || aliases.some(look) || (/^(width|maxWidth|minWidth)$/.test(prop) && ["width", "maxWidth"].some(look));

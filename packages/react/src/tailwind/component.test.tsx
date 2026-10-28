@@ -1113,6 +1113,10 @@ describe("<Tailwind>: an Image's width classes", () => {
       expect(sized.maxWidth, className).not.toBe("100%");
     }
     expect(warnings()).toEqual([]);
+    // A display width its `src` gives (`maxWidth`) is a prop given: it wins over the class, as a flat one does.
+    for (const image of [<Image key="s" src={{ ...logo, maxWidth: "50%" }} className="w-8" />, <Image key="v" values={{ src: { ...logo, maxWidth: "50%" } }} className="w-8" />]) {
+      expect(block(image).src).toMatchObject({ autoWidth: false, maxWidth: "50%" });
+    }
   });
 
   it("take a height with an auto width (a logo's `h-12 w-auto`) as the width the image's size gives, on phones too", () => {
