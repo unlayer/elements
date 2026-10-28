@@ -550,3 +550,22 @@ describe("a Node script that renders with the built package", () => {
     }
   }
 });
+
+describe("the built entries, bundled by esbuild (wrangler's, a serverless bundler's) without prettier installed", () => {
+  // prettier is an optional peer dependency (`pretty`, codegen's formatting): a bundler that follows every literal
+  // import() failed on an app that imports the async, Tailwind or codegen entry without it ("Could not resolve
+  // prettier/standalone"), a Cloudflare Worker's build among them. It's loaded by a name that isn't a literal.
+  const entries = Object.keys(JSON.parse(fs.readFileSync(path.join(root, "package.json"), "utf8")).exports).filter((key) => !key.endsWith(".json"));
+  it.each(entries)("%s bundles", async (entry) => {
+    const notInstalled: import("esbuild").Plugin = {
+      name: "prettier-not-installed",
+      setup: (build) => build.onResolve({ filter: /^prettier(\/|$)/ }, ({ path: name }) => ({ errors: [{ text: `${name} isn't installed` }] })),
+    };
+    const result = await esbuild.build({
+      stdin: { contents: `export * from ${JSON.stringify(path.join(dist, `${entry === "." ? "index" : entry.slice(2)}.js`))};`, resolveDir: root, loader: "js" },
+      bundle: true, write: false, format: "esm", platform: "browser", conditions: ["worker", "browser"], logLevel: "silent",
+      external: ["tailwindcss", "tailwindcss/*"], plugins: [notInstalled],
+    }).then(() => [], (error: { errors: { text: string }[] }) => error.errors.map((e) => e.text));
+    expect(result).toEqual([]);
+  }, 60_000);
+});
