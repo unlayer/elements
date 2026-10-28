@@ -154,13 +154,15 @@ const attr = (tag: string, name: string, value: string, edit: (own: string) => s
 /**
  * A component's `style` and `className` on the tag that renders it (`at`, in its HTML): the escape hatch for CSS no
  * prop takes. Its declarations go after the tag's own, so they win, except where a prop of the component (`given`)
- * sets the same property: props win. Inline, as email clients need; a value that could end the attribute is left out.
+ * sets the same property: props win. Inline, as email clients need; a value that could end the rule is left out, and
+ * a `"` (a font stack's, `url("…")`) is written as `&quot;`, which the browser reads as one and can't end the attribute.
  */
 export function hatch(html: string, at: RegExp, style: unknown, className: unknown, given: Record<string, unknown>): string {
   const css = Object.entries(style ?? {})
     .filter(([key, value]) => value != null && value !== "" && given[key] === undefined)
     .map(([key, value]) => `${key.replace(/[A-Z]/g, "-$&").toLowerCase()}:${typeof value == "number" && !/^(lineHeight|fontWeight|opacity|zIndex|flex|order)/.test(key) ? `${value}px` : value}`)
-    .filter((d) => cssValueSafe(d) && !/["\\]/.test(d))
+    .filter((d) => cssValueSafe(d) && !/\\/.test(d))
+    .map((d) => d.replace(/"/g, "&quot;"))
     .join(";");
   const names = className ? safeName(className, true) : "";
   if (!css && !names) return html;
