@@ -338,7 +338,32 @@ export function readable(token: string): boolean {
     else if (c === "(" || c === "[" || c === "{") open.push({ "(": ")", "[": "]", "{": "}" }[c]);
     else if ((c === ")" || c === "]" || c === "}") && open.pop() !== c) return false;
   }
-  return !open.length;
+  return !open.length && namedProperty(token);
+}
+
+/**
+ * Whether an arbitrary property's name (`[mask-type:luminance]`, after its variants) is one, a CSS identifier: Tailwind
+ * writes it as given, so one that isn't (`[a(:b)]`) is CSS its compiler can't read, and every render on that compiler
+ * after it waits for a fresh one. A class that isn't an arbitrary property is one.
+ */
+function namedProperty(token: string): boolean {
+  // Its utility: after the variants' `:`s, outside brackets, parentheses and quotes.
+  let depth = 0;
+  let quote = "";
+  let start = 0;
+  for (let i = 0; i < token.length; i++) {
+    const c = token[i];
+    if (c === "\\") i++;
+    else if (quote) c === quote && (quote = "");
+    else if (c === '"' || c === "'") quote = c;
+    else if (c === "(" || c === "[" || c === "{") depth++;
+    else if (c === ")" || c === "]" || c === "}") depth--;
+    else if (c === ":" && depth === 0) start = i + 1;
+  }
+  const utility = token.slice(start).replace(/^!|!$/g, "");
+  if (!utility.startsWith("[")) return true;
+  const name = /^\[([^:]*):/.exec(utility)?.[1];
+  return name === undefined || /^(--[\w-]+|-?[a-zA-Z][\w-]*)$/.test(name);
 }
 
 /**

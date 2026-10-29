@@ -639,6 +639,24 @@ describe("a handle's reader of classes", () => {
 });
 
 describe("a render's classes", () => {
+  it("are the render's own on a shared handle: a class from data naming another in its selector, or one whose CSS can't be read, changes no other render", async () => {
+    // `[&,.p-4]:hidden` writes `.p-4` beside itself, and the rule was filed under `p-4`: every later render's on the
+    // compiler (a block hidden, text transparent). An arbitrary property whose name isn't one (`[a(:b())]`) is CSS
+    // Tailwind's compiler can't read: every synchronous render after it on the handle threw till the event loop yielded.
+    const handle = await loadTailwind({ ...config, render: "shared" });
+    const victim = <Tailwind tw={handle}><Email><Row><Column><Paragraph className="p-4 text-lg">Your code</Paragraph></Column></Row></Email></Tailwind>;
+    const before = renderToHtmlNow(victim);
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    try {
+      for (const name of ["[&,.p-4]:hidden", "[&,.p-4]:text-transparent", "[a(:b())]"]) {
+        renderToHtmlNow(<Tailwind tw={handle}><Email><Row><Column><Paragraph><span className={name}>post</span></Paragraph></Column></Row></Email></Tailwind>);
+        expect(renderToHtmlNow(victim), name).toBe(before);
+      }
+    } finally {
+      warn.mockRestore();
+    }
+  });
+
   it("are built at once, before its components are rewritten one at a time: their classes, their markup's, a Markdown's blocks'", async () => {
     // Each build is Tailwind's whole stylesheet again: a class at a time, a few thousand took seconds (and markup from
     // data, as many as it has).
