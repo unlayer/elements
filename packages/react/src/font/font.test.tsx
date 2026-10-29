@@ -102,6 +102,14 @@ describe("Font", () => {
     expect(tags[0]).toBe("<style type=\"text/css\">@font-face { font-family: 'X  body  color: red'; src: url('https://x.com/a.woff2%27%29%20;%20%3c/style%3e%3cscript%3e') format('woff2'); font-weight: 400; font-style: normal; }</style>");
   });
 
+  it("reads a family as a browser reads it in a style attribute: no character reference or control character in it ends its declaration", () => {
+    for (const family of ["X&#39;&#59; color: red", "X&apos;&semi; color: red", "X'\n; color: red", "X&#x27;\u0000&#x3b; color: red"]) {
+      const html = renderToHtml(<Email><Font family={family} url="https://fonts.example.com/x.css" fallback={"Arial&#59; color: red"} default />{content}</Email>);
+      const doc = new DOMParser().parseFromString(html, "text/html");
+      expect([family, [...doc.querySelectorAll<HTMLElement>("[style]")].filter((el) => el.style.color === "red").length]).toEqual([family, 0]);
+    }
+  });
+
   it("loads nothing from a URL that runs code (`javascript:`, as React tells one), a stylesheet or a font file", () => {
     for (const url of ["javascript:alert(1)", " JavaScript:alert(1)", "java\tscript:alert(1)", "javascript:alert(1)//x.woff2"]) {
       for (const Root of [Email, Page]) {
