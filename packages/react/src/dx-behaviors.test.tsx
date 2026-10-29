@@ -1,4 +1,5 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
+import { inTime, within } from "./test-timing";
 import React from "react";
 import {
   renderToHtml,
@@ -11,6 +12,13 @@ import {
   Paragraph,
   Button,
   Table,
+  Email,
+  Page,
+  Document,
+  Menu,
+  Social,
+  Divider,
+  Html,
 } from "./index";
 
 /**
@@ -162,19 +170,19 @@ describe("DX: text components", () => {
   });
 
   it("Paragraph text shorthand renders", () => {
-    expect(html(<Paragraph text={"Hi" as any} />)).toMatch(/<p[^>]*>Hi<\/p>/);
+    expect(html(<Paragraph text={"Hi" as any} />)).toMatch(/word-wrap: break-word;">\s*Hi\s*<\/div>/);
   });
 
-  it("Paragraph <p> carries the editor's inline margin reset", () => {
-    expect(html(<Paragraph>Hi</Paragraph>)).toMatch(
-      /<p style="margin: 0px; margin-block-start: 0px; margin-block-end: 0px;">Hi<\/p>/
-    );
+  it("Paragraph renders as the editor's text block: its text in no <p>, its line height as given", () => {
+    const out = html(<Paragraph>Hi</Paragraph>);
+    expect(out).toMatch(/line-height: 140%; text-align: left; word-wrap: break-word;">\s*Hi\s*<\/div>/);
+    expect(out).not.toMatch(/<p[\s>]/);
   });
 
-  it("JSX children flatten to text instead of [object Object]", () => {
+  it("JSX children keep their inline formatting instead of [object Object]", () => {
     const out = html(<Heading>Hi <b>x</b></Heading>);
     expect(out).not.toMatch(/\[object Object\]/);
-    expect(out).toMatch(/Hi x/);
+    expect(out).toMatch(/Hi <b>x<\/b>/);
   });
 });
 
@@ -252,5 +260,262 @@ describe("DX: shorthands and JSON output", () => {
       const b = html(<Paragraph html="x" containerPadding="14px" />);
       expect(a).toBe(b);
     });
+  });
+});
+
+describe("DX: style and className, on the element each component renders", () => {
+  const roots = { Email, Page, Document } as const;
+  const template = (Root: (typeof roots)[keyof typeof roots]) => (
+    <Root style={{ outline: "1px solid red" }} className="root">
+      <Row style={{ borderTop: "2px solid #000" }} className="row">
+        <Column style={{ verticalAlign: "middle" }} className="col">
+          <Paragraph style={{ textTransform: "uppercase", color: "red" }} color="#0000ff" className="lead">Hi</Paragraph>
+          <Heading style={{ letterSpacing: 2, lineHeight: 1.2 }} className="title">Head</Heading>
+          <Button style={{ boxShadow: "0 1px 2px #000" }} className="cta" href="https://example.com">Go</Button>
+          <Image style={{ borderRadius: 8 }} className="pic" src="https://example.com/a.png" />
+        </Column>
+      </Row>
+    </Root>
+  );
+  /** The element a class name is on, its tag and its style. */
+  const on = (out: string, name: string) => {
+    const tag = new RegExp(`<([a-z0-9]+) [^>]*class="${name} [^>]*>`).exec(out)!;
+    return { tag: tag[1], style: /style="([^"]*)"/.exec(tag[0])![1], classes: /class="([^"]*)"/.exec(tag[0])![1] };
+  };
+
+  it("writes its own style after the renderer's in time linear in what the renderer's holds", async () => {
+    // The renderer's style lost its trailing spaces and `;`s to `/[\s;]*$/`, which tried again from each of a long run of
+    // them a value of a prop wrote (`color`): 100,000 took seconds.
+    const timing = await within(1000, () => renderToHtml(<Email><Row><Column><Paragraph color={"#000" + " ".repeat(102400) + "a"} style={{ textTransform: "uppercase" }}>Hi</Paragraph></Column></Row></Email>));
+    expect(inTime(timing)).toBe(true);
+    const html = timing.result;
+    expect(html).toMatch(/word-wrap: break-word;text-transform:uppercase"/);
+  });
+
+  it.each(Object.keys(roots) as Array<keyof typeof roots>)("%s: inlined (its own style first), its class names before the renderer's", (mode) => {
+    const out = renderToHtml(template(roots[mode]));
+    // The root's body (or the wrapper in it, on a web page), the Row's container, the Column's cell.
+    expect(on(out, "root")).toMatchObject({ tag: mode === "Page" ? "div" : "body", classes: expect.stringMatching(/^root .*u_body/) });
+    expect(on(out, "root").style).toMatch(/[;"]?outline:1px solid red$/);
+    expect(on(out, "row").classes).toMatch(/^row u-row\b/);
+    expect(on(out, "row").style).toMatch(/border-top:2px solid #000$/);
+    expect(on(out, "col").classes).toMatch(/^col u-col\b/);
+    expect(on(out, "col").style).toMatch(/vertical-align:middle$/);
+    // Text: the element with the text; a prop given wins over the same property in `style`.
+    expect(on(out, "lead")).toMatchObject({ tag: "div", style: expect.stringMatching(/color: #0000ff;.*;text-transform:uppercase$/) });
+    expect(on(out, "lead").style).not.toContain("color:red");
+    expect(on(out, "title")).toMatchObject({ tag: "h1", style: expect.stringMatching(/;letter-spacing:2px;line-height:1.2$/) });
+    expect(on(out, "cta")).toMatchObject({ tag: "a", style: expect.stringMatching(/;box-shadow:0 1px 2px #000$/) });
+    expect(on(out, "pic")).toMatchObject({ tag: "img", style: expect.stringMatching(/;border-radius:8px$/) });
+    expect(out).not.toMatch(/;;/);
+  });
+
+  it.each(Object.keys(roots) as Array<keyof typeof roots>)("%s: keeps padding in a Row's or Column's style inside the layout, not wider than it", (mode) => {
+    const Root = roots[mode];
+    const out = renderToHtml(
+      <Root>
+        <Row style={{ padding: "24px 32px", color: "red" }} className="row">
+          <Column style={{ padding: 16, backgroundColor: "#f5f5f5" }} className="col"><Paragraph>A</Paragraph></Column>
+          <Column style={{ borderRadius: 8 }} className="round"><Paragraph>B</Paragraph></Column>
+        </Row>
+        <Row><Column style={{ border: "1px solid #000", boxSizing: "content-box" }} className="own"><Paragraph>C</Paragraph></Column></Row>
+      </Root>
+    );
+    // An email's row box and its Columns have the content width, which padding on the box would add to (0.2.1 put it
+    // on the row around it): there it goes; on a page and in a document the box is as wide as its container.
+    if (mode === "Email") {
+      expect(on(out, "row").style).toMatch(/color:red$/);
+      expect(on(out, "row").style).not.toContain("padding:24px");
+      expect(/<div[^>]*class="u-row-container[^>]*style="[^"]*padding:24px 32px"/.test(out)).toBe(true);
+    } else expect(on(out, "row").style).toMatch(/padding:24px 32px;color:red$/);
+    // A Column's cell has its width: padding or a border in its style go inside it, unless it says otherwise.
+    expect(on(out, "col").style).toMatch(/padding:16px;background-color:#f5f5f5;box-sizing:border-box$/);
+    expect(on(out, "round").style).not.toContain("box-sizing");
+    expect(on(out, "own").style).toMatch(/border:1px solid #000;box-sizing:content-box$/);
+  });
+
+  it("leaves out what could end the attribute or the rule, and class names that aren't", () => {
+    const out = html(<Paragraph style={{ color: 'red" onclick="x', background: "url(x);}</style>", fontWeight: 700 }} className={'a"b <c>'}>Hi</Paragraph>);
+    expect(out).not.toContain('onclick="x');
+    expect(out).not.toContain("</style>\"");
+    expect(out).toMatch(/class="ab c v-/);
+    expect(out).toMatch(/;font-weight:700"/);
+  });
+
+  it("keeps a declaration with double quotes (a font stack, `url(\"…\")`) as the browser reads it, on a block and a Row, as 0.2.1 did", () => {
+    const style = { fontFamily: '"Helvetica Neue", Arial, sans-serif', backgroundImage: 'url("https://x.example/a.png")' };
+    for (const out of [html(<Paragraph style={style}>Hi</Paragraph>), renderToHtml(<Email><Row style={style}><Column><Paragraph>Hi</Paragraph></Column></Row></Email>)]) {
+      const doc = new DOMParser().parseFromString(out, "text/html");
+      const styled = [...doc.querySelectorAll<HTMLElement>("[style]")].find((el) => el.style.fontFamily.includes("Helvetica Neue"));
+      expect(styled?.style.backgroundImage).toContain("x.example/a.png");
+    }
+  });
+
+  it("keeps a `$` in a value as it is, on a tag without the attribute", () => {
+    const out = html(<Html html='<a href="x" title="y">Hi</a>' style={{ fontFamily: "a$'b$&c$$d" }} className="e$$f" />);
+    expect(out).toContain(`<div style="font-family:a$'b$&c$$d" class="e$$f"><a href="x" title="y">Hi</a></div>`);
+  });
+
+  it("output without them is the same as before", () => {
+    const plain = (props: Record<string, unknown>) => html(<Paragraph {...props}>Hi</Paragraph>);
+    expect(plain({ style: {}, className: "" })).toBe(plain({}));
+    expect(plain({ style: { color: undefined } })).toBe(plain({}));
+  });
+
+  it("the design leaves them out, and says so once per render", () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    try {
+      const design = renderToJson(template(Email));
+      for (let i = 0; i < 2; i++) renderToJson(template(Email));
+      const said = warn.mock.calls.map((call) => String(call[0]));
+      expect(said.slice(0, 7)).toEqual([
+        "[Unlayer] Email `style.outline`, `className` are kept in HTML but not in the design for the visual editor.",
+        "[Unlayer] Row `style.borderTop`, `className` are kept in HTML but not in the design for the visual editor.",
+        "[Unlayer] Column `style.verticalAlign`, `className` are kept in HTML but not in the design for the visual editor.",
+        "[Unlayer] Paragraph `style.textTransform`, `style.color`, `className` are kept in HTML but not in the design for the visual editor.",
+        "[Unlayer] Heading `style.letterSpacing`, `style.lineHeight`, `className` are kept in HTML but not in the design for the visual editor.",
+        "[Unlayer] Button `style.boxShadow`, `className` are kept in HTML but not in the design for the visual editor.",
+        "[Unlayer] Image `style.borderRadius`, `className` are kept in HTML but not in the design for the visual editor.",
+      ]);
+      // Once per render: three renders, each says it once.
+      expect(said).toHaveLength(21);
+      const values = JSON.stringify(design);
+      expect(values).not.toContain("textTransform");
+      expect(values).not.toContain('"lead"');
+    } finally {
+      warn.mockRestore();
+    }
+  });
+});
+
+describe("DX: what a block can't use is said, not dropped quietly", () => {
+  it("a prop a block has no use for (a link's `target` on a block without one)", () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    try {
+      renderToHtml(
+        <Body>
+          <Row>
+            <Column>
+              <Paragraph textTransfrom="uppercase" {...({ fontSize: "16px" } as object)}>Hi</Paragraph>
+              <Button href="https://example.com" target="_self" buttonColors={{ backgroundColor: "#000" }} onClick={() => {}}>Go</Button>
+              <Image src="https://example.com/a.png" alt="A" width={120} height={60} target="_self" />
+              <Heading target="_self">Title</Heading>
+            </Column>
+          </Row>
+        </Body>
+      );
+      expect(warn.mock.calls.map((call) => String(call[0]))).toEqual([
+        "[Unlayer] Paragraph ignores the prop `textTransfrom`.",
+        "[Unlayer] Button ignores the prop `onClick`.",
+        "[Unlayer] Image ignores the prop `height`.",
+        "[Unlayer] Heading ignores the prop `target`.",
+      ]);
+    } finally {
+      warn.mockRestore();
+    }
+  });
+
+  it("a prop a slip away from one it takes: the warning names it", () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    try {
+      const slips = { textColour: "#f00", fontsize: "20px", textAling: "left", lineHieght: "140%" };
+      renderToHtml(
+        <Body>
+          <Row>
+            <Column>
+              <Menu items={[{ text: "Home", href: "https://example.com" }]} {...({ textColour: slips.textColour } as object)} />
+              <Paragraph {...({ fontsize: slips.fontsize } as object)}>Hi</Paragraph>
+              <Heading {...({ textAling: slips.textAling, lineHieght: slips.lineHieght } as object)}>Title</Heading>
+              <Button {...({ backgroundColour: "#000" } as object)}>Go</Button>
+            </Column>
+          </Row>
+        </Body>
+      );
+      expect(warn.mock.calls.map((call) => String(call[0]))).toEqual([
+        "[Unlayer] Menu ignores the prop `textColour`: did you mean `textColor`?",
+        "[Unlayer] Paragraph ignores the prop `fontsize`: did you mean `fontSize`?",
+        "[Unlayer] Heading ignores the prop `textAling`: did you mean `textAlign`?",
+        "[Unlayer] Heading ignores the prop `lineHieght`: did you mean `lineHeight`?",
+        "[Unlayer] Button ignores the prop `backgroundColour`: did you mean `backgroundColor`?",
+      ]);
+    } finally {
+      warn.mockRestore();
+    }
+  });
+
+  it("a Table's typed props its defaults leave unset (a header's color, a font): applied, so not said to be ignored", () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    try {
+      const font = { label: "Georgia", value: "georgia,serif" };
+      const html = renderToHtml(
+        <Body>
+          <Row>
+            <Column>
+              <Table headers={["A"]} data={[["1"]]} headerColor="#111111" contentColor="#222222" footerColor="#333333" headerFontFamily={font} contentFontFamily={font} footerFontFamily={font} contentFontWeight={700} contentLetterSpacing="3px" />
+            </Column>
+          </Row>
+        </Body>
+      );
+      expect(html).toContain("#111111");
+      expect(html).toContain("#222222");
+      expect(warn).not.toHaveBeenCalled();
+    } finally {
+      warn.mockRestore();
+    }
+  });
+});
+
+describe("DX: the names authors reach for (CSS's, React Email's) stand for the component's own prop", () => {
+  const menuItems = [{ text: "Home", href: "https://example.com" }];
+  const json = (el: React.ReactElement) => itemValues(el) as Record<string, any>;
+
+  it("Menu: `color` is its items' color (linked or not), `textAlign` its alignment; its own props win", () => {
+    expect(json(<Menu items={menuItems} color="#ff0000" textAlign="center" />)).toMatchObject({ textColor: "#ff0000", linkColor: "#ff0000", align: "center" });
+    expect(json(<Menu items={menuItems} color="#ff0000" textColor="#00ff00" textAlign="center" align="right" />)).toMatchObject({ textColor: "#00ff00", linkColor: "#ff0000", align: "right" });
+    expect(json(<Menu items={menuItems} color="#ff0000" linkColor="#0000ff" />)).toMatchObject({ textColor: "#ff0000", linkColor: "#0000ff" });
+    expect(json(<Menu items={menuItems} color="#ff0000" />)).not.toHaveProperty("color");
+    // The same in the HTML: a linked item is in the color too.
+    expect(html(<Menu items={menuItems} color="#ff0000" />)).toBe(html(<Menu items={menuItems} textColor="#ff0000" linkColor="#ff0000" />));
+    expect(html(<Menu items={menuItems} color="#ff0000" />)).toMatch(/<a [^>]*color: ?#ff0000[^>]*>\s*Home/);
+  });
+
+  it("Social: `textAlign` is its alignment", () => {
+    const icons = [{ name: "Facebook", url: "https://facebook.com/x" }];
+    expect(json(<Social icons={icons} textAlign="right" />)).toMatchObject({ align: "right" });
+    expect(html(<Social icons={icons} textAlign="right" />)).toBe(html(<Social icons={icons} align="right" />));
+  });
+
+  it("text blocks: `align` is `textAlign`, `textColor` is `color` (a Button's text color)", () => {
+    expect(json(<Paragraph align="center" textColor="#333333">Hi</Paragraph>)).toMatchObject({ textAlign: "center", color: "#333333" });
+    expect(json(<Heading align="right" textColor="#111111">Hi</Heading>)).toMatchObject({ textAlign: "right", color: "#111111" });
+    expect(json(<Button align="left" textColor="#ffffff">Go</Button>)).toMatchObject({ textAlign: "left", buttonColors: { color: "#ffffff" } });
+    expect(json(<Paragraph align="center" textAlign="right">Hi</Paragraph>)).toMatchObject({ textAlign: "right" });
+    expect(json(<Image src="https://example.com/a.png" align="right" />)).toMatchObject({ textAlign: "right" });
+    expect(json(<Divider align="left" />)).toMatchObject({ textAlign: "left" });
+    // On a phone too.
+    expect(json(<Menu items={menuItems} mobile={{ textAlign: "center" }} />)._override.mobile).toMatchObject({ align: "center" });
+  });
+
+  it("Heading: React Email's `as` is its level; `headingType`, then `level`, win over it", () => {
+    expect(html(<Heading as="h2">Hi</Heading>)).toMatch(/<h2[ >]/);
+    expect(json(<Heading as="h2">Hi</Heading>)).toMatchObject({ headingType: "h2" });
+    expect(json(<Heading as="h2">Hi</Heading>)).not.toHaveProperty("as");
+    expect(json(<Heading as="h2" level="h3">Hi</Heading>)).toMatchObject({ headingType: "h3" });
+    expect(json(<Heading as="h2" level="h3" headingType="h4">Hi</Heading>)).toMatchObject({ headingType: "h4" });
+    // A flat prop wins over the `values` escape hatch, as everywhere.
+    expect(json(<Heading as="h5" values={{ headingType: "h1" }}>Hi</Heading>)).toMatchObject({ headingType: "h5" });
+    expect(html(<Heading as="h2" level="h3">Hi</Heading>)).toBe(html(<Heading headingType="h3">Hi</Heading>));
+  });
+
+  it("an alias isn't said to be ignored", () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    try {
+      html(<Menu items={menuItems} color="#ff0000" textAlign="center" />);
+      html(<Paragraph align="center" textColor="#333">Hi</Paragraph>);
+      html(<Heading as="h2">Hi</Heading>);
+      expect(warn).not.toHaveBeenCalled();
+    } finally {
+      warn.mockRestore();
+    }
   });
 });

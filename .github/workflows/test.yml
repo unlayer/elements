@@ -58,9 +58,135 @@ jobs:
         run: pnpm --filter @unlayer/from-react-email typecheck && pnpm --filter @unlayer/migrate typecheck
 
       # ── Bundle size budget ──────────────────────────────────────
-      # Fail if the react-elements ESM bundle exceeds 118KB.
-      # Current size: about 113.4KB (0.1.22: about 76KB). Most of the growth is
-      # the render that collects a template's rows and blocks (one React render,
+      # Fail if the react-elements ESM bundle exceeds 221KB.
+      # Current size: about 225KB (0.1.22: about 76KB). Raised from 224.5KB
+      # (about 1.1KB with the round before): rich text's stray brackets kept as
+      # text, a root's ids kept to what they hold, object children failing the
+      # render, style values' double quotes written as references, Tailwind
+      # widths on images with a natural size, and a Heading's level checked.
+      # Raised from 222.5KB
+      # (about 1.7KB): an email service's tags kept whole in background URLs
+      # with their encoding checked, rich text's comments left out and its
+      # double quotes as written, a lone Link's tags kept, a Table's cells from
+      # data written as text, and plain text's heading tags kept as written.
+      # Raised from 221KB
+      # (about 1.1KB): display conditions written around rows and blocks, an
+      # email service's tags kept whole in rich text and background URLs, a tag
+      # that never ends left out of rich text, and a Table's typed props named.
+      # Raised from 219.5KB
+      # (about 1.8KB): a render's work shared across copies of Elements and
+      # with all the code it runs, plain text's placeholders kept from text
+      # that decodes to them and blocked URLs left out, and text placed
+      # straight in a Row or Column said once per render. Raised from 218KB
+      # (about 1.5KB): a render's shared work kept to its own render (template
+      # wrappers, nested renders), code themes read by their own names, and
+      # plain text's skip names read as written. Raised from 216KB
+      # (about 1.9KB): Markdown's and code's work is shared across a render,
+      # not counted per block, plain text's tag names are indexed by their
+      # parts, and a rich text block's markup is given to <Tailwind> with the
+      # render's other classes. Raised from 207KB
+      # (about 8.7KB): HTML's plain text (htmlToPlainText) is read in time
+      # linear in its size by scanners of its own, where its regexes read
+      # unclosed tags again from each place they could start (40KB took a
+      # minute); a content prop given as null renders nothing, a Video's id
+      # can't end its player's URL, and rich text's markup is read in time
+      # linear in its size. Raised from 206KB
+      # (about 1KB): a Row's anchor, a Video's link and thumbnail and a
+      # Social icon's image are kept from adding markup, a Font's
+      # javascript: URL loads nothing, Tailwind classes in a Heading's or a
+      # Button's children and on a lone <Link> are inlined, a prop given as
+      # null is one not given, and a <script>'s or <style>'s text is left
+      # out of rich text children. Raised from 204.5KB
+      # (about 1.3KB): the editor's exporters' own links (a Button's, an
+      # Image's, a Menu's, a Social's) are given no URL that runs code, in
+      # the HTML and the design, and a null Menu item or Social icon is
+      # skipped. Raised from 203KB
+      # (about 1.8KB): a javascript: URL is written as one that throws with
+      # React 18 too, a render's Tailwind scopes are given only the records
+      # in them, with a key for the render (its first 2,000 classes are
+      # read), and a plugin's error for a component's classes is that
+      # component's; a link of null is none. Raised from 202.5KB
+      # (about 0.4KB): a render gives a <Tailwind>'s rewrite what it
+      # collected, so its classes are compiled at once (one at a time, a
+      # few thousand from data took seconds), and a link's target, a Menu
+      # item's text or a Social icon's name that isn't a string is a new tab
+      # or its text. Raised from 200KB
+      # (about 2.2KB): rich text in children reads a link's URL with its
+      # character references decoded (the Markdown sanitizer's decoder, now
+      # shared), a link's target that could end its attribute is a new tab,
+      # the plain text keeps an email service's <%name%> tags, the other
+      # entries can leave a part of a template out alone (a Markdown table
+      # past the cells it can have), a context a template doesn't provide
+      # is worked out once per render, and React's idle dispatcher isn't
+      # taken for a running render. Raised from 198.5KB
+      # (about 1.5KB): a context a template doesn't provide reads its default
+      # (React's two values for it compared, the default seen kept per
+      # context), and a <Head>'s style and script text is escaped whole,
+      # whatever writes it, against its end tag and those of what it's in (the
+      # format context a head's walk carries). Raised from 198KB
+      # (about 0.3KB): the plain text reads links before headings and
+      # preformatted text, each attribute whole, with their URLs set aside
+      # till the end, and doesn't wrap the URLs listed after the text.
+      # Raised from 194.5KB
+      # (about 3.4KB): markup is written as react-dom writes it for the
+      # installed React, a <select>'s value marking its options (the format
+      # context the walk carries), the form controls' rules and React 19's
+      # for a style's, script's and title's text, and a <Head>'s style and
+      # script text written as given in every React. Raised from 193.5KB
+      # (about 1KB): a <Suspense> around the template is unwrapped, a root
+      # the walk of a template with no root meets is said, and which Row or
+      # Column failed and what an async render compiled for its <Tailwind>s
+      # are kept in the render's scope. Raised from 193KB
+      # (about 0.6KB): each render function makes a scope of its own, the
+      # user's code (components, exporters, heads, onError) runs outside it,
+      # what unwrapping a template finds is kept in its render's scope, and a
+      # lazy template is unwrapped. Raised from 192KB
+      # (about 0.7KB): what's in a <Head> is walked with the template (its
+      # components waited for, in the error policy), a head function that
+      # fails is in the error policy, renderToJson throws a template
+      # wrapper's error as it is, and what the walker says once and its style
+      # names are bounded. Raised from 191KB
+      # (about 1KB): a template with no root renders as a root's content
+      # (walked once, its rows rendered with the render's config), and the
+      # async renderers collect it as they collect a root's. Raised from 190KB
+      # (about 1.3KB): Elements' roots are known by a marker shared across
+      # copies (an older copy's by its code), a suspension reaches the
+      # <Suspense> around it whatever `onError` says, and an async template
+      # with no root is rendered without calling it again. Raised from 189KB
+      # (about 1.2KB): a template, a component around its root and a class
+      # component that throw a promise (React 18's Suspense) are waited for by
+      # the async renderers and said by the synchronous ones, and a root of
+      # another copy of Elements renders as this copy's. Raised from 187KB
+      # (about 2KB): a Row or Column whose own exporter fails is left out with
+      # `onError: "omit"`, as a block is (a Column with its cell, its Row made
+      # again without it), instead of failing the render. Raised from 173.5KB
+      # (about 13KB): Divider, Html, Menu and Social write their web and
+      # document HTML without react-dom/server, which can't run in an edge
+      # runtime or a React Server Components layer (src/exporters/, about 7KB,
+      # writing with the walker's host markup, one table of React 18's and 19's
+      # rules for both), and what makes the renders faster: the template
+      # collected as a tree of its records (no markers parsed back), its model,
+      # values and the design's copies made once (src/model/, the head's reuse,
+      # pxMerged), and a root's and Row's HTML written without a walk. The
+      # async walk's holes are the async entry's. Raised from 131.5KB
+      # (about 41KB) for the walker (src/engine), the renderer Elements renders
+      # templates with instead of react-dom: the walk itself, its hooks
+      # dispatcher, React's attribute and style tables for host markup, the
+      # async walk's holes and tree-order output, the React version table and
+      # its self-check, and the error policy (RenderError, `onError`). It
+      # replaces react-dom in Elements' own renders, which was never counted
+      # here (a peer dependency); the collecting render's react-dom plumbing
+      # (the second react-dom module, blind mode, the Sentinel, calling a
+      # failed component again) went with it. Raised from 130.5KB
+      # (about 1KB) so the async renderers collect where Elements' React isn't
+      # react-dom's (Next.js's server layers) as the synchronous ones do, and a
+      # template whose Rows render as HTML instead of being collected fails
+      # instead of giving a broken email. Raised from 126KB for
+      # editor parity: the editor's base stylesheet for each mode in the
+      # document's head (about 1.1KB of CSS), a Paragraph rendered from the text
+      # its design holds, a root's `fonts` and its `displayMode` in the design,
+      # and blocks of another copy of Elements rendered as this one's. Most of
+      # the growth since 0.1.22 is the render that collects a template's rows and blocks (one React render,
       # so hooks, context, Fragments and the user's components work as React
       # renders them; a component that throws, suspends or is async left out
       # with a message naming it; markup and blocks rendered to strings inside
@@ -70,14 +196,25 @@ jobs:
       # rendering where a bundler gives Elements another copy of React than
       # react-dom's (Next.js's server layers), and loading a second module of
       # react-dom's when Elements is called inside a renderToString it renders with,
-      # and leaving out Columns inside markup in a Row, as 0.1.22 did.
+      # and leaving out Columns inside markup in a Row, as 0.1.22 did, and
+      # Tailwind classes (the hook a <Tailwind> scope uses in the collected
+      # render; <Tailwind>, Tailwind itself, the code that reads its CSS and each
+      # component's class table are in the separate `tailwind` entry, not counted),
+      # rich text children (inline JSX and components in Paragraph, Heading and
+      # Button text), code kept in plain text, what a <Font> gives the head and
+      # the root, right-to-left text alignment, and `style`/`className` on the
+      # element each component renders, <Link>, the plain text's options, and
+      # an <UnlayerProvider>'s config read by the roots and the render functions,
+      # and a link or rule in a Column kept as HTML where its block can't hold it.
+      # The Markdown parser, the code highlighter, <Font>, <Head> and the
+      # design-to-code converter (`codegen`) are in their own entries.
       # The budget tracks the unminified ESM output as a proxy for code volume;
       # it still flags accidental dependency bundling (any real dep is 10KB+).
       - name: Check bundle size
         run: |
           BUNDLE="packages/react/dist/index.js"
           SIZE=$(wc -c < "$BUNDLE" | tr -d ' ')
-          MAX_SIZE=118000
+          MAX_SIZE=229500
           echo "Bundle: $BUNDLE"
           echo "Size: $SIZE bytes (budget: $MAX_SIZE bytes)"
           if [ "$SIZE" -gt "$MAX_SIZE" ]; then
@@ -166,11 +303,29 @@ jobs:
       # in a real Next.js app — exactly like a consumer would.
       # Catches SSR, bundling, and Server Component compatibility issues
       # that unit tests can't detect.
+      # The tarball has its license: pnpm adds the repository's only where no file in the package matches LICENSE,
+      # which THIRD_PARTY_LICENSES.md does (a 0.3.0 build had none), and the fizz-cleanup/ folder webpack 4 and Jest
+      # before 28 resolve the package's fizz-cleanup export from (they don't read "exports"). And its types import nothing built into the
+      # package (highlight.js, marked), which consumers don't install (a 0.3.0 build's did: TS2307 without skipLibCheck):
+      # no import or export from them in either quotes, and no `import("…")` type (a comment may name them).
       - name: Pack react-elements
         run: |
           cd packages/react
           pnpm pack --pack-destination /tmp
-          echo "TARBALL=$(ls /tmp/unlayer-react-elements-*.tgz)" >> $GITHUB_ENV
+          TARBALL=$(ls /tmp/unlayer-react-elements-*.tgz)
+          tar tzf "$TARBALL" | grep -qx package/LICENSE || { echo "::error::$TARBALL has no LICENSE"; exit 1; }
+          tar tzf "$TARBALL" | grep -qx package/fizz-cleanup/package.json || { echo "::error::$TARBALL has no fizz-cleanup/package.json (for resolvers that don't read exports)"; exit 1; }
+          if grep -nE "[\"'(](highlight\.js|marked)[/\"']" dist/*.d.ts dist/*.d.cts | grep -vE "^[^:]+:[0-9]+:[[:space:]]*(\*|/\*|//)"; then echo "::error::the types import a package built into Elements"; exit 1; fi
+          echo "TARBALL=$TARBALL" >> $GITHUB_ENV
+
+      # migrate has no LICENSE of its own: its tarball gets the repository's from pnpm (as publish.yml checks, where
+      # a missing one would fail the release instead).
+      - name: Pack migrate
+        run: |
+          cd packages/migrate
+          pnpm pack --pack-destination /tmp
+          MIGRATE_TARBALL=$(ls /tmp/unlayer-migrate-*.tgz)
+          tar tzf "$MIGRATE_TARBALL" | grep -qx package/LICENSE || { echo "::error::$MIGRATE_TARBALL has no LICENSE"; exit 1; }
 
       - name: Next.js integration build
         run: |
@@ -178,8 +333,20 @@ jobs:
           npm install "$TARBALL"
           npm run build
           # An email rendered in a route handler and a Server Component comes out as one (tables, a design with
-          # its rows), with Elements bundled into Next's server layers (no serverExternalPackages); an edge route
-          # builds (Turbopack) and renders or says to render in the Node.js runtime.
+          # its rows), with the synchronous and the async renderers, with Elements bundled into Next's server
+          # layers (no serverExternalPackages); an App Router
+          # edge route builds (Turbopack) and renders or says to render in the Node.js runtime, and Pages Router
+          # API routes (Node.js and edge) render. Each route renders with every entry of Elements too.
+          npm run verify
+
+      # ── Next.js integration build with webpack ──────────────────
+      # The same app built with webpack, Next.js 15's default bundler (`next build` without --turbopack). It fails
+      # the build of a module that imports by name what React's react-server build doesn't export (createContext,
+      # useContext), in an edge route, where Turbopack builds it.
+      - name: Next.js integration build (webpack)
+        run: |
+          cd tests/nextjs-integration
+          npm run build:webpack
           npm run verify
 
       # ── More consumers ──────────────────────────────────────────
@@ -202,6 +369,7 @@ jobs:
       # create-next-app's setup since Next.js 16: a route handler, a Server Component and a Client Component that
       # render an email are prerendered when the app builds, and the build fails if a render reads a random number
       # or the date. 0.2.0's did (crypto.getRandomValues() for each render's nonce), so no new app could build.
+      # The async renderers render one in a route handler and a Server Component when it's requested.
       - name: Next.js 16 consumer (Cache Components)
         run: |
           cd tests/next16-integration
@@ -209,6 +377,20 @@ jobs:
           npm install --no-save "$TARBALL"
           npm run build
           npm run verify
+
+      # ── A project's own Tailwind CSS 3 and prettier 2 ───────────
+      # Tailwind and prettier are optional peer dependencies of any version: npm keeps a project's own, older ones
+      # (an 0.3.0 build's ">=4.0.0" and ">=3.0.0" failed `npm install` with ERESOLVE), and what needs Tailwind CSS 4 or
+      # prettier 3 says to upgrade, as a module and required (tests/older-peers/verify.mjs).
+      - name: Project with Tailwind CSS 3 and prettier 2
+        timeout-minutes: 10
+        run: |
+          DIR=$(mktemp -d)
+          cp tests/older-peers/package.json tests/older-peers/verify.mjs "$DIR"
+          cd "$DIR"
+          npm install --no-audit --no-fund
+          npm install --no-audit --no-fund "$TARBALL"
+          node verify.mjs
 
       - name: Upload coverage reports to Codecov
         uses: codecov/codecov-action@v4
@@ -225,3 +407,11 @@ jobs:
             packages/*/coverage/
             coverage/
           retention-days: 30
+
+  # ── React versions ──────────────────────────────────────────
+  # The react package's suite on each React it supports: see
+  # react-versions.yml, which publish.yml runs before a release too.
+  react-versions:
+    name: React versions
+    uses: ./.github/workflows/react-versions.yml
+    secrets: inherit

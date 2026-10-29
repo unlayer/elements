@@ -9,8 +9,22 @@ import { Column } from "./Column";
 import { ColumnLayouts, type ColumnLayout } from "../layouts/ColumnLayouts";
 import { renderToJson } from "../utils/render-to-json";
 import { renderToHtml } from "../utils/render-to-html";
+import * as Roots from "../index";
 
+
+/** A block given a link of null (nullable data) and the same block given none, in each root: the HTML and the design. */
+function asNone(withNull: React.ReactElement, without: React.ReactElement) {
+  for (const Root of [Roots.Email, Roots.Page, Roots.Document]) {
+    const tree = (block: React.ReactElement) => <Root><Roots.Row><Roots.Column>{block}</Roots.Column></Roots.Row></Root>;
+    expect(Roots.renderToHtml(tree(withNull)), Root.displayName).toBe(Roots.renderToHtml(tree(without)));
+    expect(Roots.renderToJson(tree(withNull))).toEqual(Roots.renderToJson(tree(without)));
+  }
+}
 describe("Image Component", () => {
+  it("takes an `action` of null (nullable data) as none, in each root", () => {
+    asNone(<Image src="https://example.com/a.png" alt="A" action={null as never} />, <Image src="https://example.com/a.png" alt="A" />);
+  });
+
   it("renders an img element", () => {
     const { container } = render(<Image src="https://example.com/photo.jpg" />);
     const img = container.querySelector("img");
@@ -57,6 +71,19 @@ describe("Image Component", () => {
     expect(table).toBeNull();
     const img = container.querySelector("img");
     expect(img).not.toBeNull();
+  });
+
+  it("puts its style and className on every <img> an email writes for it, Outlook's copy and every other client's", () => {
+    // With its natural size given (`src={{ url, width, height }}`), the email exporter writes the image twice: once in
+    // Outlook's conditional comment, once for every other client.
+    const html = renderToHtml(<Email><Row><Column><Image src={{ url: "https://x.example/a.png", width: 200, height: 200 }} alt="A" className="avatar" style={{ borderRadius: "50%" }} /></Column></Row></Email>);
+    const body = html.slice(html.indexOf("<body"));
+    const images = [...body.matchAll(/<img [^>]*>/g)].map((m) => m[0]);
+    expect(images.length).toBeGreaterThan(1);
+    for (const image of images) {
+      expect(image).toContain("border-radius:50%");
+      expect(image).toMatch(/class="[^"]*\bavatar\b/);
+    }
   });
 
   it("applies max-width style", () => {
@@ -205,8 +232,9 @@ describe("Image Component", () => {
   });
 
   // Regression: an image must size against the real available width
-  // (contentWidth × column fraction), not a fixed fallback. The Column threads
-  // its body/column context to the exporter so this matches the editor.
+  // (contentWidth × column fraction, less the block's default 10px padding on
+  // each side), not a fixed fallback. The Column threads its body/column context
+  // to the exporter so this matches the editor.
   describe("sizes against contentWidth × column width (threaded to the exporter)", () => {
     const big = { url: "https://x/p.jpg", width: 1200, height: 600 };
     const imgWidth = (html: string) => {
@@ -226,16 +254,16 @@ describe("Image Component", () => {
       );
     };
 
-    it("a full-width image fills the content width (not the 500 fallback)", () => {
-      expect(imgWidth(renderImg("600px", ColumnLayouts.OneColumn, 1))).toBe(600);
+    it("a full-width image fills the content width less its padding (not the 500 fallback)", () => {
+      expect(imgWidth(renderImg("600px", ColumnLayouts.OneColumn, 1))).toBe(580);
     });
 
     it("an image in a 3-column row sizes to its column (~1/3), staying responsive", () => {
-      expect(imgWidth(renderImg("600px", ColumnLayouts.ThreeEqual, 3))).toBe(200);
+      expect(imgWidth(renderImg("600px", ColumnLayouts.ThreeEqual, 3))).toBe(180);
     });
 
     it("respects a wider contentWidth", () => {
-      expect(imgWidth(renderImg("900px", ColumnLayouts.OneColumn, 1))).toBe(900);
+      expect(imgWidth(renderImg("900px", ColumnLayouts.OneColumn, 1))).toBe(880);
     });
   });
 });

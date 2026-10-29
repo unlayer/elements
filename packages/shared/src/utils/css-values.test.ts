@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { normalizeColor, normalizeCssValues, normalizeFontStack } from "./css-values";
+import { cssValueSafe, normalizeColor, normalizeCssValues, normalizeFontStack, pxZeros } from "./css-values";
+import { inTime, within } from "../test-timing";
 
 describe("normalizeColor", () => {
   it("writes opaque rgb()/rgba() as hex, in comma or space syntax", () => {
@@ -14,13 +15,13 @@ describe("normalizeColor", () => {
     expect(normalizeColor("rgb(0 0 0 / 25%)")).toBe("rgba(0, 0, 0, 0.25)");
   });
 
-  it("reads a long value from data quickly (no backtracking)", () => {
+  it("reads a long value from data quickly (no backtracking)", async () => {
     const digits = "1".repeat(48);
     const spaces = " ".repeat(48);
     for (const value of [`rgb(${digits}${spaces}${digits}${spaces}x`, `rgb(${"1".repeat(195)}x`, `rgb(1${" ".repeat(190)}x`, `rgb(1 ${"1 ".repeat(95)}x`, `rgb(${"1 1 ".repeat(48)}!`]) {
-      const start = performance.now();
-      expect(normalizeColor(value)).toBe(value);
-      expect(performance.now() - start, value.slice(0, 20)).toBeLessThan(20);
+      const timing = await within(20, () => normalizeColor(value));
+      expect(timing.result).toBe(value);
+      expect([value.slice(0, 20), inTime(timing)]).toEqual([value.slice(0, 20), true]);
     }
   });
 
@@ -74,21 +75,21 @@ describe("normalizeCssValues", () => {
     expect(input.color).toBe("rgb(1, 2, 3)");
   });
 
-  it("passes a long value through at once", () => {
+  it("passes a long value through at once", async () => {
     const value = `rgb(1${" ".repeat(50_000)}`;
-    const start = performance.now();
-    expect(normalizeColor(value)).toBe(value);
-    expect(performance.now() - start).toBeLessThan(100);
+    const timing = await within(100, () => normalizeColor(value));
+    expect(timing.result).toBe(value);
+    expect(inTime(timing)).toBe(true);
   });
 
   it.each([
     ["digits", `rgb(${"1".repeat(40_000)}x, 1, 1)`],
     ["a decimal", `rgb(${"1".repeat(20_000)}.${"1".repeat(20_000)}x, 1, 1)`],
     ["spaces", `rgb(1${" ".repeat(40_000)}x, 1, 1)`],
-  ])("reads a long channel of %s in one pass (it took seconds, as 40,000 digits do in a pattern that backtracks)", (_, value) => {
-    const start = performance.now();
-    expect(normalizeColor(value)).toBe(value);
-    expect(performance.now() - start).toBeLessThan(100);
+  ])("reads a long channel of %s in one pass (it took seconds, as 40,000 digits do in a pattern that backtracks)", async (_, value) => {
+    const timing = await within(100, () => normalizeColor(value));
+    expect(timing.result).toBe(value);
+    expect(inTime(timing)).toBe(true);
   });
 
   it("still reads the channel forms it did", () => {
@@ -98,5 +99,30 @@ describe("normalizeCssValues", () => {
     expect(normalizeColor("rgba(0, 0, 0, 0.5)")).toBe("rgba(0, 0, 0, 0.5)");
     expect(normalizeColor("rgb(0 0 0 / 50%)")).toBe("rgba(0, 0, 0, 0.5)");
     expect(normalizeColor("rgb(1,,3)")).toBe("rgb(1,,3)");
+  });
+});
+
+describe("pxZeros", () => {
+  // Every kind of key the design's schema types as px lengths, alone and as the end of a longer key.
+  const PX = ["padding", "margin", "radius", "width", "spacing", "fontSize"];
+
+  it.each(PX)("writes the bare zeros of a %s key as 0px, as any key ending in it", (name) => {
+    const ending = name[0].toUpperCase() + name.slice(1);
+    expect(pxZeros({ [name]: "0 0 12px", [`some${ending}`]: "0", [`some_${name}`]: "12px 0" })).toEqual({ [name]: "0px 0px 12px", [`some${ending}`]: "0px", [`some_${name}`]: "12px 0px" });
+  });
+
+  it("writes a body's margins so: documentMargin, popupCloseButton_margin", () => {
+    expect(pxZeros({ documentMargin: "0 0 12px", popupCloseButton_margin: "0" })).toEqual({ documentMargin: "0px 0px 12px", popupCloseButton_margin: "0px" });
+  });
+
+  it("leaves other keys, and lengths in another unit, as they are", () => {
+    expect(pxZeros({ lineHeight: "0", text: "0 0", marginal: "0", margin: "0 auto", padding: "1em 0" })).toEqual({ lineHeight: "0", text: "0 0", marginal: "0", margin: "0 auto", padding: "1em 0" });
+  });
+});
+
+describe("cssValueSafe", () => {
+  it("takes an image's whole data URL in base64, whose `;` is in the URL, and nothing that ends a declaration", () => {
+    for (const value of ["url(data:image/png;base64,iVBORw0KGgo+/A==)", "url('data:image/gif;base64,R0lGOD')", "url(data:image/png;base64,A) center / cover", "url(data:image/png,x)", "12px"]) expect([value, cssValueSafe(value)]).toEqual([value, true]);
+    for (const value of ["url(data:image/png;base64,AAAA);color:red", "url(data:image/svg+xml;base64,AAAA)", "url('data:image/png;base64,AAAA)", "url(data:image/png;charset=x;base64,AAAA)", "red;color:blue", "16px</style>", "a}", "calc(1px"]) expect([value, cssValueSafe(value)]).toEqual([value, false]);
   });
 });

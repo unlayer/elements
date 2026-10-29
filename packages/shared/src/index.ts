@@ -8,6 +8,7 @@
 // Config
 export { DEFAULT_CONFIG } from "./config";
 export type { UnlayerConfig, HeadConfig } from "./config";
+export { RenderError, type OnError } from "./render-error";
 
 // Types
 export type {
@@ -40,6 +41,8 @@ export type {
   MenuItem,
   // Utility types
   RenderMode,
+  LooseValue,
+  ValuesInput,
   MobileProps,
   DeviceProps,
   // Design JSON types
@@ -65,21 +68,29 @@ export {
   textToTextJson,
   htmlToTextJson,
   generateHtmlFromTextJson,
+  textJsonToText,
 } from "./utils/lexical-helpers";
 
 // Utils - Value merging
 export { mergeValues } from "./utils/merge-values";
-export { cssValueSafe, normalizeColor, normalizeCssValues, normalizeFontStack } from "./utils/css-values";
+export { codePoint, entities } from "./utils/entities";
+export { cssValueSafe, normalizeColor, normalizeCssValues, normalizeFontStack, pxMerged, pxZeros } from "./utils/css-values";
 
 // Utils - Semantic props
 export {
   escapeText,
   escapeKeepingTags,
   mapSemanticProps,
+  isContentProp,
+  PROP_ALIASES,
   normalizeLinkValue,
+  unrunLinks,
+  unrunUrl,
+  safeVideoId,
   normalizeValuesForExporter,
 } from "./utils/semantic-props";
 export type { SemanticProps } from "./utils/semantic-props";
 
 // Utils - HTML to plain text
-export { htmlToPlainText } from "./utils/html-to-text";
+export { htmlToPlainText, type PlainTextOptions } from "./utils/html-to-text";
+export { replaceTags, rewrite } from "./utils/html-scan";

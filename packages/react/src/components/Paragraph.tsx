@@ -1,5 +1,6 @@
-import { ParagraphExporters, ParagraphDefaults } from "@unlayer/exporters";
-import type { ParagraphValues, TextStyleProps } from "../types";
+import { ParagraphDefaults, TextExporters } from "@unlayer/exporters";
+import type { AlignAlias, ParagraphValues, TextColorAlias, TextStyleProps } from "../types";
+import { textJsonToText, type ValuesInput } from "@unlayer-internal/shared-elements";
 import { createItemComponent, type ItemComponentProps } from "../utils/create-component";
 import { mapSemanticProps, type SemanticProps } from "../utils/semantic-props";
 
@@ -9,11 +10,15 @@ import { mapSemanticProps, type SemanticProps } from "../utils/semantic-props";
  */
 type ParagraphSemanticProps = Omit<
   SemanticProps<ParagraphValues>,
-  keyof TextStyleProps
+  keyof TextStyleProps | "values"
 > &
-  TextStyleProps & {
+  TextStyleProps &
+  AlignAlias &
+  TextColorAlias & {
     /** Plain-text content (or use `html` for inline formatting, or children). */
     text?: string;
+    /** The builder's values (see `SemanticProps`), with its text as HTML in `text` or `html`. */
+    values?: ValuesInput<ParagraphValues & { text: string; html: string }>;
   };
 
 /**
@@ -27,6 +32,17 @@ const DEFAULT_VALUES = {
   ...ParagraphDefaults,
   color: "#000000", // Not in schema options but used by renderer
 } as unknown as ParagraphValues;
+
+/**
+ * The design holds a Paragraph as the builder's text block (see render-to-json.ts), so its HTML is that block's: the
+ * text block's exporters, on the HTML its textJson holds there. The editor exports the design as it renders.
+ */
+const exporters = Object.fromEntries(
+  Object.entries(TextExporters).map(([mode, exporter]) => [
+    mode,
+    (values: Record<string, any>, ...rest: unknown[]) => (exporter as (...args: unknown[]) => string)(values.textJson ? { ...values, text: textJsonToText(values.textJson) } : values, ...rest),
+  ])
+);
 
 /**
  * Paragraph - Universal SSR/Client Component with Semantic Props API
@@ -54,7 +70,9 @@ const Paragraph = createItemComponent<ParagraphValues, ParagraphSemanticProps>({
   propMapper: (props) =>
     mapSemanticProps(props as SemanticProps<ParagraphValues>, DEFAULT_VALUES, "Paragraph"),
   displayName: "Paragraph",
-  exporters: ParagraphExporters,
+  // `style` and `className` go on its text element.
+  at: /<[a-z\d]+ [^>]*v-text-align[^>]*>/,
+  exporters,
 });
 
 export default Paragraph;

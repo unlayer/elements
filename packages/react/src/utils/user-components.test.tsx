@@ -4,6 +4,8 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { renderToHtml, renderToHtmlParts, renderToPlainText } from "./render-to-html";
 import { renderToJson } from "./render-to-json";
 import { Email, Page, Row, Column, Paragraph, Heading, Html, Button as ElementsButton, ColumnLayouts } from "../index";
+import { Font } from "../font";
+import * as asyncRenderers from "../async";
 
 const block = (text: string, props: Record<string, unknown> = {}) => <Row><Column><Paragraph {...props}>{text}</Paragraph></Column></Row>;
 const Header = () => block("Header");
@@ -32,7 +34,7 @@ describe("Fragments and user components among the blocks", () => {
   it("render every block once, in order, each with its own id", () => {
     const html = renderToHtml(template);
     const body = html.slice(html.indexOf("<body"));
-    const texts = order.map((t) => body.indexOf(`>${t}<`));
+    const texts = order.map((t) => body.search(new RegExp(`>\\s*${t}\\s*<`)));
     expect(texts.every((at) => at > 0)).toBe(true);
     expect([...texts].sort((a, b) => a - b)).toEqual(texts);
     const ids = [...body.matchAll(/id="(u_(?:row|column|content_paragraph)_\d+)"/g)].map((m) => m[1]);
@@ -45,7 +47,7 @@ describe("Fragments and user components among the blocks", () => {
   it("put the phone CSS on the block that asked for it, and the design has the same blocks", () => {
     const html = renderToHtml(template);
     const selector = /#(u_content_paragraph_\d+)[^{]*\{[^}]*font-size:\s*30px/.exec(html)?.[1];
-    const targetId = new RegExp(`id="(u_content_paragraph_\\d+)"[^>]*>(?:(?!id=")[\\s\\S])*?>Target<`).exec(html)?.[1];
+    const targetId = new RegExp(`id="(u_content_paragraph_\\d+)"[^>]*>(?:(?!id=")[\\s\\S])*?>\\s*Target\\s*<`).exec(html)?.[1];
     expect(selector).toBeDefined();
     expect(selector).toBe(targetId);
     expect(html.match(new RegExp(`id="${selector}"`, "g"))).toHaveLength(1);
@@ -93,6 +95,90 @@ describe("a component element kept between renders", () => {
   });
 });
 
+describe("a template with no root", () => {
+  // Rows, a block and markup with no Email, Page, Document or Body around them, inside a wrapper: rendered as a
+  // root's content is, without the root's markup. The HTML, the head and the plain text are made from one render.
+  const counted = () => {
+    const runs: Record<string, number> = {};
+    const ran = (name: string) => void (runs[name] = (runs[name] ?? 0) + 1);
+    const Hero = () => {
+      ran("Hero");
+      const [text] = useState("Hero");
+      return <Paragraph mobile={{ fontSize: "30px" }}>{text}</Paragraph>;
+    };
+    const Note = () => {
+      ran("Note");
+      const [text] = useState("Note");
+      return <b>{text}</b>;
+    };
+    const Rows = ({ children }: { children?: React.ReactNode }) => (ran("Rows"), <>{block("One")}{children}<div><Note /></div></>);
+    const Wrapper = ({ children }: { children: React.ReactNode }) => (ran("Wrapper"), <>{children}</>);
+    return { runs, element: <Wrapper><Rows><Row><Column><Hero /></Column></Row></Rows></Wrapper> };
+  };
+
+  it.each([
+    ["renderToHtml", (element: React.ReactElement) => renderToHtml(element)],
+    ["renderToHtmlParts", (element: React.ReactElement) => Object.values(renderToHtmlParts(element)).join("")],
+    ["renderToPlainText", (element: React.ReactElement) => renderToPlainText(element)],
+  ])("%s runs each of its components once", (_, render) => {
+    const { runs, element } = counted();
+    const out = render(element);
+    expect(out).toContain("Hero");
+    expect(out).toContain("Note");
+    expect(runs).toEqual({ Wrapper: 1, Rows: 1, Hero: 1, Note: 1 });
+  });
+
+  it("renderToJson says it needs a root, calling its wrappers once and nothing they render", () => {
+    const { runs, element } = counted();
+    expect(() => renderToJson(element)).toThrow("Root element must be <Body>, <Email>, <Page>, or <Document>");
+    expect(runs).toEqual({ Wrapper: 1, Rows: 1 });
+  });
+
+  it("numbers its rows and blocks as its head does, in the render's mode", () => {
+    const html = renderToHtml(counted().element, { mode: "email" });
+    const body = html.slice(html.indexOf("</head>"));
+    const ids = [...body.matchAll(/id="(u_(?:row|column|content_paragraph)_\d+)"/g)].map((m) => m[1]);
+    expect(ids).toEqual(["u_row_1", "u_column_1", "u_content_paragraph_1", "u_row_2", "u_column_2", "u_content_paragraph_2"]);
+    // The phone CSS the second block asked for is on its id.
+    expect(/#(u_content_paragraph_\d+)[^{]*\{[^}]*font-size:\s*30px/.exec(html)?.[1]).toBe("u_content_paragraph_2");
+    expect(body.match(/id="u_row_\d+" class="u-row-container/g)).toHaveLength(2);
+  });
+
+  it("fails on a part that fails, naming it and where it is, or leaves it out (onError: \"omit\"), as in a root", () => {
+    const Later = async () => <Paragraph>Later</Paragraph>;
+    const Broken = () => {
+      throw new Error("boom");
+    };
+    const Rows = () => <>{block("Kept")}<Row><Column><Later /></Column></Row><Row><Column><Broken /></Column></Row></>;
+    expect(() => renderToHtml(<Rows />)).toThrow('it is async or suspends, and this renderer is synchronous: render with "@unlayer/react-elements/async", or load its data first and pass it as props (in <Later> at Rows › Row 2 › Column 1 › Later)');
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
+    try {
+      const parts = renderToHtmlParts(<Rows />, { onError: "omit" });
+      expect(parts.body).toContain("Kept");
+      expect(parts.omitted.map((e) => e.message)).toEqual(["[Unlayer] it is async or suspends, and this renderer is synchronous: render with \"@unlayer/react-elements/async\", or load its data first and pass it as props (in <Later> at Rows › Row 2 › Column 1 › Later)", "[Unlayer] boom (in <Broken> at Rows › Row 3 › Column 1 › Broken)"]);
+    } finally {
+      error.mockRestore();
+    }
+  });
+
+  it("is markup given no settings as attributes", () => {
+    expect(renderToHtml(<div>Markup</div>)).toContain("<div>Markup</div>");
+  });
+
+  it("says what fails at its top is in the template, in every renderer", async () => {
+    // (Not a component: a module's object, as a story file's default export is.)
+    const Invalid = {} as unknown as React.FC;
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
+    try {
+      for (const render of [renderToHtml, renderToHtmlParts, renderToPlainText, asyncRenderers.renderToHtml]) {
+        await expect(Promise.resolve().then(() => render(<Invalid />))).rejects.toThrow(/but got: object\. .* \(in <template>\)$/);
+      }
+    } finally {
+      error.mockRestore();
+    }
+  });
+});
+
 describe("HTML from a component placed straight in the body", () => {
   it("doesn't get the body's settings as attributes", () => {
     const Raw = () => <div dangerouslySetInnerHTML={{ __html: "<p>Raw footer</p>" }} />;
@@ -122,38 +208,30 @@ describe("a component that fails", () => {
     }
   };
 
-  it("is left out with what it renders, and the one that failed in it says so, once per render", () => {
+  it("fails the render, naming it and where it is; left out (onError: \"omit\") with what it renders, said once per render", () => {
+    const boom = new Error("boom");
     const Boom = () => {
-      throw new Error("boom");
+      throw boom;
     };
     const Section = () => <>{block("In the section")}<Boom /></>;
     const email = <Email><Section />{block("After")}</Email>;
-    for (const render of [() => renderToHtml(email), () => renderToJson(email)]) {
+    const said = "[Unlayer] boom (in <Boom> at Section › Boom)";
+    for (const render of [() => renderToHtml(email), () => renderToJson(email), () => renderToPlainText(email)]) expect(render).toThrow(said);
+    for (const render of [() => renderToHtml(email, { onError: "omit" }), () => renderToJson(email, { onError: "omit" })]) {
       let output = "";
-      expect(messages(() => (output = JSON.stringify(render())))).toEqual(["[Unlayer] <Boom> threw while rendering, so it's left out:"]);
+      expect(messages(() => (output = JSON.stringify(render())))).toEqual([said.replace("[Unlayer] ", "[Unlayer] Left out: ")]);
       expect(output).toContain("After");
       expect(output).not.toContain("In the section");
     }
   });
 
-  it("says a lazy component suspends", () => {
+  it("says a lazy component suspends, where it is", () => {
     const Later = React.lazy(() => new Promise<{ default: React.FC }>(() => {}));
+    const email = <Email><Row><Column><Later /><Paragraph>Still here</Paragraph></Column></Row></Email>;
+    const said = '[Unlayer] it is async or suspends, and this renderer is synchronous: render with "@unlayer/react-elements/async", or load its data first and pass it as props (in <lazy> at Row 1 › Column 1 › lazy)';
+    expect(() => renderToHtml(email)).toThrow(said);
     let html = "";
-    expect(messages(() => (html = renderToHtml(<Email><Row><Column><Later /><Paragraph>Still here</Paragraph></Column></Row></Email>)))).toEqual([
-      "[Unlayer] <component> is async or suspends: Elements renders synchronously, so it's left out. Load its data first and pass it as props.",
-    ]);
-    expect(html).toContain("Still here");
-  });
-
-  it("says one suspends in React's production build, which names it by its error number (#426)", () => {
-    // What React's production build throws where a component suspends in a synchronous render.
-    const Later = () => {
-      throw new Error("Minified React error #426; visit https://react.dev/errors/426 for the full message");
-    };
-    let html = "";
-    expect(messages(() => (html = renderToHtml(<Email><Row><Column><Later /><Paragraph>Still here</Paragraph></Column></Row></Email>)))).toEqual([
-      "[Unlayer] <Later> is async or suspends: Elements renders synchronously, so it's left out. Load its data first and pass it as props.",
-    ]);
+    expect(messages(() => (html = renderToHtml(email, { onError: "omit" })))).toEqual([said.replace("[Unlayer] ", "[Unlayer] Left out: ")]);
     expect(html).toContain("Still here");
   });
 
@@ -252,13 +330,15 @@ describe("HTML from a component in a Column", () => {
     }
   });
 
-  it("keeps markup other than a bare div as it is: a link, a table, an image, elements side by side", () => {
+  it("keeps markup other than a bare div as it is: a table, an image, a linked image, a styled rule, elements side by side", () => {
     const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
     try {
       const shapes: Array<[React.FC, string]> = [
-        [() => <a href="https://example.com/visit">Visit</a>, '<a href="https://example.com/visit">Visit</a>'],
         [() => <table><tbody><tr><td align="right">cell</td></tr></tbody></table>, '<table><tbody><tr><td align="right">cell</td></tr></tbody></table>'],
         [() => <img src="https://example.com/pic.png" alt="pic" />, '<img src="https://example.com/pic.png" alt="pic"/>'],
+        // A link or a rule its block couldn't hold all of (an image in the link, the rule's style) stays as it is.
+        [() => <a href="https://example.com"><img src="https://example.com/logo.png" alt="Logo" width="120" /></a>, '<a href="https://example.com"><img src="https://example.com/logo.png" alt="Logo" width="120"/></a>'],
+        [() => <hr style={{ borderTop: "2px dashed #cccccc" }} />, '<hr style="border-top:2px dashed #cccccc"/>'],
         [() => <><div>one</div><p>two</p></>, "<div>one</div><p>two</p>"],
       ];
       for (const [Shape, kept] of shapes) {
@@ -267,6 +347,89 @@ describe("HTML from a component in a Column", () => {
         // The design keeps it as an HTML block too.
         expect(renderToJson(email).body.rows[0].columns[0].contents).toEqual([expect.objectContaining({ type: "html", values: expect.objectContaining({ html: kept }) })]);
       }
+      expect(warn).not.toHaveBeenCalled();
+    } finally {
+      warn.mockRestore();
+    }
+  });
+
+  // Every kind of component is asked what it returned: an element given `dangerouslySetInnerHTML` gives what's in it,
+  // any other element is kept whole, with its styles.
+  const Ctx = React.createContext(0);
+  const kinds = (element: React.ReactElement): Record<string, React.ReactElement> => {
+    function Fn() {
+      return element;
+    }
+    class Cls extends React.Component {
+      render() {
+        return element;
+      }
+    }
+    // (Loaded already: a synchronous render renders it.)
+    const loaded = (type: React.ComponentType) => React.lazy(() => ({ then: (resolve: (m: { default: React.ComponentType }) => void) => resolve({ default: type }) }) as Promise<{ default: React.ComponentType }>);
+    const Forward = React.forwardRef(() => element);
+    return {
+      "a function": <Fn />,
+      "a class": <Cls />,
+      "a memo'd function": React.createElement(memo(Fn)),
+      "a memo'd class": React.createElement(memo(Cls)),
+      "a forwardRef": <Forward />,
+      "a memo'd forwardRef": React.createElement(memo(Forward)),
+      "a memo of a memo": React.createElement(memo(memo(Fn))),
+      "a lazy function": React.createElement(loaded(Fn)),
+      "a lazy class": React.createElement(loaded(Cls)),
+      "a context's Consumer": <Ctx.Consumer>{() => element}</Ctx.Consumer>,
+      "a context's Provider": <Ctx.Provider value={1}>{element}</Ctx.Provider>,
+      "a StrictMode": <React.StrictMode>{element}</React.StrictMode>,
+      "a Suspense": <React.Suspense>{element}</React.Suspense>,
+    };
+  };
+  const shapes: Array<[string, React.ReactElement, string]> = [
+    ["keeps the element around its content", <div style={{ backgroundColor: "red" }}>Hi</div>, '<div style="background-color:red">Hi</div>'],
+    ["gives what's in an element given dangerouslySetInnerHTML", <div dangerouslySetInnerHTML={{ __html: "<p>Hi</p>" }} />, "<p>Hi</p>"],
+  ];
+  for (const [what, shape, kept] of shapes) {
+    it.each(Object.entries(kinds(shape)))(`${what}, from %s`, async (_, node) => {
+      const email = <Email><Row><Column>{node}</Column></Row></Email>;
+      const block = (design: { body: { rows: any[] } }) => design.body.rows[0].columns[0].contents;
+      expect(block(renderToJson(email))).toEqual([expect.objectContaining({ type: "html", values: expect.objectContaining({ html: kept }) })]);
+      expect(renderToHtml(email)).toContain(kept);
+      expect(block(await asyncRenderers.renderToJson(email))).toEqual([expect.objectContaining({ type: "html", values: expect.objectContaining({ html: kept }) })]);
+    });
+  }
+
+  it("asks a component the async renderers waited for what it returned: an async one, a class that suspended, a lazy one", async () => {
+    const element = <div style={{ backgroundColor: "red" }}>Hi</div>;
+    const kept = '<div style="background-color:red">Hi</div>';
+    const later = <T,>(value: T) => new Promise<T>((resolve) => setTimeout(() => resolve(value), 1));
+    let ready: Promise<unknown> | undefined;
+    class Suspends extends React.Component {
+      render() {
+        if (!ready) throw (ready = later(null));
+        return element;
+      }
+    }
+    const Async = async () => (await later(null), element);
+    const Lazy = React.lazy(() => later({ default: () => element }));
+    const LazyClass = React.lazy(() => later({ default: Suspends }));
+    for (const node of [<Suspends key="a" />, React.createElement(Async as unknown as React.FC), <Lazy key="c" />, <LazyClass key="d" />]) {
+      ready = undefined;
+      const design = await asyncRenderers.renderToJson(<Email><Row><Column>{node}</Column></Row></Email>);
+      expect(design.body.rows[0].columns[0].contents).toEqual([expect.objectContaining({ type: "html", values: expect.objectContaining({ html: kept }) })]);
+    }
+  });
+
+  it("makes a link alone a Paragraph holding it, and a rule a Divider: blocks the design can edit", () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    try {
+      const Visit = () => <a href="https://example.com/visit" target="_self">Visit <b>now</b></a>;
+      const email = <Email><Row><Column><Visit /><hr /></Column></Row></Email>;
+      const html = renderToHtml(email);
+      expect(html).toContain('<a href="https://example.com/visit" target="_self">Visit <b>now</b></a>');
+      expect(html).toContain("u_content_divider");
+      const [link, rule] = renderToJson(email).body.rows[0].columns[0].contents;
+      expect(link).toMatchObject({ type: "text", values: { text: '<a href="https://example.com/visit" target="_self">Visit <b>now</b></a>' } });
+      expect(rule.type).toBe("divider");
       expect(warn).not.toHaveBeenCalled();
     } finally {
       warn.mockRestore();
@@ -297,19 +460,33 @@ describe("HTML from a component in a Column", () => {
 });
 
 describe("a component inside markup", () => {
-  it("that throws is left out, and the rest renders (markup straight in a Column isn't rendered, as before)", () => {
+  it("that throws fails the render; left out (onError: \"omit\"), the rest renders (markup straight in a Column isn't rendered, as before)", () => {
     const error = vi.spyOn(console, "error").mockImplementation(() => {});
     try {
+      const deep = new Error("deep");
       const Boom = () => {
-        throw new Error("deep");
+        throw deep;
       };
-      const html = renderToHtml(<Email><Row><Column><Paragraph>Before</Paragraph><div><Boom /></div><Paragraph>After</Paragraph></Column></Row></Email>);
+      const email = <Email><Row><Column><Paragraph>Before</Paragraph><div><Boom /></div><Paragraph>After</Paragraph></Column></Row></Email>;
+      expect(() => renderToHtml(email)).toThrow("[Unlayer] deep (in <Boom> at Row 1 › Column 1 › Boom)");
+      const html = renderToHtml(email, { onError: "omit" });
       expect(html).toContain("Before");
       expect(html).toContain("After");
-      expect(error).toHaveBeenCalledWith("[Unlayer] <Boom> threw while rendering, so it's left out:", expect.anything());
+      expect(error).toHaveBeenCalledWith("[Unlayer] Left out: deep (in <Boom> at Row 1 › Column 1 › Boom)", deep);
     } finally {
       error.mockRestore();
     }
+  });
+});
+
+describe("markup holding what writes nothing", () => {
+  it("is markup: a <Font> in a link straight in a Column leaves the link a Paragraph, in the HTML and the design", () => {
+    const font = <Font family="Inter" url="https://fonts.example.com/inter.css" />;
+    const email = <Email><Row><Column><a href="https://example.com/x">{font}Go</a><Paragraph>After</Paragraph></Column></Row></Email>;
+    const contents = renderToJson(email).body.rows[0].columns[0].contents as { type: string; values: { text?: string } }[];
+    expect(contents.map((content) => content.type)).toEqual(["text", "text"]);
+    expect(contents[0].values.text).toContain('href="https://example.com/x"');
+    expect(renderToHtml(email)).toContain(">Go</a>");
   });
 });
 
@@ -359,8 +536,8 @@ describe("a block rendered to a string inside a component", () => {
 });
 
 describe("an async component whose data load fails", () => {
-  it("isn't called, and its rejection can't end the process", async () => {
-    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+  it("isn't called by the synchronous renderers, and its rejection can't end the process", async () => {
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
     let calls = 0;
     async function Orders() {
       calls++;
@@ -369,24 +546,81 @@ describe("an async component whose data load fails", () => {
     }
     try {
       const email = <Email>{block("Hello")}<Orders /><Row><Column><Orders /><Paragraph>In a column</Paragraph></Column></Row></Email>;
-      expect(renderToHtml(email)).toContain("In a column");
-      expect(JSON.stringify(renderToJson(email))).toContain("Hello");
+      expect(() => renderToHtml(email)).toThrow("(in <Orders>)");
+      expect(renderToHtml(email, { onError: "omit" })).toContain("In a column");
+      expect(JSON.stringify(renderToJson(email, { onError: "omit" }))).toContain("Hello");
       // Vitest fails the run on an unhandled rejection: give one the time to happen.
       await new Promise((resolve) => setTimeout(resolve, 30));
       expect(calls).toBe(0);
-      expect(warn).toHaveBeenCalledWith(expect.stringContaining("<Orders> is async or suspends"));
+      expect(error).toHaveBeenCalledWith(expect.stringContaining("(in <Orders> at Row 2 › Column 1 › Orders)"));
     } finally {
-      warn.mockRestore();
+      error.mockRestore();
     }
   });
 });
 
 describe("React's warnings about a template", () => {
-  // React 19 says where a list without keys is rendered: the Row, Column or block it's in, not Elements' own wrapper.
-  it("name the Elements component the list is in", async () => {
-    const { whileCollecting } = await import("./record");
-    for (const name of ["Row", "Column", "Paragraph"]) {
-      expect((whileCollecting(() => null, () => null, name).type as { displayName?: string }).displayName).toBe(name);
+  // React says where a list without keys is rendered, in its development build; Elements renders it, and says so too,
+  // naming the component the list is in, once.
+  it.skipIf(process.env.NODE_ENV === "production")("name the component a list without keys is in, once", () => {
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
+    try {
+      const items = ["Shoes", "Hat"];
+      const List = () => <>{items.map((item) => <Paragraph>{item}</Paragraph>)}</>;
+      const email = <Email><Row><Column><List /></Column></Row></Email>;
+      renderToHtml(email);
+      renderToHtml(email);
+      const keys = error.mock.calls.map((call) => String(call[0])).filter((m) => m.startsWith("[Unlayer]") && m.includes('unique "key"'));
+      // (React 18 says it where the list is made, in its development build; React 19 where it renders.)
+      if (Number.parseInt(React.version) >= 19) expect(keys).toEqual(['[Unlayer] Each child in a list should have a unique "key" prop (in the list <List> renders). See https://react.dev/link/warning-keys.']);
+      else expect(keys).toEqual([]);
+      // Two with the same key.
+      const Twins = () => <>{["a", "b"].map((item) => <Paragraph key="same">{item}</Paragraph>)}</>;
+      renderToHtml(<Email><Row><Column><Twins /></Column></Row></Email>);
+      expect(error.mock.calls.map((call) => String(call[0]))).toContain('[Unlayer] Two children in a list have the same key, "same" (in the list <Twins> renders): keys should be unique.');
+    } finally {
+      error.mockRestore();
+    }
+  });
+
+  it.skipIf(process.env.NODE_ENV === "production")("say a bounded number of them (a list's keys can come from data), then once that no more are said", () => {
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
+    try {
+      const Pairs = ({ ids }: { ids: number[] }) => <>{ids.flatMap((id) => [<Paragraph key={`id-${id}`}>a</Paragraph>, <Paragraph key={`id-${id}`}>b</Paragraph>])}</>;
+      for (let batch = 0; batch < 3; batch++) renderToHtml(<Email><Row><Column><Pairs ids={Array.from({ length: 100 }, (_, i) => batch * 100 + i)} /></Column></Row></Email>);
+      const said = error.mock.calls.map((call) => String(call[0])).filter((m) => m.startsWith("[Unlayer]"));
+      expect(said.length).toBeLessThanOrEqual(101);
+      expect(said.at(-1)).toBe("[Unlayer] More warnings about keys in lists aren't said.");
+    } finally {
+      error.mockRestore();
+    }
+  });
+});
+
+describe("keys in lists of lists", () => {
+  // The React Email migration writes a list item that's several Rows as a list of them (`articles.map((article) =>
+  // [<Row key={0} />, <Row key={1} />])`): each list's keys are its own, as in React, so a key in each isn't two
+  // children with the same key.
+  it("are each list's own, in every renderer", async () => {
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
+    try {
+      const articles = ["One", "Two", "Three"];
+      const email = (
+        <Email>
+          {articles.map((title, index) => [
+            <Row key={0}><Column><Paragraph>{title}</Paragraph></Column></Row>,
+            <Row key={1}><Column>{index < articles.length - 1 ? <Paragraph>Next</Paragraph> : null}</Column></Row>,
+          ])}
+        </Email>
+      );
+      renderToHtml(email);
+      renderToJson(email);
+      renderToPlainText(email);
+      const { renderToHtml: renderAsync } = await import("../async");
+      await renderAsync(email);
+      expect(error.mock.calls.map((call) => String(call[0])).filter((m) => /key/.test(m))).toEqual([]);
+    } finally {
+      error.mockRestore();
     }
   });
 });

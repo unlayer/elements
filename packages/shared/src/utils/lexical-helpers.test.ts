@@ -3,8 +3,10 @@ import {
   textToTextJson,
   htmlToTextJson,
   generateHtmlFromTextJson,
+  textJsonToText,
   EMPTY_TEXT_JSON,
 } from "./lexical-helpers";
+import { inTime, within } from "../test-timing";
 
 // The inline margin reset every exported <p> must carry, matching the
 // editor's exported paragraphs (email clients strip head resets).
@@ -45,6 +47,13 @@ describe("generateHtmlFromTextJson", () => {
     const html = generateHtmlFromTextJson(json);
     expect(html.match(/<p /g)).toHaveLength(2);
     expect(html.match(new RegExp(P_MARGIN_RESET, "g"))).toHaveLength(2);
+  });
+
+  it("takes the `;`s off a paragraph's style in time linear in its size", async () => {
+    // `/;+\s*$/` tried again from each `;` of a long run something follows: 20,000 took 0.6 s.
+    const paragraph = (style: string) => JSON.stringify({ root: { children: [{ children: [{ text: "Styled", type: "text", format: 0 }], type: "extended-paragraph", style }], type: "root" } });
+    expect(inTime(await within(500, () => generateHtmlFromTextJson(paragraph(";".repeat(102400) + "x"))))).toBe(true);
+    expect(generateHtmlFromTextJson(paragraph("color: red;;  "))).toBe(`<p style="color: red; ${P_MARGIN_RESET}">Styled</p>`);
   });
 
   it("keeps custom paragraph styles ahead of the margin reset", () => {
@@ -178,5 +187,29 @@ describe("generateHtmlFromTextJson", () => {
     expect(generateHtmlFromTextJson(mk({ tag: 'h1 onclick="alert(1)"' }))).toBe(
       "<h1>Hi</h1>"
     );
+  });
+});
+
+describe("textJsonToText", () => {
+  it("writes plain text as the text block holds it: escaped, in no paragraph, its quotes kept", () => {
+    expect(textJsonToText(textToTextJson('Fish & "chips" <b>'))).toBe('Fish &amp; "chips" &lt;b&gt;');
+    expect(textJsonToText(EMPTY_TEXT_JSON)).toBe("");
+  });
+
+  it("keeps HTML given as it is", () => {
+    expect(textJsonToText(htmlToTextJson('H<sub>2</sub>O <span style="font-size: 40px">$20</span>'))).toBe('H<sub>2</sub>O <span style="font-size: 40px">$20</span>');
+  });
+
+  it("writes formatting, links and several paragraphs as their HTML (generateHtmlFromTextJson's)", () => {
+    const rich = JSON.stringify({ root: { type: "root", children: [{ type: "paragraph", children: [{ type: "text", text: "Bold", format: 1 }] }] } });
+    const two = JSON.stringify({ root: { type: "root", children: [{ type: "paragraph", children: [{ type: "text", text: "One" }] }, { type: "paragraph", children: [{ type: "text", text: "Two" }] }] } });
+    const aligned = JSON.stringify({ root: { type: "root", children: [{ type: "paragraph", format: "center", children: [{ type: "text", text: "Mid" }] }] } });
+    for (const json of [rich, two, aligned]) expect(textJsonToText(json)).toBe(generateHtmlFromTextJson(json));
+    expect(textJsonToText(rich)).toBe(`<p style="${P_MARGIN_RESET}"><strong>Bold</strong></p>`);
+  });
+
+  it("is empty for JSON it can't read", () => {
+    expect(textJsonToText("{")).toBe("");
+    expect(textJsonToText("{}")).toBe("");
   });
 });

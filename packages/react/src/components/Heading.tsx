@@ -1,27 +1,49 @@
 import { HeadingExporters, HeadingDefaults } from "@unlayer/exporters";
-import type { HeadingValues, TextStyleProps, HeadingLevel } from "../types";
+import type { AlignAlias, HeadingValues, TextColorAlias, TextStyleProps, HeadingLevel } from "../types";
 import {
   createItemComponent,
   type ItemComponentProps
 } from "../utils/create-component";
 import { mapSemanticProps, type SemanticProps } from "../utils/semantic-props";
+import { sayOnce } from "../utils/render-scope";
 
 /**
  * Heading semantic props — agent-friendly text/style types (replacing the loose
- * `any` flat props) plus the `level` alias and h1–h6 levels.
+ * `any` flat props) plus the `level` and `as` aliases and h1–h6 levels.
  */
 type HeadingSemanticProps = Omit<
   SemanticProps<HeadingValues>,
   keyof TextStyleProps | "headingType"
 > &
-  TextStyleProps & {
+  TextStyleProps &
+  AlignAlias &
+  TextColorAlias & {
     /** Heading level h1–h6. */
     headingType?: HeadingLevel;
-    /** Alias for `headingType`. */
+    /** Alias of `headingType` (which wins where both are given). */
     level?: HeadingLevel;
+    /** Alias of `headingType`, as React Email's `<Heading as="h2">` names it (`headingType` and `level` win over it). */
+    as?: HeadingLevel;
     /** Heading text (or use children). */
     text?: string;
-  };
+  } & HeadingMargins;
+
+/**
+ * Margin shortcuts, as React Email's Heading takes them: its `containerPadding` (the space around it), each side not
+ * given its default (10px). A number is px. An explicit `containerPadding` wins over them.
+ */
+export interface HeadingMargins {
+  /** All four sides. */
+  m?: number | string;
+  /** Left and right. */
+  mx?: number | string;
+  /** Top and bottom. */
+  my?: number | string;
+  mt?: number | string;
+  mr?: number | string;
+  mb?: number | string;
+  ml?: number | string;
+}
 
 /**
  * Heading Component Props
@@ -60,17 +82,31 @@ const DEFAULT_VALUES = {
 const Heading = createItemComponent<HeadingValues, HeadingSemanticProps>({
   name: "Heading",
   defaultValues: DEFAULT_VALUES,
+  // `level` and `as` are `headingType` (see PROP_ALIASES). The editor's exporters write it as the tag's name, so a
+  // level from data could be any tag (one whose text a browser runs as code): one that isn't h1 to h6 is an h1, and said.
   propMapper: (props) => {
-    const { level, ...rest } = props as SemanticProps<HeadingValues> & { level?: HeadingValues["headingType"] };
-    const result = mapSemanticProps(rest as SemanticProps<HeadingValues>, DEFAULT_VALUES, "Heading");
-    // Map level prop to headingType
-    if (level && !result.headingType) {
-      result.headingType = level;
+    const mapped = mapSemanticProps(props as SemanticProps<HeadingValues>, DEFAULT_VALUES, "Heading");
+    if (mapped.headingType !== undefined && !/^h[1-6]$/i.test(String(mapped.headingType))) {
+      sayOnce("[Unlayer] Heading takes a level from h1 to h6: another is an h1.");
+      mapped.headingType = "h1";
     }
-    return result;
+    return mapped;
   },
   displayName: "Heading",
+  // `style` and `className` go on its text element.
+  at: /<[a-z\d]+ [^>]*v-text-align[^>]*>/,
   exporters: HeadingExporters,
 });
+
+/**
+ * The margin shortcuts (`m`, `mx`, `my`, `mt`, `mr`, `mb`, `ml`: a number in px, or CSS) as the spacing around the
+ * heading, its `containerPadding` (sides not given keep 10px), which the design keeps editable. A `containerPadding`
+ * given wins.
+ */
+export function margins({ m, mx, my, mt, mr, mb, ml, ...props }: Record<string, any>): Record<string, any> {
+  if (props.containerPadding !== undefined || [m, mx, my, mt, mr, mb, ml].every((v) => v === undefined)) return props;
+  const sides = [mt ?? my ?? m, mr ?? mx ?? m, mb ?? my ?? m, ml ?? mx ?? m].map((v) => (typeof v === "number" ? `${v}px` : v ?? "10px"));
+  return { ...props, containerPadding: sides.join(" ") };
+}
 
 export default Heading;

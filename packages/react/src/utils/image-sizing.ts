@@ -18,7 +18,7 @@
  *  optional px unit ("12" / "12px"). Non-px units ("1.5em", "calc(…)") return
  *  undefined so the pinning pass leaves them untouched instead of misreading
  *  them as px (SizeInput allows non-px CSS strings). */
-function toPx(value: unknown): number | undefined {
+export function toPx(value: unknown): number | undefined {
   if (typeof value === "number") return Number.isFinite(value) ? value : undefined;
   if (typeof value !== "string") return undefined;
   const m = /^(\d+(?:\.\d+)?)(?:px)?$/.exec(value.trim());
@@ -61,26 +61,14 @@ function borderEdges(border: unknown): { left: number; right: number } {
   };
 }
 
-/** A body `contentWidth` is "fixed px" only when it's a number or a numeric
- *  string with an optional px unit (`600`, `"600px"`, or `"600"`). Percentages
- *  and keywords like `"auto"` are NOT fixed → `undefined`. */
-function fixedContentWidth(contentWidth: unknown): number | undefined {
-  if (typeof contentWidth === "number")
-    return Number.isFinite(contentWidth) ? contentWidth : undefined;
-  if (typeof contentWidth === "string") {
-    const m = /^(\d+(?:\.\d+)?)(?:px)?$/.exec(contentWidth.trim());
-    if (m) return parseFloat(m[1]);
-  }
-  return undefined;
-}
-
 /** Unlayer's body content width fallback when `contentWidth` isn't fixed px. */
 const FALLBACK_BODY_CONTENT_WIDTH = 500;
 /** Unlayer's default content-block padding when a block sets none. */
 export const DEFAULT_CONTAINER_PADDING = "10px";
 
 /**
- * A body `contentWidth` resolved to px: the fixed px value, or `fallback`
+ * A body `contentWidth` resolved to px: the fixed px value (a number, or a numeric string with an optional px unit:
+ * `600`, `"600px"`, `"600"`), or `fallback`
  * (500, Unlayer's base width) for non-px values like `"50%"` / `"auto"`.
  *
  * Shared with Row's grid CSS (`toContentWidthPx`) so the slot geometry here and
@@ -92,7 +80,7 @@ export function bodyContentWidthPx(
   contentWidth: unknown,
   fallback: number = FALLBACK_BODY_CONTENT_WIDTH
 ): number {
-  return fixedContentWidth(contentWidth) ?? fallback;
+  return toPx(contentWidth) ?? fallback;
 }
 
 export interface SlotContext {
@@ -137,7 +125,7 @@ export function contentSlotWidth(ctx: SlotContext): number {
   return colAvail - ip.left - ip.right;
 }
 
-const PERCENT = /^\d+(?:\.\d+)?%$/;
+export const PERCENT = /^\d+(?:\.\d+)?%$/;
 
 /** Round to 2 decimals, matching the editor's percent precision. */
 function round2(n: number): number {
@@ -150,7 +138,8 @@ function round2(n: number): number {
  * Only touches a pinned image (`autoWidth === false`) whose `maxWidth` is a
  * px/number placeholder; a percent `maxWidth` is already canonical and is left
  * as-is, and a responsive image (`autoWidth !== false`) is untouched. A pin
- * wider than the slot clamps to 100%, mirroring the editor.
+ * wider than the slot clamps to 100%, mirroring the editor. The percent is rounded as the editor rounds it (to 2
+ * decimals), in the HTML and the design alike.
  */
 export function pinImageSrc<T extends Record<string, any> | undefined>(
   src: T,

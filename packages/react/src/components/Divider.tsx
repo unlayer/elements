@@ -1,9 +1,10 @@
 import { DividerExporters, DividerDefaults } from "@unlayer/exporters";
-import type { DividerValues, BorderInput } from "../types";
+import { divider } from "../exporters/divider";
+import type { AlignAlias, DividerValues, BorderInput } from "../types";
 import { createItemComponent, type ItemComponentProps } from "../utils/create-component";
 import { mapSemanticProps, type SemanticProps } from "../utils/semantic-props";
 
-type DividerSemanticProps = Omit<SemanticProps<DividerValues>, "border"> & {
+type DividerSemanticProps = Omit<SemanticProps<DividerValues>, "border"> & AlignAlias & {
   /** Per-side border object (width fields accept a number/px string). */
   border?: BorderInput;
 };
@@ -36,7 +37,8 @@ const Divider = createItemComponent<DividerValues, DividerSemanticProps>({
   defaultValues: DEFAULT_VALUES,
   propMapper: (props) => mapSemanticProps(props as SemanticProps<DividerValues>, DEFAULT_VALUES, "Divider"),
   displayName: "Divider",
-  exporters: DividerExporters,
+  // The web and document HTML without react-dom (see exporters/markup.ts).
+  exporters: { ...DividerExporters, web: divider, document: divider },
 });
 
 export default Divider;

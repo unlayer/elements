@@ -3,7 +3,10 @@ import type { TableValues, SizeInput, BorderInput } from "../types";
 import { createItemComponent, type ItemComponentProps } from "../utils/create-component";
 import { mapSemanticProps, type SemanticProps } from "../utils/semantic-props";
 
-type TableSemanticProps = Omit<SemanticProps<TableValues>, "padding" | "border"> & {
+/** Its values, and the editor's merge tag rule its rows repeat by (see the README's UnlayerProvider, mergeTagState). */
+type TableRuleValues = TableValues & { mergeTagGroup?: string; mergeTagRule?: string };
+
+type TableSemanticProps = Omit<SemanticProps<TableRuleValues>, "padding" | "border"> & {
   /** Column headers as string[] */
   headers?: string[];
   /** Row data as 2D string array */
@@ -15,7 +18,7 @@ type TableSemanticProps = Omit<SemanticProps<TableValues>, "padding" | "border">
 };
 
 export interface TableProps
-  extends Omit<ItemComponentProps<Omit<SemanticProps<TableValues>, "padding" | "border">>, "headers" | "data"> {
+  extends Omit<ItemComponentProps<Omit<SemanticProps<TableRuleValues>, "padding" | "border">>, "headers" | "data"> {
   headers?: string[];
   data?: string[][];
   /** Inner padding — a number (→ px) or CSS string. */
@@ -57,6 +60,8 @@ const DEFAULT_VALUES = {
 const Table = createItemComponent<TableValues, TableSemanticProps>({
   name: "Table",
   defaultValues: DEFAULT_VALUES,
+  // Its typed values the editor's defaults leave unset (the body's color and font stand in for them).
+  names: ["headerColor", "headerFontFamily", "contentColor", "contentFontFamily", "contentFontWeight", "contentLetterSpacing", "footerColor", "footerFontFamily", "cellBackgroundColor", "cellColor", "cellPadding", "cellTextAlign", "cellVerticalAlign"],
   propMapper: (props) => {
     // `columns`/`rows` are top-level COUNTS, but the table data lives under the
     // nested `table` group whose keys also include `rows` — so routing the flat
@@ -67,65 +72,22 @@ const Table = createItemComponent<TableValues, TableSemanticProps>({
       rows?: number;
     };
 
-    if (
-      headers ||
-      data ||
-      typeof columns === "number" ||
-      typeof rows === "number"
-    ) {
-      const base: Partial<TableValues> = mapSemanticProps(
-        rest as SemanticProps<TableValues>,
-        DEFAULT_VALUES,
-        "Table"
-      );
-
-      const colCount = headers
-        ? headers.length
-        : typeof columns === "number"
-          ? columns
-          : data?.[0]?.length ?? 0;
-      const blankCells = (n: number) =>
-        Array.from({ length: n }, () => ({ text: "", width: 0 }));
-
-      const tableHeaders = headers
-        ? [{ cells: headers.map((text: string) => ({ text, width: 0 })), height: 0 }]
-        : [];
-
-      const tableRows = data
-        ? data.map((row: string[]) => ({
-            cells: row.map((text: string) => ({ text, width: 0 })),
-            height: 0,
-          }))
-        : typeof rows === "number"
-          ? // No data: build an empty grid sized by `columns` × `rows`.
-            Array.from({ length: rows }, () => ({
-              cells: blankCells(colCount),
-              height: 0,
-            }))
-          : [];
-
-      base.table = { headers: tableHeaders, rows: tableRows, footers: [] };
-
-      if (headers || typeof columns === "number") {
-        base.columns = colCount;
-      }
-      if (headers) {
-        base.enableHeader = true;
-      }
-      if (data) {
-        base.rows = data.length;
-      } else if (typeof rows === "number") {
-        base.rows = rows;
-      }
-
+    if (headers || data || typeof columns === "number" || typeof rows === "number") {
+      const base: Partial<TableValues> = mapSemanticProps(rest as SemanticProps<TableValues>, DEFAULT_VALUES, "Table");
+      const colCount = headers ? headers.length : typeof columns === "number" ? columns : (data?.[0]?.length ?? 0);
+      // A cell from data that isn't a string (JSON's numbers, a year, `0`) is its text; null is none (see mapSemanticProps).
+      const cellsOf = (row: unknown[]) => ({ cells: row.map((text) => ({ text: (text == null ? text : String(text)) as string, width: 0 })), height: 0 });
+      // No data: an empty grid sized by `columns` × `rows`.
+      const tableRows = data ? data.map(cellsOf) : typeof rows === "number" ? Array.from({ length: rows }, () => cellsOf(Array(colCount).fill(""))) : [];
+      base.table = { headers: headers ? [cellsOf(headers)] : [], rows: tableRows, footers: [] };
+      if (headers || typeof columns === "number") base.columns = colCount;
+      if (headers) base.enableHeader = true;
+      if (data) base.rows = data.length;
+      else if (typeof rows === "number") base.rows = rows;
       return base;
     }
 
-    return mapSemanticProps(
-      props as SemanticProps<TableValues>,
-      DEFAULT_VALUES,
-      "Table"
-    );
+    return mapSemanticProps(props as SemanticProps<TableValues>, DEFAULT_VALUES, "Table");
   },
   displayName: "Table",
   exporters: TableExporters,

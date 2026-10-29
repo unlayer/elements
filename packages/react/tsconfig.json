@@ -3,7 +3,18 @@
   "compilerOptions": {
     "jsx": "react-jsx",
     "lib": ["ES2020", "DOM"],
-    "types": ["react", "react-dom", "vitest/globals"]
+    "types": ["react", "react-dom", "vitest/globals"],
+    // The Tailwind entry imports the main one by the package's name (see tsup.config.ts).
+    "paths": {
+      "@unlayer/react-elements": ["./src/index.ts"],
+      "@unlayer/react-elements/tailwind": ["./src/tailwind/index.ts"],
+      "@unlayer/react-elements/code": ["./src/code/index.ts"],
+      "@unlayer/react-elements/markdown": ["./src/markdown/index.ts"],
+      "@unlayer/react-elements/font": ["./src/font/index.tsx"],
+      "@unlayer/react-elements/head": ["./src/head/index.tsx"],
+      "@unlayer/react-elements/async": ["./src/async/index.ts"],
+      "@unlayer/react-elements/codegen": ["./src/codegen/index.ts"]
+    }
   },
   "include": ["src/**/*"],
   "exclude": [

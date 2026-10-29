@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import React from "react";
 import { render } from "@testing-library/react";
 import Body from "./Body";
@@ -8,6 +8,9 @@ import Heading from "./Heading";
 import Paragraph from "./Paragraph";
 import Button from "./Button";
 import { renderToHtml } from "../utils/render-to-html";
+import { renderToJson } from "../utils/render-to-json";
+import Email from "./Email";
+import Link from "./Link";
 
 describe("Column Component", () => {
   it("renders column container with correct ID", () => {
@@ -132,5 +135,101 @@ describe("Column Component", () => {
       </Body>
     );
     expect(html).toContain("padding: 7px 9px");
+  });
+
+  describe("a link or a rule in it, blocks the design can edit", () => {
+    const column = (...children: React.ReactNode[]) => (
+      <Email>
+        <Row>
+          <Column>{children}</Column>
+        </Row>
+      </Email>
+    );
+    const contents = (element: React.ReactElement) => renderToJson(element).body.rows[0].columns[0].contents;
+
+    it("a <Link> is a Paragraph holding it, with the block's own props", () => {
+      const email = column(<Link key="l" href="https://example.com/docs" containerPadding="4px 10px" hideOnMobile>Read the docs</Link>);
+      const html = renderToHtml(email);
+      expect(html).toContain('<a href="https://example.com/docs" target="_blank" rel="noopener">Read the docs</a>');
+      expect(html).toMatch(/padding:4px 10px/);
+      expect(contents(email)).toEqual([
+        expect.objectContaining({
+          type: "text",
+          values: expect.objectContaining({ text: '<a href="https://example.com/docs" target="_blank" rel="noopener">Read the docs</a>', containerPadding: "4px 10px" }),
+        }),
+      ]);
+    });
+
+    it("a <Link> to an email service's <%name%> tag, or with a quote in its text, is a Paragraph too, its URL as written", () => {
+      const email = column(
+        <Link key="u" href="<%asm_group_unsubscribe_raw_url%>">Unsubscribe</Link>,
+        <Link key="q" href="https://example.com">Don't miss "this"</Link>
+      );
+      expect(renderToHtml(email)).toContain('href="<%asm_group_unsubscribe_raw_url%>"');
+      expect(contents(email).map((c) => c.type)).toEqual(["text", "text"]);
+      expect(contents(email)[0].values).toMatchObject({ text: expect.stringContaining('href="<%asm_group_unsubscribe_raw_url%>"') });
+    });
+
+    it("a bare <a> and <hr> as well; other markup is said, and left out", () => {
+      const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+      try {
+        const email = column(
+          <a key="a" href="https://example.com" title="Home">Home</a>,
+          <hr key="hr" />,
+          <span key="s">loose</span>
+        );
+        const html = renderToHtml(email);
+        expect(html).toContain('<a href="https://example.com" title="Home">Home</a>');
+        expect(html).toContain("u_content_divider");
+        expect(html).not.toContain("loose");
+        expect(contents(email).map((c) => c.type)).toEqual(["text", "divider"]);
+        expect([...new Set(warn.mock.calls.map((call) => String(call[0])))]).toEqual(["[Unlayer] Column: <span> isn't a block, so it's left out. Put HTML in an <Html> block."]);
+      } finally {
+        warn.mockRestore();
+      }
+    });
+
+    it("a link with more than text in it, or a styled rule, as an HTML block; a link's other attributes aside, a Paragraph", () => {
+      const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+      try {
+        const email = column(
+          <a key="r" href="https://example.com/receipt" aria-label="Receipt">Download receipt</a>,
+          <a key="l" href="https://example.com"><img src="https://example.com/logo.png" alt="Logo" /></a>,
+          <hr key="hr" style={{ borderTop: "2px dashed #cccccc" }} />
+        );
+        const html = renderToHtml(email);
+        expect(html).toContain('<a href="https://example.com/receipt">Download receipt</a>');
+        expect(html).toContain('<a href="https://example.com"><img src="https://example.com/logo.png" alt="Logo"/></a>');
+        expect(html).toContain('<hr style="border-top:2px dashed #cccccc"/>');
+        expect(contents(email).map((c) => c.type)).toEqual(["text", "html", "html"]);
+        expect(warn).not.toHaveBeenCalled();
+      } finally {
+        warn.mockRestore();
+      }
+    });
+  });
+
+  describe("a block's displayCondition: the editor's, around the block, as its export writes it", () => {
+    const condition = { type: "vip", label: "VIP only", description: "Customers in the VIP list", before: "{% if customer.vip %}", after: "{% endif %}" };
+
+    it("puts the block's HTML between its before and after, the blocks around it outside them", () => {
+      const html = renderToHtml(
+        <Email><Row><Column>
+          <Paragraph>Everyone</Paragraph>
+          <Button href="https://example.com" values={{ displayCondition: condition }}>VIP discount</Button>
+          <Heading>Everyone again</Heading>
+        </Column></Row></Email>
+      );
+      const [before, after] = [html.indexOf(condition.before), html.indexOf(condition.after)];
+      expect(html.indexOf("Everyone")).toBeLessThan(before);
+      expect(html.slice(before, after)).toContain("VIP discount");
+      expect(html.indexOf("Everyone again")).toBeGreaterThan(after);
+      expect(html.split(condition.before)).toHaveLength(2);
+    });
+
+    it("leaves a block without one as it was", () => {
+      const block = (values?: Record<string, unknown>) => <Email><Row><Column><Paragraph values={values}>Hi</Paragraph></Column></Row></Email>;
+      expect(renderToHtml(block({ displayCondition: null }))).toBe(renderToHtml(block()));
+    });
   });
 });

@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import React from "react";
 import { render } from "@testing-library/react";
 import Button from "./Button";
@@ -6,8 +6,23 @@ import Body from "./Body";
 import Row from "./Row";
 import { Column } from "./Column";
 import { renderToJson } from "../utils/render-to-json";
+import * as Roots from "../index";
 
+
+/** A block given a link of null (nullable data) and the same block given none, in each root: the HTML and the design. */
+function asNone(withNull: React.ReactElement, without: React.ReactElement) {
+  for (const Root of [Roots.Email, Roots.Page, Roots.Document]) {
+    const tree = (block: React.ReactElement) => <Root><Roots.Row><Roots.Column>{block}</Roots.Column></Roots.Row></Root>;
+    expect(Roots.renderToHtml(tree(withNull)), Root.displayName).toBe(Roots.renderToHtml(tree(without)));
+    expect(Roots.renderToJson(tree(withNull))).toEqual(Roots.renderToJson(tree(without)));
+  }
+}
 describe("Button Component", () => {
+  it("takes an `href` or `action` of null (nullable data) as none, in each root", () => {
+    asNone(<Button href={null as never}>Go</Button>, <Button>Go</Button>);
+    asNone(<Button action={null as never}>Go</Button>, <Button>Go</Button>);
+  });
+
   it("renders an anchor element with button text", () => {
     const { container } = render(<Button>Click me</Button>);
     const link = container.querySelector("a");
@@ -161,6 +176,41 @@ describe("Button Component", () => {
       expect(() =>
         buttonSize(<Button values={{ size: "nonsense" } as any}>x</Button>)
       ).not.toThrow();
+    });
+  });
+
+  describe("target", () => {
+    const link = (element: React.ReactElement) => renderToJson(
+      <Body>
+        <Row>
+          <Column>{element}</Column>
+        </Row>
+      </Body>
+    ).body.rows[0].columns[0].contents[0].values.href;
+
+    it("a flat `target` is the link's, in the HTML and the design", () => {
+      const { container } = render(<Button href="https://example.com" target="_self">Go</Button>);
+      expect(container.querySelector("a")!.getAttribute("target")).toBe("_self");
+      expect(link(<Button href="https://example.com" target="_self">Go</Button>)).toEqual({ name: "web", values: { href: "https://example.com", target: "_self" } });
+    });
+
+    it("a new tab (`_blank`) for one that could end its HTML attribute or start a tag, said", () => {
+      const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+      try {
+        const hostile = '"><img src=x onerror=alert(1)>';
+        const { container } = render(<Button href="https://example.com" target={hostile}>Go</Button>);
+        expect([container.querySelector("a")!.getAttribute("target"), container.querySelectorAll("img").length]).toEqual(["_blank", 0]);
+        expect(link(<Button href="https://example.com" target={hostile}>Go</Button>)).toEqual({ name: "web", values: { href: "https://example.com", target: "_blank" } });
+        expect(warn).toHaveBeenCalledWith(`[Unlayer] Button's target ${JSON.stringify(hostile)} could end its HTML attribute or start a tag, so the link opens in a new tab (_blank).`);
+      } finally {
+        warn.mockRestore();
+      }
+    });
+
+    it("a new tab (`_blank`) without one, as before", () => {
+      const { container } = render(<Button href="https://example.com">Go</Button>);
+      expect(container.querySelector("a")!.getAttribute("target")).toBe("_blank");
+      expect(link(<Button href="https://example.com">Go</Button>)).toEqual({ name: "web", values: { href: "https://example.com", target: "_blank" } });
     });
   });
 });

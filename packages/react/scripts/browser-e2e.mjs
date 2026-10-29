@@ -9,12 +9,12 @@
 // BUILT dist (the artifact we ship), loads each one into headless Chromium,
 // and asserts on the browser's computed output:
 //
-//   1. Document contract — every <p> computes to zero margins (all four:
-//      margin-top/bottom and margin-block-start/end; browsers default <p>
-//      to 1em block margins and email clients strip <head> resets, so the
-//      inline reset must win), exactly one <body> in the parsed DOM,
-//      <title> parsed, head <style> applied, links render, no console or
-//      page errors.
+//   1. Document contract — every Paragraph renders, every <p> computes to
+//      zero margins (all four: margin-top/bottom and margin-block-start/end;
+//      browsers default <p> to 1em block margins: the head's base stylesheet
+//      resets them, as the editor's export does), exactly one <body> in the
+//      parsed DOM, <title> parsed, head <style> applied, links render, no
+//      console or page errors.
 //   2. Responsive — a three-column row lays out side-by-side at desktop
 //      width and stacks to full-width columns below the mobile breakpoint
 //      (web: 480px device breakpoint; email: contentWidth + 20px), in both
@@ -107,6 +107,7 @@ function tree(Root) {
         h(Heading, null, "Browser E2E"),
         h(Paragraph, null, "First paragraph."),
         h(Paragraph, null, "Second paragraph."),
+        h(Paragraph, { html: "<p>Markup paragraph one.</p><p>Markup paragraph two.</p>" }),
         h(Image, { src: IMAGE_SRC, width: `${IMAGE_DISPLAY_WIDTH}px`, alt: "Product logo" }),
         h(Divider, null),
         h(Button, BUTTON_PROPS, "Call to action")
@@ -151,6 +152,7 @@ async function inspect(page, html) {
   const facts = await page.evaluate(() => {
     const ps = [...document.querySelectorAll("p")];
     return {
+      blockCount: document.querySelectorAll('[id^="u_content_paragraph_"]').length,
       title: document.title,
       bodyCount: document.querySelectorAll("body").length,
       headStyleCount: document.head.querySelectorAll("style").length,
@@ -182,7 +184,8 @@ async function checkDocuments(page) {
     if (facts.bodyCount !== 1) problems.push(`${facts.bodyCount} <body> elements in the DOM, expected exactly 1`);
     if (facts.headStyleCount < 1) problems.push("no <style> in <head>");
     if (facts.linkCount < 1) problems.push("no rendered links");
-    if (facts.paragraphCount < 5) problems.push(`only ${facts.paragraphCount} <p> elements rendered, expected >= 5`);
+    if (facts.blockCount < 6) problems.push(`only ${facts.blockCount} Paragraphs rendered, expected >= 6`);
+    if (facts.paragraphCount < 2) problems.push(`only ${facts.paragraphCount} <p> elements rendered, expected >= 2`);
     for (const p of facts.badParagraphs) {
       problems.push(`<p> "${p.text}" has non-zero computed margins: ${p.margins.join(", ")}`);
     }
@@ -190,7 +193,7 @@ async function checkDocuments(page) {
     if (facts.pageErrors.length) problems.push(`page errors: ${facts.pageErrors.join(" | ")}`);
 
     if (problems.length) fail(`document:${name}`, problems);
-    else pass(`document:${name}`, `1 body, ${facts.paragraphCount} paragraphs at 0px margins, title + styles + links OK`);
+    else pass(`document:${name}`, `1 body, ${facts.blockCount} Paragraphs, ${facts.paragraphCount} <p> at 0px margins, title + styles + links OK`);
   }
 }
 
@@ -312,10 +315,10 @@ async function checkRtl(page) {
 
   const facts = await page.evaluate(() => ({
     htmlDir: document.documentElement.getAttribute("dir"),
-    paragraphDirection: getComputedStyle(document.querySelector("p")).direction,
+    paragraphDirection: getComputedStyle(document.querySelector('[id^="u_content_paragraph_"] div.v-color')).direction,
   }));
   if (facts.htmlDir !== "rtl") problems.push(`<html dir> is ${JSON.stringify(facts.htmlDir)}, expected "rtl"`);
-  if (facts.paragraphDirection !== "rtl") problems.push(`computed <p> direction is ${facts.paragraphDirection}, expected rtl`);
+  if (facts.paragraphDirection !== "rtl") problems.push(`computed Paragraph direction is ${facts.paragraphDirection}, expected rtl`);
 
   if (problems.length) fail("rtl", problems);
   else pass("rtl", "textDirection propagates to computed rtl direction");
@@ -343,7 +346,7 @@ async function collectStyleFacts(page) {
       const columns = [...document.querySelectorAll("#u_row_1 .u-col")].map((c) => Math.round(c.getBoundingClientRect().width));
       return {
         heading: pick(document.querySelector("h1"), textProps),
-        firstParagraph: pick(document.querySelector("#u_row_2 p"), textProps),
+        firstParagraph: pick(document.querySelector('#u_row_2 [id^="u_content_paragraph_"] div.v-color'), textProps),
         button: pick(document.querySelector('a[href="https://example.com"]'), [...textProps, ...boxProps]),
         columnWidths: columns,
       };
@@ -536,7 +539,7 @@ async function checkPrint(page) {
     const rect = heading?.getBoundingClientRect();
     return {
       headingVisible: !!rect && rect.width > 0 && rect.height > 0,
-      paragraphCount: document.querySelectorAll("p").length,
+      paragraphCount: document.querySelectorAll('[id^="u_content_paragraph_"]').length,
     };
   });
   await page.emulateMedia({ media: "screen" });

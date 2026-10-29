@@ -3,7 +3,7 @@ import fs from "node:fs";
 import path from "node:path";
 import React from "react";
 import { renderToHtml, renderToJson } from "@unlayer/react-elements";
-import { Column, Row, Section, Tailwind, Text } from "@react-email/components";
+import { Body, Column, Container, Html, Row, Section, Tailwind, Text } from "@react-email/components";
 import { compareText, convertReactEmail, convertSource, expand, htmlWords, verifyConversion } from "../src/index";
 import { htmlAttributes } from "@unlayer/convert-core";
 import { color } from "../src/styles";
@@ -38,6 +38,38 @@ describe.each(TEMPLATES)("%s", (name) => {
     } finally {
       fs.rmSync(dir, { recursive: true, force: true });
     }
+  });
+});
+
+describe("space around a content box (a container's margins)", () => {
+  // The gap above and below a container shows the page's background, outside the rows' content box. It folds into
+  // the Row's `padding`, which is outside its content box (as in the editor): in the columns it would take the
+  // content's paint (the dark header grown 24px). Fidelity compares words, not backgrounds, so the design itself is
+  // checked.
+  const h = React.createElement;
+  const Template = () =>
+    h(Html, null,
+      h(Body, { style: { backgroundColor: "#f5f5f5", margin: 0 } },
+        h(Container, { style: { margin: "24px auto", maxWidth: "600px", backgroundColor: "#ffffff" } },
+          h(Section, { style: { backgroundColor: "#171717", padding: "28px 32px" } }, h(Text, { style: { margin: 0, color: "#ffffff" } }, "Header")),
+          h(Section, { style: { padding: "24px 32px" } }, h(Text, { style: { margin: 0 } }, "Body")),
+          h(Section, { style: { backgroundColor: "#fafafa", padding: "24px 32px" } }, h(Text, { style: { margin: 0 } }, "Footer")))));
+
+  it("stays row-level padding outside the content box, above the first row and below the last", async () => {
+    const conversion = await convertReactEmail(Template);
+    const rows = conversion.design().body.rows;
+    const [first, last] = [rows[0], rows[rows.length - 1]];
+    expect(first.values).toMatchObject({ columnsBackgroundColor: "#171717", padding: "24px 0px 0px 0px" });
+    expect(first.columns[0].values.padding).toBe("28px 32px 28px 32px");
+    expect(last.values).toMatchObject({ columnsBackgroundColor: "#fafafa", padding: "0px 0px 24px 0px" });
+    expect(last.columns[0].values.padding).toBe("24px 32px 24px 32px");
+    const tsx = await conversion.tsx();
+    expect(tsx).toContain('<Row columnsBackgroundColor="#171717" padding="24px 0px 0px 0px">');
+    expect(tsx).toContain('<Row columnsBackgroundColor="#fafafa" padding="0px 0px 24px 0px">');
+    // In the HTML, on the rows' outer containers: the dark and gray boxes don't take the gaps.
+    const html = conversion.html();
+    expect(html).toMatch(/class="u-row-container[^"]*" style="padding: 24px 0px 0px 0px;[^"]*"/);
+    expect(html).toMatch(/class="u-row-container[^"]*" style="padding: 0px 0px 24px 0px;[^"]*"/);
   });
 });
 

@@ -10,8 +10,9 @@
  * - TypeScript provides autocomplete for ALL properties (flat and nested)
  */
 
-import type { DeviceProps } from "../types";
+import type { DeviceProps, ValuesInput } from "../types";
 import { cssSafeValues, normalizeCssValues } from "./css-values";
+import { entities } from "./entities";
 import { textToTextJson, htmlToTextJson } from "./lexical-helpers";
 
 /**
@@ -37,9 +38,13 @@ type FlattenObjectProps<T> = T extends object
  * Semantic props type for any component.
  * Generic TChildren parameter allows each framework to supply its own child type.
  */
-export type SemanticProps<T, TChildren = any> = Omit<FlattenObjectProps<T>, keyof DeviceProps> & DeviceProps & {
+export type SemanticProps<T, TChildren = any> = Omit<FlattenObjectProps<T>, keyof DeviceProps | "values"> & DeviceProps & {
   children?: TChildren;
-  values?: T; // Escape hatch for full control
+  /**
+   * Escape hatch for full control: the builder's values, as many as you set (the defaults fill in the rest). Its keys
+   * are checked, its values passed on as they are; the flat props are the typed way to set one.
+   */
+  values?: ValuesInput<T>;
   /** HTML string with inline formatting for Paragraph (e.g. `'Hello <b>bold</b>'`) */
   html?: string;
 };
@@ -50,34 +55,29 @@ export type SemanticProps<T, TChildren = any> = Omit<FlattenObjectProps<T>, keyo
  * Results are cached per defaultValues object reference to avoid recomputing
  * on every render.
  */
-const nestedStructureCache = new WeakMap<object, Map<string, Set<string>>>();
+interface NestedStructure {
+  /** Each nested object's key, with its keys. */
+  groups: Map<string, Set<string>>;
+  /** A key of a nested object (flat, as a prop): the first nested object that has it. */
+  owners: Map<string, string>;
+}
 
-function analyzeNestedStructure(defaultValues: any): Map<string, Set<string>> {
-  const cached = nestedStructureCache.get(defaultValues);
-  if (cached) return cached;
+const nestedStructureCache = new WeakMap<object, NestedStructure>();
 
-  const nestedGroups = new Map<string, Set<string>>();
-
-  for (const [key, value] of Object.entries(defaultValues)) {
-    // Skip special keys
-    if (key === "_meta" || key === "text" || key === "textJson" || key === "children") {
-      continue;
+function analyzeNestedStructure(defaultValues: any): NestedStructure {
+  let structure = nestedStructureCache.get(defaultValues);
+  if (!structure) {
+    const groups = new Map<string, Set<string>>();
+    const owners = new Map<string, string>();
+    // A nested object: a plain object (not an array, not null) with keys; special keys aside.
+    for (const [key, value] of Object.entries(defaultValues)) {
+      if (!/^(_meta|text|textJson|children)$/.test(key) && value && typeof value === "object" && !Array.isArray(value) && Object.keys(value).length) groups.set(key, new Set(Object.keys(value)));
     }
-
-    // Check if this is a nested object (plain object, not array, not null)
-    if (
-      value &&
-      typeof value === "object" &&
-      !Array.isArray(value) &&
-      Object.keys(value).length > 0
-    ) {
-      const props = new Set(Object.keys(value));
-      nestedGroups.set(key, props);
-    }
+    for (const [group, keys] of groups) for (const key of keys) if (!owners.has(key)) owners.set(key, group);
+    structure = { groups, owners };
+    nestedStructureCache.set(defaultValues, structure);
   }
-
-  nestedStructureCache.set(defaultValues, nestedGroups);
-  return nestedGroups;
+  return structure;
 }
 
 /**
@@ -94,36 +94,20 @@ function analyzeNestedStructure(defaultValues: any): Map<string, Set<string>> {
  * - `lineHeight: 1.4` → `"1.4"` (the field is typed as a string; unitless
  *   line-height is valid CSS).
  */
-const PX_SIZE_KEYS = [
-  "fontSize",
-  "padding",
-  "containerPadding",
-  "borderRadius",
-  "letterSpacing",
-] as const;
+/** A unit-less number as text ("20", " 0 "): read as px where a size takes one. */
+const BARE_NUMBER = /^\s*\d+\s*$/;
+
+const SIZES = ["fontSize", "padding", "containerPadding", "borderRadius", "letterSpacing"];
 
 function normalizeCssProps(props: Record<string, any>): void {
-  if (typeof props.fontFamily === "string") {
-    const v = props.fontFamily;
-    props.fontFamily = { label: v, value: v };
-  }
-  if (
-    typeof props.fontWeight === "string" &&
-    /^\d+$/.test(props.fontWeight.trim())
-  ) {
-    props.fontWeight = Number(props.fontWeight.trim());
-  }
-  if (typeof props.lineHeight === "number") {
-    props.lineHeight = String(props.lineHeight);
-  }
-  for (const key of PX_SIZE_KEYS) {
+  const { fontFamily, fontWeight } = props;
+  if (typeof fontFamily === "string") props.fontFamily = { label: fontFamily, value: fontFamily };
+  if (typeof fontWeight === "string" && BARE_NUMBER.test(fontWeight)) props.fontWeight = Number(fontWeight);
+  if (typeof props.lineHeight === "number") props.lineHeight = String(props.lineHeight);
+  // A bare number (28) or a unit-less numeric string ("0", "20") → "<n>px".
+  for (const key of SIZES) {
     const v = props[key];
-    // bare number (28) or a unit-less numeric string ("0", "20") → "<n>px"
-    if (typeof v === "number") {
-      props[key] = `${v}px`;
-    } else if (typeof v === "string" && /^\d+$/.test(v.trim())) {
-      props[key] = `${v.trim()}px`;
-    }
+    if (typeof v === "number" || (typeof v === "string" && BARE_NUMBER.test(v))) props[key] = `${String(v).trim()}px`;
   }
 }
 
@@ -139,6 +123,7 @@ export function escapeText(text: string, quotes?: boolean): string {
  * did in this text: the service fills it in. `<%` can't start an element, so it adds no markup.
  */
 export function escapeKeepingTags(text: string, quotes?: boolean, escape = (part: string) => escapeText(part, quotes)): string {
+  if (!text.includes("<%")) return escape(text);
   return text
     .split(/(<%[\w.]+%>)/)
     .map((part, i) => (i % 2 ? part : escape(part)))
@@ -162,14 +147,17 @@ const menuText = (text: string) =>
  * Inline formatting is not preserved — use the `html` prop for rich text.
  */
 function flattenChildrenText(node: any, breaks?: boolean): string {
-  if (node == null || typeof node === "boolean") return "";
-  if (typeof node === "string") return node;
-  if (typeof node === "number") return String(node);
+  if (typeof node === "string" || typeof node === "number") return String(node);
   if (Array.isArray(node)) return node.map((child) => flattenChildrenText(child, breaks)).join("");
-  if (typeof node === "object" && "props" in node) {
-    return breaks && node.type === "br" ? "<br/>" : flattenChildrenText(node.props?.children, breaks);
-  }
-  return "";
+  // (null, booleans, undefined and functions show nothing, as in React.)
+  if (!node || typeof node !== "object") return "";
+  if ("props" in node) return breaks && node.type === "br" ? "<br/>" : flattenChildrenText(node.props?.children, breaks);
+  // A Set or another collection, as React renders one; React's own objects (a portal, a lazy element) show nothing.
+  if (typeof node[Symbol.iterator] === "function") return Array.from(node as Iterable<unknown>, (child) => flattenChildrenText(child, breaks)).join("");
+  if ("$$typeof" in node) return "";
+  // A date or another object isn't text: the render fails, as React's does (`{String(order.createdAt)}` is text).
+  const found = Object.prototype.toString.call(node) === "[object Object]" ? `object with keys {${Object.keys(node).join(", ")}}` : Object.prototype.toString.call(node);
+  throw new Error(`Objects are not valid as a React child (found: ${found}). If you meant to render a collection of children, use an array instead`);
 }
 
 /**
@@ -178,11 +166,129 @@ function flattenChildrenText(node: any, breaks?: boolean): string {
  * written `<br>` in a string (as it worked before) or as a JSX `<br />`.
  */
 function childrenHtml(children: any): string {
-  return flattenChildrenText(children, true)
+  const text = flattenChildrenText(children, true);
+  if (!text.includes("<")) return escapeKeepingTags(text);
+  return text
     .split(/(<br\s*\/?>)/i)
     .map((part, i) => (i % 2 ? "<br/>" : escapeKeepingTags(part)))
     .join("");
 }
+
+const ALIGN = { align: "textAlign" };
+const TEXT = { ...ALIGN, textColor: "color" };
+/**
+ * Names authors (and agents) reach for, from CSS or React Email, where a component's prop has another, by component:
+ * each the props it stands for (a Menu's `color` is its items', linked or not). Only where it can mean nothing else;
+ * the component's own prop wins over it, and an earlier name over a later one (a Heading's `level` over `as`).
+ */
+export const PROP_ALIASES: Record<string, Record<string, string>> = {
+  Menu: { color: "textColor linkColor", textAlign: "align" },
+  Social: { textAlign: "align" },
+  Paragraph: TEXT,
+  // `as`: React Email's.
+  Heading: { ...TEXT, level: "headingType", as: "headingType" },
+  Button: TEXT,
+  Image: ALIGN,
+  Divider: ALIGN,
+};
+
+const LINK_KEYS = ["href", "action"] as const;
+
+const JAVASCRIPT_URL = /^[\u0000-\u001F ]*j[\r\n\t]*a[\r\n\t]*v[\r\n\t]*a[\r\n\t]*s[\r\n\t]*c[\r\n\t]*r[\r\n\t]*i[\r\n\t]*p[\r\n\t]*t[\r\n\t]*:/i;
+
+/**
+ * A URL that can't run code: a `javascript:` URL as React 19 tells one (controls and spaces before it, tabs and line
+ * breaks in it, any case) as the one react-dom 19 writes for it, which throws; any other as it is, byte for byte.
+ * `raw`: one written into an attribute as it is (the editor's exporters write a link's URL so), which a browser reads
+ * with its character references decoded (`&#106;avascript:`, `javascript&colon;`), as it's read here then; React
+ * escapes its own (`&` as `&amp;`), so a reference in one stays text.
+ */
+export const unrunUrl = (url: string, raw?: boolean): string => (JAVASCRIPT_URL.test(raw ? entities(url) : url) ? "javascript:throw new Error('React has blocked a javascript: URL as a security precaution.')" : url);
+
+/**
+ * A link of any shape (`"…"`, `{ url, customAttrs }`, `{ name, values: { href }, attrs: { href } }`) with its URLs as
+ * unrunUrl writes them (a list or a number as its text).
+ */
+function unrunLink(link: any): any {
+  const unrun = (url: unknown) => unrunUrl(String(url), true);
+  const blocked = (url: unknown) => url != null && unrun(url) !== String(url);
+  if (typeof link !== "object" || link === null) return blocked(link) ? unrun(link) : link;
+  if (blocked(link.url)) link = { ...link, url: unrun(link.url) };
+  for (const key of ["values", "attrs", "customAttrs"]) if (blocked(link[key]?.href)) link = { ...link, [key]: { ...link[key], href: unrun(link[key].href) } };
+  return link;
+}
+
+/**
+ * A video's id, which a page's and a document's player writes into its `src="https://www.youtube.com/embed/…"` (or
+ * Vimeo's) as it is: what an id doesn't hold (the editor's are letters, digits, `.`, `_`, `%` and `-`, a Vimeo one's
+ * with a `/`) is percent-encoded, so an id from data (`abc" onload="…`) can't end the attribute. One that isn't a
+ * string or a number (an array from a JSON body) is its text.
+ */
+export function safeVideoId(id: unknown): unknown {
+  if (id == null || typeof id === "number") return id;
+  const encode = (c: string) => {
+    try {
+      // (`encodeURIComponent` keeps `!'()*~`: they're encoded too.)
+      return encodeURIComponent(c).replace(/[!'()*~]/g, (k) => `%${k.charCodeAt(0).toString(16).toUpperCase()}`);
+    } catch {
+      // (A lone surrogate, which has no UTF-8: U+FFFD's.)
+      return "%EF%BF%BD";
+    }
+  };
+  const safe = String(id).replace(/[^A-Za-z0-9._%/-]/gu, encode);
+  return safe === id ? id : safe;
+}
+
+/**
+ * A block's values with no link URL that runs code (see unrunUrl), in the HTML and the design alike: its `href` and
+ * `action` (Button, Image, Video), a Video's URL (an email's link to it), a Menu's items' links and a Social's icons'
+ * URLs, however they were given. The editor's exporters write those links as they are, in every mode (0.2.1 did too).
+ * A Video's id too, which they write into its player's URL as it is (see safeVideoId).
+ */
+export function unrunLinks<T>(values: T, name: string): T {
+  if (!values || typeof values !== "object") return values;
+  const out: Record<string, any> = { ...values };
+  for (const key of LINK_KEYS) if (out[key] != null) out[key] = unrunLink(out[key]);
+  if (name === "Video" && out.video && typeof out.video === "object" && out.video.url != null) out.video = { ...out.video, url: unrunLink(out.video.url) };
+  if (name === "Video" && out.video && typeof out.video === "object" && safeVideoId(out.video.videoId) !== out.video.videoId) out.video = { ...out.video, videoId: safeVideoId(out.video.videoId) };
+  if (name === "Menu" && Array.isArray(out.menu?.items)) out.menu = { ...out.menu, items: out.menu.items.map((item: any) => (item?.link != null ? { ...item, link: unrunLink(item.link) } : item)) };
+  if (name === "Social" && Array.isArray(out.icons?.icons)) out.icons = { ...out.icons, icons: out.icons.icons.map((icon: any) => (icon?.url != null ? { ...icon, url: unrunLink(icon.url) } : icon)) };
+  return out as T;
+}
+
+/**
+ * A link's target, which the exporters write into a `target="…"` as it is: one that could end the attribute or start
+ * a tag (`"`, `'`, `<`, `>`, a backtick), or that isn't a string (an array from a JSON body, written as its text), is
+ * a new tab (`_blank`) instead.
+ */
+const safeTarget = (target: unknown) => (target != null && (typeof target !== "string" || /["'<>`]/.test(target)) ? "_blank" : target);
+
+/**
+ * A link in the schema's storage shape: `"https://…"` is `{ name: "web", values: { href, target } }` (`target`, the
+ * component's, a new tab where it gives none), and a link given in `attrs` has its `href` and `target` in `values`.
+ */
+function canonicalizeLink(v: any, target: string): any {
+  if (typeof v === "string") return { name: "web", values: { href: v, target } };
+  if (!(v && typeof v === "object" && "name" in v && v.attrs && typeof v.attrs === "object")) return v;
+  const { href, target: attrsTarget, ...attrs } = v.attrs;
+  if (href === undefined && attrsTarget === undefined) return v;
+  const values = { ...(v.values as Record<string, any> | undefined) };
+  if (!values.href && href !== undefined) values.href = href;
+  if (!values.target && attrsTarget !== undefined) values.target = attrsTarget;
+  const { attrs: _attrs, ...next } = v;
+  return Object.keys(attrs).length ? { ...next, values, attrs } : { ...next, values };
+}
+
+/** The props an alias stands for (`"textColor linkColor"`), split once. */
+const aliasLists = new Map<string, string[]>();
+function aliasesOf(names: string): string[] {
+  let list = aliasLists.get(names);
+  if (!list) aliasLists.set(names, (list = names.split(" ")));
+  return list;
+}
+
+/** Whether a prop holds a block's content (its text or markup, a table's cells), not a style: one given as `null` is none. */
+export const isContentProp = (key: string): boolean => /^(text|html|headers|data)$/.test(key);
 
 /**
  * Universal semantic props mapper
@@ -198,11 +304,18 @@ export function mapSemanticProps<T extends Record<string, any>>(
   defaultValues: T,
   componentType: string
 ): T {
-  const { children, values, mobile, hideOnMobile: hideMobileProp, hideOnDesktop: hideDesktopProp, ...restProps } = props;
+  const { children, values, mobile, hideOnMobile: hideMobileProp, hideOnDesktop: hideDesktopProp, ...rest } = props;
+  const userProps: Record<string, any> = rest;
   // The editor hides rows and content on a device, never a column.
   const hideOnMobile = componentType === "Column" ? undefined : hideMobileProp;
   const hideOnDesktop = componentType === "Column" ? undefined : hideDesktopProp;
-  const userProps: any = { ...restProps };
+  const aliases = PROP_ALIASES[componentType];
+  if (aliases)
+    for (const alias in aliases) {
+      if (!(alias in userProps)) continue;
+      for (const prop of aliasesOf(aliases[alias])) userProps[prop] ??= userProps[alias];
+      delete userProps[alias];
+    }
 
   // Start with escape hatch if provided
   const result: any = values ? { ...values } : {};
@@ -212,18 +325,11 @@ export function mapSemanticProps<T extends Record<string, any>>(
   // Note: editor-types codegen renamed text→textJson for Button/Heading but
   // the exporter still uses plain text at runtime via generateHtmlFromTextJson
   if (children !== undefined && !result.text && !result.textJson) {
-    const textContent =
-      typeof children === "string" ? children : flattenChildrenText(children);
-    if (componentType === "Paragraph") {
-      result.textJson = textToTextJson(textContent);
-    } else if (componentType === "Heading" || componentType === "Button") {
-      // Children are text, as in React (and as Paragraph's are): markup in them
-      // shows as typed, so a value like a user's name can't inject HTML, but a
-      // line break stays one. The `text` prop still takes HTML.
-      result.text = childrenHtml(children);
-    } else {
-      result.text = textContent;
-    }
+    const textContent = flattenChildrenText(children);
+    // Heading and Button children are text, as in React (and as Paragraph's are): markup in them shows as typed, so a
+    // value like a user's name can't inject HTML, but a line break stays one. The `text` prop still takes HTML.
+    if (componentType === "Paragraph") result.textJson = textToTextJson(textContent);
+    else result.text = componentType === "Heading" || componentType === "Button" ? childrenHtml(children) : textContent;
   }
 
   // Paragraph: auto-convert `text` → `textJson` (Lexical JSON)
@@ -231,13 +337,9 @@ export function mapSemanticProps<T extends Record<string, any>>(
   // making it a drop-in replacement for the legacy Text component.
   // - values.text (escape hatch) = legacy HTML → use htmlToTextJson (preserves HTML)
   // - text prop (API) = plain text → use textToTextJson (wraps in Lexical JSON)
-  const textFromEscapeHatch = result.text;
-  const textFromProp = userProps.text;
-  const textProp = textFromEscapeHatch || textFromProp;
+  const textProp = result.text || userProps.text;
   if (componentType === "Paragraph" && textProp && !result.textJson) {
-    result.textJson = textFromEscapeHatch
-      ? htmlToTextJson(String(textProp))
-      : textToTextJson(String(textProp));
+    result.textJson = (result.text ? htmlToTextJson : textToTextJson)(String(textProp));
     delete result.text;
     delete userProps.text;
   }
@@ -261,27 +363,16 @@ export function mapSemanticProps<T extends Record<string, any>>(
   //    renderToHtml. Genuine custom attrs (class, data-*, …) are preserved.
   // Applied to both the flat prop and the `values` escape hatch. (Render-time
   // `normalizeLinkValue` also reads `attrs` as a defensive fallback.)
-  const canonicalizeLink = (v: any): any => {
-    if (typeof v === "string") {
-      return { name: "web", values: { href: v, target: "_blank" } };
-    }
-    if (v && typeof v === "object" && "name" in v && v.attrs && typeof v.attrs === "object") {
-      const { href: attrsHref, target: attrsTarget, ...customAttrs } = v.attrs;
-      if (attrsHref !== undefined || attrsTarget !== undefined) {
-        const linkValues = { ...(v.values as Record<string, any> | undefined) };
-        if (!linkValues.href && attrsHref !== undefined) linkValues.href = attrsHref;
-        if (!linkValues.target && attrsTarget !== undefined) linkValues.target = attrsTarget;
-        const next: Record<string, any> = { ...v, values: linkValues };
-        if (Object.keys(customAttrs).length) next.attrs = customAttrs;
-        else delete next.attrs;
-        return next;
-      }
-    }
-    return v;
-  };
-  for (const key of ["href", "action"] as const) {
-    if (userProps[key] !== undefined) userProps[key] = canonicalizeLink(userProps[key]);
-    if (result[key] !== undefined) result[key] = canonicalizeLink(result[key]);
+  // A flat `target` (Button, Link) is the link's: a new tab only where none is given (or where it's one that could end
+  // its attribute or isn't a string, said).
+  const target = safeTarget(userProps.target ?? "_blank") as string;
+  if (target !== (userProps.target ?? "_blank")) console.warn(`[Unlayer] ${componentType}'s target ${typeof userProps.target === "string" ? `${JSON.stringify(userProps.target)} could end its HTML attribute or start a tag` : "isn't text"}, so the link opens in a new tab (_blank).`);
+  if ("target" in userProps) delete userProps.target;
+  for (const key of LINK_KEYS) {
+    // A link given as null (nullable data) is none, as one left out is.
+    if (userProps[key] === null) delete userProps[key];
+    if (userProps[key] !== undefined) userProps[key] = canonicalizeLink(userProps[key], target);
+    if (result[key] !== undefined) result[key] = canonicalizeLink(result[key], target);
   }
 
   // Normalize CSS-idiom prop values to the shapes the exporters expect. Authors
@@ -293,94 +384,54 @@ export function mapSemanticProps<T extends Record<string, any>>(
   normalizeCssProps(userProps);
 
   // Analyze default values to detect nested object structure
-  const nestedGroups = analyzeNestedStructure(defaultValues);
+  const { groups: nestedGroups, owners } = analyzeNestedStructure(defaultValues);
 
-  // Separate flat props from potential nested props
+  // Separate flat props from potential nested props: a nested object as given, a key of one (flat) in it.
   const nested: Record<string, any> = {};
   const flat: Record<string, any> = {};
-
-  for (const [key, value] of Object.entries(userProps)) {
-    if (value === undefined) continue;
-
-    // Check if user already provided a nested object
-    if (nestedGroups.has(key)) {
-      // User passed the nested object directly
-      nested[key] = value;
-      continue;
-    }
-
-    // Check if this prop belongs to any nested group
-    let belongsToGroup = false;
-    for (const [groupName, groupProps] of nestedGroups.entries()) {
-      if (groupProps.has(key)) {
-        // This flat prop should be grouped
-        nested[groupName] = nested[groupName] || {};
-        nested[groupName][key] = value;
-        belongsToGroup = true;
-        break;
-      }
-    }
-
-    if (!belongsToGroup) {
-      // Regular flat prop
-      flat[key] = value;
+  for (const key of Object.keys(userProps)) {
+    const value = userProps[key];
+    // (A style prop given as `null`, as data gives one it hasn't, is one not given: `color: ;` isn't a color. A content
+    // prop given as `null` is no content, as in 0.2.1, not the block's placeholder.)
+    if (value === undefined || (value === null && !isContentProp(key))) continue;
+    if (nestedGroups.has(key)) nested[key] = value;
+    else {
+      const group = owners.get(key);
+      if (group) (nested[group] ||= {})[key] = value;
+      else flat[key] = value;
     }
   }
 
   // Merge everything: escape hatch < flat props < nested groups
-  const final: any = {
-    ...result,
-    ...flat
-  };
+  const final: any = { ...result, ...flat };
 
   // Merge nested groups (preserve existing from escape hatch)
-  for (const [groupName, groupValues] of Object.entries(nested)) {
-    if (Object.keys(groupValues).length > 0) {
-      final[groupName] = {
-        ...result[groupName],
-        ...groupValues
-      };
-    }
+  for (const groupName in nested) {
+    const groupValues = nested[groupName];
+    if (Object.keys(groupValues).length) final[groupName] = { ...result[groupName], ...groupValues };
   }
 
   // Some components (e.g. Column) ship an empty `border: {}` default, so the
   // nested-group detector can't see the border sub-keys and flat border-side
   // props (borderTopWidth, …) would land loose and be dropped by the exporter.
   // If the component declares a `border` field, gather them into it.
-  if (
-    defaultValues &&
-    typeof defaultValues === "object" &&
-    "border" in (defaultValues as object)
-  ) {
-    const borderSideRe = /^border(Top|Right|Bottom|Left)(Width|Style|Color)$/;
-    const collected: Record<string, any> = {};
-    for (const key of Object.keys(final)) {
-      if (borderSideRe.test(key)) {
-        collected[key] = final[key];
-        delete final[key];
-      }
-    }
-    if (Object.keys(collected).length > 0) {
-      final.border = { ...(final.border || {}), ...collected };
-    }
+  if (defaultValues && typeof defaultValues === "object" && "border" in (defaultValues as object)) {
+    const sides = Object.keys(final).filter((key) => key.startsWith("border") && /^border(Top|Right|Bottom|Left)(Width|Style|Color)$/.test(key));
+    if (sides.length) final.border = { ...(final.border || {}), ...Object.fromEntries(sides.map((key) => [key, final[key]])) };
+    for (const key of sides) delete final[key];
 
     // Border widths must carry a unit — `borderTopWidth: 1` would otherwise
     // render `border-top: 1 solid` (invalid CSS the browser drops). The
     // BorderInput type accepts a number, so normalize *Width fields (bare number
     // or unit-less numeric string → px), wherever the border came from.
+    // Cloned before rewriting: final.border may alias the caller's object (the
+    // `values` escape hatch is only a shallow clone, and a nested `border` prop
+    // passes through by reference), so mutating in place would be an impure side
+    // effect — e.g. a shared `const HAIRLINE = { borderTopWidth: 1 }` would get
+    // rewritten to "1px" in the caller.
     if (final.border && typeof final.border === "object") {
-      // Clone before rewriting: final.border may alias the caller's object (the
-      // `values` escape hatch is only a shallow clone, and a nested `border` prop
-      // passes through by reference), so mutating in place would be an impure side
-      // effect — e.g. a shared `const HAIRLINE = { borderTopWidth: 1 }` would get
-      // rewritten to "1px" in the caller.
       const b: Record<string, any> = { ...(final.border as Record<string, any>) };
-      for (const key of Object.keys(b)) {
-        if (!/Width$/.test(key)) continue;
-        const v = b[key];
-        if (typeof v === "number") b[key] = `${v}px`;
-        else if (typeof v === "string" && /^\d+(?:\.\d+)?$/.test(v.trim())) b[key] = `${v.trim()}px`;
-      }
+      for (const [key, v] of Object.entries(b)) if (/Width$/.test(key) && (typeof v === "number" || (typeof v === "string" && /^\s*\d+(\.\d+)?\s*$/.test(v)))) b[key] = `${String(v).trim()}px`;
       final.border = b;
     }
   }
@@ -391,11 +442,7 @@ export function mapSemanticProps<T extends Record<string, any>>(
       const { width, maxWidth, autoWidth, ...phone } = mobile || {};
       const mapped = mapSemanticProps(phone as SemanticProps<T>, defaultValues, componentType) as Record<string, any>;
       if (componentType === "Image" && (width !== undefined || maxWidth !== undefined || autoWidth !== undefined)) {
-        mapped.src = {
-          ...(overrides.mobile?.src || {}),
-          ...(autoWidth !== undefined ? { autoWidth } : { autoWidth: false }),
-          ...(width !== undefined || maxWidth !== undefined ? { maxWidth: width ?? maxWidth } : {}),
-        };
+        mapped.src = { ...(overrides.mobile?.src || {}), autoWidth: autoWidth === undefined ? false : autoWidth, ...(width !== undefined || maxWidth !== undefined ? { maxWidth: width ?? maxWidth } : {}) };
       } else if (width !== undefined || autoWidth !== undefined) {
         const key = componentType === "Button" ? "size" : "width";
         mapped[key] = { autoWidth: autoWidth ?? false, ...(width !== undefined ? { width: typeof width === "number" ? `${width}px` : width } : {}) };
@@ -441,11 +488,8 @@ export function mapSemanticProps<T extends Record<string, any>>(
  * storage shape.
  */
 export function normalizeLinkValue(value: unknown): Record<string, any> | undefined {
-  if (value == null) return undefined;
-  if (typeof value === "string") {
-    return { url: value, target: "_blank" };
-  }
-  if (typeof value !== "object") return undefined;
+  if (typeof value === "string") return { url: value, target: "_blank" };
+  if (!value || typeof value !== "object") return undefined;
   const v = value as Record<string, any>;
   // Already render-shape (has url) — pass through.
   if ("url" in v) return v;
@@ -454,37 +498,37 @@ export function normalizeLinkValue(value: unknown): Record<string, any> | undefi
   // reasonably put the link there — read href/target from `values` first, then
   // fall back to `attrs`, and spread any remaining `attrs` as custom attributes.
   // (Without this, `{ name, attrs: { href } }` type-checks but renders href="".)
-  if (
-    "name" in v &&
-    ((v.values && typeof v.values === "object") || (v.attrs && typeof v.attrs === "object"))
-  ) {
-    const inner = v.values && typeof v.values === "object" ? (v.values as Record<string, any>) : {};
-    const attrs = v.attrs && typeof v.attrs === "object" ? (v.attrs as Record<string, any>) : {};
-    const { href: attrsHref, target: attrsTarget, ...customAttrs } = attrs;
-    // `||` not `??`: the schema default merges in `values: { href: "" }`, so an
-    // empty `values.href` must fall through to the `attrs` href, not win over it.
-    return {
-      url: inner.href || attrsHref || "",
-      target: inner.target || attrsTarget || "_blank",
-      ...customAttrs,
-    };
-  }
-  return undefined;
+  const object = (x: unknown): Record<string, any> | undefined => (x && typeof x === "object" ? x : undefined);
+  const inner = object(v.values);
+  const attrs = object(v.attrs);
+  if (!("name" in v) || !(inner || attrs)) return undefined;
+  const { href, target, ...customAttrs } = attrs ?? {};
+  // `||` not `??`: the schema default merges in `values: { href: "" }`, so an
+  // empty `values.href` must fall through to the `attrs` href, not win over it.
+  return { url: inner?.href || href || "", target: inner?.target || target || "_blank", ...customAttrs };
 }
 
 /**
  * A link whose URL the exporters write into an `href="…"` as it is: `"`, `<`
  * and `>`, which a URL can't hold unencoded, are percent-encoded (as a browser
- * would), so a URL can't end the attribute (or Outlook's conditional comment).
+ * would), so a URL can't end the attribute (or Outlook's conditional comment);
+ * and whose target can't either (see safeTarget).
  * An email service's placeholder in the form `<%name%>` (SendGrid's
  * `<%asm_group_unsubscribe_raw_url%>`) is kept: the service fills it in as
  * written, and it can end neither.
  */
-function safeLink(link: Record<string, any>): Record<string, any> {
-  // A URL that isn't a string (an array from a JSON body or `?url[]=`) is written as its text: escaped as one.
-  const url = link.url === undefined || link.url === null ? link.url : String(link.url);
-  return typeof url === "string" ? { ...link, url: url.replace(/<%[\w.]+%>|["<>]/g, (c) => (c.length > 1 ? c : encodeURIComponent(c))) } : link;
+function safeLink(given: Record<string, any>): Record<string, any> {
+  // Its target too (see safeTarget).
+  const target = safeTarget(given.target);
+  const link = target === given.target ? given : { ...given, target };
+  return link.url == null ? link : { ...link, url: attributeUrl(link.url) };
 }
+
+/**
+ * A URL the exporters write into an attribute as it is (a link's `href`, an image's `src`), with what can end it
+ * percent-encoded (see safeLink). One that isn't a string (an array from a JSON body or `?url[]=`) is its text.
+ */
+const attributeUrl = (url: unknown) => String(url).replace(/<%[\w.]+%>|["<>]/g, (c) => (c.length > 1 ? c : encodeURIComponent(c)));
 
 /**
  * Normalize all link/action fields on an item's values to the render-value
@@ -510,12 +554,12 @@ export function normalizeValuesForExporter<T extends Record<string, any>>(
 
   // Top-level link fields used by Button (href), Image (action), Video (href),
   // Timer (action). Cheap to check both keys for every component.
-  for (const key of ["href", "action"]) {
-    if (out[key] !== undefined) {
-      const normalized = normalizeLinkValue(out[key]);
-      if (normalized !== undefined) out[key] = safeLink(normalized);
-    }
-  }
+  // A link as the exporters read it, or as it was (a shape it isn't).
+  const linkOf = (link: unknown) => {
+    const normalized = normalizeLinkValue(link);
+    return normalized ? safeLink(normalized) : link;
+  };
+  for (const key of ["href", "action"]) if (out[key] !== undefined) out[key] = linkOf(out[key]);
 
   // The Button exporter unescapes its text before writing it, where the
   // editor's canvas shows the text as the HTML it is. Escaping it once here
@@ -531,20 +575,29 @@ export function normalizeValuesForExporter<T extends Record<string, any>>(
       ...out.menu,
       items: out.menu.items.map((item: any) => {
         if (!item) return item;
-        const next = mode === "email" && typeof item.text === "string" ? { ...item, text: menuText(item.text) } : item;
-        if (next.link === undefined) return next;
-        const normalized = normalizeLinkValue(next.link);
-        if (normalized === undefined) return next;
-        return { ...next, link: safeLink(normalized) };
+        // (In an email, text that isn't a string, an array from a JSON body, is its text, escaped as text is.)
+        const next = mode === "email" && item.text != null ? { ...item, text: menuText(String(item.text)) } : item;
+        const link = linkOf(next.link);
+        return link === next.link ? next : { ...next, link };
       }),
     };
   }
 
   // Social icons each carry a `url`, written into an href as it is, and a `name`, which an email writes into its
-  // `title`, `alt` and image URL as it is too (a web page or a document escapes it).
+  // `title`, `alt` and image URL as it is too (a web page or a document escapes it); a name that isn't a string (an
+  // array from a JSON body) is its text.
   if (componentName === "Social" && out.icons && Array.isArray(out.icons.icons)) {
-    const named = (icon: any) => (mode === "email" && typeof icon.name === "string" ? { ...icon, name: escapeText(icon.name, true) } : icon);
-    out.icons = { ...out.icons, icons: out.icons.icons.map((icon: any) => (icon && typeof icon === "object" ? named(safeLink(icon)) : icon)) };
+    const named = (icon: any) => (icon.name == null || (mode !== "email" && typeof icon.name === "string") ? icon : { ...icon, name: mode === "email" ? escapeText(String(icon.name), true) : String(icon.name) });
+    // And an image of its own (`imgUrl`), which an email writes into its `src` as it is.
+    const imaged = (icon: any) => (icon.imgUrl == null ? icon : { ...icon, imgUrl: attributeUrl(icon.imgUrl) });
+    out.icons = { ...out.icons, icons: out.icons.icons.map((icon: any) => (icon && typeof icon === "object" ? imaged(named(safeLink(icon))) : icon)) };
+  }
+
+  // A Video's URL and thumbnail, which an email writes into its link's `href` and its image's `src` as they are.
+  if (componentName === "Video" && mode === "email" && out.video && typeof out.video === "object") {
+    const video = { ...out.video };
+    for (const key of ["url", "thumbnail"]) if (video[key] != null) video[key] = attributeUrl(video[key]);
+    out.video = video;
   }
 
   return out as T;
