@@ -64,7 +64,8 @@ function toUnfinishedTag(html: string): string {
   return at === undefined ? html : html.slice(0, at);
 }
 
-export function inlineHtml(html: string): string {
+/** `images`: an <img> stays too (its src, alt, width and height): what a link alone holds (see the model's linkBlock). */
+export function inlineHtml(html: string, images = false): string {
   // A <script>'s or <style>'s text isn't text (React 19 writes it as it is, markup and all): out, with them, and
   // comments and a tag that never ends. Then each tag, as `/<(\/?)([a-zA-Z][\w:-]*)([^>]*)>/g` reads it, but read once (see replaceTags).
   // Each tag it keeps is set apart (\u0001…\u0002), so a `<` or `>` in the text around one is text, written as a
@@ -74,17 +75,18 @@ export function inlineHtml(html: string): string {
     const [start, close, name] = /^<(\/?)([a-zA-Z][\w:-]*)/.exec(written)!;
     const attributes = written.slice(start.length, -1);
     const tag = name.toLowerCase();
-    if (!INLINE.test(tag)) return "";
-    if (close) return tag === "br" ? "" : `\u0001</${tag}>\u0002`;
+    const image = images && tag === "img";
+    if (!INLINE.test(tag) && !image) return "";
+    if (close) return tag === "br" || image ? "" : `\u0001</${tag}>\u0002`;
     let kept = "";
     // As React writes attributes: name="escaped value"; read as the browser reads it (its references decoded, the
     // characters it leaves out of a URL's scheme dropped), so `&#106;avascript:` in markup written as HTML is one too.
     for (const [, key, value] of attributes.matchAll(/\s([\w-]+)="([^"]*)"/g)) {
-      const allowed = /^(style|title|class)$/.test(key) || (tag === "a" && /^(href|target|rel)$/.test(key));
+      const allowed = /^(style|title|class)$/.test(key) || (tag === "a" && /^(href|target|rel)$/.test(key)) || (image && /^(src|alt|width|height)$/.test(key));
       // (Its `<` and `>` as references, the same value to a browser, so the tag is one to asWritten, read whole.)
       if (allowed && !/(java|vb)script:|expression\(|^data:/i.test(decoded(value))) kept += ` ${key}="${value.replace(/</g, "&lt;").replace(/>/g, "&gt;")}"`;
     }
-    return `\u0001<${tag}${kept}${tag === "br" ? "/" : ""}>\u0002`;
+    return `\u0001<${tag}${kept}${tag === "br" || image ? "/" : ""}>\u0002`;
   });
   const tags = apart.replace(/\u0001[^\u0002]*\u0002|[<>]/g, (part) => (part.length > 1 ? part.slice(1, -1) : part === "<" ? "&lt;" : "&gt;"));
   return asWritten(tags);
