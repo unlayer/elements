@@ -198,7 +198,10 @@ describe("the body's link style", () => {
     const html = renderToHtml(<Root><Row><Column><Paragraph html={'Read <a href="https://example.com">the guide</a>'} /></Column></Row></Root>);
     const id = /<[a-z]+ [^>]*id="(u_body[^"]*)"/.exec(html)![1];
     expect(html).not.toMatch(new RegExp(`#${id} a(:hover)? \\{`));
-    expect(renderToHtml(<Root values={{ linkStyle: { linkColor: "#ff0000" } }}><Row><Column><Paragraph>x</Paragraph></Column></Row></Root>)).toMatch(new RegExp(`#${id} a \\{\\s*color: #ff0000;`));
+    // Set however the template sets it: `values`, or flat props its mapping folds into `linkStyle`.
+    for (const props of [{ values: { linkStyle: { linkColor: "#ff0000" } } }, { linkColor: "#ff0000", linkUnderline: false }]) {
+      expect(renderToHtml(<Root {...(props as object)}><Row><Column><Paragraph>x</Paragraph></Column></Row></Root>)).toMatch(new RegExp(`#${id} a \\{\\s*color: #ff0000;`));
+    }
   });
 
   // Its head CSS is for the body's element (`#u_body_1 a`, the id its HTML has), as the editor's is for its body's

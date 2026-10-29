@@ -145,7 +145,8 @@ export function extractHeadFromTree(
     // (a browser's own, blue and underlined) for the body's id, which wins over the template's own link CSS (a <Head>
     // stylesheet's; 0.2.1 wrote it for an id the HTML hasn't, to no effect).
     const linkRules = new RegExp(`#${String(values._meta?.htmlID).replace(/[^\w-]/g, "\\$&")} a(?::hover)? \\{[^}]*\\}`, "g");
-    const linkStyled = node.props.linkStyle !== undefined || node.props.values?.linkStyle !== undefined;
+    // (However the template gave it: `linkStyle`, `values`, `linkColor` and the like, which its mapping folds into it.)
+    const linkStyled = mapped?.linkStyle !== undefined || node.props.linkStyle !== undefined || node.props.values?.linkStyle !== undefined;
     call(registry[name], values, name, node.props._record, false, name === "Body" && !linkStyled ? (css) => css.replace(linkRules, "") : undefined);
     return values;
   };
