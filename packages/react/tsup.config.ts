@@ -44,9 +44,8 @@ export default defineConfig([{
   noExternal: ['@unlayer-internal/shared-elements', /\?raw$/, 'marked', /^highlight\.js/],
   treeshake: true,
 },
-// `@unlayer/react-elements/fizz-cleanup`'s modules: Node's, CommonJS only (its `require` is Node's, loading
-// react-dom/server when it's first needed, from the module build too), and the one for every other runtime in both
-// formats (required by the CommonJS build where a runtime can't require an ES module: Jest's jsdom, an older Node
-// under react-server).
-{ entry: { 'fizz-cleanup.node': 'src/engine/fizz-cleanup.node.ts' }, format: ['cjs'], sourcemap: true, clean: false, external: ['react-dom'] },
+// `@unlayer/react-elements/fizz-cleanup`'s modules, Node's and the one for every other runtime, each in both formats
+// (the CommonJS build requires them, also where a runtime can't require an ES module: Jest's jsdom, an older Node
+// under react-server; and Vite can't run a CommonJS file it inlines).
+{ entry: { 'fizz-cleanup.node': 'src/engine/fizz-cleanup.node.ts' }, format: ['esm', 'cjs'], sourcemap: true, clean: false, external: ['react-dom'] },
 { entry: { 'fizz-cleanup.noop': 'src/engine/fizz-cleanup.noop.ts' }, format: ['esm', 'cjs'], sourcemap: true, clean: false }]);

@@ -138,7 +138,11 @@
         "import": "./dist/fizz-cleanup.noop.js",
         "default": "./dist/fizz-cleanup.noop.cjs"
       },
-      "node": "./dist/fizz-cleanup.node.cjs",
+      "deno": "./dist/fizz-cleanup.node.cjs",
+      "node": {
+        "import": "./dist/fizz-cleanup.node.js",
+        "default": "./dist/fizz-cleanup.node.cjs"
+      },
       "default": {
         "import": "./dist/fizz-cleanup.noop.js",
         "default": "./dist/fizz-cleanup.noop.cjs"

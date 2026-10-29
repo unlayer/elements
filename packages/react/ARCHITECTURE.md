@@ -269,13 +269,15 @@ row or block is left out of the HTML, the plain text and the design (the slower 
    a render that starts inside an app's render and goes on after it (an async one) reads one value throughout, and
    the static renderer renders at most once per context and render. It's loaded by the package's own export,
    `@unlayer/react-elements/fizz-cleanup`, whose conditions in package.json's "exports" pick the module: in Node,
-   `engine/fizz-cleanup.node.ts` (CommonJS, which requires react-dom/server the first time it's needed); everywhere
-   else, React Server Components first, a module that does nothing (`engine/fizz-cleanup.noop.ts`, in both formats,
-   as the CommonJS build requires it): bundled for an edge runtime or a browser, react-dom/server is its browser build
-   (React 19's opens a MessageChannel when it loads, which keeps Node running), and under react-server it throws when
-   it loads. A resolver that doesn't read "exports" (webpack 4, Jest before 28) finds the package's `fizz-cleanup/`
-   folder, whose package.json names the one that does nothing. (Not a `#` import in package.json's "imports", which
-   those and Jest before 29.4 can't resolve at all.) What it can't know, it reads as React has it: where nothing is put
+   `engine/fizz-cleanup.node.ts`, which imports react-dom/server (Node loads it with Elements anyway: the exporters
+   import it), so a bundler bundles the app's copy and Vite can run it inlined, as an ES module (Deno gets its CommonJS
+   build: Deno's `import` of react-dom/server is the browser build); everywhere else, React Server Components first, a
+   module that does nothing (`engine/fizz-cleanup.noop.ts`), each in both formats, as the CommonJS build requires them:
+   bundled for an edge runtime or a browser, react-dom/server is its browser build (React 19's opens a MessageChannel
+   when it loads, which keeps Node running), and under react-server it throws when it loads. A resolver that doesn't
+   read "exports" (webpack 4, Jest before 28) finds the package's `fizz-cleanup/` folder, whose package.json names the
+   one that does nothing. (Not a `#` import in package.json's "imports", which those and Jest before 29.4 can't resolve
+   at all.) What it can't know, it reads as React has it: where nothing is put
    back (an edge runtime, a Worker, a browser, React Server Components, a build with webpack 4 or Jest before 28, an
    app whose react-dom isn't the one Elements' `require` finds: in Deno, an `import` of react-dom/server is its
    browser build and a `require` its Node one) and inside an app's stream or client render, the value a renderToString
