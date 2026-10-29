@@ -16,7 +16,7 @@ import type { RenderMode, UnlayerConfig } from "@unlayer-internal/shared-element
 import type { ContentValues, DeviceProps, SizeInput } from "../types";
 import type { ValuesInput } from "@unlayer-internal/shared-elements";
 import { contentSlotWidth, DEFAULT_CONTAINER_PADDING, pinImageSrc, toPx } from "./image-sizing";
-import { guest, remember } from "./render-scope";
+import { guest, remember, textRegion } from "./render-scope";
 import { cssUrlValue } from "./css-url";
 import {
   mergeValues,
@@ -237,7 +237,7 @@ export function cssUrl(values: Record<string, any>, defaults?: Record<string, an
  */
 export function withDisplayCondition(html: string, values: Record<string, any> | undefined): string {
   const condition = values?.displayCondition;
-  return condition ? [condition.before, html, condition.after].join("\n") : html;
+  return condition ? textRegion([condition.before, html, condition.after].join("\n")) : html;
 }
 
 /** A block's or row's `_meta` with its id and class names kept to what they can hold (see `safeName`). */
@@ -267,8 +267,10 @@ function renderComponent<T = any>(config: RenderConfig<T>): JSX.Element {
   // are deprecated positional params; the 8th arg is a meta object with all context. (A custom tool's exporter, and
   // the config's `toSafeHtml`, are the user's: see `guest`.)
   const html = guest(() => exporter(values, ...args, undefined, { exporterConfig, mergeTagState: cfg.mergeTagState, ...metaContext }));
-  // A string, with its `style` and `className` on the tag that renders it
-  return <div dangerouslySetInnerHTML={{ __html: hatch(String(html), at ?? /<[a-z][^>]*>/, style, className, given ?? {}) }} />;
+  // A string, with its `style` and `className` on the tag that renders it (a table its repeat rule's rows are in,
+  // marked for the plain text: see textRegion).
+  const written = hatch(String(html), at ?? /<[a-z][^>]*>/, style, className, given ?? {});
+  return <div dangerouslySetInnerHTML={{ __html: config.type === "Table" && cfg.mergeTagState ? textRegion(written) : written }} />;
 }
 
 /**

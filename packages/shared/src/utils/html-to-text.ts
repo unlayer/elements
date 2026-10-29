@@ -133,6 +133,10 @@ function plainText(html: string, options: PlainTextOptions, marks: TextMarks): s
   const urls: string[] = [];
   const url = (href: string) => `\u0001${urls.push(decodeEntities(href)) - 1}\u0001`;
   const listed: string[] = [];
+  // A link in a display condition or a repeated table (marked \u000e…\u000f by Elements for `links: "after"`) is
+  // written where it is: listed after it, it'd be in every recipient's text, or once for all of a loop's items.
+  let depth = 0;
+  text = text.replace(/[\u000e\u000f]|<a\b/gi, (part) => (part === "\u000e" ? (depth++, "") : part === "\u000f" ? ((depth = Math.max(0, depth - 1)), "") : depth > 0 ? `${part} data-unlayer-in-place=""` : part));
   text = replaceLinks(text, (link, attributes, content) => {
     const [, ...quoted] = /\shref\s*=\s*(?:"([^"]+)"|'([^']+)'|([^\s"'>]+))/i.exec(attributes) ?? [];
     const href = quoted.find(Boolean);
@@ -143,7 +147,8 @@ function plainText(html: string, options: PlainTextOptions, marks: TextMarks): s
     if (BLOCKED.test(decodeEntities(href))) return clean;
     // Skip if link text is the same as URL (avoid duplication)
     if (clean === href || clean === decodeEntities(href)) return url(href);
-    return links === "none" ? clean : links === "after" ? `${clean} [${listed.push(href)}]` : `${clean} (${url(href)})`;
+    const after = links === "after" && !/\sdata-unlayer-in-place=/.test(attributes);
+    return links === "none" ? clean : after ? `${clean} [${listed.push(href)}]` : `${clean} (${url(href)})`;
   });
   const restore = (text: string) => text.replace(/\u0001(\d+)\u0001/g, (_, i: string) => urls[Number(i)]);
 
