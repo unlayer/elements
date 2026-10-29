@@ -192,6 +192,15 @@ describe("renderToHtmlParts", () => {
 });
 
 describe("the body's link style", () => {
+  // Where the template sets none, no rule: the exporters write the editor's default (a browser's own) for the body's
+  // id, which won over the template's own link CSS (a <Head> stylesheet's), where 0.2.1's was for an id nothing has.
+  it.each([["Email", Email], ["Page", Page], ["Document", Document]] as const)("%s: writes no rule for the links where the template sets none, so the template's own CSS styles them", (_, Root) => {
+    const html = renderToHtml(<Root><Row><Column><Paragraph html={'Read <a href="https://example.com">the guide</a>'} /></Column></Row></Root>);
+    const id = /<[a-z]+ [^>]*id="(u_body[^"]*)"/.exec(html)![1];
+    expect(html).not.toMatch(new RegExp(`#${id} a(:hover)? \\{`));
+    expect(renderToHtml(<Root values={{ linkStyle: { linkColor: "#ff0000" } }}><Row><Column><Paragraph>x</Paragraph></Column></Row></Root>)).toMatch(new RegExp(`#${id} a \\{\\s*color: #ff0000;`));
+  });
+
   // Its head CSS is for the body's element (`#u_body_1 a`, the id its HTML has), as the editor's is for its body's
   // (`#u_body a`): the links in it take the color. (It was for `#u_content_body_1`, which nothing has.)
   it.each([["Email", Email], ["Page", Page], ["Document", Document]] as const)("%s: colors the links in the HTML", (_, Root) => {
