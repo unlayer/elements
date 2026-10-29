@@ -243,6 +243,10 @@ describe("Row layout with columns from components", () => {
         "https://cdn.example.com/%%=v(@hero)=%%.png",
         "%%=Lookup('Heroes','Image','Id',@id)=%%",
         "<%hero_url%>",
+        // Braze's attribute references, in a Liquid tag and on their own, and Responsys's.
+        "https://cdn.example.com/{{${first_name} | default: 'friend'}}/hero.png",
+        "{% if ${language} == 'fr' %}https://cdn.example.com/fr.png{% else %}https://cdn.example.com/en.png{% endif %}",
+        "https://cdn.example.com/${hero!'default'}.png",
       ];
       for (const url of urls) {
         const html = renderToHtml(
@@ -270,7 +274,7 @@ describe("Row layout with columns from components", () => {
         return [...doc.querySelectorAll<HTMLElement>("[style*=background-image]")].map((box) => Array.from({ length: box.style.length }, (_, i) => box.style.item(i)).sort().join(" "));
       };
       const plain = declarations("https://x.example/plain.png");
-      for (const url of ["https://x.example/{{ a' ) b }}.png", "https://x.example/{{ a' }}.png", "https://x.example/a&#39;&#41;b.png", "https://x.example/a&apos;&rpar;b.png", "https://x.example/a&quot;b.png", "https://x.example/a&#x5c;b.png"]) {
+      for (const url of ["https://x.example/{{ a' ) b }}.png", "https://x.example/{{ a' }}.png", "https://x.example/${a!'('}.png", "https://x.example/{{${a} | b: ')'}}.png", "https://x.example/a&#39;&#41;b.png", "https://x.example/a&apos;&rpar;b.png", "https://x.example/a&quot;b.png", "https://x.example/a&#x5c;b.png"]) {
         expect(declarations(url)).toEqual(plain);
       }
       // Nor can a tag end a comment the URL is written in (Outlook's conditional comment, in an email).
