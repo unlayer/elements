@@ -141,7 +141,7 @@ Upgrading? See [upgrading](./docs/upgrading.md): what changed in 0.3 and in 0.2,
 
 - **React's key warnings, in development.** A list without keys in a template (`items.map(…)`) gets React's warning in development builds, once per component, as React 19 gives it where it renders: Elements renders it now. 0.2 hid it.
 
-- **A Row's `style` and `className` go on its content box.** Like every component's, they go on the element it renders: a Row's `.u-row` box, the content width its Columns sit in (a Column's on its cell). 0.2 put a Row's on a wrapper around the whole row, full width. For a full-width color, use the Row's `backgroundColor`.
+- **A Row's `style` and `className` go on its content box.** Like every component's, they go on the element it renders: a Row's `.u-row` box, the content width its Columns sit in (a Column's on its cell). 0.2 put a Row's on a wrapper around the whole row, full width. For a full-width color, use the Row's `backgroundColor`. In an email, padding in a Row's `style` stays on the row around that box, as in 0.2 (the box and its Columns have the content width, which padding would add to), and padding or a border in a Column's `style` goes inside its cell (`box-sizing: border-box`), so neither makes the email wider than its layout.
 
 ## 0.2.1 (2026-10-13)
 

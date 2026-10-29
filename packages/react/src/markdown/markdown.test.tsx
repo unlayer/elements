@@ -433,6 +433,26 @@ describe("Markdown from data: no more than its size calls for", () => {
     expect(grows ? `${small.toFixed(0)} ms for a quarter, ${large.toFixed(0)} ms` : "linear").toBe("linear");
   }, 180_000);
 
+  it("reads link reference definitions in time linear in their number, each used once or not at all", async () => {
+    // Each paragraph's inline pass asked whether the Markdown defines a reference by gathering all its definitions'
+    // names (a `for…in` gathers every key before its first): 10,000 definitions (134 KB) took 2.7 s, and blocked the
+    // event loop as long.
+    const ids = (n: number) => [...Array(n).keys()].map((i) => i.toString(36));
+    const used = (n: number) => `${ids(n).map((id) => `[${id}]:x`).join("\n")}\n\n${ids(n).map((id) => `[${id}]`).join(" ")}`;
+    const paragraphs = (n: number) => `${ids(n).map((id) => `[${id}]:x`).join("\n")}\n\n${ids(n).map((id) => `p ${id}`).join("\n\n")}`;
+    const timed = (markdown: string) => {
+      const start = performance.now();
+      renderToHtml(email({ markdown, html: "escape" }));
+      return performance.now() - start;
+    };
+    for (const shape of [used, paragraphs]) {
+      const { small, large, grows } = await growth((n) => timed(shape(n)), [2500, 10000], { ratio: 8, floor: 100 });
+      expect(grows ? `${small.toFixed(0)} ms for a quarter, ${large.toFixed(0)} ms` : "linear").toBe("linear");
+    }
+    // A definition is still read: the last of 10,000 links where it points.
+    expect(renderToHtml(email({ markdown: used(10000), html: "escape" }))).toMatch(new RegExp(`href="x"[^>]*>${(9999).toString(36)}</a>`));
+  }, 120_000);
+
   it("past the work its quotes can take, ends each quote at its first line without a `>`, leaving nothing out", () => {
     const words = (html: string) => new DOMParser().parseFromString(html, "text/html").body.textContent!.match(/\b[abc]\d+\b/g)!;
     const numbered = (n: number) => Array.from({ length: n }, (_, i) => `>- a${i}\nb${i}\n`).join("");
