@@ -48,10 +48,11 @@ describe("Heading Component", () => {
     expect(container.innerHTML).not.toContain("[if mso]");
   });
 
-  it("writes a level that isn't a tag name (one from data) as h1, and says so, in the HTML and the design", () => {
+  it("writes a level that isn't h1 to h6 (one from data) as h1, and says so, in the HTML and the design", () => {
     const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
     try {
-      for (const props of [{ level: "h2 x" }, { as: 'h1"' }, { headingType: "h1>" }, { values: { headingType: "h2/" } }]) {
+      // (Another tag's name too: the exporters write it as the heading's tag, one whose text a browser runs as code.)
+      for (const props of [{ level: "h2 x" }, { as: 'h1"' }, { headingType: "h1>" }, { values: { headingType: "h2/" } }, { level: "textarea" }, { as: "marquee" }, { headingType: "h7" }, { values: { headingType: "title" } }]) {
         const email = <Body><Row><Column><Heading {...(props as object)}>Title</Heading></Column></Row></Body>;
         const doc = new DOMParser().parseFromString(renderToHtml(email), "text/html");
         expect([...doc.querySelectorAll("h1")].some((el) => el.textContent === "Title"), JSON.stringify(props)).toBe(true);

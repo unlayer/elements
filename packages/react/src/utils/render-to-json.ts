@@ -87,6 +87,10 @@ export function extractSemanticProps(props: Record<string, any>): Record<string,
 
 const INTERNAL = new Set("children mode className style index colIndex cells bodyValues rowValues _config _record config previewText fonts lang layout collection".split(" "));
 
+/** HTML's `&lt;` and `&gt;` in its text (not in its tags) as numeric references (see the Button's text above). */
+const NUMERIC: Record<string, string> = { "&lt;": "&#60;", "&gt;": "&#62;" };
+const numericText = (html: string) => html.replace(/<[^<>]*>|&(?:lt|gt);/g, (part) => NUMERIC[part] ?? part);
+
 /** A block's props the design doesn't hold (its children are its text: see processItem; `_sanitized`: Markdown's). */
 const CODE_ONLY = new Set(["children", "style", "className", "skipInText", "_record", "_sanitized"]);
 
@@ -159,6 +163,12 @@ function processItem(
     values.text = textJsonToText(values.textJson);
     delete values.textJson;
   }
+
+  // A Button's text: the editor's exporters unescape it before they write it where it has no textJson (as Elements'
+  // designs don't), so a `&lt;` of its text was a tag in their HTML, where the editor's canvas shows the text it is.
+  // Its text's `<` and `>` are numeric references, which unescaping leaves: the same text to both (unescaped once, an
+  // `&amp;lt;` is `&lt;`, still text).
+  if (name === "Button" && typeof values.text === "string") values.text = numericText(values.text);
 
   // Its _meta and the editor's flags
   values._meta = { htmlID: id, htmlClassNames: metaBase, ...(values._meta || {}) };

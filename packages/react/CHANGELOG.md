@@ -117,7 +117,9 @@ Upgrading? See [upgrading](./docs/upgrading.md): what changed in 0.3 and in 0.2,
 
 ### Changed
 
-- **A Heading's level is a tag name.** The editor's exporters write the level as the tag's name, so one that isn't (`level`, `as`, `headingType` or `values.headingType` from data, with a space or a quote) is an h1, and said (0.2 wrote any as given).
+- **A Heading's level is h1 to h6.** The editor's exporters write the level as the tag's name, so one that isn't (`level`, `as`, `headingType` or `values.headingType` from data: with a space or a quote, or another tag's name, one whose text a browser runs as code) is an h1, and said (0.2 wrote any as given).
+
+- **A Button's text can't become markup in the editor's export of its design.** The editor's exporters unescape a Button's text before they write it, where it has no `textJson` (as Elements' designs don't), so a `<` the text holds (`&lt;` in the design) was a tag in their HTML, though the editor's canvas showed it as text (0.2 too). Its `<` and `>` are numeric references in the design now (`&#60;`), which they leave as they are: the same text in the editor, its export and Elements' HTML.
 
 - **An object or a date in a Paragraph's, Heading's or Button's text fails the render**, as React's render does and as the errors section says (`Ordered on {order.createdAt}`: write `{order.createdAt.toLocaleDateString()}`): 0.2 left it out without a word, so the email went without the date. A Set renders its items, as in React.
 
