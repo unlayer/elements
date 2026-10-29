@@ -9,7 +9,7 @@ import { isRoot } from "./root-type";
 import { ownRoot } from "./own-root";
 import { rootConfig, rootMode, type RootConfigProps } from "../context/layer-config";
 import { normalizedRoot } from "../model";
-import { omissions, setRenderConfig, withOwnScope } from "./render-scope";
+import { markTextRegions, omissions, setRenderConfig, withOwnScope } from "./render-scope";
 import { isTailwindError } from "./tailwind";
 import {
   emailLayout,
@@ -241,6 +241,7 @@ export function plainText(element: React.ReactElement, config?: Partial<UnlayerC
   const root = htmlRoot(element, "renderToPlainText", config?.idPrefix);
   const resolved = resolveConfig(root, config);
   setRenderConfig(resolved);
+  if (config?.links === "after") markTextRegions();
   // Collected first, as renderToHtml's head is: it fails where that does.
   const mode = rootMode(root, resolved);
   normalizedRoot(headRoot(root, mode), mode);

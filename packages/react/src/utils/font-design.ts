@@ -3,7 +3,7 @@
  * `<Font>` (the font entry) and a root's `fonts` prop both write it here. It imports only what the main entry has
  * (the font entry builds it in).
  */
-import { unrunUrl } from "@unlayer-internal/shared-elements";
+import { entities, unrunUrl } from "@unlayer-internal/shared-elements";
 
 /** A URL that can't end its attribute or its CSS string: what could, percent-encoded. */
 export const safeUrl = (url: string) => url.trim().replace(/["'()<>\s\\]/g, (c) => `%${c.charCodeAt(0).toString(16).padStart(2, "0")}`);
@@ -76,14 +76,20 @@ export interface FontProps {
   default?: boolean;
 }
 
-/** Text that can't end a CSS string, a declaration or an attribute. */
-const clean = (text: unknown) => String(text ?? "").replace(/[<>{};"'\\]/g, "").trim();
+/**
+ * Text that can't end a CSS string, a declaration or an attribute, read as a browser reads it in a style attribute:
+ * its character references decoded first (`&#59;` is a `;` there), and no `&` or control character left to make one.
+ * A fallback's families can be quoted (`'Helvetica Neue', Arial`).
+ */
+const UNSAFE = /[<>{};"'\\&\u0000-\u001f\u007f]/g;
+const UNSAFE_QUOTED = /[<>{};"\\&\u0000-\u001f\u007f]/g;
+const clean = (text: unknown, quoted = false) => entities(String(text ?? "")).replace(quoted ? UNSAFE_QUOTED : UNSAFE, "").trim();
 const isFile = (font: FontProps) => !!font.format || /\.(woff2?|ttf|otf)([?#]|$)/i.test(font.url ?? "");
 
 /** A font's family as a root's `fontFamily` takes it: with the stylesheet the editor loads it from, when it's one. */
 export function fontFamilyOf(font: FontProps): { label: string; value: string; url?: string } {
   const family = clean(font.family);
-  const fallback = String(font.fallback ?? "sans-serif").replace(/[<>{};"\\]/g, "").trim() || "sans-serif";
+  const fallback = clean(font.fallback ?? "sans-serif", true) || "sans-serif";
   return { label: family, value: `'${family}', ${fallback}`, ...(font.url && !isFile(font) ? { url: safeUrl(font.url) } : {}) };
 }
 

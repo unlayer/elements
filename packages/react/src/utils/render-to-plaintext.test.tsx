@@ -226,6 +226,23 @@ describe("renderToHtmlParts", () => {
       expect(renderToPlainText(email, { skip: ["h1"], links: "none" })).toBe("Track it here.");
     });
 
+    it("writes a link in a display condition or a repeated table where it is, with links listed after the text", () => {
+      // Listed after the text, a conditional row's link was in every recipient's text, and a loop's links one
+      // placeholder after it.
+      const vip = (
+        <Email>
+          <Row values={{ displayCondition: { before: "{% if vip %}", after: "{% endif %}" } }}><Column><Button href="https://shop.test/vip">Redeem</Button></Column></Row>
+          <Row><Column><Paragraph html={'<a href="https://x.test">Other</a>'} /></Column></Row>
+        </Email>
+      );
+      expect(renderToPlainText(vip, { links: "after" })).toBe("{% if vip %}\n\nRedeem (https://shop.test/vip)\n\n{% endif %}\n\nOther [1]\n\n[1] https://x.test");
+      const mergeTags = { products: { name: "Products", rules: { repeat: { name: "Repeat", before: "{{#products}}", after: "{{/products}}" } } } };
+      const items = <Email><Row><Column><Table headers={["Item"]} data={[['<a href="{{url}}">{{name}}</a>']]} values={{ mergeTagGroup: "products", mergeTagRule: "repeat" }} /></Column></Row></Email>;
+      expect(renderToPlainText(items, { links: "after", mergeTagState: { mergeTags, mergeTagGroup: "products", mergeTagRule: "repeat" } } as never)).toMatch(/\{\{#products\}\}[\s\S]*\{\{name\}\} \(\{\{url\}\}\)[\s\S]*\{\{\/products\}\}$/);
+      // The HTML has no mark of it.
+      expect(renderToHtml(vip)).not.toMatch(/[\u000e\u000f]/);
+    });
+
     it("writes any HTML as text with toPlainText, as it writes a template's", () => {
       expect(toPlainText(renderToHtml(email), { links: "none" })).toBe("YOUR ORDER\n\nTrack it here.");
       expect(toPlainText("<p>A</p><p>B</p>")).toBe("A\nB");

@@ -31,6 +31,8 @@ export interface Scope {
   unwrapped?: Unwrapped;
   /** What an async render compiled for its <Tailwind config>s (the async entry's lookup: see utils/tailwind.ts). */
   tailwind?: unknown;
+  /** Whether its plain text lists links after the text (`links: "after"`): see textRegion. */
+  textRegions?: boolean;
   /**
    * Where an async render renders again in it (after Tailwind compiles again: see async/index.ts), the parts it had
    * left out before: one left out again isn't listed or said again.
@@ -84,6 +86,18 @@ export function setRenderConfig(config: { onError?: OnError; idPrefix?: unknown;
   const dir = config.textDirection;
   scoped.rtl ??= typeof dir == "string" && dir.trim().toLowerCase() == "rtl";
 }
+
+/** Marks the render's display conditions and repeated tables for its plain text's links (see textRegion). */
+export function markTextRegions(): void {
+  if (scoped) scoped.textRegions = true;
+}
+
+/**
+ * HTML a display condition or a table's repeat rule is around, marked (\u000e…\u000f) where the render's plain text
+ * lists links after the text: links in it are written where they are (see htmlToPlainText), where listed after it
+ * they'd be in every recipient's text, or once for all of a loop's items. As it is otherwise.
+ */
+export const textRegion = (html: string): string => (scoped?.textRegions ? `\u000e${html}\u000f` : html);
 
 export const onError = (): OnError | undefined => scoped?.onError;
 /** Whether the render's root reads right to left (its config's `textDirection`, as its body's `dir`). */
