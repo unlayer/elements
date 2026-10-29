@@ -316,11 +316,11 @@ describe("the built package's own requires", () => {
 });
 
 describe("the package's fizz-cleanup export", () => {
-  // Node's module requires react-dom/server when it's first needed, so that its static renderer puts back what one of
-  // its renders left in a context (see the engine's `defaultOf`); everywhere else it's one that loads nothing: bundled
-  // for an edge runtime, a Worker or a browser, react-dom/server is its browser build (React 19's keeps Node running),
-  // and under react-server it throws when it loads. package.json's "exports" picks it, React Server Components first
-  // (their bundles are Node's too), and the one that loads nothing in both formats: the CommonJS build requires it.
+  // Node's module imports react-dom/server (which Elements loads in Node anyway), so that its static renderer puts back
+  // what one of its renders left in a context (see the engine's `defaultOf`); everywhere else it's one that loads
+  // nothing: bundled for an edge runtime, a Worker or a browser, react-dom/server is its browser build (React 19's keeps
+  // Node running), and under react-server it throws when it loads. package.json's "exports" picks it, React Server
+  // Components first (their bundles are Node's too), each in both formats: the CommonJS build requires them.
   it("is Node's module in Node, and one that loads nothing in an edge runtime, a Worker, a browser and React Server Components", async () => {
     expect(fs.existsSync(path.join(dist, "fizz-cleanup.node.cjs")), "build the package first (pnpm build)").toBe(true);
     const dir = project(own[0], own[1], "module");
@@ -335,7 +335,9 @@ describe("the package's fizz-cleanup export", () => {
         return found;
       };
       const noop = ["fizz-cleanup.noop.js", "fizz-cleanup.noop.cjs"];
-      expect(await bundled("node", [])).toEqual(["fizz-cleanup.node.cjs", "fizz-cleanup.node.cjs"]);
+      expect(await bundled("node", [])).toEqual(["fizz-cleanup.node.js", "fizz-cleanup.node.cjs"]);
+      // Deno's `import` of react-dom/server is its browser build (React 19's keeps Deno running), its `require` Node's.
+      expect(await bundled("node", ["deno"])).toEqual(["fizz-cleanup.node.cjs", "fizz-cleanup.node.cjs"]);
       expect(await bundled("node", ["react-server"])).toEqual(noop);
       for (const conditions of [["worker", "browser"], ["workerd", "worker", "browser"], ["edge-light", "worker", "browser"], ["browser"]]) expect(await bundled("browser", conditions), conditions.join()).toEqual(noop);
       // Node itself: imported and required, and under react-server.
@@ -348,6 +350,37 @@ console.log(JSON.stringify({ imported: cleanUp(), required: required() }));
         const run = spawnSync(process.execPath, [...args, "probe.mjs"], { cwd: dir, encoding: "utf8", timeout: 20_000 });
         expect(run.status, run.stderr).toBe(0);
         expect(JSON.parse(run.stdout.trim().split("\n").pop()!), args.join()).toEqual({ imported: cleaned, required: cleaned });
+      }
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
+  }, 60_000);
+
+  // Vite runs a package it doesn't externalize (`ssr.noExternal`, Vitest's `server.deps.inline`, a package linked into
+  // a monorepo) as ES modules it transforms itself, where a CommonJS file fails ("module is not defined").
+  it("runs inlined by Vite's server render, and asks react-dom to put back what a failed render left", async () => {
+    const dir = project(own[0], own[1], "module");
+    try {
+      fs.writeFileSync(path.join(dir, "app.mjs"), `import React from "react";
+import { renderToString } from "react-dom/server";
+import * as E from "@unlayer/react-elements";
+const h = React.createElement;
+export function run() {
+  const html = E.renderToHtml(h(E.Email, null, h(E.Row, null, h(E.Column, null, h(E.Paragraph, null, "Hi there"))))).includes("Hi there");
+  const Tenant = React.createContext("default");
+  try { renderToString(h(Tenant.Provider, { value: "TenantA" }, h(() => { throw new Error("the page failed"); }))); } catch {}
+  const Footer = () => h(E.Paragraph, null, "brand=" + React.useContext(Tenant));
+  return { html, brand: /brand=(\\w+)/.exec(E.renderToPlainText(h(E.Email, null, h(E.Row, null, h(E.Column, null, h(Footer))))))[1] };
+}
+`);
+      // Vite through Vitest, which depends on it.
+      const vite = (await import(pathToFileURL(createRequire(createRequire(path.join(root, "package.json")).resolve("vitest/package.json")).resolve("vite")).href)) as typeof import("vite");
+      const server = await vite.createServer({ root: dir, configFile: false, envFile: false, logLevel: "silent", appType: "custom", server: { middlewareMode: true, hmr: false, ws: false, watch: null }, ssr: { noExternal: ["@unlayer/react-elements"] }, optimizeDeps: { noDiscovery: true, include: [] } });
+      try {
+        const app = await server.ssrLoadModule(path.join(dir, "app.mjs"));
+        expect(app.run()).toEqual({ html: true, brand: "default" });
+      } finally {
+        await server.close();
       }
     } finally {
       fs.rmSync(dir, { recursive: true, force: true });
@@ -583,7 +616,7 @@ ${platform === "browser" ? "// React 19's browser build, bundled for the app, ke
           const { metafile } = esbuild.buildSync({ absWorkingDir: dir, entryPoints: ["app.js"], bundle: true, platform, format: platform === "node" ? "cjs" : "esm", outfile: out, alias, define: { "process.env.NODE_ENV": '"production"' }, logLevel: "error", metafile: true });
           // The package's fizz-cleanup export (package.json's "exports"): Node's module in a Node bundle, and in a browser
           // bundle the one that loads nothing.
-          expect(Object.keys(metafile.inputs).filter((input) => input.includes("fizz-cleanup")).map((input) => path.basename(input))).toEqual([platform === "node" ? "fizz-cleanup.node.cjs" : "fizz-cleanup.noop.js"]);
+          expect(Object.keys(metafile.inputs).filter((input) => input.includes("fizz-cleanup")).map((input) => path.basename(input))).toEqual([platform === "node" ? "fizz-cleanup.node.js" : "fizz-cleanup.noop.js"]);
           const run = spawnSync(process.execPath, [out], { cwd: dir, encoding: "utf8", timeout: 20_000 });
           expect(run.error, "still running after 20s: something keeps Node alive").toBeUndefined();
           expect(run.status, run.stderr).toBe(0);
