@@ -331,6 +331,14 @@ describe("links: the URL the editor exports for each", () => {
     expect(editorLink(link)).toMatchObject(exported(link));
   });
 
+  it("fills a value in as it is, its own placeholders as written: values that nest them give a URL their size calls for", () => {
+    // The exporters fill each value's placeholder in the URL filled in so far, so a value's own `{{…}}` was filled in
+    // too: ten of the next one's in each value, eight deep, made a design under 1 KB 10 MB of code, or ran out of memory.
+    const values: Plain = { v8: "x" };
+    for (let i = 0; i < 8; i++) values[`v${i}`] = `{{v${i + 1}}}`.repeat(10);
+    expect(editorLink({ name: "custom", attrs: { href: "https://x.test/{{v0}}" }, values })).toMatchObject({ url: `https://x.test/${"{{v1}}".repeat(10)}` });
+  });
+
   it("reads a link without its templates (a design the editor didn't save) as its link editor does: with its action's", () => {
     expect(editorLink({ name: "email", values: { email: "support@example.com", subject: "Help" } })).toEqual({ url: "mailto:support@example.com?subject=Help", target: "_blank", kept: true });
     expect(editorLink({ name: "phone", values: { phone: "+15550100" } })).toEqual({ url: "tel:+15550100", target: "_blank", kept: true });
