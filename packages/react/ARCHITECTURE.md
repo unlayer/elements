@@ -103,7 +103,7 @@ around it, as that render would: react-dom puts its context back after a render 
 
 What the hooks do is what React's server renderer does: context from the walker's provider stack (a context no
 provider in the walk, or around the component that started it, gives reads its fallback, worked out once per
-top-level render: its default, as Elements learns it; see invariant 4), `useId` from the
+top-level render: its default, or inside an app's render what's there; see invariant 4), `useId` from the
 tree position, initial state (a state set while rendering renders the component again, its last render counts, as in
 React), `useSyncExternalStore`'s server snapshot, effects and `useInsertionEffect`/`useLayoutEffect` never run,
 `useOptimistic`/`useActionState` their initial state, react-dom's `useFormStatus` not pending, `useEffectEvent`'s
@@ -225,7 +225,8 @@ row or block is left out of the HTML, the plain text and the design (the slower 
 
 1. **No react-dom in a render.** The engine renders templates and Elements' markup, and the string exporters the four
    blocks whose exporters would call `react-dom/server` (`src/exporters/no-react-dom.test.tsx` renders whole pages and
-   documents with it made to throw).
+   documents with it made to throw). The one render of react-dom's is of nothing, before a context's default is read,
+   so that react-dom puts back what a render of its own left there (invariant 4).
 2. **React's dispatcher is Elements' only during a component call**, set and restored synchronously, never held across
    an `await`; a render Elements runs in, or that runs in it, keeps its own.
 3. **One model per render.** The HTML, the head, the plain text and the design are made from the same collected
@@ -248,25 +249,37 @@ row or block is left out of the HTML, the plain text and the design (the slower 
    set while they render (`_currentValue`, react-dom's streaming and client renders'; `_currentValue2`, renderToString's
    and renderToStaticMarkup's, and other secondary renderers'), and they don't always put them back: a stream leaves
    the first holding what its last part that waited was given (another request's tenant, theme or locale), and
-   renderToString one that failed or suspended inside a provider the second. So `defaultOf` in `engine/dispatcher.ts`
-   takes the default from where they agree, and learns it there while no render of React's is running (each time, a
-   fact of the context, not of a render: a default never changes; a WeakMap by context); where they differ, it's the
-   default learned, else the second, which react-dom's streaming render never sets. A render of React's is running
-   where React's dispatcher slot holds a dispatcher that is neither Elements' own nor idle: React 18 and 19 leave their
-   ContextOnlyDispatcher (its hooks one function) in the slot after a client render and during its effects, which
-   is no render running, so Elements learns there too (`isIdleDispatcher`, which compares the hooks' identities; a
-   shape it doesn't know is a render running, where nothing is learned). During a yielded concurrent transition the
-   slot is idle, but `_currentValue` can hold the values of providers mid-tree: they aren't learned, as
-   `_currentValue2` doesn't hold them, and the fallback there is `_currentValue2`. A walk reads a context's fallback
-   once, at its first read (`fallbacks`, the top-level render's, shared with the template's wrappers and with any
-   render a component of it starts: `renderFallbacks` in `engine/index.ts`), so a render that starts inside an app's
-   render and goes on after it (an async one) reads one value throughout. What it can't know, it reads as React has
-   it: before it has learned the context's default, inside an app's renderToString that render's value (0.2, which
-   rendered with react-dom there, passed an app's renderToString providers through; 0.3 does only till it learns the
-   default, on its first ordinary render), and the second's value where a renderToString that failed or suspended
-   inside a provider of it left it: the one known leak, rare, a context Elements has never read outside React's
-   renders, read right after that; and a value both hold, the same, from two such renders, till a render of
-   react-dom's puts one of them back (`src/regression/render-isolation.test.tsx` pins each).
+   renderToString one that failed or suspended inside a provider the second, till react-dom's static renderer's next
+   render starts and puts it back. So `defaultOf` in `engine/dispatcher.ts` reads the second, and while no render of
+   React's is running, has that renderer render nothing first (`renderToStaticMarkup(null)`, `fizz-cleanup`), so that
+   it holds the default. Nothing is kept from one render to the next: a 0.3.0 build learned a default where the two
+   agreed, so a stream and a failed renderToString that left both holding a tenant's made it the default for good,
+   and where the app's react-dom isn't the one Elements loads, the cleanup does nothing, and a default kept wrong
+   would stay wrong. A render of React's is running where React's dispatcher slot holds a dispatcher that is neither
+   Elements' own nor idle: React 18 and 19 leave their ContextOnlyDispatcher (its hooks one function) in the slot after
+   a client render and during its effects, which is no render running (`isIdleDispatcher`, which compares the hooks'
+   identities; a shape it doesn't know is a render running, where nothing is put back). Inside one, Elements reads
+   what's there, as the static renderer can't be asked to put anything back (inside the app's renderToString, it would
+   put back the app's own providers): inside an app's renderToString, its providers' values (as 0.2, which rendered
+   with react-dom there, passed them through); inside its stream or client render, the default, unless a
+   renderToString that failed or suspended inside a provider left another before it. During a yielded concurrent
+   transition the slot is idle, but `_currentValue` can hold the values of providers mid-tree, which the second
+   doesn't. A walk reads a context's fallback once, at its first read (`fallbacks`, the top-level render's, shared with
+   the template's wrappers and with any render a component of it starts: `renderFallbacks` in `engine/index.ts`), so
+   a render that starts inside an app's render and goes on after it (an async one) reads one value throughout, and
+   the static renderer renders at most once per context and render. It's loaded by the package's own export,
+   `@unlayer/react-elements/fizz-cleanup`, whose conditions in package.json's "exports" pick the module: in Node,
+   `engine/fizz-cleanup.node.ts` (CommonJS, which requires react-dom/server the first time it's needed); everywhere
+   else, React Server Components first, a module that does nothing (`engine/fizz-cleanup.noop.ts`, in both formats,
+   as the CommonJS build requires it): bundled for an edge runtime or a browser, react-dom/server is its browser build
+   (React 19's opens a MessageChannel when it loads, which keeps Node running), and under react-server it throws when
+   it loads. A resolver that doesn't read "exports" (webpack 4, Jest before 28) finds the package's `fizz-cleanup/`
+   folder, whose package.json names the one that does nothing. (Not a `#` import in package.json's "imports", which
+   those and Jest before 29.4 can't resolve at all.) What it can't know, it reads as React has it: where nothing is put
+   back (an edge runtime, a Worker, a browser, React Server Components, a build with webpack 4 or Jest before 28, an
+   app whose react-dom isn't the one Elements' `require` finds) and inside an app's stream or client render, the value
+   a renderToString that failed or suspended inside a provider of it left, till react-dom's next static render: the
+   one known leak, rare; a template that wraps its content in its own provider reads that, wherever it renders (`src/regression/render-isolation.test.tsx` pins each).
 5. **Tree order.** Output, records, ids and the error a render throws don't depend on when promises settle.
 6. **Components run once per render**, but as React runs them again: a component that sets its state while rendering,
    and one `use()` suspends, which is called again once the promise settles.

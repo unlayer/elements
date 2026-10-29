@@ -11,6 +11,8 @@ export default defineConfig({
       ...['tailwind', 'code', 'markdown', 'async', 'codegen'].map((entry) => ({ find: new RegExp(`^@unlayer/react-elements/${entry}$`), replacement: fileURLToPath(new URL(`./src/${entry}/index.ts`, import.meta.url)) })),
       { find: /^@unlayer\/react-elements\/font$/, replacement: fileURLToPath(new URL('./src/font/index.tsx', import.meta.url)) },
       { find: /^@unlayer\/react-elements\/head$/, replacement: fileURLToPath(new URL('./src/head/index.tsx', import.meta.url)) },
+      // The package's export that the runtime picks (package.json names built modules): Node's, its source.
+      { find: /^@unlayer\/react-elements\/fizz-cleanup$/, replacement: fileURLToPath(new URL('./src/engine/fizz-cleanup.node.ts', import.meta.url)) },
     ],
   },
   test: {

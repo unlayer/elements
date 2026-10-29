@@ -73,6 +73,19 @@ describe("Image Component", () => {
     expect(img).not.toBeNull();
   });
 
+  it("puts its style and className on every <img> an email writes for it, Outlook's copy and every other client's", () => {
+    // With its natural size given (`src={{ url, width, height }}`), the email exporter writes the image twice: once in
+    // Outlook's conditional comment, once for every other client.
+    const html = renderToHtml(<Email><Row><Column><Image src={{ url: "https://x.example/a.png", width: 200, height: 200 }} alt="A" className="avatar" style={{ borderRadius: "50%" }} /></Column></Row></Email>);
+    const body = html.slice(html.indexOf("<body"));
+    const images = [...body.matchAll(/<img [^>]*>/g)].map((m) => m[0]);
+    expect(images.length).toBeGreaterThan(1);
+    for (const image of images) {
+      expect(image).toContain("border-radius:50%");
+      expect(image).toMatch(/class="[^"]*\bavatar\b/);
+    }
+  });
+
   it("applies max-width style", () => {
     const { container } = render(<Image src="https://example.com/photo.jpg" />);
     const img = container.querySelector("img");
