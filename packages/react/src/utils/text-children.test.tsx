@@ -156,6 +156,27 @@ describe("rich text children of Paragraph, Heading and Button", () => {
     }
   });
 
+  it("clean a component's HTML in a <Link> on its own in a Column as a Paragraph's, and keep a linked image, cleaned too", () => {
+    // A <Link> alone is a Paragraph holding it; where cleaning took a tag out, its markup was kept as it was, as an HTML
+    // block, a component's own HTML in it too (which can be any HTML).
+    const Raw = ({ html }: { html: string }) => <span dangerouslySetInnerHTML={{ __html: html }} />;
+    for (const Root of [Email, Page]) {
+      for (const raw of ['<b onclick="x()">bold</b>', '<a href="javascript:x()">x</a>']) {
+        const link = <Link href="https://example.com">Shop <Raw html={raw} /></Link>;
+        const alone = <Root><Row><Column>{link}</Column></Row></Root>;
+        const held = <Root><Row><Column><Paragraph>{link}</Paragraph></Column></Row></Root>;
+        const [block] = renderToJson(alone).body.rows[0].columns[0].contents as Array<{ type: string; values: { text: string } }>;
+        expect(block.type).toBe("text");
+        expect(block.values.text).toBe((renderToJson(held).body.rows[0].columns[0].contents[0] as { values: { text: string } }).values.text);
+        expect(renderToHtml(alone)).not.toMatch(/onclick="|javascript:x/);
+      }
+      // A logo's link: its image kept, as it is; one a component writes, cleaned (its handler left out).
+      const logo = (image: React.ReactNode) => renderToJson(<Root><Row><Column><Link href="https://example.com">{image}</Link></Column></Row></Root>).body.rows[0].columns[0].contents[0] as { type: string; values: { html: string } };
+      expect(logo(<img src="https://example.com/logo.png" alt="Logo" width={120} />)).toMatchObject({ type: "html", values: { html: '<a href="https://example.com" target="_blank" rel="noopener"><img src="https://example.com/logo.png" alt="Logo" width="120"/></a>' } });
+      expect(logo(<Raw html={'<img src="https://example.com/logo.png" onerror="x()">'} />).values.html).toBe('<a href="https://example.com" target="_blank" rel="noopener"><span><img src="https://example.com/logo.png"/></span></a>');
+    }
+  });
+
   it("leave out a URL that runs code however its characters are written: references, control characters, in markup given as HTML", () => {
     const hostile = [
       '<a href="&#106;avascript:alert(1)">a</a>',

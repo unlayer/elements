@@ -26,6 +26,7 @@ import { PROP_ALIASES } from "@unlayer-internal/shared-elements";
 import Row from "../components/Row";
 import Column from "../components/Column";
 import Html from "../components/Html";
+import Link from "../components/Link";
 import Paragraph from "../components/Paragraph";
 import Divider from "../components/Divider";
 import Heading, { margins } from "../components/Heading";
@@ -82,7 +83,8 @@ function keptMarkupOnce(item: RecordItem): React.ReactElement | undefined {
   // A link alone (a <Link>) is a Paragraph holding it, a rule a Divider: blocks the design can edit.
   const solo = list.filter((p) => typeof p !== "string" || textOf(p).trim());
   const { containerPadding, hideOnMobile, hideOnDesktop } = (element.props ?? {}) as Record<string, unknown>;
-  const block = solo.length === 1 && typeof solo[0] !== "string" ? asBlock(solo[0], { containerPadding, hideOnMobile, hideOnDesktop }, true) : undefined;
+  const props = { containerPadding, hideOnMobile, hideOnDesktop };
+  const block = solo.length === 1 && typeof solo[0] !== "string" ? (element.type === Link ? linkBlock(solo[0], props) : asBlock(solo[0], props, true)) : undefined;
   if (block) return block;
   // One element: React writes `dangerouslySetInnerHTML` and children alike, so what the component returned says which
   // it gave (the walker keeps it, whatever kind of component it is: engine/walk.ts's `returned`). Children are kept
@@ -263,6 +265,18 @@ const asBlock = (part: Part, props: Record<string, unknown> = {}, exact = false)
   if (text && (exact ? text === asWritten(part.html) : tagsOf(text) === tagsOf(part.html))) return React.createElement(Paragraph, { ...props, html: text });
   if (part.html === "<hr/>") return React.createElement(Divider, props);
   return exact ? undefined : React.createElement(Html, { ...props, html: part.html });
+};
+
+/**
+ * A <Link> alone: a Paragraph holding it, its markup cleaned as a Paragraph cleans text (a component's HTML in it too,
+ * which can be any HTML), or where it holds more than text can (an image, a link's logo), an HTML block of what a link
+ * holds, cleaned so too: never its markup as it is.
+ */
+const linkBlock = (part: Part, props: Record<string, unknown>): React.ReactElement | undefined => {
+  if (part.tag !== "a") return asBlock(part, props, true);
+  const text = inlineHtml(part.html);
+  if (text && tagsOf(text) === tagsOf(part.html)) return React.createElement(Paragraph, { ...props, html: text });
+  return React.createElement(Html, { ...props, html: inlineHtml(part.html, true) });
 };
 
 /**

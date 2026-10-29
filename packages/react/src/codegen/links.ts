@@ -53,12 +53,31 @@ function fill(key: string, attrs: Plain | undefined, values: Plain): string | un
   // filled in so far, against where those are in the template, as the editor's exporters place it.
   const query = template.indexOf("?");
   const amp = template.match(/&(?!amp;)/)?.index ?? Infinity;
-  let result = template;
+  // The URL in pieces: the template's own, and the values filled in, whose placeholders aren't filled again (the
+  // exporters fill a value's `{{…}}` as the template's: a design under 1 KB, its values nesting them, gave 10 MB).
+  let pieces: Array<{ text: string; filled: boolean }> = [{ text: template, filled: false }];
   for (const [name, value] of Object.entries(values)) {
     const list = Array.isArray(value) ? value.map(text).map(encode).join(key === "class" ? " " : ",") : undefined;
-    const placeholder = new RegExp(`{{${name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}}}`, "g");
-    result = result.replace(placeholder, (_, at: number) => list ?? ((query >= 0 && at > query) || at > amp ? encode(text(value)) : text(value)));
+    const placeholder = `{{${name}}}`;
+    const next: typeof pieces = [];
+    // (Where it is in the URL filled in so far, as the exporters read it.)
+    let offset = 0;
+    for (const piece of pieces) {
+      let from = 0;
+      if (!piece.filled) {
+        for (let at = piece.text.indexOf(placeholder); at >= 0; at = piece.text.indexOf(placeholder, from)) {
+          if (at > from) next.push({ text: piece.text.slice(from, at), filled: false });
+          const where = offset + at;
+          next.push({ text: list ?? ((query >= 0 && where > query) || where > amp ? encode(text(value)) : text(value)), filled: true });
+          from = at + placeholder.length;
+        }
+      }
+      if (from < piece.text.length) next.push({ text: piece.text.slice(from), filled: piece.filled });
+      offset += piece.text.length;
+    }
+    pieces = next;
   }
+  let result = pieces.map((piece) => piece.text).join("");
   if (key !== "href") return result;
   // Email clients (Outlook) break on a `mailto:` with an empty field, and a URL doesn't end in `?` or `&`.
   // (A field's name is read from where its letters start: from inside them, a long run with no `=` was read again from
