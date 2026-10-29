@@ -5,12 +5,13 @@
  * await), so a render it runs inside (the app's react-dom render, Next.js's Server Components) keeps its own.
  *
  * Server semantics, as react-dom's static render has them: context from the walker's provider stack (else its
- * default, whatever renders around it or before it provided: see `defaultOf`), `useId` from the
- * tree position, initial state (a state set while rendering renders the component again, its last render counts),
- * effects never run, `use()` of a pending thenable suspends. A hook it doesn't know (a newer React's) throws a named
- * error, instead of React's "dispatcher.useX is not a function".
+ * default, whatever renders before it provided, or inside an app's render what's there: see `defaultOf`), `useId`
+ * from the tree position, initial state (a state set while rendering renders the component again, its last render
+ * counts), effects never run, `use()` of a pending thenable suspends. A hook it doesn't know (a newer React's) throws a
+ * named error, instead of React's "dispatcher.useX is not a function".
  */
 import React from "react";
+import { cleanUp } from "@unlayer/react-elements/fizz-cleanup";
 import { slotOf, type Slot } from "./react-compat";
 import { makeId, type TreeContext } from "./tree-id";
 
@@ -35,40 +36,46 @@ export type Fallbacks = Map<object, unknown>;
  * A context's value: the nearest provider's in the walk (or around the component that started it), else its fallback
  * (see `defaultOf`), worked out once per render (`fallbacks`, the top-level render's, which the renders it starts
  * share: see the engine's Walker), so a render that starts inside an app's render and goes on after it (an async one)
- * reads one value for it throughout.
+ * reads one value for it throughout, and react-dom's static renderer renders at most once per context and render.
  */
 export function readContext(stack: ContextStack | null, usable: unknown, fallbacks?: Fallbacks): unknown {
   const context = contextOf(usable);
-  // (Worked out where it's provided too, so it's seen while React's values still hold it: see `defaultOf`.)
-  let fallback: unknown;
-  if (!fallbacks || typeof context !== "object" || context === null) fallback = defaultOf(context);
-  else if (fallbacks.has(context)) fallback = fallbacks.get(context);
-  else fallbacks.set(context, (fallback = defaultOf(context)));
+  const kept = fallbacks && typeof context === "object" && context !== null;
+  // (In a render, worked out where it's provided too, so it's seen while React's values still hold it: see
+  // `defaultOf`. Outside one, as the self-test reads it, only where no provider gives it.)
+  if (kept && !fallbacks.has(context)) fallbacks.set(context, defaultOf(context));
   for (let s = stack; s; s = s.next) if (s.context === context) return s.value;
-  return fallback;
+  return kept ? fallbacks.get(context) : defaultOf(context);
 }
-
-/** The default each context was last seen to have, outside React's renders (see `defaultOf`). */
-const defaults = new WeakMap<object, unknown>();
 
 /**
  * A context's default. React keeps it only in two values, which its renders set while they render and don't always
  * put back: `_currentValue` (react-dom's streaming render's, and its client's: after a stream, what the last part it
  * waited for was given) and `_currentValue2` (renderToString's and renderToStaticMarkup's, and other secondary
- * renderers': after one that failed or suspended inside a provider, what it was given there). Where they agree, that's
- * it (learned when no render of React's is running, where they'd hold its values: each time, so a value learned
- * wrong, both left the same by two renders, is learned right again); where they differ, one is what a render left:
- * the default learned, else `_currentValue2`, which react-dom's streaming render never sets. So inside an app's
- * renderToString, a context Elements hasn't learned yet reads that render's value. (React 18's `_defaultValue` is a
- * server context's, null for these.)
+ * renderers': after one that failed or suspended inside a provider, what it was given there, till react-dom's static
+ * renderer's next render starts and puts it back). So while no render of React's is running, that renderer renders
+ * nothing first (`@unlayer/react-elements/fizz-cleanup`), and the second is then the default. Inside an app's render it's what's there:
+ * inside its renderToString, that render's value; inside its stream or client render, the default, unless a
+ * renderToString that failed inside a provider left another (that renderer can't be asked there: inside the app's
+ * renderToString, it would put back the app's own providers). Where react-dom/server isn't loaded for it (an edge
+ * runtime, a Worker, a browser, React Server Components), the second as it is. Nothing is kept from one render to the
+ * next: where the app's react-dom isn't the one loaded, the cleanup does nothing, and a default kept wrong would stay
+ * wrong. (React 18's `_defaultValue` is a server context's, null for these.)
  */
 function defaultOf(context: any): unknown {
-  const value = context._currentValue;
-  if (value === context._currentValue2) {
-    if (typeof context === "object" && !hostRunning()) defaults.set(context, value);
-    return value;
+  if (!hostRunning()) {
+    const s = theSlot();
+    const held = s?.get() === DISPATCHER;
+    try {
+      cleanUp();
+    } catch {
+      // It can't render here: the value as it is.
+    } finally {
+      // (react-dom puts back the dispatcher it found; this one stays in the slot for the component being called.)
+      if (held) s!.set(DISPATCHER);
+    }
   }
-  return defaults.has(context) ? defaults.get(context) : context._currentValue2;
+  return context._currentValue2;
 }
 
 // ── The component being called ──
@@ -275,8 +282,8 @@ let host: unknown = null;
  * ContextOnlyDispatcher, which React 18 and 19 leave in the slot after the first one, and hold during effects), whose
  * hooks are one function that throws "Invalid hook call". Its identities are compared, nothing on it called. A running
  * render's hooks differ (the server's, the client's mount and update ones; React Server Components' share one function
- * for most, but not for useContext), so it's a host; and so is a shape this doesn't know, where defaults then aren't
- * learned (the safe side).
+ * for most, but not for useContext), so it's a host; and so is a shape this doesn't know, where react-dom's static
+ * renderer then isn't asked to put contexts' values back (the safe side: see `defaultOf`).
  */
 export function isIdleDispatcher(d: any): boolean {
   if (d == null) return true;
