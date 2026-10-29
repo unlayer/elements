@@ -277,9 +277,11 @@ row or block is left out of the HTML, the plain text and the design (the slower 
    folder, whose package.json names the one that does nothing. (Not a `#` import in package.json's "imports", which
    those and Jest before 29.4 can't resolve at all.) What it can't know, it reads as React has it: where nothing is put
    back (an edge runtime, a Worker, a browser, React Server Components, a build with webpack 4 or Jest before 28, an
-   app whose react-dom isn't the one Elements' `require` finds) and inside an app's stream or client render, the value
-   a renderToString that failed or suspended inside a provider of it left, till react-dom's next static render: the
-   one known leak, rare; a template that wraps its content in its own provider reads that, wherever it renders (`src/regression/render-isolation.test.tsx` pins each).
+   app whose react-dom isn't the one Elements' `require` finds: in Deno, an `import` of react-dom/server is its
+   browser build and a `require` its Node one) and inside an app's stream or client render, the value a renderToString
+   that failed or suspended inside a provider of it left, till react-dom's next static render: the one known leak,
+   rare; a template that wraps its content in its own provider reads that, wherever it renders
+   (`src/regression/render-isolation.test.tsx` pins each).
 5. **Tree order.** Output, records, ids and the error a render throws don't depend on when promises settle.
 6. **Components run once per render**, but as React runs them again: a component that sets its state while rendering,
    and one `use()` suspends, which is called again once the promise settles.
