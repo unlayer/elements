@@ -70,7 +70,8 @@ function keptClasses(value: string): string {
   const kept = names.filter((name) => {
     const read = entities(name);
     const at = read.search(/[[(]/);
-    return at < 0 || !unsafeStyle(read.slice(at));
+    // (Its `_`s spaces, as Tailwind reads them: `\75_rl(` is `url(` to it.)
+    return at < 0 || !unsafeStyle(read.slice(at).replace(/(?<!\\)_/g, " "));
   });
   // (As written where it keeps them all.)
   return kept.length === names.length ? value : kept.join(" ");

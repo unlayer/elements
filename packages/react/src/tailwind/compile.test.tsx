@@ -648,7 +648,8 @@ describe("a render's classes", () => {
     const before = renderToHtmlNow(victim);
     const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
     try {
-      for (const name of ["[&,.p-4]:hidden", "[&,.p-4]:text-transparent", "[a(:b())]"]) {
+      // (An `@property` registered in a class's rule was every class's fallback on the compiler: `text-lg`'s line height.)
+      for (const name of ["[&,.p-4]:hidden", "[&,.p-4]:text-transparent", "[a(:b())]", "[@property_--tw-leading]:[initial-value:9]"]) {
         renderToHtmlNow(<Tailwind tw={handle}><Email><Row><Column><Paragraph><span className={name}>post</span></Paragraph></Column></Row></Email></Tailwind>);
         expect(renderToHtmlNow(victim), name).toBe(before);
       }

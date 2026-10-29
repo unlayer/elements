@@ -178,8 +178,10 @@ export function parseSheet(css: string): Sheet {
       const { prelude } = block;
       if (/^@layer\b/i.test(prelude)) walk(block.children, at, parent, owner);
       else if (/^@property\b/i.test(prelude)) {
+        // Tailwind's own registrations, at the top: one in a class's rule (an arbitrary variant's) would be every
+        // class's fallback on the compiler (another render's `text-sm` line height).
         const initial = declarations(block.body).find((d) => d.property === "initial-value");
-        if (initial) sheet.initial.set(prelude.slice(9).trim(), initial.value);
+        if (initial && !parent && !at.length) sheet.initial.set(prelude.slice(9).trim(), initial.value);
       } else if (prelude.startsWith("@")) {
         // In a rule (`.x { @media … { … } }`), what's in it is that rule's.
         if (parent) add(parent, [...at, prelude], block.body, owner);

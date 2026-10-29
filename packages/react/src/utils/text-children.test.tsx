@@ -170,6 +170,11 @@ describe("rich text children of Paragraph, Heading and Button", () => {
         [raw, (children: React.ReactNode) => <Memo href="https://example.com">{children}</Memo>],
         [raw, (children: React.ReactNode) => <Forwarded>{children}</Forwarded>],
         [raw, (children: React.ReactNode) => <Cta>{children}</Cta>],
+        // Returned in a Fragment, an array, StrictMode or a context's provider, which render no markup of their own.
+        [raw, (children: React.ReactNode) => { const Wrapped = () => <><Link href="https://example.com">{children}</Link></>; return <Wrapped />; }],
+        [raw, (children: React.ReactNode) => { const Listed = () => [<Link key="l" href="https://example.com">{children}</Link>]; return <Listed />; }],
+        [raw, (children: React.ReactNode) => { const Strict = () => <React.StrictMode><Link href="https://example.com">{children}</Link></React.StrictMode>; return <Strict />; }],
+        [raw, (children: React.ReactNode) => { const Theme = React.createContext("x"); const Provided = () => <Theme.Provider value="y"><Link href="https://example.com">{children}</Link></Theme.Provider>; return <Provided />; }],
       ] as const)) {
         const link = made(<>Shop <Raw html={raw} /></>);
         const alone = <Root><Row><Column>{link}</Column></Row></Root>;
