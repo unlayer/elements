@@ -47,6 +47,15 @@ describe("text children of Heading and Button", () => {
       const exported = (ButtonExporters[mode] as (...args: unknown[]) => string)({ ...button.values, _meta: { htmlID: "b", htmlClassNames: "b" } }, 0, 0, [1], {}, {}, undefined, { exporterConfig: {} });
       expect([mode, /<img/i.test(exported)]).toEqual([mode, false]);
     }
+    // A `"` in an inline tag's attribute too (`&quot;`, which unescaping would make one that ends the value).
+    const designed = (child: React.ReactNode) => renderToJson(<Email><Row><Column><Button href="#">{child}</Button></Column></Row></Email>).body.rows[0].columns[0].contents[0].values as Record<string, unknown>;
+    for (const values of [designed(<span title={'x" data-injected="1'}>Go</span>), designed(<span style={{ fontFamily: '"Inter", sans-serif' }}>Go</span>)]) {
+      for (const mode of ["web", "email"] as const) {
+        const exported = (ButtonExporters[mode] as (...args: unknown[]) => string)({ ...values, _meta: { htmlID: "b", htmlClassNames: "b" } }, 0, 0, [1], {}, {}, undefined, { exporterConfig: {} });
+        const doc = new DOMParser().parseFromString(exported, "text/html");
+        expect([mode, !!doc.querySelector("[data-injected]"), [...doc.querySelectorAll("span")].some((el) => el.title === 'x" data-injected="1' || /"Inter"/.test(el.style.fontFamily))]).toEqual([mode, false, true]);
+      }
+    }
   });
 });
 

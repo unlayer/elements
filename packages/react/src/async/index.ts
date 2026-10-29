@@ -80,9 +80,13 @@ interface Internals {
 async function tailwindLoader(): Promise<Load> {
   const loaded = (globalThis as Record<symbol, unknown>)[LOADER];
   if (typeof loaded === "function") return loaded as Load;
-  // Not where a bundler would follow it (into `tailwindcss`, an optional peer dependency): loaded when it runs.
-  return (await import(/* webpackIgnore: true */ /* @vite-ignore */ "@unlayer/react-elements/tailwind")).loadTailwind;
+  // By a name that isn't a literal, so no bundler follows it (into `tailwindcss`, an optional peer dependency: Vite's
+  // Worker build bundled it, and the module threw as it loaded where it isn't installed): loaded when it runs.
+  return (await entry(TAILWIND_ENTRY)).loadTailwind;
 }
+
+const TAILWIND_ENTRY = "@unlayer/react-elements/tailwind";
+const entry = (name: string): Promise<any> => import(/* webpackIgnore: true */ /* @vite-ignore */ name);
 
 /**
  * Renders `element` once, resolving what's async in it: its root first (an async template, or one that `use()`s a
