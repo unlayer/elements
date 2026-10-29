@@ -4,6 +4,7 @@
  * document exporters rendered with react-dom/server, so the documents must stay the same byte for byte (with React
  * 19, as react-dom 19 writes them), but for a `javascript:` URL (see BLOCKED).
  */
+import React from "react";
 import { createHash } from "node:crypto";
 import { describe, expect, it, vi } from "vitest";
 import { Document, Page, renderToHtml } from "../index";
@@ -25,6 +26,17 @@ const BLOCKED: Record<string, Record<string, [string, string]>> = {
   Document: { 'link 8: "javascript:alert(1)"': ["0107f525ae7ac69fda05", "bf6a9d1c77778cdc7242"] },
 };
 
+/**
+ * A root given the editor's default link style where it sets none, as the snapshot's documents had its rule: Elements
+ * writes no rule for a body's links where its template sets no `linkStyle` now (the exporters' default, for the body's
+ * id, won over a template's own link CSS).
+ */
+const LINK_STYLE = { linkColor: "#0000ee", linkHoverColor: "#0000ee", linkUnderline: true, linkHoverUnderline: true };
+const linked = (node: React.ReactElement<any>): React.ReactElement => {
+  if (node.type === Page || node.type === Document) return node.props.linkStyle !== undefined || node.props.values?.linkStyle !== undefined ? node : React.cloneElement(node, { linkStyle: LINK_STYLE });
+  return React.isValidElement(node.props?.children) ? React.cloneElement(node, undefined, linked(node.props.children as React.ReactElement)) : node;
+};
+
 describe.each([
   ["a web page", Page],
   ["a document", Document],
@@ -34,7 +46,7 @@ describe.each([
     try {
       const digests: Record<string, string> = {};
       for (const { name, element, options } of corpus()) {
-        const html = renderToHtml(as(element, Root), options as never);
+        const html = renderToHtml(linked(as(element, Root)), options as never);
         if (BLOCKS.test(html) || /^components\/(Divider|Html|Menu|Social): /.test(name)) digests[name] = digest(html);
       }
       expect(Object.keys(digests).length).toBeGreaterThan(150);

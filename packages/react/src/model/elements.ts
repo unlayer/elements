@@ -277,7 +277,19 @@ const isLink = (type: unknown): boolean => type === Link || (!!type && typeof ty
  */
 function rendersLink(item: RecordItem): boolean {
   const returned = (recordOf(item).output as { value: unknown } | undefined)?.value;
-  return isLink(recordOf(item).element?.type) || (React.isValidElement(returned) && isLink(returned.type));
+  return isLink(recordOf(item).element?.type) || isLink(onlyElement(returned)?.type);
+}
+
+/** What renders what's in it without markup of its own: a Fragment, StrictMode, a Profiler, Suspense, a context's provider. */
+const PASSES_THROUGH = new Set<unknown>([React.Fragment, React.StrictMode, React.Profiler, React.Suspense]);
+const passesThrough = (type: any): boolean => PASSES_THROUGH.has(type) || (!!type && typeof type === "object" && (type.$$typeof === Symbol.for("react.provider") || type.$$typeof === Symbol.for("react.context")));
+
+/** The one element what a component returned renders (an array of it, through what passes it through: see above). */
+function onlyElement(node: unknown, depth = 0): React.ReactElement | undefined {
+  const nodes = React.Children.toArray(node as React.ReactNode).filter((n) => !(typeof n === "string" && !n.trim()));
+  if (nodes.length !== 1 || !React.isValidElement(nodes[0]) || depth > 32) return undefined;
+  const element = nodes[0] as React.ReactElement<{ children?: unknown }>;
+  return passesThrough(element.type) ? onlyElement(element.props.children, depth + 1) : element;
 }
 
 /**
