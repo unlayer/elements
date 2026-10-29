@@ -4,12 +4,14 @@
  * renderer puts back when its next render starts. So this renders nothing with it (see `defaultOf` in dispatcher.ts).
  *
  * Built on its own, as an ES module and CommonJS (dist/fizz-cleanup.node.js and .cjs), and imported as
- * `@unlayer/react-elements/fizz-cleanup`, which is this module in Node and fizz-cleanup.noop.ts everywhere else
- * (package.json's "exports"): bundled for an edge runtime, a Worker or a browser, react-dom/server is its browser
- * build, and React 19's opens a MessageChannel when it loads, which keeps Node running; in React Server Components it
- * throws when it loads. In Node, Elements loads react-dom/server anyway (@unlayer/exporters imports it), so this
- * imports it as any module does: a bundler bundles the app's own copy, and Vite can run it inlined (a CommonJS file
- * it can't). Deno gets the CommonJS one: its `import` of react-dom/server is the browser build, its `require` Node's.
+ * `@unlayer/react-elements/fizz-cleanup`, which is this module unless a bundler or runtime names React Server
+ * Components, a browser, a Worker or an edge runtime, where it's fizz-cleanup.noop.ts (package.json's "exports";
+ * Rollup's node-resolve at its defaults names none, bundling a server): bundled for an edge runtime, a Worker or a
+ * browser, react-dom/server is its browser build, and React 19's opens a MessageChannel when it loads, which keeps Node
+ * running; in React Server Components it throws when it loads. In Node, Elements loads react-dom/server anyway
+ * (@unlayer/exporters imports it), so this imports it as any module does: a bundler bundles the app's own copy, and
+ * Vite can run it inlined (a CommonJS file it can't). Deno gets the CommonJS one: its `import` of react-dom/server is
+ * the browser build, its `require` Node's.
  */
 import * as server from "react-dom/server";
 
