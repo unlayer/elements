@@ -6,8 +6,10 @@
  */
 import { entities } from "@unlayer-internal/shared-elements";
 
-/** An email service's tag: `{{ … }}`, `{% … %}`, `<% … %>`, `%% … %%` (AMPscript). */
-const TAG = String.raw`\{\{[^{}]*\}\}|\{%[^{}]*%\}|<%[^<>]*%>|%%[^%]*%%`;
+/** An attribute reference, `${…}`: Braze's (also inside a Liquid tag, `{{${first_name} | default: 'you'}}`), Responsys's. */
+const REFERENCE_TAG = String.raw`\$\{[^{}]*\}`;
+/** An email service's tag: `{{ … }}`, `{% … %}` (either with `${…}` in it), `${…}`, `<% … %>`, `%% … %%` (AMPscript). */
+const TAG = String.raw`\{\{(?:[^{}]|${REFERENCE_TAG})*\}\}|\{%(?:[^{}]|${REFERENCE_TAG})*%\}|${REFERENCE_TAG}|<%[^<>]*%>|%%[^%]*%%`;
 /** What could end the attribute, the string or `url(…)`: quotes, brackets, `<`, `>`, `\`, spaces and control characters. */
 const ENDS = String.raw`[\u0000- "'()<>\\\u007f]`;
 const PARTS = new RegExp(`${TAG}|${ENDS}`, "g");
