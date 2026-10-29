@@ -116,7 +116,7 @@ export function extractHeadFromTree(
    * fails fails the render, or (`onError: "omit"`) gives nothing, listed: its block still renders, as the design has no
    * head to disagree with.
    */
-  const call = (head: ComponentHead | undefined, values: Record<string, any>, name: string, record?: object, own = false) => {
+  const call = (head: ComponentHead | undefined, values: Record<string, any>, name: string, record?: object, own = false, kept: (css: string) => string = (css) => css) => {
     if (!head || !(head.css || head.js || head.tags)) return;
     const args: HeadArgs = [values, bodyValues ?? values, own ? { ...told } : told];
     let given;
@@ -126,7 +126,8 @@ export function extractHeadFromTree(
     } catch (error) {
       return failed(error instanceof RenderError ? error : new RenderError(`${name}'s head failed: ${threw(error)}`, name, whereIs(record) ?? name, error));
     }
-    if (given.css) styles.push(given.css);
+    const css = given.css && kept(given.css);
+    if (css && css.trim()) styles.push(css);
     if (given.js) scripts.push(given.js);
     if (given.tags) tags.push(...given.tags);
   };
@@ -140,7 +141,12 @@ export function extractHeadFromTree(
     // (A background image's URL as CSS takes it, as in the body: see cssUrl.)
     cssUrl(values);
     if (name !== "Body") collectDeviceStyles(values, `${type}s` as "rows" | "columns", name, displayMode, deviceStyles);
-    call(registry[name], values, name, node.props._record);
+    // A body whose template sets no `linkStyle` gets no rule for its links: the exporters write the editor's default
+    // (a browser's own, blue and underlined) for the body's id, which wins over the template's own link CSS (a <Head>
+    // stylesheet's; 0.2.1 wrote it for an id the HTML hasn't, to no effect).
+    const linkRules = new RegExp(`#${String(values._meta?.htmlID).replace(/[^\w-]/g, "\\$&")} a(?::hover)? \\{[^}]*\\}`, "g");
+    const linkStyled = node.props.linkStyle !== undefined || node.props.values?.linkStyle !== undefined;
+    call(registry[name], values, name, node.props._record, false, name === "Body" && !linkStyled ? (css) => css.replace(linkRules, "") : undefined);
     return values;
   };
 
