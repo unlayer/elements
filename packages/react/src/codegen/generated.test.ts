@@ -78,7 +78,7 @@ function generate(seed: number): { design: Plain; displayMode: DisplayMode } {
   const blocks: Record<string, () => Plain> = {
     text: () => ({ type: "text", values: { ...base(), ...textStyle(), text: r.pick(TEXTS), ...r.some({ linkStyle: () => ({ inherit: false, linkColor: r.pick(COLORS), linkHoverColor: "#0000ee", linkUnderline: r.chance(0.5), linkHoverUnderline: true }) }, 0.2) } }),
     paragraph: () => ({ type: "paragraph", values: { ...base(), ...textStyle(), textJson: JSON.stringify({ root: { type: "root", children: [{ type: "paragraph", children: [{ type: "text", text: r.pick(["Lexical", "Bold & sure"]), format: r.pick([0, 1, 2]) }] }] } }) } }),
-    heading: () => ({ type: "heading", values: { ...base(), ...textStyle(), text: r.pick(TEXTS), ...r.some({ headingType: () => r.pick(["h1", "h2", "h3", "h7"]) }, 0.6) } }),
+    heading: () => ({ type: "heading", values: { ...base(), ...textStyle(), text: r.pick(TEXTS), ...r.some({ headingType: () => r.pick(["h1", "h2", "h3", "h6"]) }, 0.6) } }),
     button: () => ({
       type: "button",
       values: {
