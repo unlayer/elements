@@ -217,8 +217,18 @@ const NO_REFERENCE = /(?!)/g;
 /** What marked's emphasis and strikethrough rules, the masked text's only readers, start with. */
 const DELIMITERS = /[*_~]/;
 
-/** Whether `links` (a Markdown's link definitions) holds one. */
+/** A Markdown's link definitions known to hold one: they're only added to, so once they do, they always do. */
+const defining = new WeakSet<Links>();
+
+/**
+ * Whether `links` (a Markdown's link definitions) holds one. Once a time per Markdown: a `for…in` gathers every key
+ * before its first (each inline pass reading thousands of definitions took time growing with the Markdown's size squared).
+ */
 const defines = (links: Links): boolean => {
-  for (const _ in links) return true;
+  if (defining.has(links)) return true;
+  for (const _ in links) {
+    defining.add(links);
+    return true;
+  }
   return false;
 };
