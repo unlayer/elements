@@ -250,6 +250,11 @@ jobs:
           pnpm --filter @unlayer/content-workflows-example typecheck
           pnpm --filter @unlayer/content-workflows-example test
 
+      - name: i18n example (react-intl, react-i18next, and next-intl in English and Arabic)
+        run: |
+          pnpm --filter @unlayer/i18n-example typecheck
+          pnpm --filter @unlayer/i18n-example test
+
       # ── Browser import/runtime safety gate ──────────────────────
       # Bundles the shipped package entry as a browser consumer would, then
       # imports and renders inside Chromium without a Node `process` global.

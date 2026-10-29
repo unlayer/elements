@@ -1,0 +1,9 @@
+{
+  "shipped": {
+    "subject": "Order {orderId} has shipped",
+    "preview": "Your order is on its way.",
+    "heading": "Your order has shipped",
+    "greeting": "Hi {name}, order {orderId} is on its way.",
+    "cta": "Track your package"
+  }
+}
