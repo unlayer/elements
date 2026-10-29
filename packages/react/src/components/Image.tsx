@@ -148,7 +148,9 @@ const Image = createItemComponent<ImageValues, ImageSemanticProps>({
     return base;
   },
   displayName: "Image",
-  at: /<img [^>]*>/,
+  // Every <img> it writes: an email's image with its natural size is written twice, in Outlook's conditional comment and
+  // for every other client.
+  at: /<img [^>]*>/g,
   exporters: ImageExporters,
 });
 
