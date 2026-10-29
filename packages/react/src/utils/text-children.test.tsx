@@ -1,4 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
+import { ButtonExporters } from "@unlayer/exporters";
 import React from "react";
 import { renderToHtml, renderToPlainText } from "./render-to-html";
 import { renderToJson } from "./render-to-json";
@@ -39,7 +40,13 @@ describe("text children of Heading and Button", () => {
     const design = renderToJson(<Email><Row><Column><Heading>{name}</Heading><Button href="#">{name}</Button></Column></Row></Email>);
     const [heading, button] = design.body.rows[0].columns[0].contents as Array<{ values: { text: string } }>;
     expect(heading.values.text).toBe("&lt;img src=x onerror=\"alert(1)\"&gt; &amp; Co");
-    expect(button.values.text).toBe(heading.values.text);
+    // A Button's `<` and `>` as numeric references: the editor's exporters unescape its text before they write it (where
+    // it has no textJson), which would make `&lt;img…&gt;` a tag in their HTML; they leave these as they are.
+    expect(button.values.text).toBe("&#60;img src=x onerror=\"alert(1)\"&#62; &amp; Co");
+    for (const mode of ["web", "email", "document"] as const) {
+      const exported = (ButtonExporters[mode] as (...args: unknown[]) => string)({ ...button.values, _meta: { htmlID: "b", htmlClassNames: "b" } }, 0, 0, [1], {}, {}, undefined, { exporterConfig: {} });
+      expect([mode, /<img/i.test(exported)]).toEqual([mode, false]);
+    }
   });
 });
 
