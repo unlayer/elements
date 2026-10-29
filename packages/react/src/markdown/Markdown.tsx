@@ -316,7 +316,7 @@ class Writer {
           return null;
         case "heading": {
           const level = `h${token.depth}` as "h1";
-          return <Heading key={key} level={level} fontSize={SIZES[token.depth - 1]} fontWeight={700} {...blocks.heading} {...blocks[level]} text={this.inline(token.tokens)} />;
+          return <Heading key={key} level={level} fontSize={SIZES[token.depth - 1]} fontWeight={700} {...blocks.heading} {...blocks[level]} text={this.inline(token.tokens)} {...SANITIZED} />;
         }
         case "paragraph": {
           const image = this.alone(token as Tokens.Paragraph);

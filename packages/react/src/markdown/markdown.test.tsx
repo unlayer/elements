@@ -712,6 +712,8 @@ describe("sanitizeHtml", () => {
       ['<p class="note bg-[url(https://x.test/a.gif)] p-2">a</p>', '<p class="note p-2">a</p>'],
       ['<p class="[background:u&#114;l(x)] max-[480px]:[background:u\\72l(x)] [behavior:x] [--x:image-set(a.png_1x)]">a</p>', "<p>a</p>"],
       ['<p class="bg-&#91;url(x)] hover:bg-[u/**/rl(x)] [filter:progid:x] text-red-500">a</p>', '<p class="text-red-500">a</p>'],
+      // A `_` is a space to Tailwind, which ends an escape: `\75_rl(` is `url(` to it.
+      ['<p class="[background-image:\\75_rl(https://x.test/a.gif)] note">a</p>', '<p class="note">a</p>'],
       // What isn't one (a class of yours) and arbitrary values that load nothing stay as written.
       ['<p class="expression-box w-[calc(100%-2px)] bg-[#ff0000] font-[&#39;Open_Sans&#39;]">a</p>', '<p class="expression-box w-[calc(100%-2px)] bg-[#ff0000] font-[&#39;Open_Sans&#39;]">a</p>'],
     ];
