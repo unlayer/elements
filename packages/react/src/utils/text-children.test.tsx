@@ -390,6 +390,18 @@ describe("an email service's <%name%> tag in text", () => {
   });
 });
 
+describe("an email service's tag with quotes in a link's URL", () => {
+  // A link's URL is an attribute, double-quoted: its single quotes are written as written, as a Button's are.
+  it.each([["email", Email], ["web", Page]] as const)("keeps a Liquid default's single quotes in a Link's, a Link in a Paragraph's and an inline <a>'s href, in the HTML and the design (%s)", (_, Root) => {
+    const href = "{{ email | default: 'none' }}";
+    for (const block of [<Link key="l" href={href}>Email us</Link>, <Paragraph key="p">Write <Link href={href}>here</Link></Paragraph>, <Paragraph key="a">Write <a href={href}>here</a></Paragraph>]) {
+      const template = <Root><Row><Column>{block}</Column></Row></Root>;
+      expect(renderToHtml(template)).toContain(`href="${href}"`);
+      expect(String(renderToJson(template).body.rows[0].columns[0].contents[0].values.text)).toContain(`href="${href}"`);
+    }
+  });
+});
+
 describe("an email service's tag with quotes in rich text", () => {
   // React writes a `'` in text as `&#x27;` and a `"` as `&quot;`, which a Liquid tag can't read; text given as a string
   // keeps them, as 0.2.1 kept them in a Heading's and a Button's.
@@ -406,8 +418,8 @@ describe("an email service's tag with quotes in rich text", () => {
     expect(html.split(tag)).toHaveLength(4);
     const texts = renderToJson(template).body.rows[0].columns[0].contents.map((c: any) => String(c.values.text));
     for (const text of texts) expect(text).toContain(tag);
-    // A tag's attributes keep theirs, as React wrote them.
-    expect(texts[0]).toContain('title="it&#x27;s &quot;it&quot;"');
+    // A tag's attributes keep their `"` as React wrote them, which would end them; a `'` can't, so it's as written.
+    expect(texts[0]).toContain(`title="it's &quot;it&quot;"`);
   });
 });
 

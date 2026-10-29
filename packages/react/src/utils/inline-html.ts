@@ -98,6 +98,7 @@ export function inlineHtml(html: string): string {
  * before the <%name%> tags do, so no `>` of one is read as a tag's end.
  */
 export function asWritten(html: string): string {
-  const quoted = html.replace(/<[^<>]*>|&#x27;|&quot;/g, (part) => (part === "&#x27;" ? "'" : part === "&quot;" ? '"' : part));
+  // (A tag's attributes are double-quoted, so its `'` are as written too: a link's `{{ email | default: 'none' }}`.)
+  const quoted = html.replace(/<[^<>]*>|&#x27;|&quot;/g, (part) => (part === "&#x27;" ? "'" : part === "&quot;" ? '"' : part.replace(/&#x27;/g, "'")));
   return quoted.replace(/&lt;%([\w.]+)%&gt;/g, "<%$1%>");
 }
