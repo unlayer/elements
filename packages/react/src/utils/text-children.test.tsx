@@ -161,8 +161,17 @@ describe("rich text children of Paragraph, Heading and Button", () => {
     // block, a component's own HTML in it too (which can be any HTML).
     const Raw = ({ html }: { html: string }) => <span dangerouslySetInnerHTML={{ __html: html }} />;
     for (const Root of [Email, Page]) {
-      for (const raw of ['<b onclick="x()">bold</b>', '<a href="javascript:x()">x</a>']) {
-        const link = <Link href="https://example.com">Shop <Raw html={raw} /></Link>;
+      // Also a Link through a component of yours (a design system's), memo or forwardRef.
+      const Memo = React.memo(Link);
+      const Forwarded = React.forwardRef<HTMLAnchorElement, { children: React.ReactNode }>(({ children }, _ref) => <Link href="https://example.com">{children}</Link>);
+      const Cta = ({ children }: { children: React.ReactNode }) => <Link href="https://example.com">{children}</Link>;
+      for (const [raw, made] of ['<b onclick="x()">bold</b>', '<a href="javascript:x()">x</a>'].flatMap((raw) => [
+        [raw, (children: React.ReactNode) => <Link href="https://example.com">{children}</Link>],
+        [raw, (children: React.ReactNode) => <Memo href="https://example.com">{children}</Memo>],
+        [raw, (children: React.ReactNode) => <Forwarded>{children}</Forwarded>],
+        [raw, (children: React.ReactNode) => <Cta>{children}</Cta>],
+      ] as const)) {
+        const link = made(<>Shop <Raw html={raw} /></>);
         const alone = <Root><Row><Column>{link}</Column></Row></Root>;
         const held = <Root><Row><Column><Paragraph>{link}</Paragraph></Column></Row></Root>;
         const [block] = renderToJson(alone).body.rows[0].columns[0].contents as Array<{ type: string; values: { text: string } }>;

@@ -201,9 +201,10 @@ export function parseSheet(css: string): Sheet {
       return;
     }
     for (const one of selectors) {
-      // Its class: the one its rule is for, else the first.
+      // Its class: the one its rule is for, else the first. A selector of a class's rule that doesn't name that class
+      // isn't its: `[&,.p-4]:hidden` writes `.p-4` beside it, which would be every later render's `p-4` on the compiler.
       const classes = [...one.matchAll(CLASS)];
-      const match = classes.find((m) => m[1] === owner) ?? classes[0];
+      const match = owner === undefined ? classes[0] : classes.find((m) => m[1] === owner);
       if (!match) continue;
       sheet.rules.push({
         token: unescape(match[1]),

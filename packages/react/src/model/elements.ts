@@ -84,7 +84,7 @@ function keptMarkupOnce(item: RecordItem): React.ReactElement | undefined {
   const solo = list.filter((p) => typeof p !== "string" || textOf(p).trim());
   const { containerPadding, hideOnMobile, hideOnDesktop } = (element.props ?? {}) as Record<string, unknown>;
   const props = { containerPadding, hideOnMobile, hideOnDesktop };
-  const block = solo.length === 1 && typeof solo[0] !== "string" ? (element.type === Link ? linkBlock(solo[0], props) : asBlock(solo[0], props, true)) : undefined;
+  const block = solo.length === 1 && typeof solo[0] !== "string" ? (rendersLink(item) ? linkBlock(solo[0], props) : asBlock(solo[0], props, true)) : undefined;
   if (block) return block;
   // One element: React writes `dangerouslySetInnerHTML` and children alike, so what the component returned says which
   // it gave (the walker keeps it, whatever kind of component it is: engine/walk.ts's `returned`). Children are kept
@@ -266,6 +266,19 @@ const asBlock = (part: Part, props: Record<string, unknown> = {}, exact = false)
   if (part.html === "<hr/>") return React.createElement(Divider, props);
   return exact ? undefined : React.createElement(Html, { ...props, html: part.html });
 };
+
+/** Whether a component is Elements' <Link>, or one around it: `memo(Link)`, `forwardRef` to it. */
+const isLink = (type: unknown): boolean => type === Link || (!!type && typeof type === "object" && (isLink((type as { type?: unknown }).type) || isLink((type as { render?: unknown }).render)));
+
+/**
+ * Whether what a component in a Column rendered is a <Link>'s: it's one, or returned one (a design system's link
+ * component, `forwardRef` to it). Its markup is then the Link's, cleaned as a Paragraph cleans it (see linkBlock); a
+ * component's own markup is kept as it is.
+ */
+function rendersLink(item: RecordItem): boolean {
+  const returned = (recordOf(item).output as { value: unknown } | undefined)?.value;
+  return isLink(recordOf(item).element?.type) || (React.isValidElement(returned) && isLink(returned.type));
+}
 
 /**
  * A <Link> alone: a Paragraph holding it, its markup cleaned as a Paragraph cleans text (a component's HTML in it too,
