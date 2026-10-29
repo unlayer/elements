@@ -319,17 +319,20 @@ describe("the package's fizz-cleanup export", () => {
   // Node's module imports react-dom/server (which Elements loads in Node anyway), so that its static renderer puts back
   // what one of its renders left in a context (see the engine's `defaultOf`); everywhere else it's one that loads
   // nothing: bundled for an edge runtime, a Worker or a browser, react-dom/server is its browser build (React 19's keeps
-  // Node running), and under react-server it throws when it loads. package.json's "exports" picks it, React Server
-  // Components first (their bundles are Node's too), each in both formats: the CommonJS build requires them.
+  // Node running), and under react-server it throws when it loads. package.json's "exports" picks it: the one that loads
+  // nothing where a bundler or runtime names React Server Components (their bundles are Node's too), a browser, a
+  // Worker or an edge runtime, and Node's everywhere else, each in both formats: the CommonJS build requires them.
   it("is Node's module in Node, and one that loads nothing in an edge runtime, a Worker, a browser and React Server Components", async () => {
     expect(fs.existsSync(path.join(dist, "fizz-cleanup.node.cjs")), "build the package first (pnpm build)").toBe(true);
     const dir = project(own[0], own[1], "module");
     try {
       /** The fizz-cleanup modules in a bundle of the package's module and CommonJS builds. */
-      const bundled = async (platform: "node" | "browser", conditions: string[]) => {
+      const bundled = async (platform: "node" | "browser" | "neutral", conditions: string[]) => {
         const found: string[] = [];
         for (const contents of ['export * from "@unlayer/react-elements";', 'module.exports = require("@unlayer/react-elements");']) {
-          const { metafile } = await esbuild.build({ stdin: { contents, resolveDir: dir, loader: "js" }, bundle: true, write: false, metafile: true, format: "esm", platform, conditions, external: ["tailwindcss", "tailwindcss/*"], logLevel: "silent" });
+          // (Neutral: React, react-dom and the exporters left out, as they'd need Node's modules or a browser's.)
+          const external = ["tailwindcss", "tailwindcss/*", ...(platform === "neutral" ? ["react", "react-dom", "react-dom/*", "@unlayer/exporters", "@unlayer/types"] : [])];
+          const { metafile } = await esbuild.build({ stdin: { contents, resolveDir: dir, loader: "js" }, bundle: true, write: false, metafile: true, format: "esm", platform, conditions, external, logLevel: "silent" });
           found.push(...Object.keys(metafile.inputs).filter((input) => input.includes("fizz-cleanup")).map((input) => path.basename(input)));
         }
         return found;
@@ -339,6 +342,9 @@ describe("the package's fizz-cleanup export", () => {
       // Deno's `import` of react-dom/server is its browser build (React 19's keeps Deno running), its `require` Node's.
       expect(await bundled("node", ["deno"])).toEqual(["fizz-cleanup.node.cjs", "fizz-cleanup.node.cjs"]);
       expect(await bundled("node", ["react-server"])).toEqual(noop);
+      // A bundler that names neither Node nor a browser (Rollup's node-resolve at its defaults, bundling a server) gets
+      // Node's: the one that loads nothing would leave a failed render's context value to the next request's email.
+      expect(await bundled("neutral", [])).toEqual(["fizz-cleanup.node.js", "fizz-cleanup.node.cjs"]);
       for (const conditions of [["worker", "browser"], ["workerd", "worker", "browser"], ["edge-light", "worker", "browser"], ["browser"]]) expect(await bundled("browser", conditions), conditions.join()).toEqual(noop);
       // Node itself: imported and required, and under react-server.
       fs.writeFileSync(path.join(dir, "probe.mjs"), `import { createRequire } from "node:module";

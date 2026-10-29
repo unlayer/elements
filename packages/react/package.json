@@ -139,13 +139,25 @@
         "default": "./dist/fizz-cleanup.noop.cjs"
       },
       "deno": "./dist/fizz-cleanup.node.cjs",
-      "node": {
-        "import": "./dist/fizz-cleanup.node.js",
-        "default": "./dist/fizz-cleanup.node.cjs"
-      },
-      "default": {
+      "browser": {
         "import": "./dist/fizz-cleanup.noop.js",
         "default": "./dist/fizz-cleanup.noop.cjs"
+      },
+      "worker": {
+        "import": "./dist/fizz-cleanup.noop.js",
+        "default": "./dist/fizz-cleanup.noop.cjs"
+      },
+      "workerd": {
+        "import": "./dist/fizz-cleanup.noop.js",
+        "default": "./dist/fizz-cleanup.noop.cjs"
+      },
+      "edge-light": {
+        "import": "./dist/fizz-cleanup.noop.js",
+        "default": "./dist/fizz-cleanup.noop.cjs"
+      },
+      "default": {
+        "import": "./dist/fizz-cleanup.node.js",
+        "default": "./dist/fizz-cleanup.node.cjs"
       }
     },
     "./package.json": "./package.json"
