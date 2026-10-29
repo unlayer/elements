@@ -1,0 +1,335 @@
+{
+  "page": {
+    "body": {
+      "container": {
+        "style": {
+          "background-color": "#FFFFFF"
+        }
+      },
+      "content": {
+        "computedStyle": {
+          "align": "center",
+          "linkColor": "#0068A5",
+          "messageBackgroundColor": "transparent",
+          "messageWidth": "500px"
+        },
+        "style": {
+          "color": "#000000",
+          "font-family": "Arial, Helvetica Neue, Helvetica, sans-serif"
+        }
+      },
+      "webFonts": []
+    },
+    "description": "",
+    "rows": [
+      {
+        "columns": [
+          {
+            "grid-columns": 12,
+            "modules": [
+              {
+                "descriptor": {
+                  "computedStyle": {
+                    "hideContentOnDesktop": false,
+                    "hideContentOnMobile": false
+                  },
+                  "heading": {
+                    "style": {
+                      "color": "#555555",
+                      "direction": "ltr",
+                      "font-family": "inherit",
+                      "font-size": "23px",
+                      "font-weight": "700",
+                      "letter-spacing": "0px",
+                      "line-height": "120%",
+                      "link-color": "#0068A5",
+                      "text-align": "center"
+                    },
+                    "text": "<span class=\"tinyMce-placeholder\">Multi-language sample template</span>",
+                    "title": "h1",
+                    "translations": {
+                      "bn-BD": {
+                        "text": "<span class=\"tinyMce-placeholder\">বহুভাষিক নমুনা টেমপ্লেট</span>"
+                      },
+                      "ca-ES": {
+                        "text": "<span class=\"tinyMce-placeholder\">Plantilla de mostra multilingüe</span>"
+                      },
+                      "es-ES": {
+                        "text": "<span class=\"tinyMce-placeholder\">Ejemplo de plantilla multilingüe</span>"
+                      },
+                      "eu-ES": {
+                        "text": "<span class=\"tinyMce-placeholder\">Hizkuntza anitzeko txantiloi adibidea</span>"
+                      },
+                      "fr-FR": {
+                        "text": "<span class=\"tinyMce-placeholder\">Exemple de modèle multilingue</span>"
+                      },
+                      "gl-ES": {
+                        "text": "<span class=\"tinyMce-placeholder\">Modelo de exemplo multilingüe</span>"
+                      },
+                      "hi-IN": {
+                        "text": "<span class=\"tinyMce-placeholder\">बहु-भाषा नमूना टेम्पलेट</span>"
+                      },
+                      "nap-IT": {
+                        "text": "<span class=\"tinyMce-placeholder\">Muòdulo d&#39;esempio multilingua</span>"
+                      },
+                      "zh-CN": {
+                        "text": "<span class=\"tinyMce-placeholder\">多语言示例模板</span>"
+                      }
+                    }
+                  },
+                  "style": {
+                    "padding-bottom": "0px",
+                    "padding-left": "0px",
+                    "padding-right": "0px",
+                    "padding-top": "0px",
+                    "text-align": "center",
+                    "width": "100%"
+                  }
+                },
+                "locked": false,
+                "type": "mailup-bee-newsletter-modules-heading",
+                "uuid": "a558b1f5-9a51-454f-b810-d95c235ea616"
+              },
+              {
+                "descriptor": {
+                  "computedStyle": {
+                    "hideContentOnAmp": false,
+                    "hideContentOnDesktop": false,
+                    "hideContentOnHtml": false,
+                    "hideContentOnMobile": false
+                  },
+                  "paragraph": {
+                    "computedStyle": {
+                      "linkColor": "#0068A5",
+                      "paragraphSpacing": "16px"
+                    },
+                    "html": "<p>This is a sample template to demonstrate the multi-language features of the Beefree SDK email editor, such as the ability to use a different image for each language of the template:</p>",
+                    "style": {
+                      "color": "#000000",
+                      "direction": "ltr",
+                      "font-family": "inherit",
+                      "font-size": "14px",
+                      "font-weight": "400",
+                      "letter-spacing": "0px",
+                      "line-height": "120%",
+                      "text-align": "justify"
+                    },
+                    "translations": {
+                      "bn-BD": {
+                        "html": "<p>এটি Beefree SDK ইমেল সম্পাদকের বহুভাষিক বৈশিষ্ট্য প্রদর্শনের জন্য একটি নমুনা টেমপ্লেট, যেমন টেমপ্লেটের প্রতিটি ভাষার জন্য আলাদা ছবি ব্যবহারের ক্ষমতা।</p>"
+                      },
+                      "ca-ES": {
+                        "html": "<p>Aquesta és una plantilla de mostra per demostrar les funcions multilingüe de l&#39;editor de correu electrònic Beefree SDK, com ara la capacitat d&#39;utilitzar una imatge diferent per a cada idioma de la plantilla:</p>"
+                      },
+                      "es-ES": {
+                        "html": "<p>Esta es una plantilla de muestra para demostrar las funciones de múltiple idioma del editor de correo electrónico Beefree SDK, como la capacidad de usar una imagen diferente para cada idioma de la plantilla:</p>"
+                      },
+                      "eu-ES": {
+                        "html": "<p>Hau Beefree SDK posta elektroniko editoreko hizkuntza anitzeko funtzioak erakusteko txantiloi adibide bat da, txantiloiaren hizkuntza bakoitzerako irudi desberdin bat erabiltzeko gaitasuna bezala:</p>"
+                      },
+                      "fr-FR": {
+                        "html": "<p>Ceci est un modèle d&#39;exemple pour démontrer les fonctionnalités multilingues de l&#39;éditeur d&#39;e-mails Beefree SDK, telles que la possibilité d&#39;utiliser une image différente pour chaque langue du modèle.</p>"
+                      },
+                      "gl-ES": {
+                        "html": "<p>Este é un modelo de mostra para demostrar as funcións multilingüe do editor de correo electrónico Beefree SDK, como a capacidade de usar unha imaxe diferente para cada idioma do modelo:</p>"
+                      },
+                      "hi-IN": {
+                        "html": "<p>यह Beefree SDK ईमेल संपादक की बहु-भाषा सुविधाओं, जैसे टेम्पलेट की प्रत्येक भाषा के लिए अलग छवि उपयोग करने की क्षमता को प्रदर्शित करने के लिए एक नमूना टेम्पलेट है।</p>"
+                      },
+                      "nap-IT": {
+                        "html": "<p>Chest&#39;è nu muòdulo d&#39;esempio pe dimustrà &#39;e funziunalità multilingua d&#39;o Beefree SDK email editor, comm&#39;à ll&#39;abilità d&#39;usà n&#39;immagine diversa pe ogni lingua d&#39;o muòdulo:</p>"
+                      },
+                      "zh-CN": {
+                        "html": "<p>这是一个示例模板，用于演示 Beefree SDK 邮件编辑器的多语言功能，例如为模板的每种语言使用不同图片的功能。</p>"
+                      }
+                    }
+                  },
+                  "style": {
+                    "padding-bottom": "20px",
+                    "padding-left": "10px",
+                    "padding-right": "10px",
+                    "padding-top": "10px"
+                  }
+                },
+                "locked": false,
+                "type": "mailup-bee-newsletter-modules-paragraph",
+                "uuid": "58320a27-0cf3-4faf-8e75-165f5404a4fb"
+              },
+              {
+                "descriptor": {
+                  "computedStyle": {
+                    "class": "center fixedwidth",
+                    "hideContentOnMobile": false,
+                    "width": "375px"
+                  },
+                  "image": {
+                    "alt": "",
+                    "height": "142px",
+                    "href": "",
+                    "percWidth": 75,
+                    "prefix": "",
+                    "src": "https://d15k2d11r6t6rl.cloudfront.net/pub/uxr6/dgc7p1us/m2j/8c9/273/multi-language-example-image-en.png",
+                    "target": "_blank",
+                    "translations": {
+                      "bn-BD": {
+                        "src": "https://d15k2d11r6t6rl.cloudfront.net/pub/uxr6/dgc7p1us/pbo/mrt/lig/multi-language-example-image-bn.png"
+                      },
+                      "ca-ES": {
+                        "src": "https://d15k2d11r6t6rl.cloudfront.net/pub/uxr6/dgc7p1us/xyb/625/vew/multi-language-example-image-ca.png"
+                      },
+                      "es-ES": {
+                        "src": "https://d15k2d11r6t6rl.cloudfront.net/pub/uxr6/dgc7p1us/dk6/y0r/wbq/multi-language-example-image-es.png"
+                      },
+                      "eu-ES": {
+                        "src": "https://d15k2d11r6t6rl.cloudfront.net/pub/uxr6/dgc7p1us/992/d25/9da/multi-language-example-image-eu.png"
+                      },
+                      "fr-FR": {
+                        "src": "https://d15k2d11r6t6rl.cloudfront.net/pub/uxr6/dgc7p1us/bw0/4gw/nan/multi-language-example-image-fr.png"
+                      },
+                      "gl-ES": {
+                        "src": "https://d15k2d11r6t6rl.cloudfront.net/pub/uxr6/dgc7p1us/w4r/4ra/ab9/multi-language-example-image-gl.png"
+                      },
+                      "hi-IN": {
+                        "src": "https://d15k2d11r6t6rl.cloudfront.net/pub/uxr6/dgc7p1us/8hn/2se/m0l/multi-language-example-image-hi.png"
+                      },
+                      "nap-IT": {
+                        "src": "https://d15k2d11r6t6rl.cloudfront.net/pub/uxr6/dgc7p1us/4ly/6z2/4zs/multi-language-example-image-nap.png"
+                      },
+                      "zh-CN": {
+                        "src": "https://d15k2d11r6t6rl.cloudfront.net/pub/uxr6/dgc7p1us/gms/7gh/ga8/multi-language-example-image-zh.png"
+                      }
+                    },
+                    "width": "900px"
+                  },
+                  "style": {
+                    "border-radius": "0px",
+                    "padding-bottom": "0px",
+                    "padding-left": "0px",
+                    "padding-right": "0px",
+                    "padding-top": "0px",
+                    "width": "100%"
+                  }
+                },
+                "locked": false,
+                "type": "mailup-bee-newsletter-modules-image",
+                "uuid": "1f717cf9-9854-402d-beec-6df41f1f9654"
+              },
+              {
+                "descriptor": {
+                  "computedStyle": {
+                    "hideContentOnAmp": false,
+                    "hideContentOnDesktop": false,
+                    "hideContentOnHtml": false,
+                    "hideContentOnMobile": false
+                  },
+                  "paragraph": {
+                    "computedStyle": {
+                      "linkColor": "#0068A5",
+                      "paragraphSpacing": "16px"
+                    },
+                    "html": "<p>The <em><strong>Multi-language Templates</strong></em> feature provides you with a means to translate template content, but <em>does not</em> automatically translate the content for you. <br/><br/>Please check the documentation for <a href=\"https://docs.beefree.io/beefree-sdk/other-customizations/multi-language-templates\" target=\"_blank\" style=\"text-decoration: underline;\" rel=\"noopener\">more info</a>.</p>",
+                    "style": {
+                      "color": "#000000",
+                      "direction": "ltr",
+                      "font-family": "inherit",
+                      "font-size": "14px",
+                      "font-weight": "400",
+                      "letter-spacing": "0px",
+                      "line-height": "120%",
+                      "text-align": "justify"
+                    },
+                    "translations": {
+                      "bn-BD": {
+                        "html": "<p><em><strong>বহুভাষিক টেমপ্লেট</strong></em> বৈশিষ্ট্যটি আপনাকে টেমপ্লেট সামগ্রী অনুবাদ করার উপায় প্রদান করে, তবে আপনার জন্য স্বয়ংক্রিয়ভাবে সামগ্রী অনুবাদ করে না।<br/><br/>আরও তথ্যের জন্য <a href=\"https://docs.beefree.io/beefree-sdk/other-customizations/multi-language-templates\" target=\"_blank\" style=\"text-decoration: underline;\" rel=\"noopener\">প্রামাণিক নথি</a> দেখুন।</p>"
+                      },
+                      "ca-ES": {
+                        "html": "<p>La funció <em><strong>Plantilles multilingüe</strong></em> us proporciona una manera de traduir el contingut de la plantilla, però <em>no</em> tradueix el contingut automàticament.<br/><br/>Consulteu la documentació per obtenir <a href=\"https://docs.beefree.io/beefree-sdk/other-customizations/multi-language-templates\" target=\"_blank\" style=\"text-decoration: underline;\" rel=\"noopener\">més informació</a>.</p>"
+                      },
+                      "es-ES": {
+                        "html": "<p>La función <em><strong>Plantillas multilingües</strong></em> permite traducir el contenido de las plantillas, pero no lo traduce automáticamente.<br/><br/>Consulte la documentación para obtener <a href=\"https://docs.beefree.io/beefree-sdk/other-customizations/multi-language-templates\" target=\"_blank\" style=\"text-decoration: underline;\" rel=\"noopener\">más información</a>.</p>"
+                      },
+                      "eu-ES": {
+                        "html": "<p><em><strong>Hizkuntza anitzeko txantiloiak</strong></em> funtzioak txantiloiaren edukia itzultzeko bidea eskaintzen dizu, baina <em>ez</em> du edukia automatikoki itzultzen.<br/><br/>Informazio gehiagorako <a href=\"https://docs.beefree.io/beefree-sdk/other-customizations/multi-language-templates\" target=\"_blank\" style=\"text-decoration: underline;\" rel=\"noopener\">dokumentazioa</a> kontsultatu.</p>"
+                      },
+                      "fr-FR": {
+                        "html": "<p>La fonction <em><strong>Modèles multilingues</strong></em> vous permet de traduire le contenu du modèle, mais ne traduit pas automatiquement le contenu pour vous.<br/><br/>Consultez la documentation pour <a href=\"https://docs.beefree.io/beefree-sdk/other-customizations/multi-language-templates\" target=\"_blank\" style=\"text-decoration: underline;\" rel=\"noopener\">plus d&#39;informations</a>.</p>"
+                      },
+                      "gl-ES": {
+                        "html": "<p>A función <em><strong>Modelos multilingüe</strong></em> ofrécelle un xeito de traducir o contido do modelo, pero <em>non</em> traduce o contido automaticamente.<br/><br/>Consulte a documentación para obter <a href=\"https://docs.beefree.io/beefree-sdk/other-customizations/multi-language-templates\" target=\"_blank\" style=\"text-decoration: underline;\" rel=\"noopener\">máis información</a>.</p>"
+                      },
+                      "hi-IN": {
+                        "html": "<p><em><strong>बहु-भाषा टेम्पलेट</strong></em> सुविधा आपको टेम्पलेट सामग्री का अनुवाद करने का साधन प्रदान करती है, लेकिन आपके लिए स्वचालित रूप से सामग्री का अनुवाद नहीं करती।<br/><br/>अधिक जानकारी के लिए <a href=\"https://docs.beefree.io/beefree-sdk/other-customizations/multi-language-templates\" target=\"_blank\" style=\"text-decoration: underline;\" rel=\"noopener\">दस्तावेज़</a> देखें।</p>"
+                      },
+                      "nap-IT": {
+                        "html": "<p>A funziunalità <em><strong>Muòduli Multilingua</strong></em> te dà &#39;o miezz pe trraducere &#39;o contenuto d&#39;o muòdulo, ma <em>nun</em> trraduce &#39;o contenuto automaticamente.<br/><br/>Vide &#39;a documentazione pe <a href=\"https://docs.beefree.io/beefree-sdk/other-customizations/multi-language-templates\" target=\"_blank\" style=\"text-decoration: underline;\" rel=\"noopener\">cchiù informazioni</a>.</p>"
+                      },
+                      "zh-CN": {
+                        "html": "<p><em><strong>多语言模板</strong></em>功能为您提供了翻译模板内容的方式，但不会自动为您翻译内容。<br/><br/>请查阅<a href=\"https://docs.beefree.io/beefree-sdk/other-customizations/multi-language-templates\" target=\"_blank\" style=\"text-decoration: underline;\" rel=\"noopener\">文档</a>以获取更多信息。</p>"
+                      }
+                    }
+                  },
+                  "style": {
+                    "padding-bottom": "10px",
+                    "padding-left": "10px",
+                    "padding-right": "10px",
+                    "padding-top": "20px"
+                  }
+                },
+                "locked": false,
+                "type": "mailup-bee-newsletter-modules-paragraph",
+                "uuid": "3ecdf8b0-0c87-48f1-9a59-ca9654e2cc82"
+              }
+            ],
+            "style": {
+              "background-color": "transparent",
+              "border-bottom": "0 solid transparent",
+              "border-left": "0 solid transparent",
+              "border-right": "0 solid transparent",
+              "border-top": "0 solid transparent",
+              "padding-bottom": "5px",
+              "padding-left": "0px",
+              "padding-right": "0px",
+              "padding-top": "5px"
+            },
+            "uuid": "970ff29e-e97e-485b-9b5d-4bc5ca7b1cad"
+          }
+        ],
+        "container": {
+          "style": {
+            "background-color": "transparent",
+            "background-image": "none",
+            "background-position": "top left",
+            "background-repeat": "no-repeat"
+          }
+        },
+        "content": {
+          "computedStyle": {
+            "hideContentOnDesktop": false,
+            "hideContentOnMobile": false,
+            "rowColStackOnMobile": true,
+            "rowReverseColStackOnMobile": false,
+            "verticalAlign": "top"
+          },
+          "style": {
+            "background-color": "transparent",
+            "background-image": "none",
+            "background-position": "top left",
+            "background-repeat": "no-repeat",
+            "color": "#000000",
+            "width": "500px"
+          }
+        },
+        "empty": false,
+        "locked": false,
+        "synced": false,
+        "type": "one-column-empty",
+        "uuid": "04fd4079-93bf-49c2-9875-38ca61aad1c8"
+      }
+    ],
+    "template": {
+      "version": "2.0.0"
+    },
+    "title": ""
+  },
+  "comments": {}
+}

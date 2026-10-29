@@ -4,5 +4,5 @@
     "jsx": "react-jsx",
     "types": ["react", "node"]
   },
-  "include": ["src/**/*", "test/**/*"]
+  "include": ["src/**/*", "test/**/*", "scripts/**/*"]
 }

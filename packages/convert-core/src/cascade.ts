@@ -2114,7 +2114,8 @@ function compareArrays(a: number[], b: number[]): number {
 export interface StyleDifference {
   /**
    * A style; "shown": text that is only the inbox preview on one side and in the email on the other, or that can't
-   * be made out on one side (its color on what's behind it: white on white); "line": a line break moved.
+   * be made out on one side (its color on what's behind it: white on white, "invisible"; or too faint where the other
+   * side's is clear, "hard to read"); "line": a line break moved.
    */
   property: (typeof STYLE_PROPERTIES)[number] | "shown" | "line";
   original: string;
@@ -2227,6 +2228,11 @@ function luminance([r, g, b]: Rgba): number {
 const INVISIBLE = 1.2;
 /** At or above this, text can be read, if faintly (#cccccc on white is 1.6). */
 const READABLE = 1.5;
+/**
+ * At or above this, text reads clearly (WCAG's least for large text; #949494 on white is 3): such text taken under
+ * READABLE (#f7dd72 on white is 1.4) is hard to read, not a color alone.
+ */
+const CLEAR = 3;
 
 /**
  * How text in a style stands out from what's behind it: the lowest WCAG contrast ratio over the colors it may be
@@ -2307,11 +2313,13 @@ export function compareStyles(originalHtml: string | StyledDocument, convertedHt
     }
     if (!a[i].shown || !b[i].shown) continue;
     compared++;
-    // Text a reader can't make out on one side only (white on white: a background lost): not the same words read.
+    // Text a reader can't make out on one side only (white on white: a background lost), or clear text made too faint
+    // to read (a black link in pale yellow): not the same words read.
     const [ca, cb] = [contrast(a[i].style), contrast(b[i].style)];
-    if (ca !== undefined && cb !== undefined && ((ca >= READABLE && cb < INVISIBLE) || (ca < INVISIBLE && cb >= READABLE))) {
-      const original = ca < INVISIBLE ? `invisible (${onBackground(a[i].style)})` : "shown";
-      const converted = cb < INVISIBLE ? `invisible (${onBackground(b[i].style)})` : "shown";
+    const unread = (low: number, high: number) => (low < INVISIBLE && high >= READABLE) || (low < READABLE && high >= CLEAR);
+    if (ca !== undefined && cb !== undefined && (unread(ca, cb) || unread(cb, ca))) {
+      const shown = (c: number, style: WordStyle) => (c < INVISIBLE ? `invisible (${onBackground(style)})` : c < READABLE ? `hard to read (${onBackground(style)})` : "shown");
+      const [original, converted] = [shown(ca, a[i].style), shown(cb, b[i].style)];
       const key = `shown\u0000${original}\u0000${converted}`;
       const group = groups.get(key) ?? { property: "shown" as const, original, converted, words: [] };
       group.words.push(a[i].word);

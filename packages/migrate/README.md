@@ -1,6 +1,6 @@
 # @unlayer/migrate
 
-Migrate React Email templates to [Unlayer Elements](https://github.com/unlayer/elements). Your templates keep their props, loops and conditions; they become Elements components that render email-safe HTML, web pages and print documents, and open in the Unlayer visual editor.
+Migrate React Email templates to [Unlayer Elements](https://github.com/unlayer/elements). Your templates keep their props, loops and conditions; they become Elements components that render email-safe HTML, web pages and print documents, and open in the Unlayer visual editor. MJML and Beefree templates migrate the same way: see [MJML templates](#mjml-templates---from-mjml) and [Beefree templates](#beefree-templates---from-beefree).
 
 ```bash
 npx @unlayer/migrate emails           # converts and checks your templates, and writes nothing
@@ -39,7 +39,7 @@ Run it from your project folder, with Node.js 20.6 or later (an older one stops 
 | `--force` | With `--strict`, write templates the check fails anyway. |
 | `--overwrite` | Replace files already at a destination that the run didn't produce: a template an earlier run wrote in an `--out` folder, as it wrote it, or files git can restore. A design JSON (which may have been made or edited in the editor) only when git can restore it or it's the same design the run writes: otherwise that template fails and neither file is written. With `--strict`, it never writes a template that failed the check. |
 | `--allow-dirty` | Replace files git can't restore (uncommitted changes, not committed, or not in a repository): templates with `--write`, other files with `--overwrite`. |
-| `--from react-email` | The source format (the only one today). |
+| `--from <source>` | The source format: `react-email` (the default), `mjml` (see [MJML templates](#mjml-templates---from-mjml)) or `beefree` (see [Beefree templates](#beefree-templates---from-beefree)). |
 
 Without `--write` or `--out`, nothing is written: the command converts and checks, and prints what it would do.
 
@@ -53,7 +53,86 @@ All templates are converted and checked before any output is written. With `--wr
 
 Verification uses a temporary file in the destination folder. The command removes it after the check, also when the run is interrupted (Ctrl-C, a kill) or fails, and removes any empty folders it created for that check. A template whose destination folder can't be written fails with that reason. Every template is written, also one whose content differs (flagged): with `--write`, git restores the original, and `--out` leaves it where it was. With `--strict`, a failed check leaves the target template and design untouched unless `--force` was requested. Writes replace files atomically, preserving other files that happen to share a hard link with an output. A template edited while the run converts it isn't replaced: it fails, and the edit stays. The same holds for a file the run replaces at an `--out` destination, a design JSON or a report: one edited after the run decided it could replace it (while templates load) is kept, and its template fails.
 
-Exit codes: `0` when every template converted with the same content (what looks different is listed), `1` for a usage error, when no templates were found, or when a template was left unchecked for a file that renders it and isn't migrated (a preview around it: migrate it with `--out`), `2` when a template failed to convert, its content differs (with `--strict`, anything differs), a file couldn't be read (a link to a file that's gone), or the run couldn't go on. A run never ends with `0` without checking what it was given. Use it in CI to keep migrated templates honest: templates already migrated (importing `@unlayer/react-elements`: an import, not a comment that names it) are skipped, so running it again after `--write` passes. A `.js` template with JSX can't be loaded: rename it to `.jsx`.
+Exit codes: `0` when every template converted with the same content (what looks different is listed), `1` for a usage error, when no templates were found, or when a template was left unchecked for a file that renders it and isn't migrated (a preview around it: migrate it with `--out`), `2` when a template failed to convert, its content differs (with `--strict`, anything differs), a file couldn't be read (a link to a file that's gone), or the run couldn't go on. A run never ends with `0` without checking what it was given, but for a Beefree template without its HTML export beside it, which is listed as unverified (`--strict` fails it). Use it in CI to keep migrated templates honest: templates already migrated (importing `@unlayer/react-elements`: an import, not a comment that names it) are skipped, so running it again after `--write` passes. A `.js` template with JSX can't be loaded: rename it to `.jsx`.
+
+## MJML templates (`--from mjml`)
+
+```bash
+npx @unlayer/migrate emails --from mjml           # converts and checks your .mjml templates, and writes nothing
+npx @unlayer/migrate emails --from mjml --write   # then writes emails/<name>.tsx beside each one
+```
+
+The same command, the same options, output and exit codes as for React Email, for MJML 4 and 5 templates. Each `.mjml` file is:
+
+1. **Converted.** MJML's attribute cascade is resolved first, as MJML resolves it (`mj-attributes` with `mj-all` and per-tag defaults, `mj-class`, MJML's own defaults, inline attributes), and `mj-include`s are followed (relative to the file that includes them; a path outside the folder given is refused, and listed). Then each section becomes a `Row`, each column a `Column` as wide as MJML makes it, and each component a block: `mj-text` a `Paragraph` (a `Heading` when it holds one `<h1>`–`<h4>`), `mj-button` a `Button`, `mj-image` an `Image`, `mj-divider` a `Divider`. The head gives the preview text (`mj-preview`) and web fonts (`mj-font`), and the template's `mj-style` rules are written on the text they apply to. Merge tags (`{{name}}`, `*|FNAME|*`) stay as text. The result is the design JSON the Unlayer editor opens, written as Elements code with `designToElements()` from [`@unlayer/react-elements/codegen`](https://github.com/unlayer/elements/blob/main/packages/react/docs/codegen.md).
+2. **Checked.** MJML compiles the original (the `mjml` version this package pins), the migrated code renders as a migrated React Email template does, and the same check compares the two: content (every word, link, image and `alt` text, on desktop and phones, every block reaching the editor) must be the same; how it looks is listed. A few content changes are the editor's own way of writing a block, and the converter **declares** them, each naming exactly what it replaces: an icon's `alt` text, which the Social block writes as "Facebook icon", on that icon's image; MJML's built-in icon, swapped for the editor's icon for the network. The check expects those (and only those) and lists each one as a difference, so they don't make a template ✗; any other change in the content still does, and `--strict` fails a template with declared differences as with any other.
+3. **Reported**, as a React Email run reports: ✓ or ✗, how much is editable, what differs. Blocks kept as the HTML MJML compiles them to render as before by construction, so their number is said beside the check, as how much isn't editable: `✓ emails/promo.mjml: 92% editable, 2 blocks kept as HTML (mj-hero, mj-carousel)`. `--strict` fails a template with any of them.
+
+```text
+✓ emails/welcome.mjml: 100% editable, 1 kind of difference (columns stack on narrower screens)
+✓ emails/promo.mjml: 92% editable, 2 blocks kept as HTML (mj-hero, mj-carousel), 3 kinds of difference (section background image approximated; column vertical alignment not kept; social icon alt text is “<network> icon”)
+- emails/partials/footer.mjml: skipped: not an MJML document (no <mjml> root): a partial, converted where a template includes it
+
+2 templates: 2 migrated and checked. 2 blocks kept as HTML (not editable as blocks). 1 other file skipped (see above). Nothing written: pass --write or --out <dir> to write the migrated templates.
+```
+
+The `.mjml` files stay as they are: `--write` writes `<name>.tsx` beside each one (and `<name>.design.json` with `--design`, the design that code renders), `--out <dir>` writes them in `<dir>` with the same folder layout. A file already at a destination is treated as in an `--out` folder: it's replaced only with `--overwrite`, and then only when an earlier run wrote it and nobody edited it since, or git can restore it (`--allow-dirty` for anything else). Files without an `<mjml>` root are partials: they're read where a template includes them, and never written. An MJML 3 template (everything in `<mj-container>`) fails, saying to upgrade it first with `npx mjml-migrate <input> <output>`.
+
+What each MJML component becomes:
+
+| MJML | Elements | |
+|---|---|---|
+| `mj-body`, `mj-preview`, `mj-font` | `<Email>`'s `contentWidth`, `backgroundColor`, `previewText`, `fontFamily` (with its web font) | The page MJML leaves without a background is white. `mj-title` goes in the file's header comment. |
+| `mj-section`, `mj-column` | `Row` and `Column`s | Columns as wide as MJML makes them; the section's padding, border and background, and the space narrow columns leave, go into the outer columns' padding, so content sits where it does in MJML. On phones each column gets the padding MJML gives it there. Columns wider together than the section wrap onto rows of their own, as in MJML. |
+| `mj-text`, `mj-button`, `mj-image`, `mj-divider` | `Paragraph`/`Heading`, `Button`, `Image`, `Divider` | Each with its padding, colors, fonts and alignment. A text's paragraphs keep MJML's margins. |
+| `mj-raw` | `Html` | As it is; markup no reader sees (Outlook's conditional comments) is left out. |
+
+Approximated, and listed as a difference:
+
+- `mj-wrapper`: its sections are rows of their own, with its background (a full-width one across the page) and padding around them; its border, rounded corners and background image aren't kept.
+- `mj-group`: a row whose columns stay side by side on phones.
+- A section's `background-url`: the row's background image; its `border-radius` and `border`: on its outer columns.
+- `mj-navbar`: a `Menu` (its links' letter case and underline aren't kept). One with a hamburger is kept as HTML: its icons show only on phones.
+- `mj-social`: a `Social` block with MJML's links (a network's share URL included). An icon of the template's own (`src`) keeps its image; MJML's built-in icons are white glyphs MJML draws on a colored square, which a Social block can't draw, so each becomes the editor's icon for the network (a declared difference), and every icon's `alt` text is the editor's "<network> icon" (declared too). Icons with labels or without links, and MJML's icons for networks the editor has no icon for (`xing`, `google`, `web`), keep the block as HTML.
+- `mj-spacer`: an empty `Divider` as tall as the space, which the editor shows and resizes.
+- `mj-table`: a `Table` when it's a plain grid (text in each cell, no spans, no colors or borders of its own), else kept as HTML.
+- Column `vertical-align` (email columns sit at the top), an image's `border-radius`, `height` and `fluid-on-mobile`, a button's `height`, `mj-style` rules for other screens or states (`@media`, `:hover`), `mj-html-attributes`.
+- Direction: Elements lays out every row's columns in the email's direction (right to left, the first on the right, with `textDirection="rtl"`), where MJML lays out each section's and group's by its own `direction`, left to right unless it says `rtl`, whatever `<mjml dir>` says. `<mjml dir="rtl">` makes a right-to-left email where no section or group shows its columns left to right; otherwise the email stays left to right, with its columns where MJML shows them. A section or group with `direction="rtl"` in a left-to-right email shows its columns in order. Phones stack columns in order in both.
+- Phones: MJML stacks columns below 480px (or `mj-breakpoint`), Elements below the content width plus 20px (620px for a 600px email); between the two, MJML shows columns side by side where Elements stacks them.
+
+Kept as the HTML MJML compiles them to (with the CSS they need), and counted as blocks kept as HTML:
+
+- `mj-hero`: content over a background image.
+- `mj-carousel` and `mj-accordion`: interactive.
+- `mj-raw` among columns or sections, components MJML puts somewhere a converter can't (an `mj-section` in a column), and tags it doesn't know.
+
+## Beefree templates (`--from beefree`)
+
+```bash
+npx @unlayer/migrate templates --from beefree           # converts and checks your Beefree templates (their JSON), and writes nothing
+npx @unlayer/migrate templates --from beefree --write   # then writes templates/<name>.tsx beside each one
+```
+
+As for MJML: the same options, output and exit codes, and the JSON files stay where they are (`--write` writes `<name>.tsx` beside each one, `--out <dir>` in `<dir>`, with the same rules for files already there). The `.json` files in the folders given are read; one that isn't a Beefree template (classic "full" JSON, versions 0.0.1 and 2.0.0, also as the Template Catalog API wraps it) is listed as skipped, with what it is. A template of another version fails, saying so. Each template becomes an Unlayer design, written as Elements code with `designToElements()`.
+
+The check needs what the original renders, and a Beefree template renders in Beefree: put **Beefree's HTML export** of each template beside its JSON, with the same name (`welcome.json` and `welcome.html`), and the migration is checked against it, as React Email and MJML templates are. A template without one is converted and written, but **unverified**: neither ✓ nor ✗, said as such, and not counted as a failure (the run can end with `0`). With `--strict`, an unverified template fails, and isn't written unless you pass `--force`.
+
+```text
+✓ templates/welcome.json: 100% editable, 1 kind of difference (its columns are aligned to the middle in Beefree; Unlayer columns sit at the top)
+? templates/promo.json: unverified (no exported HTML: put Beefree's HTML export of it beside it as promo.html to check it), 96% editable, 1 block kept as HTML (icons)
+
+2 templates: 1 migrated and checked, 1 unverified (nothing to check against: see above). 1 block kept as HTML (not editable as blocks). Nothing written: pass --write or --out <dir> to write the migrated templates.
+```
+
+Modules with no Unlayer block (`icons`, `form`, `merge-content`, add-ons) are kept as HTML blocks and counted beside the check, as MJML's are. What's approximated is listed per template, where it is (`Row 5`, `Row 2, column 1, module 3 (image)`). Two content changes are the editor's own, and declared as for MJML (the check expects exactly these, lists them, and `--strict` fails them):
+
+- Social icons: the Social block writes each icon's `alt` text as "Facebook icon" where Beefree's says "Facebook" (on that icon's image).
+- Hamburger menus: Unlayer menus have no hamburger button, so its `☰`/`✕` glyphs (or, in Beefree's newer exports, the button) are left out, and the links show on phones, where Beefree folds them into the button.
+
+Other known differences, listed per template:
+
+- Background images aren't scaled to cover their row in email.
+- Image corner radius and column vertical alignment aren't kept.
 
 ## Check a template you migrated yourself
 

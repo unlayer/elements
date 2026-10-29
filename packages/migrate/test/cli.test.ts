@@ -909,7 +909,7 @@ export default function Welcome() { return <Html><Body><Text>Welcome aboard</Tex
       [["--write", "--out", "x", "emails"], "Use --write or --out, not both"],
       [["nope"], "Not found: nope"],
       [["--bogus"], "Unknown option: --bogus"],
-      [["--from", "mjml", "x"], 'Unknown --from "mjml"'],
+      [["--from", "nope", "x"], 'Unknown --from "nope". Supported: react-email, mjml, beefree.'],
     ];
     for (const [argv, message] of mistakes) {
       const out = io(dir);
@@ -925,7 +925,7 @@ export default function Welcome() { return <Html><Body><Text>Welcome aboard</Tex
     // Run with nothing at all, it says how it's used.
     const bare = io(dir);
     expect(await main([], bare, lib)).toBe(1);
-    expect(bare.err).toMatch(/^Pass the templates to migrate \(files or folders\)\.\n\nMigrate React Email templates to Unlayer Elements\.\n\nUsage:/);
+    expect(bare.err).toMatch(/^Pass the templates to migrate \(files or folders\)\.\n\nMigrate React Email, MJML or Beefree templates to Unlayer Elements\.\n\nUsage:/);
     const help = io(dir);
     expect(await main(["--help"], help, lib)).toBe(0);
     expect(help.out).toContain("npx @unlayer/migrate");
