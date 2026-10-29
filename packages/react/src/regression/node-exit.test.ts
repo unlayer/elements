@@ -393,6 +393,29 @@ export function run() {
     }
   }, 60_000);
 
+  // Vite's Worker build (`ssr.target: "webworker"`, everything bundled) followed the async entry's import() of the
+  // Tailwind entry, a literal, into `tailwindcss`, an optional peer dependency: where it isn't installed, the module
+  // threw as it loaded.
+  it("renders with the async entry in Vite's Worker build, tailwindcss not installed", async () => {
+    const dir = project(own[0], own[1], "module");
+    try {
+      fs.writeFileSync(path.join(dir, "entry.mjs"), `import React from "react";
+import { Email, Row, Column, Paragraph } from "@unlayer/react-elements";
+import { renderToHtml } from "@unlayer/react-elements/async";
+const h = React.createElement;
+renderToHtml(h(Email, null, h(Row, null, h(Column, null, h(Paragraph, null, "Hi there"))))).then((html) => console.log(html.includes("Hi there")));
+`);
+      const vite = (await import(pathToFileURL(createRequire(createRequire(path.join(root, "package.json")).resolve("vitest/package.json")).resolve("vite")).href)) as typeof import("vite");
+      const outDir = path.join(dir, "out");
+      await vite.build({ root: dir, configFile: false, logLevel: "silent", mode: "production", ssr: { target: "webworker", noExternal: true }, build: { ssr: path.join(dir, "entry.mjs"), outDir, emptyOutDir: true, minify: false, rollupOptions: { output: { format: "es", entryFileNames: "[name].mjs" } } } });
+      const run = spawnSync(process.execPath, [path.join(outDir, "entry.mjs")], { encoding: "utf8", timeout: 20_000 });
+      expect(run.status, run.stderr).toBe(0);
+      expect(run.stdout.trim().split("\n").pop()).toBe("true");
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
+  }, 60_000);
+
   // webpack 4 (Create React App 4, Storybook 6) and Jest before 28 don't read "exports": they find the package's
   // fizz-cleanup/ folder, whose package.json names the module that loads nothing (Node's would load react-dom/server's
   // browser build in a browser bundle). There, contexts' values stay as React's renders left them.
