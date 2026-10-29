@@ -82,12 +82,12 @@ const DEFAULT_VALUES = {
 const Heading = createItemComponent<HeadingValues, HeadingSemanticProps>({
   name: "Heading",
   defaultValues: DEFAULT_VALUES,
-  // `level` and `as` are `headingType` (see PROP_ALIASES). The editor's exporters write it as the tag's name, so one
-  // that isn't a tag name (one from data, with a space or a quote in it) is an h1, and said; a design's own stays.
+  // `level` and `as` are `headingType` (see PROP_ALIASES). The editor's exporters write it as the tag's name, so a
+  // level from data could be any tag (one whose text a browser runs as code): one that isn't h1 to h6 is an h1, and said.
   propMapper: (props) => {
     const mapped = mapSemanticProps(props as SemanticProps<HeadingValues>, DEFAULT_VALUES, "Heading");
-    if (mapped.headingType !== undefined && !/^[a-z][a-z\d]*$/i.test(String(mapped.headingType))) {
-      sayOnce("[Unlayer] Heading takes a level that's a tag name (h1 to h6): one that isn't is an h1.");
+    if (mapped.headingType !== undefined && !/^h[1-6]$/i.test(String(mapped.headingType))) {
+      sayOnce("[Unlayer] Heading takes a level from h1 to h6: another is an h1.");
       mapped.headingType = "h1";
     }
     return mapped;
