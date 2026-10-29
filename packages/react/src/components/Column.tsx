@@ -198,8 +198,10 @@ function renderColumn(props: ColumnProps): React.ReactElement {
   }
 
   // Its `style` and `className` on its column cell (see hatch). Its exporter failing fails it, or leaves it out (see
-  // renderContainer).
-  const html = hatch(renderColumnToHtml(innerHTML, valuesWithMeta, index, cells, bodyValues, rowValues, mode), /<div[^>]*class="u-col[ "][^>]*>/, style, className, semanticProps);
+  // renderContainer). The cell has the column's width: padding or a border in its `style` go inside it (border-box),
+  // as the Column's own padding does, instead of making the row wider than the email.
+  const insets = style && typeof style === "object" && (style as Record<string, unknown>).boxSizing === undefined && Object.keys(style).some((key) => /^(padding|border(?!Radius|Collapse|Spacing|Image|(Top|Bottom|Start|End)(Left|Right|Start|End)Radius))/.test(key));
+  const html = hatch(renderColumnToHtml(innerHTML, valuesWithMeta, index, cells, bodyValues, rowValues, mode), /<div[^>]*class="u-col[ "][^>]*>/, insets ? { ...style, boxSizing: "border-box" } : style, className, semanticProps);
   return <div dangerouslySetInnerHTML={{ __html: html }} />;
 }
 

@@ -293,10 +293,24 @@ function renderRow(props: RowProps): React.ReactElement | null {
   );
 
   // Its `style` and `className` on its row (the box at the content width, see hatch). Its exporter, or a Column's,
-  // failing fails it, or that Row or Column is left out (see renderContainer, and `onError`).
-  const html = hatch(renderRowToHtml(innerHTML, valuesWithMeta, safeBodyValues, mode, cells, collection), /<div[^>]*class="u-row[ "][^>]*>/, style, className, semanticProps);
+  // failing fails it, or that Row or Column is left out (see renderContainer, and `onError`). But in an email, the
+  // padding in its `style` goes on the row around that box, as 0.2.1 had it: the box and its Columns have the content
+  // width, which padding on it would add to (the email wider than its layout, and wider than a phone).
+  const [around, own] = mode === "email" ? splitPadding(style) : [undefined, style];
+  let html = hatch(renderRowToHtml(innerHTML, valuesWithMeta, safeBodyValues, mode, cells, collection), /<div[^>]*class="u-row[ "][^>]*>/, own, className, semanticProps);
+  if (around) html = hatch(html, /<div[^>]*class="u-row-container[ "][^>]*>/, around, undefined, semanticProps);
   // Inside its display condition, as the editor's export writes it (see withDisplayCondition).
   return <div dangerouslySetInnerHTML={{ __html: withDisplayCondition(html, valuesWithMeta) }} />;
+}
+
+/** A style's padding (`padding`, `paddingTop`, `paddingInline`, …) and the rest of it, or undefined for an empty part. */
+function splitPadding(style: unknown): [Record<string, unknown> | undefined, Record<string, unknown> | undefined] {
+  if (!style || typeof style !== "object") return [undefined, style as undefined];
+  const entries = Object.entries(style);
+  const padding = entries.filter(([key]) => /^padding/.test(key));
+  if (!padding.length) return [undefined, style as Record<string, unknown>];
+  const rest = entries.filter(([key]) => !/^padding/.test(key));
+  return [Object.fromEntries(padding), rest.length ? Object.fromEntries(rest) : undefined];
 }
 
 // A collecting walk records a Row (see utils/record.tsx); rendered, it's the collected Row's HTML.

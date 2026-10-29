@@ -310,6 +310,30 @@ describe("DX: style and className, on the element each component renders", () =>
     expect(out).not.toMatch(/;;/);
   });
 
+  it.each(Object.keys(roots) as Array<keyof typeof roots>)("%s: keeps padding in a Row's or Column's style inside the layout, not wider than it", (mode) => {
+    const Root = roots[mode];
+    const out = renderToHtml(
+      <Root>
+        <Row style={{ padding: "24px 32px", color: "red" }} className="row">
+          <Column style={{ padding: 16, backgroundColor: "#f5f5f5" }} className="col"><Paragraph>A</Paragraph></Column>
+          <Column style={{ borderRadius: 8 }} className="round"><Paragraph>B</Paragraph></Column>
+        </Row>
+        <Row><Column style={{ border: "1px solid #000", boxSizing: "content-box" }} className="own"><Paragraph>C</Paragraph></Column></Row>
+      </Root>
+    );
+    // An email's row box and its Columns have the content width, which padding on the box would add to (0.2.1 put it
+    // on the row around it): there it goes; on a page and in a document the box is as wide as its container.
+    if (mode === "Email") {
+      expect(on(out, "row").style).toMatch(/color:red$/);
+      expect(on(out, "row").style).not.toContain("padding:24px");
+      expect(/<div[^>]*class="u-row-container[^>]*style="[^"]*padding:24px 32px"/.test(out)).toBe(true);
+    } else expect(on(out, "row").style).toMatch(/padding:24px 32px;color:red$/);
+    // A Column's cell has its width: padding or a border in its style go inside it, unless it says otherwise.
+    expect(on(out, "col").style).toMatch(/padding:16px;background-color:#f5f5f5;box-sizing:border-box$/);
+    expect(on(out, "round").style).not.toContain("box-sizing");
+    expect(on(out, "own").style).toMatch(/border:1px solid #000;box-sizing:content-box$/);
+  });
+
   it("leaves out what could end the attribute or the rule, and class names that aren't", () => {
     const out = html(<Paragraph style={{ color: 'red" onclick="x', background: "url(x);}</style>", fontWeight: 700 }} className={'a"b <c>'}>Hi</Paragraph>);
     expect(out).not.toContain('onclick="x');
