@@ -133,6 +133,17 @@
         "default": "./dist/codegen.cjs"
       }
     },
+    "./fizz-cleanup": {
+      "react-server": {
+        "import": "./dist/fizz-cleanup.noop.js",
+        "default": "./dist/fizz-cleanup.noop.cjs"
+      },
+      "node": "./dist/fizz-cleanup.node.cjs",
+      "default": {
+        "import": "./dist/fizz-cleanup.noop.js",
+        "default": "./dist/fizz-cleanup.noop.cjs"
+      }
+    },
     "./package.json": "./package.json"
   },
   "types": "./dist/index.d.ts",
@@ -163,6 +174,7 @@
   },
   "files": [
     "dist",
+    "fizz-cleanup",
     "README.md",
     "LICENSE",
     "THIRD_PARTY_LICENSES.md"

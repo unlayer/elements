@@ -4,7 +4,7 @@ import { createRequire } from 'node:module';
 
 const require = createRequire(import.meta.url);
 
-export default defineConfig({
+export default defineConfig([{
   // The other entries ("@unlayer/react-elements/tailwind", …) import the main one by its name, so all share one copy
   // of Elements. Each keeps what only it needs out of the main entry: `tailwindcss` (an optional peer dependency,
   // loaded when it's first asked for), Markdown's parser and the code highlighter (built in: see noExternal).
@@ -18,7 +18,10 @@ export default defineConfig({
   },
   splitting: false,
   sourcemap: true,
-  clean: true,
+  // (Not `@unlayer/react-elements/fizz-cleanup`'s modules, which the two builds below write at the same time.)
+  clean: ['!fizz-cleanup.*'],
+  // (`@unlayer/react-elements/fizz-cleanup` too, the package's export that the runtime loading Elements picks:
+  // react-dom/server's static renderer in Node, nothing elsewhere; see src/engine/fizz-cleanup.node.ts.)
   external: ['react', 'react-dom', '@unlayer/react-elements'],
   esbuildPlugins: [
     {
@@ -40,4 +43,10 @@ export default defineConfig({
   // languages beyond the ones built in aren't downloaded by everyone who installs Elements.
   noExternal: ['@unlayer-internal/shared-elements', /\?raw$/, 'marked', /^highlight\.js/],
   treeshake: true,
-});
+},
+// `@unlayer/react-elements/fizz-cleanup`'s modules: Node's, CommonJS only (its `require` is Node's, loading
+// react-dom/server when it's first needed, from the module build too), and the one for every other runtime in both
+// formats (required by the CommonJS build where a runtime can't require an ES module: Jest's jsdom, an older Node
+// under react-server).
+{ entry: { 'fizz-cleanup.node': 'src/engine/fizz-cleanup.node.ts' }, format: ['cjs'], sourcemap: true, clean: false, external: ['react-dom'] },
+{ entry: { 'fizz-cleanup.noop': 'src/engine/fizz-cleanup.noop.ts' }, format: ['esm', 'cjs'], sourcemap: true, clean: false }]);

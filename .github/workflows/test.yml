@@ -309,7 +309,8 @@ jobs:
       # Catches SSR, bundling, and Server Component compatibility issues
       # that unit tests can't detect.
       # The tarball has its license: pnpm adds the repository's only where no file in the package matches LICENSE,
-      # which THIRD_PARTY_LICENSES.md does (a 0.3.0 build had none). And its types import nothing built into the
+      # which THIRD_PARTY_LICENSES.md does (a 0.3.0 build had none), and the fizz-cleanup/ folder webpack 4 and Jest
+      # before 28 resolve the package's fizz-cleanup export from (they don't read "exports"). And its types import nothing built into the
       # package (highlight.js, marked), which consumers don't install (a 0.3.0 build's did: TS2307 without skipLibCheck):
       # no import or export from them in either quotes, and no `import("…")` type (a comment may name them).
       - name: Pack react-elements
@@ -318,6 +319,7 @@ jobs:
           pnpm pack --pack-destination /tmp
           TARBALL=$(ls /tmp/unlayer-react-elements-*.tgz)
           tar tzf "$TARBALL" | grep -qx package/LICENSE || { echo "::error::$TARBALL has no LICENSE"; exit 1; }
+          tar tzf "$TARBALL" | grep -qx package/fizz-cleanup/package.json || { echo "::error::$TARBALL has no fizz-cleanup/package.json (for resolvers that don't read exports)"; exit 1; }
           if grep -nE "[\"'(](highlight\.js|marked)[/\"']" dist/*.d.ts dist/*.d.cts | grep -vE "^[^:]+:[0-9]+:[[:space:]]*(\*|/\*|//)"; then echo "::error::the types import a package built into Elements"; exit 1; fi
           echo "TARBALL=$TARBALL" >> $GITHUB_ENV
 

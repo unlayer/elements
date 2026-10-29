@@ -17,7 +17,7 @@ const Theme = createContext("default");
 /** What a component gives with the walker and with react-dom/server: the same, where react-dom can render it. */
 const both = (element: React.ReactElement) => ({ walker: renderStatic(element), reactDom: renderToStaticMarkup(element) });
 
-describe("an idle dispatcher (React's between its client renders: no render running, where a context's default is learned)", () => {
+describe("an idle dispatcher (React's between its client renders: no render running, where react-dom puts a context's default back first)", () => {
   const invalid = () => {
     throw new Error("Invalid hook call");
   };
@@ -39,7 +39,8 @@ describe("an idle dispatcher (React's between its client renders: no render runn
       throw new Error("Cannot read a Client Context from a Server Component.");
     } };
     expect(isIdleDispatcher(flight)).toBe(false);
-    // A server's or a client's, with a function each, and a shape this doesn't know: hosts (the safe side, no learning).
+    // A server's or a client's, with a function each, and a shape this doesn't know: hosts (the safe side, nothing put
+    // back).
     expect(isIdleDispatcher(Object.fromEntries(hooks.map((hook) => [hook, () => hook])))).toBe(false);
     expect(isIdleDispatcher({})).toBe(false);
     expect(isIdleDispatcher({ useState: 1, useEffect: 1, useContext: 1, useCallback: 1 })).toBe(false);

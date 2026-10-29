@@ -16,5 +16,5 @@
       "@unlayer/react-elements/codegen": ["./src/codegen/index.ts"]
     }
   },
-  "include": ["src/dx-types.test-d.tsx", "src/dx-contract.test.tsx", "src/tailwind/index.ts", "src/tailwind/raw.d.ts", "src/font/index.tsx", "src/head/index.tsx", "src/code/index.ts", "src/code/hljs.d.ts", "src/markdown/index.ts", "src/async/index.ts", "src/codegen/index.ts"]
+  "include": ["src/dx-types.test-d.tsx", "src/dx-contract.test.tsx", "src/tailwind/index.ts", "src/tailwind/raw.d.ts", "src/font/index.tsx", "src/head/index.tsx", "src/code/index.ts", "src/code/hljs.d.ts", "src/engine/fizz-cleanup.d.ts", "src/markdown/index.ts", "src/async/index.ts", "src/codegen/index.ts"]
 }

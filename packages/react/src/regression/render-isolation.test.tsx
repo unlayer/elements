@@ -290,41 +290,50 @@ describe("a context the template doesn't provide", () => {
     expect(provided.split(/\n+/).map((line) => line.trim())).toEqual(["before Its own", "after Its own Its own"]);
   });
 
-  it("reads its default after renderToString failed or suspended inside a provider of it, once a render has read it", () => {
+  it("reads its default after renderToString failed or suspended inside a provider of it, whether a render read it before or not", async () => {
+    // An app's page that failed inside its tenant's provider, then the emails after it. A 0.3.0 build read the page's
+    // value in a context no render had read before, in every email till react-dom's next renderToString (0.2.1, which
+    // rendered with react-dom's renderToStaticMarkup, had react-dom put it back first).
     const Brand = createContext(BRAND);
-    expect(text(footer(Brand))).toBe("(c) Default Brand");
     failed(Brand, tenant);
     // (react-dom left the page's value in the context: renderToString's own.)
     expect((Brand as unknown as { _currentValue2: Brand })._currentValue2).toBe(tenant);
     expect(text(footer(Brand))).toBe("(c) Default Brand");
-    renderToString(<p />);
-    suspended(Brand, tenant);
-    expect(text(footer(Brand))).toBe("(c) Default Brand");
+    // Again, after each of the renderers had read it.
+    const renders = [() => text(footer(Brand)), () => renderToHtml(footer(Brand)), () => JSON.stringify(renderToJson(footer(Brand))), () => asyncRenderers.renderToPlainText(footer(Brand))];
+    for (const render of renders) {
+      failed(Brand, tenant);
+      expect(await render()).toContain("Default Brand");
+      suspended(Brand, tenant);
+      expect(await render()).not.toContain("Tenant A");
+    }
+    const Suspends = createContext(BRAND);
+    suspended(Suspends, tenant);
+    expect(text(footer(Suspends))).toBe("(c) Default Brand");
   });
 
-  it("can't know the default where neither of React's values holds it and no render has read the context before: reads what's there till react-dom puts it back", async () => {
+  it("reads its default where a stream and a failed renderToString left another request's value in both of React's values", async () => {
     // React keeps a context's default nowhere but in those two values (`_currentValue`, react-dom's streaming
-    // render's, and `_currentValue2`, renderToString's and renderToStaticMarkup's). Where they differ, one of them is
-    // what a render left: Elements reads the default it last saw both hold, else the second (the one only
-    // renderToString and renderToStaticMarkup write, and put back once they've rendered without failing or
-    // suspending inside a provider). The cases that remain, listed in ARCHITECTURE.md (invariant 4):
-    const First = createContext<unknown>("default");
-    failed(First, "tenant");
-    expect(read(First)).toBe("tenant");
-    renderToString(<p />);
-    expect(read(First)).toBe("default");
-    // Both another render's, the same value.
-    const Both = createContext<unknown>("default");
-    await tenantPage(Both, "tenant");
-    failed(Both, "tenant");
-    expect(read(Both)).toBe("tenant");
-    renderToString(<p />);
-    expect(read(Both)).toBe("tenant");
-    await streamed((page) => <>{page}</>);
-    expect(read(Both)).toBe("default");
+    // render's, and `_currentValue2`, renderToString's and renderToStaticMarkup's). A 0.3.0 build took a value both
+    // held for the default, and kept it for every render after: here, the tenant's, also over the default it had read
+    // before. react-dom's static renderer puts the second back before Elements reads it.
+    const Learned = createContext<unknown>("default");
+    expect(read(Learned)).toBe("default");
+    const Fresh = createContext<unknown>("default");
+    for (const context of [Learned, Fresh]) {
+      await tenantPage(context, "TenantA");
+      failed(context, "TenantA");
+      const values = context as unknown as { _currentValue: unknown; _currentValue2: unknown };
+      expect([values._currentValue, values._currentValue2]).toEqual(["TenantA", "TenantA"]);
+      expect(read(context)).toBe("default");
+      renderToString(<p />);
+      expect(read(context)).toBe("default");
+      await streamed((page) => <>{page}</>);
+      expect(read(context)).toBe("default");
+    }
   });
 
-  it("after renderToString failed inside a provider of it: reads its default inside a later stream once a render has read it, and what the failed one left before", async () => {
+  it("after renderToString failed inside a provider of it: reads its default alone, and inside a later stream what the failed one left, till react-dom puts it back", async () => {
     /** What a template reads in a component of a react-dom stream (no provider of the context in it). */
     const inStream = async (context: React.Context<unknown>) => {
       let seen = "";
@@ -332,30 +341,27 @@ describe("a context the template doesn't provide", () => {
       await streamed((page) => <><Page />{page}</>);
       return seen;
     };
-    // Read before: the default it learned, inside the stream and alone. react-dom's stream never sets the value the
-    // failed renderToString left (`_currentValue2`): it's still there after.
+    // Inside an app's render, Elements reads what's there: react-dom's static renderer can't be asked to put back
+    // what one of its renders left there (inside the app's renderToString, that would be the app's own providers'),
+    // and react-dom's stream never sets the value the failed renderToString left (`_currentValue2`). Whether a render
+    // read it before or not; the case ARCHITECTURE.md lists (invariant 4).
     const Learned = createContext<unknown>("default");
     expect(read(Learned)).toBe("default");
-    failed(Learned, "TenantB");
-    expect(await inStream(Learned)).toBe("default");
-    expect((Learned as unknown as { _currentValue2: unknown })._currentValue2).toBe("TenantB");
-    expect(read(Learned)).toBe("default");
-    // Never read before: what the failed render left, inside the stream and alone (0.2.1, which rendered with
-    // react-dom's renderToStaticMarkup, had react-dom put it back first), till a renderToString puts it back.
     const Fresh = createContext<unknown>("default");
-    failed(Fresh, "TenantB");
-    expect(await inStream(Fresh)).toBe("TenantB");
-    expect(read(Fresh)).toBe("TenantB");
-    renderToString(<p />);
-    expect(read(Fresh)).toBe("default");
-    expect(await inStream(Fresh)).toBe("default");
+    for (const context of [Learned, Fresh]) {
+      failed(context, "TenantB");
+      expect(await inStream(context)).toBe("TenantB");
+      expect((context as unknown as { _currentValue2: unknown })._currentValue2).toBe("TenantB");
+      expect(read(context)).toBe("default");
+      expect(await inStream(context)).toBe("default");
+    }
   });
 });
 
-describe("a context's default, learned around an app's renders", () => {
-  // Elements learns a context's default where React's two values for it agree while no render of React's is running
-  // (see a context the template doesn't provide, above): its first ordinary render. Before that, inside an app's
-  // renderToString, it reads what that render provides there; after, its default.
+describe("a context's default around an app's renders", () => {
+  // While no render of React's is running, Elements has react-dom's static renderer put back what a render of its own
+  // left in a context's value before it reads its default there (see a context the template doesn't provide, above).
+  // Inside an app's render it reads what's there: inside its renderToString, what that render provides.
   const tenant = "TenantA";
   /** A context, and what a template reading it renders (its plain text). */
   const brand = <T,>(fallback: T) => {
@@ -395,13 +401,14 @@ describe("a context's default, learned around an app's renders", () => {
     }
   };
 
-  it("reads an app's renderToString provider on a context it hasn't learned, and its default once learned", () => {
+  it("reads an app's renderToString provider, as 0.2 did, before and after a render alone", () => {
     const { Brand, read } = brand("default");
     expect(inRenderToString(Brand, read, tenant)).toBe("brand=TenantA");
     expect(inRenderToString(Brand, read, tenant)).toBe("brand=TenantA");
-    // Learned by a render alone (or in an effect, or after a client render: below).
     expect(read()).toBe("brand=default");
-    expect(inRenderToString(Brand, read, tenant)).toBe("brand=default");
+    // (A 0.3.0 build read its default there once a render alone had read it.)
+    expect(inRenderToString(Brand, read, tenant)).toBe("brand=TenantA");
+    expect(read()).toBe("brand=default");
   });
 
   it("reads one value for a context throughout a render that starts inside an app's renderToString and goes on after it", async () => {
@@ -430,51 +437,49 @@ describe("a context's default, learned around an app's renders", () => {
       renderToString(<Brand.Provider value={tenant}><Page /></Brand.Provider>);
       return text!.then((plain) => plain.split(/\n+/).map((line) => line.trim()));
     };
-    // Not learned yet: renderToString's value, throughout (React's values agree on the default after it returned).
+    // renderToString's value, throughout (react-dom has put the default back after it returned); alone, the default.
     expect(await started()).toEqual(["wrapper=TenantA", "consumer=TenantA", "later=TenantA"]);
     expect((await asyncRenderers.renderToPlainText(<Welcome />)).split(/\n+/).map((line) => line.trim())).toEqual(["wrapper=default", "consumer=default", "later=default"]);
-    expect(await started()).toEqual(["wrapper=default", "consumer=default", "later=default"]);
+    expect(await started()).toEqual(["wrapper=TenantA", "consumer=TenantA", "later=TenantA"]);
   });
 
-  it("learns a default of undefined", () => {
+  it("reads a default of undefined", () => {
     const { Brand, read } = brand<string | undefined>(undefined);
+    failedInside(Brand, "TenantB");
     expect(read()).toBe("brand=undefined");
     failedInside(Brand, "TenantB");
     expect(read()).toBe("brand=undefined");
-    renderToString(<p />);
   });
 
-  it("learns after a client render: React leaves its idle dispatcher in the slot, which is no render running", () => {
+  it("reads its default after a client render: React leaves its idle dispatcher in the slot, which is no render running", () => {
     client(<p>an app's client render</p>);
-    // (React's ContextOnlyDispatcher, its hooks one function: a React that changes it fails here, not by never learning.)
+    // (React's ContextOnlyDispatcher, its hooks one function: a React that changes it fails here, not by reading what
+    // a failed renderToString left.)
     expect(isIdleDispatcher(theSlot()?.get())).toBe(true);
     const { Brand, read } = brand("default");
-    expect(read()).toBe("brand=default");
     failedInside(Brand, "TenantB");
     expect(read()).toBe("brand=default");
-    renderToString(<p />);
   });
 
-  it("learns in an effect of a client render, where React's dispatcher is idle", async () => {
+  it("reads its default in an effect of a client render, where React's dispatcher is idle", async () => {
     const { Brand, read } = brand("default");
     const seen: string[] = [];
     const Preview = () => {
       useEffect(() => void seen.push(read()), []);
       return <div />;
     };
+    failedInside(Brand, "TenantB");
     client(<Preview />);
     await new Promise((done) => setTimeout(done, 0));
     expect(seen).toEqual(["brand=default"]);
-    failedInside(Brand, "TenantB");
-    expect(read()).toBe("brand=default");
-    renderToString(<p />);
   });
 
-  it("learns nothing while a client render runs: its dispatchers aren't idle", () => {
+  it("reads what's there while a client render runs: its dispatchers aren't idle", () => {
     const { Brand, read } = brand("default");
     expect(read()).toBe("brand=default");
-    // React's two values agree on another value while the client render reads it: one renderToString left, and the
-    // client's provider's. It's read there, not learned.
+    // Inside an app's render, react-dom's static renderer isn't asked to put back what one of its renders left (see
+    // a context the template doesn't provide, above): here, what a renderToString left, which is also the client's
+    // provider's.
     failedInside(Brand, "TenantB");
     const seen: Array<[boolean, string]> = [];
     const Preview = ({ n }: { n: number }) => (seen.push([isIdleDispatcher(theSlot()?.get()), read()]), <div>{n}</div>);
@@ -485,7 +490,7 @@ describe("a context's default, learned around an app's renders", () => {
     } finally {
       onClient(root, <></>);
     }
-    // Mounting and updating, a host: what's there is read, not learned.
+    // Mounting and updating, a host: what's there is read.
     expect(seen.map(([idle]) => idle)).toEqual(seen.map(() => false));
     expect(seen.map(([, text]) => text)).toEqual(seen.map(() => "brand=TenantB"));
     expect(seen.length).toBeGreaterThanOrEqual(2);

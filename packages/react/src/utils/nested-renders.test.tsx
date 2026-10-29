@@ -40,9 +40,11 @@ describe("a page that renders on the server", () => {
 const sink = () => ({ write: () => true, end: () => {}, destroy: () => {}, on() { return this; } }) as unknown as NodeJS.WritableStream;
 
 describe("a page that renders on the server, with a Context Provider around a component that renders an email", () => {
-  // As react-dom's own render inside a render (renderToStaticMarkup in a component) reads them: the page's providers
-  // are the page's. An email gets a value of the page's as a prop, or a provider of its own in what's rendered.
-  it("gives the email the template's own providers, not the page's, in react-dom's renders and its streaming one", async () => {
+  // The template's own providers are the email's. A context it doesn't provide reads, inside the page's renderToString,
+  // the page's value, as 0.2 did (react-dom's own render inside a render, renderToStaticMarkup in a component, reads
+  // its default), and inside its stream, its default (see src/regression/render-isolation.test.tsx). An email that
+  // mustn't read the page's gets the value as a prop, or a provider of its own in what's rendered.
+  it("gives the email the template's own providers over the page's, in react-dom's renders and its streaming one", async () => {
     const error = vi.spyOn(console, "error").mockImplementation(() => {});
     try {
       const Brand = React.createContext("default");
@@ -63,7 +65,7 @@ describe("a page that renders on the server, with a Context Provider around a co
       await new Promise<void>((resolve, reject) => {
         const stream = renderToPipeableStream(page, { onAllReady: () => (stream.pipe(sink()), resolve()), onShellError: reject });
       });
-      expect(seen).toEqual([0, 1].flatMap(() => [["brand=default", "brand=its own"], ["brand=default"]]));
+      expect(seen).toEqual([["brand=the page's", "brand=its own"], ["brand=default"], ["brand=default", "brand=its own"], ["brand=default"]]);
       expect(error).not.toHaveBeenCalled();
     } finally {
       error.mockRestore();
@@ -73,7 +75,7 @@ describe("a page that renders on the server, with a Context Provider around a co
 
 describe("a template's component that renders another template, inside an app's renderToString", () => {
   it("gives that render the outer walk's providers over the app's, and the outer render's value for a context neither provides", () => {
-    // (A context no render has read before: inside an app's renderToString, that render's value; see
+    // (Inside an app's renderToString, a context no walk provides reads that render's value; see
     // src/regression/render-isolation.test.tsx.)
     const Brand = React.createContext("default");
     const Theme = React.createContext("light");

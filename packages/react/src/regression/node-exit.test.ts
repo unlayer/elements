@@ -41,7 +41,15 @@ const html = E.renderToHtml(email);
 // In an app's own render: the design worked out in a component, then a hook.
 const Page = () => { const rows = React.useMemo(() => E.renderToJson(email).body.rows.length, []); const [open] = React.useState(false); return h("pre", null, rows + " rows, open=" + open); };
 // Inside react-dom/server's renderToString: Node still exits.
-console.log(JSON.stringify({ react: React.version, html: html.includes("Hi there"), page: renderToString(h(Page)) }));
+const page = renderToString(h(Page));
+// A page that failed inside its tenant's provider (react-dom left the value in the context), then an email that reads
+// the context without providing it: its default, as react-dom's static renderer is asked to put it back first.
+const Tenant = React.createContext("default");
+const Fails = () => { throw new Error("the page failed"); };
+try { renderToString(h(Tenant.Provider, { value: "TenantA" }, h(Fails))); } catch {}
+const Footer = () => h(E.Paragraph, null, "brand=" + React.useContext(Tenant));
+const brand = /brand=(\\w+)/.exec(E.renderToPlainText(h(E.Email, null, h(E.Row, null, h(E.Column, null, h(Footer))))))[1];
+console.log(JSON.stringify({ react: React.version, html: html.includes("Hi there"), page, brand }));
 `;
 };
 
@@ -53,6 +61,7 @@ function project(react: string, reactDom: string, type: "module" | "commonjs", d
   const elements = path.join(modules, "@unlayer/react-elements");
   fs.mkdirSync(elements, { recursive: true });
   fs.cpSync(dist, path.join(elements, "dist"), { recursive: true });
+  fs.cpSync(path.join(root, "fizz-cleanup"), path.join(elements, "fizz-cleanup"), { recursive: true });
   fs.copyFileSync(path.join(root, "package.json"), path.join(elements, "package.json"));
   for (const dependency of ["exporters", "types"]) fs.symlinkSync(fs.realpathSync(path.join(root, "node_modules/@unlayer", dependency)), path.join(modules, "@unlayer", dependency), "dir");
   fs.writeFileSync(path.join(dir, "package.json"), JSON.stringify({ type }));
@@ -63,7 +72,9 @@ describe("importing the built package", () => {
   // Next.js 14's server layer can't render when a module loads, an edge runtime has no MessageChannel, and Jest's
   // jsdom no TextEncoder: importing Elements renders nothing, and loads no react-dom module but react-dom/server
   // (the exporters', for web pages; react-dom's browser build needs both when it loads), as 0.1.22. Rendering an
-  // email calls none of react-dom's renderers: Elements renders templates itself.
+  // email calls none of react-dom's renderers: Elements renders templates itself. One that reads a context it doesn't
+  // provide has the app's react-dom/server render nothing, once a render, before it reads the default (see the
+  // engine's `defaultOf`).
   for (const [name, [react, reactDom]] of Object.entries(reacts)) {
     it(`renders nothing and loads only react-dom/server, and renders an email without it (${name})`, () => {
       expect(fs.existsSync(path.join(dist, "index.cjs")), "build the package first (pnpm build)").toBe(true);
@@ -80,12 +91,16 @@ const atImport = calls;
 const reactDom = [...new Set(Object.keys(require.cache).filter((file) => /react-dom[\\/]/.test(file)).map((file) => file.split(/react-dom[\\/]/).pop()).filter((file) => file.startsWith("server")))];
 const h = React.createElement;
 const html = E.renderToHtml(h(E.Email, null, h(E.Row, null, h(E.Column, null, h(E.Paragraph, null, "Hi there")))));
-console.log(JSON.stringify({ atImport, reactDom, rendered: html.includes("Hi there"), reactDomRenders: calls }));
+const reactDomRenders = calls;
+const Tenant = React.createContext("default");
+const Footer = () => h(E.Paragraph, null, React.useContext(Tenant) + " " + React.useContext(Tenant));
+const text = E.renderToPlainText(h(E.Email, null, h(E.Row, null, h(E.Column, null, h(Footer))))).trim();
+console.log(JSON.stringify({ atImport, reactDom, rendered: html.includes("Hi there"), reactDomRenders, text, contextRenders: calls - reactDomRenders }));
 `
         );
         const run = spawnSync(process.execPath, ["import.js"], { cwd: dir, encoding: "utf8", timeout: 20_000 });
         expect(run.status, run.stderr).toBe(0);
-        expect(JSON.parse(run.stdout.trim().split("\n").pop()!)).toEqual({ atImport: 0, reactDom: ["server.node.js"], rendered: true, reactDomRenders: 0 });
+        expect(JSON.parse(run.stdout.trim().split("\n").pop()!)).toEqual({ atImport: 0, reactDom: ["server.node.js"], rendered: true, reactDomRenders: 0, text: "default default", contextRenders: 1 });
       } finally {
         fs.rmSync(dir, { recursive: true, force: true });
       }
@@ -300,6 +315,58 @@ describe("the built package's own requires", () => {
   });
 });
 
+describe("the package's fizz-cleanup export", () => {
+  // Node's module requires react-dom/server when it's first needed, so that its static renderer puts back what one of
+  // its renders left in a context (see the engine's `defaultOf`); everywhere else it's one that loads nothing: bundled
+  // for an edge runtime, a Worker or a browser, react-dom/server is its browser build (React 19's keeps Node running),
+  // and under react-server it throws when it loads. package.json's "exports" picks it, React Server Components first
+  // (their bundles are Node's too), and the one that loads nothing in both formats: the CommonJS build requires it.
+  it("is Node's module in Node, and one that loads nothing in an edge runtime, a Worker, a browser and React Server Components", async () => {
+    expect(fs.existsSync(path.join(dist, "fizz-cleanup.node.cjs")), "build the package first (pnpm build)").toBe(true);
+    const dir = project(own[0], own[1], "module");
+    try {
+      /** The fizz-cleanup modules in a bundle of the package's module and CommonJS builds. */
+      const bundled = async (platform: "node" | "browser", conditions: string[]) => {
+        const found: string[] = [];
+        for (const contents of ['export * from "@unlayer/react-elements";', 'module.exports = require("@unlayer/react-elements");']) {
+          const { metafile } = await esbuild.build({ stdin: { contents, resolveDir: dir, loader: "js" }, bundle: true, write: false, metafile: true, format: "esm", platform, conditions, external: ["tailwindcss", "tailwindcss/*"], logLevel: "silent" });
+          found.push(...Object.keys(metafile.inputs).filter((input) => input.includes("fizz-cleanup")).map((input) => path.basename(input)));
+        }
+        return found;
+      };
+      const noop = ["fizz-cleanup.noop.js", "fizz-cleanup.noop.cjs"];
+      expect(await bundled("node", [])).toEqual(["fizz-cleanup.node.cjs", "fizz-cleanup.node.cjs"]);
+      expect(await bundled("node", ["react-server"])).toEqual(noop);
+      for (const conditions of [["worker", "browser"], ["workerd", "worker", "browser"], ["edge-light", "worker", "browser"], ["browser"]]) expect(await bundled("browser", conditions), conditions.join()).toEqual(noop);
+      // Node itself: imported and required, and under react-server.
+      fs.writeFileSync(path.join(dir, "probe.mjs"), `import { createRequire } from "node:module";
+import { cleanUp } from "@unlayer/react-elements/fizz-cleanup";
+const required = createRequire(import.meta.url)("@unlayer/react-elements/fizz-cleanup").cleanUp;
+console.log(JSON.stringify({ imported: cleanUp(), required: required() }));
+`);
+      for (const [args, cleaned] of [[[], true], [["--conditions=react-server"], false]] as const) {
+        const run = spawnSync(process.execPath, [...args, "probe.mjs"], { cwd: dir, encoding: "utf8", timeout: 20_000 });
+        expect(run.status, run.stderr).toBe(0);
+        expect(JSON.parse(run.stdout.trim().split("\n").pop()!), args.join()).toEqual({ imported: cleaned, required: cleaned });
+      }
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
+  }, 60_000);
+
+  // webpack 4 (Create React App 4, Storybook 6) and Jest before 28 don't read "exports": they find the package's
+  // fizz-cleanup/ folder, whose package.json names the module that loads nothing (Node's would load react-dom/server's
+  // browser build in a browser bundle). There, contexts' values stay as React's renders left them.
+  it("is the one that loads nothing where a bundler doesn't read package.json's exports", () => {
+    const folder = path.join(root, "fizz-cleanup");
+    expect(JSON.parse(fs.readFileSync(path.join(root, "package.json"), "utf8")).files).toContain("fizz-cleanup");
+    const { main, module } = JSON.parse(fs.readFileSync(path.join(folder, "package.json"), "utf8"));
+    expect([path.resolve(folder, main), path.resolve(folder, module)]).toEqual([path.join(dist, "fizz-cleanup.noop.cjs"), path.join(dist, "fizz-cleanup.noop.js")]);
+    // (A folder's path, required: its package.json's `main`, as those resolvers read it.)
+    expect(createRequire(import.meta.url)(folder).cleanUp()).toBe(false);
+  });
+});
+
 describe("the Tailwind entry (@unlayer/react-elements/tailwind), built", () => {
   // Tailwind is an optional peer dependency: the main entry never loads it, and the Tailwind entry loads it only when
   // it's asked to compile, both as a module and required.
@@ -499,18 +566,28 @@ const direct = renderToStaticMarkup(email).includes("Hi there");
 const Preview = () => h("iframe", { srcDoc: E.renderToHtml(email) });
 const Rows = () => h("pre", null, E.renderToJson(email).body.rows.length + " rows");
 const page = renderToString(h("main", null, h(Preview), h(Rows)));
-console.log(JSON.stringify({ html: E.renderToHtml(email).includes("Hi there"), direct, preview: page.includes("Hi there"), rows: page.includes("1 rows") }));
+const out = { html: E.renderToHtml(email).includes("Hi there"), direct, preview: page.includes("Hi there"), rows: page.includes("1 rows") };
+${platform === "node" ? `// A page that failed inside its tenant's provider, then an email reading the context without providing it: its
+// default, as the static renderer of the react-dom/server bundled with the app is asked to put it back first.
+const Tenant = React.createContext("default");
+try { renderToString(h(Tenant.Provider, { value: "TenantA" }, h(() => { throw new Error("the page failed"); }))); } catch {}
+const Footer = () => h(E.Paragraph, null, "brand=" + React.useContext(Tenant));
+out.brand = /brand=(\\w+)/.exec(E.renderToPlainText(h(E.Email, null, h(E.Row, null, h(E.Column, null, h(Footer))))))[1];
+` : ""}console.log(JSON.stringify(out));
 ${platform === "browser" ? "// React 19's browser build, bundled for the app, keeps Node running (as without Elements).\nprocess.exit(0);\n" : ""}`
           );
           // A Node bundle is CommonJS (an ES module bundle can't require Node's own modules, which react-dom's Node build
           // does), with one React: the project's, also for the packages linked in from the workspace.
           const out = platform === "node" ? "out.cjs" : "out.mjs";
           const alias = platform === "node" ? { react: path.join(dir, "node_modules/react"), "react-dom": path.join(dir, "node_modules/react-dom") } : {};
-          esbuild.buildSync({ absWorkingDir: dir, entryPoints: ["app.js"], bundle: true, platform, format: platform === "node" ? "cjs" : "esm", outfile: out, alias, define: { "process.env.NODE_ENV": '"production"' }, logLevel: "error" });
+          const { metafile } = esbuild.buildSync({ absWorkingDir: dir, entryPoints: ["app.js"], bundle: true, platform, format: platform === "node" ? "cjs" : "esm", outfile: out, alias, define: { "process.env.NODE_ENV": '"production"' }, logLevel: "error", metafile: true });
+          // The package's fizz-cleanup export (package.json's "exports"): Node's module in a Node bundle, and in a browser
+          // bundle the one that loads nothing.
+          expect(Object.keys(metafile.inputs).filter((input) => input.includes("fizz-cleanup")).map((input) => path.basename(input))).toEqual([platform === "node" ? "fizz-cleanup.node.cjs" : "fizz-cleanup.noop.js"]);
           const run = spawnSync(process.execPath, [out], { cwd: dir, encoding: "utf8", timeout: 20_000 });
           expect(run.error, "still running after 20s: something keeps Node alive").toBeUndefined();
           expect(run.status, run.stderr).toBe(0);
-          expect(JSON.parse(run.stdout.trim().split("\n").pop()!)).toEqual({ html: true, direct: true, preview: true, rows: true });
+          expect(JSON.parse(run.stdout.trim().split("\n").pop()!)).toEqual({ html: true, direct: true, preview: true, rows: true, ...(platform === "node" ? { brand: "default" } : {}) });
         } finally {
           fs.rmSync(dir, { recursive: true, force: true });
         }
@@ -542,7 +619,7 @@ describe("a Node script that renders with the built package", () => {
           expect(run.status, run.stderr).toBe(0);
           const out = JSON.parse(run.stdout.trim().split("\n").pop()!);
           expect(out.react).toEqual(reactVersion(react));
-          expect(out).toMatchObject({ html: true, page: "<pre>1 rows, open=false</pre>" });
+          expect(out).toMatchObject({ html: true, page: "<pre>1 rows, open=false</pre>", brand: "default" });
         } finally {
           fs.rmSync(dir, { recursive: true, force: true });
         }
@@ -555,14 +632,17 @@ describe("the built entries, bundled by esbuild (wrangler's, a serverless bundle
   // prettier is an optional peer dependency (`pretty`, codegen's formatting): a bundler that follows every literal
   // import() failed on an app that imports the async, Tailwind or codegen entry without it ("Could not resolve
   // prettier/standalone"), a Cloudflare Worker's build among them. It's loaded by a name that isn't a literal.
-  const entries = Object.keys(JSON.parse(fs.readFileSync(path.join(root, "package.json"), "utf8")).exports).filter((key) => !key.endsWith(".json"));
+  const exports = JSON.parse(fs.readFileSync(path.join(root, "package.json"), "utf8")).exports;
+  const entries = Object.keys(exports).filter((key) => !key.endsWith(".json"));
+  /** The file package.json's "exports" gives an entry imported as an ES module in a Worker. */
+  const target = (value: unknown): string => (typeof value === "string" ? value : target(Object.entries(value as object).find(([condition]) => ["worker", "browser", "import", "default"].includes(condition))![1]));
   it.each(entries)("%s bundles", async (entry) => {
     const notInstalled: import("esbuild").Plugin = {
       name: "prettier-not-installed",
       setup: (build) => build.onResolve({ filter: /^prettier(\/|$)/ }, ({ path: name }) => ({ errors: [{ text: `${name} isn't installed` }] })),
     };
     const result = await esbuild.build({
-      stdin: { contents: `export * from ${JSON.stringify(path.join(dist, `${entry === "." ? "index" : entry.slice(2)}.js`))};`, resolveDir: root, loader: "js" },
+      stdin: { contents: `export * from ${JSON.stringify(path.join(root, target(exports[entry])))};`, resolveDir: root, loader: "js" },
       bundle: true, write: false, format: "esm", platform: "browser", conditions: ["worker", "browser"], logLevel: "silent",
       external: ["tailwindcss", "tailwindcss/*"], plugins: [notInstalled],
     }).then(() => [], (error: { errors: { text: string }[] }) => error.errors.map((e) => e.text));
