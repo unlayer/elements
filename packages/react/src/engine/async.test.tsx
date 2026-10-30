@@ -150,3 +150,25 @@ describe("the async collecting render", () => {
     }
   });
 });
+
+describe("one element placed twice (`const item = <Item />` in two Rows)", () => {
+  // The async renderers kept what an async component gave by its props, which one element placed twice shares: it was
+  // called once, and its second place took the first's.
+  it("calls an async component in each place, as the synchronous renderers call a component", async () => {
+    let calls = 0;
+    const Item = async () => {
+      const n = ++calls;
+      await new Promise((done) => setTimeout(done, 2));
+      return <Paragraph>{`call ${n}`}</Paragraph>;
+    };
+    const item = <Item />;
+    const html = await renderToHtml(<Email><Row><Column>{item}</Column></Row><Row><Column>{item}</Column></Row></Email>);
+    expect(calls).toBe(2);
+    expect(html).toContain("call 1");
+    expect(html).toContain("call 2");
+    // (The negative control: two elements, each called once.)
+    calls = 0;
+    await renderToHtml(<Email><Row><Column><Item /></Column></Row><Row><Column><Item /></Column></Row></Email>);
+    expect(calls).toBe(2);
+  });
+});

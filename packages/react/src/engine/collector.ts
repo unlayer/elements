@@ -510,11 +510,13 @@ function fails(c: Collection, at: number, mark: React.ReactElement | null): Reac
   return mark;
 }
 
-function Call({ fn, props, second, name, frame, keep, c, ctx, own }: CallProps): React.ReactNode {
+function Call(placed: CallProps): React.ReactNode {
+  const { fn, props, second, name, frame, keep, c, ctx, own } = placed;
   let result: unknown;
-  const at = callOrder(c, props);
+  // (Kept by this placement's own props (Call's), not the user's: one element placed twice is called in each place.)
+  const at = callOrder(c, placed);
   if (c.async) c.waiting.delete(at);
-  const pending = c.pending.get(props);
+  const pending = c.pending.get(placed);
   if (pending) result = pending;
   else {
     try {
@@ -543,7 +545,7 @@ function Call({ fn, props, second, name, frame, keep, c, ctx, own }: CallProps):
       c.suspended.push({ name, frame, boundary: ctx.boundary, inSuspense: ctx.suspense > 0, suspenseAt: ctx.suspenseAt });
       throw result;
     }
-    c.pending.set(props, result);
+    c.pending.set(placed, result);
     const promise = result as Tracked;
     track(promise);
     if (promise.status === "rejected") return fails(c, at, errorMark(c, promise.reason, name, frame, ctx));
