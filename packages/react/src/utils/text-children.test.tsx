@@ -306,10 +306,18 @@ describe("rich text children of Paragraph, Heading and Button", () => {
     }
   });
 
-  it("leave out a tag that never ends (before a <style> or <script> left open, whose markup goes to the end), so its attributes aren't a tag's in the email", () => {
+  it("leave out a tag's event handlers however its markup is written, and a tag that never ends (in a quote left open), so its attributes aren't a tag's in the email", () => {
     const Markup = ({ html }: { html: string }) => <span dangerouslySetInnerHTML={{ __html: html }} />;
-    const hostile = ["Nice <img src=x onerror=alert(1) <style>", "Nice <img src=x onerror=alert(1) <script>", "Nice <a href=x onmouseover=alert(1) <style>x", "Nice <img src=x onerror=alert(1)"];
-    for (const markup of hostile) {
+    // As a browser reads them: a `<style` or `<script` in a tag is an attribute's name (the tag ends at the next `>`),
+    // and a quote left open runs to the end, the tag with it.
+    const hostile: Record<string, string> = {
+      "Nice <img src=x onerror=alert(1) <style>": "Review: <span>Nice </span>",
+      "Nice <img src=x onerror=alert(1) <script>": "Review: <span>Nice </span>",
+      "Nice <a href=x onmouseover=alert(1) <style>x": 'Review: <span>Nice <a href="x">x</a></span>',
+      "Nice <img src=x onerror=alert(1)": "Review: <span>Nice </span>",
+      'Nice <a href=x onmouseover=alert(1) title="x': "Review: <span>Nice </span>",
+    };
+    for (const [markup, text] of Object.entries(hostile)) {
       for (const Root of [Email, Page]) {
         const template = (
           <Root><Row><Column>
@@ -323,7 +331,7 @@ describe("rich text children of Paragraph, Heading and Button", () => {
           const doc = new DOMParser().parseFromString(html, "text/html");
           expect([...doc.querySelectorAll("*")].flatMap((e) => [...e.attributes].map((a) => a.name)).filter((name) => /^on/i.test(name))).toEqual([]);
         }
-        expect(texts[0]).toMatch(/^Review: <span>Nice ?$/);
+        expect(texts[0]).toBe(text);
       }
     }
   });
@@ -356,6 +364,59 @@ describe("rich text children of Paragraph, Heading and Button", () => {
       }
       expect(texts[1]).toMatch(/^Hi\s+there$/);
     }
+  });
+
+  it("end what a component's HTML leaves open in them with the block, so it doesn't run on into the blocks after it (on a page, a document, an email)", () => {
+    const Markup = ({ html }: { html: string }) => <span dangerouslySetInnerHTML={{ __html: html }} />;
+    // (`<b` alone: the browser reads `<b</span>` as an element named `b<`, not a <b>. `<style` alone: `<style</span>`
+    // is one named `style<`, no style sheet, so the link around it ends where it ends.)
+    const cases: Array<[string, (markup: React.ReactNode) => React.ReactElement]> = [
+      ["<b", (markup) => <Paragraph>Hi {markup}</Paragraph>],
+      ['<a href="https://evil.test">', (markup) => <Paragraph>Hi {markup}</Paragraph>],
+      ["<b>Sale!", (markup) => <Paragraph>Hi {markup}</Paragraph>],
+      ["<i><u>Sale!</i>", (markup) => <Heading>Hi {markup}</Heading>],
+      ["<s>", (markup) => <Button href="https://example.com">Go {markup}</Button>],
+      ["<style", (markup) => <Paragraph>See <Link href="https://ok.test">{markup}</Link> after</Paragraph>],
+    ];
+    const FORMATTING = /^(a|b|i|u|s|strong|em|code|mark|small|sub|sup|span)$/i;
+    for (const [markup, block] of cases) {
+      for (const Root of [Page, Document, Email]) {
+        const template = (
+          <Root>
+            <Row><Column>{block(<Markup html={markup} />)}</Column></Row>
+            <Row><Column><Paragraph>Next row</Paragraph><Button href="https://shop.test">Buy now</Button></Column></Row>
+          </Root>
+        );
+        const doc = new DOMParser().parseFromString(renderToHtml(template), "text/html");
+        const around = (words: string) => {
+          const node = [...doc.querySelectorAll("*")].find((e) => [...e.childNodes].some((n) => n.nodeType === 3 && n.textContent!.includes(words)));
+          const tags: string[] = [];
+          for (let e = node; e && e !== doc.body; e = e.parentElement!) tags.push(e.tagName.toLowerCase());
+          return tags.filter((tag) => FORMATTING.test(tag));
+        };
+        expect(around("Next row"), `${markup} in a ${Root.name}`).toEqual([]);
+        // (The button's own link.)
+        expect(around("Buy now").filter((tag) => tag !== "a" && tag !== "span"), `${markup} in a ${Root.name}`).toEqual([]);
+        if (markup === "<style") expect(around("after"), `${markup} in a ${Root.name}`).toEqual([]);
+        // The design's text too: each tag it opens ends in it.
+        const text = String((renderToJson(template).body.rows[0].columns[0].contents[0].values as { text: string }).text);
+        const opened = [...text.matchAll(/<(\/?)([a-z]+)[^>]*>/g)].filter(([, , tag]) => tag !== "br").map(([, close]) => (close ? -1 : 1) as number);
+        expect(opened.reduce((sum, n) => sum + n, 0), `${markup}: ${text}`).toBe(0);
+      }
+    }
+  });
+
+  it("end a <script>'s or <style>'s text where a browser ends it, keeping what's after it", () => {
+    const Markup = ({ html }: { html: string }) => <span dangerouslySetInnerHTML={{ __html: html }} />;
+    const ends = ["</style>", "</style >", "</STYLE\t>", '</style class="x">', "</style/>"];
+    for (const end of ends) {
+      const template = <Email><Row><Column><Paragraph>Hi <Markup html={`<style>.hidden{color:red}${end} there`} /></Paragraph></Column></Row></Email>;
+      const text = String((renderToJson(template).body.rows[0].columns[0].contents[0].values as { text: string }).text);
+      expect(text, end).toBe("Hi <span> there</span>");
+    }
+    // `<styles>` and `</styles>` are other elements: what's between them is text.
+    const other = <Email><Row><Column><Paragraph>Hi <Markup html="<styles>shown</styles> there" /></Paragraph></Column></Row></Email>;
+    expect(String((renderToJson(other).body.rows[0].columns[0].contents[0].values as { text: string }).text)).toBe("Hi <span>shown there</span>");
   });
 
   it("cost about ten times as much for ten times as much markup of any short shape (random, seeded): a component's own HTML in them, a lone link", async () => {

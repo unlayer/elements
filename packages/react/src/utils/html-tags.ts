@@ -1,6 +1,7 @@
 /**
  * Tags in HTML as a browser's tokenizer reads them, for code that reads markup it's given and writes it again: the
- * Markdown sanitizer (src/markdown/sanitize.ts) and the Tailwind classes inlined in markup (src/tailwind/html.ts).
+ * Markdown sanitizer (src/markdown/sanitize.ts), the rich text in a block's children (src/utils/inline-html.ts) and
+ * the Tailwind classes inlined in markup (src/tailwind/html.ts).
  * Whitespace is HTML's: no vertical tab, no non-breaking space.
  */
 
@@ -84,4 +85,36 @@ export function readTag(s: string, start: number): Tag | null | undefined {
 export function rawTextEnd(s: string, name: string, from: number): number {
   const end = at(new RegExp(`</${name}(?=[\\t\\n\\f\\r />]|$)`, "gi"), s, from);
   return end ? end.index : s.length;
+}
+
+const VOID = new Set("area base br col embed hr img input link meta param source track wbr".split(" "));
+
+/**
+ * HTML written again from what was read (sanitized HTML, Markdown's, a block's rich text), its tags balanced: an end
+ * tag of nothing open left out, what it closes past (opened after the element it ends) closed with it, and what's
+ * still open closed at the end. So HTML from a reply can't end the block, column or table it's in
+ * (`</td></tr></table>`), or run on into what's after it (an `<a href>` or `<b>` it doesn't end).
+ */
+export function balanced(html: string): string {
+  const open: string[] = [];
+  // (How many of each name are open: an end tag of one that isn't is left out at once, whatever's open.)
+  const counts = new Map<string, number>();
+  const out = html.replace(/<(\/?)([a-zA-Z][a-zA-Z0-9-]*)\b[^>]*>/g, (tag, close: string, given: string) => {
+    const name = given.toLowerCase();
+    if (VOID.has(name)) return close ? "" : tag;
+    if (!close) {
+      open.push(name);
+      counts.set(name, (counts.get(name) ?? 0) + 1);
+      return tag;
+    }
+    if (!counts.get(name)) return "";
+    let ends = "";
+    for (;;) {
+      const last = open.pop()!;
+      counts.set(last, counts.get(last)! - 1);
+      ends += `</${last}>`;
+      if (last === name) return ends;
+    }
+  });
+  return out + open.reverse().map((n) => `</${n}>`).join("");
 }

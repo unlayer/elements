@@ -4,8 +4,10 @@
  * pass as a browser reads it and written again: what's left out can't join what's around it into a tag.
  */
 
-import { commentEnd, rawTextEnd, readTag, type Attribute } from "../utils/html-tags";
+import { balanced, commentEnd, rawTextEnd, readTag, type Attribute } from "../utils/html-tags";
 import { codePoint, decoded, entities, tight } from "../utils/entities";
+
+export { balanced };
 
 const ESCAPES: Record<string, string> = { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "`": "&#96;" };
 
@@ -147,36 +149,4 @@ export function sanitized(html: string): string {
     }
   }
   return out;
-}
-
-const VOID = new Set("area base br col embed hr img input link meta param source track wbr".split(" "));
-
-/**
- * Sanitized HTML (or Markdown's, which writes it), its tags balanced: an end tag of nothing open left out, what it
- * closes past (opened after the element it ends) closed with it, and what's still open closed at the end. So HTML from
- * a reply can't end the block, column or table it's in (`</td></tr></table>`), or run on into what's after it (an
- * `<a href>` or `<b>` it doesn't end).
- */
-export function balanced(html: string): string {
-  const open: string[] = [];
-  // (How many of each name are open: an end tag of one that isn't is left out at once, whatever's open.)
-  const counts = new Map<string, number>();
-  const out = html.replace(/<(\/?)([a-zA-Z][a-zA-Z0-9-]*)\b[^>]*>/g, (tag, close: string, given: string) => {
-    const name = given.toLowerCase();
-    if (VOID.has(name)) return close ? "" : tag;
-    if (!close) {
-      open.push(name);
-      counts.set(name, (counts.get(name) ?? 0) + 1);
-      return tag;
-    }
-    if (!counts.get(name)) return "";
-    let ends = "";
-    for (;;) {
-      const last = open.pop()!;
-      counts.set(last, counts.get(last)! - 1);
-      ends += `</${last}>`;
-      if (last === name) return ends;
-    }
-  });
-  return out + open.reverse().map((n) => `</${n}>`).join("");
 }
