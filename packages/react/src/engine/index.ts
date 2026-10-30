@@ -49,8 +49,9 @@ export interface CollectOptions {
 /** What a collecting render that react-dom failed (not a part of the template) fails with. */
 function failure(error: unknown, options: CollectOptions, frame: ReturnType<typeof rootFrame>, c?: Parameters<typeof suspendedError>[0]): unknown {
   if (error instanceof RenderError || options.passes?.(error)) return error;
-  // What suspended where nothing could wait for it: the first component that did, or the lazy one React loads.
-  if (c && (suspends(error) || suspendedInReact(error))) return suspendedError(c) ?? new RenderError(ASYNC_IN_SYNC, "lazy", positionOf(c.lazies[0]?.frame ?? frame), error);
+  // What suspended where nothing could wait for it: the first component that did, or the lazy one React loads. (Where
+  // one did outside every <Suspense>, that's what failed the render, whatever React's error says.)
+  if (c && (suspends(error) || suspendedInReact(error) || c.suspended.some((s) => !s.inSuspense))) return suspendedError(c) ?? new RenderError(ASYNC_IN_SYNC, "lazy", positionOf(c.lazies[0]?.frame ?? frame), error);
   return renderFailure(error, frame.name) ?? new RenderError(threw(error), frame.name, positionOf(frame), error);
 }
 

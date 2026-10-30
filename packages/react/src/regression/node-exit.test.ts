@@ -655,3 +655,31 @@ describe("the built entries, bundled by esbuild (wrangler's, a serverless bundle
     expect(result).toEqual([]);
   }, 60_000);
 });
+
+describe("react-dom's browser build in production (a Worker's, an edge runtime's)", () => {
+  // Its production error for a component that suspended where nothing could wait is only its number (#426): a
+  // synchronous render said React's minified error, at the root.
+  for (const [name, [react, reactDom]] of Object.entries(reacts)) {
+    it(`says an async component in a synchronous render is async, where it is (${name})`, () => {
+      expect(fs.existsSync(path.join(dist, "index.js")), "build the package first (pnpm build)").toBe(true);
+      const dir = project(react, reactDom, "module");
+      try {
+        fs.writeFileSync(
+          path.join(dir, "app.js"),
+          `import * as E from "@unlayer/react-elements";
+import React from "react";
+const h = React.createElement;
+async function Profile() { await null; return h(E.Paragraph, null, "profile"); }
+try { E.renderToHtml(h(E.Email, null, h(E.Row, null, h(E.Column, null, h(Profile))))); console.log("{}"); }
+catch (error) { console.log(JSON.stringify({ component: error.component, position: error.position, message: error.message })); }
+`
+        );
+        const run = spawnSync(process.execPath, ["--conditions=browser", "app.js"], { cwd: dir, encoding: "utf8", timeout: 20_000, env: { ...process.env, NODE_ENV: "production" } });
+        expect(run.status, run.stderr).toBe(0);
+        expect(JSON.parse(run.stdout.trim().split("\n").pop()!)).toEqual({ component: "Profile", position: "Row 1 › Column 1 › Profile", message: expect.stringMatching(/^\[Unlayer\] it is async or suspends, and this renderer is synchronous/) });
+      } finally {
+        fs.rmSync(dir, { recursive: true, force: true });
+      }
+    }, 30_000);
+  }
+});

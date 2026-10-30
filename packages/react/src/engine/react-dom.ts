@@ -152,10 +152,10 @@ export const isThenable = (value: unknown): value is PromiseLike<unknown> => typ
 /**
  * Whether react-dom's static render failed because something suspended where no Suspense was around it: React throws
  * an Error of its own for that, which only its message tells (its static renderer has no `onError`, and the
- * suspension it caught is its own). Read only where nothing of the collector's saw what suspended: what React
- * resolves itself, a lazy component's.
+ * suspension it caught is its own; its browser build's production error is only its number, #426). Read only where
+ * nothing of the collector's saw what suspended: what React resolves itself, a lazy component's.
  */
-export const suspendedInReact = (error: unknown): boolean => error instanceof Error && /suspended while responding to synchronous input/.test(error.message);
+export const suspendedInReact = (error: unknown): boolean => error instanceof Error && /suspended while responding to synchronous input|Minified React error #426\b/.test(error.message);
 
 /** Whether a component threw to suspend, in the static renderer (`stream`: the streaming one). */
 export const suspends = (thrown: unknown, stream = false): boolean => isThenable(thrown) || (thrown != null && thrown === (stream ? SUSPENSE.stream : staticSuspension()));
