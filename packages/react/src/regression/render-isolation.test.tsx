@@ -490,6 +490,73 @@ describe("a context's default around an app's renders", () => {
     }
   });
 
+  // (Documented, not wanted: React's renders share each context's value, so these hold what README's "Contexts and the
+  // async renderers" says, as React Email's render does. A template that provides what it reads, and an app's render
+  // that provides what it reads, read their own.)
+  it("reads, in the synchronous renderers too, the value an app's renderToString of another react-dom build left where it failed inside a provider (documented)", async () => {
+    const { Brand, email, read } = brand("default");
+    const other = require(Number.parseInt(React.version) >= 19 ? "react-dom/server.edge" : "react-dom/server.browser") as { renderToString: (node: React.ReactNode) => string };
+    const Fails = () => {
+      throw new Error("the page failed");
+    };
+    try {
+      expect(() => other.renderToString(<Brand.Provider value="TENANT_A_SECRET"><Fails /></Brand.Provider>)).toThrow("the page failed");
+      expect(read()).toBe("brand=TENANT_A_SECRET");
+      expect(JSON.stringify(renderToJson(email))).toContain("TENANT_A_SECRET");
+      // (The template's own provider, read where it gives one: the rule README says.)
+      const Footer = () => <Paragraph>{`brand=${String(useContext(Brand))}`}</Paragraph>;
+      expect(renderToPlainText(<Email><Brand.Provider value="its own"><Row><Column><Footer /></Column></Row></Brand.Provider></Email>).trim()).toBe("brand=its own");
+    } finally {
+      other.renderToString(<i />);
+    }
+    expect(read()).toBe("brand=default");
+  });
+
+  it("gives, while an async render waits, the template's provider values to an app's stream of another react-dom build that doesn't provide them (documented)", async () => {
+    const { Brand } = brand("default");
+    // The template: a part inside its provider that resumes, and one after it that still waits.
+    const gate = () => {
+      let open = () => {};
+      const opened = new Promise<void>((done) => (open = done));
+      return { open, opened };
+    };
+    const [fast, slow, page] = [gate(), gate(), gate()];
+    const FastText = () => <Paragraph>{`fast ${String(useContext(Brand))}`}</Paragraph>;
+    const Fast = async () => (await fast.opened, <FastText />);
+    const Slow = async () => (await slow.opened, <Paragraph>slow</Paragraph>);
+    const template = (
+      <Email><Row><Column>
+        <Brand.Provider value="TEMPLATE_SECRET"><Suspense fallback={null}><Fast /></Suspense></Brand.Provider>
+        <Suspense fallback={null}><Slow /></Suspense>
+      </Column></Row></Email>
+    );
+    // The app's page, streamed with another build: a part that waits for its data, then reads the context.
+    let ready = false;
+    const data = page.opened.then(() => void (ready = true));
+    const Reads = ({ wait }: { wait?: boolean }) => {
+      if (wait && !ready) throw data;
+      return <b>{String(useContext(Brand))}</b>;
+    };
+    const tick = () => new Promise((done) => setTimeout(done, 5));
+    const rendering = asyncRenderers.renderToHtml(template);
+    try {
+      const streaming = webStream().renderToReadableStream(<div><Suspense fallback="…"><Reads wait /></Suspense></div>);
+      await tick();
+      fast.open();
+      await tick();
+      page.open();
+      const html = await new Response(await streaming).text();
+      expect(html).toContain("<b>TEMPLATE_SECRET</b>");
+      // (The app's page that provides what it reads reads its own.)
+      expect(await new Response(await webStream().renderToReadableStream(<Brand.Provider value="the page's"><Reads /></Brand.Provider>)).text()).toBe("<b>the page&#x27;s</b>");
+    } finally {
+      slow.open();
+      expect(await rendering).toContain("fast TEMPLATE_SECRET");
+      await takeBack();
+    }
+    expect(await new Response(await webStream().renderToReadableStream(<Reads />)).text()).toBe("<b>default</b>");
+  });
+
   it("reads, in the async renderers, the template's own value where it provides the context it reads, whatever an app's stream left", async () => {
     const { Brand } = brand("default");
     const Footer = () => <Paragraph>{`brand=${String(useContext(Brand))}`}</Paragraph>;

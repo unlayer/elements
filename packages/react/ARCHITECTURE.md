@@ -258,15 +258,23 @@ row or block is left out of the HTML, the plain text and the design (the slower 
    regression templates rendered again from kept elements in a shuffled order give their reviewed bytes, and random
    templates sharing kept elements give the same output after any other, and at once). A context the template doesn't
    provide reads its default, wherever the render runs (react-dom's static render starts from every context's default,
-   and puts back what a render that failed inside a provider left), alone or inside an app's render, client or server,
-   but for two cases React's own renders have too, so a template must provide every context it reads (README,
-   "Contexts and the async renderers"). Inside an app's `renderToString`, where another module of react-dom's renders
-   it, it reads the page's value (as in 0.2). And the async renderers, which render with react-dom's Node.js stream,
-   read a provider's value an app's stream of another build left (`react-dom/server.edge` or `.browser`,
-   `react-dom/static.edge`'s `prerender`, after a part in a <Suspense> waited, failed or was aborted), which can be
-   another request's, another tenant's, till that build renders again: every react-dom stream reads a context's value
-   from one place, and react-dom's own Node.js stream reads the same value there (`regression/render-isolation.test.tsx`
-   holds it). React's API has no way to put back what another module left.
+   and the module Elements renders with is put back after each of its renders: `settle`), alone or inside an app's
+   render, client or server, but for the cases React's own renders have too: every react-dom build reads a context's
+   value from one place, and a build puts back only what it left itself. So a template must provide every context it
+   reads, and an app's renders every context they read (README, "Contexts and the async renderers"):
+   - Inside an app's `renderToString`, where another module of react-dom's renders the template, it reads the page's
+     value (as in 0.2).
+   - The async renderers, which render with react-dom's Node.js stream, read a provider's value an app's stream of
+     another build left (`react-dom/server.edge` or `.browser`, `react-dom/static.edge`'s `prerender`, after a part in a
+     <Suspense> waited, failed or was aborted), till that build renders again; react-dom's own Node.js stream reads
+     the same value there.
+   - Every renderer, the synchronous ones too, reads a provider's value an app's `renderToString` of another build
+     (`.edge`, `.browser`, `.bun`) left where it threw inside the provider, till that build renders again.
+   - The other way: while an async render waits, an app's stream of another build reads the template's provider
+     values where its page doesn't provide the context, and a render that never settles leaves them there.
+
+   Each can be another request's, another tenant's data (`regression/render-isolation.test.tsx` holds all of them).
+   React's API has no way to put back what another module left.
 5. **Tree order.** Output, records, ids and the error a render throws don't depend on when promises settle.
 6. **Components run as React runs them**: once, and again where React renders again (a component that sets its state
    while rendering, one that suspends once what it waits for settles); an async component's function once.

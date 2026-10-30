@@ -48,9 +48,13 @@ The template's root is resolved first: an async template is called and awaited (
 
 ## Contexts
 
-> **Security: the async renderers can read a context value from another request in flight, which can be another tenant's data.** It happens where your app also streams with another react-dom build (`react-dom/server.edge` or `react-dom/server.browser`, or `react-dom/static.edge`'s `prerender`) and a template reads a context it doesn't provide: a provider's value that stream left after a part in a `<Suspense>` waited is read until that build renders again, as react-dom's own Node.js stream does. React Email's `render` reads it the same way.
+> **Security: a context a template doesn't provide can be read from another request's render, and a template's provider values by another request's render: either can be another tenant's data.** React's server renders keep one value for each context, read by every react-dom build in the process, and a build puts back only what it left itself. Where your app also renders with another react-dom build (`react-dom/server.edge`, `.browser` or `.bun`, or `react-dom/static.edge`'s `prerender`), as React's own renders do (React Email's `render` reads the same):
+>
+> - The async renderers read a provider's value an app's stream of that build left after a part in a `<Suspense>` waited, until that build renders again (react-dom's own Node.js stream reads it there too).
+> - Every renderer, the synchronous ones too, reads a provider's value an app's `renderToString` of that build left where it threw inside the provider, until that build renders again.
+> - While an async render waits, an app's stream of that build reads the template's provider values where its page doesn't provide the context; a render that never settles leaves them there.
 
-**A template must provide every context it reads.** Wrap the template's content in its own providers, with the values the render is given:
+**A template must provide every context it reads, and so must your app's renders; don't put secrets in a context another render could read.** Wrap the template's content in its own providers, with the values the render is given:
 
 ```tsx
 async function Receipt({ user, id }: { user: User; id: string }) {
@@ -65,7 +69,7 @@ async function Receipt({ user, id }: { user: User; id: string }) {
 }
 ```
 
-The synchronous renderers read a context's default where the template doesn't provide it, except inside a component of an app's own `renderToString`, where they read the page's value, as 0.2 did.
+The synchronous renderers read a context's default where the template doesn't provide it, except inside a component of an app's own `renderToString`, where they read the page's value, as 0.2 did, and after another build's `renderToString` that threw inside a provider (above).
 
 ## React 18 and React 19
 
