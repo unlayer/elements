@@ -177,13 +177,18 @@ describe("the async renderers", () => {
     const story = (i: number) => (
       <Row key={i}>
         <Column>
-          <Paragraph>{`Story ${i}: ${"a quarterly update on what shipped and what comes next. ".repeat(6)}`}</Paragraph>
+          <Heading>{`Story ${i}`}</Heading>
+          <Paragraph>Read about <strong>{`story ${i}`}</strong> and what it means for you this week.</Paragraph>
+          <Button href={`https://example.com/s/${i}`}>Read more</Button>
         </Column>
       </Row>
     );
     const Coupon = async () => {
-      await later(null);
-      return <Row><Column><Paragraph>Your code is SAVE20</Paragraph></Column></Row>;
+      const code = await Promise.resolve("SAVE20");
+      return [
+        <Row key={1}><Column><Heading>Just for you</Heading><Paragraph>Your code is <strong>{code}</strong>, valid until Sunday at midnight, on everything in the store, including sale items and bundles.</Paragraph></Column></Row>,
+        <Row key={2}><Column><Paragraph>Use it at checkout. <a href="https://example.com/terms">Terms apply</a>; one use per customer, not combinable with other offers or gift cards.</Paragraph><Button href="https://example.com/shop">Shop now</Button></Column></Row>,
+      ];
     };
     const email = (
       <Email>
@@ -196,14 +201,15 @@ describe("the async renderers", () => {
     );
     const html = await renderToHtml(email);
     expect(html).not.toMatch(/Loading your code|<template|<script|<div hidden/);
-    expect(html.indexOf("SAVE20")).toBeGreaterThan(html.indexOf("Story 39"));
+    expect(html.indexOf("SAVE20")).toBeGreaterThan(html.indexOf("story 39"));
     expect(html.indexOf("SAVE20")).toBeLessThan(html.indexOf("Footer"));
     const text = await renderToPlainText(email);
     expect(text).not.toContain("Loading");
     expect(text.indexOf("SAVE20")).toBeLessThan(text.indexOf("Footer"));
     const texts = contents(await renderToJson(email));
-    expect(texts.findIndex((t) => t.includes("SAVE20"))).toBe(40);
-    expect(texts.findIndex((t) => t.includes("Footer"))).toBe(41);
+    const rows = (await renderToJson(email)).body.rows.map((row: any) => JSON.stringify(row));
+    expect(rows.findIndex((r: string) => r.includes("SAVE20"))).toBe(40);
+    expect(rows.findIndex((r: string) => r.includes("Footer"))).toBe(42);
   });
 
   // (React 19.2's stream writes an <Activity>'s start and end as comments.)
