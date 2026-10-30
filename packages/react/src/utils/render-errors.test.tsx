@@ -126,6 +126,27 @@ describe("a part of a template that fails", () => {
     }
   });
 
+  it("renders a class component above markup React warns about, whatever React's development build constructs to name it", async () => {
+    // React 18's development build names where it warns (an attribute written as HTML writes it, `rowspan`) by
+    // constructing each class component around it with props it can't set: Elements' subclass took that for the
+    // component's own error, and an async render failed with an empty RenderError naming the class.
+    class Provider extends React.PureComponent<{ children: React.ReactNode }> {
+      render() {
+        return this.props.children;
+      }
+    }
+    const Later = async () => (await new Promise((done) => setTimeout(done, 2)), <table><tbody><tr>{React.createElement("td", { rowspan: "2" }, "Thanks!")}</tr></tbody></table>);
+    const email = <Email><Provider><Row><Column><Paragraph>Bonjour</Paragraph><Later /></Column></Row></Provider></Email>;
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    try {
+      for (let i = 0; i < 2; i++) expect(await asyncRenderers.renderToPlainText(email)).toContain("Bonjour");
+    } finally {
+      error.mockRestore();
+      warn.mockRestore();
+    }
+  });
+
   it("fails the render on a portal, onError or not (as ARCHITECTURE.md says: React's server renderer has none)", () => {
     const Portal = () => createPortal(<b>portal</b>, document.createElement("div"));
     for (const onError of [undefined, "omit" as const]) {

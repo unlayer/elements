@@ -711,6 +711,9 @@ function classElement(Ctor: any, props: Record<string, any>, element: React.Reac
         failed = error;
       }
       if (failed !== undefined) {
+        // (Constructed as another class: React's development build, naming where it warns, constructs each class
+        // component with props it can't set, and expects what that throws. Nothing of the render's.)
+        if (new.target !== Collected) throw failed;
         if (suspended(c, failed)) throw failed;
         const mark = fails(c, at, errorMark(c, failed, name, frame, ctx, true));
         // (What a constructor that threw renders: its error's marker.)
