@@ -213,7 +213,12 @@ function plainText(html: string, options: PlainTextOptions, marks: TextMarks): s
   // Trim leading/trailing whitespace
   text = restore(text.trim());
   // Lines wrapped at `wordwrap` characters, between words (a longer word stays whole); the URLs listed after aren't.
-  if (wordwrap) text = text.replace(new RegExp(`(?![^\\n]{1,${wordwrap}}$)([^\\n]{1,${wordwrap}})\\s`, "g"), "$1\n");
+  // An email service's tag (see TAG) is a word too: a line broken inside `{% if plan == "Pro Plus" %}` takes the
+  // other branch.
+  if (wordwrap) {
+    const whole = text.replace(new RegExp(TAG, "g"), (tag) => tag.replace(/[ \t]/g, (space) => (space === " " ? "\u0002" : "\u0003")));
+    text = whole.replace(new RegExp(`(?![^\\n]{1,${wordwrap}}$)([^\\n]{1,${wordwrap}})\\s`, "g"), "$1\n").replace(/\u0002/g, " ").replace(/\u0003/g, "\t");
+  }
   if (listed.length) text += `\n\n${listed.map((href, i) => `[${i + 1}] ${decodeEntities(href)}`).join("\n")}`;
 
   return text.replace(/\u0000(\d+)\u0000/g, (whole, i: string) => pre[Number(i)] ?? whole);

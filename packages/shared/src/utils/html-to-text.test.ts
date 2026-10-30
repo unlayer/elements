@@ -242,6 +242,18 @@ describe("htmlToPlainText", () => {
       expect(wrapped).toBe("One two\nthree four\nfive six\nseven eight\nhttps://example.com/a-very-long-link-that-cannot-wrap");
     });
 
+    it("never wraps a line inside an email service's tag (a condition broken in its quotes takes the other branch)", () => {
+      const tags = ['{% if plan == "Pro Plus" %}', '{{#if (eq plan "Pro Plus")}}', '{{ user.first name }}', '{{{ raw html }}}', '<%= plan == "Pro Plus" %>', "*|IF:PLAN = Pro Plus|*", "${user.first name}", "{$user first}"];
+      for (const tag of tags) {
+        const text = htmlToPlainText(`<p>Your payment was received and your plan is active. ${tag}All features are unlocked. Upgrade any time from your account page.</p>`, { links: "after", wordwrap: 72 });
+        expect(text, tag).toContain(tag);
+        // (Wrapped all the same, between its words elsewhere.)
+        expect(text.split("\n").length, tag).toBeGreaterThan(1);
+      }
+      // (The negative control: the same words with no tag wrap as before.)
+      expect(htmlToPlainText("<p>Your payment was received and your plan is active. if plan == Pro Plus All features are unlocked.</p>", { wordwrap: 72 })).toBe("Your payment was received and your plan is active. if plan == Pro Plus\nAll features are unlocked.");
+    });
+
     it("skip elements by tag or class, with what's in them, as data-skip-in-text marks them", () => {
       expect(htmlToPlainText(html, { skip: ["img", ".md:x", "h1"] })).toBe("Read the guide (https://example.com/a?b=1&c=2) and the FAQ (https://example.com/b).\nOne two three four five six seven eight");
       expect(htmlToPlainText('<div data-skip-in-text="true"><div>nested <div>deep</div></div> gone</div><p>kept</p>')).toBe("kept");
