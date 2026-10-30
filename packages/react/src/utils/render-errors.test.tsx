@@ -410,3 +410,57 @@ describe("what fails where React handles it itself (a lazy component, a promise 
     expect(renderToHtml(email(<Later />, true))).toContain("Loading…");
   });
 });
+
+describe("where a part React rendered itself failed (a lazy component's place)", () => {
+  // Where a synchronous render failed inside a lazy component was kept in one place for the module, and read by the
+  // next render that failed where React renders itself, whoever's it was: an async render with a lazy component that
+  // throws said it was at another tenant's component and place (`Row 1 › Column 2 › AcmeHero › lazy`).
+  const loaded = <P,>(component: React.ComponentType<P>) => React.lazy(() => ({ then: (resolve: (m: { default: React.ComponentType<P> }) => void) => resolve({ default: component }) }) as Promise<{ default: React.ComponentType<P> }>);
+  const failsAsync = async (element: React.ReactElement) => {
+    try {
+      await asyncRenderers.renderToHtml(element);
+    } catch (error) {
+      return error as RenderError;
+    }
+    throw new Error("rendered");
+  };
+  const fails = (render: () => unknown) => {
+    try {
+      render();
+    } catch (error) {
+      return error as RenderError;
+    }
+    throw new Error("rendered");
+  };
+  const Missing = () => {
+    throw new Error("tenant B data missing");
+  };
+  const tenantB = () => <Email><Row><Column><Paragraph>B</Paragraph>{React.createElement(loaded(Missing))}</Column></Row></Email>;
+  // Tenant A's: a lazy component that never loads (async in a synchronous render), and one that throws, deep in its layout.
+  const Never = React.lazy(() => new Promise<never>(() => {}));
+  const Throws = loaded(() => {
+    throw new Error("tenant A failed");
+  });
+  const tenantA = (Part: React.ComponentType) => {
+    const AcmeHero = () => <Part />;
+    return <Email><Row><Column><Paragraph>x</Paragraph></Column></Row><Row><Column /><Column><AcmeHero /></Column></Row></Email>;
+  };
+  const said = (error: RenderError) => [error.message, error.component, error.position];
+
+  it("is the render's own, whatever another render failed at before it or at once", async () => {
+    const alone = said(await failsAsync(tenantB()));
+    const syncAlone = said(fails(() => renderToHtml(tenantB())));
+    for (const Part of [Never, Throws]) {
+      const a = fails(() => renderToHtml(tenantA(Part)));
+      expect(a.position).toMatch(/AcmeHero/);
+      expect(said(await failsAsync(tenantB()))).toEqual(alone);
+      fails(() => renderToHtml(tenantA(Part)));
+      expect(said(fails(() => renderToHtml(tenantB())))).toEqual(syncAlone);
+      // (At once: tenant A's synchronous render while tenant B's async one is under way.)
+      const b = failsAsync(tenantB());
+      fails(() => renderToHtml(tenantA(Part)));
+      expect(said(await b)).toEqual(alone);
+    }
+    expect(alone.join(" ")).not.toMatch(/Acme/);
+  });
+});

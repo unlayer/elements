@@ -10,7 +10,7 @@ import { flatten, type Flat } from "./output";
 import { before, newCollection, prep, rootCtx, suspendedError, withRawErrors, type Collector } from "./collector";
 import { parse } from "./parse";
 import { forked } from "./capture";
-import { clearFailedAt, failedAt, refuseNested, renderFailure, staticMarkup, streamedMarkup, streamSuspension, suspendedInReact, suspends } from "./react-dom";
+import { refuseNested, renderFailure, staticMarkup, streamedMarkup, streamSuspension, suspendedInReact, suspends } from "./react-dom";
 import { sharedNow, sharing, type Shared } from "./shared";
 
 export { RenderError, type OnError } from "./errors";
@@ -47,14 +47,14 @@ export interface CollectOptions {
 }
 
 /** What a collecting render that react-dom failed (not a part of the template) fails with. */
-function failure(error: unknown, options: CollectOptions, frame: ReturnType<typeof rootFrame>, c?: Parameters<typeof suspendedError>[0]): unknown {
+function failure(error: unknown, options: CollectOptions, frame: ReturnType<typeof rootFrame>, c?: Parameters<typeof suspendedError>[0], failedAt?: ReturnType<typeof rootFrame>): unknown {
   if (error instanceof RenderError || options.passes?.(error)) return error;
   // What suspended where nothing could wait for it: the first component that did, or the lazy one React loads. (Where
   // one did outside every <Suspense>, that's what failed the render, whatever React's error says.)
   if (c && (suspends(error) || suspendedInReact(error) || c.suspended.some((s) => !s.inSuspense))) return suspendedError(c) ?? new RenderError(ASYNC_IN_SYNC, "lazy", positionOf(c.lazies[0]?.frame ?? frame), error);
   // What React rendered itself and failed (what a lazy component renders: the component it loads, or one in what that
   // renders): where it is, as React said (its component, in a development build), at the lazy one's place.
-  const at = failedAt() ?? (c?.async && c.lazies.length ? c.lazies[0].frame : undefined);
+  const at = failedAt ?? (c?.async && c.lazies.length ? c.lazies[0].frame : undefined);
   const told = c?.reactErrors.find((t) => t.error === error)?.name;
   return renderFailure(error, frame.name) ?? new RenderError(threw(error), told ?? at?.name ?? frame.name, positionOf(at ?? frame), error);
 }
@@ -75,14 +75,15 @@ function failedIn(info: unknown): string | undefined {
 /** `node` collected synchronously: what's async in it fails (or is left out, as `onError` says). */
 export function collect(node: React.ReactNode, options: CollectOptions): Flat {
   refuseNested("This render");
-  clearFailedAt();
   const c = newCollection({ collector: options.collector, passes: options.passes, frameless: options.frameless, own: options.own, omit: omits(options.onError), shared: options.shared ?? sharedNow() ?? {} });
   const frame = rootFrame(options.root);
   let html: string;
+  // (Where React was rendering when it failed: this render's, see react-dom.ts's ownStatic.)
+  const failed: { at?: ReturnType<typeof rootFrame> } = {};
   try {
-    html = sharing(c.shared, () => staticMarkup(forked(options.tree ?? 0, prep(node, c, rootCtx(frame))), options.idPrefix));
+    html = sharing(c.shared, () => staticMarkup(forked(options.tree ?? 0, prep(node, c, rootCtx(frame))), options.idPrefix, failed));
   } catch (error) {
-    throw failure(error, options, frame, c);
+    throw failure(error, options, frame, c, failed.at);
   }
   return flatten(withRawErrors(c, parse(html, c)), c.omit) as Flat;
 }

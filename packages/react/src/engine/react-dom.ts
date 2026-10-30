@@ -28,10 +28,13 @@ function inWrapper(html: string): string {
   return start < 0 || end < start ? html : html.slice(start + "<noscript>".length, end);
 }
 
-/** react-dom's static markup of `node`, in a `<noscript>` (see above), without it. */
-export function staticMarkup(node: React.ReactNode, idPrefix?: string): string {
+/**
+ * react-dom's static markup of `node`, in a `<noscript>` (see above), without it. Where it fails, `failed.at` is where
+ * React was rendering (a lazy component's place: see ownStatic), this render's own.
+ */
+export function staticMarkup(node: React.ReactNode, idPrefix?: string, failed?: { at?: Frame }): string {
   const build = current();
-  return inWrapper(ownStatic(() => build.renderToStaticMarkup(createElement("noscript", null, node), idPrefix ? { identifierPrefix: idPrefix } : undefined), build));
+  return inWrapper(ownStatic(() => build.renderToStaticMarkup(createElement("noscript", null, node), idPrefix ? { identifierPrefix: idPrefix } : undefined), build, failed));
 }
 
 /** Node's writable stream, as much of it as react-dom's pipeable stream writes to: the chunks joined. */
@@ -313,16 +316,16 @@ export function asOwnCall<T>(fn: () => T): T {
 
 /**
  * `fn`, a static render of react-dom's that Elements runs (see `calling`), the component being called as it was after
- * it. Where it fails, where React was rendering (a lazy component's place) is kept for what it fails with (failedAt).
+ * it. Where it fails, where React was rendering (a lazy component's place) is given to its caller (`failed`): it's that
+ * render's, never kept for another.
  */
-let failedFrame: Frame | null = null;
-function ownStatic<T>(fn: () => T, build?: Build): T {
+function ownStatic<T>(fn: () => T, build?: Build, failed?: { at?: Frame }): T {
   const frame = calling.frame;
   calling.static = (calling.static ?? 0) + 1;
   try {
     return fn();
   } catch (error) {
-    failedFrame = calling.frame !== frame ? (calling.frame as Frame | null) : null;
+    if (failed && calling.frame !== frame && calling.frame) failed.at = calling.frame as Frame;
     throw error;
   } finally {
     calling.static--;
@@ -331,16 +334,6 @@ function ownStatic<T>(fn: () => T, build?: Build): T {
     // template's root, the template's render, a sync or an async render. See settle.)
     if (build && !calling.static) settle(build);
   }
-}
-
-/** Forgets where a static render failed (a render that starts: what another left isn't its). */
-export const clearFailedAt = (): void => void (failedFrame = null);
-
-/** Where a static render that just failed was rendering (a lazy component's place), once. */
-export function failedAt(): Frame | undefined {
-  const frame = failedFrame;
-  failedFrame = null;
-  return frame ?? undefined;
 }
 
 /** Where what React renders next in a synchronous render is (a lazy component's place): said if it starts a render. */
