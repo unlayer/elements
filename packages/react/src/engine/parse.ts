@@ -110,10 +110,16 @@ export function parse(html: string, c: Collection): Part[] {
         at = lt + 4;
         continue;
       }
-      const stop = end + 3;
+      let stop = end + 3;
       // (react-dom's stream writes its own comments, where its Suspense and <Activity> boundaries are and between texts: the
       // template's comments are only in HTML given whole, which isn't here.)
-      if (!(c.async && /^<!--(?:\$[?!]?|\/\$| |&|\/&)-->$/.test(html.slice(lt, stop)))) text(html.slice(lt, stop));
+      const own = c.async && /^<!--(?:\$[?!]?|\/\$| |&|\/&)-->$/.test(html.slice(lt, stop));
+      if (!own) text(html.slice(lt, stop));
+      // (And after a boundary that failed, the <template> it writes with the error's digest: React's, not the template's.)
+      else if (html.startsWith("<!--$!-->", lt) && html.startsWith("<template", stop)) {
+        const close = html.indexOf("</template>", stop);
+        if (close >= 0) stop = close + "</template>".length;
+      }
       at = stop;
       continue;
     }

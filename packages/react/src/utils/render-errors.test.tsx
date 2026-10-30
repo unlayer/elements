@@ -453,6 +453,21 @@ describe("where a part React rendered itself failed (a lazy component's place)",
     expect([error.component, error.position]).toEqual(["lazy", "Row 1 › Column 1 › lazy"]);
   });
 
+  it("says nothing of the <template> react-dom's stream writes where it failed (onError: \"omit\")", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
+    try {
+      const FailsToLoad = React.lazy(() => Promise.reject(new Error("chunk failed")));
+      const parts = await asyncRenderers.renderToHtmlParts(<Email><Row><Column><Paragraph>Kept</Paragraph><FailsToLoad /></Column></Row></Email>, { onError: "omit" });
+      expect(parts.body).toContain("Kept");
+      expect(parts.omitted.map((e) => e.position)).toEqual(["Row 1 › Column 1 › lazy"]);
+      expect(warn.mock.calls.flat().join("\n")).not.toMatch(/template/);
+    } finally {
+      warn.mockRestore();
+      error.mockRestore();
+    }
+  });
+
   it("is the render's own, whatever another render failed at before it or at once", async () => {
     const alone = said(await failsAsync(tenantB()));
     const syncAlone = said(fails(() => renderToHtml(tenantB())));
