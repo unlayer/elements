@@ -5,6 +5,7 @@
  * copy of Elements in the process (by Symbol.for), so a copy's lazy template is found by another's renderer.
  */
 import React from "react";
+import { perReact } from "./per-react";
 
 export interface RootReport {
   element: React.ReactElement;
@@ -22,13 +23,7 @@ const { createContext, useContext, useTransition } = React as Partial<Pick<typeo
  */
 function shared<T>(key: symbol): React.Context<Stamped<T> | null> | null {
   if (typeof createContext !== "function") return null;
-  const global = globalThis as Record<symbol, unknown>;
-  const found = global[key];
-  const byReact = found instanceof WeakMap ? (found as WeakMap<object, React.Context<Stamped<T> | null>>) : new WeakMap<object, React.Context<Stamped<T> | null>>();
-  if (found === undefined) global[key] = byReact;
-  let context = byReact.get(createContext);
-  if (!context) byReact.set(createContext, (context = createContext<Stamped<T> | null>(null)));
-  return context;
+  return perReact(key, createContext, () => createContext<Stamped<T> | null>(null));
 }
 
 /**

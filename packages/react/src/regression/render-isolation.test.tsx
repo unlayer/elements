@@ -623,6 +623,24 @@ describe("a context's default around an app's renders", () => {
     expect(html).toContain("A-SLOW");
   });
 
+  it("renders lazy components and templates where another version's value holds the global slot of Elements' contexts", async () => {
+    const keys = ["collects", "root-capture"].map((name) => Symbol.for(`@unlayer/react-elements/${name}`));
+    const global = globalThis as Record<symbol, unknown>;
+    const kept = keys.map((key) => global[key]);
+    const LazyBlock = React.lazy(() => Promise.resolve({ default: () => <Paragraph>LAZY-BLOCK</Paragraph> }));
+    const LazyTemplate = React.lazy(() => Promise.resolve({ default: () => <Email><Row><Column><Paragraph>LAZY-TEMPLATE</Paragraph></Column></Row></Email> }));
+    try {
+      for (const key of keys) global[key] = { another: "version" };
+      const block = <Email><Row><Column><LazyBlock /></Column></Row></Email>;
+      expect(await asyncRenderers.renderToHtml(block)).toContain("LAZY-BLOCK");
+      expect(await asyncRenderers.renderToHtml(<LazyTemplate />)).toContain("LAZY-TEMPLATE");
+      expect(renderToJson(block).body.rows[0].columns[0].contents.map((c) => c.type)).toEqual(["text"]);
+      expect(renderToHtml(<LazyTemplate />)).toContain("LAZY-TEMPLATE");
+    } finally {
+      keys.forEach((key, i) => (global[key] = kept[i]));
+    }
+  });
+
   it("reads one value for a context throughout a render that starts inside an app's renderToString and goes on after it", async () => {
     const Brand = createContext("default");
     let open = false;
