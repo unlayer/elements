@@ -94,14 +94,13 @@ export interface Collection {
   /** What the render's components share, while each is called. */
   shared: Shared;
   /**
-   * An async render's components by the order React first called them (the tree's order), those waiting, and the
+   * An async render's places in tree order (see Order), how many each has given what's in it, those waiting, and the
    * errors found, which `changed` is told of: a render that fails fails with the first error in tree order without
    * waiting for what comes after it (collectAsync).
    */
-  order: WeakMap<object, number>;
-  calls: number;
-  waiting: Set<number>;
-  errors: Array<{ at: number; error: unknown }>;
+  counts: WeakMap<Order, number>;
+  waiting: Set<Order>;
+  errors: Array<{ at: Order; error: unknown }>;
   changed?: () => void;
   /**
    * The markers react-dom rendered (by `Marker`, see below), and those the parse read: only one of these is a marker,
@@ -146,6 +145,8 @@ interface Ctx {
   ends?: readonly string[];
   /** The part of the tree React leaves out where it renders a fallback that this place is in (Collection's scopes). */
   scope?: number;
+  /** In an async render, the place in tree order of the component this place is what it returned (see Order). */
+  order?: Order;
   /**
    * The components of the template's own (their boundaries' records) whose markup this place's is, up to the nearest
    * Row, Column or block: where a <Link> renders, each is said to hold one (`link`), so its markup is cleaned as a
@@ -155,6 +156,19 @@ interface Ctx {
 }
 
 type Tracked = PromiseLike<unknown> & { status?: "pending" | "fulfilled" | "rejected"; value?: unknown; reason?: unknown };
+
+/**
+ * A place in an async render's tree order: the places of the components (and failed markup) it's in, outermost first,
+ * each numbered among those its component returned, as they were prepared (the tree's order, however late React calls
+ * them: what an async component returns is before what's after it). Compared item by item, a place before what's in it.
+ */
+export type Order = readonly number[];
+const TOP: Order = [];
+/** Whether `a` is before `b` in tree order. */
+export function before(a: Order, b: Order): boolean {
+  for (let i = 0; i < a.length && i < b.length; i++) if (a[i] !== b[i]) return a[i] < b[i];
+  return a.length < b.length;
+}
 
 /**
  * The renders' numbers, for every copy of Elements in the process (by Symbol.for): each render's markers carry its own
@@ -192,8 +206,7 @@ export function newCollection(options: { collector?: Collector; passes?: (error:
     reactErrors: [],
     pending: new WeakMap(),
     shared: options.shared,
-    order: new WeakMap(),
-    calls: 0,
+    counts: new WeakMap(),
     waiting: new Set(),
     errors: [],
     rendered: new Set(),
@@ -303,7 +316,7 @@ export function prep(node: unknown, c: Collection, ctx: Ctx, given = false): Rea
   if (ctx.raw && !isWalkerNode(object as never) && !React.isValidElement(object as never)) return object as React.ReactNode;
   if (object.$$typeof === PORTAL) return fatalMark(c, "Portals aren't supported by server rendering (React's server renderer has none either)", ctx.frame, undefined, ctx);
   // A promise: React 19 renders what it resolves to, as `use()` of it gives it (React 18 renders none: below).
-  if (!REACT_18 && isThenable(object)) return React.createElement(Awaited, { thenable: object, c, ctx });
+  if (!REACT_18 && isThenable(object)) return React.createElement(Awaited, { thenable: object, c, ctx, at: nextOrder(c, ctx) });
   // A context: React 19 renders its value (prepared here). A lazy node: as a lazy component (prepLazy).
   if (!REACT_18 && object.$$typeof === CONTEXT) return React.createElement(ContextValue, { context: object as unknown as React.Context<unknown>, c, ctx });
   if (object.$$typeof === LAZY) return prepLazy(React.createElement(React.Fragment, null, object as React.ReactNode), c, ctx);
@@ -403,16 +416,18 @@ const clientMessage = (type: any) =>
 /** A Consumer's function, its result prepared (and kept, where it's a boundary's own). */
 function consumer(fn: unknown, c: Collection, ctx: Ctx, keep?: Record<string, any>) {
   if (typeof fn !== "function") return fn;
+  // (Its place in tree order, where it's prepared: see Order.)
+  const at = nextOrder(c, ctx);
   return (value: unknown) => {
     let result: unknown;
     try {
       result = c.async ? fn(value) : asUserCall(ctx.frame, () => fn(value));
     } catch (thrown) {
       if (suspended(c, thrown)) throw thrown;
-      return fails(c, nextOrder(c), errorMark(c, thrown, ctx.frame.name, ctx.frame, ctx));
+      return fails(c, at, errorMark(c, thrown, ctx.frame.name, ctx.frame, ctx));
     }
     if (keep) keep.output = { value: result };
-    return prep(result, c, ctx);
+    return prep(result, c, { ...ctx, order: at });
   };
 }
 
@@ -426,7 +441,7 @@ function prepHost(element: React.ReactElement, c: Collection, ctx: Ctx): React.R
   try {
     validateHost(type, props);
   } catch (error) {
-    return fails(c, nextOrder(c), errorMark(c, error, type, placeFrame(ctx.frame, type), ctx));
+    return fails(c, nextOrder(c, ctx), errorMark(c, error, type, placeFrame(ctx.frame, type), ctx));
   }
   // A `javascript:` URL as React 19 writes it (one that throws), with React 18 too.
   let urls: Record<string, unknown> | undefined;
@@ -466,24 +481,24 @@ function prepHost(element: React.ReactElement, c: Collection, ctx: Ctx): React.R
     const given = children != null && typeof children !== "boolean" && (typeof children === "object" || (!!inner.foreign && typeof children === "string"));
     if (!ctx.head || REACT_18 || !given) return React.cloneElement(element, urls as object, prep(children, c, { ...inner, raw: true }, true));
     // (An async render waits for what's async in it: see HeadText.)
-    if (c.async) return React.createElement(HeadText, { c, ctx, type, start: () => headHtmlAsync(children, c, !!inner.foreign, inner.ends ?? [], true), done: (text: string) => React.cloneElement(element, urls as object, text) });
+    if (c.async) return React.createElement(HeadText, { c, ctx, at: nextOrder(c, ctx), type, start: () => headHtmlAsync(children, c, !!inner.foreign, inner.ends ?? [], true), done: (text: string) => React.cloneElement(element, urls as object, text) });
     let text: string;
     try {
       text = rawTextOf(children, c, !!inner.foreign, inner.ends ?? []);
     } catch (error) {
-      return fails(c, nextOrder(c), errorMark(c, error, type, placeFrame(ctx.frame, type), ctx));
+      return fails(c, nextOrder(c, ctx), errorMark(c, error, type, placeFrame(ctx.frame, type), ctx));
     }
     return React.cloneElement(element, urls as object, text);
   }
   // A <Head>'s <title> on React 19, which writes no component or markup in it: what's in it rendered here, as a
   // <Head>'s markup (its style's and script's text as given), given to React as its HTML.
   if (type === "title" && ctx.head && !REACT_18 && children != null && typeof children === "object") {
-    if (c.async) return React.createElement(HeadText, { c, ctx, type, start: () => headHtmlAsync(children, c, !!inner.foreign, inner.ends ?? ["title"], false), done: (html: string) => withRaw(c, ctx, element, { ...urls, children: undefined }, html) });
+    if (c.async) return React.createElement(HeadText, { c, ctx, at: nextOrder(c, ctx), type, start: () => headHtmlAsync(children, c, !!inner.foreign, inner.ends ?? ["title"], false), done: (html: string) => withRaw(c, ctx, element, { ...urls, children: undefined }, html) });
     let html: string;
     try {
       html = headHtmlOf(children, c, !!inner.foreign, inner.ends ?? ["title"]);
     } catch (error) {
-      return fails(c, nextOrder(c), errorMark(c, error, type, placeFrame(ctx.frame, type), ctx));
+      return fails(c, nextOrder(c, ctx), errorMark(c, error, type, placeFrame(ctx.frame, type), ctx));
     }
     return withRaw(c, ctx, element, { ...urls, children: undefined }, html);
   }
@@ -498,7 +513,7 @@ function prepRecorded(recorded: Recorded, c: Collection, ctx: Ctx, key: React.Ke
   try {
     nodes = recorded.record(() => positionOf(frame));
   } catch (error) {
-    return fails(c, nextOrder(c), errorMark(c, error, frame.name, frame, ctx));
+    return fails(c, nextOrder(c, ctx), errorMark(c, error, frame.name, frame, ctx));
   }
   const out = prep(nodes, c, { ...ctx, frame, watch: null });
   return key == null || !React.isValidElement(out) ? out : React.cloneElement(out, { key });
@@ -535,6 +550,8 @@ function prepBoundary(node: BoundaryNode, c: Collection, ctx: Ctx): React.ReactN
 // ── Components ──
 
 interface CallProps {
+  /** Its place in tree order (an async render's: see Order), given where it's prepared. */
+  at: Order;
   fn: (props: any, second?: unknown) => unknown;
   props: Record<string, any>;
   second: unknown;
@@ -546,19 +563,22 @@ interface CallProps {
   own?: boolean;
 }
 
-/** In an async render, what a component at `at` (its place in call order) waits for, or the error it failed with, said. */
-function waits(c: Collection, at: number): void {
+/** In an async render, what a component at `at` (its place in tree order) waits for, or the error it failed with, said. */
+function waits(c: Collection, at: Order): void {
   if (!c.async) return;
   c.waiting.add(at);
   c.changed?.();
 }
-/** In an async render, a place in call order of its own (for what fails where no component is called: markup, a record). */
-const nextOrder = (c: Collection): number => (c.async ? ++c.calls : 0);
+/** In an async render, the next place in tree order in what ctx's component returned (none in a synchronous one). */
+function nextOrder(c: Collection, ctx: Ctx): Order {
+  if (!c.async) return TOP;
+  const parent = ctx.order ?? TOP;
+  const n = (c.counts.get(parent) ?? 0) + 1;
+  c.counts.set(parent, n);
+  return [...parent, n];
+}
 
-/** In an async render, the place in call order of the component given `props` (0 in a synchronous one). */
-const callOrder = (c: Collection, props: object): number => (c.async ? (c.order.get(props) ?? (c.order.set(props, ++c.calls), c.calls)) : 0);
-
-function fails(c: Collection, at: number, mark: React.ReactElement | null): React.ReactElement | null {
+function fails(c: Collection, at: Order, mark: React.ReactElement | null): React.ReactElement | null {
   if (c.async && mark) {
     c.errors.push({ at, error: (c.marks[(mark.props as { n: number }).n] as { error: unknown }).error });
     c.changed?.();
@@ -567,10 +587,10 @@ function fails(c: Collection, at: number, mark: React.ReactElement | null): Reac
 }
 
 function Call(placed: CallProps): React.ReactNode {
-  const { fn, props, second, name, frame, keep, c, ctx, own } = placed;
+  const { at, fn, props, second, name, frame, keep, c, ctx, own } = placed;
   let result: unknown;
-  // (Kept by this placement's own props (Call's), not the user's: one element placed twice is called in each place.)
-  const at = callOrder(c, placed);
+  // (Its promise kept by this placement's own props (Call's), not the user's: one element placed twice is called in
+  // each place.)
   if (c.async) c.waiting.delete(at);
   const pending = c.pending.get(placed);
   if (pending) result = pending;
@@ -612,7 +632,7 @@ function Call(placed: CallProps): React.ReactNode {
     result = promise.value;
   }
   if (keep) keep.output = { value: result };
-  return prep(result, c, { ...ctx, frame, watch: null });
+  return prep(result, c, { ...ctx, frame, watch: null, order: at });
 }
 
 /** Call, named as the component it calls (React's warnings name it so). */
@@ -641,7 +661,7 @@ function callElement(fn: any, named: unknown, props: Record<string, any>, second
     c.suspended.push({ name, frame, boundary: ctx.boundary, inSuspense: ctx.suspense > 0, suspenseAt: ctx.suspenseAt });
     return React.createElement(Suspends, { key: key ?? undefined });
   }
-  return React.createElement(callFor(name), { key: key ?? undefined, fn, props, second, name, frame, keep, c, ctx, own: !!c.own?.(named) });
+  return React.createElement(callFor(name), { key: key ?? undefined, at: nextOrder(c, ctx), fn, props, second, name, frame, keep, c, ctx, own: !!c.own?.(named) });
 }
 
 /** What an async component is in a synchronous render: a component that suspends (React renders the nearest fallback, or fails). */
@@ -657,11 +677,12 @@ const FAILED = Symbol("failed");
 function classElement(Ctor: any, props: Record<string, any>, element: React.ReactElement, c: Collection, ctx: Ctx, keep?: Record<string, any>): React.ReactElement {
   const name = nameOf(Ctor);
   const frame = childFrame(ctx.frame, name);
-  const inner: Ctx = { ...ctx, frame, watch: null };
+  const at = nextOrder(c, ctx);
+  const inner: Ctx = { ...ctx, frame, watch: null, order: at };
   /** Its render (`call`), what it throws caught and what it returns prepared; or what failed before it, said. */
   const collected = (self: { props: object; state?: unknown }, call: () => unknown): React.ReactNode => {
     const failed = (self as unknown as Record<symbol, { error: unknown } | undefined>)[FAILED] ?? (self.state as Record<symbol, { error: unknown } | undefined> | null | undefined)?.[FAILED];
-    if (failed) return fails(c, callOrder(c, self.props), errorMark(c, failed.error, name, frame, ctx));
+    if (failed) return fails(c, at, errorMark(c, failed.error, name, frame, ctx));
     let result: unknown;
     try {
       result = c.async ? call() : asUserCall(frame, call);
@@ -670,7 +691,7 @@ function classElement(Ctor: any, props: Record<string, any>, element: React.Reac
         c.suspended.push({ name, frame, boundary: ctx.boundary, inSuspense: ctx.suspense > 0, suspenseAt: ctx.suspenseAt });
         throw thrown;
       }
-      return fails(c, callOrder(c, self.props), errorMark(c, thrown, name, frame, ctx));
+      return fails(c, at, errorMark(c, thrown, name, frame, ctx));
     }
     if (keep) keep.output = { value: result };
     return prep(result, c, inner);
@@ -685,7 +706,7 @@ function classElement(Ctor: any, props: Record<string, any>, element: React.Reac
       }
       if (failed !== undefined) {
         if (suspended(c, failed)) throw failed;
-        const mark = fails(c, callOrder(c, p as object), errorMark(c, failed, name, frame, ctx));
+        const mark = fails(c, at, errorMark(c, failed, name, frame, ctx));
         // (What a constructor that threw renders: its error's marker.)
         return { props: p, state: null, render: () => mark } as never;
       }
@@ -746,7 +767,7 @@ function prepLazy(element: React.ReactElement, c: Collection, ctx: Ctx): React.R
   const frame = placeFrame(ctx.frame, "lazy");
   const lazy = { frame, boundary: ctx.boundary, suspenseAt: ctx.suspenseAt };
   c.lazies.push(lazy);
-  return React.createElement(LazyRendered, { key: element.key ?? undefined, element, c, ctx: { ...ctx, frame, watch: null }, lazy });
+  return React.createElement(LazyRendered, { key: element.key ?? undefined, element, c, ctx: { ...ctx, frame, watch: null, order: nextOrder(c, ctx) }, lazy });
 }
 
 /**
@@ -772,7 +793,7 @@ function LazyRendered({ element, c, ctx, lazy }: { element: React.ReactElement; 
 }
 
 /** A promise as a child (React 19): what it resolves to, prepared, as `use()` of it gives it. */
-function Awaited({ thenable, c, ctx }: { thenable: PromiseLike<unknown>; c: Collection; ctx: Ctx }): React.ReactNode {
+function Awaited({ thenable, c, ctx, at }: { thenable: PromiseLike<unknown>; c: Collection; ctx: Ctx; at: Order }): React.ReactNode {
   const use = (React as unknown as { use: (usable: unknown) => unknown }).use;
   let value: unknown;
   try {
@@ -784,9 +805,9 @@ function Awaited({ thenable, c, ctx }: { thenable: PromiseLike<unknown>; c: Coll
       throw thrown;
     }
     // (What it rejected with: where it is, as a component's error. React would render a <Suspense>'s fallback for it.)
-    return fails(c, nextOrder(c), errorMark(c, thrown, ctx.frame.name, ctx.frame, ctx));
+    return fails(c, at, errorMark(c, thrown, ctx.frame.name, ctx.frame, ctx));
   }
-  return prep(value, c, ctx);
+  return prep(value, c, { ...ctx, order: at });
 }
 
 /** A context as a child (React 19): its value, prepared. */
@@ -824,8 +845,8 @@ async function headHtmlAsync(children: unknown, c: Collection, foreign: boolean,
  * A <Head>'s <style>, <script> or <title> whose children React 19 doesn't render (a component, a list), in an async
  * render: what they render (`start`), waited for; then the element given it (`done`). Its props are its place's own.
  */
-function HeadText(placed: { c: Collection; ctx: Ctx; type: string; start: () => Promise<string>; done: (text: string) => React.ReactNode }): React.ReactNode {
-  const { c, ctx, type, start, done } = placed;
+function HeadText(placed: { c: Collection; ctx: Ctx; at: Order; type: string; start: () => Promise<string>; done: (text: string) => React.ReactNode }): React.ReactNode {
+  const { c, ctx, at, type, start, done } = placed;
   // (React's development build calls a component again, with no props, to say where a warning came from.)
   if (!c) return null;
   let pending = c.pending.get(placed);
@@ -836,7 +857,7 @@ function HeadText(placed: { c: Collection; ctx: Ctx; type: string; start: () => 
     c.pending.set(placed, pending);
   }
   if (pending.status === "fulfilled") return done(String(pending.value));
-  if (pending.status === "rejected") return fails(c, nextOrder(c), errorMark(c, pending.reason, type, placeFrame(ctx.frame, type), ctx));
+  if (pending.status === "rejected") return fails(c, at, errorMark(c, pending.reason, type, placeFrame(ctx.frame, type), ctx));
   throw pending;
 }
 

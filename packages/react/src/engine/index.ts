@@ -7,7 +7,7 @@
 import React, { cloneElement } from "react";
 import { ASYNC_IN_SYNC, childFrame, nameOf, omits, positionOf, RenderError, rootFrame, threw, type OnError } from "./errors";
 import { flatten, type Flat } from "./output";
-import { newCollection, prep, rootCtx, suspendedError, withRawErrors, type Collector } from "./collector";
+import { before, newCollection, prep, rootCtx, suspendedError, withRawErrors, type Collector } from "./collector";
 import { parse } from "./parse";
 import { forked } from "./capture";
 import { clearFailedAt, failedAt, refuseNested, renderFailure, staticMarkup, streamedMarkup, streamSuspension, suspendedInReact, suspends } from "./react-dom";
@@ -100,8 +100,8 @@ export async function collectAsync(node: React.ReactNode, options: CollectOption
   const failed = new Promise<never>((_, reject) => (fail = reject));
   c.changed = () => {
     if (c.omit || !c.errors.length) return;
-    const first = c.errors.reduce((a, b) => (b.at < a.at ? b : a));
-    for (const at of c.waiting) if (at < first.at) return;
+    const first = c.errors.reduce((a, b) => (before(b.at, a.at) ? b : a));
+    for (const at of c.waiting) if (before(at, first.at)) return;
     c.changed = undefined;
     control.abort?.(first.error);
     fail(first.error);

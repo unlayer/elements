@@ -126,6 +126,19 @@ describe("the async collecting render", () => {
     // And markup React can't write (an <img> with children), the same.
     const email = <Email><Row><Column>{React.createElement("img", { src: "https://example.com/a.png" }, "a child")}</Column></Row><Row><Column><Never /></Column></Row></Email>;
     await expect(renderToHtml(email)).rejects.toMatchObject({ name: "RenderError", component: "img", position: "Row 1 › Column 1 › img" });
+    // What an async component renders is before what's after it in the tree, though React calls it once that's settled,
+    // after what's after it: a component it returns, and markup in it (the negative control: what's after it alone).
+    const Inside = () => {
+      throw new Error("inside");
+    };
+    const After = () => {
+      throw new Error("after");
+    };
+    const Later = async ({ inside }: { inside: React.ReactNode }) => (await sleep(10), <div>{inside}</div>);
+    const order = (inside: React.ReactNode) => <Email><Row><Column><Later inside={inside} /><After /></Column></Row></Email>;
+    await expect(renderToHtml(order(<Inside />))).rejects.toMatchObject({ component: "Inside", position: "Row 1 › Column 1 › Later › Inside" });
+    await expect(renderToHtml(order(React.createElement("img", { src: "https://example.com/a.png" }, "a child")))).rejects.toMatchObject({ component: "img" });
+    await expect(renderToHtml(order(null))).rejects.toMatchObject({ component: "After" });
   });
 
   it("leaves failed parts out (onError: \"omit\"), listed in tree order whatever fails first", async () => {
