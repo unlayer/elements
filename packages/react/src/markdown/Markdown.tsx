@@ -7,6 +7,7 @@ import { balanced, escapeAttribute, escapeText, escapeUrl, safeUrl, sanitized, s
 import { tooLarge, type TooLarge } from "./limits";
 import { lexMarkdown } from "./work";
 import { charge, codeWork, CODE_WORK, renderPart, renderWork, sayWhenDone } from "../code/work";
+import { collectedHere, NOT_COLLECTED, ROUTED } from "../engine/root-capture";
 
 /** The blocks Markdown becomes, by its element: props each one gets (over Markdown's own defaults). */
 export interface MarkdownBlocks {
@@ -376,6 +377,10 @@ class Writer {
  * ```
  */
 export function Markdown(props: MarkdownProps): React.ReactElement {
+  // (Rendered by react-dom in what a lazy component renders, in a collecting render: given to the collection, which calls
+  // it with the render's work, `_own`. See the engine's root-capture.ts's ROUTED.)
+  const collected = collectedHere(Markdown, props, (props as { _own?: boolean })._own === true);
+  if (collected !== NOT_COLLECTED) return collected as React.ReactElement;
   const source = dedent(props.markdown ?? textOf(props.children));
   // (Its tables, its quotes' and lists' nesting and its inline syntax kept to what its size calls for, its render's
   // Markdown together: see limits.ts, inline.ts and work.ts.)
@@ -401,6 +406,7 @@ export function Markdown(props: MarkdownProps): React.ReactElement {
 Markdown.displayName = "Markdown";
 // (It calls no hooks: a render its `url` starts is safe in its call. See utils/create-component.tsx's NO_HOOKS.)
 (Markdown as unknown as Record<symbol, boolean>)[Symbol.for("@unlayer/react-elements/no-hooks")] = true;
+(Markdown as unknown as Record<symbol, boolean>)[ROUTED] = true;
 
 /** Whether code in `language` is highlighted (see the code entry's HAS_GRAMMAR); where that can't be told, it is. */
 const highlighted = (language: string): boolean => (highlightCode as unknown as Record<symbol, ((language: string) => boolean) | undefined>)[Symbol.for("@unlayer/react-elements/has-grammar")]?.(language) ?? true;

@@ -1,6 +1,6 @@
 import React from "react";
 import type { SizeInput } from "../types";
-import { collectedHere, NOT_COLLECTED } from "../engine/root-capture";
+import { collectedHere, NOT_COLLECTED, ROUTED } from "../engine/root-capture";
 
 /**
  * On <Link> (of every copy of Elements): a collecting render records where one renders (engine/collector.ts), so the
@@ -41,5 +41,6 @@ export function Link(props: LinkProps): React.ReactElement {
 
 Link.displayName = "Link";
 (Link as unknown as Record<symbol, unknown>)[LINK] = true;
+(Link as unknown as Record<symbol, unknown>)[ROUTED] = true;
 
 export default Link;

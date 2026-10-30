@@ -25,7 +25,7 @@ import { REACT_18 } from "./react-compat";
 import { sharing, type Shared } from "./shared";
 import { checkKeys } from "./keys";
 import { asOwnCall, asUserCall, enterFrame, isRefusal, isServerReact, isThenable, oneReact, otherReactsHook, REACT_COPIES, staticMarkup, streamedMarkup, suspendedInReact, suspends, TEMPLATE_REACT } from "./react-dom";
-import { COLLECTING, Stamp } from "./root-capture";
+import { COLLECTING, ROUTED, Stamp } from "./root-capture";
 import { parse, placeholderOf } from "./parse";
 import { flatten, htmlOf, PENDING, type Item, type Part } from "./output";
 import { handled, track } from "./capture";
@@ -440,7 +440,8 @@ function consumer(fn: unknown, c: Collection, ctx: Ctx, keep?: Record<string, an
   return (value: unknown) => {
     let result: unknown;
     try {
-      result = handled(c.async ? fn(value) : asUserCall(ctx.frame, () => fn(value)));
+      const call = () => sharing(c.shared, () => fn(value));
+      result = handled(c.async ? call() : asUserCall(ctx.frame, call));
     } catch (caught) {
       const thrown = handled(caught);
       if (suspended(c, thrown)) throw thrown;
@@ -653,12 +654,10 @@ function callFor(name: string): React.FC<CallProps> {
 }
 
 function callElement(fn: any, named: unknown, props: Record<string, any>, second: unknown, key: React.Key | null, c: Collection, ctx: Ctx, keep?: Record<string, any>): React.ReactElement {
-  if (isLinkType(fn)) {
-    // A <Link> (itself, memo'd or forwardRef'd to): the components whose markup it's in hold one. It's called as it is
-    // (`_own`), not given to the collection again in what a lazy component renders.
-    for (const record of ctx.links ?? []) record.link = true;
-    props = { ...props, _own: true };
-  }
+  // A <Link> (itself, memo'd or forwardRef'd to): the components whose markup it's in hold one.
+  if (isLinkType(fn)) for (const record of ctx.links ?? []) record.link = true;
+  // (One of Elements' that gives itself to the collection in what a lazy component renders: called as it is, `_own`.)
+  if (fn?.[ROUTED]) props = { ...props, _own: true };
   const name = nameOf(named);
   const frame = c.frameless?.(named) ? ctx.frame : childFrame(ctx.frame, name);
   if (!c.async && fn?.[Symbol.toStringTag] === "AsyncFunction") {
@@ -690,7 +689,9 @@ function classElement(Ctor: any, props: Record<string, any>, element: React.Reac
     if (failed) return fails(c, at, errorMark(c, failed.error, name, frame, ctx, true));
     let result: unknown;
     try {
-      result = handled(c.async ? call() : asUserCall(frame, call));
+      // (With the render's work, as Call calls a component: see sharing.)
+      const shared = () => sharing(c.shared, call);
+      result = handled(c.async ? shared() : asUserCall(frame, shared));
     } catch (caught) {
       const thrown = handled(caught);
       if (suspended(c, thrown)) {

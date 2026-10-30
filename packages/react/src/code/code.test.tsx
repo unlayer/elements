@@ -5,6 +5,7 @@ import * as asyncRenderers from "../async";
 import { CodeBlock, CodeInline, codeInline, codeThemes, highlightCode, listLanguages, registerLanguage } from "./index";
 import { escapeHtml, HIGHLIGHT_LIMIT } from "./highlight";
 import { growth, inTime, within } from "../test-timing";
+import { Markdown } from "../markdown";
 
 let warn: MockInstance;
 beforeEach(() => {
@@ -335,6 +336,35 @@ describe("highlightCode() in a render", () => {
       </Email>
     );
     expect([nested === alone, each(outer)]).toEqual([true, [true]]);
+  });
+
+  it("charges CodeBlocks and Markdown to the render wherever React renders them: in a lazy component, a class, a Consumer, in either renderer", async () => {
+    // React renders what a lazy component returns itself, outside the calls Elements makes: there, in an async render,
+    // each CodeBlock and Markdown had a budget of its own (12 of 8 KB of Java took seconds, all highlighted).
+    const loaded = (type: React.ComponentType) => React.lazy(() => ({ then: (done: (m: { default: React.ComponentType }) => void) => done({ default: type }) }) as Promise<{ default: React.ComponentType }>);
+    const later = (type: React.ComponentType) => React.lazy(() => new Promise<{ default: React.ComponentType }>((done) => setTimeout(() => done({ default: type }), 2)));
+    const blocks = () => [0, 1, 2].map((i) => <CodeBlock key={i} language="java" code={code(8000)} />);
+    const markdown = () => [0, 1, 2].map((i) => <Markdown key={i}>{"```java\n" + code(8000) + "\n```"}</Markdown>);
+    class Section extends React.Component<{ make: () => React.ReactNode }> {
+      render() {
+        return <>{this.props.make()}</>;
+      }
+    }
+    const Theme = React.createContext("light");
+    const places: Record<string, (make: () => React.ReactNode) => React.ReactNode> = {
+      "a lazy component": (make) => React.createElement(later(() => <>{make()}</>)),
+      "a lazy component, loaded": (make) => React.createElement(loaded(() => <>{make()}</>)),
+      "a class": (make) => <Section make={make} />,
+      "a Consumer": (make) => <Theme.Consumer>{() => make()}</Theme.Consumer>,
+    };
+    const each = (html: string) => html.split('<pre style="').slice(1).map((b) => colored(b) > 0);
+    for (const [place, at] of Object.entries(places)) {
+      for (const make of [blocks, markdown]) {
+        const email = <Email><Row><Column>{at(make)}</Column></Row></Email>;
+        expect(each(await asyncRenderers.renderToHtml(email)), `${place}, async`).toEqual([true, false, false]);
+        if (!place.startsWith("a lazy component") || place.endsWith("loaded")) expect(each(renderToHtml(email)), `${place}, sync`).toEqual([true, false, false]);
+      }
+    }
   });
 
   it("is a call of its own after an `await` in an async component (there, no render's work is known: CodeBlock's is)", async () => {

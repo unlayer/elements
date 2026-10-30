@@ -111,6 +111,14 @@ export const COLLECTING = {
 export const NOT_COLLECTED: unique symbol = Symbol("not collected");
 
 /**
+ * On Elements' components that give themselves to the collection where React renders them in what a lazy component
+ * renders (a <Link>, Markdown, a CodeBlock: they call collectedHere), and that the collection then calls itself, given
+ * `_own` so they don't again: it calls them with the render's own work (see the engine's `sharing`), so Markdown's and
+ * code's budgets are the render's wherever React renders them.
+ */
+export const ROUTED = Symbol.for("@unlayer/react-elements/routed");
+
+/**
  * In one of Elements' components React renders (not one Elements' own markup calls with its `_config`, `own`: its HTML
  * is that markup's): where a collecting render renders it (in what a lazy component rendered), what that collects it
  * as; otherwise NOT_COLLECTED. Called on every render of it that React renders, so its hooks are the same each time.
