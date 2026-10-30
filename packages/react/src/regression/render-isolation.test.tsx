@@ -447,6 +447,62 @@ describe("a context's default around an app's renders", () => {
     expect(read()).toBe("brand=default");
   });
 
+  // An app's stream from another react-dom build (its web stream: react-dom/server.edge on React 19, .browser on 18) that
+  // waited for a part in a <Suspense> leaves its provider's value where every react-dom stream reads a context: the
+  // async renderers (react-dom's Node.js stream) read it, as react-dom's own Node.js stream does, till that build
+  // renders again (README, "Contexts and the async renderers"). The synchronous ones read the default.
+  const webStream = () =>
+    require(Number.parseInt(React.version) >= 19 ? "react-dom/server.edge" : "react-dom/server.browser") as {
+      renderToReadableStream: (node: React.ReactNode) => Promise<ReadableStream & { allReady: Promise<void> }>;
+    };
+  /** An app's page streamed with that build: `value` provided around a part that waits for its data. */
+  const appStream = async (Brand: React.Context<any>, value: unknown) => {
+    let ready = false;
+    let release = () => {};
+    const data = new Promise<void>((done) => (release = done)).then(() => void (ready = true));
+    const Slow = () => {
+      if (!ready) throw data;
+      return <p>{String(useContext(Brand))}</p>;
+    };
+    const stream = await webStream().renderToReadableStream(<Brand.Provider value={value}><main><Suspense fallback={<i>…</i>}><Slow /></Suspense></main></Brand.Provider>);
+    release();
+    await new Response(stream).text();
+  };
+  /** What that build left, taken back (a render of nothing with it), so the tests after this one don't read it. */
+  const takeBack = async () => void (await new Response(await webStream().renderToReadableStream(<i />)).text());
+
+  it("reads, in the async renderers, the value an app's stream from another react-dom build left, as react-dom's own Node.js stream does; the default in the synchronous ones", async () => {
+    const { Brand, email, read } = brand("default");
+    try {
+      await appStream(Brand, tenant);
+      expect((await asyncRenderers.renderToPlainText(email)).trim()).toBe(`brand=${tenant}`);
+      expect(read()).toBe("brand=default");
+      // (React's own: react-dom's Node.js stream reads it there too.)
+      const Reads = () => <b>{String(useContext(Brand))}</b>;
+      const own = await new Promise<string>((resolve, reject) => {
+        let html = "";
+        const sink = { write: (chunk: unknown) => ((html += typeof chunk === "string" ? chunk : new TextDecoder().decode(chunk as Uint8Array)), true), end: () => resolve(html), destroy: () => {}, on() { return this; }, once() { return this; }, emit: () => true, removeListener() { return this; } } as unknown as NodeJS.WritableStream;
+        const stream = renderToPipeableStream(<Reads />, { onAllReady: () => stream.pipe(sink), onShellError: reject });
+      });
+      expect(own).toBe(`<b>${tenant}</b>`);
+    } finally {
+      await takeBack();
+    }
+  });
+
+  it("reads, in the async renderers, the template's own value where it provides the context it reads, whatever an app's stream left", async () => {
+    const { Brand } = brand("default");
+    const Footer = () => <Paragraph>{`brand=${String(useContext(Brand))}`}</Paragraph>;
+    const provided = <Email><Brand.Provider value="its own"><Row><Column><Footer /></Column></Row></Brand.Provider></Email>;
+    try {
+      await appStream(Brand, tenant);
+      expect((await asyncRenderers.renderToPlainText(provided)).trim()).toBe("brand=its own");
+      expect(renderToPlainText(provided).trim()).toBe("brand=its own");
+    } finally {
+      await takeBack();
+    }
+  });
+
   it("reads one value for a context throughout a render that starts inside an app's renderToString and goes on after it", async () => {
     const Brand = createContext("default");
     let open = false;
