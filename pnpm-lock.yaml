@@ -333,6 +333,9 @@ importers:
       '@unlayer-internal/shared-elements':
         specifier: workspace:*
         version: link:../shared
+      '@unlayer/react-elements-021':
+        specifier: npm:@unlayer/react-elements@0.2.1
+        version: '@unlayer/react-elements@0.2.1(react-dom@18.3.1(react@18.3.1))(react@18.3.1)'
       '@unlayer/react-elements-previous':
         specifier: npm:@unlayer/react-elements@0.1.22
         version: '@unlayer/react-elements@0.1.22(react-dom@18.3.1(react@18.3.1))(react@18.3.1)'
@@ -2022,6 +2025,12 @@ packages:
 
   '@unlayer/react-elements@0.1.22':
     resolution: {integrity: sha512-WP4+6WPs9gxptcKGOQf3RsxqPhtUZBiurvxohUnVove83PLbSyK36b4b8ej9zO+lQRXcfELF766kPgh9EgRNVQ==}
+    peerDependencies:
+      react: '>=18'
+      react-dom: '>=18'
+
+  '@unlayer/react-elements@0.2.1':
+    resolution: {integrity: sha512-HVsZE9yGDazXinT2TDtAfKulMyo+pfVnvkT2coYgdORNG+a3Yw4XxsMb5SeGh6pvvxqNb0KPqTllt5jjGmgRaw==}
     peerDependencies:
       react: '>=18'
       react-dom: '>=18'
@@ -6376,6 +6385,16 @@ snapshots:
       - utf-8-validate
 
   '@unlayer/react-elements@0.1.22(react-dom@18.3.1(react@18.3.1))(react@18.3.1)':
+    dependencies:
+      '@unlayer/exporters': 1.497.0(@unlayer/types@1.497.0)
+      '@unlayer/types': 1.497.0
+      react: 18.3.1
+      react-dom: 18.3.1(react@18.3.1)
+    transitivePeerDependencies:
+      - bufferutil
+      - utf-8-validate
+
+  '@unlayer/react-elements@0.2.1(react-dom@18.3.1(react@18.3.1))(react@18.3.1)':
     dependencies:
       '@unlayer/exporters': 1.497.0(@unlayer/types@1.497.0)
       '@unlayer/types': 1.497.0

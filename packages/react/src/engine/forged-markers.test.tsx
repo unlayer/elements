@@ -15,7 +15,7 @@ import { Column, Email, Html, Paragraph, Row, registerTool, renderToHtml, render
 import { Head } from "../head";
 import * as asyncRenderers from "../async";
 
-const COUNT = Symbol.for("@unlayer/react-elements/renders");
+const COUNT = Symbol.for("@unlayer/react-elements/render-count");
 /** The number the next render of Elements gets (see collector.ts's `renders`), and the few after it. */
 const nextNumbers = () => {
   const n = ((globalThis as Record<symbol, { n: number } | undefined>)[COUNT]?.n ?? 0) + 1;

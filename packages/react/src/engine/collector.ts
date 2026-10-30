@@ -135,11 +135,19 @@ type Tracked = PromiseLike<unknown> & { status?: "pending" | "fulfilled" | "reje
  * it. Text React writes can't be a marker (it's escaped), and HTML given whole (`dangerouslySetInnerHTML`) is taken
  * whole, between the render's own comments, whatever it holds.
  */
-const COUNT = Symbol.for("@unlayer/react-elements/renders");
-const renders = ((globalThis as Record<symbol, { n: number } | undefined>)[COUNT] ??= { n: 0 }) as { n: number };
+// (Not 0.2's `…/renders`, where it keeps a number: another copy's slot is only taken where it's this shape.)
+const COUNT = Symbol.for("@unlayer/react-elements/render-count");
+const renders: { n: number } = (() => {
+  const global = globalThis as Record<symbol, unknown>;
+  const found = global[COUNT] as { n?: unknown } | undefined;
+  if (typeof found === "object" && found !== null && typeof found.n === "number") return found as { n: number };
+  const own = { n: 0 };
+  if (found === undefined) global[COUNT] = own;
+  return own;
+})();
 
 export function newCollection(options: { collector?: Collector; passes?: (error: unknown) => boolean; frameless?: (type: unknown) => boolean; own?: (type: unknown) => boolean; omit: boolean; async?: boolean; shared: Shared }): Collection {
-  renders.n = (renders.n + 1) % Number.MAX_SAFE_INTEGER;
+  renders.n = ((Number.isSafeInteger(renders.n) ? renders.n : 0) + 1) % Number.MAX_SAFE_INTEGER;
   return {
     nonce: `r${renders.n.toString(36)}`,
     collector: options.collector,

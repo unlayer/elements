@@ -285,7 +285,7 @@ row or block is left out of the HTML, the plain text and the design (the slower 
    it gives the rewrites a key of its own (each call outside a render, its own), by which a handle reads a render's
    classes together: its first 2,000 different ones, so classes from data can't take more memory than that
    (`src/tailwind/declarations.ts`'s `capped`).
-   Besides those, by `Symbol.for`: the collecting renders' count (`…/renders`, their markers' numbers: invariant 2),
+   Besides those, by `Symbol.for`: the collecting renders' count (`…/render-count`, their markers' numbers: invariant 2; not 0.2's `…/renders`, a number),
    the component a synchronous render is calling, how many static renders Elements runs and the module of react-dom's
    they render with (`…/calling`: see "What it can't render"), the context a lazy
    template's root gives itself to (`…/root-capture`), and the mark of Elements' components of other entries that call

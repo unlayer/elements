@@ -3,6 +3,7 @@
  * Two copies of Elements in one process (a package's CommonJS build, its ESM one rendering; a package still on
  * another version), with one React: their Markdown and code blocks share the work of the render another copy runs.
  */
+import { createRequire } from "node:module";
 import { beforeAll, describe, expect, it, vi } from "vitest";
 import React from "react";
 import { Column, Email, Row, renderToHtml as renderToHtmlSync } from "../index";
@@ -63,6 +64,56 @@ describe("Markdown and code blocks of another copy of Elements (a package's Comm
       expect(colored(renderToHtmlSync(blocks(3, (i) => <own.Markdown key={i} markdown={fence} />)))).toEqual([true, false, false]);
     } finally {
       global[SLOT] = slot;
+    }
+  });
+});
+
+describe("Elements 0.2.1 and 0.3 in one process (a package still on 0.2.1)", () => {
+  // 0.2.1 counts its renders in a number at `Symbol.for("@unlayer/react-elements/renders")`, where 0.3 kept an object
+  // of its own: whichever copy wrote it first, the other's renders failed ("Cannot create property 'n' on number").
+  const OLD = Symbol.for("@unlayer/react-elements/renders");
+  const NEW = Symbol.for("@unlayer/react-elements/render-count");
+  type Elements = typeof import("../index");
+  const email = (L: Pick<Elements, "Email" | "Row" | "Column" | "Paragraph">) => React.createElement(L.Email, null, React.createElement(L.Row, null, React.createElement(L.Column, null, React.createElement(L.Paragraph, null, "Hi there"))));
+  const renders = (L: Pick<Elements, "Email" | "Row" | "Column" | "Paragraph" | "renderToHtml">) => L.renderToHtml(email(L)).includes("Hi there");
+  /** A copy of 0.3 loaded now, as a process loads one after what's already run: its module build, or its CommonJS build. */
+  const fresh = async (): Promise<Elements> => (vi.resetModules(), (await import("../index")) as Elements);
+  const commonJs = () => createRequire(import.meta.url)("../../dist/index.cjs") as Elements;
+  const old = async () => (await import("@unlayer/react-elements-021")) as unknown as Elements;
+  const clear = () => {
+    const global = globalThis as Record<symbol, unknown>;
+    const kept = { [OLD]: global[OLD], [NEW]: global[NEW] };
+    delete global[OLD];
+    delete global[NEW];
+    return () => Object.assign(global, kept);
+  };
+
+  it("render with 0.2.1 rendering first, then 0.3's module build and its CommonJS build loaded after it", async () => {
+    const restore = clear();
+    try {
+      const v021 = await old();
+      expect(renders(v021)).toBe(true);
+      const module = await fresh();
+      expect(renders(module)).toBe(true);
+      expect(renders(commonJs())).toBe(true);
+      expect([renders(v021), renders(module)]).toEqual([true, true]);
+    } finally {
+      restore();
+    }
+  });
+
+  it("render with 0.3 rendering first, then 0.2.1, then 0.3's CommonJS build and another module copy loaded after it", async () => {
+    const restore = clear();
+    try {
+      const module = await fresh();
+      expect(renders(module)).toBe(true);
+      const v021 = await old();
+      expect(renders(v021)).toBe(true);
+      expect(renders(commonJs())).toBe(true);
+      expect(renders(await fresh())).toBe(true);
+      expect([renders(module), renders(v021)]).toEqual([true, true]);
+    } finally {
+      restore();
     }
   });
 });
