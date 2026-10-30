@@ -11,7 +11,7 @@
  * like one (another render's, a number out of range, one never rendered) is the markup it is, and one read twice
  * fails the render, by name (FORGED).
  */
-import { ASYNC_IN_SYNC, positionOf, RenderError } from "./errors";
+import { ASYNC_IN_SYNC, positionOf, RenderError, SWALLOWED, threw, type Frame } from "./errors";
 import { MARK, type Collection } from "./collector";
 import type { BoundaryPart, ErrorPart, HostPart, Part, RecordPart } from "./output";
 import { REACT_18 } from "./react-compat";
@@ -189,6 +189,25 @@ export function parse(html: string, c: Collection): Part[] {
 
 const forged = () => new RenderError(FORGED, "template", "");
 
+/**
+ * What failed inside a <Suspense> whose fallback React rendered (its marker `n`, at `frame`), or undefined where
+ * what's in it suspended (a synchronous render renders the fallback, as React's server renderer does). An async render
+ * waits for what suspends: there, a fallback is what failed, as React told its stream (in order). A synchronous one
+ * keeps no error React handled there: what's said is where, and what to do.
+ */
+function fallbackFailed(c: Collection, n: number, frame: Frame): RenderError | undefined {
+  const lazy = c.lazies.find((x) => x.suspenseAt === n);
+  if (c.async) {
+    const told = c.reactErrors.shift();
+    if (!told) return swallowed(lazy ? "lazy" : "Suspense", lazy?.frame ?? frame);
+    return new RenderError(threw(told.error), told.name ?? (lazy ? "lazy" : "Suspense"), positionOf(lazy?.frame ?? frame), told.error);
+  }
+  if (c.suspended.some((x) => x.suspenseAt === n) || c.lazies.some((x) => x.suspenseAt === n && x.done)) return undefined;
+  return swallowed(lazy ? "lazy" : "Suspense", lazy?.frame ?? frame);
+}
+
+const swallowed = (name: string, frame: Frame | null) => new RenderError(SWALLOWED, name, positionOf(frame));
+
 /** The part a marker stands for, added to `into`: where what's inside the marker goes. */
 function markPart(c: Collection, n: number, into: Part[]): Part[] {
   const mark = c.marks[n];
@@ -212,10 +231,28 @@ function markPart(c: Collection, n: number, into: Part[]): Part[] {
       into.push(part);
       return [];
     }
+    case "fb": {
+      // A <Suspense>'s fallback React rendered: what's in it suspended (a synchronous render), or failed.
+      const failed = fallbackFailed(c, n, mark.frame);
+      if (!failed) return into;
+      into.push({ t: "error", error: failed, fatal: false });
+      return [];
+    }
     case "s": {
-      // A boundary whose content suspended: the boundary, failed with what suspended in it.
+      // A boundary whose content suspended (or failed, React saying nothing): the boundary, failed with what did.
       const s = c.suspended.find((x) => x.boundary === mark.boundary);
       const lazy = s ? undefined : c.lazies.find((x) => x.boundary === mark.boundary);
+      if (c.async) {
+        // (An async render waits for what suspends: what React handled itself failed, as it told the stream.)
+        const told = c.reactErrors.shift();
+        const error = told ? new RenderError(threw(told.error), told.name ?? (lazy ? "lazy" : "component"), positionOf(lazy?.frame ?? null), told.error) : swallowed(lazy ? "lazy" : "component", lazy?.frame ?? null);
+        into.push({ t: "boundary", parts: [{ t: "error", error, fatal: false }] });
+        return [];
+      }
+      if (!s && !lazy?.done) {
+        into.push({ t: "boundary", parts: [{ t: "error", error: swallowed(lazy ? "lazy" : "component", lazy?.frame ?? null), fatal: false }] });
+        return [];
+      }
       const error = new RenderError(ASYNC_IN_SYNC, s?.name ?? (lazy ? "lazy" : "component"), positionOf(s?.frame ?? lazy?.frame ?? null));
       const part: BoundaryPart = { t: "boundary", parts: [{ t: "error", error, fatal: false }] };
       into.push(part);

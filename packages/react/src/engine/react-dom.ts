@@ -62,7 +62,7 @@ function sink(done: (html: string) => void) {
  * size: React 19 otherwise writes a long stream's <Suspense> as its fallback, its content after the rest in a hidden
  * <div> and scripts that move it (an email can run none).
  */
-export function streamedMarkup(node: React.ReactNode, idPrefix: string | undefined, raw: (html: string) => string, onError?: (error: unknown) => void, control: { abort?: (reason: unknown) => void } = {}): Promise<string> {
+export function streamedMarkup(node: React.ReactNode, idPrefix: string | undefined, raw: (html: string) => string, onError?: (error: unknown, info?: unknown) => void, control: { abort?: (reason: unknown) => void } = {}): Promise<string> {
   // (Where react-dom can't render (React Server Components' React on the edge runtime), its stream throws where nothing
   // catches it, and never settles: the render fails as the synchronous ones do, by name, before it starts (see
   // renderFailure). Asked of react-dom itself: Next.js's Server Components on the Node.js runtime have a React with no
@@ -70,7 +70,7 @@ export function streamedMarkup(node: React.ReactNode, idPrefix: string | undefin
   if (!reactDomRenders()) return Promise.reject(new TypeError("react-dom can't render with this React"));
   const element = createElement("noscript", null, node);
   const S = Server as unknown as Record<string, any>;
-  const report = (error: unknown) => void onError?.(error);
+  const report = (error: unknown, info?: unknown) => void onError?.(error, info);
   const bare = (html: string) => raw(inWrapper(html));
   return streamed(S, element, idPrefix, report, control).then(
     (html) => settleStream(S).then(() => bare(html)),
@@ -104,7 +104,7 @@ function settleStream(S: Record<string, any>): Promise<void> {
 }
 
 /** react-dom's streaming render of `element`, its whole output once everything in it is ready. */
-function streamed(S: Record<string, any>, element: React.ReactElement, idPrefix: string | undefined, report: (error: unknown) => void, control: { abort?: (reason: unknown) => void }): Promise<string> {
+function streamed(S: Record<string, any>, element: React.ReactElement, idPrefix: string | undefined, report: (error: unknown, info?: unknown) => void, control: { abort?: (reason: unknown) => void }): Promise<string> {
   if (typeof S.renderToPipeableStream === "function") {
     return new Promise((resolve, reject) => {
       let failed = false;
@@ -309,16 +309,30 @@ export function asOwnCall<T>(fn: () => T): T {
   }
 }
 
-/** `fn`, a static render of react-dom's that Elements runs (see `calling`), the component being called as it was after it. */
+/**
+ * `fn`, a static render of react-dom's that Elements runs (see `calling`), the component being called as it was after
+ * it. Where it fails, where React was rendering (a lazy component's place) is kept for what it fails with (failedAt).
+ */
+let failedFrame: Frame | null = null;
 function ownStatic<T>(fn: () => T): T {
   const frame = calling.frame;
   calling.static = (calling.static ?? 0) + 1;
   try {
     return fn();
+  } catch (error) {
+    failedFrame = calling.frame !== frame ? (calling.frame as Frame | null) : null;
+    throw error;
   } finally {
     calling.static--;
     calling.frame = frame;
   }
+}
+
+/** Where a static render that just failed was rendering (a lazy component's place), once. */
+export function failedAt(): Frame | undefined {
+  const frame = failedFrame;
+  failedFrame = null;
+  return frame ?? undefined;
 }
 
 /** Where what React renders next in a synchronous render is (a lazy component's place): said if it starts a render. */

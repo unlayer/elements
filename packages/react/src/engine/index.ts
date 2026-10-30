@@ -10,7 +10,7 @@ import { flatten, type Flat } from "./output";
 import { newCollection, prep, rootCtx, suspendedError, withRawErrors, type Collector } from "./collector";
 import { parse } from "./parse";
 import { forked } from "./capture";
-import { refuseNested, renderFailure, staticMarkup, streamedMarkup, streamSuspension, suspendedInReact, suspends } from "./react-dom";
+import { failedAt, refuseNested, renderFailure, staticMarkup, streamedMarkup, streamSuspension, suspendedInReact, suspends } from "./react-dom";
 import { sharedNow, sharing, type Shared } from "./shared";
 
 export { RenderError, type OnError } from "./errors";
@@ -52,7 +52,24 @@ function failure(error: unknown, options: CollectOptions, frame: ReturnType<type
   // What suspended where nothing could wait for it: the first component that did, or the lazy one React loads. (Where
   // one did outside every <Suspense>, that's what failed the render, whatever React's error says.)
   if (c && (suspends(error) || suspendedInReact(error) || c.suspended.some((s) => !s.inSuspense))) return suspendedError(c) ?? new RenderError(ASYNC_IN_SYNC, "lazy", positionOf(c.lazies[0]?.frame ?? frame), error);
-  return renderFailure(error, frame.name) ?? new RenderError(threw(error), frame.name, positionOf(frame), error);
+  // What React rendered itself and failed (what a lazy component renders: the component it loads, or one in what that
+  // renders): where it is, as React said (its component, in a development build), at the lazy one's place.
+  const at = failedAt() ?? (c?.async && c.lazies.length ? c.lazies[0].frame : undefined);
+  const told = c?.reactErrors.find((t) => t.error === error)?.name;
+  return renderFailure(error, frame.name) ?? new RenderError(threw(error), told ?? at?.name ?? frame.name, positionOf(at ?? frame), error);
+}
+
+/** Elements' own components, which a component stack names around the user's: not what failed. */
+const OWN = new Set(["Call", "Marker", "LazyRendered", "LazyDone", "Awaited", "ContextValue", "Collected", "Suspense", "Lazy", "noscript"]);
+/** The component a React error was thrown in, from the component stack react-dom gives its `onError` (a development build's). */
+function failedIn(info: unknown): string | undefined {
+  const stack = (info as { componentStack?: unknown } | undefined)?.componentStack;
+  if (typeof stack !== "string") return undefined;
+  for (const line of stack.split("\n")) {
+    const name = /^\s*(?:at|in)\s+([A-Za-z_$][\w$.-]*)/.exec(line)?.[1];
+    if (name && !OWN.has(name)) return name;
+  }
+  return undefined;
 }
 
 /** `node` collected synchronously: what's async in it fails (or is left out, as `onError` says). */
@@ -90,11 +107,12 @@ export async function collectAsync(node: React.ReactNode, options: CollectOption
   };
   let html: string;
   try {
-    const streamed = streamedMarkup(prepared, options.idPrefix, (raw) => raw, undefined, control);
+    // (What React handles itself, in order: a <Suspense>'s fallback rendered for it, see parse.ts's fallbackFailed.)
+    const streamed = streamedMarkup(prepared, options.idPrefix, (raw) => raw, (error, info) => void c.reactErrors.push({ error, name: failedIn(info) }), control);
     streamed.catch(() => {});
     html = await Promise.race([streamed, failed]);
   } catch (error) {
-    throw failure(error, options, frame);
+    throw failure(error, options, frame, c);
   } finally {
     c.changed = undefined;
   }

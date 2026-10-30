@@ -60,8 +60,10 @@ export type Mark =
   | { k: "r"; record: object; quiet?: boolean }
   | { k: "b"; record: object | null }
   | { k: "f"; error: unknown; fatal: boolean }
-  /** A boundary's Suspense fallback: what's in it suspended in a synchronous render. */
-  | { k: "s"; boundary: number };
+  /** A boundary's Suspense fallback: what's in it suspended (or failed, React silent) in a synchronous render. */
+  | { k: "s"; boundary: number }
+  /** A <Suspense> of the template's own: its fallback, where React rendered it (see parse.ts's fallbackFailed). */
+  | { k: "fb"; frame: Frame };
 
 export interface Collection {
   nonce: string;
@@ -77,9 +79,14 @@ export interface Collection {
   made: WeakSet<object>;
   fatal: WeakSet<object>;
   /** Components that suspended, in the order React called them, with the boundary they're in and whether a Suspense of the template's was around them. */
-  suspended: Array<{ name: string; frame: Frame; boundary: number; inSuspense: boolean }>;
-  /** The lazy components it renders (see prepLazy): where each is, said where one suspends in a synchronous render. */
-  lazies: Array<{ frame: Frame; boundary: number }>;
+  suspended: Array<{ name: string; frame: Frame; boundary: number; inSuspense: boolean; suspenseAt?: number }>;
+  /**
+   * The lazy components it renders (see prepLazy): where each is, said where one suspends in a synchronous render;
+   * `done`, what it renders rendered with no error (it suspended, or rendered: see LazyDone).
+   */
+  lazies: Array<{ frame: Frame; boundary: number; suspenseAt?: number; done?: boolean }>;
+  /** In an async render, what React handled itself (in a <Suspense>, that it rendered the fallback of), in order. */
+  reactErrors: Array<{ error: unknown; name?: string }>;
   /** An async component's promise, by its props (React calls Call again once it settles). */
   pending: WeakMap<object, Tracked>;
   /** What the render's components share, while each is called. */
@@ -113,8 +120,9 @@ export interface Collection {
 
 interface Ctx {
   frame: Frame;
-  /** The Suspenses of the template's own around this place. */
+  /** The Suspenses of the template's own around this place; the innermost's fallback marker. */
   suspense: number;
+  suspenseAt?: number;
   /** The boundary marker this place is in (-1: none). */
   boundary: number;
   /** A boundary's own element, whose return value its record keeps (src/model/elements.ts's keptMarkup). */
@@ -163,6 +171,7 @@ export function newCollection(options: { collector?: Collector; passes?: (error:
     fatal: new WeakSet(),
     suspended: [],
     lazies: [],
+    reactErrors: [],
     pending: new WeakMap(),
     shared: options.shared,
     order: new WeakMap(),
@@ -294,7 +303,13 @@ function prepElement(element: React.ReactElement, c: Collection, ctx: Ctx, keep 
   }
   if (keep) keep.output = { value: props.children };
   if (PASSTHROUGH.has(type)) return React.cloneElement(element, undefined, prep(props.children, c, inner, true));
-  if (type === SUSPENSE) return React.cloneElement(element, { fallback: prep(props.fallback, c, inner, true) }, prep(props.children, c, { ...inner, suspense: ctx.suspense + 1 }, true));
+  if (type === SUSPENSE) {
+    // (Its fallback marked: where React renders it, the parse asks why. See parse.ts's fallbackFailed.)
+    const at = c.marks.length;
+    c.marks.push({ k: "fb", frame: placeFrame(ctx.frame, "Suspense") });
+    const fallback = withMark(c, at, prep(props.fallback, c, inner, true));
+    return React.cloneElement(element, { fallback }, prep(props.children, c, { ...inner, suspense: ctx.suspense + 1, suspenseAt: at }, true));
+  }
   if (type === ACTIVITY) return props.mode === "hidden" ? null : React.cloneElement(element, undefined, prep(props.children, c, inner, true));
   if (type !== null && typeof type === "object") {
     switch (type.$$typeof) {
@@ -446,7 +461,10 @@ function prepRecord(node: RecordNode, c: Collection, ctx: Ctx): React.ReactNode 
   return marker(c, { k: "r", record: node.record, quiet: node.quiet }, children);
 }
 
-/** A part left out when it fails: a marker around it; in a synchronous render that leaves parts out, a Suspense whose fallback says it suspended. */
+/**
+ * A part left out when it fails: a marker around it; in a render that leaves parts out, a Suspense whose fallback says
+ * it suspended (a synchronous render) or failed where React handled it itself (see parse.ts).
+ */
 function prepBoundary(node: BoundaryNode, c: Collection, ctx: Ctx): React.ReactNode {
   if (ctx.raw) return prep(node.child, c, ctx);
   const at = c.marks.length;
@@ -454,7 +472,7 @@ function prepBoundary(node: BoundaryNode, c: Collection, ctx: Ctx): React.ReactN
   c.marks.push({ k: "b", record: node.boundary });
   const child = prep(node.child, c, inner);
   const element = withMark(c, at, child);
-  if (!c.omit || c.async || ctx.suspense > 0) return element;
+  if (!c.omit || ctx.suspense > 0) return element;
   return React.createElement(React.Suspense, { fallback: marker(c, { k: "s", boundary: at }) }, element);
 }
 
@@ -511,7 +529,7 @@ function Call({ fn, props, second, name, frame, keep, c, ctx, own }: CallProps):
         if (promise.status === "rejected") return fails(c, at, errorMark(c, promise.reason, name, frame, ctx));
       }
       if (suspended(c, thrown)) {
-        c.suspended.push({ name, frame, boundary: ctx.boundary, inSuspense: ctx.suspense > 0 });
+        c.suspended.push({ name, frame, boundary: ctx.boundary, inSuspense: ctx.suspense > 0, suspenseAt: ctx.suspenseAt });
         waits(c, at);
         throw thrown;
       }
@@ -522,7 +540,7 @@ function Call({ fn, props, second, name, frame, keep, c, ctx, own }: CallProps):
     // An async component: what its promise resolves to (it isn't called again).
     if (!c.async) {
       settle(result);
-      c.suspended.push({ name, frame, boundary: ctx.boundary, inSuspense: ctx.suspense > 0 });
+      c.suspended.push({ name, frame, boundary: ctx.boundary, inSuspense: ctx.suspense > 0, suspenseAt: ctx.suspenseAt });
       throw result;
     }
     c.pending.set(props, result);
@@ -556,7 +574,7 @@ function callElement(fn: any, named: unknown, props: Record<string, any>, second
   const frame = c.frameless?.(named) ? ctx.frame : childFrame(ctx.frame, name);
   if (!c.async && fn?.[Symbol.toStringTag] === "AsyncFunction") {
     // Not called when nothing can wait for it: what suspends in a synchronous render.
-    c.suspended.push({ name, frame, boundary: ctx.boundary, inSuspense: ctx.suspense > 0 });
+    c.suspended.push({ name, frame, boundary: ctx.boundary, inSuspense: ctx.suspense > 0, suspenseAt: ctx.suspenseAt });
     return React.createElement(Suspends, { key: key ?? undefined });
   }
   return React.createElement(callFor(name), { key: key ?? undefined, fn, props, second, name, frame, keep, c, ctx, own: !!c.own?.(named) });
@@ -568,19 +586,24 @@ function Suspends(): never {
   throw NEVER;
 }
 
+/** What a class's lifecycle React calls before its render threw (getDerivedStateFromProps, componentWillMount). */
+const FAILED = Symbol("failed");
+
 /** A class component as a subclass whose render catches what it throws and prepares what it returns. */
 function classElement(Ctor: any, props: Record<string, any>, element: React.ReactElement, c: Collection, ctx: Ctx, keep?: Record<string, any>): React.ReactElement {
   const name = nameOf(Ctor);
   const frame = childFrame(ctx.frame, name);
   const inner: Ctx = { ...ctx, frame, watch: null };
-  /** Its render (`call`), what it throws caught and what it returns prepared. */
-  const collected = (self: { props: object }, call: () => unknown): React.ReactNode => {
+  /** Its render (`call`), what it throws caught and what it returns prepared; or what failed before it, said. */
+  const collected = (self: { props: object; state?: unknown }, call: () => unknown): React.ReactNode => {
+    const failed = (self as unknown as Record<symbol, { error: unknown } | undefined>)[FAILED] ?? (self.state as Record<symbol, { error: unknown } | undefined> | null | undefined)?.[FAILED];
+    if (failed) return fails(c, callOrder(c, self.props), errorMark(c, failed.error, name, frame, ctx));
     let result: unknown;
     try {
       result = c.async ? call() : asUserCall(frame, call);
     } catch (thrown) {
       if (suspended(c, thrown)) {
-        c.suspended.push({ name, frame, boundary: ctx.boundary, inSuspense: ctx.suspense > 0 });
+        c.suspended.push({ name, frame, boundary: ctx.boundary, inSuspense: ctx.suspense > 0, suspenseAt: ctx.suspenseAt });
         throw thrown;
       }
       return fails(c, callOrder(c, self.props), errorMark(c, thrown, name, frame, ctx));
@@ -604,15 +627,35 @@ function classElement(Ctor: any, props: Record<string, any>, element: React.Reac
       }
       // (A render given as a class field, `render = () => …`, is the instance's own, which hides this class's.)
       // @ts-expect-error -- super() was called: had it thrown, the constructor returned above.
-      const self = this as unknown as { props: object; render: () => unknown };
+      const self = this as unknown as Record<string | symbol, unknown> & { props: object; render: () => unknown };
       if (Object.prototype.hasOwnProperty.call(self, "render") && typeof self.render === "function") {
         const own = self.render;
         self.render = () => collected(self, () => own.call(self));
+      }
+      // What React calls before its render, which fails where it is too (React would render a <Suspense>'s fallback).
+      for (const name of ["UNSAFE_componentWillMount", "componentWillMount"]) {
+        const own = self[name];
+        if (typeof own === "function") self[name] = () => {
+          try {
+            own.call(self);
+          } catch (error) {
+            self[FAILED] ??= { error };
+          }
+        };
       }
     }
     render(): React.ReactNode {
       return collected(this as unknown as { props: object }, () => super.render());
     }
+  }
+  if (typeof Ctor.getDerivedStateFromProps === "function") {
+    (Collected as unknown as { getDerivedStateFromProps: (props: unknown, state: unknown) => unknown }).getDerivedStateFromProps = (props, state) => {
+      try {
+        return Ctor.getDerivedStateFromProps(props, state);
+      } catch (error) {
+        return { [FAILED]: { error } };
+      }
+    };
   }
   Object.defineProperty(Collected, "name", { value: name });
   (Collected as unknown as { displayName: string }).displayName = name;
@@ -636,17 +679,29 @@ export function suspendedError(c: Collection): RenderError | undefined {
 function prepLazy(element: React.ReactElement, c: Collection, ctx: Ctx): React.ReactNode {
   if (ctx.raw) return element;
   const frame = placeFrame(ctx.frame, "lazy");
-  c.lazies.push({ frame, boundary: ctx.boundary });
-  return React.createElement(LazyRendered, { key: element.key ?? undefined, element, c, ctx: { ...ctx, frame, watch: null } });
+  const lazy = { frame, boundary: ctx.boundary, suspenseAt: ctx.suspenseAt };
+  c.lazies.push(lazy);
+  return React.createElement(LazyRendered, { key: element.key ?? undefined, element, c, ctx: { ...ctx, frame, watch: null }, lazy });
 }
 
-function LazyRendered({ element, c, ctx }: { element: React.ReactElement; c: Collection; ctx: Ctx }): React.ReactNode {
+/**
+ * Rendered after a lazy component in a synchronous render: react-dom renders it where the lazy one rendered with no
+ * error (it rendered, or suspended: react-dom goes on past it), and not where it failed, which React's static render
+ * says nothing of (it renders the <Suspense>'s fallback, or fails). See parse.ts's fallbackFailed.
+ */
+function LazyDone({ lazy }: { lazy?: Collection["lazies"][number] }): null {
+  if (lazy) lazy.done = true;
+  return null;
+}
+
+function LazyRendered({ element, c, ctx, lazy }: { element: React.ReactElement; c: Collection; ctx: Ctx; lazy: Collection["lazies"][number] }): React.ReactNode {
   // (React's development build calls a component again, with no props, to say where a warning came from.)
   if (!c) return null;
   if (!c.async) enterFrame(ctx.frame);
-  const unkeyed = React.cloneElement(element, { key: null } as object);
+  const unkeyed = React.cloneElement(element, { key: c.async ? null : "lazy" } as object);
   const context = COLLECTING.context();
-  return context ? React.createElement(context.Provider, { value: (found: React.ReactElement) => prep(found, c, ctx) }, unkeyed) : unkeyed;
+  const rendered = c.async ? unkeyed : [unkeyed, React.createElement(LazyDone, { key: "done", lazy })];
+  return context ? React.createElement(context.Provider, { value: (found: React.ReactElement) => prep(found, c, ctx) }, rendered) : rendered;
 }
 
 /** A promise as a child (React 19): what it resolves to, prepared, as `use()` of it gives it. */
@@ -657,8 +712,12 @@ function Awaited({ thenable, c, ctx }: { thenable: PromiseLike<unknown>; c: Coll
     value = use(thenable);
   } catch (thrown) {
     // (Said where it is, as a component that suspends: see suspendedError.)
-    if (suspended(c, thrown)) c.suspended.push({ name: ctx.frame.name, frame: ctx.frame, boundary: ctx.boundary, inSuspense: ctx.suspense > 0 });
-    throw thrown;
+    if (suspended(c, thrown)) {
+      c.suspended.push({ name: ctx.frame.name, frame: ctx.frame, boundary: ctx.boundary, inSuspense: ctx.suspense > 0, suspenseAt: ctx.suspenseAt });
+      throw thrown;
+    }
+    // (What it rejected with: where it is, as a component's error. React would render a <Suspense>'s fallback for it.)
+    return fails(c, nextOrder(c), errorMark(c, thrown, ctx.frame.name, ctx.frame, ctx));
   }
   return prep(value, c, ctx);
 }

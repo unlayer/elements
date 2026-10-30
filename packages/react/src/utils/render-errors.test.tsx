@@ -292,3 +292,121 @@ describe("a part that suspends in a <Suspense>", () => {
     });
   });
 });
+
+describe("what fails where React handles it itself (a lazy component, a promise as a child, a class's lifecycle)", () => {
+  // React renders a <Suspense>'s fallback for what fails in it that Elements doesn't call (a lazy component, what it
+  // renders, a promise given as a child, a class's getDerivedStateFromProps or componentWillMount, a render given as a
+  // class field), saying nothing: the fallback ("Loading…") was sent, no error, no onError. Outside every <Suspense>,
+  // the render failed at the root, with no position.
+  const loaded = <P,>(component: React.ComponentType<P>) => React.lazy(() => ({ then: (resolve: (m: { default: React.ComponentType<P> }) => void) => resolve({ default: component }) }) as Promise<{ default: React.ComponentType<P> }>);
+  const ShippingLine = ({ order }: { order: { shipping?: { city: string } } }) => <Paragraph>{`Ships to ${order.shipping!.city}`}</Paragraph>;
+  const Summary = loaded(({ order }: { order: { shipping?: { city: string } } }) => <ShippingLine order={order} />);
+  class Derived extends React.Component<{ n: number }, { n: number }> {
+    state = { n: 0 };
+    static getDerivedStateFromProps(): null {
+      throw new Error("derived failed");
+    }
+    render() {
+      return <Paragraph>derived</Paragraph>;
+    }
+  }
+  class WillMount extends React.Component {
+    UNSAFE_componentWillMount() {
+      throw new Error("will mount failed");
+    }
+    render() {
+      return <Paragraph>will mount</Paragraph>;
+    }
+  }
+  class Field extends React.Component {
+    render = (): React.ReactNode => {
+      throw new Error("field render failed");
+    };
+  }
+  const email = (part: React.ReactNode, suspense: boolean) => (
+    <Email>
+      <Row>
+        <Column>
+          <Paragraph>Order #42 confirmed.</Paragraph>
+          {suspense ? <React.Suspense fallback={<Paragraph>Loading…</Paragraph>}>{part}</React.Suspense> : part}
+          <Paragraph>Thanks for shopping!</Paragraph>
+        </Column>
+      </Row>
+    </Email>
+  );
+  const CASES: Array<[string, React.ReactNode, RegExp, string[]]> = [
+    ["a lazy component's own component that throws", <Summary order={{}} />, /Cannot read properties of undefined|undefined is not an object/, ["ShippingLine", "lazy"]],
+    ["a class's getDerivedStateFromProps", <Derived n={1} />, /derived failed/, ["Derived"]],
+    ["a class's UNSAFE_componentWillMount", <WillMount />, /will mount failed/, ["WillMount"]],
+    ["a class's render given as a class field", <Field />, /field render failed/, ["Field"]],
+  ];
+
+  it.each(CASES)("%s, in a <Suspense>: the async renderers fail with its error, where it is, or leave it out and say so", async (_, part, said, names) => {
+    for (const suspense of [true, false]) {
+      let thrown: unknown;
+      try {
+        await asyncRenderers.renderToHtml(email(part, suspense));
+      } catch (error) {
+        thrown = error;
+      }
+      expect(thrown, `in a <Suspense>: ${suspense}`).toBeInstanceOf(RenderError);
+      expect((thrown as Error).message).toMatch(said);
+      expect(names).toContain((thrown as RenderError).component);
+      expect((thrown as RenderError).position).toMatch(/^Row 1 › Column 1 › /);
+      const omitted: RenderError[] = [];
+      const html = await asyncRenderers.renderToHtml(email(part, suspense), { onError: (error) => void omitted.push(error) });
+      expect(html).toContain("Thanks for shopping!");
+      expect(html).not.toContain("Loading…");
+      expect(omitted).toHaveLength(1);
+    }
+  });
+
+  it.each(CASES)("%s, in a <Suspense>: the synchronous renderers fail, saying where and what to do (or what failed), or leave it out and say so", (_, part, said, names) => {
+    for (const suspense of [true, false]) {
+      let thrown: unknown;
+      try {
+        renderToHtml(email(part, suspense));
+      } catch (error) {
+        thrown = error;
+      }
+      expect(thrown, `in a <Suspense>: ${suspense}`).toBeInstanceOf(RenderError);
+      // (A lazy one's, which React's static render keeps no error of in a <Suspense>: where it is, and what to do.)
+      if (!names.includes("lazy") || !suspense) expect((thrown as Error).message).toMatch(said);
+      else expect((thrown as Error).message).toMatch(/inside a <Suspense>, whose fallback React rendered instead/);
+      expect([...names, "lazy"]).toContain((thrown as RenderError).component);
+      expect((thrown as RenderError).position).toMatch(/^Row 1 › Column 1 › /);
+      const omitted: RenderError[] = [];
+      const html = renderToHtml(email(part, suspense), { onError: (error) => void omitted.push(error) });
+      expect(html).toContain("Thanks for shopping!");
+      expect(html).not.toContain("Loading…");
+      expect(omitted).toHaveLength(1);
+    }
+  });
+
+  const use = (React as unknown as { use?: unknown }).use;
+  it.runIf(use)("a promise given as a child that rejects, in a <Suspense> or not: fails with what it rejected with, where it is (React 19)", async () => {
+    const Recommendations = ({ items }: { items: PromiseLike<string> }) => <div>{items as unknown as React.ReactNode}</div>;
+    const rejected = () => {
+      const promise = Promise.reject(new Error("recommendations API is down"));
+      promise.catch(() => {});
+      return promise;
+    };
+    for (const suspense of [true, false]) {
+      await new Promise((done) => setTimeout(done, 1));
+      const items = rejected();
+      await new Promise((done) => setTimeout(done, 1));
+      await expect(asyncRenderers.renderToHtml(email(<Recommendations items={items} />, suspense))).rejects.toMatchObject({ name: "RenderError", component: "Recommendations", message: expect.stringMatching(/recommendations API is down/) });
+    }
+  });
+
+  it("keeps a <Suspense>'s fallback in a synchronous render where what's in it suspends (the negative control)", () => {
+    const never = new Promise(() => {});
+    const Waits = () => {
+      throw never;
+    };
+    const html = renderToHtml(email(<Waits />, true));
+    expect(html).toContain("Loading…");
+    const Later = React.lazy(() => new Promise<{ default: React.ComponentType }>(() => {}));
+    expect(renderToHtml(email(<Later />, true))).toContain("Loading…");
+  });
+});
