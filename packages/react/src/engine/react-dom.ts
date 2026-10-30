@@ -219,6 +219,15 @@ export const SERVER_REACT =
 export const REACT_COPIES =
   "react-dom/server renders with another copy of React than the one Elements imports, so the template's hooks can't run: install one copy of react and react-dom (`npm ls react` lists them), or alias `react` to one path in your bundler";
 
+export const TEMPLATE_REACT =
+  "the template was made with another copy of React than the one Elements renders with (its elements, or the hooks its components call), so React can't render it: install one copy of react and react-dom (`npm ls react` lists them), or alias `react` to one path in your bundler";
+
+/**
+ * Whether what a component threw says the hooks it called are another copy of React's (one that renders nothing:
+ * `Cannot read properties of null (reading 'useState')`, Safari's `null is not an object (evaluating '….useState')`).
+ */
+export const otherReactsHook = (error: unknown): boolean => error instanceof TypeError && /\(reading 'use[A-Z]\w*'\)|evaluating '[^']*\.use[A-Z]\w*'/.test(error.message);
+
 export const nestedRender = (api: string) =>
   `${api} can't start while a component of a template that Elements is rendering synchronously is called: react-dom/server, which renders templates, can't start a render inside its own. Render it before (and pass what it gives as a prop) or after, or start an async render there ("@unlayer/react-elements/async"), which renders once that call is over`;
 

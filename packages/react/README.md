@@ -10,7 +10,7 @@ npm install @unlayer/react-elements
 pnpm add @unlayer/react-elements
 ```
 
-Elements works with React 18 and 19 (its tests run on React 18.0, 18.2, 18.3, 19.1, 19.2 and 19.3, the latest, in React's development and production builds, and against React's canary every week), wherever react-dom/server renders: Node.js, Deno, Bun, Workers and edge runtimes, browsers, and Next.js's Server Components on the Node.js runtime. It renders your templates with react-dom/server, through React's public API only, as React Email does. Where react-dom can't render (React Server Components' React, which Next.js's App Router gives route handlers on the edge runtime; two copies of React with a template that has hooks), a render fails with a `RenderError` that says so and what to do. How it works: [ARCHITECTURE.md](./ARCHITECTURE.md).
+Elements works with React 18 and 19 (its tests run on React 18.0, 18.2, 18.3, 19.1, 19.2 and 19.3, the latest, in React's development and production builds, and against React's canary every week), wherever react-dom/server renders: Node.js, Deno, Bun, Workers and edge runtimes, browsers, and Next.js's Server Components on the Node.js runtime. It renders your templates with react-dom/server, through React's public API only, as React Email does. Where react-dom can't render (React Server Components' React, which Next.js's App Router gives route handlers on the edge runtime; two copies of React with a template that has hooks, or a template made with another copy: its elements of another major, or its components' hooks of another install), a render fails with a `RenderError` that says so and what to do. How it works: [ARCHITECTURE.md](./ARCHITECTURE.md).
 
 ## Quick Start
 

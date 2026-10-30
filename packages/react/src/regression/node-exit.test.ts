@@ -864,3 +864,51 @@ process.exit(0);
     }, 120_000);
   }
 });
+
+describe("a template made with another copy of React than Elements renders with", () => {
+  // A React 19 app's template rendered by Elements on React 18 (or two installs of one React, each with its own hooks)
+  // failed with React's own error wrapped (`Objects are not valid as a React child`, `reading 'useState'`), not what's
+  // wrong.
+  it("fails saying so: its elements of another major, or its components' hooks of another copy", () => {
+    expect(fs.existsSync(path.join(dist, "index.js")), "build the package first (pnpm build)").toBe(true);
+    const [react, reactDom] = own;
+    // (Another major's React: 19's beside 18, or the workspace's 18 beside 19, the React matrix's.)
+    const otherMajor = is19(react) ? path.join(root, "../migrate/node_modules/react") : other[0];
+    expect(Number.parseInt(versionOf(otherMajor))).not.toBe(Number.parseInt(versionOf(react)));
+    const dir = project(react, reactDom, "module");
+    try {
+      // (Another major's React, and a second install of Elements' own.)
+      fs.cpSync(fs.realpathSync(otherMajor), path.join(dir, "major/node_modules/react"), { recursive: true });
+      fs.cpSync(fs.realpathSync(react), path.join(dir, "second/node_modules/react"), { recursive: true });
+      fs.writeFileSync(path.join(dir, "major/react.js"), `export { default } from "react";`);
+      fs.writeFileSync(path.join(dir, "second/react.js"), `export { default } from "react";`);
+      fs.writeFileSync(
+        path.join(dir, "app.js"),
+        `import React from "react";
+import * as E from "@unlayer/react-elements";
+import * as A from "@unlayer/react-elements/async";
+import OtherMajor from "./major/react.js";
+import Second from "./second/react.js";
+const h = React.createElement;
+const cases = {
+  "elements of another major": () => h(E.Email, null, h(E.Row, null, h(E.Column, null, OtherMajor.createElement("p", null, "hi")))),
+  "hooks of another copy": () => h(E.Email, null, h(E.Row, null, h(E.Column, null, h(() => h(E.Paragraph, null, Second.useState("hi")[0]))))),
+};
+const out = {};
+for (const [name, make] of Object.entries(cases)) {
+  for (const [api, render] of [["sync", () => E.renderToHtml(make())], ["async", () => A.renderToHtml(make())]]) {
+    try { await render(); out[name + " " + api] = "rendered"; } catch (error) { out[name + " " + api] = error.name + ": " + /another copy of React/.test(error.message); }
+  }
+}
+console.log(JSON.stringify(out));
+`
+      );
+      const run = spawnSync(process.execPath, ["app.js"], { cwd: dir, encoding: "utf8", timeout: 30_000 });
+      expect(run.status, run.stderr.slice(-400)).toBe(0);
+      const said = "RenderError: true";
+      expect(JSON.parse(run.stdout.trim().split("\n").pop()!)).toEqual({ "elements of another major sync": said, "elements of another major async": said, "hooks of another copy sync": said, "hooks of another copy async": said });
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
+  }, 60_000);
+});

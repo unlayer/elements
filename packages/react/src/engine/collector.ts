@@ -24,7 +24,7 @@ import { unrun } from "./attributes";
 import { REACT_18 } from "./react-compat";
 import { sharing, type Shared } from "./shared";
 import { checkKeys } from "./keys";
-import { asOwnCall, asUserCall, enterFrame, isRefusal, isServerReact, isThenable, oneReact, REACT_COPIES, staticMarkup, streamedMarkup, suspendedInReact, suspends } from "./react-dom";
+import { asOwnCall, asUserCall, enterFrame, isRefusal, isServerReact, isThenable, oneReact, otherReactsHook, REACT_COPIES, staticMarkup, streamedMarkup, suspendedInReact, suspends, TEMPLATE_REACT } from "./react-dom";
 import { COLLECTING, Stamp } from "./root-capture";
 import { parse, placeholderOf } from "./parse";
 import { flatten, htmlOf, PENDING, type Item, type Part } from "./output";
@@ -44,6 +44,8 @@ const MEMO = Symbol.for("react.memo");
 const LAZY = Symbol.for("react.lazy");
 const CLIENT_REF = Symbol.for("react.client.reference");
 const ACTIVITY = Symbol.for("react.activity");
+/** What another major of React marks its elements with (React 18's `react.element`, 19's `react.transitional.element`). */
+const OTHER_ELEMENT = Symbol.for(REACT_18 ? "react.transitional.element" : "react.element");
 const PASSTHROUGH = new Set<unknown>([FRAGMENT, Symbol.for("react.strict_mode"), Symbol.for("react.profiler"), Symbol.for("react.suspense_list"), Symbol.for("react.view_transition"), Symbol.for("react.legacy_hidden"), Symbol.for("react.scope")]);
 
 /** Whether an element type renders its children on a server (template wrappers: see utils/unwrap-root.ts). */
@@ -292,6 +294,8 @@ function errorMark(c: Collection, error: unknown, name: string, frame: Frame, ct
   if (isRefusal(error)) return failedPart(c, error, true, ctx);
   // (A component's hooks fail where react-dom renders with another copy of React: said so, whatever the component threw.)
   if (!(error instanceof RenderError) && !c.passes?.(error) && !isServerReact() && !oneReact()) return fatalMark(c, REACT_COPIES, frame, error, ctx);
+  // (Or the template's own components call another copy's: said so too.)
+  if (otherReactsHook(error)) return fatalMark(c, TEMPLATE_REACT, frame, error, ctx);
   const made = positioned(c, error, name, frame);
   return failedPart(c, made, c.fatal.has(made as object) || !(made instanceof RenderError), ctx);
 }
@@ -332,6 +336,8 @@ export function prep(node: unknown, c: Collection, ctx: Ctx, given = false): Rea
   // A context: React 19 renders its value (prepared here). A lazy node: as a lazy component (prepLazy).
   if (!REACT_18 && object.$$typeof === CONTEXT) return React.createElement(ContextValue, { context: object as unknown as React.Context<unknown>, c, ctx });
   if (object.$$typeof === LAZY) return prepLazy(React.createElement(React.Fragment, null, object as React.ReactNode), c, ctx);
+  // An element of another major of React's (React 19's, rendered with 18's, or the other way round): said so.
+  if (object.$$typeof === OTHER_ELEMENT) return fatalMark(c, TEMPLATE_REACT, ctx.frame, undefined, ctx);
   if (object.$$typeof) return object as React.ReactNode;
   if (typeof object[Symbol.iterator] === "function") return Array.from(object as Iterable<unknown>).map((item, i) => keyed(prep(item, c, ctx), i));
   const keys = Object.prototype.toString.call(object) === "[object Object]" ? `object with keys {${Object.keys(object).join(", ")}}` : Object.prototype.toString.call(object);
