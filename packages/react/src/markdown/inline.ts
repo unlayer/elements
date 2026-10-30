@@ -80,8 +80,7 @@ class Inline extends Limited {
     if (this.deep || this.spent) return undefined;
     // What marked reads from each `<` in its text is counted too (see Looks).
     const looks = { steps: 0 };
-    const reach = linkReach(src, looks);
-    return this.spend(looks.steps) ? this.within(src, reach, (part) => super.link(part)) : undefined;
+    return tagged(src, (text) => linkReach(text, looks), (text, reach) => (this.spend(looks.steps) ? this.within(text, reach, (part) => super.link(part)) : undefined));
   }
 
   reflink(src: string, links: Links): Tokens.Link | Tokens.Image | Tokens.Text | undefined {
@@ -113,11 +112,16 @@ class Inline extends Limited {
   }
 
   autolink(src: string): Tokens.Link | undefined {
-    return src[0] === "<" ? this.within(src, autolinkReach(src), (part) => super.autolink(part)) : super.autolink(src);
+    return src[0] === "<" ? tagged(src, autolinkReach, (text, reach) => this.within(text, reach, (part) => super.autolink(part))) : super.autolink(src);
   }
 
   url(src: string): Tokens.Link | undefined {
-    return URL_START.test(src[0] ?? "") ? this.within(src, urlReach(src), (part) => super.url(part)) : super.url(src);
+    return URL_START.test(src[0] ?? "") ? tagged(src, urlReach, (text, reach) => this.within(text, reach, (part) => super.url(part))) : super.url(src);
+  }
+
+  def(src: string): Tokens.Def | undefined {
+    // (Its label, its URL and its title: three lines at most.)
+    return tagged(src, defReach, (text) => super.def(text));
   }
 
   inlineText(src: string): Tokens.Text | undefined {
@@ -125,6 +129,77 @@ class Inline extends Limited {
     return this.within(src, textReach(src, this.breaks), (part) => super.inlineText(part)) ?? super.inlineText(src);
   }
 }
+
+/**
+ * An email service's tag, on one line (`{{ … }}`, `{% … %}`, `<% … %>`, `%% … %%`, `${…}`, Mailchimp's `*|…|*`): in a
+ * link's URL (`[text](url)`, `![alt](src)`, a URL Markdown links by itself, `<url>`, a link's definition) one piece of
+ * it, so the URL doesn't end inside it, at a space or at what else ends one (see HIDE). Elsewhere, Markdown as
+ * CommonMark reads it. (Its length kept to a tag's: each is read once from where it starts.)
+ */
+const TAG = /\{\{[^\n{}]{0,256}\}\}|\{%[^\n{}]{0,256}%\}|<%[^\n<>]{0,256}%>|%%[^\n%]{0,256}%%|\$\{[^\n{}]{0,256}\}|\*\|[^\s|*]{0,256}\|\*/g;
+const OPENER = /\{\{|\{%|<%|%%|\$\{|\*\|/;
+/** What in a tag could end a URL or a link's parts, while marked reads it: one character of Unicode's private use for each. */
+const HIDE: Record<string, string> = { " ": "\uE000", "\t": "\uE001", "<": "\uE002", ">": "\uE003", "*": "\uE004", "|": "\uE005", "(": "\uE006", ")": "\uE007", '"': "\uE008", "'": "\uE009" };
+const SHOW: Record<string, string> = Object.fromEntries(Object.entries(HIDE).map(([shown, hidden]) => [hidden, shown]));
+const ENDS = /[ \t<>*|()"']/g;
+const PRIVATE = /[\uE000-\uE009]/;
+const HIDDEN = /[\uE000-\uE009]/g;
+
+/** `src` with the tags that start before `end` hidden (see HIDE): each character where it was. */
+function hideTags(src: string, end: number): string {
+  const head = src.slice(0, end + 270);
+  let out = "";
+  let at = 0;
+  TAG.lastIndex = 0;
+  for (let tag; (tag = TAG.exec(head)) && tag.index < end; ) {
+    out += head.slice(at, tag.index) + tag[0].replace(ENDS, (ch) => HIDE[ch]);
+    at = TAG.lastIndex;
+  }
+  return at ? out + src.slice(at) : src;
+}
+
+/** A token read with tags hidden, shown again (its URL, its text, what's in it). */
+function shown<T>(value: T): T {
+  if (typeof value === "string") return value.replace(HIDDEN, (ch) => SHOW[ch]) as T;
+  if (Array.isArray(value)) {
+    for (let i = 0; i < value.length; i++) value[i] = shown(value[i]);
+  } else if (value && typeof value === "object") {
+    for (const key of Object.keys(value)) (value as Record<string, unknown>)[key] = shown((value as Record<string, unknown>)[key]);
+  }
+  return value;
+}
+
+/**
+ * What `read` makes of `src` (as far as `reachOf` says it looks) with the tags in what it looks at hidden: as far as
+ * that reaches with them hidden, a tag past it read with it, a few times at most. Text with Unicode's private use
+ * characters in it is read as it is.
+ */
+function tagged<T>(src: string, reachOf: (src: string) => number, read: (src: string, reach: number) => T | undefined): T | undefined {
+  let reach = reachOf(src);
+  const head = src.slice(0, reach + 2);
+  if (!OPENER.test(head) || PRIVATE.test(src.slice(0, reach + 270))) return read(src, reach);
+  let hidden = src;
+  for (let rounds = 0, upTo = -1; reach > upTo && rounds < 16; rounds++) {
+    upTo = reach;
+    const next = hideTags(src, upTo);
+    if (next === hidden) break;
+    hidden = next;
+    reach = reachOf(hidden);
+  }
+  if (hidden === src) return read(src, reach);
+  const token = read(hidden, reach);
+  return token && shown(token);
+}
+
+/** A link's definition: its label, its URL and its title, three lines at most. */
+const defReach = (src: string): number => {
+  let at = 0;
+  for (let lines = 0; lines < 3 && at < src.length; lines++) {
+    const end = src.indexOf("\n", at);
+    at = end < 0 ? src.length : end + 1;
+  }
+  return at;
+};
 
 const STARS = /\**/y;
 const UNDERSCORES = /_*/y;

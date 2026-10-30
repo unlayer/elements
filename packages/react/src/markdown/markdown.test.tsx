@@ -162,6 +162,61 @@ describe("Markdown", () => {
   });
 });
 
+describe("an email service's tag in a Markdown link's URL", () => {
+  // A tag written with spaces (`{{ order.id }}`) ended the URL at its first space, as CommonMark ends one: the link's
+  // href ended in an open `{{`, which Liquid and Handlebars refuse (the whole email), and Mustache reads on into the
+  // markup after it. A tag is now one piece of a link's URL, an image's and one Markdown links by itself.
+  const tags = ["{{ order.id }}", "{{ order.id | default: 'x' }}", "{% if vip %}vip{% endif %}", "<%= order.id %>", "*|ORDER_ID|*", "%%=v(@id)=%%", "${order.id}"];
+  const hrefs = (markdown: string) => [...renderToHtml(email({ children: markdown })).matchAll(/<a [^>]*href="([^"]*)"/g)].map((m) => m[1]);
+  // (An image's src as the Image block writes it, its quotes as references: read back.)
+  const srcs = (markdown: string) => [...renderToHtml(email({ children: markdown })).matchAll(/<img [^>]*src="([^"]*)"/g)].map((m) => m[1].replace(/&#0?39;|&#x27;/g, "'").replace(/&quot;/g, '"').replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&amp;/g, "&"));
+  /** A URL as an attribute writes it (its quotes as references). */
+  const written = (url: string) => url.replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+
+  it("is kept whole in [text](url), ![alt](src), a URL alone, <url> and a link's definition, in the HTML and the plain text", () => {
+    for (const tag of tags) {
+      const url = `https://shop.example/track?id=${tag}&ref=email`;
+      for (const markdown of [`[Track your order](${url})`, `[Track your order](${url} "Track")`, `Track it here: ${url} today`, `Track it here: <${url}>`, `[Track your order][t]\n\n[t]: ${url}`]) {
+        expect(hrefs(markdown), markdown).toEqual([written(url)]);
+        expect(renderToPlainText(email({ children: markdown })), markdown).toContain(url);
+      }
+      expect(hrefs(`Shop at www.shop.example/?ref=${tag} today`), tag).toEqual([written(`http://www.shop.example/?ref=${tag}`)]);
+      expect(renderToPlainText(email({ children: `Shop at www.shop.example/?ref=${tag} today` })), tag).toContain(`www.shop.example/?ref=${tag}`);
+      expect(srcs(`![Chart](https://cdn.example/chart.png?u=${tag})`), tag).toEqual([`https://cdn.example/chart.png?u=${tag}`]);
+    }
+  });
+
+  it("leaves Markdown as CommonMark reads it everywhere else: text, emphasis, a tag with no spaces (the controls)", () => {
+    expect(hrefs("[Track](https://shop.example/track?id={{order.id}})")).toEqual(["https://shop.example/track?id={{order.id}}"]);
+    expect(hrefs("[Track](<https://shop.example/track?id={{ order.id }}>)")).toEqual(["https://shop.example/track?id={{ order.id }}"]);
+    // Outside a link, a tag is text, and what's around it reads as it did.
+    expect(blocks({ children: "Hi {{ name }}, *thanks* for {{ order.id }}" })).toEqual([["text", "Hi {{ name }}, <em>thanks</em> for {{ order.id }}"]]);
+    // (A URL is still ended by a space that's no tag's: what's after it is text, and `[a](url {{ b }})` no link.)
+    expect(hrefs("See https://shop.example/a {{ name }} b")).toEqual(["https://shop.example/a"]);
+    expect(blocks({ children: "[a](https://shop.example/a {{ b }})" })).toEqual([["text", '[a](<a href="https://shop.example/a" target="_blank" rel="noopener">https://shop.example/a</a> {{ b }})']]);
+  });
+
+  it("costs about ten times as much for ten times as much of any short shape of tags in and around links (random, seeded)", async () => {
+    const pieces = ["{{", "}}", "{{ a }}", "{%", "%}", "<%", "%>", "%%", "${", "}", "*|", "|*", "https://a.b/", "www.a.", "[a](", "](", "<https://a/", ">", "[a]: ", "(", ")", " ", "a", "\n", '"'];
+    let seed = 11;
+    const random = (n: number) => ((seed = (Math.imul(seed, 1103515245) + 12345) >>> 0), Math.floor((seed / 2 ** 32) * n));
+    const fill = (unit: string, bytes: number) => unit.repeat(Math.ceil(bytes / unit.length)).slice(0, bytes);
+    const time = (markdown: string) => {
+      const start = performance.now();
+      new Bounded({ breaks: false, cells: Math.max(TABLE_CELLS, markdown.length), size: markdown.length }).lex(markdown);
+      return performance.now() - start;
+    };
+    const slow: string[] = [];
+    for (let run = 0; run < 100; run++) {
+      let unit = "";
+      for (let i = 0, n = 1 + random(5); i < n; i++) unit += pieces[random(pieces.length)];
+      const { small, large, next, grows } = await growth((bytes) => time(fill(unit, bytes)), [10240, 102400], { ratio: 20, floor: 100, next: 1024000 });
+      if (grows) slow.push(`${JSON.stringify(unit)}: ${small.toFixed(1)} ms for 10 KB, ${large.toFixed(1)} ms for 100 KB${next === undefined ? "" : `, ${next.toFixed(0)} ms for 1 MB`}`);
+    }
+    expect(slow).toEqual([]);
+  }, 120_000);
+});
+
 describe("Markdown from data: no more than its size calls for", () => {
   let error: MockInstance;
   beforeEach(() => {
