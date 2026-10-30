@@ -5,7 +5,7 @@
  * first in tree order.
  */
 import { describe, expect, it, vi } from "vitest";
-import { useId } from "react";
+import React, { useId } from "react";
 import { Column, Email, Paragraph, RenderError, Row } from "../index";
 import { renderToHtml, renderToHtmlParts, renderToJson } from "../async";
 
@@ -108,6 +108,20 @@ describe("the async collecting render", () => {
     for (const [first, second] of [[5, 30], [30, 5]]) {
       const email = <Email><Row><Column><Fails text="first" ms={first} /><Fails text="second" ms={second} /></Column></Row><Row><Column><Never /></Column></Row></Email>;
       await expect(renderToHtml(email)).rejects.toMatchObject({ message: "[Unlayer] first (in <Fails> at Row 1 › Column 1 › Fails)" });
+    }
+    // A class whose constructor or render throws, the same.
+    class Broken extends React.Component<{ where: "constructor" | "render" }> {
+      constructor(props: { where: "constructor" | "render" }) {
+        super(props);
+        if (props.where === "constructor") throw new Error("constructor failed");
+      }
+      render(): React.ReactNode {
+        throw new Error("render failed");
+      }
+    }
+    for (const where of ["constructor", "render"] as const) {
+      const email = <Email><Row><Column><Broken where={where} /></Column></Row><Row><Column><Never /></Column></Row></Email>;
+      await expect(renderToHtml(email)).rejects.toMatchObject({ message: `[Unlayer] ${where} failed (in <Broken> at Row 1 › Column 1 › Broken)` });
     }
   });
 

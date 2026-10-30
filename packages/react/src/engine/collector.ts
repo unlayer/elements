@@ -478,6 +478,9 @@ function waits(c: Collection, at: number): void {
   c.waiting.add(at);
   c.changed?.();
 }
+/** In an async render, the place in call order of the component given `props` (0 in a synchronous one). */
+const callOrder = (c: Collection, props: object): number => (c.async ? (c.order.get(props) ?? (c.order.set(props, ++c.calls), c.calls)) : 0);
+
 function fails(c: Collection, at: number, mark: React.ReactElement | null): React.ReactElement | null {
   if (c.async && mark) {
     c.errors.push({ at, error: (c.marks[(mark.props as { n: number }).n] as { error: unknown }).error });
@@ -488,11 +491,8 @@ function fails(c: Collection, at: number, mark: React.ReactElement | null): Reac
 
 function Call({ fn, props, second, name, frame, keep, c, ctx, own }: CallProps): React.ReactNode {
   let result: unknown;
-  let at = 0;
-  if (c.async) {
-    at = c.order.get(props) ?? (c.order.set(props, ++c.calls), c.calls);
-    c.waiting.delete(at);
-  }
+  const at = callOrder(c, props);
+  if (c.async) c.waiting.delete(at);
   const pending = c.pending.get(props);
   if (pending) result = pending;
   else {
@@ -580,7 +580,7 @@ function classElement(Ctor: any, props: Record<string, any>, element: React.Reac
       }
       if (failed !== undefined) {
         if (suspended(c, failed)) throw failed;
-        const mark = errorMark(c, failed, name, frame, ctx);
+        const mark = fails(c, callOrder(c, p as object), errorMark(c, failed, name, frame, ctx));
         // (What a constructor that threw renders: its error's marker.)
         return { props: p, state: null, render: () => mark } as never;
       }
@@ -594,7 +594,7 @@ function classElement(Ctor: any, props: Record<string, any>, element: React.Reac
           c.suspended.push({ name, frame, boundary: ctx.boundary, inSuspense: ctx.suspense > 0 });
           throw thrown;
         }
-        return errorMark(c, thrown, name, frame, ctx);
+        return fails(c, callOrder(c, this.props), errorMark(c, thrown, name, frame, ctx));
       }
       if (keep) keep.output = { value: result };
       return prep(result, c, inner);
