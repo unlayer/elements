@@ -61,23 +61,26 @@ This factory:
 ```
 JSX flat props
   → template wrappers called once, with hooks, until the root (utils/unwrap-root.ts)
-  → the walker (src/engine) renders the content once, no react-dom: Row, Column, blocks, <Tailwind> and
-    <Head>/<Font> are recorded by their markers (utils/record.tsx), what's inside them walked inside their
-    records; everything else (the user's components, hooks, Context, Fragments, async components and use())
-    as React renders it. Its output is the content as a tree of records, markup and text (engine/output.ts)
+  → react-dom/server renders the content once (src/engine, React's public API only): Row, Column, blocks,
+    <Tailwind> and <Head>/<Font> are recorded by their markers (utils/record.tsx) as marker elements around
+    what's inside them; everything else (the user's components, hooks, Context, Fragments, async components and
+    use()) rendered by React, each component called by the collector's `Call`. react-dom's HTML is read back as
+    the content as a tree of records, markup and text (engine/parse.ts, engine/output.ts): HTML the template gives
+    is kept out of it, and only a marker the render made and react-dom rendered is one
   → that tree made the template as Elements components only (Email > Row > Column > blocks, src/model),
     nothing parsed; the HTML, the head and the design are all made from it, so they can't disagree
   → mapSemanticProps() converts to nested values matching @unlayer/types
-  → each row's HTML is Row/Column/blocks calling @unlayer/exporters (written by the walker's static
-    markup); BodyExporter produces final HTML per mode
+  → each row's HTML is Row/Column/blocks calling @unlayer/exporters; BodyExporter produces final HTML per mode
 ```
 
 A part that fails (a component that throws, or is async in a synchronous render; a Row whose Columns don't fit
 its layout; an exporter) fails the render with a `RenderError` naming it and its position (`Row 3 › Column 1 ›
 Hero`), the original as `cause`; with `onError: "omit"` (or a function) it's left out of the HTML, text and design
-alike and listed (`renderToHtmlParts().omitted`). The walker installs its own hooks dispatcher in React's slot
-around each component call only. See `packages/react/ARCHITECTURE.md` (pipeline, dispatcher, React version table
-and self-check, async walk, error policy, invariants) before changing the renderer.
+alike and listed (`renderToHtmlParts().omitted`). Elements reads and writes none of React's internals. What
+react-dom can't render (React Server Components' React, two copies of React, a render started inside a component
+a synchronous render is calling) fails with a named `RenderError`. See `packages/react/ARCHITECTURE.md` (pipeline,
+the collecting render, what it can't render, the async renderers, error policy, invariants) before changing the
+renderer.
 
 Three render modes: `email` (table-based), `web` (div+flexbox), `document` (print).
 
@@ -99,7 +102,7 @@ Example: `<Button fontSize="16px">` → `{ style: { fontSize: "16px" } }` in the
 |------|---------|
 | `packages/react/src/index.ts` | Main barrel export |
 | `packages/react/src/utils/create-component.tsx` | Component factory |
-| `packages/react/src/exporters/` | Divider's, Html's, Menu's and Social's web and document HTML as strings: @unlayer/exporters renders it with react-dom/server, which can't run in an edge runtime or a Server Components layer. `markup.ts` writes what React's static markup would with the engine's host markup (`src/engine/host.ts`, `attributes.ts`: React 18's or 19's rules, by the installed React's version); `parity.test.tsx` compares them with the pinned exporters (it fails when a new pin's HTML differs), `react-19.test.ts` with React 19's output |
+| `packages/react/src/exporters/` | Divider's, Html's, Menu's and Social's web and document HTML as strings: @unlayer/exporters renders it with react-dom/server, a render of its own for each block. `markup.ts` writes what React's static markup would with the engine's host markup (`src/engine/host.ts`, `attributes.ts`: React 18's or 19's rules, by the installed React's version); `parity.test.tsx` compares them with the pinned exporters (it fails when a new pin's HTML differs), `react-19.test.ts` with React 19's output |
 | `packages/react/src/utils/render-to-html.tsx` | `renderToHtml()` implementation |
 | `packages/react/src/utils/document-layouts.ts` | Per-mode document shells (email/web/document), kept in parity with the editor's exported documents |
 | `packages/react/src/utils/render-to-json.ts` | `renderToJson()` implementation |
@@ -108,8 +111,8 @@ Example: `<Button fontSize="16px">` → `{ style: { fontSize: "16px" } }` in the
 | `packages/react/src/tailwind/Tailwind.tsx` | `<Tailwind>` (in the `tailwind` entry, not the main one): classes of the components inside it as their props (how each component takes them: `src/tailwind/tables.ts`), and what no prop takes as an inline `style` |
 | `packages/react/src/tailwind/inherit.ts`, `src/tailwind/row.ts` | A Row's rewrite (the Row's own, else one of its Columns', else the root's; src/model/elements.ts runs it on the Row's Columns): text classes on a Row, a Column or the root as the props of the text blocks inside, as CSS inherits them, and a border without a color in the text color around it (`inherit.ts`); then the Row's padding classes and its Columns' margins placed in its Columns (`row.ts`) |
 | `packages/react/src/tailwind/index.ts` | The `@unlayer/react-elements/tailwind` entry: `loadTailwind()` (the only code that loads `tailwindcss`), the class → declaration → prop reading (and classes in `html` markup → inline styles), the async renderers |
-| `packages/react/src/engine/` | The walker: renders templates as react-dom's static server render would, without react-dom (`walk.ts`), with its own hooks dispatcher (`dispatcher.ts`), host markup (`host.ts`, `attributes.ts`, which the string exporters write with too), tree-order output (`output.ts`), the React version table and self-check (`react-compat.ts`, `self-test.ts`). See `packages/react/ARCHITECTURE.md` |
-| `packages/react/src/async/` | The `@unlayer/react-elements/async` entry (also the Tailwind entry's async renderers): an async template awaited, then the content collected once by the walker's async walk (async components, Suspense and `use()` awaited, siblings at once, output in tree order), which the synchronous render reuses; `pretty` with prettier (optional peer) |
+| `packages/react/src/engine/` | The collecting render: react-dom/server renders templates (`react-dom.ts`), the element tree prepared for it (`collector.ts`: records as markers, components called by `Call`, HTML given whole kept out of react-dom's output), its HTML read back (`parse.ts`), tree-order output (`output.ts`), template wrappers called (`capture.ts`); host markup for the string exporters (`host.ts`, `attributes.ts`). React's public API only. See `packages/react/ARCHITECTURE.md` |
+| `packages/react/src/async/` | The `@unlayer/react-elements/async` entry (also the Tailwind entry's async renderers): an async template awaited, then the content collected once by react-dom's streaming render waited for whole (async components, Suspense and `use()` awaited, siblings at once, output in tree order), which the synchronous render reuses; `pretty` with prettier (optional peer) |
 | `packages/react/src/markdown/`, `src/code/`, `src/font/`, `src/head/` | The `markdown` (Markdown → blocks, built-in `marked`), `code` (CodeBlock, CodeInline, built-in `highlight.js` and themes, highlight.js's ported), `font` (`<Font>`) and `head` (`<Head>`) entries. They import the main entry by the package's name (`tsup.config.ts` keeps it external; `vitest.config.ts` and the tsconfigs map it to `src/`), so all entries share one copy of Elements; their libraries are built in (licenses in `packages/react/THIRD_PARTY_LICENSES.md`) and never reach the main entry |
 | `packages/react/src/utils/semantic-props.ts` | Flat → nested prop mapper |
 | `packages/react/src/components/Body.tsx` | Core container component (handles all 3 modes) |
@@ -142,8 +145,8 @@ Example: `<Button fontSize="16px">` → `{ style: { fontSize: "16px" } }` in the
 
 - TypeScript strict compilation
 - All unit tests pass
-- Bundle size < 221KB (ESM, main entry, `MAX_SIZE` in `.github/workflows/test.yml`; the `tailwind`, `async`, `markdown`, `code`, `font` and `head` entries aren't counted)
-- The react package's suite on React 18.0, 18.2, 18.3, 19.1, 19.2 and the latest 19, in React's development and production builds (the walker against react-dom/server, useId()s included; React's react-server build); weekly against React's canary (`react-canary.yml`, reports only)
+- Bundle size < 236.5KB (ESM, main entry, `MAX_SIZE` in `.github/workflows/test.yml`; the `tailwind`, `async`, `markdown`, `code`, `font` and `head` entries aren't counted)
+- The react package's suite on React 18.0, 18.2, 18.3, 19.1, 19.2 and the latest 19, in React's development and production builds (the collecting render against react-dom/server's own output, useId()s included; React's react-server build saying it can't render); weekly against React's canary (`react-canary.yml`, reports only)
 - Elements output matches the previous release (designs, plain text) and the reviewed snapshots (HTML, template patterns); hostile inputs add no markup
 - Next.js integration build succeeds
 - Browser E2E gate passes (rendered documents verified in Chromium: 0px `<p>` margins, single `<body>`, no errors)
