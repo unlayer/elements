@@ -590,6 +590,39 @@ describe("a context's default around an app's renders", () => {
     await others();
   });
 
+  // While an async render waits (a lazy component's collection, a lazy template's root capture), React leaves Elements'
+  // own context values where every react-dom module, and React's client, reads them: an app's preview of a bare block,
+  // with another build's stream or on the client, ran under that render's collection (its blocks became the render's
+  // markers, its errors the render's), and an <Email> it rendered was taken for the waiting render's root.
+  it("hands no element of an async render's to another render while it waits", async () => {
+    const LazyBlock = React.lazy(() => Promise.resolve({ default: () => <Paragraph>A-LAZY</Paragraph> }));
+    let release = () => {};
+    const gate = new Promise<void>((done) => (release = done));
+    const Slow = async () => (await gate, <Paragraph>A-SLOW</Paragraph>);
+    const a = asyncRenderers.renderToHtml(<Email><Row><Column><LazyBlock /><Slow /></Column></Row></Email>);
+    await new Promise((done) => setTimeout(done, 10));
+    try {
+      const preview = await new Response(await webStream().renderToReadableStream(<main><Paragraph>B-PREVIEW</Paragraph></main>)).text();
+      expect(preview).toContain("B-PREVIEW");
+      expect(preview).not.toContain("unlayer-mark");
+      const div = document.createElement("div");
+      const root = createRoot(div);
+      try {
+        onClient(root, <><Paragraph>B-CLIENT</Paragraph><Email><Row><Column><Paragraph>B-EMAIL</Paragraph></Column></Row></Email></>);
+        expect(div.innerHTML).toContain("B-CLIENT");
+        expect(div.innerHTML).toContain("B-EMAIL");
+        expect(div.innerHTML).not.toContain("unlayer-mark");
+      } finally {
+        onClient(root, <></>);
+      }
+    } finally {
+      release();
+    }
+    const html = await a;
+    expect(html).toContain("A-LAZY");
+    expect(html).toContain("A-SLOW");
+  });
+
   it("reads one value for a context throughout a render that starts inside an app's renderToString and goes on after it", async () => {
     const Brand = createContext("default");
     let open = false;

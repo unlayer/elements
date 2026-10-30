@@ -713,3 +713,47 @@ console.log(JSON.stringify({ rendered: 6000, bytes: bytes > 0 }));
     }, 150_000);
   }
 });
+
+describe("two copies of Elements on two majors of React in one process", () => {
+  // Elements' own contexts (a lazy component's collection, a lazy template's root capture) were made once, by the
+  // React that asked first, and kept for every copy: a lazy rendered with one copy broke every lazy of the other's.
+  it("render a lazy component and a lazy template with each, in either order", () => {
+    expect(fs.existsSync(path.join(dist, "index.js")), "build the package first (pnpm build)").toBe(true);
+    const [react18, reactDom18] = own;
+    const [react19, reactDom19] = other;
+    const dir = project(react18, reactDom18, "module");
+    try {
+      const nested = path.join(dir, "other");
+      project(react19, reactDom19, "module", nested);
+      fs.writeFileSync(path.join(nested, "copy.js"), `export * as E from "@unlayer/react-elements"; export { default as React } from "react";`);
+      fs.writeFileSync(
+        path.join(dir, "app.js"),
+        `import * as E18 from "@unlayer/react-elements";
+import React18 from "react";
+import { E as E19, React as React19 } from "./other/copy.js";
+const copies = { [React18.version]: [E18, React18], [React19.version]: [E19, React19] };
+const render = async ([E, React]) => {
+  const h = React.createElement;
+  const Section = React.lazy(() => Promise.resolve({ default: () => h(E.Paragraph, null, "lazy section") }));
+  const Template = React.lazy(() => Promise.resolve({ default: () => h(E.Email, null, h(E.Row, null, h(E.Column, null, h(E.Paragraph, null, "lazy template")))) }));
+  const { renderToHtml } = await import(E === E18 ? "@unlayer/react-elements/async" : "./other/node_modules/@unlayer/react-elements/dist/async.js");
+  const a = await renderToHtml(h(E.Email, null, h(E.Row, null, h(E.Column, null, h(Section)))));
+  const b = await renderToHtml(h(Template));
+  return a.includes("lazy section") && b.includes("lazy template");
+};
+const order = process.argv[2] === "19" ? [React19.version, React18.version] : [React18.version, React19.version];
+const out = {};
+for (const version of [...order, ...order]) out[version] = (out[version] ?? true) && (await render(copies[version]).catch((e) => "threw " + e.message));
+console.log(JSON.stringify(out));
+`
+      );
+      for (const first of ["18", "19"]) {
+        const run = spawnSync(process.execPath, ["app.js", first], { cwd: dir, encoding: "utf8", timeout: 30_000 });
+        expect(run.status, run.stderr.slice(-400)).toBe(0);
+        expect(JSON.parse(run.stdout.trim().split("\n").pop()!), `${first} first`).toEqual({ [versionOf(react18)]: true, [versionOf(react19)]: true });
+      }
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
+  }, 60_000);
+});

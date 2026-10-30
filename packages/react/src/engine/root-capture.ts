@@ -13,14 +13,60 @@ export interface RootReport {
 const KEY = Symbol.for("@unlayer/react-elements/root-capture");
 
 // React Server Components' React has no createContext: there's nothing to capture there (react-dom can't render).
-const { createContext, useContext } = React as Partial<Pick<typeof React, "createContext" | "useContext">>;
+const { createContext, useContext, useTransition } = React as Partial<Pick<typeof React, "createContext" | "useContext" | "useTransition">>;
+
+/**
+ * One of Elements' contexts for every copy of Elements in the process that uses this React (by Symbol.for, then by this
+ * React's createContext: a copy on another React, or another major, has its own), each given a value only in the render
+ * of react-dom's module that rendered its provider (see stamped).
+ */
+function shared<T>(key: symbol): React.Context<Stamped<T> | null> | null {
+  if (typeof createContext !== "function") return null;
+  const global = globalThis as Record<symbol, unknown>;
+  const found = global[key];
+  const byReact = found instanceof WeakMap ? (found as WeakMap<object, React.Context<Stamped<T> | null>>) : new WeakMap<object, React.Context<Stamped<T> | null>>();
+  if (found === undefined) global[key] = byReact;
+  let context = byReact.get(createContext);
+  if (!context) byReact.set(createContext, (context = createContext<Stamped<T> | null>(null)));
+  return context;
+}
+
+/**
+ * A value of one of Elements' contexts, with the module of react-dom's that renders its provider (`start`, its
+ * useTransition's function, one per module: see react-dom.ts's probe). A render React leaves that value in while it waits
+ * (every module of react-dom's, and React's client, reads a context's value from one place) isn't that render: another
+ * module's, or the client's, reads it as no value.
+ */
+export interface Stamped<T> {
+  value: T;
+  start?: unknown;
+}
+
+/** The module of react-dom's rendering now (its useTransition's function), in a component it renders. */
+const moduleStart = (): unknown => (typeof useTransition === "function" ? useTransition()[1] : undefined);
+
+/** Stamps `holder` with the module rendering it, around `children` (a component of its own: nothing else moves). */
+export function Stamp({ holder, children }: { holder: { start?: unknown }; children?: React.ReactNode }): React.ReactNode {
+  if (holder) holder.start = moduleStart();
+  return children;
+}
+
+/** `context`'s value where it's this render's (see Stamped), in a component React renders; null otherwise. */
+function ownValue<T>(context: React.Context<Stamped<T> | null>): T | null {
+  if (typeof useContext !== "function") return null;
+  let stamped: Stamped<T> | null = null;
+  try {
+    stamped = useContext(context);
+  } catch {
+    // Called outside a render (as a function): no value.
+    return null;
+  }
+  if (!stamped) return null;
+  return stamped.start !== undefined && moduleStart() === stamped.start ? stamped.value : null;
+}
 
 export const ROOT_CAPTURE = {
-  context(): React.Context<((report: RootReport) => void) | null> | null {
-    const global = globalThis as Record<symbol, React.Context<((report: RootReport) => void) | null> | undefined>;
-    if (!global[KEY] && typeof createContext === "function") global[KEY] = createContext<((report: RootReport) => void) | null>(null);
-    return global[KEY] ?? null;
-  },
+  context: () => shared<(report: RootReport) => void>(KEY),
 };
 
 /**
@@ -29,16 +75,10 @@ export const ROOT_CAPTURE = {
  * hooks are the same each time.
  */
 export function reportedRoot(type: React.ElementType, props: object, own: boolean): boolean {
-  if (own || typeof useContext !== "function") return false;
+  if (own) return false;
   const context = ROOT_CAPTURE.context();
   if (!context) return false;
-  let report: ((r: RootReport) => void) | null = null;
-  try {
-    report = useContext(context);
-  } catch {
-    // Called outside a render (a root called as a function): nothing captures it.
-    return false;
-  }
+  const report = ownValue(context);
   if (!report) return false;
   report({ element: React.createElement(type, props) });
   return true;
@@ -50,14 +90,10 @@ const COLLECTS = Symbol.for("@unlayer/react-elements/collects");
  * What a lazy component renders is rendered by react-dom where it is (React's public API has no way to the component
  * it loads but rendering it), inside this context's provider: Elements' Rows, Columns, blocks, <Tailwind>s and
  * <Head>/<Font> entries React renders there give their element to the provider's function, which collects it as the
- * template's (records it), and render what that gives. One context for every copy of Elements in the process.
+ * template's (records it), and render what that gives.
  */
 export const COLLECTING = {
-  context(): React.Context<((element: React.ReactElement) => React.ReactNode) | null> | null {
-    const global = globalThis as Record<symbol, React.Context<((element: React.ReactElement) => React.ReactNode) | null> | undefined>;
-    if (!global[COLLECTS] && typeof createContext === "function") global[COLLECTS] = createContext<((element: React.ReactElement) => React.ReactNode) | null>(null);
-    return global[COLLECTS] ?? null;
-  },
+  context: () => shared<(element: React.ReactElement) => React.ReactNode>(COLLECTS),
 };
 
 export const NOT_COLLECTED: unique symbol = Symbol("not collected");
@@ -68,15 +104,8 @@ export const NOT_COLLECTED: unique symbol = Symbol("not collected");
  * as; otherwise NOT_COLLECTED. Called on every render of it that React renders, so its hooks are the same each time.
  */
 export function collectedHere(type: React.ElementType, props: object, own = false): React.ReactNode | typeof NOT_COLLECTED {
-  if (own || typeof useContext !== "function") return NOT_COLLECTED;
+  if (own) return NOT_COLLECTED;
   const context = COLLECTING.context();
-  if (!context) return NOT_COLLECTED;
-  let collect: ((element: React.ReactElement) => React.ReactNode) | null = null;
-  try {
-    collect = useContext(context);
-  } catch {
-    // Called outside a render (as a function): nothing collects it.
-    return NOT_COLLECTED;
-  }
+  const collect = context ? ownValue(context) : null;
   return collect ? collect(React.createElement(type, props)) : NOT_COLLECTED;
 }

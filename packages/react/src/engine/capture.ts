@@ -11,7 +11,7 @@
 import React, { cloneElement, createElement } from "react";
 import { nameOf, RenderError, rootFrame, threw } from "./errors";
 import { asUserCall, isThenable, refuseNested, renderFailure, staticMarkup, streamedMarkup, streamSuspension, suspends } from "./react-dom";
-import { ROOT_CAPTURE, type RootReport } from "./root-capture";
+import { ROOT_CAPTURE, Stamp, type RootReport } from "./root-capture";
 import { sharedNow, sharing } from "./shared";
 
 type Tracked = PromiseLike<unknown> & { status?: "pending" | "fulfilled" | "rejected"; value?: unknown; reason?: unknown };
@@ -226,7 +226,11 @@ export function captureLazyRoot(lazy: React.ReactElement, providers: readonly Re
   if (!context) return undefined;
   const got: { report?: RootReport; waiting: boolean } = { waiting: false };
   const Pending = (p: { own: true }) => (own(p), (got.waiting = true), null);
-  const capture = (inside: React.ReactNode) => forked(forks, within(providers, createElement(context.Provider, { value: (r: RootReport) => void (got.report ??= r) }, inside)));
+  // (Its value this render's only: see root-capture.ts's Stamped.)
+  const capture = (inside: React.ReactNode) => {
+    const holder = { value: (r: RootReport) => void (got.report ??= r), start: undefined as unknown };
+    return forked(forks, within(providers, createElement(context.Provider, { value: holder }, createElement(Stamp, { holder }, inside))));
+  };
   try {
     staticMarkup(capture(createElement(React.Suspense, { fallback: createElement(Pending, OWN) }, lazy)), idPrefix);
   } catch (error) {

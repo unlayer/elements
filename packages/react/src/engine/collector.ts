@@ -25,7 +25,7 @@ import { REACT_18 } from "./react-compat";
 import { sharing, type Shared } from "./shared";
 import { checkKeys } from "./keys";
 import { asOwnCall, asUserCall, enterFrame, isRefusal, isServerReact, isThenable, oneReact, REACT_COPIES, staticMarkup, streamedMarkup, suspendedInReact, suspends } from "./react-dom";
-import { COLLECTING } from "./root-capture";
+import { COLLECTING, Stamp } from "./root-capture";
 import { parse, placeholderOf } from "./parse";
 import { flatten, htmlOf, PENDING, type Item, type Part } from "./output";
 import { track } from "./capture";
@@ -706,7 +706,9 @@ function LazyRendered({ element, c, ctx, lazy }: { element: React.ReactElement; 
   const unkeyed = React.cloneElement(element, { key: c.async ? null : "lazy" } as object);
   const context = COLLECTING.context();
   const rendered = c.async ? unkeyed : [unkeyed, React.createElement(LazyDone, { key: "done", lazy })];
-  return context ? React.createElement(context.Provider, { value: (found: React.ReactElement) => prep(found, c, ctx) }, rendered) : rendered;
+  // (Its value this render's only: see root-capture.ts's Stamped.)
+  const holder = { value: (found: React.ReactElement) => prep(found, c, ctx), start: undefined as unknown };
+  return context ? React.createElement(context.Provider, { value: holder }, React.createElement(Stamp, { holder }, rendered)) : rendered;
 }
 
 /** A promise as a child (React 19): what it resolves to, prepared, as `use()` of it gives it. */
