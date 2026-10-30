@@ -51,11 +51,16 @@ describe("Markdown and code blocks of another copy of Elements (a package's Comm
     global[SLOT] = { version: 0, shared: undefined };
     try {
       vi.resetModules();
-      const skewed = { ...(await import("../code")), renderToHtml: (await import("../index")).renderToHtml };
+      const skewed = { ...(await import("../code")), ...(await import("../markdown")), renderToHtml: (await import("../index")).renderToHtml };
+      const fence = "```java\n" + java + "\n```";
       // Its own renders share their work among its blocks; this copy's renders' work it can't read: each block has its own.
       expect(colored(skewed.renderToHtml(blocks(3, (i) => <skewed.CodeBlock key={i} language="java" code={java} />)))).toEqual([true, false, false]);
       expect(colored(renderToHtmlSync(blocks(3, (i) => <skewed.CodeBlock key={i} language="java" code={java} />)))).toEqual([true, true, true]);
       expect(colored(renderToHtmlSync(blocks(3, (i) => <own.CodeBlock key={i} language="java" code={java} />)))).toEqual([true, false, false]);
+      // Its Markdown the same: its fences share its own renders' budget, and each has its own in this copy's render.
+      expect(colored(skewed.renderToHtml(blocks(3, (i) => <skewed.Markdown key={i} markdown={fence} />)))).toEqual([true, false, false]);
+      expect(colored(renderToHtmlSync(blocks(3, (i) => <skewed.Markdown key={i} markdown={fence} />)))).toEqual([true, true, true]);
+      expect(colored(renderToHtmlSync(blocks(3, (i) => <own.Markdown key={i} markdown={fence} />)))).toEqual([true, false, false]);
     } finally {
       global[SLOT] = slot;
     }
