@@ -53,6 +53,9 @@ The template's root is resolved first: an async template is called and awaited (
 > - The async renderers read a provider's value an app's stream of that build left after a part in a `<Suspense>` waited, until that build renders again (react-dom's own Node.js stream reads it there too).
 > - Every renderer, the synchronous ones too, reads a provider's value an app's `renderToString` of that build left where it threw inside the provider, until that build renders again.
 > - While an async render waits, an app's stream of that build reads the template's provider values where its page doesn't provide the context; a render that never settles leaves them there.
+> - While an app's stream of that build runs at the same time as an async render, **even a value a template (or the page) provides itself** can be the other's: where a part resumes under a provider, React doesn't put the provider's value back if it last left it there, and the other build changed it meanwhile (React's development build says "Detected multiple renderers concurrently rendering the same context provider"). Providing every context doesn't prevent this one.
+>
+> Where your app streams with another react-dom build in the same process (Next.js's App Router renders pages with `react-dom/server.edge`), pass what's sensitive to the template as props, not in a context; or render emails with the synchronous renderers, which never wait while another render runs; or render them in a worker or a process of their own.
 
 **A template must provide every context it reads, and so must your app's renders; don't put secrets in a context another render could read.** Wrap the template's content in its own providers, with the values the render is given:
 

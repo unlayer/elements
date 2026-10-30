@@ -557,6 +557,84 @@ describe("a context's default around an app's renders", () => {
     expect(await new Response(await webStream().renderToReadableStream(<Reads />)).text()).toBe("<b>default</b>");
   });
 
+  // (Documented, not wanted: while another react-dom build streams in the process, React's own renders read each other's
+  // provider values, even where each provides its own: React skips putting back a provider's value where a part resumes
+  // under the one it left, which the other build changed meanwhile. React says "Detected multiple renderers concurrently
+  // rendering the same context provider" in development. README: "Contexts and the async renderers".)
+  describe("an async render and an app's stream of another react-dom build at once, each with its own provider (documented)", () => {
+    const gate = () => {
+      let open = () => {};
+      let opened = false;
+      const promise = new Promise<void>((done) => (open = done)).then(() => void (opened = true));
+      return { open, promise, get opened() { return opened; } };
+    };
+    const tick = () => new Promise((done) => setTimeout(done, 20));
+    /** A part that waits for `g`, then reads the context itself (a component that suspends, as `use()` does). */
+    const waitsThenReads = (Brand: React.Context<string>, g: ReturnType<typeof gate>, label: string, element: (text: string) => React.ReactElement) => {
+      const Part = () => {
+        if (!g.opened) throw g.promise;
+        return element(`${label} reads ${useContext(Brand)}`);
+      };
+      return Part;
+    };
+    const quiet = () => vi.spyOn(console, "error").mockImplementation(() => {});
+
+    it("can give the email's own provided value the app's page's", async () => {
+      const { Brand } = brand("default");
+      const [g1, g2, gx] = [gate(), gate(), gate()];
+      const P1 = waitsThenReads(Brand, g1, "P1", (text) => <Paragraph>{text}</Paragraph>);
+      const P2 = waitsThenReads(Brand, g2, "P2", (text) => <Paragraph>{text}</Paragraph>);
+      const XPart = waitsThenReads(Brand, gx, "X", (text) => <p>{text}</p>);
+      const error = quiet();
+      try {
+        const y = asyncRenderers.renderToHtml(<Email><Brand.Provider value="Y_OWN"><Row><Column><Suspense fallback={null}><P1 /></Suspense><Suspense fallback={null}><P2 /></Suspense></Column></Row></Brand.Provider></Email>);
+        await tick();
+        g1.open();
+        await tick();
+        const x = webStream().renderToReadableStream(<Brand.Provider value="X_SECRET"><main><Suspense fallback="…"><XPart /></Suspense></main></Brand.Provider>);
+        await tick();
+        gx.open();
+        await tick();
+        g2.open();
+        const html = await y;
+        await new Response(await x).text();
+        expect(html).toContain("P1 reads Y_OWN");
+        expect(html).toContain("P2 reads X_SECRET");
+      } finally {
+        error.mockRestore();
+        await takeBack();
+      }
+    });
+
+    it("can give the app's page, which provides its own, the email's provided value", async () => {
+      const { Brand } = brand("default");
+      const [gx1, gx2, gy] = [gate(), gate(), gate()];
+      const X1 = waitsThenReads(Brand, gx1, "x1", (text) => <p>{text}</p>);
+      const X2 = waitsThenReads(Brand, gx2, "x2", (text) => <p>{text}</p>);
+      const Y = waitsThenReads(Brand, gy, "Y", (text) => <Paragraph>{text}</Paragraph>);
+      const Slow = async () => (await new Promise((done) => setTimeout(done, 200)), <Paragraph>slow</Paragraph>);
+      const error = quiet();
+      try {
+        const x = webStream().renderToReadableStream(<Brand.Provider value="X_OWN"><main><Suspense fallback="…"><X1 /></Suspense><Suspense fallback="…"><X2 /></Suspense></main></Brand.Provider>);
+        await tick();
+        gx1.open();
+        await tick();
+        const y = asyncRenderers.renderToHtml(<Email><Brand.Provider value="Y_SECRET"><Row><Column><Suspense fallback={null}><Y /></Suspense><Suspense fallback={null}><Slow /></Suspense></Column></Row></Brand.Provider></Email>);
+        await tick();
+        gy.open();
+        await tick();
+        gx2.open();
+        const page = await new Response(await x).text();
+        await y;
+        expect(page).toContain("x1 reads X_OWN");
+        expect(page).toContain("x2 reads Y_SECRET");
+      } finally {
+        error.mockRestore();
+        await takeBack();
+      }
+    });
+  });
+
   it("reads, in the async renderers, the template's own value where it provides the context it reads, whatever an app's stream left", async () => {
     const { Brand } = brand("default");
     const Footer = () => <Paragraph>{`brand=${String(useContext(Brand))}`}</Paragraph>;

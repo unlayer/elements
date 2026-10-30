@@ -274,6 +274,13 @@ row or block is left out of the HTML, the plain text and the design (the slower 
      (`.edge`, `.browser`, `.bun`) left where it threw inside the provider, till that build renders again.
    - The other way: while an async render waits, an app's stream of another build reads the template's provider
      values where its page doesn't provide the context, and a render that never settles leaves them there.
+   - Both ways, even where each provides its own: while an app's stream of another build and an async render run at
+     once, a part that resumes under a provider reads the other's value, as React doesn't push a provider again where
+     its module last left it, and the other build changed it meanwhile ("Detected multiple renderers concurrently
+     rendering the same context provider"). Re-providing the template's providers around each component's output
+     (what Elements can do with public API) fixes what a resumed async component's children read, not a component that
+     suspends and reads the context itself, nor the page's side; so it isn't done, and the README says to pass what's
+     sensitive as props, render with the synchronous renderers, or in a worker or process of their own there.
 
    Each can be another request's, another tenant's data (`regression/render-isolation.test.tsx` holds all of them).
    React's API has no way to put back what another module left.
