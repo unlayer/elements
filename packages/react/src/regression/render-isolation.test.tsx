@@ -406,6 +406,47 @@ describe("a context's default around an app's renders", () => {
     expect(read()).toBe("brand=default");
   });
 
+  // A template's own provider, with a <Suspense> whose fallback renders (or `onError: "omit"` and a component that
+  // suspends), rendered inside an app's renderToString: react-dom's other module renders it, and React left the
+  // template's provider in that module's context, where every later render (Elements', the app's) read it.
+  it.each([
+    ["a <Suspense> whose fallback renders", false],
+    ['onError: "omit" and a component that suspends', true],
+  ])("reads its default after a tenant's email with its own provider and %s rendered inside an app's renderToString", async (_, omit) => {
+    const { Brand, email, read } = brand("default");
+    const loading = new Promise(() => {});
+    const Translated = (): React.ReactNode => {
+      throw loading;
+    };
+    const tenantA = (
+      <Email config={omit ? { onError: "omit" } : undefined}>
+        <Brand.Provider value={tenant}>
+          <Row>
+            <Column>
+              <Paragraph>Welcome</Paragraph>
+              {omit ? <Translated /> : <Suspense fallback={<Paragraph>…</Paragraph>}><Translated /></Suspense>}
+            </Column>
+          </Row>
+        </Brand.Provider>
+      </Email>
+    );
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
+    try {
+      let preview = "";
+      const Preview = () => ((preview = renderToPlainText(tenantA)), <iframe />);
+      renderToString(<main><Preview /></main>);
+      expect(preview).toContain("Welcome");
+    } finally {
+      error.mockRestore();
+    }
+    // Tenant B's email, sync and async, and tenant C's page.
+    expect(read()).toBe("brand=default");
+    expect((await asyncRenderers.renderToPlainText(email)).trim()).toBe("brand=default");
+    const PageC = () => <footer>{`brand=${String(useContext(Brand))}`}</footer>;
+    expect(renderToString(<PageC />)).toBe("<footer>brand=default</footer>");
+    expect(read()).toBe("brand=default");
+  });
+
   it("reads one value for a context throughout a render that starts inside an app's renderToString and goes on after it", async () => {
     const Brand = createContext("default");
     let open = false;

@@ -451,6 +451,21 @@ export function withFreeBuild<T>(api: string, render: () => T): T {
     return render();
   } finally {
     builds.pop();
+    settle(build);
+  }
+}
+
+/**
+ * React can leave a template's providers pushed in the module that rendered it (a <Suspense> whose fallback rendered,
+ * a part that suspended and was left out), and every module of react-dom's server renderers reads a context's value
+ * from the one place: until that module renders again, the next render of any (Elements', the app's) reads the
+ * template's value. A render of nothing on it pops them (its render starts from no provider).
+ */
+function settle(build: Build): void {
+  try {
+    build.renderToStaticMarkup(createElement("i"));
+  } catch {
+    // (Where react-dom can't render, nothing was left.)
   }
 }
 

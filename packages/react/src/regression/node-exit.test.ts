@@ -75,7 +75,7 @@ describe("importing the built package", () => {
   // 0.1.22. Rendering an email is one render of react-dom's static renderer (Elements renders templates with it, as
   // React Email does), whatever the template reads, after one of a component that asks whether that renderer is
   // rendering a component of the app's (an app's renderToString), and the first time one that learns how to tell (see
-  // src/engine/react-dom.ts's stateOf).
+  // src/engine/react-dom.ts's stateOf), and after it one of nothing that pops what React left in its context (settle).
   for (const [name, [react, reactDom]] of Object.entries(reacts)) {
     it(`renders nothing when it loads, loads only react-dom/server, and renders an email with one static render of it, and one that asks (${name})`, () => {
       expect(fs.existsSync(path.join(dist, "index.cjs")), "build the package first (pnpm build)").toBe(true);
@@ -101,7 +101,7 @@ console.log(JSON.stringify({ atImport, reactDom, rendered: html.includes("Hi the
         );
         const run = spawnSync(process.execPath, ["import.js"], { cwd: dir, encoding: "utf8", timeout: 20_000 });
         expect(run.status, run.stderr).toBe(0);
-        expect(JSON.parse(run.stdout.trim().split("\n").pop()!)).toEqual({ atImport: 0, reactDom: ["server.node.js"], rendered: true, reactDomRenders: 3, text: "default default", contextRenders: 2 });
+        expect(JSON.parse(run.stdout.trim().split("\n").pop()!)).toEqual({ atImport: 0, reactDom: ["server.node.js"], rendered: true, reactDomRenders: 4, text: "default default", contextRenders: 3 });
       } finally {
         fs.rmSync(dir, { recursive: true, force: true });
       }

@@ -134,7 +134,10 @@ runs. Each of these fails the render with a `RenderError` that says so and what 
   render the page with react-dom's stream (another module). Where that can't be told yet (the first render of the
   process is inside one) it renders with react-dom/server's, as 0.2.1 did: the component that started it can't call a
   hook after it. Inside Elements' own static renders (counted on `…/calling`) it isn't asked, and their renders keep
-  the module they render with.
+  the module they render with. After each render, one of nothing on its module (`settle`) pops what React can leave
+  pushed in it (a template's provider, where a <Suspense>'s fallback rendered or a part that suspended was left out):
+  every module of react-dom's server renderers reads a context's value from one place, so the next render of any
+  module, Elements' or the app's, read the template's value till then.
 - **What a lazy component renders** is react-dom's on its own: nothing in it is recorded (a Row in it is its HTML), and
   the contexts around it read their defaults. An element it renders given `dangerouslySetInnerHTML` is kept whole.
 
