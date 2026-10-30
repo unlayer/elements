@@ -54,6 +54,9 @@ function sink(done: (html: string) => void) {
  * <div> and scripts that move it (an email can run none).
  */
 export function streamedMarkup(node: React.ReactNode, idPrefix: string | undefined, raw: (html: string) => string, onError?: (error: unknown) => void, control: { abort?: (reason: unknown) => void } = {}): Promise<string> {
+  // (Where react-dom can't render (React Server Components' React), its stream throws where nothing catches it, and
+  // never settles: the render fails as the synchronous ones do, by name, before it starts. See renderFailure.)
+  if (isServerReact() || !reactDomRenders()) return Promise.reject(new TypeError("react-dom can't render with this React"));
   const element = createElement("noscript", null, node);
   const S = Server as unknown as Record<string, any>;
   const report = (error: unknown) => void onError?.(error);
