@@ -340,6 +340,9 @@ function made(c: Collected, scoped: Scoped, r: ReturnType<typeof recordOf>): Rea
     const config = (r.type as any)[UNLAYER_CONFIG_KEY];
     if (html !== undefined) props = { ...props, children: undefined, [config.name === "Paragraph" ? "html" : "text"]: inlineHtml(html) };
     if (config?.name === "Heading") props = margins(props);
+    // An Image's link is its `action`: an `href`, which links other blocks, doesn't link it (kept in the design as the
+    // previous release kept it), said.
+    if (config?.name === "Image" && props.href !== undefined) sayOnce(`[Unlayer] Image takes its link as \`action={{ name: "web", values: { href } }}\`: its \`href\` doesn't link it.`);
     // A prop a block has no use for is said, not dropped quietly (a custom tool's props are its own).
     if (config && !config.contentType) {
       for (const key in props) {
@@ -393,6 +396,11 @@ function made(c: Collected, scoped: Scoped, r: ReturnType<typeof recordOf>): Rea
       sayOnce("[Unlayer] Row padding sits outside the row's content background, as in the editor; to inset the content use the Columns' padding.");
   }
   return jsxs(Row, { ...props, children, _record: r });
+}
+
+/** Whether content holds an Image block (in markup or a component of the template's own). */
+function holdsImage(items: readonly Item[]): boolean {
+  return items.some((item) => typeof item !== "string" && item.kind !== "markup" && (item.kind === "record" && recordOf(item).kind === "block" ? (recordOf(item).type as any)?.[UNLAYER_CONFIG_KEY]?.name === "Image" : holdsImage(item.items)));
 }
 
 /** Where a Column left out was, among its Row's Columns (see `elements`). */
@@ -457,7 +465,9 @@ export function elements(c: Collected, items: readonly Item[], place: Place, tw?
     Named.displayName = nameOf(r.element);
     if (inColumn && !inside && !c.told.has(r) && hasMarkup(item.items)) {
       c.told.add(r);
-      console.warn(`Column: <${Named.displayName}> rendered markup that isn't a block, so it's left out. Put HTML in an <Html> block.`);
+      // (A <Link> around an Image: the Image is kept, its link isn't. Said so, with what links an Image.)
+      if (r.link && holdsImage(item.items)) console.warn(`[Unlayer] Column: an <Image> in a <Link> is kept without the link: give the Image its link as \`action={{ name: "web", values: { href } }}\`.`);
+      else console.warn(`Column: <${Named.displayName}> rendered markup that isn't a block, so it's left out. Put HTML in an <Html> block.`);
     }
     append(out, elements(c, item.items, place, tw, Named, inside, linked || r.link === true));
   };

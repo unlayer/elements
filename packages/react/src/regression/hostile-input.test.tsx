@@ -53,11 +53,12 @@ const CASES: Record<string, (v: string) => React.ReactElement> = {
   "Button link": (v) => <Row><Column><Button href={`https://example.com/${v}`}>Go</Button></Column></Row>,
   // A URL that isn't a string: an array, as a JSON body or `?url[]=` gives it.
   "Button link as an array": (v) => <Row><Column><Button href={[`https://example.com/${v}`] as never}>Go</Button></Column></Row>,
-  "Image link as an array": (v) => <Row><Column><Image src="https://example.com/a.png" width="100px" alt="x" href={[`https://example.com/${v}`] as never} /></Column></Row>,
+  // (An Image's link is its `action`: an `href` it doesn't take, said and left out.)
+  "Image link as an array": (v) => <Row><Column><Image src="https://example.com/a.png" width="100px" alt="x" action={{ name: "web", values: { href: [`https://example.com/${v}`] as never } }} /></Column></Row>,
   "Menu link as an array": (v) => <Row><Column><Menu items={[{ text: "Home", href: [`https://example.com/${v}`] as never }]} /></Column></Row>,
   "Image source": (v) => <Row><Column><Image src={`https://example.com/${v}.png`} width="100px" alt="x" /></Column></Row>,
   "Image text": (v) => <Row><Column><Image src="https://example.com/a.png" width="100px" alt={v} /></Column></Row>,
-  "Image link": (v) => <Row><Column><Image src="https://example.com/a.png" width="100px" alt="x" href={`https://example.com/${v}`} /></Column></Row>,
+  "Image link": (v) => <Row><Column><Image src="https://example.com/a.png" width="100px" alt="x" action={{ name: "web", values: { href: `https://example.com/${v}` } }} /></Column></Row>,
   "Menu item": (v) => <Row><Column><Menu items={[{ text: v, href: `https://example.com/${v}` }]} /></Column></Row>,
   // A link's target, written into its `target="…"` as it is.
   "Button target": (v) => <Row><Column><Button href="https://example.com" target={v}>Go</Button></Column></Row>,
@@ -202,7 +203,7 @@ describe("values that aren't strings, as data gives them (an array from a JSON b
     "Menu item target": (v) => <Row><Column><Menu items={[{ text: "Home", href: "https://example.com", target: v as never }]} /></Column></Row>,
     "Menu item text": (v) => <Row><Column><Menu items={[{ text: v as never, href: "https://example.com" }]} /></Column></Row>,
     "Button link": (v) => <Row><Column><Button href={v as never}>Go</Button></Column></Row>,
-    "Image link": (v) => <Row><Column><Image src="https://example.com/a.png" width="100px" alt="x" href={v as never} /></Column></Row>,
+    "Image link": (v) => <Row><Column><Image src="https://example.com/a.png" width="100px" alt="x" action={{ name: "web", values: { href: v as never } }} /></Column></Row>,
     "Menu link": (v) => <Row><Column><Menu items={[{ text: "Home", href: v as never }]} /></Column></Row>,
     "Social link": (v) => <Row><Column><Social icons={[{ name: "Twitter", url: v as never }]} /></Column></Row>,
     "Social name": (v) => <Row><Column><Social icons={[{ name: v as never, url: "https://twitter.com/x" }]} /></Column></Row>,
