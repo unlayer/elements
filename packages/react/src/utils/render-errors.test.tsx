@@ -7,6 +7,7 @@
  */
 import { afterEach, describe, expect, it, vi } from "vitest";
 import React from "react";
+import { createPortal } from "react-dom";
 import { ColumnExporters, RowExporters } from "@unlayer/exporters";
 import { Column, ColumnLayouts, Email, Paragraph, RenderError, Row, UnlayerProvider, registerElementsTool, renderToHtml, renderToHtmlParts, renderToJson, renderToPlainText, type OnError } from "../index";
 import * as asyncRenderers from "../async";
@@ -97,6 +98,13 @@ describe("a part of a template that fails", () => {
     expect(JSON.stringify(renderToJson(email, { onError: "omit" }))).toContain("counted_tool");
     expect(calls).toBe(1);
     expect(JSON.stringify(renderToJson(template(), { onError: "omit" }))).not.toContain("failing_tool");
+  });
+
+  it("fails the render on a portal, onError or not (as ARCHITECTURE.md says: React's server renderer has none)", () => {
+    const Portal = () => createPortal(<b>portal</b>, document.createElement("div"));
+    for (const onError of [undefined, "omit" as const]) {
+      expect(() => renderToHtml(<Email><Row><Column><Paragraph>Kept</Paragraph><Portal /></Column></Row></Email>, { onError })).toThrow(/Portals aren't supported/);
+    }
   });
 
   it("lists nothing when nothing failed", () => {

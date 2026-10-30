@@ -210,7 +210,7 @@ with it); what a head function that fails gives the document's head (a RenderErr
 failed: …`): the block itself renders, as in the design, which runs no head function and has no head to disagree with.
 The render is then the template's without that part. A template that isn't one always fails the render,
 `onError` or not: an undefined component (a broken or circular import), an object or a date as a child, a Client
-Component in server code. (A portal is left out with `onError: "omit"`, said.)
+Component in server code, a portal (see Not supported).
 
 **The design and the exporters.** No exporter makes the design, so `renderToJson()` doesn't render the HTML: by
 default, a template whose only failure is an exporter's gives its design, block included, while `renderToHtml()` and
