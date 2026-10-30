@@ -1,5 +1,0 @@
-{
-  "main": "../dist/fizz-cleanup.noop.cjs",
-  "module": "../dist/fizz-cleanup.noop.js",
-  "sideEffects": false
-}

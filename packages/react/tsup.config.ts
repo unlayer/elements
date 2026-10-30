@@ -18,10 +18,7 @@ export default defineConfig([{
   },
   splitting: false,
   sourcemap: true,
-  // (Not `@unlayer/react-elements/fizz-cleanup`'s modules, which the two builds below write at the same time.)
-  clean: ['!fizz-cleanup.*'],
-  // (`@unlayer/react-elements/fizz-cleanup` too, the package's export that the runtime loading Elements picks:
-  // react-dom/server's static renderer in Node, nothing elsewhere; see src/engine/fizz-cleanup.node.ts.)
+  clean: true,
   external: ['react', 'react-dom', '@unlayer/react-elements'],
   esbuildPlugins: [
     {
@@ -43,9 +40,4 @@ export default defineConfig([{
   // languages beyond the ones built in aren't downloaded by everyone who installs Elements.
   noExternal: ['@unlayer-internal/shared-elements', /\?raw$/, 'marked', /^highlight\.js/],
   treeshake: true,
-},
-// `@unlayer/react-elements/fizz-cleanup`'s modules, Node's and the one for every other runtime, each in both formats
-// (the CommonJS build requires them, also where a runtime can't require an ES module: Jest's jsdom, an older Node
-// under react-server; and Vite can't run a CommonJS file it inlines).
-{ entry: { 'fizz-cleanup.node': 'src/engine/fizz-cleanup.node.ts' }, format: ['esm', 'cjs'], sourcemap: true, clean: false, external: ['react-dom'] },
-{ entry: { 'fizz-cleanup.noop': 'src/engine/fizz-cleanup.noop.ts' }, format: ['esm', 'cjs'], sourcemap: true, clean: false }]);
+}]);
