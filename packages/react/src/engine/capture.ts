@@ -230,6 +230,10 @@ export function callClassCaptured(Ctor: any, props: Record<string, unknown>, pro
   return value;
 }
 
+/** A root found in a lazy template, in the <Tailwind>s around it there (see root-capture.ts's aroundCapture). */
+const scoped = (report: RootReport | undefined): React.ReactElement | undefined =>
+  report && (report.scopes ?? []).reduceRight<React.ReactElement>((inner, scope) => cloneElement(scope, undefined, inner), report.element);
+
 /**
  * A lazy template (`React.lazy`), rendered where it is (inside `providers`) until the root it renders reports itself
  * (see utils/root-capture.ts): that root's element, or undefined where it renders none (what it renders is then the
@@ -252,7 +256,7 @@ export function captureLazyRoot(lazy: React.ReactElement, providers: readonly Re
   } catch (error) {
     throw failed(error, "lazy");
   }
-  if (!got.waiting) return got.report?.element;
+  if (!got.waiting) return scoped(got.report);
   throw streamed(async () => {
     delete got.report;
     try {
@@ -260,6 +264,6 @@ export function captureLazyRoot(lazy: React.ReactElement, providers: readonly Re
     } catch (error) {
       throw failed(error, "lazy");
     }
-    return (got.report as RootReport | undefined)?.element;
+    return scoped(got.report as RootReport | undefined);
   });
 }

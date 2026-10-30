@@ -217,6 +217,38 @@ describe("<Tailwind>: classes as each component's props", () => {
   });
 });
 
+describe("<Tailwind>: in a lazy template's module, around its root", () => {
+  // A lazy template (`React.lazy(() => import("./Welcome"))`) whose module wraps its root in a <Tailwind> with something
+  // between them (a context's provider): only the root was found where it rendered, so its classes stayed as written
+  // (an unstyled email, its body's color lost), said nowhere.
+  const loaded = (type: React.ComponentType) => React.lazy(() => ({ then: (done: (m: { default: React.ComponentType }) => void) => done({ default: type }) }) as Promise<{ default: React.ComponentType }>);
+  const later = (type: React.ComponentType) => React.lazy(() => new Promise<{ default: React.ComponentType }>((done) => setTimeout(() => done({ default: type }), 2)));
+  const Theme = React.createContext("light");
+  const email = (
+    <Email className="bg-gray-100">
+      <Row><Column><Paragraph className="text-red-600">Welcome</Paragraph></Column></Row>
+    </Email>
+  );
+  const shapes: Record<string, (tailwind: (inside: React.ReactNode) => React.ReactElement) => React.ComponentType> = {
+    "a <Tailwind> around a provider": (tailwind) => () => tailwind(<Theme.Provider value="dark">{email}</Theme.Provider>),
+    "a provider around a <Tailwind>": (tailwind) => () => <Theme.Provider value="dark">{tailwind(email)}</Theme.Provider>,
+    "a <Tailwind> alone": (tailwind) => () => tailwind(email),
+  };
+  it("styles it as the same template not lazy, in the synchronous and async renderers", async () => {
+    for (const [shape, made] of Object.entries(shapes)) {
+      const Welcome = made((inside) => <Tailwind tw={tw}>{inside}</Tailwind>);
+      const eager = renderToHtml(<Welcome />);
+      expect(eager).toContain("#f3f4f6");
+      expect(eager).not.toMatch(/class="[^"]*text-red-600/);
+      expect(renderToHtml(React.createElement(loaded(Welcome))), shape).toBe(eager);
+      expect(renderToJson(React.createElement(loaded(Welcome))), shape).toEqual(renderToJson(<Welcome />));
+      // (Its config compiled by the async renderers.)
+      const Configured = made((inside) => <Tailwind config={config}>{inside}</Tailwind>);
+      expect(await renderToHtmlAsync(React.createElement(later(Configured))), shape).toBe(await renderToHtmlAsync(<Configured />));
+    }
+  });
+});
+
 describe("<Tailwind>: props given win over classes", () => {
   it("over a class, flat, in a group or in `values`", () => {
     expect(block(<Paragraph className="text-lg text-red-500" fontSize="20px">Hi</Paragraph>)).toMatchObject({ fontSize: "20px", color: "#fb2c36" });

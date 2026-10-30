@@ -9,6 +9,8 @@ import { perReact } from "./per-react";
 
 export interface RootReport {
   element: React.ReactElement;
+  /** The <Tailwind>s around it where it rendered, outermost first (see aroundCapture). */
+  scopes?: React.ReactElement[];
 }
 
 const KEY = Symbol.for("@unlayer/react-elements/root-capture");
@@ -77,6 +79,21 @@ export function reportedRoot(type: React.ElementType, props: object, own: boolea
   if (!report) return false;
   report({ element: React.createElement(type, props) });
   return true;
+}
+
+/**
+ * In a <Tailwind> React renders where a root is being captured (a lazy template's module: see capture.ts's
+ * captureLazyRoot), `children` with what the root reports passed on with this scope around it (`type` with `props`),
+ * so the root's classes are read in it as they are where it isn't lazy. Elsewhere, `children`.
+ */
+export function aroundCapture(type: React.ElementType, props: object, children: React.ReactNode): React.ReactNode {
+  const context = ROOT_CAPTURE.context();
+  if (!context) return children;
+  const report = ownValue(context);
+  if (!report) return children;
+  const scope = React.createElement(type, props);
+  const holder = { value: (r: RootReport) => report({ element: r.element, scopes: [scope, ...(r.scopes ?? [])] }), start: undefined as unknown };
+  return React.createElement(context.Provider, { value: holder }, React.createElement(Stamp, { holder }, children));
 }
 
 const COLLECTS = Symbol.for("@unlayer/react-elements/collects");

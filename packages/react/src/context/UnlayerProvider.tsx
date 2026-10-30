@@ -4,6 +4,7 @@ import React, { useMemo } from "react";
 import type { UnlayerConfig } from "@unlayer-internal/shared-elements";
 import { DEFAULT_CONFIG } from "@unlayer-internal/shared-elements";
 import { layerConfig } from "./layer-config";
+import { aroundCapture } from "../engine/root-capture";
 
 // React Server Components' React (its react-server build: Next.js's Server Components and route handlers) has no
 // createContext or useContext. They're read off React, not imported by name: webpack (Next.js 15's default bundler)
@@ -56,9 +57,10 @@ export const UnlayerProvider: React.FC<UnlayerProviderProps> = ({
     [parent, config]
   );
 
+  // (Where a lazy template's root is found in what it renders, the root's found in this config: see aroundCapture.)
   return (
     <Context.Provider value={merged}>
-      {children}
+      {aroundCapture(UnlayerProvider, { config, children }, children)}
     </Context.Provider>
   );
 };

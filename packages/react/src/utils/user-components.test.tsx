@@ -3,7 +3,7 @@ import React, { forwardRef, memo, useState } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { renderToHtml, renderToHtmlParts, renderToPlainText } from "./render-to-html";
 import { renderToJson } from "./render-to-json";
-import { Email, Page, Row, Column, Paragraph, Heading, Html, Button as ElementsButton, ColumnLayouts, Image, Divider, Menu, Social, Table, Video } from "../index";
+import { Email, Page, Row, Column, Paragraph, Heading, Html, Button as ElementsButton, ColumnLayouts, Image, Divider, Menu, Social, Table, Video, UnlayerProvider } from "../index";
 import { Font } from "../font";
 import { Head } from "../head";
 import * as asyncRenderers from "../async";
@@ -124,6 +124,32 @@ describe("React.memo (or forwardRef) around one of Elements' own components", ()
     expect(both(<Email><Row><Column>{items.map((t) => <P key={t}>{t}</P>)}</Column></Row></Email>)).toEqual(both(<Email><Row><Column>{items.map((t) => <Paragraph key={t}>{t}</Paragraph>)}</Column></Row></Email>));
   });
 });
+
+describe("what a lazy template's module renders around its root", () => {
+  const loaded = (type: React.ComponentType) => React.lazy(() => ({ then: (done: (m: { default: React.ComponentType }) => void) => done({ default: type }) }) as Promise<{ default: React.ComponentType }>);
+  const later = (type: React.ComponentType) => React.lazy(() => new Promise<{ default: React.ComponentType }>((done) => setTimeout(() => done({ default: type }), 2)));
+  const content = <Row><Column><Paragraph>Bonjour</Paragraph></Column></Row>;
+
+  it("gives the root an <UnlayerProvider>'s config there, as the same template not lazy (it was left out)", async () => {
+    const Receipt = () => <UnlayerProvider config={{ textDirection: "rtl" }}><Email>{content}</Email></UnlayerProvider>;
+    expect(renderToHtml(<Receipt />)).toContain('dir="rtl"');
+    expect(renderToHtml(React.createElement(loaded(Receipt)))).toBe(renderToHtml(<Receipt />));
+    expect(await asyncRenderers.renderToHtml(React.createElement(later(Receipt)))).toBe(await asyncRenderers.renderToHtml(<Receipt />));
+  });
+
+  it("isn't in a context's provider there: the content reads the context's default (documented: provide it inside the root, or around the lazy element)", async () => {
+    const Locale = React.createContext("en");
+    const Greeting = () => <Paragraph>{useContextValue(Locale) === "fr" ? "Bonjour Ada" : "Hello Ada"}</Paragraph>;
+    const outside = () => <Locale.Provider value="fr"><Email><Row><Column><Greeting /></Column></Row></Email></Locale.Provider>;
+    const inside = () => <Email><Locale.Provider value="fr"><Row><Column><Greeting /></Column></Row></Locale.Provider></Email>;
+    expect(renderToPlainText(React.createElement(loaded(outside)))).toContain("Hello Ada");
+    expect((await asyncRenderers.renderToPlainText(React.createElement(later(outside))))).toContain("Hello Ada");
+    expect(renderToPlainText(React.createElement(loaded(inside)))).toContain("Bonjour Ada");
+    expect(renderToPlainText(<Locale.Provider value="fr">{React.createElement(loaded(outside))}</Locale.Provider>)).toContain("Bonjour Ada");
+  });
+});
+
+const useContextValue = <T,>(context: React.Context<T>): T => React.useContext(context);
 
 describe("a component element kept between renders", () => {
   it("renders again in each render, with the data of that render", () => {

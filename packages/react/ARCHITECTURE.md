@@ -35,7 +35,9 @@ model                                Email > Row > Column > blocks, Elements' on
   `use()`s a pending promise is rendered again by react-dom's streaming render, which waits for it and calls it again
   as React does; the synchronous renderers throw for both. A lazy template (`React.lazy`) is rendered where it is till
   the root it renders gives itself (`engine/root-capture.ts`: React's public API has no other way to what it loads),
-  waited for as a wrapper that suspends is; providers inside what it loads, around its root, aren't its content's.
+  waited for as a wrapper that suspends is. A <Tailwind> or an <UnlayerProvider> inside what it loads, around its root,
+  gives itself with the root (`aroundCapture`), so the root is in it as where it isn't lazy; a context's provider there
+  isn't the content's (README and docs/async.md say to provide it inside the root, or around the lazy element).
   A template with no root (Rows, a block, markup) gives what it rendered instead
   (`Unwrapped.rendered`: its wrappers made again with what they returned, not called again), which renders as a root's
   content does, without the root's markup (`utils/root-content.ts`; a root its collecting render meets in it, where unwrapping
