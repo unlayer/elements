@@ -11,6 +11,7 @@
 import React, { createElement } from "react";
 import * as Server from "react-dom/server";
 import { positionOf, RenderError, type Frame } from "./errors";
+import { perReact } from "./per-react";
 
 /** A module of react-dom's server renderers: react-dom/server's, or another (see withFreeBuild). */
 type Build = typeof Server;
@@ -276,8 +277,9 @@ export function renderFailure(error: unknown, name: string): RenderError | undef
 
 /**
  * The components of the user's own being called by a synchronous render of Elements now, by every copy of Elements in
- * the process (a global, by Symbol.for): a render started there would start a render of react-dom's static renderer
- * inside its own, which breaks the hooks of the component that started it (and react-dom's render it's in).
+ * the process on this React (see per-react.ts): a render started there would start a render of react-dom's static
+ * renderer inside its own, which breaks the hooks of the component that started it (and react-dom's render it's in). A
+ * copy on another React renders with its own react-dom, so its renders, and the modules they render with, are its own.
  */
 const CALLING = Symbol.for("@unlayer/react-elements/calling");
 /**
@@ -285,7 +287,7 @@ const CALLING = Symbol.for("@unlayer/react-elements/calling");
  * the modules of react-dom's that Elements' renders under way render with, innermost last (see withFreeBuild).
  */
 type Calling = { frame: { name: string; label: string; parent: unknown } | null; static?: number; builds?: Build[] };
-const calling = ((globalThis as Record<symbol, Calling | undefined>)[CALLING] ??= { frame: null }) as Calling;
+const calling = perReact<Calling>(CALLING, createElement, () => ({ frame: null }));
 
 /** `fn`, a component of the user's own (at `frame`) that a synchronous render calls (see `calling`). */
 export function asUserCall<T>(frame: Frame, fn: () => T): T {

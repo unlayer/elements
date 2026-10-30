@@ -756,4 +756,43 @@ console.log(JSON.stringify(out));
       fs.rmSync(dir, { recursive: true, force: true });
     }
   }, 60_000);
+
+  // A render started inside a component a synchronous render calls is refused: it would render with the module of
+  // react-dom's that's calling the component. One with the other copy renders with its own React's react-dom.
+  it("render with one inside a component the other's synchronous render calls, as with no other render around it", () => {
+    expect(fs.existsSync(path.join(dist, "index.js")), "build the package first (pnpm build)").toBe(true);
+    const [react18, reactDom18] = own;
+    const [react19, reactDom19] = other;
+    const dir = project(react18, reactDom18, "module");
+    try {
+      const nested = path.join(dir, "other");
+      project(react19, reactDom19, "module", nested);
+      fs.writeFileSync(path.join(nested, "copy.js"), `export * as E from "@unlayer/react-elements"; export { default as React } from "react";`);
+      fs.writeFileSync(
+        path.join(dir, "app.js"),
+        `import * as E18 from "@unlayer/react-elements";
+import React18 from "react";
+import { E as E19, React as React19 } from "./other/copy.js";
+const email = ([E, React], text) => React.createElement(E.Email, null, React.createElement(E.Row, null, React.createElement(E.Column, null, React.createElement(E.Paragraph, null, text))));
+const out = {};
+for (const [outer, inner] of [[[E18, React18], [E19, React19]], [[E19, React19], [E18, React18]]]) {
+  // (A component of the outer copy's template, rendering an email with the inner copy: an app's preview of another's.)
+  const Preview = () => outer[1].createElement(outer[0].Paragraph, null, inner[0].renderToHtml(email(inner, "inner email")).includes("inner email") ? "inner rendered" : "inner missing");
+  try {
+    const html = outer[0].renderToHtml(outer[1].createElement(outer[0].Email, null, outer[1].createElement(outer[0].Row, null, outer[1].createElement(outer[0].Column, null, outer[1].createElement(Preview)))));
+    out[outer[1].version] = html.includes("inner rendered");
+  } catch (e) {
+    out[outer[1].version] = "threw " + e.message.slice(0, 160);
+  }
+}
+console.log(JSON.stringify(out));
+`
+      );
+      const run = spawnSync(process.execPath, ["app.js"], { cwd: dir, encoding: "utf8", timeout: 30_000 });
+      expect(run.status, run.stderr.slice(-400)).toBe(0);
+      expect(JSON.parse(run.stdout.trim().split("\n").pop()!)).toEqual({ [versionOf(react18)]: true, [versionOf(react19)]: true });
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
+  }, 60_000);
 });
