@@ -1,9 +1,15 @@
 /**
- * Elements' renders inside another React render: an app page that renders on the server and works out its
- * design or HTML while it renders (`useMemo(() => renderToJson(<T />))`), and a template's component that does.
- * Elements' renders put React's hooks dispatcher back as they found it, so the outer component's hooks after the
- * call work, however deep (0.3.0 rendered with react-dom, whose module keeps a render's hook state: three levels
- * deep, a component calling a hook after the call was left out).
+ * Elements' renders inside another React render: an app page that renders on the server and works out its design or
+ * HTML while it renders (`useMemo(() => renderToJson(<T />))`), and a template's component that does.
+ *
+ * Elements renders templates with react-dom/server's static renderer, whose module keeps a render's hook state: a
+ * render started inside one of its own breaks the hooks the component that started it calls after. So a render started
+ * while a component of a template that Elements renders synchronously is called (a component among the rows, a
+ * template wrapper) fails with a RenderError that says so and what to do, never with React's own error; one started
+ * in a component an async render calls renders (that's react-dom's streaming renderer, another module), and so does
+ * one an app's page starts in react-dom's stream or its browser build. One started inside an app's own
+ * `renderToString` with hooks after it can't be told without React's internals: ARCHITECTURE.md says to render it
+ * before, or with react-dom's stream.
  */
 import { describe, it, expect, vi } from "vitest";
 import React, { useId, useMemo, useState } from "react";
@@ -12,87 +18,31 @@ import { renderToPipeableStream, renderToStaticMarkup, renderToString } from "re
 import { renderToString as renderToStringWithBrowserBuild } from "react-dom/server.browser";
 import { renderToHtml, renderToPlainText } from "./render-to-html";
 import { renderToJson } from "./render-to-json";
-import { Email, Page, Row, Column, Paragraph } from "../index";
+import { Email, Page, Row, Column, Paragraph, RenderError } from "../index";
 
 const Template = () => <Email><Row><Column><Paragraph>Hello from the template</Paragraph></Column></Row></Email>;
 
-describe("a page that renders on the server", () => {
-  it("can work out the template's design while it renders, and use hooks after (as 0.1.22 could)", () => {
+/** The error a render started while a component of a template is called fails with (`at`: that component, where it is). */
+const NESTED = /can't start while a component of a template that Elements is rendering synchronously is called: react-dom\/server, which renders templates, can't start a render inside its own/;
+
+/** Where a stream of react-dom's is written: its chunks joined (without the comments React 18.0 writes between texts). */
+const collect = (element: React.ReactElement) =>
+  new Promise<string>((resolve, reject) => {
+    let html = "";
+    const decoder = new TextDecoder();
+    const sink = { write: (chunk: unknown) => ((html += typeof chunk === "string" ? chunk : decoder.decode(chunk as Uint8Array)), true), end: () => resolve(html), destroy: () => {}, on() { return this; }, once() { return this; }, emit: () => true, removeListener() { return this; } } as unknown as NodeJS.WritableStream;
+    const stream = renderToPipeableStream(element, { onAllReady: () => stream.pipe(sink), onShellError: reject });
+  }).then((html) => html.replace(/<!-- -->/g, ""));
+
+describe("a page that renders on the server with react-dom's stream", () => {
+  it("can work out the template's design and HTML while it renders, and use hooks after", async () => {
     function EditorPage() {
       const design = useMemo(() => renderToJson(<Template />), []);
-      const [open] = useState(false);
-      return <pre>{`${design.body.rows.length} rows, open=${open}`}</pre>;
-    }
-    expect(renderToString(<EditorPage />)).toBe("<pre>1 rows, open=false</pre>");
-  });
-
-  it("can work out its HTML too", () => {
-    function PreviewPage() {
       const html = useMemo(() => renderToHtml(<Template />), []);
-      const [zoom] = useState(1);
-      return <pre>{`${html.includes("Hello from the template")}, zoom=${zoom}`}</pre>;
+      const [open] = useState(false);
+      return <pre>{`${design.body.rows.length} rows, ${html.includes("Hello from the template")}, open=${open}`}</pre>;
     }
-    expect(renderToString(<PreviewPage />)).toBe("<pre>true, zoom=1</pre>");
-  });
-});
-
-/** Where a stream of react-dom's is written: nowhere (Node's streams aren't in this test's environment). */
-const sink = () => ({ write: () => true, end: () => {}, destroy: () => {}, on() { return this; } }) as unknown as NodeJS.WritableStream;
-
-describe("a page that renders on the server, with a Context Provider around a component that renders an email", () => {
-  // The template's own providers are the email's. A context it doesn't provide reads, inside the page's renderToString,
-  // the page's value, as 0.2 did (react-dom's own render inside a render, renderToStaticMarkup in a component, reads
-  // its default), and inside its stream, its default (see src/regression/render-isolation.test.tsx). An email that
-  // mustn't read the page's gets the value as a prop, or a provider of its own in what's rendered.
-  it("gives the email the template's own providers over the page's, in react-dom's renders and its streaming one", async () => {
-    const error = vi.spyOn(console, "error").mockImplementation(() => {});
-    try {
-      const Brand = React.createContext("default");
-      const Reads = () => <Paragraph>{`brand=${React.useContext(Brand)}`}</Paragraph>;
-      const email = (own?: string) => <Email>{own ? <Brand.Provider value={own}><Row><Column><Reads /></Column></Row></Brand.Provider> : <Row><Column><Reads /></Column></Row>}</Email>;
-      const ReactDomReads = () => <>{`brand=${React.useContext(Brand)}`}</>;
-      expect(renderToPlainText(email()).trim()).toBe("brand=default");
-      const seen: string[][] = [];
-      function Preview() {
-        const read = useMemo(() => [renderToPlainText(email()).trim(), renderToPlainText(email("its own")).trim()], []);
-        seen.push(read);
-        return <pre>{read.join(", ")}</pre>;
-      }
-      // (react-dom's render inside a component of react-dom's render, which has no hooks: React 18's would lose them.)
-      const ReactDom = () => (seen.push([renderToStaticMarkup(<ReactDomReads />)]), null);
-      const page = <Brand.Provider value="the page's"><main><Preview /><ReactDom /></main></Brand.Provider>;
-      renderToString(page);
-      await new Promise<void>((resolve, reject) => {
-        const stream = renderToPipeableStream(page, { onAllReady: () => (stream.pipe(sink()), resolve()), onShellError: reject });
-      });
-      expect(seen).toEqual([["brand=the page's", "brand=its own"], ["brand=default"], ["brand=default", "brand=its own"], ["brand=default"]]);
-      expect(error).not.toHaveBeenCalled();
-    } finally {
-      error.mockRestore();
-    }
-  });
-});
-
-describe("a template's component that renders another template, inside an app's renderToString", () => {
-  it("gives that render the outer walk's providers over the app's, and the outer render's value for a context neither provides", () => {
-    // (Inside an app's renderToString, a context no walk provides reads that render's value; see
-    // src/regression/render-isolation.test.tsx.)
-    const Brand = React.createContext("default");
-    const Theme = React.createContext("light");
-    const Inner = () => <Paragraph>{`theme=${React.useContext(Theme)} brand=${React.useContext(Brand)}`}</Paragraph>;
-    let inner = "";
-    const Starts = () => {
-      inner = renderToPlainText(<Email><Row><Column><Inner /></Column></Row></Email>).trim();
-      return <Paragraph>{`outer brand=${React.useContext(Brand)}`}</Paragraph>;
-    };
-    let outer = "";
-    const Page = () => {
-      outer = renderToPlainText(<Email><Theme.Provider value="the outer email's"><Row><Column><Starts /></Column></Row></Theme.Provider></Email>).trim();
-      return <div />;
-    };
-    renderToString(<Brand.Provider value="TenantA"><Theme.Provider value="the page's"><Page /></Theme.Provider></Brand.Provider>);
-    expect(inner).toBe("theme=the outer email's brand=TenantA");
-    expect(outer).toBe("outer brand=TenantA");
+    expect(await collect(<EditorPage />)).toBe("<pre>1 rows, true, open=false</pre>");
   });
 });
 
@@ -108,164 +58,101 @@ describe("a page that renders with react-dom's browser build (react-dom/server.b
   });
 });
 
-describe("a template's component", () => {
-  it("can work out another template's design while Elements renders it", () => {
+describe("a page that renders on the server, with a Context Provider around a component that renders an email", () => {
+  // The template's own providers are the email's; a context it doesn't provide reads its default, wherever the
+  // render runs (react-dom's static render starts with every context's default). An email that needs the page's value
+  // gets it as a prop, or a provider of its own in what's rendered. (In the page's react-dom stream: inside its own
+  // `renderToString`, a render in a `useMemo` would break that hook, see above.)
+  it("gives the email the template's own providers, and the default of a context it doesn't provide", async () => {
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
+    try {
+      const Brand = React.createContext("default");
+      const Reads = () => <Paragraph>{`brand=${React.useContext(Brand)}`}</Paragraph>;
+      const email = (own?: string) => <Email>{own ? <Brand.Provider value={own}><Row><Column><Reads /></Column></Row></Brand.Provider> : <Row><Column><Reads /></Column></Row>}</Email>;
+      expect(renderToPlainText(email()).trim()).toBe("brand=default");
+      const seen: string[][] = [];
+      function Preview() {
+        const read = useMemo(() => [renderToPlainText(email()).trim(), renderToPlainText(email("its own")).trim()], []);
+        seen.push(read);
+        return <pre>{read.join(", ")}</pre>;
+      }
+      const page = <Brand.Provider value="the page's"><main><Preview /></main></Brand.Provider>;
+      await collect(page);
+      expect(seen).toEqual([["brand=default", "brand=its own"]]);
+      expect(error).not.toHaveBeenCalled();
+    } finally {
+      error.mockRestore();
+    }
+  });
+});
+
+describe("a render started while a component of a template that Elements renders is called", () => {
+  /** What `render` throws, or undefined. */
+  const thrown = (render: () => unknown): unknown => {
+    try {
+      render();
+    } catch (error) {
+      return error;
+    }
+    return undefined;
+  };
+
+  it("fails, saying so and naming the component that started it, in every synchronous renderer", () => {
     function RowCount() {
       const design = useMemo(() => renderToJson(<Template />), []);
       const [label] = useState("rows");
       return <div dangerouslySetInnerHTML={{ __html: `${design.body.rows.length} ${label}` }} />;
     }
-    const html = renderToHtml(<Email><Row><Column><Paragraph>Before</Paragraph><RowCount /></Column></Row></Email>);
-    expect(html).toContain("Before");
-    expect(html).toContain("1 rows");
+    const email = <Email><Row><Column><Paragraph>Before</Paragraph><RowCount /></Column></Row></Email>;
+    for (const render of [renderToHtml, renderToPlainText, renderToJson]) {
+      const error = thrown(() => render(email));
+      expect(error).toBeInstanceOf(RenderError);
+      expect((error as Error).message).toMatch(NESTED);
+      expect(error).toMatchObject({ component: "RowCount", position: "Row 1 › Column 1 › RowCount" });
+      // React's own error never reaches the app.
+      expect((error as Error).message).not.toMatch(/memoizedState|Invalid hook call/);
+    }
+    // A template wrapper too, and a class's render.
+    function Wrapper() {
+      renderToHtml(<Template />);
+      return <Template />;
+    }
+    class Classy extends React.Component {
+      render() {
+        renderToPlainText(<Template />);
+        return <Paragraph>class</Paragraph>;
+      }
+    }
+    expect(thrown(() => renderToHtml(<Wrapper />))).toMatchObject({ component: "Wrapper", position: "", message: expect.stringMatching(NESTED) });
+    expect(thrown(() => renderToHtml(<Email><Row><Column><Classy /></Column></Row></Email>))).toMatchObject({ component: "Classy", message: expect.stringMatching(NESTED) });
+    // With `onError` leaving parts out, it isn't one of them: it fails the render.
+    expect(thrown(() => renderToHtml(email, { onError: "omit" }))).toMatchObject({ component: "RowCount", message: expect.stringMatching(NESTED) });
   });
 
-  it("starts a render where it is, inside the providers around it, its ids the document's; one the rest of the user's code starts, as alone", async () => {
-    // By design (the walker's `calling`): as React's renders inside a render read the context it has, and so the ids
-    // of an Elements render a component puts in the document don't repeat the document's.
-    const { registerTool } = await import("../index");
+  it("renders started there with the async renderers once that call is over, and in a component an async render calls", async () => {
     const asyncRenderers = await import("../async");
-    const Theme = React.createContext("none");
-    const Themed = () => <Paragraph>{`theme=${React.useContext(Theme)} id=${useId()}`}</Paragraph>;
-    const inner = <Email><Row><Column><Themed /></Column></Row></Email>;
-    const seen = (html: string) => /theme=(\w+) id=([^<\s]+)/.exec(html)!.slice(1);
-    const [none, alone] = seen(renderToHtml(inner));
-    expect(none).toBe("none");
-    const got: Record<string, string[]> = {};
-    const Starts = ({ at }: { at: string }) => ((got[at] = seen(renderToHtml(inner))), <Paragraph>{`outer ${useId()}`}</Paragraph>);
-    const Tool = registerTool({ name: "nested_where", renderer: { exporters: { email: () => ((got.exporter = seen(renderToHtml(inner))), "<b>tool</b>") } } });
-    const outer = (at: string) => <Email><Theme.Provider value="dark"><Row><Column><Paragraph>Before</Paragraph><Starts at={at} /><Tool /></Column></Row></Theme.Provider></Email>;
-    const Wrapper = () => ((got.wrapper = seen(renderToHtml(inner))), outer("component in a wrapper's template"));
-    const html = renderToHtml(outer("component"));
-    await asyncRenderers.renderToHtml(outer("component, async"));
-    renderToHtml(<Theme.Provider value="dark"><Wrapper /></Theme.Provider>);
-    for (const at of ["component", "component, async", "component in a wrapper's template"]) {
-      expect(got[at][0], at).toBe("dark");
-      expect(got[at][1], at).not.toBe(alone);
+    let started: Promise<string> | undefined;
+    function Starts() {
+      started ??= asyncRenderers.renderToHtml(<Template />);
+      return <Paragraph>{`outer ${useId()}`}</Paragraph>;
     }
-    expect(html).not.toContain(got.component[1]);
-    for (const at of ["exporter", "wrapper"]) expect(got[at], at).toEqual([none, alone]);
+    const html = renderToHtml(<Email><Row><Column><Starts /></Column></Row></Email>);
+    expect(html).toContain("outer");
+    expect(await started).toBe(renderToHtml(<Template />));
+    let inner = "";
+    const InAsync = () => {
+      inner = renderToPlainText(<Template />).trim();
+      const [after] = useState("after");
+      return <Paragraph>{after}</Paragraph>;
+    };
+    expect(await asyncRenderers.renderToPlainText(<Email><Row><Column><InAsync /></Column></Row></Email>)).toContain("after");
+    expect(inner).toBe("Hello from the template");
   });
 
-  it("can nest one more, and a component there calls hooks after the call", () => {
-    const error = vi.spyOn(console, "error").mockImplementation(() => {});
-    try {
-      function Deepest() {
-        const design = renderToJson(<Template />);
-        return <div dangerouslySetInnerHTML={{ __html: `deepest ${design.body.rows.length} rows` }} />;
-      }
-      function DeepestWithHook() {
-        renderToJson(<Template />);
-        const [label] = useState("never shown");
-        return <div dangerouslySetInnerHTML={{ __html: label }} />;
-      }
-      function Deeper() {
-        const html = renderToHtml(<Email><Row><Column><Deepest /><DeepestWithHook /></Column></Row></Email>);
-        return <div dangerouslySetInnerHTML={{ __html: `${html.includes("deepest 1 rows") ? "deepest shown" : "deepest left out"}, ${html.includes("never shown") ? "hook shown" : "hook left out"}` }} />;
-      }
-      const html = renderToHtml(<Email><Row><Column><Paragraph>Outer</Paragraph><Deeper /></Column></Row></Email>);
-      expect(html).toContain("Outer");
-      expect(html).toContain("deepest shown, hook shown");
-      expect(error).not.toHaveBeenCalled();
-    } finally {
-      error.mockRestore();
-    }
-  });
-});
-
-describe("a template that renders another one while it's called (its wrapper)", () => {
-  // That render is its own, as one a component among the rows starts is: what it does with a part that fails, the
-  // parts it leaves out and its ids aren't the outer render's, which its root's config hadn't given yet.
-  const InnerBroken = (): React.ReactElement => {
-    throw new Error("inner data");
-  };
-  const OuterBroken = (): React.ReactElement => {
-    throw new Error("outer data");
-  };
-  const Id = () => <div dangerouslySetInnerHTML={{ __html: `useId=${useId()}` }} />;
-  const inner = <Email><Row><Column><Paragraph>Inner</Paragraph><InnerBroken /><Id /></Column></Row></Email>;
-  const outer = <Email><Row><Column><Paragraph>Outer</Paragraph><OuterBroken /><Id /></Column></Row></Email>;
-  const renderers = async () => {
-    const { renderToHtmlParts } = await import("./render-to-html");
-    const asyncRenderers = await import("../async");
-    const sync = { renderToHtml, renderToPlainText, renderToJson, renderToHtmlParts } as Record<string, (element: React.ReactElement, options?: object) => unknown>;
-    return { sync, all: { ...sync, ...Object.fromEntries(Object.entries(asyncRenderers).filter(([name]) => name in sync).map(([name, render]) => [`async ${name}`, render])) } as Record<string, (element: React.ReactElement, options?: object) => unknown> };
-  };
-
-  it("keeps the outer render's onError: a part of its own that fails fails it", async () => {
-    const { sync, all } = await renderers();
-    const left: unknown[] = [];
-    for (const [innerName, render] of Object.entries(sync)) {
-      function Outer() {
-        render(inner, { onError: (failure: unknown) => void left.push(failure) });
-        return outer;
-      }
-      for (const [name, outerRender] of Object.entries(all)) {
-        const rendering = async () => outerRender(<Outer />);
-        await expect(rendering(), `${innerName} in ${name}`).rejects.toThrow(/outer data/);
-      }
-    }
-    expect(left.length).toBeGreaterThan(0);
-  });
-
-  it("keeps the parts each leaves out its own", async () => {
-    const { renderToHtmlParts } = await import("./render-to-html");
-    const asyncRenderers = await import("../async");
-    let innerParts: ReturnType<typeof renderToHtmlParts> | undefined;
-    function Outer() {
-      innerParts = renderToHtmlParts(inner, { onError: () => {} });
-      return outer;
-    }
-    for (const render of [renderToHtmlParts, asyncRenderers.renderToHtmlParts]) {
-      const parts = await render(<Outer />, { onError: () => {} });
-      expect(parts.omitted.map((e) => e.component)).toEqual(["OuterBroken"]);
-      expect(innerParts!.omitted.map((e) => e.component)).toEqual(["InnerBroken"]);
-    }
-  });
-
-  it("keeps its ids' prefix its own", async () => {
-    const { sync, all } = await renderers();
-    const id = /useId=([^<"\\]*)/;
-    for (const [innerName, render] of Object.entries(sync)) {
-      function Outer() {
-        render(inner, { onError: () => {}, idPrefix: "inner-" });
-        return outer;
-      }
-      for (const [name, outerRender] of Object.entries(all)) {
-        if (/Json/.test(name)) continue;
-        const given = id.exec(JSON.stringify(await outerRender(<Outer />, { onError: () => {} })))?.[1];
-        expect(given, `${innerName} in ${name}`).toMatch(/R/);
-        expect(given, `${innerName} in ${name}`).not.toContain("inner-");
-      }
-    }
-  });
-});
-
-describe("a page that renders on the server, with a template whose component works out another design", () => {
-  // Three renders: the page's (react-dom/server), Elements', and the component's call. The page's hooks keep working,
-  // and the component's after the call.
-  it("keeps the page's hooks, and the component's hooks after its call", () => {
-    const error = vi.spyOn(console, "error").mockImplementation(() => {});
-    try {
-      function Count() {
-        const design = renderToJson(<Template />);
-        return <div dangerouslySetInnerHTML={{ __html: `${design.body.rows.length} rows` }} />;
-      }
-      function CountWithHook() {
-        const design = renderToJson(<Template />);
-        const [label] = useState("labelled rows");
-        return <div dangerouslySetInnerHTML={{ __html: `${design.body.rows.length} ${label}` }} />;
-      }
-      function PreviewPage() {
-        const html = useMemo(() => renderToHtml(<Email><Row><Column><Paragraph>Outer</Paragraph><Count /><CountWithHook /></Column></Row></Email>), []);
-        const [zoom] = useState(1);
-        return <pre>{`${html.includes("Outer")}, ${html.includes("1 rows")}, ${html.includes("labelled")}, zoom=${zoom}`}</pre>;
-      }
-      expect(renderToString(<PreviewPage />)).toBe("<pre>true, true, true, zoom=1</pre>");
-      expect(error).not.toHaveBeenCalled();
-    } finally {
-      error.mockRestore();
-    }
+  it("renders a root among the content (Elements' own render of it)", () => {
+    const html = renderToHtml(<Email><Row><Column><Paragraph>Outer</Paragraph></Column></Row><Template /></Email>);
+    expect(html).toContain("Outer");
+    expect(html).toContain("Hello from the template");
   });
 });
 
@@ -354,7 +241,8 @@ describe("a component of the user's own that calls a hook, in React's developmen
       setN(n + 1);
       return <Email><Row><Column><Paragraph>{`n=${n}`}</Paragraph></Column></Row></Email>;
     }
-    const looping = /Too many re-renders: a component sets its state every time it renders/;
+    // (React's own error, which the RenderError names the component for.)
+    const looping = /Too many re-renders/;
     for (const render of [renderToHtml, renderToJson, renderToPlainText]) expect(() => render(<Looping />)).toThrow(looping);
     for (const render of [asyncRenderers.renderToHtml, asyncRenderers.renderToJson]) await expect(render(<Looping />)).rejects.toThrow(looping);
     let thrown: unknown;
@@ -601,7 +489,8 @@ describe("a render the user's code starts while Elements renders (a custom tool'
         renderer: { exporters: { email: () => (hook("exporter"), "<b>tool</b>") }, head: { css: () => (hook("head"), ".hooked { color: #c00; }") } },
       });
       const Broken = registerTool({ name: "hooked_broken", renderer: { exporters: { email: () => { throw new Error("broken exporter"); } } } });
-      const Mine = () => (hook("component"), <Paragraph>{`mine ${useId()}`}</Paragraph>);
+      // (Not a component or a template wrapper a synchronous render calls: a render started there fails, see above.)
+      const Mine = () => <Paragraph>{`mine ${useId()}`}</Paragraph>;
       const AsyncMine = async () => (await waiting("async component"), <Paragraph>async mine</Paragraph>);
       const link = "[A link](https://example.com/a)";
       // A Tailwind plugin's utility, which Tailwind calls as the render reads the class, once per compiled Tailwind (the
@@ -621,8 +510,9 @@ describe("a render the user's code starts while Elements renders (a custom tool'
           </Column>
         </Row>
       );
-      const Template = () => (hook("wrapper"), useId(), <Tailwind tw={tw}><Email>{content}</Email></Tailwind>);
-      const AsyncTemplate = async () => (await waiting("async wrapper"), <Tailwind tw={tw}><Email>{content}<Row><Column><AsyncMine /></Column></Row></Email></Tailwind>);
+      const Template = () => (useId(), <Tailwind tw={tw}><Email>{content}</Email></Tailwind>);
+      // (Once its call is over: an await first.)
+      const AsyncTemplate = async () => (await null, await waiting("async wrapper"), <Tailwind tw={tw}><Email>{content}<Row><Column><AsyncMine /></Column></Row></Email></Tailwind>);
       const onError = () => hook("onError");
       const outer: Record<string, (options: object) => unknown> = {
         html: (options) => renderToHtml(<Template />, options),
@@ -663,7 +553,7 @@ describe("a render the user's code starts while Elements renders (a custom tool'
           }
         }
       }
-      expect([...places].sort()).toEqual(["Markdown url", "Tailwind plugin", "async component", "async wrapper", "component", "exporter", "head", "onError", "wrapper"]);
+      expect([...places].sort()).toEqual(["Markdown url", "Tailwind plugin", "async component", "async wrapper", "exporter", "head", "onError"]);
       // (The class did style the Paragraph.)
       expect(await outer.html({ onError: () => {} })).toMatch(/color: #123456[^>]*>\s*Styled/);
     } finally {

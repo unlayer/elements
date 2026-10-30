@@ -389,7 +389,9 @@ describe("HTML from a component in a Column", () => {
     ["gives what's in an element given dangerouslySetInnerHTML", <div dangerouslySetInnerHTML={{ __html: "<p>Hi</p>" }} />, "<p>Hi</p>"],
   ];
   for (const [what, shape, kept] of shapes) {
-    it.each(Object.entries(kinds(shape)))(`${what}, from %s`, async (_, node) => {
+    // (What a lazy component loads React renders itself, which Elements can't ask what it returned: below.)
+    const asked = Object.entries(kinds(shape)).filter(([kind]) => !(shape.props.dangerouslySetInnerHTML && kind.startsWith("a lazy")));
+    it.each(asked)(`${what}, from %s`, async (_, node) => {
       const email = <Email><Row><Column>{node}</Column></Row></Email>;
       const block = (design: { body: { rows: any[] } }) => design.body.rows[0].columns[0].contents;
       expect(block(renderToJson(email))).toEqual([expect.objectContaining({ type: "html", values: expect.objectContaining({ html: kept }) })]);
@@ -397,6 +399,14 @@ describe("HTML from a component in a Column", () => {
       expect(block(await asyncRenderers.renderToJson(email))).toEqual([expect.objectContaining({ type: "html", values: expect.objectContaining({ html: kept }) })]);
     });
   }
+
+  it("keeps a lazy component's element given dangerouslySetInnerHTML whole (React renders what it loads, unasked)", () => {
+    const element = <div dangerouslySetInnerHTML={{ __html: "<p>Hi</p>" }} />;
+    const Fn = () => element;
+    const loaded = React.lazy(() => ({ then: (resolve: (m: { default: React.ComponentType }) => void) => resolve({ default: Fn }) }) as Promise<{ default: React.ComponentType }>);
+    const email = <Email><Row><Column>{React.createElement(loaded)}</Column></Row></Email>;
+    expect(renderToJson(email).body.rows[0].columns[0].contents).toEqual([expect.objectContaining({ type: "html", values: expect.objectContaining({ html: "<div><p>Hi</p></div>" }) })]);
+  });
 
   it("asks a component the async renderers waited for what it returned: an async one, a class that suspended, a lazy one", async () => {
     const element = <div style={{ backgroundColor: "red" }}>Hi</div>;
@@ -491,14 +501,16 @@ describe("markup holding what writes nothing", () => {
 });
 
 describe("a block rendered to a string inside a component", () => {
-  it("is what the block renders, with Elements' own render functions and with react-dom's", () => {
+  it("is what the block renders with react-dom's own render; Elements' render functions can't start there", () => {
     const viaParts = () => renderToHtmlParts(<Paragraph>From parts</Paragraph>).body;
     const viaReactDom = () => renderToStaticMarkup(<Paragraph>From react-dom</Paragraph>);
     const viaPlainText = () => renderToPlainText(<Paragraph>From plain text</Paragraph>);
     const Signature = ({ make }: { make: () => string }) => <Row><Column><Html html={make()} /></Column></Row>;
-    const html = renderToHtml(<Email>{block("Hello")}<Signature make={viaParts} /><Signature make={viaReactDom} /><Signature make={viaPlainText} /></Email>);
-    for (const text of ["From parts", "From react-dom", "From plain text"]) expect(html).toContain(text);
+    const html = renderToHtml(<Email>{block("Hello")}<Signature make={viaReactDom} /></Email>);
+    expect(html).toContain("From react-dom");
     expect(html).not.toContain("unlayer-mark");
+    // (react-dom can't start a render inside its own: said by name, see src/utils/nested-renders.test.tsx.)
+    for (const make of [viaParts, viaPlainText]) expect(() => renderToHtml(<Email>{block("Hello")}<Signature make={make} /></Email>)).toThrow(/can't start while a component of a template that Elements is rendering synchronously is called/);
   });
 
   it("is what each block renders when react-dom gives them many ids (its own can read like the collecting render's)", () => {

@@ -11,7 +11,6 @@ import { flushSync } from "react-dom";
 import { createRoot, type Root } from "react-dom/client";
 import { renderToPipeableStream, renderToStaticMarkup, renderToString } from "react-dom/server";
 import { act } from "../test-utils";
-import { isIdleDispatcher, theSlot } from "../engine/dispatcher";
 import { renderToHtml, renderToHtmlParts, renderToPlainText } from "../utils/render-to-html";
 import { renderRowToJson, renderToJson } from "../utils/render-to-json";
 import { Email, Page, Row, Column, Paragraph, Html, UnlayerProvider, registerTool } from "../index";
@@ -146,14 +145,22 @@ describe("an email rendered inside a component", () => {
   it("leaves the components after it in the column, and their hooks, as they were", () => {
     const error = vi.spyOn(console, "error").mockImplementation(() => {});
     try {
-      const email = <Email><Row><Column><Count n={1} /><Signature /><Count n={2} /><SignedBy /><Bold /><Count n={3} /></Column><Column><Count n={4} /></Column></Row></Email>;
+      const email = <Email><Row><Column><Count n={1} /><Bold /><Count n={2} /></Column><Column><Count n={3} /></Column></Row></Email>;
       const html = renderToHtml(email);
-      for (const text of ["Count 1", "Count 2", "Count 3", "Count 4", "Count 9", "Signed Ada", "Bold bit"]) expect(html.split(text).length - 1, text).toBe(1);
+      for (const text of ["Count 1", "Count 2", "Count 3", "Bold bit"]) expect(html.split(text).length - 1, text).toBe(1);
       const design = JSON.stringify(renderToJson(email));
-      for (const text of ["Count 1", "Count 2", "Count 3", "Count 4", "Signed Ada"]) expect(design, text).toContain(text);
+      for (const text of ["Count 1", "Count 2", "Count 3"]) expect(design, text).toContain(text);
       expect(error).not.toHaveBeenCalled();
     } finally {
       error.mockRestore();
+    }
+  });
+
+  it("with Elements' render functions, fails the render, saying react-dom can't start a render inside its own", () => {
+    for (const Starts of [Signature, SignedBy]) {
+      const email = <Email><Row><Column><Count n={1} /><Starts /><Count n={2} /></Column></Row></Email>;
+      expect(() => renderToHtml(email)).toThrow(/can't start while a component of a template that Elements is rendering synchronously is called/);
+      expect(() => renderToJson(email)).toThrow(/can't start while a component of a template that Elements is rendering synchronously is called/);
     }
   });
 });
@@ -161,8 +168,8 @@ describe("an email rendered inside a component", () => {
 describe("a context the template doesn't provide", () => {
   // react-dom's renders leave what their providers gave in the context once they're done: its streaming render, the
   // values of the last part it waited for (a page's tenant, theme or locale); renderToString and renderToStaticMarkup,
-  // those of a render that failed or suspended inside a provider. A template reads the context's default, as
-  // react-dom's own static render (0.2's renderer) does, never what another request's render provided.
+  // those of a render that failed or suspended inside a provider. A template reads the context's default (react-dom's
+  // static render, which renders it, puts it back as it starts), never what another request's render provided.
   type Brand = { name: string };
   const tenant: Brand = { name: "Tenant A Inc" };
   const BRAND: Brand = { name: "Default Brand" };
@@ -214,8 +221,6 @@ describe("a context the template doesn't provide", () => {
     const Brand = createContext(BRAND);
     expect(text(footer(Brand))).toBe("(c) Default Brand");
     await tenantPage(Brand, tenant);
-    // (react-dom left the page's value in the context.)
-    expect((Brand as unknown as { _currentValue: Brand })._currentValue).toBe(tenant);
     expect(text(footer(Brand))).toBe("(c) Default Brand");
     expect(renderToHtml(footer(Brand))).not.toContain("Tenant A");
     expect(JSON.stringify(renderToJson(footer(Brand)))).not.toContain("Tenant A");
@@ -257,15 +262,11 @@ describe("a context the template doesn't provide", () => {
     expect(text(<Email><Row><Column><Reads /></Column></Row></Email>)).toBe("undefined true never provided");
   });
 
-  it("reads the template's own provider, and the providers around a component that starts a render, whatever another render left", async () => {
+  it("reads the template's own provider, whatever another render left", async () => {
     const Brand = createContext(BRAND);
     await tenantPage(Brand, tenant);
     const Footer = () => <Paragraph>{`(c) ${useContext(Brand).name}`}</Paragraph>;
     expect(text(<Email><Brand.Provider value={{ name: "Its own" }}><Row><Column><Footer /></Column></Row></Brand.Provider></Email>)).toBe("(c) Its own");
-    let inner = "";
-    const Starts = () => ((inner = text(footer(Brand))), <Paragraph>outer</Paragraph>);
-    renderToHtml(<Email><Brand.Provider value={{ name: "The outer email" }}><Row><Column><Starts /></Column></Row></Brand.Provider></Email>);
-    expect(inner).toBe("(c) The outer email");
   });
 
   it("reads its default in async renders at once, when react-dom streams another page while they wait", async () => {
@@ -285,7 +286,6 @@ describe("a context the template doesn't provide", () => {
       asyncRenderers.renderToPlainText(<Email>{rows}</Email>),
       asyncRenderers.renderToPlainText(<Email><Brand.Provider value={own}><Later.Provider value={own}>{rows}</Later.Provider></Brand.Provider></Email>),
     ]);
-    expect((Brand as unknown as { _currentValue: Brand })._currentValue).toBe(tenant);
     expect(plain.split(/\n+/).map((line) => line.trim())).toEqual(["before Default Brand", "after Default Brand Default Brand"]);
     expect(provided.split(/\n+/).map((line) => line.trim())).toEqual(["before Its own", "after Its own Its own"]);
   });
@@ -296,8 +296,6 @@ describe("a context the template doesn't provide", () => {
     // rendered with react-dom's renderToStaticMarkup, had react-dom put it back first).
     const Brand = createContext(BRAND);
     failed(Brand, tenant);
-    // (react-dom left the page's value in the context: renderToString's own.)
-    expect((Brand as unknown as { _currentValue2: Brand })._currentValue2).toBe(tenant);
     expect(text(footer(Brand))).toBe("(c) Default Brand");
     // Again, after each of the renderers had read it.
     const renders = [() => text(footer(Brand)), () => renderToHtml(footer(Brand)), () => JSON.stringify(renderToJson(footer(Brand))), () => asyncRenderers.renderToPlainText(footer(Brand))];
@@ -312,19 +310,15 @@ describe("a context the template doesn't provide", () => {
     expect(text(footer(Suspends))).toBe("(c) Default Brand");
   });
 
-  it("reads its default where a stream and a failed renderToString left another request's value in both of React's values", async () => {
-    // React keeps a context's default nowhere but in those two values (`_currentValue`, react-dom's streaming
-    // render's, and `_currentValue2`, renderToString's and renderToStaticMarkup's). A 0.3.0 build took a value both
-    // held for the default, and kept it for every render after: here, the tenant's, also over the default it had read
-    // before. react-dom's static renderer puts the second back before Elements reads it.
+  it("reads its default where a stream and a failed renderToString both left another request's value", async () => {
+    // A 0.3.0 build took a value both of React's renders left for the default, and kept it for every render after:
+    // here, the tenant's, also over the default it had read before.
     const Learned = createContext<unknown>("default");
     expect(read(Learned)).toBe("default");
     const Fresh = createContext<unknown>("default");
     for (const context of [Learned, Fresh]) {
       await tenantPage(context, "TenantA");
       failed(context, "TenantA");
-      const values = context as unknown as { _currentValue: unknown; _currentValue2: unknown };
-      expect([values._currentValue, values._currentValue2]).toEqual(["TenantA", "TenantA"]);
       expect(read(context)).toBe("default");
       renderToString(<p />);
       expect(read(context)).toBe("default");
@@ -333,7 +327,7 @@ describe("a context the template doesn't provide", () => {
     }
   });
 
-  it("after renderToString failed inside a provider of it: reads its default alone, and inside a later stream what the failed one left, till react-dom puts it back", async () => {
+  it("after renderToString failed inside a provider of it: reads its default alone, and inside a later stream", async () => {
     /** What a template reads in a component of a react-dom stream (no provider of the context in it). */
     const inStream = async (context: React.Context<unknown>) => {
       let seen = "";
@@ -341,17 +335,14 @@ describe("a context the template doesn't provide", () => {
       await streamed((page) => <><Page />{page}</>);
       return seen;
     };
-    // Inside an app's render, Elements reads what's there: react-dom's static renderer can't be asked to put back
-    // what one of its renders left there (inside the app's renderToString, that would be the app's own providers'),
-    // and react-dom's stream never sets the value the failed renderToString left (`_currentValue2`). Whether a render
-    // read it before or not; the case ARCHITECTURE.md lists (invariant 4).
+    // (0.3.0's own renderer read, inside a later stream, what the failed one left: react-dom's static render, which
+    // renders the template, puts the default back as it starts.)
     const Learned = createContext<unknown>("default");
     expect(read(Learned)).toBe("default");
     const Fresh = createContext<unknown>("default");
     for (const context of [Learned, Fresh]) {
       failed(context, "TenantB");
-      expect(await inStream(context)).toBe("TenantB");
-      expect((context as unknown as { _currentValue2: unknown })._currentValue2).toBe("TenantB");
+      expect(await inStream(context)).toBe("default");
       expect(read(context)).toBe("default");
       expect(await inStream(context)).toBe("default");
     }
@@ -359,9 +350,8 @@ describe("a context the template doesn't provide", () => {
 });
 
 describe("a context's default around an app's renders", () => {
-  // While no render of React's is running, Elements has react-dom's static renderer put back what a render of its own
-  // left in a context's value before it reads its default there (see a context the template doesn't provide, above).
-  // Inside an app's render it reads what's there: inside its renderToString, what that render provides.
+  // A template reads its default wherever it renders: alone, and inside an app's render (react-dom's static render,
+  // which renders it, starts from every context's default, and puts the app's own back when it's done).
   const tenant = "TenantA";
   /** A context, and what a template reading it renders (its plain text). */
   const brand = <T,>(fallback: T) => {
@@ -377,13 +367,12 @@ describe("a context's default around an app's renders", () => {
     renderToString(<Brand.Provider value={value}><Page /></Brand.Provider>);
     return seen;
   };
-  /** renderToString of a page that fails inside a provider of `Brand` (the app catches it): its value stays in `_currentValue2`. */
+  /** renderToString of a page that fails inside a provider of `Brand` (the app catches it): react-dom leaves its value in the context. */
   const failedInside = (Brand: React.Context<any>, value: unknown) => {
     const Fails = () => {
       throw new Error("the page failed");
     };
     expect(() => renderToString(<Brand.Provider value={value}><Fails /></Brand.Provider>)).toThrow("the page failed");
-    expect((Brand as unknown as { _currentValue2: unknown })._currentValue2).toBe(value);
   };
   /** A client render to its end: act() in development, flushSync in production builds (which have no act()). */
   const onClient = (root: Root, element: React.ReactElement) => (process.env.NODE_ENV === "production" ? flushSync(() => root.render(element)) : act(() => root.render(element)));
@@ -401,14 +390,17 @@ describe("a context's default around an app's renders", () => {
     }
   };
 
-  it("reads an app's renderToString provider, as 0.2 did, before and after a render alone", () => {
+  it("reads its default inside an app's renderToString, not the app's provider, before and after a render alone", () => {
     const { Brand, read } = brand("default");
-    expect(inRenderToString(Brand, read, tenant)).toBe("brand=TenantA");
-    expect(inRenderToString(Brand, read, tenant)).toBe("brand=TenantA");
+    expect(inRenderToString(Brand, read, tenant)).toBe("brand=default");
     expect(read()).toBe("brand=default");
-    // (A 0.3.0 build read its default there once a render alone had read it.)
-    expect(inRenderToString(Brand, read, tenant)).toBe("brand=TenantA");
-    expect(read()).toBe("brand=default");
+    expect(inRenderToString(Brand, read, tenant)).toBe("brand=default");
+    // (The app's render reads its own provider after it.)
+    let after = "";
+    const Reads = () => ((after = String(useContext(Brand))), <div />);
+    const Page = () => (read(), <div />);
+    renderToString(<Brand.Provider value={tenant}><Page /><Reads /></Brand.Provider>);
+    expect(after).toBe(tenant);
   });
 
   it("reads one value for a context throughout a render that starts inside an app's renderToString and goes on after it", async () => {
@@ -437,10 +429,10 @@ describe("a context's default around an app's renders", () => {
       renderToString(<Brand.Provider value={tenant}><Page /></Brand.Provider>);
       return text!.then((plain) => plain.split(/\n+/).map((line) => line.trim()));
     };
-    // renderToString's value, throughout (react-dom has put the default back after it returned); alone, the default.
-    expect(await started()).toEqual(["wrapper=TenantA", "consumer=TenantA", "later=TenantA"]);
+    // Its default, throughout (an async render starts once the call that started it is over); alone, the default too.
+    expect(await started()).toEqual(["wrapper=default", "consumer=default", "later=default"]);
     expect((await asyncRenderers.renderToPlainText(<Welcome />)).split(/\n+/).map((line) => line.trim())).toEqual(["wrapper=default", "consumer=default", "later=default"]);
-    expect(await started()).toEqual(["wrapper=TenantA", "consumer=TenantA", "later=TenantA"]);
+    expect(await started()).toEqual(["wrapper=default", "consumer=default", "later=default"]);
   });
 
   it("reads a default of undefined", () => {
@@ -451,17 +443,14 @@ describe("a context's default around an app's renders", () => {
     expect(read()).toBe("brand=undefined");
   });
 
-  it("reads its default after a client render: React leaves its idle dispatcher in the slot, which is no render running", () => {
+  it("reads its default after a client render", () => {
     client(<p>an app's client render</p>);
-    // (React's ContextOnlyDispatcher, its hooks one function: a React that changes it fails here, not by reading what
-    // a failed renderToString left.)
-    expect(isIdleDispatcher(theSlot()?.get())).toBe(true);
     const { Brand, read } = brand("default");
     failedInside(Brand, "TenantB");
     expect(read()).toBe("brand=default");
   });
 
-  it("reads its default in an effect of a client render, where React's dispatcher is idle", async () => {
+  it("reads its default in an effect of a client render", async () => {
     const { Brand, read } = brand("default");
     const seen: string[] = [];
     const Preview = () => {
@@ -474,15 +463,14 @@ describe("a context's default around an app's renders", () => {
     expect(seen).toEqual(["brand=default"]);
   });
 
-  it("reads what's there while a client render runs: its dispatchers aren't idle", () => {
+  it("reads its default while a client render runs, not the client's provider", () => {
     const { Brand, read } = brand("default");
     expect(read()).toBe("brand=default");
-    // Inside an app's render, react-dom's static renderer isn't asked to put back what one of its renders left (see
-    // a context the template doesn't provide, above): here, what a renderToString left, which is also the client's
-    // provider's.
+    // (0.3.0's own renderer read what's there inside an app's render: here, what a renderToString left, which is also
+    // the client's provider's.)
     failedInside(Brand, "TenantB");
     const seen: Array<[boolean, string]> = [];
-    const Preview = ({ n }: { n: number }) => (seen.push([isIdleDispatcher(theSlot()?.get()), read()]), <div>{n}</div>);
+    const Preview = ({ n }: { n: number }) => (seen.push([false, read()]), <div>{n}</div>);
     const root = createRoot(document.createElement("div"));
     try {
       onClient(root, <Brand.Provider value="TenantB"><Preview n={1} /></Brand.Provider>);
@@ -490,9 +478,8 @@ describe("a context's default around an app's renders", () => {
     } finally {
       onClient(root, <></>);
     }
-    // Mounting and updating, a host: what's there is read.
-    expect(seen.map(([idle]) => idle)).toEqual(seen.map(() => false));
-    expect(seen.map(([, text]) => text)).toEqual(seen.map(() => "brand=TenantB"));
+    // Mounting and updating: the default.
+    expect(seen.map(([, text]) => text)).toEqual(seen.map(() => "brand=default"));
     expect(seen.length).toBeGreaterThanOrEqual(2);
     expect(read()).toBe("brand=default");
     renderToString(<p />);
@@ -528,10 +515,8 @@ describe("a render", () => {
   // Its nonce comes from the clock and a count of renders: where the clock stands still (fake timers) or there's
   // none, an email renders as it does with one, and so does an email rendered inside a component of it.
   it("renders the same where the clock stands still or there's none", () => {
-    const Inner = () => {
-      const inner = renderToHtml(<Email><Row><Column><Paragraph>Inner email</Paragraph></Column></Row></Email>);
-      return <Html html={inner.includes("Inner email") ? "<p>Inner ok</p>" : "<p>Inner missing</p>"} />;
-    };
+    // (A render the user's code starts while the render runs: a custom tool's exporter's.)
+    const Inner = registerTool({ name: "clock-inner", renderer: { exporters: { email: () => (renderToHtml(<Email><Row><Column><Paragraph>Inner email</Paragraph></Column></Row></Email>).includes("Inner email") ? "<p>Inner ok</p>" : "<p>Inner missing</p>") } } });
     const email = () => <Email><Row><Column><Paragraph>Outer</Paragraph><Inner /></Column></Row></Email>;
     const outputs = () => [renderToHtml(email()), JSON.stringify(renderToJson(email())), renderToPlainText(email())];
     const expected = outputs();

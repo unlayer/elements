@@ -9,7 +9,10 @@
  */
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import React, { Component, Fragment, createContext, forwardRef, memo, useContext, useDeferredValue, useLayoutEffect, useMemo, useState, useSyncExternalStore, useTransition } from "react";
-import { renderToString } from "react-dom/server";
+// (An app's own render on the server, in react-dom's browser build: one in react-dom/server's static renderer, which
+// renders templates, can't have a render of Elements' in a hook: src/utils/nested-renders.test.tsx.)
+// @ts-ignore react-dom/server.browser has no types of its own (the same API as react-dom/server).
+import { renderToString } from "react-dom/server.browser";
 import { createRoot } from "react-dom/client";
 import * as current from "../index";
 import * as previous from "@unlayer/react-elements-previous";
@@ -145,6 +148,13 @@ const CASES: Record<string, (L: Lib) => React.ReactElement> = {
   },
 };
 
+/**
+ * A render started while a component of the template is called: react-dom/server, which renders templates, can't
+ * start one inside its own, so it fails with a RenderError saying so (src/utils/nested-renders.test.tsx), where the
+ * previous release's walk of the tree rendered it.
+ */
+const NESTED = new Set(["renderToPlainText inside a component, then hooks", "renderToHtml inside a component, then hooks"]);
+
 /** Markup React rejects: the render fails (a RenderError naming it), and leaves it out with `onError: "omit"`. */
 const REJECTED = new Set(["markup React rejects among the rows (a string style)", "markup React rejects in a component in a Column", "dangerouslySetInnerHTML given as a string", "children and dangerouslySetInnerHTML both", "a void element with children"]);
 
@@ -191,6 +201,12 @@ describe.each(Object.entries(CASES))("%s", (name, build) => {
   for (const api of Object.keys(API) as Api[]) {
     for (const [place, within] of Object.entries(PLACES)) {
       it(`${api}, ${place}: renders where the previous release did, with every word it showed`, () => {
+        if (NESTED.has(name)) {
+          const refused = attempt(() => within(() => API[api](releases.current, build(releases.current))));
+          expect(refused.error).toBeInstanceOf(current.RenderError);
+          expect(String((refused.error as Error).message)).toMatch(/can't start while a component of a template that Elements is rendering synchronously is called/);
+          return;
+        }
         if (options) expect(attempt(() => within(() => API[api](releases.current, build(releases.current)))).error).toBeInstanceOf(current.RenderError);
         const before = attempt(() => within(() => API[api](releases.previous, build(releases.previous))));
         if (before.error) return; // the previous release didn't render it: nothing to keep

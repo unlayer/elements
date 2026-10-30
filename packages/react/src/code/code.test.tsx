@@ -240,7 +240,9 @@ describe("highlightCode() in a render", () => {
     expect(budget()).toHaveLength(2);
   });
 
-  it("gives a render started inside a component's call its own work, its wrappers' calls included", () => {
+  // (A render started in a component's call fails: react-dom can't start one inside its own, see
+  // src/utils/nested-renders.test.tsx. A custom tool's exporter, which runs while the render runs, starts them here.)
+  it("gives a render started while another runs its own work, its wrappers' calls included", () => {
     function Snippet() {
       return (
         <Email>
@@ -254,10 +256,7 @@ describe("highlightCode() in a render", () => {
     }
     const alone = renderToHtml(<Snippet />);
     let inner = "";
-    function Preview() {
-      inner = renderToHtml(<Snippet />);
-      return <Paragraph>preview</Paragraph>;
-    }
+    const Preview = registerTool({ name: "work-preview", renderer: { exporters: { email: () => ((inner = renderToHtml(<Snippet />)), "<p>preview</p>") } } });
     // The outer render's first block takes all of its work: the inner render has its own.
     renderToHtml(
       <Email>
@@ -282,10 +281,7 @@ describe("highlightCode() in a render", () => {
         </Email>
       );
     }
-    function First() {
-      renderToHtml(<Big />);
-      return null;
-    }
+    const First = registerTool({ name: "work-first", renderer: { exporters: { email: () => (renderToHtml(<Big />), "<p>first</p>") } } });
     const small = (
       <Row>
         <Column>
@@ -307,7 +303,7 @@ describe("highlightCode() in a render", () => {
     ).toContain(renderToHtml(<Email>{small}</Email>).match(/<pre[\s\S]*<\/pre>/)![0]);
   });
 
-  it("charges the user's code a render runs outside its components' calls to that render: a Consumer's render prop, a custom tool's exporter", () => {
+  it("charges the user's code a render runs to that render: a Consumer's render prop, a custom tool's exporter", () => {
     // They ran with the work of whatever render was running: none at the top (12 of 8 KB all highlighted), the outer
     // render's in one a component starts (the outer render's own block lost its colors).
     const Theme = React.createContext("light");
@@ -323,14 +319,11 @@ describe("highlightCode() in a render", () => {
     const each = (html: string) => html.split('<pre style="').slice(1).map((b) => colored(b) > 0);
     expect(each(renderToHtml(blocks((i) => <React.Fragment key={i}>{consumed()}</React.Fragment>)))).toEqual([true, false, false]);
     expect(each(renderToHtml(blocks((i) => <Snip key={i} code={code(8000)} />)))).toEqual([true, false, false]);
-    // In a render a component starts: its own, and none of the outer one's.
+    // In a render the user's code starts while another runs: its own, and none of the outer one's.
     const inner = () => blocks((i) => <React.Fragment key={i}>{i === 0 ? consumed() : null}</React.Fragment>);
     const alone = renderToHtml(inner());
     let nested = "";
-    function Embed() {
-      nested = renderToHtml(inner());
-      return <Paragraph>embedded</Paragraph>;
-    }
+    const Embed = registerTool({ name: "work-embed", renderer: { exporters: { email: () => ((nested = renderToHtml(inner())), "<p>embedded</p>") } } });
     const outer = renderToHtml(
       <Email>
         <Row>
