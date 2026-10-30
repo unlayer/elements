@@ -681,6 +681,20 @@ describe("sanitizeHtml", () => {
   // A reply's HTML (a support ticket's, a comment's) with an end tag of what it isn't in, or an element it doesn't end,
   // broke out of its block: `</td></tr></table>` ended the Column it was in (its link a full-width banner), an `<a href>`
   // made every block after it in the Column the reply's link.
+  it("balances tags in time linear in the HTML's size, however many end tags match nothing open", async () => {
+    // (`<span>`s open and `</div>`s that end none: each was looked for through everything open.)
+    const time = (n: number) => {
+      const html = "<span>x".repeat(n) + "</div>".repeat(n);
+      const start = performance.now();
+      sanitizeHtml(html);
+      return performance.now() - start;
+    };
+    const { small, large, grows } = await growth(time, [2000, 20000], { ratio: 20, floor: 100, next: 200000 });
+    expect(grows, `${small.toFixed(1)} ms for 2,000, ${large.toFixed(1)} ms for 20,000`).toBe(false);
+    // (The negative control: what it gives is the same.)
+    expect(sanitizeHtml("<span>a<span>b</div></div>")).toBe("<span>a<span>b</span></span>");
+  });
+
   it("keeps a reply's HTML in its block: an end tag of nothing open left out, what's left open closed", () => {
     expect(sanitizeHtml("Thanks!</td></tr></table>")).toBe("Thanks!");
     expect(sanitizeHtml('See <a href="https://evil.example/login">here')).toBe('See <a href="https://evil.example/login">here</a>');

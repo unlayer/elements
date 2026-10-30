@@ -159,16 +159,24 @@ const VOID = new Set("area base br col embed hr img input link meta param source
  */
 export function balanced(html: string): string {
   const open: string[] = [];
+  // (How many of each name are open: an end tag of one that isn't is left out at once, whatever's open.)
+  const counts = new Map<string, number>();
   const out = html.replace(/<(\/?)([a-zA-Z][a-zA-Z0-9-]*)\b[^>]*>/g, (tag, close: string, given: string) => {
     const name = given.toLowerCase();
     if (VOID.has(name)) return close ? "" : tag;
     if (!close) {
       open.push(name);
+      counts.set(name, (counts.get(name) ?? 0) + 1);
       return tag;
     }
-    const at = open.lastIndexOf(name);
-    if (at < 0) return "";
-    return open.splice(at).reverse().map((n) => `</${n}>`).join("");
+    if (!counts.get(name)) return "";
+    let ends = "";
+    for (;;) {
+      const last = open.pop()!;
+      counts.set(last, counts.get(last)! - 1);
+      ends += `</${last}>`;
+      if (last === name) return ends;
+    }
   });
   return out + open.reverse().map((n) => `</${n}>`).join("");
 }
