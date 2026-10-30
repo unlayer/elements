@@ -25,8 +25,9 @@ const RAW = new Set(["script", "style"]);
 /** The elements whose content a parser reads to their own end tag (see host.ts's headFormat). */
 const TO_END_TAG = new Set(["style", "script", "title", "textarea", "noscript", "noembed", "noframes", "iframe", "xmp"]);
 
-/** React 18's text escaping, undone where a <Head>'s style or script text is written as given (see host.ts). */
-const unescape18 = (s: string) => (REACT_18 ? s.replace(/&amp;|&lt;|&gt;|&quot;|&#x27;/g, (e) => ({ "&amp;": "&", "&lt;": "<", "&gt;": ">", "&quot;": '"', "&#x27;": "'" })[e]!) : s);
+/** React's text escaping, undone where a <Head>'s style or script text is written as given (see host.ts). */
+const unescaped = (s: string) => s.replace(/&amp;|&lt;|&gt;|&quot;|&#x27;/g, (e) => ({ "&amp;": "&", "&lt;": "<", "&gt;": ">", "&quot;": '"', "&#x27;": "'" })[e]!);
+const unescape18 = (s: string) => (REACT_18 ? unescaped(s) : s);
 
 export const FORGED = "the template's markup holds a marker of Elements' own collecting render that React didn't write there (an `<unlayer-mark>` or `<!--u…-->` with this render's number, one React wrote elsewhere or left out): it can't be read as the template, so the render fails";
 
@@ -46,6 +47,8 @@ interface Open {
   raw?: boolean;
   inert?: boolean;
   floor?: boolean;
+  /** In a <Head>'s style's or script's text rendered in a marker (collector.ts's headText): React's escaping undone. */
+  unescape?: boolean;
 }
 
 /** The placeholder react-dom writes for the collection's HTML number `n` (see the collector's `withRaw`). */
@@ -65,6 +68,7 @@ export function parse(html: string, c: Collection): Part[] {
   const text = (s: string) => {
     if (!s) return;
     if (top().raw) s = unescape18(s);
+    else if (top().unescape) s = unescaped(s);
     const parts = top().parts;
     const last = parts.length - 1;
     if (typeof parts[last] === "string") parts[last] += s;
@@ -89,8 +93,9 @@ export function parse(html: string, c: Collection): Part[] {
       if (raw && given(c, n, false)) {
         if (c.rawRead.has(n)) throw forged();
         c.rawRead.add(n);
-        // HTML given whole: the element's own, as written (nothing in it read for a marker).
-        top().parts.push(c.raw[n].html);
+        // HTML given whole: the element's own, as written (nothing in it read for a marker); a <Head>'s title's, what
+        // its marker held.
+        top().parts.push(...whole(c, n));
         at = lt + raw[0].length;
         continue;
       }
@@ -156,7 +161,8 @@ export function parse(html: string, c: Collection): Part[] {
       if (c.read.has(n)) throw forged();
       c.read.add(n);
       const quiet = c.marks[n].k === "r" && (c.marks[n] as { quiet?: boolean }).quiet;
-      stack.push({ tag: MARK, parts: markPart(c, n, from.parts), head: from.head || !!quiet, foreign: from.foreign, ends: quiet ? (c.headEnds ?? []) : from.ends });
+      const held = c.marks[n].k === "t" ? (c.marks[n] as { unescape: boolean; ends: readonly string[] }) : undefined;
+      stack.push({ tag: MARK, parts: markPart(c, n, from.parts), head: from.head || !!quiet, foreign: from.foreign, ends: held ? held.ends : quiet ? [] : from.ends, unescape: held ? held.unescape : from.unescape });
       at = gt + 1;
       continue;
     }
@@ -178,12 +184,12 @@ export function parse(html: string, c: Collection): Part[] {
       const found = endTag.exec(html);
       const stop = found ? found.index : html.length;
       const content = html.slice(at, stop);
-      const whole = placeholder.exec(content);
-      const n = whole && whole[0].length === content.length ? Number(whole[1]) : -1;
+      const only = placeholder.exec(content);
+      const n = only && only[0].length === content.length ? Number(only[1]) : -1;
       if (given(c, n, true)) {
         if (c.rawRead.has(n)) throw forged();
         c.rawRead.add(n);
-        host.parts.push(c.raw[n].html);
+        host.parts.push(...whole(c, n));
       } else if (REACT_18) {
         stack.push({ tag: lower, parts: host.parts, host, head: from.head, foreign, ends: from.ends, raw: raw || from.raw, inert: true, floor: true });
         continue;
@@ -194,7 +200,7 @@ export function parse(html: string, c: Collection): Part[] {
       continue;
     }
     const ends = from.head && !foreign && TO_END_TAG.has(lower) ? [...(from.ends ?? []), lower] : from.ends;
-    stack.push({ tag: lower, parts: host.parts, host, head: from.head, foreign, ends, raw: from.raw, inert: from.inert });
+    stack.push({ tag: lower, parts: host.parts, host, head: from.head, foreign, ends, raw: from.raw, inert: from.inert, unescape: from.unescape });
   }
   kept(c);
   return root;
@@ -217,6 +223,12 @@ function kept(c: Collection): void {
 }
 
 const forged = () => new RenderError(FORGED, "template", "");
+
+/** What HTML given whole `n` is: as written, or what the marker of a <Head>'s text it's from held (read before it). */
+const whole = (c: Collection, n: number): Part[] => {
+  const from = c.raw[n].from;
+  return from === undefined ? [c.raw[n].html] : (c.texts.get(from) ?? []);
+};
 
 /**
  * What failed inside a <Suspense> whose fallback React rendered (its marker `n`, at `frame`), or undefined where
@@ -259,6 +271,12 @@ function markPart(c: Collection, n: number, into: Part[]): Part[] {
       const part: ErrorPart = { t: "error", error: mark.error as RenderError, fatal: mark.fatal };
       into.push(part);
       return [];
+    }
+    case "t": {
+      // What a <Head>'s style, script or title holds: kept for the element's HTML given whole (see whole), not here.
+      const parts: Part[] = [];
+      c.texts.set(n, parts);
+      return parts;
     }
     case "fb": {
       // A <Suspense>'s fallback React rendered: what's in it suspended (a synchronous render), or failed.

@@ -346,3 +346,37 @@ describe("a <Head>'s <style>, <script> or <title> with an async component in it,
     expect(await renderAsync(<Email><Head><style>{".brand{color:#ff5500}"}</style></Head><Row><Column><Paragraph>Hi</Paragraph></Column></Row></Email>)).toContain(".brand{color:#ff5500}");
   });
 });
+
+describe("a <Head>'s <style>, <script> or <title> with a component in it that reads a context", () => {
+  // On React 19, which renders no component in one, what's in it was rendered in a render of its own, where a context
+  // reads its default: a translated title was "MISSING TRANSLATION", a brand's CSS its default color. It's rendered
+  // where it is now, as on React 18, with the template's contexts.
+  const Messages = React.createContext<Record<string, string>>({});
+  const Brand = React.createContext("#abcdef");
+  const T = ({ id }: { id: string }) => <>{React.useContext(Messages)[id] ?? "MISSING TRANSLATION"}</>;
+  const BrandCss = () => <>{`.brand{color:${React.useContext(Brand)}}`}</>;
+  const BrandJson = () => <>{JSON.stringify({ color: React.useContext(Brand) })}</>;
+  const template = (
+    <Messages.Provider value={{ title: "Your receipt" }}>
+      <Brand.Provider value="#ff5a00">
+        <Email>
+          <Head>
+            <title><T id="title" /></title>
+            <style><BrandCss /></style>
+            <script type="application/ld+json"><BrandJson /></script>
+          </Head>
+          <Row><Column><Paragraph>Thanks</Paragraph></Column></Row>
+        </Email>
+      </Brand.Provider>
+    </Messages.Provider>
+  );
+
+  it("reads the template's value there, in the synchronous and async renderers", async () => {
+    for (const html of [renderToHtml(template), await asyncRenderers.renderToHtml(template)]) {
+      expect(html).toContain("<title>Your receipt</title>");
+      expect(html).toContain(".brand{color:#ff5a00}");
+      expect(html).toContain('{"color":"#ff5a00"}');
+      expect(html).not.toMatch(/MISSING TRANSLATION|#abcdef/);
+    }
+  });
+});

@@ -60,7 +60,7 @@ function failure(error: unknown, options: CollectOptions, frame: ReturnType<type
 }
 
 /** Elements' own components, which a component stack names around the user's: not what failed. */
-const OWN = new Set(["Call", "Marker", "RawRendered", "LazyDone", "Stamp", "Awaited", "ContextValue", "HeadText", "Collected", "Suspense", "Lazy"]);
+const OWN = new Set(["Call", "Marker", "RawRendered", "LazyDone", "Stamp", "Awaited", "ContextValue", "Collected", "Suspense", "Lazy"]);
 /**
  * The component a React error was thrown in, from the component stack react-dom gives its `onError` (a development
  * build's): the first named one inside the lazy component it's in (past its place, LazyRendered, what's named isn't

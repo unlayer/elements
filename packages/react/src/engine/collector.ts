@@ -65,6 +65,12 @@ export type Mark = (
   | { k: "s"; boundary: number }
   /** A <Suspense> of the template's own: its fallback, where React rendered it (see parse.ts's fallbackFailed). */
   | { k: "fb"; frame: Frame }
+  /**
+   * What a <Head>'s <style>, <script> or <title> holds on React 19, which renders no component or markup in one: rendered
+   * here, where it is, for the element's HTML given whole (`raw`'s `from`): its text read as written (`unescape`),
+   * and what's in it whose content runs to its end tag (`ends`). See prepHost.
+   */
+  | { k: "t"; unescape: boolean; ends: readonly string[] }
 ) & { scope?: number };
 
 export interface Collection {
@@ -109,8 +115,12 @@ export interface Collection {
    */
   rendered: Set<number>;
   read: Set<number>;
-  /** HTML given whole (`text`: a <style>'s or <script>'s, its whole text), the part of the tree it's in, those rendered. */
-  raw: Array<{ html: string; text?: boolean; scope: number }>;
+  /**
+   * HTML given whole (`text`: a <style>'s or <script>'s, its whole text), the part of the tree it's in, those rendered;
+   * `from`: what a marker of a <Head>'s text holds instead (see prepHost), read into `texts` by the parse.
+   */
+  raw: Array<{ html: string; text?: boolean; scope: number; from?: number }>;
+  texts: Map<number, Part[]>;
   rawRendered: Set<number>;
   rawRead: Set<number>;
   /**
@@ -123,8 +133,6 @@ export interface Collection {
   /** What failed in a <style>'s or <script>'s text (no marker there), by the boundary it's in; the boundaries' parts. */
   rawErrors: Array<{ error: unknown; fatal: boolean; boundary: number }>;
   boundaryParts: Map<number, Part[]>;
-  /** A <Head>'s markup rendered on its own (headHtmlOf): the elements it's in whose content runs to their end tag. */
-  headEnds?: readonly string[];
 }
 
 interface Ctx {
@@ -147,6 +155,8 @@ interface Ctx {
   scope?: number;
   /** In an async render, the place in tree order of the component this place is what it returned (see Order). */
   order?: Order;
+  /** In a <Head>'s text (see headText): nothing in it is recorded. */
+  text?: boolean;
   /**
    * The components of the template's own (their boundaries' records) whose markup this place's is, up to the nearest
    * Row, Column or block: where a <Link> renders, each is said to hold one (`link`), so its markup is cleaned as a
@@ -212,6 +222,7 @@ export function newCollection(options: { collector?: Collector; passes?: (error:
     rendered: new Set(),
     read: new Set(),
     raw: [],
+    texts: new Map(),
     rawRendered: new Set(),
     rawRead: new Set(),
     scopes: [],
@@ -353,7 +364,7 @@ function prepElement(element: React.ReactElement, c: Collection, ctx: Ctx, keep 
   const props = element.props as Record<string, any>;
   if (typeof type === "string") return prepHost(element, c, ctx);
   // (Nothing is recorded in a <style>'s or <script>'s text: it's text, and no marker goes there.)
-  const recorded = ctx.raw ? undefined : c.collector?.(element);
+  const recorded = ctx.raw || ctx.text ? undefined : c.collector?.(element);
   if (recorded) return prepRecorded(recorded, c, ctx, element.key);
   const inner: Ctx = { ...ctx, watch: null };
   if (typeof type === "function") {
@@ -478,31 +489,14 @@ function prepHost(element: React.ReactElement, c: Collection, ctx: Ctx): React.R
   const inner: Ctx = { ...ctx, watch: null, foreign: foreign || undefined, ends };
   if (textOnly) {
     // Its text, taken whole by the parse: no marker is put in it (`raw`). In a <Head> on React 19, which writes it as
-    // given and writes no component, list or markup in it, it's rendered here and given to React as one string: as a
-    // browser reads what's between its tags (rawTextOf), or under an <svg> or <math> escaped as any text.
+    // given and writes no component, list or markup in it, what's in it is rendered where it is (headText).
     const given = children != null && typeof children !== "boolean" && (typeof children === "object" || (!!inner.foreign && typeof children === "string"));
     if (!ctx.head || REACT_18 || !given) return React.cloneElement(element, urls as object, prep(children, c, { ...inner, raw: true }, true));
-    // (An async render waits for what's async in it: see HeadText.)
-    if (c.async) return React.createElement(HeadText, { c, ctx, at: nextOrder(c, ctx), type, start: () => headHtmlAsync(children, c, !!inner.foreign, inner.ends ?? [], true), done: (text: string) => React.cloneElement(element, urls as object, text) });
-    let text: string;
-    try {
-      text = rawTextOf(children, c, !!inner.foreign, inner.ends ?? []);
-    } catch (error) {
-      return fails(c, nextOrder(c, ctx), errorMark(c, error, type, placeFrame(ctx.frame, type), ctx));
-    }
-    return React.cloneElement(element, urls as object, text);
+    return headText(c, ctx, inner, element, urls, children, true);
   }
-  // A <Head>'s <title> on React 19, which writes no component or markup in it: what's in it rendered here, as a
-  // <Head>'s markup (its style's and script's text as given), given to React as its HTML.
+  // A <Head>'s <title> on React 19, which writes no component or markup in it: the same, its HTML as a <Head>'s markup.
   if (type === "title" && ctx.head && !REACT_18 && children != null && typeof children === "object") {
-    if (c.async) return React.createElement(HeadText, { c, ctx, at: nextOrder(c, ctx), type, start: () => headHtmlAsync(children, c, !!inner.foreign, inner.ends ?? ["title"], false), done: (html: string) => withRaw(c, ctx, element, { ...urls, children: undefined }, html) });
-    let html: string;
-    try {
-      html = headHtmlOf(children, c, !!inner.foreign, inner.ends ?? ["title"]);
-    } catch (error) {
-      return fails(c, nextOrder(c, ctx), errorMark(c, error, type, placeFrame(ctx.frame, type), ctx));
-    }
-    return withRaw(c, ctx, element, { ...urls, children: undefined }, html);
+    return headText(c, ctx, { ...inner, ends: inner.ends ?? ["title"] }, element, urls, children, false);
   }
   if (ctx.raw) return React.cloneElement(element, urls as object, prep(children, c, inner, true));
   if (children === undefined || children === null || typeof children !== "object") return urls ? React.cloneElement(element, urls as object) : element;
@@ -820,59 +814,17 @@ function ContextValue({ context, c, ctx }: { context: React.Context<unknown>; c:
   return prep(React.useContext(context), c, ctx);
 }
 
-/** React's text escaping, undone. */
-const unescapeText = (s: string) => s.replace(/&amp;|&lt;|&gt;|&quot;|&#x27;/g, (e) => ({ "&amp;": "&", "&lt;": "<", "&gt;": ">", "&quot;": '"', "&#x27;": "'" })[e]!);
-
 /**
- * A <style>'s or <script>'s children in a <Head> as their text, as a browser reads what's between its tags: what they
- * render (components, lists, markup), its text as given and its markup as written; under an <svg> or <math>
- * (`escaped`), its text escaped as any. Rendered by react-dom on its own, as a <Head>'s markup (headHtmlOf: the contexts
- * around it read their defaults, ARCHITECTURE.md), the template's components prepared and named as anywhere.
+ * A <Head>'s <style>, <script> or <title> on React 19, which renders no component, list or markup in one: what's in it
+ * rendered where it is (with the template's contexts, what's async in it waited for), in a marker React writes before
+ * it, and the element given that as its HTML whole (`raw`'s `from`), which the parse puts back (parse.ts): a style's or
+ * script's text as a browser reads what's between its tags (its text as given, its markup as written; under an <svg>
+ * or <math>, escaped as any text), a title's as markup. What's in it is recorded nowhere (`text`).
  */
-function rawTextOf(children: unknown, c: Collection, escaped: boolean, ends: readonly string[]): string {
-  const html = headHtmlOf(children, c, escaped, ends);
-  if (escaped) return html;
-  return html.split(/(<[^>]*>)/).map((piece, i) => (i % 2 ? piece : unescapeText(piece))).join("");
-}
-
-/** headHtmlOf (or, `text`, rawTextOf) in an async render: what's async in it waited for, with react-dom's stream. */
-async function headHtmlAsync(children: unknown, c: Collection, foreign: boolean, ends: readonly string[], text: boolean): Promise<string> {
-  const own = newCollection({ collector: undefined, passes: c.passes, frameless: c.frameless, own: c.own, omit: false, async: true, shared: c.shared });
-  own.headEnds = ends;
-  const holder: { content?: Item[] } = {};
-  const markup = await streamedMarkup(prep(recordNode(holder, children as React.ReactNode, true), own, { ...rootCtx({ name: "title", label: "title", parent: null, counts: null }), head: true, foreign }), undefined, (raw) => raw);
-  if (flatten(withRawErrors(own, parse(markup, own)), false) === PENDING) return "";
-  const html = htmlOf(holder.content ?? []);
-  return !text || foreign ? html : html.split(/(<[^>]*>)/).map((piece, i) => (i % 2 ? piece : unescapeText(piece))).join("");
-}
-
-/**
- * A <Head>'s <style>, <script> or <title> whose children React 19 doesn't render (a component, a list), in an async
- * render: what they render (`start`), waited for; then the element given it (`done`). Its props are its place's own.
- */
-function HeadText(placed: { c: Collection; ctx: Ctx; at: Order; type: string; start: () => Promise<string>; done: (text: string) => React.ReactNode }): React.ReactNode {
-  const { c, ctx, at, type, start, done } = placed;
-  // (React's development build calls a component again, with no props, to say where a warning came from.)
-  if (!c) return null;
-  let pending = c.pending.get(placed);
-  if (!pending) {
-    pending = start() as Tracked;
-    pending.then(undefined, () => {});
-    track(pending);
-    c.pending.set(placed, pending);
-  }
-  if (pending.status === "fulfilled") return done(String(pending.value));
-  if (pending.status === "rejected") return fails(c, at, errorMark(c, pending.reason, type, placeFrame(ctx.frame, type), ctx));
-  throw pending;
-}
-
-/** What `children` render as a <Head>'s markup (in a record of its own that's a <Head>'s: see parse.ts), as HTML. */
-function headHtmlOf(children: unknown, c: Collection, foreign: boolean, ends: readonly string[] = ["title"]): string {
-  const own = newCollection({ collector: undefined, passes: c.passes, frameless: c.frameless, own: c.own, omit: false, shared: c.shared });
-  // (What it's in: in a <title>, its end tag is escaped in a style's or script's text there.)
-  own.headEnds = ends;
-  const holder: { content?: Item[] } = {};
-  const html = staticMarkup(prep(recordNode(holder, children as React.ReactNode, true), own, { ...rootCtx({ name: "title", label: "title", parent: null, counts: null }), head: true, foreign }));
-  if (flatten(withRawErrors(own, parse(html, own)), false) === PENDING) return "";
-  return htmlOf(holder.content ?? []);
+function headText(c: Collection, ctx: Ctx, inner: Ctx, element: React.ReactElement, props: object | undefined, children: unknown, text: boolean): React.ReactNode {
+  const at = c.marks.push({ k: "t", unescape: text && !inner.foreign, ends: inner.ends ?? [], scope: ctx.scope }) - 1;
+  const content = withMark(c, at, prep(children, c, { ...inner, text: true }, true), "text");
+  const n = c.raw.push({ html: "", text, scope: ctx.scope ?? -1, from: at }) - 1;
+  const own = React.cloneElement(element, { ...props, children: undefined, dangerouslySetInnerHTML: { __html: placeholderOf(c.nonce, n) } } as object);
+  return React.createElement(React.Fragment, { key: element.key ?? undefined }, content, React.createElement(RawRendered, { key: "own", c, n }, own));
 }
