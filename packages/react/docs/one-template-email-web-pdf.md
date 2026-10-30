@@ -61,7 +61,7 @@ export function invoiceTemplate(data: InvoiceData, mode: "email" | "web" | "docu
   const receiptUrl = new URL(data.receiptUrl);
   if (receiptUrl.protocol !== "https:") throw new Error("receiptUrl must use HTTPS");
 
-  // Keep Row and Column directly visible to renderToJson's static tree walker.
+  // Row and Column in the tree, as in the email: renderToJson keeps them in the design.
   const content = (
     <Row layout={ColumnLayouts.OneColumn} backgroundColor="#ffffff" padding="24px">
       <Column>
@@ -89,7 +89,7 @@ export function invoiceTemplate(data: InvoiceData, mode: "email" | "web" | "docu
 }
 ```
 
-The factory returns the actual root, so the renderer can infer the correct mode and collect its document styles. Content is declared once. Keeping `Row` and `Column` directly in the tree also makes it usable by the static `renderToJson()` walker.
+The factory returns the actual root, so the renderer can infer the correct mode and collect its document styles. Content is declared once. `renderToJson()` renders the same template, so the design keeps its `Row`s and `Column`s.
 
 ## Render all outputs
 

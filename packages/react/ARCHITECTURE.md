@@ -170,8 +170,8 @@ what's in it. A template wrapper that waits is waited for as above (Unwrap).
 ### Ids
 
 `useId()` is React's own, in the installed React's format (`:R1:`, `«R1»`, `_R_1_`): the collector moves nothing in
-the tree (a record's content is where a list of three, its two ends and it, has it, as 0.3's own renderer numbered
-it; a boundary, a marker and `Call` are no place of their own). `idPrefix` (render options, a root's `config`, an
+the tree (a record's content is where a list of three, its two ends and it, has it, so its ids are the ones the
+previous releases gave it; a boundary, a marker and `Call` are no place of their own). `idPrefix` (render options, a root's `config`, an
 `<UnlayerProvider>`'s) is React's `identifierPrefix` (`«em-R1»`). The template wrappers are the tree's top, and the
 content continues from where they left it (a wrapper that called `useId()` forks it, found by a probe's id: no
 internals), so their ids and the content's are one document's.
@@ -209,8 +209,8 @@ its cell (the Row is made again without it, its Columns after it moving up; with
 with it); what a head function that fails gives the document's head (a RenderError naming its block, `<tool>'s head
 failed: …`): the block itself renders, as in the design, which runs no head function and has no head to disagree with.
 The render is then the template's without that part. A template that isn't one always fails the render,
-`onError` or not: an undefined component (a broken or circular import), an object or a date as a child, a portal, a Client
-Component in server code.
+`onError` or not: an undefined component (a broken or circular import), an object or a date as a child, a Client
+Component in server code. (A portal is left out with `onError: "omit"`, said.)
 
 **The design and the exporters.** No exporter makes the design, so `renderToJson()` doesn't render the HTML: by
 default, a template whose only failure is an exporter's gives its design, block included, while `renderToHtml()` and
