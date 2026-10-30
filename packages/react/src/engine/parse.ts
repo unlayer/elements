@@ -103,9 +103,9 @@ export function parse(html: string, c: Collection): Part[] {
         continue;
       }
       const stop = end + 3;
-      // (react-dom's stream writes its own comments, where its Suspense boundaries are and between texts: the
+      // (react-dom's stream writes its own comments, where its Suspense and <Activity> boundaries are and between texts: the
       // template's comments are only in HTML given whole, which isn't here.)
-      if (!(c.async && /^<!--(?:\$[?!]?|\/\$| |&)-->$/.test(html.slice(lt, stop)))) text(html.slice(lt, stop));
+      if (!(c.async && /^<!--(?:\$[?!]?|\/\$| |&|\/&)-->$/.test(html.slice(lt, stop)))) text(html.slice(lt, stop));
       at = stop;
       continue;
     }

@@ -206,6 +206,17 @@ describe("the async renderers", () => {
     expect(texts.findIndex((t) => t.includes("Footer"))).toBe(41);
   });
 
+  // (React 19.2's stream writes an <Activity>'s start and end as comments.)
+  const Activity = (React as unknown as { Activity?: React.ComponentType<{ mode: "visible"; children?: React.ReactNode }> }).Activity;
+  it.runIf(Activity)("render what's in a visible <Activity> as what's in it (React 19.2)", async () => {
+    const Shown = Activity!;
+    const email = one(<><Shown mode="visible"><Paragraph>Promo 50% off</Paragraph></Shown><Paragraph>after</Paragraph></>);
+    const text = await renderToPlainText(email);
+    expect(text).not.toContain("<!--");
+    expect(await renderToHtml(email)).not.toMatch(/<!--\/?&-->/);
+    expect(text).toBe(renderToPlainTextSync(email));
+  });
+
   // (React 19 renders a promise given as a child as what it resolves to.)
   it.runIf(use)("wait for a promise given as a child (React 19); the synchronous renderers say which component gave it", async () => {
     const Holder = ({ text }: { text: PromiseLike<string> }) => <div>{text as unknown as React.ReactNode}</div>;
