@@ -55,15 +55,16 @@ export interface Recorded {
 }
 export type Collector = (element: React.ReactElement) => Recorded | undefined;
 
-/** What each marker stands for, by its number. */
-export type Mark =
+/** What each marker stands for, by its number, and the part of the tree it's in (its `scope`: see Collection's scopes). */
+export type Mark = (
   | { k: "r"; record: object; quiet?: boolean }
   | { k: "b"; record: object | null }
   | { k: "f"; error: unknown; fatal: boolean }
   /** A boundary's Suspense fallback: what's in it suspended (or failed, React silent) in a synchronous render. */
   | { k: "s"; boundary: number }
   /** A <Suspense> of the template's own: its fallback, where React rendered it (see parse.ts's fallbackFailed). */
-  | { k: "fb"; frame: Frame };
+  | { k: "fb"; frame: Frame }
+) & { scope?: number };
 
 export interface Collection {
   nonce: string;
@@ -108,9 +109,17 @@ export interface Collection {
    */
   rendered: Set<number>;
   read: Set<number>;
-  /** HTML given whole (`text`: a <style>'s or <script>'s, its whole text). */
-  raw: Array<{ html: string; text?: boolean }>;
+  /** HTML given whole (`text`: a <style>'s or <script>'s, its whole text), the part of the tree it's in, those rendered. */
+  raw: Array<{ html: string; text?: boolean; scope: number }>;
+  rawRendered: Set<number>;
   rawRead: Set<number>;
+  /**
+   * The parts of the tree React leaves out where it renders a <Suspense>'s fallback (of the template's, or a boundary's
+   * own), or where it doesn't (`fallback`: the fallback's own), each with the one it's in (-1: none) and the fallback's
+   * marker. Where that marker is in what React wrote (or, for a fallback's own, isn't), nothing in the part is: a
+   * marker or placeholder of one there isn't React's (parse.ts's `kept`).
+   */
+  scopes: Array<{ parent: number; marker: number; fallback?: boolean }>;
   /** What failed in a <style>'s or <script>'s text (no marker there), by the boundary it's in; the boundaries' parts. */
   rawErrors: Array<{ error: unknown; fatal: boolean; boundary: number }>;
   boundaryParts: Map<number, Part[]>;
@@ -134,6 +143,8 @@ interface Ctx {
   foreign?: boolean;
   /** In a <Head>, the elements around it whose content runs to their end tag (host.ts's headFormat). */
   ends?: readonly string[];
+  /** The part of the tree React leaves out where it renders a fallback that this place is in (Collection's scopes). */
+  scope?: number;
 }
 
 type Tracked = PromiseLike<unknown> & { status?: "pending" | "fulfilled" | "rejected"; value?: unknown; reason?: unknown };
@@ -181,7 +192,9 @@ export function newCollection(options: { collector?: Collector; passes?: (error:
     rendered: new Set(),
     read: new Set(),
     raw: [],
+    rawRendered: new Set(),
     rawRead: new Set(),
+    scopes: [],
     rawErrors: [],
     boundaryParts: new Map(),
   };
@@ -190,19 +203,34 @@ export function newCollection(options: { collector?: Collector; passes?: (error:
 export const rootCtx = (frame: Frame): Ctx => ({ frame, suspense: 0, boundary: -1, watch: null });
 
 /**
- * HTML given whole, kept by the collection, and the placeholder react-dom writes in its place (a comment, which the
- * parse swaps back: parse.ts). So nothing the template gives as HTML is read for a marker.
+ * `element` given HTML whole (`props` with it), kept by the collection: react-dom writes a placeholder in its place (a
+ * comment, which the parse swaps back: parse.ts), said rendered as a marker is (RawRendered). So nothing the template
+ * gives as HTML is read for a marker, and the parse takes no placeholder React didn't write.
  */
-function rawPlaceholder(c: Collection, html: string, text = false): string {
-  return placeholderOf(c.nonce, c.raw.push({ html, text }) - 1);
+function withRaw(c: Collection, ctx: Ctx, element: React.ReactElement, props: object, html: string, text = false): React.ReactElement {
+  const n = c.raw.push({ html, text, scope: ctx.scope ?? -1 }) - 1;
+  const own = React.cloneElement(element, { ...props, dangerouslySetInnerHTML: { __html: placeholderOf(c.nonce, n) } } as object);
+  return React.createElement(RawRendered, { key: element.key ?? undefined, c, n }, own);
 }
+
+function RawRendered({ c, n, children }: { c: Collection; n: number; children?: React.ReactNode }): React.ReactNode {
+  // (React's development build calls a component again, with no props, to say where a warning came from.)
+  if (c) c.rawRendered.add(n);
+  return children ?? null;
+}
+
+/**
+ * A part of the tree React leaves out where it renders the fallback whose marker is `marker` (or, `fallback`: the
+ * fallback's own, where it doesn't), inside ctx's.
+ */
+const newScope = (c: Collection, ctx: Ctx, marker: number, fallback?: boolean): number => c.scopes.push({ parent: ctx.scope ?? -1, marker, fallback }) - 1;
 
 /**
  * A marker as react-dom renders it, said rendered as it does (`rendered`): the parse reads no marker that wasn't. (A
  * component, which no `useId()` of the template's sees: it moves no place in the tree.)
  */
 function Marker({ c, n, children }: { c: Collection; n: number; children?: React.ReactNode }): React.ReactElement {
-  c.rendered.add(n);
+  if (c) c.rendered.add(n);
   return React.createElement(MARK, { "data-n": c.nonce, "data-i": n }, children);
 }
 const withMark = (c: Collection, n: number, children?: React.ReactNode, key?: React.Key | null): React.ReactElement => React.createElement(Marker, { key: key ?? undefined, c, n, children });
@@ -223,7 +251,7 @@ export function positioned(c: Collection, error: unknown, name: string, frame: F
 
 /** Where a part failed: a marker standing for its error, or in a <style>'s or <script>'s text (`ctx.raw`), nothing, the error kept by the boundary it's in. */
 function failedPart(c: Collection, error: unknown, fatal: boolean, ctx?: Ctx): React.ReactElement | null {
-  if (!ctx?.raw) return marker(c, { k: "f", error, fatal });
+  if (!ctx?.raw) return marker(c, { k: "f", error, fatal, scope: ctx?.scope });
   c.rawErrors.push({ error, fatal, boundary: ctx.boundary });
   return null;
 }
@@ -317,9 +345,9 @@ function prepElement(element: React.ReactElement, c: Collection, ctx: Ctx, keep 
   if (type === SUSPENSE) {
     // (Its fallback marked: where React renders it, the parse asks why. See parse.ts's fallbackFailed.)
     const at = c.marks.length;
-    c.marks.push({ k: "fb", frame: placeFrame(ctx.frame, "Suspense") });
-    const fallback = withMark(c, at, prep(props.fallback, c, inner, true));
-    return React.cloneElement(element, { fallback }, prep(props.children, c, { ...inner, suspense: ctx.suspense + 1, suspenseAt: at }, true));
+    c.marks.push({ k: "fb", frame: placeFrame(ctx.frame, "Suspense"), scope: ctx.scope });
+    const fallback = withMark(c, at, prep(props.fallback, c, { ...inner, scope: newScope(c, ctx, at, true) }, true));
+    return React.cloneElement(element, { fallback }, prep(props.children, c, { ...inner, suspense: ctx.suspense + 1, suspenseAt: at, scope: newScope(c, ctx, at) }, true));
   }
   if (type === ACTIVITY) return props.mode === "hidden" ? null : React.cloneElement(element, undefined, prep(props.children, c, inner, true));
   if (type !== null && typeof type === "object") {
@@ -413,11 +441,11 @@ function prepHost(element: React.ReactElement, c: Collection, ctx: Ctx): React.R
   // A <style>'s or <script>'s HTML (JSON-LD, CSS from data): its whole text, kept out of react-dom's output as any
   // HTML given whole, so nothing in it (a `<!--`, an end tag) is read as the template's markup.
   // (In what React 18 writes in one, an element's HTML too: the parse reads that as markup.)
-  if (html != null && html.__html != null && (!ctx.raw || REACT_18) && (textOnly || ctx.raw)) return React.cloneElement(element, { ...urls, dangerouslySetInnerHTML: { __html: rawPlaceholder(c, "" + html.__html, textOnly) } } as object);
+  if (html != null && html.__html != null && (!ctx.raw || REACT_18) && (textOnly || ctx.raw)) return withRaw(c, ctx, element, { ...urls }, "" + html.__html, textOnly);
   if (html != null && html.__html != null && !ctx.raw && !textOnly) {
     // (React writes a newline before a <pre>'s or <listing>'s HTML that starts with one, which a parser drops.)
     const lead = (type === "pre" || type === "listing") && typeof html.__html === "string" && html.__html[0] === "\n" ? "\n" : "";
-    return React.cloneElement(element, { ...urls, dangerouslySetInnerHTML: { __html: rawPlaceholder(c, lead + html.__html) } } as object);
+    return withRaw(c, ctx, element, { ...urls }, lead + html.__html);
   }
   const children = props.children;
   const lower = type.toLowerCase();
@@ -443,14 +471,14 @@ function prepHost(element: React.ReactElement, c: Collection, ctx: Ctx): React.R
   // A <Head>'s <title> on React 19, which writes no component or markup in it: what's in it rendered here, as a
   // <Head>'s markup (its style's and script's text as given), given to React as its HTML.
   if (type === "title" && ctx.head && !REACT_18 && children != null && typeof children === "object") {
-    if (c.async) return React.createElement(HeadText, { c, ctx, type, start: () => headHtmlAsync(children, c, !!inner.foreign, inner.ends ?? ["title"], false), done: (html: string) => React.cloneElement(element, { ...urls, children: undefined, dangerouslySetInnerHTML: { __html: rawPlaceholder(c, html) } } as object) });
+    if (c.async) return React.createElement(HeadText, { c, ctx, type, start: () => headHtmlAsync(children, c, !!inner.foreign, inner.ends ?? ["title"], false), done: (html: string) => withRaw(c, ctx, element, { ...urls, children: undefined }, html) });
     let html: string;
     try {
       html = headHtmlOf(children, c, !!inner.foreign, inner.ends ?? ["title"]);
     } catch (error) {
       return fails(c, nextOrder(c), errorMark(c, error, type, placeFrame(ctx.frame, type), ctx));
     }
-    return React.cloneElement(element, { ...urls, children: undefined, dangerouslySetInnerHTML: { __html: rawPlaceholder(c, html) } } as object);
+    return withRaw(c, ctx, element, { ...urls, children: undefined }, html);
   }
   if (ctx.raw) return React.cloneElement(element, urls as object, prep(children, c, inner, true));
   if (children === undefined || children === null || typeof children !== "object") return urls ? React.cloneElement(element, urls as object) : element;
@@ -473,7 +501,7 @@ function prepRecorded(recorded: Recorded, c: Collection, ctx: Ctx, key: React.Ke
 function prepRecord(node: RecordNode, c: Collection, ctx: Ctx): React.ReactNode {
   if (ctx.raw) return node.children === undefined ? null : prep(node.children, c, { ...ctx, watch: null });
   const children = node.children === undefined ? undefined : [null, keyed(prep(node.children, c, { ...ctx, watch: null, head: ctx.head || node.quiet }), 1), null];
-  return marker(c, { k: "r", record: node.record, quiet: node.quiet }, children);
+  return marker(c, { k: "r", record: node.record, quiet: node.quiet, scope: ctx.scope }, children);
 }
 
 /**
@@ -483,12 +511,15 @@ function prepRecord(node: RecordNode, c: Collection, ctx: Ctx): React.ReactNode 
 function prepBoundary(node: BoundaryNode, c: Collection, ctx: Ctx): React.ReactNode {
   if (ctx.raw) return prep(node.child, c, ctx);
   const at = c.marks.length;
-  const inner: Ctx = { ...ctx, boundary: at, watch: node.boundary ? { element: node.child, record: node.boundary as Record<string, any> } : null };
   c.marks.push({ k: "b", record: node.boundary });
+  // (In a Suspense of its own: its fallback's marker made first, so what's in it is a part React leaves out there.)
+  const fallback = c.omit && ctx.suspense === 0 ? marker(c, { k: "s", boundary: at, scope: ctx.scope }) : undefined;
+  const scope = fallback ? newScope(c, ctx, (fallback.props as { n: number }).n) : ctx.scope;
+  c.marks[at].scope = scope;
+  const inner: Ctx = { ...ctx, boundary: at, watch: node.boundary ? { element: node.child, record: node.boundary as Record<string, any> } : null, scope };
   const child = prep(node.child, c, inner);
   const element = withMark(c, at, child);
-  if (!c.omit || ctx.suspense > 0) return element;
-  return React.createElement(React.Suspense, { fallback: marker(c, { k: "s", boundary: at }) }, element);
+  return fallback ? React.createElement(React.Suspense, { fallback }, element) : element;
 }
 
 // ── Components ──
@@ -691,7 +722,8 @@ export function suspendedError(c: Collection): RenderError | undefined {
  * their element to the collection, which collects them where they are (see root-capture.ts's collectedHere). A
  * component of the user's own React renders there (the one it loads) is said where it is if it starts a render (the
  * lazy component's place, as a component Call calls). Where it hasn't loaded, a synchronous render says it's async,
- * where it is (`<lazy>`); an async one waits for it.
+ * where it is (`<lazy>`); an async one waits for it. HTML given whole in what React renders there isn't prepared: it's
+ * in react-dom's output as written, where the parse takes no marker or placeholder React didn't write (parse.ts).
  */
 function prepLazy(element: React.ReactElement, c: Collection, ctx: Ctx): React.ReactNode {
   if (ctx.raw) return element;

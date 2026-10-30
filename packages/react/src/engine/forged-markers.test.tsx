@@ -140,3 +140,114 @@ describe("a <script>'s or <style>'s text from data (JSON-LD of an order)", () =>
     });
   }
 });
+
+describe("a marker or placeholder of a part React left out (a <Suspense>'s content where it rendered the fallback)", () => {
+  // What a lazy component renders is React's own render of it (Elements can't prepare it: nothing public gives what
+  // React.lazy loads), so its HTML given whole reaches react-dom's output as written, and can name this render's
+  // markers and placeholders by number. One of a part React left out (it rendered it, then rendered the fallback) or
+  // never rendered (a fallback not shown) brought that part's content into the email; React wrote none of it there.
+  const SECRETS = ["SECRET_RAW", "SECRET_BLOCK", "SECRET_STYLE", "SECRET_FALLBACK"];
+  const NEVER = { then() {} } as PromiseLike<never>;
+  const Never = () => {
+    throw NEVER;
+  };
+  // (A lazy component that fails to load: React renders the <Suspense>'s fallback itself, in either renderer.)
+  const FailsToLoad = React.lazy(() => ({ then: (_: unknown, fail: (error: Error) => void) => fail(new Error("its chunk didn't load")) }) as Promise<never>);
+  const Raw = ({ html, tag = "div" }: { html: string; tag?: string }) => React.createElement(tag, { dangerouslySetInnerHTML: { __html: html } });
+  /** What a lazy component that has loaded renders (a thenable, resolved at once: the synchronous renderers render it). */
+  const loaded = (type: React.ComponentType<any>) => React.lazy(() => ({ then: (done: (m: { default: React.ComponentType<any> }) => void) => done({ default: type }) }) as Promise<{ default: React.ComponentType<any> }>);
+  class RawClass extends React.Component<{ html: string }> {
+    render() {
+      return <Raw html={this.props.html} />;
+    }
+  }
+  /** The ways a lazy component's own markup can give HTML whole: an element, a component of its own, a class, memo, forwardRef. */
+  const FORGERS: Record<string, (html: string) => React.ComponentType> = {
+    element: (html) => loaded(() => <Raw html={html} />),
+    "a component": (html) => loaded(() => <section><Inner html={html} /></section>),
+    "a class": (html) => loaded(() => <RawClass html={html} />),
+    memo: (html) => loaded(React.memo(() => <Raw html={html} />)),
+    forwardRef: (html) => loaded(React.forwardRef<unknown, object>(() => <Raw html={html} tag="span" />)),
+    "a style": (html) => loaded(() => <Raw html={html} tag="style" />),
+  };
+  function Inner({ html }: { html: string }) {
+    return <Raw html={html} />;
+  }
+  /** A placeholder or a marker of this render's number `r`, number `k`. */
+  const FORMS = [(r: string, k: number) => `<!--u${r}.${k}-->`, (r: string, k: number) => `<unlayer-mark data-n="${r}" data-i="${k}"></unlayer-mark>`, (r: string, k: number) => `<unlayer-mark data-n="${r}" data-i="${k}">x</unlayer-mark>`];
+  /**
+   * A template whose first Column has a part React leaves out (`how`: a <Suspense>'s content where something in it
+   * suspends or fails to load, a component of the template's own left out alone, or a fallback React doesn't render),
+   * and a lazy component after it, `Forger`.
+   */
+  const template = (how: "suspends" | "fails" | "fallback" | "boundary", Forger: React.ComponentType) => {
+    const secrets = (
+      <>
+        <Raw html="SECRET_RAW" />
+        <Paragraph>SECRET_BLOCK</Paragraph>
+        <Raw tag="style" html=".x{content:'SECRET_STYLE'}" />
+      </>
+    );
+    const part =
+      how === "fallback" ? (
+        <React.Suspense fallback={<><div dangerouslySetInnerHTML={{ __html: "SECRET_FALLBACK" }} /><style dangerouslySetInnerHTML={{ __html: ".y{content:'SECRET_FALLBACK'}" }} /><Paragraph>SECRET_FALLBACK</Paragraph></>}><Paragraph>shown</Paragraph></React.Suspense>
+      ) : how === "boundary" ? (
+        <Boundaried>{secrets}</Boundaried>
+      ) : (
+        <React.Suspense fallback={null}>{secrets}{how === "suspends" ? <Never /> : <FailsToLoad />}</React.Suspense>
+      );
+    return (
+      <Email>
+        <Row><Column>{part}<Paragraph>Kept</Paragraph></Column></Row>
+        <Row><Column><Forger /></Column></Row>
+      </Email>
+    );
+  };
+  /** A component of the template's own in a Column (left out alone when it fails, `onError: "omit"`), failing after its secrets. */
+  function Boundaried({ children }: { children: React.ReactNode }) {
+    return <div>{children}<FailsToLoad /></div>;
+  }
+  const leaked = (out: string) => SECRETS.filter((s) => out.includes(s));
+
+  it("brings nothing of it into the email, the plain text or the design, in the synchronous and async renderers (each way a lazy component gives HTML, each of this render's numbers)", async () => {
+    const found: string[] = [];
+    let forgedFailures = 0;
+    for (const how of ["suspends", "fails", "fallback", "boundary"] as const) {
+      for (const [by, forger] of Object.entries(FORGERS)) {
+        for (let k = 0; k < 12; k++) for (const [form, forge] of FORMS.entries()) {
+          for (const mode of ["sync", "async"] as const) {
+            // (A synchronous render renders a <Suspense>'s fallback where what's in it suspends; an async one waits.)
+            if (mode === "async" && how === "suspends") continue;
+            const outs: string[] = [];
+            for (const api of ["html", "text", "json"] as const) {
+              const [r] = nextNumbers();
+              const Forger = forger(forge(r, k));
+              try {
+                const element = template(how, Forger);
+                const options = { onError: "omit" as const };
+                if (mode === "sync") outs.push(api === "html" ? renderToHtml(element, options) : api === "text" ? renderToPlainText(element, options) : JSON.stringify(renderToJson(element, options)));
+                else outs.push(api === "html" ? await asyncRenderers.renderToHtml(element, options) : api === "text" ? await asyncRenderers.renderToPlainText(element, options) : JSON.stringify(await asyncRenderers.renderToJson(element, options)));
+              } catch (error) {
+                // (It may fail the render, saying the markup holds a marker React didn't write: never more than that.)
+                expect(String((error as Error).message), `${how} ${by} ${form} ${k} ${mode} ${api}`).toMatch(/marker of Elements' own collecting render/);
+                forgedFailures++;
+              }
+            }
+            for (const out of outs) for (const secret of leaked(out)) found.push(`${how}, ${by}, ${form ? "marker" : "placeholder"} ${k}, ${mode}: ${secret}`);
+          }
+        }
+      }
+    }
+    expect(found).toEqual([]);
+    // (The forgeries do name this render's markers: some of them fail the render.)
+    expect(forgedFailures).toBeGreaterThan(0);
+  }, 120_000);
+
+  it("leaves the email as it was where the lazy component's HTML only looks like one (the control)", () => {
+    for (const how of ["suspends", "fails", "fallback", "boundary"] as const) {
+      const html = renderToHtml(template(how, FORGERS.element(inert(FORMS.map((forge) => forge("r1", 0)).join("")))), { onError: "omit" });
+      expect(html).toContain("Kept");
+      expect(leaked(html)).toEqual([]);
+    }
+  });
+});

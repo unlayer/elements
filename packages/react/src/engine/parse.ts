@@ -4,12 +4,15 @@
  * the record, boundary or error it stands for.
  *
  * Nothing the template gives is read for a marker. Text and attribute values are escaped by React; HTML given whole
- * (`dangerouslySetInnerHTML`, and what a lazy component renders) never reaches react-dom's output: the collection keeps
- * it and react-dom writes a placeholder in its place, which is swapped back here; and a `<style>`'s or `<script>`'s
- * text (which React 19 writes as given) is taken whole, never read for markers (the collector puts none there). A
- * marker or placeholder is only one the collection made and react-dom rendered, read once: anything else that looks
- * like one (another render's, a number out of range, one never rendered) is the markup it is, and one read twice
- * fails the render, by name (FORGED).
+ * (`dangerouslySetInnerHTML`) never reaches react-dom's output: the collection keeps it and react-dom writes a
+ * placeholder in its place, which is swapped back here; and a `<style>`'s or `<script>`'s text (which React 19 writes
+ * as given) is taken whole, never read for markers (the collector puts none there). What a lazy component renders is
+ * the exception: React renders it itself, unprepared (nothing public gives what React.lazy loads: see collector.ts's
+ * prepLazy), so HTML given whole there is in react-dom's output as written, and can name this render's markers. So a
+ * marker or placeholder is only one the collection made and react-dom rendered, in a part React kept, read once:
+ * anything else that looks like one (another render's, a number out of range, one never rendered) is the markup it is,
+ * and one read twice, or one of a part React left out (a <Suspense>'s content where it rendered the fallback, a
+ * fallback it didn't render: `kept`), fails the render, by name (FORGED).
  */
 import { ASYNC_IN_SYNC, positionOf, RenderError, SWALLOWED, threw, type Frame } from "./errors";
 import { MARK, type Collection } from "./collector";
@@ -25,7 +28,7 @@ const TO_END_TAG = new Set(["style", "script", "title", "textarea", "noscript", 
 /** React 18's text escaping, undone where a <Head>'s style or script text is written as given (see host.ts). */
 const unescape18 = (s: string) => (REACT_18 ? s.replace(/&amp;|&lt;|&gt;|&quot;|&#x27;/g, (e) => ({ "&amp;": "&", "&lt;": "<", "&gt;": ">", "&quot;": '"', "&#x27;": "'" })[e]!) : s);
 
-export const FORGED = "the template's markup holds a marker of Elements' own collecting render twice (an `<unlayer-mark>` or `<!--u…-->` with this render's number): it can't be read as the template, so the render fails";
+export const FORGED = "the template's markup holds a marker of Elements' own collecting render that React didn't write there (an `<unlayer-mark>` or `<!--u…-->` with this render's number, one React wrote elsewhere or left out): it can't be read as the template, so the render fails";
 
 interface Open {
   tag: string;
@@ -45,8 +48,11 @@ interface Open {
   floor?: boolean;
 }
 
-/** The placeholder react-dom writes for the collection's HTML number `n` (see the collector's `rawPlaceholder`). */
+/** The placeholder react-dom writes for the collection's HTML number `n` (see the collector's `withRaw`). */
 export const placeholderOf = (nonce: string, n: number) => `<!--u${nonce}.${n}-->`;
+
+/** Whether `n` is HTML given whole (a <style>'s or <script>'s text: `text`) that the collection kept and React rendered. */
+const given = (c: Collection, n: number, text: boolean) => n >= 0 && n < c.raw.length && !!c.raw[n].text === text && c.rawRendered.has(n);
 
 /** `html` (react-dom's output, `c`'s), as parts. */
 export function parse(html: string, c: Collection): Part[] {
@@ -74,13 +80,13 @@ export function parse(html: string, c: Collection): Part[] {
     if (html.startsWith("<!--", lt)) {
       const raw = placeholder.exec(html.slice(lt, lt + 40));
       // (HTML given whole in what React 18 writes in a <style> or <script>: an element's there.)
-      if (raw && top().inert && !(Number(raw[1]) < c.raw.length && !c.raw[Number(raw[1])].text)) {
+      if (raw && top().inert && !given(c, Number(raw[1]), false)) {
         text(html.slice(lt, lt + 4));
         at = lt + 4;
         continue;
       }
       const n = raw ? Number(raw[1]) : -1;
-      if (raw && n < c.raw.length && !c.raw[n].text) {
+      if (raw && given(c, n, false)) {
         if (c.rawRead.has(n)) throw forged();
         c.rawRead.add(n);
         // HTML given whole: the element's own, as written (nothing in it read for a marker).
@@ -166,9 +172,9 @@ export function parse(html: string, c: Collection): Part[] {
       const found = endTag.exec(html);
       const stop = found ? found.index : html.length;
       const content = html.slice(at, stop);
-      const given = placeholder.exec(content);
-      const n = given && given[0].length === content.length ? Number(given[1]) : -1;
-      if (n >= 0 && n < c.raw.length && c.raw[n].text) {
+      const whole = placeholder.exec(content);
+      const n = whole && whole[0].length === content.length ? Number(whole[1]) : -1;
+      if (given(c, n, true)) {
         if (c.rawRead.has(n)) throw forged();
         c.rawRead.add(n);
         host.parts.push(c.raw[n].html);
@@ -184,7 +190,24 @@ export function parse(html: string, c: Collection): Part[] {
     const ends = from.head && !foreign && TO_END_TAG.has(lower) ? [...(from.ends ?? []), lower] : from.ends;
     stack.push({ tag: lower, parts: host.parts, host, head: from.head, foreign, ends, raw: from.raw, inert: from.inert });
   }
+  kept(c);
   return root;
+}
+
+/**
+ * Fails the render where a marker or placeholder read is of a part React left out: what's in a <Suspense> (or a
+ * boundary's own) whose fallback's marker is in what React wrote, or a fallback whose marker isn't. React wrote nothing
+ * in that part (it may have rendered it), so it's another's markup naming it (what a lazy component renders, which
+ * isn't prepared: see collector.ts's prepLazy).
+ */
+function kept(c: Collection): void {
+  if (!c.scopes.length) return;
+  const out = (scope: number | undefined): boolean => {
+    for (let s = scope ?? -1, depth = 0; s >= 0 && depth <= c.scopes.length; s = c.scopes[s].parent, depth++) if (c.read.has(c.scopes[s].marker) !== !!c.scopes[s].fallback) return true;
+    return false;
+  };
+  for (const n of c.read) if (out(c.marks[n].scope)) throw forged();
+  for (const n of c.rawRead) if (out(c.raw[n].scope)) throw forged();
 }
 
 const forged = () => new RenderError(FORGED, "template", "");
