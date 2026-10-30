@@ -30,7 +30,7 @@ function inWrapper(html: string): string {
 /** react-dom's static markup of `node`, in a `<noscript>` (see above), without it. */
 export function staticMarkup(node: React.ReactNode, idPrefix?: string): string {
   const build = current();
-  return inWrapper(ownStatic(() => build.renderToStaticMarkup(createElement("noscript", null, node), idPrefix ? { identifierPrefix: idPrefix } : undefined)));
+  return inWrapper(ownStatic(() => build.renderToStaticMarkup(createElement("noscript", null, node), idPrefix ? { identifierPrefix: idPrefix } : undefined), build));
 }
 
 /** Node's writable stream, as much of it as react-dom's pipeable stream writes to: the chunks joined. */
@@ -314,7 +314,7 @@ export function asOwnCall<T>(fn: () => T): T {
  * it. Where it fails, where React was rendering (a lazy component's place) is kept for what it fails with (failedAt).
  */
 let failedFrame: Frame | null = null;
-function ownStatic<T>(fn: () => T): T {
+function ownStatic<T>(fn: () => T, build?: Build): T {
   const frame = calling.frame;
   calling.static = (calling.static ?? 0) + 1;
   try {
@@ -325,8 +325,14 @@ function ownStatic<T>(fn: () => T): T {
   } finally {
     calling.static--;
     calling.frame = frame;
+    // (Each of Elements' own renders that isn't inside another, whatever started it: a template wrapper's call, a lazy
+    // template's root, the template's render, a sync or an async render. See settle.)
+    if (build && !calling.static) settle(build);
   }
 }
+
+/** Forgets where a static render failed (a render that starts: what another left isn't its). */
+export const clearFailedAt = (): void => void (failedFrame = null);
 
 /** Where a static render that just failed was rendering (a lazy component's place), once. */
 export function failedAt(): Frame | undefined {
@@ -516,7 +522,6 @@ export function withFreeBuild<T>(api: string, render: () => T): T {
     return render();
   } finally {
     builds.pop();
-    settle(build);
   }
 }
 

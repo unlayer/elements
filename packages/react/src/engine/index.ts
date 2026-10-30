@@ -10,7 +10,7 @@ import { flatten, type Flat } from "./output";
 import { newCollection, prep, rootCtx, suspendedError, withRawErrors, type Collector } from "./collector";
 import { parse } from "./parse";
 import { forked } from "./capture";
-import { failedAt, refuseNested, renderFailure, staticMarkup, streamedMarkup, streamSuspension, suspendedInReact, suspends } from "./react-dom";
+import { clearFailedAt, failedAt, refuseNested, renderFailure, staticMarkup, streamedMarkup, streamSuspension, suspendedInReact, suspends } from "./react-dom";
 import { sharedNow, sharing, type Shared } from "./shared";
 
 export { RenderError, type OnError } from "./errors";
@@ -75,6 +75,7 @@ function failedIn(info: unknown): string | undefined {
 /** `node` collected synchronously: what's async in it fails (or is left out, as `onError` says). */
 export function collect(node: React.ReactNode, options: CollectOptions): Flat {
   refuseNested("This render");
+  clearFailedAt();
   const c = newCollection({ collector: options.collector, passes: options.passes, frameless: options.frameless, own: options.own, omit: omits(options.onError), shared: options.shared ?? sharedNow() ?? {} });
   const frame = rootFrame(options.root);
   let html: string;

@@ -530,6 +530,66 @@ describe("a context's default around an app's renders", () => {
     expect(await new Response(await webStream().renderToReadableStream(<Reads />)).text()).toBe("<b>default</b>");
   });
 
+  // A lazy template, or a class template wrapper that fails, rendered inside a provider: the render of react-dom's that
+  // finds its root left the provider (and Elements' root capture) where the next render read them.
+  it("leaves no provider or root capture of a lazy template's, or a failed class wrapper's, for the renders while or after it", async () => {
+    const { Brand, email, read } = brand("default");
+    const Reads = () => <b>{String(useContext(Brand))}</b>;
+    /** What the app's own stream, another request's async render, the app's client render of an email, and a synchronous render read now. */
+    const others = async () => {
+      const streamed = await new Promise<string>((resolve, reject) => {
+        let html = "";
+        const sink = { write: (chunk: unknown) => ((html += typeof chunk === "string" ? chunk : new TextDecoder().decode(chunk as Uint8Array)), true), end: () => resolve(html), destroy: () => {}, on() { return this; }, once() { return this; }, emit: () => true, removeListener() { return this; } } as unknown as NodeJS.WritableStream;
+        const stream = renderToPipeableStream(<Reads />, { onAllReady: () => stream.pipe(sink), onShellError: reject });
+      });
+      expect(streamed).toBe("<b>default</b>");
+      const div = document.createElement("div");
+      const root = createRoot(div);
+      try {
+        onClient(root, <><Reads /><Email><Row><Column><Paragraph>PREVIEW</Paragraph></Column></Row></Email></>);
+        expect(div.querySelector("b")?.textContent).toBe("default");
+        expect(div.innerHTML).toContain("PREVIEW");
+      } finally {
+        onClient(root, <></>);
+      }
+      expect((await asyncRenderers.renderToPlainText(email)).trim()).toBe("brand=default");
+      expect(read()).toBe("brand=default");
+    };
+    let load = () => {};
+    const Broken = (): React.ReactNode => {
+      throw new Error("the template failed");
+    };
+    const lazy = (content: React.ReactNode) => {
+      const Template = () => <Email><Row><Column>{content}</Column></Row></Email>;
+      return React.lazy(() => new Promise<{ default: React.ComponentType }>((done) => (load = () => done({ default: Template }))));
+    };
+    // A's lazy template, not loaded yet: while it waits, and after it fails.
+    const Waiting = lazy(<Paragraph>lazy template</Paragraph>);
+    const a = asyncRenderers.renderToHtml(<Brand.Provider value={tenant}><Waiting /></Brand.Provider>);
+    await new Promise((done) => setTimeout(done, 5));
+    await others();
+    load();
+    expect(await a).toContain("lazy template");
+    const Failing = lazy(<Broken />);
+    const failing = asyncRenderers.renderToHtml(<Brand.Provider value={tenant}><Failing /></Brand.Provider>);
+    await new Promise((done) => setTimeout(done, 5));
+    load();
+    await expect(failing).rejects.toThrow("the template failed");
+    await others();
+    // A class template wrapper that fails inside a provider.
+    class Fails extends Component {
+      constructor(props: object) {
+        super(props);
+        throw new Error("the wrapper failed");
+      }
+      render() {
+        return <Email />;
+      }
+    }
+    await expect(asyncRenderers.renderToHtml(<Brand.Provider value={tenant}><Fails /></Brand.Provider>)).rejects.toThrow("the wrapper failed");
+    await others();
+  });
+
   it("reads one value for a context throughout a render that starts inside an app's renderToString and goes on after it", async () => {
     const Brand = createContext("default");
     let open = false;
