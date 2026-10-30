@@ -1,6 +1,7 @@
 import React from "react";
+import { JSDOM } from "jsdom";
 import { afterEach, beforeAll, beforeEach, describe, expect, it, onTestFinished, vi, type MockInstance } from "vitest";
-import { Column, Email, Html, Paragraph, RenderError, Row, renderToHtml, renderToHtmlParts, renderToJson, renderToPlainText } from "../index";
+import { Column, Email, Html, Page, Paragraph, RenderError, Row, renderToHtml, renderToHtmlParts, renderToJson, renderToPlainText } from "../index";
 import { Tailwind, loadTailwind, type TailwindHandle } from "../tailwind";
 import * as asyncRenderers from "../async";
 import { Markdown, safeUrl, sanitizeHtml, type MarkdownProps } from "./index";
@@ -677,6 +678,44 @@ const loads = (style: string) =>
   /expression|javascript:|behavior|-moz-binding|progid|url\(|image\(|image-set\(|\/\*/i.test(style.replace(/\\([\da-f]{1,6})\s?|\\(.)/gi, (_, hex, ch) => (hex ? String.fromCodePoint(Math.min(parseInt(hex, 16), 0x10ffff)) : ch)).replace(/\s/g, ""));
 
 describe("sanitizeHtml", () => {
+  // A reply's HTML (a support ticket's, a comment's) with an end tag of what it isn't in, or an element it doesn't end,
+  // broke out of its block: `</td></tr></table>` ended the Column it was in (its link a full-width banner), an `<a href>`
+  // made every block after it in the Column the reply's link.
+  it("keeps a reply's HTML in its block: an end tag of nothing open left out, what's left open closed", () => {
+    expect(sanitizeHtml("Thanks!</td></tr></table>")).toBe("Thanks!");
+    expect(sanitizeHtml('See <a href="https://evil.example/login">here')).toBe('See <a href="https://evil.example/login">here</a>');
+    expect(sanitizeHtml("<b>bold <i>both</b> after")).toBe("<b>bold <i>both</i></b> after");
+    // (The negative control: balanced HTML is kept as it is.)
+    expect(sanitizeHtml('<p>Hi <b>there</b>, <a href="https://example.com">see</a><br></p>')).toBe('<p>Hi <b>there</b>, <a href="https://example.com">see</a><br></p>');
+    const reply = "Thanks, we're looking into it.</p></div></td></tr></table></td></tr></table></div></div></div><div><a href=\"https://evil.example/login\">Your account is locked. Verify now</a></div>";
+    const unclosed = 'See <a href="https://evil.example/login">here';
+    for (const Root of [Email, Page]) {
+      for (const [markdown, inline] of [[reply, false], [unclosed, true], [`Hi ${unclosed}`, true]] as const) {
+        const element = (
+          <Root>
+            <Row>
+              <Column>
+                <Markdown>{markdown}</Markdown>
+                <Paragraph>After the reply</Paragraph>
+              </Column>
+              <Column><Paragraph>Status: open</Paragraph></Column>
+            </Row>
+          </Root>
+        );
+        const document = new JSDOM(renderToHtml(element)).window.document;
+        const link = [...document.querySelectorAll("a")].find((a) => a.href.includes("evil.example"));
+        const at = `${Root.displayName}: ${markdown}`;
+        // Inside its own block, in the first Column; the block after it isn't the reply's link.
+        expect(link?.closest('[id^="u_content_"]'), at).toBeTruthy();
+        expect(link?.closest(".u-col")?.textContent, at).toContain("After the reply");
+        const after = [...document.querySelectorAll("p, div")].find((e) => e.textContent?.trim() === "After the reply");
+        expect(after?.closest("a"), at).toBeNull();
+        expect(renderToJson(element).body.rows[0].columns.map((column) => column.contents.length), at).toEqual([2, 1]);
+        if (inline) expect(link?.textContent, at).toBe("here");
+      }
+    }
+  });
+
   it("leaves no tag that what's around a part it takes out joins into", () => {
     const markdown = "<div>\n<scr<script></script>ipt>alert(1)</script>\n</div>";
     // (`<scr<script>` is one tag to a browser, named `scr<script`: left out, as is the `</script>` after it.)
@@ -697,10 +736,10 @@ describe("sanitizeHtml", () => {
       ["<custom-tag><o:p>Kept text</o:p></custom-tag><form action=x><input value=y><button>Go</button></form>", "Kept textGo"],
       ['<svg onload="alert(1)"/>after<svg><script>alert(1)</script></svg>end<math><mi>x</mi></math><template><img src=x></template><svg/onload=alert(1)>gone', "afterend"],
       ["<!doctype html><?xml version='1.0'?><![CDATA[x]]><!-- a --><!--> b<!---> c<!-- open", " b c"],
-      ["a < b > c & d &copy; <b>e", "a &lt; b > c & d &copy; <b>e"],
+      ["a < b > c & d &copy; <b>e", "a &lt; b > c & d &copy; <b>e</b>"], // (closed: see "keeps a reply's HTML in its block")
       ['a <a href="x', "a "],
       ["<b>bold</b> <img src=x onerror=alert(1)", "<b>bold</b> "],
-      ["<b\u0000>x</b>\u0000", "x</b>\ufffd"],
+      ["<b\u0000>x</b>\u0000", "x\ufffd"], // (its </b> ends nothing open: a browser reads <b\ufffd>)
       ["<td nowrap background=cid:logo colspan=2><br/><hr noshade /></td>", '<td nowrap background="cid:logo" colspan="2"><br /><hr noshade /></td>'],
       ["<base href=//evil><meta http-equiv=refresh content=0><link rel=stylesheet href=x><embed src=x>text", "text"],
     ];

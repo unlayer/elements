@@ -113,6 +113,11 @@ function keptAttributes(list: Attribute[]): string {
  *   CDATA and a tag the HTML ends in are left out. A `<` that starts no tag is text (`&lt;`).
  */
 export function sanitizeHtml(html: string): string {
+  return balanced(sanitized(html));
+}
+
+/** sanitizeHtml's elements and attributes, its tags not balanced (a part of a run of Markdown's inline HTML: see balanced). */
+export function sanitized(html: string): string {
   // (A NUL is U+FFFD to a browser, in a tag's name too.)
   const s = html.replace(/\0/g, "�");
   let out = "";
@@ -142,4 +147,28 @@ export function sanitizeHtml(html: string): string {
     }
   }
   return out;
+}
+
+const VOID = new Set("area base br col embed hr img input link meta param source track wbr".split(" "));
+
+/**
+ * Sanitized HTML (or Markdown's, which writes it), its tags balanced: an end tag of nothing open left out, what it
+ * closes past (opened after the element it ends) closed with it, and what's still open closed at the end. So HTML from
+ * a reply can't end the block, column or table it's in (`</td></tr></table>`), or run on into what's after it (an
+ * `<a href>` or `<b>` it doesn't end).
+ */
+export function balanced(html: string): string {
+  const open: string[] = [];
+  const out = html.replace(/<(\/?)([a-zA-Z][a-zA-Z0-9-]*)\b[^>]*>/g, (tag, close: string, given: string) => {
+    const name = given.toLowerCase();
+    if (VOID.has(name)) return close ? "" : tag;
+    if (!close) {
+      open.push(name);
+      return tag;
+    }
+    const at = open.lastIndexOf(name);
+    if (at < 0) return "";
+    return open.splice(at).reverse().map((n) => `</${n}>`).join("");
+  });
+  return out + open.reverse().map((n) => `</${n}>`).join("");
 }

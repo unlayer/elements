@@ -3,7 +3,7 @@ import { Parser, type Token, type Tokens } from "marked";
 import { Divider, Heading, Html, Image, Paragraph, Table, renderToHtml } from "@unlayer/react-elements";
 import type { DividerProps, HeadingProps, HtmlProps, ImageProps, ParagraphProps, TableProps } from "@unlayer/react-elements";
 import { CodeBlock, codeInline, highlightCode, type CodeBlockProps, type CodeInlineOptions } from "@unlayer/react-elements/code";
-import { escapeAttribute, escapeText, safeUrl, sanitizeHtml } from "./sanitize";
+import { balanced, escapeAttribute, escapeText, safeUrl, sanitized, sanitizeHtml } from "./sanitize";
 import { tooLarge, type TooLarge } from "./limits";
 import { lexMarkdown } from "./work";
 import { charge, codeWork, CODE_WORK, renderPart, renderWork, sayWhenDone } from "../code/work";
@@ -154,13 +154,19 @@ class Writer {
     return out === undefined ? undefined : safeUrl(out, kind);
   }
 
-  private raw(html: string): string {
+  /** HTML in the Markdown, as `html` says; a part of a run of inline HTML (`inline`) balanced with the run (see inline). */
+  private raw(html: string, inline = false): string {
     const mode = this.props.html ?? "sanitize";
-    return mode === "drop" ? "" : mode === "escape" ? escapeText(html) : sanitizeHtml(html);
+    return mode === "drop" ? "" : mode === "escape" ? escapeText(html) : inline ? sanitized(html) : sanitizeHtml(html);
   }
 
   /** Inline tokens as HTML. */
   inline(tokens: Token[] | undefined): string {
+    // (Its HTML's tags balanced as one run: `Hi <b>there</b>` is three tokens.)
+    return balanced(this.inlineRun(tokens));
+  }
+
+  private inlineRun(tokens: Token[] | undefined): string {
     return (tokens ?? [])
       .map((token): string => {
         switch (token.type) {
@@ -190,7 +196,7 @@ class Writer {
             return `<img src="${escapeAttribute(src)}" alt="${escapeAttribute(token.text)}"${title}${this.attributes(this.props.imageAttributes, src)}${this.style("img")} />`;
           }
           case "html":
-            return this.raw(token.text);
+            return this.raw(token.text, true);
           case "checkbox":
             return (token as Tokens.Checkbox).checked ? "&#9745; " : "&#9744; ";
           default:
