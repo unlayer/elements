@@ -11,32 +11,51 @@ export function plainText(html: unknown): string | undefined {
 
 const VOID = /^(area|base|br|col|embed|hr|img|input|link|meta|source|track|wbr)$/i;
 
-/** The element that starts at `start` (a `<tag …>`), as [its inner HTML's start, its inner HTML's end, its end]. */
-function elementAt(html: string, start: number): [number, number, number] | undefined {
-  const name = /^<([a-zA-Z][\w:-]*)/.exec(html.slice(start))?.[1];
-  const openEnd = html.indexOf(">", start);
-  if (!name || openEnd < 0) return undefined;
-  if (VOID.test(name) || html[openEnd - 1] === "/") return [openEnd + 1, openEnd + 1, openEnd + 1];
-  const tags = new RegExp(`<(/?)${name}(?=[\\s>/])`, "gi");
-  tags.lastIndex = openEnd + 1;
-  let depth = 1;
-  for (let m = tags.exec(html); m; m = tags.exec(html)) {
-    depth += m[1] ? -1 : 1;
-    if (depth === 0) return [openEnd + 1, m.index, html.indexOf(">", m.index) + 1];
+/**
+ * A document read once (see blockHtml): where each id's start tag begins (its first), where each tag that holds the
+ * padding class does (in order, with where its class is), and where each element's end tag is (by its start: the end
+ * tag of its name that brings its name's depth back to it, as an element's end is read here, whatever's between).
+ * Looking each block up from the document's start (and reading to its end for an element that has no end tag) took
+ * time growing with the number of blocks squared.
+ */
+interface Read {
+  ids: Map<string, number>;
+  padded: Array<{ at: number; start: number }>;
+  ends: Map<number, number>;
+}
+let last: { document: string; read: Read } | undefined;
+function read(document: string): Read {
+  if (last?.document === document) return last.read;
+  const ids = new Map<string, number>();
+  for (const id of document.matchAll(/\sid=["']([^"']*)["']/g)) {
+    const start = document.lastIndexOf("<", id.index);
+    if (!ids.has(id[1]) && start >= 0) ids.set(id[1], start);
   }
-  return undefined;
+  const padded: Read["padded"] = [];
+  for (const m of document.matchAll(/\sclass=["'][^"']*\bv-container-padding-padding\b/g)) padded.push({ at: m.index, start: document.lastIndexOf("<", m.index) });
+  const ends = new Map<number, number>();
+  const open = new Map<string, number[]>();
+  for (const tag of document.matchAll(/<(\/?)([a-zA-Z][\w:-]*)(?=[\s>/])/g)) {
+    const name = tag[2].toLowerCase();
+    const stack = open.get(name) ?? open.set(name, []).get(name)!;
+    if (!tag[1]) stack.push(tag.index);
+    else if (stack.length) ends.set(stack.pop()!, tag.index);
+  }
+  last = { document, read: { ids, padded, ends } };
+  return last.read;
 }
 
-/** Where the start tag that holds `attribute` (searched from `from`) begins. */
-function tagWith(html: string, attribute: RegExp, from = 0, to = html.length): number | undefined {
-  attribute.lastIndex = from;
-  const match = attribute.exec(html);
-  if (!match || match.index >= to) return undefined;
-  const start = html.lastIndexOf("<", match.index);
-  return start >= from ? start : undefined;
+/** The element that starts at `start` (a `<tag …>`), as [its inner HTML's start, its inner HTML's end, its end]. */
+function elementAt(html: string, start: number, ends: Map<number, number>): [number, number, number] | undefined {
+  const name = /<([a-zA-Z][\w:-]*)/y;
+  name.lastIndex = start;
+  const found = name.exec(html)?.[1];
+  const openEnd = html.indexOf(">", start);
+  if (!found || openEnd < 0) return undefined;
+  if (VOID.test(found) || html[openEnd - 1] === "/") return [openEnd + 1, openEnd + 1, openEnd + 1];
+  const end = ends.get(start);
+  return end === undefined ? undefined : [openEnd + 1, end, html.indexOf(">", end) + 1];
 }
-
-const escapeRegExp = (text: string) => text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
 /**
  * A block's own HTML in a document the editor exported (`exportHtml`): what's inside its padding, found by its
@@ -44,13 +63,21 @@ const escapeRegExp = (text: string) => text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&
  */
 export function blockHtml(document: string | undefined, htmlID: unknown): string | undefined {
   if (!document || typeof htmlID !== "string" || !htmlID) return undefined;
-  const start = tagWith(document, new RegExp(`\\sid=["']${escapeRegExp(htmlID)}["']`, "g"));
-  const block = start === undefined ? undefined : elementAt(document, start);
+  const { ids, padded, ends } = read(document);
+  const start = ids.get(htmlID);
+  const block = start === undefined ? undefined : elementAt(document, start, ends);
   if (!block) return undefined;
   const [from, to] = block;
-  // The editor wraps a block's HTML in an element with its padding (`v-container-padding-padding`).
-  const padded = tagWith(document, /\sclass=["'][^"']*\bv-container-padding-padding\b/g, from, to);
-  const inner = padded === undefined ? undefined : elementAt(document, padded);
+  // The editor wraps a block's HTML in an element with its padding (`v-container-padding-padding`): the first in it.
+  let low = 0;
+  let high = padded.length;
+  while (low < high) {
+    const middle = (low + high) >> 1;
+    if (padded[middle].at < from) low = middle + 1;
+    else high = middle;
+  }
+  const first = padded[low];
+  const inner = first && first.at < to && first.start >= from ? elementAt(document, first.start, ends) : undefined;
   const html = (inner ? document.slice(inner[0], inner[1]) : document.slice(from, to)).trim();
   return html || undefined;
 }

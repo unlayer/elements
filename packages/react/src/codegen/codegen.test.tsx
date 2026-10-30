@@ -6,7 +6,7 @@ import { describe, expect, it, vi } from "vitest";
 import * as prettier from "prettier";
 import { DESIGNS, design } from "./__fixtures__/designs";
 import { designToElements } from "./design-to-elements";
-import { inTime, within } from "../test-timing";
+import { growth, inTime, within } from "../test-timing";
 import { formatElements } from "./format";
 import { BLOCK_DEFAULTS } from "./defaults";
 import React from "react";
@@ -220,6 +220,37 @@ describe("designToElements", () => {
     // Up to it, written out.
     expect(quiet(() => designToElements(nested(14))).code).not.toContain("JSON.parse");
   });
+
+  it("fills a link's template and finds each block's HTML in the `html` option in time linear in their size", async () => {
+    // A link's template was filled in by reading what it had filled in so far again for each value (a `mailto:` of
+    // 32,000 fields took 19 s), and each custom block's HTML was looked for from the document's start, its element's end
+    // read to the document's end where it has none (16,000 blocks: 10 s).
+    const mailto = (n: number) =>
+      design([{ type: "button", values: { text: "Write us", href: { name: "email", attrs: { href: "mailto:{{email}}?" + Array.from({ length: n }, (_, i) => `f${i}={{f${i}}}`).join("&") }, values: { email: "a@b.co", ...Object.fromEntries(Array.from({ length: n }, (_, i) => [`f${i}`, "v"])) } } } }]);
+    const custom = (n: number) => design(Array.from({ length: n }, (_, i) => ({ type: "custom", slug: "timer", values: { _meta: { htmlID: `b${i}` } } })));
+    const closed = (n: number) => Array.from({ length: n }, (_, i) => `<div id="b${i}"><div class="v-container-padding-padding"><p>timer ${i}</p></div></div>`).join("");
+    const unclosed = (n: number) => Array.from({ length: n }, (_, i) => `<div id="b${i}"><div>`).join("");
+    const time = (run: () => unknown) => {
+      const start = performance.now();
+      quiet(run);
+      return performance.now() - start;
+    };
+    const shapes: Record<string, (n: number) => number> = {
+      "a mailto: link's fields": (n) => time(() => designToElements(mailto(n))),
+      "custom blocks' HTML": (n) => time(() => designToElements(custom(n), { html: closed(n) })),
+      "custom blocks' HTML that never ends": (n) => time(() => designToElements(custom(n), { html: unclosed(n) })),
+      // (And a warning for each: said once each, looked up in a set.)
+      "custom blocks that each warn": (n) => time(() => designToElements(design(Array.from({ length: n * 4 }, (_, i) => ({ type: "custom", slug: `tool${i}`, values: {} }))))),
+    };
+    for (const [shape, run] of Object.entries(shapes)) {
+      const { small, large, grows } = await growth(run, [400, 4000], { ratio: 20, floor: 200 });
+      expect(grows, `${shape}: ${small.toFixed(1)} ms for 400, ${large.toFixed(1)} ms for 4,000`).toBe(false);
+    }
+    // (What it fills in and finds, as before: the fields encoded in order, each block's HTML inside its padding.)
+    const code = quiet(() => designToElements(mailto(3))).code;
+    expect(code).toContain("mailto:a@b.co?f0=v&f1=v&f2=v");
+    expect(quiet(() => designToElements(custom(2), { html: closed(2) })).code).toContain("timer 1");
+  }, 120_000);
 
   it("formats with prettier, and the formatted code renders the same design", async () => {
     const source = design([{ type: "text", values: { text: "A long paragraph of plain words that a narrower print width wraps onto more lines than one" } }]);
