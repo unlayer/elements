@@ -72,6 +72,39 @@ export function streamedMarkup(node: React.ReactNode, idPrefix: string | undefin
   const S = Server as unknown as Record<string, any>;
   const report = (error: unknown) => void onError?.(error);
   const bare = (html: string) => raw(inWrapper(html));
+  return streamed(S, element, idPrefix, report, control).then(
+    (html) => settleStream(S).then(() => bare(html)),
+    (error) =>
+      settleStream(S).then(() => {
+        throw error;
+      }),
+  );
+}
+
+/** One macrotask later (setImmediate where there is one: Node.js, Bun; a timer elsewhere). */
+const nextTask = (fn: () => void): void => void (typeof setImmediate === "function" ? setImmediate(fn) : setTimeout(fn, 0));
+
+/**
+ * A render of nothing with react-dom's streaming module, done, one macrotask after it's done. React can leave a
+ * template's providers pushed in the module that rendered it (a part that waited, failed or was abandoned), where every
+ * react-dom stream and an app's client render read a context's value: a render of nothing pops them (see settle). And
+ * React 19's stream holds each request till a macrotask it scheduled runs, which a loop that only awaits renders never
+ * reaches (its memory then grows render by render): this resolves after it.
+ */
+function settleStream(S: Record<string, any>): Promise<void> {
+  return new Promise<void>((done) => {
+    const finish = () => nextTask(done);
+    try {
+      if (typeof S.renderToPipeableStream === "function") S.renderToPipeableStream(createElement("i"), { onAllReady: finish, onShellError: finish, onError() {} });
+      else S.renderToReadableStream(createElement("i"), { onError() {} }).then((stream: { allReady: Promise<void> }) => stream.allReady).then(finish, finish);
+    } catch {
+      finish();
+    }
+  });
+}
+
+/** react-dom's streaming render of `element`, its whole output once everything in it is ready. */
+function streamed(S: Record<string, any>, element: React.ReactElement, idPrefix: string | undefined, report: (error: unknown) => void, control: { abort?: (reason: unknown) => void }): Promise<string> {
   if (typeof S.renderToPipeableStream === "function") {
     return new Promise((resolve, reject) => {
       let failed = false;
@@ -79,7 +112,7 @@ export function streamedMarkup(node: React.ReactNode, idPrefix: string | undefin
         identifierPrefix: idPrefix,
         progressiveChunkSize: Infinity,
         onAllReady() {
-          if (!failed) stream.pipe(sink((html) => resolve(bare(html))));
+          if (!failed) stream.pipe(sink(resolve));
         },
         onShellError(error: unknown) {
           failed = true;
@@ -95,7 +128,7 @@ export function streamedMarkup(node: React.ReactNode, idPrefix: string | undefin
     control.abort = (reason) => aborts.abort(reason);
     const stream = await S.renderToReadableStream(element, { identifierPrefix: idPrefix, progressiveChunkSize: Infinity, onError: report, signal: aborts.signal });
     await stream.allReady;
-    return bare(await new Response(stream).text());
+    return new Response(stream).text();
   })();
 }
 

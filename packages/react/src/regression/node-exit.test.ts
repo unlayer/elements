@@ -683,3 +683,33 @@ catch (error) { console.log(JSON.stringify({ component: error.component, positio
     }, 30_000);
   }
 });
+
+describe("the async renderers in a loop that only awaits them (a batch of receipts)", () => {
+  // React 19's stream holds each render till a macrotask it scheduled runs, which such a loop never reached: its
+  // memory grew render by render till the process ran out of it.
+  for (const [name, [react, reactDom]] of Object.entries(reacts)) {
+    it(`renders thousands in a small heap (${name})`, () => {
+      expect(fs.existsSync(path.join(dist, "async.js")), "build the package first (pnpm build)").toBe(true);
+      const dir = project(react, reactDom, "module");
+      try {
+        fs.writeFileSync(
+          path.join(dir, "batch.js"),
+          `import * as E from "@unlayer/react-elements";
+import { renderToHtml } from "@unlayer/react-elements/async";
+import React from "react";
+const h = React.createElement;
+const receipt = (i) => h(E.Email, null, h(E.Row, null, h(E.Column, null, h(E.Heading, null, "Order " + i), h(E.Paragraph, null, "Thanks for your order of ", h("strong", null, "item " + i), "."), h(E.Button, { href: "https://example.com/orders/" + i }, "View order"))));
+let bytes = 0;
+for (let i = 0; i < 6000; i++) bytes += (await renderToHtml(receipt(i))).length;
+console.log(JSON.stringify({ rendered: 6000, bytes: bytes > 0 }));
+`
+        );
+        const run = spawnSync(process.execPath, ["--max-old-space-size=48", "batch.js"], { cwd: dir, encoding: "utf8", timeout: 120_000, env: { ...process.env, NODE_ENV: "production" } });
+        expect(run.status, run.stderr.slice(-400)).toBe(0);
+        expect(JSON.parse(run.stdout.trim().split("\n").pop()!)).toEqual({ rendered: 6000, bytes: true });
+      } finally {
+        fs.rmSync(dir, { recursive: true, force: true });
+      }
+    }, 150_000);
+  }
+});

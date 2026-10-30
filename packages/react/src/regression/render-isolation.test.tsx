@@ -503,6 +503,33 @@ describe("a context's default around an app's renders", () => {
     }
   });
 
+  // The other way: an async render of Elements' left its template's providers in react-dom's Node.js stream module (a
+  // part that waited: a lazy section), where the app's next render read them, on the client or with another build's
+  // stream: a tenant's values, and Elements' own collecting context (an app's live preview blank, the finished render's
+  // collection still called).
+  it("leaves no provider of an async render's for the app's next render, on the client or with another build's stream", async () => {
+    const { Brand } = brand("default");
+    const Section = () => <Paragraph>lazy section</Paragraph>;
+    const Lazy = React.lazy(() => new Promise<{ default: React.ComponentType }>((done) => setTimeout(() => done({ default: Section }), 5)));
+    const html = await asyncRenderers.renderToHtml(<Brand.Provider value={tenant}><Email><Row><Column><Lazy /></Column></Row></Email></Brand.Provider>);
+    expect(html).toContain("lazy section");
+    const Reads = () => <b>{String(useContext(Brand))}</b>;
+    let shown = "";
+    const Preview = () => ((shown = renderToStaticMarkup(<Reads />)), <i />);
+    const div = document.createElement("div");
+    const root = createRoot(div);
+    try {
+      onClient(root, <><Reads /><Email><Row><Column><Paragraph>PREVIEW</Paragraph></Column></Row></Email><Preview /></>);
+      expect(div.querySelector("b")?.textContent).toBe("default");
+      expect(div.innerHTML).toContain("PREVIEW");
+      expect(div.innerHTML).not.toContain("unlayer-mark");
+    } finally {
+      onClient(root, <></>);
+    }
+    expect(shown).toBe("<b>default</b>");
+    expect(await new Response(await webStream().renderToReadableStream(<Reads />)).text()).toBe("<b>default</b>");
+  });
+
   it("reads one value for a context throughout a render that starts inside an app's renderToString and goes on after it", async () => {
     const Brand = createContext("default");
     let open = false;
