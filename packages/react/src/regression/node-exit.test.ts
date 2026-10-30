@@ -798,3 +798,69 @@ console.log(JSON.stringify(Object.fromEntries(Object.entries(out).map(([version,
     }
   }, 60_000);
 });
+
+describe("an async template that throws, its error caught by the caller", () => {
+  // Its promise was kept with nothing to handle a rejection till the render waited for it, after react-dom's stream and
+  // a macrotask: one that rejected first (before its first await, or after a short one) ended the process, every
+  // tenant's render with it, whatever the caller caught. Each place Elements gets a promise from the template's code
+  // handles it at once; the render rejects with the template's error, as before.
+  for (const [name, [react, reactDom]] of Object.entries(reacts)) {
+    it(`rejects with a RenderError, and nothing ends the process (${name})`, () => {
+      expect(fs.existsSync(path.join(dist, "index.js")), "build the package first (pnpm build)").toBe(true);
+      const dir = project(react, reactDom, "module");
+      try {
+        fs.writeFileSync(
+          path.join(dir, "app.js"),
+          `import React from "react";
+import * as E from "@unlayer/react-elements";
+import * as A from "@unlayer/react-elements/async";
+const h = React.createElement;
+const unhandled = [];
+process.on("unhandledRejection", (reason) => unhandled.push(String(reason?.message ?? reason)));
+// (With no setImmediate, as on an edge runtime or in a browser: react-dom's build for workers, see below.)
+if (process.argv[2] === "no-setImmediate") delete globalThis.setImmediate;
+const waits = {
+  "before its first await": async () => {},
+  "after await Promise.resolve()": async () => { await Promise.resolve(); },
+  "after a 1 ms timer": async () => { await new Promise((done) => setTimeout(done, 1)); },
+};
+const Receipt = async ({ wait, id }) => {
+  if (wait === "before its first await") throw new Error("invalid order id " + id);
+  await waits[wait]();
+  throw new Error("order " + id + " not found");
+};
+const places = {
+  root: (receipt) => receipt,
+  "a wrapper": (receipt) => h(() => receipt),
+  "a Fragment": (receipt) => h(React.Fragment, null, receipt),
+  "a Suspense": (receipt) => h(React.Suspense, { fallback: null }, receipt),
+  "a provider": (receipt) => h(React.createContext("x").Provider, { value: "y" }, receipt),
+  "a Column": (receipt) => h(E.Email, null, h(E.Row, null, h(E.Column, null, receipt))),
+};
+const out = [];
+for (let run = 0; run < 3; run++) for (const wait of Object.keys(waits)) for (const [place, at] of Object.entries(places)) for (const api of ["renderToHtml", "renderToHtmlParts", "renderToJson", "renderToPlainText"]) {
+  try {
+    await A[api](at(h(Receipt, { wait, id: "A-1001" })));
+    out.push(wait + ", " + place + ", " + api + ": resolved");
+  } catch (error) {
+    if (error?.name !== "RenderError" || !/A-1001/.test(error.message)) out.push(wait + ", " + place + ", " + api + ": " + error?.name + " " + error?.message);
+  }
+}
+await new Promise((done) => setTimeout(done, 50));
+console.log(JSON.stringify({ alive: true, out, unhandled }));
+// (React 19's build for workers keeps a MessageChannel open in Node.js, where it isn't its runtime.)
+process.exit(0);
+`
+        );
+        for (const mode of ["", "no-setImmediate"]) {
+          const conditions = mode ? ["--conditions=worker"] : [];
+          const run = spawnSync(process.execPath, [...conditions, "app.js", mode], { cwd: dir, encoding: "utf8", timeout: 60_000 });
+          expect(run.status, `${mode}: ${run.stderr.slice(-600)}`).toBe(0);
+          expect(JSON.parse(run.stdout.trim().split("\n").pop()!), mode).toEqual({ alive: true, out: [], unhandled: [] });
+        }
+      } finally {
+        fs.rmSync(dir, { recursive: true, force: true });
+      }
+    }, 120_000);
+  }
+});

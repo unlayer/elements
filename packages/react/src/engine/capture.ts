@@ -16,6 +16,21 @@ import { sharedNow, sharing } from "./shared";
 
 type Tracked = PromiseLike<unknown> & { status?: "pending" | "fulfilled" | "rejected"; value?: unknown; reason?: unknown };
 
+/**
+ * A value the template's code gave (a component's or wrapper's return, what it threw or rendered), its rejection
+ * handled at once where it's a promise: Elements waits for it later (after react-dom's stream, a macrotask on), or
+ * never (a render that fails first, a synchronous one), and one that rejected before then, with nothing to handle it,
+ * ended the process (Node.js's default). Waiting for it later still fails with what it rejected with.
+ */
+export function handled<T>(value: T): T {
+  if (isThenable(value)) {
+    const thenable = value as unknown as Tracked;
+    if (thenable.status) thenable.then(undefined, () => {});
+    else track(thenable);
+  }
+  return value;
+}
+
 /** React's thenable protocol: `status`, then `value` or `reason`, set once it settles. */
 export function track(thenable: Tracked): void {
   if (thenable.status) return;
@@ -127,8 +142,9 @@ export function callCaptured(fn: (props: any, second?: unknown) => unknown, prop
       own(p);
       try {
         // (A render it starts would start react-dom's static renderer inside its own: said by name, see react-dom.ts.)
-        got.value = stream ? sharing(shared, () => fn(props, second)) : asUserCall(rootFrame(name), () => fn(props, second));
+        got.value = handled(stream ? sharing(shared, () => fn(props, second)) : asUserCall(rootFrame(name), () => fn(props, second)));
       } catch (error) {
+        handled(error);
         // (In the streaming render, a suspension is React's to wait for; a promise it throws again once it has
         // rejected, what it rejected with.)
         if (stream && isThenable(error)) {
@@ -180,9 +196,9 @@ export function callClassCaptured(Ctor: any, props: Record<string, unknown>, pro
   const name = nameOf(Ctor);
   const captured = (call: () => unknown) => {
     try {
-      value = asUserCall(rootFrame(name), call);
+      value = handled(asUserCall(rootFrame(name), call));
     } catch (error) {
-      thrown = { error };
+      thrown = { error: handled(error) };
     }
     return null;
   };

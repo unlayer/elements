@@ -28,7 +28,7 @@ import { asOwnCall, asUserCall, enterFrame, isRefusal, isServerReact, isThenable
 import { COLLECTING, Stamp } from "./root-capture";
 import { parse, placeholderOf } from "./parse";
 import { flatten, htmlOf, PENDING, type Item, type Part } from "./output";
-import { track } from "./capture";
+import { handled, track } from "./capture";
 import { isLinkType } from "../components/Link";
 
 export const MARK = "unlayer-mark";
@@ -309,7 +309,8 @@ export function prep(node: unknown, c: Collection, ctx: Ctx, given = false): Rea
     checkKeys(node, ctx.frame.name, given);
     return node.map((item, i) => keyed(prep(item, c, ctx, given), i));
   }
-  const object = node as Record<string | symbol, any>;
+  // (A promise among it, handled at once: see capture.ts's handled. React 19 waits for it; React 18 renders none.)
+  const object = handled(node) as Record<string | symbol, any>;
   if (isWalkerNode(object)) return "boundary" in object ? prepBoundary(object, c, ctx) : prepRecord(object as RecordNode, c, ctx);
   if (React.isValidElement(object)) return prepElement(object, c, ctx);
   // (In a <style>'s or <script>'s text, React writes what it writes of any other value.)
@@ -421,8 +422,9 @@ function consumer(fn: unknown, c: Collection, ctx: Ctx, keep?: Record<string, an
   return (value: unknown) => {
     let result: unknown;
     try {
-      result = c.async ? fn(value) : asUserCall(ctx.frame, () => fn(value));
-    } catch (thrown) {
+      result = handled(c.async ? fn(value) : asUserCall(ctx.frame, () => fn(value)));
+    } catch (caught) {
+      const thrown = handled(caught);
       if (suspended(c, thrown)) throw thrown;
       return fails(c, at, errorMark(c, thrown, ctx.frame.name, ctx.frame, ctx));
     }
@@ -598,8 +600,10 @@ function Call(placed: CallProps): React.ReactNode {
     try {
       // (A render the user's code starts here would start react-dom's inside its own: said by name, see react-dom.ts.)
       const call = () => sharing(c.shared, () => fn(props, second));
-      result = own ? asOwnCall(call) : c.async ? call() : asUserCall(frame, call);
-    } catch (thrown) {
+      // (Its promise handled at once: see capture.ts's handled.)
+      result = handled(own ? asOwnCall(call) : c.async ? call() : asUserCall(frame, call));
+    } catch (caught) {
+      const thrown = handled(caught);
       // A promise it throws again once it has rejected: what it rejected with, as `use()` of it fails.
       if (isThenable(thrown)) {
         const promise = thrown as Tracked;
@@ -685,8 +689,9 @@ function classElement(Ctor: any, props: Record<string, any>, element: React.Reac
     if (failed) return fails(c, at, errorMark(c, failed.error, name, frame, ctx));
     let result: unknown;
     try {
-      result = c.async ? call() : asUserCall(frame, call);
-    } catch (thrown) {
+      result = handled(c.async ? call() : asUserCall(frame, call));
+    } catch (caught) {
+      const thrown = handled(caught);
       if (suspended(c, thrown)) {
         c.suspended.push({ name, frame, boundary: ctx.boundary, inSuspense: ctx.suspense > 0, suspenseAt: ctx.suspenseAt });
         throw thrown;
