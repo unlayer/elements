@@ -46,6 +46,27 @@ The output is what the synchronous renderers give for the same content, and the 
 
 The template's root is resolved first: an async template is called and awaited (and one that `use()`s or throws a promise, called again once it's there). Elements then renders the content with react-dom's streaming render, waited for whole, with hooks, context and `use()` working as in React's server renderer: where a component waits, React goes on with the rest, so the data of sibling components loads at once, and each part is where it is in the template once it's there, whatever arrives first, so the output is the same every time. The synchronous renderer makes the HTML, the head, the plain text or the design from that render: each component runs once per render. Several renders can run at once. See [ARCHITECTURE.md](../ARCHITECTURE.md#the-async-renderers).
 
+## Contexts
+
+> **Security: the async renderers can read a context value from another request in flight, which can be another tenant's data.** It happens where your app also streams with another react-dom build (`react-dom/server.edge` or `react-dom/server.browser`, or `react-dom/static.edge`'s `prerender`) and a template reads a context it doesn't provide: a provider's value that stream left after a part in a `<Suspense>` waited is read until that build renders again, as react-dom's own Node.js stream does. React Email's `render` reads it the same way.
+
+**A template must provide every context it reads.** Wrap the template's content in its own providers, with the values the render is given:
+
+```tsx
+async function Receipt({ user, id }: { user: User; id: string }) {
+  const order = await getOrder(id);
+  return (
+    <Email>
+      <UserContext.Provider value={user}>
+        <Row><Column><Greeting /><Paragraph>Order {order.number}</Paragraph></Column></Row>
+      </UserContext.Provider>
+    </Email>
+  );
+}
+```
+
+The synchronous renderers read a context's default where the template doesn't provide it, except inside a component of an app's own `renderToString`, where they read the page's value, as 0.2 did.
+
 ## React 18 and React 19
 
 | | React 19 | React 18 |

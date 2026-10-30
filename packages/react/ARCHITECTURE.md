@@ -259,12 +259,14 @@ row or block is left out of the HTML, the plain text and the design (the slower 
    templates sharing kept elements give the same output after any other, and at once). A context the template doesn't
    provide reads its default, wherever the render runs (react-dom's static render starts from every context's default,
    and puts back what a render that failed inside a provider left), alone or inside an app's render, client or server,
-   but for two cases React's own renders have too. Inside an app's `renderToString`, where another module of
-   react-dom's renders it, it reads the page's value (as in 0.2). And the async renderers, which render with react-dom's
-   Node.js stream, read a provider's value an app's stream of another build left (`react-dom/server.edge` or
-   `.browser`, `react-dom/static.edge`'s `prerender`, after a part in a <Suspense> waited, failed or was aborted), till
-   that build renders again: every react-dom stream reads a context's value from one place, and react-dom's own Node.js
-   stream reads the same value there. React's API has no way to put back what another module left.
+   but for two cases React's own renders have too, so a template must provide every context it reads (README,
+   "Contexts and the async renderers"). Inside an app's `renderToString`, where another module of react-dom's renders
+   it, it reads the page's value (as in 0.2). And the async renderers, which render with react-dom's Node.js stream,
+   read a provider's value an app's stream of another build left (`react-dom/server.edge` or `.browser`,
+   `react-dom/static.edge`'s `prerender`, after a part in a <Suspense> waited, failed or was aborted), which can be
+   another request's, another tenant's, till that build renders again: every react-dom stream reads a context's value
+   from one place, and react-dom's own Node.js stream reads the same value there (`regression/render-isolation.test.tsx`
+   holds it). React's API has no way to put back what another module left.
 5. **Tree order.** Output, records, ids and the error a render throws don't depend on when promises settle.
 6. **Components run as React runs them**: once, and again where React renders again (a component that sets its state
    while rendering, one that suspends once what it waits for settles); an async component's function once.
