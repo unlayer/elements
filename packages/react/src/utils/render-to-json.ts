@@ -19,7 +19,8 @@ import type {
   DesignContent,
   UnlayerConfig,
 } from "@unlayer-internal/shared-elements";
-import { mergeValues, pxMerged, pxZeros, textJsonToText } from "@unlayer-internal/shared-elements";
+import { pxMerged, pxZeros, textJsonToText } from "@unlayer-internal/shared-elements";
+import { ownValues } from "./own-values";
 // Schema version from the exporters bundle — matches the editor's currentVersion
 // at the time the exporters were generated. This ensures renderToJson output is
 // recognized as current by the editor, skipping unnecessary migrations.
@@ -160,7 +161,7 @@ function processItem(
   rtlAlign(mappedValues, defaultValues, (layout.bodyValues as { textDirection?: unknown } | undefined)?.textDirection);
   // (Bare zeros in px lengths written `0px`, as the design's schema types them: see pxZeros. A custom tool's values
   // are as it writes them.)
-  const values: Record<string, any> = slug ? { containerPadding: "10px", ...mergeValues(defaultValues, mappedValues) } : pxMerged(defaultValues, mappedValues, "", { containerPadding: "10px" });
+  const values: Record<string, any> = slug ? { containerPadding: "10px", ...ownValues(defaultValues, mappedValues) } : pxMerged(defaultValues, mappedValues, "", { containerPadding: "10px" });
 
   // Paragraph maps to "text" content type: its textJson as the HTML the text block holds, which its HTML renders too
   // (see Paragraph.tsx).

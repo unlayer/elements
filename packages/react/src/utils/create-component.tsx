@@ -20,6 +20,7 @@ import { contentSlotWidth, DEFAULT_CONTAINER_PADDING, pinImageSrc, toPx } from "
 import { guest, remember, textRegion } from "./render-scope";
 import { cssUrlValue } from "./css-url";
 import { keepTags } from "./inline-html";
+import { ownValues } from "./own-values";
 import {
   mergeValues,
   generateHtmlFromTextJson,
@@ -326,7 +327,8 @@ export function createItemComponent<
     rtlAlign(mappedValues, config.defaultValues, _config?.textDirection ?? bodyValues.textDirection);
 
     // 2. Merge with defaults (a built-in block's, which the head reuses: see remember)
-    const finalValues = mergeValues(config.defaultValues, mappedValues);
+    // (A custom tool's, the render's own: see own-values.ts.)
+    const finalValues = config.contentType ? ownValues(config.defaultValues, mappedValues) : mergeValues(config.defaultValues, mappedValues);
     if (!config.contentType) remember(_r as object | undefined, finalValues);
 
     // 3. Ensure _meta is present. The Column-allocated id wins so every
