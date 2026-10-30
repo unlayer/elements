@@ -1,9 +1,9 @@
 import { describe, it, expect, vi } from "vitest";
-import React, { memo, useState } from "react";
+import React, { forwardRef, memo, useState } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { renderToHtml, renderToHtmlParts, renderToPlainText } from "./render-to-html";
 import { renderToJson } from "./render-to-json";
-import { Email, Page, Row, Column, Paragraph, Heading, Html, Button as ElementsButton, ColumnLayouts } from "../index";
+import { Email, Page, Row, Column, Paragraph, Heading, Html, Button as ElementsButton, ColumnLayouts, Image, Divider, Menu, Social, Table, Video } from "../index";
 import { Font } from "../font";
 import { Head } from "../head";
 import * as asyncRenderers from "../async";
@@ -64,6 +64,64 @@ describe("Fragments and user components among the blocks", () => {
     const plain = <Email>{block("One")}{block("Two", { mobile: { fontSize: "30px" } })}</Email>;
     const html = renderToHtml(plain);
     expect(/#(u_content_paragraph_\d+)[^{]*\{[^}]*font-size:\s*30px/.exec(html)?.[1]).toBe("u_content_paragraph_2");
+  });
+});
+
+describe("React.memo (or forwardRef) around one of Elements' own components", () => {
+  const blocks: Array<[string, React.ComponentType<any>, Record<string, unknown>]> = [
+    ["Paragraph", Paragraph, { children: "para text" }],
+    ["Heading", Heading, { children: "heading text" }],
+    ["Button", ElementsButton, { href: "https://x.test", children: "button text" }],
+    ["Image", Image, { src: "https://img.test/a.png", alt: "alt text", width: 100, height: 50 }],
+    ["Divider", Divider, {}],
+    ["Html", Html, { html: "<p>html block text</p>" }],
+    ["Menu", Menu, { items: [{ text: "menu item", href: "https://x.test/m" }] }],
+    ["Social", Social, { icons: [{ name: "Facebook", url: "https://facebook.com/x" }] }],
+    ["Table", Table, { headers: ["h1"], rows: [["table cell"]] }],
+    ["Video", Video, { url: "https://www.youtube.com/watch?v=dQw4w9WgXcQ" }],
+  ];
+  // (forwardRef of a component taking no ref: React says so, in development.)
+  const wrappers: Array<[string, <T>(type: T) => T]> = [
+    ["memo", (type) => memo(type as any) as any],
+    ["a memo of a memo", (type) => memo(memo(type as any)) as any],
+    ["forwardRef", (type) => forwardRef(type as any) as any],
+  ];
+  const quiet = <T,>(render: () => T): T => {
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
+    try {
+      return render();
+    } finally {
+      error.mockRestore();
+    }
+  };
+  const both = (template: React.ReactElement) => quiet(() => ({ html: renderToHtml(template), design: renderToJson(template) }));
+
+  describe.each(wrappers)("%s", (_, wrap) => {
+    it.each(blocks)("of a %s is that block, in the HTML and the design", (_, Block, props) => {
+      const Wrapped = wrap(Block);
+      expect(both(<Email><Row><Column><Wrapped {...props} /></Column></Row></Email>)).toEqual(both(<Email><Row><Column><Block {...props} /></Column></Row></Email>));
+    });
+
+    it("of a Row or a Column is that Row or Column, with what's in it", () => {
+      const WrappedRow = wrap(Row);
+      const WrappedColumn = wrap(Column);
+      const after = <Row><Column><Paragraph>Footer</Paragraph></Column></Row>;
+      expect(both(<Email><WrappedRow><Column><Paragraph>in a row</Paragraph></Column></WrappedRow>{after}</Email>)).toEqual(both(<Email><Row><Column><Paragraph>in a row</Paragraph></Column></Row>{after}</Email>));
+      expect(both(<Email><Row><WrappedColumn><Paragraph>in a column</Paragraph></WrappedColumn></Row>{after}</Email>)).toEqual(both(<Email><Row><Column><Paragraph>in a column</Paragraph></Column></Row>{after}</Email>));
+    });
+  });
+
+  it("is that component in the async renderers too", async () => {
+    const [WrappedRow, WrappedColumn, WrappedParagraph] = [memo(Row), memo(Column), memo(Paragraph)];
+    const template = (wrapped: boolean) => (wrapped ? <Email><WrappedRow><WrappedColumn><WrappedParagraph>text</WrappedParagraph></WrappedColumn></WrappedRow></Email> : <Email><Row><Column><Paragraph>text</Paragraph></Column></Row></Email>);
+    expect(await asyncRenderers.renderToJson(template(true))).toEqual(await asyncRenderers.renderToJson(template(false)));
+    expect(await asyncRenderers.renderToHtml(template(true))).toBe(await asyncRenderers.renderToHtml(template(false)));
+  });
+
+  it("keeps a key it's given, in a list", () => {
+    const P = memo(Paragraph);
+    const items = ["one", "two"];
+    expect(both(<Email><Row><Column>{items.map((t) => <P key={t}>{t}</P>)}</Column></Row></Email>)).toEqual(both(<Email><Row><Column>{items.map((t) => <Paragraph key={t}>{t}</Paragraph>)}</Column></Row></Email>));
   });
 });
 

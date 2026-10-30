@@ -288,6 +288,17 @@ function withDefaults(type: any, props: Record<string, unknown>): Record<string,
 
 const keepOf = (ctx: Ctx, element: unknown) => (ctx.watch && ctx.watch.element === element ? ctx.watch.record : undefined);
 
+/**
+ * What `React.memo` or `forwardRef` wraps, asked of the collector as itself: a memo'd Row, Column or block (or a
+ * <Tailwind>, a <Head>) is that one, recorded where it is (React would call it with these props; no memo or ref
+ * matters on a server). `undefined` for a component of the user's own, called as React calls it.
+ */
+function asWrapped(type: unknown, props: Record<string, any>, key: React.Key | null, c: Collection, ctx: Ctx): React.ReactNode | undefined {
+  if (ctx.raw || !c.collector) return undefined;
+  const recorded = c.collector(React.createElement(type as React.ComponentType, { ...props, key: key ?? undefined }));
+  return recorded ? prepRecorded(recorded, c, ctx, key) : undefined;
+}
+
 function prepElement(element: React.ReactElement, c: Collection, ctx: Ctx, keep = keepOf(ctx, element)): React.ReactNode {
   const type = element.type as any;
   const props = element.props as Record<string, any>;
@@ -318,12 +329,13 @@ function prepElement(element: React.ReactElement, c: Collection, ctx: Ctx, keep 
         let own = props;
         if (REACT_18) ref = (element as { ref?: unknown }).ref ?? null;
         else if ("ref" in props) ({ ref, ...own } = props);
-        return callElement(type.render, type, own, ref, element.key, c, ctx, keep);
+        return asWrapped(type.render, own, element.key, c, ctx) ?? callElement(type.render, type, own, ref, element.key, c, ctx, keep);
       }
       case MEMO: {
         const wrapped = type.type;
         const own = REACT_18 ? withDefaults(wrapped, props) : props;
-        if (typeof wrapped === "function" && !wrapped.prototype?.isReactComponent) return callElement(wrapped, type, own, undefined, element.key, c, ctx, keep);
+        if (typeof wrapped === "function" && !wrapped.prototype?.isReactComponent) return asWrapped(wrapped, own, element.key, c, ctx) ?? callElement(wrapped, type, own, undefined, element.key, c, ctx, keep);
+        // (A memo of a memo or a forwardRef: unwrapped again, the collector asked at each.)
         return prepElement(React.createElement(wrapped, { ...own, key: element.key ?? undefined }), c, ctx, keep);
       }
       case LAZY:
