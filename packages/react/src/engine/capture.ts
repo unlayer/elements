@@ -178,14 +178,26 @@ export function callClassCaptured(Ctor: any, props: Record<string, unknown>, pro
   let value: unknown;
   let thrown: { error: unknown } | undefined;
   const name = nameOf(Ctor);
+  const captured = (call: () => unknown) => {
+    try {
+      value = asUserCall(rootFrame(name), call);
+    } catch (error) {
+      thrown = { error };
+    }
+    return null;
+  };
   class Capture extends Ctor {
-    render() {
-      try {
-        value = asUserCall(rootFrame(name), () => super.render());
-      } catch (error) {
-        thrown = { error };
+    constructor(...args: unknown[]) {
+      super(...args);
+      // (A render given as a class field, `render = () => …`, is the instance's own, which hides this class's.)
+      const self = this as unknown as { render: () => unknown };
+      if (Object.prototype.hasOwnProperty.call(self, "render") && typeof self.render === "function") {
+        const own = self.render;
+        self.render = () => captured(() => own.call(self));
       }
-      return null;
+    }
+    render() {
+      return captured(() => super.render());
     }
   }
   (Capture as unknown as { displayName: string }).displayName = name;

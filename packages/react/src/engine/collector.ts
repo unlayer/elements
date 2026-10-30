@@ -570,6 +570,21 @@ function classElement(Ctor: any, props: Record<string, any>, element: React.Reac
   const name = nameOf(Ctor);
   const frame = childFrame(ctx.frame, name);
   const inner: Ctx = { ...ctx, frame, watch: null };
+  /** Its render (`call`), what it throws caught and what it returns prepared. */
+  const collected = (self: { props: object }, call: () => unknown): React.ReactNode => {
+    let result: unknown;
+    try {
+      result = c.async ? call() : asUserCall(frame, call);
+    } catch (thrown) {
+      if (suspended(c, thrown)) {
+        c.suspended.push({ name, frame, boundary: ctx.boundary, inSuspense: ctx.suspense > 0 });
+        throw thrown;
+      }
+      return fails(c, callOrder(c, self.props), errorMark(c, thrown, name, frame, ctx));
+    }
+    if (keep) keep.output = { value: result };
+    return prep(result, c, inner);
+  };
   class Collected extends Ctor {
     constructor(p: unknown, context: unknown) {
       let failed: unknown;
@@ -584,20 +599,16 @@ function classElement(Ctor: any, props: Record<string, any>, element: React.Reac
         // (What a constructor that threw renders: its error's marker.)
         return { props: p, state: null, render: () => mark } as never;
       }
+      // (A render given as a class field, `render = () => …`, is the instance's own, which hides this class's.)
+      // @ts-expect-error -- super() was called: had it thrown, the constructor returned above.
+      const self = this as unknown as { props: object; render: () => unknown };
+      if (Object.prototype.hasOwnProperty.call(self, "render") && typeof self.render === "function") {
+        const own = self.render;
+        self.render = () => collected(self, () => own.call(self));
+      }
     }
     render(): React.ReactNode {
-      let result: unknown;
-      try {
-        result = c.async ? super.render() : asUserCall(frame, () => super.render());
-      } catch (thrown) {
-        if (suspended(c, thrown)) {
-          c.suspended.push({ name, frame, boundary: ctx.boundary, inSuspense: ctx.suspense > 0 });
-          throw thrown;
-        }
-        return fails(c, callOrder(c, this.props), errorMark(c, thrown, name, frame, ctx));
-      }
-      if (keep) keep.output = { value: result };
-      return prep(result, c, inner);
+      return collected(this as unknown as { props: object }, () => super.render());
     }
   }
   Object.defineProperty(Collected, "name", { value: name });
