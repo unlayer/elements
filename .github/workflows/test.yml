@@ -58,8 +58,14 @@ jobs:
         run: pnpm --filter @unlayer/from-react-email typecheck && pnpm --filter @unlayer/migrate typecheck
 
       # ── Bundle size budget ──────────────────────────────────────
-      # Fail if the react-elements ESM bundle exceeds 258KB.
-      # Current size: about 257.4KB (0.1.22: about 76KB). Raised from 255.5KB
+      # Fail if the react-elements ESM bundle exceeds 260.5KB.
+      # Current size: about 260KB (0.1.22: about 76KB). Raised from 258KB
+      # (about 2.4KB): another copy of React told only from a hook read off a
+      # null dispatcher, an email service's `<% %>` tag kept in an Image's
+      # src, a custom tool's values copied for each render, Markdown and
+      # CodeBlocks charged to the render wherever React renders them, a class
+      # left alone where React's dev build constructs it to name it, and what
+      # links an Image said. Raised from 255.5KB
       # (about 2.4KB): each marker and placeholder of the collecting render
       # bound to a part React kept, the components a <Link> renders in
       # recorded so its markup is cleaned wherever it lands, and an async
@@ -248,7 +254,7 @@ jobs:
         run: |
           BUNDLE="packages/react/dist/index.js"
           SIZE=$(wc -c < "$BUNDLE" | tr -d ' ')
-          MAX_SIZE=258000
+          MAX_SIZE=260500
           echo "Bundle: $BUNDLE"
           echo "Size: $SIZE bytes (budget: $MAX_SIZE bytes)"
           if [ "$SIZE" -gt "$MAX_SIZE" ]; then
