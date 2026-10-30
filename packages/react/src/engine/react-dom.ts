@@ -222,11 +222,25 @@ export const REACT_COPIES =
 export const TEMPLATE_REACT =
   "the template was made with another copy of React than the one Elements renders with (its elements, or the hooks its components call), so React can't render it: install one copy of react and react-dom (`npm ls react` lists them), or alias `react` to one path in your bundler";
 
+/** React's hooks, as its dispatcher names them (react's and react-dom's). */
+const HOOKS = new Set("use useActionState useCallback useContext useDebugValue useDeferredValue useEffect useEffectEvent useFormState useFormStatus useId useImperativeHandle useInsertionEffect useLayoutEffect useMemo useOptimistic useReducer useRef useState useSyncExternalStore useTransition".split(" "));
+/** A TypeError reading a property of null, by engine: V8's, JavaScriptCore's, SpiderMonkey's; the property it read. */
+const OF_NULL = [/^Cannot read properties of null \(reading '([\w$]+)'\)$/, /^null is not an object \(evaluating '[\w$.]*\.([\w$]+)'\)$/, /^can't access property "([\w$]+)", [\w$.]+ is null$/];
+
 /**
- * Whether what a component threw says the hooks it called are another copy of React's (one that renders nothing:
- * `Cannot read properties of null (reading 'useState')`, Safari's `null is not an object (evaluating '….useState')`).
+ * Whether what a component threw, as it was called (`called`: synchronously, in its call, not a promise's rejection),
+ * says the hooks it called are another copy of React's: one of React's hooks read off a dispatcher that's null (that
+ * copy renders nothing), as React's hooks fail there. Anything else (`settings.theme.useDarkLogo` of undefined, a hook
+ * after an `await`) is the component's own error.
  */
-export const otherReactsHook = (error: unknown): boolean => error instanceof TypeError && /\(reading 'use[A-Z]\w*'\)|evaluating '[^']*\.use[A-Z]\w*'/.test(error.message);
+export const otherReactsHook = (error: unknown, called: boolean): boolean => {
+  if (!called || !(error instanceof TypeError)) return false;
+  for (const pattern of OF_NULL) {
+    const hook = pattern.exec(error.message)?.[1];
+    if (hook) return HOOKS.has(hook);
+  }
+  return false;
+};
 
 export const nestedRender = (api: string) =>
   `${api} can't start while a component of a template that Elements is rendering synchronously is called: react-dom/server, which renders templates, can't start a render inside its own. Render it before (and pass what it gives as a prop) or after, or start an async render there ("@unlayer/react-elements/async"), which renders once that call is over`;

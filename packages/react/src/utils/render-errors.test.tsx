@@ -100,6 +100,32 @@ describe("a part of a template that fails", () => {
     expect(JSON.stringify(renderToJson(template(), { onError: "omit" }))).not.toContain("failing_tool");
   });
 
+  it("leaves out a component whose data is missing however its property is named (`settings.theme.useDarkLogo`), and a hook after an await, as any part that fails", async () => {
+    // A TypeError naming a property `use…` was taken for another copy of React's hooks, and failed the render whatever
+    // onError said.
+    const Logo = ({ settings }: { settings: { theme?: { useDarkLogo?: boolean } } }) => <Paragraph>{settings.theme!.useDarkLogo ? "dark" : "light"}</Paragraph>;
+    const Locale = React.createContext("en");
+    const Greeting = async () => {
+      const user = await new Promise<{ name: string }>((done) => setTimeout(() => done({ name: "Ada" }), 1));
+      return <Paragraph>{`${React.useContext(Locale)}: hi ${user.name}`}</Paragraph>;
+    };
+    const email = (part: React.ReactNode) => <Email><Row><Column>{part}<Paragraph>Your receipt: $42.00</Paragraph></Column></Row></Email>;
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
+    try {
+      const told: RenderError[] = [];
+      expect(renderToPlainText(email(<Logo settings={{}} />), { onError: "omit" })).toContain("Your receipt");
+      expect(renderToPlainText(email(<Logo settings={{}} />), { onError: (e) => void told.push(e) })).toContain("Your receipt");
+      expect(told.map((e) => e.component)).toEqual(["Logo"]);
+      expect(() => renderToHtml(email(<Logo settings={{}} />))).toThrow(/useDarkLogo/);
+      expect(() => renderToHtml(email(<Logo settings={{}} />))).not.toThrow(/another copy of React/);
+      expect(await asyncRenderers.renderToPlainText(email(<Greeting />), { onError: "omit" })).toContain("Your receipt");
+      await expect(asyncRenderers.renderToHtml(email(<Greeting />))).rejects.toMatchObject({ component: "Greeting" });
+      await expect(asyncRenderers.renderToHtml(email(<Greeting />))).rejects.not.toThrow(/another copy of React/);
+    } finally {
+      error.mockRestore();
+    }
+  });
+
   it("fails the render on a portal, onError or not (as ARCHITECTURE.md says: React's server renderer has none)", () => {
     const Portal = () => createPortal(<b>portal</b>, document.createElement("div"));
     for (const onError of [undefined, "omit" as const]) {

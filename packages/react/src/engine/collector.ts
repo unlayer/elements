@@ -289,13 +289,14 @@ function failedPart(c: Collection, error: unknown, fatal: boolean, ctx?: Ctx): R
   return null;
 }
 
-function errorMark(c: Collection, error: unknown, name: string, frame: Frame, ctx?: Ctx): React.ReactElement | null {
+/** `called`: what the component threw as it was called (synchronously, in its call: see otherReactsHook). */
+function errorMark(c: Collection, error: unknown, name: string, frame: Frame, ctx?: Ctx, called = false): React.ReactElement | null {
   // (A render the component started, refused: the render fails with it as it is.)
   if (isRefusal(error)) return failedPart(c, error, true, ctx);
   // (A component's hooks fail where react-dom renders with another copy of React: said so, whatever the component threw.)
   if (!(error instanceof RenderError) && !c.passes?.(error) && !isServerReact() && !oneReact()) return fatalMark(c, REACT_COPIES, frame, error, ctx);
   // (Or the template's own components call another copy's: said so too.)
-  if (otherReactsHook(error)) return fatalMark(c, TEMPLATE_REACT, frame, error, ctx);
+  if (otherReactsHook(error, called)) return fatalMark(c, TEMPLATE_REACT, frame, error, ctx);
   const made = positioned(c, error, name, frame);
   return failedPart(c, made, c.fatal.has(made as object) || !(made instanceof RenderError), ctx);
 }
@@ -443,7 +444,7 @@ function consumer(fn: unknown, c: Collection, ctx: Ctx, keep?: Record<string, an
     } catch (caught) {
       const thrown = handled(caught);
       if (suspended(c, thrown)) throw thrown;
-      return fails(c, at, errorMark(c, thrown, ctx.frame.name, ctx.frame, ctx));
+      return fails(c, at, errorMark(c, thrown, ctx.frame.name, ctx.frame, ctx, true));
     }
     if (keep) keep.output = { value: result };
     return prep(result, c, { ...ctx, order: at });
@@ -615,7 +616,7 @@ function Call(placed: CallProps): React.ReactNode {
         waits(c, at);
         throw thrown;
       }
-      return fails(c, at, errorMark(c, thrown, name, frame, ctx));
+      return fails(c, at, errorMark(c, thrown, name, frame, ctx, true));
     }
   }
   if (isThenable(result)) {
@@ -686,7 +687,7 @@ function classElement(Ctor: any, props: Record<string, any>, element: React.Reac
   /** Its render (`call`), what it throws caught and what it returns prepared; or what failed before it, said. */
   const collected = (self: { props: object; state?: unknown }, call: () => unknown): React.ReactNode => {
     const failed = (self as unknown as Record<symbol, { error: unknown } | undefined>)[FAILED] ?? (self.state as Record<symbol, { error: unknown } | undefined> | null | undefined)?.[FAILED];
-    if (failed) return fails(c, at, errorMark(c, failed.error, name, frame, ctx));
+    if (failed) return fails(c, at, errorMark(c, failed.error, name, frame, ctx, true));
     let result: unknown;
     try {
       result = handled(c.async ? call() : asUserCall(frame, call));
@@ -696,7 +697,7 @@ function classElement(Ctor: any, props: Record<string, any>, element: React.Reac
         c.suspended.push({ name, frame, boundary: ctx.boundary, inSuspense: ctx.suspense > 0, suspenseAt: ctx.suspenseAt });
         throw thrown;
       }
-      return fails(c, at, errorMark(c, thrown, name, frame, ctx));
+      return fails(c, at, errorMark(c, thrown, name, frame, ctx, true));
     }
     if (keep) keep.output = { value: result };
     return prep(result, c, inner);
@@ -711,7 +712,7 @@ function classElement(Ctor: any, props: Record<string, any>, element: React.Reac
       }
       if (failed !== undefined) {
         if (suspended(c, failed)) throw failed;
-        const mark = fails(c, at, errorMark(c, failed, name, frame, ctx));
+        const mark = fails(c, at, errorMark(c, failed, name, frame, ctx, true));
         // (What a constructor that threw renders: its error's marker.)
         return { props: p, state: null, render: () => mark } as never;
       }
