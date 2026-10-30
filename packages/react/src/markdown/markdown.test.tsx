@@ -773,6 +773,25 @@ describe("sanitizeHtml", () => {
   // A reply's HTML (a support ticket's, a comment's) with an end tag of what it isn't in, or an element it doesn't end,
   // broke out of its block: `</td></tr></table>` ended the Column it was in (its link a full-width banner), an `<a href>`
   // made every block after it in the Column the reply's link.
+  it("ends what a browser's parser ends at a start tag, so no end tag it adds ends the block's own table (`<table><table>`, a cell in a cell, an `<li>` in an `<li>`)", () => {
+    // A browser closes the first table at the second `<table>` (straight in a table): the extra `</table>` written for it
+    // ended the block's own table, and the blocks after it left the Column.
+    const typos = ["<table><table>x", "<table><tbody><tr><td>a<table>b", "<table><tr><td>a<tr><td>b", "<table><tr><td>a<td>b", "<table><tbody><tr><td>a</td></tr><tbody><tr><td>b", "<ul><li>a<li>b", "<p>a<div>b", "<p>a<table><tr><td>b", "<h1>a<h2>b", "<dl><dt>a<dd>b<dt>c"];
+    for (const typo of typos) {
+      const doc = new JSDOM(`<table id="outer"><tbody><tr><td id="cell">${sanitizeHtml(typo)}<i id="inside">in</i></td></tr></tbody></table><p id="after">after</p>`).window.document;
+      expect([typo, doc.querySelector("#inside")?.closest("#cell")?.id]).toEqual([typo, "cell"]);
+      expect([typo, doc.querySelector("#after")?.closest("table")]).toEqual([typo, null]);
+      // In an email: the block after it stays in the Column.
+      const html = renderToHtml(<Email><Row><Column><Markdown>{typo}</Markdown><Paragraph>AFTER IT</Paragraph></Column></Row></Email>);
+      const page = new JSDOM(html).window.document;
+      const after = [...page.querySelectorAll("div")].find((div) => div.textContent?.trim() === "AFTER IT");
+      expect([typo, after?.closest("#u_column_1")?.id]).toEqual([typo, "u_column_1"]);
+    }
+    // (What a browser makes of each, kept: the second table after the first, each item its own.)
+    expect(sanitizeHtml("<table><table>x")).toBe("<table></table><table>x</table>");
+    expect(sanitizeHtml("<ul><li>a<li>b")).toBe("<ul><li>a</li><li>b</li></ul>");
+  });
+
   it("balances tags in time linear in the HTML's size, however many end tags match nothing open", async () => {
     // (`<span>`s open and `</div>`s that end none: each was looked for through everything open.)
     const time = (n: number) => {

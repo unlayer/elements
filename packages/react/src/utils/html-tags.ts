@@ -89,32 +89,73 @@ export function rawTextEnd(s: string, name: string, from: number): number {
 
 const VOID = new Set("area base br col embed hr img input link meta param source track wbr".split(" "));
 
+/** What a start tag closes first, as a browser's parser does: the element it ends, and where it stops looking for it. */
+const BUTTON_SCOPE = ["applet", "button", "caption", "html", "marquee", "object", "table", "td", "template", "th"];
+const SPECIAL = ["address", "applet", "area", "article", "aside", "blockquote", "button", "caption", "center", "col", "colgroup", "dd", "details", "dir", "dl", "dt", "fieldset", "figcaption", "figure", "footer", "form", "h1", "h2", "h3", "h4", "h5", "h6", "header", "hgroup", "hr", "li", "main", "marquee", "menu", "nav", "object", "ol", "p", "pre", "section", "summary", "table", "tbody", "td", "template", "tfoot", "th", "thead", "tr", "ul"];
+const CLOSES_P = new Set("address article aside blockquote center dd details dialog dir div dl dt fieldset figcaption figure footer form h1 h2 h3 h4 h5 h6 header hgroup hr li listing main menu nav ol p pre search section summary table ul xmp".split(" "));
+const IN_TABLE = new Set(["table", "tbody", "thead", "tfoot", "tr", "colgroup"]);
+const HEADING = /^h[1-6]$/;
+const RULES: Array<{ starts: (name: string) => boolean; closes: string[]; stops: string[] }> = [
+  { starts: (name) => CLOSES_P.has(name), closes: ["p"], stops: BUTTON_SCOPE },
+  { starts: (name) => name === "li", closes: ["li"], stops: [...BUTTON_SCOPE, "ol", "ul"] },
+  { starts: (name) => name === "dd" || name === "dt", closes: ["dd", "dt"], stops: SPECIAL.filter((name) => !/^(address|div|p|dd|dt)$/.test(name)) },
+  { starts: (name) => name === "tr", closes: ["tr"], stops: ["html", "table", "template"] },
+  { starts: (name) => name === "td" || name === "th" || name === "tr", closes: ["td", "th"], stops: ["html", "table", "template"] },
+  { starts: (name) => /^(tbody|thead|tfoot)$/.test(name), closes: ["tbody", "thead", "tfoot"], stops: ["html", "table", "template"] },
+];
+
 /**
  * HTML written again from what was read (sanitized HTML, Markdown's, a block's rich text), its tags balanced: an end
  * tag of nothing open left out, what it closes past (opened after the element it ends) closed with it, and what's
  * still open closed at the end. So HTML from a reply can't end the block, column or table it's in
- * (`</td></tr></table>`), or run on into what's after it (an `<a href>` or `<b>` it doesn't end).
+ * (`</td></tr></table>`), or run on into what's after it (an `<a href>` or `<b>` it doesn't end). A start tag that a
+ * browser's parser takes to end what's open first closes it here too (a `<table>` straight in a table, a `<p>` or a
+ * block in a `<p>`, an `<li>` in an `<li>`, a cell in a cell, a row in a row, a heading in a heading): written as one
+ * more end tag past that, it would end the block's own table, which the browser closed already.
  */
 export function balanced(html: string): string {
   const open: string[] = [];
-  // (How many of each name are open: an end tag of one that isn't is left out at once, whatever's open.)
-  const counts = new Map<string, number>();
+  // (Where each name is open, innermost last: an end tag of one that isn't is left out at once, and a start tag finds
+  // what it closes, and where a scope stops it, without reading what's open.)
+  const at = new Map<string, number[]>();
+  const top = (name: string) => {
+    const list = at.get(name);
+    return list?.length ? list[list.length - 1] : -1;
+  };
+  const push = (name: string) => {
+    (at.get(name) ?? at.set(name, []).get(name)!).push(open.length);
+    open.push(name);
+  };
+  /** End tags for what's open down to place `to`, it included. */
+  const closeTo = (to: number) => {
+    let ends = "";
+    while (open.length > to) {
+      const last = open.pop()!;
+      at.get(last)!.pop();
+      ends += `</${last}>`;
+    }
+    return ends;
+  };
   const out = html.replace(/<(\/?)([a-zA-Z][a-zA-Z0-9-]*)\b[^>]*>/g, (tag, close: string, given: string) => {
     const name = given.toLowerCase();
-    if (VOID.has(name)) return close ? "" : tag;
+    if (VOID.has(name) && name !== "hr") return close ? "" : tag;
     if (!close) {
-      open.push(name);
-      counts.set(name, (counts.get(name) ?? 0) + 1);
-      return tag;
+      let ends = "";
+      for (const rule of RULES) {
+        if (!rule.starts(name)) continue;
+        const found = Math.max(...rule.closes.map(top));
+        if (found >= 0 && found > Math.max(...rule.stops.map(top))) ends += closeTo(found);
+      }
+      // A table straight in a table (not in a cell or a caption): the open one ends first.
+      if (name === "table" && open.length && IN_TABLE.has(open[open.length - 1])) ends += closeTo(top("table"));
+      // A heading in a heading.
+      if (HEADING.test(name) && open.length && HEADING.test(open[open.length - 1])) ends += closeTo(open.length - 1);
+      if (name === "hr") return ends + tag;
+      push(name);
+      return ends + tag;
     }
-    if (!counts.get(name)) return "";
-    let ends = "";
-    for (;;) {
-      const last = open.pop()!;
-      counts.set(last, counts.get(last)! - 1);
-      ends += `</${last}>`;
-      if (last === name) return ends;
-    }
+    if (name === "hr") return "";
+    return top(name) < 0 ? "" : closeTo(top(name));
   });
   return out + open.reverse().map((n) => `</${n}>`).join("");
 }
