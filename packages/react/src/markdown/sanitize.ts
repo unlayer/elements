@@ -6,6 +6,7 @@
 
 import { balanced, commentEnd, rawTextEnd, readTag, type Attribute } from "../utils/html-tags";
 import { codePoint, decoded, entities, tight } from "../utils/entities";
+import { keepTags } from "../utils/inline-html";
 
 export { balanced };
 
@@ -15,6 +16,9 @@ const ESCAPES: Record<string, string> = { "&": "&amp;", "<": "&lt;", ">": "&gt;"
 export const escapeText = (text: string) => text.replace(/&(?!#\d+;|#x[\da-f]+;|[a-z][\da-z]*;)|[<>"]/gi, (ch) => ESCAPES[ch]);
 /** An attribute's value: every `&` escaped too, so an entity in a URL (`&#106;avascript:`) stays text. */
 export const escapeAttribute = (text: string) => text.replace(/[&<>"]/g, (ch) => ESCAPES[ch]);
+
+/** A URL's attribute value, escaped, an email service's `<% … %>` tag in it as written (see keepTags). */
+export const escapeUrl = (url: string) => keepTags(escapeAttribute(url));
 
 /**
  * A link's or an image's URL when it's safe: a web, mail or phone link, an image on the web (or a `cid:` attachment,
@@ -91,7 +95,8 @@ function keptAttributes(list: Attribute[]): string {
     if (key === "style" && unsafeStyle(value ?? "")) continue;
     const written = key === "class" && value !== undefined ? keptClasses(value) : value;
     if (key === "class" && value && !written!.trim()) continue;
-    kept += written === undefined ? ` ${key}` : ` ${key}="${written.replace(/["<>`]/g, (ch) => ESCAPES[ch])}"`;
+    const escaped = written?.replace(/["<>`]/g, (ch) => ESCAPES[ch]);
+    kept += escaped === undefined ? ` ${key}` : ` ${key}="${URL_ATTRIBUTES[key] ? keepTags(escaped) : escaped}"`;
   }
   return kept;
 }

@@ -1,7 +1,7 @@
 import React from "react";
 import { JSDOM } from "jsdom";
 import { afterEach, beforeAll, beforeEach, describe, expect, it, onTestFinished, vi, type MockInstance } from "vitest";
-import { Column, Email, Html, Page, Paragraph, RenderError, Row, renderToHtml, renderToHtmlParts, renderToJson, renderToPlainText } from "../index";
+import { Column, Email, Html, Link, Page, Paragraph, RenderError, Row, renderToHtml, renderToHtmlParts, renderToJson, renderToPlainText } from "../index";
 import { Tailwind, loadTailwind, type TailwindHandle } from "../tailwind";
 import * as asyncRenderers from "../async";
 import { Markdown, safeUrl, sanitizeHtml, type MarkdownProps } from "./index";
@@ -170,8 +170,8 @@ describe("an email service's tag in a Markdown link's URL", () => {
   const hrefs = (markdown: string) => [...renderToHtml(email({ children: markdown })).matchAll(/<a [^>]*href="([^"]*)"/g)].map((m) => m[1]);
   // (An image's src as the Image block writes it, its quotes as references: read back.)
   const srcs = (markdown: string) => [...renderToHtml(email({ children: markdown })).matchAll(/<img [^>]*src="([^"]*)"/g)].map((m) => m[1].replace(/&#0?39;|&#x27;/g, "'").replace(/&quot;/g, '"').replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&amp;/g, "&"));
-  /** A URL as an attribute writes it (its quotes as references). */
-  const written = (url: string) => url.replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  /** A URL as an attribute writes it (its quotes as references), a `<% … %>` tag in it as written, as a <Link> keeps one. */
+  const written = (url: string) => url.replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/&lt;%(.*?)%&gt;/g, "<%$1%>");
 
   it("is kept whole in [text](url), ![alt](src), a URL alone, <url> and a link's definition, in the HTML and the plain text", () => {
     for (const tag of tags) {
@@ -184,6 +184,25 @@ describe("an email service's tag in a Markdown link's URL", () => {
       expect(renderToPlainText(email({ children: `Shop at www.shop.example/?ref=${tag} today` })), tag).toContain(`www.shop.example/?ref=${tag}`);
       expect(srcs(`![Chart](https://cdn.example/chart.png?u=${tag})`), tag).toEqual([`https://cdn.example/chart.png?u=${tag}`]);
     }
+  });
+
+  it("keeps a `<% … %>` tag as written wherever Markdown writes a URL, as a <Link> does (SendGrid's unsubscribe URL in a footer)", () => {
+    // It was written `&lt;%…%&gt;`, which the service doesn't read: the link was never filled in.
+    const unsubscribe = "<%asm_group_unsubscribe_raw_url%>";
+    const urls = (markdown: string) => {
+      const html = renderToHtml(email({ children: markdown }));
+      return [...html.slice(html.indexOf("<body")).matchAll(/(?:href|src)="([^"]*)"/g)].map((m) => m[1]).filter((url) => url.includes("%"));
+    };
+    expect(urls(`[Unsubscribe](${unsubscribe})`)).toEqual([unsubscribe]);
+    expect(urls(`[Unsubscribe][u]\n\n[u]: ${unsubscribe}`)).toEqual([unsubscribe]);
+    expect(urls(`<a href="${unsubscribe}">Unsubscribe</a>`)).toEqual([unsubscribe]);
+    expect(urls("Track it: https://shop.example/t?id=<%= order.id %> today")).toEqual(["https://shop.example/t?id=<%= order.id %>"]);
+    expect(urls(`Hi ![Logo](https://cdn.example/${unsubscribe}.png) there`)).toEqual([`https://cdn.example/${unsubscribe}.png`]);
+    // An image alone (an Image block), as its link keeps one.
+    expect(urls(`![Logo](https://cdn.example/${unsubscribe}.png)`)).toEqual([`https://cdn.example/${unsubscribe}.png`]);
+    // (The control: the same in a <Link>.)
+    const html = renderToHtml(<Email><Row><Column><Paragraph><Link href={unsubscribe}>Unsubscribe</Link></Paragraph></Column></Row></Email>);
+    expect(html).toContain(`href="${unsubscribe}"`);
   });
 
   it("leaves Markdown as CommonMark reads it everywhere else: text, emphasis, a tag with no spaces (the controls)", () => {

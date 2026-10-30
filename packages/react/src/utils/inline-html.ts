@@ -78,6 +78,13 @@ export function inlineHtml(html: string, images = false): string {
 }
 
 /**
+ * A URL's escaped attribute value, an email service's `<% … %>` tag in it as written (SendGrid's
+ * `<%asm_group_unsubscribe_raw_url%>`, ERB's `<%= order.id %>`), as a <Link> keeps one: on one line, with no `<`, `>` or
+ * `"` in it, harmless in a quoted attribute, and the service reads it there.
+ */
+export const keepTags = (escaped: string): string => escaped.replace(/&lt;%((?:(?!&lt;|&gt;)[^\n"]){0,256}?)%&gt;/g, "<%$1%>");
+
+/**
  * Markup's text as text given as a string writes it: its quotes as written (React writes `'` as `&#x27;` and `"` as
  * `&quot;`, which an email service's tag can't read: `{{ name | default: "friend" }}`), and an email service's
  * <%name%> tag. A tag's attributes keep theirs (each tag read to the next `<` or `>`, once, whatever the text holds:

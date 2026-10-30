@@ -19,6 +19,7 @@ import type { ValuesInput } from "@unlayer-internal/shared-elements";
 import { contentSlotWidth, DEFAULT_CONTAINER_PADDING, pinImageSrc, toPx } from "./image-sizing";
 import { guest, remember, textRegion } from "./render-scope";
 import { cssUrlValue } from "./css-url";
+import { keepTags } from "./inline-html";
 import {
   mergeValues,
   generateHtmlFromTextJson,
@@ -277,7 +278,9 @@ function renderComponent<T = any>(config: RenderConfig<T>): JSX.Element {
   const html = guest(() => exporter(values, ...args, undefined, { exporterConfig, mergeTagState: cfg.mergeTagState, ...metaContext }));
   // A string, with its `style` and `className` on the tag that renders it (a table its repeat rule's rows are in,
   // marked for the plain text: see textRegion).
-  const written = hatch(String(html), at ?? /<[a-z][^>]*>/, style, className, given ?? {});
+  // (An Image's src keeps an email service's `<% … %>` tag as written, as its link does: see keepTags.)
+  const hatched = hatch(String(html), at ?? /<[a-z][^>]*>/, style, className, given ?? {});
+  const written = config.type === "Image" ? hatched.replace(/\ssrc="[^"]*"/g, keepTags) : hatched;
   return <div dangerouslySetInnerHTML={{ __html: config.type === "Table" && cfg.mergeTagState ? textRegion(written) : written }} />;
 }
 

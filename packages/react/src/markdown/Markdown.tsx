@@ -3,7 +3,7 @@ import { Parser, type Token, type Tokens } from "marked";
 import { Divider, Heading, Html, Image, Paragraph, Table, renderToHtml } from "@unlayer/react-elements";
 import type { DividerProps, HeadingProps, HtmlProps, ImageProps, ParagraphProps, TableProps } from "@unlayer/react-elements";
 import { CodeBlock, codeInline, highlightCode, type CodeBlockProps, type CodeInlineOptions } from "@unlayer/react-elements/code";
-import { balanced, escapeAttribute, escapeText, safeUrl, sanitized, sanitizeHtml } from "./sanitize";
+import { balanced, escapeAttribute, escapeText, escapeUrl, safeUrl, sanitized, sanitizeHtml } from "./sanitize";
 import { tooLarge, type TooLarge } from "./limits";
 import { lexMarkdown } from "./work";
 import { charge, codeWork, CODE_WORK, renderPart, renderWork, sayWhenDone } from "../code/work";
@@ -187,13 +187,13 @@ class Writer {
             const inner = this.inline(token.tokens);
             if (href === undefined) return inner;
             const title = token.title ? ` title="${escapeAttribute(token.title)}"` : "";
-            return `<a href="${escapeAttribute(href)}"${title}${this.attributes(this.props.linkAttributes ?? { target: "_blank", rel: "noopener" }, href)}${this.style("a")}>${inner}</a>`;
+            return `<a href="${escapeUrl(href)}"${title}${this.attributes(this.props.linkAttributes ?? { target: "_blank", rel: "noopener" }, href)}${this.style("a")}>${inner}</a>`;
           }
           case "image": {
             const src = this.url(token.href, "image");
             if (src === undefined) return "";
             const title = token.title ? ` title="${escapeAttribute(token.title)}"` : "";
-            return `<img src="${escapeAttribute(src)}" alt="${escapeAttribute(token.text)}"${title}${this.attributes(this.props.imageAttributes, src)}${this.style("img")} />`;
+            return `<img src="${escapeUrl(src)}" alt="${escapeAttribute(token.text)}"${title}${this.attributes(this.props.imageAttributes, src)}${this.style("img")} />`;
           }
           case "html":
             return this.raw(token.text, true);
