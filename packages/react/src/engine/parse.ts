@@ -35,9 +35,14 @@ interface Open {
   head?: boolean;
   foreign?: boolean;
   ends?: readonly string[];
-  /** A <style>'s or <script>'s content (React 18 writes markup in it, its text escaped): its text as given in a <Head>; no marker read. */
+  /**
+   * A <style>'s or <script>'s content on React 18, which writes markup in it (a component's, a list's) and escapes its
+   * text: read as markup, its text as given in a <Head> (`raw`), no marker read (`inert`), and no end tag in it closing
+   * what it's in (`floor`).
+   */
   raw?: boolean;
   inert?: boolean;
+  floor?: boolean;
 }
 
 /** The placeholder react-dom writes for the collection's HTML number `n` (see the collector's `rawPlaceholder`). */
@@ -67,14 +72,26 @@ export function parse(html: string, c: Collection, inert = false): Part[] {
     }
     text(html.slice(at, lt));
     if (html.startsWith("<!--", lt)) {
-      const raw = inert || top().inert ? null : placeholder.exec(html.slice(lt, lt + 40));
+      const raw = inert ? null : placeholder.exec(html.slice(lt, lt + 40));
+      // (HTML given whole in what React 18 writes in a <style> or <script>: an element's there.)
+      if (raw && top().inert && !(Number(raw[1]) < c.raw.length && !c.raw[Number(raw[1])].markup && !c.raw[Number(raw[1])].text)) {
+        text(html.slice(lt, lt + 4));
+        at = lt + 4;
+        continue;
+      }
       const n = raw ? Number(raw[1]) : -1;
-      if (raw && n < c.raw.length && !c.raw[n].markup) {
+      if (raw && n < c.raw.length && !c.raw[n].markup && !c.raw[n].text) {
         if (c.rawRead.has(n)) throw forged();
         c.rawRead.add(n);
         // HTML given whole: the element's own, as written (nothing in it read for a marker).
         top().parts.push(c.raw[n].html);
         at = lt + raw[0].length;
+        continue;
+      }
+      if (top().inert) {
+        // (No comment of the template's is there: its text's `<!--` is escaped, and HTML given whole is a placeholder.)
+        text(html.slice(lt, lt + 4));
+        at = lt + 4;
         continue;
       }
       const end = html.indexOf("-->", lt + 4);
@@ -88,10 +105,13 @@ export function parse(html: string, c: Collection, inert = false): Part[] {
     if (html[lt + 1] === "/") {
       const gt = html.indexOf(">", lt);
       const name = html.slice(lt + 2, gt < 0 ? html.length : gt).trim().toLowerCase();
-      // An end tag of what's open (a stray one, in HTML given whole, is text).
+      // An end tag of what's open (a stray one, in HTML given whole, is text), and inside a <style>'s or <script>'s
+      // content only of what's open there.
+      let floor = stack.length - 1;
+      while (floor > 0 && !stack[floor].floor) floor--;
       let depth = stack.length - 1;
-      while (depth > 0 && stack[depth].tag !== name) depth--;
-      if (depth === 0) text(html.slice(lt, gt + 1));
+      while (depth > floor && stack[depth].tag !== name) depth--;
+      if (depth === floor && !(floor > 0 && stack[floor].tag === name)) text(html.slice(lt, gt + 1));
       else {
         while (stack.length - 1 > depth) stack.pop();
         const done = stack.pop()!;
@@ -126,20 +146,28 @@ export function parse(html: string, c: Collection, inert = false): Part[] {
     if (VOID.has(lower)) continue;
     const foreign = from.foreign || (!!from.head && (lower === "svg" || lower === "math"));
     if (RAW.has(name)) {
-      // Its text, whole, to its end tag (React escapes what would end it): never read for markers. A <Head>'s is
-      // written as given (output.ts writes it with rawText), but under an <svg> or <math>, where it's escaped as any.
+      // Its text, whole, to its end tag as a browser reads it (`</script` and then a space, `/` or `>`): never read for
+      // markers, and nothing in it (a `<!--`, an end tag) closes anything. HTML given whole is the collection's (its
+      // placeholder all there is). A <Head>'s is written as given (output.ts writes it with rawText), but under an <svg>
+      // or <math>, where it's escaped as any; React 18 escapes the text it writes there, which is undone.
       const raw = !!from.head && !foreign;
       if (raw) Object.assign(host, { raw: true, ends: from.ends ?? [] });
-      // (React 18 escapes its text, so a tag in it is one React wrote, a component's or a list's: read as markup, no
-      // marker in it.)
-      if (REACT_18) {
-        stack.push({ tag: lower, parts: host.parts, host, head: from.head, foreign, ends: from.ends, raw: raw || from.raw, inert: true });
+      const endTag = new RegExp(`</${lower}(?=[\\s/>])`, "gi");
+      endTag.lastIndex = at;
+      const found = endTag.exec(html);
+      const stop = found ? found.index : html.length;
+      const content = html.slice(at, stop);
+      const given = inert ? null : placeholder.exec(content);
+      const n = given && given[0].length === content.length ? Number(given[1]) : -1;
+      if (n >= 0 && n < c.raw.length && c.raw[n].text) {
+        if (c.rawRead.has(n)) throw forged();
+        c.rawRead.add(n);
+        host.parts.push(c.raw[n].html);
+      } else if (REACT_18) {
+        stack.push({ tag: lower, parts: host.parts, host, head: from.head, foreign, ends: from.ends, raw: raw || from.raw, inert: true, floor: true });
         continue;
-      }
-      const end = html.toLowerCase().indexOf(`</${lower}`, at);
-      const stop = end < 0 ? html.length : end;
-      if (stop > at) host.parts.push(raw ? unescape18(html.slice(at, stop)) : html.slice(at, stop));
-      const endGt = end < 0 ? html.length - 1 : html.indexOf(">", end);
+      } else if (content) host.parts.push(content);
+      const endGt = found ? html.indexOf(">", stop) : html.length - 1;
       host.close = html.slice(stop, endGt + 1);
       at = endGt + 1;
       continue;

@@ -100,7 +100,8 @@ export interface Collection {
    */
   rendered: Set<number>;
   read: Set<number>;
-  raw: Array<{ html: string; markup: boolean }>;
+  /** HTML given whole (`markup`: a lazy component's, read as markup; `text`: a <style>'s or <script>'s, its whole text). */
+  raw: Array<{ html: string; markup: boolean; text?: boolean }>;
   rawRead: Set<number>;
   /** What failed in a <style>'s or <script>'s text (no marker there), by the boundary it's in; the boundaries' parts. */
   rawErrors: Array<{ error: unknown; fatal: boolean; boundary: number }>;
@@ -181,8 +182,8 @@ export const rootCtx = (frame: Frame): Ctx => ({ frame, suspense: 0, boundary: -
  * HTML given whole, kept by the collection, and the placeholder react-dom writes in its place (a comment, which the
  * parse swaps back: parse.ts). So nothing the template gives as HTML is read for a marker.
  */
-function rawPlaceholder(c: Collection, html: string): string {
-  return placeholderOf(c.nonce, c.raw.push({ html, markup: false }) - 1);
+function rawPlaceholder(c: Collection, html: string, text = false): string {
+  return placeholderOf(c.nonce, c.raw.push({ html, markup: false, text }) - 1);
 }
 
 /**
@@ -380,6 +381,10 @@ function prepHost(element: React.ReactElement, c: Collection, ctx: Ctx): React.R
   // (A parser reads a tag's name in any case: `<STYLE>` is a <style>.)
   // (As React names it: React writes a `<STYLE>`'s children as any element's.)
   const textOnly = type === "style" || type === "script";
+  // A <style>'s or <script>'s HTML (JSON-LD, CSS from data): its whole text, kept out of react-dom's output as any
+  // HTML given whole, so nothing in it (a `<!--`, an end tag) is read as the template's markup.
+  // (In what React 18 writes in one, an element's HTML too: the parse reads that as markup.)
+  if (html != null && html.__html != null && (!ctx.raw || REACT_18) && (textOnly || ctx.raw)) return React.cloneElement(element, { ...urls, dangerouslySetInnerHTML: { __html: rawPlaceholder(c, "" + html.__html, textOnly) } } as object);
   if (html != null && html.__html != null && !ctx.raw && !textOnly) {
     // (React writes a newline before a <pre>'s or <listing>'s HTML that starts with one, which a parser drops.)
     const lead = (type === "pre" || type === "listing") && typeof html.__html === "string" && html.__html[0] === "\n" ? "\n" : "";

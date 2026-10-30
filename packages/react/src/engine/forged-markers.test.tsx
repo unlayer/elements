@@ -95,3 +95,48 @@ describe("a string in a template that looks like one of the collecting render's 
     }
   });
 });
+
+describe("a <script>'s or <style>'s text from data (JSON-LD of an order)", () => {
+  // A product description from a CMS in Gmail's JSON-LD order markup, written the usual React way. Its `<!--` (React 18),
+  // or a `</scripts` then a `<!--` (React 19), ran the email's markup on as a comment: the design kept one row, the
+  // HTML lost the rows after it (in a <Head>: the whole body), and the collecting render's markers were in it. An
+  // `</unlayer-mark>` in it closed the Column it was in.
+  const descriptions = ["Brass desk lamp <!-- more", "Brass desk lamp </scripts and <!-- more", "</unlayer-mark></unlayer-mark> lamp <!--", "</script><p>lamp</p> <!--", "</style> lamp </STYLE > <!--"];
+  const order = (description: string) => JSON.stringify({ "@context": "http://schema.org", "@type": "Order", orderNumber: "A-1001", acceptedOffer: { itemOffered: { name: "Desk lamp", description } } });
+  type Place = "rows" | "head" | "column";
+  const template = (description: string, place: Place, tag: "script" | "style", form: "dsih" | "children") => {
+    const text = tag === "script" ? order(description) : `.lamp{content:${JSON.stringify(description)}}`;
+    const Markup = () => (form === "dsih" ? React.createElement(tag, { type: tag === "script" ? "application/ld+json" : undefined, dangerouslySetInnerHTML: { __html: text } }) : React.createElement(tag, { type: tag === "script" ? "application/ld+json" : undefined }, text));
+    return (
+      <Email>
+        {place === "head" ? <Head><Markup /></Head> : null}
+        <Row><Column><Paragraph>Thanks for your order</Paragraph></Column></Row>
+        {place === "rows" ? <Markup /> : null}
+        <Row><Column><Paragraph>Order A-1001</Paragraph>{place === "column" ? <Markup /> : null}<Paragraph>Track your order</Paragraph></Column></Row>
+        <Row><Column><Paragraph>Questions? Reply to this email.</Paragraph></Column></Row>
+      </Email>
+    );
+  };
+  const blocks = (design: ReturnType<typeof renderToJson>) => design.body.rows.map((row) => row.columns.map((column) => column.contents.length));
+
+  for (const place of ["rows", "head", "column"] as const) {
+    it(`keeps every row and block, and no marker, with it ${place === "rows" ? "among the rows" : place === "head" ? "in a <Head>" : "in a Column"}`, () => {
+      for (const tag of ["script", "style"] as const) {
+        for (const form of ["dsih", "children"] as const) {
+          // (The negative control: the same template with a description that ends nothing.)
+          const expected = blocks(renderToJson(template("Brass desk lamp", place, tag, form)));
+          expect(expected).toEqual([[1], [place === "column" ? 3 : 2], [1]]);
+          for (const description of descriptions) {
+            const at = `${tag} ${form}: ${description}`;
+            const html = renderToHtml(template(description, place, tag, form));
+            expect(blocks(renderToJson(template(description, place, tag, form))), at).toEqual(expected);
+            for (const text of ["Thanks for your order", "Track your order", "Questions? Reply", "</html>"]) expect(html, at).toContain(text);
+            // (The description's own `</unlayer-mark>` is its text; no marker of the render's is.)
+            expect(html, at).not.toMatch(/<unlayer-mark data-|<!--u[a-z0-9]+\.\d+-->/);
+            expect(renderToPlainText(template(description, place, tag, form)), at).toContain("Questions? Reply");
+          }
+        }
+      }
+    });
+  }
+});
