@@ -16,7 +16,8 @@ import { collect, htmlOf } from "./index";
 import { cssNames } from "./attributes";
 import { element } from "../exporters/markup";
 import { REACT_18 } from "./react-compat";
-import { Column, Page, Row, renderToHtmlParts, renderToJson } from "../index";
+import { Column, Page, Paragraph, Row, renderToHtmlParts, renderToJson } from "../index";
+import { keptBaselines } from "./capture";
 import * as asyncRenderers from "../async";
 import { BLOCKED_URL, blockedUrls } from "../test-utils";
 
@@ -113,6 +114,19 @@ describe("the collecting render against react-dom/server", () => {
     for (let round = 0; round < 2; round++) expect(element("div", { style }).html).toBe(renderToStaticMarkup(<div style={style} />));
     expect(cssNames.size).toBeGreaterThan(0);
     expect(cssNames.size).toBeLessThanOrEqual(1000);
+  });
+
+  it("keeps a bounded number of the ids template wrappers start at (an idPrefix per message), and gives each render its own past it", () => {
+    const Wrapper = ({ n }: { n: number }) => <Page><Row><Column><Paragraph>{`${n} ${useId()}`}</Paragraph></Column></Row></Page>;
+    const html = (n: number) => renderToHtmlParts(<Wrapper n={n} />, { idPrefix: `m${n}-` }).body;
+    const first = html(0);
+    let last = "";
+    for (let n = 1; n <= 1200; n++) last = html(n);
+    expect(keptBaselines()).toBeGreaterThan(0);
+    expect(keptBaselines()).toBeLessThanOrEqual(1000);
+    expect([html(0), html(1200)]).toEqual([first, last]);
+    expect(last).toContain("1200 ");
+    expect(last).toContain("m1200-");
   });
 
   it("writes each attribute, style and child as react-dom does, on every kind of element", () => {

@@ -59,8 +59,13 @@ export const forked = (forks: number, node: React.ReactNode): React.ReactNode =>
 const within = (providers: readonly React.ReactElement[], inside: React.ReactNode): React.ReactNode =>
   providers.reduceRight<React.ReactNode>((node, provider) => cloneElement(provider, undefined, node), inside);
 
-/** The id a component gets where `forks` wrappers that called useId() left the tree. */
+/**
+ * The id a component gets where `forks` wrappers that called useId() left the tree. Kept for the first 1,000 kinds
+ * (a template's forks and `idPrefix`: a prefix per message would keep one each), then worked out each time.
+ */
 const baselines = new Map<string, string>();
+/** How many baselines are kept (for the tests). */
+export const keptBaselines = (): number => baselines.size;
 function baselineId(forks: number, idPrefix = ""): string {
   const key = `${forks}:${idPrefix}`;
   let id = baselines.get(key);
@@ -72,7 +77,8 @@ function baselineId(forks: number, idPrefix = ""): string {
     } catch {
       // (Where Elements' React isn't react-dom's, no id: what's in a wrapper is where it is.)
     }
-    baselines.set(key, (id = seen));
+    id = seen;
+    if (baselines.size < 1000) baselines.set(key, id);
   }
   return id;
 }
