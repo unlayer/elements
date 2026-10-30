@@ -744,7 +744,8 @@ const render = async ([E, React]) => {
 const order = process.argv[2] === "19" ? [React19.version, React18.version] : [React18.version, React19.version];
 const out = {};
 for (const version of [...order, ...order]) out[version] = (out[version] ?? true) && (await render(copies[version]).catch((e) => "threw " + e.message));
-console.log(JSON.stringify(out));
+// (By the version installed: React 18.0.0 says it's "18.0.0-fc46dba67-20220329".)
+console.log(JSON.stringify(Object.fromEntries(Object.entries(out).map(([version, ok]) => [version.split("-")[0], ok]))));
 `
       );
       for (const first of ["18", "19"]) {
@@ -785,7 +786,8 @@ for (const [outer, inner] of [[[E18, React18], [E19, React19]], [[E19, React19],
     out[outer[1].version] = "threw " + e.message.slice(0, 160);
   }
 }
-console.log(JSON.stringify(out));
+// (By the version installed: React 18.0.0 says it's "18.0.0-fc46dba67-20220329".)
+console.log(JSON.stringify(Object.fromEntries(Object.entries(out).map(([version, ok]) => [version.split("-")[0], ok]))));
 `
       );
       const run = spawnSync(process.execPath, ["app.js"], { cwd: dir, encoding: "utf8", timeout: 30_000 });
