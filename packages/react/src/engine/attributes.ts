@@ -1,7 +1,8 @@
 /**
  * An element's attributes as react-dom/server writes them (React 18's property table, React 19's attribute switch):
  * which props it writes, under which name, and how it writes their values, its `style` included; and text, escaped as
- * React escapes it. The walker's host markup (host.ts) and the string exporters (src/exporters) both write with these.
+ * React escapes it. The engine's host markup (host.ts), which the string exporters (src/exporters) write with, and the
+ * collector, which blocks React 18's `javascript:` URLs as React 19 does, use these.
  */
 import { unrunUrl } from "@unlayer-internal/shared-elements";
 import { REACT_18, REACT_19_3 } from "./react-compat";

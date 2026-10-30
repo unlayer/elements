@@ -1,8 +1,9 @@
 /**
  * renderToJson — Convert a React element tree to Unlayer's DesignJSON format.
  *
- * Walks the React element tree statically via React.Children and extracts
- * values at each level. No HTML rendering is performed.
+ * Renders the template as the HTML renderers do (react-dom/server, its
+ * components called as React calls them) and reads the values of its Rows,
+ * Columns and blocks from what it renders.
  *
  * Produces the { body: { rows, values }, counters, schemaVersion } structure
  * that the Unlayer editor uses, enabling round-tripping: build with React
@@ -352,7 +353,7 @@ function rootFonts(element: React.ReactElement, name: string, body: DesignBody):
  * Convert a React element tree to Unlayer's DesignJSON format.
  *
  * The root element must be a `<Body>`, `<Email>`, `<Page>`, or `<Document>`.
- * The tree is walked statically — no HTML rendering is performed.
+ * The template renders as it does for the HTML (react-dom/server).
  *
  * @param element - A React element tree with Body > Row > Column > Item structure
  * @returns DesignJSON object compatible with the Unlayer editor

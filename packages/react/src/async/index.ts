@@ -90,7 +90,7 @@ const entry = (name: string): Promise<any> => import(/* webpackIgnore: true */ /
 
 /**
  * Renders `element` once, resolving what's async in it: its root first (an async template, or one that `use()`s a
- * promise), then its content, walked waiting for its async components, Suspense and `use()` (siblings at once, the
+ * promise), then its content, rendered waiting for its async components, Suspense and `use()` (siblings at once, the
  * output in tree order); the synchronous render `run` makes the output from that, in the same scope. A template with
  * no root is its own content (what it rendered) where `api` names the render function (in what it says of one); the
  * design, which needs a root, names none.

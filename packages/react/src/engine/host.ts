@@ -5,8 +5,8 @@
  * (React 18 writes it as any text, escaped; React 19 its one child as it is, but for what would end it). In a <Head>,
  * a `<style>`'s and `<script>`'s text is written as it is in every React, whatever writes it (but for what would end
  * it, or what it's in: see `rawText`), and a `<title>`'s children rendered: those tags are the document's head. The
- * walker writes the markup of a template with it, and the string exporters (src/exporters) the markup of their
- * blocks.
+ * string exporters (src/exporters) write the markup of their blocks with it; the collecting render checks a
+ * template's host elements with it and writes a <Head>'s raw text with it (see output.ts).
  *
  * Not written as react-dom 19 writes it, on purpose (src/engine/differential.test.tsx lists each): its hoisting (a
  * `<title>`, `<meta>`, `<link>`, `<style precedence href>` or async `<script>` moved to the start of the markup, and

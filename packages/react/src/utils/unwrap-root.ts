@@ -4,9 +4,9 @@
  * reads the root's settings (fonts, language, direction, phone styles) from it,
  * so a wrapper is called first to reach <Email>/<Page>/<Document>/<Body>.
  *
- * Each wrapper is called once, with hooks (the engine's dispatcher), at its place in the tree and inside the context
- * providers around it, as React would call it; the content then starts where the wrappers left the tree, so its
- * `useId()`s and theirs are one document's.
+ * Each wrapper is called once, with hooks (in a render of react-dom's of its own: see engine/capture.ts), at its
+ * place in the tree and inside the context providers around it, as React would call it; the content then starts
+ * where the wrappers left the tree, so its `useId()`s and theirs are one document's.
  *
  * What unwrapping finds (`Unwrapped`) is that render's: kept in its scope (see render-scope.ts), and known by the
  * elements it gave, never kept by the template's own elements, which another render (or one at once) may unwrap

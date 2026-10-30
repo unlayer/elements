@@ -424,7 +424,7 @@ function prepRecorded(recorded: Recorded, c: Collection, ctx: Ctx, key: React.Ke
   return key == null || !React.isValidElement(out) ? out : React.cloneElement(out, { key });
 }
 
-/** A record: what's inside it where a list of three (its two ends and it) had it, as the walker numbered its ids. */
+/** A record: what's inside it, in the middle of a list of three (its two ends and it), where its content's ids always were. */
 function prepRecord(node: RecordNode, c: Collection, ctx: Ctx): React.ReactNode {
   if (ctx.raw) return node.children === undefined ? null : prep(node.children, c, { ...ctx, watch: null });
   const children = node.children === undefined ? undefined : [null, keyed(prep(node.children, c, { ...ctx, watch: null, head: ctx.head || node.quiet }), 1), null];

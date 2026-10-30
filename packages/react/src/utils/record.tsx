@@ -1,9 +1,9 @@
 /**
- * How a template is collected (see src/model): the walker (src/engine) renders it, and asks this collector about
- * each element first. Elements' Rows, Columns and blocks (of any copy of Elements: by their markers, or an older
- * copy's names and code), <Tailwind> scopes and <Head>/<Font> entries are recorded instead of being called, what's
- * inside them walked inside their records; everything else (the user's components, markup, Fragments, Context)
- * renders as React renders it.
+ * How a template is collected (see src/model): the collecting render (src/engine) prepares it for react-dom, and
+ * asks this collector about each element first. Elements' Rows, Columns and blocks (of any copy of Elements: by their
+ * markers, or an older copy's names and code), <Tailwind> scopes and <Head>/<Font> entries are recorded instead of
+ * being called, what's inside them rendered inside their records; everything else (the user's components, markup,
+ * Fragments, Context) renders as React renders it.
  * Each component of the template's own in a list is in a boundary, where it's left out when it fails and the render
  * leaves failed parts out (`onError: "omit"`).
  */

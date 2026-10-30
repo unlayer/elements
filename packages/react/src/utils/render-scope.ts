@@ -189,8 +189,8 @@ function sharedOf(scope: Scope): Shared {
 /**
  * `child` as a part of the template that's left out alone when it fails (`onError: "omit"`), as each component in a
  * Column is: what a component renders isn't (it fails with the component), but for this (Markdown's table that's too
- * large). A node of the walker's own: the render's (under PART, in what it shares) is the one its walker reads, where
- * the Markdown entry is another copy's (a package's CommonJS build, rendered by its ESM one).
+ * large). A boundary of the collecting render's own: the render's (under PART, in what it shares) is the one its
+ * collector reads, where the Markdown entry is another copy's (a package's CommonJS build, rendered by its ESM one).
  */
 export const part = (child: React.ReactElement): React.ReactElement => boundary({ kind: "boundary", element: child }, child);
 const PART = Symbol.for("@unlayer/react-elements/part");

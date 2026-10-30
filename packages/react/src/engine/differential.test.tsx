@@ -54,14 +54,16 @@ function Stateful({ children }: { children?: React.ReactNode }) {
 }
 
 /**
- * react-dom's markup, but for React 19's image preloads (hoisted resource hints), which the walker doesn't write, and
- * with a `javascript:` URL as the walker writes it with any React, as react-dom 19 does (see "differs … only where it
+ * react-dom's markup, but for React 19's image preloads (hoisted resource hints), which the collecting render doesn't
+ * write (it renders in a <noscript>), and with a `javascript:` URL as Elements writes it with any React, as react-dom
+ * 19 does (see "differs … only where it
  * means to").
  */
 const reactDom = (node: React.ReactElement) => blockedUrls(renderToStaticMarkup(node).replace(/<link rel="preload" as="image"[^>]*\/>/g, ""));
 const same = (node: React.ReactElement) => expect(renderStatic(node)).toBe(reactDom(node));
 
-// React's development warnings for these trees (an attribute it doesn't know, a list without keys), and the walker's.
+// React's development warnings for these trees (an attribute it doesn't know, a list without keys), and the
+// collecting render's.
 beforeAll(() => void vi.spyOn(console, "error").mockImplementation(() => {}));
 afterAll(() => vi.restoreAllMocks());
 
@@ -138,13 +140,14 @@ describe("the collecting render against react-dom/server", () => {
     let checked = 0;
     const check = (node: React.ReactElement, label: string) => {
       checked++;
-      const [walker, dom] = [attempt(() => renderStatic(wrapped(node))), attempt(() => reactDom(wrapped(node)))];
-      if (walker !== dom) different.push(`${label}: ${walker} ≠ ${dom}`);
+      const [ours, dom] = [attempt(() => renderStatic(wrapped(node))), attempt(() => reactDom(wrapped(node)))];
+      if (ours !== dom) different.push(`${label}: ${ours} ≠ ${dom}`);
     };
     for (const tag of tags) {
       for (const name of names) {
         for (const value of values) {
-          // (React 19 writes a form's action function as a script, which the walker doesn't: see "differs … only where it means to".)
+          // (React 19 writes a form's action function as a script, which the collecting render doesn't: see "differs …
+          // only where it means to".)
           if (typeof value === "function" && /action/i.test(name)) continue;
           // (A ref is an object, a function or nothing.)
           if (name === "ref" && !(value == null || typeof value === "function")) continue;
@@ -213,7 +216,7 @@ describe("the collecting render against react-dom/server", () => {
       h("menuitem", { label: "x" }),
       h("menuitem", null, "x"),
     ];
-    const different = trees.map((tree) => [attempt(() => renderStatic(tree)), attempt(() => reactDom(tree))]).filter(([walker, dom]) => walker !== dom);
+    const different = trees.map((tree) => [attempt(() => renderStatic(tree)), attempt(() => reactDom(tree))]).filter(([ours, dom]) => ours !== dom);
     expect(different).toEqual([]);
   });
 
@@ -263,13 +266,13 @@ describe("the collecting render against react-dom/server", () => {
       h("noscript", null, h("title", null, "x"), h("meta", { name: "a" }), h("link", { rel: "icon", href: "x" }), h("style", { precedence: "p", href: "h" }, "a>b"), h("script", { async: true, src: "s.js" })),
       h("div", null, h("title", { itemProp: "name" }, "x", "y"), h("meta", { itemProp: "x", content: "y" }), h("link", { itemProp: "x", rel: "icon", href: "x" }), h("link", { rel: "icon" }), h("link", { rel: "icon", href: "" })),
     ];
-    const different = trees.map((tree) => [attempt(() => renderStatic(tree)), attempt(() => reactDom(tree))]).filter(([walker, dom]) => walker !== dom);
+    const different = trees.map((tree) => [attempt(() => renderStatic(tree)), attempt(() => reactDom(tree))]).filter(([ours, dom]) => ours !== dom);
     expect(different).toEqual([]);
   });
 
   it("differs from react-dom only where it means to: React 19's hoisting, its document singletons and forms' actions, React 18's `javascript:` URLs", () => {
-    // Each tree, what the walker writes on React 19, and why react-dom 19 writes otherwise (react-dom 18 writes them as
-    // the walker does).
+    // Each tree, what the collecting render writes on React 19, and why react-dom 19 writes otherwise (react-dom 18
+    // writes them as the collecting render does).
     const action = () => {};
     const intended: Array<[React.ReactElement, string, string]> = [
       [h("div", null, h("title", null, "T")), "<div><title>T</title></div>", "it moves a <title> to the start of the markup: Elements' markup is a part of a document (<Head> puts tags in the head)"],
@@ -288,16 +291,17 @@ describe("the collecting render against react-dom/server", () => {
     };
     const suspense = h(Suspense, { fallback: h("i", null, "…") }, h(Fails));
     expect([attempt(() => renderStatic(suspense)), renderToStaticMarkup(suspense)]).toEqual(["throws", "<i>…</i>"]);
-    for (const [tree, walker, why] of intended) {
+    for (const [tree, ours, why] of intended) {
       const dom = renderToStaticMarkup(tree);
       if (REACT_18) expect([why, renderStatic(tree)]).toEqual([why, dom]);
       else {
-        expect([why, renderStatic(tree)]).toEqual([why, walker]);
-        expect([why, dom]).not.toEqual([why, walker]);
+        expect([why, renderStatic(tree)]).toEqual([why, ours]);
+        expect([why, dom]).not.toEqual([why, ours]);
       }
     }
-    // Where it differs from react-dom 18 (react-dom 19 writes them as the walker does): a `javascript:` URL, which
-    // react-dom 18 writes as given, is written as one that throws, so markup from data (a link's URL) runs nothing.
+    // Where it differs from react-dom 18 (react-dom 19 writes them as the collecting render does): a `javascript:` URL,
+    // which react-dom 18 writes as given, is written as one that throws, so markup from data (a link's URL) runs
+    // nothing.
     const blocked: Array<[React.ReactElement, string]> = [
       [h("a", { href: "javascript:alert(1)" }, "x"), `<a href="${BLOCKED_URL}">x</a>`],
       [h("a", { href: [" \u0001java\tscript:alert(1)"] }, "x"), `<a href="${BLOCKED_URL}">x</a>`],
@@ -306,11 +310,11 @@ describe("the collecting render against react-dom/server", () => {
       [h("svg", null, h("use", { xlinkHref: "javascript:x" })), `<svg><use xlink:href="${BLOCKED_URL}"></use></svg>`],
       [h("object", { data: "javascript:x" }), `<object data="${BLOCKED_URL}"></object>`],
     ];
-    for (const [tree, walker] of blocked) {
+    for (const [tree, ours] of blocked) {
       const dom = renderToStaticMarkup(tree).replace(/<link rel="preload" as="image"[^>]*\/>/g, "");
-      expect(renderStatic(tree)).toBe(walker);
-      if (REACT_18) expect(dom).not.toBe(walker);
-      else expect(dom).toBe(walker);
+      expect(renderStatic(tree)).toBe(ours);
+      if (REACT_18) expect(dom).not.toBe(ours);
+      else expect(dom).toBe(ours);
     }
   });
 
