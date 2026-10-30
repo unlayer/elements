@@ -89,9 +89,11 @@ export function parse(html: string, c: Collection): Part[] {
         continue;
       }
       if (top().inert) {
-        // (No comment of the template's is there: its text's `<!--` is escaped, and HTML given whole is a placeholder.)
-        text(html.slice(lt, lt + 4));
-        at = lt + 4;
+        // (No comment of the template's is there: its text's `<!--` is escaped, and HTML given whole is a placeholder.
+        // React 18.0's stream writes its own between two texts.)
+        const own = c.async && html.startsWith("<!-- -->", lt);
+        if (!own) text(html.slice(lt, lt + 4));
+        at = lt + (own ? 8 : 4);
         continue;
       }
       const end = html.indexOf("-->", lt + 4);
