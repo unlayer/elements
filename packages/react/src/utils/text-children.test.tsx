@@ -5,6 +5,7 @@ import { renderToHtml, renderToPlainText } from "./render-to-html";
 import { renderToJson } from "./render-to-json";
 import { Email, Page, Document, Row, Column, Heading, Button, Paragraph, Menu, Link } from "../index";
 import { growth } from "../test-timing";
+import * as asyncRenderers from "../async";
 
 // A value such as a user's name, with markup in it.
 const name = '<img src=x onerror="alert(1)"> & Co';
@@ -206,6 +207,92 @@ describe("rich text children of Paragraph, Heading and Button", () => {
       expect(logo(<Raw html={'<img src="https://example.com/logo.png" onerror="x()">'} />).values.html).toBe('<a href="https://example.com" target="_blank" rel="noopener"><span><img src="https://example.com/logo.png"/></span></a>');
     }
   });
+
+  it("clean a <Link>'s HTML however many components of yours it's in (memo, forwardRef, lazy, a class, what passes through), wherever its markup lands, in both renderers", async () => {
+    // Which markup is a <Link>'s was read from the component in the Column and what it returned: two components of
+    // yours between them, and the Link's HTML was an HTML block as it was (an image's handler and all).
+    const Raw = ({ html }: { html: string }) => <span dangerouslySetInnerHTML={{ __html: html }} />;
+    const loaded = <P,>(type: React.ComponentType<P>) => React.lazy(() => ({ then: (done: (m: { default: React.ComponentType<P> }) => void) => done({ default: type }) }) as Promise<{ default: React.ComponentType<P> }>);
+    const Theme = React.createContext("light");
+    type Wrap = (inner: React.ComponentType) => React.ComponentType;
+    const plain: Wrap = (Inner) => () => <Inner />;
+    const WRAPS: Record<string, Wrap> = {
+      plain,
+      memo: (Inner) => React.memo(() => <Inner />),
+      forwardRef: (Inner) => React.forwardRef(() => <Inner />) as unknown as React.ComponentType,
+      lazy: (Inner) => loaded(() => <Inner />),
+      class: (Inner) =>
+        class extends React.Component {
+          render() {
+            return <Inner />;
+          }
+        },
+      fragment: (Inner) => () => <><Inner /></>,
+      strict: (Inner) => () => <React.StrictMode><Inner /></React.StrictMode>,
+      provider: (Inner) => () => <Theme.Provider value="dark"><Inner /></Theme.Provider>,
+      suspense: (Inner) => () => <React.Suspense fallback={null}><Inner /></React.Suspense>,
+    };
+    /** The Link itself, a lazy one, or one in a lazy component. */
+    const links = (html: string): Record<string, React.ComponentType> => ({
+      Link: () => <Link href="https://example.com">Shop <Raw html={html} /></Link>,
+      "lazy Link": () => {
+        const Lazy = loaded(Link);
+        return <Lazy href="https://example.com">Shop <Raw html={html} /></Lazy>;
+      },
+    });
+    /** Where the components' markup lands: alone in a Column, with a block beside it, in markup, among the rows. */
+    const places: Record<string, (Top: React.ComponentType) => React.ReactElement> = {
+      alone: (Top) => <Email><Row><Column><Top /></Column></Row></Email>,
+      "beside a block": (Top) => {
+        const Beside = () => <><Top /><Paragraph>after</Paragraph></>;
+        return <Email><Row><Column><Beside /></Column></Row></Email>;
+      },
+      "in markup": (Top) => {
+        const Boxed = () => <div className="box"><Top /></div>;
+        return <Email><Row><Column><Boxed /></Column></Row></Email>;
+      },
+      "among the rows": (Top) => <Page><Top /><Row><Column><Paragraph>after</Paragraph></Column></Row></Page>,
+    };
+    const hostile = ['<img src="https://example.com/x.png" onerror="alert(1)">', '<b onclick="x()">bold</b>', '<a href="javascript:x()">x</a>'];
+    const found: string[] = [];
+    const check = (where: string, out: string) => {
+      const doc = new DOMParser().parseFromString(out, "text/html");
+      const handlers = [...doc.querySelectorAll("*")].flatMap((e) => [...e.attributes].filter((a) => /^on/i.test(a.name)).map((a) => a.name));
+      if (handlers.length || /javascript:/i.test(out)) found.push(`${where}: ${handlers.join(",") || "javascript:"}`);
+    };
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
+    try {
+      for (const html of hostile) {
+        for (const [what, Bottom] of Object.entries(links(html))) {
+          // Two and three components of yours, each kind of wrapper outermost, then mixed.
+          const chains: Record<string, React.ComponentType> = {
+            "two components": plain(plain(Bottom)),
+            "three components": plain(plain(plain(Bottom))),
+            ...Object.fromEntries(Object.entries(WRAPS).map(([name, wrap]) => [`${name} around two`, wrap(plain(plain(Bottom)))])),
+            mixed: WRAPS.memo(WRAPS.lazy(WRAPS.fragment(WRAPS.forwardRef(WRAPS.class(WRAPS.provider(plain(Bottom))))))),
+          };
+          for (const [chain, Top] of Object.entries(chains)) {
+            for (const [place, made] of Object.entries(places)) {
+              const where = `${what}, ${chain}, ${place}, ${html}`;
+              const template = made(Top);
+              check(`${where}, html`, renderToHtml(template));
+              check(`${where}, design`, JSON.stringify(renderToJson(template)));
+              check(`${where}, async html`, await asyncRenderers.renderToHtml(template));
+              if (place !== "alone") continue;
+              // Alone, it's a Paragraph holding it, as one in a Paragraph is.
+              const [block] = renderToJson(template).body.rows[0].columns[0].contents as Array<{ type: string; values: { text?: string; html?: string } }>;
+              if (!["text", "html"].includes(block?.type) || !/Shop/.test(block.values.text ?? block.values.html ?? "")) found.push(`${where}: ${JSON.stringify(block)}`);
+            }
+          }
+        }
+      }
+    } finally {
+      warn.mockRestore();
+      error.mockRestore();
+    }
+    expect(found).toEqual([]);
+  }, 120_000);
 
   it("leave out a URL that runs code however its characters are written: references, control characters, in markup given as HTML", () => {
     const hostile = [

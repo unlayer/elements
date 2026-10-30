@@ -29,6 +29,7 @@ import { COLLECTING, Stamp } from "./root-capture";
 import { parse, placeholderOf } from "./parse";
 import { flatten, htmlOf, PENDING, type Item, type Part } from "./output";
 import { track } from "./capture";
+import { isLinkType } from "../components/Link";
 
 export const MARK = "unlayer-mark";
 
@@ -145,6 +146,12 @@ interface Ctx {
   ends?: readonly string[];
   /** The part of the tree React leaves out where it renders a fallback that this place is in (Collection's scopes). */
   scope?: number;
+  /**
+   * The components of the template's own (their boundaries' records) whose markup this place's is, up to the nearest
+   * Row, Column or block: where a <Link> renders, each is said to hold one (`link`), so its markup is cleaned as a
+   * Link's (src/model/elements.ts), however many components of the user's own are between them.
+   */
+  links?: ReadonlyArray<Record<string, any>>;
 }
 
 type Tracked = PromiseLike<unknown> & { status?: "pending" | "fulfilled" | "rejected"; value?: unknown; reason?: unknown };
@@ -499,8 +506,10 @@ function prepRecorded(recorded: Recorded, c: Collection, ctx: Ctx, key: React.Ke
 
 /** A record: what's inside it, in the middle of a list of three (its two ends and it), where its content's ids always were. */
 function prepRecord(node: RecordNode, c: Collection, ctx: Ctx): React.ReactNode {
-  if (ctx.raw) return node.children === undefined ? null : prep(node.children, c, { ...ctx, watch: null });
-  const children = node.children === undefined ? undefined : [null, keyed(prep(node.children, c, { ...ctx, watch: null, head: ctx.head || node.quiet }), 1), null];
+  // (What's in a Row, Column or block is its own: a <Tailwind>'s is where it is, see Ctx's links.)
+  const links = (node.record as { kind?: string }).kind === "tailwind" ? ctx.links : undefined;
+  if (ctx.raw) return node.children === undefined ? null : prep(node.children, c, { ...ctx, watch: null, links });
+  const children = node.children === undefined ? undefined : [null, keyed(prep(node.children, c, { ...ctx, watch: null, head: ctx.head || node.quiet, links }), 1), null];
   return marker(c, { k: "r", record: node.record, quiet: node.quiet, scope: ctx.scope }, children);
 }
 
@@ -516,7 +525,8 @@ function prepBoundary(node: BoundaryNode, c: Collection, ctx: Ctx): React.ReactN
   const fallback = c.omit && ctx.suspense === 0 ? marker(c, { k: "s", boundary: at, scope: ctx.scope }) : undefined;
   const scope = fallback ? newScope(c, ctx, (fallback.props as { n: number }).n) : ctx.scope;
   c.marks[at].scope = scope;
-  const inner: Ctx = { ...ctx, boundary: at, watch: node.boundary ? { element: node.child, record: node.boundary as Record<string, any> } : null, scope };
+  const links = node.boundary ? [...(ctx.links ?? []), node.boundary as Record<string, any>] : ctx.links;
+  const inner: Ctx = { ...ctx, boundary: at, watch: node.boundary ? { element: node.child, record: node.boundary as Record<string, any> } : null, scope, links };
   const child = prep(node.child, c, inner);
   const element = withMark(c, at, child);
   return fallback ? React.createElement(React.Suspense, { fallback }, element) : element;
@@ -618,6 +628,12 @@ function callFor(name: string): React.FC<CallProps> {
 }
 
 function callElement(fn: any, named: unknown, props: Record<string, any>, second: unknown, key: React.Key | null, c: Collection, ctx: Ctx, keep?: Record<string, any>): React.ReactElement {
+  if (isLinkType(fn)) {
+    // A <Link> (itself, memo'd or forwardRef'd to): the components whose markup it's in hold one. It's called as it is
+    // (`_own`), not given to the collection again in what a lazy component renders.
+    for (const record of ctx.links ?? []) record.link = true;
+    props = { ...props, _own: true };
+  }
   const name = nameOf(named);
   const frame = c.frameless?.(named) ? ctx.frame : childFrame(ctx.frame, name);
   if (!c.async && fn?.[Symbol.toStringTag] === "AsyncFunction") {

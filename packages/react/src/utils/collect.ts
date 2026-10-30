@@ -24,8 +24,12 @@ export type Recorded = Placed &
     | { kind: "head"; tags: (mode: string) => string[]; root?: Record<string, unknown>; json?: string; design?: (body: any) => void; children?: React.ReactNode; content?: Item[] }
     /** `rich`: text with elements in it, rendered inside its record (see record.tsx). */
     | { kind: "block"; type: React.ComponentType<any>; props: Record<string, any>; rich?: boolean }
-    /** A component of the template's own; `output`, what it returned (see src/model's keptMarkup). */
-    | { kind: "boundary"; element: React.ReactElement; output?: { value: unknown } }
+    /**
+     * A component of the template's own; `output`, what it returned (see src/model's keptMarkup); `link`, that a <Link>
+     * rendered in its markup (at any depth, through any component of the user's own: see the engine's collector), which
+     * is then cleaned as a Link's.
+     */
+    | { kind: "boundary"; element: React.ReactElement; output?: { value: unknown }; link?: boolean }
   );
 
 /**

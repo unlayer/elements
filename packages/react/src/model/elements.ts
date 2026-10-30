@@ -84,7 +84,8 @@ function keptMarkupOnce(item: RecordItem): React.ReactElement | undefined {
   const solo = list.filter((p) => typeof p !== "string" || textOf(p).trim());
   const { containerPadding, hideOnMobile, hideOnDesktop } = (element.props ?? {}) as Record<string, unknown>;
   const props = { containerPadding, hideOnMobile, hideOnDesktop };
-  const block = solo.length === 1 && typeof solo[0] !== "string" ? (rendersLink(item) ? linkBlock(solo[0], props) : asBlock(solo[0], props, true)) : undefined;
+  const linked = rendersLink(item);
+  const block = solo.length === 1 && typeof solo[0] !== "string" ? (linked ? linkBlock(solo[0], props) : asBlock(solo[0], props, true)) : undefined;
   if (block) return block;
   // One element: React writes `dangerouslySetInnerHTML` and children alike, so what the component returned says which
   // it gave (the walker keeps it, whatever kind of component it is: engine/walk.ts's `returned`). Children are kept
@@ -92,7 +93,8 @@ function keptMarkupOnce(item: RecordItem): React.ReactElement | undefined {
   const one = list.length === 1 && typeof list[0] !== "string" && list[0].inner !== undefined ? list[0] : undefined;
   const out = (recordOf(item).output as { value: unknown } | undefined)?.value as React.ReactElement<{ dangerouslySetInnerHTML?: unknown }> | undefined;
   const given = React.isValidElement(out) && typeof out.type === "string" && out.props.dangerouslySetInnerHTML != null;
-  const html = one && given ? one.inner! : raw;
+  // (Markup a <Link> rendered in, never as it is: cleaned as a Link alone is, see linkBlock.)
+  const html = linked ? inlineHtml(raw, true) : one && given ? one.inner! : raw;
   const Rendered = () => React.createElement("div", { dangerouslySetInnerHTML: { __html: html } });
   Rendered.displayName = nameOf(element);
   (Rendered as unknown as Record<symbol, unknown>)[OWN] = true;
@@ -105,17 +107,20 @@ function keptMarkupOnce(item: RecordItem): React.ReactElement | undefined {
   return React.createElement(Rendered, { ...element.props });
 }
 
-/** Collected content as HTML: markup as it is, each row, column or block by `render`. */
-export function markup(c: Collected, items: readonly Item[], render: (element: React.ReactElement) => string, tw?: Record<string, any>): string {
+/**
+ * Collected content as HTML: markup as it is (but a component's a <Link> rendered in, `linked`: cleaned as a Link's,
+ * the elements a record cuts left out), each row, column or block by `render`.
+ */
+export function markup(c: Collected, items: readonly Item[], render: (element: React.ReactElement) => string, tw?: Record<string, any>, linked = false): string {
   let html = "";
   for (const item of items) {
     if (typeof item === "string") html += item;
-    else if (item.kind === "markup") html += item.html;
-    else if (item.kind === "cut") html += item.open + markup(c, item.items, render, tw) + item.close;
+    else if (item.kind === "markup") html += linked ? inlineHtml(item.html, true) : item.html;
+    else if (item.kind === "cut") html += linked ? markup(c, item.items, render, tw, true) : item.open + markup(c, item.items, render, tw) + item.close;
     else {
       const r = recordOf(item);
-      if (r.kind === "boundary") html += markup(c, item.items, render, tw);
-      else if (r.kind === "tailwind") html += markup(c, item.items, render, r);
+      if (r.kind === "boundary") html += markup(c, item.items, render, tw, linked || r.link === true);
+      else if (r.kind === "tailwind") html += markup(c, item.items, render, r, linked);
       else html += recordHtml(c, { item, tw }, render);
     }
   }
@@ -271,13 +276,14 @@ const asBlock = (part: Part, props: Record<string, unknown> = {}, exact = false)
 const isLink = (type: unknown): boolean => type === Link || (!!type && typeof type === "object" && (isLink((type as { type?: unknown }).type) || isLink((type as { render?: unknown }).render)));
 
 /**
- * Whether what a component in a Column rendered is a <Link>'s: it's one, or returned one (a design system's link
- * component, `forwardRef` to it). Its markup is then the Link's, cleaned as a Paragraph cleans it (see linkBlock); a
- * component's own markup is kept as it is.
+ * Whether a <Link> rendered in what a component in a Column rendered: as the collecting render saw it (at any depth,
+ * through any component of the user's own, memo, forwardRef, a lazy one: the record's `link`), or as the component and
+ * what it returned say. Its markup is then the Link's, cleaned as a Paragraph cleans it (see linkBlock); a component's
+ * own markup is kept as it is.
  */
 function rendersLink(item: RecordItem): boolean {
   const returned = (recordOf(item).output as { value: unknown } | undefined)?.value;
-  return isLink(recordOf(item).element?.type) || isLink(onlyElement(returned)?.type);
+  return recordOf(item).link === true || isLink(recordOf(item).element?.type) || isLink(onlyElement(returned)?.type);
 }
 
 /** What renders what's in it without markup of its own: a Fragment, StrictMode, a Profiler, Suspense, a context's provider. */
@@ -430,13 +436,13 @@ function append(out: React.ReactNode[], list: readonly React.ReactNode[]): void 
  * what's in it (text, markup a component renders there); a Row, Column or block in it is kept, as one beside it is,
  * and a Row says where markup starts in it isn't a Column.
  */
-export function elements(c: Collected, items: readonly Item[], place: Place, tw?: Record<string, any>, owner?: React.FC, inMarkup = false): React.ReactNode[] {
+export function elements(c: Collected, items: readonly Item[], place: Place, tw?: Record<string, any>, owner?: React.FC, inMarkup = false, linked = false): React.ReactNode[] {
   const out: React.ReactNode[] = [];
   const inColumn = place === "column";
   /** A record, `inside` markup it cuts. */
   const recorded = (item: RecordItem, inside: boolean) => {
     const r = recordOf(item);
-    if (r.kind === "tailwind") return void append(out, elements(c, item.items, place, r, owner, inside));
+    if (r.kind === "tailwind") return void append(out, elements(c, item.items, place, r, owner, inside, linked));
     if (r.kind !== "boundary") {
       const made = element(c, { item, tw });
       if (made) out.push(made);
@@ -453,7 +459,7 @@ export function elements(c: Collected, items: readonly Item[], place: Place, tw?
       c.told.add(r);
       console.warn(`Column: <${Named.displayName}> rendered markup that isn't a block, so it's left out. Put HTML in an <Html> block.`);
     }
-    append(out, elements(c, item.items, place, tw, Named, inside));
+    append(out, elements(c, item.items, place, tw, Named, inside, linked || r.link === true));
   };
   // Among the rows, and in markup a record cuts, the content as it's written: its records, and its markup between them.
   if (place === "root" || inMarkup) {
@@ -477,7 +483,8 @@ export function elements(c: Collected, items: readonly Item[], place: Place, tw?
     // asBlock), other markup is said and left out.
     else if (!inColumn) out.push(React.createElement(owner ?? item.tag));
     else {
-      const block = asBlock(item);
+      // (A <Link>'s markup, cleaned as one alone is: see linkBlock.)
+      const block = linked ? linkBlock(item, {}) : asBlock(item);
       // (A component's markup is said where it's left out, above.)
       if (!block && !owner) sayOnce(`[Unlayer] Column: <${item.tag}> isn't a block, so it's left out. Put HTML in an <Html> block.`);
       if (block) out.push(...restyled(c, tw, item, block));
