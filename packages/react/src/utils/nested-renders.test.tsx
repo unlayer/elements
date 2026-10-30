@@ -182,6 +182,12 @@ describe("a render started while a component of a template that Elements renders
     expect(thrown(() => renderToHtml(<Email><Row><Column><Classy /></Column></Row></Email>))).toMatchObject({ component: "Classy", message: expect.stringMatching(NESTED) });
     // With `onError` leaving parts out, it isn't one of them: it fails the render.
     expect(thrown(() => renderToHtml(email, { onError: "omit" }))).toMatchObject({ component: "RowCount", message: expect.stringMatching(NESTED) });
+    // The component a lazy one loads, which react-dom renders where it is: said at the lazy one's place.
+    const Loaded = React.lazy(() => ({ then: (resolve: (m: { default: React.ComponentType }) => void) => resolve({ default: RowCount }) }) as Promise<{ default: React.ComponentType }>);
+    for (const render of [renderToHtml, renderToPlainText, renderToJson]) {
+      const error = thrown(() => render(<Email><Row><Column><Paragraph>Before</Paragraph><Loaded /></Column></Row></Email>));
+      expect(error).toMatchObject({ name: "RenderError", component: "lazy", position: "Row 1 › Column 1 › lazy", message: expect.stringMatching(NESTED) });
+    }
   });
 
   it("renders started there with the async renderers once that call is over, and in a component an async render calls", async () => {

@@ -1,4 +1,5 @@
 import React from "react";
+import { collectedHere, NOT_COLLECTED } from "../engine/root-capture";
 import type { RenderMode, UnlayerConfig, ColumnValues } from "@unlayer-internal/shared-elements";
 import { ColumnExporters, ContentExporters } from "@unlayer/exporters";
 import { UNLAYER_RENDER_KEY, UNLAYER_CONFIG_KEY, nextHtmlId, safeName, safeMeta, hatch, withDisplayCondition } from "../utils/create-component";
@@ -85,8 +86,11 @@ export type ColumnProps = Omit<SemanticProps<ColumnValues>, "padding" | "border"
 };
 
 // A collecting walk records a Column (see utils/record.tsx); rendered, it's the collected Column's HTML.
-export const Column: React.FC<ColumnProps> = (props) =>
-  renderContainer("Column", (props as { _record?: object })._record, `Column ${(props.index ?? 0) + 1}`, () => renderColumn(props));
+// (Rendered by react-dom in what a lazy component renders, in a collecting render: what that collects it as.)
+export const Column: React.FC<ColumnProps> = (props) => {
+  const collected = collectedHere(Column, props, (props as { _config?: unknown })._config !== undefined);
+  return collected === NOT_COLLECTED ? renderContainer("Column", (props as { _record?: object })._record, `Column ${(props.index ?? 0) + 1}`, () => renderColumn(props)) : <>{collected}</>;
+};
 
 function renderColumn(props: ColumnProps): React.ReactElement {
   const {

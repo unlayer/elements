@@ -43,3 +43,40 @@ export function reportedRoot(type: React.ElementType, props: object, own: boolea
   report({ element: React.createElement(type, props) });
   return true;
 }
+
+const COLLECTS = Symbol.for("@unlayer/react-elements/collects");
+
+/**
+ * What a lazy component renders is rendered by react-dom where it is (React's public API has no way to the component
+ * it loads but rendering it), inside this context's provider: Elements' Rows, Columns, blocks, <Tailwind>s and
+ * <Head>/<Font> entries React renders there give their element to the provider's function, which collects it as the
+ * template's (records it), and render what that gives. One context for every copy of Elements in the process.
+ */
+export const COLLECTING = {
+  context(): React.Context<((element: React.ReactElement) => React.ReactNode) | null> | null {
+    const global = globalThis as Record<symbol, React.Context<((element: React.ReactElement) => React.ReactNode) | null> | undefined>;
+    if (!global[COLLECTS] && typeof createContext === "function") global[COLLECTS] = createContext<((element: React.ReactElement) => React.ReactNode) | null>(null);
+    return global[COLLECTS] ?? null;
+  },
+};
+
+export const NOT_COLLECTED: unique symbol = Symbol("not collected");
+
+/**
+ * In one of Elements' components React renders (not one Elements' own markup calls with its `_config`, `own`: its HTML
+ * is that markup's): where a collecting render renders it (in what a lazy component rendered), what that collects it
+ * as; otherwise NOT_COLLECTED. Called on every render of it that React renders, so its hooks are the same each time.
+ */
+export function collectedHere(type: React.ElementType, props: object, own = false): React.ReactNode | typeof NOT_COLLECTED {
+  if (own || typeof useContext !== "function") return NOT_COLLECTED;
+  const context = COLLECTING.context();
+  if (!context) return NOT_COLLECTED;
+  let collect: ((element: React.ReactElement) => React.ReactNode) | null = null;
+  try {
+    collect = useContext(context);
+  } catch {
+    // Called outside a render (as a function): nothing collects it.
+    return NOT_COLLECTED;
+  }
+  return collect ? collect(React.createElement(type, props)) : NOT_COLLECTED;
+}

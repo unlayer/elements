@@ -265,14 +265,21 @@ export function asOwnCall<T>(fn: () => T): T {
   }
 }
 
-/** `fn`, a static render of react-dom's that Elements runs (see `calling`). */
+/** `fn`, a static render of react-dom's that Elements runs (see `calling`), the component being called as it was after it. */
 function ownStatic<T>(fn: () => T): T {
+  const frame = calling.frame;
   calling.static = (calling.static ?? 0) + 1;
   try {
     return fn();
   } finally {
     calling.static--;
+    calling.frame = frame;
   }
+}
+
+/** Where what React renders next in a synchronous render is (a lazy component's place): said if it starts a render. */
+export function enterFrame(frame: Frame): void {
+  calling.frame = frame;
 }
 
 /** The module Elements' renders render with now: react-dom/server's, or another one (see withFreeBuild). */

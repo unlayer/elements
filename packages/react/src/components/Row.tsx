@@ -1,4 +1,5 @@
 import React from "react";
+import { collectedHere, NOT_COLLECTED } from "../engine/root-capture";
 import { escapeText, type RenderMode, type UnlayerConfig, type RowValues } from "@unlayer-internal/shared-elements";
 import type { ColumnLayout } from "@unlayer-internal/shared-elements";
 import { RowExporters } from "@unlayer/exporters";
@@ -314,7 +315,11 @@ function splitPadding(style: unknown): [Record<string, unknown> | undefined, Rec
 }
 
 // A collecting walk records a Row (see utils/record.tsx); rendered, it's the collected Row's HTML.
-const Row: React.FC<RowProps> = (props) => renderContainer("Row", (props as { _record?: object })._record, "Row", () => renderRow(props));
+// (Rendered by react-dom in what a lazy component renders, in a collecting render: what that collects it as.)
+const Row: React.FC<RowProps> = (props) => {
+  const collected = collectedHere(Row, props, (props as { _config?: unknown })._config !== undefined);
+  return collected === NOT_COLLECTED ? renderContainer("Row", (props as { _record?: object })._record, "Row", () => renderRow(props)) : <>{collected}</>;
+};
 
 Row.displayName = "Row";
 (Row as unknown as Record<symbol, boolean>)[RECORDS] = true;

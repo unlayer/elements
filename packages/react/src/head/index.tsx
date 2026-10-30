@@ -2,6 +2,7 @@
  * @unlayer/react-elements/head: `<Head>`, tags of your own for the document's head (meta, link, style, title).
  */
 import type React from "react";
+import { collectedHere, NOT_COLLECTED } from "../engine/root-capture";
 import { headEntry } from "./record";
 
 export interface HeadProps {
@@ -27,7 +28,10 @@ export interface HeadProps {
  * </Email>
  * ```
  */
-export function Head(_: HeadProps): React.ReactElement | null {
+export function Head(props: HeadProps): React.ReactElement | null {
+  // (Rendered by react-dom in what a lazy component renders, in a collecting render: what that collects it as.)
+  const collected = collectedHere(Head, props);
+  if (collected !== NOT_COLLECTED) return collected as React.ReactElement | null;
   // Its tags are recorded for the head where the template is collected; it renders nothing.
   return null;
 }

@@ -24,7 +24,8 @@ import { unrun } from "./attributes";
 import { REACT_18 } from "./react-compat";
 import { sharing, type Shared } from "./shared";
 import { checkKeys } from "./keys";
-import { asOwnCall, asUserCall, isRefusal, isServerReact, isThenable, oneReact, REACT_COPIES, staticMarkup, streamedMarkup, suspendedInReact, suspends } from "./react-dom";
+import { asOwnCall, asUserCall, enterFrame, isRefusal, isServerReact, isThenable, oneReact, REACT_COPIES, staticMarkup, streamedMarkup, suspendedInReact, suspends } from "./react-dom";
+import { COLLECTING } from "./root-capture";
 import { parse, placeholderOf } from "./parse";
 import { flatten, htmlOf, PENDING, type Item, type Part } from "./output";
 import { track } from "./capture";
@@ -60,9 +61,7 @@ export type Mark =
   | { k: "b"; record: object | null }
   | { k: "f"; error: unknown; fatal: boolean }
   /** A boundary's Suspense fallback: what's in it suspended in a synchronous render. */
-  | { k: "s"; boundary: number }
-  /** What a lazy component rendered: the collection's HTML number `raw`, read as markup (see prepLazy). */
-  | { k: "h"; raw: number };
+  | { k: "s"; boundary: number };
 
 export interface Collection {
   nonce: string;
@@ -79,6 +78,8 @@ export interface Collection {
   fatal: WeakSet<object>;
   /** Components that suspended, in the order React called them, with the boundary they're in and whether a Suspense of the template's was around them. */
   suspended: Array<{ name: string; frame: Frame; boundary: number; inSuspense: boolean }>;
+  /** The lazy components it renders (see prepLazy): where each is, said where one suspends in a synchronous render. */
+  lazies: Array<{ frame: Frame; boundary: number }>;
   /** An async component's promise, by its props (React calls Call again once it settles). */
   pending: WeakMap<object, Tracked>;
   /** What the render's components share, while each is called. */
@@ -100,8 +101,8 @@ export interface Collection {
    */
   rendered: Set<number>;
   read: Set<number>;
-  /** HTML given whole (`markup`: a lazy component's, read as markup; `text`: a <style>'s or <script>'s, its whole text). */
-  raw: Array<{ html: string; markup: boolean; text?: boolean }>;
+  /** HTML given whole (`text`: a <style>'s or <script>'s, its whole text). */
+  raw: Array<{ html: string; text?: boolean }>;
   rawRead: Set<number>;
   /** What failed in a <style>'s or <script>'s text (no marker there), by the boundary it's in; the boundaries' parts. */
   rawErrors: Array<{ error: unknown; fatal: boolean; boundary: number }>;
@@ -161,6 +162,7 @@ export function newCollection(options: { collector?: Collector; passes?: (error:
     made: new WeakSet(),
     fatal: new WeakSet(),
     suspended: [],
+    lazies: [],
     pending: new WeakMap(),
     shared: options.shared,
     order: new WeakMap(),
@@ -183,7 +185,7 @@ export const rootCtx = (frame: Frame): Ctx => ({ frame, suspense: 0, boundary: -
  * parse swaps back: parse.ts). So nothing the template gives as HTML is read for a marker.
  */
 function rawPlaceholder(c: Collection, html: string, text = false): string {
-  return placeholderOf(c.nonce, c.raw.push({ html, markup: false, text }) - 1);
+  return placeholderOf(c.nonce, c.raw.push({ html, text }) - 1);
 }
 
 /**
@@ -610,47 +612,27 @@ export function suspendedError(c: Collection): RenderError | undefined {
 }
 
 /**
- * A lazy component (`React.lazy`): what it loads can't be had without React's internals, so react-dom renders it on its
- * own, and its HTML is kept by the collection as HTML given whole (see `rawPlaceholder`): the markup it renders, never
- * read for a marker, and nothing in it recorded (a Row in it renders as its HTML). It reads the defaults of the
- * contexts around it (ARCHITECTURE.md). Where it hasn't loaded, a synchronous render says it's async, where it is
- * (`<lazy>`); an async one waits for it.
+ * A lazy component (`React.lazy`): what it loads can't be had without React's internals, so react-dom renders it where
+ * it is, with the contexts around it, inside COLLECTING's provider: Elements' components React renders in it give
+ * their element to the collection, which collects them where they are (see root-capture.ts's collectedHere). A
+ * component of the user's own React renders there (the one it loads) is said where it is if it starts a render (the
+ * lazy component's place, as a component Call calls). Where it hasn't loaded, a synchronous render says it's async,
+ * where it is (`<lazy>`); an async one waits for it.
  */
 function prepLazy(element: React.ReactElement, c: Collection, ctx: Ctx): React.ReactNode {
   if (ctx.raw) return element;
   const frame = placeFrame(ctx.frame, "lazy");
-  return React.createElement(LazyRendered, { key: element.key ?? undefined, element, c, frame });
+  c.lazies.push({ frame, boundary: ctx.boundary });
+  return React.createElement(LazyRendered, { key: element.key ?? undefined, element, c, ctx: { ...ctx, frame, watch: null } });
 }
 
-const lazyRenders = new WeakMap<Collection, WeakMap<object, Tracked>>();
-
-function LazyRendered({ element, c, frame }: { element: React.ReactElement; c: Collection; frame: Frame }): React.ReactNode {
+function LazyRendered({ element, c, ctx }: { element: React.ReactElement; c: Collection; ctx: Ctx }): React.ReactNode {
+  // (React's development build calls a component again, with no props, to say where a warning came from.)
+  if (!c) return null;
+  if (!c.async) enterFrame(ctx.frame);
   const unkeyed = React.cloneElement(element, { key: null } as object);
-  if (!c.async) {
-    let html: string;
-    try {
-      html = staticMarkup(unkeyed);
-    } catch (error) {
-      if (suspends(error) || suspendedInReact(error)) {
-        const made = new RenderError(ASYNC_IN_SYNC, "lazy", positionOf(frame));
-        c.made.add(made);
-        return marker(c, { k: "f", error: made, fatal: false });
-      }
-      return errorMark(c, error, "lazy", frame);
-    }
-    return marker(c, { k: "h", raw: c.raw.push({ html, markup: true }) - 1 });
-  }
-  let renders = lazyRenders.get(c);
-  if (!renders) lazyRenders.set(c, (renders = new WeakMap()));
-  let pending = renders.get(element);
-  if (!pending) {
-    pending = streamedMarkup(unkeyed, undefined, (html) => html) as Tracked;
-    renders.set(element, pending);
-    track(pending);
-  }
-  if (pending.status === "rejected") return errorMark(c, pending.reason, "lazy", frame);
-  if (pending.status !== "fulfilled") throw pending;
-  return marker(c, { k: "h", raw: c.raw.push({ html: String(pending.value), markup: true }) - 1 });
+  const context = COLLECTING.context();
+  return context ? React.createElement(context.Provider, { value: (found: React.ReactElement) => prep(found, c, ctx) }, unkeyed) : unkeyed;
 }
 
 /** A promise as a child (React 19): what it resolves to, prepared, as `use()` of it gives it. */

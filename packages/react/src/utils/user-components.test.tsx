@@ -400,6 +400,49 @@ describe("HTML from a component in a Column", () => {
     });
   }
 
+  // (One that loaded is rendered where it is: as 0.2.1 and 0.3's own renderer rendered it, the component it loads.)
+  it("renders a lazy component that loaded as the component it loads: the contexts around it, its Rows and blocks the email's and the design's", async () => {
+    const I18n = React.createContext({ locale: "en", cta: "Shop now" });
+    const Promo = () => {
+      const t = React.useContext(I18n);
+      return (
+        <Row backgroundColor="#fef3c7">
+          <Column>
+            <Heading>{`Promo (${t.locale})`}</Heading>
+            <ElementsButton href="https://example.com/promo">{t.cta}</ElementsButton>
+          </Column>
+        </Row>
+      );
+    };
+    const Loaded = React.lazy(() => ({ then: (resolve: (m: { default: React.ComponentType }) => void) => resolve({ default: Promo }) }) as Promise<{ default: React.ComponentType }>);
+    const email = (promo: React.ReactNode) => (
+      <I18n.Provider value={{ locale: "fr", cta: "Acheter" }}>
+        <Email>
+          <Row><Column><Paragraph>Bonjour</Paragraph></Column></Row>
+          {promo}
+          <Row><Column><Paragraph>Au revoir</Paragraph></Column></Row>
+        </Email>
+      </I18n.Provider>
+    );
+    // (The negative control: the component itself, with the context it's given, its Row and Button the email's.)
+    const html = renderToHtml(email(<Promo />));
+    expect(html).toContain("Acheter");
+    expect(html).toContain("v:roundrect");
+    expect(renderToJson(email(<Promo />)).body.rows.map((row) => row.columns[0].contents.map((c) => c.type))).toEqual([["text"], ["heading", "button"], ["text"]]);
+    expect(renderToHtml(email(<Loaded />))).toBe(html);
+    expect(renderToJson(email(<Loaded />))).toEqual(renderToJson(email(<Promo />)));
+    expect(renderToPlainText(email(<Loaded />))).toBe(renderToPlainText(email(<Promo />)));
+    expect(await asyncRenderers.renderToHtml(email(<Loaded />))).toBe(html);
+    // HTML given whole in what it renders, with a comment it doesn't end, ends nothing after it.
+    const Open = () => <><Row><Column><Html html="<p>Hi <!-- truncated" /></Column></Row><Row><Column><Paragraph>Next row</Paragraph></Column></Row></>;
+    const Comment = () => <div dangerouslySetInnerHTML={{ __html: "<p>Hi <!-- truncated" }} />;
+    const LoadedComment = React.lazy(() => ({ then: (resolve: (m: { default: React.ComponentType }) => void) => resolve({ default: Comment }) }) as Promise<{ default: React.ComponentType }>);
+    const after = renderToJson(<Email><Row><Column><LoadedComment /></Column></Row><Row><Column><Paragraph>Next row</Paragraph></Column></Row></Email>);
+    expect(after.body.rows).toHaveLength(2);
+    expect(JSON.stringify(after.body.rows[1])).toContain("Next row");
+    expect(renderToJson(<Email><Open /></Email>).body.rows).toHaveLength(2);
+  });
+
   it("keeps a lazy component's element given dangerouslySetInnerHTML whole (React renders what it loads, unasked)", () => {
     const element = <div dangerouslySetInnerHTML={{ __html: "<p>Hi</p>" }} />;
     const Fn = () => element;

@@ -7,6 +7,7 @@
  */
 
 import React from "react";
+import { collectedHere, NOT_COLLECTED } from "../engine/root-capture";
 import { RECORDS } from "./collect";
 import type { ExporterName } from "@unlayer/types";
 
@@ -378,8 +379,12 @@ export function createItemComponent<
   }
 
   // Outer React component — hook-free, works in both Server and Client Components. A collecting walk records it (see
-  // record.tsx); rendered, it's its exporter's HTML.
-  const ItemComponent: React.FC<ItemComponentProps<TSemanticProps>> = (props) => renderFn(props);
+  // record.tsx); rendered, it's its exporter's HTML. (Rendered by react-dom in what a lazy component renders, in a
+  // collecting render: what that collects it as.)
+  const ItemComponent: React.FC<ItemComponentProps<TSemanticProps>> = (props) => {
+    const collected = collectedHere(ItemComponent, props, (props as { _config?: unknown })._config !== undefined);
+    return collected === NOT_COLLECTED ? renderFn(props) : <>{collected}</>;
+  };
 
   // Set display name for React DevTools
   ItemComponent.displayName = config.displayName || config.name;

@@ -88,7 +88,7 @@ across an `await`: async code passes it on itself.
 | File | What it is |
 |--|--|
 | `react-dom.ts` | The renderer: react-dom/server's static render (the synchronous renderers) and its streaming one waited for whole (the async ones), in a `<noscript>`; what React 19's `use()` throws to suspend, found by identity once per renderer (the one message read, `suspendedInReact`, is React's own error for a suspension nothing of the collector's saw, a lazy component's); whether its static renderer is calling a component of an app's, and another module of it to render with there (`withFreeBuild`); and what it can't render, said by name (see below) |
-| `collector.ts` | What react-dom renders, prepared: records and boundaries as markers, components called by `Call` (and classes by a subclass), HTML given whole kept out of react-dom's output (a placeholder stands for it), a lazy component rendered on its own, a `<style>`'s or `<script>`'s text with no marker in it (in a `<Head>` on React 19, rendered to one string), React 18's `javascript:` URLs written as React 19 writes them, and in an async render the first error in tree order |
+| `collector.ts` | What react-dom renders, prepared: records and boundaries as markers, components called by `Call` (and classes by a subclass), HTML given whole kept out of react-dom's output (a placeholder stands for it), a lazy component rendered where it is (Elements' components in it collected through `…/collects`), a `<style>`'s or `<script>`'s text with no marker in it (in a `<Head>` on React 19, rendered to one string), React 18's `javascript:` URLs written as React 19 writes them, and in an async render the first error in tree order |
 | `parse.ts` | react-dom's output read back as the content's parts: only a marker the collection made, rendered once, is one |
 | `capture.ts`, `root-capture.ts` | Template wrappers called in a render of react-dom's of their own; a lazy template's root, given by the root |
 | `output.ts` | The parts (text, markup, records, boundaries, errors), flattened in tree order into the content's tree |
@@ -138,8 +138,15 @@ runs. Each of these fails the render with a `RenderError` that says so and what 
   pushed in it (a template's provider, where a <Suspense>'s fallback rendered or a part that suspended was left out):
   every module of react-dom's server renderers reads a context's value from one place, so the next render of any
   module, Elements' or the app's, read the template's value till then.
-- **What a lazy component renders** is react-dom's on its own: nothing in it is recorded (a Row in it is its HTML), and
-  the contexts around it read their defaults. An element it renders given `dangerouslySetInnerHTML` is kept whole.
+- **What a lazy component renders** is rendered by react-dom where it is (React's API has no way to the component it
+  loads but rendering it), with the contexts around it, inside a context of the collection's (`…/collects`, by
+  `Symbol.for`): Elements' Rows, Columns, blocks, `<Tailwind>`s and `<Head>`/`<Font>` entries React renders there give
+  their element to the collection, which records it where it is, so one that loaded renders as the component it loads
+  would. What isn't Elements' is react-dom's as it renders it (an error thrown there fails the render, even with
+  `onError: "omit"`; HTML given whole there is read as markup, so a marker forged in it fails the render by name), and
+  a component of the user's own there that starts a synchronous render is said at the lazy one's place. One that
+  hasn't loaded: a synchronous render says it's async, at its place (left out with `onError: "omit"`); an async one
+  waits for it.
 
 ### React versions
 
@@ -237,8 +244,8 @@ row or block is left out of the HTML, the plain text and the design (the slower 
 2. **Nothing the template gives is read for a marker.** The collecting render's markers carry its number (a count,
    `r1`, `r2`, …: invariant 8), which anyone can guess. So HTML given whole (`dangerouslySetInnerHTML`, an Html block)
    never reaches react-dom's output (the collection keeps it; a placeholder comment stands for it, swapped back by the
-   parse), a lazy component's HTML is kept the same way, a `<style>`'s or `<script>`'s text is taken whole and never
-   read for markers (the collector puts none there), and text and attributes are escaped by React. Only a marker the
+   parse), a `<style>`'s or `<script>`'s HTML is kept the same way and its text taken whole to a browser's end tag,
+   never read for markers (the collector puts none there), and text and attributes are escaped by React. Only a marker the
    collection made and react-dom rendered (`Marker`, which says so) is one, read once: one that looks like it but
    isn't (another render's, a number out of range, one never rendered) is the markup it is, and one read twice fails
    the render by name (`src/engine/forged-markers.test.tsx`).
@@ -291,7 +298,8 @@ row or block is left out of the HTML, the plain text and the design (the slower 
    Besides those, by `Symbol.for`: the collecting renders' count (`…/render-count`, their markers' numbers: invariant 2; not 0.2's `…/renders`, a number),
    the component a synchronous render is calling, how many static renders Elements runs and the module of react-dom's
    they render with (`…/calling`: see "What it can't render"), the context a lazy
-   template's root gives itself to (`…/root-capture`), and the mark of Elements' components of other entries that call
+   template's root gives itself to (`…/root-capture`), the one Elements' components in a lazy component give
+   themselves to (`…/collects`), and the mark of Elements' components of other entries that call
    no hooks (`…/no-hooks`: Markdown, CodeBlock), so each copy's renders know another's.
 
 ## Where it's tested

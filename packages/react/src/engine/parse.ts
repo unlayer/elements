@@ -48,8 +48,8 @@ interface Open {
 /** The placeholder react-dom writes for the collection's HTML number `n` (see the collector's `rawPlaceholder`). */
 export const placeholderOf = (nonce: string, n: number) => `<!--u${nonce}.${n}-->`;
 
-/** `html` (react-dom's output, `c`'s), as parts; `inert`: HTML given whole (a lazy component's), with no markers or placeholders to read. */
-export function parse(html: string, c: Collection, inert = false): Part[] {
+/** `html` (react-dom's output, `c`'s), as parts. */
+export function parse(html: string, c: Collection): Part[] {
   const root: Part[] = [];
   const stack: Open[] = [{ tag: "", parts: root }];
   const top = () => stack[stack.length - 1];
@@ -72,15 +72,15 @@ export function parse(html: string, c: Collection, inert = false): Part[] {
     }
     text(html.slice(at, lt));
     if (html.startsWith("<!--", lt)) {
-      const raw = inert ? null : placeholder.exec(html.slice(lt, lt + 40));
+      const raw = placeholder.exec(html.slice(lt, lt + 40));
       // (HTML given whole in what React 18 writes in a <style> or <script>: an element's there.)
-      if (raw && top().inert && !(Number(raw[1]) < c.raw.length && !c.raw[Number(raw[1])].markup && !c.raw[Number(raw[1])].text)) {
+      if (raw && top().inert && !(Number(raw[1]) < c.raw.length && !c.raw[Number(raw[1])].text)) {
         text(html.slice(lt, lt + 4));
         at = lt + 4;
         continue;
       }
       const n = raw ? Number(raw[1]) : -1;
-      if (raw && n < c.raw.length && !c.raw[n].markup && !c.raw[n].text) {
+      if (raw && n < c.raw.length && !c.raw[n].text) {
         if (c.rawRead.has(n)) throw forged();
         c.rawRead.add(n);
         // HTML given whole: the element's own, as written (nothing in it read for a marker).
@@ -95,7 +95,14 @@ export function parse(html: string, c: Collection, inert = false): Part[] {
         continue;
       }
       const end = html.indexOf("-->", lt + 4);
-      const stop = end < 0 ? html.length : end + 3;
+      if (end < 0) {
+        // (React writes no comment it doesn't end: one that runs on is in HTML given whole in what a lazy component
+        // renders, and the rest of the template's markup isn't a comment.)
+        text(html.slice(lt, lt + 4));
+        at = lt + 4;
+        continue;
+      }
+      const stop = end + 3;
       // (react-dom's stream writes its own comments, where its Suspense boundaries are and between texts: the
       // template's comments are only in HTML given whole, which isn't here.)
       if (!(c.async && /^<!--(?:\$[?!]?|\/\$| |&)-->$/.test(html.slice(lt, stop)))) text(html.slice(lt, stop));
@@ -129,7 +136,7 @@ export function parse(html: string, c: Collection, inert = false): Part[] {
       continue;
     }
     const from = top();
-    const mark = !inert && !from.inert && name === MARK ? markOpen.exec(tagText) : null;
+    const mark = !from.inert && name === MARK ? markOpen.exec(tagText) : null;
     if (mark && mark[1] === c.nonce && Number(mark[2]) < c.marks.length && c.rendered.has(Number(mark[2]))) {
       const n = Number(mark[2]);
       if (c.read.has(n)) throw forged();
@@ -157,7 +164,7 @@ export function parse(html: string, c: Collection, inert = false): Part[] {
       const found = endTag.exec(html);
       const stop = found ? found.index : html.length;
       const content = html.slice(at, stop);
-      const given = inert ? null : placeholder.exec(content);
+      const given = placeholder.exec(content);
       const n = given && given[0].length === content.length ? Number(given[1]) : -1;
       if (n >= 0 && n < c.raw.length && c.raw[n].text) {
         if (c.rawRead.has(n)) throw forged();
@@ -203,17 +210,11 @@ function markPart(c: Collection, n: number, into: Part[]): Part[] {
       into.push(part);
       return [];
     }
-    case "h": {
-      // What a lazy component rendered, kept by the collection: the markup it is, nothing in it read for a marker.
-      if (c.rawRead.has(mark.raw)) throw forged();
-      c.rawRead.add(mark.raw);
-      for (const part of parse(c.raw[mark.raw].html, c, true)) into.push(part);
-      return [];
-    }
     case "s": {
       // A boundary whose content suspended: the boundary, failed with what suspended in it.
       const s = c.suspended.find((x) => x.boundary === mark.boundary);
-      const error = new RenderError(ASYNC_IN_SYNC, s?.name ?? "component", s ? positionOf(s.frame) : "");
+      const lazy = s ? undefined : c.lazies.find((x) => x.boundary === mark.boundary);
+      const error = new RenderError(ASYNC_IN_SYNC, s?.name ?? (lazy ? "lazy" : "component"), positionOf(s?.frame ?? lazy?.frame ?? null));
       const part: BoundaryPart = { t: "boundary", parts: [{ t: "error", error, fatal: false }] };
       into.push(part);
       return [];
