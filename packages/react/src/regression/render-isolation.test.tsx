@@ -350,8 +350,10 @@ describe("a context the template doesn't provide", () => {
 });
 
 describe("a context's default around an app's renders", () => {
-  // A template reads its default wherever it renders: alone, and inside an app's render (react-dom's static render,
-  // which renders it, starts from every context's default, and puts the app's own back when it's done).
+  // A template reads its default alone, after an app's render that failed inside a provider (react-dom's static render,
+  // which renders it, starts from every context's default, and puts the app's own back when it's done). Inside a
+  // component of an app's renderToString, another module of react-dom's renders it (see nested-renders.test.tsx), and
+  // it reads the app's provider there, as 0.2 did.
   const tenant = "TenantA";
   /** A context, and what a template reading it renders (its plain text). */
   const brand = <T,>(fallback: T) => {
@@ -390,17 +392,18 @@ describe("a context's default around an app's renders", () => {
     }
   };
 
-  it("reads its default inside an app's renderToString, not the app's provider, before and after a render alone", () => {
+  it("reads its default alone, before and after an app's renderToString, and the app's provider inside it", () => {
     const { Brand, read } = brand("default");
-    expect(inRenderToString(Brand, read, tenant)).toBe("brand=default");
     expect(read()).toBe("brand=default");
-    expect(inRenderToString(Brand, read, tenant)).toBe("brand=default");
+    expect(inRenderToString(Brand, read, tenant)).toBe(`brand=${tenant}`);
+    expect(read()).toBe("brand=default");
     // (The app's render reads its own provider after it.)
     let after = "";
     const Reads = () => ((after = String(useContext(Brand))), <div />);
     const Page = () => (read(), <div />);
     renderToString(<Brand.Provider value={tenant}><Page /><Reads /></Brand.Provider>);
     expect(after).toBe(tenant);
+    expect(read()).toBe("brand=default");
   });
 
   it("reads one value for a context throughout a render that starts inside an app's renderToString and goes on after it", async () => {

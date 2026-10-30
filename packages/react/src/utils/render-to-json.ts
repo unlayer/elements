@@ -40,6 +40,7 @@ import { rtlAlign, textDirectionOf, UNLAYER_CONFIG_KEY } from "./create-componen
 import { TAILWIND } from "./tailwind";
 import { fontUrlInDesign, safeUrl, urlFamilies } from "./font-design";
 import { omits } from "../engine/errors";
+import { withFreeBuild } from "../engine";
 
 /** Layout context threaded down the walk so an image can be sized against the
  *  real column slot (contentWidth × column share, minus paddings/borders). */
@@ -410,12 +411,14 @@ export function renderRowToJson(element: React.ReactElement): DesignRow {
 
   const counters: Record<string, number> = {};
   // A render of its own, as renderToJson's: the same row gives the same ids every time. What's in it is collected.
-  return withOwnScope(() => {
-    const row = normalizedChildren(element, undefined, "Row").find((c): c is React.ReactElement => React.isValidElement(c));
-    // Left out (its Columns don't fit its layout), it's no row.
-    if (!row) throw new Error("[Unlayer] renderRowToJson: the Row is left out.");
-    return processRow(row, counters);
-  });
+  return withFreeBuild("renderRowToJson", () =>
+    withOwnScope(() => {
+      const row = normalizedChildren(element, undefined, "Row").find((c): c is React.ReactElement => React.isValidElement(c));
+      // Left out (its Columns don't fit its layout), it's no row.
+      if (!row) throw new Error("[Unlayer] renderRowToJson: the Row is left out.");
+      return processRow(row, counters);
+    }),
+  );
 }
 
 /** renderToJson's options. */
@@ -427,7 +430,7 @@ export interface RenderToJsonOptions {
 }
 
 export function renderToJson(element: React.ReactElement, options?: RenderToJsonOptions): DesignJSON {
-  return withOwnScope(() => designJson(element, options));
+  return withFreeBuild("renderToJson", () => withOwnScope(() => designJson(element, options)));
 }
 
 /** renderToJson in the render's scope (the async renderers' too, which collected the template in it). */

@@ -87,7 +87,7 @@ across an `await`: async code passes it on itself.
 
 | File | What it is |
 |--|--|
-| `react-dom.ts` | The renderer: react-dom/server's static render (the synchronous renderers) and its streaming one waited for whole (the async ones), in a `<noscript>`; what React 19's `use()` throws to suspend, found by identity once per renderer (the one message read, `suspendedInReact`, is React's own error for a suspension nothing of the collector's saw, a lazy component's); and what it can't render, said by name (see below) |
+| `react-dom.ts` | The renderer: react-dom/server's static render (the synchronous renderers) and its streaming one waited for whole (the async ones), in a `<noscript>`; what React 19's `use()` throws to suspend, found by identity once per renderer (the one message read, `suspendedInReact`, is React's own error for a suspension nothing of the collector's saw, a lazy component's); whether its static renderer is calling a component of an app's, and another module of it to render with there (`withFreeBuild`); and what it can't render, said by name (see below) |
 | `collector.ts` | What react-dom renders, prepared: records and boundaries as markers, components called by `Call` (and classes by a subclass), HTML given whole kept out of react-dom's output (a placeholder stands for it), a lazy component rendered on its own, a `<style>`'s or `<script>`'s text with no marker in it (in a `<Head>` on React 19, rendered to one string), React 18's `javascript:` URLs written as React 19 writes them, and in an async render the first error in tree order |
 | `parse.ts` | react-dom's output read back as the content's parts: only a marker the collection made, rendered once, is one |
 | `capture.ts`, `root-capture.ts` | Template wrappers called in a render of react-dom's of their own; a lazy template's root, given by the root |
@@ -115,9 +115,26 @@ runs. Each of these fails the render with a `RenderError` that says so and what 
   prop) or after; an async render started there renders once that call is over, and one started in a component an
   async render calls renders (react-dom's streaming renderer is another module). Elements' own components that call
   no hooks start renders of their own there (a root met in the content, Markdown's `url`).
-- **One started inside an app's own `renderToString`** in a component that calls hooks after it can't be told without
-  React's internals: React breaks that component's hooks (`Cannot set properties of null`). Work the email out before
-  the page's render, in react-dom's stream (`renderToPipeableStream`), or with its browser build.
+- **One started inside a component of an app's own `renderToString` or `renderToStaticMarkup`, where there's no other
+  module of react-dom's** (a bundle, a browser). Rendered with the app's module, the render would break the hook state
+  it keeps for the page's component (React's `Cannot set properties of null` in the page's next hook). So before a
+  synchronous render function renders anything (`withFreeBuild`), it asks whether react-dom/server's static renderer
+  is calling a function component. React's API says nothing of it but this: a class component (no hook state of its
+  own) that renderer renders calls `useTransition` (which keeps none there either), which fails ("Invalid hook call")
+  where that renderer calls no function component and, where it calls one, gives that module's own start function,
+  which tells it's that module and not another renderer of this React's (Next.js's server render of a Client
+  Component, whose React is another copy than its react-dom's: a hook there meets the page's renderer). The first
+  render that isn't inside one learns that function (`stateOf`); React's development warnings are kept off meanwhile.
+  Where it is calling one (or may be), the whole render goes to another module of react-dom's, as 0.2.1 did: loaded
+  once with a synchronous `require` (CommonJS's, or Node's from this module's file, the app's script or the folder
+  Node started in, where `react` is this React), React 19's Bun build first (its browser one keeps Node running), one
+  whose renders run this React's hooks and that isn't rendering. There, a context the template doesn't provide reads
+  the page's value (as in 0.2). Where there's none (a bundle, a browser), the render fails by name where react-dom/
+  server's is calling a component, and the page's render goes on: work the email out before the page's render, or
+  render the page with react-dom's stream (another module). Where that can't be told yet (the first render of the
+  process is inside one) it renders with react-dom/server's, as 0.2.1 did: the component that started it can't call a
+  hook after it. Inside Elements' own static renders (counted on `…/calling`) it isn't asked, and their renders keep
+  the module they render with.
 - **What a lazy component renders** is react-dom's on its own: nothing in it is recorded (a Row in it is its HTML), and
   the contexts around it read their defaults. An element it renders given `dangerouslySetInnerHTML` is kept whole.
 
@@ -269,7 +286,8 @@ row or block is left out of the HTML, the plain text and the design (the slower 
    classes together: its first 2,000 different ones, so classes from data can't take more memory than that
    (`src/tailwind/declarations.ts`'s `capped`).
    Besides those, by `Symbol.for`: the collecting renders' count (`…/renders`, their markers' numbers: invariant 2),
-   the component a synchronous render is calling (`…/calling`: see "What it can't render"), the context a lazy
+   the component a synchronous render is calling, how many static renders Elements runs and the module of react-dom's
+   they render with (`…/calling`: see "What it can't render"), the context a lazy
    template's root gives itself to (`…/root-capture`), and the mark of Elements' components of other entries that call
    no hooks (`…/no-hooks`: Markdown, CodeBlock), so each copy's renders know another's.
 

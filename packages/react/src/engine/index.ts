@@ -18,6 +18,7 @@ export { flatten, htmlOf, PENDING, type Flat, type Item, type Markup, type Cut, 
 export { passesThrough, type Collector, type Recorded } from "./collector";
 export { callCaptured, callClassCaptured, captureLazyRoot, isStreamed, track } from "./capture";
 export { sharedNow, sharing, type Shared } from "./shared";
+export { withFreeBuild } from "./react-dom";
 
 /** What the component or template wrapper being called shares with the rest of its render (see Shared). */
 export const renderShared = (): Shared | undefined => sharedNow();

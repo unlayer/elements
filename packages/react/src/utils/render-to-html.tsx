@@ -1,7 +1,7 @@
 import React from "react";
 import type { PlainTextOptions, RenderMode, UnlayerConfig } from "@unlayer-internal/shared-elements";
 import { htmlToPlainText, RenderError } from "@unlayer-internal/shared-elements";
-import { renderOwn } from "../engine";
+import { renderOwn, withFreeBuild } from "../engine";
 import { OWN_MARKUP, rootlessHtml, rootlessRoot } from "./root-content";
 import { extractHeadFromTree } from "./extract-head";
 import { htmlRoot, providedConfig } from "./unwrap-root";
@@ -148,7 +148,7 @@ export function renderToHtml(
   element: React.ReactElement,
   options?: RenderToHtmlOptions
 ): string {
-  return withOwnScope(() => htmlDocument(element, options));
+  return withFreeBuild("renderToHtml", () => withOwnScope(() => htmlDocument(element, options)));
 }
 
 /** CSS for a `<style>` element: a `</style` in it would end the element (CSS escapes the slash). */
@@ -232,7 +232,7 @@ export function renderToPlainText(
   element: React.ReactElement,
   config?: Partial<UnlayerConfig> & PlainTextOptions
 ): string {
-  return withOwnScope(() => plainText(element, config));
+  return withFreeBuild("renderToPlainText", () => withOwnScope(() => plainText(element, config)));
 }
 
 /** renderToPlainText in the render's scope (see htmlDocument). */
@@ -323,7 +323,7 @@ export function renderToHtmlParts(
   element: React.ReactElement,
   config?: Partial<UnlayerConfig>
 ): HtmlParts {
-  return withOwnScope(() => htmlParts(element, config));
+  return withFreeBuild("renderToHtmlParts", () => withOwnScope(() => htmlParts(element, config)));
 }
 
 /** renderToHtmlParts in the render's scope (see htmlDocument). */

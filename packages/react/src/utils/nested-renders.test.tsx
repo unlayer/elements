@@ -7,17 +7,17 @@
  * while a component of a template that Elements renders synchronously is called (a component among the rows, a
  * template wrapper) fails with a RenderError that says so and what to do, never with React's own error; one started
  * in a component an async render calls renders (that's react-dom's streaming renderer, another module), and so does
- * one an app's page starts in react-dom's stream or its browser build. One started inside an app's own
- * `renderToString` with hooks after it can't be told without React's internals: ARCHITECTURE.md says to render it
- * before, or with react-dom's stream.
+ * one an app's page starts in react-dom's stream or its browser build (where Elements' is the Node.js build). One
+ * started inside a component of an app's own `renderToString` (the module Elements renders with) renders with another
+ * module of react-dom's, as 0.2.1 did (where there's none, a bundle's, it fails, saying so: node-exit.test.ts).
  */
 import { describe, it, expect, vi } from "vitest";
 import React, { useId, useMemo, useState } from "react";
 import { renderToPipeableStream, renderToStaticMarkup, renderToString } from "react-dom/server";
 // @ts-ignore react-dom/server.browser has no types of its own (the same API as react-dom/server).
 import { renderToString as renderToStringWithBrowserBuild } from "react-dom/server.browser";
-import { renderToHtml, renderToPlainText } from "./render-to-html";
-import { renderToJson } from "./render-to-json";
+import { renderToHtml, renderToHtmlParts, renderToPlainText } from "./render-to-html";
+import { renderRowToJson, renderToJson } from "./render-to-json";
 import { Email, Page, Row, Column, Paragraph, RenderError } from "../index";
 
 const Template = () => <Email><Row><Column><Paragraph>Hello from the template</Paragraph></Column></Row></Email>;
@@ -55,6 +55,61 @@ describe("a page that renders with react-dom's browser build (react-dom/server.b
       return <pre>{`${design.body.rows.length} rows, ${html.includes("Hello from the template")}, open=${open}`}</pre>;
     }
     expect(renderToStringWithBrowserBuild(<EditorPage />)).toBe("<pre>1 rows, true, open=false</pre>");
+  });
+});
+
+describe("a page that renders with react-dom/server's renderToString, the renderer Elements renders templates with", () => {
+  // Rendered with that module, a render in the page's `useMemo` would leave the page's hooks broken (React's `Cannot set
+  // properties of null`): Elements renders with another module of react-dom's there (Node's `require` loads one).
+  /** A page that works something out in a `useMemo` (`run`, what it says), then calls hooks. */
+  function EditorPage({ run }: { run: () => string }) {
+    const said = useMemo(run, []);
+    const [open] = useState(false);
+    return <pre>{`${said}, open=${open}, ${useId()}`}</pre>;
+  }
+  const RENDERS: Array<[string, () => string]> = [
+    ["renderToHtml", () => renderToHtml(<Template />)],
+    ["renderToPlainText", () => renderToPlainText(<Template />)],
+    ["renderToHtmlParts", () => JSON.stringify(renderToHtmlParts(<Template />))],
+    ["renderToJson", () => JSON.stringify(renderToJson(<Template />))],
+    ["renderRowToJson", () => JSON.stringify(renderRowToJson(<Row><Column><Paragraph>Hi</Paragraph></Column></Row>))],
+  ];
+
+  it.each(RENDERS)("renders %s started in a component's useMemo or its body as alone, and the page's hooks after it work", (_, render) => {
+    const alone = render();
+    expect(renderToString(<EditorPage run={() => String(render() === alone)} />)).toBe(renderToString(<EditorPage run={() => "true"} />));
+    function Starts() {
+      const same = render() === alone;
+      return <i>{`${same} ${useState("after")[0]} ${useId()}`}</i>;
+    }
+    expect(renderToString(<Starts />)).toMatch(/^<i>true after /);
+    expect(render()).toBe(alone);
+  });
+
+  // Where both modules are calling a component (a page's render inside a component of another page's), there's none
+  // to render with: it says so, and both pages render on with their hooks.
+  it("fails a render inside a page's render inside a page's (with react-dom's other module) with a RenderError that says so", () => {
+    const INSIDE = /^\[Unlayer\] renderToJson can't start inside a component that react-dom\/server's renderToString or renderToStaticMarkup is rendering, where Elements has no other module of react-dom's to render with/;
+    // eslint-disable-next-line @typescript-eslint/no-require-imports -- react-dom's module Elements renders with there.
+    const other = require(Number.parseInt(React.version) >= 19 ? "react-dom/server.bun" : "react-dom/server.browser") as typeof import("react-dom/server");
+    const said = () => {
+      try {
+        return String(renderToJson(<Template />).body.rows.length);
+      } catch (error) {
+        return error instanceof RenderError && INSIDE.test(error.message) ? "refused" : String(error);
+      }
+    };
+    // (In one page's render, it renders with the other module.)
+    expect(renderToString(<EditorPage run={said} />)).toMatch(/^<pre>1, open=false, /);
+    function Inner() {
+      const inner = useMemo(said, []);
+      return <b>{`${inner} ${useState("inner")[0]}`}</b>;
+    }
+    function Outer() {
+      const html = useMemo(() => other.renderToString(<Inner />), []);
+      return <i>{`${html} ${useState("outer")[0]}`}</i>;
+    }
+    expect(renderToString(<Outer />)).toBe("<i>&lt;b&gt;refused inner&lt;/b&gt; outer</i>");
   });
 });
 

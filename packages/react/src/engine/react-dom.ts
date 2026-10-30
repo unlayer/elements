@@ -5,18 +5,22 @@
  * image (its resource hints aren't an email's), and the `<noscript>` is taken off again.
  *
  * What react-dom can't do is said by name, never with React's own error (ARCHITECTURE.md, "What it can't render"):
- * React Server Components' React, a second copy of React, and a render started inside a component Elements is
- * rendering.
+ * React Server Components' React, a second copy of React, and a render started inside a component that react-dom's
+ * static renderer is rendering (one of a template Elements is rendering, or of an app's own `renderToString`).
  */
 import React, { createElement } from "react";
 import * as Server from "react-dom/server";
 import { positionOf, RenderError, type Frame } from "./errors";
 
+/** A module of react-dom's server renderers: react-dom/server's, or another (see withFreeBuild). */
+type Build = typeof Server;
+
 // ── Rendering ──
 
 /** react-dom's static markup of `node`, in a `<noscript>` (see above), without it. */
 export function staticMarkup(node: React.ReactNode, idPrefix?: string): string {
-  const html = Server.renderToStaticMarkup(createElement("noscript", null, node), idPrefix ? { identifierPrefix: idPrefix } : undefined);
+  const build = current();
+  const html = ownStatic(() => build.renderToStaticMarkup(createElement("noscript", null, node), idPrefix ? { identifierPrefix: idPrefix } : undefined));
   return html.slice("<noscript>".length, html.length - "</noscript>".length);
 }
 
@@ -83,14 +87,14 @@ export function streamedMarkup(node: React.ReactNode, idPrefix: string | undefin
 /**
  * React 19's `use()` of a promise that isn't settled throws one object, its "SuspenseException" (an implementation
  * detail React asks code that catches errors to throw again), the same each time, but one per renderer: the static
- * renderer's and the streaming one's are two. React exports neither, so each is found once, by identity, as a
- * component that `use()`s a pending promise in that renderer catches it (`suspenseOf`), never by its message. React 18
- * has no `use()`: a component suspends by throwing a promise.
+ * renderer's and the streaming one's are two (and each module of react-dom's static renderer has its own). React
+ * exports neither, so each is found once, by identity, as a component that `use()`s a pending promise in that renderer
+ * catches it, never by its message. React 18 has no `use()`: a component suspends by throwing a promise.
  */
-const PROBED = { sync: false, stream: false };
-const SUSPENSE: { sync?: unknown; stream?: unknown } = {};
+const PROBED = { stream: false };
+const SUSPENSE: { sync: Map<Build, unknown>; stream?: unknown } = { sync: new Map() };
 
-function prober(into: "sync" | "stream", thenable: PromiseLike<unknown>) {
+function prober(found: (error: unknown) => void, thenable: PromiseLike<unknown>) {
   const use = (React as unknown as { use?: (usable: unknown) => unknown }).use;
   return function UseProbe(props: { own?: boolean }) {
     // (React's development build calls a component again, with no props, to say where a warning came from.)
@@ -98,26 +102,28 @@ function prober(into: "sync" | "stream", thenable: PromiseLike<unknown>) {
     try {
       use!(thenable);
     } catch (error) {
-      SUSPENSE[into] ??= error;
+      found(error);
       throw error;
     }
     return null;
   };
 }
 
-/** The static renderer's suspension (see above), found the first time it's asked for. */
+/** The static renderer's suspension (see above) for the module rendering now, found the first time it's asked for. */
 export function staticSuspension(): unknown {
-  if (!PROBED.sync) {
-    PROBED.sync = true;
+  const build = current();
+  if (!SUSPENSE.sync.has(build)) {
+    SUSPENSE.sync.set(build, undefined);
     if (typeof (React as unknown as { use?: unknown }).use === "function") {
       try {
-        Server.renderToStaticMarkup(createElement(React.Suspense, { fallback: null }, createElement(prober("sync", { then: () => undefined } as unknown as PromiseLike<unknown>), { own: true })));
+        const probe = prober((error) => SUSPENSE.sync.get(build) ?? SUSPENSE.sync.set(build, error), { then: () => undefined } as unknown as PromiseLike<unknown>);
+        ownStatic(() => build.renderToStaticMarkup(createElement(React.Suspense, { fallback: null }, createElement(probe, { own: true }))));
       } catch {
         // It suspended where nothing could wait: what it threw is kept all the same.
       }
     }
   }
-  return SUSPENSE.sync;
+  return SUSPENSE.sync.get(build);
 }
 
 /** The streaming renderer's suspension (see above), found before the first async render. */
@@ -126,7 +132,7 @@ export async function streamSuspension(): Promise<unknown> {
     PROBED.stream = true;
     if (typeof (React as unknown as { use?: unknown }).use === "function") {
       try {
-        await streamedMarkup(createElement(React.Suspense, { fallback: null }, createElement(prober("stream", Promise.resolve()), { own: true })), undefined, (html) => html);
+        await streamedMarkup(createElement(React.Suspense, { fallback: null }, createElement(prober((error) => void (SUSPENSE.stream ??= error), Promise.resolve()), { own: true })), undefined, (html) => html);
       } catch {
         // As above.
       }
@@ -162,38 +168,53 @@ export const REACT_COPIES =
 export const nestedRender = (api: string) =>
   `${api} can't start while a component of a template that Elements is rendering synchronously is called: react-dom/server, which renders templates, can't start a render inside its own. Render it before (and pass what it gives as a prop) or after, or start an async render there ("@unlayer/react-elements/async"), which renders once that call is over`;
 
+export const insideStaticRender = (api: string) =>
+  `${api} can't start inside a component that react-dom/server's renderToString or renderToStaticMarkup is rendering, where Elements has no other module of react-dom's to render with (a bundle, a browser): react-dom/server's static renderer, which renders templates, can't start a render inside its own (it would break the hooks of the component that started it). Work it out before that render (and pass what it gives as a prop), or render the page with react-dom's stream (renderToPipeableStream or renderToReadableStream)`;
+
+/** Whether `build` renders a component that calls a hook with the React Elements imports (one copy of React). */
+function hooksRunIn(build: Build): boolean {
+  const error = console.error;
+  // (React's development build says "Invalid hook call" where they don't, before it throws.)
+  console.error = () => {};
+  try {
+    build.renderToStaticMarkup(
+      createElement(function HookProbe(props: { own?: boolean }) {
+        if (props?.own === true) React.useId();
+        return null;
+      }, { own: true }),
+    );
+    return true;
+  } catch {
+    return false;
+  } finally {
+    console.error = error;
+  }
+}
+
 /**
  * Whether the hooks of the React Elements imports run in react-dom's renders (one copy of React), found once, where a
  * render failed: a component that calls one, rendered by react-dom.
  */
-let one: boolean | undefined;
+const one = new Map<Build, boolean>();
 export function oneReact(): boolean {
-  if (one === undefined) {
-    try {
-      Server.renderToStaticMarkup(createElement(function HookProbe() {
-        React.useId();
-        return null;
-      }));
-      one = true;
-    } catch {
-      one = false;
-    }
-  }
-  return one;
+  const build = current();
+  if (!one.has(build)) one.set(build, ownStatic(() => hooksRunIn(build)));
+  return one.get(build)!;
 }
 
 /** Whether react-dom renders here at all: markup with no component (with React Server Components' React, it can't). */
-let renders: boolean | undefined;
+const renders = new Map<Build, boolean>();
 export function reactDomRenders(): boolean {
-  if (renders === undefined) {
+  const build = current();
+  if (!renders.has(build)) {
     try {
-      Server.renderToStaticMarkup(createElement("i"));
-      renders = true;
+      ownStatic(() => build.renderToStaticMarkup(createElement("i")));
+      renders.set(build, true);
     } catch {
-      renders = false;
+      renders.set(build, false);
     }
   }
-  return renders;
+  return renders.get(build)!;
 }
 
 /** What a render that react-dom failed to start or finish (not a part of the template) fails with: said by name where it's one of the above. */
@@ -209,7 +230,11 @@ export function renderFailure(error: unknown, name: string): RenderError | undef
  * inside its own, which breaks the hooks of the component that started it (and react-dom's render it's in).
  */
 const CALLING = Symbol.for("@unlayer/react-elements/calling");
-type Calling = { frame: { name: string; label: string; parent: unknown } | null };
+/**
+ * `static`: how many of react-dom's static renders Elements is running now, by every copy (see ownStatic); `builds`:
+ * the modules of react-dom's that Elements' renders under way render with, innermost last (see withFreeBuild).
+ */
+type Calling = { frame: { name: string; label: string; parent: unknown } | null; static?: number; builds?: Build[] };
 const calling = ((globalThis as Record<symbol, Calling | undefined>)[CALLING] ??= { frame: null }) as Calling;
 
 /** `fn`, a component of the user's own (at `frame`) that a synchronous render calls (see `calling`). */
@@ -231,6 +256,195 @@ export function asOwnCall<T>(fn: () => T): T {
     return fn();
   } finally {
     calling.frame = outer;
+  }
+}
+
+/** `fn`, a static render of react-dom's that Elements runs (see `calling`). */
+function ownStatic<T>(fn: () => T): T {
+  calling.static = (calling.static ?? 0) + 1;
+  try {
+    return fn();
+  } finally {
+    calling.static--;
+  }
+}
+
+/** The module Elements' renders render with now: react-dom/server's, or another one (see withFreeBuild). */
+const current = (): Build => calling.builds?.[calling.builds.length - 1] ?? Server;
+
+/** The same module (a bundler can wrap one in two objects). */
+const same = (a: Build, b: Build) => a.renderToStaticMarkup === b.renderToStaticMarkup;
+
+/**
+ * What's known of a module of react-dom's static renderer: whether this React's hooks run in its renders (`ownHooks`),
+ * and the function its `useTransition` gives (`start`: one per module, so a hook that gives it reached that module).
+ */
+interface Known {
+  ownHooks?: boolean;
+  start?: unknown;
+}
+const known = new Map<Build, Known>();
+const knownOf = (build: Build): Known => known.get(build) ?? (known.set(build, {}), known.get(build)!);
+
+/** `fn`, with React's development warnings kept off (a hook called where it can't be, below). */
+function quietly<T>(fn: () => T): T {
+  const error = console.error;
+  console.error = () => {};
+  try {
+    return fn();
+  } finally {
+    console.error = error;
+  }
+}
+
+/**
+ * What a hook meets, called in a class component (which keeps no hook state) that `build` renders: `useTransition`,
+ * which keeps none either and changes nothing in react-dom's server renderers. Where this React's hooks run in that
+ * module's renders, it fails ("Invalid hook call") while that renderer calls no function component, and gives that
+ * module's `start` where it calls one: its render changes no hook state of a render it's inside. Where they don't (two
+ * copies of React), it fails with no renderer of this React's under way (a TypeError: no dispatcher), and otherwise
+ * meets that renderer.
+ */
+function probe(build: Build): { threw?: unknown; start?: unknown } {
+  const seen: { threw?: unknown; start?: unknown } = {};
+  // (React Server Components' React has no Component: none of react-dom's renders is under way there.)
+  if (typeof React.Component !== "function") return { threw: new TypeError("no Component") };
+  class InsideProbe extends React.Component<{ own: true }> {
+    render() {
+      // (React's development build constructs a component again, with no props, to say where a warning came from.)
+      if (this.props?.own !== true) return null;
+      try {
+        seen.start = (React as unknown as { useTransition: () => [boolean, unknown] }).useTransition()[1];
+      } catch (error) {
+        seen.threw = error;
+      }
+      return null;
+    }
+  }
+  try {
+    quietly(() => build.renderToStaticMarkup(createElement(InsideProbe, { own: true })));
+  } catch (error) {
+    // (Where react-dom can't render, the render says why itself.)
+    seen.threw ??= error;
+  }
+  return seen;
+}
+
+/** `build`'s `start` (see probe), from a component it renders, while its renderer calls none: whether this React's hooks run there. */
+function calibrate(build: Build, k: Known): void {
+  try {
+    quietly(() =>
+      build.renderToStaticMarkup(
+        createElement(function Calibrate(props: { own?: boolean }) {
+          if (props?.own === true) k.start = (React as unknown as { useTransition: () => [boolean, unknown] }).useTransition()[1];
+          return null;
+        }, { own: true }),
+      ),
+    );
+  } catch {
+    // This React's hooks don't run there (or another renderer of it is between components).
+  }
+  k.ownHooks = k.start !== undefined;
+}
+
+/**
+ * Whether `build`'s static renderer is calling a function component now ("busy": an app's `renderToString` with it),
+ * isn't ("free"), or can't be told ("unknown": a hook met a renderer calling a component, before `build`'s `start` was
+ * known). Its module keeps the hook state of the component it's calling, so a render started there with it (a page's
+ * `useMemo(() => renderToJson(email))`) would leave that component's hooks broken (React's own `Cannot set properties
+ * of null`). Where this React's hooks never run in its renders (two copies of React), it's "free": nothing can be told,
+ * and Elements renders with it as before.
+ */
+function stateOf(build: Build): "free" | "busy" | "unknown" {
+  const k = knownOf(build);
+  if (k.ownHooks === false) return "free";
+  const seen = probe(build);
+  if ("threw" in seen) {
+    if (seen.threw instanceof TypeError) k.ownHooks = false;
+    else if (k.start === undefined) calibrate(build, k);
+    return "free";
+  }
+  if (k.start === undefined) return "unknown";
+  return seen.start === k.start ? "busy" : "free";
+}
+
+declare const module: { require(id: string): unknown } | undefined;
+/** Whether this is the CommonJS build (set when it's built; undefined in the sources). */
+declare const __UNLAYER_CJS__: boolean | undefined;
+
+/**
+ * Another module of react-dom's static renderer than react-dom/server's, found the first time one's needed, as 0.2.1
+ * found it: with a synchronous `require`, the one CommonJS loads this module with (Jest's registry gives the test's
+ * React), then Node's for a module (from this module's file, the app's script, then the folder Node started in, where
+ * `react` is this React: a bundled module, a browser or an edge runtime has none). One that's free and whose renders
+ * run this React's hooks. React 19's Bun build first: its browser one opens a MessageChannel when it loads, which keeps
+ * Node from exiting. Undefined where there's none.
+ */
+let second: Build | null | undefined;
+function secondBuild(): Build | undefined {
+  if (second === undefined) {
+    second = null;
+    const node = (globalThis as { process?: any }).process;
+    const requirers = [
+      // (`module`'s, read so that a bundler doesn't take it for a require of a path worked out when it runs.)
+      () => {
+        const own = (typeof __UNLAYER_CJS__ === "boolean" ? __UNLAYER_CJS__ : true) && typeof module === "object" ? Reflect.get(module ?? {}, "require") : undefined;
+        return typeof own === "function" ? (id: string) => own.call(module, id) : undefined;
+      },
+      // (This module's URL as a stack names it: webpack 4 can't parse the syntax for it.)
+      ...[/file:\/\/\S+?(?=:\d+:\d+)/.exec(String(new Error().stack))?.[0], node?.argv?.[1], `${node?.cwd?.()}/`].map((from) => () => {
+        const required = node?.getBuiltinModule?.("module")?.createRequire(from);
+        return (required?.("react") as typeof React | undefined)?.createElement === React.createElement ? (required as (id: string) => unknown) : undefined;
+      }),
+    ];
+    const ids = ["react-dom/server.bun", ...(Number.parseInt(React.version) >= 19 ? [] : ["react-dom/server.browser"]), "react-dom/server.node"];
+    search: for (const id of ids) {
+      for (const requirer of requirers) {
+        try {
+          const build = requirer()?.(id) as Build | undefined;
+          if (build?.renderToStaticMarkup && !same(build, Server) && stateOf(build) === "free" && knownOf(build).ownHooks) {
+            second = build;
+            break search;
+          }
+        } catch {
+          // Not there, or it can't load here: the next one.
+        }
+      }
+    }
+  }
+  return second ?? undefined;
+}
+
+/**
+ * Runs `render`, one of the synchronous render functions (`api`), with a module of react-dom's static renderer that
+ * isn't calling a component, and every static render it makes with that one. Started inside a component a render of
+ * Elements' calls, it fails (refuseNested); inside one of Elements' own renders, it keeps the module that one renders
+ * with (its components call no hooks after). Otherwise, where react-dom/server's is calling a component, or may be (an
+ * app's `renderToString`), it renders with another module (see secondBuild), as 0.2.1 did. Where there's none free,
+ * it fails with a RenderError that says so where react-dom/server's is calling one (the app's render goes on as it
+ * was), and renders with it where that can't be told, as 0.2.1 did (the component that started it can't call a hook
+ * after it).
+ */
+export function withFreeBuild<T>(api: string, render: () => T): T {
+  refuseNested(api);
+  if ((calling.static ?? 0) > 0) return render();
+  let build: Build = Server;
+  const state = stateOf(Server);
+  if (state !== "free") {
+    const other = secondBuild();
+    if (other && stateOf(other) === "free") build = other;
+    else if (state === "busy") {
+      const error = new RenderError(insideStaticRender(api), "template", "");
+      refusals.add(error);
+      throw error;
+    }
+  }
+  const builds = (calling.builds ??= []);
+  builds.push(build);
+  try {
+    return render();
+  } finally {
+    builds.pop();
   }
 }
 
