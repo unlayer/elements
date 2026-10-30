@@ -447,6 +447,12 @@ describe("where a part React rendered itself failed (a lazy component's place)",
   };
   const said = (error: RenderError) => [error.message, error.component, error.position];
 
+  it("is named after the lazy component, never one of Elements' own React's stack names around it (React 19's)", async () => {
+    // (A component with no name of its own: the stack's next name was Elements' own Stamp.)
+    const error = await failsAsync(<Email><Row><Column>{React.createElement(loaded(() => { throw new Error("no name"); }))}</Column></Row></Email>);
+    expect([error.component, error.position]).toEqual(["lazy", "Row 1 › Column 1 › lazy"]);
+  });
+
   it("is the render's own, whatever another render failed at before it or at once", async () => {
     const alone = said(await failsAsync(tenantB()));
     const syncAlone = said(fails(() => renderToHtml(tenantB())));

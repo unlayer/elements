@@ -60,14 +60,20 @@ function failure(error: unknown, options: CollectOptions, frame: ReturnType<type
 }
 
 /** Elements' own components, which a component stack names around the user's: not what failed. */
-const OWN = new Set(["Call", "Marker", "LazyRendered", "LazyDone", "Awaited", "ContextValue", "Collected", "Suspense", "Lazy", "noscript"]);
-/** The component a React error was thrown in, from the component stack react-dom gives its `onError` (a development build's). */
+const OWN = new Set(["Call", "Marker", "RawRendered", "LazyDone", "Stamp", "Awaited", "ContextValue", "HeadText", "Collected", "Suspense", "Lazy"]);
+/**
+ * The component a React error was thrown in, from the component stack react-dom gives its `onError` (a development
+ * build's): the first named one inside the lazy component it's in (past its place, LazyRendered, what's named isn't
+ * what failed: the lazy one is), not Elements' own, nor markup (React 19 names elements: `unlayer-mark`, `div`).
+ */
 function failedIn(info: unknown): string | undefined {
   const stack = (info as { componentStack?: unknown } | undefined)?.componentStack;
   if (typeof stack !== "string") return undefined;
   for (const line of stack.split("\n")) {
-    const name = /^\s*(?:at|in)\s+([A-Za-z_$][\w$.-]*)/.exec(line)?.[1];
-    if (name && !OWN.has(name)) return name;
+    // (A component with no name of its own is a line with its file only, `at file:///…`: no name.)
+    const name = /^\s*(?:at|in)\s+([A-Za-z_$][\w$.-]*)(?=\s|$)/.exec(line)?.[1];
+    if (name === "LazyRendered") return undefined;
+    if (name && !OWN.has(name) && !/^[a-z][\w-]*$/.test(name)) return name;
   }
   return undefined;
 }
