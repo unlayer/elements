@@ -347,7 +347,7 @@ function consumer(fn: unknown, c: Collection, ctx: Ctx, keep?: Record<string, an
       result = c.async ? fn(value) : asUserCall(ctx.frame, () => fn(value));
     } catch (thrown) {
       if (suspended(c, thrown)) throw thrown;
-      return errorMark(c, thrown, ctx.frame.name, ctx.frame, ctx);
+      return fails(c, nextOrder(c), errorMark(c, thrown, ctx.frame.name, ctx.frame, ctx));
     }
     if (keep) keep.output = { value: result };
     return prep(result, c, ctx);
@@ -364,7 +364,7 @@ function prepHost(element: React.ReactElement, c: Collection, ctx: Ctx): React.R
   try {
     validateHost(type, props);
   } catch (error) {
-    return errorMark(c, error, type, placeFrame(ctx.frame, type), ctx);
+    return fails(c, nextOrder(c), errorMark(c, error, type, placeFrame(ctx.frame, type), ctx));
   }
   // A `javascript:` URL as React 19 writes it (one that throws), with React 18 too.
   let urls: Record<string, unknown> | undefined;
@@ -407,7 +407,7 @@ function prepHost(element: React.ReactElement, c: Collection, ctx: Ctx): React.R
     try {
       text = rawTextOf(children, c, !!inner.foreign, inner.ends ?? []);
     } catch (error) {
-      return errorMark(c, error, type, placeFrame(ctx.frame, type), ctx);
+      return fails(c, nextOrder(c), errorMark(c, error, type, placeFrame(ctx.frame, type), ctx));
     }
     return React.cloneElement(element, urls as object, text);
   }
@@ -418,7 +418,7 @@ function prepHost(element: React.ReactElement, c: Collection, ctx: Ctx): React.R
     try {
       html = headHtmlOf(children, c, !!inner.foreign, inner.ends ?? ["title"]);
     } catch (error) {
-      return errorMark(c, error, type, placeFrame(ctx.frame, type), ctx);
+      return fails(c, nextOrder(c), errorMark(c, error, type, placeFrame(ctx.frame, type), ctx));
     }
     return React.cloneElement(element, { ...urls, children: undefined, dangerouslySetInnerHTML: { __html: rawPlaceholder(c, html) } } as object);
   }
@@ -433,7 +433,7 @@ function prepRecorded(recorded: Recorded, c: Collection, ctx: Ctx, key: React.Ke
   try {
     nodes = recorded.record(() => positionOf(frame));
   } catch (error) {
-    return errorMark(c, error, frame.name, frame, ctx);
+    return fails(c, nextOrder(c), errorMark(c, error, frame.name, frame, ctx));
   }
   const out = prep(nodes, c, { ...ctx, frame, watch: null });
   return key == null || !React.isValidElement(out) ? out : React.cloneElement(out, { key });
@@ -478,6 +478,9 @@ function waits(c: Collection, at: number): void {
   c.waiting.add(at);
   c.changed?.();
 }
+/** In an async render, a place in call order of its own (for what fails where no component is called: markup, a record). */
+const nextOrder = (c: Collection): number => (c.async ? ++c.calls : 0);
+
 /** In an async render, the place in call order of the component given `props` (0 in a synchronous one). */
 const callOrder = (c: Collection, props: object): number => (c.async ? (c.order.get(props) ?? (c.order.set(props, ++c.calls), c.calls)) : 0);
 

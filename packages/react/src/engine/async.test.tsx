@@ -123,6 +123,9 @@ describe("the async collecting render", () => {
       const email = <Email><Row><Column><Broken where={where} /></Column></Row><Row><Column><Never /></Column></Row></Email>;
       await expect(renderToHtml(email)).rejects.toMatchObject({ message: `[Unlayer] ${where} failed (in <Broken> at Row 1 › Column 1 › Broken)` });
     }
+    // And markup React can't write (an <img> with children), the same.
+    const email = <Email><Row><Column>{React.createElement("img", { src: "https://example.com/a.png" }, "a child")}</Column></Row><Row><Column><Never /></Column></Row></Email>;
+    await expect(renderToHtml(email)).rejects.toMatchObject({ name: "RenderError", component: "img", position: "Row 1 › Column 1 › img" });
   });
 
   it("leaves failed parts out (onError: \"omit\"), listed in tree order whatever fails first", async () => {
