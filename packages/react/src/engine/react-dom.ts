@@ -17,11 +17,20 @@ type Build = typeof Server;
 
 // ── Rendering ──
 
+/**
+ * What's inside the `<noscript>` a template renders in (see above). Only what's in it: React 19 writes the resource
+ * hints a component asks for (`ReactDOM.preload`, `preconnect`, `preinit`, …) before it, which an email has no use for.
+ */
+function inWrapper(html: string): string {
+  const start = html.indexOf("<noscript>");
+  const end = html.lastIndexOf("</noscript>");
+  return start < 0 || end < start ? html : html.slice(start + "<noscript>".length, end);
+}
+
 /** react-dom's static markup of `node`, in a `<noscript>` (see above), without it. */
 export function staticMarkup(node: React.ReactNode, idPrefix?: string): string {
   const build = current();
-  const html = ownStatic(() => build.renderToStaticMarkup(createElement("noscript", null, node), idPrefix ? { identifierPrefix: idPrefix } : undefined));
-  return html.slice("<noscript>".length, html.length - "</noscript>".length);
+  return inWrapper(ownStatic(() => build.renderToStaticMarkup(createElement("noscript", null, node), idPrefix ? { identifierPrefix: idPrefix } : undefined)));
 }
 
 /** Node's writable stream, as much of it as react-dom's pipeable stream writes to: the chunks joined. */
@@ -62,7 +71,7 @@ export function streamedMarkup(node: React.ReactNode, idPrefix: string | undefin
   const element = createElement("noscript", null, node);
   const S = Server as unknown as Record<string, any>;
   const report = (error: unknown) => void onError?.(error);
-  const bare = (html: string) => raw(html.slice("<noscript>".length, html.length - "</noscript>".length));
+  const bare = (html: string) => raw(inWrapper(html));
   if (typeof S.renderToPipeableStream === "function") {
     return new Promise((resolve, reject) => {
       let failed = false;

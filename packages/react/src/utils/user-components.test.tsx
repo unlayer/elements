@@ -5,6 +5,7 @@ import { renderToHtml, renderToHtmlParts, renderToPlainText } from "./render-to-
 import { renderToJson } from "./render-to-json";
 import { Email, Page, Row, Column, Paragraph, Heading, Html, Button as ElementsButton, ColumnLayouts } from "../index";
 import { Font } from "../font";
+import { Head } from "../head";
 import * as asyncRenderers from "../async";
 
 const block = (text: string, props: Record<string, unknown> = {}) => <Row><Column><Paragraph {...props}>{text}</Paragraph></Column></Row>;
@@ -699,6 +700,45 @@ describe("a root (Email, Page, Document) placed in a Column", () => {
       expect(warn).toHaveBeenCalledWith(expect.stringContaining("<Email> is a root: it can't be placed in a Row or Column"));
     } finally {
       warn.mockRestore();
+    }
+  });
+});
+
+describe("a component that asks for a resource hint (ReactDOM.preload, preconnect, preinit: React 19)", () => {
+  // React 19 writes what's asked for before the markup it renders, which an email has no use for: the template's
+  // markup was read from the wrong place (the email blank, or its markup cut short).
+  // eslint-disable-next-line @typescript-eslint/no-require-imports -- react-dom's own entry, which the hints are on.
+  const ReactDOM = require("react-dom") as Record<string, ((...args: unknown[]) => void) | undefined>;
+  const HINTS: Array<[string, () => void]> = [
+    ["preload (an image)", () => ReactDOM.preload!("https://cdn.example.com/hero.png", { as: "image", fetchPriority: "high" })],
+    ["preload (a font)", () => ReactDOM.preload!("https://cdn.example.com/f.woff2", { as: "font", type: "font/woff2", crossOrigin: "" })],
+    ["preinit (a stylesheet)", () => ReactDOM.preinit!("https://cdn.example.com/site.css", { as: "style", precedence: "default" })],
+    ["preconnect", () => ReactDOM.preconnect!("https://cdn.example.com")],
+    ["prefetchDNS", () => ReactDOM.prefetchDNS!("https://cdn.example.com")],
+  ];
+  const template = (asks?: () => void) => {
+    const Hero = () => (asks?.(), <img src="https://cdn.example.com/hero.png" alt="Hero" width={600} />);
+    const Name = () => (asks?.(), <b>Ada</b>);
+    const Meta = () => (asks?.(), <meta name="x-hero" content="1" />);
+    return (
+      <Email>
+        <Head><Meta /></Head>
+        <Row><Column><Hero /><Paragraph>Welcome aboard, <Name /></Paragraph></Column></Row>
+        <Row><Column><Paragraph>Footer</Paragraph></Column></Row>
+      </Email>
+    );
+  };
+  it.runIf(typeof ReactDOM.preload === "function")("renders the template as it renders without it, in each renderer", async () => {
+    // (The negative control: the template that asks for nothing.)
+    const html = renderToHtml(template());
+    expect(html).toContain("Welcome aboard, <b>Ada</b>");
+    expect(html).toContain("hero.png");
+    for (const [name, asks] of HINTS) {
+      expect(renderToHtml(template(asks)), name).toBe(html);
+      expect(renderToJson(template(asks)), name).toEqual(renderToJson(template()));
+      expect(renderToPlainText(template(asks)), name).toBe(renderToPlainText(template()));
+      expect(await asyncRenderers.renderToHtml(template(asks)), name).toBe(html);
+      expect(await asyncRenderers.renderToJson(template(asks)), name).toEqual(renderToJson(template()));
     }
   });
 });
