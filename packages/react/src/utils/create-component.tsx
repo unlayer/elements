@@ -48,6 +48,13 @@ export const OWN = Symbol("@unlayer/react-elements/own");
  * Elements' own components (roots, Rows, Columns, blocks, kept markup), which call no hooks: the engine renders
  * Elements' markup calling them as they are (see the engine's renderStatic).
  */
+/**
+ * On Elements' components of other entries (Markdown, CodeBlock: by Symbol.for, for every copy) that call no hooks:
+ * a render the user's code they call starts (Markdown's `url`) is safe inside their call, as one inside a root's is.
+ */
+export const NO_HOOKS = Symbol.for("@unlayer/react-elements/no-hooks");
+export const callsNoHooks = (type: unknown): boolean => isOwn(type) || !!(type as Record<symbol, unknown> | null)?.[NO_HOOKS];
+
 export const isOwn = (type: unknown): boolean => {
   const t = type as Record<PropertyKey, unknown> | null;
   return !!t && !!(t[OWN] || t[UNLAYER_RENDER_KEY] || t[RECORDS]);

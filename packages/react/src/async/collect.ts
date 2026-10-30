@@ -9,9 +9,6 @@
  * settled first.
  */
 import type React from "react";
-import type { CollectOptions, Flat, Part, Task, Wait } from "../engine";
-import type { Hole } from "../engine/output";
-import type { Engine } from "../utils/internals";
 import type { Steps, Unwrapped } from "../utils/unwrap-root";
 
 /** What a template's wrappers lead to (its root), awaiting what each waits for (its promise, or what it `use()`d). */
@@ -30,47 +27,3 @@ export async function take(steps: Steps): Promise<Unwrapped> {
   return step.value;
 }
 
-/** `node` collected once what's async in it has settled (see above). */
-export function collectWaiting(engine: Engine, node: React.ReactNode, options: CollectOptions): Promise<Flat> {
-  return new Promise((resolve, reject) => {
-    // Over once it's flattened (or failed): holes that settle after do nothing. (Flattened from when the walk is over:
-    // a thenable can settle as the walk runs.)
-    let done = false;
-    let walked = false;
-    let parts: Part[] = [];
-    let omit = false;
-    const flatten = () => {
-      if (done || !walked) return;
-      try {
-        const flat = engine.flatten(parts, omit);
-        if (flat === engine.PENDING) return;
-        done = true;
-        resolve(flat as Flat);
-      } catch (error) {
-        done = true;
-        reject(error);
-      }
-    };
-    // A hole for what `thenable` gives, filled, where the walk was, once it settles.
-    const wait: Wait = (w, task, out, thenable, fill) => {
-      const part: Hole = { t: "hole", parts: [], settled: false };
-      out.push(part);
-      const at: Task = { tree: task.tree, contexts: task.contexts, format: task.format, frame: task.frame, watch: null };
-      engine.track(thenable);
-      const settled = () => {
-        if (done) return;
-        try {
-          fill({ ...at }, part.parts);
-        } catch (error) {
-          part.parts.push(engine.errorPart(w, error, at.frame));
-        }
-        part.settled = true;
-        flatten();
-      };
-      thenable.then(settled, settled);
-    };
-    ({ parts, omit } = engine.walk(node, options, wait));
-    walked = true;
-    flatten();
-  });
-}

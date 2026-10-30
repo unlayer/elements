@@ -15,7 +15,7 @@ import {
 } from "@unlayer/react-elements";
 import type { TailwindConfig, TailwindHandle } from "@unlayer/react-elements/tailwind";
 import { prettyHtml } from "./pretty";
-import { collectWaiting, take } from "./collect";
+import { take } from "./collect";
 import type { CollectOptions, Flat } from "../engine";
 import type { Engine, Renders } from "../utils/internals";
 
@@ -97,6 +97,9 @@ const entry = (name: string): Promise<any> => import(/* webpackIgnore: true */ /
  */
 async function render<T>(element: React.ReactElement, options: Partial<UnlayerConfig> | undefined, run: (renders: Renders, root: React.ReactElement) => T, api?: string): Promise<T> {
   const internals = (renderHtml as unknown as Record<symbol, Internals>)[Symbol.for("@unlayer/react-elements/internals")];
+  // Started inside a component a synchronous render is calling, it renders once that call (and that render) is over:
+  // react-dom can't start a render inside its own.
+  await undefined;
   const scope = internals.newScope();
   try {
     return await renderIn(internals, scope, element, options, run, api);
@@ -113,7 +116,7 @@ async function renderIn<T>(internals: Internals, scope: Scope, element: React.Re
   // The handles its <Tailwind tw>s are given.
   const given: unknown[] = [];
   if (content && typeof content === "object") {
-    const collected = await internals.collectAsync(root, scope, options, (node, walk) => collectWaiting(internals.engine, node, walk));
+    const collected = await internals.collectAsync(root, scope, options, (node, walk) => internals.engine.collect(node, walk));
     for (const r of collected.recorded) {
       if (r.kind !== "tailwind") continue;
       if (r.props?.tw) given.push(r.props.tw);

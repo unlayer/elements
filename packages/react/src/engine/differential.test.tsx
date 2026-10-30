@@ -1,23 +1,27 @@
 // @vitest-environment node
 /**
- * The walker against react-dom/server: the same tree, through `renderToStaticMarkup` and through the engine, must give
- * the same markup, `useId()`s included (in the installed React's format). Hand-written trees for what templates do,
- * every element and kind of attribute React writes its own way, then random ones, alone and where templates have
- * markup (`WALKER_FUZZ_SEEDS=5000` for a longer run, `TEMPLATE_SEEDS` for the templates'; CI's weekly canary runs it on
- * React's canary). Where the walker means to differ (React 19's hoisting, its document singletons, forms' function
- * actions, an error in a <Suspense>, React 18's `javascript:` URLs), the differences are listed, each with why; react-dom
- * 18's markup is compared with its `javascript:` URLs written as the walker writes them, as react-dom 19 does
- * (`blockedUrls`).
+ * The collecting render against react-dom/server's own: a tree collected (prepared, rendered by react-dom in a
+ * <noscript>, its HTML read back as the content's parts: see collector.ts and parse.ts) must give back the markup
+ * `renderToStaticMarkup` writes for it, `useId()`s included. Hand-written trees for what templates do, every element and
+ * kind of attribute React writes its own way, then random ones, alone and where templates have markup
+ * (`WALKER_FUZZ_SEEDS=5000` for a longer run, `TEMPLATE_SEEDS` for the templates'; CI's weekly canary runs it on React's
+ * canary). Where Elements means to differ (React 19's hoisting, its document singletons, an error in a <Suspense>, React
+ * 18's `javascript:` URLs), the differences are listed, each with why; react-dom 18's markup is compared with its
+ * `javascript:` URLs written as Elements writes them, as react-dom 19 does (`blockedUrls`).
  */
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import React, { Component, createContext, forwardRef, Fragment, memo, Suspense, useContext, useId, useMemo, useReducer, useRef, useState } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
-import { renderStatic } from "./index";
+import { collect, htmlOf } from "./index";
 import { cssNames } from "./attributes";
+import { element } from "../exporters/markup";
 import { REACT_18 } from "./react-compat";
 import { Column, Page, Row, renderToHtmlParts, renderToJson } from "../index";
 import * as asyncRenderers from "../async";
 import { BLOCKED_URL, blockedUrls } from "../test-utils";
+
+/** A tree collected with nothing recorded, its content's HTML: what the collecting render gives for markup. */
+const renderStatic = (node: React.ReactNode, options: { idPrefix?: string } = {}) => htmlOf(collect(node, { collector: () => undefined, root: "test", idPrefix: options.idPrefix }).content);
 
 const SEEDS = Number(process.env.WALKER_FUZZ_SEEDS ?? 300);
 const TEMPLATE_SEEDS = Number(process.env.TEMPLATE_SEEDS ?? 40);
@@ -61,7 +65,7 @@ const same = (node: React.ReactElement) => expect(renderStatic(node)).toBe(react
 beforeAll(() => void vi.spyOn(console, "error").mockImplementation(() => {}));
 afterAll(() => vi.restoreAllMocks());
 
-describe("the walker against react-dom/server", () => {
+describe("the collecting render against react-dom/server", () => {
   it("writes the same markup: attributes, styles, escaping, void and preformatted elements", () => {
     same(
       <div className="a&b" style={{ marginTop: 0, padding: 8, lineHeight: 1.5, WebkitLineClamp: 2, "--brand": " red " } as React.CSSProperties} data-x={true} aria-hidden={false} hidden tabIndex={0} htmlFor="x">
@@ -102,9 +106,10 @@ describe("the walker against react-dom/server", () => {
     same(<div><Suspense fallback={<i>loading</i>}><Ids /><Later /></Suspense><Ids /></div>);
   });
 
-  it("keeps a bounded number of style names worked out (a style's keys can come from data), and writes the rest the same", () => {
+  it("keeps a bounded number of style names worked out in the string exporters' markup (a style's keys can come from data), and writes the rest the same", () => {
     const style = Object.fromEntries(Array.from({ length: 3000 }, (_, i) => [`dataProp${i}`, i % 2 ? 1 : "a"])) as React.CSSProperties;
-    for (let round = 0; round < 2; round++) expect(renderStatic(<div style={style} />)).toBe(renderToStaticMarkup(<div style={style} />));
+    for (let round = 0; round < 2; round++) expect(element("div", { style }).html).toBe(renderToStaticMarkup(<div style={style} />));
+    expect(cssNames.size).toBeGreaterThan(0);
     expect(cssNames.size).toBeLessThanOrEqual(1000);
   });
 

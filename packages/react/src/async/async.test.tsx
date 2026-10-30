@@ -171,6 +171,13 @@ describe("the async renderers", () => {
     }
   });
 
+  // (React 19 renders a promise given as a child as what it resolves to.)
+  it.runIf(use)("wait for a promise given as a child (React 19); the synchronous renderers say which component gave it", async () => {
+    const Holder = ({ text }: { text: PromiseLike<string> }) => <div>{text as unknown as React.ReactNode}</div>;
+    expect(() => renderToHtmlSync(one(<Holder text={new Promise<string>(() => {})} />))).toThrow(inSync("Holder", "Row 1 › Column 1 › Holder"));
+    expect(await renderToHtml(one(<Holder text={later("Given")} />))).toContain("Given");
+  });
+
   it("fail with what a promise a component throws rejected with, where it throws it again, as `use()` of it fails", async () => {
     const down = new Error("the translations didn't load");
     const failing = () => {

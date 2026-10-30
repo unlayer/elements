@@ -28,7 +28,7 @@ interface Options {
 /** Children as a list (arrays flattened, nothing and booleans left out), each list checked for keys. */
 function childList(children: React.ReactNode, owner: string, out: React.ReactNode[] = []): React.ReactNode[] {
   if (Array.isArray(children)) {
-    checkKeys(children, owner);
+    checkKeys(children, owner, true);
     for (const child of children) childList(child, owner, out);
   } else if (children !== null && children !== undefined && typeof children !== "boolean") out.push(children);
   return out;

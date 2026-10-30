@@ -393,6 +393,8 @@ export function Markdown(props: MarkdownProps): React.ReactElement {
 }
 
 Markdown.displayName = "Markdown";
+// (It calls no hooks: a render its `url` starts is safe in its call. See utils/create-component.tsx's NO_HOOKS.)
+(Markdown as unknown as Record<symbol, boolean>)[Symbol.for("@unlayer/react-elements/no-hooks")] = true;
 
 /** Whether code in `language` is highlighted (see the code entry's HAS_GRAMMAR); where that can't be told, it is. */
 const highlighted = (language: string): boolean => (highlightCode as unknown as Record<symbol, ((language: string) => boolean) | undefined>)[Symbol.for("@unlayer/react-elements/has-grammar")]?.(language) ?? true;

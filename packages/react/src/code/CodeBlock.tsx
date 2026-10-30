@@ -27,3 +27,5 @@ export function CodeBlock({ children, code, language, theme, lineNumbers, fontSi
 }
 
 CodeBlock.displayName = "CodeBlock";
+// (It calls no hooks: see utils/create-component.tsx's NO_HOOKS.)
+(CodeBlock as unknown as Record<symbol, boolean>)[Symbol.for("@unlayer/react-elements/no-hooks")] = true;

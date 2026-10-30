@@ -111,7 +111,7 @@ export function validateHost(type: string, props: Record<string, any>): void {
 }
 
 /** Whether react-dom writes `type` as a custom element: a name with "-" (in React 18, also one with an `is`). */
-const isCustom = (type: string, props: Record<string, any>) => !VOID.has(type) && !NOT_CUSTOM.has(type) && (type.includes("-") || (REACT_18 && typeof props.is === "string"));
+export const isCustom = (type: string, props: Record<string, any>) => !VOID.has(type) && !NOT_CUSTOM.has(type) && (type.includes("-") || (REACT_18 && typeof props.is === "string"));
 
 /**
  * `<type …>` with its attributes as react-dom writes them: an `<input>`'s `checked` and `value` last, an `<option>`'s

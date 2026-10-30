@@ -1,14 +1,13 @@
 // @vitest-environment node
 /**
- * The async walk: siblings' promises start at once, the output is in tree order whatever settles first, ids follow
- * the tree, the error a render fails with is the first in tree order, and React's hooks dispatcher is the walker's
- * only while it calls a component (never across an await).
+ * The async renderers' collecting render (react-dom's stream, waited for whole): siblings' promises start at once,
+ * the output is in tree order whatever settles first, ids follow the tree, and the error a render fails with is the
+ * first in tree order.
  */
 import { describe, expect, it, vi } from "vitest";
-import React, { useId } from "react";
-import { Column, Email, Paragraph, RenderError, Row, renderToHtml as renderToHtmlSync } from "../index";
+import { useId } from "react";
+import { Column, Email, Paragraph, RenderError, Row } from "../index";
 import { renderToHtml, renderToHtmlParts, renderToJson } from "../async";
-import { theSlot } from "./dispatcher";
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -48,7 +47,7 @@ function template(name: string, delay: () => number) {
   );
 }
 
-describe("the async walk", () => {
+describe("the async collecting render", () => {
   it("starts siblings at once, and writes them in tree order", async () => {
     const started: string[] = [];
     const Late = async ({ text, ms }: { text: string; ms: number }) => {
@@ -132,28 +131,5 @@ describe("the async walk", () => {
     } finally {
       error.mockRestore();
     }
-  });
-
-  it("puts React's dispatcher back after each component, never holding it across an await", async () => {
-    const slot = theSlot()!;
-    const before = slot.get();
-    const seen: unknown[] = [];
-    const Watch = async () => {
-      const id = useId(); // the walker's, while it calls this
-      await sleep(1);
-      seen.push(slot.get()); // after an await: not the walker's
-      return <Paragraph>{id}</Paragraph>;
-    };
-    const render = renderToHtml(<Email><Row><Column><Watch /><Watch /></Column></Row></Email>);
-    // While the render waits.
-    seen.push(slot.get());
-    await render;
-    expect(seen).toEqual([before, before, before]);
-    expect(slot.get()).toBe(before);
-    // The synchronous renderers too, and one inside another.
-    const Inner = () => <Paragraph>{renderToHtmlSync(<Email><Row><Column><Paragraph>inner</Paragraph></Column></Row></Email>).length > 0 ? "nested" : ""}</Paragraph>;
-    expect(renderToHtmlSync(<Email><Row><Column><Inner /></Column></Row></Email>)).toContain("nested");
-    expect(slot.get()).toBe(before);
-    expect(React.isValidElement(<Inner />)).toBe(true);
   });
 });

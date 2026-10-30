@@ -1,6 +1,8 @@
 import Body, { type BodyProps } from "./Body";
 import { OWN } from "../utils/create-component";
 import { ROOT } from "../utils/root-type";
+import { ownMarkup } from "../engine";
+import { reportedRoot } from "../engine/root-capture";
 
 export type DocumentPageSize =
   | "A3"
@@ -38,6 +40,8 @@ export type DocumentProps = Omit<
  * ```
  */
 export default function Document(props: DocumentProps) {
+  // (A lazy template's root, found where it renders: see engine/root-capture.ts.)
+  if (reportedRoot(Document, props, ownMarkup())) return null;
   return <Body {...props} mode="document" />;
 }
 

@@ -18,7 +18,7 @@ import type { UnlayerConfig } from "@unlayer-internal/shared-elements";
 import { UNLAYER_RENDER_KEY } from "./create-component";
 import { RECORDS } from "./collect";
 import { TAILWIND } from "./tailwind";
-import { callClass, callComponent, contextOf, hookState, passesThrough, renderFallbacks, ROOT_TREE, RenderError, sharing, type ContextStack, type Fallbacks, type Shared, type TreeContext } from "../engine";
+import { callCaptured, callClassCaptured, captureLazyRoot, isStreamed, passesThrough, ROOT_TREE, RenderError, sharing, type Shared, type TreeContext } from "../engine";
 import { nameOf, threw } from "../engine/errors";
 import { isRoot } from "./root-type";
 import { guest, keepUnwrapped, sayOnce, sharedByRender, unwrapped } from "./render-scope";
@@ -77,14 +77,12 @@ export const ASYNC_TEMPLATE =
 
 export const isThenable = (value: unknown): value is PromiseLike<unknown> => typeof (value as { then?: unknown } | null)?.then === "function";
 
-/** The provider an element is (`<Ctx value>`, `<Ctx.Provider value>`): its context and value. */
-function providerOf(element: unknown): { context: object; value: unknown } | undefined {
-  if (!React.isValidElement(element)) return undefined;
+/** Whether an element is a context's provider (`<Ctx value>`, `<Ctx.Provider value>`). */
+function providerOf(element: unknown): boolean {
+  if (!React.isValidElement(element)) return false;
   const type = element.type as any;
   const props = element.props as { value?: unknown };
-  if (type?.$$typeof === PROVIDER) return { context: type._context, value: props.value };
-  if (type?.$$typeof === CONTEXT && "value" in props && type.Provider === type) return { context: contextOf(type), value: props.value };
-  return undefined;
+  return type?.$$typeof === PROVIDER || (type?.$$typeof === CONTEXT && "value" in props && type.Provider === type);
 }
 
 /** What unwrapping a template found, for the render that unwrapped it (see above). */
@@ -103,8 +101,7 @@ export interface Unwrapped {
   provided?: Partial<UnlayerConfig>;
   /** Where its root's content starts in the tree, where its wrappers moved it (see contentTree). */
   tree?: TreeContext;
-  /** What its wrappers read for contexts no provider gives, which the rest of the render reads too (see the engine's `readContext`). */
-  fallbacks?: Fallbacks;
+  fallbacks?: undefined;
 }
 
 export type Steps = Generator<PromiseLike<unknown>, Unwrapped, unknown>;
@@ -118,11 +115,12 @@ function replayed(type: any, props: object, forked: boolean, output: React.React
 }
 
 /**
- * `call()` (a wrapper's: see the engine's callComponent) again each time it suspends, once what it suspended on
- * settles (`use()` of a pending promise, or a thrown one: React 18's Suspense), as React calls it again: what it
- * returns. What it waits for is yielded: the async renderers wait for it, the synchronous ones throw. It runs outside
- * the render's scope, as the content's components do: a render it starts is its own; with what the render's
- * components share (`shared`: its Markdown's and code's work), as they do.
+ * `call()` (a wrapper's: see the engine's capture.ts) again each time it throws a promise (React 18's Suspense), once
+ * that settles, as React calls it again: what it returns. One that `use()`s a pending promise throws a promise of what
+ * it returns once react-dom's streaming render has waited for it and called it again (`isStreamed`). What it waits for
+ * is yielded: the async renderers wait for it, the synchronous ones throw. It runs outside the render's scope, as the
+ * content's components do: a render it starts is its own; with what the render's components share (`shared`: its
+ * Markdown's and code's work), as they do.
  */
 function* waiting<T>(call: () => T, shared: Shared): Generator<PromiseLike<unknown>, T, unknown> {
   for (;;) {
@@ -130,6 +128,8 @@ function* waiting<T>(call: () => T, shared: Shared): Generator<PromiseLike<unkno
       return guest(() => sharing(shared, call));
     } catch (thrown) {
       if (!isThenable(thrown)) throw thrown;
+      // (What it fails with there, it fails with: a rejection is thrown out of the yield.)
+      if (isStreamed(thrown)) return (yield thrown) as T;
       try {
         yield thrown;
       } catch {
@@ -147,7 +147,7 @@ function* waiting<T>(call: () => T, shared: Shared): Generator<PromiseLike<unkno
  * thrown promise) is yielded: the async renderers wait for it, the synchronous ones throw, naming the wrapper
  * (`waits.name`, set as each is called). `shared`: what the render's components share, its wrappers too (the render's).
  */
-function* steps(element: React.ReactElement, shared: Shared, idPrefix?: string, waits: { name?: string } = {}): Steps {
+function* steps(element: React.ReactElement, shared: Shared, idPrefix?: string, waits: { name?: string } = {}, async = false): Steps {
   let current = element;
   let unread: string | undefined;
   // With no root, how what the template rendered is made again (`rendered`): each step's element, around what's
@@ -157,9 +157,6 @@ function* steps(element: React.ReactElement, shared: Shared, idPrefix?: string, 
   const holding = (at: React.ReactElement) => (inside: React.ReactNode) => React.cloneElement(at, undefined, inside);
   // Context providers around the root (`<Theme.Provider value="dark"><Email>…`): the root's content goes in them.
   const providers: React.ReactElement[] = [];
-  let contexts: ContextStack | null = null;
-  // (What it reads for contexts no provider gives, which its content's walk reads too: see the engine's renderFallbacks.)
-  const fallbacks: Fallbacks = renderFallbacks();
   let tree = ROOT_TREE;
   // The config of the <UnlayerProvider>s among them, the inner one's keys over the outer's (see providedConfig).
   let provided: Partial<UnlayerConfig> | undefined;
@@ -167,10 +164,11 @@ function* steps(element: React.ReactElement, shared: Shared, idPrefix?: string, 
   function* called(fn: (props: any, second?: unknown) => unknown, props: Record<string, unknown>, second: unknown, name: string): Generator<PromiseLike<unknown>, unknown, unknown> {
     // (Its `useId()`s' prefix: the render's, else the <UnlayerProvider>s' around it.)
     const prefix = idPrefix ?? provided?.idPrefix;
-    const state = hookState(name, tree, contexts, typeof prefix === "string" ? prefix : "", fallbacks);
     waits.name = name;
-    const out = yield* waiting(() => callComponent(fn, props, second, state), shared);
-    tree = out.tree;
+    // (The async renderers call a wrapper in react-dom's stream at once, which calls it as React does: again once what
+    // its `use()` waits for settles.)
+    const out = yield* waiting(() => callCaptured(fn, props, second, name, providers.filter((p) => !(p.type as any)?.[TAILWIND]), tree, typeof prefix === "string" ? prefix : undefined, async), shared);
+    if (out.forked) tree++;
     if (!isThenable(out.value)) return out.value;
     try {
       return yield out.value;
@@ -192,15 +190,16 @@ function* steps(element: React.ReactElement, shared: Shared, idPrefix?: string, 
       current = React.createElement(type.type, props);
       continue;
     }
-    // A lazy template (`React.lazy(() => import("./Welcome"))`): the component it loads, waited for as a wrapper that
-    // suspends is (the synchronous renderers say it's async till it has loaded); one that fails to load, named.
+    // A lazy template (`React.lazy(() => import("./Welcome"))`): rendered by react-dom where it is, till the root it
+    // renders gives itself (see the engine's captureLazyRoot: React's public API has no other way to what it loads),
+    // waited for as a wrapper that suspends is (the synchronous renderers say it's async till it has loaded); one that
+    // fails to load, named. Providers inside what it loads, around its root, aren't its content's (ARCHITECTURE.md).
     if (type?.$$typeof === LAZY) {
       waits.name = "lazy";
-      try {
-        current = React.createElement((yield* waiting(() => type._init(type._payload), shared)) as React.ElementType, props);
-      } catch (error) {
-        throw new RenderError(threw(error), "lazy", "", error);
-      }
+      const prefix = idPrefix ?? provided?.idPrefix;
+      const found = yield* waiting(() => captureLazyRoot(current, providers.filter((p) => !(p.type as any)?.[TAILWIND]), tree, typeof prefix === "string" ? prefix : undefined), shared);
+      if (!found) break;
+      current = found;
       continue;
     }
     const inside = () => {
@@ -213,8 +212,7 @@ function* steps(element: React.ReactElement, shared: Shared, idPrefix?: string, 
       const only = inside();
       if (!only) break;
       for (const [key, value] of Object.entries((props.config ?? {}) as Record<string, unknown>)) if (value !== undefined) ((provided ??= {}) as Record<string, unknown>)[key] = value;
-      const given = providerOf(yield* called(type, props, undefined, "UnlayerProvider"));
-      if (given) contexts = { ...given, context: contextOf(given.context), next: contexts };
+      // (Rendered by React around what's in it: the wrappers' renders and the content's.)
       providers.push(current);
       again.push(holding(current));
       current = only;
@@ -226,7 +224,6 @@ function* steps(element: React.ReactElement, shared: Shared, idPrefix?: string, 
     if (provider || type?.[TAILWIND]) {
       const only = inside();
       if (!only) break;
-      if (provider) contexts = { context: contextOf(provider.context), value: provider.value, next: contexts };
       providers.push(current);
       again.push(holding(current));
       current = only;
@@ -248,9 +245,11 @@ function* steps(element: React.ReactElement, shared: Shared, idPrefix?: string, 
     else if (typeof type === "function" && !type.prototype?.isReactComponent) produced = yield* called(type, { ...props }, undefined, nameOf(type));
     else if (type?.prototype?.isReactComponent) {
       // A class (react-intl's <IntlProvider>): constructed and rendered, inside the providers around it.
-      const around = contexts;
       waits.name = nameOf(type);
-      produced = yield* waiting(() => callClass(type, props, around, fallbacks), shared);
+      const prefix = idPrefix ?? provided?.idPrefix;
+      // (A <Tailwind> among the providers renders as it does around the content.)
+      const around = providers.filter((p) => !(p.type as any)?.[TAILWIND]);
+      produced = yield* waiting(() => callClassCaptured(type, props, around, tree, typeof prefix === "string" ? prefix : undefined), shared);
     } else break;
     again.push((inside) => replayed(type, props, tree !== at, inside));
     if (!React.isValidElement(produced)) {
@@ -262,11 +261,11 @@ function* steps(element: React.ReactElement, shared: Shared, idPrefix?: string, 
   }
   if (!isRoot(current.type)) {
     const rendered = again.reduceRight<React.ReactNode>((inside, wrap) => wrap(inside), (returned ? returned.value : current) as React.ReactNode) as React.ReactElement;
-    return { root: current, unread, rendered, provided, fallbacks };
+    return { root: current, unread, rendered, provided };
   }
   const own = (current.props as { children?: React.ReactNode }).children;
   const children = providers.reduceRight<React.ReactNode>((inside, provider) => React.cloneElement(provider, undefined, inside), own);
-  return { root: providers.length ? React.cloneElement(current, undefined, children) : current, provided, tree: tree !== ROOT_TREE ? tree : undefined, fallbacks };
+  return { root: providers.length ? React.cloneElement(current, undefined, children) : current, provided, tree: tree !== ROOT_TREE ? tree : undefined };
 }
 
 /**
@@ -280,7 +279,8 @@ export function unwrapRoot(element: React.ReactElement, api: string, idPrefix?: 
   const waits: { name?: string } = {};
   const step = steps(element, sharedByRender(), idPrefix, waits).next();
   if (step.done) return keepUnwrapped(step.value);
-  step.value.then(undefined, () => {});
+  // (A promise of a render that waits starts that render once it's waited for: it's left unstarted.)
+  if (!isStreamed(step.value)) step.value.then(undefined, () => {});
   throw new RenderError(`${api}: ${ASYNC_TEMPLATE}`, waits.name ?? nameOf(element.type), "");
 }
 
