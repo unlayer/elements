@@ -320,3 +320,29 @@ describe("Head", () => {
     expect(renderToStaticMarkup(<Head><meta name="a" /></Head>)).toBe("");
   });
 });
+
+describe("a <Head>'s <style>, <script> or <title> with an async component in it, in the async renderers", () => {
+  // On React 19, which renders no component in one, Elements rendered it with the synchronous renderer, so the async
+  // render failed with "it is async or suspends, and this renderer is synchronous".
+  it("waits for it, as for an async component anywhere else", async () => {
+    const { renderToHtml: renderAsync } = await import("../async");
+    const Brand = async () => (await Promise.resolve(), "#ff5500");
+    const Name = async () => (await Promise.resolve(), "Acme");
+    const email = (
+      <Email>
+        <Head>
+          <title><Name /> receipt</title>
+          <style>{[".brand{color:", <Brand key="b" />, "}"]}</style>
+          <script type="application/ld+json">{["{\"name\":\"", <Name key="n" />, "\"}"]}</script>
+        </Head>
+        <Row><Column><Paragraph>Hi</Paragraph></Column></Row>
+      </Email>
+    );
+    const html = await renderAsync(email);
+    expect(html).toContain(".brand{color:#ff5500}");
+    expect(html).toContain('{"name":"Acme"}');
+    expect(html).toMatch(/<title>Acme receipt<\/title>/);
+    // (The negative control: the same with no component waits for nothing.)
+    expect(await renderAsync(<Email><Head><style>{".brand{color:#ff5500}"}</style></Head><Row><Column><Paragraph>Hi</Paragraph></Column></Row></Email>)).toContain(".brand{color:#ff5500}");
+  });
+});

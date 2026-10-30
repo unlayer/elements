@@ -418,6 +418,8 @@ function prepHost(element: React.ReactElement, c: Collection, ctx: Ctx): React.R
     // browser reads what's between its tags (rawTextOf), or under an <svg> or <math> escaped as any text.
     const given = children != null && typeof children !== "boolean" && (typeof children === "object" || (!!inner.foreign && typeof children === "string"));
     if (!ctx.head || REACT_18 || !given) return React.cloneElement(element, urls as object, prep(children, c, { ...inner, raw: true }, true));
+    // (An async render waits for what's async in it: see HeadText.)
+    if (c.async) return React.createElement(HeadText, { c, ctx, type, start: () => headHtmlAsync(children, c, !!inner.foreign, inner.ends ?? [], true), done: (text: string) => React.cloneElement(element, urls as object, text) });
     let text: string;
     try {
       text = rawTextOf(children, c, !!inner.foreign, inner.ends ?? []);
@@ -429,6 +431,7 @@ function prepHost(element: React.ReactElement, c: Collection, ctx: Ctx): React.R
   // A <Head>'s <title> on React 19, which writes no component or markup in it: what's in it rendered here, as a
   // <Head>'s markup (its style's and script's text as given), given to React as its HTML.
   if (type === "title" && ctx.head && !REACT_18 && children != null && typeof children === "object") {
+    if (c.async) return React.createElement(HeadText, { c, ctx, type, start: () => headHtmlAsync(children, c, !!inner.foreign, inner.ends ?? ["title"], false), done: (html: string) => React.cloneElement(element, { ...urls, children: undefined, dangerouslySetInnerHTML: { __html: rawPlaceholder(c, html) } } as object) });
     let html: string;
     try {
       html = headHtmlOf(children, c, !!inner.foreign, inner.ends ?? ["title"]);
@@ -742,6 +745,37 @@ function rawTextOf(children: unknown, c: Collection, escaped: boolean, ends: rea
   const html = headHtmlOf(children, c, escaped, ends);
   if (escaped) return html;
   return html.split(/(<[^>]*>)/).map((piece, i) => (i % 2 ? piece : unescapeText(piece))).join("");
+}
+
+/** headHtmlOf (or, `text`, rawTextOf) in an async render: what's async in it waited for, with react-dom's stream. */
+async function headHtmlAsync(children: unknown, c: Collection, foreign: boolean, ends: readonly string[], text: boolean): Promise<string> {
+  const own = newCollection({ collector: undefined, passes: c.passes, frameless: c.frameless, own: c.own, omit: false, async: true, shared: c.shared });
+  own.headEnds = ends;
+  const holder: { content?: Item[] } = {};
+  const markup = await streamedMarkup(prep(recordNode(holder, children as React.ReactNode, true), own, { ...rootCtx({ name: "title", label: "title", parent: null, counts: null }), head: true, foreign }), undefined, (raw) => raw);
+  if (flatten(withRawErrors(own, parse(markup, own)), false) === PENDING) return "";
+  const html = htmlOf(holder.content ?? []);
+  return !text || foreign ? html : html.split(/(<[^>]*>)/).map((piece, i) => (i % 2 ? piece : unescapeText(piece))).join("");
+}
+
+/**
+ * A <Head>'s <style>, <script> or <title> whose children React 19 doesn't render (a component, a list), in an async
+ * render: what they render (`start`), waited for; then the element given it (`done`). Its props are its place's own.
+ */
+function HeadText(placed: { c: Collection; ctx: Ctx; type: string; start: () => Promise<string>; done: (text: string) => React.ReactNode }): React.ReactNode {
+  const { c, ctx, type, start, done } = placed;
+  // (React's development build calls a component again, with no props, to say where a warning came from.)
+  if (!c) return null;
+  let pending = c.pending.get(placed);
+  if (!pending) {
+    pending = start() as Tracked;
+    pending.then(undefined, () => {});
+    track(pending);
+    c.pending.set(placed, pending);
+  }
+  if (pending.status === "fulfilled") return done(String(pending.value));
+  if (pending.status === "rejected") return fails(c, nextOrder(c), errorMark(c, pending.reason, type, placeFrame(ctx.frame, type), ctx));
+  throw pending;
 }
 
 /** What `children` render as a <Head>'s markup (in a record of its own that's a <Head>'s: see parse.ts), as HTML. */
