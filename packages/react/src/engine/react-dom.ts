@@ -49,7 +49,9 @@ function sink(done: (html: string) => void) {
 /**
  * react-dom's streaming render of `node` once everything in it is ready, in a `<noscript>`, without it and without the
  * stream's own comments (where its Suspense boundaries are, between texts): Node's pipeable stream where react-dom has
- * it, a web stream elsewhere. `onError` is told what React handles itself (a part in a Suspense that failed).
+ * it, a web stream elsewhere. `onError` is told what React handles itself (a part in a Suspense that failed). No chunk
+ * size: React 19 otherwise writes a long stream's <Suspense> as its fallback, its content after the rest in a hidden
+ * <div> and scripts that move it (an email can run none).
  */
 export function streamedMarkup(node: React.ReactNode, idPrefix: string | undefined, raw: (html: string) => string, onError?: (error: unknown) => void, control: { abort?: (reason: unknown) => void } = {}): Promise<string> {
   const element = createElement("noscript", null, node);
@@ -61,6 +63,7 @@ export function streamedMarkup(node: React.ReactNode, idPrefix: string | undefin
       let failed = false;
       const stream = S.renderToPipeableStream(element, {
         identifierPrefix: idPrefix,
+        progressiveChunkSize: Infinity,
         onAllReady() {
           if (!failed) stream.pipe(sink((html) => resolve(bare(html))));
         },
@@ -76,7 +79,7 @@ export function streamedMarkup(node: React.ReactNode, idPrefix: string | undefin
   return (async () => {
     const aborts = new AbortController();
     control.abort = (reason) => aborts.abort(reason);
-    const stream = await S.renderToReadableStream(element, { identifierPrefix: idPrefix, onError: report, signal: aborts.signal });
+    const stream = await S.renderToReadableStream(element, { identifierPrefix: idPrefix, progressiveChunkSize: Infinity, onError: report, signal: aborts.signal });
     await stream.allReady;
     return bare(await new Response(stream).text());
   })();

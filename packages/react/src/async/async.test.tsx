@@ -171,6 +171,41 @@ describe("the async renderers", () => {
     }
   });
 
+  // (React 19 writes a long stream's <Suspense> as its fallback, its content after the rest in a hidden <div>, and
+  // scripts that move it: from about 12.8 KB of the template's markup, whatever's in the <Suspense>.)
+  it("wait for a <Suspense>'s content where it is in a long template, writing no fallback, hidden content or script", async () => {
+    const story = (i: number) => (
+      <Row key={i}>
+        <Column>
+          <Paragraph>{`Story ${i}: ${"a quarterly update on what shipped and what comes next. ".repeat(6)}`}</Paragraph>
+        </Column>
+      </Row>
+    );
+    const Coupon = async () => {
+      await later(null);
+      return <Row><Column><Paragraph>Your code is SAVE20</Paragraph></Column></Row>;
+    };
+    const email = (
+      <Email>
+        {Array.from({ length: 40 }, (_, i) => story(i))}
+        <React.Suspense fallback={<Row><Column><Paragraph>Loading your code</Paragraph></Column></Row>}>
+          <Coupon />
+        </React.Suspense>
+        <Row><Column><Paragraph>Footer</Paragraph></Column></Row>
+      </Email>
+    );
+    const html = await renderToHtml(email);
+    expect(html).not.toMatch(/Loading your code|<template|<script|<div hidden/);
+    expect(html.indexOf("SAVE20")).toBeGreaterThan(html.indexOf("Story 39"));
+    expect(html.indexOf("SAVE20")).toBeLessThan(html.indexOf("Footer"));
+    const text = await renderToPlainText(email);
+    expect(text).not.toContain("Loading");
+    expect(text.indexOf("SAVE20")).toBeLessThan(text.indexOf("Footer"));
+    const texts = contents(await renderToJson(email));
+    expect(texts.findIndex((t) => t.includes("SAVE20"))).toBe(40);
+    expect(texts.findIndex((t) => t.includes("Footer"))).toBe(41);
+  });
+
   // (React 19 renders a promise given as a child as what it resolves to.)
   it.runIf(use)("wait for a promise given as a child (React 19); the synchronous renderers say which component gave it", async () => {
     const Holder = ({ text }: { text: PromiseLike<string> }) => <div>{text as unknown as React.ReactNode}</div>;
