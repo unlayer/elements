@@ -215,6 +215,24 @@ describe("an email service's tag in a Markdown link's URL", () => {
     expect(blocks({ children: "[a](https://shop.example/a {{ b }})" })).toEqual([["text", '[a](<a href="https://shop.example/a" target="_blank" rel="noopener">https://shop.example/a</a> {{ b }})']]);
   });
 
+  it("keeps a URL with many tags in it whole, in time linear in its size", async () => {
+    // A URL's tags were hidden one more each time the rule was read again, sixteen times at most: past them the URL was
+    // cut inside a tag, and the rest of the text was copied for each link (10 KB of `www.a.{{ a }}` took 3 ms, 1 MB 9 s).
+    const url = `https://shop.example/t?${Array.from({ length: 40 }, (_, i) => `k${i}={{ v${i} }}`).join("&")}`;
+    expect(hrefs(`Go: ${url} now`)).toEqual([written(url)]);
+    expect(hrefs(`[Go](${url})`)).toEqual([written(url)]);
+    const time = (markdown: string) => {
+      const start = performance.now();
+      new Bounded({ breaks: false, cells: Math.max(TABLE_CELLS, markdown.length), size: markdown.length }).lex(markdown);
+      return performance.now() - start;
+    };
+    const fill = (unit: string, bytes: number) => unit.repeat(Math.ceil(bytes / unit.length)).slice(0, bytes);
+    for (const unit of ["www.a.{{ a }}", "https://a.b/{{ a }}", "www.a.{{ a }} x ", "<https://a/{{ b }} ", "[a](https://x/{{ y }}) ", "[a](b{{ c }} "]) {
+      const { small, large, grows } = await growth((bytes) => time(fill(unit, bytes)), [10240, 102400], { ratio: 20, floor: 100, next: 1024000 });
+      expect(grows, `${JSON.stringify(unit)}: ${small.toFixed(1)} ms for 10 KB, ${large.toFixed(1)} ms for 100 KB`).toBe(false);
+    }
+  }, 120_000);
+
   it("costs about ten times as much for ten times as much of any short shape of tags in and around links (random, seeded)", async () => {
     const pieces = ["{{", "}}", "{{ a }}", "{%", "%}", "<%", "%>", "%%", "${", "}", "*|", "|*", "https://a.b/", "www.a.", "[a](", "](", "<https://a/", ">", "[a]: ", "(", ")", " ", "a", "\n", '"'];
     let seed = 11;

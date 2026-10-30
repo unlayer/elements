@@ -80,7 +80,7 @@ class Inline extends Limited {
     if (this.deep || this.spent) return undefined;
     // What marked reads from each `<` in its text is counted too (see Looks).
     const looks = { steps: 0 };
-    return tagged(src, (text) => linkReach(text, looks), (text, reach) => (this.spend(looks.steps) ? this.within(text, reach, (part) => super.link(part)) : undefined));
+    return tagged(src, (text) => linkReach(text, looks), (text, reach) => (this.spend(looks.steps) ? this.within(text, reach, (part) => super.link(part)) : undefined), lineEnd, (steps) => this.spend(steps));
   }
 
   reflink(src: string, links: Links): Tokens.Link | Tokens.Image | Tokens.Text | undefined {
@@ -112,16 +112,16 @@ class Inline extends Limited {
   }
 
   autolink(src: string): Tokens.Link | undefined {
-    return src[0] === "<" ? tagged(src, autolinkReach, (text, reach) => this.within(text, reach, (part) => super.autolink(part))) : super.autolink(src);
+    return src[0] === "<" ? tagged(src, autolinkReach, (text, reach) => this.within(text, reach, (part) => super.autolink(part)), (text) => AUTOLINK_END(text.slice(1)) + 2, (steps) => this.spend(steps)) : super.autolink(src);
   }
 
   url(src: string): Tokens.Link | undefined {
-    return URL_START.test(src[0] ?? "") ? tagged(src, urlReach, (text, reach) => this.within(text, reach, (part) => super.url(part))) : super.url(src);
+    return URL_START.test(src[0] ?? "") ? tagged(src, urlReach, (text, reach) => this.within(text, reach, (part) => super.url(part)), (text) => URL_END(text), (steps) => this.spend(steps)) : super.url(src);
   }
 
   def(src: string): Tokens.Def | undefined {
     // (Its label, its URL and its title: three lines at most.)
-    return tagged(src, defReach, (text) => super.def(text));
+    return tagged(src, defReach, (text) => super.def(text), (_text, reach) => reach, () => true);
   }
 
   inlineText(src: string): Tokens.Text | undefined {
@@ -145,7 +145,11 @@ const ENDS = /[ \t<>*|()"']/g;
 const PRIVATE = /[\uE000-\uE009]/;
 const HIDDEN = /[\uE000-\uE009]/g;
 
-/** `src` with the tags that start before `end` hidden (see HIDE): each character where it was. */
+/**
+ * What a rule reads of `src` to `end` (and a tag's length past it), with the tags that start before `end` hidden (see
+ * HIDE): each character where it was. Only that much: the rest of the text, copied for each link, took time growing
+ * with its size squared. `src` itself where there's no tag there.
+ */
 function hideTags(src: string, end: number): string {
   const head = src.slice(0, end + 270);
   let out = "";
@@ -155,7 +159,7 @@ function hideTags(src: string, end: number): string {
     out += head.slice(at, tag.index) + tag[0].replace(ENDS, (ch) => HIDE[ch]);
     at = TAG.lastIndex;
   }
-  return at ? out + src.slice(at) : src;
+  return at ? out + head.slice(at) : src;
 }
 
 /** A token read with tags hidden, shown again (its URL, its text, what's in it). */
@@ -170,26 +174,43 @@ function shown<T>(value: T): T {
 }
 
 /**
- * What `read` makes of `src` (as far as `reachOf` says it looks) with the tags in what it looks at hidden: as far as
- * that reaches with them hidden, a tag past it read with it, a few times at most. Text with Unicode's private use
- * characters in it is read as it is.
+ * What `read` makes of `src` (as far as `reachOf` says it looks) with the tags hidden in what it could look at
+ * (`extent`: once, as far as it ends, which `spend` is charged for), read as far as that reaches with them hidden.
+ * Text with Unicode's private use characters in it is read as it is.
  */
-function tagged<T>(src: string, reachOf: (src: string) => number, read: (src: string, reach: number) => T | undefined): T | undefined {
-  let reach = reachOf(src);
-  const head = src.slice(0, reach + 2);
-  if (!OPENER.test(head) || PRIVATE.test(src.slice(0, reach + 270))) return read(src, reach);
-  let hidden = src;
-  for (let rounds = 0, upTo = -1; reach > upTo && rounds < 16; rounds++) {
-    upTo = reach;
-    const next = hideTags(src, upTo);
-    if (next === hidden) break;
-    hidden = next;
-    reach = reachOf(hidden);
-  }
+function tagged<T>(src: string, reachOf: (src: string) => number, read: (src: string, reach: number) => T | undefined, extent: (src: string, reach: number) => number, spend: (steps: number) => boolean): T | undefined {
+  const reach = reachOf(src);
+  if (!OPENER.test(src.slice(0, reach + 2)) || PRIVATE.test(src.slice(0, reach + 270))) return read(src, reach);
+  const end = extent(src, reach);
+  if (!spend(end)) return undefined;
+  const hidden = hideTags(src, end);
   if (hidden === src) return read(src, reach);
-  const token = read(hidden, reach);
+  const token = read(hidden, reachOf(hidden));
   return token && shown(token);
 }
+
+const STICKY_TAG = new RegExp(TAG.source, "y");
+/**
+ * Where a URL Markdown links by itself (or one in `<…>`) ends: the first of `stops` (whitespace, `<`, and `>` in `<…>`)
+ * that isn't in a tag (each tag read once from where it starts, as long as one can be).
+ */
+const urlEnd = (stops: RegExp) => (src: string): number => {
+  for (let at = 0; at < src.length; ) {
+    STICKY_TAG.lastIndex = at;
+    const tag = "{<%$*".includes(src[at]) ? STICKY_TAG.exec(src) : null;
+    if (tag) at += tag[0].length;
+    else if (stops.test(src[at])) return at;
+    else at++;
+  }
+  return src.length;
+};
+const URL_END = urlEnd(/[\s<]/);
+const AUTOLINK_END = urlEnd(/[\s<>]/);
+/** A link's URL ends on the line it's on (a tag is on one line): to the end of the line `reach` is on. */
+const lineEnd = (src: string, reach: number): number => {
+  const end = src.indexOf("\n", Math.min(reach, src.length));
+  return end < 0 ? src.length : end;
+};
 
 /** A link's definition: its label, its URL and its title, three lines at most. */
 const defReach = (src: string): number => {
