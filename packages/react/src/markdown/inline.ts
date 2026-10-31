@@ -93,6 +93,8 @@ class Inline extends Limited {
 
   emStrong(src: string, maskedSrc: string, prevChar?: string): Tokens.Em | Tokens.Strong | undefined {
     if (src[0] !== "*" && src[0] !== "_") return super.emStrong(src, maskedSrc, prevChar);
+    // (A Mailchimp tag's stars open no emphasis: see MERGE_TAG.)
+    if (mergeTagAt(src)) return undefined;
     // Its delimiters, then what closes them (counted as marked looks for it: see count()).
     if (this.deep || this.spent || !this.spend(runEnd(src, 0, src[0] === "*" ? STARS : UNDERSCORES))) return undefined;
     return super.emStrong(src, maskedSrc, prevChar);
@@ -126,6 +128,8 @@ class Inline extends Limited {
 
   inlineText(src: string): Tokens.Text | undefined {
     if (this.spent) return super.inlineText(src);
+    const tag = mergeTagAt(src);
+    if (tag) return this.within(src, tag.length, () => ({ type: "text", raw: tag, text: tag }));
     return this.within(src, textReach(src, this.breaks), (part) => super.inlineText(part)) ?? super.inlineText(src);
   }
 }
@@ -134,7 +138,8 @@ class Inline extends Limited {
  * An email service's tag, on one line (`{{ … }}`, `{% … %}`, `<% … %>`, `%% … %%`, `${…}`, Mailchimp's `*|…|*`): in a
  * link's URL (`[text](url)`, `![alt](src)`, a URL Markdown links by itself, `<url>`, a link's definition) one piece of
  * it, so the URL doesn't end inside it, at a space or at what else ends one (see HIDE). Elsewhere, Markdown as
- * CommonMark reads it. (Its length kept to a tag's: each is read once from where it starts.)
+ * CommonMark reads it, but for a Mailchimp tag in text (see MERGE_TAG). (Its length kept to a tag's: each is read
+ * once from where it starts.)
  */
 const TAG = /\{\{[^\n{}]{0,256}\}\}|\{%[^\n{}]{0,256}%\}|<%[^\n<>]{0,256}%>|%%[^\n%]{0,256}%%|\$\{[^\n{}]{0,256}\}|\*\|[^\s|*]{0,256}\|\*/g;
 const OPENER = /\{\{|\{%|<%|%%|\$\{|\*\|/;
@@ -188,6 +193,19 @@ function tagged<T>(src: string, reachOf: (src: string) => number, read: (src: st
   const token = read(hidden, reachOf(hidden));
   return token && shown(token);
 }
+
+/**
+ * Mailchimp's tag (`*|FNAME|*`, `*|IF:FNAME|*`) in text, which is its own: its stars read as emphasis (`Hi *|FNAME|*,`
+ * was `Hi <em>|FNAME|</em>,`, the tag never filled in). It's read whole as text, and its first star opens no emphasis.
+ * (Nor does its last close one opened before it: its first, read as an opener while marked looks for that one's end,
+ * takes it.)
+ */
+const MERGE_TAG = /\*\|[^\s|*]{0,256}\|\*/y;
+const mergeTagAt = (src: string): string | undefined => {
+  if (src[0] !== "*" || src[1] !== "|") return undefined;
+  MERGE_TAG.lastIndex = 0;
+  return MERGE_TAG.exec(src)?.[0];
+};
 
 const STICKY_TAG = new RegExp(TAG.source, "y");
 /**

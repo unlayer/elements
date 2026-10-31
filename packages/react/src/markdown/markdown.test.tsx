@@ -215,6 +215,19 @@ describe("an email service's tag in a Markdown link's URL", () => {
     expect(blocks({ children: "[a](https://shop.example/a {{ b }})" })).toEqual([["text", '[a](<a href="https://shop.example/a" target="_blank" rel="noopener">https://shop.example/a</a> {{ b }})']]);
   });
 
+  it("keeps Mailchimp's `*|…|*` tag in text as written, not as emphasis its stars would open or close, and emphasis around it", () => {
+    // `Hi *|FNAME|*,` was `Hi <em>|FNAME|</em>,`: each recipient read `Hi |FNAME|` in italics, the tag never filled in.
+    expect(blocks({ children: "Hi *|FNAME|*, your order shipped." })).toEqual([["text", "Hi *|FNAME|*, your order shipped."]]);
+    expect(blocks({ children: "*|IF:FNAME|*Hi *|FNAME|*,*|ELSE:|*Hi there,*|END:IF|*" })).toEqual([["text", "*|IF:FNAME|*Hi *|FNAME|*,*|ELSE:|*Hi there,*|END:IF|*"]]);
+    expect(blocks({ children: "Hi *|FNAME|*, *thanks* for **all** of it" })).toEqual([["text", "Hi *|FNAME|*, <em>thanks</em> for <strong>all</strong> of it"]]);
+    expect(blocks({ children: "*Dear *|FNAME|*, thanks*" })).toEqual([["text", "<em>Dear *|FNAME|*, thanks</em>"]]);
+    // (Nor does a tag's star close an emphasis opened before it.)
+    expect(blocks({ children: "*Hi *|FNAME|*" })).toEqual([["text", "*Hi *|FNAME|*"]]);
+    expect(blocks({ children: "**Hi *|FNAME|*, welcome" })).toEqual([["text", "**Hi *|FNAME|*, welcome"]]);
+    expect(renderToHtml(email({ children: "# Welcome, *|FNAME|*" }))).toContain("Welcome, *|FNAME|*</");
+    expect(renderToPlainText(email({ children: "Hi *|FNAME|*, your order shipped." }))).toContain("Hi *|FNAME|*, your order shipped.");
+  });
+
   it("keeps a URL with many tags in it whole, in time linear in its size", async () => {
     // A URL's tags were hidden one more each time the rule was read again, sixteen times at most: past them the URL was
     // cut inside a tag, and the rest of the text was copied for each link (10 KB of `www.a.{{ a }}` took 3 ms, 1 MB 9 s).
