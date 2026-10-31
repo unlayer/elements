@@ -236,13 +236,23 @@ export const DESIGNS: Record<string, DesignCase> = {
     code: ["values={{", "footers: ["],
     absent: [" as unknown as "],
   },
-  "video: the editor's (with its URL)": {
+  "video: the editor's (its URL gives it all)": {
     design: design([block("video", { video: { type: "youtube", videoId: "aqz-KE-bpKQ", thumbnail: "https://img.youtube.com/vi/aqz-KE-bpKQ/0.jpg", loading: false, url: "https://www.youtube.com/watch?v=aqz-KE-bpKQ" } })]),
-    code: ['url: "https://www.youtube.com/watch?v=aqz-KE-bpKQ"'],
+    code: ['<Video videoUrl="https://www.youtube.com/watch?v=aqz-KE-bpKQ" />'],
+  },
+  "video: the editor's, a URL whose values aren't its own (as they are)": {
+    design: design([block("video", { video: { type: "youtube", videoId: "aqz-KE-bpKQ", thumbnail: "https://example.com/own-thumbnail.jpg", loading: false, url: "https://www.youtube.com/watch?v=aqz-KE-bpKQ" } })]),
+    code: ['thumbnail: "https://example.com/own-thumbnail.jpg"'],
+    absent: ["videoUrl"],
   },
   "video: Elements' own (a URL gives it all)": {
-    design: design([block("video", { video: { type: "vimeo", videoId: "76979871", thumbnail: "", loading: false } })]),
+    design: design([block("video", { video: { url: "https://vimeo.com/76979871", type: "vimeo", videoId: "76979871", thumbnail: "", loading: false } })]),
     code: ['<Video videoUrl="https://vimeo.com/76979871" />'],
+  },
+  "video: Elements' own before it kept the URL (its values as they are)": {
+    design: design([block("video", { video: { type: "vimeo", videoId: "76979871", thumbnail: "", loading: false } })]),
+    code: ['videoId: "76979871"'],
+    absent: ["videoUrl"],
   },
   "page break: in a document": {
     design: design([block("text", { text: "One" }), block("page_break", { color: "#6b7280" }), block("text", { text: "Two" })]),

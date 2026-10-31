@@ -10,6 +10,7 @@ import type { JsxChild } from "./print";
 import { withoutRestoredUrl } from "./fonts";
 import { blockHtml, plainText } from "./text";
 import { contentSlotWidth, pinImageSrc, toPx, type SlotContext } from "../utils/image-sizing";
+import { parseVideoUrl } from "../utils/video-url";
 import { deepEqual, isPlainObject, omit, type Plain } from "./values";
 import type { ModuleState } from "./state";
 import { dropFixedFlags, warnLost, warnMergeTagRule } from "./warnings";
@@ -351,13 +352,15 @@ function tableShorthand(table: unknown, columns: unknown, rows: unknown, enableH
   return { attrs: [["data", cells], ...(columns !== BLOCK_DEFAULTS.Table.columns ? ([["columns", columns]] as Array<[string, unknown]>) : [])], enableHeader };
 }
 
-/** A video's URL, where `videoUrl` gives exactly its values (Elements' own designs; the editor's keep the URL too). */
+/**
+ * A video's URL, where `videoUrl` gives exactly its values (Elements' own designs; the editor's keep other values too):
+ * its own, which the values hold. (A design made before Elements kept it, which has none, keeps its values as they are.)
+ */
 function videoUrl(video: Plain): string | undefined {
-  const { type, videoId, thumbnail, loading = false, ...others } = video;
-  if (Object.keys(others).length || loading !== false || typeof videoId !== "string" || !videoId) return undefined;
-  if (type === "youtube" && thumbnail === `https://img.youtube.com/vi/${videoId}/0.jpg` && /^[\w-]{11}$/.test(videoId)) return `https://www.youtube.com/watch?v=${videoId}`;
-  if (type === "vimeo" && thumbnail === "" && /^\d+$/.test(videoId)) return `https://vimeo.com/${videoId}`;
-  return undefined;
+  const { loading = false, ...given } = video;
+  if (loading !== false || typeof given.url !== "string") return undefined;
+  const parsed = parseVideoUrl(given.url);
+  return parsed && deepEqual(given, parsed) ? given.url : undefined;
 }
 
 /** A block Elements has no component for: an Html block of its exported HTML, or a TODO comment. */

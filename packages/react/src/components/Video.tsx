@@ -1,4 +1,5 @@
 import { VideoExporters, VideoDefaults } from "@unlayer/exporters";
+import { parseVideoUrl } from "../utils/video-url";
 import type { VideoValues } from "../types";
 import { createItemComponent, type ItemComponentProps } from "../utils/create-component";
 import { mapSemanticProps, type SemanticProps } from "../utils/semantic-props";
@@ -26,35 +27,6 @@ const DEFAULT_VALUES = {
   video: DEFAULT_VIDEO,
 } as unknown as VideoValues;
 
-/**
- * Parses a YouTube or Vimeo URL and returns exporter-ready video data.
- */
-export function parseVideoUrl(url: string): { type: "youtube" | "vimeo"; videoId: string; thumbnail: string } | null {
-  // YouTube: youtube.com/watch?v=ID, youtu.be/ID, youtube.com/embed/ID
-  const ytMatch = url.match(
-    /(?:youtube\.com\/(?:watch\?v=|embed\/)|youtu\.be\/)([a-zA-Z0-9_-]{11})/
-  );
-  if (ytMatch) {
-    const videoId = ytMatch[1];
-    return {
-      type: "youtube",
-      videoId,
-      thumbnail: `https://img.youtube.com/vi/${videoId}/0.jpg`,
-    };
-  }
-
-  // Vimeo: vimeo.com/ID
-  const vimeoMatch = url.match(/vimeo\.com\/(\d+)/);
-  if (vimeoMatch) {
-    return {
-      type: "vimeo",
-      videoId: vimeoMatch[1],
-      thumbnail: "",
-    };
-  }
-
-  return null;
-}
 
 /**
  * Video - Renders an embedded video player (YouTube/Vimeo).
@@ -67,7 +39,7 @@ export function parseVideoUrl(url: string): { type: "youtube" | "vimeo"; videoId
  * @example Full Control
  * ```tsx
  * <Video values={{
- *   video: { type: "youtube", videoId: "dQw4w9WgXcQ", thumbnail: "..." }
+ *   video: { url: "https://www.youtube.com/watch?v=dQw4w9WgXcQ", type: "youtube", videoId: "dQw4w9WgXcQ", thumbnail: "..." }
  * }} />
  * ```
  */
@@ -92,4 +64,5 @@ const Video = createItemComponent<VideoValues, VideoSemanticProps>({
   exporters: VideoExporters,
 });
 
+export { parseVideoUrl };
 export default Video;

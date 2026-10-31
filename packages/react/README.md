@@ -279,7 +279,7 @@ A Paragraph is a text block in the design, and renders as the editor exports tha
 
 ### Video
 - `videoUrl?: string` — YouTube/Vimeo URL, auto-parsed
-- `video?: { type: "youtube" | "vimeo", videoId, thumbnail }` — manual control
+- `video?: { url, type: "youtube" | "vimeo", videoId, thumbnail }` — manual control (`url`, the video's: what an email's thumbnail links to and its plain text lists)
 
 ### Html
 - `html?: string` — `"<strong>Hello, world!</strong>"`
