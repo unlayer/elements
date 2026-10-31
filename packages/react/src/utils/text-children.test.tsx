@@ -253,7 +253,8 @@ describe("rich text children of Paragraph, Heading and Button", () => {
       },
       "among the rows": (Top) => <Page><Top /><Row><Column><Paragraph>after</Paragraph></Column></Row></Page>,
     };
-    const hostile = ['<img src="https://example.com/x.png" onerror="alert(1)">', '<b onclick="x()">bold</b>', '<a href="javascript:x()">x</a>'];
+    // (And HTML that ends the Link's <a> to put what follows it outside the link.)
+    const hostile = ['<img src="https://example.com/x.png" onerror="alert(1)">', '<b onclick="x()">bold</b>', '<a href="javascript:x()">x</a>', '</a><img src="https://example.com/x.png" onerror="alert(1)">'];
     const found: string[] = [];
     const check = (where: string, out: string) => {
       const doc = new DOMParser().parseFromString(out, "text/html");
@@ -293,6 +294,52 @@ describe("rich text children of Paragraph, Heading and Button", () => {
     }
     expect(found).toEqual([]);
   }, 120_000);
+
+  it("keep a component's own markup around a <Link> as it's written, the Link's cleaned (a footer's <p style>, a card, a nav), in both renderers", async () => {
+    // The component a <Link> rendered in had all its markup cleaned as the Link's: a footer's `<p style>` around its
+    // links was left out (and a card's <div>, its heading, a nav's table), where markup without a Link was kept.
+    type Linker = (href: string, text: string) => React.ReactNode;
+    const viaLink: Linker = (href, text) => <Link href={href}>{text}</Link>;
+    const written: Linker = (href, text) => <a href={href} target="_blank" rel="noopener">{text}</a>;
+    const shapes: Record<string, (a: Linker) => React.ComponentType> = {
+      footer: (a) => () => <p style={{ fontSize: 12, color: "#666666" }}>{a("https://example.com/privacy", "Privacy")} | {a("https://example.com/unsubscribe", "Unsubscribe")}</p>,
+      card: (a) => () => <div style={{ padding: 16, border: "1px solid #dddddd" }}><h3 style={{ margin: 0 }}>New in</h3><p>Fresh picks.</p>{a("https://example.com/new", "Shop now")}</div>,
+      nav: (a) => () => <table role="presentation"><tbody><tr><td>{a("https://example.com/a", "Shop")}</td><td>{a("https://example.com/b", "Blog")}</td></tr></tbody></table>,
+      "links in a component of yours in it": (a) => {
+        const Links = () => <>{a("https://example.com", "Shop")}</>;
+        return () => <p className="links"><b>Go:</b> <Links /></p>;
+      },
+    };
+    const places: Record<string, (Shape: React.ComponentType) => React.ReactElement> = {
+      "in a Column": (Shape) => <Email><Row><Column><Shape /></Column></Row></Email>,
+      "among the rows": (Shape) => <Page><Shape /><Row><Column><Paragraph>after</Paragraph></Column></Row></Page>,
+    };
+    for (const [shape, made] of Object.entries(shapes)) {
+      for (const [place, template] of Object.entries(places)) {
+        const linked = template(made(viaLink));
+        const asWritten = template(made(written));
+        const where = `${shape}, ${place}`;
+        expect(renderToHtml(linked), where).toBe(renderToHtml(asWritten));
+        expect(JSON.stringify(renderToJson(linked)), where).toBe(JSON.stringify(renderToJson(asWritten)));
+        expect(await asyncRenderers.renderToHtml(linked), where).toBe(await asyncRenderers.renderToHtml(asWritten));
+      }
+    }
+    // (The control: the footer kept as an HTML block, its <p style> and links in it.)
+    const footer = renderToJson(places["in a Column"](shapes.footer(viaLink))).body.rows[0].columns[0].contents[0] as { type: string; values: { html: string } };
+    expect(footer).toMatchObject({ type: "html", values: { html: '<p style="font-size:12px;color:#666666"><a href="https://example.com/privacy" target="_blank" rel="noopener">Privacy</a> | <a href="https://example.com/unsubscribe" target="_blank" rel="noopener">Unsubscribe</a></p>' } });
+
+    // HTML in the Link that ends its <a>: cleaned as the Link's (what follows it, as a browser reads it, outside the
+    // link), the component's <p> around it kept.
+    const Raw = ({ html }: { html: string }) => <span dangerouslySetInnerHTML={{ __html: html }} />;
+    const Breakout = () => <p style={{ color: "red" }}>See <Link href="https://example.com">Shop <Raw html={'</a><img src="https://example.com/x.png" onerror="alert(1)"></span></p><b onclick="x()">x</b>'} /></Link> now</p>;
+    const email = <Email><Row><Column><Breakout /></Column></Row></Email>;
+    const cleaned = '<p style="color:red">See <a href="https://example.com" target="_blank" rel="noopener">Shop <span></span></a><img src="https://example.com/x.png"/><b>x</b> now</p>';
+    expect((renderToJson(email).body.rows[0].columns[0].contents[0] as { values: { html: string } }).values.html).toBe(cleaned);
+    for (const out of [renderToHtml(email), await asyncRenderers.renderToHtml(email)]) {
+      expect(out).toContain(cleaned);
+      expect(out).not.toMatch(/onerror|onclick/);
+    }
+  });
 
   it("leave out a URL that runs code however its characters are written: references, control characters, in markup given as HTML", () => {
     const hostile = [

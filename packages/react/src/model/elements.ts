@@ -37,7 +37,7 @@ import Social from "../components/Social";
 import Table from "../components/Table";
 import Video from "../components/Video";
 import PageBreak from "../components/PageBreak";
-import { hasMarkup, markupOnly, partsOf, recordOf, runs, startOf, textOf, type Part, type Token } from "./content";
+import { hasMarkup, keptHtml, markupOnly, partsOf, recordOf, runs, startOf, textOf, type Part, type Token } from "./content";
 import type { Collected } from "./collect";
 
 /**
@@ -74,8 +74,7 @@ function keptMarkup(c: Collected, item: RecordItem): React.ReactElement | undefi
 }
 
 function keptMarkupOnce(item: RecordItem): React.ReactElement | undefined {
-  const raw = markupOnly(item.items);
-  if (raw === undefined) return undefined;
+  if (markupOnly(item.items) === undefined) return undefined;
   const list = partsOf(item.items);
   // Text alone shows as text (see `elements`).
   if (!list.some((p) => typeof p !== "string")) return undefined;
@@ -93,8 +92,8 @@ function keptMarkupOnce(item: RecordItem): React.ReactElement | undefined {
   const one = list.length === 1 && typeof list[0] !== "string" && list[0].inner !== undefined ? list[0] : undefined;
   const out = (recordOf(item).output as { value: unknown } | undefined)?.value as React.ReactElement<{ dangerouslySetInnerHTML?: unknown }> | undefined;
   const given = React.isValidElement(out) && typeof out.type === "string" && out.props.dangerouslySetInnerHTML != null;
-  // (Markup a <Link> rendered in, never as it is: cleaned as a Link alone is, see linkBlock.)
-  const html = linked ? inlineHtml(raw, true) : one && given ? one.inner! : raw;
+  // (A <Link>'s markup in it, never as it is: cleaned as a Link alone is, see keptHtml.)
+  const html = one && given ? one.inner! : keptHtml(item.items);
   const Rendered = () => React.createElement("div", { dangerouslySetInnerHTML: { __html: html } });
   Rendered.displayName = nameOf(element);
   (Rendered as unknown as Record<symbol, unknown>)[OWN] = true;
@@ -108,8 +107,8 @@ function keptMarkupOnce(item: RecordItem): React.ReactElement | undefined {
 }
 
 /**
- * Collected content as HTML: markup as it is (but a component's a <Link> rendered in, `linked`: cleaned as a Link's,
- * the elements a record cuts left out), each row, column or block by `render`.
+ * Collected content as HTML: markup as it is (but a <Link>'s, `linked`: cleaned as a Link's, the elements a record cuts
+ * in it left out), each row, column or block by `render`.
  */
 export function markup(c: Collected, items: readonly Item[], render: (element: React.ReactElement) => string, tw?: Record<string, any>, linked = false): string {
   let html = "";
@@ -119,7 +118,8 @@ export function markup(c: Collected, items: readonly Item[], render: (element: R
     else if (item.kind === "cut") html += linked ? markup(c, item.items, render, tw, true) : item.open + markup(c, item.items, render, tw) + item.close;
     else {
       const r = recordOf(item);
-      if (r.kind === "boundary") html += markup(c, item.items, render, tw, linked || r.link === true);
+      if (r.kind === "boundary") html += markup(c, item.items, render, tw, linked);
+      else if (r.kind === "link") html += markup(c, item.items, render, tw, true);
       else if (r.kind === "tailwind") html += markup(c, item.items, render, r, linked);
       else html += recordHtml(c, { item, tw }, render);
     }
@@ -171,7 +171,7 @@ function inScope(c: Collected, tw: object): object[] {
           if (r.kind === "tailwind") {
             const key = r.props?.tw ?? r.props?.config ?? r;
             scopes.set(r, (inner = byHandle.get(key) ?? byHandle.set(key, []).get(key)!));
-          } else if (list && r.kind !== "boundary") {
+          } else if (list && r.kind !== "boundary" && r.kind !== "link") {
             // A block with rich text: its markup, under the prop its rewrite reads it as (see made), for its classes.
             const key = r.rich ? ((r.type as any)?.[UNLAYER_CONFIG_KEY]?.name === "Paragraph" ? "html" : "text") : undefined;
             list.push(key ? { ...r, props: { ...r.props, [key]: markupOnly(item.items) } } : r);
@@ -276,14 +276,22 @@ const asBlock = (part: Part, props: Record<string, unknown> = {}, exact = false)
 const isLink = (type: unknown): boolean => type === Link || (!!type && typeof type === "object" && (isLink((type as { type?: unknown }).type) || isLink((type as { render?: unknown }).render)));
 
 /**
- * Whether a <Link> rendered in what a component in a Column rendered: as the collecting render saw it (at any depth,
- * through any component of the user's own, memo, forwardRef, a lazy one: the record's `link`), or as the component and
- * what it returned say. Its markup is then the Link's, cleaned as a Paragraph cleans it (see linkBlock); a component's
- * own markup is kept as it is.
+ * Whether what a component in a Column rendered is a <Link> alone: as the collecting render saw it (its record, through
+ * any component of the user's own, memo, forwardRef, a lazy one: see onlyLink), or as the component and what it
+ * returned say. It's then a block of the Link's, cleaned as a Paragraph cleans it (see linkBlock).
  */
 function rendersLink(item: RecordItem): boolean {
   const returned = (recordOf(item).output as { value: unknown } | undefined)?.value;
-  return recordOf(item).link === true || isLink(recordOf(item).element?.type) || isLink(onlyElement(returned)?.type);
+  return onlyLink(item.items) || isLink(recordOf(item).element?.type) || isLink(onlyElement(returned)?.type);
+}
+
+/** Whether content is a <Link>'s record alone (text that doesn't show aside), through the records its content is where they are in. */
+function onlyLink(items: readonly Item[]): boolean {
+  const shown = items.filter((item) => typeof item !== "string" || textOf(item).trim());
+  const [only] = shown;
+  if (shown.length !== 1 || typeof only === "string" || only.kind !== "record") return false;
+  const kind = recordOf(only).kind;
+  return kind === "link" || ((kind === "boundary" || kind === "tailwind") && onlyLink(only.items));
 }
 
 /** What renders what's in it without markup of its own: a Fragment, StrictMode, a Profiler, Suspense, a context's provider. */
@@ -403,6 +411,19 @@ function holdsImage(items: readonly Item[]): boolean {
   return items.some((item) => typeof item !== "string" && item.kind !== "markup" && (item.kind === "record" && recordOf(item).kind === "block" ? (recordOf(item).type as any)?.[UNLAYER_CONFIG_KEY]?.name === "Image" : holdsImage(item.items)));
 }
 
+/** Whether content holds a <Link> (its record) that holds an Image block. */
+function linksImage(items: readonly Item[]): boolean {
+  return items.some((item) => typeof item !== "string" && item.kind !== "markup" && !(item.kind === "record" && recordOf(item).kind === "block") && (item.kind === "record" && recordOf(item).kind === "link" ? holdsImage(item.items) : linksImage(item.items)));
+}
+
+/** Said once a render: an <Image> in a <Link> is kept, its link isn't (with what links an Image). */
+const IMAGE_IN_LINK = {};
+function imageInLink(c: Collected): void {
+  if (c.told.has(IMAGE_IN_LINK)) return;
+  c.told.add(IMAGE_IN_LINK);
+  console.warn(`[Unlayer] Column: an <Image> in a <Link> is kept without the link: give the Image its link as \`action={{ name: "web", values: { href } }}\`.`);
+}
+
 /** Where a Column left out was, among its Row's Columns (see `elements`). */
 const LEFT_OUT = React.createElement(() => null);
 
@@ -451,6 +472,11 @@ export function elements(c: Collected, items: readonly Item[], place: Place, tw?
   const recorded = (item: RecordItem, inside: boolean) => {
     const r = recordOf(item);
     if (r.kind === "tailwind") return void append(out, elements(c, item.items, place, r, owner, inside, linked));
+    if (r.kind === "link") {
+      // (A <Link> around an Image: the Image is kept, its link isn't.)
+      if (inColumn && !inside && holdsImage(item.items)) imageInLink(c);
+      return void append(out, elements(c, item.items, place, tw, owner, inside, true));
+    }
     if (r.kind !== "boundary") {
       const made = element(c, { item, tw });
       if (made) out.push(made);
@@ -465,11 +491,11 @@ export function elements(c: Collected, items: readonly Item[], place: Place, tw?
     Named.displayName = nameOf(r.element);
     if (inColumn && !inside && !c.told.has(r) && hasMarkup(item.items)) {
       c.told.add(r);
-      // (A <Link> around an Image: the Image is kept, its link isn't. Said so, with what links an Image.)
-      if (r.link && holdsImage(item.items)) console.warn(`[Unlayer] Column: an <Image> in a <Link> is kept without the link: give the Image its link as \`action={{ name: "web", values: { href } }}\`.`);
+      // (A <Link> around an Image: the Image is kept, its link isn't.)
+      if (linksImage(item.items)) imageInLink(c);
       else console.warn(`Column: <${Named.displayName}> rendered markup that isn't a block, so it's left out. Put HTML in an <Html> block.`);
     }
-    append(out, elements(c, item.items, place, tw, Named, inside, linked || r.link === true));
+    append(out, elements(c, item.items, place, tw, Named, inside, linked));
   };
   // Among the rows, and in markup a record cuts, the content as it's written: its records, and its markup between them.
   if (place === "root" || inMarkup) {

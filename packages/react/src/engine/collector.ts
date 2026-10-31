@@ -167,11 +167,11 @@ interface Ctx {
   /** In a <Head>'s text (see headText): nothing in it is recorded. */
   text?: boolean;
   /**
-   * The components of the template's own (their boundaries' records) whose markup this place's is, up to the nearest
-   * Row, Column or block: where a <Link> renders, each is said to hold one (`link`), so its markup is cleaned as a
-   * Link's (src/model/elements.ts), however many components of the user's own are between them.
+   * Whether this place's markup is a component of the template's own's (in its boundary, up to the nearest Row, Column
+   * or block, however many of the user's components are between them): a <Link> there is a record of its own (`link`),
+   * so its markup is cleaned as a Link's and the component's around it is kept as written (src/model/elements.ts).
    */
-  links?: ReadonlyArray<Record<string, any>>;
+  links?: boolean;
 }
 
 type Tracked = PromiseLike<unknown> & { status?: "pending" | "fulfilled" | "rejected"; value?: unknown; reason?: unknown };
@@ -552,7 +552,7 @@ function prepBoundary(node: BoundaryNode, c: Collection, ctx: Ctx): React.ReactN
   const fallback = c.omit && ctx.suspense === 0 ? marker(c, { k: "s", boundary: at, scope: ctx.scope }) : undefined;
   const scope = fallback ? newScope(c, ctx, (fallback.props as { n: number }).n) : ctx.scope;
   c.marks[at].scope = scope;
-  const links = node.boundary ? [...(ctx.links ?? []), node.boundary as Record<string, any>] : ctx.links;
+  const links = !!node.boundary || ctx.links;
   const inner: Ctx = { ...ctx, boundary: at, watch: node.boundary ? { element: node.child, record: node.boundary as Record<string, any> } : null, scope, links };
   const child = prep(node.child, c, inner);
   const element = withMark(c, at, child);
@@ -671,8 +671,12 @@ function callFor(name: string): React.FC<CallProps> {
 }
 
 function callElement(fn: any, named: unknown, props: Record<string, any>, second: unknown, key: React.Key | null, c: Collection, ctx: Ctx, keep?: Record<string, any>): React.ReactElement {
-  // A <Link> (itself, memo'd or forwardRef'd to): the components whose markup it's in hold one.
-  if (isLinkType(fn)) for (const record of ctx.links ?? []) record.link = true;
+  // A <Link> (itself, memo'd or forwardRef'd to) in a component's markup: a record around what it renders.
+  if (ctx.links && !ctx.raw && !ctx.text && isLinkType(fn)) return marker(c, { k: "r", record: { kind: "link" }, scope: ctx.scope }, called(fn, named, props, second, null, c, ctx, keep), key);
+  return called(fn, named, props, second, key, c, ctx, keep);
+}
+
+function called(fn: any, named: unknown, props: Record<string, any>, second: unknown, key: React.Key | null, c: Collection, ctx: Ctx, keep?: Record<string, any>): React.ReactElement {
   // (One of Elements' that gives itself to the collection in what a lazy component renders: called as it is, `_own`.)
   if (fn?.[ROUTED]) props = { ...props, _own: true };
   const name = nameOf(named);
