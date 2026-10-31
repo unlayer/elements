@@ -827,23 +827,36 @@ describe("a component that asks for a resource hint (ReactDOM.preload, preconnec
   });
 });
 
-describe("a class component whose render is a class field (`render = () => …`)", () => {
+describe("a class component whose render is a class field (`render = () => …`), or bound in its constructor", () => {
   // The field is the instance's own, which hid the render Elements wraps a class's in: a blank email, an empty design.
-  /** A class rendering `render`, as a class field or (the negative control) as a method. */
-  const classOf = <P extends object>(name: string, field: boolean, render: (props: P) => React.ReactNode) => {
-    const made = field
-      ? class extends React.Component<P> {
-          render = () => render(this.props);
-        }
-      : class extends React.Component<P> {
-          render() {
-            return render(this.props);
+  // And a render bound in the constructor (`this.render = this.render.bind(this)`, as `auto-bind` does) is Elements'
+  // own wrapped render, bound: wrapped again, what it captured was overwritten, a blank email with nothing said.
+  /** A class rendering `render`: as a class field, bound in its constructor, or (the negative control) as a method. */
+  const classOf = <P extends object>(name: string, field: boolean | "bound", render: (props: P) => React.ReactNode) => {
+    const made =
+      field === "bound"
+        ? class extends React.Component<P> {
+            constructor(props: P) {
+              super(props);
+              this.render = this.render.bind(this);
+            }
+            render() {
+              return render(this.props);
+            }
           }
-        };
+        : field
+          ? class extends React.Component<P> {
+              render = () => render(this.props);
+            }
+          : class extends React.Component<P> {
+              render() {
+                return render(this.props);
+              }
+            };
     (made as unknown as { displayName: string }).displayName = name;
     return made;
   };
-  const kinds = (field: boolean) => {
+  const kinds = (field: boolean | "bound") => {
     const Welcome = classOf<{ name: string }>("Welcome", field, ({ name }) => <Email><Row><Column><Paragraph>{`Welcome ${name}`}</Paragraph><ElementsButton href="https://example.com/start">Start</ElementsButton></Column></Row></Email>);
     const Col = classOf<{ n: number }>("Col", field, ({ n }) => <Column><Paragraph>{`Column ${n}`}</Paragraph></Column>);
     const Section = classOf<{ n: number }>("Section", field, ({ n }) => <Row><Column><Heading>{`Section ${n}`}</Heading><ElementsButton href="https://example.com">Go</ElementsButton></Column></Row>);
@@ -856,13 +869,16 @@ describe("a class component whose render is a class field (`render = () => …`)
     };
   };
   it("renders as one whose render is a method: a template, a Row, a Column, a block in a Column", async () => {
-    const [fields, methods] = [kinds(true), kinds(false)];
+    const methods = kinds(false);
     expect(renderToHtml(methods.template)).toContain("Welcome Ada");
-    for (const key of Object.keys(methods) as Array<keyof typeof methods>) {
-      expect(renderToHtml(fields[key]), key).toBe(renderToHtml(methods[key]));
-      expect(renderToJson(fields[key]), key).toEqual(renderToJson(methods[key]));
-      expect(renderToPlainText(fields[key]), key).toBe(renderToPlainText(methods[key]));
-      expect(await asyncRenderers.renderToHtml(fields[key]), key).toBe(renderToHtml(methods[key]));
+    for (const [kind, fields] of [["a class field", kinds(true)], ["bound", kinds("bound")]] as const) {
+      for (const key of Object.keys(methods) as Array<keyof typeof methods>) {
+        const at = `${kind}: ${key}`;
+        expect(renderToHtml(fields[key]), at).toBe(renderToHtml(methods[key]));
+        expect(renderToJson(fields[key]), at).toEqual(renderToJson(methods[key]));
+        expect(renderToPlainText(fields[key]), at).toBe(renderToPlainText(methods[key]));
+        expect(await asyncRenderers.renderToHtml(fields[key]), at).toBe(renderToHtml(methods[key]));
+      }
     }
   });
 });

@@ -194,11 +194,18 @@ export function callClassCaptured(Ctor: any, props: Record<string, unknown>, pro
   let value: unknown;
   let thrown: { error: unknown } | undefined;
   const name = nameOf(Ctor);
+  // (A render bound in the constructor, `this.render = this.render.bind(this)`, is this class's own render below,
+  // bound, which the instance's own render calls: inside a capture, it's what it renders, not captured again over it.)
+  let capturing = false;
   const captured = (call: () => unknown) => {
+    if (capturing) return call();
+    capturing = true;
     try {
       value = handled(asUserCall(rootFrame(name), call));
     } catch (error) {
       thrown = { error: handled(error) };
+    } finally {
+      capturing = false;
     }
     return null;
   };
