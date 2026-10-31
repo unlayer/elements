@@ -123,10 +123,10 @@ export function parse(html: string, c: Collection): Part[] {
       }
       if (top().inert) {
         // (No comment of the template's is there: its text's `<!--` is escaped, and HTML given whole is a placeholder.
-        // React 18.0's stream writes its own between two texts.)
-        const own = c.async && html.startsWith("<!-- -->", lt);
+        // React 18's stream writes its own: between two texts (18.0), and around a <Suspense>'s content.)
+        const own = c.async ? REACT_COMMENTS.find((comment) => html.startsWith(comment, lt)) : undefined;
         if (!own) text(html.slice(lt, lt + 4));
-        at = lt + (own ? 8 : 4);
+        at = lt + (own ? own.length : 4);
         continue;
       }
       const end = commentEnd(lt + 4);
@@ -289,6 +289,9 @@ function kept(c: Collection): void {
   for (const n of c.rendered) if (!c.read.has(n) && c.marks[n].k !== "fb" && c.marks[n].k !== "s" && !out(c.marks[n].scope)) throw forged();
   for (const n of c.rawRendered) if (!c.rawRead.has(n) && !out(c.raw[n].scope)) throw forged();
 }
+
+/** The comments React 18's stream writes in a <style>'s or <script>'s text: between two texts, around a <Suspense>'s content. */
+const REACT_COMMENTS = ["<!-- -->", "<!--$-->", "<!--/$-->"];
 
 const forged = () => new RenderError(FORGED, "template", "");
 

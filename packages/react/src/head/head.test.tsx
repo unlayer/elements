@@ -257,6 +257,24 @@ describe("Head", () => {
     expect(html.slice(0, html.indexOf("</head>"))).toContain(written);
   });
 
+  it("writes what a <Suspense> in a <style> or a <script> holds as the rest of its text, with the async renderers (React 18's stream too)", async () => {
+    // React 18's stream wrote its own comments around the <Suspense>'s content there: JSON-LD JSON.parse couldn't read,
+    // and CSS whose rule a browser dropped.
+    const Ld = async () => JSON.stringify({ "@context": "https://schema.org", "@type": "Organization" });
+    const Css = async () => ".brand{color:red}";
+    const parts = await asyncRenderers.renderToHtmlParts(
+      <Page>
+        <Head>
+          <script type="application/ld+json"><React.Suspense fallback={null}><Ld /></React.Suspense></script>
+          <style>.a{"{}"}<React.Suspense fallback={null}><Css /></React.Suspense>.b{"{}"}</style>
+        </Head>
+        {content}
+      </Page>
+    );
+    expect(parts.tags.join("")).toContain('<script type="application/ld+json">{"@context":"https://schema.org","@type":"Organization"}</script>');
+    expect(parts.tags.join("")).toContain("<style>.a{}.brand{color:red}.b{}</style>");
+  });
+
   it("renders its components as the template's: the async renderers wait for them, siblings at once, in tree order", async () => {
     const started: string[] = [];
     const Meta = async ({ name, ms }: { name: string; ms: number }) => {
