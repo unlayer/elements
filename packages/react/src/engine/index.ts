@@ -107,7 +107,13 @@ export async function collectAsync(node: React.ReactNode, options: CollectOption
   await streamSuspension();
   const c = newCollection({ collector: options.collector, passes: options.passes, frameless: options.frameless, own: options.own, parts: options.parts, omit: omits(options.onError), async: true, shared: options.shared ?? {} });
   const frame = rootFrame(options.root);
-  const prepared = sharing(c.shared, () => forked(options.tree ?? 0, prep(node, c, rootCtx(frame))));
+  let prepared: React.ReactNode;
+  try {
+    prepared = sharing(c.shared, () => forked(options.tree ?? 0, prep(node, c, rootCtx(frame))));
+  } catch (error) {
+    // (A tree nested deeper than the stack goes: as collect fails, by name.)
+    throw failure(error, options, frame, c);
+  }
   // A render that fails fails with the first error in tree order once nothing before it can still fail: it doesn't
   // wait for what comes after it (a promise that never settles there), and react-dom's render is stopped.
   const control: { abort?: (reason: unknown) => void } = {};

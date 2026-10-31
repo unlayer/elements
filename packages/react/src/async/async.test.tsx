@@ -594,6 +594,24 @@ describe("the async renderers", () => {
     expect((process.memoryUsage().heapUsed - heap) / 1e6).toBeLessThan(8);
   }, 120_000);
 
+  it("reject with a RenderError where the template nests deeper than the stack goes, as the synchronous renderers throw", async () => {
+    // Thousands of nested elements: the synchronous renderers threw a RenderError, the async ones a bare RangeError.
+    // (Where the stack runs out depends on the depth: each from 2,000 deep on.)
+    const bare: string[] = [];
+    for (const tag of ["span", "div"]) {
+      for (let depth = 2000; depth <= 20000; depth = Math.round(depth * 1.2)) {
+        let deep: React.ReactNode = "deep";
+        for (let i = 0; i < depth; i++) deep = React.createElement(tag, null, deep);
+        const email = <Email><Row><Column><Paragraph>{deep}</Paragraph></Column></Row></Email>;
+        for (const render of [renderToHtmlSync, renderToHtml, renderToJson, renderToPlainText]) {
+          const failed = await Promise.resolve().then(() => render(email)).then(() => undefined, (error: unknown) => error);
+          if (failed !== undefined && !(failed instanceof RenderError)) bare.push(`${tag} ${depth} ${render.name}: ${String(failed)}`);
+        }
+      }
+    }
+    expect(bare).toEqual([]);
+  }, 60_000);
+
   it("compile <Tailwind config>, also in a template that's async", async () => {
     async function Welcome() {
       const color = await later("#007291");
