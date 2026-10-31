@@ -12,8 +12,11 @@ export { balanced };
 
 const ESCAPES: Record<string, string> = { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "`": "&#96;" };
 
-/** Text as HTML; an entity reference written in it (`&copy;`) is kept, as Markdown keeps it. */
-export const escapeText = (text: string) => text.replace(/&(?!#\d+;|#x[\da-f]+;|[a-z][\da-z]*;)|[<>"]/gi, (ch) => ESCAPES[ch]);
+/**
+ * Text as HTML; an entity reference written in it (`&copy;`) is kept, as Markdown keeps it, and its quotes as written, as
+ * rich text keeps them (an email service's tag reads them: `{{ name | default: "friend" }}`).
+ */
+export const escapeText = (text: string) => text.replace(/&(?!#\d+;|#x[\da-f]+;|[a-z][\da-z]*;)|[<>]/gi, (ch) => ESCAPES[ch]);
 /** An attribute's value: every `&` escaped too, so an entity in a URL (`&#106;avascript:`) stays text. */
 export const escapeAttribute = (text: string) => text.replace(/[&<>"]/g, (ch) => ESCAPES[ch]);
 

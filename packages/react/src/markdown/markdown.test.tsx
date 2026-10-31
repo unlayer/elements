@@ -215,6 +215,14 @@ describe("an email service's tag in a Markdown link's URL", () => {
     expect(blocks({ children: "[a](https://shop.example/a {{ b }})" })).toEqual([["text", '[a](<a href="https://shop.example/a" target="_blank" rel="noopener">https://shop.example/a</a> {{ b }})']]);
   });
 
+  it("writes text's quotes as written, as rich text does, so an email service's filter reads them (`{{ name | default: \"friend\" }}`)", () => {
+    // Text's `"` were `&quot;`: Liquid refused the filter (and the email), where a Paragraph's text keeps it as written.
+    expect(blocks({ children: 'Hi {{ name | default: "friend" }}, welcome.' })).toEqual([["text", 'Hi {{ name | default: "friend" }}, welcome.']]);
+    expect(blocks({ children: '# Welcome, {{ name | default: "friend" }}' })[0][1]).toContain('{{ name | default: "friend" }}');
+    // (An attribute's are escaped: a link's title.)
+    expect(renderToHtml(email({ children: '[Track](https://shop.example/t "Say \\"hi\\"")' }))).toContain('title="Say &quot;hi&quot;"');
+  });
+
   it("keeps Mailchimp's `*|…|*` tag in text as written, not as emphasis its stars would open or close, and emphasis around it", () => {
     // `Hi *|FNAME|*,` was `Hi <em>|FNAME|</em>,`: each recipient read `Hi |FNAME|` in italics, the tag never filled in.
     expect(blocks({ children: "Hi *|FNAME|*, your order shipped." })).toEqual([["text", "Hi *|FNAME|*, your order shipped."]]);
