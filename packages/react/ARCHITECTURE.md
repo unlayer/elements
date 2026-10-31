@@ -281,7 +281,8 @@ row or block is left out of the HTML, the plain text and the design (the slower 
      <Suspense> waited, failed or was aborted), till that build renders again; react-dom's own Node.js stream reads
      the same value there.
    - Every renderer, the synchronous ones too, reads a provider's value an app's `renderToString` of another build
-     (`.edge`, `.browser`, `.bun`) left where it threw inside the provider, till that build renders again.
+     (`.edge`, `.browser`, `.bun`) left where a part inside the provider threw or suspended, a <Suspense> around it
+     or not (the page then renders its fallback), till that build renders again.
    - The other way: while an async render waits, an app's stream of another build reads the template's provider
      values where its page doesn't provide the context, and a render that never settles leaves them there.
    - Both ways, even where each provides its own: while an app's stream of another build and an async render run at

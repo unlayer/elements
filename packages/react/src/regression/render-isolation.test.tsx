@@ -512,6 +512,29 @@ describe("a context's default around an app's renders", () => {
     expect(read()).toBe("brand=default");
   });
 
+  it("reads it too where that renderToString completed, a <Suspense> inside the provider rendering its fallback (documented)", async () => {
+    // (The page renders: the part that failed, or never loaded, is its fallback. React leaves the provider's value as
+    // where it throws.)
+    const { Brand, email, read } = brand("default");
+    const other = require(Number.parseInt(React.version) >= 19 ? "react-dom/server.edge" : "react-dom/server.browser") as { renderToString: (node: React.ReactNode) => string };
+    const Fails = () => {
+      throw new Error("the part failed");
+    };
+    const Never = () => {
+      throw new Promise(() => {});
+    };
+    for (const Part of [Fails, Never]) {
+      try {
+        expect(other.renderToString(<Brand.Provider value="TENANT_A_SECRET"><Suspense fallback="loading"><Part /></Suspense></Brand.Provider>)).toContain("loading");
+        expect(read(), Part.name).toBe("brand=TENANT_A_SECRET");
+        expect(JSON.stringify(renderToJson(email)), Part.name).toContain("TENANT_A_SECRET");
+      } finally {
+        other.renderToString(<i />);
+      }
+      expect(read(), Part.name).toBe("brand=default");
+    }
+  });
+
   it("gives, while an async render waits, the template's provider values to an app's stream of another react-dom build that doesn't provide them (documented)", async () => {
     const { Brand } = brand("default");
     // The template: a part inside its provider that resumes, and one after it that still waits.

@@ -514,7 +514,7 @@ const html = await renderToHtml(<Receipt id="A-1001" />, { title: "Receipt", pre
 > **Security: a context a template doesn't provide can be read from another request's render, and a template's provider values by another request's render: either can be another tenant's data.** React's server renders keep one value for each context, read by every react-dom build in the process, and a build puts back only what it left itself. Where your app also renders with another react-dom build (`react-dom/server.edge`, `.browser` or `.bun`, or `react-dom/static.edge`'s `prerender`), as React's own renders do (React Email's `render` reads the same):
 >
 > - The async renderers read a provider's value an app's stream of that build left after a part in a `<Suspense>` waited, until that build renders again (react-dom's own Node.js stream reads it there too).
-> - Every renderer, the synchronous ones too, reads a provider's value an app's `renderToString` of that build left where it threw inside the provider, until that build renders again.
+> - Every renderer, the synchronous ones too, reads a provider's value an app's `renderToString` of that build left where a part inside the provider threw or suspended, until that build renders again: also where a `<Suspense>` caught it and the page rendered its fallback (a part that suspended, failed or never loaded).
 > - While an async render waits, an app's stream of that build reads the template's provider values where its page doesn't provide the context; a render that never settles leaves them there.
 > - While an app's stream of that build runs at the same time as an async render, **even a value a template (or the page) provides itself** can be the other's: where a part resumes under a provider, React doesn't put the provider's value back if it last left it there, and the other build changed it meanwhile (React's development build says "Detected multiple renderers concurrently rendering the same context provider"). Providing every context doesn't prevent this one.
 >
@@ -535,7 +535,7 @@ async function Receipt({ user, id }: { user: User; id: string }) {
 }
 ```
 
-The synchronous renderers read a context's default where the template doesn't provide it, except inside a component of an app's own `renderToString`, where they read the page's value, as 0.2 did, and after another build's `renderToString` that threw inside a provider (above). No stream's provider values reach them, not even those of an async render of Elements' own that waits meanwhile: react-dom keeps its static render's context values apart from its streams'.
+The synchronous renderers read a context's default where the template doesn't provide it, except inside a component of an app's own `renderToString`, where they read the page's value, as 0.2 did, and after another build's `renderToString` in which a part inside a provider threw or suspended, a `<Suspense>` around it or not (above). No stream's provider values reach them, not even those of an async render of Elements' own that waits meanwhile: react-dom keeps its static render's context values apart from its streams'.
 
 `pretty(html)` from `@unlayer/react-elements/async` formats any HTML the same way (the synchronous renderers' too). It doesn't work on edge runtimes, which can't load prettier as they run: format at build time there.
 
