@@ -119,7 +119,8 @@ function sectionTypes(children: React.ReactNode, into: Set<unknown>, depth = 0):
   for (const child of Array.isArray(children) ? children : [children]) {
     if (Array.isArray(child)) sectionTypes(child, into, depth + 1);
     else if (React.isValidElement(child)) {
-      if (child.type === React.Fragment) sectionTypes((child.props as { children?: React.ReactNode }).children, into, depth + 1);
+      // (Through a Fragment, a context's provider or <StrictMode> around them, as the walk reads what it renders.)
+      if (child.type === React.Fragment || wraps(child)) sectionTypes((child.props as { children?: React.ReactNode }).children, into, depth + 1);
       else if (userType(child.type)) into.add(child.type);
     }
   }

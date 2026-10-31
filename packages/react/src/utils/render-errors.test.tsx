@@ -300,6 +300,9 @@ describe("a Row or Column whose exporter fails", () => {
       "a component that clones what it's given": <Email><User.Provider value={ada}><Numbered>{sections}</Numbered></User.Provider></Email>,
       "a layout given its sections as props": <Email><User.Provider value={ada}><Slots header={<Header />} footer={<Footer />}><Recommendations /></Slots></User.Provider></Email>,
       "a layout given the section that fails as a prop": <Email><User.Provider value={ada}><Slots header={<Header />} footer={<Recommendations />}><Footer /></Slots></User.Provider></Email>,
+      // (A layout around a provider of the sections, as a digest's: every row it renders was left out, a blank email.)
+      "a layout around a provider of the sections": <Email><Layout><User.Provider value={ada}>{sections}</User.Provider></Layout></Email>,
+      "a layout around <StrictMode> and a provider": <Email><Layout><React.StrictMode><User.Provider value={ada}>{sections}</User.Provider></React.StrictMode></Layout></Email>,
     };
     for (const [where, template] of Object.entries(templates)) {
       const parts = renderToHtmlParts(template, { onError: "omit" });
