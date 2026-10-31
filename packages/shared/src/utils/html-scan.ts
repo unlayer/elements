@@ -214,22 +214,19 @@ export function replaceAltImages(text: string, replace: (alt: string) => string)
 }
 
 /**
- * Markup without its tags, as `/<(?!%[^<>]*%>)[^>]+>/g` takes them out: from a `<` to the first `>` after a character
- * of it. An email service's tag (`<%first_name%>`, SendGrid's; `<%= name %>`) isn't one: it's text to a browser too (a
- * tag's name starts with a letter), which the service fills in, so it stays.
+ * Markup without its tags, as a browser reads them: from a `<` that starts one (a letter after it, or `/`, `!`, `?`) to
+ * the first `>` after it. A `<` that doesn't is text to a browser, and stays: an email service's tag (`<%first_name%>`,
+ * SendGrid's; `<%= name %>`), which the service fills in, and a comparison (`{% if orders < 1 %}` in a display
+ * condition, `5 < 6`), where reading on to the next `>` cut the text, and the condition with it.
  */
 export function untagged(text: string): string {
   if (!text.includes("<")) return text;
   const gt = places(text, />/g);
-  const angle = places(text, /[<>]/g);
   return rewrite(text, (at) => {
-    if (text[at + 1] === "%") {
-      const end = angle(at + 2);
-      if (end > at + 2 && text[end] === ">" && text[end - 1] === "%") return at + 1;
-    }
+    if (!/[A-Za-z/!?]/.test(text[at + 1] ?? "")) return at + 1;
     const close = gt(at + 1);
     if (close < 0) return;
-    return close === at + 1 ? at + 1 : [close + 1, ""];
+    return [close + 1, ""];
   });
 }
 

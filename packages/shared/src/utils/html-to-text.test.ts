@@ -27,8 +27,18 @@ describe("htmlToPlainText", () => {
     expect(htmlToPlainText("<p>Hi <%first_name%>, <b>bold</b> <%= user.name %></p><h1>Hi <%first_name%></h1><ul><li>For <%company%></li></ul>")).toBe(
       "Hi <%first_name%>, bold <%= user.name %>\n\nHI <%first_name%>\n- For <%company%>"
     );
-    // What isn't one is still a tag.
-    expect(htmlToPlainText("<p>a<%b c>d</p>")).toBe("ad");
+    // (Text to a browser: a tag's name starts with a letter.)
+    expect(htmlToPlainText("<p>a<%b c>d</p>")).toBe("a<%b c>d");
+  });
+
+  it("keeps a `<` a browser reads as text: a comparison, a service's condition with one (`{% if orders < 1 %}`)", () => {
+    // Read as a tag's start up to the next `>`, it cut the text: `5 < 6 and 7 > 3` was `5 3`, and a display
+    // condition's `{% if customer.orders < 1 %}` was cut, which the email service then couldn't parse.
+    expect(htmlToPlainText("<p>5 < 6 and 7 > 3</p>")).toBe("5 < 6 and 7 > 3");
+    expect(htmlToPlainText("{% if customer.orders < 1 %}<p>Welcome offer</p>{% endif %}<p>Bye</p>")).toBe("{% if customer.orders < 1 %}Welcome offer\n{% endif %}Bye");
+    expect(htmlToPlainText("<p>%%[ IF @orders <= 1 THEN ]%% <b>a</b> 1<2</p>")).toBe("%%[ IF @orders <= 1 THEN ]%% a 1<2");
+    // (What starts a tag still does: an end tag, a comment's, a declaration's.)
+    expect(htmlToPlainText("<p>a</p ><!-- c --><?x y?>b</>")).toBe("a\nb");
   });
 
   it("uppercases an h1/h2 around its entities, which still decode (`Q&A`, not `Q&AMP;A`)", () => {
