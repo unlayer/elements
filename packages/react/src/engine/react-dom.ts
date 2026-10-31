@@ -195,8 +195,17 @@ export function staticSuspension(): unknown {
       try {
         const probe = prober((error) => SUSPENSE.sync.get(build) ?? SUSPENSE.sync.set(build, error), { then: () => undefined } as unknown as PromiseLike<unknown>);
         ownStatic(() => build.renderToStaticMarkup(createElement(React.Suspense, { fallback: null }, createElement(probe, { own: true }))));
-      } catch {
-        // It suspended where nothing could wait: what it threw is kept all the same.
+      } catch (error) {
+        // Out of stack before it suspended, it found nothing: nothing's kept, and it's found where it's next asked
+        // for (see roomy). Otherwise it suspended where nothing could wait: what it threw is kept all the same.
+        if (outOfStack(error) && SUSPENSE.sync.get(build) === undefined) {
+          SUSPENSE.sync.delete(build);
+          throw error;
+        }
+      }
+      if (SUSPENSE.sync.get(build) === undefined && !roomy()) {
+        SUSPENSE.sync.delete(build);
+        throw outOfRoom();
       }
     }
   }
@@ -210,8 +219,12 @@ export async function streamSuspension(): Promise<unknown> {
     if (typeof (React as unknown as { use?: unknown }).use === "function") {
       try {
         await streamedMarkup(createElement(React.Suspense, { fallback: null }, createElement(prober((error) => void (SUSPENSE.stream ??= error), Promise.resolve()), { own: true })), undefined, (html) => html);
-      } catch {
+      } catch (error) {
         // As above.
+        if (outOfStack(error) && SUSPENSE.stream === undefined) {
+          PROBED.stream = false;
+          throw error;
+        }
       }
     }
   }
@@ -285,7 +298,7 @@ function hooksRunIn(build: Build): boolean {
     );
     return true;
   } catch (thrown) {
-    if (thrown instanceof RangeError) throw thrown;
+    if (outOfStack(thrown)) throw thrown;
     return false;
   } finally {
     console.error = error;
@@ -293,7 +306,34 @@ function hooksRunIn(build: Build): boolean {
 }
 
 /**
- * A probe's answer for `build`, found once (see below); where it ran out of stack (a RangeError: a render that called
+ * Whether what was thrown says the call stack ran out: a RangeError, or a regular expression V8 compiled there (it
+ * compiles one when it's first run, and out of stack that's a SyntaxError, `Invalid regular expression: /…/: Stack
+ * overflow`).
+ */
+export const outOfStack = (error: unknown): boolean => error instanceof RangeError || (error instanceof SyntaxError && /: Stack overflow$/.test(error.message));
+
+/**
+ * Whether the call stack has room left where it's asked (2,000 calls): a probe that failed, or found nothing, with
+ * less says nothing of the build, whatever it threw (near the stack's end, a failure comes out of React's error
+ * handling, a regular expression V8 compiles, a module's code, as any error). What it found isn't kept then, and the
+ * render it's for fails (outOfRoom): acted on even once, a "no" told there broke the component of an app's own render
+ * that Elements rendered inside. What a probe found where it rendered whole is kept wherever it ran.
+ */
+export function roomy(): boolean {
+  // (`+ 1`: not a tail call, which a runtime that has them (JavaScriptCore's) would run in no stack at all.)
+  const down = (n: number): number => (n === 0 ? 0 : down(n - 1) + 1);
+  try {
+    return down(2000) === 2000;
+  } catch {
+    return false;
+  }
+}
+
+/** A probe's failure where the call stack had no room left (see roomy): the render it's for fails, out of stack. */
+export const outOfRoom = (): RangeError => new RangeError("Maximum call stack size exceeded");
+
+/**
+ * A probe's answer for `build`, found once (see below); where it ran out of stack (see outOfStack: a render that called
  * it deep in a call stack), it says nothing of the build, and isn't kept: `true` for now, found again where it's next
  * needed. Kept, a `false` from a render near the stack's end failed every render after it, a tenant's for another's.
  */
@@ -301,10 +341,12 @@ function probed(found: Map<Build, boolean>, build: Build, probe: () => boolean):
   if (found.has(build)) return found.get(build)!;
   try {
     const answer = probe();
+    // (A "no" where the stack had no room: see roomy.)
+    if (!answer && !roomy()) return true;
     found.set(build, answer);
     return answer;
   } catch (error) {
-    if (error instanceof RangeError) return true;
+    if (outOfStack(error)) return true;
     throw error;
   }
 }
@@ -328,7 +370,7 @@ export function reactDomRenders(): boolean {
       ownStatic(() => build.renderToStaticMarkup(createElement("i")));
       return true;
     } catch (error) {
-      if (error instanceof RangeError) throw error;
+      if (outOfStack(error)) throw error;
       return false;
     }
   });
@@ -462,6 +504,8 @@ function probe(build: Build): { threw?: unknown; start?: unknown } {
     // (Where react-dom can't render, the render says why itself.)
     seen.threw ??= error;
   }
+  // (Out of stack, it says nothing of the build: see probed.)
+  if (outOfStack(seen.threw)) throw seen.threw;
   return seen;
 }
 
@@ -476,9 +520,16 @@ function calibrate(build: Build, k: Known): void {
         }, { own: true }),
       ),
     );
-  } catch {
-    // This React's hooks don't run there (or another renderer of it is between components).
+  } catch (error) {
+    // Out of stack, it says nothing of the build: nothing's kept (see probed). Otherwise this React's hooks don't run
+    // there (or another renderer of it is between components).
+    if (outOfStack(error)) {
+      k.start = undefined;
+      throw error;
+    }
   }
+  // (A "no" where the stack had no room says nothing: see roomy.)
+  if (k.start === undefined && !roomy()) throw outOfRoom();
   k.ownHooks = k.start !== undefined;
 }
 
@@ -495,6 +546,8 @@ function stateOf(build: Build): "free" | "busy" | "unknown" {
   if (k.ownHooks === false) return "free";
   const seen = probe(build);
   if ("threw" in seen) {
+    // (Where the stack had no room, what it threw says nothing: see roomy.)
+    if (!roomy()) throw outOfRoom();
     if (seen.threw instanceof TypeError) k.ownHooks = false;
     else if (k.start === undefined) calibrate(build, k);
     return "free";
@@ -518,36 +571,51 @@ declare const __UNLAYER_CJS__: boolean | undefined;
 let second: Build | null | undefined;
 function secondBuild(): Build | undefined {
   if (second === undefined) {
+    // (None while it's looked for: what it renders to tell (stateOf) can't look again.)
     second = null;
-    const node = (globalThis as { process?: any }).process;
-    const requirers = [
-      // (`module`'s, read so that a bundler doesn't take it for a require of a path worked out when it runs.)
-      () => {
-        const own = (typeof __UNLAYER_CJS__ === "boolean" ? __UNLAYER_CJS__ : true) && typeof module === "object" ? Reflect.get(module ?? {}, "require") : undefined;
-        return typeof own === "function" ? (id: string) => own.call(module, id) : undefined;
-      },
-      // (This module's URL as a stack names it: webpack 4 can't parse the syntax for it.)
-      ...[/file:\/\/\S+?(?=:\d+:\d+)/.exec(String(new Error().stack))?.[0], node?.argv?.[1], `${node?.cwd?.()}/`].map((from) => () => {
-        const required = node?.getBuiltinModule?.("module")?.createRequire(from);
-        return (required?.("react") as typeof React | undefined)?.createElement === React.createElement ? (required as (id: string) => unknown) : undefined;
-      }),
-    ];
-    const ids = ["react-dom/server.bun", ...(Number.parseInt(React.version) >= 19 ? [] : ["react-dom/server.browser"]), "react-dom/server.node"];
-    search: for (const id of ids) {
-      for (const requirer of requirers) {
-        try {
-          const build = requirer()?.(id) as Build | undefined;
-          if (build?.renderToStaticMarkup && !same(build, Server) && stateOf(build) === "free" && knownOf(build).ownHooks) {
-            second = build;
-            break search;
-          }
-        } catch {
-          // Not there, or it can't load here: the next one.
-        }
-      }
+    try {
+      const found = searchSecond();
+      // (None found where the stack had no room says nothing: see roomy.)
+      if (!found && !roomy()) throw outOfRoom();
+      second = found;
+    } catch (error) {
+      // Out of stack, it says nothing of what's there: nothing's kept, and it's looked for again where it's next
+      // needed (see roomy).
+      second = undefined;
+      throw error;
     }
   }
   return second ?? undefined;
+}
+
+/** The search secondBuild makes (see there). */
+function searchSecond(): Build | null {
+  const node = (globalThis as { process?: any }).process;
+  const requirers = [
+    // (`module`'s, read so that a bundler doesn't take it for a require of a path worked out when it runs.)
+    () => {
+      const own = (typeof __UNLAYER_CJS__ === "boolean" ? __UNLAYER_CJS__ : true) && typeof module === "object" ? Reflect.get(module ?? {}, "require") : undefined;
+      return typeof own === "function" ? (id: string) => own.call(module, id) : undefined;
+    },
+    // (This module's URL as a stack names it: webpack 4 can't parse the syntax for it.)
+    ...[/file:\/\/\S+?(?=:\d+:\d+)/.exec(String(new Error().stack))?.[0], node?.argv?.[1], `${node?.cwd?.()}/`].map((from) => () => {
+      const required = node?.getBuiltinModule?.("module")?.createRequire(from);
+      return (required?.("react") as typeof React | undefined)?.createElement === React.createElement ? (required as (id: string) => unknown) : undefined;
+    }),
+  ];
+  const ids = ["react-dom/server.bun", ...(Number.parseInt(React.version) >= 19 ? [] : ["react-dom/server.browser"]), "react-dom/server.node"];
+  for (const id of ids) {
+    for (const requirer of requirers) {
+      try {
+        const build = requirer()?.(id) as Build | undefined;
+        if (build?.renderToStaticMarkup && !same(build, Server) && stateOf(build) === "free" && knownOf(build).ownHooks) return build;
+      } catch (error) {
+        // (Out of stack: see secondBuild.) Otherwise it's not there, or it can't load here: the next one.
+        if (outOfStack(error)) throw error;
+      }
+    }
+  }
+  return null;
 }
 
 /**

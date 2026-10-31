@@ -10,7 +10,7 @@
  */
 import React, { cloneElement, createElement } from "react";
 import { nameOf, RenderError, rootFrame, threw } from "./errors";
-import { asUserCall, isThenable, refuseNested, renderFailure, staticMarkup, streamedMarkup, streamSuspension, suspends } from "./react-dom";
+import { asUserCall, isThenable, outOfRoom, outOfStack, refuseNested, renderFailure, roomy, staticMarkup, streamedMarkup, streamSuspension, suspends } from "./react-dom";
 import { ROOT_CAPTURE, Stamp, type RootReport } from "./root-capture";
 import { sharedNow, sharing } from "./shared";
 
@@ -109,9 +109,13 @@ function baselineId(forks: number, idPrefix = ""): string {
     const IdProbe = (props: { own: true }) => (own(props), (seen = probeId()), null);
     try {
       staticMarkup(forked(forks, createElement(IdProbe, OWN)), idPrefix);
-    } catch {
-      // (Where Elements' React isn't react-dom's, no id: what's in a wrapper is where it is.)
+    } catch (error) {
+      // (Out of stack, it says nothing: nothing's kept, see react-dom.ts's roomy. Where Elements' React isn't
+      // react-dom's, no id: what's in a wrapper is where it is.)
+      if (outOfStack(error)) throw error;
     }
+    // (No id where the stack had no room says nothing: see roomy.)
+    if (seen === "" && !roomy()) throw outOfRoom();
     id = seen;
     if (baselines.size < 1000) baselines.set(key, id);
   }
