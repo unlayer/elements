@@ -281,7 +281,8 @@ row or block is left out of the HTML, the plain text and the design (the slower 
    - Inside an app's `renderToString`, where another module of react-dom's renders the template, it reads the page's
      value (as in 0.2).
    - A render started inside one of the template's components (another module of react-dom's: `renderNested`) reads
-     the value a provider around that component gives: the render it's in, never another's.
+     the value a provider around that component gives, in a synchronous render: the render it's in, never another's.
+     In an async render's component it reads the context's default (react-dom keeps its stream's values apart).
    - The async renderers, which render with react-dom's Node.js stream, read a provider's value an app's stream of
      another build left (`react-dom/server.edge` or `.browser`, `react-dom/static.edge`'s `prerender`, after a part in a
      <Suspense> waited, failed or was aborted), till that build renders again; react-dom's own Node.js stream reads
