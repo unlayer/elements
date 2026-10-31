@@ -259,7 +259,8 @@ describe("a Row or Column whose exporter fails", () => {
 
   it("with onError: \"omit\", leaves out only the section that failed where a provider or <StrictMode> is around the rows or the root", async () => {
     // A provider around the rows (or the root) was one part: one section failing left out every row, a blank email
-    // and design, where a digest's optional sections are the README's own use of "omit".
+    // and design, where a digest's optional sections are the README's own use of "omit". (A provider written as a
+    // component of yours is one part with the rows it renders, as README says: its own error handling is the user's.)
     vi.spyOn(console, "error").mockImplementation(() => {});
     const User = React.createContext({ name: "?" });
     const Header = () => <Row><Column><Paragraph>{`Hi ${React.useContext(User).name}`}</Paragraph></Column></Row>;
