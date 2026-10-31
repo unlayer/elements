@@ -37,13 +37,27 @@ export function staticMarkup(node: React.ReactNode, idPrefix?: string, failed?: 
   return inWrapper(ownStatic(() => build.renderToStaticMarkup(createElement("noscript", null, node), idPrefix ? { identifierPrefix: idPrefix } : undefined), build, failed));
 }
 
+/**
+ * React 18.2's and 18.3's Node stream write their whole 2,048-byte buffer where a character didn't fit at its end, the
+ * bytes after the last they filled as zeros (NULs in the text: raw `renderToPipeableStream` writes them too). It
+ * writes the character in the next chunk, so a chunk that size ends at its last byte that isn't one of those, at most
+ * 3 (a character is 4 bytes at most). React 19 writes only the bytes it filled.
+ */
+const VIEW = 2048;
+const FILLS_VIEW = Number.parseInt(React.version) < 19;
+const filled = (bytes: Uint8Array) => {
+  let end = bytes.length;
+  if (FILLS_VIEW && end === VIEW) while (end > VIEW - 3 && bytes[end - 1] === 0) end--;
+  return end === bytes.length ? bytes : bytes.subarray(0, end);
+};
+
 /** Node's writable stream, as much of it as react-dom's pipeable stream writes to: the chunks joined. */
 function sink(done: (html: string) => void) {
   let html = "";
   const decoder = new TextDecoder();
   const self = {
     write(chunk: unknown) {
-      html += typeof chunk === "string" ? chunk : decoder.decode(chunk as Uint8Array, { stream: true });
+      html += typeof chunk === "string" ? chunk : decoder.decode(filled(chunk as Uint8Array), { stream: true });
       return true;
     },
     end() {

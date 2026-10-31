@@ -272,6 +272,33 @@ describe("the async renderers", () => {
     expect(await renderToJson(email)).toEqual(renderToJsonSync(email));
   });
 
+  it("give what the synchronous renderers give for text whose characters cross the stream's chunks (no NULs)", async () => {
+    // React 18.2's and 18.3's Node stream wrote its whole buffer where a character didn't fit at its end, the bytes
+    // it hadn't filled as NULs: Japanese text (3 bytes a character) had them in its HTML, plain text and design.
+    const article = "赤い果実やカカオ、ナッツの香りが広がる一杯です。".repeat(4);
+    for (let shift = 0; shift < 3; shift++) {
+      const email = (
+        <Email>
+          {Array.from({ length: 12 }, (_, i) => (
+            <Row key={i}>
+              <Column>
+                <Heading>{"x".repeat(shift) + `記事 ${i}`}</Heading>
+                <Paragraph>
+                  <strong>山田</strong>さん、{article}
+                </Paragraph>
+              </Column>
+            </Row>
+          ))}
+        </Email>
+      );
+      const html = await renderToHtml(email);
+      expect(html.includes("\u0000"), `shift ${shift}`).toBe(false);
+      expect(html).toBe(renderToHtmlSync(email));
+      expect(await renderToPlainText(email)).toBe(renderToPlainTextSync(email));
+      expect(await renderToJson(email)).toEqual(renderToJsonSync(email));
+    }
+  });
+
   it("render a template with no root as the synchronous renderers do, calling it once", async () => {
     // Rows with no root: renderToHtml() renders them in a document, renderToJson() says the root it needs. The
     // async template is called once a render (not again by the synchronous render after), inside the providers and
