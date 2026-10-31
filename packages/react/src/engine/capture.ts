@@ -10,7 +10,7 @@
  */
 import React, { cloneElement, createElement } from "react";
 import { nameOf, RenderError, rootFrame, threw } from "./errors";
-import { asUserCall, isThenable, otherReactsHook, outOfRoom, outOfStack, refuseNested, renderFailure, roomy, staticMarkup, streamedMarkup, streamSuspension, suspends, TEMPLATE_REACT } from "./react-dom";
+import { asUserCall, isThenable, LAZY_ASYNC_18, lazyAsyncIn18, otherReactsHook, outOfRoom, outOfStack, refuseNested, renderFailure, roomy, staticMarkup, streamedMarkup, streamSuspension, suspends, TEMPLATE_REACT } from "./react-dom";
 import { ROOT_CAPTURE, Stamp, type RootReport } from "./root-capture";
 import { sharedNow, sharing } from "./shared";
 
@@ -149,6 +149,8 @@ function failed(error: unknown, name: string): unknown {
   if (error instanceof RenderError || suspends(error) || suspends(error, true)) return error;
   // (What react-dom can't render here, said by name: see react-dom.ts. Or the hooks of another copy of React the
   // wrapper called, as a component's among the rows are said: collector.ts's errorMark.)
+  // (A lazy template's async component, on React 18: see LAZY_ASYNC_18.)
+  if (name === "lazy" && lazyAsyncIn18(error)) return new RenderError(LAZY_ASYNC_18, name, "", error);
   return renderFailure(error, name) ?? new RenderError(otherReactsHook(error, called) ? TEMPLATE_REACT : threw(error), name, "", error);
 }
 

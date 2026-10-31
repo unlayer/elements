@@ -83,6 +83,9 @@ The synchronous renderers read a context's default where the template doesn't pr
 | Async components, anywhere (in a Column, in text, in a component of yours) | ✓ | ✓ |
 | Components that throw a promise (Suspense) | ✓ | ✓ |
 | `use(promise)` | ✓ | ✗ (React 18 has no `use`) |
+| An async template or component that `React.lazy` loads | ✓ | ✗ (React 18 renders what a lazy component loads itself: load it with `await import()` and render it) |
+
+On React 18, a lazy component whose module's component is async fails the render, saying so: React renders what `React.lazy` loads itself, and React 18 has no async components. In a development build, React 18 also calls it again with no props for a warning, so one that reads its props there rejects where nothing handles it, which Node.js ends the process on: load the module with `await import()` and render what it gives (or render a lazy component's async parts as components of their own, which Elements calls).
 
 With React 18's types (`@types/react` 18), TypeScript rejects an async component written as JSX: `error TS2786: 'Receipt' cannot be used as a JSX component` (its `Promise<Element>` isn't a `ReactNode` there). React's canary types allow it: add `/// <reference types="react/canary" />` to a `.d.ts` file in your project (or `"react/canary"` to `compilerOptions.types`). They change types only, nothing at runtime. React 19's types allow async components as they are.
 

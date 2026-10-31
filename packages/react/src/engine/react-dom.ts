@@ -12,6 +12,7 @@ import React, { createElement } from "react";
 import * as Server from "react-dom/server";
 import { positionOf, RenderError, type Frame } from "./errors";
 import { perReact } from "./per-react";
+import { REACT_18 } from "./react-compat";
 
 /** A module of react-dom's server renderers: react-dom/server's, or another (see withFreeBuild). */
 type Build = typeof Server;
@@ -268,6 +269,13 @@ export const SERVER_REACT =
 
 export const REACT_COPIES =
   "react-dom/server renders with another copy of React than the one Elements imports, so the template's hooks can't run: install one copy of react and react-dom (`npm ls react` lists them), or alias `react` to one path in your bundler";
+
+/** What an async component React.lazy loads fails with on React 18, which renders it itself and has no async components. */
+export const LAZY_ASYNC_18 =
+  'React 18 renders what React.lazy loads itself, and has no async components, so an async template or component loaded lazily can\'t render: load it yourself (`const { default: Receipt } = await import("./Receipt")`) and render `<Receipt />`, or render with React 19';
+
+/** Whether `error` is React 18's for an async component it rendered itself (one a lazy component loads: see LAZY_ASYNC_18). */
+export const lazyAsyncIn18 = (error: unknown): boolean => REACT_18 && error instanceof Error && /^Objects are not valid as a React child \(found: \[object Promise\]\)/.test(error.message);
 
 export const TEMPLATE_REACT =
   "the template was made with another copy of React than the one Elements renders with (its elements, or the hooks its components call), so React can't render it: install one copy of react and react-dom (`npm ls react` lists them), or alias `react` to one path in your bundler";

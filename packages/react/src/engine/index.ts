@@ -10,7 +10,7 @@ import { flatten, type Flat } from "./output";
 import { before, newCollection, prep, rootCtx, suspendedError, withRawErrors, type Collector } from "./collector";
 import { parse } from "./parse";
 import { forked } from "./capture";
-import { refuseNested, renderFailure, staticMarkup, streamedMarkup, streamStopped, streamSuspension, suspendedInReact, suspends } from "./react-dom";
+import { LAZY_ASYNC_18, lazyAsyncIn18, refuseNested, renderFailure, staticMarkup, streamedMarkup, streamStopped, streamSuspension, suspendedInReact, suspends } from "./react-dom";
 import { sharedNow, sharing, type Shared } from "./shared";
 
 export { RenderError, type OnError } from "./errors";
@@ -63,6 +63,8 @@ function failure(error: unknown, options: CollectOptions, frame: ReturnType<type
   // What React rendered itself and failed (what a lazy component renders: the component it loads, or one in what that
   // renders): where it is, as React said (its component, in a development build), at the lazy one's place.
   const at = failedAt ?? (c?.async && c.lazies.length ? c.lazies[0].frame : undefined);
+  // (On React 18, an async component a lazy one loads, which React renders itself: said, and what to do.)
+  if (c?.lazies.length && lazyAsyncIn18(error)) return new RenderError(LAZY_ASYNC_18, "lazy", positionOf(c.lazies[0].frame), error);
   const told = c?.reactErrors.find((t) => t.error === error)?.name;
   return renderFailure(error, frame.name) ?? new RenderError(threw(error), told ?? at?.name ?? frame.name, positionOf(at ?? frame), error);
 }

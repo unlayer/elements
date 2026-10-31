@@ -340,6 +340,18 @@ describe("the async renderers", () => {
     expect(runs.template).toBe(4);
   });
 
+  it("render an async template React.lazy loads on React 19, and on React 18, which renders it itself, say what to do", async () => {
+    // React 18 rejected it with React's own "Objects are not valid as a React child (found: [object Promise])".
+    const Receipt = async (props: { orderId?: string }) => {
+      await later(null);
+      return <Email><Row><Column><Paragraph>{`Order ${props?.orderId}`}</Paragraph></Column></Row></Email>;
+    };
+    const Lazy = React.lazy(async () => (await later(null), { default: Receipt }));
+    const rendered = renderToHtml(<Lazy orderId="A-1001" />);
+    if (Number.parseInt(React.version) >= 19) expect(await rendered).toContain("Order A-1001");
+    else await expect(rendered).rejects.toMatchObject({ message: expect.stringMatching(/^\[Unlayer\] React 18 renders what React\.lazy loads itself, and has no async components/), component: "lazy" });
+  });
+
   it("resolve a lazy template (`React.lazy`) as an async one, its root's settings read; the synchronous renderers say it's async", async () => {
     // It was taken for a template with no root: the HTML in a web page's document without the root's language and
     // fonts, and renderToJson() said its root wasn't one.
