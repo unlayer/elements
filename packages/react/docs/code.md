@@ -53,7 +53,7 @@ In the design (`renderToJson()`), a CodeBlock is an HTML block.
 | `fontFamily` | system monospace, Consolas, Courier New | |
 | `padding` | `16px` | |
 | `borderRadius` | `6px` | |
-| `wrap` | `true` | Long lines wrap; `false` keeps them on one line (they scroll where a client can). |
+| `wrap` | `true` | Long lines wrap, a token longer than the line too (a key, a URL); `false` keeps them on one line (they scroll where a client can). |
 | `containerPadding`, `hideOnMobile`, `hideOnDesktop` | | As on any block. |
 
 Code in a language Elements doesn't build in is shown without colors, with a warning. Add the language with highlight.js's definition (install `highlight.js` in your project for it):

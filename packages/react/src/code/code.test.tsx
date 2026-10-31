@@ -61,6 +61,14 @@ describe("CodeBlock", () => {
     expect(html).toMatch(/background-color: #000000.*padding: 8px.*line-height: 18px.*white-space: pre; overflow-x: auto/s);
   });
 
+  it("breaks a token longer than its line where it wraps (a key, a URL), and only there: a page's table doesn't grow to fit it", () => {
+    // Only `word-wrap: break-word`: in a web page's or a document's table, the code box grew to the token's width (the
+    // page scrolled sideways; a printed document shrank to two thirds and still cut the key off). An email's cell broke it.
+    const key = `export ACME_API_KEY=sk_live_${"51HxQ8aKl2Zb".repeat(10)}`;
+    expect(highlightCode(key, { language: "bash" })).toMatch(/<pre style="[^"]*white-space: pre-wrap; word-wrap: break-word; overflow-wrap: anywhere; word-break: break-word/);
+    expect(highlightCode(key, { language: "bash", wrap: false })).not.toMatch(/overflow-wrap: anywhere|word-break/);
+  });
+
   it("takes highlight.js's themes by name: their colors, a scope's own style over its parent's", () => {
     const code = "class A extends B { get() { return 'x'; } } // done";
     const github = highlightCode(code, { language: "js", theme: "github-light" });
