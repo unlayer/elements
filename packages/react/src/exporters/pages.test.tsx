@@ -51,19 +51,15 @@ describe.each([
         try {
           html = renderToHtml(linked(as(element, Root)), options as never);
         } catch (error) {
-          // A story whose component renders the template while it's called (a live preview's `renderToHtmlParts` in a
-          // `useMemo`): a render can't start there (src/utils/nested-renders.test.tsx). None has these blocks.
-          if (/can't start while a component of a template that Elements is rendering synchronously is called/.test(String((error as Error)?.message))) {
-            nested.push(name);
-            continue;
-          }
+          // (A story whose component renders the template while it's called, a live preview's `renderToHtmlParts` in a
+          // `useMemo`, renders it as a render of its own: src/utils/nested-renders.test.tsx.)
+          if (/can't start while a component of a template that Elements is rendering synchronously is called/.test(String((error as Error)?.message))) nested.push(name);
           throw error;
         }
         if (BLOCKS.test(html) || /^components\/(Divider|Html|Menu|Social): /.test(name)) digests[name] = digest(html);
       }
       expect(Object.keys(digests).length).toBeGreaterThan(150);
-      expect(nested.length).toBe(7);
-      for (const name of nested) expect(name).toMatch(/CustomToolsExamples/);
+      expect(nested).toEqual([]);
       for (const [name, [react18, blocked]] of Object.entries(BLOCKED[Root.displayName])) {
         expect(digests[name], name).toBe(blocked);
         digests[name] = react18;

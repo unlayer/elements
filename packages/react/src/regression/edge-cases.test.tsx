@@ -149,9 +149,10 @@ const CASES: Record<string, (L: Lib) => React.ReactElement> = {
 };
 
 /**
- * A render started while a component of the template is called: react-dom/server, which renders templates, can't
- * start one inside its own, so it fails with a RenderError saying so (src/utils/nested-renders.test.tsx), where the
- * previous release's walk of the tree rendered it.
+ * A render started while a component of the template is called: rendered with another module of react-dom's static
+ * renderer, as a render of its own, where the previous release rendered it. Inside an app's own server render, the
+ * app's module and the other one are both rendering: there's none left, so it fails with a RenderError saying so
+ * (src/utils/nested-renders.test.tsx).
  */
 const NESTED = new Set(["renderToPlainText inside a component, then hooks", "renderToHtml inside a component, then hooks"]);
 
@@ -201,7 +202,7 @@ describe.each(Object.entries(CASES))("%s", (name, build) => {
   for (const api of Object.keys(API) as Api[]) {
     for (const [place, within] of Object.entries(PLACES)) {
       it(`${api}, ${place}: renders where the previous release did, with every word it showed`, () => {
-        if (NESTED.has(name)) {
+        if (NESTED.has(name) && place !== "directly") {
           const refused = attempt(() => within(() => API[api](releases.current, build(releases.current))));
           expect(refused.error).toBeInstanceOf(current.RenderError);
           expect(String((refused.error as Error).message)).toMatch(/can't start while a component of a template that Elements is rendering synchronously is called/);

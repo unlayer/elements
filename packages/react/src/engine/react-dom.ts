@@ -555,7 +555,7 @@ function secondBuild(): Build | undefined {
  * after it).
  */
 export function withFreeBuild<T>(api: string, render: () => T): T {
-  refuseNested(api);
+  if (calling.frame) return renderNested(api, render);
   if ((calling.static ?? 0) > 0) return render();
   let build: Build = Server;
   const state = stateOf(Server);
@@ -574,6 +574,31 @@ export function withFreeBuild<T>(api: string, render: () => T): T {
     return render();
   } finally {
     builds.pop();
+  }
+}
+
+/**
+ * `render` started inside a component of the user's that a synchronous render of Elements is calling (a template that
+ * works out its preview text with `renderToPlainText`): rendered as a render of its own, with a module of react-dom's
+ * static renderer that isn't the one calling that component (react-dom/server's or another, see secondBuild) and isn't
+ * calling one itself, the render around it as it was after (0.2.1 rendered it; that module puts back the hooks and
+ * the context values it changed). Where there's none (a bundle, a browser, an edge runtime, or a render already two
+ * deep), it fails, named after the component (refuseNested).
+ */
+function renderNested<T>(api: string, render: () => T): T {
+  const rendering = current();
+  const other = [Server, secondBuild()].find((build): build is Build => !!build && !same(build, rendering) && stateOf(build) === "free");
+  if (!other) refuseNested(api);
+  const outer = { frame: calling.frame, static: calling.static, builds: calling.builds };
+  calling.frame = null;
+  calling.static = 0;
+  calling.builds = [other!];
+  try {
+    return render();
+  } finally {
+    calling.frame = outer.frame;
+    calling.static = outer.static;
+    calling.builds = outer.builds;
   }
 }
 

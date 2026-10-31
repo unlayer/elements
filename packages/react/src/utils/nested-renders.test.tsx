@@ -152,42 +152,56 @@ describe("a render started while a component of a template that Elements renders
     return undefined;
   };
 
-  it("fails, saying so and naming the component that started it, in every synchronous renderer", () => {
+  it("renders, as a render of its own, in every synchronous renderer: the component's hooks and the render around it as they were (as 0.2.1 did)", () => {
+    // It failed every render: a template that works out its preview text from its own content, a design's row count.
+    function Welcome({ name }: { name: string }) {
+      const intro = <Row><Column><Paragraph>{`Hi ${name}, your order shipped.`}</Paragraph></Column></Row>;
+      const preview = renderToPlainText(<Email>{intro}</Email>).trim().slice(0, 90);
+      return <Email previewText={preview}>{intro}</Email>;
+    }
+    const welcome = renderToHtml(<Welcome name="Ann" />);
+    expect(welcome.match(/Hi Ann, your order shipped\./g)).toHaveLength(2);
     function RowCount() {
       const design = useMemo(() => renderToJson(<Template />), []);
       const [label] = useState("rows");
       return <div dangerouslySetInnerHTML={{ __html: `${design.body.rows.length} ${label}` }} />;
     }
     const email = <Email><Row><Column><Paragraph>Before</Paragraph><RowCount /></Column></Row></Email>;
-    for (const render of [renderToHtml, renderToPlainText, renderToJson]) {
-      const error = thrown(() => render(email));
-      expect(error).toBeInstanceOf(RenderError);
-      expect((error as Error).message).toMatch(NESTED);
-      expect(error).toMatchObject({ component: "RowCount", position: "Row 1 › Column 1 › RowCount" });
-      // React's own error never reaches the app.
-      expect((error as Error).message).not.toMatch(/memoizedState|Invalid hook call/);
-    }
-    // A template wrapper too, and a class's render.
+    for (const render of [renderToHtml, renderToPlainText, (e: React.ReactElement) => JSON.stringify(renderToJson(e))]) expect(render(email)).toContain("1 rows");
+    expect(renderToHtml(email, { onError: "omit" })).toContain("1 rows");
+    // A template wrapper too, a class's render, and the component a lazy one loads, which react-dom renders itself.
     function Wrapper() {
       renderToHtml(<Template />);
       return <Template />;
     }
     class Classy extends React.Component {
       render() {
-        renderToPlainText(<Template />);
-        return <Paragraph>class</Paragraph>;
+        return <Paragraph>{`class ${renderToPlainText(<Template />).trim()}`}</Paragraph>;
       }
     }
-    expect(thrown(() => renderToHtml(<Wrapper />))).toMatchObject({ component: "Wrapper", position: "", message: expect.stringMatching(NESTED) });
-    expect(thrown(() => renderToHtml(<Email><Row><Column><Classy /></Column></Row></Email>))).toMatchObject({ component: "Classy", message: expect.stringMatching(NESTED) });
-    // With `onError` leaving parts out, it isn't one of them: it fails the render.
-    expect(thrown(() => renderToHtml(email, { onError: "omit" }))).toMatchObject({ component: "RowCount", message: expect.stringMatching(NESTED) });
-    // The component a lazy one loads, which react-dom renders where it is: said at the lazy one's place.
+    expect(renderToHtml(<Wrapper />)).toBe(renderToHtml(<Template />));
+    expect(renderToPlainText(<Email><Row><Column><Classy /></Column></Row></Email>).trim()).toBe("class Hello from the template");
     const Loaded = React.lazy(() => ({ then: (resolve: (m: { default: React.ComponentType }) => void) => resolve({ default: RowCount }) }) as Promise<{ default: React.ComponentType }>);
-    for (const render of [renderToHtml, renderToPlainText, renderToJson]) {
-      const error = thrown(() => render(<Email><Row><Column><Paragraph>Before</Paragraph><Loaded /></Column></Row></Email>));
-      expect(error).toMatchObject({ name: "RenderError", component: "lazy", position: "Row 1 › Column 1 › lazy", message: expect.stringMatching(NESTED) });
+    expect(renderToPlainText(<Email><Row><Column><Paragraph>Before</Paragraph><Loaded /></Column></Row></Email>)).toContain("1 rows");
+  });
+
+  it("fails one started in a component of a render that's itself inside one, with no module of react-dom's free, saying so", () => {
+    // (One module renders the outer render, another the render inside it: none is left for a third.)
+    function Inner() {
+      const text = renderToPlainText(<Template />);
+      return <Paragraph>{text}</Paragraph>;
     }
+    function Outer() {
+      const html = renderToHtml(<Email><Row><Column><Inner /></Column></Row></Email>);
+      return <Paragraph>{String(html.length)}</Paragraph>;
+    }
+    const error = thrown(() => renderToHtml(<Email><Row><Column><Outer /></Column></Row></Email>));
+    expect(error).toBeInstanceOf(RenderError);
+    expect(error).toMatchObject({ component: "Inner", message: expect.stringMatching(NESTED) });
+    // React's own error never reaches the app.
+    expect((error as Error).message).not.toMatch(/memoizedState|Invalid hook call/);
+    // (And the renders after it render.)
+    expect(renderToPlainText(<Template />).trim()).toBe("Hello from the template");
   });
 
   it("renders started there with the async renderers once that call is over, and in a component an async render calls", async () => {

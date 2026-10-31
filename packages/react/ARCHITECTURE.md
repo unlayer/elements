@@ -111,11 +111,14 @@ runs. Each of these fails the render with a `RenderError` that says so and what 
 - **Two copies of React**, react-dom's and another Elements imports (two installs, a bundler's second copy): the
   template's hooks can't run. One with none renders.
 - **A render started while a component of a template that a synchronous render is calling runs** (a component among
-  the rows, a template wrapper, a class's render, a Consumer's function): react-dom/server's static renderer keeps a
-  render's hook state in its module, so a render inside one of its own breaks the hooks the component calls after it
-  (the components it calls are known: `…/calling`, by `Symbol.for`). Render it before (and pass what it gives as a
-  prop) or after; an async render started there renders once that call is over, and one started in a component an
-  async render calls renders (react-dom's streaming renderer is another module). Elements' own components that call
+  the rows, a template wrapper, a class's render, a Consumer's function), **where there's no other module of
+  react-dom's free** (a bundle, a browser, an edge runtime, or a render that's itself inside one): react-dom/server's
+  static renderer keeps a render's hook state in its module, so a render inside one of its own breaks the hooks the
+  component calls after it (the components it calls are known: `…/calling`, by `Symbol.for`). In Node.js it renders
+  with another module (secondBuild), as a render of its own, the render around it as it was after, as 0.2.1 did.
+  Elsewhere, render it before (and pass what it gives as a prop) or after; an async render started there renders once
+  that call is over, and one started in a component an async render calls renders (react-dom's streaming renderer is
+  another module). Elements' own components that call
   no hooks start renders of their own there (a root met in the content, Markdown's `url`).
 - **One started inside a component of an app's own `renderToString` or `renderToStaticMarkup`, where there's no other
   module of react-dom's** (a bundle, a browser). Rendered with the app's module, the render would break the hook state

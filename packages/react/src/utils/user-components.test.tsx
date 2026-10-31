@@ -629,7 +629,7 @@ describe("markup holding what writes nothing", () => {
 });
 
 describe("a block rendered to a string inside a component", () => {
-  it("is what the block renders with react-dom's own render; Elements' render functions can't start there", () => {
+  it("is what the block renders with react-dom's own render, or with Elements' render functions (a render of their own)", () => {
     const viaParts = () => renderToHtmlParts(<Paragraph>From parts</Paragraph>).body;
     const viaReactDom = () => renderToStaticMarkup(<Paragraph>From react-dom</Paragraph>);
     const viaPlainText = () => renderToPlainText(<Paragraph>From plain text</Paragraph>);
@@ -637,8 +637,9 @@ describe("a block rendered to a string inside a component", () => {
     const html = renderToHtml(<Email>{block("Hello")}<Signature make={viaReactDom} /></Email>);
     expect(html).toContain("From react-dom");
     expect(html).not.toContain("unlayer-mark");
-    // (react-dom can't start a render inside its own: said by name, see src/utils/nested-renders.test.tsx.)
-    for (const make of [viaParts, viaPlainText]) expect(() => renderToHtml(<Email>{block("Hello")}<Signature make={make} /></Email>)).toThrow(/can't start while a component of a template that Elements is rendering synchronously is called/);
+    // (A render of its own, with another module of react-dom's: see src/utils/nested-renders.test.tsx.)
+    expect(renderToHtml(<Email>{block("Hello")}<Signature make={viaParts} /></Email>)).toContain("From parts");
+    expect(renderToHtml(<Email>{block("Hello")}<Signature make={viaPlainText} /></Email>)).toContain("From plain text");
   });
 
   it("is what each block renders when react-dom gives them many ids (its own can read like the collecting render's)", () => {

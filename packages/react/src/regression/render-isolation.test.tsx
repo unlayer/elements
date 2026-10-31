@@ -156,11 +156,14 @@ describe("an email rendered inside a component", () => {
     }
   });
 
-  it("with Elements' render functions, fails the render, saying react-dom can't start a render inside its own", () => {
-    for (const Starts of [Signature, SignedBy]) {
+  it("with Elements' render functions, renders it as a render of its own: the components after it, and their hooks, as they were", () => {
+    // (It failed the render: react-dom can't start a render inside its own. Another module of it renders it, as 0.2.1 did.)
+    for (const [Starts, signed] of [[Signature, "Count 9"], [SignedBy, "Signed Ada"]] as const) {
       const email = <Email><Row><Column><Count n={1} /><Starts /><Count n={2} /></Column></Row></Email>;
-      expect(() => renderToHtml(email)).toThrow(/can't start while a component of a template that Elements is rendering synchronously is called/);
-      expect(() => renderToJson(email)).toThrow(/can't start while a component of a template that Elements is rendering synchronously is called/);
+      const html = renderToHtml(email);
+      for (const text of ["Count 1", "Count 2", signed]) expect(html.split(text).length - 1, text).toBe(1);
+      const design = JSON.stringify(renderToJson(email));
+      for (const text of ["Count 1", "Count 2", signed]) expect(design, text).toContain(text);
     }
   });
 });
