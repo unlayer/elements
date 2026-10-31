@@ -234,6 +234,26 @@ describe("an email service's tag in a Markdown link's URL", () => {
     expect(blocks({ children: "**Hi *|FNAME|*, welcome" })).toEqual([["text", "**Hi *|FNAME|*, welcome"]]);
     expect(renderToHtml(email({ children: "# Welcome, *|FNAME|*" }))).toContain("Welcome, *|FNAME|*</");
     expect(renderToPlainText(email({ children: "Hi *|FNAME|*, your order shipped." }))).toContain("Hi *|FNAME|*, your order shipped.");
+    // Emphasis around one reads as around the name it's filled with: it was shown as `**`, or took the tag's stars.
+    expect(blocks({ children: "**Welcome, *|FNAME|*!**" })).toEqual([["text", "<strong>Welcome, *|FNAME|*!</strong>"]]);
+    expect(blocks({ children: "**Hi *|FNAME|*, welcome back**" })).toEqual([["text", "<strong>Hi *|FNAME|*, welcome back</strong>"]]);
+    // (Bold around the tag alone takes its first star in its own three: underscores, as docs/markdown.md says.)
+    expect(blocks({ children: "Your code: __*|COUPON|*__" })).toEqual([["text", "Your code: <strong>*|COUPON|*</strong>"]]);
+  });
+
+  it("ends a URL Markdown links by itself before a tag that ends a condition around it, and keeps one the URL opened", () => {
+    // `{% if vip %}Your VIP page: https://shop.example/vip{% endif %}` linked to `…/vip{% endif %}`: the email service
+    // couldn't parse the email (an `if` with no `endif` outside the link), and failed it for every recipient.
+    const linked = (markdown: string) => [...renderToHtml(email({ children: markdown })).matchAll(/<a href="([^"]*)"[^>]*>(.*?)<\/a>/g)].map((m) => [m[1], m[2]]);
+    expect(linked("{% if vip %}Your VIP page: https://shop.example/vip{% endif %}")).toEqual([["https://shop.example/vip", "https://shop.example/vip"]]);
+    expect(renderToHtml(email({ children: "{% if vip %}Your VIP page: https://shop.example/vip{% endif %}" }))).toContain(">https://shop.example/vip</a>{% endif %}");
+    expect(linked("{{#if vip}}Your VIP page: https://shop.example/vip{{/if}}")[0].slice(0, 1)).toEqual(["https://shop.example/vip"]);
+    expect(linked("*|IF:VIP|*Your VIP page: https://shop.example/vip*|END:IF|*")[0].slice(0, 1)).toEqual(["https://shop.example/vip"]);
+    expect(linked("%%[ IF @vip THEN ]%%Your VIP page: https://shop.example/vip%%[ ENDIF ]%%")[0].slice(0, 1)).toEqual(["https://shop.example/vip"]);
+    // A value's tag ends it as before; a condition's that opens after it is the text's too.
+    expect(linked("Track it at https://shop.example/t/{{ order.id }}{% if order.gift %} (gift){% endif %}")[0].slice(0, 1)).toEqual(["https://shop.example/t/{{ order.id }}"]);
+    // (A condition inside the URL, opened and closed there, is the URL's.)
+    expect(linked("Visit www.shop.example{% if vip %}/vip{% endif %} today")[0].slice(0, 1)).toEqual(["http://www.shop.example{% if vip %}/vip{% endif %}"]);
   });
 
   it("keeps a URL with many tags in it whole, in time linear in its size", async () => {
@@ -251,6 +271,12 @@ describe("an email service's tag in a Markdown link's URL", () => {
     for (const unit of ["www.a.{{ a }}", "https://a.b/{{ a }}", "www.a.{{ a }} x ", "<https://a/{{ b }} ", "[a](https://x/{{ y }}) ", "[a](b{{ c }} "]) {
       const { small, large, grows } = await growth((bytes) => time(fill(unit, bytes)), [10240, 102400], { ratio: 20, floor: 100, next: 1024000 });
       expect(grows, `${JSON.stringify(unit)}: ${small.toFixed(1)} ms for 10 KB, ${large.toFixed(1)} ms for 100 KB`).toBe(false);
+    }
+    // (A URL that reaches no whitespace: where it ends was looked for from each place marked tried one, to the end of the
+    // text, and charged for only as far as it ended: 1 MB took 1.6 s where 100 KB took 41 ms.)
+    for (const unit of ["<https://a/{{", '"<%<https://a/{{']) {
+      const { small, large, grows } = await growth((bytes) => time(fill(unit, bytes)), [102400, 1024000], { ratio: 20, floor: 100 });
+      expect(grows, `${JSON.stringify(unit)}: ${small.toFixed(1)} ms for 100 KB, ${large.toFixed(1)} ms for 1 MB`).toBe(false);
     }
   }, 120_000);
 

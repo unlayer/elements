@@ -10,7 +10,7 @@
  */
 import { Lexer, type Links, type Token, type Tokens, type TokensList } from "marked";
 import { Limited, QUOTE_BASE, QUOTE_WORK } from "./limits";
-import { autolinkReach, brReach, codeReach, linkReach, reflinkReach, runEnd, tagReach, textReach, urlReach } from "./reach";
+import { autolinkReach, brReach, codeReach, linkReach, reflinkReach, runEnd, tagReach, textReach } from "./reach";
 
 /** The steps a Markdown's inline syntax can take for each of its characters, and BASE more (see the comment above). */
 export const WORK = 32;
@@ -97,8 +97,23 @@ class Inline extends Limited {
     if (mergeTagAt(src)) return undefined;
     // Its delimiters, then what closes them (counted as marked looks for it: see count()).
     if (this.deep || this.spent || !this.spend(runEnd(src, 0, src[0] === "*" ? STARS : UNDERSCORES))) return undefined;
-    return super.emStrong(src, maskedSrc, prevChar);
+    return super.emStrong(src, this.unstarred(maskedSrc), prevChar);
   }
+
+  /**
+   * The text marked looks for emphasis's delimiters in, a Mailchimp tag's stars in it read as a word's letters, as the
+   * name it's filled with reads (`**Welcome, *|FNAME|*!**` bold around it, not shown as `**`). Once per text.
+   */
+  private unstarred(masked: string): string {
+    if (masked !== this.maskedText) {
+      this.maskedText = masked;
+      this.maskedOut = masked.includes("*|") ? masked.replace(MERGE_TAGS, (tag) => "a".repeat(tag.length)) : masked;
+    }
+    return this.maskedOut;
+  }
+
+  private maskedText?: string;
+  private maskedOut = "";
 
   codespan(src: string): Tokens.Codespan | undefined {
     return src[0] === "`" ? this.within(src, codeReach(src), (part) => super.codespan(part)) : super.codespan(src);
@@ -118,7 +133,12 @@ class Inline extends Limited {
   }
 
   url(src: string): Tokens.Link | undefined {
-    return URL_START.test(src[0] ?? "") ? tagged(src, urlReach, (text, reach) => this.within(text, reach, (part) => super.url(part)), (text) => URL_END(text), (steps) => this.spend(steps)) : super.url(src);
+    if (!URL_START.test(src[0] ?? "")) return super.url(src);
+    // (Read to where it ends: a tag after it that ends a condition around it is the text's, see urlEnd. Finding that is
+    // the render's work, as what marked reads is, and nothing is looked for past it: its whitespace either.)
+    const end = URL_END(src);
+    if (!this.spend(end)) return undefined;
+    return tagged(src, (text) => upTo(text, end), (text, reach) => this.within(text, reach, (part) => super.url(part)), () => end, (steps) => this.spend(steps));
   }
 
   def(src: string): Tokens.Def | undefined {
@@ -201,6 +221,7 @@ function tagged<T>(src: string, reachOf: (src: string) => number, read: (src: st
  * takes it.)
  */
 const MERGE_TAG = /\*\|[^\s|*]{0,256}\|\*/y;
+const MERGE_TAGS = new RegExp(MERGE_TAG.source, "g");
 const mergeTagAt = (src: string): string | undefined => {
   if (src[0] !== "*" || src[1] !== "|") return undefined;
   MERGE_TAG.lastIndex = 0;
@@ -208,22 +229,46 @@ const mergeTagAt = (src: string): string | undefined => {
 };
 
 const STICKY_TAG = new RegExp(TAG.source, "y");
+/** A tag that opens what's around it (`{% if vip %}`, `{{#vip}}`, `*|IF:VIP|*`, `%%[ IF … ]%%`), and one that closes it. */
+const OPENS = /^(?:\{%-?\s*(?:if|unless|for|case|capture|tablerow|raw|comment)\b|\{\{[#^]|\*\|(?:IF|INTERESTED):|%%\[\s*(?:IF|FOR)\b)/i;
+const CLOSES = /^(?:\{%-?\s*end\w*|\{\{\/|\*\|END:|%%\[\s*(?:ENDIF|NEXT)\b)/i;
 /**
  * Where a URL Markdown links by itself (or one in `<…>`) ends: the first of `stops` (whitespace, `<`, and `>` in `<…>`)
- * that isn't in a tag (each tag read once from where it starts, as long as one can be).
+ * that isn't in a tag (each tag read once from where it starts, as long as one can be). A tag that opens or closes what's
+ * around the URL, and that the URL ends with (`…/vip{% endif %}`), is the text's, not the URL's (the condition around a
+ * sentence that ends in a URL, which the email service couldn't parse with its end in the link), but one that closes
+ * one the URL opened (`…{% if vip %}/vip{% endif %}`). (In `<…>`, where the URL ends is written: `conditions` false.)
  */
-const urlEnd = (stops: RegExp) => (src: string): number => {
+const urlEnd = (stops: RegExp, conditions = true) => (src: string): number => {
+  let open = 0;
   for (let at = 0; at < src.length; ) {
     STICKY_TAG.lastIndex = at;
     const tag = "{<%$*".includes(src[at]) ? STICKY_TAG.exec(src) : null;
-    if (tag) at += tag[0].length;
-    else if (stops.test(src[at])) return at;
-    else at++;
+    if (!tag) {
+      if (stops.test(src[at])) return at;
+      at++;
+      continue;
+    }
+    const after = at + tag[0].length;
+    const ends = conditions && (after >= src.length || stops.test(src[after]));
+    if (OPENS.test(tag[0])) {
+      if (ends) return at;
+      open++;
+    } else if (CLOSES.test(tag[0])) {
+      if (open > 0) open--;
+      else if (ends) return at;
+    }
+    at = after;
   }
   return src.length;
 };
 const URL_END = urlEnd(/[\s<]/);
-const AUTOLINK_END = urlEnd(/[\s<>]/);
+/** As far as a URL reads (see urlReach: to its first whitespace), no further than `end`. */
+const upTo = (src: string, end: number): number => {
+  const space = src.slice(0, end).search(/\s/);
+  return space < 0 ? end : space + 1;
+};
+const AUTOLINK_END = urlEnd(/[\s<>]/, false);
 /** A link's URL ends on the line it's on (a tag is on one line): to the end of the line `reach` is on. */
 const lineEnd = (src: string, reach: number): number => {
   const end = src.indexOf("\n", Math.min(reach, src.length));
