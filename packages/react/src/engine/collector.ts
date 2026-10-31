@@ -662,7 +662,8 @@ function Call(placed: CallProps): React.ReactNode {
  * alone, not with the rows around it (a provider written as a component, `<UserProvider>{sections}</UserProvider>`).
  */
 function rowParts(c: Collection, keep: Record<string, any> | undefined, props: unknown, result: unknown): unknown {
-  return keep?.rows && c.omit && c.parts ? c.parts(result as React.ReactNode, (props as { children?: React.ReactNode } | null)?.children, keep.given) : result;
+  // (Its sections: its children, and elements given as its other props, a layout's `header={<Hero />}`.)
+  return keep?.rows && c.omit && c.parts ? c.parts(result as React.ReactNode, props && typeof props === "object" ? Object.values(props) : undefined, keep.given) : result;
 }
 
 /** Call, named as the component it calls (React's warnings name it so). */

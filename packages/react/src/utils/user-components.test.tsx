@@ -750,7 +750,14 @@ describe("React's warnings about a template", () => {
       for (const template of templates) {
         expect(renderToHtml(template)).toContain("Second");
         renderToJson(template);
+        // (Also where failed parts are left out, which reads the sections a layout is given.)
+        renderToHtml(template, { onError: "omit" });
       }
+      // (A layout's own row among the sections it's given, in the list made again of what it renders.)
+      const Layout = ({ header, footer, children }: { header: React.ReactNode; footer: React.ReactNode; children: React.ReactNode }) => <>{header}<Row><Column><Paragraph>Between</Paragraph></Column></Row>{children}{footer}</>;
+      const First = () => <Row><Column><Paragraph>First</Paragraph></Column></Row>;
+      const Second = () => <Row><Column><Paragraph>Second</Paragraph></Column></Row>;
+      expect(renderToHtml(<Email><Layout header={<First />} footer={<First />}><Second /></Layout></Email>, { onError: "omit" })).toContain("Second");
       expect(error.mock.calls.map((call) => String(call[0])).filter((m) => m.includes('"key"'))).toEqual([]);
     } finally {
       error.mockRestore();

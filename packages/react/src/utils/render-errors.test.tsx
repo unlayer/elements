@@ -282,6 +282,8 @@ describe("a Row or Column whose exporter fails", () => {
     });
     const AppProviders = ({ children }: Given) => <IntlProvider><UserProvider user={ada}>{children}</UserProvider></IntlProvider>;
     const Layout = ({ children }: Given) => <>{children}</>;
+    // (A layout given its sections as props: one failing left out every row, 0.2 too.)
+    const Slots = ({ header, footer, children }: Given & { header: React.ReactNode; footer: React.ReactNode }) => <>{header}{children}{footer}</>;
     // (One that reads what it's given, and clones it: as it would, it's given the sections as written.)
     const Numbered = ({ children }: Given) => <>{React.Children.map(children, (child, i) => (React.isValidElement(child) ? React.cloneElement(child, { "data-n": i } as object) : child))}</>;
     const templates = {
@@ -296,6 +298,8 @@ describe("a Row or Column whose exporter fails", () => {
       "a provider component around the root": <UserProvider user={ada}><Email>{sections}</Email></UserProvider>,
       "a layout in a provider": <Email><User.Provider value={ada}><Layout>{sections}</Layout></User.Provider></Email>,
       "a component that clones what it's given": <Email><User.Provider value={ada}><Numbered>{sections}</Numbered></User.Provider></Email>,
+      "a layout given its sections as props": <Email><User.Provider value={ada}><Slots header={<Header />} footer={<Footer />}><Recommendations /></Slots></User.Provider></Email>,
+      "a layout given the section that fails as a prop": <Email><User.Provider value={ada}><Slots header={<Header />} footer={<Recommendations />}><Footer /></Slots></User.Provider></Email>,
     };
     for (const [where, template] of Object.entries(templates)) {
       const parts = renderToHtmlParts(template, { onError: "omit" });
