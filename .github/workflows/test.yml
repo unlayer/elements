@@ -58,8 +58,14 @@ jobs:
         run: pnpm --filter @unlayer/from-react-email typecheck && pnpm --filter @unlayer/migrate typecheck
 
       # ── Bundle size budget ──────────────────────────────────────
-      # Fail if the react-elements ESM bundle exceeds 260.5KB.
-      # Current size: about 260KB (0.1.22: about 76KB). Raised from 258KB
+      # Fail if the react-elements ESM bundle exceeds 265.5KB.
+      # Current size: about 264.8KB (0.1.22: about 76KB). Raised from 260.5KB
+      # (about 4.8KB): HTML balanced as a browser's parser ends elements at a
+      # start tag (a table straight in a table, a cell in a cell, an `<li>` in
+      # an `<li>`), what a lazy component renders read no further than the
+      # markers React wrote after it (a `<style>`, `<script>` or comment it
+      # leaves open is its text, and every marker ended and read), and React
+      # 18's `javascript:` URLs there written as React 19 writes them. Raised from 258KB
       # (about 2.4KB): another copy of React told only from a hook read off a
       # null dispatcher, an email service's `<% %>` tag kept in an Image's
       # src, a custom tool's values copied for each render, Markdown and
@@ -254,7 +260,7 @@ jobs:
         run: |
           BUNDLE="packages/react/dist/index.js"
           SIZE=$(wc -c < "$BUNDLE" | tr -d ' ')
-          MAX_SIZE=260500
+          MAX_SIZE=265500
           echo "Bundle: $BUNDLE"
           echo "Size: $SIZE bytes (budget: $MAX_SIZE bytes)"
           if [ "$SIZE" -gt "$MAX_SIZE" ]; then
