@@ -104,11 +104,11 @@ export function replaceElements(
  * them (`/<img[^>]*\/?>/`, `/<hr[^>]*\/?>/` too: the `/` is in what's before the `>`).
  */
 export function replaceTags(text: string, name: RegExp, replace: (tag: string) => string): string {
-  const gt = places(text, />/g);
+  const end = tagEnds(text);
   return rewrite(text, (at) => {
     name.lastIndex = at;
     if (!name.test(text)) return at + 1;
-    const close = gt(name.lastIndex);
+    const close = end(name.lastIndex);
     return close < 0 ? undefined : [close + 1, replace(text.slice(at, close + 1))];
   });
 }
@@ -137,6 +137,28 @@ export function attributeEnds(text: string): Int32Array {
 }
 
 /**
+ * Where a tag whose attributes start at `from` ends: past a `>` in a quoted value (an email service's tag in a URL,
+ * `src="…/<%hero%>.png"`, which a browser reads as the value's), where the quotes close before the next tag starts;
+ * else at the first `>`, as `[^>]*>` reads it (a quote left open, or an apostrophe in a value that isn't quoted, which
+ * would run on into the next tag). -1 where none follows.
+ */
+export function tagEnds(text: string): (from: number) => number {
+  const gt = places(text, />/g);
+  const quotes = places(text, /["']/g);
+  const tags = places(text, /<[a-zA-Z/!]/g);
+  let quoted: Int32Array | undefined;
+  return (from) => {
+    const first = gt(from);
+    const quote = quotes(from);
+    if (first < 0 || quote < 0 || quote > first) return first;
+    quoted ??= attributeEnds(text);
+    const end = quoted[from];
+    const next = tags(from);
+    return end > first && (next < 0 || next > end) ? end : first;
+  };
+}
+
+/**
  * `text` without each `open…close`, as `/<head[\s\S]*?<\/head>/gi` takes them out (`open` a sticky regex): from where
  * it opens to the first `close` after. Where none closes, none after it does.
  */
@@ -155,10 +177,10 @@ export function removeBetween(text: string, open: RegExp, close: RegExp): string
 /**
  * Each image with alt text replaced, as `/<img[^>]+alt=["']([^"']+)["'][^>]*\/?>/gi` replaces it: the last `alt=` before
  * the tag's first `>` (after a character of it) whose value is quoted, isn't empty and is followed by a `>`, to that
- * `>`. Which `alt=`s are so is worked out once for each.
+ * `>`; a `>` in a quoted value isn't one (see tagEnds). Which `alt=`s are so is worked out once for each.
  */
 export function replaceAltImages(text: string, replace: (alt: string) => string): string {
-  const gt = places(text, />/g);
+  const gt = tagEnds(text);
   const quote = places(text, /["']/g);
   const alts = places(text, /alt=/gi);
   // The `alt=`s found so far, in order, and for each the last one up to it whose value works (-1: none).

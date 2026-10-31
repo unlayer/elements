@@ -111,6 +111,18 @@ describe("htmlToPlainText", () => {
     expect(htmlToPlainText('<img src="logo.png">')).toBe("");
   });
 
+  it("reads an image's tag to its end where a quoted value has a `>` in it (an email service's `<%hero%>` in its src)", () => {
+    // The `>` of the tag in the src ended the image there: the rest of its tag was the text (`.png" alt="Hero" …/>`).
+    const email = (src: string) => `<p>Your order</p><img src="${src}" alt="Hero" style="width: 100%;" width="480"/><p>Thanks</p>`;
+    expect(htmlToPlainText(email("https://cdn.example.com/<%hero%>.png"))).toBe(htmlToPlainText(email("https://cdn.example.com/hero.png")));
+    expect(htmlToPlainText(email("https://cdn.example.com/<%hero%>.png"))).toContain("[Hero]");
+    expect(htmlToPlainText('<img alt="Hero" src="https://cdn.example.com/<%= hero %>.png" width="480"/>after')).toBe("[Hero]after");
+    expect(htmlToPlainText('<img src="https://cdn.example.com/<%hero%>.png"/>after')).toBe("after");
+    expect(htmlToPlainText('<hr title="<%a%>" />after')).toBe("---\nafter");
+    // (A quote left open, or one that would run on into the next tag, reads as before: to the first `>`.)
+    expect(htmlToPlainText("<img src=x alt=Ada's>tail<b>it's</b>")).toBe("tailit's");
+  });
+
   // Entities
   it("decodes named HTML entities", () => {
     expect(htmlToPlainText("&amp; &lt; &gt; &quot;")).toBe('& < > "');
