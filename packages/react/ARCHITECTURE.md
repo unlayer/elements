@@ -140,8 +140,7 @@ runs. Each of these fails the render with a `RenderError` that says so and what 
   them. There, the one rendering is the one whose hooks run, and each module found rendering is kept from every render
   inside it (`calling.busy`); a render inside a template's component takes one no render under way has, asking nothing
   (`renderNested`), or fails by name. (An app's own two renders of react-dom's, one inside the other, Elements called in
-  the inner one, can't be told apart that way.)
-  the page's value (as in 0.2). Where there's none (a bundle, a bundled serverless function too, a browser, an ES
+  the inner one, can't be told apart that way.) Where there's none (a bundle, a bundled serverless function too, a browser, an ES
   module on a Node.js without `process.getBuiltinModule`), the render fails by name where react-dom/
   server's is calling a component, and the page's render goes on: work the email out before the page's render, or
   render the page with react-dom's stream (another module). Where that can't be told yet (the first render of the
@@ -225,8 +224,9 @@ its cell (the Row is made again without it, its Columns after it moving up; with
 with it); what a head function that fails gives the document's head (a RenderError naming its block, `<tool>'s head
 failed: …`): the block itself renders, as in the design, which runs no head function and has no head to disagree with.
 The render is then the template's without that part. A template that isn't one always fails the render,
-`onError` or not: an undefined component (a broken or circular import), an object or a date as a child, a Client
-Component in server code, a portal (see Not supported).
+`onError` or not: an undefined component (a broken or circular import), an object or a date as a child of a Row, a
+Column or the root (in a block's text, that block fails, and is left out with `onError`), a Client Component in server
+code, a portal (see Not supported).
 
 **The design and the exporters.** No exporter makes the design, so `renderToJson()` doesn't render the HTML: by
 default, a template whose only failure is an exporter's gives its design, block included, while `renderToHtml()` and

@@ -34,7 +34,7 @@ await acme.orders.list({ limit: 10 });
 How it stays readable in email:
 
 - **Inline styles only.** Each token is a `<span style="color: …">`: there's no class for a stylesheet to resolve, which most clients would drop.
-- **Outlook.** The code is in a `<pre>`, which Outlook shows with its spaces and line breaks, in a monospace font (the stack ends in Consolas and Courier New), on the block's background (`bgcolor`). Line heights are in pixels, which Outlook reads.
+- **Outlook.** The code is in a `<pre>`, which Outlook shows with its spaces and line breaks, in a monospace font (the stack ends in Consolas, Liberation Mono and Courier New), on the block's background (`bgcolor`). Line heights are in pixels, which Outlook reads.
 - **Line numbers** are a table row per line, so a number stays beside its line when a long line wraps. They're left out of the plain text.
 - **Plain text** (`renderToPlainText()`) is the code as written, its indentation kept.
 
@@ -50,7 +50,7 @@ In the design (`renderToJson()`), a CodeBlock is an HTML block.
 | `lineNumbers` | `false` | `true`, or the first line's number. |
 | `fontSize` | `13px` | |
 | `lineHeight` | `1.5` | A ratio of the size (written in pixels), or a length. |
-| `fontFamily` | system monospace, Consolas, Courier New | |
+| `fontFamily` | system monospace, Consolas, Liberation Mono, Courier New | |
 | `padding` | `16px` | |
 | `borderRadius` | `6px` | |
 | `wrap` | `true` | Long lines wrap, a token longer than the line too (a key, a URL); `false` keeps them on one line (they scroll where a client can). |

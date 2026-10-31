@@ -243,6 +243,7 @@ Each warning names where it is (`Row 2, column 1, block 3: …`). They say:
 `renderToJson()` of the generated component gives the design back, as the builder shows it. Codegen's tests check it over the examples, the demo's templates, designs the editor saved and random designs, each also type-checked. The comparison leaves aside:
 
 - `counters`, `schemaVersion`, node `id`s and `_meta.htmlID`/`htmlClassNames` (numbering, which the editor assigns);
+- the body's `displayMode` (the root says it, and the editor's own saves may not have it);
 - a value missing and the same value at the builder's default (the builder fills defaults in; an image without `autoWidth` is sized automatically);
 - a text block's missing color and the body's text color;
 - the editor's Lexical text (`textJson`) as its HTML, which is what the builder renders and exports for a heading, a button and a `paragraph` block (written as a `text` block) wherever they have it, and for a text block that has no `text` (a text block's `text` is, where it has both);

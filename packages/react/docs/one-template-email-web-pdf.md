@@ -115,6 +115,6 @@ Expected: six files in `examples/content-workflows/output/` when run via the wor
 
 ## Constraints
 
-Shared content does not imply identical pixels. Email uses table-oriented HTML and client-specific fallbacks; web uses responsive layouts; document output uses print styling and a fixed page size. Keep content within the printable width, and test long invoices for pagination. A browser preview does not prove inbox compatibility.
+Shared content does not imply identical pixels. Email uses table-oriented HTML and client-specific fallbacks; web uses responsive layouts; document output uses print styling, and its page size is the PDF tool's (the HTML sets none). Keep content within the printable width, and test long invoices for pagination. A browser preview does not prove inbox compatibility.
 
 For an authenticated web receipt, serve the web HTML from an authorized route with `Content-Type: text/html`; do not publish customer invoices at predictable public URLs. These examples use fictitious data. Use [provider integrations](./email-providers.md) to send the email and [visual editing](./visual-editing.md) to hand the template to an editor user.
