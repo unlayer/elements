@@ -5,7 +5,7 @@
  * hooks (capture.ts). React's public API only: see react-dom.ts, and ARCHITECTURE.md.
  */
 import React, { cloneElement } from "react";
-import { ASYNC_IN_SYNC, childFrame, nameOf, omits, positionOf, RenderError, reportOmitted, rootFrame, threw, type OnError } from "./errors";
+import { ASYNC_IN_SYNC, childFrame, nameOf, omits, positionOf, RenderError, rootFrame, threw, type OnError } from "./errors";
 import { flatten, type Flat } from "./output";
 import { before, newCollection, prep, rootCtx, suspendedError, withRawErrors, type Collector } from "./collector";
 import { parse } from "./parse";
@@ -127,14 +127,13 @@ export async function collectAsync(node: React.ReactNode, options: CollectOption
   const parts = withRawErrors(c, parse(html, c));
   // What React handled itself that no part of the template accounts for: a part that failed inside a <Suspense> in what
   // a lazy component renders, which React renders unprepared, its fallback rendered instead. It failed, as any part
-  // that fails does, at the lazy component's place: the render fails, or (`onError`) it's said, the fallback standing
-  // for the part left out.
-  for (const told of c.reactErrors.splice(0)) {
-    const error = new RenderError(threw(told.error), told.name ?? "lazy", positionOf(c.lazies[0]?.frame ?? frame), told.error);
-    if (c.omit) reportOmitted(options.onError, error);
-    else parts.push({ t: "error", error, fatal: false });
-  }
-  return flatten(parts, c.omit) as Flat;
+  // that fails does, at the lazy component's place: the render fails, or (`onError`) it's left out as every part is,
+  // listed in `omitted` and said, the fallback standing for it.
+  const told = c.reactErrors.splice(0).map((t) => new RenderError(threw(t.error), t.name ?? "lazy", positionOf(c.lazies[0]?.frame ?? frame), t.error));
+  if (!c.omit) for (const error of told) parts.push({ t: "error", error, fatal: false });
+  const flat = flatten(parts, c.omit) as Flat;
+  if (c.omit) flat.omitted.push(...told);
+  return flat;
 }
 
 let own = 0;

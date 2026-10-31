@@ -385,6 +385,9 @@ describe("the async renderers", () => {
       expect(await renderToHtml(email, { onError: (error) => void told.push(error) })).toContain("Your order");
       expect(told.map((error) => (error as RenderError).cause)).toEqual([new Error("price service down")]);
       expect(await renderToHtml(email, { onError: "omit" })).toContain("Your order");
+      // (And listed with every part left out, for what checks the list before it sends.)
+      const { omitted } = await renderToHtmlParts(email, { onError: "omit" });
+      expect(omitted.map((error) => error.cause)).toEqual([new Error("price service down")]);
     }
   });
 
