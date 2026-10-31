@@ -368,6 +368,45 @@ describe("the async renderers", () => {
     expect(failed).toMatchObject({ message: "[Unlayer] no such chunk (in <lazy>)", component: "lazy", cause: new Error("no such chunk") });
   });
 
+  it("fail where a part fails inside a <Suspense> of what a lazy component renders, as anywhere else, its fallback no stand-in", async () => {
+    // React renders what a lazy component renders itself: its <Suspense> rendered the fallback for the part that
+    // failed, and the render resolved with `Loading…` (or nothing), saying nothing, onError never called.
+    const Fails = () => {
+      throw new Error("price service down");
+    };
+    for (const fallback of [<Paragraph key="p">Loading…</Paragraph>, null]) {
+      const Section = React.lazy(async () => (await later(null), { default: () => <React.Suspense fallback={fallback}><Fails /></React.Suspense> }));
+      const email = <Email><Row><Column><Paragraph>Your order</Paragraph><Section /></Column></Row></Email>;
+      const failed = await renderToHtml(email).catch((error: unknown) => error);
+      expect(failed).toBeInstanceOf(RenderError);
+      expect((failed as RenderError).cause).toEqual(new Error("price service down"));
+      // Told, where a function is given; left out with "omit" (the part, which React's fallback stands for).
+      const told: unknown[] = [];
+      expect(await renderToHtml(email, { onError: (error) => void told.push(error) })).toContain("Your order");
+      expect(told.map((error) => (error as RenderError).cause)).toEqual([new Error("price service down")]);
+      expect(await renderToHtml(email, { onError: "omit" })).toContain("Your order");
+    }
+  });
+
+  it("say how to write a <Suspense> in what a lazy component renders whose fallback holds blocks, where what's in it waits", async () => {
+    // React renders that fallback and leaves it out: its blocks can't be told from markup that isn't the template's.
+    const cache = new Map<string, { value?: string; promise: Promise<void> }>();
+    const Order = ({ id }: { id: string }) => {
+      const entry = cache.get(id) ?? cache.set(id, { promise: later(null).then(() => void (cache.get(id)!.value = `Order ${id}`)) }).get(id)!;
+      if (entry.value === undefined) throw entry.promise;
+      return <Paragraph>{entry.value}</Paragraph>;
+    };
+    const section = (body: React.ReactElement) => React.lazy(async () => (await later(null), { default: () => body }));
+    const email = (part: React.ReactElement) => <Email><Row><Column><Paragraph>Your order</Paragraph>{part}</Column></Row></Email>;
+    const Blocks = section(<React.Suspense fallback={<Paragraph>Loading…</Paragraph>}><Order id="a" /></React.Suspense>);
+    await expect(renderToHtml(email(<Blocks />))).rejects.toThrow("Give that <Suspense> a fallback of null, or put it around the lazy component");
+    // What the message says to do renders what's in it.
+    const Nothing = section(<React.Suspense fallback={null}><Order id="b" /></React.Suspense>);
+    expect(await renderToHtml(email(<Nothing />))).toContain("Order b");
+    const Inner = section(<Order id="c" />);
+    expect(await renderToHtml(email(<React.Suspense fallback={<Paragraph>Loading…</Paragraph>}><Inner /></React.Suspense>))).toContain("Order c");
+  });
+
   it("unwrap a <Suspense> around the template, its root's settings read, waiting for what's in it; its fallback, which isn't a document, never renders", async () => {
     // It was taken for a template with no root: renderToJson() said its root wasn't one, and the HTML was a web page's
     // document without the root's language and fonts, the Email's own document inside it.

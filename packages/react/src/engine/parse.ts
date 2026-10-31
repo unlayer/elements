@@ -38,7 +38,7 @@ const TO_END_TAG = new Set(["style", "script", "title", "textarea", "noscript", 
 const unescaped = (s: string) => s.replace(/&amp;|&lt;|&gt;|&quot;|&#x27;/g, (e) => ({ "&amp;": "&", "&lt;": "<", "&gt;": ">", "&quot;": '"', "&#x27;": "'" })[e]!);
 const unescape18 = (s: string) => (REACT_18 ? unescaped(s) : s);
 
-export const FORGED = "the template's markup holds a marker of Elements' own collecting render that React didn't write there (an `<unlayer-mark>`, `</unlayer-mark>` or `<!--u…-->` with this render's number, one React wrote elsewhere or left out), or hides one it did (HTML given whole in what a lazy component renders, run on past it): it can't be read as the template, so the render fails";
+export const FORGED = "the template's markup holds a marker of Elements' own collecting render that React didn't write there (an `<unlayer-mark>`, `</unlayer-mark>` or `<!--u…-->` with this render's number, one React wrote elsewhere or left out), or hides one it did (HTML given whole in what a lazy component renders, run on past it): it can't be read as the template, so the render fails. (In the async renderers, a <Suspense> in what a lazy component renders whose fallback holds Elements' components, where what's in it waited, is one: React rendered the fallback and left it out. Give that <Suspense> a fallback of null, or put it around the lazy component.)";
 
 interface Open {
   tag: string;
