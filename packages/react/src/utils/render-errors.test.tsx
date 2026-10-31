@@ -259,18 +259,43 @@ describe("a Row or Column whose exporter fails", () => {
 
   it("with onError: \"omit\", leaves out only the section that failed where a provider or <StrictMode> is around the rows or the root", async () => {
     // A provider around the rows (or the root) was one part: one section failing left out every row, a blank email
-    // and design, where a digest's optional sections are the README's own use of "omit". (A provider written as a
-    // component of yours is one part with the rows it renders, as README says: its own error handling is the user's.)
+    // and design, where a digest's optional sections are the README's own use of "omit". A provider written as a
+    // component of yours (a class, memo'd, forwardRef'd, in another), or a layout, was one part with the rows it
+    // renders the same way.
     vi.spyOn(console, "error").mockImplementation(() => {});
     const User = React.createContext({ name: "?" });
     const Header = () => <Row><Column><Paragraph>{`Hi ${React.useContext(User).name}`}</Paragraph></Column></Row>;
     const Recommendations = ({ items }: { items?: string[] }) => <Row><Column>{items!.map((item) => <Paragraph key={item}>{item}</Paragraph>)}</Column></Row>;
     const Footer = () => <Row><Column><Paragraph>Unsubscribe</Paragraph></Column></Row>;
     const sections = [<Header key="h" />, <Recommendations key="r" />, <Footer key="f" />];
+    type Given = { children?: React.ReactNode };
+    const ada = { name: "Ada" };
+    const UserProvider = ({ user, children }: Given & { user: { name: string } }) => <User.Provider value={user}>{children}</User.Provider>;
+    class IntlProvider extends React.Component<Given> {
+      render() {
+        return <User.Provider value={ada}>{this.props.children}</User.Provider>;
+      }
+    }
+    const MemoProvider = React.memo(UserProvider);
+    const RefProvider = React.forwardRef<unknown, Given>(function RefProvider({ children }, _ref) {
+      return <User.Provider value={ada}>{children}</User.Provider>;
+    });
+    const AppProviders = ({ children }: Given) => <IntlProvider><UserProvider user={ada}>{children}</UserProvider></IntlProvider>;
+    const Layout = ({ children }: Given) => <>{children}</>;
+    // (One that reads what it's given, and clones it: as it would, it's given the sections as written.)
+    const Numbered = ({ children }: Given) => <>{React.Children.map(children, (child, i) => (React.isValidElement(child) ? React.cloneElement(child, { "data-n": i } as object) : child))}</>;
     const templates = {
-      "around the rows": <Email><User.Provider value={{ name: "Ada" }}>{sections}</User.Provider></Email>,
-      "around the root": <User.Provider value={{ name: "Ada" }}><Email>{sections}</Email></User.Provider>,
-      "<StrictMode> around them": <Email><React.StrictMode><User.Provider value={{ name: "Ada" }}>{sections}</User.Provider></React.StrictMode></Email>,
+      "around the rows": <Email><User.Provider value={ada}>{sections}</User.Provider></Email>,
+      "around the root": <User.Provider value={ada}><Email>{sections}</Email></User.Provider>,
+      "<StrictMode> around them": <Email><React.StrictMode><User.Provider value={ada}>{sections}</User.Provider></React.StrictMode></Email>,
+      "a provider written as a component": <Email><UserProvider user={ada}>{sections}</UserProvider></Email>,
+      "a class provider (react-intl's IntlProvider)": <Email><IntlProvider>{sections}</IntlProvider></Email>,
+      "a memo'd provider": <Email><MemoProvider user={ada}>{sections}</MemoProvider></Email>,
+      "a forwardRef'd provider": <Email><RefProvider>{sections}</RefProvider></Email>,
+      "providers in a component of providers": <Email><AppProviders>{sections}</AppProviders></Email>,
+      "a provider component around the root": <UserProvider user={ada}><Email>{sections}</Email></UserProvider>,
+      "a layout in a provider": <Email><User.Provider value={ada}><Layout>{sections}</Layout></User.Provider></Email>,
+      "a component that clones what it's given": <Email><User.Provider value={ada}><Numbered>{sections}</Numbered></User.Provider></Email>,
     };
     for (const [where, template] of Object.entries(templates)) {
       const parts = renderToHtmlParts(template, { onError: "omit" });
@@ -279,6 +304,12 @@ describe("a Row or Column whose exporter fails", () => {
       expect(renderToJson(template, { onError: "omit" }).body.rows, where).toHaveLength(2);
       expect((await asyncRenderers.renderToPlainText(template, { onError: "omit" })).replace(/\s+/g, " ").trim(), where).toBe("Hi Ada Unsubscribe");
     }
+    // (A section given that fails in what it renders of its own is left out with all of it, its heading too: what a
+    // component renders of its own is one part with it.)
+    const Listing = () => <><Row><Column><Paragraph>Recommended for you</Paragraph></Column></Row><Recommendations /></>;
+    const listing = <Email><UserProvider user={ada}>{[<Header key="h" />, <Listing key="l" />, <Footer key="f" />]}</UserProvider></Email>;
+    expect(renderToPlainText(listing, { onError: "omit" }).replace(/\s+/g, " ").trim()).toBe("Hi Ada Unsubscribe");
+    expect(renderToHtmlParts(listing, { onError: "omit" }).omitted.map((e) => e.component)).toEqual(["Recommendations"]);
   });
 
   it("gives errors that keep nothing of the render: which Row or Column failed is the render's (its scope's)", async () => {

@@ -87,6 +87,8 @@ export interface Collection {
   frameless?: (type: unknown) => boolean;
   /** Elements' own components (a root met in the content), which can start a render of their own (see react-dom.ts's `calling`). */
   own?: (type: unknown) => boolean;
+  /** What a component among the rows renders, made parts (see index.ts's CollectOptions `parts`). */
+  parts?: (rendered: React.ReactNode, given: React.ReactNode, inherited?: unknown) => React.ReactNode;
   omit: boolean;
   /** An async render's: React waits for what suspends (async components are called once, their promises kept). */
   async: boolean;
@@ -205,7 +207,7 @@ const renders: { n: number } = (() => {
   return own;
 })();
 
-export function newCollection(options: { collector?: Collector; passes?: (error: unknown) => boolean; frameless?: (type: unknown) => boolean; own?: (type: unknown) => boolean; omit: boolean; async?: boolean; shared: Shared }): Collection {
+export function newCollection(options: { collector?: Collector; passes?: (error: unknown) => boolean; frameless?: (type: unknown) => boolean; own?: (type: unknown) => boolean; parts?: (rendered: React.ReactNode, given: React.ReactNode, inherited?: unknown) => React.ReactNode; omit: boolean; async?: boolean; shared: Shared }): Collection {
   renders.n = ((Number.isSafeInteger(renders.n) ? renders.n : 0) + 1) % Number.MAX_SAFE_INTEGER;
   return {
     nonce: `r${renders.n.toString(36)}`,
@@ -213,6 +215,7 @@ export function newCollection(options: { collector?: Collector; passes?: (error:
     passes: options.passes,
     frameless: options.frameless,
     own: options.own,
+    parts: options.parts,
     omit: options.omit,
     async: !!options.async,
     marks: [],
@@ -643,7 +646,16 @@ function Call(placed: CallProps): React.ReactNode {
     result = promise.value;
   }
   if (keep) keep.output = { value: result };
-  return prep(result, c, { ...ctx, frame, watch: null, order: at });
+  return prep(rowParts(c, keep, props, result), c, { ...ctx, frame, watch: null, order: at });
+}
+
+/**
+ * What a component among the rows (its boundary's `keep`, `rows`) rendered, where failed parts are left out: the
+ * sections it was given made parts of their own (see index.ts's CollectOptions `parts`), so one that fails is left out
+ * alone, not with the rows around it (a provider written as a component, `<UserProvider>{sections}</UserProvider>`).
+ */
+function rowParts(c: Collection, keep: Record<string, any> | undefined, props: unknown, result: unknown): unknown {
+  return keep?.rows && c.omit && c.parts ? c.parts(result as React.ReactNode, (props as { children?: React.ReactNode } | null)?.children, keep.given) : result;
 }
 
 /** Call, named as the component it calls (React's warnings name it so). */
@@ -706,7 +718,7 @@ function classElement(Ctor: any, props: Record<string, any>, element: React.Reac
       return fails(c, at, errorMark(c, thrown, name, frame, ctx, true));
     }
     if (keep) keep.output = { value: result };
-    return prep(result, c, inner);
+    return prep(rowParts(c, keep, self.props, result), c, inner);
   };
   class Collected extends Ctor {
     constructor(p: unknown, context: unknown) {

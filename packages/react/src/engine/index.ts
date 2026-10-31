@@ -44,6 +44,14 @@ export interface CollectOptions {
   idPrefix?: string;
   /** What the render's components share (see Shared): the render's own, the same in each walk of it. */
   shared?: Shared;
+  /**
+   * What a component of the user's among the rows renders (a provider or a layout written as a component), where
+   * failed parts are left out: the sections it was given (`children`) each a part of their own, wherever it renders
+   * them, so where one fails the others stay (src/utils/record.tsx's rowParts); what it renders of its own is one part
+   * with it. Its record says it's among the rows (`rows`), and which sections were given above it (`given`). What the
+   * component is given is as written: it reads and renders them as it would.
+   */
+  parts?: (rendered: React.ReactNode, given: React.ReactNode, inherited?: unknown) => React.ReactNode;
 }
 
 /** What a collecting render that react-dom failed (not a part of the template) fails with. */
@@ -81,7 +89,7 @@ function failedIn(info: unknown): string | undefined {
 /** `node` collected synchronously: what's async in it fails (or is left out, as `onError` says). */
 export function collect(node: React.ReactNode, options: CollectOptions): Flat {
   refuseNested("This render");
-  const c = newCollection({ collector: options.collector, passes: options.passes, frameless: options.frameless, own: options.own, omit: omits(options.onError), shared: options.shared ?? sharedNow() ?? {} });
+  const c = newCollection({ collector: options.collector, passes: options.passes, frameless: options.frameless, own: options.own, parts: options.parts, omit: omits(options.onError), shared: options.shared ?? sharedNow() ?? {} });
   const frame = rootFrame(options.root);
   let html: string;
   // (Where React was rendering when it failed: this render's, see react-dom.ts's ownStatic.)
@@ -97,7 +105,7 @@ export function collect(node: React.ReactNode, options: CollectOptions): Flat {
 /** `node` collected once everything in it has settled: react-dom's streaming render, waited for whole. */
 export async function collectAsync(node: React.ReactNode, options: CollectOptions): Promise<Flat> {
   await streamSuspension();
-  const c = newCollection({ collector: options.collector, passes: options.passes, frameless: options.frameless, own: options.own, omit: omits(options.onError), async: true, shared: options.shared ?? {} });
+  const c = newCollection({ collector: options.collector, passes: options.passes, frameless: options.frameless, own: options.own, parts: options.parts, omit: omits(options.onError), async: true, shared: options.shared ?? {} });
   const frame = rootFrame(options.root);
   const prepared = sharing(c.shared, () => forked(options.tree ?? 0, prep(node, c, rootCtx(frame))));
   // A render that fails fails with the first error in tree order once nothing before it can still fail: it doesn't

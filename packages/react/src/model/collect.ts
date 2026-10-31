@@ -5,7 +5,7 @@
  */
 import type React from "react";
 import type { Recorded } from "../utils/collect";
-import { collector, guard } from "../utils/record";
+import { collector, guard, rowParts } from "../utils/record";
 import { contentTree, isUnlayerProvider, nestedRoot, UNREAD } from "../utils/unwrap-root";
 import { ROOTLESS } from "../utils/root-type";
 import { callsNoHooks } from "../utils/create-component";
@@ -40,7 +40,7 @@ export function collecting(children: React.ReactNode, root: string) {
   const say = root === ROOTLESS ? sayer() : undefined;
   const options = { omit: omits(policy), nested: say && ((name: string) => say(nestedRoot(name), UNREAD)) };
   // (What its template's wrappers read for contexts no provider gives, it reads too: one value each, the render's.)
-  return { node: guard(children, options, root), options: { collector: collector(options), onError: policy, idPrefix: idPrefix(), root, tree: contentTree(children), shared: sharedByRender(), passes: isTailwindError, frameless: isUnlayerProvider, own: callsNoHooks } };
+  return { node: guard(children, options, root), options: { collector: collector(options), parts: rowParts, onError: policy, idPrefix: idPrefix(), root, tree: contentTree(children), shared: sharedByRender(), passes: isTailwindError, frameless: isUnlayerProvider, own: callsNoHooks } };
 }
 
 /** A collecting walk's output as the collected template; what it left out listed and said (this render's). */

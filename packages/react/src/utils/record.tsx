@@ -76,8 +76,64 @@ function guarded(child: React.ReactNode, options: Options, owner: string, inCont
     const inside = (child.props as { children?: React.ReactNode }).children;
     return React.cloneElement(child, undefined, ...guard(inside, options, owner, inContainer));
   }
-  const record: Recorded = { kind: "boundary", element: child };
+  // (Among the rows, what it renders among them is made parts of their own, where failed parts are left out: see
+  // the engine's CollectOptions `parts`.)
+  const record: Recorded = inContainer ? { kind: "boundary", element: child } : { kind: "boundary", element: child, rows: true };
   return boundary(record, child);
+}
+
+/**
+ * What a component of the user's among the rows (a provider or a layout written as a component) rendered, where failed
+ * parts are left out (see the engine's CollectOptions `parts`): each section it was given (`given`, its `children`)
+ * that it renders among the rows a part of its own, so one that fails is left out alone, not with the rows around it.
+ * A section is told by its component, the one given (cloned too, `React.Children.map`'s); what the component renders
+ * of its own is one part with it (a Section's heading, with the list that failed in it). A component of the user's
+ * that the given sections are rendered in (a provider in a provider component) is a part that gives them on
+ * (`inherited`). Fragments, a context's provider and <StrictMode> are read through, as among the content's rows.
+ */
+export function rowParts(rendered: React.ReactNode, given: React.ReactNode, inherited?: unknown): React.ReactNode {
+  const types = new Set<unknown>(inherited instanceof Set ? inherited : []);
+  sectionTypes(given, types);
+  if (!types.size) return rendered;
+  const walk = (node: React.ReactNode): React.ReactNode => {
+    if (Array.isArray(node)) return node.map(walk);
+    if (!React.isValidElement(node)) return node;
+    const props = node.props as { children?: React.ReactNode };
+    if (node.type === React.Fragment || wraps(node)) return React.cloneElement(node, { children: walk(props.children) } as object);
+    if (types.has(node.type)) return boundary({ kind: "boundary", element: node, rows: true } satisfies Recorded, node);
+    if (userType(node.type) && holds(props.children, types)) return boundary({ kind: "boundary", element: node, rows: true, given: types } satisfies Recorded, node);
+    return node;
+  };
+  return walk(rendered);
+}
+
+/** The components of the user's among `children`, through lists and Fragments: the sections a component is given. */
+function sectionTypes(children: React.ReactNode, into: Set<unknown>, depth = 0): void {
+  if (depth > 32) return;
+  for (const child of Array.isArray(children) ? children : [children]) {
+    if (Array.isArray(child)) sectionTypes(child, into, depth + 1);
+    else if (React.isValidElement(child)) {
+      if (child.type === React.Fragment) sectionTypes((child.props as { children?: React.ReactNode }).children, into, depth + 1);
+      else if (userType(child.type)) into.add(child.type);
+    }
+  }
+}
+
+/** Whether a section of `types` is among `children`, through lists, Fragments, providers and components' children. */
+function holds(children: React.ReactNode, types: ReadonlySet<unknown>, depth = 0): boolean {
+  if (depth > 32) return false;
+  for (const child of Array.isArray(children) ? children : [children]) {
+    if (Array.isArray(child) ? holds(child, types, depth + 1) : React.isValidElement(child) && (types.has(child.type) || holds((child.props as { children?: React.ReactNode }).children, types, depth + 1))) return true;
+  }
+  return false;
+}
+
+const MEMO = Symbol.for("react.memo");
+const FORWARD_REF = Symbol.for("react.forward_ref");
+/** A component of the user's (a function or a class, memo'd or forwardRef'd): not markup, React's, or Elements' own. */
+function userType(type: unknown): boolean {
+  const of = typeof type === "object" && type ? (type as { $$typeof?: symbol }).$$typeof : undefined;
+  return (typeof type === "function" || of === MEMO || of === FORWARD_REF) && !isElementsType(type);
 }
 
 const PROVIDER = Symbol.for("react.provider");

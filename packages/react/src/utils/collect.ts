@@ -29,7 +29,7 @@ export type Recorded = Placed &
      * rendered in its markup (at any depth, through any component of the user's own: see the engine's collector), which
      * is then cleaned as a Link's.
      */
-    | { kind: "boundary"; element: React.ReactElement; output?: { value: unknown }; link?: boolean }
+    | { kind: "boundary"; element: React.ReactElement; output?: { value: unknown }; link?: boolean; rows?: boolean; given?: ReadonlySet<unknown> }
   );
 
 /**
