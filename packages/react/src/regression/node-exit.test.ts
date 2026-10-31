@@ -893,6 +893,7 @@ const h = React.createElement;
 const cases = {
   "elements of another major": () => h(E.Email, null, h(E.Row, null, h(E.Column, null, OtherMajor.createElement("p", null, "hi")))),
   "hooks of another copy": () => h(E.Email, null, h(E.Row, null, h(E.Column, null, h(() => h(E.Paragraph, null, Second.useState("hi")[0]))))),
+  "hooks of another copy in a template wrapper": () => h(() => h(E.Email, null, h(E.Row, null, h(E.Column, null, h(E.Paragraph, null, Second.useState("hi")[0]))))),
 };
 const out = {};
 for (const [name, make] of Object.entries(cases)) {
@@ -906,7 +907,8 @@ console.log(JSON.stringify(out));
       const run = spawnSync(process.execPath, ["app.js"], { cwd: dir, encoding: "utf8", timeout: 30_000 });
       expect(run.status, run.stderr.slice(-400)).toBe(0);
       const said = "RenderError: true";
-      expect(JSON.parse(run.stdout.trim().split("\n").pop()!)).toEqual({ "elements of another major sync": said, "elements of another major async": said, "hooks of another copy sync": said, "hooks of another copy async": said });
+      // (A template wrapper's said React's own error: `reading 'useState'`.)
+      expect(JSON.parse(run.stdout.trim().split("\n").pop()!)).toEqual({ "elements of another major sync": said, "elements of another major async": said, "hooks of another copy sync": said, "hooks of another copy async": said, "hooks of another copy in a template wrapper sync": said, "hooks of another copy in a template wrapper async": said });
     } finally {
       fs.rmSync(dir, { recursive: true, force: true });
     }

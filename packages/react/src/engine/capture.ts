@@ -10,7 +10,7 @@
  */
 import React, { cloneElement, createElement } from "react";
 import { nameOf, RenderError, rootFrame, threw } from "./errors";
-import { asUserCall, isThenable, outOfRoom, outOfStack, refuseNested, renderFailure, roomy, staticMarkup, streamedMarkup, streamSuspension, suspends } from "./react-dom";
+import { asUserCall, isThenable, otherReactsHook, outOfRoom, outOfStack, refuseNested, renderFailure, roomy, staticMarkup, streamedMarkup, streamSuspension, suspends, TEMPLATE_REACT } from "./react-dom";
 import { ROOT_CAPTURE, Stamp, type RootReport } from "./root-capture";
 import { sharedNow, sharing } from "./shared";
 
@@ -139,6 +139,7 @@ export const isStreamed = (value: unknown): value is Streamed<unknown> => !!(val
 
 /** What a wrapper's call threw, as its render fails with it (a promise it throws again once it has rejected: what it rejected with). */
 function failed(error: unknown, name: string): unknown {
+  const called = !isThenable(error);
   if (isThenable(error)) {
     track(error);
     const t = error as Tracked;
@@ -146,8 +147,9 @@ function failed(error: unknown, name: string): unknown {
     error = t.reason;
   }
   if (error instanceof RenderError || suspends(error) || suspends(error, true)) return error;
-  // (What react-dom can't render here, said by name: see react-dom.ts.)
-  return renderFailure(error, name) ?? new RenderError(threw(error), name, "", error);
+  // (What react-dom can't render here, said by name: see react-dom.ts. Or the hooks of another copy of React the
+  // wrapper called, as a component's among the rows are said: collector.ts's errorMark.)
+  return renderFailure(error, name) ?? new RenderError(otherReactsHook(error, called) ? TEMPLATE_REACT : threw(error), name, "", error);
 }
 
 /**
