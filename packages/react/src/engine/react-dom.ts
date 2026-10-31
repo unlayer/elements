@@ -278,10 +278,28 @@ function hooksRunIn(build: Build): boolean {
       }, { own: true }),
     );
     return true;
-  } catch {
+  } catch (thrown) {
+    if (thrown instanceof RangeError) throw thrown;
     return false;
   } finally {
     console.error = error;
+  }
+}
+
+/**
+ * A probe's answer for `build`, found once (see below); where it ran out of stack (a RangeError: a render that called
+ * it deep in a call stack), it says nothing of the build, and isn't kept: `true` for now, found again where it's next
+ * needed. Kept, a `false` from a render near the stack's end failed every render after it, a tenant's for another's.
+ */
+function probed(found: Map<Build, boolean>, build: Build, probe: () => boolean): boolean {
+  if (found.has(build)) return found.get(build)!;
+  try {
+    const answer = probe();
+    found.set(build, answer);
+    return answer;
+  } catch (error) {
+    if (error instanceof RangeError) return true;
+    throw error;
   }
 }
 
@@ -292,23 +310,22 @@ function hooksRunIn(build: Build): boolean {
 const one = new Map<Build, boolean>();
 export function oneReact(): boolean {
   const build = current();
-  if (!one.has(build)) one.set(build, ownStatic(() => hooksRunIn(build)));
-  return one.get(build)!;
+  return probed(one, build, () => ownStatic(() => hooksRunIn(build)));
 }
 
 /** Whether react-dom renders here at all: markup with no component (with React Server Components' React, it can't). */
 const renders = new Map<Build, boolean>();
 export function reactDomRenders(): boolean {
   const build = current();
-  if (!renders.has(build)) {
+  return probed(renders, build, () => {
     try {
       ownStatic(() => build.renderToStaticMarkup(createElement("i")));
-      renders.set(build, true);
-    } catch {
-      renders.set(build, false);
+      return true;
+    } catch (error) {
+      if (error instanceof RangeError) throw error;
+      return false;
     }
-  }
-  return renders.get(build)!;
+  });
 }
 
 /** What a render that react-dom failed to start or finish (not a part of the template) fails with: said by name where it's one of the above. */
