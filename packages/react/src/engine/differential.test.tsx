@@ -12,7 +12,7 @@
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import React, { Component, createContext, forwardRef, Fragment, memo, Suspense, useContext, useId, useMemo, useReducer, useRef, useState } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
-import { collect, htmlOf } from "./index";
+import { collect, collectAsync, htmlOf } from "./index";
 import { cssNames } from "./attributes";
 import { element } from "../exporters/markup";
 import { REACT_18 } from "./react-compat";
@@ -284,7 +284,7 @@ describe("the collecting render against react-dom/server", () => {
     expect(different).toEqual([]);
   });
 
-  it("differs from react-dom only where it means to: React 19's hoisting, its document singletons and forms' actions, React 18's `javascript:` URLs", () => {
+  it("differs from react-dom only where it means to: React 19's hoisting, its document singletons and forms' actions, React 18's `javascript:` URLs", async () => {
     // Each tree, what the collecting render writes on React 19, and why react-dom 19 writes otherwise (react-dom 18
     // writes them as the collecting render does).
     const action = () => {};
@@ -329,7 +329,14 @@ describe("the collecting render against react-dom/server", () => {
       expect(renderStatic(tree)).toBe(ours);
       if (REACT_18) expect(dom).not.toBe(ours);
       else expect(dom).toBe(ours);
+      // (And in what a lazy component renders, which React renders itself, unprepared: the same, in either renderer.)
+      const lazy = h(React.lazy(() => ({ then: (done: (m: { default: React.ComponentType }) => void) => done({ default: () => tree }) }) as Promise<{ default: React.ComponentType }>));
+      expect(renderStatic(lazy)).toBe(ours);
+      expect(htmlOf((await collectAsync(lazy, { collector: () => undefined, root: "test" })).content)).toBe(ours);
     }
+    // (The negative control: a URL that isn't one, as written.)
+    const kept = h("a", { href: "https://example.com/?a=1&b='2'" }, "x");
+    expect(renderStatic(h(React.lazy(() => ({ then: (done: (m: { default: React.ComponentType }) => void) => done({ default: () => kept }) }) as Promise<{ default: React.ComponentType }>)))).toBe(reactDom(kept));
   });
 
   it("gives the same useId()s with a prefix, as React's identifierPrefix", () => {

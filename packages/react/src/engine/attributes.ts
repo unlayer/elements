@@ -6,6 +6,7 @@
  */
 import { unrunUrl } from "@unlayer-internal/shared-elements";
 import { REACT_18, REACT_19_3 } from "./react-compat";
+import { readTag } from "../utils/html-tags";
 
 const MATCH_HTML = /["'&<>]/;
 const ESCAPES: Record<string, string> = { '"': "&quot;", "&": "&amp;", "'": "&#x27;", "<": "&lt;", ">": "&gt;" };
@@ -28,6 +29,30 @@ const SAFE_NAME = new RegExp(`^[${NAME_START}][${NAME_START}\\-.0-9\\u00B7\\u030
 const url = (value: string) => unrunUrl(value);
 /** A value React writes as text, a `javascript:` URL as url() writes it; others as they are. */
 export const unrun = (value: unknown) => (value == null || typeof value == "boolean" || typeof value == "function" || typeof value == "symbol" ? value : url("" + value));
+
+/** The attributes the collector writes a `javascript:` URL in as one that throws (its URL_PROPS, as React names them in HTML). */
+const URL_ATTRIBUTES = new Set(["href", "src", "action", "formaction", "xlink:href"]);
+/** That URL, as React writes it in an attribute. */
+const UNRUN = `"${escapeText(url("javascript:"))}"`;
+
+/**
+ * A start tag react-dom 18 wrote (`<a href="…">`), with each `javascript:` URL in it as react-dom 19 writes it (one that
+ * throws), as the collector writes it in any other: for what a lazy component renders, which React renders itself,
+ * unprepared (see parse.ts). Read as a browser reads the tag, and the URL with its character references decoded (React
+ * escapes its own `&`, so one in the prop stays text); anything else as it is, byte for byte.
+ */
+export function unrunTag(tag: string): string {
+  const read = readTag(tag, 0);
+  if (!read) return tag;
+  let written = "";
+  let from = 0;
+  for (const { name, value, start, end } of read.attributes) {
+    if (value === undefined || !(URL_ATTRIBUTES.has(name) || (name === "data" && read.name === "object")) || unrunUrl(value, true) === value) continue;
+    written += `${tag.slice(from, start)}${tag.slice(start, start + name.length)}=${UNRUN}`;
+    from = end;
+  }
+  return from ? written + tag.slice(from) : tag;
+}
 
 /**
  * How React writes a prop it knows: as a string (S), as a boolean attribute (B: present or not), as either (O), as a

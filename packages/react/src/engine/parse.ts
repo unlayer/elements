@@ -26,6 +26,7 @@ import { ASYNC_IN_SYNC, positionOf, RenderError, SWALLOWED, threw, type Frame } 
 import { MARK, type Collection } from "./collector";
 import type { BoundaryPart, ErrorPart, HostPart, Part, RecordPart } from "./output";
 import { REACT_18 } from "./react-compat";
+import { unrunTag } from "./attributes";
 
 const VOID = new Set(["area", "base", "br", "col", "embed", "hr", "img", "input", "keygen", "link", "meta", "param", "source", "track", "wbr"]);
 /** What React writes its own way: a <style>'s and <script>'s text, as given in React 19 (the tag as React names it). */
@@ -177,7 +178,7 @@ export function parse(html: string, c: Collection): Part[] {
       continue;
     }
     const gt = html.indexOf(">", lt);
-    const tagText = html.slice(lt, gt < 0 ? html.length : gt + 1);
+    let tagText = html.slice(lt, gt < 0 ? html.length : gt + 1);
     const name = /^<([^\s/>]+)/.exec(tagText)?.[1];
     if (!name || gt < 0) {
       text(html.slice(lt, gt < 0 ? html.length : lt + 1));
@@ -197,6 +198,9 @@ export function parse(html: string, c: Collection): Part[] {
       continue;
     }
     const lower = name.toLowerCase();
+    // (React 18 writes a `javascript:` URL in what a lazy component renders as given: as React 19 writes it, as the
+    // collector writes any other's. HTML given whole there is the same to the parse, so its tags are written so too.)
+    if (REACT_18 && from.lazy) tagText = unrunTag(tagText);
     let endTag = -1;
     if (RAW.has(name)) {
       let find = endTags.get(lower);

