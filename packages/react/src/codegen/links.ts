@@ -134,7 +134,9 @@ export function editorLink(link: unknown): EditorLink | undefined {
   ];
   if (lost.length) return { lost };
   return {
-    url: fill("href", attrs, values) ?? "",
+    // (One without templates whose values hold its URL, as Elements' renderToJson writes a link, is that URL, as the
+    // exporters render it: `{ name: "email", values: { href: "mailto:…" } }` isn't filled in from empty fields.)
+    url: (!own && typeof given.href === "string" && given.href) || (fill("href", attrs, values) ?? ""),
     target: fill("target", attrs, values) || "_blank",
     // (A web link is one whatever its templates.)
     kept: link.name === "web" || (READ_BACK.has(link.name) && (!own || deepEqual(own, action.attrs))),

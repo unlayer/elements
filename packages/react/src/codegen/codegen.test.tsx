@@ -399,6 +399,30 @@ describe("links: the URL the editor exports for each", () => {
     expect(editorLink("https://example.com")).toEqual({ url: "https://example.com", target: "_blank", kept: true });
   });
 
+  it("reads a link without its templates whose values hold its URL (Elements' own, as renderToJson writes it) as that URL, as the exporters do", () => {
+    // `{ name: "email", values: { href: "mailto:…" } }` (Button's stories show it) was filled in from the email action's
+    // empty fields: the code linked to `mailto:`, with no warning.
+    expect(editorLink({ name: "email", values: { href: "mailto:hello@example.com", target: "_blank" } })).toEqual({ url: "mailto:hello@example.com", target: "_blank", kept: true });
+    expect(editorLink({ name: "phone", values: { href: "tel:+1234567890" } })).toEqual({ url: "tel:+1234567890", target: "_blank", kept: true });
+    expect(editorLink({ name: "sms", values: { href: "sms:+1234567890" } })).toEqual({ url: "sms:+1234567890", target: "_blank", kept: true });
+    const email = (
+      <Elements.Email>
+        <Elements.Row>
+          <Elements.Column>
+            <Elements.Button href={{ name: "email", values: { href: "mailto:hello@example.com" } }}>Send Email</Elements.Button>
+            <Elements.Menu values={{ menu: { items: [{ key: "1", text: "Call us", link: { name: "phone", values: { href: "tel:+1234567890" } } }] } }} />
+          </Elements.Column>
+        </Elements.Row>
+      </Elements.Email>
+    );
+    const { code, warnings, differences } = roundTrip(Elements.renderToJson(email) as unknown as Plain);
+    expect(warnings).toEqual([]);
+    expect(differences).toEqual([]);
+    const html = Elements.renderToHtml(React.createElement(evaluate(code)));
+    expect(html).toContain('href="mailto:hello@example.com"');
+    expect(html).toContain('href="tel:+1234567890"');
+  });
+
   it("says what a URL can't hold, and which actions the builder doesn't read back from their URL", () => {
     expect(editorLink({ name: "close_popup", attrs: { onClick: "closePopup()" }, values: {} })).toEqual({ lost: ["onClick"] });
     expect(editorLink({ name: "web", values: { href: "https://example.com", target: "_blank", class: "cta" }, attrs: { ...WEB, "data-id": "{{id}}" } })).toEqual({ lost: ["class", "data-id"] });
