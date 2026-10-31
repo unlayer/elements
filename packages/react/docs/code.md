@@ -65,7 +65,7 @@ import elixir from "highlight.js/lib/languages/elixir";
 registerLanguage("elixir", elixir);
 ```
 
-`listLanguages()` lists the languages it knows. `highlightCode(code, options)` returns a CodeBlock's HTML, for markup you build yourself.
+`listLanguages()` lists the languages it knows, by their canonical names (`typescript`, `javascript`, …; the aliases above, `ts`, `js`, work too). `highlightCode(code, options)` returns a CodeBlock's HTML, for markup you build yourself.
 
 Code longer than 8,192 characters is shown without colors (escaped, in the block's own style, as code in a language it has no grammar for), with a warning. On some code highlight.js's time grows with the code's size squared, on long lines and on short ones (a line of `$a` in Java took 0.4 s for 8 KB and 6 s for 32 KB; 40 KB of INI took 4.4 s), so a block from data can't take more than about 0.4 s to highlight. Code people write is far shorter: of 32,800 code blocks in 46 MB of READMEs and documentation, 21 were longer. `CodeInline` isn't highlighted, so it takes no more than its size calls for.
 
