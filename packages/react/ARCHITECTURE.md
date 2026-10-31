@@ -134,7 +134,8 @@ runs. Each of these fails the render with a `RenderError` that says so and what 
   once with a synchronous `require` (CommonJS's, or Node's from this module's file, the app's script or the folder
   Node started in, where `react` is this React), React 19's Bun build first (its browser one keeps Node running), one
   whose renders run this React's hooks and that isn't rendering. There, a context the template doesn't provide reads
-  the page's value (as in 0.2). Where there's none (a bundle, a browser), the render fails by name where react-dom/
+  the page's value (as in 0.2). Where there's none (a bundle, a bundled serverless function too, a browser, an ES
+  module on a Node.js without `process.getBuiltinModule`), the render fails by name where react-dom/
   server's is calling a component, and the page's render goes on: work the email out before the page's render, or
   render the page with react-dom's stream (another module). Where that can't be told yet (the first render of the
   process is inside one) it renders with react-dom/server's, as 0.2.1 did: the component that started it can't call a
@@ -279,6 +280,8 @@ row or block is left out of the HTML, the plain text and the design (the slower 
    context they read (README, "Contexts and the async renderers"):
    - Inside an app's `renderToString`, where another module of react-dom's renders the template, it reads the page's
      value (as in 0.2).
+   - A render started inside one of the template's components (another module of react-dom's: `renderNested`) reads
+     the value a provider around that component gives: the render it's in, never another's.
    - The async renderers, which render with react-dom's Node.js stream, read a provider's value an app's stream of
      another build left (`react-dom/server.edge` or `.browser`, `react-dom/static.edge`'s `prerender`, after a part in a
      <Suspense> waited, failed or was aborted), till that build renders again; react-dom's own Node.js stream reads
