@@ -616,7 +616,8 @@ describe("a context's default around an app's renders", () => {
     try {
       await tick();
       fast.open();
-      await tick();
+      // (Till B's two reads are done: one tick was too few for a loaded machine, where A's part hadn't rendered yet.)
+      for (let i = 0; i < 400 && reads.length < 2; i++) await tick();
       reads.push(read());
       expect(reads).toEqual(["brand=default", "brand=default", "brand=default"]);
       expect(renderToHtml(footer)).toContain("brand=default");
