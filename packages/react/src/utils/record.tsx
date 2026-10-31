@@ -74,7 +74,12 @@ function guarded(child: React.ReactNode, options: Options, owner: string, inCont
   // whose HTML around what it renders is kept (src/model/elements.ts's keptMarkup).
   if (!inContainer && wraps(child)) {
     const inside = (child.props as { children?: React.ReactNode }).children;
-    return React.cloneElement(child, undefined, ...guard(inside, options, owner, inContainer));
+    const wrapped = React.cloneElement(child, undefined, ...guard(inside, options, owner, inContainer));
+    // (Its children given again as arguments, as written: the list cloneElement makes of them isn't one React's
+    // development build freezes, as createElement's is, so it's said to be checked; React 19 said it lacked keys.)
+    const list = (wrapped.props as { children?: unknown }).children;
+    if (Array.isArray(list)) checked(list);
+    return wrapped;
   }
   // (Among the rows, what it renders among them is made parts of their own, where failed parts are left out: see
   // the engine's CollectOptions `parts`.)

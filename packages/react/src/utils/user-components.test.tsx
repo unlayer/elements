@@ -724,6 +724,39 @@ describe("React's warnings about a template", () => {
     }
   });
 
+  it.skipIf(process.env.NODE_ENV === "production")("say nothing of a list the template doesn't have: rows in a context's provider or <StrictMode>, around the root or in it", () => {
+    // React 19's development build said a list without keys was in the <Email> (in the README's own context example,
+    // with two rows): the rows Elements gives the provider again, as written.
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
+    try {
+      const Theme = React.createContext("light");
+      const two = (
+        <>
+          <Row><Column><Paragraph>First</Paragraph></Column></Row>
+          <Row><Column><Paragraph>Second</Paragraph></Column></Row>
+        </>
+      );
+      const templates = [
+        <Theme.Provider value="dark"><Email><Row><Column><Paragraph>First</Paragraph></Column></Row><Row><Column><Paragraph>Second</Paragraph></Column></Row></Email></Theme.Provider>,
+        <Email><Theme.Provider value="dark"><Row><Column><Paragraph>First</Paragraph></Column></Row><Row><Column><Paragraph>Second</Paragraph></Column></Row></Theme.Provider></Email>,
+        <Email><React.StrictMode><Row><Column><Paragraph>First</Paragraph></Column></Row><Row><Column><Paragraph>Second</Paragraph></Column></Row></React.StrictMode></Email>,
+        <Email><Theme.Provider value="dark">{two}</Theme.Provider></Email>,
+      ];
+      // (React 19's context as its own provider.)
+      if (Number.parseInt(React.version) >= 19) {
+        const AsProvider = Theme as unknown as React.FC<{ value: string; children: React.ReactNode }>;
+        templates.push(<Email><AsProvider value="dark"><Row><Column><Paragraph>First</Paragraph></Column></Row><Row><Column><Paragraph>Second</Paragraph></Column></Row></AsProvider></Email>);
+      }
+      for (const template of templates) {
+        expect(renderToHtml(template)).toContain("Second");
+        renderToJson(template);
+      }
+      expect(error.mock.calls.map((call) => String(call[0])).filter((m) => m.includes('"key"'))).toEqual([]);
+    } finally {
+      error.mockRestore();
+    }
+  });
+
   it.skipIf(process.env.NODE_ENV === "production")("say a bounded number of them (a list's keys can come from data), then once that no more are said", () => {
     const error = vi.spyOn(console, "error").mockImplementation(() => {});
     try {
