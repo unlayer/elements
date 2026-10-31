@@ -1,4 +1,6 @@
 // @vitest-environment node
+import v8 from "node:v8";
+import vm from "node:vm";
 import React from "react";
 import { JSDOM } from "jsdom";
 import { describe, expect, it, vi } from "vitest";
@@ -567,6 +569,30 @@ describe("the async renderers", () => {
     }
     await expect(renderToJson(<Template />)).rejects.toMatchObject({ message: "[Unlayer] the order service is down (in <Template>)", component: "Template", cause: boom });
   });
+
+  it("keep no memory over a batch whose renders all fail, one after another with nothing between them", async () => {
+    // React 19's stream holds each request till a macrotask it scheduled runs, which a render that failed didn't wait
+    // for: a batch whose data made every render fail, awaited one after another, grew 24 KB a render till the process
+    // ran out of memory. (React 18 keeps none either way.)
+    v8.setFlagsFromString("--expose-gc");
+    const gc = vm.runInNewContext("gc") as () => void;
+    const Items = async ({ items }: { items?: string[] }) => {
+      await null;
+      return items!.map((item) => <Paragraph key={item}>{item}</Paragraph>);
+    };
+    const receipt = (i: number) => <Email><Row><Column><Heading>{`Thanks, customer ${i}`}</Heading><Paragraph>{"Here is your receipt. ".repeat(20)}</Paragraph><Items /></Column></Row></Email>;
+    let failed = 0;
+    const batch = async (from: number, count: number) => {
+      for (let i = from; i < from + count; i++) await renderToHtml(receipt(i)).catch((error: unknown) => void (error instanceof RenderError && failed++));
+    };
+    await batch(0, 200);
+    gc();
+    const heap = process.memoryUsage().heapUsed;
+    await batch(200, 1500);
+    gc();
+    expect(failed).toBe(1700);
+    expect((process.memoryUsage().heapUsed - heap) / 1e6).toBeLessThan(8);
+  }, 120_000);
 
   it("compile <Tailwind config>, also in a template that's async", async () => {
     async function Welcome() {

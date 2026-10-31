@@ -99,6 +99,12 @@ export function streamedMarkup(node: React.ReactNode, idPrefix: string | undefin
   );
 }
 
+/**
+ * Where a render stopped (it failed: see the engine's collectAsync), react-dom's streaming module settled as it is
+ * after one that's done (see settleStream): a batch whose renders all fail, one after another, keeps no memory.
+ */
+export const streamStopped = (): Promise<void> => settleStream(Server as unknown as Record<string, any>);
+
 /** One macrotask later (setImmediate where there is one: Node.js, Bun; a timer elsewhere). */
 const nextTask = (fn: () => void): void => void (typeof setImmediate === "function" ? setImmediate(fn) : setTimeout(fn, 0));
 

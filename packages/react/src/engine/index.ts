@@ -10,7 +10,7 @@ import { flatten, type Flat } from "./output";
 import { before, newCollection, prep, rootCtx, suspendedError, withRawErrors, type Collector } from "./collector";
 import { parse } from "./parse";
 import { forked } from "./capture";
-import { refuseNested, renderFailure, staticMarkup, streamedMarkup, streamSuspension, suspendedInReact, suspends } from "./react-dom";
+import { refuseNested, renderFailure, staticMarkup, streamedMarkup, streamStopped, streamSuspension, suspendedInReact, suspends } from "./react-dom";
 import { sharedNow, sharing, type Shared } from "./shared";
 
 export { RenderError, type OnError } from "./errors";
@@ -113,11 +113,13 @@ export async function collectAsync(node: React.ReactNode, options: CollectOption
   const control: { abort?: (reason: unknown) => void } = {};
   let fail!: (error: unknown) => void;
   const failed = new Promise<never>((_, reject) => (fail = reject));
+  let stopped = false;
   c.changed = () => {
     if (c.omit || !c.errors.length) return;
     const first = c.errors.reduce((a, b) => (before(b.at, a.at) ? b : a));
     for (const at of c.waiting) if (before(at, first.at)) return;
     c.changed = undefined;
+    stopped = true;
     control.abort?.(first.error);
     fail(first.error);
   };
@@ -128,6 +130,8 @@ export async function collectAsync(node: React.ReactNode, options: CollectOption
     streamed.catch(() => {});
     html = await Promise.race([streamed, failed]);
   } catch (error) {
+    // (Stopped where it failed: react-dom's request let go first, as a render that's done waits for it.)
+    if (stopped) await streamStopped();
     throw failure(error, options, frame, c);
   } finally {
     c.changed = undefined;
