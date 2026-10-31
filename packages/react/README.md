@@ -537,6 +537,8 @@ async function Receipt({ user, id }: { user: User; id: string }) {
 }
 ```
 
+A root inside the content (a whole template reused as a section of another: `<Email>…<OrderSummary /></Email>` where `OrderSummary` returns an `<Email>`) renders on its own, from no provider: a context provided around it, in the outer template or around the render, doesn't reach its components, which read the default. Provide the context inside it, or reuse its Rows (a component that returns them) rather than the whole template.
+
 The synchronous renderers read a context's default where the template doesn't provide it, except inside a component of an app's own `renderToString`, where they read the page's value, as 0.2 did, and after another build's `renderToString` in which a part inside a provider threw or suspended, a `<Suspense>` around it or not (above). No stream's provider values reach them, not even those of an async render of Elements' own that waits meanwhile: react-dom keeps its static render's context values apart from its streams'.
 
 `pretty(html)` from `@unlayer/react-elements/async` formats any HTML the same way (the synchronous renderers' too). It doesn't work on edge runtimes, which can't load prettier as they run: format at build time there.
