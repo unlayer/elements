@@ -94,16 +94,21 @@ function keptMarkupOnce(item: RecordItem): React.ReactElement | undefined {
   const given = React.isValidElement(out) && typeof out.type === "string" && out.props.dangerouslySetInnerHTML != null;
   // (A <Link>'s markup in it, never as it is: cleaned as a Link alone is, see keptHtml.)
   const html = one && given ? one.inner! : keptHtml(item.items);
-  const Rendered = () => React.createElement("div", { dangerouslySetInnerHTML: { __html: html } });
-  Rendered.displayName = nameOf(element);
-  (Rendered as unknown as Record<symbol, unknown>)[OWN] = true;
-  (Rendered as unknown as Record<symbol, unknown>)[KEPT] = React.createElement(Html, {
-    html,
+  const blockProps = {
     ...(containerPadding !== undefined ? { containerPadding } : {}),
     ...(hideOnMobile !== undefined ? { hideOnMobile } : {}),
     ...(hideOnDesktop !== undefined ? { hideOnDesktop } : {}),
-  } as Record<string, unknown>);
-  return React.createElement(Rendered, { ...element.props });
+  };
+  return keptElement(nameOf(element), html, element.props, blockProps);
+}
+
+/** Markup a component of the user's own rendered in a Column (`html`), named after it: the Html block it is (`KEPT`). */
+function keptElement(name: string, html: string, props: object, blockProps: Record<string, unknown>): React.ReactElement {
+  const Rendered = () => React.createElement("div", { dangerouslySetInnerHTML: { __html: html } });
+  Rendered.displayName = name;
+  (Rendered as unknown as Record<symbol, unknown>)[OWN] = true;
+  (Rendered as unknown as Record<symbol, unknown>)[KEPT] = React.createElement(Html, { html, ...blockProps } as Record<string, unknown>);
+  return React.createElement(Rendered, { ...props });
 }
 
 /**
@@ -218,6 +223,15 @@ function styled(c: Collected, tw: Record<string, any> | undefined, r: Record<str
  * inlined by the <Tailwind> it's in, as a block's are (once per render, by `key`); none where reading them failed.
  */
 function restyled(c: Collected, tw: Record<string, any> | undefined, key: object, block: React.ReactElement<any>): React.ReactElement[] {
+  // (A component's markup, the Html block it is: its classes inlined as that block's.)
+  const kept = (block.type as unknown as Record<symbol, React.ReactElement<any> | undefined> | null)?.[KEPT];
+  if (kept) {
+    const own = styled(c, tw, key, kept.props, Html);
+    if (own === kept.props) return [block];
+    if (!own) return [];
+    const { html, ...blockProps } = own;
+    return [keptElement((block.type as { displayName?: string }).displayName ?? "component", html, block.props, blockProps)];
+  }
   if (block.type !== Paragraph && block.type !== Html) return [block];
   const own = styled(c, tw, key, block.props, block.type);
   return own === block.props ? [block] : own ? [jsx(block.type, own)] : [];

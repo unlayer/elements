@@ -388,6 +388,25 @@ describe("<Tailwind>: classes in an Html block's markup", () => {
     expect(warnings()).toEqual([]);
   });
 
+  it("are inline styles in a component of yours's markup in a Column, the Html block it is: the HTML and the design, in both renderers", async () => {
+    // (A small styled component, a badge, kept its classes as written: email clients don't read them, and it wasn't said.)
+    function Badge() {
+      return <div className="bg-blue-600 text-white px-4 py-2 rounded-lg font-bold">New arrivals</div>;
+    }
+    const element = (
+      <Tailwind tw={tw}>
+        <Email><Row><Column><Paragraph>Hi</Paragraph><Badge /></Column></Row></Email>
+      </Tailwind>
+    );
+    const styled = '<div style="border-radius: 8px; background-color: #155dfc; padding-left: 16px; padding-right: 16px; padding-top: 8px; padding-bottom: 8px; font-weight: 700; color: #fff">New arrivals</div>';
+    expect(renderToJson(element).body.rows[0].columns[0].contents[1]).toMatchObject({ type: "html", values: { html: styled } });
+    for (const email of [renderToHtml(element), await renderToHtmlAsync(element)]) {
+      expect(email).toContain(styled);
+      expect(email).not.toContain("bg-blue-600");
+    }
+    expect(warnings()).toEqual([]);
+  });
+
   it("are inline styles in a Heading's and a Button's children, and on a <Link> on its own in a Column, as in a Paragraph's: in every mode, the HTML and the design", async () => {
     // (Classes in their children's markup stayed as written, which email clients don't read, and weren't said.)
     const content = (
