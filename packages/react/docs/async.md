@@ -94,7 +94,7 @@ With React 18's types (`@types/react` 18), TypeScript rejects an async component
 const html = await renderToHtml(<Receipt orderId="A-1001" />, { pretty: true });
 ```
 
-It uses [prettier](https://prettier.io) 3, an optional peer dependency (`npm install prettier`), loaded only when `pretty` is set; without it, or with prettier 2, the render rejects saying what to install. Whitespace that shows (in text, between inline elements) isn't touched, and comments, Outlook's `<!--[if mso]>` blocks included, are kept exactly as they were: the document shows the same text. Send the unformatted HTML: it's smaller.
+It uses [prettier](https://prettier.io) 3, an optional peer dependency (`npm install prettier`), loaded only when `pretty` is set; without it, or with prettier 2, the render rejects saying what to install. Where prettier can't read the HTML (an Html block that opens a `<div>` a later one closes, which a browser reads), it's returned as it renders, said with `console.warn`: formatting never fails the render. Whitespace that shows (in text, between inline elements) isn't touched, and comments, Outlook's `<!--[if mso]>` blocks included, are kept exactly as they were: the document shows the same text. Send the unformatted HTML: it's smaller.
 
 `pretty(html)` formats any HTML the same way, the synchronous renderers' too:
 

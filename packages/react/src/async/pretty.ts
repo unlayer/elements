@@ -30,7 +30,16 @@ export async function prettyHtml(html: string): Promise<string> {
   }
   const comments: string[] = [];
   const set = setAside(html, comments);
-  const formatted = await prettier.format(set, { parser: "html", plugins: [plugin], htmlWhitespaceSensitivity: "strict", printWidth: 120 });
+  let formatted: string;
+  try {
+    formatted = await prettier.format(set, { parser: "html", plugins: [plugin], htmlWhitespaceSensitivity: "strict", printWidth: 120 });
+  } catch (error) {
+    // Markup prettier can't read, which a browser reads (an Html block that opens a <div> a later one closes): the
+    // HTML as it renders, which is what's sent, said. Formatting it is for reading: it never fails the render.
+    const why = String((error as { message?: unknown } | null)?.message ?? error).split("\n")[0];
+    console.warn(`[Unlayer] \`pretty\` left the HTML as it renders: prettier can't read it (${why}).`);
+    return html;
+  }
   return formatted.replace(/<!--unlayer-pretty-(\d+)-->/g, (_, i: string) => comments[Number(i)]);
 }
 

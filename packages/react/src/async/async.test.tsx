@@ -637,12 +637,34 @@ describe("the async renderers", () => {
     expect(text).toContain(`Shop now (${long(3)})`);
   });
 
-  it("sets the HTML's comments aside in time linear in its size, and fails as prettier does on one nothing closes", async () => {
+  it("sets the HTML's comments aside in time linear in its size, and gives one nothing closes back as it is", async () => {
     // `/<!--[\s\S]*?-->/g` looked from each `<!--` nothing closes to the end: 400 KB of them took 11 s.
-    const timing = await within(2000, () => formatted("<!--".repeat(102400)).then(() => undefined, (error: unknown) => error));
-    expect(timing.result).toBeInstanceOf(Error);
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const unclosed = "<!--".repeat(102400);
+    const timing = await within(2000, () => formatted(unclosed));
+    expect(timing.result).toBe(unclosed);
     expect(inTime(timing)).toBe(true);
+    warn.mockRestore();
     expect(await formatted("<p>a<!-- one --><!--two--></p>")).toContain("<!-- one --><!--two-->");
+  });
+
+  it("give the HTML as it renders with `pretty` where prettier can't read it (Html blocks that open and close a <div>), said", async () => {
+    // Prettier's SyntaxError rejected the render: the email failed where only its formatting couldn't be done.
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const email = (
+      <Email>
+        <Row>
+          <Column>
+            <Html html='<div style="border: 1px solid #ddd">' />
+            <Paragraph>In the box</Paragraph>
+            <Html html="</div>" />
+          </Column>
+        </Row>
+      </Email>
+    );
+    expect(await renderToHtml(email, { pretty: true })).toBe(await renderToHtml(email));
+    expect(warn.mock.calls.map((call) => String(call[0]))).toEqual([expect.stringMatching(/^\[Unlayer\] `pretty` left the HTML as it renders: prettier can't read it \(/)]);
+    warn.mockRestore();
   });
 
   it("write the plain text with the synchronous renderer's options", async () => {
