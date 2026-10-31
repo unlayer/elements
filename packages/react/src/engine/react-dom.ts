@@ -126,11 +126,14 @@ function streamed(S: Record<string, any>, element: React.ReactElement, idPrefix:
   if (typeof S.renderToPipeableStream === "function") {
     return new Promise((resolve, reject) => {
       let failed = false;
+      let piped = false;
       const stream = S.renderToPipeableStream(element, {
         identifierPrefix: idPrefix,
         progressiveChunkSize: Infinity,
         onAllReady() {
-          if (!failed) stream.pipe(sink(resolve));
+          if (failed || piped) return;
+          piped = true;
+          stream.pipe(sink(resolve));
         },
         onShellError(error: unknown) {
           failed = true;
