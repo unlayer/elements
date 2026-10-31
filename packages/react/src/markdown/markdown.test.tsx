@@ -803,6 +803,13 @@ describe("sanitizeHtml", () => {
     // (What a browser makes of each, kept: the second table after the first, each item its own.)
     expect(sanitizeHtml("<table><table>x")).toBe("<table></table><table>x</table>");
     expect(sanitizeHtml("<ul><li>a<li>b")).toBe("<ul><li>a</li><li>b</li></ul>");
+    // A table's part with no table open, then a table (prose that names them): there's no table to end, and it's raw
+    // HTML as any other. It threw (`Cannot read properties of undefined`), failing the whole email.
+    for (const prose of ["You need to put the <tr> inside a <table>.", "Each <tbody> needs a <table> around it.", "<colgroup><table>x"]) {
+      expect(() => sanitizeHtml(prose), prose).not.toThrow();
+      expect(renderToHtml(<Email><Row><Column><Markdown>{prose}</Markdown><Paragraph>AFTER IT</Paragraph></Column></Row></Email>), prose).toContain("AFTER IT");
+    }
+    expect(sanitizeHtml("<tr><table>x")).toBe("<tr><table>x</table></tr>");
   });
 
   it("balances tags in time linear in the HTML's size, however many end tags match nothing open", async () => {

@@ -176,7 +176,9 @@ export function balanced(html: string): string {
         if (found >= 0 && found > Math.max(...rule.stops.map(top))) ends += closeTo(found);
       }
       // A table straight in a table (not in a cell or a caption): the open one ends first.
-      if (name === "table" && open.length && IN_TABLE.has(open[open.length - 1])) ends += closeTo(top("table"));
+      // (Where one of a table's parts is open with no table, as in prose that names them, `put the <tr> in a <table>`,
+      // there's none to end.)
+      if (name === "table" && open.length && IN_TABLE.has(open[open.length - 1]) && top("table") >= 0) ends += closeTo(top("table"));
       // A heading in a heading.
       if (HEADING.test(name) && open.length && HEADING.test(open[open.length - 1])) ends += closeTo(open.length - 1);
       if (name === "hr") return ends + tag;
