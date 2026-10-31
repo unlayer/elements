@@ -164,6 +164,21 @@ describe("designToElements", () => {
     expect(rendered.indexOf("VIP SALE")).toBeGreaterThan(rendered.indexOf("{% if customer.vip %}"));
   });
 
+  it("reads a block's HTML in the `html` option as a browser does: a tag in a comment, a script or an attribute's value is text", () => {
+    // An end tag there ended the block's HTML (`<!-- </div> -->` kept `<!--` alone), and an id there was taken for the
+    // block's, while the warning said its HTML was kept.
+    const html =
+      '<!-- <div id="u_content_timer_1">an old copy</div> --><p title=\' id="u_content_timer_1"\'>a title</p>' +
+      '<table id="u_content_timer_1"><tbody><tr><td><div class="v-container-padding-padding">' +
+      '<!-- </div> --><div title="</div>">SALE</div><script>document.write("</div>")</script><p>ENDS FRIDAY</p>' +
+      "</div></td></tr></tbody></table>";
+    const { code } = designToElements(design([{ type: "timer", values: { _meta: { htmlID: "u_content_timer_1" } } }]), { html });
+    const rendered = Elements.renderToHtml(React.createElement(evaluate(code)));
+    expect(rendered).toContain('<!-- </div> --><div title="</div>">SALE</div><script>document.write("</div>")</script><p>ENDS FRIDAY</p>');
+    expect(rendered).not.toContain("an old copy");
+    expect(rendered).not.toContain("a title");
+  });
+
   it("says where a row's or block's merge tag rule isn't applied in Elements' HTML", () => {
     const rule = { mergeTagGroup: "products", mergeTagRule: "repeat" };
     const { warnings } = designToElements(design([{ type: "text", values: { text: "<p>{{name}}</p>", ...rule } }, { type: "table", values: rule }], { row: rule }));
@@ -178,7 +193,7 @@ describe("designToElements", () => {
     const modules = import.meta.glob<string>(["./*.ts", "!./*.test.ts", "!./test-harness.ts"], { query: "?raw", import: "default", eager: true });
     expect(Object.keys(modules)).toContain("./design-to-elements.ts");
     for (const [file, source] of Object.entries(modules)) {
-      for (const [, from] of source.matchAll(/^(?:import|export)\s[^;=(]*?\sfrom "([^"]+)"/gm)) expect(from, file).toMatch(/^(\.\/|\.\.\/utils\/(container-defaults|image-sizing)$|\.\.\/utils\/font-design$|@unlayer\/exporters$|@unlayer-internal\/shared-elements$)/);
+      for (const [, from] of source.matchAll(/^(?:import|export)\s[^;=(]*?\sfrom "([^"]+)"/gm)) expect(from, file).toMatch(/^(\.\/|\.\.\/utils\/(container-defaults|image-sizing|html-tags)$|\.\.\/utils\/font-design$|@unlayer\/exporters$|@unlayer-internal\/shared-elements$)/);
     }
   });
 
@@ -235,10 +250,17 @@ describe("designToElements", () => {
       quiet(run);
       return performance.now() - start;
     };
+    // (A document of its own each time: the last one read is kept, so the same one again would take no time.)
+    let calls = 0;
+    const fresh = (html: string) => `${html}<!--${calls++}-->`;
     const shapes: Record<string, (n: number) => number> = {
       "a mailto: link's fields": (n) => time(() => designToElements(mailto(n))),
-      "custom blocks' HTML": (n) => time(() => designToElements(custom(n), { html: closed(n) })),
-      "custom blocks' HTML that never ends": (n) => time(() => designToElements(custom(n), { html: unclosed(n) })),
+      "custom blocks' HTML": (n) => time(() => designToElements(custom(n), { html: fresh(closed(n)) })),
+      "custom blocks' HTML that never ends": (n) => time(() => designToElements(custom(n), { html: fresh(unclosed(n)) })),
+      // (And an id or a padding class with no `<` before it: each was read back to the document's start for its tag's;
+      // 1 MB took 23 s.)
+      "ids no tag holds": (n) => time(() => designToElements(custom(1), { html: fresh(' id="x"'.repeat(n * 8)) })),
+      "padding classes no tag holds": (n) => time(() => designToElements(custom(1), { html: fresh(' class="v-container-padding-padding"'.repeat(n * 4)) })),
       // (And a warning for each: said once each, looked up in a set.)
       "custom blocks that each warn": (n) => time(() => designToElements(design(Array.from({ length: n * 4 }, (_, i) => ({ type: "custom", slug: `tool${i}`, values: {} }))))),
     };
