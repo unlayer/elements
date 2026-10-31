@@ -69,8 +69,28 @@ function guarded(child: React.ReactNode, options: Options, owner: string, inCont
     return options.omit ? boundary(null, element) : element;
   }
   if (type === React.Fragment) return guard((child.props as { children?: React.ReactNode }).children, options, owner, inContainer);
+  // A context's provider, or <StrictMode>, around the rows: kept, as a Fragment's are, with its children in boundaries
+  // (`onError: "omit"` left out every row in it where one of them failed: a blank email). In a Row or Column it's one,
+  // whose HTML around what it renders is kept (src/model/elements.ts's keptMarkup).
+  if (!inContainer && wraps(child)) {
+    const inside = (child.props as { children?: React.ReactNode }).children;
+    return React.cloneElement(child, undefined, ...guard(inside, options, owner, inContainer));
+  }
   const record: Recorded = { kind: "boundary", element: child };
   return boundary(record, child);
+}
+
+const PROVIDER = Symbol.for("react.provider");
+const CONTEXT = Symbol.for("react.context");
+/**
+ * Whether `element` only passes its children on: a context's provider (React 18's `<Ctx.Provider>`, React 19's
+ * `<Ctx value>`, not a Consumer, whose child is a function) or <StrictMode>.
+ */
+function wraps(element: React.ReactElement): boolean {
+  const type = element.type as { $$typeof?: symbol } | symbol;
+  if (type === React.StrictMode) return true;
+  const of = typeof type === "object" && type ? type.$$typeof : undefined;
+  return of === PROVIDER || (of === CONTEXT && typeof (element.props as { children?: unknown }).children !== "function");
 }
 
 /** Whether there's a component of the user's own in `children`, in markup or Fragments (not Elements' own). */

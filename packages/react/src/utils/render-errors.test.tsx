@@ -257,6 +257,29 @@ describe("a Row or Column whose exporter fails", () => {
     expect(given.map((e) => e.position)).toEqual(["Row 2", "Row 3 › Column 2"]);
   });
 
+  it("with onError: \"omit\", leaves out only the section that failed where a provider or <StrictMode> is around the rows or the root", async () => {
+    // A provider around the rows (or the root) was one part: one section failing left out every row, a blank email
+    // and design, where a digest's optional sections are the README's own use of "omit".
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    const User = React.createContext({ name: "?" });
+    const Header = () => <Row><Column><Paragraph>{`Hi ${React.useContext(User).name}`}</Paragraph></Column></Row>;
+    const Recommendations = ({ items }: { items?: string[] }) => <Row><Column>{items!.map((item) => <Paragraph key={item}>{item}</Paragraph>)}</Column></Row>;
+    const Footer = () => <Row><Column><Paragraph>Unsubscribe</Paragraph></Column></Row>;
+    const sections = [<Header key="h" />, <Recommendations key="r" />, <Footer key="f" />];
+    const templates = {
+      "around the rows": <Email><User.Provider value={{ name: "Ada" }}>{sections}</User.Provider></Email>,
+      "around the root": <User.Provider value={{ name: "Ada" }}><Email>{sections}</Email></User.Provider>,
+      "<StrictMode> around them": <Email><React.StrictMode><User.Provider value={{ name: "Ada" }}>{sections}</User.Provider></React.StrictMode></Email>,
+    };
+    for (const [where, template] of Object.entries(templates)) {
+      const parts = renderToHtmlParts(template, { onError: "omit" });
+      expect(parts.omitted.map((e) => e.component), where).toEqual(["Recommendations"]);
+      expect(renderToPlainText(template, { onError: "omit" }).replace(/\s+/g, " ").trim(), where).toBe("Hi Ada Unsubscribe");
+      expect(renderToJson(template, { onError: "omit" }).body.rows, where).toHaveLength(2);
+      expect((await asyncRenderers.renderToPlainText(template, { onError: "omit" })).replace(/\s+/g, " ").trim(), where).toBe("Hi Ada Unsubscribe");
+    }
+  });
+
   it("gives errors that keep nothing of the render: which Row or Column failed is the render's (its scope's)", async () => {
     // A module's map from the errors to their records kept a Row's record, and its props, for as long as an error
     // from `omitted` was kept.
