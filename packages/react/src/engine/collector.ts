@@ -410,8 +410,10 @@ function prepElement(element: React.ReactElement, c: Collection, ctx: Ctx, keep 
         const wrapped = type.type;
         const own = REACT_18 ? withDefaults(wrapped, props) : props;
         if (typeof wrapped === "function" && !wrapped.prototype?.isReactComponent) return asWrapped(wrapped, own, element.key, c, ctx) ?? callElement(wrapped, type, own, undefined, element.key, c, ctx, keep);
-        // (A memo of a memo or a forwardRef: unwrapped again, the collector asked at each.)
-        return prepElement(React.createElement(wrapped, { ...own, key: element.key ?? undefined }), c, ctx, keep);
+        // (A memo of a memo or a forwardRef: unwrapped again, the collector asked at each, with its ref, which React 18
+        // keeps beside the props.)
+        const ref = REACT_18 ? (element as { ref?: unknown }).ref : undefined;
+        return prepElement(React.createElement(wrapped, { ...own, key: element.key ?? undefined, ...(ref != null ? { ref } : {}) }), c, ctx, keep);
       }
       case LAZY:
         return prepLazy(element, c, ctx);

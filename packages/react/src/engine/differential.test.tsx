@@ -101,6 +101,22 @@ describe("the collecting render against react-dom/server", () => {
     );
   });
 
+  it("gives a component its ref as react-dom does: a forwardRef, a memo'd one, a memo of a memo'd one", () => {
+    // React 18 keeps an element's ref beside its props: a memo'd forwardRef was made again from its props, without it.
+    const Field = forwardRef<HTMLElement, { label: string }>(({ label }, ref) => <i>{`${label}: ${ref ? "a ref" : "none"}`}</i>);
+    const MemoField = memo(Field);
+    const MemoMemoField = memo(memo(Field));
+    const ref = React.createRef<HTMLElement>();
+    same(
+      <>
+        <Field label="forwardRef" ref={ref} />
+        <MemoField label="memo" ref={ref} />
+        <MemoMemoField label="memo of memo" ref={ref} />
+        <MemoField label="memo, no ref" />
+      </>
+    );
+  });
+
   it("renders a Suspense fallback for what suspends, as react-dom's synchronous render does", () => {
     const never = new Promise<never>(() => {});
     const Later = () => {
