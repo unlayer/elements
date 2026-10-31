@@ -12,19 +12,24 @@ const use = (React as unknown as { use?: (usable: PromiseLike<unknown>) => unkno
 
 describe("the first async render of a process", () => {
   // React 18 has no use(): a component that throws a promise is its own (react-dom's render ends the process alike).
-  it.skipIf(!use)("handles a promise given as a prop at once: one that fails before the template is reached fails the render, not the process", async () => {
+  it.skipIf(!use)("handles a promise given as a prop at once, and reaches one a component reads in time: one that fails before the template is reached fails the render, not the process", async () => {
     // A rejection nothing handled yet when the template's component came to `use()` it, a few milliseconds after the
     // render started: Node.js ended the process (and every render in it), where react-dom's own render handles it.
+    // One a component reads from where it's made (a locale file read that fails at once, as a missing one does) wasn't
+    // handled till the template was reached, which the first render did a macrotask later: after it had failed.
     const unhandled: unknown[] = [];
     const listen = (reason: unknown) => void unhandled.push(reason);
     process.on("unhandledRejection", listen);
     try {
       const orders = Promise.reject(new Error("orders API down"));
       const Orders = ({ orders }: { orders: Promise<string> }) => <Paragraph>{String(use!(orders))}</Paragraph>;
+      const messages = new Promise<{ hello: string }>((_, reject) => setImmediate(() => reject(new Error("no locale file"))));
+      const Greeting = () => <Paragraph>{use!(messages).hello}</Paragraph>;
       const email = (
         <Email>
           <Row>
             <Column>
+              <Greeting />
               <Heading>Orders</Heading>
               <React.Suspense fallback={null}>
                 <Orders orders={orders} />
@@ -36,7 +41,7 @@ describe("the first async render of a process", () => {
       const failed = await renderToHtml(email).catch((error: unknown) => error);
       await new Promise((done) => setTimeout(done, 20));
       expect(unhandled).toEqual([]);
-      expect(failed).toMatchObject({ cause: new Error("orders API down") });
+      expect(failed).toMatchObject({ cause: new Error("no locale file") });
     } finally {
       process.off("unhandledRejection", listen);
     }

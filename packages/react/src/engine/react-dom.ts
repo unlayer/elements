@@ -168,7 +168,7 @@ function streamed(S: Record<string, any>, element: React.ReactElement, idPrefix:
  * exports neither, so each is found once, by identity, as a component that `use()`s a pending promise in that renderer
  * catches it, never by its message. React 18 has no `use()`: a component suspends by throwing a promise.
  */
-const PROBED = { stream: false };
+const PROBED: { stream?: Promise<void> } = {};
 const SUSPENSE: { sync: Map<Build, unknown>; stream?: unknown } = { sync: new Map() };
 
 function prober(found: (error: unknown) => void, thenable: PromiseLike<unknown>) {
@@ -214,21 +214,35 @@ export function staticSuspension(): unknown {
 
 /** The streaming renderer's suspension (see above), found before the first async render. */
 export async function streamSuspension(): Promise<unknown> {
-  if (!PROBED.stream) {
-    PROBED.stream = true;
-    if (typeof (React as unknown as { use?: unknown }).use === "function") {
-      try {
-        await streamedMarkup(createElement(React.Suspense, { fallback: null }, createElement(prober((error) => void (SUSPENSE.stream ??= error), Promise.resolve()), { own: true })), undefined, (html) => html);
-      } catch (error) {
-        // As above.
-        if (outOfStack(error) && SUSPENSE.stream === undefined) {
-          PROBED.stream = false;
-          throw error;
-        }
-      }
-    }
+  // (Asked by renders at once, found once: each waits for it.)
+  if (!PROBED.stream) PROBED.stream = probeStream();
+  try {
+    await PROBED.stream;
+  } catch (error) {
+    PROBED.stream = undefined;
+    throw error;
   }
   return SUSPENSE.stream;
+}
+
+/**
+ * The streaming renderer's suspension, found as soon as its render reaches the probe (React 19 starts it in a
+ * microtask), not once that render is done (a macrotask later): the template's first render goes on at once, so a
+ * promise one of its components reads is handled by React before what fails it can (a file read that fails at once).
+ * Otherwise Node.js ended the process on its rejection, which nothing handled yet, in the process's first render.
+ */
+async function probeStream(): Promise<void> {
+  if (typeof (React as unknown as { use?: unknown }).use !== "function") return;
+  let reached!: () => void;
+  const found = new Promise<void>((resolve) => (reached = resolve));
+  const done = streamedMarkup(createElement(React.Suspense, { fallback: null }, createElement(prober((error) => (SUSPENSE.stream ??= error, reached()), Promise.resolve()), { own: true })), undefined, (html) => html);
+  done.catch(() => {});
+  try {
+    await Promise.race([found, done]);
+  } catch (error) {
+    // As above.
+    if (outOfStack(error) && SUSPENSE.stream === undefined) throw error;
+  }
 }
 
 export const isThenable = (value: unknown): value is PromiseLike<unknown> => typeof (value as { then?: unknown } | null)?.then === "function";
