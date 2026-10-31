@@ -711,6 +711,17 @@ describe("the async renderers", () => {
     warn.mockRestore();
   });
 
+  it("give the HTML as it renders with `pretty` where its text has a NUL character, which prettier drops the text after", async () => {
+    // `BEFORE\u0000AFTER` was formatted as `BEFORE`: a browser shows `BEFOREAFTER`.
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const email = <Email><Row><Column><Paragraph>{"BEFORE\u0000AFTER"}</Paragraph></Column></Row></Email>;
+    const html = await renderToHtml(email, { pretty: true });
+    expect(html).toBe(await renderToHtml(email));
+    expect(html).toContain("BEFORE\u0000AFTER");
+    expect(warn.mock.calls.map((call) => String(call[0]))).toEqual([expect.stringMatching(/^\[Unlayer\] `pretty` left the HTML as it renders: prettier can't read it \(/)]);
+    warn.mockRestore();
+  });
+
   it("write the plain text with the synchronous renderer's options", async () => {
     const email = (
       <Email>
