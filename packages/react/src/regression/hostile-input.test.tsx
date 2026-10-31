@@ -14,7 +14,8 @@ import { beforeAll, describe, expect, it, vi } from "vitest";
 import React from "react";
 import { renderToHtml, renderToPlainText } from "../utils/render-to-html";
 import { renderToJson } from "../utils/render-to-json";
-import { Email, Page, Document, Row, Column, Paragraph, Heading, Button, Image, Link, Menu, Social, Html, Divider, Table, Video } from "../index";
+import { Email, Page, Document, Row, Column, Paragraph, Heading, Button, Image, Link, Menu, Social, Html, Divider, Table, Video, UnlayerProvider } from "../index";
+import { renderToHtml as asyncRenderToHtml } from "../async";
 import { designToElements } from "../codegen";
 import { evaluate } from "../codegen/test-harness";
 import { Tailwind, loadTailwind, type TailwindHandle } from "../tailwind";
@@ -632,6 +633,25 @@ describe("HTML a sanitizer returned", () => {
     const handlers = Array.from(doc.querySelectorAll("*")).flatMap((el) => Array.from(el.attributes).filter((attr) => /^on/i.test(attr.name)).map((attr) => `${el.tagName} ${attr.name}`));
     expect(handlers).toEqual([]);
     expect(html).toContain('alt="<unlayer-mark"');
+  });
+});
+
+describe("a sanitizer configured for the render (`toSafeHtml`)", () => {
+  // A whole template reused as a section of another (its own root in the content, as README says it renders) went
+  // without it: its Html blocks' handlers were written as they were, where the same block in the outer root's content
+  // was sanitized. 0.2 kept them too.
+  const toSafeHtml = (html: string) => html.replace(/\son\w+\s*=\s*("[^"]*"|'[^']*'|[^\s>]+)/gi, "");
+  const cms = '<p>Spring sale!</p><img src="https://cms.example/broken.png" onerror="window.__pwned=document.cookie">';
+  const handlers = (html: string) => Array.from(new DOMParser().parseFromString(html, "text/html").querySelectorAll("*")).flatMap((el) => Array.from(el.attributes).filter((attr) => /^on/i.test(attr.name)).map((attr) => `${el.tagName} ${attr.name}`));
+  it.each(Object.entries(ROOTS))("%s: reaches the HTML of a root in the content, given as the render's option or a provider's", async (_, Root) => {
+    const PromoSection = ({ html }: { html: string }) => <Root><Row><Column><Html html={html} /></Column></Row></Root>;
+    const template = <Root><Row><Column><Paragraph>Newsletter</Paragraph></Column></Row><PromoSection html={cms} /></Root>;
+    vi.spyOn(console, "warn").mockImplementation(() => {});
+    for (const html of [renderToHtml(template, { toSafeHtml }), renderToHtml(<UnlayerProvider config={{ toSafeHtml }}>{template}</UnlayerProvider>), await asyncRenderToHtml(template, { toSafeHtml })]) {
+      expect(html).toContain("Spring sale!");
+      expect(handlers(html)).toEqual([]);
+    }
+    vi.restoreAllMocks();
   });
 });
 

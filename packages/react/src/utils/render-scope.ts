@@ -27,6 +27,8 @@ export interface Scope {
   failed: WeakSet<object>;
   /** Whether its root reads right to left (see setRenderConfig): Tailwind's logical sides follow it. */
   rtl?: boolean;
+  /** Its root's config, the render's options in it (see setRenderConfig): a root in its content's too (see renderConfig). */
+  config?: Record<string, unknown>;
   /** What its template unwrapped to: its root, the providers' config, where its content starts (see unwrap-root.ts). */
   unwrapped?: Unwrapped;
   /** What an async render compiled for its <Tailwind config>s (the async entry's lookup: see utils/tailwind.ts). */
@@ -80,11 +82,22 @@ export const sayOnce = (message: string, key?: string): void => sayer()(message,
  */
 export function setRenderConfig(config: { onError?: OnError; idPrefix?: unknown; textDirection?: unknown }): void {
   if (!scoped) return;
+  scoped.config ??= config as Record<string, unknown>;
   if (config.onError !== undefined) scoped.onError ??= config.onError;
   if (typeof config.idPrefix === "string") scoped.idPrefix ??= config.idPrefix;
   // (As Body reads it for the body's `dir`: see textDirectionOf.)
   const dir = config.textDirection;
   scoped.rtl ??= typeof dir == "string" && dir.trim().toLowerCase() == "rtl";
+}
+
+/**
+ * The config of the render's outermost root, the render's options in it, but its mode: a root in its content (a whole
+ * template reused as a section of another) has it under its own (see Body), its sanitizer (`toSafeHtml`) too.
+ */
+export function renderConfig(): Record<string, unknown> | undefined {
+  if (!scoped?.config) return undefined;
+  const { mode: _mode, __ids: _ids, ...config } = scoped.config;
+  return config;
 }
 
 /** Marks the render's display conditions and repeated tables for its plain text's links (see textRegion). */

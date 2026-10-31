@@ -17,12 +17,16 @@ import { boundary, recordNode } from "../engine/records";
 import { htmlOf } from "../engine/output";
 import { checked, checkKeys } from "../engine/keys";
 import type { Collector } from "../engine";
+import type { UnlayerConfig } from "@unlayer-internal/shared-elements";
+import { layerConfig } from "../context/layer-config";
 
 interface Options {
   /** Markup is in a boundary too, so markup React rejects is left out rather than failing the render. */
   omit: boolean;
   /** In a template with no root: what says a root met in its content (by its name). */
   nested?: (root: string) => void;
+  /** The render's config (its root's, the render's options in it), which a root in its content renders with (see collector). */
+  config?: Record<string, unknown>;
 }
 
 /** Children as a list (arrays flattened, nothing and booleans left out), each list checked for keys. */
@@ -225,12 +229,22 @@ export function collector(options: Options): Collector {
         },
       };
     }
+    const root = !type[UNLAYER_RENDER_KEY] && rootName(type);
+    if (!root || given.has(element)) return undefined;
     // A root in a template with no root (unwrapping stopped before it): rendered as it renders, said.
-    const root = options.nested && !type[UNLAYER_RENDER_KEY] && rootName(type);
-    if (root) options.nested!(root);
-    return undefined;
+    if (options.nested) options.nested(root);
+    // A root in the content (a whole template reused as a section of another) renders on its own, from no provider:
+    // the render's config (its root's, the render's options in it) is under its own `config`, its sanitizer
+    // (`toSafeHtml`) too, which its HTML went without.
+    if (!options.config) return undefined;
+    const withConfig = React.cloneElement(element, { config: layerConfig(options.config as Partial<UnlayerConfig>, props.config) } as object);
+    given.add(withConfig);
+    return { record: () => withConfig };
   };
 }
+
+/** The roots in the content the render's config was given to (see collector): each once. */
+const given = new WeakSet<object>();
 
 /** A Row, Column or scope: its props recorded, its children (in boundaries) inside it. */
 function container(record: Recorded & { props: Record<string, any> }, options: Options, name: string): React.ReactNode {

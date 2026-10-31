@@ -537,7 +537,7 @@ async function Receipt({ user, id }: { user: User; id: string }) {
 }
 ```
 
-A root inside the content (a whole template reused as a section of another: `<Email>…<OrderSummary /></Email>` where `OrderSummary` returns an `<Email>`) renders on its own, from no provider: a context provided around it, in the outer template or around the render, doesn't reach its components, which read the default. Provide the context inside it, or reuse its Rows (a component that returns them) rather than the whole template.
+A root inside the content (a whole template reused as a section of another: `<Email>…<OrderSummary /></Email>` where `OrderSummary` returns an `<Email>`) renders on its own, from no provider: a context provided around it, in the outer template or around the render, doesn't reach its components, which read the default. (The render's config does, the render function's options and the outer root's `config`, under its own: a `toSafeHtml` sanitizer applies to its HTML too.) Provide the context inside it, or reuse its Rows (a component that returns them) rather than the whole template.
 
 The synchronous renderers read a context's default where the template doesn't provide it, except inside a component of an app's own `renderToString`, where they read the page's value, as 0.2 did, and after another build's `renderToString` in which a part inside a provider threw or suspended, a `<Suspense>` around it or not (above), till that build renders again (where there's a DOM, Elements asks it what it's doing first, which is such a render). No stream's provider values reach them, not even those of an async render of Elements' own that waits meanwhile: react-dom keeps its static render's context values apart from its streams'.
 
