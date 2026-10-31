@@ -115,6 +115,8 @@ describe("Head", () => {
     const Css = ({ css }: { css: string }) => css;
     const name = "Ada";
     const data = { "@type": "Organization", name: "A & B </script>" };
+    // (React 18's development build said a title in parts, `Hi {name}`, holds a list, on every render.)
+    const error = vi.spyOn(console, "error");
     const parts = renderToHtmlParts(
       <Page>
         <Head>
@@ -137,6 +139,8 @@ describe("Head", () => {
         "<title>Hi Ada &amp; bye</title>",
       ].join(""),
     ]);
+    expect(error.mock.calls.map((call) => String(call[0])).filter((message) => /title/i.test(message))).toEqual([]);
+    error.mockRestore();
   });
 
   it("can't end a style's or a script's text early, whatever writes it: a component of yours, a list, text in parts, markup, what it's in", () => {

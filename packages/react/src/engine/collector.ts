@@ -517,6 +517,11 @@ function prepHost(element: React.ReactElement, c: Collection, ctx: Ctx): React.R
     return headText(c, ctx, { ...inner, ends: inner.ends ?? ["title"] }, element, urls, children, false);
   }
   if (ctx.raw) return React.cloneElement(element, urls as object, prep(children, c, inner, true));
+  // A <title>'s text in parts on React 18 (`Hi {name}`), as one: React 18's development build said a title holding a
+  // list is wrong on every render, though it writes it as its text.
+  if (type === "title" && REACT_18 && Array.isArray(children) && children.every((part) => typeof part === "string" || typeof part === "number")) {
+    return React.cloneElement(element, urls as object, children.join(""));
+  }
   if (children === undefined || children === null || typeof children !== "object") return urls ? React.cloneElement(element, urls as object) : element;
   return React.cloneElement(element, urls as object, prep(children, c, inner, true));
 }
