@@ -509,7 +509,9 @@ export function elements(c: Collected, items: readonly Item[], place: Place, tw?
     if (typeof item === "string") out.push(...text(item));
     else if (item.kind === "record") recorded(item, false);
     else if (item.kind === "cut") {
-      // Left out whole, the records in it kept (a Row says where markup starts in it isn't a Column).
+      // Left out whole, the records in it kept (a Row says where markup starts in it isn't a Column; a Column says it
+      // leaves it out, as other markup, a component's aside: said where it's left out, above).
+      if (inColumn && !owner) sayOnce(`[Unlayer] Column: <${item.tag}> isn't a block, so it's left out. Put HTML in an <Html> block.`);
       for (const run of runs([item])) {
         if (!Array.isArray(run)) recorded(run, true);
         else if (place === "row" && startOf(run)) out.push(React.createElement(owner ?? startOf(run)!));
