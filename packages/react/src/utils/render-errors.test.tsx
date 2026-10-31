@@ -370,6 +370,32 @@ describe("a part that suspends in a <Suspense>", () => {
       </React.Suspense>
     </Email>
   );
+  it("but a part that fails beside one that suspends, in the same <Suspense>: the synchronous renderers fail with its error, or leave it out and say so", () => {
+    // React renders the fallback for what suspended, and leaves out the part that failed there with it: the render
+    // said nothing of it, whichever came first.
+    const PriceTable = () => {
+      throw new Error("price service down");
+    };
+    const Recommendations = async () => <Paragraph>{await later("Recommendations")}</Paragraph>;
+    // ("Left out", said.)
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    for (const parts of [[<PriceTable key="p" />, <Recommendations key="r" />], [<Recommendations key="r" />, <PriceTable key="p" />]]) {
+      const made = (config?: { onError?: OnError }) => (
+        <Email config={config}>
+          <Row><Column><Paragraph>Hi Ana</Paragraph></Column></Row>
+          <React.Suspense fallback={null}>
+            <Row><Column>{parts}</Column></Row>
+          </React.Suspense>
+        </Email>
+      );
+      expect(() => renderToHtml(made())).toThrow("[Unlayer] price service down (in <PriceTable> at Row 2 › Column 1 › PriceTable)");
+      const omitted: RenderError[] = [];
+      expect(renderToHtml(made({ onError: (failure) => void omitted.push(failure) }))).toContain("Hi Ana");
+      expect(omitted.map((failure) => failure.message)).toEqual(["[Unlayer] price service down (in <PriceTable> at Row 2 › Column 1 › PriceTable)"]);
+      expect(JSON.stringify(renderToJson(made({ onError: "omit" })))).toContain("Hi Ana");
+    }
+  });
+
   const shown = (text: string) => text.match(/First|Loading|Price/g) ?? [];
   const given: RenderError[] = [];
   const POLICIES: Array<[string, { onError?: OnError } | undefined]> = [

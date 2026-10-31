@@ -317,6 +317,23 @@ function fallbackFailed(c: Collection, n: number, frame: Frame): RenderError | u
 
 const swallowed = (name: string, frame: Frame | null) => new RenderError(SWALLOWED, name, positionOf(frame));
 
+/**
+ * The first part that failed in what a <Suspense> (its fallback's marker `n`) holds, in a synchronous render that
+ * rendered its fallback for what suspended there: React left the failed part out with the rest, which said nothing of
+ * it. (Its marker was rendered, in that part of the tree: see Collection's scopes.)
+ */
+function failedIn(c: Collection, n: number): { error: unknown; fatal: boolean } | undefined {
+  const inside = (scope: number | undefined): boolean => {
+    for (let s = scope ?? -1, depth = 0; s >= 0 && depth <= c.scopes.length; s = c.scopes[s].parent, depth++) if (c.scopes[s].marker === n) return !c.scopes[s].fallback;
+    return false;
+  };
+  for (let i = n + 1; i < c.marks.length; i++) {
+    const mark = c.marks[i];
+    if (mark.k === "f" && c.rendered.has(i) && inside(mark.scope)) return mark;
+  }
+  return undefined;
+}
+
 /** The part a marker stands for, added to `into`: where what's inside the marker goes. */
 function markPart(c: Collection, n: number, into: Part[]): Part[] {
   const mark = c.marks[n];
@@ -350,7 +367,13 @@ function markPart(c: Collection, n: number, into: Part[]): Part[] {
       // (What a lazy component renders: where the marker is.)
       return into;
     case "fb": {
-      // A <Suspense>'s fallback React rendered: what's in it suspended (a synchronous render), or failed.
+      // A <Suspense>'s fallback React rendered: what's in it suspended (a synchronous render), or failed. A part that
+      // failed beside what suspended fails the render all the same (or is left out, said), as anywhere else.
+      const lost = c.async ? undefined : failedIn(c, n);
+      if (lost) {
+        into.push({ t: "error", error: lost.error as RenderError, fatal: lost.fatal });
+        return [];
+      }
       const failed = fallbackFailed(c, n, mark.frame);
       if (!failed) return into;
       into.push({ t: "error", error: failed, fatal: false });
