@@ -31,6 +31,26 @@ export function handled<T>(value: T): T {
   return value;
 }
 
+/**
+ * The promises a template's elements are given as props (`<Orders orders={getOrders(id)} />`, which `use()`s it), each
+ * handled at once (see handled): an async render reaches the template's components only once it has found React's
+ * suspension (the process's first: see react-dom.ts's streamSuspension, a render and a macrotask of its own), and one
+ * that failed meanwhile (an API that's down, in a few milliseconds) was a rejection nothing handled yet, which ends a
+ * Node.js process. Each element read once, as far as its props' elements and arrays go (not into other objects).
+ */
+export function handleGiven(node: unknown): void {
+  const seen = new Set<object>();
+  const stack = [node];
+  for (let left = 100_000; stack.length && left > 0; left--) {
+    const value = stack.pop();
+    if (value === null || typeof value !== "object" || seen.has(value)) continue;
+    seen.add(value);
+    if (isThenable(value)) handled(value);
+    else if (Array.isArray(value)) stack.push(...value);
+    else if (React.isValidElement(value)) stack.push(...Object.values(value.props as object));
+  }
+}
+
 /** React's thenable protocol: `status`, then `value` or `reason`, set once it settles. */
 export function track(thenable: Tracked): void {
   if (thenable.status) return;

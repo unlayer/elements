@@ -97,6 +97,8 @@ const entry = (name: string): Promise<any> => import(/* webpackIgnore: true */ /
  */
 async function render<T>(element: React.ReactElement, options: Partial<UnlayerConfig> | undefined, run: (renders: Renders, root: React.ReactElement) => T, api?: string): Promise<T> {
   const internals = (renderHtml as unknown as Record<symbol, Internals>)[Symbol.for("@unlayer/react-elements/internals")];
+  // The promises its elements are given, handled as it starts (an older main entry's engine has no `given`).
+  internals.engine.given?.(element);
   // Started inside a component a synchronous render is calling, it renders once that call (and that render) is over:
   // react-dom can't start a render inside its own.
   await undefined;

@@ -15,7 +15,7 @@ import { newScope, part, renderDone, setRenderConfig, sharedByRender, withScope,
 import { rootConfig, type RootConfigProps } from "../context/layer-config";
 import { htmlDocument, htmlParts, plainText } from "./render-to-html";
 import { designJson } from "./render-to-json";
-import { collectAsync as collectStreamed, renderShared, renderStatic, type CollectOptions, type Flat } from "../engine";
+import { collectAsync as collectStreamed, handleGiven, renderShared, renderStatic, type CollectOptions, type Flat } from "../engine";
 
 export const INTERNALS = Symbol.for("@unlayer/react-elements/internals");
 
@@ -53,8 +53,11 @@ async function collectAsync(root: React.ReactElement, scope: Scope, options: Par
   return done;
 }
 
-/** What the async entry uses of the engine: a template's content collected by react-dom's streaming render. */
-const engine = { collect: collectStreamed };
+/**
+ * What the async entry uses of the engine: a template's content collected by react-dom's streaming render, and the
+ * promises its elements are given handled as the render starts (see handleGiven).
+ */
+const engine = { collect: collectStreamed, given: handleGiven };
 export type Engine = typeof engine;
 
 /** The synchronous renders, run in the scope the async renderers collected the template in. */

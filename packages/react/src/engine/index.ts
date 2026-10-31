@@ -16,7 +16,7 @@ import { sharedNow, sharing, type Shared } from "./shared";
 export { RenderError, type OnError } from "./errors";
 export { flatten, htmlOf, PENDING, type Flat, type Item, type Markup, type Cut, type Part, type RecordItem } from "./output";
 export { passesThrough, type Collector, type Recorded } from "./collector";
-export { callCaptured, callClassCaptured, captureLazyRoot, isStreamed, track } from "./capture";
+export { callCaptured, callClassCaptured, captureLazyRoot, handleGiven, isStreamed, track } from "./capture";
 export { sharedNow, sharing, type Shared } from "./shared";
 export { withFreeBuild } from "./react-dom";
 
