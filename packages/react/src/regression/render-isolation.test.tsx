@@ -557,6 +557,60 @@ describe("a context's default around an app's renders", () => {
     expect(await new Response(await webStream().renderToReadableStream(<Reads />)).text()).toBe("<b>default</b>");
   });
 
+  it("reads its default in the synchronous renderers while an async render waits under a provider of it (react-dom's static render reads a context's value where no stream writes one)", async () => {
+    // Tenant A's email, rendered by the async renderers: a part inside its provider that resumes, and one after it that
+    // still waits, so react-dom's stream leaves A's value in the context meanwhile. Tenant B's, rendered by the
+    // synchronous renderers then, relies on the context's default (its footer provides nothing).
+    const { Brand, email: footer, read } = brand("default");
+    const gate = () => {
+      let open = () => {};
+      const opened = new Promise<void>((done) => (open = done));
+      return { open, opened };
+    };
+    const [fast, slow] = [gate(), gate()];
+    const reads: string[] = [];
+    let queued = false;
+    const FastText = () => {
+      // (B's render a microtask after react-dom's work on A's part ends, and a macrotask after it.)
+      if (!queued) {
+        queued = true;
+        queueMicrotask(() => reads.push(read()));
+        setTimeout(() => reads.push(read()), 0);
+      }
+      return <Paragraph>{`fast ${String(useContext(Brand))}`}</Paragraph>;
+    };
+    const Fast = async () => (await fast.opened, <FastText />);
+    const Slow = async () => (await slow.opened, <Paragraph>slow</Paragraph>);
+    const tenantA = (
+      <Email><Row><Column>
+        <Brand.Provider value="TENANT_A"><Suspense fallback={null}><Fast /></Suspense></Brand.Provider>
+        <Suspense fallback={null}><Slow /></Suspense>
+      </Column></Row></Email>
+    );
+    const Reads = () => <b>{String(useContext(Brand))}</b>;
+    const tick = () => new Promise((done) => setTimeout(done, 5));
+    const rendering = asyncRenderers.renderToHtml(tenantA);
+    try {
+      await tick();
+      fast.open();
+      await tick();
+      reads.push(read());
+      expect(reads).toEqual(["brand=default", "brand=default", "brand=default"]);
+      expect(renderToHtml(footer)).toContain("brand=default");
+      expect(JSON.stringify(renderToJson(footer))).toContain("brand=default");
+      expect(JSON.stringify(renderToJson(footer))).not.toContain("TENANT_A");
+      // (The control: A's value is in the context meanwhile, where a stream reads it, an app's of another build.)
+      expect(await new Response(await webStream().renderToReadableStream(<Reads />)).text()).toBe("<b>TENANT_A</b>");
+      // (And an async render of B's reads its default there too: react-dom's stream puts back what it left itself.)
+      expect((await asyncRenderers.renderToPlainText(footer)).trim()).toBe("brand=default");
+    } finally {
+      fast.open();
+      slow.open();
+      expect(await rendering).toContain("fast TENANT_A");
+      await takeBack();
+    }
+  });
+
   // (Documented, not wanted: while another react-dom build streams in the process, React's own renders read each other's
   // provider values, even where each provides its own: React skips putting back a provider's value where a part resumes
   // under the one it left, which the other build changed meanwhile. React says "Detected multiple renderers concurrently

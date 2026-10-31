@@ -268,9 +268,12 @@ row or block is left out of the HTML, the plain text and the design (the slower 
    templates sharing kept elements give the same output after any other, and at once). A context the template doesn't
    provide reads its default, wherever the render runs (react-dom's static render starts from every context's default,
    and the module Elements renders with is put back after each of its renders: `settle`), alone or inside an app's
-   render, client or server, but for the cases React's own renders have too: every react-dom build reads a context's
-   value from one place, and a build puts back only what it left itself. So a template must provide every context it
-   reads, and an app's renders every context they read (README, "Contexts and the async renderers"):
+   render, client or server. react-dom keeps its static render's context values apart from its streams', so no
+   stream's provider values reach the synchronous renderers, not even an async render's of Elements' own that waits
+   under a provider (its stream leaves the values there till it resumes). Its other renders read them, but for the
+   cases React's own renders have too: every react-dom build reads a context's value from one place, and a build puts
+   back only what it left itself. So a template must provide every context it reads, and an app's renders every
+   context they read (README, "Contexts and the async renderers"):
    - Inside an app's `renderToString`, where another module of react-dom's renders the template, it reads the page's
      value (as in 0.2).
    - The async renderers, which render with react-dom's Node.js stream, read a provider's value an app's stream of
