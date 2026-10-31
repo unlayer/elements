@@ -134,6 +134,13 @@ runs. Each of these fails the render with a `RenderError` that says so and what 
   once with a synchronous `require` (CommonJS's, or Node's from this module's file, the app's script or the folder
   Node started in, where `react` is this React), React 19's Bun build first (its browser one keeps Node running), one
   whose renders run this React's hooks and that isn't rendering. There, a context the template doesn't provide reads
+  the page's value (as in 0.2). Modules are asked what they're doing only where a render of Elements' starts, none of
+  its own under way (`withFreeBuild`): asked under another module's render, a module rendering puts back none of its
+  providers (react-dom puts them back only where the dispatcher it found was its own), and every later render read
+  them. There, the one rendering is the one whose hooks run, and each module found rendering is kept from every render
+  inside it (`calling.busy`); a render inside a template's component takes one no render under way has, asking nothing
+  (`renderNested`), or fails by name. (An app's own two renders of react-dom's, one inside the other, Elements called in
+  the inner one, can't be told apart that way.)
   the page's value (as in 0.2). Where there's none (a bundle, a bundled serverless function too, a browser, an ES
   module on a Node.js without `process.getBuiltinModule`), the render fails by name where react-dom/
   server's is calling a component, and the page's render goes on: work the email out before the page's render, or

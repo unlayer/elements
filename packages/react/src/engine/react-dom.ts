@@ -414,9 +414,11 @@ export function renderFailure(error: unknown, name: string): RenderError | undef
 const CALLING = Symbol.for("@unlayer/react-elements/calling");
 /**
  * `static`: how many of react-dom's static renders Elements is running now, by every copy (see ownStatic); `builds`:
- * the modules of react-dom's that Elements' renders under way render with, innermost last (see withFreeBuild).
+ * the modules of react-dom's that Elements' renders under way render with, outermost first (see withFreeBuild and
+ * renderNested); `busy`: the modules an app's render was found rendering with where the outermost of them started
+ * (see withFreeBuild), which no render inside it renders with, nor asks anything.
  */
-type Calling = { frame: { name: string; label: string; parent: unknown } | null; static?: number; builds?: Build[] };
+type Calling = { frame: { name: string; label: string; parent: unknown } | null; static?: number; builds?: Build[]; busy?: Build[] };
 const calling = perReact<Calling>(CALLING, createElement, () => ({ frame: null }));
 
 /** `fn`, a component of the user's own (at `frame`) that a synchronous render calls (see `calling`). */
@@ -583,35 +585,26 @@ declare const module: { require(id: string): unknown } | undefined;
 declare const __UNLAYER_CJS__: boolean | undefined;
 
 /**
- * Another module of react-dom's static renderer than react-dom/server's, found the first time one's needed, as 0.2.1
- * found it: with a synchronous `require`, the one CommonJS loads this module with (Jest's registry gives the test's
+ * The other modules of react-dom's static renderer than react-dom/server's, found the first time one's needed, as 0.2.1
+ * found one: with a synchronous `require`, the one CommonJS loads this module with (Jest's registry gives the test's
  * React), then Node's for a module (from this module's file, the app's script, then the folder Node started in, where
- * `react` is this React: a bundled module, a browser or an edge runtime has none). One that's free and whose renders
- * run this React's hooks. React 19's Bun build first: its browser one opens a MessageChannel when it loads, which keeps
- * Node from exiting. Undefined where there's none.
+ * `react` is this React: a bundled module, a browser or an edge runtime has none). React 19's Bun build first: its
+ * browser one opens a MessageChannel when it loads, which keeps Node from exiting. Which is free (and runs this React's
+ * hooks) is told where a render starts, not here (see withFreeBuild). Empty where there's none.
  */
-let second: Build | null | undefined;
-function secondBuild(): Build | undefined {
-  if (second === undefined) {
-    // (None while it's looked for: what it renders to tell (stateOf) can't look again.)
-    second = null;
-    try {
-      const found = searchSecond();
-      // (None found where the stack had no room says nothing: see roomy.)
-      if (!found && !roomy()) throw outOfRoom();
-      second = found;
-    } catch (error) {
-      // Out of stack, it says nothing of what's there: nothing's kept, and it's looked for again where it's next
-      // needed (see roomy).
-      second = undefined;
-      throw error;
-    }
+let others: Build[] | undefined;
+function otherBuilds(): Build[] {
+  if (others === undefined) {
+    const found = searchOthers();
+    // (None found where the stack had no room says nothing: it's looked for again where it's next needed, see roomy.)
+    if (!found.length && !roomy()) throw outOfRoom();
+    others = found;
   }
-  return second ?? undefined;
+  return others;
 }
 
-/** The search secondBuild makes (see there). */
-function searchSecond(): Build | null {
+/** The search otherBuilds makes (see there): each module it loads, whatever it's doing (see withFreeBuild). */
+function searchOthers(): Build[] {
   const node = (globalThis as { process?: any }).process;
   const requirers = [
     // (`module`'s, read so that a bundler doesn't take it for a require of a path worked out when it runs.)
@@ -626,18 +619,19 @@ function searchSecond(): Build | null {
     }),
   ];
   const ids = ["react-dom/server.bun", ...(Number.parseInt(React.version) >= 19 ? [] : ["react-dom/server.browser"]), "react-dom/server.node"];
+  const found: Build[] = [];
   for (const id of ids) {
     for (const requirer of requirers) {
       try {
         const build = requirer()?.(id) as Build | undefined;
-        if (build?.renderToStaticMarkup && !same(build, Server) && stateOf(build) === "free" && knownOf(build).ownHooks) return build;
+        if (build?.renderToStaticMarkup && !same(build, Server) && !found.some((one) => same(one, build))) found.push(build);
       } catch (error) {
-        // (Out of stack: see secondBuild.) Otherwise it's not there, or it can't load here: the next one.
+        // (Out of stack: see otherBuilds.) Otherwise it's not there, or it can't load here: the next one.
         if (outOfStack(error)) throw error;
       }
     }
   }
-  return null;
+  return found;
 }
 
 /**
@@ -645,7 +639,7 @@ function searchSecond(): Build | null {
  * isn't calling a component, and every static render it makes with that one. Started inside a component a render of
  * Elements' calls, it fails (refuseNested); inside one of Elements' own renders, it keeps the module that one renders
  * with (its components call no hooks after). Otherwise, where react-dom/server's is calling a component, or may be (an
- * app's `renderToString`), it renders with another module (see secondBuild), as 0.2.1 did. Where there's none free,
+ * app's `renderToString`), it renders with another module (see otherBuilds), as 0.2.1 did. Where there's none free,
  * it fails with a RenderError that says so where react-dom/server's is calling one (the app's render goes on as it
  * was), and renders with it where that can't be told, as 0.2.1 did (the component that started it can't call a hook
  * after it).
@@ -654,41 +648,92 @@ export function withFreeBuild<T>(api: string, render: () => T): T {
   if (calling.frame) return renderNested(api, render);
   if ((calling.static ?? 0) > 0) return render();
   let build: Build = Server;
+  // What's rendering, asked here only, where no render of Elements' is under way: a module an app's render is calling a
+  // component with is the one whose hooks run now, and asked, it puts back what it was doing. (One asked under another
+  // module's render lost its providers for good: see renderNested.)
+  const busy: Build[] = [];
   const state = stateOf(Server);
-  if (state !== "free") {
-    const other = secondBuild();
-    if (other && stateOf(other) === "free") build = other;
-    else if (state === "busy") {
-      const error = new RenderError(insideStaticRender(api), "template", "");
-      refusals.add(error);
-      throw error;
+  if (state !== "free") busy.push(Server);
+  // Each other module too, where one may be needed or may be rendering (a renderer may be calling a component: the app's
+  // page may render with one), which no render inside it may render with. (Asked here, a module is asked safely.)
+  if (state !== "free" || mayRender()) {
+    let free: Build | undefined;
+    for (const other of otherBuilds()) {
+      if (stateOf(other) !== "free") busy.push(other);
+      else if (!free && knownOf(other).ownHooks) free = other;
+    }
+    if (state !== "free") {
+      if (free) build = free;
+      else if (state === "busy") {
+        const error = new RenderError(insideStaticRender(api), "template", "");
+        refusals.add(error);
+        throw error;
+      }
     }
   }
-  const builds = (calling.builds ??= []);
-  builds.push(build);
+  const outer = { builds: calling.builds, busy: calling.busy };
+  calling.builds = [...(outer.builds ?? []), build];
+  calling.busy = busy;
   try {
     return render();
   } finally {
-    builds.pop();
+    calling.builds = outer.builds;
+    calling.busy = outer.busy;
+  }
+}
+
+/** A context of Elements' own, provided nowhere: read to tell whether a renderer is calling a component (mayRender). */
+let NOWHERE: React.Context<undefined> | undefined;
+
+/**
+ * Whether a renderer of this React may be calling a component now (an app's page, a stream's): `useContext` works only
+ * there, and keeps no hook state in a server's render. (React 18's development build says "Invalid hook call" where it
+ * doesn't, before it throws: kept off.) Where there's a DOM, it may, untold: a client's development build counts the
+ * hooks a component calls, and said their order changed on its next render. (A browser has no other module to ask.)
+ */
+function mayRender(): boolean {
+  if ((globalThis as { document?: unknown }).document != null) return true;
+  // (React Server Components' React has neither: none of react-dom's renders is under way there.)
+  const { createContext, useContext } = React as Partial<typeof React>;
+  if (typeof createContext !== "function" || typeof useContext !== "function") return false;
+  NOWHERE ??= createContext<undefined>(undefined);
+  try {
+    quietly(() => useContext(NOWHERE!));
+    return true;
+  } catch {
+    return false;
   }
 }
 
 /**
  * `render` started inside a component of the user's that a synchronous render of Elements is calling (a template that
  * works out its preview text with `renderToPlainText`): rendered as a render of its own, with a module of react-dom's
- * static renderer that isn't the one calling that component (react-dom/server's or another, see secondBuild) and isn't
+ * static renderer that isn't the one calling that component (react-dom/server's or another, see otherBuilds) and isn't
  * calling one itself, the render around it as it was after (0.2.1 rendered it; that module puts back the hooks and
  * the context values it changed). Where there's none (a bundle, a browser, an edge runtime, or a render already two
  * deep), it fails, named after the component (refuseNested).
  */
 function renderNested<T>(api: string, render: () => T): T {
-  const rendering = current();
-  const other = [Server, secondBuild()].find((build): build is Build => !!build && !same(build, rendering) && stateOf(build) === "free");
+  // A module no render under way renders with, and that no app's render was found rendering with (see withFreeBuild):
+  // free. None is asked anything here, under another module's render, where one asked lost the providers of a render
+  // under way with it for good, every later render reading them (another tenant's, an app's page).
+  const taken = [current(), ...(calling.builds ?? []), ...(calling.busy ?? [])];
+  const free = (build: Build) => !taken.some((one) => same(one, build));
+  let other = free(Server) ? Server : undefined;
+  for (const build of other ? [] : otherBuilds()) {
+    if (!free(build)) continue;
+    // (One not asked yet is asked here, where no render has it: it's free, and asking it puts nothing out.)
+    if (knownOf(build).ownHooks === undefined) stateOf(build);
+    if (knownOf(build).ownHooks) {
+      other = build;
+      break;
+    }
+  }
   if (!other) refuseNested(api);
   const outer = { frame: calling.frame, static: calling.static, builds: calling.builds };
   calling.frame = null;
   calling.static = 0;
-  calling.builds = [other!];
+  calling.builds = [...(outer.builds ?? []), other!];
   try {
     return render();
   } finally {

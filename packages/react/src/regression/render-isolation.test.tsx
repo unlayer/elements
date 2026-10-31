@@ -495,7 +495,9 @@ describe("a context's default around an app's renders", () => {
 
   // (Documented, not wanted: React's renders share each context's value, so these hold what README's "Contexts and the
   // async renderers" says, as React Email's render does. A template that provides what it reads, and an app's render
-  // that provides what it reads, read their own.)
+  // that provides what it reads, read their own. Where there's a DOM, as here, Elements asks that build what it's doing
+  // before it renders, a render of that build's that puts out what it left, as another of its renders does.)
+  const left = (globalThis as { document?: unknown }).document == null;
   it("reads, in the synchronous renderers too, the value an app's renderToString of another react-dom build left where it failed inside a provider (documented)", async () => {
     const { Brand, email, read } = brand("default");
     const other = require(Number.parseInt(React.version) >= 19 ? "react-dom/server.edge" : "react-dom/server.browser") as { renderToString: (node: React.ReactNode) => string };
@@ -504,8 +506,8 @@ describe("a context's default around an app's renders", () => {
     };
     try {
       expect(() => other.renderToString(<Brand.Provider value="TENANT_A_SECRET"><Fails /></Brand.Provider>)).toThrow("the page failed");
-      expect(read()).toBe("brand=TENANT_A_SECRET");
-      expect(JSON.stringify(renderToJson(email))).toContain("TENANT_A_SECRET");
+      expect(read()).toBe(left ? "brand=TENANT_A_SECRET" : "brand=default");
+      expect(JSON.stringify(renderToJson(email)).includes("TENANT_A_SECRET")).toBe(left);
       // (The template's own provider, read where it gives one: the rule README says.)
       const Footer = () => <Paragraph>{`brand=${String(useContext(Brand))}`}</Paragraph>;
       expect(renderToPlainText(<Email><Brand.Provider value="its own"><Row><Column><Footer /></Column></Row></Brand.Provider></Email>).trim()).toBe("brand=its own");
@@ -529,8 +531,8 @@ describe("a context's default around an app's renders", () => {
     for (const Part of [Fails, Never]) {
       try {
         expect(other.renderToString(<Brand.Provider value="TENANT_A_SECRET"><Suspense fallback="loading"><Part /></Suspense></Brand.Provider>)).toContain("loading");
-        expect(read(), Part.name).toBe("brand=TENANT_A_SECRET");
-        expect(JSON.stringify(renderToJson(email)), Part.name).toContain("TENANT_A_SECRET");
+        expect(read(), Part.name).toBe(left ? "brand=TENANT_A_SECRET" : "brand=default");
+        expect(JSON.stringify(renderToJson(email)).includes("TENANT_A_SECRET"), Part.name).toBe(left);
       } finally {
         other.renderToString(<i />);
       }
