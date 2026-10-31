@@ -89,10 +89,10 @@ export const DESIGNS: Record<string, DesignCase> = {
     design: design([block("heading", { text: "Big <em>news</em>" })]),
     code: ['<Heading text="Big <em>news</em>" />'],
   },
-  "heading: textJson beside text is left out": {
-    design: design([block("heading", { text: "Kept", textJson: "{}" })]),
-    code: ["<Heading>Kept</Heading>"],
-    absent: ["textJson"],
+  "heading: its textJson over its text, as the exporters render it": {
+    design: design([block("heading", { text: "Old", textJson: JSON.stringify({ root: { type: "root", children: [{ type: "paragraph", children: [{ type: "text", text: "Shown" }] }] } }) })]),
+    code: ["Shown"],
+    absent: ["textJson", "Old"],
   },
 
   // ── Buttons and links ─────────────────────────────────────────────────────────────────────────────────────────

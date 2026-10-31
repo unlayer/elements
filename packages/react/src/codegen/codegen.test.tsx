@@ -352,6 +352,39 @@ describe("Elements templates come back as they render", () => {
   });
 });
 
+describe("the editor's Lexical text (textJson)", () => {
+  const lexical = (text: string) => JSON.stringify({ root: { type: "root", children: [{ type: "paragraph", children: [{ type: "text", text }] }] } });
+  const plain = (code: string) => Elements.renderToPlainText(React.createElement(evaluate(code))).replace(/\s+/g, " ").trim();
+
+  it("is a heading's, a button's and a paragraph's text, as the exporters render it, over `text`; a text block's `text` is", () => {
+    // `text` was taken over `textJson` for every block: where both were saved (and Elements' design writes a Heading's
+    // or a Button's default `text` beside its textJson), the code showed the old text, with no warning and the
+    // comparison seeing no difference. The exporters render textJson first for these three, `text` for a text block.
+    const both = design([
+      { type: "heading", values: { text: "OLD heading", textJson: lexical("NEW heading") } },
+      { type: "button", values: { text: "OLD button", textJson: lexical("NEW button"), href: { name: "web", values: { href: "https://acme.test/shop" } } } },
+      { type: "paragraph", values: { text: "OLD paragraph", textJson: lexical("NEW paragraph") } },
+      { type: "text", values: { text: "OLD text", textJson: lexical("NEW text") } },
+    ]);
+    const text = plain(designToElements(both).code);
+    for (const kept of ["NEW HEADING", "NEW button", "NEW paragraph", "OLD text"]) expect(text).toContain(kept);
+    for (const gone of ["OLD HEADING", "OLD button", "OLD paragraph", "NEW text"]) expect(text).not.toContain(gone);
+  });
+
+  it("comes back through Elements' own design, again and again: a textJson-only heading and button keep their text", () => {
+    const saved = design([
+      { type: "heading", values: { headingType: "h1", textJson: lexical("Welcome back, {{first_name}}") } },
+      { type: "button", values: { textJson: lexical("Shop the sale"), href: { name: "web", values: { href: "https://acme.test/shop", target: "_blank" } } } },
+    ]);
+    let code = designToElements(saved).code;
+    for (let pass = 1; pass <= 3; pass++) {
+      expect(plain(code), `pass ${pass}`).toContain("WELCOME BACK, {{first_name}}");
+      expect(plain(code), `pass ${pass}`).toContain("Shop the sale");
+      code = designToElements(Elements.renderToJson(React.createElement(evaluate(code))) as unknown as Plain).code;
+    }
+  });
+});
+
 describe("links: the URL the editor exports for each", () => {
   const EMAIL = "mailto:{{email}}?subject={{subject}}&body={{body}}";
   const WEB = { href: "{{href}}", target: "{{target}}" };

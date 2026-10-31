@@ -15,6 +15,9 @@ import type { ModuleState } from "./state";
 import { dropFixedFlags, warnLost, warnMergeTagRule } from "./warnings";
 import { editorLink, READ_BACK } from "./links";
 
+/** The blocks whose `textJson` the exporters render over their `text` (where it's a string). */
+const LEXICAL_FIRST = new Set(["heading", "button", "paragraph"]);
+
 export interface BlockContext {
   /** "Row 2, column 1, block 3": where the block is, for warnings. */
   where: string;
@@ -74,11 +77,11 @@ export function convertBlock(content: Plain, ctx: BlockContext): JsxChild {
   warnMergeTagRule(rest, ctx.where, ctx.state, type === "table");
   rest = base(rest, props, ctx);
 
-  // The editor's Lexical text (a "paragraph" block, or a text block with only its Lexical JSON): Elements writes a
-  // `text` block holding its HTML.
-  if ((type === "paragraph" || type === "text") && typeof rest.text !== "string" && typeof rest.textJson === "string") rest.text = generateHtmlFromTextJson(rest.textJson);
+  // The editor's Lexical text (`textJson`), as its HTML: what the exporters render for a heading, a button and a
+  // "paragraph" block (which Elements writes as a `text` block) wherever they have it, and for a text block that has
+  // no `text` (theirs is its `text`, where it has both).
+  if (typeof rest.textJson === "string" && (LEXICAL_FIRST.has(type) || (type === "text" && typeof rest.text !== "string"))) rest.text = generateHtmlFromTextJson(rest.textJson);
   if (type === "paragraph") ctx.state.warn(`${ctx.where}: a "paragraph" block (the editor's Lexical text) becomes a Paragraph, a "text" block with the same HTML.`);
-  // `text` is what the builder shows and exports where a block has both.
   if (typeof rest.text === "string") delete rest.textJson;
   // A web font's URL, where its <Font> gives it back (see fonts.ts).
   if (rest.fontFamily !== undefined) rest.fontFamily = withoutRestoredUrl(rest.fontFamily, ctx.state);
