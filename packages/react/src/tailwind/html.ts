@@ -7,7 +7,7 @@
  * (src/utils/html-tags.ts), and only the class attributes and the styles they give are written again.
  */
 import { BEYOND, OVER, type ClassCondition, type ClassDeclaration, type ClassDeclarations, type DeclarationReader } from "./declarations";
-import { commentEnd, rawTextEnd, readTag, type Attribute, type Tag } from "../utils/html-tags";
+import { RAW_TEXT, tags, type Attribute } from "../utils/html-tags";
 import { markupValue } from "./written";
 
 // Logical sides as in a left-to-right document, and those a right-to-left one changes: email clients read only physical ones.
@@ -17,8 +17,6 @@ const RTL_SIDES: Record<string, string[]> = { "inline-start": ["right"], "inline
 const RTL_CORNERS: Record<string, string> = { "start-start": "top-right", "start-end": "top-left", "end-end": "bottom-left", "end-start": "bottom-right" };
 /** Elements without an end tag or content: no element after them is in them. */
 const VOID = /^(area|base|br|col|embed|hr|img|input|link|meta|param|source|track|wbr)$/;
-/** Elements whose text has no tags in it, to their end tag (`plaintext`: to the end). */
-const RAW_TEXT = /^(script|style|textarea|title|xmp|iframe|noembed|noframes|plaintext)$/;
 
 /** A class attribute's names: split where HTML splits them, the references a class name can hold read. */
 const NAMES = /[^\t\n\f\r ]+/g;
@@ -48,31 +46,6 @@ function physical(property: string, rtl: boolean): string[] {
   const at = corner && `${corner[1]}-${corner[2]}`;
   if (corner) return [`border-${(rtl && RTL_CORNERS[at!]) || CORNERS[at!]}-radius`];
   return [property === "text-decoration-line" ? "text-decoration" : property];
-}
-
-/**
- * Each tag in `html` as a browser reads it, with where it starts (`lt`): comments, raw text (`<script>`, `<style>`,
- * `<textarea>`, …) and what isn't a tag passed over, up to a tag the markup ends in (left as it is).
- */
-function tags(html: string, visit: (tag: Tag, lt: number) => void): void {
-  for (let i = 0; i < html.length; ) {
-    const lt = html.indexOf("<", i);
-    if (lt < 0) break;
-    const comment = commentEnd(html, lt);
-    if (comment !== undefined) {
-      i = comment;
-      continue;
-    }
-    const tag = readTag(html, lt);
-    if (tag === undefined) {
-      i = lt + 1;
-      continue;
-    }
-    if (!tag) break;
-    i = tag.end;
-    visit(tag, lt);
-    if (!tag.close && RAW_TEXT.test(tag.name)) i = tag.name === "plaintext" ? html.length : rawTextEnd(html, tag.name, i);
-  }
 }
 
 /** A class attribute's names, as written. */

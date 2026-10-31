@@ -1,7 +1,8 @@
 /**
  * Tags in HTML as a browser's tokenizer reads them, for code that reads markup it's given and writes it again: the
- * Markdown sanitizer (src/markdown/sanitize.ts), the rich text in a block's children (src/utils/inline-html.ts) and
- * the Tailwind classes inlined in markup (src/tailwind/html.ts).
+ * Markdown sanitizer (src/markdown/sanitize.ts), the rich text in a block's children (src/utils/inline-html.ts), the
+ * Tailwind classes inlined in markup (src/tailwind/html.ts) and a block's HTML in an exported document
+ * (src/codegen/text.ts).
  * Whitespace is HTML's: no vertical tab, no non-breaking space.
  */
 
@@ -85,6 +86,34 @@ export function readTag(s: string, start: number): Tag | null | undefined {
 export function rawTextEnd(s: string, name: string, from: number): number {
   const end = at(new RegExp(`</${name}(?=[\\t\\n\\f\\r />]|$)`, "gi"), s, from);
   return end ? end.index : s.length;
+}
+
+/** Elements whose text has no tags in it, to their end tag (`plaintext`: to the end). */
+export const RAW_TEXT = /^(script|style|textarea|title|xmp|iframe|noembed|noframes|plaintext)$/;
+
+/**
+ * Each tag in `html` as a browser reads it, with where it starts (`lt`): comments, raw text (`<script>`, `<style>`,
+ * `<textarea>`, …) and what isn't a tag passed over, up to a tag the markup ends in (left as it is).
+ */
+export function tags(html: string, visit: (tag: Tag, lt: number) => void): void {
+  for (let i = 0; i < html.length; ) {
+    const lt = html.indexOf("<", i);
+    if (lt < 0) break;
+    const comment = commentEnd(html, lt);
+    if (comment !== undefined) {
+      i = comment;
+      continue;
+    }
+    const tag = readTag(html, lt);
+    if (tag === undefined) {
+      i = lt + 1;
+      continue;
+    }
+    if (!tag) break;
+    i = tag.end;
+    visit(tag, lt);
+    if (!tag.close && RAW_TEXT.test(tag.name)) i = tag.name === "plaintext" ? html.length : rawTextEnd(html, tag.name, i);
+  }
 }
 
 const VOID = new Set("area base br col embed hr img input link meta param source track wbr".split(" "));
