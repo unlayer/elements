@@ -58,8 +58,13 @@ jobs:
         run: pnpm --filter @unlayer/from-react-email typecheck && pnpm --filter @unlayer/migrate typecheck
 
       # ── Bundle size budget ──────────────────────────────────────
-      # Fail if the react-elements ESM bundle exceeds 276KB.
-      # Current size: about 275.7KB (0.1.22: about 76KB). Raised from 275.5KB
+      # Fail if the react-elements ESM bundle exceeds 277.5KB.
+      # Current size: about 277.3KB (0.1.22: about 76KB). Raised from 276KB
+      # (about 1.6KB): react-dom's modules asked what they're doing only where
+      # a render starts (every module a render under way has, or an app's page
+      # was found rendering with, kept from the renders inside it), wrapped code
+      # breaking a long token, and React 18's lazy async template said by name.
+      # Raised from 275.5KB
       # (about 0.7KB): the first async render reaching the template before its
       # promises can fail, and a component's markup in a Column taking its
       # Tailwind classes as an Html block's. Raised from 275KB
@@ -293,7 +298,7 @@ jobs:
         run: |
           BUNDLE="packages/react/dist/index.js"
           SIZE=$(wc -c < "$BUNDLE" | tr -d ' ')
-          MAX_SIZE=276000
+          MAX_SIZE=277500
           echo "Bundle: $BUNDLE"
           echo "Size: $SIZE bytes (budget: $MAX_SIZE bytes)"
           if [ "$SIZE" -gt "$MAX_SIZE" ]; then
