@@ -11,9 +11,11 @@
  */
 import React from "react";
 import { describe, expect, it } from "vitest";
-import { Column, Email, Html, Paragraph, Row, registerTool, renderToHtml, renderToJson, renderToPlainText } from "../index";
+import { Button, Column, Email, Html, Paragraph, Row, registerTool, renderToHtml, renderToJson, renderToPlainText } from "../index";
 import { Head } from "../head";
 import * as asyncRenderers from "../async";
+import { newCollection } from "./collector";
+import { FORGED, parse, placeholderOf } from "./parse";
 
 const COUNT = Symbol.for("@unlayer/react-elements/render-count");
 /** The number the next render of Elements gets (see collector.ts's `renders`), and the few after it. */
@@ -21,6 +23,9 @@ const nextNumbers = () => {
   const n = ((globalThis as Record<symbol, { n: number } | undefined>)[COUNT]?.n ?? 0) + 1;
   return Array.from({ length: 6 }, (_, i) => `r${(n + i).toString(36)}`);
 };
+
+/** What a lazy component that has loaded renders (a thenable, resolved at once: the synchronous renderers render it). */
+const loaded = (type: React.ComponentType<any>) => React.lazy(() => ({ then: (done: (m: { default: React.ComponentType<any> }) => void) => done({ default: type }) }) as Promise<{ default: React.ComponentType<any> }>);
 
 /** Strings that would forge a marker or close HTML given whole early, for each render number. */
 const vectors = (numbers: string[]) =>
@@ -154,8 +159,6 @@ describe("a marker or placeholder of a part React left out (a <Suspense>'s conte
   // (A lazy component that fails to load: React renders the <Suspense>'s fallback itself, in either renderer.)
   const FailsToLoad = React.lazy(() => ({ then: (_: unknown, fail: (error: Error) => void) => fail(new Error("its chunk didn't load")) }) as Promise<never>);
   const Raw = ({ html, tag = "div" }: { html: string; tag?: string }) => React.createElement(tag, { dangerouslySetInnerHTML: { __html: html } });
-  /** What a lazy component that has loaded renders (a thenable, resolved at once: the synchronous renderers render it). */
-  const loaded = (type: React.ComponentType<any>) => React.lazy(() => ({ then: (done: (m: { default: React.ComponentType<any> }) => void) => done({ default: type }) }) as Promise<{ default: React.ComponentType<any> }>);
   class RawClass extends React.Component<{ html: string }> {
     render() {
       return <Raw html={this.props.html} />;
@@ -249,5 +252,138 @@ describe("a marker or placeholder of a part React left out (a <Suspense>'s conte
       expect(html).toContain("Kept");
       expect(leaked(html)).toEqual([]);
     }
+  });
+});
+
+describe("HTML given whole in what a lazy component renders that isn't whole (an element, a <style> or a comment left open, an end tag of what it didn't open)", () => {
+  // What a lazy component renders is React's own render of it (see above): its HTML given whole is in react-dom's output
+  // as written, among the markers React wrote after it. A <style> or <script> it left open took every block and row
+  // after it (the design kept none, the email lost them) and wrote the render's markers into the email; one closed by
+  // a later <style>'s end tag did the same, and a comment left open did up to the next `-->` React wrote; an
+  // `</unlayer-mark>` in it ended the Column it was in, so the blocks after it were left out with nothing said.
+  const Cms = ({ html }: { html: string }) => <div className="cms" dangerouslySetInnerHTML={{ __html: html }} />;
+  const lazyCms = (html: string) => loaded(() => <Cms html={html} />);
+  /** The same, not lazy: its HTML given whole kept out of react-dom's output, so nothing in it is read. */
+  const plainCms = (html: string) => () => <Cms html={html} />;
+  /** A component of the template's around it: an end tag in it can't end the `<div>` this one opened. */
+  const Wrap = ({ children }: { children: React.ReactNode }) => <div className="wrap">{children}</div>;
+  /**
+   * Markup after it whose ends it could run on to: a `</style>`, a `</template>`, the end of a comment React writes (a
+   * placeholder for HTML given whole; between two texts, in an async render).
+   */
+  const Later = () => (
+    <>
+      <style>{".later{color:red}"}</style>
+      <template><b>later</b></template>
+      <p>{"Later "}{"text"}</p>
+      <div dangerouslySetInnerHTML={{ __html: "<i>Later HTML</i>" }} />
+    </>
+  );
+  const template = (Lazy: React.ComponentType) => (
+    <Email>
+      <Row>
+        <Column>
+          <Wrap><Lazy /></Wrap>
+          <Paragraph>Your order shipped</Paragraph>
+          <Button href="https://example.com/track">Track order</Button>
+        </Column>
+      </Row>
+      <Row>
+        <Column>
+          <Paragraph>Questions? Reply to this email.</Paragraph>
+          <Later />
+        </Column>
+      </Row>
+    </Email>
+  );
+  const renderers = (mode: "sync" | "async") => {
+    const r = mode === "sync" ? { renderToHtml, renderToPlainText, renderToJson } : asyncRenderers;
+    return { html: async (element: React.ReactElement) => r.renderToHtml(element), text: async (element: React.ReactElement) => r.renderToPlainText(element), json: async (element: React.ReactElement) => JSON.stringify(await r.renderToJson(element)) };
+  };
+  const blocks = (design: string) => (JSON.parse(design) as ReturnType<typeof renderToJson>).body.rows.map((row) => row.columns.map((column) => column.contents.map((content) => content.type)));
+  const GENUINE = /<unlayer-mark data-n="r[0-9a-z]+" data-i=|<!--ur[0-9a-z]+\.\d+-->/;
+
+  it("is the email, plain text and design of the same component not lazy, every block and row kept and no marker written, where it leaves an element, a <style>, a <script> or a comment open or ends what it didn't open", async () => {
+    const left = ["<style>.promo{color:red}", "<script>var promo = 1;", "<style>", "<!-- promo", "<!--$!--><template>promo", "</div></div></td></tr></table>promo", "<div>promo", "<div><span>promo", "<p>a<p>promo", "<textarea>promo", "</style></script>--> promo"];
+    for (const mode of ["sync", "async"] as const) {
+      const r = renderers(mode);
+      // (The negative control: HTML that's whole.)
+      const expected = blocks(await r.json(template(lazyCms("<b>promo</b>"))));
+      expect(expected).toEqual([[["html", "text", "button"]], [["text", "html"]]]);
+      for (const raw of left) {
+        const at = `${mode}: ${raw}`;
+        for (const api of ["html", "text", "json"] as const) {
+          const out = await r[api](template(lazyCms(raw)));
+          // (But a comment of the form React writes its own in, which an async render's parse takes for React's.)
+          const notLazy = await r[api](template(plainCms(raw)));
+          expect(out, `${at} (${api})`).toBe(mode === "async" ? notLazy.split("<!--$!-->").join("") : notLazy);
+          expect(out, `${at} (${api})`).not.toMatch(GENUINE);
+        }
+        const html = await r.html(template(lazyCms(raw)));
+        for (const text of ["Your order shipped", "Track order", "Reply to this email.", ".later{color:red}", "<i>Later HTML</i>", "</html>"]) expect(html, at).toContain(text);
+        expect(html, at).toContain(raw.replace("<!--$!-->", mode === "async" ? "" : "<!--$!-->"));
+        expect(blocks(await r.json(template(lazyCms(raw)))), at).toEqual(expected);
+      }
+    }
+  });
+
+  it("fails the render, by name, where it ends one of the render's markers (`</unlayer-mark>`), whatever is after it", async () => {
+    const ends = ["</unlayer-mark>", "</UNLAYER-MARK>", "</div></unlayer-mark>", "</div></div></unlayer-mark>", "</div></unlayer-mark><br>", '</div></unlayer-mark><unlayer-mark data-n="r0">', "<b></unlayer-mark></b>", '<unlayer-mark data-n="r0" data-i="0">promo</unlayer-mark>'];
+    for (const mode of ["sync", "async"] as const) {
+      const r = renderers(mode);
+      for (const raw of ends) {
+        for (const api of ["html", "text", "json"] as const) {
+          await expect(r[api](template(lazyCms(raw))), `${mode} ${api}: ${raw}`).rejects.toThrow(/marker of Elements' own collecting render/);
+        }
+      }
+    }
+    // (The negative control: the same with no end tag of the render's.)
+    expect(renderToHtml(template(lazyCms("</div></unlayer-mork>")))).toContain("Track order");
+  });
+});
+
+describe("a marker or HTML given whole that React rendered, in a part it kept, and the parse never reads", () => {
+  // React writes every marker it renders, once: one the parse doesn't read is in what it read as text (HTML given whole
+  // in what a lazy component renders, run on past it), so what the template holds there isn't where it is.
+  const collection = () => newCollection({ omit: false, shared: {} });
+
+  it("fails the render, by name: a marker", () => {
+    const c = collection();
+    c.marks.push({ k: "r", record: {} });
+    c.rendered.add(0);
+    expect(() => parse("<style>.promo{}</style>", c)).toThrow(FORGED);
+    // (The negative control: where it's read.)
+    const read = collection();
+    read.marks.push({ k: "r", record: {} });
+    read.rendered.add(0);
+    expect(() => parse(`<unlayer-mark data-n="${read.nonce}" data-i="0">x</unlayer-mark>`, read)).not.toThrow();
+  });
+
+  it("fails the render, by name: HTML given whole", () => {
+    const c = collection();
+    c.raw.push({ html: "<b>promo</b>", scope: -1 });
+    c.rawRendered.add(0);
+    expect(() => parse("<style>.promo{}</style>", c)).toThrow(FORGED);
+    const read = collection();
+    read.raw.push({ html: "<b>promo</b>", scope: -1 });
+    read.rawRendered.add(0);
+    expect(() => parse(`<p>${placeholderOf(read.nonce, 0)}</p>`, read)).not.toThrow();
+  });
+
+  it("fails the render, by name, where one is never ended", () => {
+    // (React ends every marker it writes: one with no end tag ran on over the rest of the template.)
+    const c = collection();
+    c.marks.push({ k: "r", record: {} });
+    c.rendered.add(0);
+    expect(() => parse(`<unlayer-mark data-n="${c.nonce}" data-i="0">x<p>rest</p>`, c)).toThrow(FORGED);
+  });
+
+  it("doesn't where React left that part out (a <Suspense>'s content, where it wrote the fallback)", () => {
+    const c = collection();
+    // (Its fallback's marker, 0, read; what's in the content, 1, rendered but not written.)
+    c.marks.push({ k: "fb", frame: { name: "Suspense" } as never, scope: undefined }, { k: "r", record: {}, scope: 0 });
+    c.scopes.push({ parent: -1, marker: 0 });
+    c.rendered.add(0).add(1);
+    expect(() => parse(`<unlayer-mark data-n="${c.nonce}" data-i="0">loading</unlayer-mark>`, c)).not.toThrow();
   });
 });

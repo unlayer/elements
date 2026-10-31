@@ -145,8 +145,11 @@ runs. Each of these fails the render with a `RenderError` that says so and what 
   `Symbol.for`): Elements' Rows, Columns, blocks, `<Tailwind>`s and `<Head>`/`<Font>` entries React renders there give
   their element to the collection, which records it where it is, so one that loaded renders as the component it loads
   would. What isn't Elements' is react-dom's as it renders it (an error thrown there fails the render, even with
-  `onError: "omit"`; HTML given whole there is read as markup, so a marker forged in it fails the render by name), and
-  a component of the user's own there that starts a synchronous render is said at the lazy one's place. One that
+  `onError: "omit"`; HTML given whole there is read as markup, in a marker of the lazy component's own, and no further
+  than the next marker or placeholder React wrote: a `<style>`, `<script>` or comment it leaves open is its text, as
+  in the same component not lazy, an end tag in it ends only what's open in it, and a marker forged in it, or an end
+  tag of one, fails the render by name), and a component of the user's own there that starts a synchronous render is
+  said at the lazy one's place. One that
   hasn't loaded: a synchronous render says it's async, at its place (left out with `onError: "omit"`); an async one
   waits for it.
 
@@ -250,7 +253,11 @@ row or block is left out of the HTML, the plain text and the design (the slower 
    never read for markers (the collector puts none there), and text and attributes are escaped by React. Only a marker the
    collection made and react-dom rendered (`Marker`, which says so) is one, read once: one that looks like it but
    isn't (another render's, a number out of range, one never rendered) is the markup it is, and one read twice fails
-   the render by name (`src/engine/forged-markers.test.tsx`).
+   the render by name (`src/engine/forged-markers.test.tsx`). Each is closed by its own end tag, whatever is still
+   open in it ending with it, and every one React rendered in a part it kept is read: an end tag of a marker with none
+   open (each forged `</unlayer-mark>` leaves one, React writing one per marker), a marker never ended and one never
+   read fail the render too, so what a lazy component renders (HTML given whole as written there) can't move or hide
+   a part of the template.
 3. **One model per render.** The HTML, the head, the plain text and the design are made from the same collected
    content, in one scope: they can't disagree, and a failed part is in none of them.
 4. **A render's output depends only on its arguments.** All per-render state lives in that render's scope: the module
@@ -332,7 +339,7 @@ row or block is left out of the HTML, the plain text and the design (the slower 
 | What | Tests |
 |--|--|
 | The collecting render gives back what react-dom writes, ids included, on hand-written and random trees; each attribute on each kind of element; every element React writes its own way (form controls, a style's, script's and title's text, resources React 19 hoists, where it doesn't); random markup where templates have it (a template with no root, a Page's, a component's in a Column, the async renderers'); and what it means to write otherwise, listed | `src/engine/differential.test.tsx` (`WALKER_FUZZ_SEEDS=5000` and `TEMPLATE_SEEDS=1000` for more) |
-| Strings that look like the collecting render's markers or placeholders, in HTML given whole, a `<Head>`'s style and script, text: markup as any other, in a render alone and one started inside another | `src/engine/forged-markers.test.tsx` |
+| Strings that look like the collecting render's markers or placeholders, in HTML given whole, a `<Head>`'s style and script, text: markup as any other, in a render alone and one started inside another; what a lazy component's HTML leaves open or ends | `src/engine/forged-markers.test.tsx` |
 | The string exporters write what `@unlayer/exporters` writes with react-dom (12k cases; React 19's attributes); pages and documents render with the exporters' react-dom/server made to throw | `src/exporters/parity.test.tsx`, `react-19.test.ts`, `no-react-dom.test.tsx` |
 | Siblings at once, tree order, determinism over random delays, renders at once, the first error in tree order without waiting | `src/engine/async.test.tsx` |
 | The error policy, every renderer, every place `onError` goes; `renderToJson` calling no exporter by default | `src/utils/render-errors.test.tsx` |

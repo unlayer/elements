@@ -73,6 +73,11 @@ export type Mark = (
    * and what's in it whose content runs to its end tag (`ends`). See prepHost.
    */
   | { k: "t"; unescape: boolean; ends: readonly string[] }
+  /**
+   * What a lazy component renders, which React renders unprepared (see prepLazy): its HTML given whole is in react-dom's
+   * output as written, read no further than the markers React wrote after it (parse.ts).
+   */
+  | { k: "l" }
 ) & { scope?: number };
 
 export interface Collection {
@@ -770,14 +775,16 @@ export function suspendedError(c: Collection): RenderError | undefined {
  * component of the user's own React renders there (the one it loads) is said where it is if it starts a render (the
  * lazy component's place, as a component Call calls). Where it hasn't loaded, a synchronous render says it's async,
  * where it is (`<lazy>`); an async one waits for it. HTML given whole in what React renders there isn't prepared: it's
- * in react-dom's output as written, where the parse takes no marker or placeholder React didn't write (parse.ts).
+ * in react-dom's output as written, in a marker of its own (`l`), where the parse takes no marker or placeholder React
+ * didn't write, and reads none of it past one React did (parse.ts).
  */
 function prepLazy(element: React.ReactElement, c: Collection, ctx: Ctx): React.ReactNode {
   if (ctx.raw) return element;
   const frame = placeFrame(ctx.frame, "lazy");
   const lazy = { frame, boundary: ctx.boundary, suspenseAt: ctx.suspenseAt };
   c.lazies.push(lazy);
-  return React.createElement(LazyRendered, { key: element.key ?? undefined, element, c, ctx: { ...ctx, frame, watch: null, order: nextOrder(c, ctx) }, lazy });
+  const rendered = React.createElement(LazyRendered, { element, c, ctx: { ...ctx, frame, watch: null, order: nextOrder(c, ctx) }, lazy });
+  return marker(c, { k: "l", scope: ctx.scope }, rendered, element.key);
 }
 
 /**
