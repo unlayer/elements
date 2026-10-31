@@ -58,8 +58,11 @@ jobs:
         run: pnpm --filter @unlayer/from-react-email typecheck && pnpm --filter @unlayer/migrate typecheck
 
       # ── Bundle size budget ──────────────────────────────────────
-      # Fail if the react-elements ESM bundle exceeds 275.5KB.
-      # Current size: about 275KB (0.1.22: about 76KB). Raised from 275KB
+      # Fail if the react-elements ESM bundle exceeds 276KB.
+      # Current size: about 275.7KB (0.1.22: about 76KB). Raised from 275.5KB
+      # (about 0.7KB): the first async render reaching the template before its
+      # promises can fail, and a component's markup in a Column taking its
+      # Tailwind classes as an Html block's. Raised from 275KB
       # (about 0.3KB): a video's URL kept from `videoUrl`, a layout's sections
       # given as props read where failed parts are left out, a Column saying it
       # leaves out markup a block is in, and React 18's stream comments read in
@@ -290,7 +293,7 @@ jobs:
         run: |
           BUNDLE="packages/react/dist/index.js"
           SIZE=$(wc -c < "$BUNDLE" | tr -d ' ')
-          MAX_SIZE=275500
+          MAX_SIZE=276000
           echo "Bundle: $BUNDLE"
           echo "Size: $SIZE bytes (budget: $MAX_SIZE bytes)"
           if [ "$SIZE" -gt "$MAX_SIZE" ]; then
