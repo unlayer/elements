@@ -58,8 +58,12 @@ jobs:
         run: pnpm --filter @unlayer/from-react-email typecheck && pnpm --filter @unlayer/migrate typecheck
 
       # ── Bundle size budget ──────────────────────────────────────
-      # Fail if the react-elements ESM bundle exceeds 265.5KB.
-      # Current size: about 264.8KB (0.1.22: about 76KB). Raised from 260.5KB
+      # Fail if the react-elements ESM bundle exceeds 266KB.
+      # Current size: about 265.7KB (0.1.22: about 76KB). Raised from 265.5KB
+      # (about 0.9KB): React 18's Node stream's buffer written only as far as
+      # it filled it (no NULs), a part that fails in a <Suspense> in what a
+      # lazy component renders failing the render, and the error that says how
+      # to write one whose fallback holds blocks. Raised from 260.5KB
       # (about 4.8KB): HTML balanced as a browser's parser ends elements at a
       # start tag (a table straight in a table, a cell in a cell, an `<li>` in
       # an `<li>`), what a lazy component renders read no further than the
@@ -260,7 +264,7 @@ jobs:
         run: |
           BUNDLE="packages/react/dist/index.js"
           SIZE=$(wc -c < "$BUNDLE" | tr -d ' ')
-          MAX_SIZE=265500
+          MAX_SIZE=266000
           echo "Bundle: $BUNDLE"
           echo "Size: $SIZE bytes (budget: $MAX_SIZE bytes)"
           if [ "$SIZE" -gt "$MAX_SIZE" ]; then
