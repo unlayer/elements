@@ -203,6 +203,37 @@ describe("email HTML", () => {
     expect(body).not.toContain("never");
   });
 
+  it("writes a run's own phone text styles inside text, its line height from the text's, and leaves the text's to the text", () => {
+    const { head, body } = render(
+      email([
+        {
+          type: "Text",
+          mobile: { fontSize: 14, lineHeight: 2 },
+          children: [
+            { type: "Span", mobile: { fontSize: 30 }, children: ["big"] },
+            " ",
+            { type: "Link", props: { href: "https://example.com" }, mobile: { fontSize: 18 }, children: ["link"] },
+            " ",
+            { type: "Span", style: { fontWeight: 700 }, children: ["bold"] },
+            { type: "Span", style: { verticalAlign: "super" }, mobile: { fontSize: 10 }, children: ["TM"] },
+          ],
+        },
+      ])
+    );
+    const text = /<div class="(e[0-9a-z]{5})" style="[^"]*"><span class="e[0-9a-z]{5}">big/.exec(body)![1];
+    expect(head).toContain(`.${text}{font-size:14px!important;line-height:28px!important}`);
+    // A run's line height on phones is its size times the text's phone line height, as on desktop.
+    const big = /<span class="(e[0-9a-z]{5})">big<\/span>/.exec(body)![1];
+    expect(head).toContain(`.${big}{font-size:30px!important;line-height:60px!important}`);
+    const link = /<a class="(e[0-9a-z]{5})" href="https:\/\/example\.com"[^>]*>link<\/a>/.exec(body)![1];
+    expect(head).toContain(`.${link}{font-size:18px!important;line-height:36px!important}`);
+    // The Text's own phone styles reach "bold" through CSS: no class of its own.
+    expect(body).toMatch(/<span style="font-weight:700">bold<\/span>/);
+    // Raised, it keeps no line height on phones either, so its line doesn't grow.
+    const tm = /<sup class="(e[0-9a-z]{5})" style="line-height:0">TM<\/sup>/.exec(body)![1];
+    expect(head).toContain(`.${tm}{font-size:10px!important}`);
+  });
+
   describe("gaps only between what shows, on desktop and on phones", () => {
     const column = (hidden?: Record<string, boolean>) => ({ type: "Column", hidden, children: [{ type: "Text", children: ["x"] }] });
     const row = (children: unknown[], style: Record<string, unknown> = { gap: 20 }, props: Record<string, unknown> = {}) => render(email([{ type: "Row", style, props, children }]));

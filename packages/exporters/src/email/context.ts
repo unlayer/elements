@@ -26,7 +26,7 @@ export interface Props {
   fill: boolean;
   /** Inside text. */
   inline: boolean;
-  /** The phone text styles of its text: its own, and its parents' where it doesn't set them itself. */
+  /** The phone text styles of its text: its own, and its parents' where it doesn't set them itself (a run inside text: its own only, as CSS carries the text's to it). */
   phoneText: Declarations;
   /** Its text, and the runs in it. */
   text(): Html;

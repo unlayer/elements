@@ -34,7 +34,7 @@ The props hold what every component needs, worked out once by the folder's `inde
 `style` and `mobile` styles, its `parent`, its text (`text()` in email, `children()` in page),
 `render()` for its children (so components never import each other), and per output: in email
 `fill` (its cell is exactly its width) and `phoneText` (its phone text styles, inherited ones
-included); in page `placement` (what its parent's layout adds) and `classes()`.
+included, but a run inside text has only its own: CSS carries the text's to it); in page `placement` (what its parent's layout adds) and `classes()`.
 
 What an output can't do as a template asks isn't in the components. Each style and prop declares,
 for each output, how it's shown there (`support: { email, web }`: full, Outlook-only, partial or none,

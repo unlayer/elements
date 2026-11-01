@@ -91,6 +91,10 @@ interface Place {
 /** What a node's component gets. */
 function propsOf(node: ResolvedNode, place: Place, options: EmailOptions): Props {
   const mobileText = mobileTextOf(node, place.mobile);
+  // Inside text, CSS carries the text's phone styles down to its runs: a run writes only its own, its line
+  // height from the text's phone line height where it has one (as on desktop, the run's size times the text's).
+  const ownText = mobileTextOf(node, {});
+  if (ownText.fontSize !== undefined && mobileText.lineHeight !== undefined) ownText.lineHeight = mobileText.lineHeight;
   const render: Props["render"] = (child, how = {}) => write(child, { parent: node, fill: how.fill ?? false, mobile: mobileText, inline: how.inline ?? false }, options);
   return {
     node,
@@ -99,7 +103,7 @@ function propsOf(node: ResolvedNode, place: Place, options: EmailOptions): Props
     parent: place.parent,
     fill: place.fill,
     inline: place.inline,
-    phoneText: phoneText(node, mobileText),
+    phoneText: phoneText(node, place.inline ? ownText : mobileText),
     text: () => <>{node.children.map((child) => (typeof child === "string" ? child : render(child, { inline: true })))}</>,
     render,
     options,

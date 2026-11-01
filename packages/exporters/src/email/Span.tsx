@@ -10,13 +10,15 @@ import { hiding, runText } from "./styles";
 
 const TAGS: Record<string, string> = { super: "sup", sub: "sub" };
 
-export const Span: Component = ({ node, style, parent, text }) => {
+export const Span: Component = ({ node, style, parent, phoneText, text }) => {
   const hidden = hiding(node, "inline");
   const Tag = TAGS[style.verticalAlign as string] ?? "span";
   return (
     <Tag
       id={node.id}
       class={hidden.class}
+      // Raised or lowered, it keeps no line height on phones either.
+      phone={Tag === "span" ? phoneText : phoneText.filter(([property]) => property !== "line-height")}
       style={[runText(node, parent), { textDecoration: style.textDecoration, backgroundColor: style.backgroundColor, lineHeight: Tag === "span" ? undefined : "0" }, hidden.style]}
     >
       {text()}
