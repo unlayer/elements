@@ -151,7 +151,8 @@ class Inline extends Limited {
   inlineText(src: string): Tokens.Text | undefined {
     if (this.spent) return super.inlineText(src);
     const tag = mergeTagAt(src);
-    if (tag) return this.within(src, tag.length, () => ({ type: "text", raw: tag, text: tag }));
+    // (Where reading it is what spends the work that's left, it's text as marked reads text, as anything after it is.)
+    if (tag) return this.within(src, tag.length, () => ({ type: "text", raw: tag, text: tag })) ?? super.inlineText(src);
     return this.within(src, textReach(src, this.breaks), (part) => super.inlineText(part)) ?? super.inlineText(src);
   }
 }

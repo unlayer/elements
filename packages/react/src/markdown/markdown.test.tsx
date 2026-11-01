@@ -449,6 +449,21 @@ describe("Markdown from data: no more than its size calls for", () => {
     expect(new DOMParser().parseFromString(deeper, "text/html").body.textContent).toContain("*a *a b a* a*");
   });
 
+  it("renders the rest of a render's Markdowns as text where a Mailchimp tag is what spends the work left", () => {
+    // (Read where the work ran out, the tag was nothing marked could read: the render failed, `Infinite loop on byte: 42`.)
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    try {
+      const line = "*|FNAME|* **bold _it* x_\n";
+      for (const count of [3, 20]) {
+        const markdowns = Array.from({ length: count }, (_, i) => <Markdown key={i}>{line.repeat(200)}</Markdown>);
+        const text = renderToPlainText(<Email><Row><Column>{markdowns}</Column></Row></Email>);
+        expect(text.split("*|FNAME|*").length - 1, `${count}`).toBe(count * 200);
+      }
+    } finally {
+      warn.mockRestore();
+    }
+  });
+
   it("renders the rest of a Markdown's inline syntax as text past the work it can take, leaving nothing out", () => {
     const markdown = "*a ".repeat(40000) + "\n\nAfter: **bold** and [a link](https://e.test).";
     const body = new DOMParser().parseFromString(renderToHtml(email({ markdown, html: "escape" })), "text/html").body;
