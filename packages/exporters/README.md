@@ -33,10 +33,11 @@ The props hold what every component needs, worked out once by the folder's `inde
 `fill` (its cell is exactly its width) and `phoneText` (its phone text styles, inherited ones
 included); in page `placement` (what its parent's layout adds) and `classes()`.
 
-What email can't do as a template asks isn't in the components. Each style declares its email
-support in its definition (`email`: full, Outlook-only, partial or none, with its source), and
-`email/support.ts` reports from that data in one pass, with a few structural checks (an image without a
-width). `test/email-support.test.ts` keeps it true: every style declared, none dropped silently.
+What an output can't do as a template asks isn't in the components. Each style and prop declares,
+for each output, how it's shown there (`support: { email, web }`: full, Outlook-only, partial or none,
+with its source); `shared/support.ts` reports from that data in one pass for any output, and email adds
+a few structural checks (`email/support.ts`: an image without a width). `test/support.test.ts` keeps it
+true for every output with a writer: everything declared, nothing dropped silently.
 
 The JSX (`src/jsx.ts`) writes strings, and:
 
@@ -82,8 +83,9 @@ style: the resolver puts them there, so a cell needs nothing from its table.
 
 1. Its definition in `packages/core/src/components.ts` (props, styles, children, which outputs).
 2. A component in each output folder it supports: `email/Name.tsx` and `page/Name.tsx`, exported as
-   `Name` and added to the table in that folder's `index.tsx`; each of its styles declares its email
-   support (`email` in its definition), which the support test checks against what the writer does.
+   `Name` and added to the table in that folder's `index.tsx`; each of its styles and props declares
+   its support for each output (`support` in its definition), which the support test checks against
+   what the writers do.
 3. Its plain text in `plain-text.ts`, if it has any of its own.
 4. Tests: markup in `test/email.test.ts` and `test/web.test.ts` (the JSX itself in `test/jsx.test.tsx`); widths in Chromium in
    `test/browser/` when it has a box of its own.

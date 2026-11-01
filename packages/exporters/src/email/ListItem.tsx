@@ -15,7 +15,7 @@ export const ListItem: Component = ({ node, style, phoneText, render }) => {
   }
   const blocks: Html[] = parts.map((part) =>
     Array.isArray(part) ? (
-      <div phone={phoneText} style={[fullText(node), { textDecoration: style.textDecoration }]}>
+      <div dir={node.props.dir as string | undefined} phone={phoneText} style={[fullText(node), { textDecoration: style.textDecoration }]}>
         {part.map((child) => (typeof child === "string" ? child : render(child, { inline: true })))}
       </div>
     ) : (

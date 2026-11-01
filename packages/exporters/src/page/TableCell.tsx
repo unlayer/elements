@@ -12,6 +12,7 @@ export const TableCell: Component = ({ node, style, parent: row, classes, childr
       class={classes()}
       scope={row.props.header ? "col" : undefined}
       colspan={span > 1 ? span : undefined}
+      dir={node.props.dir as string | undefined}
       style={[
         { boxSizing: "border-box", padding: style.padding, backgroundColor: style.backgroundColor, border: style.border, verticalAlign: style.verticalAlign ?? "top" },
         textDeclarations(node.text, row.text, Cell === "th" ? ["fontWeight", "textAlign"] : []),

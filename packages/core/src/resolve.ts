@@ -153,6 +153,12 @@ function textOf(parent: ResolvedText, style: Record<string, Json>): ResolvedText
   return out;
 }
 
+/** A direction of its own (a block's, or the root's) sets where its text starts, unless its author aligned it. */
+function directed(text: ResolvedText, dir: Json | undefined, ownAlign: Json | undefined): ResolvedText {
+  if (ownAlign !== undefined || (dir !== "rtl" && dir !== "ltr")) return text;
+  return { ...text, textAlign: dir === "rtl" ? "right" : "left" };
+}
+
 /** A node with its own values worked out; its width and children are set by its parent's layout. */
 function resolveNode(node: Node, path: string, parentText: ResolvedText, available: number | null, context: Context): ResolvedNode {
   const definition = context.registry.get(node.type)!;
@@ -168,7 +174,7 @@ function resolveNode(node: Node, path: string, parentText: ResolvedText, availab
     ...(node.hover ? { hover: node.hover } : {}),
     ...(node.mobile ? { mobile: node.mobile } : {}),
     ...(node.hidden ? { hidden: node.hidden } : {}),
-    text: textOf(parentText, style),
+    text: directed(textOf(parentText, style), props.dir, node.style?.textAlign),
     available,
     width: null,
     contentWidth: null,

@@ -2,7 +2,7 @@
  * Type contract of the primitives (checked by `pnpm typecheck`): their props'
  * types come from the component definitions that validate them.
  */
-import { Button, Column, Email, Heading, Image, Link, Paragraph, Row, Section, Text } from "./index";
+import { Button, Column, Email, Heading, Image, Link, Paragraph, Row, Section, Span, Text } from "./index";
 
 export const ok = (
   <Email
@@ -26,8 +26,9 @@ export const ok = (
         <Text>Left</Text>
       </Column>
       <Column style={{ flex: 2 }}>
-        <Paragraph>
-          Read <Link href={{ href: "https://example.com", target: "_blank" }}>this</Link>
+        <Paragraph dir="rtl">
+          Read <Link href={{ href: "https://example.com", target: "_blank" }} title="Docs" aria-label="Read the docs">this</Link>
+          <Span style={{ verticalAlign: "super" }}>1</Span>
         </Paragraph>
         <Button href="https://example.com" hover={{ backgroundColor: "#000" }} style={{ fontWeight: "bold" }}>
           Go
@@ -63,4 +64,6 @@ export const weight = <Text style={{ fontWeight: 450 }}>x</Text>;
 export const fontInStyle = <Text style={{ fontFamily: { name: "Inter", src: "https://fonts.example.com/inter.woff2" } }}>x</Text>;
 // @ts-expect-error a font's format is woff2, woff, truetype or opentype
 export const wrongFormat = <Email fonts={[{ family: "Inter", src: "https://fonts.example.com/inter.eot", format: "eot" }]} />;
+// @ts-expect-error a Span is raised or lowered: baseline, super or sub
+export const wrongRaise = <Span style={{ verticalAlign: "top" }}>x</Span>;
 

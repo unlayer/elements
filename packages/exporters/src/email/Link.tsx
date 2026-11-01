@@ -12,7 +12,7 @@ export const Link: Component = ({ node, style, parent, fill, inline, phoneText, 
   if (inline) {
     const hidden = hiding(node, "inline");
     return (
-      <a id={node.id} class={hidden.class} hover={node.hover} {...link(node.props.href)} style={[runText(node, parent, ["color"]), { textDecoration: style.textDecoration, backgroundColor: style.backgroundColor }, hidden.style]}>
+      <a id={node.id} class={hidden.class} hover={node.hover} {...link(node.props)} style={[runText(node, parent, ["color"]), { textDecoration: style.textDecoration, backgroundColor: style.backgroundColor }, hidden.style]}>
         {text()}
       </a>
     );
@@ -24,7 +24,7 @@ export const Link: Component = ({ node, style, parent, fill, inline, phoneText, 
       id={node.id}
       phone={onlyImage ? undefined : phoneText}
       hover={node.hover}
-      {...link(node.props.href)}
+      {...link(node.props)}
       style={onlyImage ? { textDecoration: "none" } : [fullText(node, { align: false }), { textDecoration: style.textDecoration, backgroundColor: style.backgroundColor }]}
     >
       {onlyImage ? <>{node.children.map((child) => typeof child !== "string" && render(child, { fill }))}</> : text()}

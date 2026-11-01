@@ -227,6 +227,17 @@ describe("web HTML", () => {
     expect(body).toContain('<tbody><tr><td colspan="2" style="box-sizing:border-box;padding:8px;vertical-align:top">C</td></tr></tbody></table>');
   });
 
+  it("raises and lowers text, writes titles, labels and a block's own direction", () => {
+    const { body } = web(
+      page([
+        { type: "Paragraph", props: { dir: "rtl" }, children: ["E=mc", { type: "Span", style: { verticalAlign: "super" }, children: ["2"] }] },
+        { type: "Button", props: { href: "https://example.com", title: "Go", "aria-label": "Go to the shop" }, children: ["Go"] },
+      ])
+    );
+    expect(body).toContain('<p dir="rtl" style="margin:0;text-align:right">E=mc<sup style="line-height:0">2</sup></p>');
+    expect(body).toContain('<a href="https://example.com" title="Go" aria-label="Go to the shop" style=');
+  });
+
   it("writes the plain-text version from the template", () => {
     const { text } = web(
       page([

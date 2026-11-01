@@ -8,7 +8,7 @@ export const Link: Component = ({ node, style, parent, placement, classes, child
   <a
     id={node.id}
     class={classes()}
-    {...link(node.props.href)}
+    {...link(node.props)}
     style={[placement, textDeclarations(node.text, parent.text, ["color"]), { textDecoration: style.textDecoration, backgroundColor: style.backgroundColor }]}
   >
     {children()}

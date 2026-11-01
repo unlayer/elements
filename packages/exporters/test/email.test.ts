@@ -198,6 +198,56 @@ describe("email HTML", () => {
     expect(body).toContain('<a href="https://example.com" style="text-decoration:none"><img src="https://example.com/a.png" alt="A" width="120" border="0"');
   });
 
+  it("raises and lowers text as <sup> and <sub>, without pushing its line apart", () => {
+    const { body } = render(email([{ type: "Paragraph", children: ["Brand", { type: "Span", style: { verticalAlign: "super" }, children: ["®"] }, " H", { type: "Span", style: { verticalAlign: "sub" }, children: ["2"] }, "O"] }]));
+    expect(body).toContain('>Brand<sup style="line-height:0">®</sup> H<sub style="line-height:0">2</sub>O</p>');
+  });
+
+  it("writes a link's, a button's and an image's title and aria-label", () => {
+    const { body } = render(
+      email([
+        { type: "Paragraph", children: [{ type: "Link", props: { href: "https://example.com", title: "Docs", "aria-label": "Read the docs" }, children: ["here"] }] },
+        { type: "Button", props: { href: "https://example.com", "aria-label": "Start your trial" }, children: ["Start"] },
+        { type: "Image", props: { src: { src: "https://example.com/a.png", width: 100 }, alt: "Logo", title: "Acme" } },
+      ])
+    );
+    expect(body).toContain('<a href="https://example.com" title="Docs" aria-label="Read the docs" style=');
+    expect(body).toContain('<a href="https://example.com" aria-label="Start your trial" style=');
+    expect(body).toContain('alt="Logo" title="Acme" width="100"');
+  });
+
+  it("writes a block's own direction, and starts its text on that side", () => {
+    const { body } = render(
+      email([
+        { type: "Paragraph", props: { dir: "rtl" }, children: ["مرحبا"] },
+        { type: "Paragraph", props: { dir: "rtl" }, style: { textAlign: "center" }, children: ["وسط"] },
+      ])
+    );
+    expect(body).toMatch(/<p dir="rtl" style="[^"]*text-align:right">مرحبا<\/p>/);
+    expect(body).toMatch(/<p dir="rtl" style="[^"]*text-align:center">وسط<\/p>/);
+    // A right-to-left email starts its text on the right.
+    expect(render(email([{ type: "Text", children: ["x"] }], { props: { width: 600, dir: "rtl" } })).body).toMatch(/<div style="[^"]*text-align:right">x<\/div>/);
+  });
+
+  it("writes indented HTML for reading, the same document as the compact one", async () => {
+    const { JSDOM } = await import("jsdom");
+    const template = email([{ type: "Paragraph", children: ["A ", { type: "Span", style: { verticalAlign: "super" }, children: ["1"] }] }, { type: "Row", style: { gap: 20 }, children: [{ type: "Column", children: [{ type: "Text", children: ["a"] }] }, { type: "Column" }] }]);
+    const compact = render(template).html;
+    const pretty = render(template, { pretty: true }).html;
+    expect(pretty).not.toBe(compact);
+    expect(pretty.split("\n").length).toBeGreaterThan(20);
+    // Only white space between tags differs.
+    const normal = (html: string) => {
+      const dom = new JSDOM(html).window.document;
+      const walker = dom.createTreeWalker(dom, 4 /* text */);
+      const blank: Node[] = [];
+      while (walker.nextNode()) if (!walker.currentNode.textContent!.trim()) blank.push(walker.currentNode);
+      for (const node of blank) node.parentNode!.removeChild(node);
+      return dom.documentElement.outerHTML;
+    };
+    expect(normal(pretty)).toBe(normal(compact));
+  });
+
   it("writes web fonts where classic Outlook doesn't read them, and says where they load", () => {
     const { head, diagnostics } = render(
       email([{ type: "Text", style: { fontFamily: "'Brand Sans', Arial, sans-serif" }, children: ["x"] }], {
@@ -207,8 +257,8 @@ describe("email HTML", () => {
     expect(head).toContain(
       '<!--[if !mso]><!--><style>@font-face{font-family:"Brand Sans";src:url("https://fonts.example.com/brand.woff2") format("woff2");font-weight:400}@font-face{font-family:"Brand Sans";src:url("https://fonts.example.com/brand-700.woff2") format("woff2");font-weight:700}</style><!--<![endif]-->'
     );
-    // A note per family, not per face.
-    expect(diagnostics.map((d) => [d.code, d.path])).toEqual([["email/degraded", "root.props.fonts[0]"]]);
+    // One note, from what fonts declares for email.
+    expect(diagnostics.map((d) => [d.code, d.path])).toEqual([["email/degraded", "root.props.fonts"]]);
   });
 
   it("warns where a font stack ends on a web font, leaving the client to choose", () => {
@@ -306,10 +356,11 @@ describe("email HTML", () => {
       ])
     );
     expect(diagnostics.map((d) => [d.code, d.severity])).toEqual([
+      // What styles and props declare first, then what the email's structure shows.
       ["email/unsupported", "warning"],
       ["email/unsupported", "warning"],
-      ["email/width", "warning"],
       ["email/degraded", "info"],
+      ["email/width", "warning"],
     ]);
   });
 

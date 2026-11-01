@@ -12,16 +12,22 @@ import {
 } from "@unlayer-internal/elements-core";
 import { renderEmail, type EmailOptions } from "./email";
 import { emailSupport } from "./email/support";
+import { support } from "./shared/support";
 import { renderPage, type PageOptions } from "./page";
 import { renderText } from "./plain-text";
+import { prettyHtml } from "./shared/pretty";
 
 export { renderEmail, EMAIL_PHONE_MARGIN, GMAIL_CLIP_BYTES, GMAIL_STYLE_BYTES, type EmailHtml, type EmailOptions } from "./email";
 export { renderPage, PAGE_PHONE_WIDTH, type PageHtml, type PageOptions } from "./page";
 export { renderText, type TextOptions } from "./plain-text";
 export { emailSupport } from "./email/support";
+export { support } from "./shared/support";
 export { Stylesheet, CLASS_PREFIX, type Media } from "./shared/classes";
 
-export interface RenderOptions extends PageOptions, EmailOptions {}
+export interface RenderOptions extends PageOptions, EmailOptions {
+  /** The HTML indented, for reading it; for sending, the compact HTML (white space may change how some email clients show it). */
+  pretty?: boolean;
+}
 
 export interface RenderResult {
   /** The whole document, from `<!DOCTYPE html>`. */
@@ -77,7 +83,7 @@ export function prepareTemplate(input: unknown, options: ComponentsOption = {}):
   if (failed()) return { resolved: null, target: output.target, diagnostics };
   const resolved = resolveExpanded(expanded.document, registry);
   diagnostics.push(...resolved.diagnostics);
-  if (output.target === "email") diagnostics.push(...emailSupport(resolved.root));
+  diagnostics.push(...(output.target === "email" ? emailSupport(resolved.root) : support(resolved.root, output.target)));
   return { resolved: failed() ? null : resolved, target: output.target, diagnostics };
 }
 
@@ -96,9 +102,7 @@ export function renderTemplate(input: unknown, options: RenderOptions & Componen
   const { resolved, target, diagnostics } = prepareTemplate(input, options);
   if (!resolved) throw new ElementsError(diagnostics);
   const text = renderText(resolved, options);
-  if (target === "email") {
-    const email = renderEmail(resolved, options);
-    return { html: email.html, head: email.head, body: email.body, bodyStyle: email.bodyStyle, text, diagnostics: [...diagnostics, ...email.diagnostics] };
-  }
-  return { ...renderPage(resolved, options), text, diagnostics };
+  const written = target === "email" ? renderEmail(resolved, options) : { ...renderPage(resolved, options), diagnostics: [] };
+  const shown = (html: string) => (options.pretty ? prettyHtml(html) : html);
+  return { html: shown(written.html), head: shown(written.head), body: shown(written.body), bodyStyle: written.bodyStyle, text, diagnostics: [...diagnostics, ...written.diagnostics] };
 }

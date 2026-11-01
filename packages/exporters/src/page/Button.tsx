@@ -9,8 +9,8 @@ export const Button: Component = ({ node, parent, placement, classes, children }
   <a
     id={node.id}
     class={classes()}
-    {...link(node.props.href)}
-    style={[placement, { display: "inline-block", textDecoration: "none" }, textDeclarations(node.text, parent.text, ["color"]), box(node, parent.type !== "Row")]}
+    {...link(node.props)}
+    style={[placement, { display: "inline-block", textDecoration: node.style.textDecoration ?? "none" }, textDeclarations(node.text, parent.text, ["color"]), box(node, parent.type !== "Row")]}
   >
     {children()}
   </a>

@@ -23,26 +23,32 @@ export interface PropSpec<K extends Kind<any, any> = Kind<any, any>, R extends b
   default?: OutputOf<K>;
   /** Editors may change it (default true). */
   editable?: boolean;
+  /** How each output shows it: required for every output its component renders to (a test checks). */
+  support?: SupportByTarget;
 }
 
-/**
- * Where what email shows of a style is known from: captures of classic Outlook
- * (unlayer/email-renderer, oracle/CALIBRATION.md); caniemail's client tables;
- * the email writer itself, which turns the style into markup every client
- * shows (checked in Chromium, with and without <style>, and in the
- * Outlook-like renderer); or assumed, not yet checked.
- */
-export type SupportSource = "outlook-captures" | "caniemail" | "writer" | "assumed";
+/** A style's or prop's support, by output. */
+export type SupportByTarget = Partial<Record<Target, Support | readonly Support[]>>;
 
 /**
- * How email shows a style, or some of its values (`values`, or `when` the
- * value is such): as asked (`full`); as asked but in classic Outlook, which
- * shows something else (`outlook`: what it shows); not quite as asked in any
- * client (`partial`: what it shows); or not at all (`none`: what it does
- * instead). Read by the email support pass: `outlook` and `partial` are notes,
- * `none` a warning.
+ * Where what an output shows of a style or prop is known from: captures of
+ * classic Outlook (unlayer/email-renderer, oracle/CALIBRATION.md); caniemail's
+ * client tables; the output's writer itself, which turns it into markup the
+ * output shows (checked in Chromium, for email with and without <style> and in
+ * the Outlook-like renderer); CSS written as is, which browsers show as asked;
+ * or assumed, not yet checked.
  */
-export type EmailSupport =
+export type SupportSource = "outlook-captures" | "caniemail" | "writer" | "css" | "assumed";
+
+/**
+ * How an output shows a style or prop, or some of its values (`values`, or
+ * `when` the value is such): as asked (`full`); as asked but in classic
+ * Outlook, which shows something else (`outlook`, email only: what it shows);
+ * not quite as asked anywhere it's shown (`partial`: what it shows); or not at
+ * all (`none`: what it does instead). Read by the support pass every output
+ * runs: `outlook` and `partial` are notes, `none` a warning.
+ */
+export type Support =
   | { level: "full"; source: SupportSource }
   | { level: "outlook" | "partial" | "none"; shows: string; values?: readonly Json[]; when?: (value: Json) => boolean; source: SupportSource };
 
@@ -55,8 +61,8 @@ export interface StyleSpec<K extends Kind<any, any> = Kind<any, any>> {
   /** May be overridden on phones (`mobile`). */
   mobile?: boolean;
   editable?: boolean;
-  /** How email shows it: required on every style of a component that renders to email (a test checks). */
-  email?: EmailSupport | readonly EmailSupport[];
+  /** How each output shows it: required for every output its component renders to (a test checks). */
+  support?: SupportByTarget;
 }
 
 export type PropSpecs = Record<string, PropSpec>;

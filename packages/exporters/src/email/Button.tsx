@@ -31,7 +31,7 @@ export const Button: Component = ({ node, style, mobile, fill, phoneText, text }
           style={{ backgroundColor: style.backgroundColor, border: style.border, borderRadius: style.borderRadius, msoPaddingAlt: insets(style.padding) }}
         >
           <a
-            {...link(node.props.href)}
+            {...link(node.props)}
             phone={[phoneText, { padding: mobile.padding }]}
             hover={{ color: node.hover?.color }}
             style={[

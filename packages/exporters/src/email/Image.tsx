@@ -24,6 +24,7 @@ export const Image: Component = ({ node, style, mobile, parent, fill }) => {
       phone={{ maxWidth: mobile.maxWidth ?? mobile.width }}
       src={src}
       alt={(node.props.alt as string) ?? ""}
+      title={node.props.title as string | undefined}
       width={width}
       // Its height in proportion, for Word, when the file's size is known.
       height={height ?? (width !== undefined && fileWidth && fileHeight ? Math.round((fileHeight * width) / fileWidth) : undefined)}

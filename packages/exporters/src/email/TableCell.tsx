@@ -17,6 +17,7 @@ export const TableCell: Component = ({ node, style, mobile, parent: row, phoneTe
       id={node.id}
       scope={row.props.header ? "col" : undefined}
       colspan={span > 1 ? span : undefined}
+      dir={node.props.dir as string | undefined}
       width={node.width ?? undefined}
       valign={(style.verticalAlign as string | undefined) ?? "top"}
       bgcolor={bgcolor(style.backgroundColor)}

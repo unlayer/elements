@@ -83,6 +83,13 @@ still say "document", `toDocument()`, `renderDocument()` and JSON input where th
    - **No Tailwind.** Typed `style` props only; `@unlayer/migrate` converts Tailwind templates.
    - **Not yet:** dark-mode overrides, background images, shadows, gradients, opacity, margins,
      `CodeBlock`, `CodeInline` and `Markdown`. Each can be added later without changing the API.
+   - **Done for parity** (2026-11-01): lists and tables; web fonts (the root's `fonts`, as React
+     Email's `Font`); superscript and subscript (`verticalAlign: "super" | "sub"` on a `Span`, written
+     as `<sup>`/`<sub>` with no line height of their own); `title` and `aria-label` on links, buttons
+     and images (`title` on images); a block's own text direction (`dir` on Text, Paragraph, Heading,
+     ListItem and TableCell), which, like the root's, starts its text on that side unless it's aligned;
+     and `render(element, { pretty: true })`, indented HTML for reading (breaks only between
+     structural tags; Chromium lays it out as the compact HTML), not for sending.
 
 ## Packages and the API boundary
 
@@ -560,34 +567,39 @@ Each is a small module with its own tests and Outlook captures.
   padding in Outlook is the documented behaviour, not a measured one: the next capture run
   should include buttons.
 
-### Email support as data
+### Support as data, for every output
 
-Implemented 2026-11-01. Every style of every component that renders to email declares, in its
-definition (`email` on the style: `packages/core/src/styles.ts`, `components.ts`), how email shows it,
-for all values or some (`values`, `when`):
+Implemented 2026-11-01. Every style and every prop of every component declares, in its definition
+(`support` on the style or prop: `packages/core/src/styles.ts`, `components.ts`), how each output
+it renders to shows it (`support: { email: …, web: … }`), for all values or some (`values`, `when`):
 
 | Level | Means | Diagnostic |
 |---|---|---|
 | `full` | shown as asked | none |
-| `outlook` | as asked, but classic Outlook shows something else (`shows`: square corners, normal letter spacing, content past a set height) | `email/outlook-degraded` (note) |
-| `partial` | not quite as asked in any client (`shows`: a Row's children not stretched to one height) | `email/degraded` (note) |
-| `none` | not in email (`shows` what it does instead: `justifyContent: "space-between"` on a Row, `flexWrap: "wrap"`) | `email/unsupported` (warning) |
+| `outlook` | email only: as asked, but classic Outlook shows something else (`shows`: square corners, normal letter spacing, content past a set height) | `email/outlook-degraded` (note) |
+| `partial` | not quite as asked anywhere the output is shown (`shows`: a Row's children not stretched to one height; web fonts in Gmail) | `<output>/degraded` (note) |
+| `none` | not in that output (`shows` what it does instead: `justifyContent: "space-between"` on an email Row, `flexWrap: "wrap"` in email) | `<output>/unsupported` (warning) |
 
 Each declaration names its source: `outlook-captures` (unlayer/email-renderer's oracle),
-`caniemail`, `writer` (the email writer lowers it to markup every client shows: checked in Chromium,
-with and without `<style>`, and in the Outlook-like renderer), or `assumed` (not checked yet:
-`textTransform`). One pass (`emailSupport`, run by `validate()` and `render()`) reads them, for the
-styles an author set (not a component's own defaults); what no single style says (a Row child whose
-size isn't known, an image without a width, a hidden table cell) stays a structural check there.
+`caniemail`, `writer` (the output's writer turns it into markup the output shows: checked in Chromium,
+for email with and without `<style>` and in the Outlook-like renderer), `css` (written as CSS, which
+browsers show as asked), or `assumed` (not checked yet: `textTransform` in email). One pass
+(`exporters/src/shared/support.ts`, run by `validate()` and `render()` for the template's output)
+reads them, for the styles and props an author set (not a component's own defaults); each output adds
+what no single style or prop says (email: a Row child whose size isn't known, an image without a
+width, a hidden table cell, a font stack that ends on a web font).
 
-What keeps it true (`packages/exporters/test/email-support.test.ts`): every style of every email
-component has a declaration; every style, at each enum value and a noticeable sample of others,
-either changes the email or gives a diagnostic for it (none is dropped silently); and every value
-declared `outlook`, `partial` or `none` is reported. Writing that test found four silent drops, now
-fixed: `textDecoration` on containers, `height` on an email Row, `maxWidth` on a Button without a
-width, `flex` on a Divider; and that `alignItems: "stretch"` didn't widen a stack's Buttons and
-Images (now in the resolver, so every target does). A new style can't be added for email without
-saying what email does with it.
+What keeps it true (`packages/exporters/test/support.test.ts`), for each output with a writer (email
+and web today): every style and prop of every component that renders to it has a declaration; each,
+at every enum value and a noticeable sample of others, either changes the output or gives a
+diagnostic for it (nothing is dropped silently); and every value declared `outlook`, `partial` or
+`none` is reported. Writing it found silent drops, now fixed: `textDecoration` on containers, `height`
+on an email Row, `maxWidth` on a Button without a width, `flex` on a Divider, `textDecoration` on a
+page Button; and that `alignItems: "stretch"` didn't widen a stack's Buttons and Images (now in the
+resolver, so every output does). An output added later (print for `Document`, PDF, image for
+`Canvas`) joins by one line in that test, which then fails until each of its components' styles and
+props declares what it does there; a style or prop can't be added without saying, for each output,
+what that output does with it.
 
 Chromium and the Outlook-like renderer aren't email clients: `caniemail` and `assumed` entries, and
 anything only the renderer has checked, are confirmed by capturing real clients.

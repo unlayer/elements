@@ -3,16 +3,23 @@
  * buttons, images, dividers, lists and tables; grids, layers, documents,
  * canvases and shapes follow in their own steps.
  */
-import { defineComponent, prop, type ComponentDefinition, type CompositeEditor } from "./define";
+import { defineComponent, prop, type ComponentDefinition, type CompositeEditor, type SupportByTarget } from "./define";
 import { asset, boolean, enumOf, fontFaces, insets, length, line, link, number, text } from "./kinds";
 import type { Json } from "./model";
-import { boxStyle, inheritedTextStyle, layoutStyle, pick, placementStyle, textStyle } from "./styles";
+import { boxStyle, css, inheritedTextStyle, layoutStyle, pick, placementStyle, textStyle } from "./styles";
+
+/** A prop each output writes as given. */
+const WRITTEN: SupportByTarget = { email: { level: "full", source: "writer" }, web: { level: "full", source: "writer" } };
 
 const ROOT_PROPS = {
-  title: prop(text(), { label: "Title", description: "The document's title (shown in a browser tab, and by some email clients)." }),
-  lang: prop(text({ maxLength: 35 }), { label: "Language", description: 'Its language, as a BCP 47 tag ("en", "ar").' }),
-  dir: prop(enumOf(["ltr", "rtl", "auto"]), { label: "Text direction" }),
+  title: prop(text(), { support: WRITTEN, label: "Title", description: "The document's title (shown in a browser tab, and by some email clients)." }),
+  lang: prop(text({ maxLength: 35 }), { support: WRITTEN, label: "Language", description: 'Its language, as a BCP 47 tag ("en", "ar").' }),
+  dir: prop(enumOf(["ltr", "rtl", "auto"]), { support: WRITTEN, label: "Text direction" }),
   fonts: prop(fontFaces(), {
+    support: {
+      email: { level: "partial", shows: "Apple Mail and iOS Mail load web fonts; Gmail and classic Outlook don't, and show the next font in each stack", source: "caniemail" },
+      web: { level: "full", source: "writer" },
+    },
     label: "Web fonts",
     description: "The font files the template loads: a family's file for each weight and style it uses. Text names a family in its fontFamily stack, before the fonts to show where it can't load.",
   }),
@@ -34,6 +41,11 @@ const ROOT_DEFAULT_STYLE = {
   textAlign: "left",
 } as const;
 
+/** A block of text's own direction, beside its neighbours' (an Arabic paragraph in an English email). */
+const TEXT_DIR = {
+  dir: prop(enumOf(["ltr", "rtl", "auto"]), { support: WRITTEN, label: "Text direction", description: "Its text's direction, where it differs from the template's; it starts on that side unless aligned otherwise." }),
+};
+
 const TEXT_EDITOR = { title: "Text", paths: ["style.fontFamily", "style.fontSize", "style.fontWeight", "style.color", "style.lineHeight", "style.letterSpacing", "style.textAlign"] };
 const SPACING_EDITOR = { title: "Spacing", paths: ["style.padding"] };
 
@@ -43,8 +55,8 @@ export const Email = defineComponent({
   description: "An email. Its children are stacked down the content width, centered in the window.",
   categories: ["root"],
   props: {
-    width: prop(length(["px"], { min: 200 }), { label: "Content width", default: 600 }),
-    previewText: prop(text(), { label: "Preview text", description: "Shown after the subject in inbox lists, not in the email." }),
+    width: prop(length(["px"], { min: 200 }), { support: WRITTEN, label: "Content width", default: 600 }),
+    previewText: prop(text(), { support: WRITTEN, label: "Preview text", description: "Shown after the subject in inbox lists, not in the email." }),
     ...ROOT_PROPS,
   },
   style: ROOT_STYLE,
@@ -68,8 +80,8 @@ export const Page = defineComponent({
   description: "A web page. Its children are stacked down the content width, centered in the window.",
   categories: ["root"],
   props: {
-    width: prop(length(["px"], { min: 200 }), { label: "Content width", description: "The widest the content gets.", default: 1200 }),
-    description: prop(text(), { label: "Description", description: "The page's meta description." }),
+    width: prop(length(["px"], { min: 200 }), { support: WRITTEN, label: "Content width", description: "The widest the content gets.", default: 1200 }),
+    description: prop(text(), { support: WRITTEN, label: "Description", description: "The page's meta description." }),
     ...ROOT_PROPS,
   },
   style: ROOT_STYLE,
@@ -106,7 +118,7 @@ export const Row = defineComponent({
   description: "Lays its children out side by side. A child takes its width, or a share of what's left (its flex, 1 by default).",
   categories: ["layout", "block"],
   props: {
-    stackOnMobile: prop(boolean(), { label: "Stack on phones", description: "Its children stack full-width on phones (in an Email or a Page).", default: true }),
+    stackOnMobile: prop(boolean(), { support: WRITTEN, label: "Stack on phones", description: "Its children stack full-width on phones (in an Email or a Page).", default: true }),
   },
   style: {
     ...inheritedTextStyle,
@@ -114,17 +126,17 @@ export const Row = defineComponent({
     ...layoutStyle,
     alignItems: {
       ...layoutStyle.alignItems,
-      email: { level: "partial", values: ["stretch"], shows: "children not stretched to one height: each background or border ends with its content", source: "writer" },
+      support: { email: { level: "partial", values: ["stretch"], shows: "children not stretched to one height: each background or border ends with its content", source: "writer" }, web: css },
     },
     justifyContent: {
       ...layoutStyle.justifyContent,
-      email: { level: "none", values: ["space-between"], shows: "children start at the left", source: "writer" },
+      support: { email: { level: "none", values: ["space-between"], shows: "children start at the left", source: "writer" }, web: css },
     },
     flexWrap: {
       kind: enumOf(["nowrap", "wrap"]),
       label: "Wrap",
       description: '"wrap": children that don\'t fit wrap onto another line, as CSS flex-wrap (web only).',
-      email: { level: "none", values: ["wrap"], shows: "children on one line on desktop, stacked on phones", source: "writer" },
+      support: { email: { level: "none", values: ["wrap"], shows: "children on one line on desktop, stacked on phones", source: "writer" }, web: css },
     },
     ...placementStyle,
   },
@@ -151,7 +163,7 @@ export const Column = defineComponent({
     ...layoutStyle,
     justifyContent: {
       ...layoutStyle.justifyContent,
-      email: { level: "partial", values: ["center", "end", "space-between"], shows: "no effect: its children start at the top", source: "writer" },
+      support: { email: { level: "partial", values: ["center", "end", "space-between"], shows: "no effect: its children start at the top", source: "writer" }, web: css },
     },
     ...placementStyle,
   },
@@ -178,7 +190,7 @@ export const Text = defineComponent({
   label: "Text",
   description: "A block of text with no meaning of its own (a div).",
   categories: ["block"],
-  props: {},
+  props: TEXT_DIR,
   style: TEXT_BLOCK_STYLE,
   children: TEXT_CHILDREN,
   sizing: "stretch",
@@ -191,7 +203,7 @@ export const Paragraph = defineComponent({
   label: "Paragraph",
   description: "A paragraph of text.",
   categories: ["block"],
-  props: {},
+  props: TEXT_DIR,
   style: TEXT_BLOCK_STYLE,
   children: TEXT_CHILDREN,
   sizing: "stretch",
@@ -205,7 +217,8 @@ export const Heading = defineComponent({
   description: "A heading, from level 1 (the page's title) to 6.",
   categories: ["block"],
   props: {
-    level: prop(enumOf([1, 2, 3, 4, 5, 6]), { label: "Level", default: 1 }),
+    level: prop(enumOf([1, 2, 3, 4, 5, 6]), { support: WRITTEN, label: "Level", default: 1 }),
+    ...TEXT_DIR,
   },
   style: TEXT_BLOCK_STYLE,
   defaultStyle: { fontWeight: 700, lineHeight: 1.25 },
@@ -227,10 +240,19 @@ const RUN_STYLE = {
 export const Span = defineComponent({
   type: "Span",
   label: "Span",
-  description: "Styled text inside text.",
+  description: "Styled text inside text; raised or lowered (superscript, subscript) with verticalAlign.",
   categories: ["inline"],
   props: {},
-  style: RUN_STYLE,
+  style: {
+    ...RUN_STYLE,
+    verticalAlign: {
+      kind: enumOf(["baseline", "super", "sub"]),
+      label: "Raise or lower",
+      description: '"super": superscript (®, a footnote mark); "sub": subscript; as CSS vertical-align.',
+      // Written as <sup> and <sub>, which every client (Word too) raises and lowers.
+      support: { email: { level: "full", source: "caniemail" }, web: css },
+    },
+  },
   children: { text: true, categories: ["inline"] },
   sizing: "none",
   targets: { email: {}, web: {} },
@@ -242,7 +264,9 @@ export const Link = defineComponent({
   description: "A link: text inside text, or around an Image.",
   categories: ["inline", "block"],
   props: {
-    href: prop(link(), { label: "Link", required: true }),
+    href: prop(link(), { support: WRITTEN, label: "Link", required: true }),
+    title: prop(text(), { support: WRITTEN, label: "Title", description: "Shown as a tooltip by mail clients and browsers that show one." }),
+    "aria-label": prop(text(), { support: WRITTEN, label: "Label for screen readers", description: "What a screen reader says for it, where its text alone doesn't say enough (\"Read more about pricing\")." }),
   },
   style: { ...RUN_STYLE, ...placementStyle },
   defaultStyle: { color: "#0000ee", textDecoration: "underline" },
@@ -277,7 +301,9 @@ export const Button = defineComponent({
   description: "A link drawn as a button.",
   categories: ["block"],
   props: {
-    href: prop(link(), { label: "Link", required: true }),
+    href: prop(link(), { support: WRITTEN, label: "Link", required: true }),
+    title: prop(text(), { support: WRITTEN, label: "Title", description: "Shown as a tooltip by mail clients and browsers that show one." }),
+    "aria-label": prop(text(), { support: WRITTEN, label: "Label for screen readers", description: "What a screen reader says for it, where its text alone doesn't say enough (\"Read more about pricing\")." }),
   },
   style: {
     ...textStyle,
@@ -313,8 +339,9 @@ export const Image = defineComponent({
   description: "An image in the content. Without a width it takes its own size, no wider than its parent.",
   categories: ["block"],
   props: {
-    src: prop(asset(), { label: "Image", required: true }),
-    alt: prop(text(), { label: "Alternate text", description: "Read out by screen readers, and shown where images don't load.", default: "" }),
+    src: prop(asset(), { support: WRITTEN, label: "Image", required: true }),
+    alt: prop(text(), { support: WRITTEN, label: "Alternate text", description: "Read out by screen readers, and shown where images don't load.", default: "" }),
+    title: prop(text(), { support: WRITTEN, label: "Title", description: "Shown as a tooltip by mail clients and browsers that show one." }),
   },
   style: {
     ...pick(boxStyle, "width", "maxWidth", "height", "border", "borderRadius"),
@@ -333,9 +360,9 @@ export const Divider = defineComponent({
   categories: ["block"],
   props: {},
   style: {
-    borderTop: { kind: line(), label: "Line", description: 'The line, as CSS border-top: "1px solid #bbbbbb".', email: { level: "full", source: "writer" } },
-    width: { kind: length(["px", "%"]), label: "Length", mobile: true, email: { level: "full", source: "writer" } },
-    padding: { kind: insets(), label: "Padding", mobile: true, email: { level: "full", source: "outlook-captures" } },
+    borderTop: { kind: line(), label: "Line", description: 'The line, as CSS border-top: "1px solid #bbbbbb".', support: { email: { level: "full", source: "writer" }, web: css } },
+    width: { kind: length(["px", "%"]), label: "Length", mobile: true, support: { email: { level: "full", source: "writer" }, web: css } },
+    padding: { kind: insets(), label: "Padding", mobile: true, support: { email: { level: "full", source: "outlook-captures" }, web: css } },
   },
   defaultStyle: { borderTop: { width: 1, style: "solid", color: "#bbbbbb" }, width: "100%" },
   children: {},
@@ -362,7 +389,7 @@ export const MergeTag = defineComponent({
   description: "A value the sending service fills in (a name, a link), written in the service's own syntax.",
   categories: ["inline"],
   props: {
-    name: prop(text({ maxLength: 200 }), { label: "Name", required: true }),
+    name: prop(text({ maxLength: 200 }), { support: WRITTEN, label: "Name", required: true }),
   },
   style: {},
   children: {},
@@ -376,14 +403,14 @@ export const List = defineComponent({
   description: "A bulleted or numbered list of ListItems. Its markers sit in a column of their own (indent) before the items.",
   categories: ["block"],
   props: {
-    type: prop(enumOf(["bullet", "number"]), { label: "Type", default: "bullet" }),
-    start: prop(number({ min: 0, integer: true }), { label: "Starts at", description: "The first item's number, in a numbered list.", default: 1 }),
+    type: prop(enumOf(["bullet", "number"]), { support: WRITTEN, label: "Type", default: "bullet" }),
+    start: prop(number({ min: 0, integer: true }), { support: WRITTEN, label: "Starts at", description: "The first item's number, in a numbered list.", default: 1 }),
   },
   style: {
     ...inheritedTextStyle,
     ...pick(boxStyle, "width", "maxWidth", "padding", "backgroundColor", "border"),
-    gap: { kind: length(["px"]), label: "Gap", description: "Space between items.", mobile: true, email: { level: "full", source: "writer" } },
-    indent: { kind: length(["px"], { min: 0 }), label: "Indent", description: "The width of the markers' column, before the items.", email: { level: "full", source: "writer" } },
+    gap: { kind: length(["px"]), label: "Gap", description: "Space between items.", mobile: true, support: { email: { level: "full", source: "writer" }, web: css } },
+    indent: { kind: length(["px"], { min: 0 }), label: "Indent", description: "The width of the markers' column, before the items.", support: { email: { level: "full", source: "writer" }, web: css } },
     ...placementStyle,
   },
   defaultStyle: { indent: 24 },
@@ -398,7 +425,7 @@ export const ListItem = defineComponent({
   label: "List item",
   description: "An item of a List: text, and a List of its own to nest one.",
   categories: [],
-  props: {},
+  props: TEXT_DIR,
   style: pick(textStyle, "color", "fontFamily", "fontSize", "fontWeight", "fontStyle", "lineHeight", "letterSpacing", "textAlign", "textTransform", "textDecoration"),
   children: { text: true, categories: ["inline"], types: ["List"] },
   sizing: "stretch",
@@ -415,8 +442,8 @@ export const Table = defineComponent({
   style: {
     ...inheritedTextStyle,
     ...pick(boxStyle, "width", "maxWidth", "backgroundColor", "border"),
-    cellPadding: { kind: insets(), label: "Cell padding", description: "Every cell's padding, where the cell doesn't set its own.", email: { level: "full", source: "writer" } },
-    rowBorder: { kind: line(), label: "Line between rows", email: { level: "full", source: "writer" } },
+    cellPadding: { kind: insets(), label: "Cell padding", description: "Every cell's padding, where the cell doesn't set its own.", support: { email: { level: "full", source: "writer" }, web: css } },
+    rowBorder: { kind: line(), label: "Line between rows", support: { email: { level: "full", source: "writer" }, web: css } },
     ...placementStyle,
   },
   children: { types: ["TableRow"] },
@@ -431,7 +458,7 @@ export const TableRow = defineComponent({
   description: "A row of a Table. A header row's cells are header cells, in bold.",
   categories: [],
   props: {
-    header: prop(boolean(), { label: "Header", description: "Its cells head the columns below them.", default: false }),
+    header: prop(boolean(), { support: WRITTEN, label: "Header", description: "Its cells head the columns below them.", default: false }),
   },
   style: { ...pick(textStyle, "color", "fontFamily", "fontSize", "fontWeight", "fontStyle", "lineHeight", "letterSpacing", "textAlign", "textTransform"), backgroundColor: boxStyle.backgroundColor },
   defaultStyleBy: { prop: "header", values: { true: { fontWeight: 700 } } },
@@ -447,13 +474,14 @@ export const TableCell = defineComponent({
   description: "A cell of a TableRow: text, and images. Its width sets its column's.",
   categories: [],
   props: {
-    colSpan: prop(number({ min: 1, integer: true }), { label: "Columns", description: "How many columns it spans.", default: 1 }),
+    colSpan: prop(number({ min: 1, integer: true }), { support: WRITTEN, label: "Columns", description: "How many columns it spans.", default: 1 }),
+    ...TEXT_DIR,
   },
   style: {
     ...textStyle,
     ...pick(boxStyle, "padding", "backgroundColor", "border"),
-    width: { kind: length(["px", "%"]), label: "Width", description: "Its column's width (of a cell spanning one column).", email: { level: "full", source: "writer" } },
-    verticalAlign: { kind: enumOf(["top", "middle", "bottom"]), label: "Vertical alignment", email: { level: "full", source: "caniemail" } },
+    width: { kind: length(["px", "%"]), label: "Width", description: "Its column's width (of a cell spanning one column).", support: { email: { level: "full", source: "writer" }, web: css } },
+    verticalAlign: { kind: enumOf(["top", "middle", "bottom"]), label: "Vertical alignment", support: { email: { level: "full", source: "caniemail" }, web: css } },
   },
   children: { text: true, categories: ["inline"], types: ["Image"] },
   sizing: "none",

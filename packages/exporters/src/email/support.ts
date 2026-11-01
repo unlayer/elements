@@ -1,66 +1,26 @@
 /**
  * What email can't do as a template asks, found in one pass before the
- * email is written. Styles: from their definitions' email support (`email` on
- * each style: `none` a warning, `partial` and `outlook` notes), so a style's
- * support is said once, where the style is. Structure: what no single style
- * says (a Row child whose size isn't known, an image without a width, a
- * hidden table cell). Size budgets are checked on the written email
- * (index.tsx).
+ * email is written: what each style and prop declares for email (the shared
+ * pass, `shared/support.ts`), and what no single style or prop says: a Row
+ * child whose size isn't known, an image without a width, a hidden table
+ * cell, a font stack that ends on a web font. Size budgets are checked on the
+ * written email (index.tsx).
  */
-import { Diagnostics, fontStack, type Diagnostic, type EmailSupport, type FontFace, type Json, type ResolvedNode } from "@unlayer-internal/elements-core";
+import { Diagnostics, fontStack, type Diagnostic, type FontFace, type ResolvedNode } from "@unlayer-internal/elements-core";
+import { support } from "../shared/support";
 import { isNode, shown } from "./context";
 
 export function emailSupport(root: ResolvedNode): Diagnostic[] {
   const d = new Diagnostics();
-  const webFonts = fonts(root, d);
+  d.list.push(...support(root, "email"));
+  const webFonts = new Set(((root.props.fonts as FontFace[] | undefined) ?? []).map((face) => face.family.toLowerCase()));
   const visit = (node: ResolvedNode) => {
-    styles(node, d);
     structure(node, d);
     fallback(node, webFonts, d);
     for (const child of node.children) if (isNode(child) && shown(child)) visit(child);
   };
   visit(root);
   return d.list;
-}
-
-const same = (a: Json | undefined, b: Json | undefined) => JSON.stringify(a) === JSON.stringify(b);
-
-/** Each style the author set (not the component's default) that email shows otherwise, as its definition says. */
-function styles(node: ResolvedNode, d: Diagnostics): void {
-  const { definition, path, id } = node;
-  const byProp = definition.defaultStyleBy ? definition.defaultStyleBy.values[String(node.props[definition.defaultStyleBy.prop])] : undefined;
-  for (const [key, value] of Object.entries(node.style)) {
-    const spec = definition.style[key];
-    const fallback = (byProp as Record<string, Json> | undefined)?.[key] ?? (definition.defaultStyle as Record<string, Json> | undefined)?.[key];
-    if (!spec?.email || same(value, fallback)) continue;
-    for (const rule of ([] as EmailSupport[]).concat(spec.email)) {
-      if (rule.level === "full") continue;
-      if (rule.values && !rule.values.some((v) => same(v, value))) continue;
-      if (rule.when && !rule.when(value)) continue;
-      const at = `${path}.style.${key}`;
-      const asked = typeof value === "string" ? `${key}: "${value}"` : key;
-      if (rule.level === "none") d.warning("email/unsupported", `${asked} isn't possible in email: ${rule.shows}`, at, id);
-      else if (rule.level === "partial") d.add("email/degraded", "info", `${asked} on this ${node.type} in email: ${rule.shows}`, at, id);
-      else d.add("email/outlook-degraded", "info", `${asked} on this ${node.type} in classic Outlook: ${rule.shows}`, at, id);
-    }
-  }
-}
-
-/** The root's web fonts: a note for each family on where it loads; the families, for the stacks that use them. */
-function fonts(root: ResolvedNode, d: Diagnostics): Set<string> {
-  const families = new Set<string>();
-  ((root.props.fonts as FontFace[] | undefined) ?? []).forEach((face, index) => {
-    const family = face.family.toLowerCase();
-    if (families.has(family)) return;
-    families.add(family);
-    d.add(
-      "email/degraded",
-      "info",
-      `"${face.family}" is a web font: Apple Mail and iOS Mail load it; Gmail and classic Outlook don't, and show the next font in each stack`,
-      `root.props.fonts[${index}]`
-    );
-  });
-  return families;
 }
 
 /** A stack that ends on a web font leaves the client to choose a font where that one doesn't load. */
@@ -78,7 +38,7 @@ function fallback(node: ResolvedNode, webFonts: Set<string>, d: Diagnostics): vo
   );
 }
 
-/** What email can't do that no single style says. */
+/** What email can't do that no single style or prop says. */
 function structure(node: ResolvedNode, d: Diagnostics): void {
   const { path, id } = node;
   if (node.type === "Row") {

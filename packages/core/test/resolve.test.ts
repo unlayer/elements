@@ -261,3 +261,20 @@ describe("Row widths, as browser flexbox gives them", () => {
     expect(resolve({ type: "Email", children: [{ type: "Row", children: [column({ minWidth: 400 }), column({ minWidth: 300 })] }] }).diagnostics[0].message).toContain("need 100px more");
   });
 });
+
+describe("text direction", () => {
+  it("starts a right-to-left template's text on the right, and a block's on its own side, unless aligned", () => {
+    const { root } = resolve({
+      type: "Email",
+      props: { dir: "rtl" },
+      children: [
+        { type: "Text", children: ["inherits right"] },
+        { type: "Paragraph", props: { dir: "ltr" }, children: ["left"] },
+        { type: "Paragraph", props: { dir: "ltr" }, style: { textAlign: "center" }, children: ["center"] },
+      ],
+    });
+    expect([root, child(root, 0), child(root, 1), child(root, 2)].map((n) => n.text.textAlign)).toEqual(["right", "right", "left", "center"]);
+    expect(resolve({ type: "Email", props: { dir: "rtl" }, style: { textAlign: "left" }, children: [] }).root.text.textAlign).toBe("left");
+  });
+});
+
