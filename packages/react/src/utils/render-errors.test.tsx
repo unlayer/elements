@@ -257,6 +257,44 @@ describe("a Row or Column whose exporter fails", () => {
     expect(given.map((e) => e.position)).toEqual(["Row 2", "Row 3 › Column 2"]);
   });
 
+  it("with onError: \"omit\", leaves out what's in the <Suspense> nearest the part that failed, as React's nearest <Suspense> takes it", async () => {
+    // A layout's <Suspense> around its sections, and one around an optional section: the outer one was left out whole
+    // (a blank email, only the section listed), as was a Column's around the blocks next to the inner one.
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    vi.spyOn(console, "warn").mockImplementation(() => {});
+    const Recommendations = () => {
+      throw new Error("recommendations API down");
+    };
+    const Layout = ({ children }: { children: React.ReactNode }) => <Email previewText="Your order"><React.Suspense fallback={null}>{children}</React.Suspense></Email>;
+    const Section = ({ children }: { children: React.ReactNode }) => <React.Suspense fallback={null}>{children}</React.Suspense>;
+    const sections = (
+      <Layout>
+        <Row><Column><Paragraph>Your order has shipped.</Paragraph></Column></Row>
+        <Section><Recommendations /></Section>
+        <Row><Column><Paragraph>Track your package.</Paragraph></Column></Row>
+      </Layout>
+    );
+    const blocks = (
+      <Email>
+        <Row>
+          <Column>
+            <Paragraph>a</Paragraph>
+            <React.Suspense fallback={null}><Paragraph>b</Paragraph><Section><Recommendations /></Section><Paragraph>c</Paragraph></React.Suspense>
+            <Paragraph>d</Paragraph>
+          </Column>
+        </Row>
+      </Email>
+    );
+    for (const r of [{ renderToHtml, renderToJson, renderToPlainText }, asyncRenderers]) {
+      const omitted: string[] = [];
+      const text = await r.renderToPlainText(sections, { onError: (error) => void omitted.push(error.message) });
+      expect(text.replace(/\s+/g, " ").trim()).toBe("Your order has shipped. Track your package.");
+      expect(omitted).toEqual([expect.stringMatching(/recommendations API down/)]);
+      expect((await r.renderToJson(sections, { onError: "omit" })).body.rows).toHaveLength(2);
+      expect((await r.renderToPlainText(blocks, { onError: "omit" })).replace(/\s+/g, " ").trim()).toBe("a b c d");
+    }
+  });
+
   it("with onError: \"omit\", leaves out only the section that failed where a provider or <StrictMode> is around the rows or the root", async () => {
     // A provider around the rows (or the root) was one part: one section failing left out every row, a blank email
     // and design, where a digest's optional sections are the README's own use of "omit". A provider written as a

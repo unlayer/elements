@@ -18,7 +18,7 @@
  */
 import React from "react";
 import { ASYNC_IN_SYNC, childFrame, nameOf, placeFrame, positionOf, RenderError, threw, type Frame } from "./errors";
-import { isWalkerNode, recordNode, type BoundaryNode, type RecordNode } from "./records";
+import { boundary, isWalkerNode, recordNode, type BoundaryNode, type RecordNode } from "./records";
 import { isCustom, validateHost } from "./host";
 import { unrun } from "./attributes";
 import { REACT_18 } from "./react-compat";
@@ -397,7 +397,10 @@ function prepElement(element: React.ReactElement, c: Collection, ctx: Ctx, keep 
     const at = c.marks.length;
     c.marks.push({ k: "fb", frame: placeFrame(ctx.frame, "Suspense"), scope: ctx.scope });
     const fallback = withMark(c, at, prep(props.fallback, c, { ...inner, scope: newScope(c, ctx, at, true) }, true));
-    return React.cloneElement(element, { fallback }, prep(props.children, c, { ...inner, suspense: ctx.suspense + 1, suspenseAt: at, scope: newScope(c, ctx, at) }, true));
+    // (Where failed parts are left out, what's in it is left out whole with a part that fails in it, as React's nearest
+    // <Suspense> takes an error: one in a <Suspense> in it takes its own, the rest of this one kept.)
+    const content = c.omit ? boundary(null, props.children) : props.children;
+    return React.cloneElement(element, { fallback }, prep(content, c, { ...inner, suspense: ctx.suspense + 1, suspenseAt: at, scope: newScope(c, ctx, at) }, true));
   }
   if (type === ACTIVITY) return props.mode === "hidden" ? null : React.cloneElement(element, undefined, prep(props.children, c, inner, true));
   if (type !== null && typeof type === "object") {
