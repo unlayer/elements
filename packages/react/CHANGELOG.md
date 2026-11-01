@@ -119,6 +119,8 @@
 
 ### Changed
 
+- **A part that fails in a `<Suspense>` fails the render.** 0.2.1 rendered the `<Suspense>`'s fallback for it, as React's server render does (the browser then renders it again, which an email can't): it fails the render now, naming it, or with `onError`, it's left out with what's in that `<Suspense>`, and said.
+
 - **Paragraphs in HTML you give have no space between them.** A `<p>` in a Paragraph's `html` or an Html block has no margins, as in the editor's export (the base stylesheet: see Fixed), so CMS rich text (`<p>First</p><p>Second</p>`) shows its paragraphs with no space between them, where 0.2 had 14px (16px in an Html block). Give the `<p>`s a margin (`<p style="margin: 0 0 14px">`), or render the text with `<Markdown>`.
 
 - **A Heading's level is h1 to h6.** The editor's exporters write the level as the tag's name, so one that isn't (`level`, `as`, `headingType` or `values.headingType` from data: with a space or a quote, or another tag's name, one whose text a browser runs as code) is an h1, and said (0.2 wrote any as given).
