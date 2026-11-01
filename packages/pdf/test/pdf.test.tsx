@@ -3,7 +3,7 @@
  * that nothing is fetched (an image it isn't given is an error, not a request).
  */
 import { getDocument } from "pdfjs-dist/legacy/build/pdf.mjs";
-import { Column, Document, Email, Heading, Image, Link, PageBreak, PageFooter, PageHeader, PageNumber, Paragraph, Row, Span, Text } from "@unlayer/react-elements/primitives";
+import { Circle, Column, Document, Email, Heading, Image, Link, PageBreak, PageFooter, PageHeader, PageNumber, Paragraph, Rect, Row, Span, Svg, Text } from "@unlayer/react-elements/primitives";
 import { renderPdf } from "../src";
 
 /** A 1×1 PNG. */
@@ -116,6 +116,26 @@ describe("renderPdf", () => {
     );
     expect(diagnostics.map((d) => [d.code, d.severity])).toEqual([["pdf/font", "warning"]]);
     expect((await read(pdf)).pages[0].words).toBe("Hello");
+  });
+
+  it("draws an Svg's shapes as vectors, in the drawing's box", async () => {
+    const { pdf } = await renderPdf(
+      <Document>
+        <Svg width={120} height={60} title="Logo">
+          <Rect width={120} height={60} rx={8} style={{ fill: "#6366f1" }} />
+          <Circle cx={30} cy={30} r={20} style={{ fill: "transparent", stroke: "#ffffff", strokeWidth: 4 }} />
+        </Svg>
+        <Text>Below the drawing</Text>
+      </Document>
+    );
+    // The rectangle's fill, #6366f1, among the page's drawing operators.
+    const document = await getDocument({ data: pdf.slice(), verbosity: 0 }).promise;
+    const operators = await (await document.getPage(1)).getOperatorList();
+    expect(JSON.stringify(operators.argsArray)).toMatch(/6366f1|99,102,241/i);
+    const { pages } = await read(pdf);
+    // 48px margin + 60px drawing = 81pt down, then the line of text below it.
+    expect(pages[0].first?.str).toBe("Below the drawing");
+    expect(pages[0].first!.y).toBeGreaterThan(36 + 45);
   });
 
   it("writes a Document only", async () => {

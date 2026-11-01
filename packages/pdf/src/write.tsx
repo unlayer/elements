@@ -3,9 +3,23 @@
  * padding, its header, content and footer, nothing flowing onto the next), and each block as react-pdf draws it, at
  * the width the resolver gave it, so the PDF is laid out as the print HTML is.
  */
-import { Document as PdfDocument, Image as PdfImage, Link as PdfLink, Page as PdfPage, Text as PdfText, View } from "@react-pdf/renderer";
+import {
+  Circle as PdfCircle,
+  Document as PdfDocument,
+  Ellipse as PdfEllipse,
+  Image as PdfImage,
+  Line as PdfLine,
+  Link as PdfLink,
+  Page as PdfPage,
+  Path as PdfPath,
+  Polygon as PdfPolygon,
+  Rect as PdfRect,
+  Svg as PdfSvg,
+  Text as PdfText,
+  View,
+} from "@react-pdf/renderer";
 import { assetParts, documentPages, pageBox, videoParts, type Asset, type BorderSide, type ResolvedNode } from "@unlayer-internal/elements-core";
-import type { ReactElement, ReactNode } from "react";
+import { createElement, type ReactElement, type ReactNode } from "react";
 import { alignSelf, borderStyle, boxStyle, flex, pt, runStyle, textStyle, type PdfStyle } from "./styles";
 
 export interface WriteContext {
@@ -109,6 +123,8 @@ class Writer {
         return this.table(node, placed, key);
       case "Video":
         return this.video(node, placed, key);
+      case "Svg":
+        return this.svg(node, placed, key);
       default:
         // A stack: a Section, a Column, a page's header or footer.
         return (
@@ -232,6 +248,24 @@ class Writer {
             </View>
           );
         })}
+      </View>
+    );
+  }
+
+  /** An Svg as react-pdf's: its box in points, its shapes in its viewBox's units. */
+  svg(node: ResolvedNode, placed: PdfStyle, key?: number): ReactNode {
+    const { width, height, viewBox } = node.props as { width: number; height: number; viewBox?: string };
+    const paint = (value: unknown) => (value === "transparent" ? "none" : (value as string | undefined));
+    const SHAPES: Record<string, unknown> = { Rect: PdfRect, Circle: PdfCircle, Ellipse: PdfEllipse, Line: PdfLine, Polygon: PdfPolygon, Path: PdfPath };
+    return (
+      <View key={key} style={{ ...boxStyle(node), ...placed, width: undefined }}>
+        <PdfSvg width={pt(width)} height={pt(height)} viewBox={viewBox ?? `0 0 ${width} ${height}`}>
+          {nodes(node).map((shape, i) => {
+            const draw = SHAPES[shape.type];
+            const props = { key: i, ...shape.props, fill: paint(shape.style.fill), stroke: paint(shape.style.stroke), strokeWidth: shape.style.strokeWidth, opacity: shape.style.opacity };
+            return draw ? createElement(draw as never, props as never) : null;
+          })}
+        </PdfSvg>
       </View>
     );
   }
