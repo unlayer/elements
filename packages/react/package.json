@@ -45,6 +45,11 @@
       "import": "./dist/index.js",
       "require": "./dist/index.cjs"
     },
+    "./primitives": {
+      "types": "./dist/primitives.d.ts",
+      "import": "./dist/primitives.js",
+      "require": "./dist/primitives.cjs"
+    },
     "./package.json": "./package.json"
   },
   "types": "./dist/index.d.ts",
@@ -80,6 +85,8 @@
     "@types/node": "^24.9.1",
     "@types/react": "^18.3.3",
     "@types/react-dom": "^18.3.0",
+    "@unlayer-internal/elements-core": "workspace:*",
+    "@unlayer-internal/elements-exporters": "workspace:*",
     "@unlayer-internal/shared-elements": "workspace:*",
     "@unlayer/react-elements-previous": "npm:@unlayer/react-elements@0.1.22",
     "@vitejs/plugin-react": "^4.2.0",

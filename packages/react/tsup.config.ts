@@ -1,12 +1,12 @@
 import { defineConfig } from 'tsup';
 
 export default defineConfig({
-  entry: ['src/index.ts'],
+  entry: { index: 'src/index.ts', primitives: 'src/primitives/index.ts' },
   format: ['cjs', 'esm'],
   dts: {
     // Inline types from private workspace packages and their type deps
     // so consumers get full type completion without extra installs
-    resolve: ['@unlayer-internal/shared-elements', '@unlayer/types'],
+    resolve: ['@unlayer-internal/shared-elements', '@unlayer-internal/elements-core', '@unlayer-internal/elements-exporters', '@unlayer/types'],
   },
   splitting: false,
   sourcemap: true,
@@ -17,9 +17,9 @@ export default defineConfig({
   esbuildOptions(options, { format }) {
     options.define = { ...options.define, __UNLAYER_CJS__: String(format === 'cjs') };
   },
-  // Bundle @unlayer-internal/shared-elements into the output so consumers
+  // Bundle @unlayer-internal/shared-elements, elements-core and elements-exporters into the output so consumers
   // don't need to install it separately (it's a private workspace package).
   // Its own deps (Lexical, exporters) stay external via our dependencies.
-  noExternal: ['@unlayer-internal/shared-elements'],
+  noExternal: ['@unlayer-internal/shared-elements', '@unlayer-internal/elements-core', '@unlayer-internal/elements-exporters'],
   treeshake: true,
 });

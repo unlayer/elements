@@ -1,0 +1,115 @@
+/**
+ * What Chromium lays out matches what the resolver worked out: every box's
+ * width on desktop, stacking and hiding on phones. The resolver is what every
+ * target reads (email needs its widths in px), so a difference here is a
+ * difference between targets.
+ */
+import { chromium, type Browser, type Page } from "playwright";
+import { parseDocument, resolveDocument, type ResolvedNode } from "@unlayer-internal/elements-core";
+import { renderWeb } from "../../src";
+
+/** Every node given an author's id (`column_2`: its type and count), so Chromium can find each box. */
+function withIds(node: Record<string, unknown>, counts = new Map<string, number>()): Record<string, unknown> {
+  const type = String(node.type).toLowerCase();
+  const n = (counts.get(type) ?? 0) + 1;
+  counts.set(type, n);
+  const children = (node.children as unknown[] | undefined)?.map((child) => (typeof child === "string" ? child : withIds(child as Record<string, unknown>, counts)));
+  return { id: `${type}_${n}`, ...node, ...(children ? { children } : {}) };
+}
+
+const source = parseDocument({
+  version: 1,
+  root: withIds({
+    type: "Page",
+    props: { width: 640 },
+    style: { gap: 16 },
+    children: [
+      { type: "Section", style: { backgroundColor: "#111", padding: [24, 20] }, children: [{ type: "Image", props: { src: { src: "data:image/gif;base64,R0lGODlhAQABAAAAACw=", width: 120 } } }] },
+      {
+        type: "Row",
+        style: { gap: 24, padding: [0, 10] },
+        children: [
+          { type: "Column", style: { width: "40%", padding: 12, border: "2px solid #ccc" }, children: [{ type: "Text", children: ["a"] }, { type: "Divider", style: { width: "50%" } }] },
+          {
+            type: "Column",
+            style: { flex: 2 },
+            children: [
+              { type: "Row", style: { gap: 8 }, children: [{ type: "Column", style: { width: 50 } }, { type: "Column" }, { type: "Column" }] },
+              { type: "Image", props: { src: { src: "data:image/gif;base64,R0lGODlhAQABAAAAACw=", width: 2000 } } },
+            ],
+          },
+          { type: "Column", id: "desktop-only", hidden: { mobile: true }, children: [{ type: "Text", children: ["desktop"] }] },
+        ],
+      },
+      { type: "Image", props: { src: "data:image/gif;base64,R0lGODlhAQABAAAAACw=" }, style: { width: "50%" } },
+      { type: "Paragraph", style: { padding: 8, maxWidth: 300 }, children: ["b"] },
+    ],
+  }),
+});
+
+const resolved = resolveDocument(source);
+const { html } = renderWeb(resolved);
+
+let browser: Browser;
+let page: Page;
+
+beforeAll(async () => {
+  browser = await chromium.launch();
+  page = await browser.newPage();
+});
+afterAll(async () => browser?.close());
+
+async function widths(viewport: number): Promise<Record<string, { width: number; content: number; top: number; display: string }>> {
+  await page.setViewportSize({ width: viewport, height: 900 });
+  await page.setContent(html);
+  return page.evaluate(() =>
+    Object.fromEntries(
+      [...document.querySelectorAll("[id]")].map((element) => {
+        const box = element.getBoundingClientRect();
+        const style = getComputedStyle(element);
+        const frame = ["paddingLeft", "paddingRight", "borderLeftWidth", "borderRightWidth"].reduce((sum, key) => sum + parseFloat(style[key as "paddingLeft"]), 0);
+        return [element.id, { width: box.width, content: box.width - frame, top: box.top, display: style.display }];
+      })
+    )
+  );
+}
+
+function sized(node: ResolvedNode, into: ResolvedNode[] = []): ResolvedNode[] {
+  if (node.width !== null && node.type !== "Page" && node.id) into.push(node);
+  for (const child of node.children) if (typeof child !== "string") sized(child, into);
+  return into;
+}
+
+describe("web layout in Chromium", () => {
+  it("gives every box the width the resolver worked out, on desktop", async () => {
+    expect(resolved.diagnostics).toEqual([]);
+    const measured = await widths(1280);
+    const expected = sized(resolved.root);
+    expect(expected.length).toBeGreaterThan(10);
+    for (const node of expected) {
+      // A Section spans the window; what the resolver gives it is the width of its content column.
+      const box = measured[node.id!];
+      if (node.type === "Section") expect([node.id, Math.round(box.content)]).toEqual([node.id, node.contentWidth]);
+      else expect([node.id, Math.round(box.width), Math.round(box.content)]).toEqual([node.id, node.width, node.contentWidth]);
+    }
+  });
+
+  it("stacks Rows full-width and hides what's hidden on phones", async () => {
+    const measured = await widths(375);
+    expect(measured["desktop-only"].display).toBe("none");
+    const row = measured.row_1;
+    // The Row's content: 375 less its 10px padding each side; its children stack one under another.
+    for (const id of ["column_1", "column_2"]) expect(Math.round(measured[id].width)).toBe(355);
+    expect(measured.column_2.top).toBeGreaterThan(measured.column_1.top);
+    expect(row.width).toBe(375);
+    // A Section spans the window, its content inside its own padding.
+    expect(measured.section_1.width).toBe(375);
+    expect(measured.section_1.content).toBe(335);
+  });
+
+  it("shows the hidden-on-phones column on desktop, beside the others", async () => {
+    const measured = await widths(1280);
+    expect(measured["desktop-only"].display).toBe("flex");
+    expect(measured["desktop-only"].top).toBe(measured.column_1.top);
+  });
+});

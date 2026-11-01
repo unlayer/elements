@@ -6,5 +6,5 @@
     "types": ["react", "react-dom"],
     "noEmit": true
   },
-  "include": ["src/dx-types.test-d.tsx", "src/dx-contract.test.tsx"]
+  "include": ["src/dx-types.test-d.tsx", "src/dx-contract.test.tsx", "src/primitives/types.test-d.tsx", "src/primitives/template.test.tsx", "src/primitives/custom.test.tsx"]
 }

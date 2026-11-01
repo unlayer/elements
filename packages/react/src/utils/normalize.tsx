@@ -461,7 +461,7 @@ const RENDERS = Symbol.for("@unlayer/react-elements/renders");
  * Components (its new apps' default) fail the build on one, but the nonce never reaches the output. `performance` is
  * what Next.js leaves for timing, and every runtime Elements supports has it.
  */
-function nonce(): string {
+export function nonce(): string {
   const shared = globalThis as Record<symbol, number>;
   const clock = globalThis.performance;
   return [(shared[RENDERS] = (shared[RENDERS] ?? 0) + 1), (clock?.timeOrigin ?? 0) * 1e3, (clock?.now() ?? 0) * 1e6].map((n) => Math.floor(n).toString(36)).join("_");

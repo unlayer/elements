@@ -1,0 +1,627 @@
+/**
+ * Value kinds: what a prop or style property accepts, what it's normalized to,
+ * the editor that edits it, and its JSON Schema. Component definitions are
+ * made of these, so types, validation, schemas and editors come from one place.
+ */
+import type { Json } from "./model";
+
+export type JsonSchema = { [key: string]: unknown };
+
+/** Conceptual editors, mapped by each editor (the builder, others) to its own widgets. */
+export type EditorKind =
+  | "color"
+  | "length"
+  | "insets"
+  | "border"
+  | "radius"
+  | "choice"
+  | "fontFamily"
+  | "fontWeight"
+  | "lineHeight"
+  | "image"
+  | "link"
+  | "text"
+  | "number"
+  | "toggle";
+
+export type Parsed<T> = { ok: true; value: T } | { ok: false; message: string };
+
+export interface Kind<In = unknown, Out extends Json = Json> {
+  readonly name: string;
+  readonly editor: EditorKind;
+  /** What it accepts, in words (for messages and descriptions). */
+  readonly accepts: string;
+  parse(input: unknown): Parsed<Out>;
+  jsonSchema(): JsonSchema;
+  /** Type only: what it accepts as input. */
+  readonly __in?: In;
+}
+
+export type InputOf<K> = K extends Kind<infer I, Json> ? I : never;
+export type OutputOf<K> = K extends Kind<unknown, infer O> ? O : never;
+
+const ok = <T>(value: T): Parsed<T> => ({ ok: true, value });
+const fail = (message: string): Parsed<never> => ({ ok: false, message });
+const show = (input: unknown): string => {
+  try {
+    return typeof input === "string" ? JSON.stringify(input) : typeof input === "function" ? "a function" : JSON.stringify(input) ?? String(input);
+  } catch {
+    return String(input);
+  }
+};
+const isObject = (value: unknown): value is Record<string, unknown> => typeof value === "object" && value !== null && !Array.isArray(value);
+
+function kind<In, Out extends Json>(spec: Omit<Kind<In, Out>, "__in">): Kind<In, Out> {
+  return spec;
+}
+
+// ─── Numbers and lengths ────────────────────────────────────────────────────
+
+const NUMBER = "-?(?:\\d+(?:\\.\\d*)?|\\.\\d+)";
+
+export type LengthUnit = "px" | "%" | "pt" | "mm" | "in";
+/** A length in px: a number, or a string with px. */
+export type Px = number | `${number}px`;
+export type LengthInput<U extends LengthUnit> = number | `${number}${U}`;
+/** px as a number, any other unit as a string ("50%", "12pt"). */
+export type Length = number | string;
+
+const LENGTH = new RegExp(`^(${NUMBER})(px|%|pt|mm|in)?$`);
+
+/** A length's value and unit, from a number (px) or a string ("12px", "50%", "12" as px). */
+export function readLength(input: unknown): { value: number; unit: LengthUnit } | undefined {
+  if (typeof input === "number") return Number.isFinite(input) ? { value: input, unit: "px" } : undefined;
+  if (typeof input !== "string") return undefined;
+  const match = LENGTH.exec(input.trim());
+  return match ? { value: Number(match[1]), unit: (match[2] as LengthUnit | undefined) ?? "px" } : undefined;
+}
+
+function px(input: unknown, min: number, what: string): Parsed<number> {
+  const length = readLength(input);
+  if (!length || length.unit !== "px") return fail(`${what} must be a number of px or a px string ("8px"), not ${show(input)}`);
+  if (length.value < min) return fail(`${what} can't be less than ${min}, not ${show(input)}`);
+  return ok(length.value);
+}
+
+/** A length as a document holds it: px as a number, other units as a string. */
+export type LengthOf<U extends LengthUnit> = number | `${number}${Exclude<U, "px">}`;
+
+export function length<const U extends LengthUnit = "px">(
+  units: readonly U[] = ["px"] as unknown as readonly U[],
+  options: { min?: number } = {}
+): Kind<LengthInput<U>, LengthOf<U>> {
+  const min = options.min ?? 0;
+  const accepts = `a length (${units.map((u) => (u === "px" ? "a number of px" : u)).join(", ")})`;
+  return kind<LengthInput<U>, LengthOf<U>>({
+    name: "length",
+    editor: "length",
+    accepts,
+    parse(input) {
+      const parsed = readLength(input);
+      if (!parsed) return fail(`expected ${accepts}, not ${show(input)}`);
+      if (!units.includes(parsed.unit as U)) return fail(`${parsed.unit} isn't accepted here; expected ${accepts}`);
+      if (parsed.value < min) return fail(`can't be less than ${min}, not ${show(input)}`);
+      return ok((parsed.unit === "px" ? parsed.value : `${parsed.value}${parsed.unit}`) as LengthOf<U>);
+    },
+    jsonSchema: () => ({
+      anyOf: [
+        ...(units.includes("px" as U) ? [{ type: "number", minimum: min }] : []),
+        { type: "string", pattern: `^${NUMBER}(${units.map((u) => (u === "%" ? "%" : u)).join("|")})${units.includes("px" as U) ? "?" : ""}$` },
+      ],
+    }),
+  });
+}
+
+export function number(options: { min?: number; max?: number; integer?: boolean } = {}): Kind<number, number> {
+  const { min = -Infinity, max = Infinity, integer = false } = options;
+  const accepts = `${integer ? "an integer" : "a number"}${Number.isFinite(min) ? ` from ${min}` : ""}${Number.isFinite(max) ? ` to ${max}` : ""}`;
+  return kind({
+    name: "number",
+    editor: "number",
+    accepts,
+    parse(input) {
+      if (typeof input !== "number" || !Number.isFinite(input) || (integer && !Number.isInteger(input)) || input < min || input > max) {
+        return fail(`expected ${accepts}, not ${show(input)}`);
+      }
+      return ok(input);
+    },
+    jsonSchema: () => ({
+      type: integer ? "integer" : "number",
+      ...(Number.isFinite(min) ? { minimum: min } : {}),
+      ...(Number.isFinite(max) ? { maximum: max } : {}),
+    }),
+  });
+}
+
+/** A share of a Row's free width (a grow factor), or "none" to take its own size. */
+export function flex(): Kind<number | "none", number | "none"> {
+  return kind({
+    name: "flex",
+    editor: "number",
+    accepts: 'a share of the free width (0 or more), or "none"',
+    parse: (input) =>
+      input === "none" || (typeof input === "number" && Number.isFinite(input) && input >= 0)
+        ? ok(input)
+        : fail(`expected a share of the free width (0 or more) or "none", not ${show(input)}`),
+    jsonSchema: () => ({ anyOf: [{ type: "number", minimum: 0 }, { const: "none" }] }),
+  });
+}
+
+// ─── Insets, borders, corners ───────────────────────────────────────────────
+
+export type InsetsInput =
+  | Px
+  | string
+  | [Px, Px]
+  | [Px, Px, Px]
+  | [Px, Px, Px, Px]
+  | { top?: Px; right?: Px; bottom?: Px; left?: Px };
+export type Insets = { top: number; right: number; bottom: number; left: number };
+
+const SIDES = ["top", "right", "bottom", "left"] as const;
+
+/** CSS's 1-to-4 value order: top, right, bottom, left. */
+function fourSides<T>(values: T[]): [T, T, T, T] {
+  const [a, b = a, c = a, d = b] = values;
+  return [a, b, c, d];
+}
+
+export function insets(): Kind<InsetsInput, Insets> {
+  const accepts = 'px for all sides, "8px 16px" (1 to 4 values), [v, h] or [t, r, b, l], or { top, right, bottom, left }';
+  const read = (values: unknown[]): Parsed<Insets> => {
+    if (values.length < 1 || values.length > 4) return fail(`expected ${accepts}`);
+    const out: number[] = [];
+    for (const value of values) {
+      const side = px(value, 0, "each side");
+      if (!side.ok) return side;
+      out.push(side.value);
+    }
+    const [top, right, bottom, left] = fourSides(out);
+    return ok({ top, right, bottom, left });
+  };
+  return kind({
+    name: "insets",
+    editor: "insets",
+    accepts,
+    parse(input) {
+      if (typeof input === "number") return read([input]);
+      if (typeof input === "string") return read(input.trim().split(/\s+/));
+      if (Array.isArray(input)) return read(input);
+      if (isObject(input)) {
+        const extra = Object.keys(input).find((key) => !(SIDES as readonly string[]).includes(key));
+        if (extra) return fail(`"${extra}" isn't a side; expected top, right, bottom or left`);
+        const out = { top: 0, right: 0, bottom: 0, left: 0 };
+        for (const side of SIDES) {
+          if (input[side] === undefined) continue;
+          const value = px(input[side], 0, side);
+          if (!value.ok) return value;
+          out[side] = value.value;
+        }
+        return ok(out);
+      }
+      return fail(`expected ${accepts}, not ${show(input)}`);
+    },
+    jsonSchema: () => {
+      const side = { anyOf: [{ type: "number", minimum: 0 }, { type: "string", pattern: `^${NUMBER}(px)?$` }] };
+      return {
+        anyOf: [
+          side.anyOf[0],
+          { type: "string" },
+          { type: "array", items: side, minItems: 1, maxItems: 4 },
+          { type: "object", properties: Object.fromEntries(SIDES.map((s) => [s, side])), additionalProperties: false },
+        ],
+      };
+    },
+  });
+}
+
+export type BorderStyle = "solid" | "dashed" | "dotted" | "none";
+export type BorderSideInput = { width?: Px; style?: BorderStyle; color?: string };
+export type BorderInput =
+  | string
+  | BorderSideInput
+  | { top?: BorderSideInput | string; right?: BorderSideInput | string; bottom?: BorderSideInput | string; left?: BorderSideInput | string };
+export type BorderSide = { width: number; style: BorderStyle; color: string };
+export type Border = { top?: BorderSide; right?: BorderSide; bottom?: BorderSide; left?: BorderSide };
+
+const BORDER_STYLES: readonly BorderStyle[] = ["solid", "dashed", "dotted", "none"];
+
+function borderSide(input: unknown): Parsed<BorderSide> {
+  const out: BorderSide = { width: 1, style: "solid", color: "#000000" };
+  if (typeof input === "string") {
+    for (const token of input.match(/rgba?\([^)]*\)|\S+/g) ?? []) {
+      if (readLength(token)) {
+        const width = px(token, 0, "a border's width");
+        if (!width.ok) return width;
+        out.width = width.value;
+      } else if ((BORDER_STYLES as readonly string[]).includes(token)) {
+        out.style = token as BorderStyle;
+      } else {
+        const c = parseColor(token);
+        if (!c.ok) return fail(`"${token}" in ${show(input)} isn't a width, a style (${BORDER_STYLES.join(", ")}) or a color`);
+        out.color = c.value;
+      }
+    }
+    return ok(out);
+  }
+  if (!isObject(input)) return fail(`expected "1px solid #ccc" or { width, style, color }, not ${show(input)}`);
+  const extra = Object.keys(input).find((key) => !["width", "style", "color"].includes(key));
+  if (extra) return fail(`"${extra}" isn't part of a border side; expected width, style or color`);
+  if (input.width !== undefined) {
+    const width = px(input.width, 0, "a border's width");
+    if (!width.ok) return width;
+    out.width = width.value;
+  }
+  if (input.style !== undefined) {
+    if (!(BORDER_STYLES as readonly unknown[]).includes(input.style)) return fail(`a border's style is one of ${BORDER_STYLES.join(", ")}, not ${show(input.style)}`);
+    out.style = input.style as BorderStyle;
+  }
+  if (input.color !== undefined) {
+    const c = parseColor(input.color);
+    if (!c.ok) return c;
+    out.color = c.value;
+  }
+  return ok(out);
+}
+
+export function border(): Kind<BorderInput, Border> {
+  return kind({
+    name: "border",
+    editor: "border",
+    accepts: '"1px solid #ccc", { width, style, color } for all sides, or { top, right, bottom, left } with one of those each',
+    parse(input) {
+      const perSide = isObject(input) && Object.keys(input).some((key) => (SIDES as readonly string[]).includes(key));
+      if (!perSide) {
+        const side = borderSide(input);
+        return side.ok ? ok({ top: side.value, right: side.value, bottom: side.value, left: side.value }) : side;
+      }
+      const out: Border = {};
+      for (const [key, value] of Object.entries(input as Record<string, unknown>)) {
+        if (!(SIDES as readonly string[]).includes(key)) return fail(`"${key}" isn't a side; expected top, right, bottom or left`);
+        const side = borderSide(value);
+        if (!side.ok) return fail(`${key}: ${side.message}`);
+        out[key as (typeof SIDES)[number]] = side.value;
+      }
+      return ok(out);
+    },
+    jsonSchema: () => {
+      const side = {
+        anyOf: [
+          { type: "string" },
+          {
+            type: "object",
+            properties: { width: { anyOf: [{ type: "number", minimum: 0 }, { type: "string" }] }, style: { enum: [...BORDER_STYLES] }, color: { type: "string" } },
+            additionalProperties: false,
+          },
+        ],
+      };
+      return { anyOf: [...side.anyOf, { type: "object", properties: Object.fromEntries(SIDES.map((s) => [s, side])), additionalProperties: false }] };
+    },
+  });
+}
+
+export type RadiusInput = Px | [Px, Px, Px, Px] | { topLeft?: Px; topRight?: Px; bottomRight?: Px; bottomLeft?: Px };
+export type Corners = { topLeft: number; topRight: number; bottomRight: number; bottomLeft: number };
+export type Radius = number | Corners;
+
+const CORNERS = ["topLeft", "topRight", "bottomRight", "bottomLeft"] as const;
+
+export function radius(): Kind<RadiusInput, Radius> {
+  const accepts = "px for every corner, [topLeft, topRight, bottomRight, bottomLeft], or { topLeft, topRight, bottomRight, bottomLeft }";
+  return kind<RadiusInput, Radius>({
+    name: "radius",
+    editor: "radius",
+    accepts,
+    parse(input) {
+      let values: unknown[];
+      if (Array.isArray(input)) {
+        if (input.length !== 4) return fail(`expected ${accepts}`);
+        values = input;
+      } else if (isObject(input)) {
+        const extra = Object.keys(input).find((key) => !(CORNERS as readonly string[]).includes(key));
+        if (extra) return fail(`"${extra}" isn't a corner; expected ${CORNERS.join(", ")}`);
+        values = CORNERS.map((corner) => input[corner] ?? 0);
+      } else {
+        return px(input, 0, "a radius");
+      }
+      const out: number[] = [];
+      for (const value of values) {
+        const corner = px(value, 0, "a corner");
+        if (!corner.ok) return corner;
+        out.push(corner.value);
+      }
+      if (out.every((value) => value === out[0])) return ok(out[0]);
+      const [topLeft, topRight, bottomRight, bottomLeft] = out;
+      return ok({ topLeft, topRight, bottomRight, bottomLeft });
+    },
+    jsonSchema: () => {
+      const corner = { anyOf: [{ type: "number", minimum: 0 }, { type: "string", pattern: `^${NUMBER}(px)?$` }] };
+      return {
+        anyOf: [
+          ...corner.anyOf,
+          { type: "array", items: corner, minItems: 4, maxItems: 4 },
+          { type: "object", properties: Object.fromEntries(CORNERS.map((c) => [c, corner])), additionalProperties: false },
+        ],
+      };
+    },
+  });
+}
+
+// ─── Choices, text, flags ───────────────────────────────────────────────────
+
+export function enumOf<const V extends readonly (string | number)[]>(values: V): Kind<V[number], V[number]> {
+  const accepts = `one of ${values.map((v) => JSON.stringify(v)).join(", ")}`;
+  return kind({
+    name: "enum",
+    editor: "choice",
+    accepts,
+    parse: (input) => ((values as readonly unknown[]).includes(input) ? ok(input as V[number]) : fail(`expected ${accepts}, not ${show(input)}`)),
+    jsonSchema: () => ({ enum: [...values] }),
+  });
+}
+
+export function text(options: { maxLength?: number } = {}): Kind<string, string> {
+  return kind({
+    name: "text",
+    editor: "text",
+    accepts: "text",
+    parse(input) {
+      if (typeof input !== "string") return fail(`expected text, not ${show(input)}`);
+      if (options.maxLength !== undefined && input.length > options.maxLength) return fail(`is longer than ${options.maxLength} characters`);
+      return ok(input);
+    },
+    jsonSchema: () => ({ type: "string", ...(options.maxLength !== undefined ? { maxLength: options.maxLength } : {}) }),
+  });
+}
+
+export function boolean(): Kind<boolean, boolean> {
+  return kind({
+    name: "boolean",
+    editor: "toggle",
+    accepts: "true or false",
+    parse: (input) => (typeof input === "boolean" ? ok(input) : fail(`expected true or false, not ${show(input)}`)),
+    jsonSchema: () => ({ type: "boolean" }),
+  });
+}
+
+// ─── Colors ─────────────────────────────────────────────────────────────────
+
+const NAMED_COLORS = new Set(
+  (
+    "aliceblue antiquewhite aqua aquamarine azure beige bisque black blanchedalmond blue blueviolet brown burlywood " +
+    "cadetblue chartreuse chocolate coral cornflowerblue cornsilk crimson cyan darkblue darkcyan darkgoldenrod darkgray " +
+    "darkgreen darkgrey darkkhaki darkmagenta darkolivegreen darkorange darkorchid darkred darksalmon darkseagreen " +
+    "darkslateblue darkslategray darkslategrey darkturquoise darkviolet deeppink deepskyblue dimgray dimgrey dodgerblue " +
+    "firebrick floralwhite forestgreen fuchsia gainsboro ghostwhite gold goldenrod gray green greenyellow grey honeydew " +
+    "hotpink indianred indigo ivory khaki lavender lavenderblush lawngreen lemonchiffon lightblue lightcoral lightcyan " +
+    "lightgoldenrodyellow lightgray lightgreen lightgrey lightpink lightsalmon lightseagreen lightskyblue lightslategray " +
+    "lightslategrey lightsteelblue lightyellow lime limegreen linen magenta maroon mediumaquamarine mediumblue " +
+    "mediumorchid mediumpurple mediumseagreen mediumslateblue mediumspringgreen mediumturquoise mediumvioletred " +
+    "midnightblue mintcream mistyrose moccasin navajowhite navy oldlace olive olivedrab orange orangered orchid " +
+    "palegoldenrod palegreen paleturquoise palevioletred papayawhip peachpuff peru pink plum powderblue purple " +
+    "rebeccapurple red rosybrown royalblue saddlebrown salmon sandybrown seagreen seashell sienna silver skyblue " +
+    "slateblue slategray slategrey snow springgreen steelblue tan teal thistle tomato turquoise violet wheat white " +
+    "whitesmoke yellow yellowgreen transparent"
+  ).split(" ")
+);
+
+const HEX = /^#([0-9a-f]{3,4}|[0-9a-f]{6}|[0-9a-f]{8})$/i;
+const RGB = /^rgba?\(\s*(\d{1,3})\s*,\s*(\d{1,3})\s*,\s*(\d{1,3})\s*(?:,\s*(\d*\.?\d+%?)\s*)?\)$/i;
+
+const hex2 = (n: number) => n.toString(16).padStart(2, "0");
+
+/** A color as "#rrggbb", "rgba(r, g, b, a)" when it's see-through, or a lowercase CSS name. */
+export function parseColor(input: unknown): Parsed<string> {
+  if (typeof input !== "string") return fail(`expected a color ("#0879a1", "rgb(…)", "rgba(…)" or a CSS name), not ${show(input)}`);
+  const value = input.trim().toLowerCase();
+  const hex = HEX.exec(value);
+  if (hex) {
+    const digits = hex[1].length <= 4 ? [...hex[1]].map((d) => d + d).join("") : hex[1];
+    if (digits.length === 6 || digits.slice(6) === "ff") return ok(`#${digits.slice(0, 6)}`);
+    const alpha = Math.round((parseInt(digits.slice(6), 16) / 255) * 1000) / 1000;
+    return ok(`rgba(${parseInt(digits.slice(0, 2), 16)}, ${parseInt(digits.slice(2, 4), 16)}, ${parseInt(digits.slice(4, 6), 16)}, ${alpha})`);
+  }
+  const rgb = RGB.exec(value);
+  if (rgb) {
+    const channels = rgb.slice(1, 4).map(Number);
+    if (channels.some((c) => c > 255)) return fail(`a color channel is 0 to 255 in ${show(input)}`);
+    let alpha = 1;
+    if (rgb[4] !== undefined) {
+      alpha = rgb[4].endsWith("%") ? Number(rgb[4].slice(0, -1)) / 100 : Number(rgb[4]);
+      if (!(alpha >= 0 && alpha <= 1)) return fail(`a color's alpha is 0 to 1 in ${show(input)}`);
+    }
+    return ok(alpha === 1 ? `#${channels.map(hex2).join("")}` : `rgba(${channels.join(", ")}, ${alpha})`);
+  }
+  if (NAMED_COLORS.has(value)) return ok(value);
+  return fail(`expected a color ("#0879a1", "rgb(…)", "rgba(…)" or a CSS name), not ${show(input)}`);
+}
+
+export function color(): Kind<string, string> {
+  return kind({
+    name: "color",
+    editor: "color",
+    accepts: 'a color ("#0879a1", "rgb(…)", "rgba(…)" or a CSS name)',
+    parse: parseColor,
+    jsonSchema: () => ({ type: "string" }),
+  });
+}
+
+// ─── Fonts ──────────────────────────────────────────────────────────────────
+
+export type FontFamilyInput = string | { name: string; src?: string; fallback?: string };
+export type FontFamily = string | { name: string; src?: string; fallback?: string };
+
+/** What can't be in a font name or stack: it's written into CSS. */
+const FONT_UNSAFE = /[;{}<>\\\n\r]/;
+
+export function fontFamily(): Kind<FontFamilyInput, FontFamily> {
+  const accepts = 'a font stack ("Inter, Arial, sans-serif") or { name, src, fallback }';
+  return kind<FontFamilyInput, FontFamily>({
+    name: "fontFamily",
+    editor: "fontFamily",
+    accepts,
+    parse(input) {
+      if (typeof input === "string") {
+        const stack = input.trim();
+        if (!stack || FONT_UNSAFE.test(stack)) return fail(`expected ${accepts}, not ${show(input)}`);
+        return ok(stack);
+      }
+      if (!isObject(input) || typeof input.name !== "string" || !input.name.trim() || FONT_UNSAFE.test(input.name)) {
+        return fail(`expected ${accepts}, not ${show(input)}`);
+      }
+      const extra = Object.keys(input).find((key) => !["name", "src", "fallback"].includes(key));
+      if (extra) return fail(`"${extra}" isn't part of a font; expected name, src or fallback`);
+      const out: { name: string; src?: string; fallback?: string } = { name: input.name.trim() };
+      if (input.src !== undefined) {
+        if (typeof input.src !== "string" || unsafeUrl(input.src, /^data:(font|application)\//)) return fail(`a font's src must be an http(s) URL, not ${show(input.src)}`);
+        out.src = input.src.trim();
+      }
+      if (input.fallback !== undefined) {
+        if (typeof input.fallback !== "string" || FONT_UNSAFE.test(input.fallback)) return fail(`a font's fallback is a font stack, not ${show(input.fallback)}`);
+        out.fallback = input.fallback.trim();
+      }
+      return ok(out);
+    },
+    jsonSchema: () => ({
+      anyOf: [
+        { type: "string", minLength: 1 },
+        {
+          type: "object",
+          required: ["name"],
+          properties: { name: { type: "string", minLength: 1 }, src: { type: "string" }, fallback: { type: "string" } },
+          additionalProperties: false,
+        },
+      ],
+    }),
+  });
+}
+
+export type FontWeightInput = 100 | 200 | 300 | 400 | 500 | 600 | 700 | 800 | 900 | "normal" | "bold";
+
+export function fontWeight(): Kind<FontWeightInput, number> {
+  return kind({
+    name: "fontWeight",
+    editor: "fontWeight",
+    accepts: '100 to 900 in hundreds, "normal" or "bold"',
+    parse(input) {
+      if (input === "normal") return ok(400);
+      if (input === "bold") return ok(700);
+      if (typeof input === "number" && input >= 100 && input <= 900 && input % 100 === 0) return ok(input);
+      return fail(`expected 100 to 900 in hundreds, "normal" or "bold", not ${show(input)}`);
+    },
+    jsonSchema: () => ({ anyOf: [{ enum: [100, 200, 300, 400, 500, 600, 700, 800, 900] }, { enum: ["normal", "bold"] }] }),
+  });
+}
+
+export type LineHeightInput = number | `${number}px` | `${number}%`;
+/** A multiple of the font size (1.5), or a fixed height in px ("24px"). */
+export type LineHeight = number | `${number}px`;
+
+export function lineHeight(): Kind<LineHeightInput, LineHeight> {
+  const accepts = 'a multiple of the font size (1.5), a percentage ("150%") or px ("24px")';
+  return kind({
+    name: "lineHeight",
+    editor: "lineHeight",
+    accepts,
+    parse(input) {
+      if (typeof input === "number") return input > 0 && Number.isFinite(input) ? ok(input) : fail(`expected ${accepts}, not ${show(input)}`);
+      const parsed = typeof input === "string" && /^\s*-?[\d.]+\s*$/.test(input) ? undefined : readLength(input);
+      if (!parsed || parsed.value <= 0 || (parsed.unit !== "px" && parsed.unit !== "%")) return fail(`expected ${accepts}, not ${show(input)}`);
+      return ok(parsed.unit === "%" ? Math.round(parsed.value * 1000) / 100000 : (`${parsed.value}px` as const));
+    },
+    jsonSchema: () => ({ anyOf: [{ type: "number", exclusiveMinimum: 0 }, { type: "string", pattern: `^${NUMBER}(px|%)$` }] }),
+  });
+}
+
+// ─── URLs: images and links ─────────────────────────────────────────────────
+
+/** A URL scheme that runs code or reads local files, after the characters browsers ignore in one. */
+function unsafeUrl(url: string, allowedData?: RegExp): boolean {
+  // eslint-disable-next-line no-control-regex
+  const compact = url.replace(/[\u0000- \u007f-\u009f]/g, "").toLowerCase();
+  if (compact.startsWith("data:")) return !allowedData || !allowedData.test(compact);
+  return /^(javascript|vbscript|file):/.test(compact);
+}
+
+export type AssetInput = string | { src: string; width?: number; height?: number };
+/** A URL, or one with the image's own size in px (used to size it where no width is set). */
+export type Asset = string | { src: string; width?: number; height?: number };
+
+const IMAGE_DATA = /^data:image\/(png|jpeg|jpg|gif|webp|svg\+xml)[;,]/;
+
+export function asset(): Kind<AssetInput, Asset> {
+  const accepts = "an image URL (http, https or a data:image URI), or { src, width, height }";
+  return kind<AssetInput, Asset>({
+    name: "asset",
+    editor: "image",
+    accepts,
+    parse(input) {
+      const src = typeof input === "string" ? input : isObject(input) ? input.src : undefined;
+      if (typeof src !== "string" || !src.trim()) return fail(`expected ${accepts}, not ${show(input)}`);
+      if (unsafeUrl(src, IMAGE_DATA)) return fail(`${show(src)} isn't an image URL Elements will write`);
+      if (typeof input === "string") return ok(src.trim());
+      const extra = Object.keys(input as object).find((key) => !["src", "width", "height"].includes(key));
+      if (extra) return fail(`"${extra}" isn't part of an image; expected src, width or height`);
+      const out: { src: string; width?: number; height?: number } = { src: src.trim() };
+      for (const side of ["width", "height"] as const) {
+        const value = (input as Record<string, unknown>)[side];
+        if (value === undefined) continue;
+        if (typeof value !== "number" || !(value > 0)) return fail(`an image's ${side} is its size in px, not ${show(value)}`);
+        out[side] = value;
+      }
+      return ok(out);
+    },
+    jsonSchema: () => ({
+      anyOf: [
+        { type: "string", minLength: 1 },
+        {
+          type: "object",
+          required: ["src"],
+          properties: { src: { type: "string", minLength: 1 }, width: { type: "number", exclusiveMinimum: 0 }, height: { type: "number", exclusiveMinimum: 0 } },
+          additionalProperties: false,
+        },
+      ],
+    }),
+  });
+}
+
+export type LinkTarget = "_blank" | "_self";
+export type LinkInput = string | { href: string; target?: LinkTarget };
+export type LinkValue = string | { href: string; target: LinkTarget };
+
+export function link(): Kind<LinkInput, LinkValue> {
+  const accepts = "a URL (http, https, mailto, tel, a path, or a merge tag) or { href, target }";
+  return kind<LinkInput, LinkValue>({
+    name: "link",
+    editor: "link",
+    accepts,
+    parse(input) {
+      const href = typeof input === "string" ? input : isObject(input) ? input.href : undefined;
+      if (typeof href !== "string" || !href.trim()) return fail(`expected ${accepts}, not ${show(input)}`);
+      if (unsafeUrl(href)) return fail(`${show(href)} isn't a link Elements will write (scripts, data and local files aren't)`);
+      if (typeof input === "string") return ok(href.trim());
+      const extra = Object.keys(input as object).find((key) => !["href", "target"].includes(key));
+      if (extra) return fail(`"${extra}" isn't part of a link; expected href or target`);
+      const target = (input as Record<string, unknown>).target;
+      if (target === undefined) return ok(href.trim());
+      if (target !== "_blank" && target !== "_self") return fail(`a link's target is "_blank" or "_self", not ${show(target)}`);
+      return ok({ href: href.trim(), target });
+    },
+    jsonSchema: () => ({
+      anyOf: [
+        { type: "string", minLength: 1 },
+        { type: "object", required: ["href"], properties: { href: { type: "string", minLength: 1 }, target: { enum: ["_blank", "_self"] } }, additionalProperties: false },
+      ],
+    }),
+  });
+}
+
+/** A link's href and target, from either form. */
+export function linkParts(value: LinkValue): { href: string; target?: LinkTarget } {
+  return typeof value === "string" ? { href: value } : value;
+}
+
+/** An image's URL and own size, from either form. */
+export function assetParts(value: Asset): { src: string; width?: number; height?: number } {
+  return typeof value === "string" ? { src: value } : value;
+}
