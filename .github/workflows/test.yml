@@ -52,7 +52,7 @@ jobs:
       # The build only type-checks the index import graph, so this catches a
       # relaxed input type being reverted (e.g. the Column `border` regression).
       - name: Type contract
-        run: pnpm --filter @unlayer/react-elements typecheck && pnpm --filter @unlayer-internal/elements-core typecheck && pnpm --filter @unlayer-internal/elements-exporters typecheck
+        run: pnpm --filter @unlayer/react-elements typecheck && pnpm --filter @unlayer-internal/elements-core typecheck && pnpm --filter @unlayer-internal/elements-exporters typecheck && pnpm --filter @unlayer/elements-pdf typecheck
 
       - name: Converter typechecks
         run: pnpm --filter @unlayer/from-react-email typecheck && pnpm --filter @unlayer/migrate typecheck
@@ -157,6 +157,11 @@ jobs:
       # on desktop and on phones (packages/exporters/test/browser).
       - name: Primitives layout gate (web and email)
         run: pnpm --filter @unlayer-internal/elements-exporters test:browser
+
+      # A Document's PDF (written by react-pdf, without a browser) laid out as its print HTML is: Chromium measures
+      # the HTML, pdf.js reads the PDF, and each line starts within a point of the other (packages/pdf/test/browser).
+      - name: PDF laid out as its print HTML
+        run: pnpm --filter @unlayer/elements-pdf test:browser
 
       # ── Migration fidelity smoke test ───────────────────────────
       # Converts the committed fixture templates both ways (codemod and

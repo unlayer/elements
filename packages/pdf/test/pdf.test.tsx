@@ -1,0 +1,130 @@
+/**
+ * PDFs read back with pdf.js: their pages (how many, their paper), the words on each and where the first sits, and
+ * that nothing is fetched (an image it isn't given is an error, not a request).
+ */
+import { getDocument } from "pdfjs-dist/legacy/build/pdf.mjs";
+import { Column, Document, Email, Heading, Image, Link, PageBreak, PageFooter, PageHeader, PageNumber, Paragraph, Row, Span, Text } from "@unlayer/react-elements/primitives";
+import { renderPdf } from "../src";
+
+/** A 1×1 PNG. */
+const PNG = Uint8Array.from(Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==", "base64"));
+const PNG_URI = `data:image/png;base64,${Buffer.from(PNG).toString("base64")}`;
+
+interface Read {
+  pages: Array<{ size: [number, number]; words: string; first?: { str: string; x: number; y: number } }>;
+}
+
+async function read(pdf: Uint8Array): Promise<Read> {
+  const document = await getDocument({ data: pdf.slice(), useSystemFonts: false, disableFontFace: true, verbosity: 0 }).promise;
+  const pages: Read["pages"] = [];
+  for (let n = 1; n <= document.numPages; n++) {
+    const page = await document.getPage(n);
+    const [, , width, height] = page.view;
+    const items = (await page.getTextContent()).items.filter((item): item is { str: string; transform: number[] } & typeof item => "str" in item && item.str.trim() !== "");
+    pages.push({
+      size: [Math.round(width), Math.round(height)],
+      // pdf.js splits a line into items where its style changes: joined with spaces, less those before punctuation.
+      words: items.map((item) => item.str).join(" ").replace(/\s+/g, " ").replace(/ ([.,!?])/g, "$1").trim(),
+      // From the top left, in points.
+      first: items[0] && { str: items[0].str, x: Math.round(items[0].transform[4] * 10) / 10, y: Math.round((height - items[0].transform[5]) * 10) / 10 },
+    });
+  }
+  return { pages };
+}
+
+const invoice = (
+  <Document size="A4" margin={48} title="Invoice 2705">
+    <PageHeader>
+      <Text style={{ fontSize: 10, color: "#666666" }}>Acme · Invoice</Text>
+    </PageHeader>
+    <Heading level={1} style={{ fontSize: 24 }}>
+      Invoice 2705
+    </Heading>
+    <Paragraph>
+      Thank you for your <Span style={{ fontWeight: 700 }}>order</Span>. Questions? <Link href="https://acme.test/help">Contact us</Link>.
+    </Paragraph>
+    <Row style={{ gap: 16 }}>
+      <Column>
+        <Text>Pro plan</Text>
+      </Column>
+      <Column>
+        <Text style={{ textAlign: "right" }}>$25.00</Text>
+      </Column>
+    </Row>
+    <Image src={{ src: PNG_URI, width: 40, height: 40 }} alt="Logo" />
+    <PageBreak />
+    <Document.Page>
+      <Text>Terms and conditions</Text>
+    </Document.Page>
+    <PageFooter>
+      <Text style={{ fontSize: 10, textAlign: "right" }}>
+        Page <PageNumber /> of <PageNumber total />
+      </Text>
+    </PageFooter>
+  </Document>
+);
+
+describe("renderPdf", () => {
+  it("writes each page on the Document's paper, its header and footer on each, numbered", async () => {
+    const { pdf, diagnostics } = await renderPdf(invoice);
+    expect(Buffer.from(pdf.subarray(0, 5)).toString()).toBe("%PDF-");
+    expect(diagnostics.filter((d) => d.severity !== "info")).toEqual([]);
+    const { pages } = await read(pdf);
+    // A4: 595 × 842 points.
+    expect(pages.map((page) => page.size)).toEqual([
+      [595, 842],
+      [595, 842],
+    ]);
+    expect(pages[0].words).toBe("Acme · Invoice Invoice 2705 Thank you for your order. Questions? Contact us. Pro plan $25.00 Page 1 of 2");
+    expect(pages[1].words).toBe("Acme · Invoice Terms and conditions Page 2 of 2");
+  });
+
+  it("starts the content inside the margins, as the print HTML does: 48px is 36 points", async () => {
+    const { pages } = await read((await renderPdf(invoice)).pdf);
+    const first = pages[0].first!;
+    expect(first.str).toBe("Acme · Invoice");
+    expect(first.x).toBe(36);
+    // The first line's baseline, a 10pt line down from the top margin.
+    expect(first.y).toBeGreaterThan(36);
+    expect(first.y).toBeLessThan(36 + 13);
+  });
+
+  it("writes the same file for the same template", async () => {
+    const [a, b] = await Promise.all([renderPdf(invoice), renderPdf(invoice)]);
+    expect(Buffer.from(a.pdf).equals(Buffer.from(b.pdf))).toBe(true);
+  });
+
+  it("fetches nothing: an image it isn't given is an error; given by its URL, it's drawn", async () => {
+    const template = (
+      <Document>
+        <Image src={{ src: "https://cdn.acme.test/logo.png", width: 40, height: 40 }} alt="Logo" />
+      </Document>
+    );
+    await expect(renderPdf(template)).rejects.toMatchObject({ diagnostics: [expect.objectContaining({ code: "pdf/image", path: "root.children[0].props.src" })] });
+    const { pdf } = await renderPdf(template, { images: { "https://cdn.acme.test/logo.png": PNG } });
+    expect((await read(pdf)).pages).toHaveLength(1);
+    await expect(renderPdf(template, { images: { "https://cdn.acme.test/logo.png": new TextEncoder().encode("GIF89a") } })).rejects.toMatchObject({
+      diagnostics: [expect.objectContaining({ code: "pdf/image", message: "This image's file isn't a PNG, JPEG or SVG, the formats a PDF draws" })],
+    });
+  });
+
+  it("notes a web font it isn't given, and draws its text in a standard PDF font", async () => {
+    const { diagnostics, pdf } = await renderPdf(
+      <Document fonts={[{ family: "Inter", src: "https://fonts.acme.test/inter.woff2" }]} style={{ fontFamily: "Inter, sans-serif" }}>
+        <Text>Hello</Text>
+      </Document>
+    );
+    expect(diagnostics.map((d) => [d.code, d.severity])).toEqual([["pdf/font", "warning"]]);
+    expect((await read(pdf)).pages[0].words).toBe("Hello");
+  });
+
+  it("writes a Document only", async () => {
+    await expect(
+      renderPdf(
+        <Email>
+          <Text>Hi</Text>
+        </Email>
+      )
+    ).rejects.toMatchObject({ diagnostics: [expect.objectContaining({ code: "pdf/root" })] });
+  });
+});

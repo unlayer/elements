@@ -1,0 +1,54 @@
+{
+  "name": "@unlayer/elements-pdf",
+  "version": "0.1.0",
+  "description": "PDF output for Unlayer Elements: a <Document> written as a PDF on the server, with react-pdf, without a browser.",
+  "license": "MIT",
+  "sideEffects": false,
+  "type": "module",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/unlayer/elements.git",
+    "directory": "packages/pdf"
+  },
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "require": "./dist/index.cjs"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsup",
+    "test": "vitest",
+    "test:browser": "vitest run --config vitest.browser.config.ts",
+    "typecheck": "tsc --noEmit -p tsconfig.json"
+  },
+  "peerDependencies": {
+    "@react-pdf/renderer": ">=4.9.0",
+    "@unlayer/react-elements": ">=0.2.0",
+    "react": ">=18"
+  },
+  "devDependencies": {
+    "@react-pdf/renderer": "4.9.0",
+    "@types/node": "^24.9.1",
+    "@types/react": "^18.3.3",
+    "@unlayer-internal/elements-core": "workspace:*",
+    "@unlayer/react-elements": "workspace:*",
+    "pdfjs-dist": "6.5.438",
+    "playwright": "1.60.0",
+    "react": "^18.3.1",
+    "tsup": "^8.0.1",
+    "typescript": "^5.6.3",
+    "vitest": "^3.2.4"
+  },
+  "publishConfig": {
+    "access": "public"
+  }
+}

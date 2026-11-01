@@ -1,0 +1,140 @@
+/**
+ * PDF output for Elements: a `<Document>` written as a PDF on the server, by react-pdf, without a browser or the
+ * network. Its pages, header and footer and page numbers are the print HTML's, laid out at the same widths.
+ *
+ *   const { pdf } = await renderPdf(<Invoice />, { fonts: [{ family: "Inter", src: interRegular }] });
+ *
+ * Nothing is fetched: an image is a data: URI, or its bytes are given in `images` by its URL; a web font's file is
+ * given in `fonts`. A template that needs one it isn't given is an error (an image) or drawn in a standard PDF font (a
+ * font), and says so.
+ */
+import { Font, renderToBuffer } from "@react-pdf/renderer";
+import { assetParts, type Asset, type FontFace } from "@unlayer-internal/elements-core";
+import { ElementsError, prepare, type Diagnostic, type ResolvedNode } from "@unlayer/react-elements/primitives";
+import type { ReactElement } from "react";
+import { writeDocument } from "./write";
+
+export interface PdfFont {
+  /** The family a template names in its fontFamily stacks ("Inter"). */
+  family: string;
+  /** The font file (TTF or OTF). */
+  src: Uint8Array | ArrayBuffer;
+  weight?: number;
+  style?: "normal" | "italic";
+}
+
+export interface PdfOptions {
+  /** Font files, by the family the template names: PDF output loads none itself. */
+  fonts?: PdfFont[];
+  /** Image files (PNG, JPEG, SVG), by the URL the template gives: PDF output loads none itself. */
+  images?: Record<string, Uint8Array | ArrayBuffer>;
+  /** When the PDF says it was made (a fixed date by default, so a template makes the same file every time). */
+  date?: Date;
+}
+
+export interface PdfResult {
+  /** The PDF file. */
+  pdf: Uint8Array;
+  /** Warnings and notes (errors are thrown). */
+  diagnostics: Diagnostic[];
+}
+
+/** The date a PDF says it was made by default: fixed, so the same template makes the same bytes. */
+const FIXED_DATE = new Date(Date.UTC(2026, 0, 1));
+
+/** A Document written as a PDF. Rejects with an `ElementsError` listing the problems if it has errors. */
+export async function renderPdf(element: ReactElement, options: PdfOptions = {}): Promise<PdfResult> {
+  const { root, diagnostics } = prepare(element);
+  if (!root) throw new ElementsError(diagnostics);
+  if (root.type !== "Document") {
+    throw new ElementsError([...diagnostics, { code: "pdf/root", severity: "error", message: `PDF output is a Document's: this template is a ${root.type}`, path: "root" }]);
+  }
+  const found: Diagnostic[] = [];
+  const fonts = registerFonts(root, options.fonts ?? [], found);
+  const images = imageSources(root, options.images ?? {}, found);
+  if (found.some((d) => d.severity === "error")) throw new ElementsError([...diagnostics, ...found]);
+  const bytes = await renderToBuffer(writeDocument(root, { fonts, image: (src) => images.get(src), date: options.date ?? FIXED_DATE }));
+  return { pdf: new Uint8Array(bytes), diagnostics: [...diagnostics, ...found] };
+}
+
+// ─── Fonts ─────────────────────────────────────────────────────────────────
+
+/** Fonts registered with react-pdf (whose registry is the process's): by family, weight, style and file. */
+const registered = new Set<string>();
+
+function base64(bytes: Uint8Array | ArrayBuffer): string {
+  return Buffer.from(bytes instanceof ArrayBuffer ? new Uint8Array(bytes) : bytes).toString("base64");
+}
+
+/** The families given registered with react-pdf (lowercased, as the writer looks them up); a web font not given, noted. */
+function registerFonts(root: ResolvedNode, given: PdfFont[], found: Diagnostic[]): Set<string> {
+  const families = new Set<string>();
+  for (const font of given) {
+    const family = font.family.toLowerCase();
+    const data = base64(font.src);
+    const key = `${family}|${font.weight ?? 400}|${font.style ?? "normal"}|${data.length}|${data.slice(0, 64)}`;
+    if (!registered.has(key)) {
+      Font.register({ family, src: `data:font/ttf;base64,${data}`, fontWeight: font.weight ?? 400, fontStyle: font.style ?? "normal" });
+      registered.add(key);
+    }
+    families.add(family);
+  }
+  for (const face of (root.props.fonts as FontFace[] | undefined) ?? []) {
+    if (families.has(face.family.toLowerCase())) continue;
+    found.push({
+      code: "pdf/font",
+      severity: "warning",
+      message: `PDF output loads no fonts: give ${face.family}'s file in renderPdf's fonts option. Its text is drawn in a standard PDF font meanwhile`,
+      path: "root.props.fonts",
+    });
+  }
+  return families;
+}
+
+// ─── Images ────────────────────────────────────────────────────────────────
+
+/** What an image file is, from its first bytes: a format react-pdf draws, or undefined. */
+function mime(bytes: Uint8Array): string | undefined {
+  if (bytes[0] === 0x89 && bytes[1] === 0x50 && bytes[2] === 0x4e && bytes[3] === 0x47) return "image/png";
+  if (bytes[0] === 0xff && bytes[1] === 0xd8) return "image/jpeg";
+  const head = new TextDecoder().decode(bytes.subarray(0, 256)).trimStart();
+  if (head.startsWith("<svg") || head.startsWith("<?xml")) return "image/svg+xml";
+  return undefined;
+}
+
+const DRAWN = /^data:image\/(png|jpeg|jpg|svg\+xml)[;,]/;
+
+/** Each image's source as react-pdf loads it without the network: a data URI; an image without one, an error. */
+function imageSources(root: ResolvedNode, given: Record<string, Uint8Array | ArrayBuffer>, found: Diagnostic[]): Map<string, string> {
+  const out = new Map<string, string>();
+  const resolve = (src: string): string | undefined => {
+    if (out.has(src)) return out.get(src);
+    let source: string | undefined;
+    if (DRAWN.test(src)) source = src;
+    else if (given[src]) {
+      const bytes = given[src] instanceof ArrayBuffer ? new Uint8Array(given[src] as ArrayBuffer) : (given[src] as Uint8Array);
+      const type = mime(bytes);
+      if (type) source = `data:${type};base64,${base64(bytes)}`;
+    }
+    if (source) out.set(src, source);
+    return source;
+  };
+  const visit = (node: ResolvedNode) => {
+    if (node.hidden?.desktop) return;
+    if (node.type === "Image" && !resolve(assetParts(node.props.src as Asset).src)) {
+      found.push({
+        code: "pdf/image",
+        severity: "error",
+        message: given[assetParts(node.props.src as Asset).src]
+          ? "This image's file isn't a PNG, JPEG or SVG, the formats a PDF draws"
+          : "PDF output loads no images: give this one's file in renderPdf's images option (by its URL), or its src as a data: URI",
+        path: `${node.path}.props.src`,
+        ...(node.id ? { nodeId: node.id } : {}),
+      });
+    }
+    if (node.type === "Video" && node.props.thumbnail) resolve(assetParts(node.props.thumbnail as Asset).src);
+    for (const child of node.children) if (typeof child !== "string") visit(child);
+  };
+  visit(root);
+  return out;
+}

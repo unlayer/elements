@@ -1,6 +1,6 @@
 import React from "react";
-import { ElementsError, type Diagnostic } from "@unlayer-internal/elements-core";
-import { renderTemplate, validateTemplate, type RenderOptions, type RenderResult } from "@unlayer-internal/elements-exporters";
+import { ElementsError, type Diagnostic, type ResolvedNode } from "@unlayer-internal/elements-core";
+import { prepareTemplate, renderTemplate, validateTemplate, type RenderOptions, type RenderResult } from "@unlayer-internal/elements-exporters";
 import { collectTemplate } from "./collect";
 
 function template(element: unknown, call: string) {
@@ -46,4 +46,16 @@ export function validate(element: React.ReactElement): ValidationResult {
   return { valid: !all.some((d) => d.severity === "error"), diagnostics: all };
 }
 
-export type { RenderOptions, RenderResult };
+/**
+ * A template laid out, for a package that writes another output (`@unlayer/elements-pdf`): its tree, every block's
+ * width worked out, and what was found. What render() does before it writes HTML; `root` is null where there are
+ * errors. The tree is the writers' input, not a format to store: it changes with Elements.
+ */
+export function prepare(element: React.ReactElement): { root: ResolvedNode | null; diagnostics: Diagnostic[] } {
+  const { document, diagnostics, components } = template(element, "prepare");
+  if (!document || diagnostics.some((d) => d.severity === "error")) return { root: null, diagnostics };
+  const prepared = prepareTemplate(document, { components });
+  return { root: prepared.resolved?.root ?? null, diagnostics: [...diagnostics, ...prepared.diagnostics] };
+}
+
+export type { RenderOptions, RenderResult, ResolvedNode };
