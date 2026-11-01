@@ -136,9 +136,10 @@ export async function collectAsync(node: React.ReactNode, options: CollectOption
     // (What React handles itself, in order: a <Suspense>'s fallback rendered for it, see parse.ts's fallbackFailed.)
     const streamed = streamedMarkup(prepared, options.idPrefix, (raw) => raw, (error, info) => {
       c.reactErrors.push({ error, name: failedIn(info) });
-      // (It failed at the lazy component's place, where it's said: see `told` below. So the render fails without
-      // waiting for what's after it.)
-      const at = c.lazies[0]?.order;
+      // (It failed in what a lazy component renders, which React's public API doesn't say: at the last one's place, in
+      // tree order, so the render fails without waiting for what's after them all, and never before a part that's
+      // before the one it failed in can still fail.)
+      const at = c.lazies[c.lazies.length - 1]?.order;
       if (at && c.changed) {
         c.errors.push({ at, error });
         c.changed();

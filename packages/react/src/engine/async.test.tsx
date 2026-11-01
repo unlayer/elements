@@ -149,6 +149,14 @@ describe("the async collecting render", () => {
     };
     const handled = <Email><Row><Column><React.Suspense fallback={null}><ChunkFails /></React.Suspense><React.Suspense fallback={null}><Never2 /></React.Suspense></Column></Row></Email>;
     await expect(renderToHtml(handled)).rejects.toMatchObject({ message: expect.stringMatching(/^\[Unlayer\] before/) });
+    // But not before a part before it that fails after it: that one's first in the tree, with another lazy component
+    // before both (the error was put at the first one's place).
+    const Loads = React.lazy(async () => ({ default: () => <Paragraph>Loaded</Paragraph> }));
+    const FailsSooner = React.lazy(() => sleep(5).then((): { default: React.ComponentType } => {
+      throw new Error("lazy after");
+    }));
+    const ordered = <Email><Row><Column><Loads /><Fails text="first in the tree" ms={30} /><React.Suspense fallback={null}><FailsSooner /></React.Suspense></Column></Row></Email>;
+    await expect(renderToHtml(ordered)).rejects.toMatchObject({ message: expect.stringMatching(/^\[Unlayer\] first in the tree/) });
     if ((React as unknown as { use?: unknown }).use) {
       const header = failsLater<string>();
       header.catch(() => {});
