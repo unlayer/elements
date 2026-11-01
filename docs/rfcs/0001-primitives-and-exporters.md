@@ -152,6 +152,8 @@ out once, then the output's writer. The tree lives inside one `render()` call an
 | `Section` | A band across the whole window, directly under a root: its background spans the window, its children are stacked at the content width |
 | `Row` | Children side by side; each takes its `width` or a share of what's left (`flex`). Stacks on phones unless `stackOnMobile={false}` |
 | `Column` | Children stacked, with its own box and spacing |
+| `Grid` | Children in columns of equal width (`columns`, 2 by default), row after row; `gap` and `rowGap`; stacked on phones unless `stackOnMobile={false}`. Laid out as the Rows of Columns it is, so every output draws it |
+| `Layer` | Children over each other in one box as tall as the tallest (CSS grid's one cell), placed by `alignItems` (down) and `justifyItems` (across); `height` makes its first Image cover it. An email draws one shape of it, an Image as wide as the Layer with one child over it, the image as the cell's background (VML for Outlook): `validate()` reports any other for email |
 | `Text`, `Paragraph`, `Heading` | Blocks of text (`div`, `p`, `h1`–`h6` by `level`); `dir` for their own direction |
 | `Span` | Styled text inside text; `verticalAlign: "super" \| "sub"` for superscript and subscript |
 | `Link` | A link inside text, or around an `Image`; `title`, `aria-label` |
@@ -165,9 +167,8 @@ out once, then the output's writer. The tree lives inside one `render()` call an
 | `Menu` | A line of links with a separator between them on desktop, or links down a column (`items` as `{ text, href }`, `separator`, `layout`; the links' `color`, `separatorColor`, each link's `padding`, `justifyContent` and font as styles). Made of primitives: a Row (or Column) of Links |
 | `Social` | Links to social profiles: a line of the networks' icons (`icons` as `{ name, href }`, `iconType`, `size`; `gap` and `justifyContent` as styles). Made of primitives: it expands into a Row of linked Images before layout |
 
-Later steps add `Grid` (children in columns), `Layer` (children over each other), `Document` with
-`Document.Page`, `PageBreak`, `PageHeader`, `PageFooter` and `PageNumber`, and `Canvas` with `Svg` and
-shapes. Today's components that are made of primitives (`Social`, `Menu`) are built-in components that expand
+Later steps add `Document` with `Document.Page`, `PageBreak`, `PageHeader`, `PageFooter` and
+`PageNumber`, and `Canvas` with `Svg` and shapes. Today's components that are made of primitives (`Social`, `Menu`) are built-in components that expand
 into them, as custom components do: a block of their own in a template and in the builder's design, drawn by the
 primitives' writers in every output. `Video` has writers of its own: a page plays it, an email links to it.
 
@@ -218,7 +219,7 @@ React's inline styles.
 |---|---|---|
 | Text | `color`, `fontFamily` (a CSS stack), `fontSize`, `fontWeight`, `fontStyle`, `lineHeight`, `letterSpacing`, `textAlign`, `textTransform`; `textDecoration` on text elements only | yes, from the root down |
 | Box | `width`, `minWidth`, `maxWidth`, `height`, `padding` (a number, `"8px 12px"`, `[8, 12]` or `{ top, … }`), `backgroundColor`, `border`, `borderRadius`, `overflow` | no |
-| Layout (root, Section, Row, Column) | `gap`, `alignItems` (`start`, `center`, `end`, `stretch`), `justifyContent` (`start`, `center`, `end`, `space-between`); `flexWrap` on a Row (page only) | no |
+| Layout (root, Section, Row, Column, Grid, Layer) | `gap`, `alignItems` (`start`, `center`, `end`, `stretch`), `justifyContent` (`start`, `center`, `end`, `space-between`); `flexWrap` on a Row (page only); `rowGap` on a Grid; `justifyItems` on a Layer | no |
 | Placement (a Row's child) | `width`, or `flex` (its share; `"none"` for its own size) | no |
 | Specific | `verticalAlign` (Span: `super`, `sub`; TableCell: `top`, `middle`, `bottom`), `borderTop` (Divider), `indent` (List: its markers' column), `cellPadding` and `rowBorder` (Table: every cell's padding, a line between rows) | no |
 
@@ -482,8 +483,8 @@ Each step ends with its tests in CI.
 | 5. React Email parity: web fonts, superscript and subscript, `title`/`aria-label`, `dir` per block, `pretty` | done |
 | 6. Support data for every output, and the styling vocabulary | done |
 | 7. Today's components with new ones (`Menu`, `Social`, `Video`), `/legacy`, the codemod (`@unlayer/migrate --from elements`, [migration guide](../migrating-to-primitives.md)) | done |
-| 8. `Grid`, `Layer` and responsive page layouts | next |
-| 9. `Document`, `Document.Page`, `PageBreak`, headers, footers and page numbers; print HTML; `@unlayer/elements-pdf` | |
+| 8. `Grid`, `Layer`, and Rows kept side by side that keep their shares on phones in email too | done |
+| 9. `Document`, `Document.Page`, `PageBreak`, headers, footers and page numbers; print HTML; `@unlayer/elements-pdf` | next |
 | 10. `Canvas`, `Svg` and shapes; `@unlayer/elements-image` | |
 | 11. Builder adapter | last |
 
