@@ -9,6 +9,7 @@ import { looseText } from "../utils/render-scope";
 import { collecting, RECORDS } from "../utils/collect";
 import { recordContainer, whileCollecting } from "../utils/record";
 import { DEFAULT_CONTAINER_PADDING } from "../utils/image-sizing";
+import { blockHtml } from "../utils/block-html";
 
 /** Unlayer's default content-block padding when a block sets none. */
 
@@ -218,12 +219,9 @@ export const Column: React.FC<ColumnProps> = (props) => {
                   ...(childProps.values?._meta?.htmlID ? { htmlID: safeName(childProps.values._meta.htmlID) } : {}),
                 },
               };
-              innerHTML += renderContentToHtml(
-                componentHTML,
-                contentValues,
-                bodyValues,
-                mode
-              );
+              const block = renderContentToHtml(componentHTML, contentValues, bodyValues, mode);
+              blockHtml(contentValues._meta.htmlID, block);
+              innerHTML += block;
             } else if (rendered) {
               const name = (child.type as any)?.displayName || (child.type as any)?.name || "Unknown";
               console.warn(

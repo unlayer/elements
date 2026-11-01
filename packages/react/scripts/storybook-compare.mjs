@@ -30,8 +30,8 @@ const STATIC_DIR = join(PKG_DIR, "storybook-static");
 const PORT = 6008;
 const BASE = process.env.STORYBOOK_URL ?? `http://127.0.0.1:${PORT}`;
 // main's designs next to the same written with the new components, and next to the codemod's migration of them; and
-// templates drawn as a Page next to the same drawn as an Email.
-const PREFIXES = ["primitives-compare-with-main--", "primitives-codemod-of-main--", "primitives-email-and-page--"];
+// templates drawn as a Page next to the same drawn as an Email; and main's templates lowered into the new engine.
+const PREFIXES = ["primitives-compare-with-main--", "primitives-codemod-of-main--", "primitives-email-and-page--", "primitives-main-through-the-new-engine--"];
 const WIDTHS = ["desktop", "phone"];
 const TOLERANCE = 1;
 // Pixels that may differ, text left out: the antialiased edges of a rounded corner drawn half a pixel apart. (A
