@@ -28,7 +28,8 @@ const PKG_DIR = join(dirname(fileURLToPath(import.meta.url)), "..");
 const STATIC_DIR = join(PKG_DIR, "storybook-static");
 const PORT = 6008;
 const BASE = process.env.STORYBOOK_URL ?? `http://127.0.0.1:${PORT}`;
-const PREFIX = "primitives-compare-with-main--";
+// main's designs next to the same written with the new components, and next to the codemod's migration of them.
+const PREFIXES = ["primitives-compare-with-main--", "primitives-codemod-of-main--"];
 const WIDTHS = ["desktop", "phone"];
 const TOLERANCE = 1;
 // Pixels that may differ, text left out: the antialiased edges of a rounded corner drawn half a pixel apart. (A
@@ -52,11 +53,11 @@ if (process.env.STORYBOOK_URL) {
 }
 
 const ids = Object.values(index.entries ?? {})
-  .filter((entry) => entry.type === "story" && entry.id.startsWith(PREFIX) && entry.id.includes(process.env.COMPARE_ONLY ?? ""))
+  .filter((entry) => entry.type === "story" && PREFIXES.some((prefix) => entry.id.startsWith(prefix)) && entry.id.includes(process.env.COMPARE_ONLY ?? ""))
   .map((entry) => entry.id)
   .sort();
 if (ids.length === 0) {
-  console.error(`COMPARE_FAIL: no ${PREFIX}* stories in the Storybook index`);
+  console.error(`COMPARE_FAIL: no ${PREFIXES.join("* or ")}* stories in the Storybook index`);
   server?.kill();
   process.exit(1);
 }
@@ -221,7 +222,7 @@ try {
       if (Math.abs(paint.heights[0] - paint.heights[1]) > allowance.y) found.push(`main is ${paint.heights[0]}px tall, the new engine ${paint.heights[1]}px`);
       if (paint.count > PAINT_TOLERANCE) found.push(`${paint.count} pixels painted differently (text left out), within ${paint.box.join(",")}`);
       if (process.env.COMPARE_VERBOSE) console.log(`    ${id}@${width}: ${paint.count} pixels differ`);
-      const story = `${id.slice(PREFIX.length)}@${width}`;
+      const story = `${id.replace(/^primitives-/, "")}@${width}`;
       if (found.length) {
         failures++;
         console.error(`COMPARE_DIFF [${story}]`);
