@@ -8,6 +8,7 @@
  */
 import { StripeReceipt } from "../../examples/StripeReceipt.stories";
 import { Button, Column, Divider, Email, Heading, Link, Paragraph, Row, Section } from "../index";
+import { lineRow } from "./lineRow";
 
 const INDIGO = "#635BFF";
 const INK = "#1A1F36";
@@ -15,21 +16,7 @@ const MUTED = "#697386";
 const LINE = "#E3E8EE";
 const WHITE = "#FFFFFF";
 
-function lineRow(label: string, value: string, last = false) {
-  const cell = { padding: "14px 0", border: last ? undefined : { bottom: `1px solid ${LINE}` } };
-  return (
-    <Section style={{ backgroundColor: WHITE }}>
-      <Row>
-        <Column style={cell}>
-          <Paragraph style={{ padding: 10, fontSize: 14, color: MUTED, lineHeight: "140%" }}>{label}</Paragraph>
-        </Column>
-        <Column style={cell}>
-          <Paragraph style={{ padding: 10, fontSize: 14, fontWeight: 700, color: INK, textAlign: "right", lineHeight: "140%" }}>{value}</Paragraph>
-        </Column>
-      </Row>
-    </Section>
-  );
-}
+const lines = { label: MUTED, value: INK, line: LINE };
 
 export const main = <StripeReceipt />;
 
@@ -61,9 +48,9 @@ export const next = (
       <Divider style={{ borderTop: `1px solid ${LINE}` }} />
     </Section>
 
-    {lineRow("Pro Plan (monthly)", "$25.00")}
-    {lineRow("Additional seats × 3", "$36.00")}
-    {lineRow("Usage overage", "$4.50", true)}
+    {lineRow("Pro Plan (monthly)", "$25.00", lines)}
+    {lineRow("Additional seats × 3", "$36.00", lines)}
+    {lineRow("Usage overage", "$4.50", lines, true)}
 
     <Section style={{ backgroundColor: WHITE, padding: [18, 10, 10, 10] }}>
       <Divider style={{ borderTop: `1px solid ${LINE}` }} />

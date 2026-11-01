@@ -1540,10 +1540,10 @@
   "text|main: today's components",
   "text|New engine: /primitives",
   "text|What the new engine's render() reported (2)",
-  "3x li|display:list-item;position:static;flexWrap:nowrap;flexDirection:row;color:rgb(0, 0, 0);fontSize:13px;fontWeight:400;fontFamily:system-ui, sans-serif;textAlign:start;direction:ltr;borderTopColor:rgb(0, 0, 0);borderLeftColor:rgb(0, 0, 0);verticalAlign:baseline",
-  "text|What the new engine's render() reported (3)",
   "5x li|display:list-item;position:static;flexWrap:nowrap;flexDirection:row;color:rgb(0, 0, 0);fontSize:13px;fontWeight:400;fontFamily:system-ui, sans-serif;textAlign:start;direction:ltr;borderTopColor:rgb(0, 0, 0);borderLeftColor:rgb(0, 0, 0);verticalAlign:baseline",
   "text|What the new engine's render() reported (5)",
+  "3x li|display:list-item;position:static;flexWrap:nowrap;flexDirection:row;color:rgb(0, 0, 0);fontSize:13px;fontWeight:400;fontFamily:system-ui, sans-serif;textAlign:start;direction:ltr;borderTopColor:rgb(0, 0, 0);borderLeftColor:rgb(0, 0, 0);verticalAlign:baseline",
+  "text|What the new engine's render() reported (3)",
   "h2|display:block;position:static;flexWrap:nowrap;flexDirection:row;color:rgb(0, 0, 0);fontSize:24px;fontWeight:700;fontFamily:ua-default-serif;textAlign:start;direction:ltr;marginTop:19.92px;marginBottom:19.92px;borderTopColor:rgb(0, 0, 0);borderLeftColor:rgb(0, 0, 0);verticalAlign:baseline",
   "p|display:block;position:static;flexWrap:nowrap;flexDirection:row;color:rgb(0, 0, 0);fontSize:16px;fontWeight:400;fontFamily:ua-default-serif;textAlign:start;direction:ltr;marginTop:16px;marginBottom:16px;borderTopColor:rgb(0, 0, 0);borderLeftColor:rgb(0, 0, 0);verticalAlign:baseline",
   "button|display:block;position:static;flexWrap:nowrap;flexDirection:row;color:rgb(255, 255, 255);backgroundColor:rgb(0, 123, 255);fontSize:13.3333px;fontWeight:400;fontFamily:Arial;textAlign:center;direction:ltr;paddingTop:8px;paddingRight:16px;paddingBottom:8px;paddingLeft:16px;borderTopWidth:2px;borderTopStyle:solid;borderTopColor:rgb(0, 123, 255);borderLeftWidth:2px;borderLeftStyle:solid;borderLeftColor:rgb(0, 123, 255);borderRadius:4px;verticalAlign:baseline",
@@ -7238,6 +7238,27 @@
    1534,
    1472
   ],
+  "primitives-compare-with-main--airbnb-confirmation@desktop": [
+   1535,
+   1536,
+   1537,
+   1538,
+   1539
+  ],
+  "primitives-compare-with-main--luma-event-invite@desktop": [
+   1535,
+   1540,
+   1537,
+   1538,
+   1541
+  ],
+  "primitives-compare-with-main--mercury-receipt@desktop": [
+   1535,
+   1540,
+   1537,
+   1538,
+   1541
+  ],
   "primitives-compare-with-main--phone-overrides@desktop": [
    1535,
    1536,
@@ -7247,17 +7268,24 @@
   ],
   "primitives-compare-with-main--spotify-welcome@desktop": [
    1535,
+   1542,
+   1537,
+   1538,
+   1543
+  ],
+  "primitives-compare-with-main--stripe-receipt@desktop": [
+   1535,
    1540,
    1537,
    1538,
    1541
   ],
-  "primitives-compare-with-main--stripe-receipt@desktop": [
+  "primitives-compare-with-main--warby-order-shipped@desktop": [
    1535,
-   1542,
+   1540,
    1537,
    1538,
-   1543
+   1541
   ],
   "testing-complete-pixel-parity-test--complete-email-template@desktop": [
    1544,
@@ -13012,6 +13040,27 @@
    1534,
    1472
   ],
+  "primitives-compare-with-main--airbnb-confirmation@mobile": [
+   1535,
+   1536,
+   1537,
+   1538,
+   1539
+  ],
+  "primitives-compare-with-main--luma-event-invite@mobile": [
+   1535,
+   1540,
+   1537,
+   1538,
+   1541
+  ],
+  "primitives-compare-with-main--mercury-receipt@mobile": [
+   1535,
+   1540,
+   1537,
+   1538,
+   1541
+  ],
   "primitives-compare-with-main--phone-overrides@mobile": [
    1535,
    1536,
@@ -13021,17 +13070,24 @@
   ],
   "primitives-compare-with-main--spotify-welcome@mobile": [
    1535,
+   1542,
+   1537,
+   1538,
+   1543
+  ],
+  "primitives-compare-with-main--stripe-receipt@mobile": [
+   1535,
    1540,
    1537,
    1538,
    1541
   ],
-  "primitives-compare-with-main--stripe-receipt@mobile": [
+  "primitives-compare-with-main--warby-order-shipped@mobile": [
    1535,
-   1542,
+   1540,
    1537,
    1538,
-   1543
+   1541
   ],
   "testing-complete-pixel-parity-test--complete-email-template@mobile": [
    1544,
