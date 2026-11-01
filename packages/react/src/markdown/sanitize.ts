@@ -25,7 +25,8 @@ export const escapeUrl = (url: string) => keepTags(escapeAttribute(url));
 
 /**
  * A link's or an image's URL when it's safe: a web, mail or phone link, an image on the web (or a `cid:` attachment,
- * or a PNG, GIF, JPEG or WebP data URL), or a URL with no scheme (relative, `#anchor`, `{{merge_tag}}`).
+ * or a PNG, GIF, JPEG or WebP data URL), or a URL with no scheme (relative, `#anchor`, `{{merge_tag}}`). Its scheme is
+ * what's checked: it's given as it is, to be escaped for the attribute it's written in (see escapeUrl).
  */
 export function safeUrl(url: string, kind: "link" | "image"): string | undefined {
   const value = url.trim();

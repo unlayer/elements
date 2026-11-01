@@ -315,7 +315,10 @@ row or block is left out of the HTML, the plain text and the design (the slower 
 
    Each can be another request's, another tenant's data (`regression/render-isolation.test.tsx` holds all of them).
    React's API has no way to put back what another module left.
-5. **Tree order.** Output, records, ids and the error a render throws don't depend on when promises settle.
+5. **Tree order.** Output, records, ids and the error a render throws don't depend on when promises settle, but for
+   the work a render's Markdown and code blocks share (their budgets: see 9), which each charges as it renders: in an
+   async render, where it runs out, the parts whose data arrived first have it (a later block is shown without its
+   code's colors, or a Markdown table past the cells it leaves fails).
 6. **Components run as React runs them**: once, and again where React renders again (a component that sets its state
    while rendering, one that suspends once what it waits for settles); an async component's function once.
 7. **Nothing is left out silently.** A part that fails throws, or is left out where `onError` says, and said.
