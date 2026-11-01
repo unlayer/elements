@@ -58,8 +58,109 @@ jobs:
         run: pnpm --filter @unlayer/from-react-email typecheck && pnpm --filter @unlayer/migrate typecheck
 
       # ── Bundle size budget ──────────────────────────────────────
-      # Fail if the react-elements ESM bundle exceeds 221KB.
-      # Current size: about 225KB (0.1.22: about 76KB). Raised from 224.5KB
+      # Fail if the react-elements ESM bundle exceeds 284.5KB.
+      # Current size: about 283.7KB (0.1.22: about 76KB). Raised from 281.5KB
+      # (about 2.5KB): a copy of the render's markers failing the render, an
+      # error React handled in a lazy section failing an async render early, a
+      # Button's style its props take given as those props, a lazy <textarea>
+      # ended only at its own end tag, and a failed component called once.
+      # Raised from 280.5KB
+      # (about 0.9KB): a lazy component's <style> and <script> read to where a
+      # browser ends them, a template's only Row left out of the design too, and
+      # an async render failing at an error found before React renders.
+      # Raised from 279KB
+      # (about 1.5KB): a lazy component's HTML read as a browser reads it before
+      # React 18's `javascript:` URLs are written in it, and an end tag that ends
+      # nothing left out among the blocks.
+      # Raised from 277.5KB
+      # (about 0.5KB): a template's own root nested in it taking the render's
+      # config and sanitizer, sections left out through providers and layouts
+      # with `onError`, and Markdown URLs stopping at control tags.
+      # Raised from 276KB
+      # (about 1.6KB): react-dom's modules asked what they're doing only where
+      # a render starts (every module a render under way has, or an app's page
+      # was found rendering with, kept from the renders inside it), wrapped code
+      # breaking a long token, and React 18's lazy async template said by name.
+      # Raised from 275.5KB
+      # (about 0.7KB): the first async render reaching the template before its
+      # promises can fail, and a component's markup in a Column taking its
+      # Tailwind classes as an Html block's. Raised from 275KB
+      # (about 0.3KB): a video's URL kept from `videoUrl`, a layout's sections
+      # given as props read where failed parts are left out, a Column saying it
+      # leaves out markup a block is in, and React 18's stream comments read in
+      # a <style>'s or <script>'s text. Raised from 273KB
+      # (about 2.4KB): react-dom's probes keeping no answer found where the
+      # call stack had no room, a part that failed beside one that suspended
+      # in a <Suspense> said, a wrapper's hooks of another copy of React
+      # named, a memo'd forwardRef's ref and a <title>'s text in parts on
+      # React 18, and a wrapper's rows' keys taken as written. Raised from 270KB
+      # (about 2.4KB): a <Link> in a component's markup a record of its own,
+      # cleaned alone, an async render that failed settling react-dom's
+      # stream before it rejects, and `pretty` keeping HTML with a NUL as it
+      # renders. Raised from 268KB
+      # (about 2.2KB): the sections a provider written as a component is given
+      # each a part of their own under "omit". Raised from 266KB
+      # (about 2KB): react-dom's probes keeping no answer from a render that
+      # ran out of stack, a part left out of a lazy component's <Suspense>
+      # listed in `omitted`, the plain text reading an image's tag past a `>`
+      # in a quoted value (an email service's tag in its src), a template's
+      # promise props handled as an async render starts (the first render's
+      # fast failures ended the process), react-dom's stream piped once where
+      # React 19.2 says all is ready twice, a class template whose constructor
+      # binds its render rendered, and a provider or <StrictMode> around the
+      # rows kept as a Fragment is (one section failing with "omit" left out
+      # every row).
+      # Raised from 265.5KB
+      # (about 0.9KB): React 18's Node stream's buffer written only as far as
+      # it filled it (no NULs), a part that fails in a <Suspense> in what a
+      # lazy component renders failing the render, and the error that says how
+      # to write one whose fallback holds blocks. Raised from 260.5KB
+      # (about 4.8KB): HTML balanced as a browser's parser ends elements at a
+      # start tag (a table straight in a table, a cell in a cell, an `<li>` in
+      # an `<li>`), what a lazy component renders read no further than the
+      # markers React wrote after it (a `<style>`, `<script>` or comment it
+      # leaves open is its text, and every marker ended and read), and React
+      # 18's `javascript:` URLs there written as React 19 writes them. Raised from 258KB
+      # (about 2.4KB): another copy of React told only from a hook read off a
+      # null dispatcher, an email service's `<% %>` tag kept in an Image's
+      # src, a custom tool's values copied for each render, Markdown and
+      # CodeBlocks charged to the render wherever React renders them, a class
+      # left alone where React's dev build constructs it to name it, and what
+      # links an Image said. Raised from 255.5KB
+      # (about 2.4KB): each marker and placeholder of the collecting render
+      # bound to a part React kept, the components a <Link> renders in
+      # recorded so its markup is cleaned wherever it lands, and an async
+      # render's places in tree order. Raised from 250.5KB
+      # (about 5.1KB): rich text's markup read with the browser-like tag reader
+      # the Markdown sanitizer uses, its tags balanced, an async component in a
+      # <Head>'s style, script or title waited for, an element placed twice
+      # called in each place, Elements' own contexts stamped with the render
+      # that set them and kept per React with its renders under way, and a
+      # memo'd or forwardRef'd Row, Column or block recorded as itself.
+      # Raised from 244.5KB
+      # (about 5.9KB): what fails where React handles it itself said (a
+      # <Suspense>'s fallback marked and read, React's stream errors recorded,
+      # a class's lifecycles and a promise child caught), react-dom's stream
+      # module settled after each async render, a template's markup read from
+      # inside its wrapper, a class whose render is a class field, every part
+      # that fails counted in an async render, and plain-text lines never
+      # wrapped inside a template tag. Raised from 242KB
+      # (about 2.4KB): a lazy component rendered where it is (Elements'
+      # components in it collected through a context), a style's or script's
+      # HTML kept out of the parse, the providers React leaves in a module popped
+      # after each render, async renders failing by name where react-dom can't
+      # render, and the render count kept apart from 0.2.1's. Raised from 236.5KB
+      # (about 5.2KB): a render started inside a component of an app's
+      # renderToString renders with another module of react-dom's, found with a
+      # synchronous require as 0.2.1 found it, and told by a class component's
+      # useTransition (src/engine/react-dom.ts), or fails by name. Raised from 229.5KB
+      # (about 7KB): templates render with react-dom/server through React's public
+      # API only (src/engine: the element tree prepared for react-dom, its HTML read
+      # back with the HTML a template gives kept out of it, template wrappers and a
+      # lazy template's root called in renders of their own, a <Head>'s raw text
+      # on React 19, and the named errors where react-dom can't render), where the
+      # walker, its hooks dispatcher, its tree ids and the React version table
+      # went. Raised from 224.5KB
       # (about 1.1KB with the round before): rich text's stray brackets kept as
       # text, a root's ids kept to what they hold, object children failing the
       # render, style values' double quotes written as references, Tailwind
@@ -214,7 +315,7 @@ jobs:
         run: |
           BUNDLE="packages/react/dist/index.js"
           SIZE=$(wc -c < "$BUNDLE" | tr -d ' ')
-          MAX_SIZE=229500
+          MAX_SIZE=284500
           echo "Bundle: $BUNDLE"
           echo "Size: $SIZE bytes (budget: $MAX_SIZE bytes)"
           if [ "$SIZE" -gt "$MAX_SIZE" ]; then
@@ -304,8 +405,7 @@ jobs:
       # Catches SSR, bundling, and Server Component compatibility issues
       # that unit tests can't detect.
       # The tarball has its license: pnpm adds the repository's only where no file in the package matches LICENSE,
-      # which THIRD_PARTY_LICENSES.md does (a 0.3.0 build had none), and the fizz-cleanup/ folder webpack 4 and Jest
-      # before 28 resolve the package's fizz-cleanup export from (they don't read "exports"). And its types import nothing built into the
+      # which THIRD_PARTY_LICENSES.md does (a 0.3.0 build had none). And its types import nothing built into the
       # package (highlight.js, marked), which consumers don't install (a 0.3.0 build's did: TS2307 without skipLibCheck):
       # no import or export from them in either quotes, and no `import("…")` type (a comment may name them).
       - name: Pack react-elements
@@ -314,7 +414,6 @@ jobs:
           pnpm pack --pack-destination /tmp
           TARBALL=$(ls /tmp/unlayer-react-elements-*.tgz)
           tar tzf "$TARBALL" | grep -qx package/LICENSE || { echo "::error::$TARBALL has no LICENSE"; exit 1; }
-          tar tzf "$TARBALL" | grep -qx package/fizz-cleanup/package.json || { echo "::error::$TARBALL has no fizz-cleanup/package.json (for resolvers that don't read exports)"; exit 1; }
           if grep -nE "[\"'(](highlight\.js|marked)[/\"']" dist/*.d.ts dist/*.d.cts | grep -vE "^[^:]+:[0-9]+:[[:space:]]*(\*|/\*|//)"; then echo "::error::the types import a package built into Elements"; exit 1; fi
           echo "TARBALL=$TARBALL" >> $GITHUB_ENV
 

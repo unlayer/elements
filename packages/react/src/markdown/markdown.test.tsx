@@ -1,6 +1,7 @@
 import React from "react";
+import { JSDOM } from "jsdom";
 import { afterEach, beforeAll, beforeEach, describe, expect, it, onTestFinished, vi, type MockInstance } from "vitest";
-import { Column, Email, Html, Paragraph, RenderError, Row, renderToHtml, renderToHtmlParts, renderToJson, renderToPlainText } from "../index";
+import { Column, Email, Html, Link, Page, Paragraph, RenderError, Row, renderToHtml, renderToHtmlParts, renderToJson, renderToPlainText } from "../index";
 import { Tailwind, loadTailwind, type TailwindHandle } from "../tailwind";
 import * as asyncRenderers from "../async";
 import { Markdown, safeUrl, sanitizeHtml, type MarkdownProps } from "./index";
@@ -161,6 +162,146 @@ describe("Markdown", () => {
   });
 });
 
+describe("an email service's tag in a Markdown link's URL", () => {
+  // A tag written with spaces (`{{ order.id }}`) ended the URL at its first space, as CommonMark ends one: the link's
+  // href ended in an open `{{`, which Liquid and Handlebars refuse (the whole email), and Mustache reads on into the
+  // markup after it. A tag is now one piece of a link's URL, an image's and one Markdown links by itself.
+  // (Braze's attributes are `${…}` in a Liquid tag: `{{${email_address} | url_param_escape}}`, its own URL form.)
+  const tags = ["{{ order.id }}", "{{ order.id | default: 'x' }}", "{% if vip %}vip{% endif %}", "<%= order.id %>", "*|ORDER_ID|*", "%%=v(@id)=%%", "${order.id}", "{{${email_address} | url_param_escape}}", "{{ ${first_name} | default: 'you' }}", "{% if ${tier} == 'gold' %}gold{% endif %}"];
+  const hrefs = (markdown: string) => [...renderToHtml(email({ children: markdown })).matchAll(/<a [^>]*href="([^"]*)"/g)].map((m) => m[1]);
+  // (An image's src as the Image block writes it, its quotes as references: read back.)
+  const srcs = (markdown: string) => [...renderToHtml(email({ children: markdown })).matchAll(/<img [^>]*src="([^"]*)"/g)].map((m) => m[1].replace(/&#0?39;|&#x27;/g, "'").replace(/&quot;/g, '"').replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&amp;/g, "&"));
+  /** A URL as an attribute writes it (its quotes as references), a `<% … %>` tag in it as written, as a <Link> keeps one. */
+  const written = (url: string) => url.replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/&lt;%(.*?)%&gt;/g, "<%$1%>");
+
+  it("is kept whole in [text](url), ![alt](src), a URL alone, <url> and a link's definition, in the HTML and the plain text", () => {
+    for (const tag of tags) {
+      const url = `https://shop.example/track?id=${tag}&ref=email`;
+      for (const markdown of [`[Track your order](${url})`, `[Track your order](${url} "Track")`, `Track it here: ${url} today`, `Track it here: <${url}>`, `[Track your order][t]\n\n[t]: ${url}`]) {
+        expect(hrefs(markdown), markdown).toEqual([written(url)]);
+        expect(renderToPlainText(email({ children: markdown })), markdown).toContain(url);
+      }
+      expect(hrefs(`Shop at www.shop.example/?ref=${tag} today`), tag).toEqual([written(`http://www.shop.example/?ref=${tag}`)]);
+      expect(renderToPlainText(email({ children: `Shop at www.shop.example/?ref=${tag} today` })), tag).toContain(`www.shop.example/?ref=${tag}`);
+      expect(srcs(`![Chart](https://cdn.example/chart.png?u=${tag})`), tag).toEqual([`https://cdn.example/chart.png?u=${tag}`]);
+    }
+  });
+
+  it("keeps a `<% … %>` tag as written wherever Markdown writes a URL, as a <Link> does (SendGrid's unsubscribe URL in a footer)", () => {
+    // It was written `&lt;%…%&gt;`, which the service doesn't read: the link was never filled in.
+    const unsubscribe = "<%asm_group_unsubscribe_raw_url%>";
+    const urls = (markdown: string) => {
+      const html = renderToHtml(email({ children: markdown }));
+      return [...html.slice(html.indexOf("<body")).matchAll(/(?:href|src)="([^"]*)"/g)].map((m) => m[1]).filter((url) => url.includes("%"));
+    };
+    expect(urls(`[Unsubscribe](${unsubscribe})`)).toEqual([unsubscribe]);
+    expect(urls(`[Unsubscribe][u]\n\n[u]: ${unsubscribe}`)).toEqual([unsubscribe]);
+    expect(urls(`<a href="${unsubscribe}">Unsubscribe</a>`)).toEqual([unsubscribe]);
+    expect(urls("Track it: https://shop.example/t?id=<%= order.id %> today")).toEqual(["https://shop.example/t?id=<%= order.id %>"]);
+    expect(urls(`Hi ![Logo](https://cdn.example/${unsubscribe}.png) there`)).toEqual([`https://cdn.example/${unsubscribe}.png`]);
+    // An image alone (an Image block), as its link keeps one.
+    expect(urls(`![Logo](https://cdn.example/${unsubscribe}.png)`)).toEqual([`https://cdn.example/${unsubscribe}.png`]);
+    // (The control: the same in a <Link>.)
+    const html = renderToHtml(<Email><Row><Column><Paragraph><Link href={unsubscribe}>Unsubscribe</Link></Paragraph></Column></Row></Email>);
+    expect(html).toContain(`href="${unsubscribe}"`);
+  });
+
+  it("leaves Markdown as CommonMark reads it everywhere else: text, emphasis, a tag with no spaces (the controls)", () => {
+    expect(hrefs("[Track](https://shop.example/track?id={{order.id}})")).toEqual(["https://shop.example/track?id={{order.id}}"]);
+    expect(hrefs("[Track](<https://shop.example/track?id={{ order.id }}>)")).toEqual(["https://shop.example/track?id={{ order.id }}"]);
+    // Outside a link, a tag is text, and what's around it reads as it did.
+    expect(blocks({ children: "Hi {{ name }}, *thanks* for {{ order.id }}" })).toEqual([["text", "Hi {{ name }}, <em>thanks</em> for {{ order.id }}"]]);
+    // (A URL is still ended by a space that's no tag's: what's after it is text, and `[a](url {{ b }})` no link.)
+    expect(hrefs("See https://shop.example/a {{ name }} b")).toEqual(["https://shop.example/a"]);
+    expect(blocks({ children: "[a](https://shop.example/a {{ b }})" })).toEqual([["text", '[a](<a href="https://shop.example/a" target="_blank" rel="noopener">https://shop.example/a</a> {{ b }})']]);
+  });
+
+  it("writes text's quotes as written, as rich text does, so an email service's filter reads them (`{{ name | default: \"friend\" }}`)", () => {
+    // Text's `"` were `&quot;`: Liquid refused the filter (and the email), where a Paragraph's text keeps it as written.
+    expect(blocks({ children: 'Hi {{ name | default: "friend" }}, welcome.' })).toEqual([["text", 'Hi {{ name | default: "friend" }}, welcome.']]);
+    expect(blocks({ children: '# Welcome, {{ name | default: "friend" }}' })[0][1]).toContain('{{ name | default: "friend" }}');
+    // (An attribute's are escaped: a link's title.)
+    expect(renderToHtml(email({ children: '[Track](https://shop.example/t "Say \\"hi\\"")' }))).toContain('title="Say &quot;hi&quot;"');
+  });
+
+  it("keeps Mailchimp's `*|…|*` tag in text as written, not as emphasis its stars would open or close, and emphasis around it", () => {
+    // `Hi *|FNAME|*,` was `Hi <em>|FNAME|</em>,`: each recipient read `Hi |FNAME|` in italics, the tag never filled in.
+    expect(blocks({ children: "Hi *|FNAME|*, your order shipped." })).toEqual([["text", "Hi *|FNAME|*, your order shipped."]]);
+    expect(blocks({ children: "*|IF:FNAME|*Hi *|FNAME|*,*|ELSE:|*Hi there,*|END:IF|*" })).toEqual([["text", "*|IF:FNAME|*Hi *|FNAME|*,*|ELSE:|*Hi there,*|END:IF|*"]]);
+    expect(blocks({ children: "Hi *|FNAME|*, *thanks* for **all** of it" })).toEqual([["text", "Hi *|FNAME|*, <em>thanks</em> for <strong>all</strong> of it"]]);
+    expect(blocks({ children: "*Dear *|FNAME|*, thanks*" })).toEqual([["text", "<em>Dear *|FNAME|*, thanks</em>"]]);
+    // (Nor does a tag's star close an emphasis opened before it.)
+    expect(blocks({ children: "*Hi *|FNAME|*" })).toEqual([["text", "*Hi *|FNAME|*"]]);
+    expect(blocks({ children: "**Hi *|FNAME|*, welcome" })).toEqual([["text", "**Hi *|FNAME|*, welcome"]]);
+    expect(renderToHtml(email({ children: "# Welcome, *|FNAME|*" }))).toContain("Welcome, *|FNAME|*</");
+    expect(renderToPlainText(email({ children: "Hi *|FNAME|*, your order shipped." }))).toContain("Hi *|FNAME|*, your order shipped.");
+    // Emphasis around one reads as around the name it's filled with: it was shown as `**`, or took the tag's stars.
+    expect(blocks({ children: "**Welcome, *|FNAME|*!**" })).toEqual([["text", "<strong>Welcome, *|FNAME|*!</strong>"]]);
+    expect(blocks({ children: "**Hi *|FNAME|*, welcome back**" })).toEqual([["text", "<strong>Hi *|FNAME|*, welcome back</strong>"]]);
+    // (Bold around the tag alone takes its first star in its own three: underscores, as docs/markdown.md says.)
+    expect(blocks({ children: "Your code: __*|COUPON|*__" })).toEqual([["text", "Your code: <strong>*|COUPON|*</strong>"]]);
+  });
+
+  it("ends a URL Markdown links by itself before a tag that ends a condition around it, and keeps one the URL opened", () => {
+    // `{% if vip %}Your VIP page: https://shop.example/vip{% endif %}` linked to `…/vip{% endif %}`: the email service
+    // couldn't parse the email (an `if` with no `endif` outside the link), and failed it for every recipient.
+    const linked = (markdown: string) => [...renderToHtml(email({ children: markdown })).matchAll(/<a href="([^"]*)"[^>]*>(.*?)<\/a>/g)].map((m) => [m[1], m[2]]);
+    expect(linked("{% if vip %}Your VIP page: https://shop.example/vip{% endif %}")).toEqual([["https://shop.example/vip", "https://shop.example/vip"]]);
+    expect(renderToHtml(email({ children: "{% if vip %}Your VIP page: https://shop.example/vip{% endif %}" }))).toContain(">https://shop.example/vip</a>{% endif %}");
+    expect(linked("{{#if vip}}Your VIP page: https://shop.example/vip{{/if}}")[0].slice(0, 1)).toEqual(["https://shop.example/vip"]);
+    expect(linked("*|IF:VIP|*Your VIP page: https://shop.example/vip*|END:IF|*")[0].slice(0, 1)).toEqual(["https://shop.example/vip"]);
+    expect(linked("%%[ IF @vip THEN ]%%Your VIP page: https://shop.example/vip%%[ ENDIF ]%%")[0].slice(0, 1)).toEqual(["https://shop.example/vip"]);
+    // A value's tag ends it as before; a condition's that opens after it is the text's too.
+    expect(linked("Track it at https://shop.example/t/{{ order.id }}{% if order.gift %} (gift){% endif %}")[0].slice(0, 1)).toEqual(["https://shop.example/t/{{ order.id }}"]);
+    // (A condition inside the URL, opened and closed there, is the URL's.)
+    expect(linked("Visit www.shop.example{% if vip %}/vip{% endif %} today")[0].slice(0, 1)).toEqual(["http://www.shop.example{% if vip %}/vip{% endif %}"]);
+  });
+
+  it("keeps a URL with many tags in it whole, in time linear in its size", async () => {
+    // A URL's tags were hidden one more each time the rule was read again, sixteen times at most: past them the URL was
+    // cut inside a tag, and the rest of the text was copied for each link (10 KB of `www.a.{{ a }}` took 3 ms, 1 MB 9 s).
+    const url = `https://shop.example/t?${Array.from({ length: 40 }, (_, i) => `k${i}={{ v${i} }}`).join("&")}`;
+    expect(hrefs(`Go: ${url} now`)).toEqual([written(url)]);
+    expect(hrefs(`[Go](${url})`)).toEqual([written(url)]);
+    const time = (markdown: string) => {
+      const start = performance.now();
+      new Bounded({ breaks: false, cells: Math.max(TABLE_CELLS, markdown.length), size: markdown.length }).lex(markdown);
+      return performance.now() - start;
+    };
+    const fill = (unit: string, bytes: number) => unit.repeat(Math.ceil(bytes / unit.length)).slice(0, bytes);
+    for (const unit of ["www.a.{{ a }}", "https://a.b/{{ a }}", "www.a.{{ a }} x ", "<https://a/{{ b }} ", "[a](https://x/{{ y }}) ", "[a](b{{ c }} "]) {
+      const { small, large, grows } = await growth((bytes) => time(fill(unit, bytes)), [10240, 102400], { ratio: 20, floor: 100, next: 1024000 });
+      expect(grows, `${JSON.stringify(unit)}: ${small.toFixed(1)} ms for 10 KB, ${large.toFixed(1)} ms for 100 KB`).toBe(false);
+    }
+    // (A URL that reaches no whitespace: where it ends was looked for from each place marked tried one, to the end of the
+    // text, and charged for only as far as it ended: 1 MB took 1.6 s where 100 KB took 41 ms.)
+    for (const unit of ["<https://a/{{", '"<%<https://a/{{']) {
+      const { small, large, grows } = await growth((bytes) => time(fill(unit, bytes)), [102400, 1024000], { ratio: 20, floor: 100 });
+      expect(grows, `${JSON.stringify(unit)}: ${small.toFixed(1)} ms for 100 KB, ${large.toFixed(1)} ms for 1 MB`).toBe(false);
+    }
+  }, 120_000);
+
+  it("costs about ten times as much for ten times as much of any short shape of tags in and around links (random, seeded)", async () => {
+    const pieces = ["{{", "}}", "{{ a }}", "{%", "%}", "<%", "%>", "%%", "${", "}", "*|", "|*", "https://a.b/", "www.a.", "[a](", "](", "<https://a/", ">", "[a]: ", "(", ")", " ", "a", "\n", '"'];
+    let seed = 11;
+    const random = (n: number) => ((seed = (Math.imul(seed, 1103515245) + 12345) >>> 0), Math.floor((seed / 2 ** 32) * n));
+    const fill = (unit: string, bytes: number) => unit.repeat(Math.ceil(bytes / unit.length)).slice(0, bytes);
+    const time = (markdown: string) => {
+      const start = performance.now();
+      new Bounded({ breaks: false, cells: Math.max(TABLE_CELLS, markdown.length), size: markdown.length }).lex(markdown);
+      return performance.now() - start;
+    };
+    const slow: string[] = [];
+    for (let run = 0; run < 100; run++) {
+      let unit = "";
+      for (let i = 0, n = 1 + random(5); i < n; i++) unit += pieces[random(pieces.length)];
+      const { small, large, next, grows } = await growth((bytes) => time(fill(unit, bytes)), [10240, 102400], { ratio: 20, floor: 100, next: 1024000 });
+      if (grows) slow.push(`${JSON.stringify(unit)}: ${small.toFixed(1)} ms for 10 KB, ${large.toFixed(1)} ms for 100 KB${next === undefined ? "" : `, ${next.toFixed(0)} ms for 1 MB`}`);
+    }
+    expect(slow).toEqual([]);
+  }, 120_000);
+});
+
 describe("Markdown from data: no more than its size calls for", () => {
   let error: MockInstance;
   beforeEach(() => {
@@ -276,7 +417,9 @@ describe("Markdown from data: no more than its size calls for", () => {
     // (`*a `), or overflowed the stack (emphasis nested deep). Past what an email's Markdown takes, the rest is text.
     const fill = (unit: string) => unit.repeat(Math.ceil(102400 / unit.length)).slice(0, 102400);
     const shapes: [string, string, boolean?][] = [];
-    for (const unit of ["*a ", "*a **a ", "_a __a ", "**a *", "<a *", "~a ~~a ", "[a](", "![a](", "[a](b ", "[a](b (", "[a](<", "[`a](", "`a``b```c", "<a ", "[[[a]]](", "a*b", "http", "a_", "a <?a ", "a <!a "]) {
+    // (And emphasis on emphasis, each opened and closed at once: the text marked looks for its delimiters in, a Mailchimp
+    // tag's stars read as letters, was made again for each one, from the rest of the text: 100 KB of `*_` took 13 s.)
+    for (const unit of ["*a ", "*a **a ", "_a __a ", "**a *", "<a *", "~a ~~a ", "[a](", "![a](", "[a](b ", "[a](b (", "[a](<", "[`a](", "`a``b```c", "<a ", "[[[a]]](", "a*b", "http", "a_", "a <?a ", "a <!a ", "*_", "_*", "**__", "***___", "**_", "*~", "[*_]", "`*_", "<b>*_", "~~*_"]) {
       shapes.push([unit, fill(unit)], [unit + "\\n", fill(unit + "\n").replace(/\n$/, ")")]);
     }
     shapes.push(
@@ -304,6 +447,21 @@ describe("Markdown from data: no more than its size calls for", () => {
     const deeper = renderToHtml(email({ markdown: "*a ".repeat(40) + "b" + " a*".repeat(40) }));
     expect(depth(deeper)).toBe(32);
     expect(new DOMParser().parseFromString(deeper, "text/html").body.textContent).toContain("*a *a b a* a*");
+  });
+
+  it("renders the rest of a render's Markdowns as text where a Mailchimp tag is what spends the work left", () => {
+    // (Read where the work ran out, the tag was nothing marked could read: the render failed, `Infinite loop on byte: 42`.)
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    try {
+      const line = "*|FNAME|* **bold _it* x_\n";
+      for (const count of [3, 20]) {
+        const markdowns = Array.from({ length: count }, (_, i) => <Markdown key={i}>{line.repeat(200)}</Markdown>);
+        const text = renderToPlainText(<Email><Row><Column>{markdowns}</Column></Row></Email>);
+        expect(text.split("*|FNAME|*").length - 1, `${count}`).toBe(count * 200);
+      }
+    } finally {
+      warn.mockRestore();
+    }
   });
 
   it("renders the rest of a Markdown's inline syntax as text past the work it can take, leaving nothing out", () => {
@@ -677,6 +835,84 @@ const loads = (style: string) =>
   /expression|javascript:|behavior|-moz-binding|progid|url\(|image\(|image-set\(|\/\*/i.test(style.replace(/\\([\da-f]{1,6})\s?|\\(.)/gi, (_, hex, ch) => (hex ? String.fromCodePoint(Math.min(parseInt(hex, 16), 0x10ffff)) : ch)).replace(/\s/g, ""));
 
 describe("sanitizeHtml", () => {
+  // A reply's HTML (a support ticket's, a comment's) with an end tag of what it isn't in, or an element it doesn't end,
+  // broke out of its block: `</td></tr></table>` ended the Column it was in (its link a full-width banner), an `<a href>`
+  // made every block after it in the Column the reply's link.
+  it("ends what a browser's parser ends at a start tag, so no end tag it adds ends the block's own table (`<table><table>`, a cell in a cell, an `<li>` in an `<li>`)", () => {
+    // A browser closes the first table at the second `<table>` (straight in a table): the extra `</table>` written for it
+    // ended the block's own table, and the blocks after it left the Column.
+    const typos = ["<table><table>x", "<table><tbody><tr><td>a<table>b", "<table><tr><td>a<tr><td>b", "<table><tr><td>a<td>b", "<table><tbody><tr><td>a</td></tr><tbody><tr><td>b", "<ul><li>a<li>b", "<p>a<div>b", "<p>a<table><tr><td>b", "<h1>a<h2>b", "<dl><dt>a<dd>b<dt>c"];
+    for (const typo of typos) {
+      const doc = new JSDOM(`<table id="outer"><tbody><tr><td id="cell">${sanitizeHtml(typo)}<i id="inside">in</i></td></tr></tbody></table><p id="after">after</p>`).window.document;
+      expect([typo, doc.querySelector("#inside")?.closest("#cell")?.id]).toEqual([typo, "cell"]);
+      expect([typo, doc.querySelector("#after")?.closest("table")]).toEqual([typo, null]);
+      // In an email: the block after it stays in the Column.
+      const html = renderToHtml(<Email><Row><Column><Markdown>{typo}</Markdown><Paragraph>AFTER IT</Paragraph></Column></Row></Email>);
+      const page = new JSDOM(html).window.document;
+      const after = [...page.querySelectorAll("div")].find((div) => div.textContent?.trim() === "AFTER IT");
+      expect([typo, after?.closest("#u_column_1")?.id]).toEqual([typo, "u_column_1"]);
+    }
+    // (What a browser makes of each, kept: the second table after the first, each item its own.)
+    expect(sanitizeHtml("<table><table>x")).toBe("<table></table><table>x</table>");
+    expect(sanitizeHtml("<ul><li>a<li>b")).toBe("<ul><li>a</li><li>b</li></ul>");
+    // A table's part with no table open, then a table (prose that names them): there's no table to end, and it's raw
+    // HTML as any other. It threw (`Cannot read properties of undefined`), failing the whole email.
+    for (const prose of ["You need to put the <tr> inside a <table>.", "Each <tbody> needs a <table> around it.", "<colgroup><table>x"]) {
+      expect(() => sanitizeHtml(prose), prose).not.toThrow();
+      expect(renderToHtml(<Email><Row><Column><Markdown>{prose}</Markdown><Paragraph>AFTER IT</Paragraph></Column></Row></Email>), prose).toContain("AFTER IT");
+    }
+    expect(sanitizeHtml("<tr><table>x")).toBe("<tr><table>x</table></tr>");
+  });
+
+  it("balances tags in time linear in the HTML's size, however many end tags match nothing open", async () => {
+    // (`<span>`s open and `</div>`s that end none: each was looked for through everything open.)
+    const time = (n: number) => {
+      const html = "<span>x".repeat(n) + "</div>".repeat(n);
+      const start = performance.now();
+      sanitizeHtml(html);
+      return performance.now() - start;
+    };
+    const { small, large, grows } = await growth(time, [2000, 20000], { ratio: 20, floor: 100, next: 200000 });
+    expect(grows, `${small.toFixed(1)} ms for 2,000, ${large.toFixed(1)} ms for 20,000`).toBe(false);
+    // (The negative control: what it gives is the same.)
+    expect(sanitizeHtml("<span>a<span>b</div></div>")).toBe("<span>a<span>b</span></span>");
+  });
+
+  it("keeps a reply's HTML in its block: an end tag of nothing open left out, what's left open closed", () => {
+    expect(sanitizeHtml("Thanks!</td></tr></table>")).toBe("Thanks!");
+    expect(sanitizeHtml('See <a href="https://evil.example/login">here')).toBe('See <a href="https://evil.example/login">here</a>');
+    expect(sanitizeHtml("<b>bold <i>both</b> after")).toBe("<b>bold <i>both</i></b> after");
+    // (The negative control: balanced HTML is kept as it is.)
+    expect(sanitizeHtml('<p>Hi <b>there</b>, <a href="https://example.com">see</a><br></p>')).toBe('<p>Hi <b>there</b>, <a href="https://example.com">see</a><br></p>');
+    const reply = "Thanks, we're looking into it.</p></div></td></tr></table></td></tr></table></div></div></div><div><a href=\"https://evil.example/login\">Your account is locked. Verify now</a></div>";
+    const unclosed = 'See <a href="https://evil.example/login">here';
+    for (const Root of [Email, Page]) {
+      for (const [markdown, inline] of [[reply, false], [unclosed, true], [`Hi ${unclosed}`, true]] as const) {
+        const element = (
+          <Root>
+            <Row>
+              <Column>
+                <Markdown>{markdown}</Markdown>
+                <Paragraph>After the reply</Paragraph>
+              </Column>
+              <Column><Paragraph>Status: open</Paragraph></Column>
+            </Row>
+          </Root>
+        );
+        const document = new JSDOM(renderToHtml(element)).window.document;
+        const link = [...document.querySelectorAll("a")].find((a) => a.href.includes("evil.example"));
+        const at = `${Root.displayName}: ${markdown}`;
+        // Inside its own block, in the first Column; the block after it isn't the reply's link.
+        expect(link?.closest('[id^="u_content_"]'), at).toBeTruthy();
+        expect(link?.closest(".u-col")?.textContent, at).toContain("After the reply");
+        const after = [...document.querySelectorAll("p, div")].find((e) => e.textContent?.trim() === "After the reply");
+        expect(after?.closest("a"), at).toBeNull();
+        expect(renderToJson(element).body.rows[0].columns.map((column) => column.contents.length), at).toEqual([2, 1]);
+        if (inline) expect(link?.textContent, at).toBe("here");
+      }
+    }
+  });
+
   it("leaves no tag that what's around a part it takes out joins into", () => {
     const markdown = "<div>\n<scr<script></script>ipt>alert(1)</script>\n</div>";
     // (`<scr<script>` is one tag to a browser, named `scr<script`: left out, as is the `</script>` after it.)
@@ -697,10 +933,10 @@ describe("sanitizeHtml", () => {
       ["<custom-tag><o:p>Kept text</o:p></custom-tag><form action=x><input value=y><button>Go</button></form>", "Kept textGo"],
       ['<svg onload="alert(1)"/>after<svg><script>alert(1)</script></svg>end<math><mi>x</mi></math><template><img src=x></template><svg/onload=alert(1)>gone', "afterend"],
       ["<!doctype html><?xml version='1.0'?><![CDATA[x]]><!-- a --><!--> b<!---> c<!-- open", " b c"],
-      ["a < b > c & d &copy; <b>e", "a &lt; b > c & d &copy; <b>e"],
+      ["a < b > c & d &copy; <b>e", "a &lt; b > c & d &copy; <b>e</b>"], // (closed: see "keeps a reply's HTML in its block")
       ['a <a href="x', "a "],
       ["<b>bold</b> <img src=x onerror=alert(1)", "<b>bold</b> "],
-      ["<b\u0000>x</b>\u0000", "x</b>\ufffd"],
+      ["<b\u0000>x</b>\u0000", "x\ufffd"], // (its </b> ends nothing open: a browser reads <b\ufffd>)
       ["<td nowrap background=cid:logo colspan=2><br/><hr noshade /></td>", '<td nowrap background="cid:logo" colspan="2"><br /><hr noshade /></td>'],
       ["<base href=//evil><meta http-equiv=refresh content=0><link rel=stylesheet href=x><embed src=x>text", "text"],
     ];

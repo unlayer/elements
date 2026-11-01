@@ -81,7 +81,7 @@ function markup(values: Record<string, any>): string {
 
 /**
  * Menu's web HTML (which a document uses too), as @unlayer/exporters' MenuExporters write it with React (byte for
- * byte). Item text or a separator given as an element renders as the walker renders it.
+ * byte). Item text or a separator given as an element renders as react-dom renders it.
  */
 export function menu(values: Record<string, any>): string {
   const html = markup({ ...values, menu: { ...values?.menu, items: present(values?.menu?.items || []) } });

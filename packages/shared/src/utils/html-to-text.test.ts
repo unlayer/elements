@@ -27,8 +27,18 @@ describe("htmlToPlainText", () => {
     expect(htmlToPlainText("<p>Hi <%first_name%>, <b>bold</b> <%= user.name %></p><h1>Hi <%first_name%></h1><ul><li>For <%company%></li></ul>")).toBe(
       "Hi <%first_name%>, bold <%= user.name %>\n\nHI <%first_name%>\n- For <%company%>"
     );
-    // What isn't one is still a tag.
-    expect(htmlToPlainText("<p>a<%b c>d</p>")).toBe("ad");
+    // (Text to a browser: a tag's name starts with a letter.)
+    expect(htmlToPlainText("<p>a<%b c>d</p>")).toBe("a<%b c>d");
+  });
+
+  it("keeps a `<` a browser reads as text: a comparison, a service's condition with one (`{% if orders < 1 %}`)", () => {
+    // Read as a tag's start up to the next `>`, it cut the text: `5 < 6 and 7 > 3` was `5 3`, and a display
+    // condition's `{% if customer.orders < 1 %}` was cut, which the email service then couldn't parse.
+    expect(htmlToPlainText("<p>5 < 6 and 7 > 3</p>")).toBe("5 < 6 and 7 > 3");
+    expect(htmlToPlainText("{% if customer.orders < 1 %}<p>Welcome offer</p>{% endif %}<p>Bye</p>")).toBe("{% if customer.orders < 1 %}Welcome offer\n{% endif %}Bye");
+    expect(htmlToPlainText("<p>%%[ IF @orders <= 1 THEN ]%% <b>a</b> 1<2</p>")).toBe("%%[ IF @orders <= 1 THEN ]%% a 1<2");
+    // (What starts a tag still does: an end tag, a comment's, a declaration's.)
+    expect(htmlToPlainText("<p>a</p ><!-- c --><?x y?>b</>")).toBe("a\nb");
   });
 
   it("uppercases an h1/h2 around its entities, which still decode (`Q&A`, not `Q&AMP;A`)", () => {
@@ -109,6 +119,18 @@ describe("htmlToPlainText", () => {
 
   it("removes images without alt text", () => {
     expect(htmlToPlainText('<img src="logo.png">')).toBe("");
+  });
+
+  it("reads an image's tag to its end where a quoted value has a `>` in it (an email service's `<%hero%>` in its src)", () => {
+    // The `>` of the tag in the src ended the image there: the rest of its tag was the text (`.png" alt="Hero" …/>`).
+    const email = (src: string) => `<p>Your order</p><img src="${src}" alt="Hero" style="width: 100%;" width="480"/><p>Thanks</p>`;
+    expect(htmlToPlainText(email("https://cdn.example.com/<%hero%>.png"))).toBe(htmlToPlainText(email("https://cdn.example.com/hero.png")));
+    expect(htmlToPlainText(email("https://cdn.example.com/<%hero%>.png"))).toContain("[Hero]");
+    expect(htmlToPlainText('<img alt="Hero" src="https://cdn.example.com/<%= hero %>.png" width="480"/>after')).toBe("[Hero]after");
+    expect(htmlToPlainText('<img src="https://cdn.example.com/<%hero%>.png"/>after')).toBe("after");
+    expect(htmlToPlainText('<hr title="<%a%>" />after')).toBe("---\nafter");
+    // (A quote left open, or one that would run on into the next tag, reads as before: to the first `>`.)
+    expect(htmlToPlainText("<img src=x alt=Ada's>tail<b>it's</b>")).toBe("tailit's");
   });
 
   // Entities
@@ -240,6 +262,18 @@ describe("htmlToPlainText", () => {
       expect(htmlToPlainText(html, { uppercaseHeadings: false })).toMatch(/^Hello & welcome\n/);
       const wrapped = htmlToPlainText("<p>One two three four five six seven eight</p><p>https://example.com/a-very-long-link-that-cannot-wrap</p>", { wordwrap: 12 });
       expect(wrapped).toBe("One two\nthree four\nfive six\nseven eight\nhttps://example.com/a-very-long-link-that-cannot-wrap");
+    });
+
+    it("never wraps a line inside an email service's tag (a condition broken in its quotes takes the other branch)", () => {
+      const tags = ['{% if plan == "Pro Plus" %}', '{{#if (eq plan "Pro Plus")}}', '{{ user.first name }}', '{{{ raw html }}}', '<%= plan == "Pro Plus" %>', "*|IF:PLAN = Pro Plus|*", "${user.first name}", "{$user first}"];
+      for (const tag of tags) {
+        const text = htmlToPlainText(`<p>Your payment was received and your plan is active. ${tag}All features are unlocked. Upgrade any time from your account page.</p>`, { links: "after", wordwrap: 72 });
+        expect(text, tag).toContain(tag);
+        // (Wrapped all the same, between its words elsewhere.)
+        expect(text.split("\n").length, tag).toBeGreaterThan(1);
+      }
+      // (The negative control: the same words with no tag wrap as before.)
+      expect(htmlToPlainText("<p>Your payment was received and your plan is active. if plan == Pro Plus All features are unlocked.</p>", { wordwrap: 72 })).toBe("Your payment was received and your plan is active. if plan == Pro Plus\nAll features are unlocked.");
     });
 
     it("skip elements by tag or class, with what's in them, as data-skip-in-text marks them", () => {

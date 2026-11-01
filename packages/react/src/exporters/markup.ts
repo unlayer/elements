@@ -2,8 +2,8 @@
  * HTML as react-dom/server's renderToStaticMarkup writes it, for the elements the web and document exporters of
  * Divider, Html, Menu and Social render with React in @unlayer/exporters: so those blocks render without react-dom
  * (an edge runtime, a React Server Components layer), the same as with it. Written by the engine's host markup
- * (src/engine/host.ts), as the walker writes a template's; a child that's a React element (a Menu item's text) is
- * rendered by the walker.
+ * (src/engine/host.ts); a child that's a React element (a Menu item's text) is rendered by react-dom/server, as a
+ * template's markup is.
  */
 import type React from "react";
 import { escapeText, openTag, propsBody, validateHost, VOID } from "../engine/host";
@@ -23,7 +23,7 @@ function children(node: unknown): string {
   if (typeof node === "bigint") return REACT_18 ? "" : escapeText(node);
   if (node instanceof Markup) return node.html;
   if (Array.isArray(node)) return node.map(children).join("");
-  // A React element (an item's text given as JSX), as the walker renders it.
+  // A React element (an item's text given as JSX), as react-dom renders it.
   return renderStatic(node as React.ReactNode);
 }
 

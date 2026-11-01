@@ -84,5 +84,9 @@ export function serverReactHint(error: unknown): string | undefined {
 /** What a component threw, for the RenderError that names it: its message, or what React Server Components lack. */
 export const threw = (error: unknown): string => (serverReactHint(error) ?? String((error as Error)?.message ?? error)).replace(/^\[Unlayer\] /, "");
 
+/** What failed (or suspended) inside a <Suspense> in a synchronous render: React's static render renders its fallback and says nothing of why. */
+export const SWALLOWED =
+  'it failed inside a <Suspense>, whose fallback React rendered instead, saying nothing of why (or it suspended where nothing of Elements\' saw it): render with "@unlayer/react-elements/async", which says what failed';
+
 export const ASYNC_IN_SYNC =
   'it is async or suspends, and this renderer is synchronous: render with "@unlayer/react-elements/async", or load its data first and pass it as props';

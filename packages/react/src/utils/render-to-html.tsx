@@ -1,7 +1,7 @@
 import React from "react";
 import type { PlainTextOptions, RenderMode, UnlayerConfig } from "@unlayer-internal/shared-elements";
 import { htmlToPlainText, RenderError } from "@unlayer-internal/shared-elements";
-import { renderOwn } from "../engine";
+import { renderOwn, withFreeBuild } from "../engine";
 import { OWN_MARKUP, rootlessHtml, rootlessRoot } from "./root-content";
 import { extractHeadFromTree } from "./extract-head";
 import { htmlRoot, providedConfig } from "./unwrap-root";
@@ -104,9 +104,9 @@ export interface RenderToHtmlOptions extends Partial<UnlayerConfig> {
   /** Document `<title>` */
   title?: string;
   /**
-   * Web-font stylesheets to load via `<link rel="stylesheet">` tags.
-   * Elements has no font registry, so pass the URLs for any non-system
-   * fonts your design uses (e.g. Google Fonts CSS URLs).
+   * Web-font stylesheets to load via `<link rel="stylesheet">` tags: the URLs
+   * for any non-system fonts your design uses (e.g. Google Fonts CSS URLs).
+   * A `<Font>` in the template gives its own.
    */
   fonts?: Array<{ url: string }>;
 }
@@ -126,12 +126,11 @@ export interface RenderToHtmlOptions extends Partial<UnlayerConfig> {
  *
  * @param element - A React element tree (e.g. `<Email><Row>...</Row></Email>`), or a
  *   template component that returns one (`<Welcome name="Ada" />`, also `memo`/`forwardRef`).
- *   A template is called in a render of its own to reach its root (its hooks work); a class
- *   component, or one that doesn't return an element, renders without its root's settings,
- *   with a warning.
+ *   A template is called in a render of its own to reach its root (its hooks work), a class
+ *   component too.
  * @param options - Config overrides (mode, cdnBaseUrl, etc.) plus `title` and `fonts`
  * @returns Complete HTML document string
- * @throws {Error} If rendering fails, with a helpful message
+ * @throws {RenderError} If rendering fails, naming the component and where it is
  *
  * @example
  * ```tsx
@@ -148,7 +147,7 @@ export function renderToHtml(
   element: React.ReactElement,
   options?: RenderToHtmlOptions
 ): string {
-  return withOwnScope(() => htmlDocument(element, options));
+  return withFreeBuild("renderToHtml", () => withOwnScope(() => htmlDocument(element, options)));
 }
 
 /** CSS for a `<style>` element: a `</style` in it would end the element (CSS escapes the slash). */
@@ -232,7 +231,7 @@ export function renderToPlainText(
   element: React.ReactElement,
   config?: Partial<UnlayerConfig> & PlainTextOptions
 ): string {
-  return withOwnScope(() => plainText(element, config));
+  return withFreeBuild("renderToPlainText", () => withOwnScope(() => plainText(element, config)));
 }
 
 /** renderToPlainText in the render's scope (see htmlDocument). */
@@ -281,9 +280,10 @@ export interface HtmlParts {
    * because `head` can contain them — without this field, reassembling the
    * head from `css` + `js` would silently drop them. Usually empty.
    *
-   * There is deliberately no `fonts` chunk: Elements has no font registry to
-   * resolve font URLs from — pass stylesheet URLs via renderToHtml's `fonts`
-   * option instead.
+   * There is deliberately no `fonts` chunk: a `<Font>`'s stylesheet (or
+   * `@font-face`) is among these; stylesheet URLs given as renderToHtml's
+   * `fonts` option or a root's `fonts` prop aren't in the parts (link them in
+   * your shell).
    */
   tags: string[];
 }
@@ -323,7 +323,7 @@ export function renderToHtmlParts(
   element: React.ReactElement,
   config?: Partial<UnlayerConfig>
 ): HtmlParts {
-  return withOwnScope(() => htmlParts(element, config));
+  return withFreeBuild("renderToHtmlParts", () => withOwnScope(() => htmlParts(element, config)));
 }
 
 /** renderToHtmlParts in the render's scope (see htmlDocument). */

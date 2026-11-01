@@ -4,19 +4,29 @@
  * pass as a browser reads it and written again: what's left out can't join what's around it into a tag.
  */
 
-import { commentEnd, rawTextEnd, readTag, type Attribute } from "../utils/html-tags";
+import { balanced, commentEnd, rawTextEnd, readTag, type Attribute } from "../utils/html-tags";
 import { codePoint, decoded, entities, tight } from "../utils/entities";
+import { keepTags } from "../utils/inline-html";
+
+export { balanced };
 
 const ESCAPES: Record<string, string> = { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "`": "&#96;" };
 
-/** Text as HTML; an entity reference written in it (`&copy;`) is kept, as Markdown keeps it. */
-export const escapeText = (text: string) => text.replace(/&(?!#\d+;|#x[\da-f]+;|[a-z][\da-z]*;)|[<>"]/gi, (ch) => ESCAPES[ch]);
+/**
+ * Text as HTML; an entity reference written in it (`&copy;`) is kept, as Markdown keeps it, and its quotes as written, as
+ * rich text keeps them (an email service's tag reads them: `{{ name | default: "friend" }}`).
+ */
+export const escapeText = (text: string) => text.replace(/&(?!#\d+;|#x[\da-f]+;|[a-z][\da-z]*;)|[<>]/gi, (ch) => ESCAPES[ch]);
 /** An attribute's value: every `&` escaped too, so an entity in a URL (`&#106;avascript:`) stays text. */
 export const escapeAttribute = (text: string) => text.replace(/[&<>"]/g, (ch) => ESCAPES[ch]);
 
+/** A URL's attribute value, escaped, an email service's `<% … %>` tag in it as written (see keepTags). */
+export const escapeUrl = (url: string) => keepTags(escapeAttribute(url));
+
 /**
  * A link's or an image's URL when it's safe: a web, mail or phone link, an image on the web (or a `cid:` attachment,
- * or a PNG, GIF, JPEG or WebP data URL), or a URL with no scheme (relative, `#anchor`, `{{merge_tag}}`).
+ * or a PNG, GIF, JPEG or WebP data URL), or a URL with no scheme (relative, `#anchor`, `{{merge_tag}}`). Its scheme is
+ * what's checked: it's given as it is, to be escaped for the attribute it's written in (see escapeUrl).
  */
 export function safeUrl(url: string, kind: "link" | "image"): string | undefined {
   const value = url.trim();
@@ -89,7 +99,8 @@ function keptAttributes(list: Attribute[]): string {
     if (key === "style" && unsafeStyle(value ?? "")) continue;
     const written = key === "class" && value !== undefined ? keptClasses(value) : value;
     if (key === "class" && value && !written!.trim()) continue;
-    kept += written === undefined ? ` ${key}` : ` ${key}="${written.replace(/["<>`]/g, (ch) => ESCAPES[ch])}"`;
+    const escaped = written?.replace(/["<>`]/g, (ch) => ESCAPES[ch]);
+    kept += escaped === undefined ? ` ${key}` : ` ${key}="${URL_ATTRIBUTES[key] ? keepTags(escaped) : escaped}"`;
   }
   return kept;
 }
@@ -113,6 +124,11 @@ function keptAttributes(list: Attribute[]): string {
  *   CDATA and a tag the HTML ends in are left out. A `<` that starts no tag is text (`&lt;`).
  */
 export function sanitizeHtml(html: string): string {
+  return balanced(sanitized(html));
+}
+
+/** sanitizeHtml's elements and attributes, its tags not balanced (a part of a run of Markdown's inline HTML: see balanced). */
+export function sanitized(html: string): string {
   // (A NUL is U+FFFD to a browser, in a tag's name too.)
   const s = html.replace(/\0/g, "�");
   let out = "";

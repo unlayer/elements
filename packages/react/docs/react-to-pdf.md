@@ -69,7 +69,7 @@ pnpm --filter @unlayer/content-workflows-example render:all
 
 ## Print constraints
 
-`preferCSSPageSize` honors the document's CSS page size; `format` is the fallback. `printBackground` retains background colors. The sample uses 600px content on A4 with 12mm margins. Avoid conflicting CSS `@page` and PDF margin rules when adapting it. See [Playwright PDF options](https://playwright.dev/docs/api/class-page#page-pdf).
+`format` sets the page size: Elements' document HTML has no CSS page size (`@page`; a `<Document>`'s `documentSize` is the design's, for the editor), so `preferCSSPageSize` only matters where you add one. `printBackground` retains background colors. The sample uses 600px content on A4 with 12mm margins. Avoid conflicting CSS `@page` and PDF margin rules when adapting it. See [Playwright PDF options](https://playwright.dev/docs/api/class-page#page-pdf).
 
 Use the [PageBreak component](../README.md#pagebreak) within the required Row/Column structure to request explicit breaks. Test long rows, tables, fonts, and multiple pages with representative data; fitting one sample invoice does not establish pagination for every document.
 

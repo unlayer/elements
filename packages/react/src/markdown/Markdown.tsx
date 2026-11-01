@@ -3,10 +3,11 @@ import { Parser, type Token, type Tokens } from "marked";
 import { Divider, Heading, Html, Image, Paragraph, Table, renderToHtml } from "@unlayer/react-elements";
 import type { DividerProps, HeadingProps, HtmlProps, ImageProps, ParagraphProps, TableProps } from "@unlayer/react-elements";
 import { CodeBlock, codeInline, highlightCode, type CodeBlockProps, type CodeInlineOptions } from "@unlayer/react-elements/code";
-import { escapeAttribute, escapeText, safeUrl, sanitizeHtml } from "./sanitize";
+import { balanced, escapeAttribute, escapeText, escapeUrl, safeUrl, sanitized, sanitizeHtml } from "./sanitize";
 import { tooLarge, type TooLarge } from "./limits";
 import { lexMarkdown } from "./work";
 import { charge, codeWork, CODE_WORK, renderPart, renderWork, sayWhenDone } from "../code/work";
+import { collectedHere, NOT_COLLECTED, ROUTED } from "../engine/root-capture";
 
 /** The blocks Markdown becomes, by its element: props each one gets (over Markdown's own defaults). */
 export interface MarkdownBlocks {
@@ -154,13 +155,19 @@ class Writer {
     return out === undefined ? undefined : safeUrl(out, kind);
   }
 
-  private raw(html: string): string {
+  /** HTML in the Markdown, as `html` says; a part of a run of inline HTML (`inline`) balanced with the run (see inline). */
+  private raw(html: string, inline = false): string {
     const mode = this.props.html ?? "sanitize";
-    return mode === "drop" ? "" : mode === "escape" ? escapeText(html) : sanitizeHtml(html);
+    return mode === "drop" ? "" : mode === "escape" ? escapeText(html) : inline ? sanitized(html) : sanitizeHtml(html);
   }
 
   /** Inline tokens as HTML. */
   inline(tokens: Token[] | undefined): string {
+    // (Its HTML's tags balanced as one run: `Hi <b>there</b>` is three tokens.)
+    return balanced(this.inlineRun(tokens));
+  }
+
+  private inlineRun(tokens: Token[] | undefined): string {
     return (tokens ?? [])
       .map((token): string => {
         switch (token.type) {
@@ -181,16 +188,16 @@ class Writer {
             const inner = this.inline(token.tokens);
             if (href === undefined) return inner;
             const title = token.title ? ` title="${escapeAttribute(token.title)}"` : "";
-            return `<a href="${escapeAttribute(href)}"${title}${this.attributes(this.props.linkAttributes ?? { target: "_blank", rel: "noopener" }, href)}${this.style("a")}>${inner}</a>`;
+            return `<a href="${escapeUrl(href)}"${title}${this.attributes(this.props.linkAttributes ?? { target: "_blank", rel: "noopener" }, href)}${this.style("a")}>${inner}</a>`;
           }
           case "image": {
             const src = this.url(token.href, "image");
             if (src === undefined) return "";
             const title = token.title ? ` title="${escapeAttribute(token.title)}"` : "";
-            return `<img src="${escapeAttribute(src)}" alt="${escapeAttribute(token.text)}"${title}${this.attributes(this.props.imageAttributes, src)}${this.style("img")} />`;
+            return `<img src="${escapeUrl(src)}" alt="${escapeAttribute(token.text)}"${title}${this.attributes(this.props.imageAttributes, src)}${this.style("img")} />`;
           }
           case "html":
-            return this.raw(token.text);
+            return this.raw(token.text, true);
           case "checkbox":
             return (token as Tokens.Checkbox).checked ? "&#9745; " : "&#9744; ";
           default:
@@ -370,6 +377,10 @@ class Writer {
  * ```
  */
 export function Markdown(props: MarkdownProps): React.ReactElement {
+  // (Rendered by react-dom in what a lazy component renders, in a collecting render: given to the collection, which calls
+  // it with the render's work, `_own`. See the engine's root-capture.ts's ROUTED.)
+  const collected = collectedHere(Markdown, props, (props as { _own?: boolean })._own === true);
+  if (collected !== NOT_COLLECTED) return collected as React.ReactElement;
   const source = dedent(props.markdown ?? textOf(props.children));
   // (Its tables, its quotes' and lists' nesting and its inline syntax kept to what its size calls for, its render's
   // Markdown together: see limits.ts, inline.ts and work.ts.)
@@ -393,6 +404,9 @@ export function Markdown(props: MarkdownProps): React.ReactElement {
 }
 
 Markdown.displayName = "Markdown";
+// (It calls no hooks: a render its `url` starts is safe in its call. See utils/create-component.tsx's NO_HOOKS.)
+(Markdown as unknown as Record<symbol, boolean>)[Symbol.for("@unlayer/react-elements/no-hooks")] = true;
+(Markdown as unknown as Record<symbol, boolean>)[ROUTED] = true;
 
 /** Whether code in `language` is highlighted (see the code entry's HAS_GRAMMAR); where that can't be told, it is. */
 const highlighted = (language: string): boolean => (highlightCode as unknown as Record<symbol, ((language: string) => boolean) | undefined>)[Symbol.for("@unlayer/react-elements/has-grammar")]?.(language) ?? true;

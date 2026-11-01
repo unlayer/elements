@@ -1,9 +1,9 @@
 /**
- * Pages and documents render without react-dom: with react-dom/server's renderers made to throw, in this test's
- * modules and in the @unlayer/exporters module Node loads (where its own web and document exporters of Divider, Html,
- * Menu and Social call them), each of those blocks renders on a page and in a document, and so does a whole template
- * with every block, by every renderer, the same as with them. (@unlayer/exporters still imports react-dom/server, so
- * it has to be installed: it isn't called.)
+ * The web and document exporters of Divider, Html, Menu and Social in @unlayer/exporters render with react-dom/server
+ * themselves (a render of their own for each block); Elements writes those blocks as strings instead (src/exporters),
+ * so the only react-dom renders in a template's are Elements' own (its collecting render). With the renderers of the
+ * react-dom/server module @unlayer/exporters loads made to throw, each of those blocks renders on a page and in a
+ * document, and so does a whole template with every block, by every renderer, the same as with them.
  */
 import { createRequire } from "node:module";
 import { describe, expect, it, onTestFinished, vi } from "vitest";
@@ -12,15 +12,10 @@ import { Button, Column, Divider, Document, Heading, Html, Image, Menu, Page, Pa
 import * as Async from "../async";
 import { UNLAYER_RENDER_KEY } from "../utils/create-component";
 
-const { RENDERERS, poisoned } = vi.hoisted(() => ({
-  RENDERERS: ["renderToString", "renderToStaticMarkup", "renderToNodeStream", "renderToStaticNodeStream", "renderToPipeableStream", "renderToReadableStream"] as const,
-  poisoned: () => {
-    throw new Error("react-dom/server can't run here");
-  },
-}));
-
-// This test's modules (Elements' own) get a react-dom/server that can't render.
-vi.mock("react-dom/server", async (actual) => ({ ...(await actual<object>()), ...Object.fromEntries(RENDERERS.map((name) => [name, poisoned])) }));
+const RENDERERS = ["renderToString", "renderToStaticMarkup", "renderToNodeStream", "renderToStaticNodeStream", "renderToPipeableStream", "renderToReadableStream"] as const;
+const poisoned = () => {
+  throw new Error("react-dom/server can't run here");
+};
 
 /** The react-dom/server @unlayer/exporters renders with (Node's module, which vi.mock doesn't reach). */
 const exportersServer = createRequire(createRequire(import.meta.url).resolve("@unlayer/exporters"))("react-dom/server") as Record<string, unknown>;
@@ -50,7 +45,7 @@ function blockHtml(Component: unknown, props: object, mode: "web" | "document"):
 }
 
 describe.each(Object.entries(BLOCKS))("%s", (name, [Component, props]) => {
-  it.each(["web", "document"] as const)("renders in %s mode where react-dom/server can't render", (mode) => {
+  it.each(["web", "document"] as const)("renders in %s mode where @unlayer/exporters' react-dom/server can't render", (mode) => {
     const before = blockHtml(Component, props, mode);
     poisonExporters();
     // (@unlayer/exporters' own exporter for it fails now.)
@@ -100,7 +95,7 @@ describe("a whole template", () => {
     renderToJson: (root: React.ReactElement) => JSON.stringify(renderToJson(root)),
     "async renderToHtml": (root: React.ReactElement) => Async.renderToHtml(root),
   };
-  it.each(Object.entries(renders).flatMap(([name, render]) => [[name, "Page", Page, render], [name, "Document", Document, render]] as const))("%s renders a %s where react-dom/server can't render", async (_, __, Root, render) => {
+  it.each(Object.entries(renders).flatMap(([name, render]) => [[name, "Page", Page, render], [name, "Document", Document, render]] as const))("%s renders a %s where @unlayer/exporters' react-dom/server can't render", async (_, __, Root, render) => {
     const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
     onTestFinished(() => warn.mockRestore());
     const root = <Root>{content}</Root>;

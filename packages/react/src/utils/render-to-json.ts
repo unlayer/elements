@@ -1,8 +1,9 @@
 /**
  * renderToJson — Convert a React element tree to Unlayer's DesignJSON format.
  *
- * Walks the React element tree statically via React.Children and extracts
- * values at each level. No HTML rendering is performed.
+ * Renders the template as the HTML renderers do (react-dom/server, its
+ * components called as React calls them) and reads the values of its Rows,
+ * Columns and blocks from what it renders.
  *
  * Produces the { body: { rows, values }, counters, schemaVersion } structure
  * that the Unlayer editor uses, enabling round-tripping: build with React
@@ -18,7 +19,8 @@ import type {
   DesignContent,
   UnlayerConfig,
 } from "@unlayer-internal/shared-elements";
-import { mergeValues, pxMerged, pxZeros, textJsonToText } from "@unlayer-internal/shared-elements";
+import { pxMerged, pxZeros, textJsonToText } from "@unlayer-internal/shared-elements";
+import { ownValues } from "./own-values";
 // Schema version from the exporters bundle — matches the editor's currentVersion
 // at the time the exporters were generated. This ensures renderToJson output is
 // recognized as current by the editor, skipping unnecessary migrations.
@@ -35,10 +37,11 @@ import { failedBefore, sayOnce, setRenderConfig, withOwnScope } from "./render-s
 import { renderBody } from "./render-to-html";
 import { collect, KEPT, normalizedChildren, normalizedRoot } from "../model";
 import type { Recorded } from "./collect";
-import { rtlAlign, textDirectionOf, UNLAYER_CONFIG_KEY } from "./create-component";
+import { rtlAlign, styleAsProps, textDirectionOf, UNLAYER_CONFIG_KEY } from "./create-component";
 import { TAILWIND } from "./tailwind";
 import { fontUrlInDesign, safeUrl, urlFamilies } from "./font-design";
 import { omits } from "../engine/errors";
+import { withFreeBuild } from "../engine";
 
 /** Layout context threaded down the walk so an image can be sized against the
  *  real column slot (contentWidth × column share, minus paddings/borders). */
@@ -150,7 +153,10 @@ function processItem(
 
   // Map props through the item's own propMapper (but what the design can't hold, said and left out), then merge with
   // defaults, after the base content option every block has, containerPadding.
-  const props = element.props as Record<string, any>;
+  // (Its `style`'s properties its props take, as those props, as its HTML has them: see styleAsProps.)
+  const own = element.props as Record<string, any>;
+  const moved = styleAsProps(config.styleProps, own, own.style);
+  const props = moved.props === own ? own : { ...moved.props, style: moved.style };
   codeOnly(name, props);
   const given: Record<string, any> = { children: props.children };
   for (const key in props) if (!CODE_ONLY.has(key)) given[key] = props[key];
@@ -158,7 +164,7 @@ function processItem(
   rtlAlign(mappedValues, defaultValues, (layout.bodyValues as { textDirection?: unknown } | undefined)?.textDirection);
   // (Bare zeros in px lengths written `0px`, as the design's schema types them: see pxZeros. A custom tool's values
   // are as it writes them.)
-  const values: Record<string, any> = slug ? { containerPadding: "10px", ...mergeValues(defaultValues, mappedValues) } : pxMerged(defaultValues, mappedValues, "", { containerPadding: "10px" });
+  const values: Record<string, any> = slug ? { containerPadding: "10px", ...ownValues(defaultValues, mappedValues) } : pxMerged(defaultValues, mappedValues, "", { containerPadding: "10px" });
 
   // Paragraph maps to "text" content type: its textJson as the HTML the text block holds, which its HTML renders too
   // (see Paragraph.tsx).
@@ -352,7 +358,7 @@ function rootFonts(element: React.ReactElement, name: string, body: DesignBody):
  * Convert a React element tree to Unlayer's DesignJSON format.
  *
  * The root element must be a `<Body>`, `<Email>`, `<Page>`, or `<Document>`.
- * The tree is walked statically — no HTML rendering is performed.
+ * The template renders as it does for the HTML (react-dom/server).
  *
  * @param element - A React element tree with Body > Row > Column > Item structure
  * @returns DesignJSON object compatible with the Unlayer editor
@@ -409,12 +415,14 @@ export function renderRowToJson(element: React.ReactElement): DesignRow {
 
   const counters: Record<string, number> = {};
   // A render of its own, as renderToJson's: the same row gives the same ids every time. What's in it is collected.
-  return withOwnScope(() => {
-    const row = normalizedChildren(element, undefined, "Row").find((c): c is React.ReactElement => React.isValidElement(c));
-    // Left out (its Columns don't fit its layout), it's no row.
-    if (!row) throw new Error("[Unlayer] renderRowToJson: the Row is left out.");
-    return processRow(row, counters);
-  });
+  return withFreeBuild("renderRowToJson", () =>
+    withOwnScope(() => {
+      const row = normalizedChildren(element, undefined, "Row").find((c): c is React.ReactElement => React.isValidElement(c));
+      // Left out (its Columns don't fit its layout), it's no row.
+      if (!row) throw new Error("[Unlayer] renderRowToJson: the Row is left out.");
+      return processRow(row, counters);
+    }),
+  );
 }
 
 /** renderToJson's options. */
@@ -426,7 +434,7 @@ export interface RenderToJsonOptions {
 }
 
 export function renderToJson(element: React.ReactElement, options?: RenderToJsonOptions): DesignJSON {
-  return withOwnScope(() => designJson(element, options));
+  return withFreeBuild("renderToJson", () => withOwnScope(() => designJson(element, options)));
 }
 
 /** renderToJson in the render's scope (the async renderers' too, which collected the template in it). */

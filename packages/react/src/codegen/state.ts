@@ -17,7 +17,12 @@ export class ModuleState {
     this.components.add(component);
   }
 
+  /** (Each said once: looked up in a set, not the list, which a design of many blocks that each warn made long.) */
+  private readonly said = new Set<string>();
+
   warn(message: string): void {
-    if (!this.warnings.includes(message)) this.warnings.push(message);
+    if (this.said.has(message)) return;
+    this.said.add(message);
+    this.warnings.push(message);
   }
 }

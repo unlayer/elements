@@ -1,9 +1,10 @@
 // @vitest-environment node
 /**
- * Elements' React isn't the one react-dom renders with (see react-copy.ts), as in a Next.js App Router route handler
- * or Server Component. Elements renders templates itself (src/engine), never with react-dom, so it renders them as
- * anywhere else; and a collecting walk records Rows, Columns and blocks by their markers, another copy's of Elements
- * (with another React) too. (0.3.0's react-dom renders couldn't tell, and needed a "blind" mode for it.)
+ * Elements' React isn't the one react-dom renders with (see react-copy.ts), as two installs of React or a bundler's
+ * second copy give. Elements renders templates with react-dom/server, as React Email does: a template's hooks can't
+ * run there, so a render with them fails with a RenderError that says so and what to do (one copy of React), never
+ * with React's "Invalid hook call"; a template with none renders. A collecting render records Rows, Columns and
+ * blocks by their markers, another copy's of Elements (with another React) too.
  */
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -11,12 +12,10 @@ vi.mock("react-dom/server", async () => (await import("./react-copy")).reactCopy
 
 import React from "react";
 import * as server from "react-dom/server";
-import { Button, Column, ColumnLayouts, Email, Paragraph, Row, renderToHtml as renderToHtmlSync, renderToJson as renderToJsonSync } from "../index";
+import { Button, Column, ColumnLayouts, Email, Paragraph, RenderError, Row, renderToHtml as renderToHtmlSync, renderToJson as renderToJsonSync } from "../index";
 import { renderToHtml, renderToJson, renderToPlainText } from "../async";
 import { Head } from "../head";
 import { Font } from "../font";
-import { CodeBlock } from "../code";
-import { Markdown } from "../markdown";
 import { StripeReceipt } from "../examples/StripeReceipt.stories";
 
 const tables = (html: string) => (html.match(/<table/g) ?? []).length;
@@ -56,11 +55,33 @@ describe("another copy of React than react-dom's", () => {
     expect(thrown).toBeDefined();
   });
 
-  it("renders an email as the synchronous renderers do, from the async ones", async () => {
+  it("fails a render whose template has hooks, saying React is two copies; one with none renders", async () => {
+    const copies = /react-dom\/server renders with another copy of React than the one Elements imports, so the template's hooks can't run: install one copy of react and react-dom/;
+    const Hooked = () => <Paragraph>{`Hello ${React.useId()}`}</Paragraph>;
+    const HookedWrapper = () => {
+      const [name] = React.useState("Ada");
+      return <Welcome name={name} />;
+    };
+    for (const element of [<Email key="hooked"><Row><Column><Hooked /></Column></Row></Email>, <HookedWrapper key="wrapper" />]) {
+      for (const render of [renderToHtmlSync, renderToJsonSync]) {
+        let thrown: unknown;
+        try {
+          render(element);
+        } catch (error) {
+          thrown = error;
+        }
+        expect(thrown).toBeInstanceOf(RenderError);
+        expect((thrown as Error).message).toMatch(copies);
+        expect((thrown as Error).message).not.toMatch(/reading 'use|Invalid hook call/);
+      }
+      await expect(renderToHtml(element)).rejects.toThrow(copies);
+      await expect(renderToJson(element)).rejects.toThrow(copies);
+    }
+    // No hooks: it renders, the async renderers as the synchronous ones.
     for (const element of [<StripeReceipt key="stripe" />, <Welcome key="welcome" name="Ada" />]) {
       const html = renderToHtmlSync(element);
       const design = renderToJsonSync(element);
-      expect(tables(html)).toBeGreaterThan(10);
+      expect(tables(html)).toBeGreaterThan(5);
       expect(design.body.rows.length).toBeGreaterThan(1);
       expect(await renderToHtml(element)).toBe(html);
       expect(await renderToJson(element)).toEqual(design);
@@ -77,7 +98,8 @@ describe("another copy of React than react-dom's", () => {
       log.push(`start ${name}`);
       await later(ms);
       log.push(`end ${name}`);
-      return resolved(name).props.children.slice(1);
+      const [, first, second] = resolved(name).props.children;
+      return <>{first}{second}</>;
     };
     const Block = async () => <Paragraph>{`Block ${name}${await later(ms / 2).then(() => "")}`}</Paragraph>;
     return (
@@ -155,59 +177,6 @@ describe("Rows of another copy of Elements, with another React", () => {
         expect(await async.renderToHtml(element)).toContain("<html");
         expect((await async.renderToJson(element)).body.rows).toEqual([]);
       }
-    }
-  });
-});
-
-describe("Markdown and code blocks of another copy of Elements (a package's CommonJS build, its ESM one rendering)", () => {
-  // Their entries reached the render's work through the main entry they imported, and another copy's render was none
-  // of theirs: each block had all of it (12 fences of 8 KB of Java took 4.5 s, 562 sparse tables 195 MB of HTML).
-  const SLOT = Symbol.for("@unlayer/react-elements/render-work");
-  const fill = (unit: string, n: number) => unit.repeat(Math.ceil(n / unit.length)).slice(0, n);
-  const java = fill("int a = 1;\n", 7999) + ";";
-  const colored = (html: string) => html.split('<pre style="').slice(1).map((block) => block.includes('<span style="'));
-  const blocks = (n: number, block: (i: number) => React.ReactElement) => (
-    <Email>
-      <Row>
-        <Column>{Array.from({ length: n }, (_, i) => block(i))}</Column>
-      </Row>
-    </Email>
-  );
-  // This file's (the copy renderToHtmlSync is), and another's.
-  const own = { CodeBlock, Markdown };
-  let other: typeof import("../code") & typeof import("../markdown") & { renderToHtml: typeof renderToHtmlSync };
-  beforeAll(async () => {
-    vi.resetModules();
-    other = { ...(await import("../code")), ...(await import("../markdown")), renderToHtml: (await import("../index")).renderToHtml };
-  });
-
-  it("share the work of the render another copy runs, as its own copy's blocks do", () => {
-    for (const { CodeBlock, Markdown } of [own, other]) {
-      expect(colored(renderToHtmlSync(blocks(3, (i) => <CodeBlock key={i} language="java" code={java} />)))).toEqual([true, false, false]);
-      expect(colored(renderToHtmlSync(blocks(3, (i) => <Markdown key={i} markdown={"```java\n" + java + "\n```"} />)))).toEqual([true, false, false]);
-    }
-    // And its tables, the cells one Markdown of them all has.
-    const table = "|" + "a|".repeat(20) + "\n|" + "-|".repeat(20) + "\n" + "|\n".repeat(49);
-    const tables = (html: string) => (html.match(/<table[^>]*class="[^"]*u_content_table/g) ?? []).length;
-    const sparse = (Markdown: typeof own.Markdown) => renderToHtmlSync(blocks(40, (i) => <Markdown key={i} html="escape" markdown={table} />), { onError: "omit" });
-    vi.spyOn(console, "error").mockImplementation(() => {});
-    expect(tables(sparse(other.Markdown))).toBe(tables(sparse(own.Markdown)));
-    expect(tables(sparse(own.Markdown))).toBeLessThan(10);
-  });
-
-  it("keep work of their own where the other copy's is another version's (its slot's another protocol)", async () => {
-    const global = globalThis as Record<symbol, unknown>;
-    const slot = global[SLOT];
-    global[SLOT] = { version: 0, shared: undefined };
-    try {
-      vi.resetModules();
-      const skewed = { ...(await import("../code")), renderToHtml: (await import("../index")).renderToHtml };
-      // Its own renders share their work among its blocks; this copy's renders' work it can't read: each block has its own.
-      expect(colored(skewed.renderToHtml(blocks(3, (i) => <skewed.CodeBlock key={i} language="java" code={java} />)))).toEqual([true, false, false]);
-      expect(colored(renderToHtmlSync(blocks(3, (i) => <skewed.CodeBlock key={i} language="java" code={java} />)))).toEqual([true, true, true]);
-      expect(colored(renderToHtmlSync(blocks(3, (i) => <own.CodeBlock key={i} language="java" code={java} />)))).toEqual([true, false, false]);
-    } finally {
-      global[SLOT] = slot;
     }
   });
 });

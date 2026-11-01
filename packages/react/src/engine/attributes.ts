@@ -1,7 +1,8 @@
 /**
  * An element's attributes as react-dom/server writes them (React 18's property table, React 19's attribute switch):
  * which props it writes, under which name, and how it writes their values, its `style` included; and text, escaped as
- * React escapes it. The walker's host markup (host.ts) and the string exporters (src/exporters) both write with these.
+ * React escapes it. The engine's host markup (host.ts), which the string exporters (src/exporters) write with, and the
+ * collector, which blocks React 18's `javascript:` URLs as React 19 does, use these.
  */
 import { unrunUrl } from "@unlayer-internal/shared-elements";
 import { REACT_18, REACT_19_3 } from "./react-compat";
@@ -27,6 +28,26 @@ const SAFE_NAME = new RegExp(`^[${NAME_START}][${NAME_START}\\-.0-9\\u00B7\\u030
 const url = (value: string) => unrunUrl(value);
 /** A value React writes as text, a `javascript:` URL as url() writes it; others as they are. */
 export const unrun = (value: unknown) => (value == null || typeof value == "boolean" || typeof value == "function" || typeof value == "symbol" ? value : url("" + value));
+
+/** The attributes the collector writes a `javascript:` URL in as one that throws (its URL_PROPS, as React names them in HTML). */
+const URL_ATTRIBUTES = new Set(["href", "src", "action", "formaction", "xlink:href"]);
+/** That URL, as React writes it in an attribute. */
+const UNRUN = `"${escapeText(url("javascript:"))}"`;
+
+/** A URL attribute as React writes it (`␣href="…"`: its value escaped, so no `"` in it), and an <object>'s `data`. */
+const URL_ATTRIBUTE = /(\s)(href|src|action|formaction|xlink:href|data)="([^"]*)"/gi;
+
+/**
+ * Markup react-dom 18 wrote (what a lazy component renders, which React renders itself, unprepared: see parse.ts), with
+ * each `javascript:` URL in an attribute as react-dom 19 writes it (one that throws), as the collector writes it in any
+ * other. Not read: every value written as React writes one is looked at, its character references decoded (React
+ * escapes its own `&`, so one in the prop stays text), in HTML given whole there too, where it's any attribute's (a
+ * `data` but an <object>'s) or no attribute at all. Only a URL that runs is written otherwise, so nothing is made that
+ * runs; anything else is as it is, byte for byte.
+ */
+export function unrunAttributes(html: string): string {
+  return html.replace(URL_ATTRIBUTE, (written: string, space: string, name: string, value: string) => (URL_ATTRIBUTES.has(name.toLowerCase()) || name.toLowerCase() === "data") && unrunUrl(value, true) !== value ? `${space}${name}=${UNRUN}` : written);
+}
 
 /**
  * How React writes a prop it knows: as a string (S), as a boolean attribute (B: present or not), as either (O), as a

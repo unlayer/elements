@@ -320,13 +320,31 @@ export const SUSPECTS = 100;
 const HALVES = 64;
 
 /**
+ * Whether an arbitrary at-rule variant's name (`[@media…]:`) has an escaped `(` in it: Tailwind reads the name to its
+ * first `(`, escaped or not, and builds the rest after a space, `[@media\(]:` as `@media\ (`, an open `(` (each
+ * name read once: it ends at the first character no name has, `_` for a space among them).
+ */
+function splitsAtRule(token: string): boolean {
+  for (let at = token.indexOf("[@"); at >= 0; at = token.indexOf("[@", at + 2)) {
+    for (let i = at + 2; i < token.length; i++) {
+      if (token[i] === "\\") {
+        if (token[i + 1] === "(") return true;
+        i++;
+      } else if (!/[a-z\d-]/i.test(token[i])) break;
+    }
+  }
+  return false;
+}
+
+/**
  * Whether Tailwind can build a class without changing how what it builds after it reads: its brackets, parentheses,
  * braces and quotes closed (`\` escaping the character after it, as in CSS), no comment in it, no escape of a code
- * point past U+10FFFF (`\23ff00`, which Tailwind's build throws for where it decodes it). Tailwind's compiler keeps
+ * point past U+10FFFF (`\23ff00`, which Tailwind's build throws for where it decodes it), no escaped `(` in an at-rule
+ * variant's name (see splitsAtRule). Tailwind's compiler keeps
  * every class it builds, so one that isn't (`[color:x(]`) is never built.
  */
 export function readable(token: string): boolean {
-  if (/\/\*|\*\//.test(token)) return false;
+  if (/\/\*|\*\//.test(token) || splitsAtRule(token)) return false;
   const open: string[] = [];
   for (let i = 0; i < token.length; i++) {
     const c = token[i];

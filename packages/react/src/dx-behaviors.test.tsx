@@ -310,6 +310,24 @@ describe("DX: style and className, on the element each component renders", () =>
     expect(out).not.toMatch(/;;/);
   });
 
+  it.each(Object.keys(roots) as Array<keyof typeof roots>)("%s: a Button's style its props take is those props (React Email's way): Outlook's button, its padding once, the design", (mode) => {
+    // (Inlined on its link, it painted over the export's own colors but not Outlook's, which draws the button in VML
+    // (`fillcolor`), and its padding was the link's and the export's inside it, twice.)
+    const Root = roots[mode];
+    const look = { backgroundColor: "#5469d4", color: "#fefefe", borderRadius: "5px", padding: "12px 20px", fontSize: "16px", fontWeight: 700, width: "100%" } as const;
+    const styled = <Root><Row><Column><Button href="https://example.com/pay" style={{ ...look, boxShadow: "0 1px 2px #000" }}>Pay</Button></Column></Row></Root>;
+    const asProps = <Root><Row><Column><Button href="https://example.com/pay" {...look} style={{ boxShadow: "0 1px 2px #000" }}>Pay</Button></Column></Row></Root>;
+    expect(renderToHtml(styled)).toBe(renderToHtml(asProps));
+    expect(renderToJson(styled)).toEqual(renderToJson(asProps));
+    if (mode === "Email") expect(renderToHtml(styled)).toContain('fillcolor="#5469d4"');
+    // A prop given wins; a value that could end the attribute stays in `style`, where it can't (a prop's is written as
+    // given).
+    const both = renderToHtml(<Root><Row><Column><Button href="https://example.com" backgroundColor="#111111" style={{ backgroundColor: "#5469d4", color: 'red" onmouseover="x' }}>Go</Button></Column></Row></Root>);
+    expect(both).toContain("#111111");
+    expect(both).not.toContain("#5469d4");
+    expect(both).not.toMatch(/\sonmouseover="/);
+  });
+
   it.each(Object.keys(roots) as Array<keyof typeof roots>)("%s: keeps padding in a Row's or Column's style inside the layout, not wider than it", (mode) => {
     const Root = roots[mode];
     const out = renderToHtml(

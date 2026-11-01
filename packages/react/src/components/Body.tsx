@@ -10,8 +10,10 @@ import { ROOT } from "../utils/root-type";
 import { contentHtml } from "../utils/root-content";
 import { rootProps } from "../utils/tailwind";
 import { ownMarkup } from "../engine";
+import { reportedRoot } from "../engine/root-capture";
 import { useProvidedConfig } from "../context/UnlayerProvider";
 import { rootConfig } from "../context/layer-config";
+import { own } from "../utils/own-type";
 
 export type BodyProps = Omit<SemanticProps<BodyValues>, "padding" | "borderRadius"> & {
   children?: React.ReactNode;
@@ -156,6 +158,8 @@ function renderBodyToHtml(innerHTML: string, values: any, mode: RenderMode, prev
  * ```
  */
 const Body: React.FC<BodyProps> = (given) => {
+  // (A lazy template's root, found where it renders: see engine/root-capture.ts.)
+  if (reportedRoot(Body, given, ownMarkup())) return null;
   // Classes, from the <Tailwind> its content is in, as props.
   const props = rootProps(given, NAMES[given.mode ?? ""] ?? "Body");
   const { children, mode: modeProp, className, style, index = 0, config: _configProp, previewText, fonts: _fonts, lang: _lang, ...semanticProps } = props;
@@ -217,5 +221,6 @@ const Body: React.FC<BodyProps> = (given) => {
 Body.displayName = "Body";
 (Body as unknown as Record<symbol, boolean>)[OWN] = true;
 (Body as unknown as Record<symbol, string>)[ROOT] = "Body";
+own(Body);
 
 export default Body;

@@ -1,10 +1,11 @@
 import { describe, it, expect, vi } from "vitest";
-import React, { memo, useState } from "react";
+import React, { forwardRef, memo, useState } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { renderToHtml, renderToHtmlParts, renderToPlainText } from "./render-to-html";
 import { renderToJson } from "./render-to-json";
-import { Email, Page, Row, Column, Paragraph, Heading, Html, Button as ElementsButton, ColumnLayouts } from "../index";
+import { Email, Page, Row, Column, Paragraph, Heading, Html, Button as ElementsButton, ColumnLayouts, Image, Divider, Menu, Social, Table, Video, UnlayerProvider } from "../index";
 import { Font } from "../font";
+import { Head } from "../head";
 import * as asyncRenderers from "../async";
 
 const block = (text: string, props: Record<string, unknown> = {}) => <Row><Column><Paragraph {...props}>{text}</Paragraph></Column></Row>;
@@ -65,6 +66,124 @@ describe("Fragments and user components among the blocks", () => {
     expect(/#(u_content_paragraph_\d+)[^{]*\{[^}]*font-size:\s*30px/.exec(html)?.[1]).toBe("u_content_paragraph_2");
   });
 });
+
+describe("a component of yours that copied the statics of one of Elements' own (a HOC, as React's docs say)", () => {
+  // `hoist-non-react-statics`'s rules: own names and symbols, but React's statics and a function's own. Elements' markers
+  // came with them, so the HOC was taken for the block or root it wraps, recorded with its own props, never called: what
+  // it adds (a link's tracking, a color, a root's preview text) was lost, with nothing said.
+  const SKIP = new Set(["length", "name", "prototype", "caller", "callee", "arguments", "arity", "displayName", "defaultProps", "propTypes", "contextType", "contextTypes", "childContextTypes", "getDerivedStateFromProps", "getDerivedStateFromError", "type", "$$typeof", "render", "compare"]);
+  const hoisted = <T extends object>(target: T, source: object): T => {
+    for (const key of [...Object.getOwnPropertyNames(source), ...Object.getOwnPropertySymbols(source)]) {
+      if (typeof key === "string" && SKIP.has(key)) continue;
+      const descriptor = Object.getOwnPropertyDescriptor(source, key);
+      if (descriptor) Object.defineProperty(target, key, descriptor);
+    }
+    return target;
+  };
+
+  it("is called, so the props it gives are the block's and the root's, in the HTML, the plain text and the design", () => {
+    let calls = 0;
+    const Tracked = hoisted((props: React.ComponentProps<typeof ElementsButton>) => {
+      calls++;
+      return <ElementsButton {...props} href={`${props.href}?utm_source=newsletter`} backgroundColor="#00aa00" />;
+    }, ElementsButton);
+    const Branded = hoisted((props: React.ComponentProps<typeof Email>) => <Email {...props} backgroundColor="#fafafa" previewText="Our sale" />, Email);
+    const email = <Branded><Row><Column><Tracked href="https://shop.example.com/sale">Shop the sale</Tracked></Column></Row></Branded>;
+    const html = renderToHtml(email);
+    expect(calls).toBeGreaterThan(0);
+    expect(html).toContain("https://shop.example.com/sale?utm_source=newsletter");
+    expect(html).toContain("#00aa00");
+    expect(html).toContain("Our sale");
+    expect(renderToPlainText(email)).toContain("utm_source=newsletter");
+    const design = renderToJson(email);
+    expect(JSON.stringify(design.body.rows[0].columns[0].contents[0].values)).toContain("utm_source=newsletter");
+    expect(design.body.values.backgroundColor).toBe("#fafafa");
+  });
+});
+
+describe("React.memo (or forwardRef) around one of Elements' own components", () => {
+  const blocks: Array<[string, React.ComponentType<any>, Record<string, unknown>]> = [
+    ["Paragraph", Paragraph, { children: "para text" }],
+    ["Heading", Heading, { children: "heading text" }],
+    ["Button", ElementsButton, { href: "https://x.test", children: "button text" }],
+    ["Image", Image, { src: "https://img.test/a.png", alt: "alt text", width: 100, height: 50 }],
+    ["Divider", Divider, {}],
+    ["Html", Html, { html: "<p>html block text</p>" }],
+    ["Menu", Menu, { items: [{ text: "menu item", href: "https://x.test/m" }] }],
+    ["Social", Social, { icons: [{ name: "Facebook", url: "https://facebook.com/x" }] }],
+    ["Table", Table, { headers: ["h1"], rows: [["table cell"]] }],
+    ["Video", Video, { url: "https://www.youtube.com/watch?v=dQw4w9WgXcQ" }],
+  ];
+  // (forwardRef of a component taking no ref: React says so, in development.)
+  const wrappers: Array<[string, <T>(type: T) => T]> = [
+    ["memo", (type) => memo(type as any) as any],
+    ["a memo of a memo", (type) => memo(memo(type as any)) as any],
+    ["forwardRef", (type) => forwardRef(type as any) as any],
+  ];
+  const quiet = <T,>(render: () => T): T => {
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
+    try {
+      return render();
+    } finally {
+      error.mockRestore();
+    }
+  };
+  const both = (template: React.ReactElement) => quiet(() => ({ html: renderToHtml(template), design: renderToJson(template) }));
+
+  describe.each(wrappers)("%s", (_, wrap) => {
+    it.each(blocks)("of a %s is that block, in the HTML and the design", (_, Block, props) => {
+      const Wrapped = wrap(Block);
+      expect(both(<Email><Row><Column><Wrapped {...props} /></Column></Row></Email>)).toEqual(both(<Email><Row><Column><Block {...props} /></Column></Row></Email>));
+    });
+
+    it("of a Row or a Column is that Row or Column, with what's in it", () => {
+      const WrappedRow = wrap(Row);
+      const WrappedColumn = wrap(Column);
+      const after = <Row><Column><Paragraph>Footer</Paragraph></Column></Row>;
+      expect(both(<Email><WrappedRow><Column><Paragraph>in a row</Paragraph></Column></WrappedRow>{after}</Email>)).toEqual(both(<Email><Row><Column><Paragraph>in a row</Paragraph></Column></Row>{after}</Email>));
+      expect(both(<Email><Row><WrappedColumn><Paragraph>in a column</Paragraph></WrappedColumn></Row>{after}</Email>)).toEqual(both(<Email><Row><Column><Paragraph>in a column</Paragraph></Column></Row>{after}</Email>));
+    });
+  });
+
+  it("is that component in the async renderers too", async () => {
+    const [WrappedRow, WrappedColumn, WrappedParagraph] = [memo(Row), memo(Column), memo(Paragraph)];
+    const template = (wrapped: boolean) => (wrapped ? <Email><WrappedRow><WrappedColumn><WrappedParagraph>text</WrappedParagraph></WrappedColumn></WrappedRow></Email> : <Email><Row><Column><Paragraph>text</Paragraph></Column></Row></Email>);
+    expect(await asyncRenderers.renderToJson(template(true))).toEqual(await asyncRenderers.renderToJson(template(false)));
+    expect(await asyncRenderers.renderToHtml(template(true))).toBe(await asyncRenderers.renderToHtml(template(false)));
+  });
+
+  it("keeps a key it's given, in a list", () => {
+    const P = memo(Paragraph);
+    const items = ["one", "two"];
+    expect(both(<Email><Row><Column>{items.map((t) => <P key={t}>{t}</P>)}</Column></Row></Email>)).toEqual(both(<Email><Row><Column>{items.map((t) => <Paragraph key={t}>{t}</Paragraph>)}</Column></Row></Email>));
+  });
+});
+
+describe("what a lazy template's module renders around its root", () => {
+  const loaded = (type: React.ComponentType) => React.lazy(() => ({ then: (done: (m: { default: React.ComponentType }) => void) => done({ default: type }) }) as Promise<{ default: React.ComponentType }>);
+  const later = (type: React.ComponentType) => React.lazy(() => new Promise<{ default: React.ComponentType }>((done) => setTimeout(() => done({ default: type }), 2)));
+  const content = <Row><Column><Paragraph>Bonjour</Paragraph></Column></Row>;
+
+  it("gives the root an <UnlayerProvider>'s config there, as the same template not lazy (it was left out)", async () => {
+    const Receipt = () => <UnlayerProvider config={{ textDirection: "rtl" }}><Email>{content}</Email></UnlayerProvider>;
+    expect(renderToHtml(<Receipt />)).toContain('dir="rtl"');
+    expect(renderToHtml(React.createElement(loaded(Receipt)))).toBe(renderToHtml(<Receipt />));
+    expect(await asyncRenderers.renderToHtml(React.createElement(later(Receipt)))).toBe(await asyncRenderers.renderToHtml(<Receipt />));
+  });
+
+  it("isn't in a context's provider there: the content reads the context's default (documented: provide it inside the root, or around the lazy element)", async () => {
+    const Locale = React.createContext("en");
+    const Greeting = () => <Paragraph>{useContextValue(Locale) === "fr" ? "Bonjour Ada" : "Hello Ada"}</Paragraph>;
+    const outside = () => <Locale.Provider value="fr"><Email><Row><Column><Greeting /></Column></Row></Email></Locale.Provider>;
+    const inside = () => <Email><Locale.Provider value="fr"><Row><Column><Greeting /></Column></Row></Locale.Provider></Email>;
+    expect(renderToPlainText(React.createElement(loaded(outside)))).toContain("Hello Ada");
+    expect((await asyncRenderers.renderToPlainText(React.createElement(later(outside))))).toContain("Hello Ada");
+    expect(renderToPlainText(React.createElement(loaded(inside)))).toContain("Bonjour Ada");
+    expect(renderToPlainText(<Locale.Provider value="fr">{React.createElement(loaded(outside))}</Locale.Provider>)).toContain("Bonjour Ada");
+  });
+});
+
+const useContextValue = <T,>(context: React.Context<T>): T => React.useContext(context);
 
 describe("a component element kept between renders", () => {
   it("renders again in each render, with the data of that render", () => {
@@ -207,6 +326,32 @@ describe("a component that fails", () => {
       warn.mockRestore();
     }
   };
+
+  it("is called once where it set its state as it rendered, as React calls one that throws: what it failed with stands", async () => {
+    // (React renders a component again where it set its state as it rendered; Elements had caught its error, so React
+    // called it again: with `onError`, a second call that worked hid the error, nothing left out or said.)
+    let calls = 0;
+    const Greeting = ({ user }: { user: { name: string } }) => {
+      calls++;
+      const [previous, setPrevious] = useState<unknown>(null);
+      const [name, setName] = useState<string | null>(null);
+      if (user !== previous) {
+        setPrevious(user);
+        setName(user.name);
+      }
+      return <Paragraph>{`Hi ${name!.toUpperCase()}`}</Paragraph>;
+    };
+    const email = <Email><Row><Column><Greeting user={{ name: "Ada" }} /><Paragraph>Rest</Paragraph></Column></Row></Email>;
+    for (const r of [{ renderToHtml }, asyncRenderers]) {
+      calls = 0;
+      const told: string[] = [];
+      const html = await r.renderToHtml(email, { onError: (error) => void told.push(error.message) });
+      expect(calls).toBe(1);
+      expect(told).toEqual([expect.stringMatching(/toUpperCase/)]);
+      expect(html).not.toContain("Hi ADA");
+      expect(html).toContain("Rest");
+    }
+  });
 
   it("fails the render, naming it and where it is; left out (onError: \"omit\") with what it renders, said once per render", () => {
     const boom = new Error("boom");
@@ -389,7 +534,9 @@ describe("HTML from a component in a Column", () => {
     ["gives what's in an element given dangerouslySetInnerHTML", <div dangerouslySetInnerHTML={{ __html: "<p>Hi</p>" }} />, "<p>Hi</p>"],
   ];
   for (const [what, shape, kept] of shapes) {
-    it.each(Object.entries(kinds(shape)))(`${what}, from %s`, async (_, node) => {
+    // (What a lazy component loads React renders itself, which Elements can't ask what it returned: below.)
+    const asked = Object.entries(kinds(shape)).filter(([kind]) => !(shape.props.dangerouslySetInnerHTML && kind.startsWith("a lazy")));
+    it.each(asked)(`${what}, from %s`, async (_, node) => {
       const email = <Email><Row><Column>{node}</Column></Row></Email>;
       const block = (design: { body: { rows: any[] } }) => design.body.rows[0].columns[0].contents;
       expect(block(renderToJson(email))).toEqual([expect.objectContaining({ type: "html", values: expect.objectContaining({ html: kept }) })]);
@@ -397,6 +544,57 @@ describe("HTML from a component in a Column", () => {
       expect(block(await asyncRenderers.renderToJson(email))).toEqual([expect.objectContaining({ type: "html", values: expect.objectContaining({ html: kept }) })]);
     });
   }
+
+  // (One that loaded is rendered where it is: as 0.2.1 and 0.3's own renderer rendered it, the component it loads.)
+  it("renders a lazy component that loaded as the component it loads: the contexts around it, its Rows and blocks the email's and the design's", async () => {
+    const I18n = React.createContext({ locale: "en", cta: "Shop now" });
+    const Promo = () => {
+      const t = React.useContext(I18n);
+      return (
+        <Row backgroundColor="#fef3c7">
+          <Column>
+            <Heading>{`Promo (${t.locale})`}</Heading>
+            <ElementsButton href="https://example.com/promo">{t.cta}</ElementsButton>
+          </Column>
+        </Row>
+      );
+    };
+    const Loaded = React.lazy(() => ({ then: (resolve: (m: { default: React.ComponentType }) => void) => resolve({ default: Promo }) }) as Promise<{ default: React.ComponentType }>);
+    const email = (promo: React.ReactNode) => (
+      <I18n.Provider value={{ locale: "fr", cta: "Acheter" }}>
+        <Email>
+          <Row><Column><Paragraph>Bonjour</Paragraph></Column></Row>
+          {promo}
+          <Row><Column><Paragraph>Au revoir</Paragraph></Column></Row>
+        </Email>
+      </I18n.Provider>
+    );
+    // (The negative control: the component itself, with the context it's given, its Row and Button the email's.)
+    const html = renderToHtml(email(<Promo />));
+    expect(html).toContain("Acheter");
+    expect(html).toContain("v:roundrect");
+    expect(renderToJson(email(<Promo />)).body.rows.map((row) => row.columns[0].contents.map((c) => c.type))).toEqual([["text"], ["heading", "button"], ["text"]]);
+    expect(renderToHtml(email(<Loaded />))).toBe(html);
+    expect(renderToJson(email(<Loaded />))).toEqual(renderToJson(email(<Promo />)));
+    expect(renderToPlainText(email(<Loaded />))).toBe(renderToPlainText(email(<Promo />)));
+    expect(await asyncRenderers.renderToHtml(email(<Loaded />))).toBe(html);
+    // HTML given whole in what it renders, with a comment it doesn't end, ends nothing after it.
+    const Open = () => <><Row><Column><Html html="<p>Hi <!-- truncated" /></Column></Row><Row><Column><Paragraph>Next row</Paragraph></Column></Row></>;
+    const Comment = () => <div dangerouslySetInnerHTML={{ __html: "<p>Hi <!-- truncated" }} />;
+    const LoadedComment = React.lazy(() => ({ then: (resolve: (m: { default: React.ComponentType }) => void) => resolve({ default: Comment }) }) as Promise<{ default: React.ComponentType }>);
+    const after = renderToJson(<Email><Row><Column><LoadedComment /></Column></Row><Row><Column><Paragraph>Next row</Paragraph></Column></Row></Email>);
+    expect(after.body.rows).toHaveLength(2);
+    expect(JSON.stringify(after.body.rows[1])).toContain("Next row");
+    expect(renderToJson(<Email><Open /></Email>).body.rows).toHaveLength(2);
+  });
+
+  it("keeps a lazy component's element given dangerouslySetInnerHTML whole (React renders what it loads, unasked)", () => {
+    const element = <div dangerouslySetInnerHTML={{ __html: "<p>Hi</p>" }} />;
+    const Fn = () => element;
+    const loaded = React.lazy(() => ({ then: (resolve: (m: { default: React.ComponentType }) => void) => resolve({ default: Fn }) }) as Promise<{ default: React.ComponentType }>);
+    const email = <Email><Row><Column>{React.createElement(loaded)}</Column></Row></Email>;
+    expect(renderToJson(email).body.rows[0].columns[0].contents).toEqual([expect.objectContaining({ type: "html", values: expect.objectContaining({ html: "<div><p>Hi</p></div>" }) })]);
+  });
 
   it("asks a component the async renderers waited for what it returned: an async one, a class that suspended, a lazy one", async () => {
     const element = <div style={{ backgroundColor: "red" }}>Hi</div>;
@@ -491,14 +689,17 @@ describe("markup holding what writes nothing", () => {
 });
 
 describe("a block rendered to a string inside a component", () => {
-  it("is what the block renders, with Elements' own render functions and with react-dom's", () => {
+  it("is what the block renders with react-dom's own render, or with Elements' render functions (a render of their own)", () => {
     const viaParts = () => renderToHtmlParts(<Paragraph>From parts</Paragraph>).body;
     const viaReactDom = () => renderToStaticMarkup(<Paragraph>From react-dom</Paragraph>);
     const viaPlainText = () => renderToPlainText(<Paragraph>From plain text</Paragraph>);
     const Signature = ({ make }: { make: () => string }) => <Row><Column><Html html={make()} /></Column></Row>;
-    const html = renderToHtml(<Email>{block("Hello")}<Signature make={viaParts} /><Signature make={viaReactDom} /><Signature make={viaPlainText} /></Email>);
-    for (const text of ["From parts", "From react-dom", "From plain text"]) expect(html).toContain(text);
+    const html = renderToHtml(<Email>{block("Hello")}<Signature make={viaReactDom} /></Email>);
+    expect(html).toContain("From react-dom");
     expect(html).not.toContain("unlayer-mark");
+    // (A render of its own, with another module of react-dom's: see src/utils/nested-renders.test.tsx.)
+    expect(renderToHtml(<Email>{block("Hello")}<Signature make={viaParts} /></Email>)).toContain("From parts");
+    expect(renderToHtml(<Email>{block("Hello")}<Signature make={viaPlainText} /></Email>)).toContain("From plain text");
   });
 
   it("is what each block renders when react-dom gives them many ids (its own can read like the collecting render's)", () => {
@@ -583,6 +784,46 @@ describe("React's warnings about a template", () => {
     }
   });
 
+  it.skipIf(process.env.NODE_ENV === "production")("say nothing of a list the template doesn't have: rows in a context's provider or <StrictMode>, around the root or in it", () => {
+    // React 19's development build said a list without keys was in the <Email> (in the README's own context example,
+    // with two rows): the rows Elements gives the provider again, as written.
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
+    try {
+      const Theme = React.createContext("light");
+      const two = (
+        <>
+          <Row><Column><Paragraph>First</Paragraph></Column></Row>
+          <Row><Column><Paragraph>Second</Paragraph></Column></Row>
+        </>
+      );
+      const templates = [
+        <Theme.Provider value="dark"><Email><Row><Column><Paragraph>First</Paragraph></Column></Row><Row><Column><Paragraph>Second</Paragraph></Column></Row></Email></Theme.Provider>,
+        <Email><Theme.Provider value="dark"><Row><Column><Paragraph>First</Paragraph></Column></Row><Row><Column><Paragraph>Second</Paragraph></Column></Row></Theme.Provider></Email>,
+        <Email><React.StrictMode><Row><Column><Paragraph>First</Paragraph></Column></Row><Row><Column><Paragraph>Second</Paragraph></Column></Row></React.StrictMode></Email>,
+        <Email><Theme.Provider value="dark">{two}</Theme.Provider></Email>,
+      ];
+      // (React 19's context as its own provider.)
+      if (Number.parseInt(React.version) >= 19) {
+        const AsProvider = Theme as unknown as React.FC<{ value: string; children: React.ReactNode }>;
+        templates.push(<Email><AsProvider value="dark"><Row><Column><Paragraph>First</Paragraph></Column></Row><Row><Column><Paragraph>Second</Paragraph></Column></Row></AsProvider></Email>);
+      }
+      for (const template of templates) {
+        expect(renderToHtml(template)).toContain("Second");
+        renderToJson(template);
+        // (Also where failed parts are left out, which reads the sections a layout is given.)
+        renderToHtml(template, { onError: "omit" });
+      }
+      // (A layout's own row among the sections it's given, in the list made again of what it renders.)
+      const Layout = ({ header, footer, children }: { header: React.ReactNode; footer: React.ReactNode; children: React.ReactNode }) => <>{header}<Row><Column><Paragraph>Between</Paragraph></Column></Row>{children}{footer}</>;
+      const First = () => <Row><Column><Paragraph>First</Paragraph></Column></Row>;
+      const Second = () => <Row><Column><Paragraph>Second</Paragraph></Column></Row>;
+      expect(renderToHtml(<Email><Layout header={<First />} footer={<First />}><Second /></Layout></Email>, { onError: "omit" })).toContain("Second");
+      expect(error.mock.calls.map((call) => String(call[0])).filter((m) => m.includes('"key"'))).toEqual([]);
+    } finally {
+      error.mockRestore();
+    }
+  });
+
   it.skipIf(process.env.NODE_ENV === "production")("say a bounded number of them (a list's keys can come from data), then once that no more are said", () => {
     const error = vi.spyOn(console, "error").mockImplementation(() => {});
     try {
@@ -644,6 +885,101 @@ describe("a root (Email, Page, Document) placed in a Column", () => {
       expect(warn).toHaveBeenCalledWith(expect.stringContaining("<Email> is a root: it can't be placed in a Row or Column"));
     } finally {
       warn.mockRestore();
+    }
+  });
+});
+
+describe("a component that asks for a resource hint (ReactDOM.preload, preconnect, preinit: React 19)", () => {
+  // React 19 writes what's asked for before the markup it renders, which an email has no use for: the template's
+  // markup was read from the wrong place (the email blank, or its markup cut short).
+  // eslint-disable-next-line @typescript-eslint/no-require-imports -- react-dom's own entry, which the hints are on.
+  const ReactDOM = require("react-dom") as Record<string, ((...args: unknown[]) => void) | undefined>;
+  const HINTS: Array<[string, () => void]> = [
+    ["preload (an image)", () => ReactDOM.preload!("https://cdn.example.com/hero.png", { as: "image", fetchPriority: "high" })],
+    ["preload (a font)", () => ReactDOM.preload!("https://cdn.example.com/f.woff2", { as: "font", type: "font/woff2", crossOrigin: "" })],
+    ["preinit (a stylesheet)", () => ReactDOM.preinit!("https://cdn.example.com/site.css", { as: "style", precedence: "default" })],
+    ["preconnect", () => ReactDOM.preconnect!("https://cdn.example.com")],
+    ["prefetchDNS", () => ReactDOM.prefetchDNS!("https://cdn.example.com")],
+  ];
+  const template = (asks?: () => void) => {
+    const Hero = () => (asks?.(), <img src="https://cdn.example.com/hero.png" alt="Hero" width={600} />);
+    const Name = () => (asks?.(), <b>Ada</b>);
+    const Meta = () => (asks?.(), <meta name="x-hero" content="1" />);
+    return (
+      <Email>
+        <Head><Meta /></Head>
+        <Row><Column><Hero /><Paragraph>Welcome aboard, <Name /></Paragraph></Column></Row>
+        <Row><Column><Paragraph>Footer</Paragraph></Column></Row>
+      </Email>
+    );
+  };
+  it.runIf(typeof ReactDOM.preload === "function")("renders the template as it renders without it, in each renderer", async () => {
+    // (The negative control: the template that asks for nothing.)
+    const html = renderToHtml(template());
+    expect(html).toContain("Welcome aboard, <b>Ada</b>");
+    expect(html).toContain("hero.png");
+    for (const [name, asks] of HINTS) {
+      expect(renderToHtml(template(asks)), name).toBe(html);
+      expect(renderToJson(template(asks)), name).toEqual(renderToJson(template()));
+      expect(renderToPlainText(template(asks)), name).toBe(renderToPlainText(template()));
+      expect(await asyncRenderers.renderToHtml(template(asks)), name).toBe(html);
+      expect(await asyncRenderers.renderToJson(template(asks)), name).toEqual(renderToJson(template()));
+    }
+  });
+});
+
+describe("a class component whose render is a class field (`render = () => …`), or bound in its constructor", () => {
+  // The field is the instance's own, which hid the render Elements wraps a class's in: a blank email, an empty design.
+  // And a render bound in the constructor (`this.render = this.render.bind(this)`, as `auto-bind` does) is Elements'
+  // own wrapped render, bound: wrapped again, what it captured was overwritten, a blank email with nothing said.
+  /** A class rendering `render`: as a class field, bound in its constructor, or (the negative control) as a method. */
+  const classOf = <P extends object>(name: string, field: boolean | "bound", render: (props: P) => React.ReactNode) => {
+    const made =
+      field === "bound"
+        ? class extends React.Component<P> {
+            constructor(props: P) {
+              super(props);
+              this.render = this.render.bind(this);
+            }
+            render() {
+              return render(this.props);
+            }
+          }
+        : field
+          ? class extends React.Component<P> {
+              render = () => render(this.props);
+            }
+          : class extends React.Component<P> {
+              render() {
+                return render(this.props);
+              }
+            };
+    (made as unknown as { displayName: string }).displayName = name;
+    return made;
+  };
+  const kinds = (field: boolean | "bound") => {
+    const Welcome = classOf<{ name: string }>("Welcome", field, ({ name }) => <Email><Row><Column><Paragraph>{`Welcome ${name}`}</Paragraph><ElementsButton href="https://example.com/start">Start</ElementsButton></Column></Row></Email>);
+    const Col = classOf<{ n: number }>("Col", field, ({ n }) => <Column><Paragraph>{`Column ${n}`}</Paragraph></Column>);
+    const Section = classOf<{ n: number }>("Section", field, ({ n }) => <Row><Column><Heading>{`Section ${n}`}</Heading><ElementsButton href="https://example.com">Go</ElementsButton></Column></Row>);
+    const Text = classOf<{ n: number }>("Text", field, ({ n }) => <Paragraph>{`In a Column ${n}`}</Paragraph>);
+    return {
+      template: <Welcome name="Ada" />,
+      columns: <Email><Row layout={ColumnLayouts.TwoEqual}><Col n={1} /><Col n={2} /></Row></Email>,
+      rows: <Email><Section n={1} /><Section n={2} /></Email>,
+      "in a Column": <Email><Row><Column><Text n={1} /><Text n={2} /></Column></Row></Email>,
+    };
+  };
+  it("renders as one whose render is a method: a template, a Row, a Column, a block in a Column", async () => {
+    const methods = kinds(false);
+    expect(renderToHtml(methods.template)).toContain("Welcome Ada");
+    for (const [kind, fields] of [["a class field", kinds(true)], ["bound", kinds("bound")]] as const) {
+      for (const key of Object.keys(methods) as Array<keyof typeof methods>) {
+        const at = `${kind}: ${key}`;
+        expect(renderToHtml(fields[key]), at).toBe(renderToHtml(methods[key]));
+        expect(renderToJson(fields[key]), at).toEqual(renderToJson(methods[key]));
+        expect(renderToPlainText(fields[key]), at).toBe(renderToPlainText(methods[key]));
+        expect(await asyncRenderers.renderToHtml(fields[key]), at).toBe(renderToHtml(methods[key]));
+      }
     }
   });
 });

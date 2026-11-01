@@ -1,14 +1,15 @@
 /**
- * A root's content collected: the walker (src/engine) renders it once per render, recording Elements' Rows, Columns,
+ * A root's content collected: react-dom renders it once per render (src/engine), recording Elements' Rows, Columns,
  * blocks, scopes and head entries (see utils/record.tsx), and gives it as a tree of its records, markup and text,
  * which the model (elements.ts) is made from.
  */
 import type React from "react";
 import type { Recorded } from "../utils/collect";
-import { collector, guard } from "../utils/record";
+import { collector, guard, rowParts } from "../utils/record";
 import { contentTree, isUnlayerProvider, nestedRoot, UNREAD } from "../utils/unwrap-root";
 import { ROOTLESS } from "../utils/root-type";
-import { guest, idPrefix, omitted, onError, sayer, scopeCache, sharedByRender, unwrapped } from "../utils/render-scope";
+import { callsNoHooks } from "../utils/create-component";
+import { guest, idPrefix, omitted, onError, sayer, scopeCache, sharedByRender, renderConfig } from "../utils/render-scope";
 import { isTailwindError } from "../utils/tailwind";
 import { collect as walk, type Flat, type Item, type RenderError } from "../engine";
 import { omits } from "../engine/errors";
@@ -37,9 +38,10 @@ export function collecting(children: React.ReactNode, root: string) {
   const policy = onError();
   // A template with no root's: a root its walk meets in it is said, once in this render (see nestedRoot).
   const say = root === ROOTLESS ? sayer() : undefined;
-  const options = { omit: omits(policy), nested: say && ((name: string) => say(nestedRoot(name), UNREAD)) };
+  // (And the render's config, for a root in its content: read here, as its walk runs outside this render's scope.)
+  const options = { omit: omits(policy), nested: say && ((name: string) => say(nestedRoot(name), UNREAD)), config: renderConfig() };
   // (What its template's wrappers read for contexts no provider gives, it reads too: one value each, the render's.)
-  return { node: guard(children, options, root), options: { collector: collector(options), onError: policy, idPrefix: idPrefix(), root, tree: contentTree(children), fallbacks: unwrapped()?.fallbacks, shared: sharedByRender(), passes: isTailwindError, frameless: isUnlayerProvider } };
+  return { node: guard(children, options, root), options: { collector: collector(options), parts: rowParts, onError: policy, idPrefix: idPrefix(), root, tree: contentTree(children), shared: sharedByRender(), passes: isTailwindError, frameless: isUnlayerProvider, own: callsNoHooks } };
 }
 
 /** A collecting walk's output as the collected template; what it left out listed and said (this render's). */

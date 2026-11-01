@@ -110,7 +110,10 @@ function block(content: unknown, textColor: unknown): Plain {
   if (!isPlainObject(content)) return { invalid: content };
   const type = content.type === "paragraph" ? "text" : content.type;
   const values: Plain = isPlainObject(content.values) ? { ...content.values } : {};
-  if ((content.type === "paragraph" || content.type === "text") && typeof values.text !== "string" && typeof values.textJson === "string") values.text = generateHtmlFromTextJson(values.textJson);
+  // (A heading's, a button's and a paragraph's text is its textJson's HTML wherever it has one, as the exporters render
+  // it; a text block's is its `text`, where it has both. See blocks.ts.)
+  const lexicalFirst = content.type === "heading" || content.type === "button" || content.type === "paragraph";
+  if (typeof values.textJson === "string" && (lexicalFirst || (content.type === "text" && typeof values.text !== "string"))) values.text = generateHtmlFromTextJson(values.textJson);
   if (typeof values.text === "string") delete values.textJson;
   if (TEXT_TYPES.has(String(content.type)) && values.color === undefined) values.color = textColor;
   return { type, ...(content.slug !== undefined ? { slug: content.slug } : {}), values: nodeValues(values, editorBlockDefaults(String(type))) };
