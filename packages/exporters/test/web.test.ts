@@ -64,6 +64,8 @@ describe("web HTML", () => {
     expect(body).toContain(
       '<section style="display:flex;flex-direction:column;padding:24px max(16px, calc((100% - 600px) / 2 + 16px)) 24px max(16px, calc((100% - 600px) / 2 + 16px));background-color:#111">'
     );
+    // Without side padding, every length inside calc() and max() still has its unit.
+    expect(web(page([{ type: "Section", children: [] }])).body).toContain("padding:0 max(0px, calc((100% - 600px) / 2 + 0px)) 0 max(0px, calc((100% - 600px) / 2 + 0px))");
     // What isn't in a Section stays at the content width, in its own run.
     expect(body).toContain('<div style="width:100%;max-width:600px;margin:0 auto;display:flex;flex-direction:column"><div>b</div></div>');
   });

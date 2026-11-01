@@ -80,8 +80,8 @@ describe("widths", () => {
       ],
     });
     expect(diagnostics.map((d) => [d.code, d.path]).sort()).toEqual([
-      ["layout/overflow", "root.children[0]"],
       ["layout/overflow", "root.children[1]"],
+      ["layout/shrunk", "root.children[0]"],
       ["style/ignored", "root.children[2].style.flex"],
     ]);
   });
@@ -202,5 +202,47 @@ describe("lists and tables", () => {
   it("warns where a Table's columns are wider than it", () => {
     const { diagnostics } = resolve({ type: "Email", children: [{ type: "Table", children: [{ type: "TableRow", children: [{ type: "TableCell", style: { width: 400 } }, { type: "TableCell", style: { width: 300 } }] }] }] });
     expect(diagnostics.map((d) => d.code)).toEqual(["layout/overflow"]);
+  });
+});
+
+describe("Row widths, as browser flexbox gives them", () => {
+  const row = (children: unknown[], style: Record<string, unknown> = {}) => {
+    const { root, diagnostics } = resolve({ type: "Email", children: [{ type: "Row", style, children }] });
+    return { widths: child(root, 0).children.map((c) => (c as ResolvedNode).width), codes: diagnostics.map((d) => d.code) };
+  };
+  const column = (style: Record<string, unknown> = {}) => ({ type: "Column", style });
+
+  it("gives what a child's maximum leaves to the others", () => {
+    expect(row([column({ maxWidth: 100 }), column()])).toEqual({ widths: [100, 500], codes: [] });
+    expect(row([column({ maxWidth: 100 }), column()], { gap: 20 })).toEqual({ widths: [100, 480], codes: [] });
+    expect(row([column({ maxWidth: 100 }), column({ flex: 2 }), column()])).toEqual({ widths: [100, 333, 167], codes: [] });
+  });
+
+  it("takes what a child's minimum needs from the others", () => {
+    expect(row([column({ minWidth: 400 }), column()])).toEqual({ widths: [400, 200], codes: [] });
+    expect(row([column({ width: 200 }), column({ minWidth: 300 }), column()])).toEqual({ widths: [200, 300, 100], codes: [] });
+    expect(row([column({ minWidth: "50%" }), column(), column()], { gap: 10 })).toEqual({ widths: [300, 140, 140], codes: [] });
+  });
+
+  it("shares what's left after padding, as flex-basis 0 does", () => {
+    expect(row([column({ padding: [0, 30] }), column()])).toEqual({ widths: [330, 270], codes: [] });
+  });
+
+  it("narrows children with a width that don't fit, in proportion to their width inside their padding", () => {
+    expect(row([column({ width: 400 }), column({ width: 300 })])).toEqual({ widths: [343, 257], codes: ["layout/shrunk"] });
+    // An image with its own size (flex none) keeps it.
+    expect(row([column({ width: 500 }), { type: "Image", props: { src: { src: "https://example.com/a.png", width: 200 } }, style: { flex: "none" } }])).toEqual({ widths: [400, 200], codes: ["layout/shrunk"] });
+  });
+
+  it("leaves a child that takes its own size unknown where its size isn't known, the others the room past its padding", () => {
+    // The Button's label can't be measured: its padding (20px each side) is the least it takes.
+    expect(row([{ type: "Button", props: { href: "#" }, style: { flex: "none" }, children: ["Go"] }, column()])).toEqual({ widths: [null, 560], codes: [] });
+  });
+
+  it("reports minimums that can't fit, by how much", () => {
+    const { widths, codes } = row([column({ minWidth: 400 }), column({ minWidth: 300 })]);
+    expect(widths).toEqual([400, 300]);
+    expect(codes).toEqual(["layout/overflow"]);
+    expect(resolve({ type: "Email", children: [{ type: "Row", children: [column({ minWidth: 400 }), column({ minWidth: 300 })] }] }).diagnostics[0].message).toContain("need 100px more");
   });
 });

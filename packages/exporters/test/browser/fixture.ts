@@ -25,6 +25,8 @@ export const template = (root: "Page" | "Email") =>
       props: { width: 640 },
       style: { gap: 16 },
       children: [
+        // A band with no side padding: every length inside its calc() needs a unit.
+        { type: "Section", style: { backgroundColor: "#222" }, children: [{ type: "Text", children: ["a band"] }] },
         {
           type: "Section",
           style: { backgroundColor: "#111", padding: [24, 20] },

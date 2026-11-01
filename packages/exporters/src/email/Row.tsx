@@ -111,9 +111,16 @@ function sideBySide(props: Props): Html {
   const { node, render } = props;
   const gap = gapOf(props);
   const valign = valignOf(props);
+  // Room the children leave: an empty cell takes it (where the Row's justify puts it), else a table spreads it over them.
+  const placed = node.children.filter(isNode).filter((child) => shown(child) && !child.hidden?.desktop);
+  const used = placed.reduce((sum, child) => sum + (child.width ?? 0), 0) + gap * Math.max(0, placed.length - 1);
+  const left = node.contentWidth !== null && placed.every((child) => child.width !== null) && used < node.contentWidth - 0.5;
+  const justify = node.style.justify as string | undefined;
+  const filler = <td />;
   return (
     <Table width="100%">
       <tr>
+        {left && (justify === "end" || justify === "center") && filler}
         {node.children
           .filter(isNode)
           .filter(shown)
@@ -130,6 +137,7 @@ function sideBySide(props: Props): Html {
             );
             return child.hidden?.desktop ? <NotOutlook>{cell}</NotOutlook> : cell;
           })}
+        {left && justify !== "end" && filler}
       </tr>
     </Table>
   );

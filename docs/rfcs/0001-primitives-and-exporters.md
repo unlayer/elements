@@ -59,7 +59,10 @@ still say "document", `toDocument()`, `renderDocument()` and JSON input where th
 3. **The API:** `render(element, options?)`, async, picks the output from the root (`Email` → email HTML,
    `Page` → web HTML, `Document` → print HTML or PDF, `Canvas` → image) and returns the plain-text
    version too; `validate(element)` returns the problems without throwing; `component()` for custom
-   components.
+   components. Both go through one preparation (`prepareTemplate` in the exporters): the template
+   checked, custom components expanded once, the output's checks, layout, and what the output can't do
+   as asked. `validate()` stops there; only what needs the written output (an email's size against
+   Gmail's limits) is `render()`'s alone. Warnings leave a template valid.
 4. **Backward compatibility:** a new major version of `@unlayer/react-elements` with the new API at the
    main import; today's API, unchanged, at `@unlayer/react-elements/legacy` (on the new engine after step
    5, removed in the major after); a codemod in `@unlayer/migrate` that checks each migrated template by
@@ -297,6 +300,42 @@ export const ProductCard = component({
 No margins: space between siblings is the parent's `gap`; space inside a box is `padding`. Every
 target can do both reliably, which isn't true of margins in email.
 
+### Styling vocabulary: policy and proposal (from the PR review, 2026-11-01; not yet decided)
+
+**Policy.** `style` uses CSS property names and CSS values wherever the meaning is the same, so
+authors and agents write what they already know, and the names that differ say why. A familiar
+name doesn't promise support: each style's definition says which targets take it, and `validate()`
+reports what the template's output can't do (`email/unsupported`, `email/outlook-degraded`).
+Numbers are px, as in React's inline styles.
+
+**What differs today, and the proposal.** Nothing is published yet, so names can change now in one
+pass (definitions, types, diagnostics, writers, docs, tests); later they're an API.
+
+| Today | Proposed | Why |
+|---|---|---|
+| `align: "start" \| "center" \| "end" \| "stretch"` (root, Section, Row, Column) | `alignItems`, same values | the same meaning as `align-items` in a flex container; CSS takes `start`, `center`, `end`, `stretch` |
+| `justify: "start" \| "center" \| "end" \| "between"` (Row, Column) | `justifyContent: "start" \| "center" \| "end" \| "space-between"` | CSS's name and value |
+| `wrap: "stack" \| "none" \| "wrap"` (Row style) | a prop, `<Row stackOnMobile={false}>` (true by default in Email and Page), and `flexWrap: "wrap"` in `style` (web and print only) | stacking on phones is a layout decision, not a CSS value; `wrap` as CSS's own is a separate thing |
+| Divider `color`, `thickness`, `lineStyle` | `borderTop: "1px solid #bbbbbb"` | the line is a top border, as an `<hr>`'s is in CSS; a Divider's `color` meaning its line, not text, is a trap |
+| `padding: [8, 12]` (arrays and objects only) | also CSS shorthand strings, `"8px 12px"` | what CSS and React authors write |
+| `flex: 2`, `flex: "none"` | keep | both are valid CSS `flex` values with the same meaning |
+| `verticalAlign` (TableCell), `gap`, `width`, `minWidth`, `maxWidth`, `height`, `border`, `borderRadius`, `backgroundColor`, the text styles | keep | already CSS |
+| `indent` (List) | keep | no CSS property means "the markers' column"; in email the markers are a cell of that width |
+| `cellPadding`, `rowBorder` (Table) | keep | a table-wide default for every cell (HTML's own `cellpadding`), and a line between rows: neither is a CSS property |
+| `fontFamily: { name, src, fallback }` | keep, beside plain CSS strings | an inline style can't load a web font; the object is the one place it's said |
+| `mobile`, `hover` | keep as their own props | no inline-CSS form exists |
+
+**Margins: not a permanent ban.** `gap` (the parent's space between its children), `padding` (space
+inside a box) and `margin` (one element's space outside it) are different things. The reason for
+leaving margins out was email, where Word handles them badly. But the email writer owns the cell
+around every child of a stack and of a Row, so a block's margin can become that cell's padding,
+never relying on Word's margins. And on the web, stacks are flex containers, where margins don't
+collapse, so the two agree. Proposal: `margin` and its sides on blocks (not on text inside text),
+added in a later step with that email lowering; `auto` side margins as alignment; negative margins a
+diagnostic. Until then, a margin is a `style/unknown` error that points to `gap` and `padding`, as
+now. The policy is: an email limitation is handled in the email writer, or reported for email, and
+doesn't become a rule for every target.
+
 ### Layout primitives
 
 - **The root** (`Email`, `Page`, `Document.Page`, `Canvas`) stacks its children vertically, like a
@@ -331,6 +370,10 @@ target can do both reliably, which isn't true of margins in email.
   width elsewhere is a `Column` with `style.maxWidth`.
 - **`Row`** lays children out horizontally. A child takes its `width` (px or %) or a share of what's
   left by its `flex` (default `1`): children without a width share the row equally, in every target.
+  `minWidth` and `maxWidth` hold, and what one child can't take goes to the others, as CSS flexbox
+  resolves it (the resolver follows css-flexbox-1, so email gets the browser's widths); children with
+  a width that don't fit are narrowed as a browser narrows them (`layout/shrunk`), and minimums that
+  can't fit are reported (`layout/overflow`).
   Content-sized children (`flex: "none"`) are allowed in web, PDF and Canvas; in email only for
   children whose width is known (a Button or Image with a width), else a diagnostic. `wrap`:
   `"stack"` (default in Email and Page: children stack full-width on phones), `"none"` (default in
@@ -498,6 +541,15 @@ Each is a small module with its own tests and Outlook captures.
 - **Chromium** (`test/browser/email-layout.test.ts`, in CI): every box as wide as the resolver says
   on desktop, with the stylesheet and with it removed; Rows stacked on phones, by the stylesheet
   and, without it, by the fluid-hybrid columns alone.
+- **Row widths against the browser** (2026-11-01, after the PR review): in Chromium, each case of
+  `test/browser/row-widths.test.ts` (minimums, maximums, padding, gaps, widths that don't fit, room
+  left over, a % Divider) measures the resolver's widths in the Page, the Email and the Email without
+  its `<style>`. Over 786 generated templates (1,332 Row children), every Page child is the resolver's
+  width; every Email child is too, but where the resolver gives a box less room than its content
+  needs (text in a few px, a label wider than its button), with its neighbours. A table cell, like
+  Word's, is never narrower than its longest word, while a flex item with `min-width: 0` is; the
+  resolver doesn't measure text, so it can't see this. Known limit: such a template looks different
+  in email from the page, and no diagnostic says so yet.
 - **The Outlook-like renderer** (unlayer/email-renderer, run locally, 2026-11-01): two templates
   (a realistic welcome email, and one with nested Rows, `wrap: "none"`, hidden columns,
   percentages and boxes with a maximum width) give every box the resolver's width and the same

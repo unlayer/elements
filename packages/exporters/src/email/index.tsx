@@ -52,7 +52,6 @@ import { TableCell } from "./TableCell";
 import { TableRow } from "./TableRow";
 import { Text } from "./Text";
 import { mobileTextOf, phoneText, type MobileText } from "./styles";
-import { emailSupport } from "./support";
 
 export type { EmailOptions } from "./context";
 
@@ -129,7 +128,7 @@ export interface EmailHtml {
   body: string;
   /** The `<body>`'s own style. */
   bodyStyle: string;
-  /** What email can't do as asked (Outlook's square corners, an image without a width), and size budgets. */
+  /** What only the written email shows: its size against Gmail's limits. (What email can't do as asked is `emailSupport`'s, found before writing.) */
   diagnostics: Diagnostic[];
 }
 
@@ -143,8 +142,8 @@ export const GMAIL_STYLE_BYTES = 16_384;
 export function renderEmail(resolved: ResolvedDocument, options: EmailOptions = {}): EmailHtml {
   const root = resolved.root;
   const sheet = new Stylesheet(options.classPrefix);
+  // What email can't do as asked is found before writing (prepareTemplate: emailSupport); here, only what needs the written email.
   const d = new Diagnostics();
-  d.list.push(...emailSupport(root));
   const fonts = fontFaces(root, { swap: false });
   const width = root.width ?? 600;
   const email = withStylesheet(sheet, () => String(Email(propsOf(root, { parent: root, fill: false, mobile: {}, inline: false }, options))));

@@ -6,11 +6,12 @@
  */
 import { chromium, type Browser, type Page } from "playwright";
 import { resolveDocument, type ResolvedNode } from "@unlayer-internal/elements-core";
-import { renderEmail } from "../../src";
+import { emailSupport, renderEmail } from "../../src";
 import { template } from "./fixture";
 
 const resolved = resolveDocument(template("Email"));
-const { html, diagnostics } = renderEmail(resolved);
+const { html, diagnostics: written } = renderEmail(resolved);
+const diagnostics = [...emailSupport(resolved.root), ...written];
 
 let browser: Browser;
 let page: Page;
@@ -55,7 +56,7 @@ describe("email layout in Chromium", () => {
       expect(expected.length).toBeGreaterThan(10);
       for (const node of expected) expect([node.id, Math.round(measured[node.id!].width)]).toEqual([node.id, node.width]);
       // A Section spans the window.
-      expect(measured.section_1.width).toBe(1280);
+      for (const id of ["section_1", "section_2"]) expect(measured[id].width).toBe(1280);
     });
   }
 
@@ -72,7 +73,7 @@ describe("email layout in Chromium", () => {
     const measured = await boxes(375, { style: false });
     expect(measured.column_2.top).toBeGreaterThan(measured.column_1.top);
     for (const [id, box] of Object.entries(measured)) {
-      if (id === "section_1") continue;
+      if (id.startsWith("section_")) continue;
       expect([id, box.left + box.width <= 375.5]).toEqual([id, true]);
     }
   });

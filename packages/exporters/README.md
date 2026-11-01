@@ -6,7 +6,8 @@ behind it is `docs/rfcs/0001-primitives-and-exporters.md`.
 
 ```
 src/
-  index.ts         renderTemplate(): checks and lays out a template, then picks the writer from its root
+  index.ts         prepareTemplate(): checks a template, expands its custom components once, runs its
+                   output's checks and layout; validateTemplate() stops there, renderTemplate() writes
   jsx.ts           the JSX the components are written in: it writes HTML strings (no React)
   plain-text.ts    the plain-text version (the same for every output)
   shared/          escaping and CSS values (css.ts), the stylesheet's short class names (classes.ts), fonts

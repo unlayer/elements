@@ -120,9 +120,14 @@ interface Context {
 export function resolveDocument(input: ElementsDocument, options?: ComponentsOption | Registry): ResolvedDocument {
   const registry = registryOf(options);
   const expanded = expandDocument(input, registry);
-  const document = expanded.document;
+  const resolved = resolveExpanded(expanded.document, registry);
+  return { root: resolved.root, diagnostics: [...expanded.diagnostics, ...resolved.diagnostics] };
+}
+
+/** Resolves a document whose custom components are already expanded (`expandDocument`): primitives only. */
+export function resolveExpanded(document: ElementsDocument, options?: ComponentsOption | Registry): ResolvedDocument {
+  const registry = registryOf(options);
   const d = new Diagnostics();
-  d.list.push(...expanded.diagnostics);
   const definition = registry.get(document.root.type)!;
   const context: Context = { d, registry, responsive: !!definition.responsive };
   const root = resolveNode(document.root, "root", { ...INITIAL_TEXT, lineHeightPx: 24 }, null, context);
@@ -256,9 +261,16 @@ function resolveChildren(node: Node, path: string, parent: ResolvedNode, availab
 }
 
 /**
- * A Row: children with a width take it; the rest share what's left by their
- * flex (1 by default), after the gaps. Widths are whole px that add up to the
- * Row's width. Children hidden on desktop aren't in it.
+ * A Row, laid out as CSS flexbox lays out the Page's (one line, no
+ * wrapping), so email gets the widths a browser gives:
+ * - each child starts from its base: its width (px or %), its own size
+ *   (`flex: "none"`: an image's), or, for a child sharing what's left (by its
+ *   `flex`, 1 by default), its padding and border;
+ * - what's left is shared by `flex`; what's missing is taken back from the
+ *   children with a width, in proportion to their width inside their padding;
+ * - a child that reaches its `minWidth` or `maxWidth` (or no room inside its
+ *   padding) keeps it, and the rest is shared again among the others.
+ * Widths are whole px. Children hidden on desktop aren't in it.
  */
 function layOutRow(row: ResolvedNode, nodes: Array<{ source: Node; resolved: ResolvedNode; at: string }>, available: number | null, path: string, context: Context): void {
   if (available === null) return;
@@ -266,27 +278,105 @@ function layOutRow(row: ResolvedNode, nodes: Array<{ source: Node; resolved: Res
   const desktop = nodes.filter(({ resolved }) => !resolved.hidden?.desktop);
   for (const { resolved } of nodes) if (resolved.hidden?.desktop) setWidth(resolved, available);
   const gap = toPx(row.style.gap, null) ?? 0;
-  let free = available - gap * Math.max(0, desktop.length - 1);
-  const shares: Array<{ resolved: ResolvedNode; share: number }> = [];
-  for (const { resolved } of desktop) {
-    const set = toPx(resolved.style.width, available);
-    if (set !== null) {
-      setWidth(resolved, clamp(set, resolved.style, available));
-      free -= resolved.width!;
-    } else if (resolved.style.flex === "none" || resolved.style.flex === 0) {
-      setWidth(resolved, intrinsicWidth(resolved, available));
-      free -= resolved.width ?? 0;
-    } else {
-      shares.push({ resolved, share: typeof resolved.style.flex === "number" ? resolved.style.flex : 1 });
-    }
+  const room = available - gap * Math.max(0, desktop.length - 1);
+  const items = desktop.map(({ resolved }) => flexItem(resolved, available));
+  const widths = roundTogether(flexWidths(items, room));
+  // A child that takes its own size, and whose size isn't known (a Button without a width), takes no room and stays unknown.
+  desktop.forEach(({ resolved }, index) => setWidth(resolved, items[index].unknown ? null : widths[index]));
+
+  const asked = items.reduce((sum, item) => sum + item.base, 0);
+  const used = widths.reduce((sum, width) => sum + width, 0);
+  if (used > room + 0.5) {
+    context.d.warning("layout/overflow", `The Row's children need ${Math.round(used - room)}px more than the ${Math.round(available)}px it has, at their minimum widths`, path, row.id);
+  } else if (asked > room + 0.5 && items.some((item) => item.shrink > 0 && item.inner > 0)) {
+    context.d.warning("layout/shrunk", `The Row's children's widths add up to ${Math.round(asked)}px, more than the ${Math.round(room)}px it has: they're narrowed to fit, as a browser does`, path, row.id);
   }
-  if (free < 0) {
-    context.d.warning("layout/overflow", `The Row's children are ${Math.round(-free)}px wider than the ${Math.round(available)}px it has`, path, row.id);
-    free = 0;
+}
+
+interface FlexItem {
+  /** Where it starts from, padding and border included. */
+  base: number;
+  /** Its base inside its padding and border: what shrinking takes from. */
+  inner: number;
+  min: number;
+  max: number;
+  grow: number;
+  shrink: number;
+  /** It takes its own size, and that size isn't known. */
+  unknown: boolean;
+}
+
+/** A Row's child as a flex item: its base and limits, as the Page writes it (`flex: 0 1 <width>`, `0 0 auto`, or `<flex> 1 0%`, with `min-width: 0`). */
+function flexItem(resolved: ResolvedNode, available: number): FlexItem {
+  const { style } = resolved;
+  const frame = horizontalFrame(style);
+  const width = toPx(style.width, available);
+  const own = style.flex === "none" || style.flex === 0;
+  const intrinsic = own && width === null ? intrinsicWidth(resolved, available) : null;
+  const base = width !== null ? width : own ? (intrinsic ?? 0) : frame;
+  // Its content can't be narrower than nothing: at least its padding and border.
+  const min = Math.max(frame, toPx(style.minWidth, available) ?? 0);
+  const max = Math.max(min, toPx(style.maxWidth, available) ?? Number.POSITIVE_INFINITY);
+  return {
+    base,
+    inner: Math.max(0, base - frame),
+    min,
+    max,
+    grow: width !== null || own ? 0 : typeof style.flex === "number" ? style.flex : 1,
+    shrink: own ? 0 : 1,
+    unknown: own && width === null && intrinsic === null,
+  };
+}
+
+/** CSS flexbox's widths for one line of items in `room` px (css-flexbox-1, "Resolving Flexible Lengths"). */
+function flexWidths(items: FlexItem[], room: number): number[] {
+  const clamp = (item: FlexItem, width: number) => Math.max(item.min, Math.min(item.max, width));
+  const sum = (values: number[]) => values.reduce((total, value) => total + value, 0);
+  const hypothetical = items.map((item) => clamp(item, item.base));
+  const growing = sum(hypothetical) <= room;
+  const factor = (item: FlexItem) => (growing ? item.grow : item.shrink);
+  const target = items.map((item) => item.base);
+  const frozen = items.map((item, index) => {
+    const inflexible = factor(item) === 0 || (growing ? item.base > hypothetical[index] : item.base < hypothetical[index]);
+    if (inflexible) target[index] = hypothetical[index];
+    return inflexible;
+  });
+  const initialFree = room - sum(items.map((item, index) => (frozen[index] ? target[index] : item.base)));
+
+  for (let round = 0; round <= items.length && frozen.includes(false); round++) {
+    const open = items.map((_, index) => index).filter((index) => !frozen[index]);
+    let free = room - sum(items.map((item, index) => (frozen[index] ? target[index] : item.base)));
+    // Flex factors that add up to less than 1 share only that part of the space.
+    const factors = sum(open.map((index) => factor(items[index])));
+    if (factors < 1 && Math.abs(initialFree * factors) < Math.abs(free)) free = initialFree * factors;
+    const weights = open.map((index) => (growing ? items[index].grow : items[index].shrink * items[index].inner));
+    const total = sum(weights);
+    open.forEach((index, k) => {
+      target[index] = items[index].base + (total > 0 ? (free * weights[k]) / total : 0);
+    });
+    // Clamp to the limits; freeze those that went past one, the side that went past most.
+    const violation = open.map((index) => clamp(items[index], target[index]) - target[index]);
+    const net = sum(violation);
+    open.forEach((index, k) => {
+      const past = Math.abs(net) < 1e-9 || (net > 0 ? violation[k] > 0 : violation[k] < 0);
+      target[index] = clamp(items[index], target[index]);
+      if (past) frozen[index] = true;
+    });
   }
-  if (!shares.length) return;
-  const widths = share(free, shares.map((s) => s.share));
-  shares.forEach((s, index) => setWidth(s.resolved, clamp(widths[index], s.resolved.style, available)));
+  return target;
+}
+
+/** Widths in whole px that add up to their rounded total (the largest remainders get the leftover px). */
+function roundTogether(widths: number[]): number[] {
+  const floors = widths.map(Math.floor);
+  let left = Math.round(widths.reduce((sum, width) => sum + width, 0)) - floors.reduce((sum, width) => sum + width, 0);
+  const order = widths.map((width, index) => ({ index, rest: width - Math.floor(width) })).sort((a, b) => b.rest - a.rest || a.index - b.index);
+  for (const { index } of order) {
+    if (left <= 0) break;
+    floors[index] += 1;
+    left -= 1;
+  }
+  return floors;
 }
 
 /** `free` px shared by `weights`, in whole px that add up to it (the largest remainders get the leftover px). */
@@ -380,7 +470,12 @@ function resolveTable(source: Node, path: string, table: ResolvedNode, context: 
 /** Errors for each component the target doesn't render (custom components: for what they're made of). */
 export function checkTarget(input: ElementsDocument, target: Target, options?: ComponentsOption | Registry): Diagnostic[] {
   const registry = registryOf(options);
-  const document = expandDocument(input, registry).document;
+  return checkTargetExpanded(expandDocument(input, registry).document, target, registry);
+}
+
+/** `checkTarget` for a document whose custom components are already expanded. */
+export function checkTargetExpanded(document: ElementsDocument, target: Target, options?: ComponentsOption | Registry): Diagnostic[] {
+  const registry = registryOf(options);
   const d = new Diagnostics();
   const visit = (node: Node, path: string) => {
     const definition = registry.get(node.type);

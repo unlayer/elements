@@ -5,8 +5,9 @@ import type { Component } from "./context";
 import { phoneWidth, TEXT_ALIGN } from "./layout";
 import { Table } from "./markup";
 
-export const Divider: Component = ({ node, style, mobile }) => {
-  const length = style.width;
+export const Divider: Component = ({ node, style, mobile, fill }) => {
+  // In a Row its column is already its width: the line fills it.
+  const length = fill ? "100%" : style.width;
   const percent = typeof length === "string" && length.endsWith("%");
   const padded = style.padding !== undefined || mobile.padding !== undefined;
   const align = TEXT_ALIGN[node.text.textAlign];

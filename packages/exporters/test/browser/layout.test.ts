@@ -67,8 +67,8 @@ describe("web layout in Chromium", () => {
     expect(measured.column_2.top).toBeGreaterThan(measured.column_1.top);
     expect(row.width).toBe(375);
     // A Section spans the window, its content inside its own padding.
-    expect(measured.section_1.width).toBe(375);
-    expect(measured.section_1.content).toBe(335);
+    expect(measured.section_2.width).toBe(375);
+    expect(measured.section_2.content).toBe(335);
   });
 
   it("shows the hidden-on-phones column on desktop, beside the others", async () => {

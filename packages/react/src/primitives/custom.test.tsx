@@ -1,7 +1,7 @@
 import { describe, expect, expectTypeOf, it } from "vitest";
 import React, { createContext, useContext } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
-import { Button, Column, component, ElementsError, Heading, Image, Page, prop, render, Row, Section, Text, validate } from "./index";
+import { Button, Column, component, ElementsError, Email, Heading, Image, Page, prop, render, Row, Section, Text, validate } from "./index";
 import { describeComponent, type ExpandProps } from "@unlayer-internal/elements-core";
 import { collectTemplate } from "./collect";
 
@@ -151,6 +151,46 @@ describe("component()", () => {
     expect(html).toContain("line-height:3;");
     expect(html).toContain("padding:0 0 0 12px");
     expect(validate(<Page><Spacer lines={0.5} indent={-4} /></Page>).diagnostics.map((d) => d.path)).toEqual(["root.children[0].props.lines", "root.children[0].props.indent"]);
+  });
+
+  it("is validated as render() checks it: what it renders, the output's checks and layout, rendering it once", async () => {
+    let renders = 0;
+    const Broken = component({
+      type: "acme.Broken",
+      label: "Broken",
+      props: {},
+      render: () => {
+        renders++;
+        return (
+          <Column>
+            {/* @ts-expect-error a Button needs an href: invalid on purpose */}
+            <Button>Go</Button>
+          </Column>
+        );
+      },
+    });
+    const template = (
+      <Email>
+        <Broken />
+      </Email>
+    );
+    const result = validate(template);
+    expect(result.valid).toBe(false);
+    expect(result.diagnostics.map((d) => [d.code, d.path])).toEqual([["prop/required", "root.children[0](acme.Broken).children[0].props.href"]]);
+    expect(renders).toBe(1);
+    await expect(render(template)).rejects.toThrow(/prop\/required/);
+    expect(renders).toBe(2);
+  });
+
+  it("is validated with the output's warnings, which leave it valid", () => {
+    const result = validate(
+      <Email>
+        <Row style={{ justify: "between" }}>
+          <Column />
+        </Row>
+      </Email>
+    );
+    expect(result).toMatchObject({ valid: true, diagnostics: [{ code: "email/unsupported", severity: "warning", path: "root.children[0].style.justify" }] });
   });
 
   it("says how to use it when rendered on its own", () => {

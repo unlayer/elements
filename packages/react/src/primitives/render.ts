@@ -1,6 +1,6 @@
 import React from "react";
 import { ElementsError, type Diagnostic } from "@unlayer-internal/elements-core";
-import { renderTemplate, type RenderOptions, type RenderResult } from "@unlayer-internal/elements-exporters";
+import { renderTemplate, validateTemplate, type RenderOptions, type RenderResult } from "@unlayer-internal/elements-exporters";
 import { collectTemplate } from "./collect";
 
 function template(element: unknown, call: string) {
@@ -31,10 +31,19 @@ export interface ValidationResult {
   diagnostics: Diagnostic[];
 }
 
-/** A template's problems, without rendering it or throwing: for editors, tests and agents checking what they wrote. */
+/**
+ * A template's problems, without rendering it or throwing: for editors, tests
+ * and agents checking what they wrote. It goes as far as rendering does before
+ * writing: custom components expanded (and their output checked), the output's
+ * own checks, layout, and what the output can't do as asked (`email/…`).
+ * Warnings and notes leave it valid. Only what needs the written output is
+ * left to `render()`: an email's size against Gmail's limits (`email/size`,
+ * `email/style-size`).
+ */
 export function validate(element: React.ReactElement): ValidationResult {
-  const { diagnostics } = template(element, "validate");
-  return { valid: !diagnostics.some((d) => d.severity === "error"), diagnostics };
+  const { document, diagnostics, components } = template(element, "validate");
+  const all = [...diagnostics, ...(document && !diagnostics.some((d) => d.severity === "error") ? validateTemplate(document, { components }).diagnostics : [])];
+  return { valid: !all.some((d) => d.severity === "error"), diagnostics: all };
 }
 
 export type { RenderOptions, RenderResult };
