@@ -11,6 +11,7 @@ import { failed, failedBefore, looseText, remember } from "../utils/render-scope
 import { RECORDS, whereIs } from "../utils/collect";
 import { renderContainer } from "../utils/container-render";
 import { DEFAULT_CONTAINER_PADDING } from "../utils/image-sizing";
+import { own } from "../utils/own-type";
 
 /** Unlayer's default content-block padding when a block sets none. */
 
@@ -211,5 +212,6 @@ function renderColumn(props: ColumnProps): React.ReactElement {
 
 Column.displayName = "Column";
 (Column as unknown as Record<symbol, boolean>)[RECORDS] = true;
+own(Column);
 
 export default Column;

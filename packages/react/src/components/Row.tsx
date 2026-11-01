@@ -11,6 +11,7 @@ import { ROW_DEFAULTS, BODY_DEFAULTS } from "../utils/container-defaults";
 import { looseText, remember } from "../utils/render-scope";
 import { RECORDS } from "../utils/collect";
 import { renderContainer } from "../utils/container-render";
+import { own } from "../utils/own-type";
 
 /**
  * Row - Container for columns in a layout
@@ -323,5 +324,6 @@ const Row: React.FC<RowProps> = (props) => {
 
 Row.displayName = "Row";
 (Row as unknown as Record<symbol, boolean>)[RECORDS] = true;
+own(Row);
 
 export default Row;

@@ -67,6 +67,40 @@ describe("Fragments and user components among the blocks", () => {
   });
 });
 
+describe("a component of yours that copied the statics of one of Elements' own (a HOC, as React's docs say)", () => {
+  // `hoist-non-react-statics`'s rules: own names and symbols, but React's statics and a function's own. Elements' markers
+  // came with them, so the HOC was taken for the block or root it wraps, recorded with its own props, never called: what
+  // it adds (a link's tracking, a color, a root's preview text) was lost, with nothing said.
+  const SKIP = new Set(["length", "name", "prototype", "caller", "callee", "arguments", "arity", "displayName", "defaultProps", "propTypes", "contextType", "contextTypes", "childContextTypes", "getDerivedStateFromProps", "getDerivedStateFromError", "type", "$$typeof", "render", "compare"]);
+  const hoisted = <T extends object>(target: T, source: object): T => {
+    for (const key of [...Object.getOwnPropertyNames(source), ...Object.getOwnPropertySymbols(source)]) {
+      if (typeof key === "string" && SKIP.has(key)) continue;
+      const descriptor = Object.getOwnPropertyDescriptor(source, key);
+      if (descriptor) Object.defineProperty(target, key, descriptor);
+    }
+    return target;
+  };
+
+  it("is called, so the props it gives are the block's and the root's, in the HTML, the plain text and the design", () => {
+    let calls = 0;
+    const Tracked = hoisted((props: React.ComponentProps<typeof ElementsButton>) => {
+      calls++;
+      return <ElementsButton {...props} href={`${props.href}?utm_source=newsletter`} backgroundColor="#00aa00" />;
+    }, ElementsButton);
+    const Branded = hoisted((props: React.ComponentProps<typeof Email>) => <Email {...props} backgroundColor="#fafafa" previewText="Our sale" />, Email);
+    const email = <Branded><Row><Column><Tracked href="https://shop.example.com/sale">Shop the sale</Tracked></Column></Row></Branded>;
+    const html = renderToHtml(email);
+    expect(calls).toBeGreaterThan(0);
+    expect(html).toContain("https://shop.example.com/sale?utm_source=newsletter");
+    expect(html).toContain("#00aa00");
+    expect(html).toContain("Our sale");
+    expect(renderToPlainText(email)).toContain("utm_source=newsletter");
+    const design = renderToJson(email);
+    expect(JSON.stringify(design.body.rows[0].columns[0].contents[0].values)).toContain("utm_source=newsletter");
+    expect(design.body.values.backgroundColor).toBe("#fafafa");
+  });
+});
+
 describe("React.memo (or forwardRef) around one of Elements' own components", () => {
   const blocks: Array<[string, React.ComponentType<any>, Record<string, unknown>]> = [
     ["Paragraph", Paragraph, { children: "para text" }],

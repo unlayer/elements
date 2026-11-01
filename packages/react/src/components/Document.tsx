@@ -3,6 +3,7 @@ import { OWN } from "../utils/create-component";
 import { ROOT } from "../utils/root-type";
 import { ownMarkup } from "../engine";
 import { reportedRoot } from "../engine/root-capture";
+import { own } from "../utils/own-type";
 
 export type DocumentPageSize =
   | "A3"
@@ -48,3 +49,4 @@ export default function Document(props: DocumentProps) {
 Document.displayName = "Document";
 ((Document as unknown) as Record<symbol, boolean>)[OWN] = true;
 ((Document as unknown) as Record<symbol, string>)[ROOT] = "Document";
+own(Document);

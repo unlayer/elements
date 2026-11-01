@@ -21,6 +21,7 @@ import { guest, remember, textRegion } from "./render-scope";
 import { cssUrlValue } from "./css-url";
 import { keepTags } from "./inline-html";
 import { ownValues } from "./own-values";
+import { own } from "./own-type";
 import {
   mergeValues,
   generateHtmlFromTextJson,
@@ -426,6 +427,7 @@ export function createItemComponent<
   // Expose hook-free render for Column to call directly
   (ItemComponent as any)[UNLAYER_RENDER_KEY] = renderFn;
   (ItemComponent as any)[RECORDS] = true;
+  own(ItemComponent);
 
   // Expose config for renderToJson to extract values without HTML rendering
   (ItemComponent as any)[UNLAYER_CONFIG_KEY] = {

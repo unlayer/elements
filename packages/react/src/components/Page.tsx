@@ -3,6 +3,7 @@ import { OWN } from "../utils/create-component";
 import { ROOT } from "../utils/root-type";
 import { ownMarkup } from "../engine";
 import { reportedRoot } from "../engine/root-capture";
+import { own } from "../utils/own-type";
 
 export type PageProps = Omit<BodyProps, "mode">;
 
@@ -27,3 +28,4 @@ export default function Page(props: PageProps) {
 Page.displayName = "Page";
 ((Page as unknown) as Record<symbol, boolean>)[OWN] = true;
 ((Page as unknown) as Record<symbol, string>)[ROOT] = "Page";
+own(Page);

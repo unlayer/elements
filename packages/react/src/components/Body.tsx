@@ -13,6 +13,7 @@ import { ownMarkup } from "../engine";
 import { reportedRoot } from "../engine/root-capture";
 import { useProvidedConfig } from "../context/UnlayerProvider";
 import { rootConfig } from "../context/layer-config";
+import { own } from "../utils/own-type";
 
 export type BodyProps = Omit<SemanticProps<BodyValues>, "padding" | "borderRadius"> & {
   children?: React.ReactNode;
@@ -220,5 +221,6 @@ const Body: React.FC<BodyProps> = (given) => {
 Body.displayName = "Body";
 (Body as unknown as Record<symbol, boolean>)[OWN] = true;
 (Body as unknown as Record<symbol, string>)[ROOT] = "Body";
+own(Body);
 
 export default Body;

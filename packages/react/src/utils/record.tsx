@@ -19,6 +19,7 @@ import { checked, checkKeys } from "../engine/keys";
 import type { Collector } from "../engine";
 import type { UnlayerConfig } from "@unlayer-internal/shared-elements";
 import { layerConfig } from "../context/layer-config";
+import { isOwnType } from "./own-type";
 
 interface Options {
   /** Markup is in a boundary too, so markup React rejects is left out rather than failing the render. */
@@ -175,6 +176,8 @@ function hasComponent(children: React.ReactNode): boolean {
  * doesn't), or a block (its item config).
  */
 function kindOf(type: any): "row" | "column" | "block" | undefined {
+  // (Not a component of yours that copied their statics: see own-type.ts.)
+  if (!isOwnType(type)) return undefined;
   if (type[UNLAYER_CONFIG_KEY] && type[UNLAYER_RENDER_KEY]) return "block";
   const name = displayName(type);
   if ((name === "Row" || name === "Column") && (type[RECORDS] || /\b_config\b/.test(String(type)))) return name === "Row" ? "row" : "column";
