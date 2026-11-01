@@ -171,6 +171,8 @@ interface Ctx {
   scope?: number;
   /** The marker this place is in (see Box). */
   mark?: Box;
+  /** How many components (and context providers) deep this place is (see DEEPEST). */
+  depth?: number;
   /** In a <Head>'s text (see headText): nothing in it is recorded. */
   text?: boolean;
   /**
@@ -372,7 +374,29 @@ function asWrapped(type: unknown, props: Record<string, any>, key: React.Key | n
   return recorded ? prepRecorded(recorded, c, ctx, key) : undefined;
 }
 
+/**
+ * How deep a template's components and context providers nest (not its markup or Fragments, which cost React little):
+ * what's deeper is a part that fails, never rendered. React 19's server renderer,
+ * where the stack runs out, goes on with the rest in a task of its own, and a render that nests thousands of context
+ * providers deep (a recursive component's reply chain) then leaves its module holding them: every later render with
+ * it, another tenant's, the app's own pages, failed. Well short of where the stack runs out, where React 19 renders
+ * what's left again (a process's first render, in a worker thread's smaller stack, ran out about 500 deep: a marker in
+ * what it rendered first then stood nowhere), and no template an email or a page is made of nests near it (Elements'
+ * blocks write their content as HTML, not as elements).
+ */
+export const DEEPEST = 256;
+export const TOO_DEEP = `it nests more than ${DEEPEST} components deep (a recursive component whose data nests that deep, as a reply chain can): React's server renderer can't render that deep safely, so it isn't rendered. Cap how deep your component goes.`;
+
 function prepElement(element: React.ReactElement, c: Collection, ctx: Ctx, keep = keepOf(ctx, element)): React.ReactNode {
+  const counted = typeof element.type !== "string" && !PASSTHROUGH.has(element.type);
+  const depth = (ctx.depth ?? 0) + (counted ? 1 : 0);
+  if (depth > DEEPEST) {
+    // (Elements' own error, said as it is: nothing is asked of react-dom this deep, see errorMark's oneReact.)
+    const made = new RenderError(TOO_DEEP, ctx.frame.name || "template", positionOf(ctx.frame));
+    c.made.add(made);
+    return failedPart(c, made, false, ctx);
+  }
+  if (counted) ctx = { ...ctx, depth };
   const type = element.type as any;
   const props = element.props as Record<string, any>;
   if (typeof type === "string") return prepHost(element, c, ctx);

@@ -209,7 +209,9 @@ internals), so their ids and the content's are one document's.
 ## Errors
 
 A part of a template fails when a component throws (or is async, or suspends with no `<Suspense>` around it, in a
-synchronous render), when a Row's Columns don't fit its `layout`, or when an exporter or a head function (a custom
+synchronous render), when it nests more than 256 components (or context providers) deep (collector.ts's DEEPEST: React 19's server renderer, where
+the stack ran out, went on with the rest in a task of its own and left its module holding thousands of providers, so
+every later render with it failed), when a Row's Columns don't fit its `layout`, or when an exporter or a head function (a custom
 tool's `head`, `utils/extract-head.ts`) fails. By default every renderer
 throws, the synchronous and the async ones alike, `renderToJson` and `renderToPlainText` too (`renderToJson` for an
 exporter's failure only where it leaves parts out: see below): a **`RenderError`**

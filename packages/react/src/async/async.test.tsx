@@ -2,6 +2,7 @@
 import v8 from "node:v8";
 import vm from "node:vm";
 import React from "react";
+import { renderToStaticMarkup } from "react-dom/server";
 import { JSDOM } from "jsdom";
 import { describe, expect, it, vi } from "vitest";
 import { Button, Column, Email, Heading, Html, Paragraph, RenderError, Row, UnlayerProvider, toPlainText, renderToHtml as renderToHtmlSync, renderToHtmlParts as renderToHtmlPartsSync, renderToJson as renderToJsonSync, renderToPlainText as renderToPlainTextSync } from "../index";
@@ -641,6 +642,30 @@ describe("the async renderers", () => {
       }
     }
     expect(bare).toEqual([]);
+  }, 60_000);
+
+  it("fail a part that nests more than 256 components deep where it is, and render what comes after (React 19's renderer then broke every later render)", async () => {
+    // (A reply chain 8,000 deep, each reply with hooks and two providers: React 19 went on past where the stack ran
+    // out, and its module kept the providers: every later synchronous render, another tenant's, the app's own, failed.)
+    const Depth = React.createContext(0);
+    const Thread = React.createContext("");
+    const Reply = ({ depth }: { depth: number }): React.ReactElement => {
+      const [level] = React.useState(depth);
+      const label = React.useMemo(() => `reply ${level}`, [level]);
+      const id = React.useId();
+      if (depth === 0) return <span id={id}>{label}</span>;
+      return <Depth.Provider value={depth}><Thread.Provider value={label}><Reply depth={depth - 1} /></Thread.Provider></Depth.Provider>;
+    };
+    const deep = <Email><Row><Column><Paragraph>Kept</Paragraph><Reply depth={8000} /></Column></Row></Email>;
+    const next = <Email><Row><Column><Paragraph>Hello B</Paragraph></Column></Row></Email>;
+    for (const render of [renderToHtmlSync, renderToHtml]) {
+      await expect(Promise.resolve().then(() => render(deep)), render.name).rejects.toMatchObject({ name: "RenderError", message: expect.stringMatching(/nests more than 256 components deep/) });
+      expect(await render(next), render.name).toContain("Hello B");
+      expect(renderToStaticMarkup(<p>page</p>), render.name).toBe("<p>page</p>");
+    }
+    const parts = await renderToHtmlParts(deep, { onError: "omit" });
+    expect(parts.body).toContain("Kept");
+    expect(parts.omitted.map((e) => e.message)).toEqual([expect.stringMatching(/nests more than 256 components deep/)]);
   }, 60_000);
 
   it("compile <Tailwind config>, also in a template that's async", async () => {
