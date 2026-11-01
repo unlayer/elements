@@ -1,10 +1,12 @@
 /**
  * main's "Linear · Product Digest" example, and the same design written with the new components (main's
- * layout read as StripeReceipt.tsx says; its Menu as composed.tsx writes it).
+ * layout read as StripeReceipt.tsx says).
+ *
+ * One difference is main's: its menu's links are a space further apart than their padding says, as
+ * MenuLinks.tsx says; `nextAsMain` adds it to the padding.
  */
 import { ProductDigest } from "../../examples/ProductDigest.stories";
-import { Column, Divider, Email, Heading, Link, Paragraph, Row, Section } from "../index";
-import { menu } from "./composed";
+import { Column, Divider, Email, Heading, Link, Menu, Paragraph, Row, Section } from "../index";
 
 const INK = "#18181B";
 const BODY = "#52525B";
@@ -25,7 +27,8 @@ function feature(title: string, text: string) {
 
 export const main = <ProductDigest />;
 
-export const next = (
+/** The design; `asMain` spaces the menu's links as main does. */
+const design = (asMain: boolean) => (
   <Email width={600} style={{ backgroundColor: "#FAFAFA", fontFamily: "system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" }}>
     <Section style={{ backgroundColor: WHITE, padding: [42, 10, 10, 10] }}>
       <Heading level={3} style={{ fontSize: 18, fontWeight: 700, color: INK, lineHeight: "140%" }}>
@@ -61,17 +64,22 @@ export const next = (
     </Section>
 
     <Section style={{ backgroundColor: WHITE, padding: [26, 10, 18, 10] }}>
-      {menu(
-        [
+      <Menu
+        items={[
           { text: "Docs", href: "https://linear.app/docs" },
           { text: "Blog", href: "https://linear.app/blog" },
           { text: "Careers", href: "https://linear.app/careers" },
-        ],
-        "•"
-      )}
+        ]}
+        separator="•"
+        style={{ padding: [5, asMain ? 17 : 15] }}
+      />
     </Section>
     <Section style={{ backgroundColor: WHITE, padding: [10, 10, 46, 10] }}>
       <Paragraph style={{ fontSize: 12, color: MUTED, textAlign: "center", lineHeight: "140%" }}>You&apos;re receiving this because you use Linear.</Paragraph>
     </Section>
   </Email>
 );
+
+export const next = design(false);
+export const nextAsMain = design(true);
+export const quirks = "its menu's links are inline-blocks with spaces between them, so each is about 4px further from the next than its padding says.";

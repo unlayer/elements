@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import React, { createContext, forwardRef, Fragment, memo, Suspense, useContext, useId, useState } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
-import { Button, Column, Divider, ElementsError, Email, Heading, Image, LineBreak, Link, List, ListItem, MergeTag, Page, Paragraph, render, Row, Section, Social, Span, Table, TableCell, TableRow, Text, validate } from "./index";
+import { Button, Column, Divider, ElementsError, Email, Heading, Image, LineBreak, Link, List, ListItem, MergeTag, Menu, Page, Paragraph, render, Row, Section, Social, Span, Table, TableCell, TableRow, Text, validate } from "./index";
 import { collectTemplate } from "./collect";
 import { Email as LegacyEmail, Paragraph as LegacyParagraph, Row as LegacyRow, Column as LegacyColumn, renderToHtml } from "../index";
 
@@ -59,6 +59,20 @@ describe("render()", () => {
     expect(page.html).toContain('src="https://cdn.tools.unlayer.com/social/icons/circle/instagram.png"');
     // @ts-expect-error: an icon has a name and an href
     expect(validate(<Email><Social icons={[{ name: "X", url: "https://x.com" }]} /></Email>).valid).toBe(false);
+  });
+
+  it("renders a Menu in JSX as its links with its separator between them, hidden on phones, in email and on a page", async () => {
+    const items = [
+      { text: "Docs", href: "https://example.com/docs" },
+      { text: "Blog", href: "https://example.com/blog" },
+    ];
+    const { html, text } = await render(<Email><Menu items={items} separator="|" style={{ color: "#2563EB" }} /></Email>);
+    expect(html.match(/<a href="https:\/\/example.com\/(docs|blog)"[^>]*style="color:#2563eb;/g)).toHaveLength(2);
+    expect(html).toMatch(/<td class="[^"]+"[^>]*>(<[^>]+>)*\|/);
+    expect(text).toContain("Docs");
+    const page = await render(<Page><Menu items={items} layout="vertical" /></Page>);
+    expect(page.html).not.toContain("|");
+    expect(page.html.indexOf(">Docs<")).toBeLessThan(page.html.indexOf(">Blog<"));
   });
 
   it("takes JSX only", async () => {

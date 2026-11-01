@@ -20,6 +20,7 @@ import {
   Row as RowDefinition,
   Section as SectionDefinition,
   Social as SocialDefinition,
+  Menu as MenuDefinition,
   Span as SpanDefinition,
   Table as TableDefinition,
   TableCell as TableCellDefinition,
@@ -89,6 +90,7 @@ export const Table = createPrimitive(TableDefinition);
 export const TableRow = createPrimitive(TableRowDefinition);
 export const TableCell = createPrimitive(TableCellDefinition);
 export const Social = createPrimitive(SocialDefinition);
+export const Menu = createPrimitive(MenuDefinition);
 
 export type EmailProps = PrimitiveProps<typeof EmailDefinition>;
 export type PageProps = PrimitiveProps<typeof PageDefinition>;
@@ -111,3 +113,4 @@ export type TableProps = PrimitiveProps<typeof TableDefinition>;
 export type TableRowProps = PrimitiveProps<typeof TableRowDefinition>;
 export type TableCellProps = PrimitiveProps<typeof TableCellDefinition>;
 export type SocialProps = PrimitiveProps<typeof SocialDefinition>;
+export type MenuProps = PrimitiveProps<typeof MenuDefinition>;

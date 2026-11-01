@@ -1,14 +1,13 @@
 /**
  * main's "Notion · Welcome" example, and the same design written with the new components (main's layout read
- * as StripeReceipt.tsx says; its Social as composed.tsx writes it). A Column's padding in main is around its
+ * as StripeReceipt.tsx says;). A Column's padding in main is around its
  * blocks' 10px, so here it's the two added.
  *
  * One difference is main's: its photo, 100% wide, is at most 504px (its column less the Row's 48px side
  * padding), as in AirbnbConfirmation.tsx; `nextAsMain` draws it as main does.
  */
 import { NotionWelcome } from "../../examples/NotionWelcome.stories";
-import { Button, Column, Email, Heading, Image, Link, Paragraph, Row, Section } from "../index";
-import { social } from "./composed";
+import { Button, Column, Email, Heading, Image, Link, Paragraph, Row, Section, Social } from "../index";
 
 const INK = "#2B2B33";
 const MUTED = "#6B6F76";
@@ -83,15 +82,17 @@ const design = (asMain: boolean) => (
     </Section>
 
     <Section style={{ backgroundColor: PANEL, padding: [42, 10, 18, 10] }}>
-      {social(
-        [
-          { name: "Twitter", url: "https://twitter.com/lumen" },
-          { name: "Instagram", url: "https://instagram.com/lumen" },
-          { name: "LinkedIn", url: "https://linkedin.com/company/lumen" },
-          { name: "GitHub", url: "https://github.com/lumen" },
-        ],
-        { type: "rounded", size: 28 }
-      )}
+      <Social
+        icons={[
+          { name: "Twitter", href: "https://twitter.com/lumen" },
+          { name: "Instagram", href: "https://instagram.com/lumen" },
+          { name: "LinkedIn", href: "https://linkedin.com/company/lumen" },
+          { name: "GitHub", href: "https://github.com/lumen" },
+        ]}
+        iconType="rounded"
+        size={28}
+        style={{ gap: 12 }}
+      />
     </Section>
     <Section style={{ backgroundColor: PANEL, padding: [10, 10, 50, 10] }}>
       <Paragraph style={{ fontSize: 12, color: SUBTLE, textAlign: "center", lineHeight: "150%" }}>

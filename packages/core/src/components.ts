@@ -7,7 +7,7 @@ import { defineComponent, prop, type ComponentDefinition, type CompositeEditor, 
 import { asset, boolean, enumOf, fontFaces, insets, length, line, link, number, text } from "./kinds";
 import type { Json } from "./model";
 import { boxStyle, css, inheritedTextStyle, layoutStyle, pick, placementStyle, textStyle } from "./styles";
-import { Social } from "./composites";
+import { Menu, Social } from "./composites";
 
 /** A prop each output writes as given. */
 const WRITTEN: SupportByTarget = { email: { level: "full", source: "writer" }, web: { level: "full", source: "writer" } };
@@ -492,7 +492,7 @@ export const TableCell = defineComponent({
 
 export const COMPONENTS: Readonly<Record<string, ComponentDefinition>> = Object.freeze(
   Object.fromEntries(
-    [Email, Page, Section, Row, Column, Text, Paragraph, Heading, Span, Link, Button, Image, Divider, LineBreak, MergeTag, List, ListItem, Table, TableRow, TableCell, Social].map((d) => [
+    [Email, Page, Section, Row, Column, Text, Paragraph, Heading, Span, Link, Button, Image, Divider, LineBreak, MergeTag, List, ListItem, Table, TableRow, TableCell, Social, Menu].map((d) => [
       d.type,
       d as unknown as ComponentDefinition,
     ])

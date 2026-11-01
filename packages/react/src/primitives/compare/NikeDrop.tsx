@@ -1,10 +1,9 @@
 /**
  * main's "Nike · Sneaker Drop" example, and the same design written with the new components (main's layout
- * read as StripeReceipt.tsx says; its Social as composed.tsx writes it).
+ * read as StripeReceipt.tsx says).
  */
 import { NikeDrop } from "../../examples/NikeDrop.stories";
-import { Button, Email, Heading, Image, Paragraph, Section } from "../index";
-import { social } from "./composed";
+import { Button, Email, Heading, Image, Paragraph, Section, Social } from "../index";
 
 const BLACK = "#111111";
 const WHITE = "#FFFFFF";
@@ -37,14 +36,16 @@ export const next = (
     </Section>
 
     <Section style={{ backgroundColor: BLACK, padding: [18, 10, 50, 10] }}>
-      {social(
-        [
-          { name: "Instagram", url: "https://instagram.com/nike" },
-          { name: "Twitter", url: "https://twitter.com/nike" },
-          { name: "Facebook", url: "https://facebook.com/nike" },
-        ],
-        { type: "circle", size: 36 }
-      )}
+      <Social
+        icons={[
+          { name: "Instagram", href: "https://instagram.com/nike" },
+          { name: "Twitter", href: "https://twitter.com/nike" },
+          { name: "Facebook", href: "https://facebook.com/nike" },
+        ]}
+        iconType="circle"
+        size={36}
+        style={{ gap: 12 }}
+      />
     </Section>
   </Email>
 );

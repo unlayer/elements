@@ -108,6 +108,8 @@ function nodeOf(type: string, style: Record<string, Json>, props: Record<string,
     case "Divider":
     case "LineBreak":
       return node({});
+    case "Menu":
+      return node({ props: { items: [{ text: "Docs", href: "https://example.com/docs" }, { text: "Blog", href: "https://example.com/blog" }], separator: "|" } });
     case "Social":
       return node({ props: { icons: [{ name: "Instagram", href: "https://instagram.com/acme" }, { name: "X", href: "https://x.com/acme" }] } });
     default:
@@ -125,7 +127,7 @@ function render(root: string, type: string, style: Record<string, Json>, props: 
 }
 
 /** CSS's own values where nothing is set: setting them changes nothing. */
-const INITIAL: Record<string, Json> = { alignItems: "start", justifyContent: "start", flexWrap: "nowrap", overflow: "visible", textDecoration: "none", verticalAlign: "top" };
+const INITIAL: Record<string, Json> = { alignItems: "start", justifyContent: "start", flexWrap: "nowrap", overflow: "visible", textDecoration: "none", textTransform: "none", verticalAlign: "top" };
 
 /** The value a style or prop already has on the subject (inherited, a default, or CSS's own): setting it is no change. */
 function inEffect(root: string, type: string, where: "style" | "props", key: string): Json | undefined {
@@ -134,7 +136,8 @@ function inEffect(root: string, type: string, where: "style" | "props", key: str
   const find = (node: ResolvedNode): ResolvedNode | undefined =>
     node.id === "subject" || (type === root && node === resolved.root) ? node : node.children.flatMap((c) => (typeof c === "string" ? [] : [find(c)])).find(Boolean);
   const node = find(resolved.root);
-  if (!node) return undefined;
+  // Expanded away (a component made of primitives): CSS's own values are still in effect.
+  if (!node) return where === "style" ? INITIAL[key] : undefined;
   if (where === "props") return node.props[key];
   if (key in node.text) return (node.text as unknown as Record<string, Json>)[key];
   if (key === "width" && node.width !== null && !(key in node.style)) return node.width;

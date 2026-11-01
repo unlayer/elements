@@ -1,15 +1,15 @@
 /**
  * main's "Morning Brew · Daily Digest" example, and the same design written with the new components (main's
- * layout read as StripeReceipt.tsx says, a Column's padding as NotionWelcome.tsx says, its Menu as
- * composed.tsx writes it). main's body link color is each Link's color here.
+ * layout read as StripeReceipt.tsx says, a Column's padding as NotionWelcome.tsx says). main's body link
+ * color is each Link's color here.
  *
- * Two differences are main's: its photo, 100% wide, is at most 504px, as in NotionWelcome.tsx; and its body
- * link color isn't its links' (they're the default #0000ee). `nextAsMain` draws both as main does.
+ * Three differences are main's: its photo, 100% wide, is at most 504px, as in NotionWelcome.tsx; its body
+ * link color isn't its links' (they're the default #0000ee); and its menu's links are a space further apart
+ * than their padding says (MenuLinks.tsx). `nextAsMain` draws them as main does.
  */
 import type { ReactNode } from "react";
 import { MorningBrewDigest } from "../../examples/MorningBrewDigest.stories";
-import { Column, Divider, Email, Heading, Image, Link, Paragraph, Row, Section, Span } from "../index";
-import { menu } from "./composed";
+import { Column, Divider, Email, Heading, Image, Link, Menu, Paragraph, Row, Section, Span } from "../index";
 
 const INK = "#1A1A1A";
 const BODY = "#3F3F46";
@@ -135,14 +135,15 @@ const design = (asMain: boolean, color = asMain ? undefined : ACCENT) => (
 
     <Section style={{ backgroundColor: PAPER, padding: 10 }}>{rule(1, LINE)}</Section>
     <Section style={{ backgroundColor: PAPER, padding: [34, 10, 18, 10] }}>
-      {menu(
-        [
+      <Menu
+        items={[
           { text: "Subscribe", href: "https://example.com/subscribe" },
           { text: "Archive", href: "https://example.com/archive" },
           { text: "Unsubscribe", href: "https://example.com/unsubscribe" },
-        ],
-        "·"
-      )}
+        ]}
+        separator="·"
+        style={{ padding: [5, asMain ? 17 : 15] }}
+      />
     </Section>
     <Section style={{ backgroundColor: PAPER, padding: [14, 10, 46, 10] }}>
       <Paragraph style={{ fontSize: 12, color: MUTED, textAlign: "center", lineHeight: "150%" }}>
@@ -155,4 +156,4 @@ const design = (asMain: boolean, color = asMain ? undefined : ACCENT) => (
 export const next = design(false);
 export const nextAsMain = design(true);
 export const quirks =
-  "its photo, 100% wide, is at most 504px (its column less the Row's 48px side padding), centered, instead of the column's 580px; and its links are the default #0000ee, not its link color (#1463FF).";
+  "its photo, 100% wide, is at most 504px (its column less the Row's 48px side padding), centered, instead of the column's 580px; and its links are the default #0000ee, not its link color (#1463FF); and its menu's links are about 4px further apart than their padding says.";

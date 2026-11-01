@@ -40,3 +40,36 @@ describe("Social", () => {
     expect(social.properties.find((p) => p.path === "props.icons")?.schema).toMatchObject({ type: "array", items: { required: ["name", "href"] } });
   });
 });
+
+describe("Menu", () => {
+  const ITEMS = [
+    { text: "Docs", href: "https://example.com/docs" },
+    { text: "Blog", href: "https://example.com/blog" },
+  ];
+
+  it("expands into a line of its links, its separator between them on desktop, by today's defaults", () => {
+    const { document, diagnostics } = expandDocument(parseDocument(email({ type: "Menu", props: { items: ITEMS, separator: "|" }, style: { fontWeight: 700 } })));
+    expect(diagnostics).toEqual([]);
+    const row = document.root.children![0] as Node;
+    expect(row).toMatchObject({
+      type: "Row",
+      props: { stackOnMobile: false },
+      style: { fontSize: 14, fontWeight: 700, lineHeight: 1.2, gap: 30, padding: { top: 5, right: 15, bottom: 5, left: 15 }, justifyContent: "center" },
+    });
+    expect((row.children as Node[]).map((child) => [child.type, child.props?.href ?? null, child.hidden ?? null, child.style?.color, child.children])).toEqual([
+      ["Link", "https://example.com/docs", null, "#0068a5", ["Docs"]],
+      ["Text", null, { mobile: true }, "#444444", ["|"]],
+      ["Link", "https://example.com/blog", null, "#0068a5", ["Blog"]],
+    ]);
+  });
+
+  it("puts its links down a column, aligned, when it's vertical; without a separator, none goes between them", () => {
+    const { document } = expandDocument(parseDocument(email({ type: "Menu", props: { items: ITEMS, layout: "vertical" }, style: { justifyContent: "start", padding: [4, 8] } })));
+    const column = document.root.children![0] as Node;
+    expect(column).toMatchObject({ type: "Column", style: { gap: 8, alignItems: "start", padding: { top: 4, right: 8, bottom: 4, left: 8 } } });
+    expect((column.children as Node[]).map((child) => child.type)).toEqual(["Link", "Link"]);
+    const row = expandDocument(parseDocument(email({ type: "Menu", props: { items: ITEMS } }))).document.root.children![0] as Node;
+    expect((row.children as Node[]).map((child) => child.type)).toEqual(["Link", "Link"]);
+  });
+});
+

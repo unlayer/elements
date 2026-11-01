@@ -5,17 +5,17 @@
  * draw only primitives, in every output, and nothing in a render needs a browser or the network.
  */
 import { prop, type ComponentDefinition, type PropSpecs, type StyleSpecs, type SupportByTarget } from "./define";
-import { enumOf, items, link, number, text, type LinkValue } from "./kinds";
+import { color, enumOf, insets, items, link, number, text, type LinkValue } from "./kinds";
 import type { Json } from "./model";
 import type { ExpandContext, ExpandProps } from "./registry";
-import { css, layoutStyle, placementStyle } from "./styles";
+import { css, layoutStyle, pick, placementStyle, textStyle } from "./styles";
 
 const WRITTEN: SupportByTarget = { email: { level: "full", source: "writer" }, web: { level: "full", source: "writer" } };
 const BY_PRIMITIVES: SupportByTarget = { email: { level: "full", source: "writer" }, web: css as SupportByTarget["web"] };
 
 /** A definition made of primitives: `expand` returns the node it is, from its props and style (defaults applied). */
 function defineComposite<const P extends PropSpecs, const S extends StyleSpecs>(
-  definition: ComponentDefinition<P, S> & { expand(props: ExpandProps<P>, context: ExpandContext): Json }
+  definition: ComponentDefinition<P, S> & { expand(props: ExpandProps<P>, context: ExpandContext): unknown }
 ): ComponentDefinition<P, S> {
   return { ...definition, custom: true } as ComponentDefinition<P, S>;
 }
@@ -65,4 +65,69 @@ export const Social = defineComposite({
       ],
     })),
   }),
+});
+
+type Sides = { top: number; right: number; bottom: number; left: number };
+const MENU_TEXT = ["fontFamily", "fontSize", "fontWeight", "lineHeight", "letterSpacing", "textTransform"] as const;
+
+export const Menu = defineComposite({
+  type: "Menu",
+  label: "Menu",
+  description: "A line of links (a site's sections, a footer's), with a separator between them on desktop; or links down a column.",
+  categories: ["block"],
+  props: {
+    items: prop(items({ text: text({ maxLength: 200 }), href: link() }, "item"), {
+      support: WRITTEN,
+      label: "Items",
+      required: true,
+      description: "Each link's text and where it goes.",
+    }),
+    separator: prop(text({ maxLength: 10 }), { support: WRITTEN, label: "Separator", description: 'Between the links of a horizontal menu ("|", "·"), on desktop: phones show none.', default: "" }),
+    layout: prop(enumOf(["horizontal", "vertical"]), { support: WRITTEN, label: "Layout", default: "horizontal" }),
+  },
+  style: {
+    ...pick(textStyle, "color", ...MENU_TEXT),
+    separatorColor: { kind: color(), label: "Separator color", support: BY_PRIMITIVES },
+    padding: { kind: insets(), label: "Each link's padding", description: "Around each link: its sides are the space between them.", support: BY_PRIMITIVES },
+    justifyContent: { kind: enumOf(["start", "center", "end"]), label: "Alignment", description: "Where the links sit.", support: BY_PRIMITIVES },
+    ...placementStyle,
+  },
+  defaultStyle: {
+    color: "#0068A5",
+    fontSize: 14,
+    lineHeight: 1.2,
+    separatorColor: "#444444",
+    padding: { top: 5, right: 15, bottom: 5, left: 15 },
+    justifyContent: "center",
+  },
+  children: {},
+  sizing: "stretch",
+  targets: { email: {}, web: {} },
+  editor: {
+    groups: [
+      { title: "Menu", paths: ["props.items", "props.layout", "props.separator", "style.justifyContent"] },
+      { title: "Text", paths: ["style.color", "style.separatorColor", ...MENU_TEXT.map((key) => `style.${key}`)] },
+      { title: "Spacing", paths: ["style.padding"] },
+    ],
+  },
+  expand: ({ items: links, separator, layout }, { style }) => {
+    const padding = style.padding as Sides;
+    const text = Object.fromEntries(MENU_TEXT.filter((key) => style[key] !== undefined).map((key) => [key, style[key]]));
+    const link = (item: { text: string; href: LinkValue }) => ({
+      type: "Link",
+      props: { href: item.href },
+      style: { flex: "none", color: style.color, textDecoration: "none" },
+      children: [item.text],
+    });
+    if (layout === "vertical") {
+      return { type: "Column", style: { ...text, gap: padding.top + padding.bottom, padding, alignItems: style.justifyContent }, children: links.map(link) };
+    }
+    const between = { type: "Text", hidden: { mobile: true }, style: { flex: "none", color: style.separatorColor }, children: [separator] };
+    return {
+      type: "Row",
+      props: { stackOnMobile: false },
+      style: { ...text, gap: padding.left + padding.right, padding, justifyContent: style.justifyContent },
+      children: links.flatMap((item: { text: string; href: LinkValue }, index: number) => [...(index && separator ? [between] : []), link(item)]),
+    };
+  },
 });
