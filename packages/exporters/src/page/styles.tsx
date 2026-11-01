@@ -36,7 +36,7 @@ export function classesFor(node: ResolvedNode): string | undefined {
   if (node.hidden?.mobile) classes.push(rule("phone", "&{display:none!important}"));
   if (node.hidden?.desktop) classes.push(rule("desktop", "&{display:none!important}"));
   if (node.hover) classes.push(rule("all", `&:hover{${css(declarationsOf(node.hover), true)}}`, "hover"));
-  if (node.type === "Row" && node.style.wrap === "stack") {
+  if (node.type === "Row" && node.props.stackOnMobile !== false) {
     classes.push(
       rule("phone", "&{flex-direction:column!important;align-items:stretch!important}&>*{flex:0 0 auto!important;width:auto!important;max-width:100%!important;align-self:stretch!important}", "layout")
     );

@@ -8,7 +8,7 @@ import { length, type Declarations } from "../shared/css";
 
 export const FLEX_ALIGN: Record<string, string> = { start: "flex-start", center: "center", end: "flex-end", stretch: "stretch" };
 const TEXT_ALIGN: Record<string, string> = { left: "flex-start", justify: "flex-start", center: "center", right: "flex-end" };
-export const JUSTIFY: Record<string, string> = { start: "flex-start", center: "center", end: "flex-end", between: "space-between" };
+export const JUSTIFY: Record<string, string> = { start: "flex-start", center: "center", end: "flex-end", "space-between": "space-between" };
 
 /**
  * Where a child sits across a stack (root, Section, Column): one that fills
@@ -20,7 +20,7 @@ export function alignSelf(child: ResolvedNode, stack: ResolvedNode): Declaration
   if (child.type === "Divider") return [];
   const sized = child.style.width !== undefined || child.style.maxWidth !== undefined;
   if (child.definition.sizing !== "shrink" && !sized) return [];
-  const align = stack.style.align as string | undefined;
+  const align = stack.style.alignItems as string | undefined;
   if (align === "stretch") return [];
   // A box that fills the width up to a maximum still fills it: placed, not shrunk to its content.
   const fill: Declarations = child.definition.sizing === "stretch" && child.style.width === undefined ? [["width", "100%"]] : [];
@@ -36,7 +36,7 @@ export function rowPlacement(child: ResolvedNode, row: ResolvedNode): Declaratio
   else out.push(["flex", `${typeof child.style.flex === "number" ? child.style.flex : 1} 1 0%`]);
   if (child.style.minWidth === undefined) out.push(["min-width", "0"]);
   // Content with its own size keeps it, not the Row's height.
-  if (child.definition.sizing === "shrink" && child.type !== "Link") out.push(["align-self", FLEX_ALIGN[(row.style.align as string) ?? "start"]]);
+  if (child.definition.sizing === "shrink" && child.type !== "Link") out.push(["align-self", FLEX_ALIGN[(row.style.alignItems as string) ?? "start"]]);
   return out;
 }
 
@@ -64,6 +64,6 @@ export function stackOf(node: ResolvedNode): Style {
     display: "flex",
     flexDirection: "column",
     gap: node.style.gap,
-    justifyContent: node.style.justify ? JUSTIFY[node.style.justify as string] : undefined,
+    justifyContent: node.style.justifyContent ? JUSTIFY[node.style.justifyContent as string] : undefined,
   };
 }

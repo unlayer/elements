@@ -1,6 +1,5 @@
 /** A Divider: a table with a top border and an empty cell Word can't make taller, in a padded table where it has padding. */
 import { h, raw } from "../jsx";
-import { px } from "../shared/css";
 import type { Component } from "./context";
 import { phoneWidth, TEXT_ALIGN } from "./layout";
 import { Table } from "./markup";
@@ -15,7 +14,7 @@ export const Divider: Component = ({ node, style, mobile, fill }) => {
   const line = (
     <Table id={padded ? undefined : node.id} width={percent ? length : "100%"} phone={phoneWidth(mobile.width)} style={{ maxWidth: percent ? undefined : length }}>
       <tr>
-        <td style={{ borderTop: `${px(style.thickness as number)} ${style.lineStyle} ${style.color}`, fontSize: 0, lineHeight: 0, msoLineHeightRule: "exactly" }}>{raw("&nbsp;")}</td>
+        <td style={{ borderTop: style.borderTop, fontSize: 0, lineHeight: 0, msoLineHeightRule: "exactly" }}>{raw("&nbsp;")}</td>
       </tr>
     </Table>
   );

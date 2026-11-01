@@ -6,11 +6,11 @@
  * table of the same widths in conditional comments. Gaps are spacers: a
  * cell for Outlook, an inline-block for the rest (as tall as the gap on
  * phones, where the children stack). A Row that stays side by side
- * (`wrap: "none"`) is a table row.
+ * (`stackOnMobile` false) is a table row.
  */
 import { close, Fragment, h, Merged, NotOutlook, open, Outlook, rule, type Html } from "../jsx";
 import { isNode, shown, type Props, type Component } from "./context";
-import { boxWidth, phoneWidth, VALIGN } from "./layout";
+import { boxWidth, phoneWidth, toNumber, VALIGN } from "./layout";
 import { bgcolor, Table, TABLE } from "./markup";
 import { hiding } from "./styles";
 
@@ -18,7 +18,7 @@ const JUSTIFY: Record<string, string | undefined> = { center: "center", end: "ri
 
 export const Row: Component = (props) => {
   const { node, style, mobile, fill } = props;
-  const stacks = style.wrap !== "none";
+  const stacks = node.props.stackOnMobile !== false;
   const width = boxWidth(node, fill);
   return (
     <Table id={node.id} phone={phoneWidth(mobile.maxWidth ?? mobile.width)} width={width.width} style={{ maxWidth: width.maxWidth }}>
@@ -27,8 +27,9 @@ export const Row: Component = (props) => {
           // On phones the children take the whole width, one under another (inline-blocks of 100%: each on a line of its own).
           class={stacks ? rule("phone", "&>div{width:100%!important;max-width:100%!important}", "layout") : undefined}
           phone={{ padding: mobile.padding, border: mobile.border, backgroundColor: mobile.backgroundColor }}
-          align={JUSTIFY[style.justify as string]}
+          align={JUSTIFY[style.justifyContent as string]}
           bgcolor={bgcolor(style.backgroundColor)}
+          height={style.height !== undefined ? toNumber(style.height) : undefined}
           style={{
             // No line boxes between the children: their inline-blocks touch.
             fontSize: stacks ? 0 : undefined,
@@ -36,6 +37,8 @@ export const Row: Component = (props) => {
             backgroundColor: style.backgroundColor,
             border: style.border,
             borderRadius: style.borderRadius,
+            height: style.height !== undefined ? toNumber(style.height) : undefined,
+            overflow: style.overflow === "hidden" ? "hidden" : undefined,
           }}
         >
           {stacks ? fluidHybrid(props) : sideBySide(props)}
@@ -46,7 +49,7 @@ export const Row: Component = (props) => {
 };
 
 const gapOf = (props: Props) => (typeof props.style.gap === "number" ? props.style.gap : 0);
-const valignOf = (props: Props) => VALIGN[(props.style.align as string | undefined) ?? "start"];
+const valignOf = (props: Props) => VALIGN[(props.style.alignItems as string | undefined) ?? "start"];
 
 /** Each child in a div of its width, beside the others where they fit; Outlook's table of the same widths around them. */
 function fluidHybrid(props: Props): Html {
@@ -115,7 +118,7 @@ function sideBySide(props: Props): Html {
   const placed = node.children.filter(isNode).filter((child) => shown(child) && !child.hidden?.desktop);
   const used = placed.reduce((sum, child) => sum + (child.width ?? 0), 0) + gap * Math.max(0, placed.length - 1);
   const left = node.contentWidth !== null && placed.every((child) => child.width !== null) && used < node.contentWidth - 0.5;
-  const justify = node.style.justify as string | undefined;
+  const justify = node.style.justifyContent as string | undefined;
   const filler = <td />;
   return (
     <Table width="100%">

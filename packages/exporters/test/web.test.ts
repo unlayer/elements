@@ -44,7 +44,7 @@ describe("web HTML", () => {
         {
           type: "Row",
           id: "cols",
-          style: { gap: 20, align: "center" },
+          style: { gap: 20, alignItems: "center" },
           children: [{ type: "Column", style: { width: "40%" } }, { type: "Column", style: { flex: 2 } }, { type: "Image", props: { src: "https://example.com/a.png" }, style: { flex: "none" } }],
         },
       ])
@@ -56,7 +56,7 @@ describe("web HTML", () => {
     expect(body).toContain('style="flex:0 0 auto;min-width:0;align-self:center;display:block;max-width:100%;height:auto"');
     const stack = /class="(e[0-9a-z]{5})"/.exec(body)![1];
     expect(head).toContain(`@media (max-width: 480px){.${stack}{flex-direction:column!important;align-items:stretch!important}.${stack}>*{`);
-    expect(web(page([{ type: "Row", style: { wrap: "none" } }])).head).not.toContain("<style>");
+    expect(web(page([{ type: "Row", props: { stackOnMobile: false } }])).head).not.toContain("<style>");
   });
 
   it("keeps a Section's content at the content width, however wide the window", () => {
@@ -75,8 +75,8 @@ describe("web HTML", () => {
       web(page([{ type: "Column", style, children: [{ type: "Button", props: { href: "#" }, children: ["Go"] }] }])).body.match(/align-self:([a-z-]+)/)?.[1];
     expect(at({})).toBe("flex-start");
     expect(at({ textAlign: "center" })).toBe("center");
-    expect(at({ align: "end", textAlign: "center" })).toBe("flex-end");
-    expect(at({ align: "stretch" })).toBeUndefined();
+    expect(at({ alignItems: "end", textAlign: "center" })).toBe("flex-end");
+    expect(at({ alignItems: "stretch" })).toBeUndefined();
   });
 
   it("writes phone styles, hiding and hover in the stylesheet, under short classes named after their rules", () => {

@@ -87,8 +87,8 @@ describe("widths", () => {
   });
 
   it("stacks Rows on phones by default in an Email or Page", () => {
-    expect(child(resolve({ type: "Email", children: [{ type: "Row" }] }).root, 0).style.wrap).toBe("stack");
-    expect(child(resolve({ type: "Email", children: [{ type: "Row", style: { wrap: "none" } }] }).root, 0).style.wrap).toBe("none");
+    expect(child(resolve({ type: "Email", children: [{ type: "Row" }] }).root, 0).props.stackOnMobile).toBe(true);
+    expect(child(resolve({ type: "Email", children: [{ type: "Row", props: { stackOnMobile: false } }] }).root, 0).props.stackOnMobile).toBe(false);
   });
 });
 
@@ -202,6 +202,21 @@ describe("lists and tables", () => {
   it("warns where a Table's columns are wider than it", () => {
     const { diagnostics } = resolve({ type: "Email", children: [{ type: "Table", children: [{ type: "TableRow", children: [{ type: "TableCell", style: { width: 400 } }, { type: "TableCell", style: { width: 300 } }] }] }] });
     expect(diagnostics.map((d) => d.code)).toEqual(["layout/overflow"]);
+  });
+});
+
+describe("stretching stacks", () => {
+  it("widens children that take their own size to the stack's width, up to their maximum", () => {
+    const { root } = resolve({
+      type: "Email",
+      style: { alignItems: "stretch" },
+      children: [
+        { type: "Button", props: { href: "#" }, children: ["Go"] },
+        { type: "Image", props: { src: { src: "https://example.com/a.png", width: 100 } }, style: { maxWidth: 400 } },
+        { type: "Button", props: { href: "#" }, style: { width: 120 }, children: ["Fixed"] },
+      ],
+    });
+    expect([0, 1, 2].map((i) => child(root, i).width)).toEqual([600, 400, 120]);
   });
 });
 

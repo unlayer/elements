@@ -4,9 +4,9 @@
  * canvases and shapes follow in their own steps.
  */
 import { defineComponent, prop, type ComponentDefinition, type CompositeEditor } from "./define";
-import { asset, boolean, color, enumOf, insets, length, line, link, number, text } from "./kinds";
+import { asset, boolean, enumOf, insets, length, line, link, number, text } from "./kinds";
 import type { Json } from "./model";
-import { boxStyle, layoutStyle, pick, placementStyle, textStyle } from "./styles";
+import { boxStyle, inheritedTextStyle, layoutStyle, pick, placementStyle, textStyle } from "./styles";
 
 const ROOT_PROPS = {
   title: prop(text(), { label: "Title", description: "The document's title (shown in a browser tab, and by some email clients)." }),
@@ -16,9 +16,9 @@ const ROOT_PROPS = {
 
 /** A root's own style: the window's background, the text styles its content inherits, and how it stacks its children. */
 const ROOT_STYLE = {
-  ...textStyle,
+  ...inheritedTextStyle,
   backgroundColor: { ...boxStyle.backgroundColor, label: "Background color", description: "The window's background, behind the content." },
-  ...pick(layoutStyle, "gap", "align"),
+  ...pick(layoutStyle, "gap", "alignItems"),
 };
 
 const ROOT_DEFAULT_STYLE = {
@@ -89,7 +89,7 @@ export const Section = defineComponent({
   description: "A band across the whole window, directly in an Email or Page: its background spans the window, its children are stacked at the content width.",
   categories: ["section"],
   props: {},
-  style: { ...textStyle, ...pick(boxStyle, "backgroundColor", "padding", "border"), ...pick(layoutStyle, "gap", "align") },
+  style: { ...inheritedTextStyle, ...pick(boxStyle, "backgroundColor", "padding", "border"), ...pick(layoutStyle, "gap", "alignItems") },
   children: { categories: ["layout", "block"] },
   sizing: "stretch",
   targets: { email: {}, web: {} },
@@ -101,15 +101,26 @@ export const Row = defineComponent({
   label: "Row",
   description: "Lays its children out side by side. A child takes its width, or a share of what's left (its flex, 1 by default).",
   categories: ["layout", "block"],
-  props: {},
+  props: {
+    stackOnMobile: prop(boolean(), { label: "Stack on phones", description: "Its children stack full-width on phones (in an Email or a Page).", default: true }),
+  },
   style: {
-    ...textStyle,
+    ...inheritedTextStyle,
     ...boxStyle,
     ...layoutStyle,
-    wrap: {
-      kind: enumOf(["stack", "none", "wrap"]),
-      label: "On narrow screens",
-      description: '"stack": children stack full-width on phones (the default in Email and Page); "none": they stay side by side; "wrap": they wrap onto more lines (web only).',
+    alignItems: {
+      ...layoutStyle.alignItems,
+      email: { level: "partial", values: ["stretch"], shows: "children not stretched to one height: each background or border ends with its content", source: "writer" },
+    },
+    justifyContent: {
+      ...layoutStyle.justifyContent,
+      email: { level: "none", values: ["space-between"], shows: "children start at the left", source: "writer" },
+    },
+    flexWrap: {
+      kind: enumOf(["nowrap", "wrap"]),
+      label: "Wrap",
+      description: '"wrap": children that don\'t fit wrap onto another line, as CSS flex-wrap (web only).',
+      email: { level: "none", values: ["wrap"], shows: "children on one line on desktop, stacked on phones", source: "writer" },
     },
     ...placementStyle,
   },
@@ -118,7 +129,7 @@ export const Row = defineComponent({
   targets: { email: {}, web: {} },
   editor: {
     groups: [
-      { title: "Layout", paths: ["style.gap", "style.align", "style.justify", "style.wrap"] },
+      { title: "Layout", paths: ["style.gap", "style.alignItems", "style.justifyContent", "props.stackOnMobile"] },
       { title: "Box", paths: ["style.backgroundColor", "style.padding", "style.border", "style.borderRadius"] },
     ],
   },
@@ -130,13 +141,22 @@ export const Column = defineComponent({
   description: "Stacks its children vertically, with its own spacing and box.",
   categories: ["layout", "block"],
   props: {},
-  style: { ...textStyle, ...boxStyle, ...layoutStyle, ...placementStyle },
+  style: {
+    ...inheritedTextStyle,
+    ...boxStyle,
+    ...layoutStyle,
+    justifyContent: {
+      ...layoutStyle.justifyContent,
+      email: { level: "partial", values: ["center", "end", "space-between"], shows: "no effect: its children start at the top", source: "writer" },
+    },
+    ...placementStyle,
+  },
   children: { categories: ["layout", "block"] },
   sizing: "stretch",
   targets: { email: {}, web: {} },
   editor: {
     groups: [
-      { title: "Layout", paths: ["style.gap", "style.align"] },
+      { title: "Layout", paths: ["style.gap", "style.alignItems"] },
       { title: "Box", paths: ["style.backgroundColor", "style.padding", "style.border", "style.borderRadius", "style.width"] },
     ],
   },
@@ -309,18 +329,15 @@ export const Divider = defineComponent({
   categories: ["block"],
   props: {},
   style: {
-    color: { kind: color(), label: "Line color" },
-    thickness: { kind: length(["px"], { min: 1 }), label: "Thickness" },
-    lineStyle: { kind: enumOf(["solid", "dashed", "dotted"]), label: "Line style" },
-    width: { kind: length(["px", "%"]), label: "Length", mobile: true },
-    padding: { kind: insets(), label: "Padding", mobile: true },
-    ...placementStyle,
+    borderTop: { kind: line(), label: "Line", description: 'The line, as CSS border-top: "1px solid #bbbbbb".', email: { level: "full", source: "writer" } },
+    width: { kind: length(["px", "%"]), label: "Length", mobile: true, email: { level: "full", source: "writer" } },
+    padding: { kind: insets(), label: "Padding", mobile: true, email: { level: "full", source: "outlook-captures" } },
   },
-  defaultStyle: { color: "#bbbbbb", thickness: 1, lineStyle: "solid", width: "100%" },
+  defaultStyle: { borderTop: { width: 1, style: "solid", color: "#bbbbbb" }, width: "100%" },
   children: {},
   sizing: "stretch",
   targets: { email: {}, web: {} },
-  editor: { groups: [{ title: "Line", paths: ["style.color", "style.thickness", "style.lineStyle", "style.width"] }, SPACING_EDITOR] },
+  editor: { groups: [{ title: "Line", paths: ["style.borderTop", "style.width"] }, SPACING_EDITOR] },
 });
 
 export const LineBreak = defineComponent({
@@ -359,10 +376,10 @@ export const List = defineComponent({
     start: prop(number({ min: 0, integer: true }), { label: "Starts at", description: "The first item's number, in a numbered list.", default: 1 }),
   },
   style: {
-    ...textStyle,
+    ...inheritedTextStyle,
     ...pick(boxStyle, "width", "maxWidth", "padding", "backgroundColor", "border"),
-    gap: { kind: length(["px"]), label: "Gap", description: "Space between items.", mobile: true },
-    indent: { kind: length(["px"], { min: 0 }), label: "Indent", description: "The width of the markers' column, before the items." },
+    gap: { kind: length(["px"]), label: "Gap", description: "Space between items.", mobile: true, email: { level: "full", source: "writer" } },
+    indent: { kind: length(["px"], { min: 0 }), label: "Indent", description: "The width of the markers' column, before the items.", email: { level: "full", source: "writer" } },
     ...placementStyle,
   },
   defaultStyle: { indent: 24 },
@@ -392,10 +409,10 @@ export const Table = defineComponent({
   categories: ["block"],
   props: {},
   style: {
-    ...textStyle,
+    ...inheritedTextStyle,
     ...pick(boxStyle, "width", "maxWidth", "backgroundColor", "border"),
-    cellPadding: { kind: insets(), label: "Cell padding", description: "Every cell's padding, where the cell doesn't set its own." },
-    rowBorder: { kind: line(), label: "Line between rows" },
+    cellPadding: { kind: insets(), label: "Cell padding", description: "Every cell's padding, where the cell doesn't set its own.", email: { level: "full", source: "writer" } },
+    rowBorder: { kind: line(), label: "Line between rows", email: { level: "full", source: "writer" } },
     ...placementStyle,
   },
   children: { types: ["TableRow"] },
@@ -431,8 +448,8 @@ export const TableCell = defineComponent({
   style: {
     ...textStyle,
     ...pick(boxStyle, "padding", "backgroundColor", "border"),
-    width: { kind: length(["px", "%"]), label: "Width", description: "Its column's width (of a cell spanning one column)." },
-    verticalAlign: { kind: enumOf(["top", "middle", "bottom"]), label: "Vertical alignment" },
+    width: { kind: length(["px", "%"]), label: "Width", description: "Its column's width (of a cell spanning one column).", email: { level: "full", source: "writer" } },
+    verticalAlign: { kind: enumOf(["top", "middle", "bottom"]), label: "Vertical alignment", email: { level: "full", source: "caniemail" } },
   },
   children: { text: true, categories: ["inline"], types: ["Image"] },
   sizing: "none",

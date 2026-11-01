@@ -25,6 +25,27 @@ export interface PropSpec<K extends Kind<any, any> = Kind<any, any>, R extends b
   editable?: boolean;
 }
 
+/**
+ * Where what email shows of a style is known from: captures of classic Outlook
+ * (unlayer/email-renderer, oracle/CALIBRATION.md); caniemail's client tables;
+ * the email writer itself, which turns the style into markup every client
+ * shows (checked in Chromium, with and without <style>, and in the
+ * Outlook-like renderer); or assumed, not yet checked.
+ */
+export type SupportSource = "outlook-captures" | "caniemail" | "writer" | "assumed";
+
+/**
+ * How email shows a style, or some of its values (`values`, or `when` the
+ * value is such): as asked (`full`); as asked but in classic Outlook, which
+ * shows something else (`outlook`: what it shows); not quite as asked in any
+ * client (`partial`: what it shows); or not at all (`none`: what it does
+ * instead). Read by the email support pass: `outlook` and `partial` are notes,
+ * `none` a warning.
+ */
+export type EmailSupport =
+  | { level: "full"; source: SupportSource }
+  | { level: "outlook" | "partial" | "none"; shows: string; values?: readonly Json[]; when?: (value: Json) => boolean; source: SupportSource };
+
 export interface StyleSpec<K extends Kind<any, any> = Kind<any, any>> {
   kind: K;
   label: string;
@@ -34,6 +55,8 @@ export interface StyleSpec<K extends Kind<any, any> = Kind<any, any>> {
   /** May be overridden on phones (`mobile`). */
   mobile?: boolean;
   editable?: boolean;
+  /** How email shows it: required on every style of a component that renders to email (a test checks). */
+  email?: EmailSupport | readonly EmailSupport[];
 }
 
 export type PropSpecs = Record<string, PropSpec>;

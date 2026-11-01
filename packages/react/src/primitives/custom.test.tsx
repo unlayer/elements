@@ -185,12 +185,12 @@ describe("component()", () => {
   it("is validated with the output's warnings, which leave it valid", () => {
     const result = validate(
       <Email>
-        <Row style={{ justify: "between" }}>
+        <Row style={{ justifyContent: "space-between" }}>
           <Column />
         </Row>
       </Email>
     );
-    expect(result).toMatchObject({ valid: true, diagnostics: [{ code: "email/unsupported", severity: "warning", path: "root.children[0].style.justify" }] });
+    expect(result).toMatchObject({ valid: true, diagnostics: [{ code: "email/unsupported", severity: "warning", path: "root.children[0].style.justifyContent" }] });
   });
 
   it("says how to use it when rendered on its own", () => {

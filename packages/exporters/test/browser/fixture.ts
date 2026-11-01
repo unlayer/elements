@@ -96,6 +96,15 @@ export const template = (root: "Page" | "Email") =>
           style: { padding: 8, maxWidth: 300 },
           children: ["b"],
         },
+        // A stack that stretches what takes its own size: the Button and the Image fill it.
+        {
+          type: "Column",
+          style: { alignItems: "stretch", gap: 8, maxWidth: 400 },
+          children: [
+            { type: "Button", props: { href: "https://example.com" }, children: ["Stretched"] },
+            { type: "Image", props: { src: { src: "data:image/gif;base64,R0lGODlhAQABAAAAACw=", width: 100 } } },
+          ],
+        },
         {
           type: "List",
           style: { padding: [0, 10], indent: 30, gap: 4 },

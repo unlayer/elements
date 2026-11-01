@@ -7,7 +7,7 @@
  * - `style` is an object (or a list of objects and `[property, value]` pairs, merged in order).
  *   Properties are camelCase (`msoPaddingAlt` is `mso-padding-alt`); a value is written by its
  *   property: a number in px (unitless for `fontWeight`, `lineHeight`, `flex`), padding and
- *   radius from their objects, a border from its sides. Empty values are left out. Colors are
+ *   radius from their objects, a border from its sides, one side (`borderTop`) from its own. Empty values are left out. Colors are
  *   shortened (`#ffffff` is `#fff`). `style` is always the last attribute.
  * - Attributes with no value (`undefined`, `null`, `false`) are left out.
  * - `phone={style}` and `hover={style}` are styles for phones and on hover: each is a rule in the
@@ -97,6 +97,10 @@ function declaration(key: string, value: unknown, out: Declarations): void {
   if (key === "border" && typeof value === "object") out.push(...border(value as never));
   else if (key === "padding" && typeof value === "object") out.push(["padding", insets(value as never)]);
   else if (key === "borderRadius" && typeof value !== "string") out.push(["border-radius", radius(value as never)]);
+  else if (/^border(Top|Right|Bottom|Left)$/.test(key) && typeof value === "object") {
+    const side = value as { width: number; style: string; color: string };
+    out.push([kebab(key), `${px(side.width)} ${side.style} ${side.color}`]);
+  }
   else if (typeof value === "number") out.push([kebab(key), UNITLESS.has(key) ? String(value) : px(value)]);
   else out.push([kebab(key), String(value)]);
 }

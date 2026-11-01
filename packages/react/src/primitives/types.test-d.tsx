@@ -12,7 +12,7 @@ export const ok = (
     <Heading level={2} style={{ fontSize: "28px", lineHeight: "120%" }} mobile={{ fontSize: 22 }}>
       Title
     </Heading>
-    <Row style={{ gap: 20, wrap: "none" }}>
+    <Row stackOnMobile={false} style={{ gap: 20 }}>
       <Column style={{ width: "40%", padding: "8px 16px", border: "1px solid #ccc", borderRadius: 4 }}>
         <Text>Left</Text>
       </Column>

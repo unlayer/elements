@@ -1,4 +1,4 @@
-/** A Row: a flex row, each child placed by its width or share (`rowPlacement`); stacked on phones by a class. */
+/** A Row: a flex row, each child placed by its width or share (`rowPlacement`); stacked on phones by a class, unless `stackOnMobile` is false. */
 import { h } from "../jsx";
 import { textDeclarations } from "../shared/css";
 import type { Component } from "./context";
@@ -13,9 +13,9 @@ export const Row: Component = ({ node, style, parent, placement, classes, childr
       {
         display: "flex",
         gap: style.gap,
-        alignItems: FLEX_ALIGN[style.align as string],
-        justifyContent: JUSTIFY[style.justify as string],
-        flexWrap: style.wrap === "wrap" ? "wrap" : undefined,
+        alignItems: FLEX_ALIGN[style.alignItems as string],
+        justifyContent: JUSTIFY[style.justifyContent as string],
+        flexWrap: style.flexWrap === "wrap" ? "wrap" : undefined,
       },
       box(node, parent.type !== "Row"),
       textDeclarations(node.text, parent.text),

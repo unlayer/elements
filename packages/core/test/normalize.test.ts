@@ -141,4 +141,27 @@ describe("checkDocument", () => {
       ["children/not-allowed", "root.children[2].children[0]"],
     ]);
   });
+
+  it("points the names Elements used before CSS's to the new ones", () => {
+    const messages = checkDocument({
+      version: 1,
+      root: {
+        type: "Email",
+        children: [
+          { type: "Row", style: { align: "center", justify: "between", wrap: "none" } },
+          { type: "Divider", style: { color: "#000", thickness: 2 } },
+          { type: "Column", style: { textDecoration: "underline" } },
+        ],
+      },
+    }).diagnostics.map((d) => d.message);
+    expect(messages).toEqual([
+      '"align" isn\'t a style this component takes: it\'s alignItems now',
+      '"justify" isn\'t a style this component takes: it\'s justifyContent now ("between" is "space-between")',
+      '"wrap" isn\'t a style this component takes: a Row stays side by side on phones with its stackOnMobile prop set to false; flexWrap wraps it on the web',
+      '"color" isn\'t a style this component takes: a Divider\'s line is its borderTop, with its color',
+      '"thickness" isn\'t a style this component takes: a Divider\'s line is borderTop now: "1px solid #bbbbbb"',
+      '"textDecoration" isn\'t a style this component takes',
+    ]);
+  });
 });
+

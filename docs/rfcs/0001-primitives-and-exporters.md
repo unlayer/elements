@@ -294,13 +294,13 @@ export const ProductCard = component({
 |---|---|---|
 | Text | `color`, `fontFamily`, `fontSize`, `fontWeight`, `fontStyle`, `lineHeight`, `letterSpacing`, `textAlign`, `textDecoration`, `textTransform` | yes, from the root down through layouts |
 | Box | `width`, `minWidth`, `maxWidth`, `height`, `padding`, `backgroundColor`, `backgroundImage`, `border`, `borderRadius`, `overflow` (`visible`, `hidden`) | no |
-| Layout (on `Row`, `Column`, `Grid`) | `gap`, `align` (`start`, `center`, `end`, `stretch`), `justify` (`start`, `center`, `end`, `between`) | no |
+| Layout (on `Row`, `Column`, `Grid`) | `gap`, `alignItems` (`start`, `center`, `end`, `stretch`), `justifyContent` (`start`, `center`, `end`, `space-between`); on a `Row`, `flexWrap` (web only) and the `stackOnMobile` prop | no |
 | Placement (on a child) | in a `Row`: `width` or `flex` (grow factor); in a `Layer`: `top`, `right`, `bottom`, `left` | no |
 
 No margins: space between siblings is the parent's `gap`; space inside a box is `padding`. Every
 target can do both reliably, which isn't true of margins in email.
 
-### Styling vocabulary: policy and proposal (from the PR review, 2026-11-01; not yet decided)
+### Styling vocabulary (from the PR review; decided and done 2026-11-01)
 
 **Policy.** `style` uses CSS property names and CSS values wherever the meaning is the same, so
 authors and agents write what they already know, and the names that differ say why. A familiar
@@ -308,22 +308,24 @@ name doesn't promise support: each style's definition says which targets take it
 reports what the template's output can't do (`email/unsupported`, `email/outlook-degraded`).
 Numbers are px, as in React's inline styles.
 
-**What differs today, and the proposal.** Nothing is published yet, so names can change now in one
-pass (definitions, types, diagnostics, writers, docs, tests); later they're an API.
+**What changed, and what stays.** Done in one pass before anything was published (definitions,
+types, diagnostics, writers, docs, tests). The old names are errors whose message names the new
+one (`"align" isn't a style this component takes: it's alignItems now`).
 
-| Today | Proposed | Why |
+| Was | Now | Why |
 |---|---|---|
 | `align: "start" \| "center" \| "end" \| "stretch"` (root, Section, Row, Column) | `alignItems`, same values | the same meaning as `align-items` in a flex container; CSS takes `start`, `center`, `end`, `stretch` |
 | `justify: "start" \| "center" \| "end" \| "between"` (Row, Column) | `justifyContent: "start" \| "center" \| "end" \| "space-between"` | CSS's name and value |
 | `wrap: "stack" \| "none" \| "wrap"` (Row style) | a prop, `<Row stackOnMobile={false}>` (true by default in Email and Page), and `flexWrap: "wrap"` in `style` (web and print only) | stacking on phones is a layout decision, not a CSS value; `wrap` as CSS's own is a separate thing |
 | Divider `color`, `thickness`, `lineStyle` | `borderTop: "1px solid #bbbbbb"` | the line is a top border, as an `<hr>`'s is in CSS; a Divider's `color` meaning its line, not text, is a trap |
-| `padding: [8, 12]` (arrays and objects only) | also CSS shorthand strings, `"8px 12px"` | what CSS and React authors write |
 | `flex: 2`, `flex: "none"` | keep | both are valid CSS `flex` values with the same meaning |
-| `verticalAlign` (TableCell), `gap`, `width`, `minWidth`, `maxWidth`, `height`, `border`, `borderRadius`, `backgroundColor`, the text styles | keep | already CSS |
+| `padding` (a number, `"8px 12px"`, `[8, 12]` or `{ top, … }`), `verticalAlign` (TableCell), `gap`, `width`, `minWidth`, `maxWidth`, `height`, `border`, `borderRadius`, `backgroundColor`, the text styles | keep | already CSS |
 | `indent` (List) | keep | no CSS property means "the markers' column"; in email the markers are a cell of that width |
 | `cellPadding`, `rowBorder` (Table) | keep | a table-wide default for every cell (HTML's own `cellpadding`), and a line between rows: neither is a CSS property |
 | `fontFamily: { name, src, fallback }` | keep, beside plain CSS strings | an inline style can't load a web font; the object is the one place it's said |
 | `mobile`, `hover` | keep as their own props | no inline-CSS form exists |
+| `textDecoration` on a container (Email, Page, Section, Row, Column, List, Table) | removed: only text elements take it | CSS doesn't pass it down as an inherited style, and no writer wrote it on a container: it was dropped |
+| `flex` on a Divider | removed | a Divider always has a width (100% by default), so its share never applied |
 
 **Margins: not a permanent ban.** `gap` (the parent's space between its children), `padding` (space
 inside a box) and `margin` (one element's space outside it) are different things. The reason for
@@ -339,7 +341,7 @@ doesn't become a rule for every target.
 ### Layout primitives
 
 - **The root** (`Email`, `Page`, `Document.Page`, `Canvas`) stacks its children vertically, like a
-  `Column`, with `gap` and `align`. Content can go straight in it:
+  `Column`, with `gap` and `alignItems`. Content can go straight in it:
 
   ```tsx
   <Email>
@@ -375,11 +377,11 @@ doesn't become a rule for every target.
   a width that don't fit are narrowed as a browser narrows them (`layout/shrunk`), and minimums that
   can't fit are reported (`layout/overflow`).
   Content-sized children (`flex: "none"`) are allowed in web, PDF and Canvas; in email only for
-  children whose width is known (a Button or Image with a width), else a diagnostic. `wrap`:
-  `"stack"` (default in Email and Page: children stack full-width on phones), `"none"` (default in
-  Document and Canvas; kept side by side on phones in Email and Page), `"wrap"` (web, PDF and Canvas
-  only).
-- **`Column`** stacks children vertically, with `gap` between them and `align` across.
+  children whose width is known (a Button or Image with a width), else a diagnostic. In Email and
+  Page its children stack full-width on phones unless its `stackOnMobile` prop is false (then they stay
+  side by side); `flexWrap: "wrap"` wraps them onto more lines (web, PDF and Canvas only).
+- **`Column`** stacks children vertically, with `gap` between them and `alignItems` across. With
+  `alignItems: "stretch"`, children that take their own size (a Button, an Image) fill its width.
 - **`Grid`** places children in `columns` (a count or a list of widths), filling rows in order, with
   `gap`. CSS grid on the web; lowered to Rows elsewhere.
 - **`Layer`** stacks its children on top of each other in order (the last on top), each placed by
@@ -500,7 +502,7 @@ A `Section` on the web is one element, its content kept to the content width by 
 |---|---|
 | `Email` | the shell: doctype, `OfficeDocumentSettings` (`PixelsPerInch` 96), `x-apple-disable-message-reformatting`, `color-scheme`, the preheader; one centered table of the content width (`width="100%"` with a px `max-width`, which Word takes as the width), one table row per child, `gap` as the cells' bottom padding; the language, direction and background also on a `role="article"` wrapper, as Gmail drops `<html>` and `<body>` |
 | `Section` | a full-width table with the background, holding a centered table of the content width (an MSO ghost table for Outlook's width) |
-| `Row` | "fluid hybrid": an MSO ghost table (`<table><tr><td width=…>`) for Outlook, and `display:inline-block` columns with `max-width` = their desktop width and `width:100%`, so they stack where the row is narrower, even without media queries; `gap` as spacers (a cell for Outlook, an inline-block for the rest, as tall as the gap on phones); `wrap: "none"` keeps a table row. A child hidden on desktop takes no desktop width (the resolver leaves it out) and isn't in Outlook's table |
+| `Row` | "fluid hybrid": an MSO ghost table (`<table><tr><td width=…>`) for Outlook, and `display:inline-block` columns with `max-width` = their desktop width and `width:100%`, so they stack where the row is narrower, even without media queries; `gap` as spacers (a cell for Outlook, an inline-block for the rest, as tall as the gap on phones); `stackOnMobile={false}` keeps a table row (an empty cell taking room the children leave). A child hidden on desktop takes no desktop width (the resolver leaves it out) and isn't in Outlook's table |
 | `Column` | a single-cell table per child, `gap` as padding between |
 | `Grid` | lowered to Rows of `columns` children |
 | `Layer` | not supported (diagnostic), except an image under content: CSS `background-image` with a VML `v:rect` fill for Outlook |
@@ -551,7 +553,7 @@ Each is a small module with its own tests and Outlook captures.
   resolver doesn't measure text, so it can't see this. Known limit: such a template looks different
   in email from the page, and no diagnostic says so yet.
 - **The Outlook-like renderer** (unlayer/email-renderer, run locally, 2026-11-01): two templates
-  (a realistic welcome email, and one with nested Rows, `wrap: "none"`, hidden columns,
+  (a realistic welcome email, and one with nested Rows, a Row kept side by side, hidden columns,
   percentages and boxes with a maximum width) give every box the resolver's width and the same
   words as Chrome, at 96 and 192 DPI. It found the desktop width taken by phone-only columns
   (fixed in the resolver). The renderer has no rule for `mso-padding-alt` yet, so the button
@@ -560,11 +562,35 @@ Each is a small module with its own tests and Outlook captures.
 
 ### Email support as data
 
-Each style property's definition says how email handles it: inline as is; through a recipe (and
-which); degraded in classic Outlook (and to what, for example square corners for `borderRadius` on a
-Column); or not supported (diagnostic). The data starts from public client-support tables (licence to
-check) and the Outlook captures, and diagnostics name the client:
-`email/outlook-degraded: borderRadius on Column "col_2" shows square corners in classic Outlook`.
+Implemented 2026-11-01. Every style of every component that renders to email declares, in its
+definition (`email` on the style: `packages/core/src/styles.ts`, `components.ts`), how email shows it,
+for all values or some (`values`, `when`):
+
+| Level | Means | Diagnostic |
+|---|---|---|
+| `full` | shown as asked | none |
+| `outlook` | as asked, but classic Outlook shows something else (`shows`: square corners, normal letter spacing, a web font's fallback, content past a set height) | `email/outlook-degraded` (note) |
+| `partial` | not quite as asked in any client (`shows`: a Row's children not stretched to one height) | `email/degraded` (note) |
+| `none` | not in email (`shows` what it does instead: `justifyContent: "space-between"` on a Row, `flexWrap: "wrap"`) | `email/unsupported` (warning) |
+
+Each declaration names its source: `outlook-captures` (unlayer/email-renderer's oracle),
+`caniemail`, `writer` (the email writer lowers it to markup every client shows: checked in Chromium,
+with and without `<style>`, and in the Outlook-like renderer), or `assumed` (not checked yet:
+`textTransform`). One pass (`emailSupport`, run by `validate()` and `render()`) reads them, for the
+styles an author set (not a component's own defaults); what no single style says (a Row child whose
+size isn't known, an image without a width, a hidden table cell) stays a structural check there.
+
+What keeps it true (`packages/exporters/test/email-support.test.ts`): every style of every email
+component has a declaration; every style, at each enum value and a noticeable sample of others,
+either changes the email or gives a diagnostic for it (none is dropped silently); and every value
+declared `outlook`, `partial` or `none` is reported. Writing that test found four silent drops, now
+fixed: `textDecoration` on containers, `height` on an email Row, `maxWidth` on a Button without a
+width, `flex` on a Divider; and that `alignItems: "stretch"` didn't widen a stack's Buttons and
+Images (now in the resolver, so every target does). A new style can't be added for email without
+saying what email does with it.
+
+Chromium and the Outlook-like renderer aren't email clients: `caniemail` and `assumed` entries, and
+anything only the renderer has checked, are confirmed by capturing real clients.
 
 ### Budgets
 

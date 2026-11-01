@@ -54,7 +54,7 @@ describe("email HTML", () => {
         {
           type: "Row",
           id: "cols",
-          style: { gap: 20, align: "center" },
+          style: { gap: 20, alignItems: "center" },
           children: [
             { type: "Column", style: { width: "40%" }, children: [{ type: "Text", children: ["a"] }] },
             { type: "Column", style: { flex: 2 }, children: [{ type: "Text", children: ["b"] }] },
@@ -84,8 +84,8 @@ describe("email HTML", () => {
     expect(body).toContain('<table id="cols" role="presentation"');
   });
 
-  it("keeps a Row with wrap: none as a table row", () => {
-    const { body } = render(email([{ type: "Row", style: { wrap: "none", gap: 10 }, children: [{ type: "Column", children: [] }, { type: "Column", children: [] }] }]));
+  it("keeps a Row that doesn't stack on phones as a table row", () => {
+    const { body } = render(email([{ type: "Row", props: { stackOnMobile: false }, style: { gap: 10 }, children: [{ type: "Column", children: [] }, { type: "Column", children: [] }] }]));
     expect(body).toContain('<tr><td width="295" valign="top" style="width:295px">');
     expect(body).toContain('<td width="10" style="width:10px"></td><td width="295" valign="top" style="width:295px">');
     expect(body).not.toContain("[if mso]");
@@ -130,7 +130,7 @@ describe("email HTML", () => {
       render(email([{ type: "Column", style, children: [{ type: "Button", props: { href: "#" }, children: ["Go"] }] }])).body.match(/<tr><td( align="[a-z]+")?><table role="presentation" cellpadding="0" cellspacing="0" border="0"><tr><td align="center" bgcolor/)?.[1];
     expect(at({})).toBeUndefined();
     expect(at({ textAlign: "center" })).toBe(' align="center"');
-    expect(at({ align: "end", textAlign: "center" })).toBe(' align="right"');
+    expect(at({ alignItems: "end", textAlign: "center" })).toBe(' align="right"');
   });
 
   it("writes a Section as a full-width band, its content at the content width, gaps outside its background", () => {
@@ -284,8 +284,8 @@ describe("email HTML", () => {
   it("lists what email can't do as asked", () => {
     const { diagnostics } = render(
       email([
-        { type: "Row", style: { wrap: "wrap", justify: "between" }, children: [{ type: "Button", props: { href: "#" }, style: { flex: "none" }, children: ["x"] }] },
-        { type: "Column", style: { justify: "center" }, children: [] },
+        { type: "Row", style: { flexWrap: "wrap", justifyContent: "space-between" }, children: [{ type: "Button", props: { href: "#" }, style: { flex: "none" }, children: ["x"] }] },
+        { type: "Column", style: { justifyContent: "center" }, children: [] },
       ])
     );
     expect(diagnostics.map((d) => [d.code, d.severity])).toEqual([

@@ -10,7 +10,7 @@ import { renderEmail, renderPage } from "../../src";
 
 const column = (style: Record<string, unknown> = {}) => ({ type: "Column", style, children: [{ type: "Text", children: ["x"] }] });
 
-const CASES: Array<[string, unknown[], Record<string, unknown>?]> = [
+const CASES: Array<[string, unknown[], Record<string, unknown>?, Record<string, unknown>?]> = [
   ["a maximum", [column({ maxWidth: 100 }), column()]],
   ["a minimum", [column({ minWidth: 400 }), column()]],
   ["a maximum, with a gap", [column({ maxWidth: 100 }), column()], { gap: 20 }],
@@ -21,8 +21,8 @@ const CASES: Array<[string, unknown[], Record<string, unknown>?]> = [
   ["fixed widths that don't fit", [column({ width: 400 }), column({ width: 300 })]],
   ["minimums that can't fit", [column({ minWidth: 400 }), column({ minWidth: 300 })]],
   ["a Divider with a % width", [{ type: "Divider", style: { width: "50%" } }, column()]],
-  ["room left in a Row kept side by side", [column({ width: 100 }), column({ width: 200 })], { wrap: "none" }],
-  ["room left in a Row kept side by side, at its end", [column({ width: 100 }), column({ width: 200 })], { wrap: "none", justify: "end" }],
+  ["room left in a Row kept side by side", [column({ width: 100 }), column({ width: 200 })], {}, { stackOnMobile: false }],
+  ["room left in a Row kept side by side, at its end", [column({ width: 100 }), column({ width: 200 })], { justifyContent: "end" }, { stackOnMobile: false }],
 ];
 
 let browser: Browser;
@@ -41,11 +41,11 @@ async function measure(html: string, ids: string[], { style = true } = {}): Prom
 }
 
 describe("Row widths in Chromium", () => {
-  for (const [name, children, style] of CASES) {
+  for (const [name, children, style, props] of CASES) {
     it(`gives each child the resolver's width: ${name}`, async () => {
       const ids = children.map((_, index) => `c${index}`);
       const template = (root: "Page" | "Email") =>
-        resolveDocument(parseDocument({ version: 1, root: { type: root, props: { width: 600 }, children: [{ type: "Row", style, children: children.map((child, index) => ({ ...(child as object), id: ids[index] })) }] } }));
+        resolveDocument(parseDocument({ version: 1, root: { type: root, props: { width: 600 }, children: [{ type: "Row", style, props, children: children.map((child, index) => ({ ...(child as object), id: ids[index] })) }] } }));
       const expected = (template("Email").root.children[0] as ResolvedNode).children.map((child) => (child as ResolvedNode).width);
       expect(await measure(renderPage(template("Page")).html, ids)).toEqual(expected);
       expect(await measure(renderEmail(template("Email")).html, ids)).toEqual(expected);

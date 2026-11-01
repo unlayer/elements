@@ -213,6 +213,13 @@ const UNSUPPORTED_CSS: Record<string, string> = {
   display: "the component sets it",
   position: "use a Layer for content placed over other content",
   float: "use a Row to put things side by side",
+  // Names Elements used before it took CSS's.
+  align: "it's alignItems now",
+  justify: 'it\'s justifyContent now ("between" is "space-between")',
+  wrap: "a Row stays side by side on phones with its stackOnMobile prop set to false; flexWrap wraps it on the web",
+  color: "a Divider's line is its borderTop, with its color",
+  thickness: 'a Divider\'s line is borderTop now: "1px solid #bbbbbb"',
+  lineStyle: 'a Divider\'s line is borderTop now: "1px solid #bbbbbb"',
 };
 
 function readStyles(

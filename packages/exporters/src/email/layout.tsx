@@ -3,7 +3,7 @@
  * attributes, px maximums), where a child sits in its cell, `<Box>` (a node's
  * box as a table around its content) and `<Stack>` (children as table rows).
  */
-import type { Json, ResolvedNode } from "@unlayer-internal/elements-core";
+import { toPx, type Json, type ResolvedNode } from "@unlayer-internal/elements-core";
 import { h, NotOutlook, rule, withId, type Child, type Html, type Style, type StyleValue } from "../jsx";
 import { length } from "../shared/css";
 import { isNode, shown, type Props } from "./context";
@@ -27,7 +27,9 @@ export function boxWidth(node: ResolvedNode, fill: boolean): { width?: string; m
   if (fill || (!sized(node) && node.definition.sizing === "stretch")) return { width: "100%" };
   if (typeof node.style.width === "string" && node.style.width.endsWith("%") && node.style.maxWidth === undefined) return { width: node.style.width };
   if (node.width !== null) return { width: "100%", maxWidth: node.width };
-  return {};
+  // As wide as its content, up to its maximum.
+  const max = toPx(node.style.maxWidth, node.available);
+  return max !== null ? { maxWidth: max } : {};
 }
 
 /** A phone width for a table or div: a percentage of its cell, or a px maximum. */
@@ -46,7 +48,7 @@ export function phoneWidth(value: Json | undefined): Style {
 export function cellAlign(child: ResolvedNode, stack: ResolvedNode): string | undefined {
   if (child.type === "Divider") return TEXT_ALIGN[stack.text.textAlign] === "left" ? undefined : TEXT_ALIGN[stack.text.textAlign];
   if (child.definition.sizing !== "shrink" && !sized(child)) return undefined;
-  const align = stack.style.align as string | undefined;
+  const align = stack.style.alignItems as string | undefined;
   if (align) return ALIGN[align];
   const text = TEXT_ALIGN[stack.text.textAlign];
   return text === "left" ? undefined : text;
