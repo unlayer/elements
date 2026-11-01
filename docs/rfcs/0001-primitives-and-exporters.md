@@ -94,6 +94,7 @@ The decisions behind the design, with the date each was taken.
 |---|---|
 | The components | `Email`, `Page`, `Section`, `Row`, `Column`, `Text`, `Paragraph`, `Heading`, `Span`, `Link`, `Button`, `Image`, `Divider`, `LineBreak`, `MergeTag`, `List`, `ListItem`, `Table`, `TableRow`, `TableCell` |
 | `render(element, options?)` | Resolves to `{ html, text, head, body, bodyStyle, diagnostics }`. Rejects with an `ElementsError` listing the errors. Options: `mergeTag` (how a merge tag is written, `{{name}}` by default), `classPrefix` (the stylesheet's class prefix, `e` by default), `pretty` (indented HTML, for reading) |
+| `prepare(element)` | The template laid out (`{ root, diagnostics }`), for a package that writes another output (`@unlayer/elements-pdf`). Its tree is the writers' input, not a format to store |
 | `validate(element)` | `{ valid, diagnostics }`: everything `render()` checks before writing. Warnings and notes leave a template valid |
 | `component(spec)`, `prop.*` | Custom components (below) |
 | `ElementsError`, `formatDiagnostics` | The error, and diagnostics as text |
@@ -109,7 +110,7 @@ use instead.
 | `packages/core` (`@unlayer-internal/elements-core`) | no, bundled | Definitions, value kinds, validation, custom components, the layout resolver. No React |
 | `packages/exporters` (`@unlayer-internal/elements-exporters`) | no, bundled | The writers (email, page), plain text, the support pass, `prepareTemplate`/`renderTemplate` |
 | `@unlayer/react-elements/primitives` | yes (an entry of the existing package) | The new API, until it's the main import |
-| `@unlayer/elements-pdf` | yes, later | PDF output, with `@react-pdf/renderer` as a peer dependency |
+| `@unlayer/elements-pdf` | yes | PDF output: `renderPdf(<Document>…</Document>, { fonts, images })`, with `@react-pdf/renderer` as a peer dependency. No browser, no network: fonts and images are given as bytes |
 | `@unlayer/elements-image` | yes, later | PNG/SVG for `Canvas`, with Satori and resvg as peer dependencies |
 
 PDF and image output stay out of the main package, its size budget and its Content-Security-Policy
@@ -153,6 +154,7 @@ out once, then the output's writer. The tree lives inside one `render()` call an
 | `Row` | Children side by side; each takes its `width` or a share of what's left (`flex`). Stacks on phones unless `stackOnMobile={false}` |
 | `Column` | Children stacked, with its own box and spacing |
 | `Grid` | Children in columns of equal width (`columns`, 2 by default), row after row; `gap` and `rowGap`; stacked on phones unless `stackOnMobile={false}`. Laid out as the Rows of Columns it is, so every output draws it |
+| `Document` | A printed document's root: `size` (A3, A4, A5, Letter, Legal, Tabloid), `orientation`, `margin`. Its children go on pages: each `Document.Page`, and the rest in runs a `PageBreak` ends; a `PageHeader` and a `PageFooter` are drawn on every page, and a `PageNumber` (inline; `total` for the count) says which. `render()` writes print HTML (a box of the paper's size per page, CSS's `@page`); `@unlayer/elements-pdf` writes the PDF. Nothing flows from one page to the next |
 | `Layer` | Children over each other in one box as tall as the tallest (CSS grid's one cell), placed by `alignItems` (down) and `justifyItems` (across); `height` makes its first Image cover it. An email draws one shape of it, an Image as wide as the Layer with one child over it, the image as the cell's background (VML for Outlook): `validate()` reports any other for email |
 | `Text`, `Paragraph`, `Heading` | Blocks of text (`div`, `p`, `h1`–`h6` by `level`); `dir` for their own direction |
 | `Span` | Styled text inside text; `verticalAlign: "super" \| "sub"` for superscript and subscript |
@@ -167,8 +169,7 @@ out once, then the output's writer. The tree lives inside one `render()` call an
 | `Menu` | A line of links with a separator between them on desktop, or links down a column (`items` as `{ text, href }`, `separator`, `layout`; the links' `color`, `separatorColor`, each link's `padding`, `justifyContent` and font as styles). Made of primitives: a Row (or Column) of Links |
 | `Social` | Links to social profiles: a line of the networks' icons (`icons` as `{ name, href }`, `iconType`, `size`; `gap` and `justifyContent` as styles). Made of primitives: it expands into a Row of linked Images before layout |
 
-Later steps add `Document` with `Document.Page`, `PageBreak`, `PageHeader`, `PageFooter` and
-`PageNumber`, and `Canvas` with `Svg` and shapes. Today's components that are made of primitives (`Social`, `Menu`) are built-in components that expand
+A later step adds `Canvas` with `Svg` and shapes. Today's components that are made of primitives (`Social`, `Menu`) are built-in components that expand
 into them, as custom components do: a block of their own in a template and in the builder's design, drawn by the
 primitives' writers in every output. `Video` has writers of its own: a page plays it, an email links to it.
 
@@ -484,8 +485,8 @@ Each step ends with its tests in CI.
 | 6. Support data for every output, and the styling vocabulary | done |
 | 7. Today's components with new ones (`Menu`, `Social`, `Video`), `/legacy`, the codemod (`@unlayer/migrate --from elements`, [migration guide](../migrating-to-primitives.md)) | done |
 | 8. `Grid`, `Layer`, and Rows kept side by side that keep their shares on phones in email too | done |
-| 9. `Document`, `Document.Page`, `PageBreak`, headers, footers and page numbers; print HTML; `@unlayer/elements-pdf` | next |
-| 10. `Canvas`, `Svg` and shapes; `@unlayer/elements-image` | |
+| 9. `Document`, `Document.Page`, `PageBreak`, headers, footers and page numbers; print HTML; `@unlayer/elements-pdf` | done |
+| 10. `Canvas`, `Svg` and shapes; `@unlayer/elements-image` | next |
 | 11. Builder adapter | last |
 
 ## Open questions
