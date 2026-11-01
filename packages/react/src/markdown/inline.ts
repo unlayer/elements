@@ -158,10 +158,11 @@ class Inline extends Limited {
  * An email service's tag, on one line (`{{ … }}`, `{% … %}`, `<% … %>`, `%% … %%`, `${…}`, Mailchimp's `*|…|*`): in a
  * link's URL (`[text](url)`, `![alt](src)`, a URL Markdown links by itself, `<url>`, a link's definition) one piece of
  * it, so the URL doesn't end inside it, at a space or at what else ends one (see HIDE). Elsewhere, Markdown as
- * CommonMark reads it, but for a Mailchimp tag in text (see MERGE_TAG). (Its length kept to a tag's: each is read
- * once from where it starts.)
+ * CommonMark reads it, but for a Mailchimp tag in text (see MERGE_TAG). A Liquid tag can hold `${…}`, as Braze's
+ * attributes are (`{{${email_address} | url_param_escape}}`). (Its length kept to a tag's: each is read once from where
+ * it starts.)
  */
-const TAG = /\{\{[^\n{}]{0,256}\}\}|\{%[^\n{}]{0,256}%\}|<%[^\n<>]{0,256}%>|%%[^\n%]{0,256}%%|\$\{[^\n{}]{0,256}\}|\*\|[^\s|*]{0,256}\|\*/g;
+const TAG = /\{\{(?:[^\n{}$]|\$(?!\{)|\$\{[^\n{}]{0,64}\}){0,256}\}\}|\{%(?:[^\n{}$]|\$(?!\{)|\$\{[^\n{}]{0,64}\}){0,256}%\}|<%[^\n<>]{0,256}%>|%%[^\n%]{0,256}%%|\$\{[^\n{}]{0,256}\}|\*\|[^\s|*]{0,256}\|\*/g;
 const OPENER = /\{\{|\{%|<%|%%|\$\{|\*\|/;
 /** What in a tag could end a URL or a link's parts, while marked reads it: one character of Unicode's private use for each. */
 const HIDE: Record<string, string> = { " ": "\uE000", "\t": "\uE001", "<": "\uE002", ">": "\uE003", "*": "\uE004", "|": "\uE005", "(": "\uE006", ")": "\uE007", '"': "\uE008", "'": "\uE009" };

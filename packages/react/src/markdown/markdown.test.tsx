@@ -166,7 +166,8 @@ describe("an email service's tag in a Markdown link's URL", () => {
   // A tag written with spaces (`{{ order.id }}`) ended the URL at its first space, as CommonMark ends one: the link's
   // href ended in an open `{{`, which Liquid and Handlebars refuse (the whole email), and Mustache reads on into the
   // markup after it. A tag is now one piece of a link's URL, an image's and one Markdown links by itself.
-  const tags = ["{{ order.id }}", "{{ order.id | default: 'x' }}", "{% if vip %}vip{% endif %}", "<%= order.id %>", "*|ORDER_ID|*", "%%=v(@id)=%%", "${order.id}"];
+  // (Braze's attributes are `${…}` in a Liquid tag: `{{${email_address} | url_param_escape}}`, its own URL form.)
+  const tags = ["{{ order.id }}", "{{ order.id | default: 'x' }}", "{% if vip %}vip{% endif %}", "<%= order.id %>", "*|ORDER_ID|*", "%%=v(@id)=%%", "${order.id}", "{{${email_address} | url_param_escape}}", "{{ ${first_name} | default: 'you' }}", "{% if ${tier} == 'gold' %}gold{% endif %}"];
   const hrefs = (markdown: string) => [...renderToHtml(email({ children: markdown })).matchAll(/<a [^>]*href="([^"]*)"/g)].map((m) => m[1]);
   // (An image's src as the Image block writes it, its quotes as references: read back.)
   const srcs = (markdown: string) => [...renderToHtml(email({ children: markdown })).matchAll(/<img [^>]*src="([^"]*)"/g)].map((m) => m[1].replace(/&#0?39;|&#x27;/g, "'").replace(/&quot;/g, '"').replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&amp;/g, "&"));
