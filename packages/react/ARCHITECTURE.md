@@ -158,7 +158,8 @@ runs. Each of these fails the render with a `RenderError` that says so and what 
   read it, but for the markers React wrote in it (found by their exact text) and the lazy component's own end. It's
   the markup of a component of the template's own, the lazy one (`component` in its Html block's id), as any
   component's is: among the rows it's in the HTML as written, and in a Column it's an Html block where it's markup
-  only. So HTML given whole there that leaves a tag, a quote, a comment or a `<style>` open is read by a browser into
+  only (a lone link, rule or text too, which the same component not lazy gives as a Paragraph, a Divider or text: its
+  HTML isn't read). So HTML given whole there that leaves a tag, a quote, a comment or a `<style>` open is read by a browser into
   what's after it, as in React's own render (the design and the plain text keep the blocks after it); a marker forged
   in it, a copy of one React wrote, or an end tag of one (in any case, the tag ended any way) fails the render by
   name. React's stream comments (`<!-- -->`, `<!--$-->`, …) are taken out of it in an async render, as a static render
@@ -322,8 +323,15 @@ row or block is left out of the HTML, the plain text and the design (the slower 
      (what Elements can do with public API) fixes what a resumed async component's children read, not a component that
      suspends and reads the context itself, nor the page's side; so it isn't done, and the README says to pass what's
      sensitive as props, render with the synchronous renderers, or in a worker or process of their own there.
+   - Inside a component of an app's own `renderToString`, where a synchronous render renders with another module
+     (`withFreeBuild`), a render of the page's module started under it (a template component's own
+     `renderToStaticMarkup`, or Elements' asking whether that module is busy where the app nests two builds' renders
+     around the call) makes that module drop the page's providers for good: React's `renderToString` fails, and its
+     later renders read the page's value where they don't provide the context (as 0.2.1's did). The README says to
+     work such HTML out before the page's render, or render the page with react-dom's stream.
 
-   Each can be another request's, another tenant's data (`regression/render-isolation.test.tsx` holds all of them).
+   Each can be another request's, another tenant's data (`regression/render-isolation.test.tsx` holds all of them but
+   the last, which would leave the test run's module that way for the tests after it).
    React's API has no way to put back what another module left.
 5. **Tree order.** Output, records, ids and the error a render throws don't depend on when promises settle, but for
    the work a render's Markdown and code blocks share (their budgets: see 9), which each charges as it renders: in an
