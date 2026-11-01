@@ -137,6 +137,22 @@ describe("component()", () => {
     expect(validate(<Page><Column><Hero title="x" /></Column></Page>).diagnostics.map((d) => d.code)).toEqual(["children/not-allowed"]);
   });
 
+  it("takes numbers and lengths, checked against their limits", async () => {
+    const Spacer = component({
+      type: "acme.Spacer",
+      label: "Spacer",
+      props: {
+        lines: prop.number({ label: "Lines", min: 1, max: 4, integer: true, default: 1 }),
+        indent: prop.length({ label: "Indent", min: 0, default: 0 }),
+      },
+      render: ({ lines, indent }) => <Text style={{ padding: [0, 0, 0, indent], lineHeight: lines * 1.5 }}>{"x"}</Text>,
+    });
+    const { html } = await render(<Page><Spacer lines={2} indent={12} /></Page>);
+    expect(html).toContain("line-height:3;");
+    expect(html).toContain("padding:0 0 0 12px");
+    expect(validate(<Page><Spacer lines={0.5} indent={-4} /></Page>).diagnostics.map((d) => d.path)).toEqual(["root.children[0].props.lines", "root.children[0].props.indent"]);
+  });
+
   it("says how to use it when rendered on its own", () => {
     expect(() => renderToStaticMarkup(<ProductCard name="a" photo="https://example.com/a.png" href="#" />)).toThrow(/render\(\)/);
   });
@@ -158,5 +174,10 @@ describe("component()", () => {
     expectTypeOf<Props["accent"]>().toEqualTypeOf<string>();
     expectTypeOf<Props["size"]>().toEqualTypeOf<"small" | "large">();
     expectTypeOf<Props["name"]>().toEqualTypeOf<string>();
+    const sized = { width: prop.length({ label: "Width", units: ["px", "%"], default: 100 }), count: prop.number({ label: "Count", default: 1 }) };
+    type Sized = ExpandProps<typeof sized>;
+    expectTypeOf<Sized["width"]>().not.toEqualTypeOf<undefined>();
+    expectTypeOf<undefined>().not.toMatchTypeOf<Sized["width"]>();
+    expectTypeOf<Sized["count"]>().toEqualTypeOf<number>();
   });
 });

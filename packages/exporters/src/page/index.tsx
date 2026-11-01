@@ -22,12 +22,17 @@ import { Heading } from "./Heading";
 import { Image } from "./Image";
 import { LineBreak } from "./LineBreak";
 import { Link } from "./Link";
+import { List } from "./List";
+import { ListItem } from "./ListItem";
 import { MergeTag } from "./MergeTag";
 import { Page } from "./Page";
 import { Paragraph } from "./Paragraph";
 import { Row } from "./Row";
 import { Section } from "./Section";
 import { Span } from "./Span";
+import { Table } from "./Table";
+import { TableCell } from "./TableCell";
+import { TableRow } from "./TableRow";
 import { Text } from "./Text";
 
 export type { PageOptions } from "./context";
@@ -63,6 +68,11 @@ const COMPONENTS: Record<string, Component> = {
   Divider,
   LineBreak,
   MergeTag,
+  List,
+  ListItem,
+  Table,
+  TableRow,
+  TableCell,
 };
 
 /** What a node's component gets. */

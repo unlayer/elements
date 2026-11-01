@@ -172,6 +172,35 @@ describe("web HTML", () => {
     expect(() => web(page([{ type: "Text", style: { margin: 1 } }]))).toThrow(ElementsError);
   });
 
+  it("writes lists as ul and ol, their markers in their indent, the gap above each item but the first", () => {
+    const { body } = web(
+      page([
+        { type: "List", children: [{ type: "ListItem", children: ["a"] }, { type: "ListItem", children: ["b"] }] },
+        { type: "List", props: { type: "number", start: 5 }, style: { gap: 6, indent: 30, padding: 4 }, children: [{ type: "ListItem", children: ["c"] }, { type: "ListItem", children: ["d"] }] },
+      ])
+    );
+    expect(body).toContain('<ul style="margin:0;padding:0 0 0 24px;list-style-type:disc;box-sizing:border-box"><li style="margin:0">a</li><li style="margin:0">b</li></ul>');
+    expect(body).toContain('<ol start="5" style="margin:0;padding:4px 4px 4px 34px;list-style-type:decimal;box-sizing:border-box"><li style="margin:0">c</li><li style="margin:0;margin-top:6px">d</li></ol>');
+  });
+
+  it("writes tables with fixed columns, no spacing, header rows in thead", () => {
+    const { body } = web(
+      page([
+        {
+          type: "Table",
+          style: { cellPadding: 8, border: "1px solid #cccccc" },
+          children: [
+            { type: "TableRow", props: { header: true }, children: [{ type: "TableCell", style: { width: 100 }, children: ["A"] }, { type: "TableCell", children: ["B"] }] },
+            { type: "TableRow", children: [{ type: "TableCell", props: { colSpan: 2 }, children: ["C"] }] },
+          ],
+        },
+      ])
+    );
+    expect(body).toContain('<table style="border-collapse:separate;border-spacing:0;table-layout:fixed;box-sizing:border-box;border:1px solid #ccc;width:100%"><colgroup><col style="width:16.72%"><col style="width:83.28%"></colgroup>');
+    expect(body).toContain('<thead><tr style="font-weight:700"><th scope="col" style="box-sizing:border-box;padding:8px;vertical-align:top;font-weight:700;text-align:left">A</th>');
+    expect(body).toContain('<tbody><tr><td colspan="2" style="box-sizing:border-box;padding:8px;vertical-align:top">C</td></tr></tbody></table>');
+  });
+
   it("writes the plain-text version from the template", () => {
     const { text } = web(
       page([

@@ -6,7 +6,7 @@
  */
 import type { ComponentDefinition, Target } from "./define";
 import { Diagnostics, type Diagnostic } from "./diagnostics";
-import { assetParts, readLength, type Asset, type Border, type FontFamily, type Insets, type LineHeight } from "./kinds";
+import { assetParts, readLength, type Asset, type Border, type BorderSide, type FontFamily, type Insets, type LineHeight } from "./kinds";
 import { isNode, type ElementsDocument, type Json, type Node } from "./model";
 import { expandDocument } from "./expand";
 import { propsWithDefaults, registryOf, type ComponentsOption, type Registry } from "./registry";
@@ -52,6 +52,8 @@ export interface ResolvedNode {
   /** Its width inside its padding and border, in px, or null. */
   contentWidth: number | null;
   children: Array<ResolvedNode | string>;
+  /** A Table's column widths in px, each column's from its cells, the rest shared (null where the table's width isn't known). */
+  columns?: number[] | null;
   compat?: Record<string, Json>;
 }
 
@@ -212,8 +214,8 @@ function resolveChildren(node: Node, path: string, parent: ResolvedNode, availab
       return;
     }
     const at = `${path}.children[${index}]`;
-    // Inside text only an image takes up width.
-    const inText = layout === "text" && child.type !== "Image";
+    // Inside text, text takes no width of its own; what isn't text (an Image, a nested List) does.
+    const inText = layout === "text" && !!context.registry.get(child.type)?.categories.includes("inline");
     const resolved = resolveNode(child, at, parent.text, inText ? null : available, context);
     if (resolved.style.flex !== undefined && layout !== "row") {
       context.d.warning("style/ignored", `flex only applies to a child of a Row; this ${child.type} is in a ${parent.type}`, `${at}.style.flex`, child.id);
@@ -235,9 +237,16 @@ function resolveChildren(node: Node, path: string, parent: ResolvedNode, availab
   }
 
   for (const { source, resolved, at } of nodes) {
+    if (source.type === "Table") {
+      resolved.children = resolveTable(source, at, resolved, context);
+      continue;
+    }
     const own: Layout = source.type === "Row" ? "row" : resolved.definition.children.text ? "text" : "stack";
     // A box without a known width (a Link around an image) gives its children what it was given.
-    resolved.children = resolveChildren(source, at, resolved, resolved.contentWidth ?? resolved.available, own, context);
+    let inner = resolved.contentWidth ?? resolved.available;
+    // A List's items are beside its markers' column.
+    if (source.type === "List" && inner !== null) inner = Math.max(0, inner - (toPx(resolved.style.indent, null) ?? 0));
+    resolved.children = resolveChildren(source, at, resolved, inner, own, context);
     if (resolved.width === null && source.type === "Link") {
       const image = resolved.children.find((c): c is ResolvedNode => typeof c !== "string" && c.type === "Image");
       if (image && image.width !== null) setWidth(resolved, image.width + horizontalFrame(resolved.style));
@@ -275,11 +284,16 @@ function layOutRow(row: ResolvedNode, nodes: Array<{ source: Node; resolved: Res
     context.d.warning("layout/overflow", `The Row's children are ${Math.round(-free)}px wider than the ${Math.round(available)}px it has`, path, row.id);
     free = 0;
   }
-  const total = shares.reduce((sum, s) => sum + s.share, 0);
   if (!shares.length) return;
-  // Largest remainder: whole px that add up to the free width.
+  const widths = share(free, shares.map((s) => s.share));
+  shares.forEach((s, index) => setWidth(s.resolved, clamp(widths[index], s.resolved.style, available)));
+}
+
+/** `free` px shared by `weights`, in whole px that add up to it (the largest remainders get the leftover px). */
+function share(free: number, weights: number[]): number[] {
+  const total = weights.reduce((sum, w) => sum + w, 0);
   const room = Math.floor(free);
-  const exact = shares.map((s) => (room * s.share) / total);
+  const exact = weights.map((w) => (total ? (room * w) / total : 0));
   const widths = exact.map(Math.floor);
   let left = room - widths.reduce((a, b) => a + b, 0);
   const order = exact.map((value, index) => ({ index, rest: value - Math.floor(value) })).sort((a, b) => b.rest - a.rest || a.index - b.index);
@@ -288,7 +302,79 @@ function layOutRow(row: ResolvedNode, nodes: Array<{ source: Node; resolved: Res
     widths[index] += 1;
     left -= 1;
   }
-  shares.forEach((s, index) => setWidth(s.resolved, clamp(widths[index], s.resolved.style, available)));
+  return widths;
+}
+
+/**
+ * A Table: its rows as wide as its content, its columns as wide as their
+ * cells say (a cell spanning one column, the first that has a width), the
+ * rest sharing what's left; each cell as wide as the columns it spans, its
+ * padding its own or the table's `cellPadding`, its bottom border its own or
+ * the table's `rowBorder` (but in the last row).
+ */
+function resolveTable(source: Node, path: string, table: ResolvedNode, context: Context): Array<ResolvedNode | string> {
+  const available = table.contentWidth;
+  const rows = (source.children ?? []).flatMap((child, index) => {
+    if (!isNode(child)) return [];
+    const at = `${path}.children[${index}]`;
+    const row = resolveNode(child, at, table.text, available, context);
+    setWidth(row, available);
+    const cells = (child.children ?? []).flatMap((cell, cellIndex) => {
+      if (!isNode(cell)) return [];
+      const resolved = resolveNode(cell, `${at}.children[${cellIndex}]`, row.text, available, context);
+      if (resolved.style.padding === undefined && table.style.cellPadding !== undefined) resolved.style.padding = table.style.cellPadding;
+      return [{ source: cell, resolved, at: `${at}.children[${cellIndex}]` }];
+    });
+    return [{ row, cells }];
+  });
+
+  const span = (cell: ResolvedNode) => Math.max(1, Number(cell.props.colSpan) || 1);
+  const count = Math.max(0, ...rows.map(({ cells }) => cells.reduce((sum, { resolved }) => sum + span(resolved), 0)));
+  let columns: number[] | null = null;
+  if (available !== null && count > 0) {
+    const set: Array<number | null> = new Array(count).fill(null);
+    for (const { cells } of rows) {
+      let column = 0;
+      for (const { resolved } of cells) {
+        if (span(resolved) === 1 && set[column] === null) {
+          const width = toPx(resolved.style.width, available);
+          set[column] = width === null ? null : Math.round(width);
+        }
+        column += span(resolved);
+      }
+    }
+    const fixed = set.reduce<number>((sum, width) => sum + (width ?? 0), 0);
+    if (fixed > available + 0.5) {
+      context.d.warning("layout/overflow", `The Table's columns are ${Math.round(fixed - available)}px wider than the ${Math.round(available)}px it has`, path, table.id);
+    }
+    const free = set.map((width, index) => (width === null ? index : -1)).filter((index) => index >= 0);
+    const shared = share(Math.max(0, available - fixed), free.map(() => 1));
+    columns = set.map((width, index) => (width === null ? shared[free.indexOf(index)] : width));
+  }
+  table.columns = columns;
+
+  // The line between rows is each cell's bottom border, but in the last row and where a cell sets its own.
+  const rowBorder = table.style.rowBorder as BorderSide | undefined;
+  rows.forEach(({ cells }, index) => {
+    if (!rowBorder || index === rows.length - 1) return;
+    for (const { resolved } of cells) {
+      const own = resolved.style.border as Border | undefined;
+      if (!own?.bottom) resolved.style.border = { ...own, bottom: rowBorder };
+    }
+  });
+
+  for (const { row, cells } of rows) {
+    let column = 0;
+    for (const { source: cell, resolved, at } of cells) {
+      const width = columns ? columns.slice(column, column + span(resolved)).reduce((sum, w) => sum + w, 0) : null;
+      column += span(resolved);
+      resolved.available = width;
+      setWidth(resolved, width);
+      resolved.children = resolveChildren(cell, at, resolved, resolved.contentWidth, "text", context);
+    }
+    row.children = cells.map(({ resolved }) => resolved);
+  }
+  return rows.map(({ row }) => row);
 }
 
 /** Errors for each component the target doesn't render (custom components: for what they're made of). */

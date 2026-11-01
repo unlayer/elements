@@ -264,6 +264,26 @@ function borderSide(input: unknown): Parsed<BorderSide> {
   return ok(out);
 }
 
+/** One line, as a border side: `"1px solid #eee"` or `{ width, style, color }` (a table's line between rows). */
+export function line(): Kind<string | BorderSideInput, BorderSide> {
+  return kind<string | BorderSideInput, BorderSide>({
+    name: "line",
+    editor: "border",
+    accepts: '"1px solid #ccc" or { width, style, color }',
+    parse: (input) => borderSide(input),
+    jsonSchema: () => ({
+      anyOf: [
+        { type: "string" },
+        {
+          type: "object",
+          properties: { width: { anyOf: [{ type: "number", minimum: 0 }, { type: "string" }] }, style: { enum: [...BORDER_STYLES] }, color: { type: "string" } },
+          additionalProperties: false,
+        },
+      ],
+    }),
+  });
+}
+
 export function border(): Kind<BorderInput, Border> {
   return kind({
     name: "border",

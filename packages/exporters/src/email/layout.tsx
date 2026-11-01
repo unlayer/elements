@@ -100,15 +100,18 @@ export function Box({ node, fill, children }: { node: ResolvedNode; fill: boolea
   );
 }
 
+/** The gap on phones, for a table of rows with the gap as their cells' bottom padding (a stack, a list): the table's rule for its rows' cells. */
+export function phoneGap(node: ResolvedNode): string | undefined {
+  const gap = length(node.mobile?.gap);
+  return gap && rule("phone", `&>tbody>tr>td{padding-bottom:${gap}!important}&>tbody>tr:last-child>td{padding-bottom:0!important}`, "layout");
+}
+
 /** A node's children stacked down a table, one row each, its `gap` as the cells' bottom padding. */
 export function Stack({ node, render, style }: { node: ResolvedNode; render: Props["render"]; style?: StyleValue }): Html {
   const children = node.children.filter(isNode).filter(shown);
   const gap = typeof node.style.gap === "number" ? node.style.gap : 0;
-  const phoneGap = length(node.mobile?.gap);
-  // The gap on phones is the stack's rule for its rows' cells.
-  const gapClass = phoneGap && rule("phone", `&>tbody>tr>td{padding-bottom:${phoneGap}!important}&>tbody>tr:last-child>td{padding-bottom:0!important}`, "layout");
   return (
-    <Table class={gapClass} width="100%" style={style}>
+    <Table class={phoneGap(node)} width="100%" style={style}>
       {children.map((child, index) => {
         const hidden = hiding(child, "table-row");
         const row = (

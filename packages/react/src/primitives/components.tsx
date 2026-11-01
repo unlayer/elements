@@ -12,12 +12,17 @@ import {
   Image as ImageDefinition,
   LineBreak as LineBreakDefinition,
   Link as LinkDefinition,
+  List as ListDefinition,
+  ListItem as ListItemDefinition,
   MergeTag as MergeTagDefinition,
   Page as PageDefinition,
   Paragraph as ParagraphDefinition,
   Row as RowDefinition,
   Section as SectionDefinition,
   Span as SpanDefinition,
+  Table as TableDefinition,
+  TableCell as TableCellDefinition,
+  TableRow as TableRowDefinition,
   Text as TextDefinition,
   type ComponentDefinition,
   type Json,
@@ -77,6 +82,11 @@ export const Image = createPrimitive(ImageDefinition);
 export const Divider = createPrimitive(DividerDefinition);
 export const LineBreak = createPrimitive(LineBreakDefinition);
 export const MergeTag = createPrimitive(MergeTagDefinition);
+export const List = createPrimitive(ListDefinition);
+export const ListItem = createPrimitive(ListItemDefinition);
+export const Table = createPrimitive(TableDefinition);
+export const TableRow = createPrimitive(TableRowDefinition);
+export const TableCell = createPrimitive(TableCellDefinition);
 
 export type EmailProps = PrimitiveProps<typeof EmailDefinition>;
 export type PageProps = PrimitiveProps<typeof PageDefinition>;
@@ -93,3 +103,8 @@ export type ImageProps = PrimitiveProps<typeof ImageDefinition>;
 export type DividerProps = PrimitiveProps<typeof DividerDefinition>;
 export type LineBreakProps = PrimitiveProps<typeof LineBreakDefinition>;
 export type MergeTagProps = PrimitiveProps<typeof MergeTagDefinition>;
+export type ListProps = PrimitiveProps<typeof ListDefinition>;
+export type ListItemProps = PrimitiveProps<typeof ListItemDefinition>;
+export type TableProps = PrimitiveProps<typeof TableDefinition>;
+export type TableRowProps = PrimitiveProps<typeof TableRowDefinition>;
+export type TableCellProps = PrimitiveProps<typeof TableCellDefinition>;

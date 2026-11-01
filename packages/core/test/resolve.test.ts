@@ -135,3 +135,72 @@ describe("checkTarget", () => {
     expect(checkTarget(document, "pdf").map((d) => d.path)).toEqual(["root", "root.children[0]"]);
   });
 });
+
+describe("lists and tables", () => {
+  it("gives a List's items its width less the markers' column, and a nested List its item's", () => {
+    const { root, diagnostics } = resolve({
+      type: "Email",
+      children: [
+        {
+          type: "List",
+          style: { padding: [0, 10], indent: 30 },
+          children: [{ type: "ListItem", children: ["a", { type: "List", children: [{ type: "ListItem", children: ["b"] }] }] }],
+        },
+      ],
+    });
+    expect(diagnostics).toEqual([]);
+    const list = child(root, 0);
+    expect([list.width, list.contentWidth]).toEqual([600, 580]);
+    expect(child(list, 0).width).toBe(550);
+    const nested = child(list, 0, 1);
+    expect(nested.width).toBe(550);
+    // Its own markers' column: the default 24px.
+    expect(child(nested, 0).width).toBe(526);
+  });
+
+  it("sizes a Table's columns from its cells, shares the rest, and spans cells across columns", () => {
+    const { root, diagnostics } = resolve({
+      type: "Email",
+      children: [
+        {
+          type: "Table",
+          style: { cellPadding: 8, border: "1px solid #ccc", rowBorder: "1px solid #eee" },
+          children: [
+            { type: "TableRow", props: { header: true }, children: [{ type: "TableCell", style: { width: "50%" } }, { type: "TableCell" }, { type: "TableCell", style: { width: 100 } }] },
+            { type: "TableRow", children: [{ type: "TableCell", props: { colSpan: 2 }, children: [{ type: "Image", props: { src: { src: "https://example.com/a.png", width: 1000 } } }] }, { type: "TableCell", style: { padding: 0 } }] },
+          ],
+        },
+      ],
+    });
+    expect(diagnostics).toEqual([]);
+    const table = child(root, 0);
+    // 600 less the 1px border each side: 299 for 50%, 100 fixed, 199 for the free column.
+    expect(table.columns).toEqual([299, 199, 100]);
+    expect([0, 1, 2].map((i) => child(table, 0, i).width)).toEqual([299, 199, 100]);
+    expect(child(table, 1, 0).width).toBe(498);
+    // A cell's padding is the table's unless it sets its own; an image in it fits inside it.
+    expect(child(table, 1, 0).contentWidth).toBe(482);
+    expect(child(table, 1, 0, 0).width).toBe(482);
+    expect(child(table, 1, 1).contentWidth).toBe(100);
+    // The table's line between rows is each cell's bottom border, but in the last row.
+    expect(child(table, 0, 0).style.border).toEqual({ bottom: { width: 1, style: "solid", color: "#eeeeee" } });
+    expect(child(table, 1, 0).style.border).toBeUndefined();
+    // A header row's cells are bold.
+    expect(child(table, 0, 0).text.fontWeight).toBe(700);
+    expect(child(table, 1, 0).text.fontWeight).toBe(400);
+  });
+
+  it("rounds columns given as a share before sharing the rest, so the columns add up to the table", () => {
+    const { root } = resolve({
+      type: "Email",
+      props: { width: 640 },
+      children: [{ type: "Table", style: { border: "1px solid #ccc" }, children: [{ type: "TableRow", children: [{ type: "TableCell", style: { width: "40%" } }, { type: "TableCell" }, { type: "TableCell", style: { width: 120 } }] }] }],
+    });
+    expect(child(root, 0).columns).toEqual([255, 263, 120]);
+  });
+
+  it("warns where a Table's columns are wider than it", () => {
+    const { diagnostics } = resolve({ type: "Email", children: [{ type: "Table", children: [{ type: "TableRow", children: [{ type: "TableCell", style: { width: 400 } }, { type: "TableCell", style: { width: 300 } }] }] }] });
+    expect(diagnostics.map((d) => d.code)).toEqual(["layout/overflow"]);
+  });
+});

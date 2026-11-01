@@ -211,6 +211,8 @@ describe("email HTML", () => {
           { type: "Image", props: { src: `https://example.com/${evil}.png`, alt: evil } },
           { type: "Text", children: [{ type: "MergeTag", props: { name: evil } }] },
           { type: "Text", style: { fontFamily: { name: "X", src: `https://example.com/"); } body { color: red } </style><script>x</script>` } }, children: ["x"] },
+          { type: "List", children: [{ type: "ListItem", children: [evil] }] },
+          { type: "Table", children: [{ type: "TableRow", props: { header: true }, children: [{ type: "TableCell", children: [evil] }] }] },
         ],
         { props: { width: 600, title: evil, previewText: evil, lang: "en" } }
       )
@@ -223,12 +225,58 @@ describe("email HTML", () => {
     expect(dom.title).toBe(evil);
     expect(dom.querySelector("img")!.getAttribute("alt")).toBe(evil);
     expect(dom.querySelector("a")!.textContent).toBe(evil);
+    expect(dom.querySelector("[role=listitem] div")!.textContent).toBe(evil);
+    expect(dom.querySelector("th")!.textContent).toBe(evil);
     // Outlook parses what's in its comments as markup: only the exporter's own tables go there.
     const comments: string[] = [];
     const walker = dom.createTreeWalker(dom, 128 /* NodeFilter.SHOW_COMMENT */);
     while (walker.nextNode()) comments.push(walker.currentNode.textContent ?? "");
     expect(comments.length).toBeGreaterThan(0);
     for (const comment of comments) expect(comment).not.toMatch(/script|alert|example\.com/);
+  });
+
+  it("writes a list as a table: a row per item, its marker right-aligned in a cell of the indent's width", () => {
+    const { body, text } = render(
+      email([
+        {
+          type: "List",
+          props: { type: "number", start: 3 },
+          style: { gap: 4 },
+          children: [
+            { type: "ListItem", id: "first", children: ["One ", { type: "Span", style: { fontWeight: 700 }, children: ["bold"] }] },
+            { type: "ListItem", children: ["Two", { type: "List", children: [{ type: "ListItem", children: ["Nested"] }] }] },
+          ],
+        },
+      ])
+    );
+    expect(body).toContain('<table role="list" cellpadding="0" cellspacing="0" border="0" width="100%"><tr role="listitem"><td aria-hidden="true" width="24" valign="top" style="color:#000;');
+    expect(body).toContain('text-align:right;width:24px;box-sizing:border-box;padding-right:8px;padding-bottom:4px">3.</td><td valign="top" style="padding-bottom:4px"><div id="first" style="');
+    expect(body).toContain('>One <span style="font-weight:700">bold</span></div>');
+    // The second item: its marker, its text, then its nested list (bullets), with no gap below the last item.
+    expect(body).toMatch(/>4\.<\/td><td valign="top"><div style="[^"]*">Two<\/div><table role="list"[^>]*><tr role="listitem"><td[^>]*>•<\/td>/);
+    expect(text).toBe("3. One bold\n4. Two\n  - Nested");
+  });
+
+  it("writes a data table: columns in a colgroup, cells with px widths for Word and shares elsewhere, a header row as th", () => {
+    const { body, text } = render(
+      email([
+        {
+          type: "Table",
+          style: { cellPadding: [8, 12], rowBorder: "1px solid #eeeeee" },
+          children: [
+            { type: "TableRow", props: { header: true }, children: [{ type: "TableCell", style: { width: "60%" }, children: ["Item"] }, { type: "TableCell", style: { textAlign: "right" }, children: ["Price"] }] },
+            { type: "TableRow", style: { backgroundColor: "#fafafa" }, children: [{ type: "TableCell", children: ["Notebook"] }, { type: "TableCell", style: { textAlign: "right" }, children: ["$12"] }] },
+          ],
+        },
+      ])
+    );
+    expect(body).toContain('<table cellpadding="0" cellspacing="0" border="0" width="100%" style="table-layout:fixed"><colgroup><col width="360" style="width:60%"><col width="240" style="width:40%"></colgroup><thead><tr>');
+    expect(body).toContain('<th scope="col" width="360" valign="top" style="color:#000;font-family:Arial, Helvetica, sans-serif;font-size:16px;font-weight:700;');
+    expect(body).toContain("width:60%;box-sizing:border-box;padding:8px 12px;border-bottom:1px solid #eee\">Item</th>");
+    expect(body).toContain('</thead><tbody><tr bgcolor="#fafafa" style="background-color:#fafafa"><td width="360" valign="top" style="color:#000;');
+    // The last row has no line below it.
+    expect(body).toContain("text-align:right;width:40%;box-sizing:border-box;padding:8px 12px\">$12</td>");
+    expect(text).toBe("Item | Price\nNotebook | $12");
   });
 
   it("lists what email can't do as asked", () => {

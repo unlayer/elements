@@ -3,7 +3,9 @@
  * filters count against HTML-only mail), written from the tree rather than
  * read back out of the HTML. Same conventions as the main entry's
  * renderToPlainText: large headings in capitals, a link as "text (url)", an
- * image as "[alt]", a divider as "---", blocks apart by a blank line.
+ * image as "[alt]", a divider as "---", blocks apart by a blank line; list
+ * items as "- " or "1. " (nested ones indented), a table's rows a line each,
+ * its cells apart by " | ".
  */
 import { linkParts, type LinkValue, type ResolvedDocument, type ResolvedNode } from "@unlayer-internal/elements-core";
 
@@ -65,10 +67,38 @@ export function renderText(resolved: ResolvedDocument, options: TextOptions = {}
           return [image(child)];
         case "Divider":
           return ["---"];
+        case "List":
+          return [list(child, "")];
+        case "Table":
+          return [table(child)];
         default:
           return blocks(child);
       }
     });
+
+  const shown = (node: ResolvedNode) => !(node.hidden?.mobile && node.hidden?.desktop);
+
+  const list = (node: ResolvedNode, indent: string): string =>
+    node.children
+      .filter((child): child is ResolvedNode => typeof child !== "string" && shown(child))
+      .map((item, index) => {
+        const marker = node.props.type === "number" ? `${Number(node.props.start) + index}. ` : "- ";
+        const text = tidy(inline({ ...item, children: item.children.filter((c) => typeof c === "string" || c.type !== "List") }));
+        const nested = item.children.filter((c): c is ResolvedNode => typeof c !== "string" && c.type === "List" && shown(c)).map((c) => list(c, `${indent}  `));
+        return [`${indent}${marker}${text}`, ...nested].join("\n");
+      })
+      .join("\n");
+
+  const table = (node: ResolvedNode): string =>
+    node.children
+      .filter((row): row is ResolvedNode => typeof row !== "string" && shown(row))
+      .map((row) =>
+        row.children
+          .filter((cell): cell is ResolvedNode => typeof cell !== "string")
+          .map((cell) => tidy(inline(cell)))
+          .join(" | ")
+      )
+      .join("\n");
 
   return blocks(resolved.root)
     .filter((block) => block.length > 0)

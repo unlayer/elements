@@ -94,6 +94,36 @@ export const template = (root: "Page" | "Email") =>
           style: { padding: 8, maxWidth: 300 },
           children: ["b"],
         },
+        {
+          type: "List",
+          style: { padding: [0, 10], indent: 30, gap: 4 },
+          children: [
+            { type: "ListItem", children: ["an item", { type: "List", props: { type: "number" }, children: [{ type: "ListItem", children: ["nested"] }] }] },
+            { type: "ListItem", children: ["another"] },
+          ],
+        },
+        {
+          type: "Table",
+          style: { cellPadding: 8, border: "1px solid #cccccc", rowBorder: "1px solid #eeeeee" },
+          children: [
+            {
+              type: "TableRow",
+              props: { header: true },
+              children: [
+                { type: "TableCell", style: { width: "40%" }, children: ["Item"] },
+                { type: "TableCell", children: ["Qty"] },
+                { type: "TableCell", style: { width: 120, textAlign: "right" }, children: ["Price"] },
+              ],
+            },
+            {
+              type: "TableRow",
+              children: [
+                { type: "TableCell", props: { colSpan: 2 }, children: [{ type: "Image", props: { src: { src: "data:image/gif;base64,R0lGODlhAQABAAAAACw=", width: 2000 } } }] },
+                { type: "TableCell", style: { textAlign: "right" }, children: ["$12"] },
+              ],
+            },
+          ],
+        },
       ],
     }),
   });

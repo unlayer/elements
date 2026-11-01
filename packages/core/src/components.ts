@@ -1,10 +1,10 @@
 /**
- * The components' definitions. This is the first slice (Email, Page, Section,
- * layouts, text, links, buttons, images, dividers); tables, lists, grids,
- * layers, documents, canvases and shapes follow in their own steps.
+ * The components' definitions: Email, Page, Section, layouts, text, links,
+ * buttons, images, dividers, lists and tables; grids, layers, documents,
+ * canvases and shapes follow in their own steps.
  */
 import { defineComponent, prop, type ComponentDefinition, type CompositeEditor } from "./define";
-import { asset, color, enumOf, insets, length, link, text } from "./kinds";
+import { asset, boolean, color, enumOf, insets, length, line, link, number, text } from "./kinds";
 import type { Json } from "./model";
 import { boxStyle, layoutStyle, pick, placementStyle, textStyle } from "./styles";
 
@@ -349,9 +349,100 @@ export const MergeTag = defineComponent({
   targets: { email: {}, web: {} },
 });
 
+export const List = defineComponent({
+  type: "List",
+  label: "List",
+  description: "A bulleted or numbered list of ListItems. Its markers sit in a column of their own (indent) before the items.",
+  categories: ["block"],
+  props: {
+    type: prop(enumOf(["bullet", "number"]), { label: "Type", default: "bullet" }),
+    start: prop(number({ min: 0, integer: true }), { label: "Starts at", description: "The first item's number, in a numbered list.", default: 1 }),
+  },
+  style: {
+    ...textStyle,
+    ...pick(boxStyle, "width", "maxWidth", "padding", "backgroundColor", "border"),
+    gap: { kind: length(["px"]), label: "Gap", description: "Space between items.", mobile: true },
+    indent: { kind: length(["px"], { min: 0 }), label: "Indent", description: "The width of the markers' column, before the items." },
+    ...placementStyle,
+  },
+  defaultStyle: { indent: 24 },
+  children: { types: ["ListItem"] },
+  sizing: "stretch",
+  targets: { email: {}, web: {} },
+  editor: { groups: [{ title: "List", paths: ["props.type", "props.start", "style.gap", "style.indent"] }, TEXT_EDITOR, SPACING_EDITOR] },
+});
+
+export const ListItem = defineComponent({
+  type: "ListItem",
+  label: "List item",
+  description: "An item of a List: text, and a List of its own to nest one.",
+  categories: [],
+  props: {},
+  style: pick(textStyle, "color", "fontFamily", "fontSize", "fontWeight", "fontStyle", "lineHeight", "letterSpacing", "textAlign", "textTransform", "textDecoration"),
+  children: { text: true, categories: ["inline"], types: ["List"] },
+  sizing: "stretch",
+  targets: { email: {}, web: {} },
+  editor: { groups: [TEXT_EDITOR] },
+});
+
+export const Table = defineComponent({
+  type: "Table",
+  label: "Table",
+  description: "A table of data: TableRows of TableCells. Columns take their cells' widths; the rest share what's left.",
+  categories: ["block"],
+  props: {},
+  style: {
+    ...textStyle,
+    ...pick(boxStyle, "width", "maxWidth", "backgroundColor", "border"),
+    cellPadding: { kind: insets(), label: "Cell padding", description: "Every cell's padding, where the cell doesn't set its own." },
+    rowBorder: { kind: line(), label: "Line between rows" },
+    ...placementStyle,
+  },
+  children: { types: ["TableRow"] },
+  sizing: "stretch",
+  targets: { email: {}, web: {} },
+  editor: { groups: [{ title: "Table", paths: ["style.cellPadding", "style.rowBorder", "style.border", "style.backgroundColor"] }, TEXT_EDITOR] },
+});
+
+export const TableRow = defineComponent({
+  type: "TableRow",
+  label: "Table row",
+  description: "A row of a Table. A header row's cells are header cells, in bold.",
+  categories: [],
+  props: {
+    header: prop(boolean(), { label: "Header", description: "Its cells head the columns below them.", default: false }),
+  },
+  style: { ...pick(textStyle, "color", "fontFamily", "fontSize", "fontWeight", "fontStyle", "lineHeight", "letterSpacing", "textAlign", "textTransform"), backgroundColor: boxStyle.backgroundColor },
+  defaultStyleBy: { prop: "header", values: { true: { fontWeight: 700 } } },
+  children: { types: ["TableCell"] },
+  sizing: "stretch",
+  targets: { email: {}, web: {} },
+  editor: { groups: [{ title: "Row", paths: ["props.header", "style.backgroundColor"] }, TEXT_EDITOR] },
+});
+
+export const TableCell = defineComponent({
+  type: "TableCell",
+  label: "Table cell",
+  description: "A cell of a TableRow: text, and images. Its width sets its column's.",
+  categories: [],
+  props: {
+    colSpan: prop(number({ min: 1, integer: true }), { label: "Columns", description: "How many columns it spans.", default: 1 }),
+  },
+  style: {
+    ...textStyle,
+    ...pick(boxStyle, "padding", "backgroundColor", "border"),
+    width: { kind: length(["px", "%"]), label: "Width", description: "Its column's width (of a cell spanning one column)." },
+    verticalAlign: { kind: enumOf(["top", "middle", "bottom"]), label: "Vertical alignment" },
+  },
+  children: { text: true, categories: ["inline"], types: ["Image"] },
+  sizing: "none",
+  targets: { email: {}, web: {} },
+  editor: { groups: [{ title: "Cell", paths: ["props.colSpan", "style.width", "style.verticalAlign"] }, TEXT_EDITOR, { title: "Box", paths: ["style.padding", "style.backgroundColor", "style.border"] }] },
+});
+
 export const COMPONENTS: Readonly<Record<string, ComponentDefinition>> = Object.freeze(
   Object.fromEntries(
-    [Email, Page, Section, Row, Column, Text, Paragraph, Heading, Span, Link, Button, Image, Divider, LineBreak, MergeTag].map((d) => [
+    [Email, Page, Section, Row, Column, Text, Paragraph, Heading, Span, Link, Button, Image, Divider, LineBreak, MergeTag, List, ListItem, Table, TableRow, TableCell].map((d) => [
       d.type,
       d as unknown as ComponentDefinition,
     ])

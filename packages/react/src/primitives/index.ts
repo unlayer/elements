@@ -20,6 +20,11 @@ export {
   Divider,
   LineBreak,
   MergeTag,
+  List,
+  ListItem,
+  Table,
+  TableRow,
+  TableCell,
 } from "./components";
 export type {
   PrimitiveProps,
@@ -38,6 +43,11 @@ export type {
   DividerProps,
   LineBreakProps,
   MergeTagProps,
+  ListProps,
+  ListItemProps,
+  TableProps,
+  TableRowProps,
+  TableCellProps,
 } from "./components";
 export { component, prop, type ComponentSpec, type CustomComponent, type CustomProps } from "./custom";
 export { render, validate, type RenderOptions, type RenderResult, type ValidationResult } from "./render";

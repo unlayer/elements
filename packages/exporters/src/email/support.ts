@@ -36,6 +36,9 @@ function check(node: ResolvedNode, d: Diagnostics): void {
   if (node.type === "Column" && style.justify !== undefined && style.justify !== "start") {
     d.add("email/degraded", "info", "justify on a Column has no effect in email: its children start at the top", `${path}.style.justify`, id);
   }
+  if (node.type === "TableCell" && node.hidden) {
+    d.warning("email/unsupported", "A TableCell can't be hidden in email (its row would lose a column): hide its TableRow", `${path}.hidden`, id);
+  }
   if (node.type === "Image" && node.width === null) {
     d.warning("email/image-width", "This Image has no width: Outlook shows it at the size of its file, however wide that is. Give it a width, or the file's width in src", `${path}.props.src`, id);
   }

@@ -129,4 +129,16 @@ describe("checkDocument", () => {
   it("reports unknown types and keys", () => {
     expect(codes(doc({ type: "Email", children: [{ type: "Body" }, { type: "Text", styles: {} }] }))).toEqual(["node/unknown-type", "node/unknown-key"]);
   });
+
+  it("keeps list items in Lists and table rows and cells in Tables", () => {
+    const { diagnostics } = checkDocument({
+      version: 1,
+      root: { type: "Email", children: [{ type: "ListItem", children: ["x"] }, { type: "Table", children: [{ type: "TableCell" }] }, { type: "List", children: [{ type: "Text" }] }] },
+    });
+    expect(diagnostics.map((d) => [d.code, d.path])).toEqual([
+      ["children/not-allowed", "root.children[0]"],
+      ["children/not-allowed", "root.children[1].children[0]"],
+      ["children/not-allowed", "root.children[2].children[0]"],
+    ]);
+  });
 });

@@ -52,6 +52,8 @@ describe("web layout in Chromium", () => {
       // A Section spans the window; what the resolver gives it is the width of its content column.
       const box = measured[node.id!];
       if (node.type === "Section") expect([node.id, Math.round(box.content)]).toEqual([node.id, node.contentWidth]);
+      // A list's padding holds its markers too: its items' widths (listitem_*) are what it gives them.
+      else if (node.type === "List") expect([node.id, Math.round(box.width)]).toEqual([node.id, node.width]);
       else expect([node.id, Math.round(box.width), Math.round(box.content)]).toEqual([node.id, node.width, node.contentWidth]);
     }
   });

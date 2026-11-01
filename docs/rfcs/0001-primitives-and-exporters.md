@@ -1,6 +1,6 @@
 # RFC 0001: Elements primitives, a document model, and exporters Elements owns
 
-Status: draft, for review. Steps 1, 2 and 3 and the API polish (see Amendments: JSX only, async `render()`, `validate()`, short rule-named classes, ids only from authors) are implemented in `packages/core`, `packages/exporters` and `@unlayer/react-elements/primitives`.
+Status: draft, for review. Steps 1, 2 and 3, lists and tables (step 5), and the API polish (see Amendments: JSX only, async `render()`, `validate()`, short rule-named classes, ids only from authors) are implemented in `packages/core`, `packages/exporters` and `@unlayer/react-elements/primitives`.
 
 ## Summary
 
@@ -71,6 +71,15 @@ still say "document", `toDocument()`, `renderDocument()` and JSON input where th
    edited designs come back as JSX source (printed as convert-core's TSX printer prints migrated
    templates) for code, or are rendered directly from the builder JSON at runtime. `base` is the original
    JSX.
+7. **Order of work, and React Email parity (2026-11-01).** The API and the full component set come
+   first, with feature parity with React Email (`@react-email/components` 1.0.12) as the bar; the
+   builder adapter comes last, once the API is final. All of it stays on one branch and one PR until
+   every step is ready. Parity is in what a template can say, within these choices:
+   - **Elements components only.** No raw HTML elements in templates (`<strong>`, `<ul>`, `<div>`):
+     inline formatting is a `Span` with a style, and lists and tables are components. No raw-HTML block.
+   - **No Tailwind.** Typed `style` props only; `@unlayer/migrate` converts Tailwind templates.
+   - **Not yet:** dark-mode overrides, background images, shadows, gradients, opacity, margins,
+     `CodeBlock`, `CodeInline` and `Markdown`. Each can be added later without changing the API.
 
 ## Packages and the API boundary
 
@@ -89,7 +98,7 @@ The new vocabulary needs its own entry because some names mean something else to
 |---|---|---|
 | `Row` | needs `layout`/`cells`, only `Column` children | lays children out horizontally; takes content directly |
 | `Column` | a cell of a Row | lays children out vertically, anywhere |
-| `Table` | data in props (`headers`, `rows`) | built from `TableHead`/`TableBody`/`TableRow`/`TableCell` |
+| `Table` | data in props (`headers`, `rows`) | built from `TableRow` (a `header` row heads the columns) and `TableCell` |
 | `style` | a wrapper `<div>`'s style | the element's own typed appearance |
 
 `Email`, `Page`, `Document`, `Heading`, `Paragraph`, `Image`, `Button`, `Divider` and `PageBreak` exist in
@@ -476,7 +485,8 @@ Each is a small module with its own tests and Outlook captures.
 | Button | a one-cell table: background, border and corners on the cell; the padding on the `<a>` (`display:inline-block`, all of it clickable) and as the cell's `mso-padding-alt` for Outlook, which has no padding on links. Not VML: the Outlook captures show Word drawing a VML button's label in its own font (Aptos), wrapped inside the shape's fixed size; a table keeps the template's font and sizes to its label. Square corners in classic Outlook |
 | Image | `<img>` with `width` attribute and style, `display:block`, `height:auto`, `border:0`, alt text styled |
 | Divider | a table cell with `border-top`, not `<hr>` |
-| List | `ul`/`ol` with Outlook margin fixes; table bullets when `style` needs what Outlook won't do |
+| List | a table: an item a row, its marker right-aligned in a cell of the indent's width, `role="list"`/`"listitem"` for screen readers. Word's own lists indent and space differently by version; a table lays out the same everywhere |
+| Table | a data table (no `role="presentation"`) with fixed layout: column widths from the resolver in a `colgroup` and on each cell (px for Word, shares elsewhere); header rows as `thead` with `th`; `cellPadding` and `rowBorder` written on each cell |
 | Link | `<a>` with color and decoration inline |
 | Svg, shapes | not supported (diagnostic); an author may rasterize explicitly with `@unlayer/elements-image` and use an Image |
 
@@ -670,13 +680,13 @@ Each step ends with its tests in CI.
    components. The quickest check of the model and layout rules.
 3. **Email exporter for the slice** (`Email` and the same components), built against the Outlook
    renderer and the reference exporters.
-4. **Builder adapter for the slice**, both ways, with the prop mappings, the merge with `base` and
-   the real-builder round trip. This completes the vertical slice: JSX → document → HTML → builder → edit → document → HTML.
-5. **Existing components onto the new engine**, one at a time (can run alongside 6–8).
-6. Lists and tables, in every target and the builder.
-7. `Grid`, `Layer` and responsive `Page` layouts.
-8. `Document.Page`, `PageHeader`, `PageFooter`, `PageNumber`; print HTML; `@unlayer/elements-pdf`.
-9. `Canvas`, `Svg` and shapes; `@unlayer/elements-image`.
+4. **Existing components onto the new engine**, one at a time (can run alongside 5–7).
+5. Lists and tables, in every target.
+6. `Grid`, `Layer` and responsive `Page` layouts.
+7. `Document.Page`, `PageHeader`, `PageFooter`, `PageNumber`; print HTML; `@unlayer/elements-pdf`.
+8. `Canvas`, `Svg` and shapes; `@unlayer/elements-image`.
+9. **Builder adapter**, last (Amendment 7): both ways, with the prop mappings, the merge with `base` and
+   the real-builder round trip, for the final API and components.
 
 The release notes of each step list the matrix cells still unsupported.
 

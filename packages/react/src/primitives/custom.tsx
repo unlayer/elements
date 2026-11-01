@@ -51,11 +51,11 @@ export const prop = {
     const { min, max, integer, ...rest } = options;
     return defineProp(number({ min, max, integer }), rest);
   },
-  length: <const U extends LengthUnit = "px", const R extends boolean = false, const D extends OutputOf<Kind<any, any>> | undefined = undefined>(
+  length: <const U extends LengthUnit = "px", const R extends boolean = false, const D extends OutputOf<ReturnType<typeof length<U>>> | undefined = undefined>(
     options: PropOptions<ReturnType<typeof length<U>>, R, D> & { units?: readonly U[]; min?: number }
   ) => {
     const { units, min, ...rest } = options;
-    return defineProp(length<U>(units, { min }), rest as PropOptions<ReturnType<typeof length<U>>, R, undefined>);
+    return defineProp<ReturnType<typeof length<U>>, R, D>(length<U>(units, { min }), rest);
   },
   choice: <const V extends readonly (string | number)[], const R extends boolean = false, const D extends V[number] | undefined = undefined>(
     values: V,

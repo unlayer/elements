@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import React, { createContext, forwardRef, Fragment, memo, useContext, useId, useState } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
-import { Button, Column, Divider, ElementsError, Email, Heading, Image, LineBreak, Link, MergeTag, Page, Paragraph, render, Row, Section, Span, Text, validate } from "./index";
+import { Button, Column, Divider, ElementsError, Email, Heading, Image, LineBreak, Link, List, ListItem, MergeTag, Page, Paragraph, render, Row, Section, Span, Table, TableCell, TableRow, Text, validate } from "./index";
 import { collectTemplate } from "./collect";
 import { Email as LegacyEmail, Paragraph as LegacyParagraph, Row as LegacyRow, Column as LegacyColumn, renderToHtml } from "../index";
 
@@ -73,6 +73,39 @@ describe("render()", () => {
     expect(html).not.toMatch(/display:flex/);
     expect(text).toBe("THANKS\n\nLeft\n\nRight\n\nTrack it (https://example.com)");
     expect(diagnostics).toEqual([]);
+  });
+
+  it("renders lists and tables written in JSX, in email and on a page", async () => {
+    const template = (Root: typeof Email | typeof Page) => (
+      <Root>
+        <List type="number">
+          <ListItem>
+            First <Span style={{ fontWeight: 700 }}>step</Span>
+          </ListItem>
+          <ListItem>Second</ListItem>
+        </List>
+        <Table style={{ cellPadding: [8, 12], rowBorder: "1px solid #eeeeee" }}>
+          <TableRow header>
+            <TableCell style={{ width: "60%" }}>Item</TableCell>
+            <TableCell style={{ textAlign: "right" }}>Price</TableCell>
+          </TableRow>
+          <TableRow>
+            <TableCell>Notebook</TableCell>
+            <TableCell style={{ textAlign: "right" }}>$12</TableCell>
+          </TableRow>
+        </Table>
+      </Root>
+    );
+    const email = await render(template(Email));
+    expect(email.html).toContain('<table role="list"');
+    expect(email.html).toContain("<thead>");
+    expect(email.text).toBe("1. First step\n2. Second\n\nItem | Price\nNotebook | $12");
+    const page = await render(template(Page));
+    expect(page.html).toContain("<ol ");
+    expect(page.html).toContain('<th scope="col"');
+    expect(page.text).toBe(email.text);
+    // A ListItem goes in a List, a TableCell in a TableRow.
+    expect(validate(<Email><ListItem>loose</ListItem></Email>).valid).toBe(false);
   });
 
   it("is the same every time for the same template", async () => {

@@ -70,6 +70,11 @@ The rest of each folder is what its components share:
 
 The root (`Email.tsx`, `Page.tsx`) is written by the folder's `index.tsx`, not through the table.
 
+Lists and tables are a family of components each: `List` writes its items' rows (email) or `<li>`s
+(page) and `ListItem` an item's content; `Table` writes the table and its column widths, `TableRow`
+and `TableCell` the rest. A table's `cellPadding` and `rowBorder` arrive already on each cell's own
+style: the resolver puts them there, so a cell needs nothing from its table.
+
 ## Adding a component
 
 1. Its definition in `packages/core/src/components.ts` (props, styles, children, which outputs).
