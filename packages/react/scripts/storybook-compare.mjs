@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 // Run with: node scripts/storybook-compare.mjs   (requires `pnpm build-storybook` first)
 // Against a running Storybook instead: STORYBOOK_URL=http://localhost:6006 node scripts/storybook-compare.mjs
+// One design: COMPARE_ONLY=stripe-receipt
 //
 // The new engine draws what main draws. Each "Primitives/Compare with main" story puts one of main's
 // designs, rendered by today's components, next to the same design written with the new components.
@@ -8,6 +9,10 @@
 // (where main draws something other than what its template asks, the story's `nextAsMain`), and checks
 // that every run of text and every image sits in the same place, at the same size and in the same style
 // on both sides, within a pixel.
+//
+// Then what's painted besides text (backgrounds, borders, dividers, buttons' shapes, images' boxes):
+// each frame's screenshot with its text made transparent, pixel by pixel, a pixel counting as
+// different only where no pixel within one of it on the other side has its color.
 //
 // Both sides are measured in one browser on one machine, so their fonts are the same: unlike the
 // visual-drift gate, geometry is safe to compare here. Every image is served one square placeholder, so
@@ -26,6 +31,9 @@ const BASE = process.env.STORYBOOK_URL ?? `http://127.0.0.1:${PORT}`;
 const PREFIX = "primitives-compare-with-main--";
 const WIDTHS = ["desktop", "phone"];
 const TOLERANCE = 1;
+// Pixels that may differ, text left out: the antialiased edges of a rounded corner drawn half a pixel apart. (A
+// hairline 20px long that's missing is 40.)
+const PAINT_TOLERANCE = Number(process.env.COMPARE_PAINT_TOLERANCE ?? 8);
 const PLACEHOLDER = '<svg xmlns="http://www.w3.org/2000/svg" width="1000" height="1000"><rect width="1000" height="1000" fill="#999"/></svg>';
 // Line height shows in where the lines sit (their boxes), not as a style: "normal" and 1.2 draw the same.
 const TEXT_STYLES = ["fontFamily", "fontSize", "fontWeight", "fontStyle", "color", "letterSpacing", "textDecorationLine", "textTransform"];
@@ -44,7 +52,7 @@ if (process.env.STORYBOOK_URL) {
 }
 
 const ids = Object.values(index.entries ?? {})
-  .filter((entry) => entry.type === "story" && entry.id.startsWith(PREFIX))
+  .filter((entry) => entry.type === "story" && entry.id.startsWith(PREFIX) && entry.id.includes(process.env.COMPARE_ONLY ?? ""))
   .map((entry) => entry.id)
   .sort();
 if (ids.length === 0) {
@@ -83,6 +91,61 @@ function measure(styles) {
     const images = [...doc.images].filter((img) => img.getBoundingClientRect().width).map((img) => box(img.getBoundingClientRect()));
     return { texts, images };
   });
+}
+
+/** Pixels painted differently: their number and where (text left out; one pixel of give, as for the boxes). */
+async function paintDifferences(page) {
+  const frames = page.locator("#storybook-root iframe");
+  // Text made transparent, and every image the placeholder (an inline one too): their boxes are compared above.
+  for (const index of [0, 1]) {
+    await frames.nth(index).evaluate(async (frame, placeholder) => {
+      const style = frame.contentDocument.createElement("style");
+      style.textContent = "*{color:transparent!important;-webkit-text-fill-color:transparent!important;text-shadow:none!important;text-decoration-color:transparent!important}";
+      frame.contentDocument.head.append(style);
+      await Promise.all([...frame.contentDocument.images].map((img) => ((img.src = placeholder), img.decode().catch(() => {}))));
+    }, `data:image/svg+xml,${encodeURIComponent(PLACEHOLDER)}`);
+  }
+  const shots = await Promise.all([0, 1].map(async (index) => `data:image/png;base64,${(await frames.nth(index).screenshot()).toString("base64")}`));
+  return page.evaluate(async (sources) => {
+    const load = (src) => new Promise((resolve, reject) => Object.assign(new Image(), { onload() { resolve(this); }, onerror: reject, src }));
+    const pixels = (img) => {
+      const canvas = Object.assign(document.createElement("canvas"), { width: img.width, height: img.height });
+      const context = canvas.getContext("2d");
+      context.drawImage(img, 0, 0);
+      return context.getImageData(0, 0, img.width, img.height);
+    };
+    const [a, b] = (await Promise.all(sources.map(load))).map(pixels);
+    const width = Math.min(a.width, b.width);
+    const height = Math.min(a.height, b.height);
+    let count = 0;
+    const box = [Infinity, Infinity, -1, -1];
+    const scan = (p, q) => {
+      const same = (i, j) => Math.abs(p.data[i] - q.data[j]) <= 16 && Math.abs(p.data[i + 1] - q.data[j + 1]) <= 16 && Math.abs(p.data[i + 2] - q.data[j + 2]) <= 16;
+      for (let y = 0; y < height; y++) {
+        for (let x = 0; x < width; x++) {
+          const i = (y * p.width + x) * 4;
+          if (same(i, (y * q.width + x) * 4)) continue;
+          let near = false;
+          for (let dy = -1; dy <= 1 && !near; dy++) {
+            for (let dx = -1; dx <= 1 && !near; dx++) {
+              const nx = x + dx;
+              const ny = y + dy;
+              near = nx >= 0 && ny >= 0 && nx < q.width && ny < q.height && same(i, (ny * q.width + nx) * 4);
+            }
+          }
+          if (near) continue;
+          count++;
+          box[0] = Math.min(box[0], x);
+          box[1] = Math.min(box[1], y);
+          box[2] = Math.max(box[2], x);
+          box[3] = Math.max(box[3], y);
+        }
+      }
+    };
+    scan(a, b);
+    scan(b, a);
+    return { count, box, heights: [a.height, b.height] };
+  }, shots);
 }
 
 const near = (a, b) => a.length === b.length && a.every((v, i) => Math.abs(v - b[i]) <= TOLERANCE);
@@ -135,6 +198,10 @@ try {
       );
       await page.evaluate(() => Promise.all([...document.querySelectorAll("#storybook-root iframe")].map((f) => f.contentDocument.fonts.ready)));
       const found = differences(await page.evaluate(measure, TEXT_STYLES));
+      const paint = await paintDifferences(page);
+      if (Math.abs(paint.heights[0] - paint.heights[1]) > TOLERANCE) found.push(`main is ${paint.heights[0]}px tall, the new engine ${paint.heights[1]}px`);
+      if (paint.count > PAINT_TOLERANCE) found.push(`${paint.count} pixels painted differently (text left out), within ${paint.box.join(",")}`);
+      if (process.env.COMPARE_VERBOSE) console.log(`    ${id}@${width}: ${paint.count} pixels differ`);
       const story = `${id.slice(PREFIX.length)}@${width}`;
       if (found.length) {
         failures++;

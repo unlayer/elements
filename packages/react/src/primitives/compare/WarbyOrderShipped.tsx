@@ -6,7 +6,7 @@
  * sides narrow its paragraph (the comparison's 760px window has room for them).
  */
 import { WarbyOrderShipped } from "../../examples/WarbyOrderShipped.stories";
-import { Button, Column, Email, Heading, Image, Link, Paragraph, Row, Section } from "../index";
+import { Button, Column, Divider, Email, Heading, Image, Link, Paragraph, Row, Section } from "../index";
 import { lineRow } from "./lineRow";
 
 const INK = "#2A2A2A";
@@ -21,20 +21,22 @@ const NBSP = " ";
 const lines = { label: MUTED, value: INK, line: LINE };
 const eyebrow = { fontSize: 12, fontWeight: 700, color: MUTED, letterSpacing: 0.72, lineHeight: "100%" } as const;
 
-/** A product line: its name in bold and its variant under it on the left, its price on the right. */
+/** A product line: its name in bold and its variant under it on the left, its price on the right; its hairline as lineRow.tsx draws it. */
 function productRow(name: string, variant: string, price: string, last = false) {
-  const cell = { padding: "16px 0", border: last ? undefined : { bottom: `1px solid ${LINE}` } };
+  const line = `1px solid ${LINE}`;
+  const cell = { style: { padding: "16px 0" }, mobile: last ? undefined : { border: { bottom: line } } };
   return (
     <Section style={{ backgroundColor: CARD }}>
       <Row>
-        <Column style={cell}>
+        <Column {...cell}>
           <Paragraph style={{ padding: 10, fontSize: 15, fontWeight: 700, color: INK, lineHeight: "150%" }}>{name}</Paragraph>
           <Paragraph style={{ padding: 10, fontSize: 13, color: MUTED, lineHeight: "150%" }}>{variant}</Paragraph>
         </Column>
-        <Column style={cell}>
+        <Column {...cell}>
           <Paragraph style={{ padding: 10, fontSize: 15, fontWeight: 700, color: INK, textAlign: "right", lineHeight: "150%" }}>{price}</Paragraph>
         </Column>
       </Row>
+      {!last && <Divider hidden={{ mobile: true }} style={{ borderTop: line }} />}
     </Section>
   );
 }
