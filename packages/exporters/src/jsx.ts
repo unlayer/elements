@@ -173,8 +173,16 @@ export function Fragment({ children }: { children?: Child }): Html {
 /** What only classic Outlook reads (`<!--[if mso]>`). */
 export const Outlook = ({ children }: { children?: Child }) => new Html(pieces(children).join(""), { kind: "outlook" });
 
-/** What every client but classic Outlook reads (`<!--[if !mso]><!-->`). */
-export const NotOutlook = ({ children }: { children?: Child }) => new Html(pieces(children).join(""), { kind: "notOutlook" });
+const OUTLOOK_ONLY = /<!--\[if mso\]>[\s\S]*?<!\[endif\]-->/g;
+const NOT_OUTLOOK_MARKS = /<!--\[if !mso\]><!-->|<!--<!\[endif\]-->/g;
+
+/**
+ * What every client but classic Outlook reads (`<!--[if !mso]><!-->`). Conditional comments can't nest:
+ * Outlook ends what it skips at the first `<![endif]>`, and would show the rest. So inside, Outlook's own
+ * markup is left out (Outlook never sees any of it) and the inner comments of this kind are unwrapped.
+ */
+export const NotOutlook = ({ children }: { children?: Child }) =>
+  new Html(pieces(children).join("").replace(OUTLOOK_ONLY, "").replace(NOT_OUTLOOK_MARKS, ""), { kind: "notOutlook" });
 
 /** Its children, with neighbouring conditional comments of a kind written as one. */
 export function Merged({ children }: { children?: Child }): Html {

@@ -162,6 +162,26 @@ describe("email HTML", () => {
     expect(head).not.toContain("height:20px");
   });
 
+  it("never nests conditional comments: what Outlook skips holds none of Outlook's own markup", () => {
+    // A Column only phones show, holding a stacking Row (Outlook's ghost table in conditional comments of its own).
+    const column = { type: "Column", children: [{ type: "Text", children: ["x"] }] };
+    const { body } = render(email([{ type: "Column", hidden: { desktop: true }, children: [{ type: "Row", style: { gap: 10 }, children: [column, column] }] }, { type: "Text", children: ["after"] }]));
+    let depth = 0;
+    for (const [mark] of body.matchAll(/<!--\[if mso\]>|<!--\[if !mso\]><!-->|<!--<!\[endif\]-->|<!\[endif\]-->/g)) {
+      depth += mark.includes("[if") ? 1 : -1;
+      expect(depth).toBeLessThanOrEqual(1);
+    }
+    expect(depth).toBe(0);
+    // Classic Outlook (which ends what it skips at the first <![endif]>) reads none of the Column.
+    const outlook = body.replace(/<!--\[if !mso\]>[\s\S]*?<!\[endif\]-->/g, "").replace(/<!--\[if mso\]>|<!\[endif\]-->/g, "");
+    expect(outlook).not.toContain(">x<");
+    // Other clients read all of it, the Row's spacer included, and none of Outlook's table.
+    const others = notOutlook(body);
+    expect(others.match(/>x<\/div>/g)).toHaveLength(2);
+    expect(others).toMatch(/<div class="[^"]*" style="display:inline-block;width:10px"><\/div>/);
+    expect(others).not.toMatch(/<td width="\d+" valign/);
+  });
+
   it("writes phone styles to the text they reach, as px line heights, and hides on phones or desktop", () => {
     const { head, body } = render(
       email([
