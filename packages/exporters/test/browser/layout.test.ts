@@ -7,10 +7,10 @@
 import { chromium, type Browser, type Page } from "playwright";
 import { resolveDocument, type ResolvedNode } from "@unlayer-internal/elements-core";
 import { template } from "./fixture";
-import { renderWeb } from "../../src";
+import { renderPage } from "../../src";
 
 const resolved = resolveDocument(template("Page"));
-const { html } = renderWeb(resolved);
+const { html } = renderPage(resolved);
 
 let browser: Browser;
 let page: Page;

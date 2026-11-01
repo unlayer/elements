@@ -8,16 +8,16 @@ import {
   type Diagnostic,
   type Target,
 } from "@unlayer-internal/elements-core";
-import { renderText } from "./text";
-import { renderEmail } from "./email";
-import { renderWeb, type WebOptions } from "./web";
+import { renderEmail, type EmailOptions } from "./email";
+import { renderPage, type PageOptions } from "./page";
+import { renderText } from "./plain-text";
 
-export { renderWeb, WEB_PHONE_WIDTH, type WebHtml, type WebOptions } from "./web";
-export { renderText, type TextOptions } from "./text";
 export { renderEmail, EMAIL_PHONE_MARGIN, GMAIL_CLIP_BYTES, GMAIL_STYLE_BYTES, type EmailHtml, type EmailOptions } from "./email";
-export { Stylesheet, CLASS_PREFIX, type Media } from "./classes";
+export { renderPage, PAGE_PHONE_WIDTH, type PageHtml, type PageOptions } from "./page";
+export { renderText, type TextOptions } from "./plain-text";
+export { Stylesheet, CLASS_PREFIX, type Media } from "./shared/classes";
 
-export interface RenderOptions extends WebOptions {}
+export interface RenderOptions extends PageOptions, EmailOptions {}
 
 export interface RenderResult {
   /** The whole document, from `<!DOCTYPE html>`. */
@@ -61,5 +61,5 @@ export function renderTemplate(input: unknown, options: RenderOptions & Componen
     const email = renderEmail(resolved, options);
     return { html: email.html, head: email.head, body: email.body, bodyStyle: email.bodyStyle, text, diagnostics: [...diagnostics, ...email.diagnostics] };
   }
-  return { ...renderWeb(resolved, options), text, diagnostics };
+  return { ...renderPage(resolved, options), text, diagnostics };
 }

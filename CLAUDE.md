@@ -96,6 +96,7 @@ Example: `<Button fontSize="16px">` → `{ style: { fontSize: "16px" } }` in the
 | `packages/react/src/index.ts` | Main barrel export |
 | `packages/react/src/primitives/index.ts` | The new API until it replaces the main entry in the next major: the primitive components, `component()`, async `render()` (output from the root) and `validate()`; JSX only |
 | `packages/core/src/components.ts` | Primitive component definitions (props, styles, children, targets, editors) |
+| `packages/exporters/src/{email,page}/` | The new writers, one file per component (`Button.tsx`, `Row.tsx`, …) per output, in JSX that writes strings (`packages/exporters/src/jsx.ts`, no React); `packages/exporters/README.md` explains the layout, the JSX and how to add a component |
 | `docs/rfcs/0001-primitives-and-exporters.md` | The plan for primitives, the document model, local exporters and the builder adapter |
 | `packages/react/src/utils/create-component.tsx` | Component factory |
 | `packages/react/src/utils/render-to-html.tsx` | `renderToHtml()` implementation |

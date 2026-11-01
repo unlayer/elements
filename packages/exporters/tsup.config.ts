@@ -9,4 +9,9 @@ export default defineConfig({
   clean: true,
   treeshake: true,
   external: ['@unlayer-internal/elements-core'],
+  // The writers' JSX writes strings (src/jsx.ts), not React elements.
+  esbuildOptions(options) {
+    options.jsxFactory = 'h';
+    options.jsxFragment = 'Fragment';
+  },
 });
