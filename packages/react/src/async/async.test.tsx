@@ -421,8 +421,9 @@ describe("the async renderers", () => {
     }
   });
 
-  it("say how to write a <Suspense> in what a lazy component renders whose fallback holds blocks, where what's in it waits", async () => {
-    // React renders that fallback and leaves it out: its blocks can't be told from markup that isn't the template's.
+  it("render what's in a <Suspense> in what a lazy component renders whose fallback holds blocks, where what's in it waits", async () => {
+    // React renders that fallback and leaves it out: its blocks' markers, rendered and never read, failed the render as
+    // forged ones, saying to give it a fallback of null.
     const cache = new Map<string, { value?: string; promise: Promise<void> }>();
     const Order = ({ id }: { id: string }) => {
       const entry = cache.get(id) ?? cache.set(id, { promise: later(null).then(() => void (cache.get(id)!.value = `Order ${id}`)) }).get(id)!;
@@ -432,8 +433,10 @@ describe("the async renderers", () => {
     const section = (body: React.ReactElement) => React.lazy(async () => (await later(null), { default: () => body }));
     const email = (part: React.ReactElement) => <Email><Row><Column><Paragraph>Your order</Paragraph>{part}</Column></Row></Email>;
     const Blocks = section(<React.Suspense fallback={<Paragraph>Loading…</Paragraph>}><Order id="a" /></React.Suspense>);
-    await expect(renderToHtml(email(<Blocks />))).rejects.toThrow("Give that <Suspense> a fallback of null, or put it around the lazy component");
-    // What the message says to do renders what's in it.
+    const html = await renderToHtml(email(<Blocks />));
+    expect(html).toContain("Order a");
+    expect(html).not.toContain("Loading…");
+    // With no fallback, and around the lazy component, the same.
     const Nothing = section(<React.Suspense fallback={null}><Order id="b" /></React.Suspense>);
     expect(await renderToHtml(email(<Nothing />))).toContain("Order b");
     const Inner = section(<Order id="c" />);

@@ -101,7 +101,13 @@ export function collect(node: React.ReactNode, options: CollectOptions): Flat {
   } catch (error) {
     throw failure(error, options, frame, c, failed.at);
   }
-  return flatten(withRawErrors(c, parse(html, c)), c.omit) as Flat;
+  const parts = withRawErrors(c, parse(html, c));
+  // What React left out of what a lazy component renders (a <Suspense> of its own that rendered its fallback), which no
+  // part of the template accounts for: said at the lazy component's place, as collectAsync says what React told it.
+  if (!c.omit) for (const error of c.leftOut) parts.push({ t: "error", error: error as RenderError, fatal: false });
+  const flat = flatten(parts, c.omit) as Flat;
+  if (c.omit) flat.omitted.push(...(c.leftOut as RenderError[]));
+  return flat;
 }
 
 /** `node` collected once everything in it has settled: react-dom's streaming render, waited for whole. */

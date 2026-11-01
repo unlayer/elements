@@ -107,6 +107,8 @@ export interface Collection {
    * each one's digest, which React writes where that <Suspense> renders its fallback (see parse.ts's fallbackFailed).
    */
   reactErrors: Array<{ error: unknown; name?: string; digest?: string }>;
+  /** In a synchronous render, the parts of what lazy components render that React left out, said (parse.ts's kept). */
+  leftOut: unknown[];
   /** An async component's promise, by its props (React calls Call again once it settles). */
   pending: WeakMap<object, Tracked>;
   /** What a component that failed gave, by its props: React calls it again where it set its state as it rendered. */
@@ -132,9 +134,10 @@ export interface Collection {
    * The parts of the tree React leaves out where it renders a <Suspense>'s fallback (of the template's, or a boundary's
    * own), or where it doesn't (`fallback`: the fallback's own), each with the one it's in (-1: none) and the fallback's
    * marker. Where that marker is in what React wrote (or, for a fallback's own, isn't), nothing in the part is: a
-   * marker or placeholder of one there isn't React's (parse.ts's `kept`).
+   * marker or placeholder of one there isn't React's (parse.ts's `kept`). And what a lazy component renders (`lazy`,
+   * its number in `lazies`): React's own <Suspense>s there leave parts of it out that the collection can't see.
    */
-  scopes: Array<{ parent: number; marker: number; fallback?: boolean }>;
+  scopes: Array<{ parent: number; marker: number; fallback?: boolean; lazy?: number }>;
   /** What failed in a <style>'s or <script>'s text (no marker there), by the boundary it's in; the boundaries' parts. */
   rawErrors: Array<{ error: unknown; fatal: boolean; boundary: number }>;
   boundaryParts: Map<number, Part[]>;
@@ -205,6 +208,7 @@ export function newCollection(options: { collector?: Collector; passes?: (error:
     suspended: [],
     lazies: [],
     reactErrors: [],
+    leftOut: [],
     pending: new WeakMap(),
     failedCalls: new WeakMap(),
     shared: options.shared,
@@ -770,8 +774,9 @@ function prepLazy(element: React.ReactElement, c: Collection, ctx: Ctx): React.R
   if (c.async && ctx.suspense === 0) return prep(React.createElement(React.Suspense, { key: element.key, fallback: null }, React.cloneElement(element, { key: null } as object)), c, ctx);
   const frame = placeFrame(ctx.frame, "lazy");
   const lazy = { frame, boundary: ctx.boundary, suspenseAt: ctx.suspenseAt };
-  c.lazies.push(lazy);
-  const rendered = React.createElement(LazyRendered, { element, c, ctx: { ...ctx, frame, watch: null }, lazy });
+  // (What's in it is in a part of its own: see Collection's scopes.)
+  const scope = c.scopes.push({ parent: ctx.scope ?? -1, marker: -1, lazy: c.lazies.push(lazy) - 1 }) - 1;
+  const rendered = React.createElement(LazyRendered, { element, c, ctx: { ...ctx, frame, watch: null, scope }, lazy });
   // (A component of the template's own, whose markup is what it renders: see parse.ts's lazySection.)
   return marker(c, { k: "l", scope: ctx.scope, record: { kind: "boundary", element } }, rendered, element.key);
 }

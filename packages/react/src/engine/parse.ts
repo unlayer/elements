@@ -37,7 +37,7 @@ const TO_END_TAG = new Set(["style", "script", "title", "textarea", "noscript", 
 const unescaped = (s: string) => s.replace(/&amp;|&lt;|&gt;|&quot;|&#x27;/g, (e) => ({ "&amp;": "&", "&lt;": "<", "&gt;": ">", "&quot;": '"', "&#x27;": "'" })[e]!);
 const unescape18 = (s: string) => (REACT_18 ? unescaped(s) : s);
 
-export const FORGED = "the template's markup holds a marker of Elements' own collecting render that React didn't write there (an `<unlayer-mark>`, `</unlayer-mark>` or `<!--u…-->` with this render's number, one React wrote elsewhere or left out: HTML given whole in what a lazy component renders can hold one): it can't be read as the template, so the render fails. (In the async renderers, a <Suspense> in what a lazy component renders whose fallback holds Elements' components, where what's in it waited, is one: React rendered the fallback and left it out. Give that <Suspense> a fallback of null, or put it around the lazy component.)";
+export const FORGED = "the template's markup holds a marker of Elements' own collecting render that React didn't write there (an `<unlayer-mark>`, `</unlayer-mark>` or `<!--u…-->` with this render's number, one React wrote elsewhere or left out: HTML given whole in what a lazy component renders can hold one): it can't be read as the template, so the render fails.";
 
 interface Open {
   tag: string;
@@ -282,7 +282,12 @@ export function parse(html: string, c: Collection): Part[] {
   }
   // (React ends every marker it writes.)
   if (stack.some((open) => open.mark)) throw forged();
-  kept(c);
+  // A part of what a lazy component renders that React left out (a <Suspense> of its own that rendered its fallback):
+  // an async render waits for what suspends, so it failed, as React told the stream (see the engine's collectAsync); a
+  // synchronous render keeps no error React handled there, so it's said where the lazy component is, as a <Suspense> of
+  // the template's own is (fallbackFailed).
+  const left = kept(c);
+  if (!c.async) for (const lazy of left) c.leftOut.push(swallowed("lazy", c.lazies[lazy].frame));
   // (Only what a lazy component renders has HTML given whole in react-dom's output, as written: see the top.)
   if (c.lazies.length) copies(html, c, endsRead, asGiven);
   return root;
@@ -327,21 +332,37 @@ const finder =
  * Fails the render where a marker or placeholder read is of a part React left out: what's in a <Suspense> (or a
  * boundary's own) whose fallback's marker is in what React wrote, or a fallback whose marker isn't. React wrote nothing
  * in that part (it may have rendered it), so it's another's markup naming it (what a lazy component renders, which
- * isn't prepared: see collector.ts's prepLazy). And where one React rendered in a part it kept isn't read: React wrote
- * it, so it's in what was read as text (HTML given whole in what a lazy component renders, run on past it). (A
- * fallback's own marker is the one that says which part React kept: React rendered it, and wrote it or not.)
+ * isn't prepared: see collector.ts's prepLazy). And where one React rendered in a part it kept isn't read, outside what
+ * a lazy component renders: React wrote it, and the parse reads every one it wrote. In what a lazy component renders,
+ * one that isn't read is of a part React left out there, which the collection can't see (a <Suspense> of the lazy
+ * component's own that rendered its fallback, or a fallback it didn't render: React wrote nothing of it, as every
+ * marker React writes there is found by its text): what's returned is those lazy components (their numbers), whose
+ * part that failed is said (see parse). (A fallback's own marker is the one that says which part React kept: React
+ * rendered it, and wrote it or not.)
  */
-function kept(c: Collection): void {
+function kept(c: Collection): Set<number> {
   const out = (scope: number | undefined): boolean => {
-    for (let s = scope ?? -1, depth = 0; s >= 0 && depth <= c.scopes.length; s = c.scopes[s].parent, depth++) if (c.read.has(c.scopes[s].marker) !== !!c.scopes[s].fallback) return true;
+    for (let s = scope ?? -1, depth = 0; s >= 0 && depth <= c.scopes.length; s = c.scopes[s].parent, depth++) if (c.scopes[s].lazy === undefined && c.read.has(c.scopes[s].marker) !== !!c.scopes[s].fallback) return true;
     return false;
+  };
+  /** The lazy component a part is in (-1: none). */
+  const lazyOf = (scope: number | undefined): number => {
+    for (let s = scope ?? -1, depth = 0; s >= 0 && depth <= c.scopes.length; s = c.scopes[s].parent, depth++) if (c.scopes[s].lazy !== undefined) return c.scopes[s].lazy!;
+    return -1;
   };
   if (c.scopes.length) {
     for (const n of c.read) if (out(c.marks[n].scope)) throw forged();
     for (const n of c.rawRead) if (out(c.raw[n].scope)) throw forged();
   }
-  for (const n of c.rendered) if (!c.read.has(n) && c.marks[n].k !== "fb" && c.marks[n].k !== "s" && !out(c.marks[n].scope)) throw forged();
-  for (const n of c.rawRendered) if (!c.rawRead.has(n) && !out(c.raw[n].scope)) throw forged();
+  const left = new Set<number>();
+  const unread = (scope: number | undefined) => {
+    const lazy = lazyOf(scope);
+    if (lazy < 0) throw forged();
+    left.add(lazy);
+  };
+  for (const n of c.rendered) if (!c.read.has(n) && c.marks[n].k !== "fb" && c.marks[n].k !== "s" && !out(c.marks[n].scope)) unread(c.marks[n].scope);
+  for (const n of c.rawRendered) if (!c.rawRead.has(n) && !out(c.raw[n].scope)) unread(c.raw[n].scope);
+  return left;
 }
 
 /** The digest in the <template> React writes where a boundary that failed renders its fallback (escaped, as any value). */

@@ -166,7 +166,8 @@ runs. Each of these fails the render with a `RenderError` that says so and what 
   writes none (in HTML given whole there too), and with React 18 a `javascript:` URL in a double-quoted attribute there
   is written as React 19 writes it (in HTML given whole there too, which React 19 writes as given). An error thrown
   there is the lazy component's: it fails the render, or with `onError: "omit"` it's left out (a synchronous render
-  can't say why: React's static render keeps no error); in an async render, one outside any `<Suspense>` is in one of
+  can't say why: React's static render keeps no error), and so does one in a `<Suspense>` of its own, which React
+  leaves out with what it rendered there (Elements' blocks too: the parse finds their markers unread); in an async render, one outside any `<Suspense>` is in one of
   its own, so it fails where it is in tree order. A component of the user's own there that starts a synchronous render
   is said at the lazy one's place. One that hasn't loaded: a synchronous render says it's async, at its place (left
   out with `onError: "omit"`); an async one waits for it.
@@ -281,7 +282,8 @@ row or block is left out of the HTML, the plain text and the design (the slower 
    the render by name (`src/engine/forged-markers.test.tsx`). Each is closed by its own end tag, whatever is still
    open in it ending with it, and every one React rendered in a part it kept is read: an end tag of a marker with none
    open (each forged `</unlayer-mark>` leaves one, React writing one per marker), a marker never ended and one never
-   read fail the render too, and so does a copy of one of the render's markers or placeholders, or a marker end tag
+   read fail the render too (but in what a lazy component renders, where one never read is of a part React left out
+   there, a <Suspense> of its own that rendered its fallback: that part failed, and is said so at the lazy one's place), and so does a copy of one of the render's markers or placeholders, or a marker end tag
    more than were read (React writes each once: a copy is what HTML given whole made in what a lazy component renders,
    which isn't read but for the markers React wrote there, found by their exact text), so that HTML can't stand in for
    a part of the template, nor take one out of the records.

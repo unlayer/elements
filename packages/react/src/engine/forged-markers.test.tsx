@@ -11,7 +11,7 @@
  */
 import React from "react";
 import { describe, expect, it, vi } from "vitest";
-import { Button, Column, Email, Html, Paragraph, Row, registerTool, renderToHtml, renderToJson, renderToPlainText } from "../index";
+import { Button, Column, Email, Html, Paragraph, Row, registerTool, renderToHtml, renderToHtmlParts, renderToJson, renderToPlainText } from "../index";
 import { Head } from "../head";
 import * as asyncRenderers from "../async";
 import { newCollection } from "./collector";
@@ -515,6 +515,47 @@ describe("HTML given whole in what a lazy component renders that isn't whole (an
     } finally {
       error.mockRestore();
     }
+  });
+
+  it("says what failed in a <Suspense> of its own after a block it renders, which React left out with the block: never a forged marker", async () => {
+    // (The block's marker, rendered, was never read: the render failed saying the template's markup forged one.)
+    const ReviewRow = ({ review }: { review: { author: { name: string } | null; text: string } }) => <Row><Column><Paragraph>{`${review.author!.name}: ${review.text}`}</Paragraph></Column></Row>;
+    const Reviews = () => (
+      <React.Suspense fallback={null}>
+        <Row><Column><Paragraph>What customers say</Paragraph></Column></Row>
+        <ReviewRow review={{ author: { name: "Ana" }, text: "Great" }} />
+        <ReviewRow review={{ author: null, text: "Bad data" }} />
+      </React.Suspense>
+    );
+    const email = <Email><Row><Column><Paragraph>Your order shipped.</Paragraph></Column></Row>{React.createElement(loaded(Reviews))}<Row><Column><Paragraph>Thanks for shopping.</Paragraph></Column></Row></Email>;
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
+    try {
+      for (const mode of ["sync", "async"] as const) {
+        const r = mode === "sync" ? { renderToHtml, renderToHtmlParts: (e: React.ReactElement, o: object) => Promise.resolve(renderToHtmlParts(e, o)) } : asyncRenderers;
+        // (An async render says what React told it; a synchronous one, which React told nothing, where it is.)
+        const said = mode === "async" ? /Cannot read properties of null/ : /it failed inside a <Suspense>/;
+        await expect(Promise.resolve().then(() => r.renderToHtml(email)), mode).rejects.toThrow(said);
+        const parts = await r.renderToHtmlParts(email, { onError: "omit" });
+        expect(parts.body, mode).toContain("Your order shipped.");
+        expect(parts.body, mode).toContain("Thanks for shopping.");
+        expect(parts.body, mode).not.toContain("What customers say");
+        expect(parts.omitted.map((e) => e.message), mode).toEqual([expect.stringMatching(said)]);
+      }
+    } finally {
+      error.mockRestore();
+    }
+  });
+
+  it("renders what's in a <Suspense> of its own that waited, where the fallback holds Elements' blocks React rendered and left out", async () => {
+    let ready = false;
+    const Waits = () => {
+      if (!ready) throw new Promise<void>((resolve) => setTimeout(() => ((ready = true), resolve()), 5));
+      return <Row><Column><Paragraph>Loaded</Paragraph></Column></Row>;
+    };
+    const Section = () => <React.Suspense fallback={<Row><Column><Paragraph>Loading…</Paragraph></Column></Row>}><Waits /></React.Suspense>;
+    const html = await asyncRenderers.renderToHtml(<Email>{React.createElement(loaded(Section))}<Row><Column><Paragraph>After</Paragraph></Column></Row></Email>);
+    expect(html).toContain("Loaded");
+    expect(html).not.toContain("Loading…");
   });
 
   it("fails the render, by name, where it holds a copy of a placeholder the render wrote; one it didn't write is kept as written", async () => {
