@@ -293,6 +293,32 @@ describe("a component that fails", () => {
     }
   };
 
+  it("is called once where it set its state as it rendered, as React calls one that throws: what it failed with stands", async () => {
+    // (React renders a component again where it set its state as it rendered; Elements had caught its error, so React
+    // called it again: with `onError`, a second call that worked hid the error, nothing left out or said.)
+    let calls = 0;
+    const Greeting = ({ user }: { user: { name: string } }) => {
+      calls++;
+      const [previous, setPrevious] = useState<unknown>(null);
+      const [name, setName] = useState<string | null>(null);
+      if (user !== previous) {
+        setPrevious(user);
+        setName(user.name);
+      }
+      return <Paragraph>{`Hi ${name!.toUpperCase()}`}</Paragraph>;
+    };
+    const email = <Email><Row><Column><Greeting user={{ name: "Ada" }} /><Paragraph>Rest</Paragraph></Column></Row></Email>;
+    for (const r of [{ renderToHtml }, asyncRenderers]) {
+      calls = 0;
+      const told: string[] = [];
+      const html = await r.renderToHtml(email, { onError: (error) => void told.push(error.message) });
+      expect(calls).toBe(1);
+      expect(told).toEqual([expect.stringMatching(/toUpperCase/)]);
+      expect(html).not.toContain("Hi ADA");
+      expect(html).toContain("Rest");
+    }
+  });
+
   it("fails the render, naming it and where it is; left out (onError: \"omit\") with what it renders, said once per render", () => {
     const boom = new Error("boom");
     const Boom = () => {

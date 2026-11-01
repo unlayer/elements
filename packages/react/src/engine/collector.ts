@@ -106,6 +106,8 @@ export interface Collection {
   reactErrors: Array<{ error: unknown; name?: string }>;
   /** An async component's promise, by its props (React calls Call again once it settles). */
   pending: WeakMap<object, Tracked>;
+  /** What a component that failed gave, by its props: React calls it again where it set its state as it rendered. */
+  failedCalls: WeakMap<object, React.ReactElement | null>;
   /** What the render's components share, while each is called. */
   shared: Shared;
   /**
@@ -225,6 +227,7 @@ export function newCollection(options: { collector?: Collector; passes?: (error:
     lazies: [],
     reactErrors: [],
     pending: new WeakMap(),
+    failedCalls: new WeakMap(),
     shared: options.shared,
     counts: new WeakMap(),
     waiting: new Set(),
@@ -605,12 +608,21 @@ function fails(c: Collection, at: Order, mark: React.ReactElement | null): React
   return mark;
 }
 
+/** What a component's call that failed gave, kept for React's calling it again (see Call). */
+function failedCall(c: Collection, placed: CallProps, mark: React.ReactElement | null): React.ReactElement | null {
+  c.failedCalls.set(placed, mark);
+  return mark;
+}
+
 function Call(placed: CallProps): React.ReactNode {
   const { at, fn, props, second, name, frame, keep, c, ctx, own } = placed;
   let result: unknown;
   // (Its promise kept by this placement's own props (Call's), not the user's: one element placed twice is called in
   // each place.)
   if (c.async) c.waiting.delete(at);
+  // (One that failed, called again: it set its state as it rendered, so React renders it again, where a component that
+  // throws is called once. What it failed with stands, called no more.)
+  if (c.failedCalls.has(placed)) return c.failedCalls.get(placed)!;
   const pending = c.pending.get(placed);
   if (pending) result = pending;
   else {
@@ -625,14 +637,14 @@ function Call(placed: CallProps): React.ReactNode {
       if (isThenable(thrown)) {
         const promise = thrown as Tracked;
         track(promise);
-        if (promise.status === "rejected") return fails(c, at, errorMark(c, promise.reason, name, frame, ctx));
+        if (promise.status === "rejected") return failedCall(c, placed, fails(c, at, errorMark(c, promise.reason, name, frame, ctx)));
       }
       if (suspended(c, thrown)) {
         c.suspended.push({ name, frame, boundary: ctx.boundary, inSuspense: ctx.suspense > 0, suspenseAt: ctx.suspenseAt });
         waits(c, at);
         throw thrown;
       }
-      return fails(c, at, errorMark(c, thrown, name, frame, ctx, true));
+      return failedCall(c, placed, fails(c, at, errorMark(c, thrown, name, frame, ctx, true)));
     }
   }
   if (isThenable(result)) {
