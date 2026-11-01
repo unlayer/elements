@@ -18,6 +18,7 @@ export type EditorKind =
   | "choice"
   | "fontFamily"
   | "fontFaces"
+  | "items"
   | "fontWeight"
   | "lineHeight"
   | "image"
@@ -517,6 +518,44 @@ export type FontFaceInput = {
 export type FontFace = { family: string; src: string; format?: FontFormat; weight?: number | [number, number]; style?: "normal" | "italic" };
 
 /** Web fonts: the faces a template loads, each a family's file for a weight and style. */
+/** A list of items, each an object of the given fields, all of them required (a menu's links, a line of icons). */
+export function items<const F extends Record<string, Kind<any, Json>>>(
+  fields: F,
+  noun: string
+): Kind<Array<{ [K in keyof F]: InputOf<F[K]> }>, Array<{ [K in keyof F]: OutputOf<F[K]> }>> {
+  const names = Object.keys(fields);
+  const shape = `{ ${names.join(", ")} }`;
+  const accepts = `a list of ${noun}s, each ${shape}`;
+  return kind({
+    name: "items",
+    editor: "items",
+    accepts,
+    parse(input) {
+      if (!Array.isArray(input)) return fail(`expected ${accepts}, not ${show(input)}`);
+      const out: Array<Record<string, Json>> = [];
+      for (const [index, item] of input.entries()) {
+        const at = `${noun} ${index + 1}`;
+        if (!isObject(item)) return fail(`${at}: expected ${shape}, not ${show(item)}`);
+        const extra = Object.keys(item).find((key) => !names.includes(key));
+        if (extra) return fail(`${at}: "${extra}" isn't one of its fields (${names.join(", ")})`);
+        const value: Record<string, Json> = {};
+        for (const name of names) {
+          if (item[name] === undefined) return fail(`${at}: ${name} is missing`);
+          const parsed = fields[name].parse(item[name]);
+          if (!parsed.ok) return fail(`${at}: ${name}: ${parsed.message}`);
+          value[name] = parsed.value;
+        }
+        out.push(value);
+      }
+      return ok(out as Array<{ [K in keyof F]: OutputOf<F[K]> }>);
+    },
+    jsonSchema: () => ({
+      type: "array",
+      items: { type: "object", required: names, properties: Object.fromEntries(names.map((name) => [name, fields[name].jsonSchema()])), additionalProperties: false },
+    }),
+  });
+}
+
 export function fontFaces(): Kind<FontFaceInput[], FontFace[]> {
   const accepts = "a list of { family, src, format, weight, style }";
   const face = (input: unknown, index: number): Parsed<FontFace> => {

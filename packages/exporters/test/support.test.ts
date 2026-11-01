@@ -108,6 +108,8 @@ function nodeOf(type: string, style: Record<string, Json>, props: Record<string,
     case "Divider":
     case "LineBreak":
       return node({});
+    case "Social":
+      return node({ props: { icons: [{ name: "Instagram", href: "https://instagram.com/acme" }, { name: "X", href: "https://x.com/acme" }] } });
     default:
       return node({ children: ["words"] });
   }
@@ -174,7 +176,10 @@ for (const { target, root } of OUTPUTS) {
         const current = inEffect(root, type, where, key);
         // Only values its kind takes (a root's width is px only).
         for (const value of samples(key, spec.kind.name, spec.kind.jsonSchema() as { enum?: Json[] }, spec.default).filter((v) => spec.kind.parse(v).ok)) {
-          if (JSON.stringify(value) === JSON.stringify(current)) continue;
+          // Setting what's in effect is no change: on the node, or its definition's default (a component made of
+          // primitives, Social, is expanded away).
+          const fallback = where === "props" ? spec.default : (definition.defaultStyle as Record<string, Json> | undefined)?.[key];
+          if (JSON.stringify(value) === JSON.stringify(current) || JSON.stringify(value) === JSON.stringify(fallback)) continue;
           const label = `${type}.${where}.${key} = ${JSON.stringify(value)}`;
           const result = render(root, type, where === "style" ? { [key]: value } : {}, where === "props" ? { [key]: value } : {}, key);
           if ("error" in result && result.error) {

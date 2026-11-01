@@ -11,6 +11,7 @@ import * as notion from "./NotionWelcome";
 import * as phone from "./PhoneOverrides";
 import * as digest from "./ProductDigest";
 import { SideBySide, type Width } from "./SideBySide";
+import * as social from "./SocialIcons";
 import * as spotify from "./SpotifyWelcome";
 import * as stripe from "./StripeReceipt";
 import * as warby from "./WarbyOrderShipped";
@@ -67,3 +68,9 @@ export const NotionWelcome = compare(notion);
 export const NikeDrop = compare(nike);
 export const MorningBrewDigest = compare(brew);
 export const ProductDigest = compare(digest);
+
+// main's component stories, each with the new component.
+export const SocialMediaBar = compare(social.bar);
+export const SocialRounded = compare(social.rounded);
+export const SocialSquared = compare(social.squared);
+export const SocialEmailFooter = compare(social.footer);

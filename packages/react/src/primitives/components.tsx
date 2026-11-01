@@ -19,6 +19,7 @@ import {
   Paragraph as ParagraphDefinition,
   Row as RowDefinition,
   Section as SectionDefinition,
+  Social as SocialDefinition,
   Span as SpanDefinition,
   Table as TableDefinition,
   TableCell as TableCellDefinition,
@@ -87,6 +88,7 @@ export const ListItem = createPrimitive(ListItemDefinition);
 export const Table = createPrimitive(TableDefinition);
 export const TableRow = createPrimitive(TableRowDefinition);
 export const TableCell = createPrimitive(TableCellDefinition);
+export const Social = createPrimitive(SocialDefinition);
 
 export type EmailProps = PrimitiveProps<typeof EmailDefinition>;
 export type PageProps = PrimitiveProps<typeof PageDefinition>;
@@ -108,3 +110,4 @@ export type ListItemProps = PrimitiveProps<typeof ListItemDefinition>;
 export type TableProps = PrimitiveProps<typeof TableDefinition>;
 export type TableRowProps = PrimitiveProps<typeof TableRowDefinition>;
 export type TableCellProps = PrimitiveProps<typeof TableCellDefinition>;
+export type SocialProps = PrimitiveProps<typeof SocialDefinition>;

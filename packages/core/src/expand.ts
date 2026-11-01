@@ -5,7 +5,7 @@
  */
 import type { ComponentDefinition } from "./define";
 import { Diagnostics, type Diagnostic } from "./diagnostics";
-import { isNode, type ElementsDocument, type Node } from "./model";
+import { isNode, type ElementsDocument, type Json, type Node } from "./model";
 import { checkFragment } from "./normalize";
 import { isCustom, propsWithDefaults, registryOf, type ComponentsOption, type CustomDefinition, type Registry } from "./registry";
 
@@ -44,7 +44,8 @@ export function expandDocument(document: ElementsDocument, options?: ComponentsO
     }
     let raw: unknown;
     try {
-      raw = definition.expand(propsWithDefaults(definition, node.props) as never, { register: (custom) => registry.add(custom) });
+      const style = { ...(definition.defaultStyle as Record<string, Json> | undefined), ...node.style } as Record<string, Json>;
+      raw = definition.expand(propsWithDefaults(definition, node.props) as never, { register: (custom) => registry.add(custom), style });
     } catch (error) {
       d.error("custom/render", `${node.type} failed to render: ${error instanceof Error ? error.message : String(error)}`, path, node.id);
       return undefined;

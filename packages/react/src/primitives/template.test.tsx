@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import React, { createContext, forwardRef, Fragment, memo, Suspense, useContext, useId, useState } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
-import { Button, Column, Divider, ElementsError, Email, Heading, Image, LineBreak, Link, List, ListItem, MergeTag, Page, Paragraph, render, Row, Section, Span, Table, TableCell, TableRow, Text, validate } from "./index";
+import { Button, Column, Divider, ElementsError, Email, Heading, Image, LineBreak, Link, List, ListItem, MergeTag, Page, Paragraph, render, Row, Section, Social, Span, Table, TableCell, TableRow, Text, validate } from "./index";
 import { collectTemplate } from "./collect";
 import { Email as LegacyEmail, Paragraph as LegacyParagraph, Row as LegacyRow, Column as LegacyColumn, renderToHtml } from "../index";
 
@@ -49,6 +49,16 @@ describe("render()", () => {
     await expect(render(missing)).rejects.toThrow(ElementsError);
     await expect(render(missing)).rejects.toThrow(/root.children\[0\].props.href/);
     await expect(render(<Page><Row>loose</Row></Page>)).rejects.toThrow(/Text can't go straight in a Row/);
+  });
+
+  it("renders a Social in JSX as its icons, each linked, in email and on a page, and validates its icons", async () => {
+    const icons = [{ name: "Instagram", href: "https://instagram.com/acme" }];
+    const email = await render(<Email><Social icons={icons} iconType="squared" size={24} /></Email>);
+    expect(email.html).toMatch(/<a href="https:\/\/instagram.com\/acme" title="Instagram"[^>]*><img src="https:\/\/cdn.tools.unlayer.com\/social\/icons\/squared\/instagram.png" alt="Instagram" width="24"/);
+    const page = await render(<Page><Social icons={icons} /></Page>);
+    expect(page.html).toContain('src="https://cdn.tools.unlayer.com/social/icons/circle/instagram.png"');
+    // @ts-expect-error: an icon has a name and an href
+    expect(validate(<Email><Social icons={[{ name: "X", url: "https://x.com" }]} /></Email>).valid).toBe(false);
   });
 
   it("takes JSX only", async () => {

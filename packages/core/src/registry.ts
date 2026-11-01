@@ -22,10 +22,12 @@ export type ExpandProps<P extends PropSpecs> = { [K in RequiredOrDefaulted<P>]: 
   [K in Exclude<keyof P, RequiredOrDefaulted<P>>]?: OutputOf<P[K]["kind"]>;
 };
 
-/** What `expand` may do besides returning its node. */
+/** What `expand` may do besides returning its node, and what it may read besides its props. */
 export interface ExpandContext {
   /** Makes custom components the expansion uses known (ones not passed in the components option). */
   register(definition: CustomDefinition<any>): void;
+  /** The node's style, with its definition's defaults: a built-in made of primitives (Social, Menu) styles them by it. */
+  style: Record<string, Json>;
 }
 
 export interface CustomDefinition<P extends PropSpecs = PropSpecs> extends ComponentDefinition<P, typeof placementStyle> {

@@ -161,10 +161,13 @@ out once, then the output's writer. The tree lives inside one `render()` call an
 | `LineBreak`, `MergeTag` | A line break; a value the sending service fills in |
 | `List`, `ListItem` | A bulleted or numbered list (`type`, `start`); items take text and nested `List`s |
 | `Table`, `TableRow`, `TableCell` | A data table. A `header` row heads the columns; cells take text and images, `colSpan`, `dir` |
+| `Social` | Links to social profiles: a line of the networks' icons (`icons` as `{ name, href }`, `iconType`, `size`; `gap` and `justifyContent` as styles). Made of primitives: it expands into a Row of linked Images before layout |
 
 Later steps add `Grid` (children in columns), `Layer` (children over each other), `Document` with
 `Document.Page`, `PageBreak`, `PageHeader`, `PageFooter` and `PageNumber`, and `Canvas` with `Svg` and
-shapes, along with today's `Menu`, `Social` and `Video` on the new engine.
+shapes, along with today's `Menu` and `Video` on the new engine. Today's components that are made of primitives (`Social`,
+`Menu`, `Video`) are built-in components that expand into them, as custom components do: a block of their own in
+a template and in the builder's design, drawn by the primitives' writers in every output.
 
 ### Custom components
 
