@@ -26,7 +26,7 @@ function samples(key: string, definition: ComponentDefinition): Json[] {
     indent: [40],
     lineHeight: [2.5],
     fontWeight: [300],
-    fontFamily: ["Georgia, serif", { name: "Brand", src: "https://fonts.example.com/brand.woff2", fallback: "Arial" }],
+    fontFamily: ["Georgia, serif"],
     flex: [3],
   };
   if (byKey[key]) return byKey[key];

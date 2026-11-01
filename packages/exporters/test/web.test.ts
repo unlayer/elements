@@ -132,10 +132,34 @@ describe("web HTML", () => {
     );
   });
 
-  it("writes fonts with a source as @font-face", () => {
-    const { head, body } = web(page([{ type: "Text", style: { fontFamily: { name: "Brand Sans", src: "https://fonts.example.com/brand.woff2", fallback: "Arial, sans-serif" } }, children: ["x"] }]));
-    expect(head).toContain('@font-face{font-family:"Brand Sans";src:url("https://fonts.example.com/brand.woff2");font-display:swap}');
+  it("writes the root's web fonts as @font-face rules, a face each, its format from its file where not given", () => {
+    const { head, body } = web(
+      page([{ type: "Text", style: { fontFamily: "'Brand Sans', Arial, sans-serif" }, children: ["x"] }], {
+        props: {
+          width: 600,
+          fonts: [
+            { family: "Brand Sans", src: "https://fonts.example.com/brand-400.woff2", weight: 400 },
+            { family: "Brand Sans", src: "https://fonts.example.com/brand-700.woff2", weight: "bold" },
+            { family: "Brand Sans", src: "https://fonts.example.com/brand-italic.ttf", style: "italic" },
+            { family: "Variable", src: "https://fonts.example.com/variable", format: "woff2", weight: "100 900" },
+          ],
+        },
+      })
+    );
+    expect(head).toContain(
+      '<style>@font-face{font-family:"Brand Sans";src:url("https://fonts.example.com/brand-400.woff2") format("woff2");font-weight:400;font-display:swap}' +
+        '@font-face{font-family:"Brand Sans";src:url("https://fonts.example.com/brand-700.woff2") format("woff2");font-weight:700;font-display:swap}' +
+        '@font-face{font-family:"Brand Sans";src:url("https://fonts.example.com/brand-italic.ttf") format("truetype");font-style:italic;font-display:swap}' +
+        '@font-face{font-family:"Variable";src:url("https://fonts.example.com/variable") format("woff2");font-weight:100 900;font-display:swap}'
+    );
     expect(body).toContain("font-family:&#39;Brand Sans&#39;, Arial, sans-serif");
+  });
+
+  it("takes a web font in the root's fonts, not in fontFamily", () => {
+    expect(() => web(page([{ type: "Text", style: { fontFamily: { name: "Brand", src: "https://fonts.example.com/b.woff2" } }, children: ["x"] }]))).toThrow(/declared once, in the root's fonts/);
+    expect(() => web(page([], { props: { width: 600, fonts: [{ family: "A, B", src: "https://x.test/a.woff2" }] } }))).toThrow(/family is one font's name/);
+    expect(() => web(page([], { props: { width: 600, fonts: [{ family: "A", src: "javascript:alert(1)" }] } }))).toThrow(/src is the font file's/);
+    expect(() => web(page([], { props: { width: 600, fonts: [{ family: "A", src: "https://x.test/a.woff2", weight: 950.5 }] } }))).toThrow(/weight is 1 to 1000/);
   });
 
   it("adds no markup from what users write", () => {
@@ -147,9 +171,9 @@ describe("web HTML", () => {
           { type: "Link", props: { href: `https://example.com/?q=${evil}` }, children: [evil] },
           { type: "Image", props: { src: `https://example.com/${evil}.png`, alt: evil } },
           { type: "Text", children: [{ type: "MergeTag", props: { name: evil } }] },
-          { type: "Text", style: { fontFamily: { name: "X", src: `https://example.com/"); } body { color: red } </style><script>x</script>` } }, children: ["x"] },
+          { type: "Text", style: { fontFamily: "X, Arial" }, children: ["x"] },
         ],
-        { props: { width: 600, title: evil, description: evil, lang: "en" } }
+        { props: { width: 600, title: evil, description: evil, lang: "en", fonts: [{ family: "X", src: `https://example.com/"); } body { color: red } </style><script>x</script>` }] } }
       )
     );
     // Parsed, it holds only the markup the exporter writes, and the values as text.

@@ -73,12 +73,9 @@ export function radius(value: Json | undefined): string | undefined {
   return typeof r === "number" ? px(r) : `${px(r.topLeft)} ${px(r.topRight)} ${px(r.bottomRight)} ${px(r.bottomLeft)}`;
 }
 
-/** A font name as CSS: quoted, so names with spaces or digits work. */
-const fontName = (name: string) => `'${name.replace(/\\/g, "\\\\").replace(/'/g, "\\'")}'`;
-
+/** A font stack, as written (validated: nothing that could end a declaration). */
 export function fontFamily(value: FontFamily): string {
-  if (typeof value === "string") return value;
-  return value.fallback ? `${fontName(value.name)}, ${value.fallback}` : fontName(value.name);
+  return value;
 }
 
 export function lineHeight(value: LineHeight): string {

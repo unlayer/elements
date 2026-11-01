@@ -5,7 +5,16 @@
 import { Button, Column, Email, Heading, Image, Link, Paragraph, Row, Section, Text } from "./index";
 
 export const ok = (
-  <Email width={600} previewText="Hi" style={{ backgroundColor: "#f4f4f4", gap: 16, fontFamily: "Inter, Arial, sans-serif" }}>
+  <Email
+    width={600}
+    previewText="Hi"
+    fonts={[
+      { family: "Inter", src: "https://fonts.example.com/inter-400.woff2", weight: 400 },
+      { family: "Inter", src: "https://fonts.example.com/inter-700.woff2", weight: "bold", style: "normal" },
+      { family: "Inter Variable", src: "https://fonts.example.com/inter.woff2", weight: "100 900", format: "woff2" },
+    ]}
+    style={{ backgroundColor: "#f4f4f4", gap: 16, fontFamily: "Inter, Arial, sans-serif" }}
+  >
     <Section style={{ backgroundColor: "#111", padding: [24, 16] }}>
       <Image src={{ src: "https://example.com/logo.png", width: 120 }} alt="Logo" style={{ width: 120 }} />
     </Section>
@@ -48,3 +57,10 @@ export const imageColor = <Image src="https://example.com/a.png" style={{ color:
 
 // @ts-expect-error font weights are 100 to 900 in hundreds
 export const weight = <Text style={{ fontWeight: 450 }}>x</Text>;
+
+// A web font is the root's, not a fontFamily's.
+// @ts-expect-error fontFamily is a stack
+export const fontInStyle = <Text style={{ fontFamily: { name: "Inter", src: "https://fonts.example.com/inter.woff2" } }}>x</Text>;
+// @ts-expect-error a font's format is woff2, woff, truetype or opentype
+export const wrongFormat = <Email fonts={[{ family: "Inter", src: "https://fonts.example.com/inter.eot", format: "eot" }]} />;
+

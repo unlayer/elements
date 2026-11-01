@@ -1,4 +1,4 @@
-import { asset, border, color, enumOf, flex, fontFamily, fontWeight, insets, length, lineHeight, link, number, radius, text, type Kind } from "../src";
+import { asset, border, color, enumOf, flex, fontFaces, fontFamily, fontStack, fontWeight, insets, length, lineHeight, link, number, radius, text, type Kind } from "../src";
 
 const value = (kind: Kind<any, any>, input: unknown) => {
   const parsed = kind.parse(input);
@@ -78,17 +78,33 @@ describe("radius", () => {
 });
 
 describe("fonts", () => {
-  it("takes stacks and fonts with a source", () => {
+  it("takes a font stack, and points a web font to the root's fonts", () => {
     expect(value(fontFamily(), " Inter, Arial, sans-serif ")).toBe("Inter, Arial, sans-serif");
-    expect(value(fontFamily(), { name: "Inter", src: "https://fonts.example.com/inter.woff2", fallback: "Arial, sans-serif" })).toEqual({
-      name: "Inter",
-      src: "https://fonts.example.com/inter.woff2",
-      fallback: "Arial, sans-serif",
-    });
+    expect(fontFamily().parse({ name: "Inter", src: "https://fonts.example.com/inter.woff2" })).toMatchObject({ ok: false, message: expect.stringContaining("root's fonts") });
+    expect(fontStack(`'Brand Sans', "Other", Arial ,sans-serif`)).toEqual(["Brand Sans", "Other", "Arial", "sans-serif"]);
+  });
+  it("takes web fonts: a family's file for each weight and style", () => {
+    expect(
+      value(fontFaces(), [
+        { family: " Inter ", src: "https://fonts.example.com/inter-400.woff2", weight: "normal" },
+        { family: "Inter", src: "https://fonts.example.com/inter-700.woff2", weight: 700, style: "italic", format: "woff2" },
+        { family: "Inter Variable", src: "data:font/woff2;base64,AAAA", weight: "100 900" },
+      ])
+    ).toEqual([
+      { family: "Inter", src: "https://fonts.example.com/inter-400.woff2", weight: 400 },
+      { family: "Inter", src: "https://fonts.example.com/inter-700.woff2", weight: 700, style: "italic", format: "woff2" },
+      { family: "Inter Variable", src: "data:font/woff2;base64,AAAA", weight: [100, 900] },
+    ]);
   });
   it("rejects what would break out of CSS", () => {
     rejects(fontFamily(), "Arial; } body { color: red");
-    rejects(fontFamily(), { name: "Inter", src: "javascript:alert(1)" });
+    rejects(fontFaces(), [{ family: "Inter", src: "javascript:alert(1)" }]);
+    rejects(fontFaces(), [{ family: "Inter", src: "data:text/html,<script>x</script>" }]);
+    rejects(fontFaces(), [{ family: "In</style>", src: "https://x.test/a.woff2" }]);
+    rejects(fontFaces(), [{ family: "Inter, Arial", src: "https://x.test/a.woff2" }]);
+    rejects(fontFaces(), [{ family: "Inter", src: "https://x.test/a.woff2", weight: "900 100" }]);
+    rejects(fontFaces(), [{ family: "Inter", src: "https://x.test/a.woff2", format: "eot" }]);
+    rejects(fontFaces(), [{ family: "Inter", src: "https://x.test/a.woff2", unicodeRange: "U+0000" }]);
   });
   it("reads weights and line heights", () => {
     expect(value(fontWeight(), "bold")).toBe(700);

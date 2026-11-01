@@ -166,7 +166,7 @@ export function renderEmail(resolved: ResolvedDocument, options: EmailOptions = 
     '<meta name="supported-color-schemes" content="light">',
     "<!--[if mso]><xml><o:OfficeDocumentSettings><o:AllowPNG/><o:PixelsPerInch>96</o:PixelsPerInch></o:OfficeDocumentSettings></xml><![endif]-->",
     title !== undefined ? `<title>${escapeText(title)}</title>` : "",
-    // Outlook falls back to Times New Roman for a family it has to download: web fonts only for the others.
+    // Web fonts where classic Outlook doesn't read them: it draws the next font in each stack (unlayer/email-renderer's captures), where a face it can't load could leave it a default.
     fonts.length ? `<!--[if !mso]><!--><style>${fonts.join("")}</style><!--<![endif]-->` : "",
     `<style>${stylesheet}</style>`,
   ].join("");

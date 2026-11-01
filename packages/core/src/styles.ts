@@ -12,17 +12,8 @@ import { border, color, enumOf, flex, fontFamily, fontWeight, insets, length, li
 /** Inherited from the root down through layouts, as in CSS. */
 export const textStyle = {
   color: { kind: color(), label: "Text color", inherited: true, email: writer },
-  fontFamily: {
-    kind: fontFamily(),
-    label: "Font",
-    inherited: true,
-    email: {
-      level: "outlook",
-      shows: "its fallback: classic Outlook doesn't load web fonts",
-      when: (value) => typeof value === "object" && value !== null && !Array.isArray(value) && "src" in value,
-      source: "outlook-captures",
-    },
-  },
+  // A web font in a stack is reported from the root's fonts (whether it loads depends on the client).
+  fontFamily: { kind: fontFamily(), label: "Font", inherited: true, email: { level: "full", source: "outlook-captures" } },
   // Word rounds sizes to half points (13px is 10pt): a fraction of a px.
   fontSize: { kind: length(["px"], { min: 1 }), label: "Font size", inherited: true, mobile: true, email: { level: "full", source: "outlook-captures" } },
   fontWeight: { kind: fontWeight(), label: "Font weight", inherited: true, email: { level: "full", source: "caniemail" } },

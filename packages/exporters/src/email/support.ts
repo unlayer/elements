@@ -7,14 +7,16 @@
  * hidden table cell). Size budgets are checked on the written email
  * (index.tsx).
  */
-import { Diagnostics, type Diagnostic, type EmailSupport, type Json, type ResolvedNode } from "@unlayer-internal/elements-core";
+import { Diagnostics, fontStack, type Diagnostic, type EmailSupport, type FontFace, type Json, type ResolvedNode } from "@unlayer-internal/elements-core";
 import { isNode, shown } from "./context";
 
 export function emailSupport(root: ResolvedNode): Diagnostic[] {
   const d = new Diagnostics();
+  const webFonts = fonts(root, d);
   const visit = (node: ResolvedNode) => {
     styles(node, d);
     structure(node, d);
+    fallback(node, webFonts, d);
     for (const child of node.children) if (isNode(child) && shown(child)) visit(child);
   };
   visit(root);
@@ -42,6 +44,38 @@ function styles(node: ResolvedNode, d: Diagnostics): void {
       else d.add("email/outlook-degraded", "info", `${asked} on this ${node.type} in classic Outlook: ${rule.shows}`, at, id);
     }
   }
+}
+
+/** The root's web fonts: a note for each family on where it loads; the families, for the stacks that use them. */
+function fonts(root: ResolvedNode, d: Diagnostics): Set<string> {
+  const families = new Set<string>();
+  ((root.props.fonts as FontFace[] | undefined) ?? []).forEach((face, index) => {
+    const family = face.family.toLowerCase();
+    if (families.has(family)) return;
+    families.add(family);
+    d.add(
+      "email/degraded",
+      "info",
+      `"${face.family}" is a web font: Apple Mail and iOS Mail load it; Gmail and classic Outlook don't, and show the next font in each stack`,
+      `root.props.fonts[${index}]`
+    );
+  });
+  return families;
+}
+
+/** A stack that ends on a web font leaves the client to choose a font where that one doesn't load. */
+function fallback(node: ResolvedNode, webFonts: Set<string>, d: Diagnostics): void {
+  const stack = node.style.fontFamily;
+  if (typeof stack !== "string" || !webFonts.size) return;
+  const families = fontStack(stack);
+  const last = families[families.length - 1];
+  if (!last || !webFonts.has(last.toLowerCase())) return;
+  d.warning(
+    "email/font-fallback",
+    `This font stack ends with the web font "${last}": where it doesn't load (Gmail, classic Outlook) the email client picks its own font. Add one it has: "${stack}, Arial, sans-serif"`,
+    `${node.path}.style.fontFamily`,
+    node.id
+  );
 }
 
 /** What email can't do that no single style says. */

@@ -322,7 +322,7 @@ one (`"align" isn't a style this component takes: it's alignItems now`).
 | `padding` (a number, `"8px 12px"`, `[8, 12]` or `{ top, … }`), `verticalAlign` (TableCell), `gap`, `width`, `minWidth`, `maxWidth`, `height`, `border`, `borderRadius`, `backgroundColor`, the text styles | keep | already CSS |
 | `indent` (List) | keep | no CSS property means "the markers' column"; in email the markers are a cell of that width |
 | `cellPadding`, `rowBorder` (Table) | keep | a table-wide default for every cell (HTML's own `cellpadding`), and a line between rows: neither is a CSS property |
-| `fontFamily: { name, src, fallback }` | keep, beside plain CSS strings | an inline style can't load a web font; the object is the one place it's said |
+| `fontFamily: { name, src, fallback }` | a CSS stack only; web fonts are the root's `fonts` (2026-11-01) | as React Email's `Font` and CSS's `@font-face`: faces declared once, with a weight and style each, named in stacks |
 | `mobile`, `hover` | keep as their own props | no inline-CSS form exists |
 | `textDecoration` on a container (Email, Page, Section, Row, Column, List, Table) | removed: only text elements take it | CSS doesn't pass it down as an inherited style, and no writer wrote it on a container: it was dropped |
 | `flex` on a Divider | removed | a Divider always has a width (100% by default), so its share never applied |
@@ -569,7 +569,7 @@ for all values or some (`values`, `when`):
 | Level | Means | Diagnostic |
 |---|---|---|
 | `full` | shown as asked | none |
-| `outlook` | as asked, but classic Outlook shows something else (`shows`: square corners, normal letter spacing, a web font's fallback, content past a set height) | `email/outlook-degraded` (note) |
+| `outlook` | as asked, but classic Outlook shows something else (`shows`: square corners, normal letter spacing, content past a set height) | `email/outlook-degraded` (note) |
 | `partial` | not quite as asked in any client (`shows`: a Row's children not stretched to one height) | `email/degraded` (note) |
 | `none` | not in email (`shows` what it does instead: `justifyContent: "space-between"` on a Row, `flexWrap: "wrap"`) | `email/unsupported` (warning) |
 
@@ -591,6 +591,18 @@ saying what email does with it.
 
 Chromium and the Outlook-like renderer aren't email clients: `caniemail` and `assumed` entries, and
 anything only the renderer has checked, are confirmed by capturing real clients.
+
+### Web fonts
+
+The root's `fonts` declares the files a template loads, a face each (`{ family, src, format, weight,
+style }`; a variable font's weight a range, `"100 900"`; the format from the file's extension where
+not given), as React Email's `Font` does. Text names a family in its `fontFamily` stack, before the
+fonts to show where it can't load; the browser picks the face for each weight and style (Chromium
+fetches only the faces the text uses: `test/browser/fonts.test.ts`). In email the `@font-face` rules
+are in a `<style>` classic Outlook doesn't read: it draws the next font in the stack (Outlook
+captures; a face it read and couldn't load could leave it a default). Gmail and classic Outlook don't
+load web fonts, Apple Mail and iOS Mail do: a note says so for each family (`email/degraded`), and a
+stack that ends on a web font is a warning (`email/font-fallback`), as the client would pick its own.
 
 ### Budgets
 

@@ -198,9 +198,26 @@ describe("email HTML", () => {
     expect(body).toContain('<a href="https://example.com" style="text-decoration:none"><img src="https://example.com/a.png" alt="A" width="120" border="0"');
   });
 
-  it("keeps web fonts from Outlook, which falls back to Times New Roman for them", () => {
-    const { head } = render(email([{ type: "Text", style: { fontFamily: { name: "Brand Sans", src: "https://fonts.example.com/brand.woff2", fallback: "Arial, sans-serif" } }, children: ["x"] }]));
-    expect(head).toContain('<!--[if !mso]><!--><style>@font-face{font-family:"Brand Sans";src:url("https://fonts.example.com/brand.woff2")}</style><!--<![endif]-->');
+  it("writes web fonts where classic Outlook doesn't read them, and says where they load", () => {
+    const { head, diagnostics } = render(
+      email([{ type: "Text", style: { fontFamily: "'Brand Sans', Arial, sans-serif" }, children: ["x"] }], {
+        props: { width: 600, fonts: [{ family: "Brand Sans", src: "https://fonts.example.com/brand.woff2", weight: 400 }, { family: "Brand Sans", src: "https://fonts.example.com/brand-700.woff2", weight: 700 }] },
+      })
+    );
+    expect(head).toContain(
+      '<!--[if !mso]><!--><style>@font-face{font-family:"Brand Sans";src:url("https://fonts.example.com/brand.woff2") format("woff2");font-weight:400}@font-face{font-family:"Brand Sans";src:url("https://fonts.example.com/brand-700.woff2") format("woff2");font-weight:700}</style><!--<![endif]-->'
+    );
+    // A note per family, not per face.
+    expect(diagnostics.map((d) => [d.code, d.path])).toEqual([["email/degraded", "root.props.fonts[0]"]]);
+  });
+
+  it("warns where a font stack ends on a web font, leaving the client to choose", () => {
+    const { diagnostics } = render(
+      email([{ type: "Text", style: { fontFamily: "'Brand Sans'" }, children: ["x"] }, { type: "Text", style: { fontFamily: "Georgia" }, children: ["y"] }], {
+        props: { width: 600, fonts: [{ family: "Brand Sans", src: "https://fonts.example.com/brand.woff2" }] },
+      })
+    );
+    expect(diagnostics.filter((d) => d.code === "email/font-fallback").map((d) => d.path)).toEqual(["root.children[0].style.fontFamily"]);
   });
 
   it("adds no markup from what users write, and none inside Outlook's comments", () => {
@@ -212,11 +229,11 @@ describe("email HTML", () => {
           { type: "Row", children: [{ type: "Column", children: [{ type: "Link", props: { href: `https://example.com/?q=${evil}` }, children: [evil] }] }, { type: "Column", children: [] }] },
           { type: "Image", props: { src: `https://example.com/${evil}.png`, alt: evil } },
           { type: "Text", children: [{ type: "MergeTag", props: { name: evil } }] },
-          { type: "Text", style: { fontFamily: { name: "X", src: `https://example.com/"); } body { color: red } </style><script>x</script>` } }, children: ["x"] },
+          { type: "Text", style: { fontFamily: "X, Arial" }, children: ["x"] },
           { type: "List", children: [{ type: "ListItem", children: [evil] }] },
           { type: "Table", children: [{ type: "TableRow", props: { header: true }, children: [{ type: "TableCell", children: [evil] }] }] },
         ],
-        { props: { width: 600, title: evil, previewText: evil, lang: "en" } }
+        { props: { width: 600, title: evil, previewText: evil, lang: "en", fonts: [{ family: "X", src: `https://example.com/"); } body { color: red } </style><script>x</script>` }] } }
       )
     );
     const dom = new JSDOM(html).window.document;

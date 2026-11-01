@@ -4,7 +4,7 @@
  * canvases and shapes follow in their own steps.
  */
 import { defineComponent, prop, type ComponentDefinition, type CompositeEditor } from "./define";
-import { asset, boolean, enumOf, insets, length, line, link, number, text } from "./kinds";
+import { asset, boolean, enumOf, fontFaces, insets, length, line, link, number, text } from "./kinds";
 import type { Json } from "./model";
 import { boxStyle, inheritedTextStyle, layoutStyle, pick, placementStyle, textStyle } from "./styles";
 
@@ -12,6 +12,10 @@ const ROOT_PROPS = {
   title: prop(text(), { label: "Title", description: "The document's title (shown in a browser tab, and by some email clients)." }),
   lang: prop(text({ maxLength: 35 }), { label: "Language", description: 'Its language, as a BCP 47 tag ("en", "ar").' }),
   dir: prop(enumOf(["ltr", "rtl", "auto"]), { label: "Text direction" }),
+  fonts: prop(fontFaces(), {
+    label: "Web fonts",
+    description: "The font files the template loads: a family's file for each weight and style it uses. Text names a family in its fontFamily stack, before the fonts to show where it can't load.",
+  }),
 };
 
 /** A root's own style: the window's background, the text styles its content inherits, and how it stacks its children. */

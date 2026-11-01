@@ -16,6 +16,7 @@ export type EditorKind =
   | "radius"
   | "choice"
   | "fontFamily"
+  | "fontFaces"
   | "fontWeight"
   | "lineHeight"
   | "image"
@@ -468,50 +469,112 @@ export function color(): Kind<string, string> {
 
 // ─── Fonts ──────────────────────────────────────────────────────────────────
 
-export type FontFamilyInput = string | { name: string; src?: string; fallback?: string };
-export type FontFamily = string | { name: string; src?: string; fallback?: string };
+/** A font stack, as CSS writes it: "Inter, Arial, sans-serif". Web fonts are declared once, in the root's `fonts`. */
+export type FontFamilyInput = string;
+export type FontFamily = string;
 
-/** What can't be in a font name or stack: it's written into CSS. */
+/** What can't be in a font name or stack: what would end a declaration or a stylesheet. */
 const FONT_UNSAFE = /[;{}<>\\\n\r]/;
 
 export function fontFamily(): Kind<FontFamilyInput, FontFamily> {
-  const accepts = 'a font stack ("Inter, Arial, sans-serif") or { name, src, fallback }';
+  const accepts = 'a font stack, as CSS writes it ("Inter, Arial, sans-serif")';
   return kind<FontFamilyInput, FontFamily>({
     name: "fontFamily",
     editor: "fontFamily",
     accepts,
     parse(input) {
-      if (typeof input === "string") {
-        const stack = input.trim();
-        if (!stack || FONT_UNSAFE.test(stack)) return fail(`expected ${accepts}, not ${show(input)}`);
-        return ok(stack);
-      }
-      if (!isObject(input) || typeof input.name !== "string" || !input.name.trim() || FONT_UNSAFE.test(input.name)) {
-        return fail(`expected ${accepts}, not ${show(input)}`);
-      }
-      const extra = Object.keys(input).find((key) => !["name", "src", "fallback"].includes(key));
-      if (extra) return fail(`"${extra}" isn't part of a font; expected name, src or fallback`);
-      const out: { name: string; src?: string; fallback?: string } = { name: input.name.trim() };
-      if (input.src !== undefined) {
-        if (typeof input.src !== "string" || unsafeUrl(input.src, /^data:(font|application)\//)) return fail(`a font's src must be an http(s) URL, not ${show(input.src)}`);
-        out.src = input.src.trim();
-      }
-      if (input.fallback !== undefined) {
-        if (typeof input.fallback !== "string" || FONT_UNSAFE.test(input.fallback)) return fail(`a font's fallback is a font stack, not ${show(input.fallback)}`);
-        out.fallback = input.fallback.trim();
+      if (isObject(input) && "src" in input) return fail("a web font is declared once, in the root's fonts ({ family, src, weight, style }); fontFamily names it in a stack");
+      if (typeof input !== "string" || !input.trim() || FONT_UNSAFE.test(input)) return fail(`expected ${accepts}, not ${show(input)}`);
+      return ok(input.trim());
+    },
+    jsonSchema: () => ({ type: "string", minLength: 1 }),
+  });
+}
+
+/** The families of a font stack, unquoted: "'Brand Sans', Arial" is ["Brand Sans", "Arial"]. */
+export function fontStack(stack: string): string[] {
+  return stack
+    .split(",")
+    .map((family) => family.trim().replace(/^(["'])(.*)\1$/, "$2"))
+    .filter(Boolean);
+}
+
+export type FontFormat = "woff2" | "woff" | "truetype" | "opentype";
+const FONT_FORMATS: readonly FontFormat[] = ["woff2", "woff", "truetype", "opentype"];
+
+export type FontFaceInput = {
+  /** The name text uses for it in a fontFamily stack. */
+  family: string;
+  /** Its file: an http(s) URL, or a data:font URI. */
+  src: string;
+  /** The file's format; from its extension where not given. */
+  format?: FontFormat;
+  /** The weight this file draws (400, "bold"), or the range a variable font covers ("100 900"). */
+  weight?: FontWeightInput | number | `${number} ${number}`;
+  style?: "normal" | "italic";
+};
+export type FontFace = { family: string; src: string; format?: FontFormat; weight?: number | [number, number]; style?: "normal" | "italic" };
+
+/** Web fonts: the faces a template loads, each a family's file for a weight and style. */
+export function fontFaces(): Kind<FontFaceInput[], FontFace[]> {
+  const accepts = "a list of { family, src, format, weight, style }";
+  const face = (input: unknown, index: number): Parsed<FontFace> => {
+    const at = `font ${index + 1}`;
+    if (!isObject(input)) return fail(`${at}: expected { family, src, format, weight, style }, not ${show(input)}`);
+    const extra = Object.keys(input).find((key) => !["family", "src", "format", "weight", "style"].includes(key));
+    if (extra) return fail(`${at}: "${extra}" isn't part of a font; expected family, src, format, weight or style`);
+    if (typeof input.family !== "string" || !input.family.trim() || FONT_UNSAFE.test(input.family) || input.family.includes(",")) {
+      return fail(`${at}: family is one font's name ("Inter"), not ${show(input.family)}`);
+    }
+    if (typeof input.src !== "string" || !input.src.trim() || unsafeUrl(input.src, /^data:(font|application)\//)) {
+      return fail(`${at}: src is the font file's http(s) URL (or a data:font URI), not ${show(input.src)}`);
+    }
+    const out: FontFace = { family: input.family.trim(), src: input.src.trim() };
+    if (input.format !== undefined) {
+      if (!(FONT_FORMATS as readonly unknown[]).includes(input.format)) return fail(`${at}: format is one of ${FONT_FORMATS.join(", ")}, not ${show(input.format)}`);
+      out.format = input.format as FontFormat;
+    }
+    if (input.weight !== undefined) {
+      const range = typeof input.weight === "string" ? /^\s*(\d+)\s+(\d+)\s*$/.exec(input.weight) : null;
+      const weight = input.weight === "normal" ? 400 : input.weight === "bold" ? 700 : input.weight;
+      if (range && Number(range[1]) >= 1 && Number(range[2]) <= 1000 && Number(range[1]) <= Number(range[2])) out.weight = [Number(range[1]), Number(range[2])];
+      else if (typeof weight === "number" && Number.isInteger(weight) && weight >= 1 && weight <= 1000) out.weight = weight;
+      else return fail(`${at}: weight is 1 to 1000, "normal", "bold", or a range ("100 900"), not ${show(input.weight)}`);
+    }
+    if (input.style !== undefined) {
+      if (input.style !== "normal" && input.style !== "italic") return fail(`${at}: style is "normal" or "italic", not ${show(input.style)}`);
+      out.style = input.style;
+    }
+    return ok(out);
+  };
+  return kind<FontFaceInput[], FontFace[]>({
+    name: "fontFaces",
+    editor: "fontFaces",
+    accepts,
+    parse(input) {
+      if (!Array.isArray(input)) return fail(`expected ${accepts}, not ${show(input)}`);
+      const out: FontFace[] = [];
+      for (const [index, item] of input.entries()) {
+        const parsed = face(item, index);
+        if (!parsed.ok) return parsed;
+        out.push(parsed.value);
       }
       return ok(out);
     },
     jsonSchema: () => ({
-      anyOf: [
-        { type: "string", minLength: 1 },
-        {
-          type: "object",
-          required: ["name"],
-          properties: { name: { type: "string", minLength: 1 }, src: { type: "string" }, fallback: { type: "string" } },
-          additionalProperties: false,
+      type: "array",
+      items: {
+        type: "object",
+        required: ["family", "src"],
+        properties: {
+          family: { type: "string", minLength: 1 },
+          src: { type: "string", minLength: 1 },
+          format: { enum: [...FONT_FORMATS] },
+          weight: { anyOf: [{ type: "number", minimum: 1, maximum: 1000 }, { type: "string" }] },
+          style: { enum: ["normal", "italic"] },
         },
-      ],
+        additionalProperties: false,
+      },
     }),
   });
 }
