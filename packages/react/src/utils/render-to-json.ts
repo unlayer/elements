@@ -37,7 +37,7 @@ import { failedBefore, sayOnce, setRenderConfig, withOwnScope } from "./render-s
 import { renderBody } from "./render-to-html";
 import { collect, KEPT, normalizedChildren, normalizedRoot } from "../model";
 import type { Recorded } from "./collect";
-import { rtlAlign, textDirectionOf, UNLAYER_CONFIG_KEY } from "./create-component";
+import { rtlAlign, styleAsProps, textDirectionOf, UNLAYER_CONFIG_KEY } from "./create-component";
 import { TAILWIND } from "./tailwind";
 import { fontUrlInDesign, safeUrl, urlFamilies } from "./font-design";
 import { omits } from "../engine/errors";
@@ -153,7 +153,10 @@ function processItem(
 
   // Map props through the item's own propMapper (but what the design can't hold, said and left out), then merge with
   // defaults, after the base content option every block has, containerPadding.
-  const props = element.props as Record<string, any>;
+  // (Its `style`'s properties its props take, as those props, as its HTML has them: see styleAsProps.)
+  const own = element.props as Record<string, any>;
+  const moved = styleAsProps(config.styleProps, own, own.style);
+  const props = moved.props === own ? own : { ...moved.props, style: moved.style };
   codeOnly(name, props);
   const given: Record<string, any> = { children: props.children };
   for (const key in props) if (!CODE_ONLY.has(key)) given[key] = props[key];

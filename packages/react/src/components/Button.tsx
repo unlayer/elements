@@ -79,6 +79,8 @@ const DEFAULT_VALUES = {
 const Button = createItemComponent<ButtonValues, ButtonSemanticProps>({
   name: "Button",
   defaultValues: DEFAULT_VALUES,
+  // (React Email's way, a link styled whole: as props, Outlook's button has them, and its padding is the button's once.)
+  styleProps: ["backgroundColor", "color", "borderRadius", "padding", "width", "fontSize", "fontWeight", "fontFamily", "letterSpacing"],
   propMapper: (props) => {
     const mapped = mapSemanticProps(props as SemanticProps<ButtonValues>, DEFAULT_VALUES, "Button");
     // In Unlayer's model a button's display width is size.width, used only when

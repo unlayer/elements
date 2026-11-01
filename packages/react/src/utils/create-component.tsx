@@ -119,6 +119,12 @@ export interface ItemComponentConfig<TValues, TSemanticProps> {
    *  Keys are display modes ('web', 'email', 'document'), values are exporter functions. */
   exporters: ItemExporters;
 
+  /**
+   * The `style` properties its props take, which are those props where none is given (see styleAsProps): the editor's
+   * export writes props where a `style` on its element can't reach (a Button's color in Outlook's VML, its padding).
+   */
+  styleProps?: readonly string[];
+
   /** Design-JSON content type override (defaults to the lowercased name).
    *  Custom tools use "custom". */
   contentType?: string;
@@ -167,6 +173,27 @@ const attr = (tag: string, name: string, value: string, edit: (own: string) => s
  * sets the same property: props win. Inline, as email clients need; a value that could end the rule is left out, and
  * a `"` (a font stack's, `url("…")`) is written as `&quot;`, which the browser reads as one and can't end the attribute.
  */
+/**
+ * `props` with the `style` properties a component's props take (`names`) as those props, where none is given, and
+ * `style` without them: the editor's export writes the props, where the same property in `style`, on the element it
+ * renders, painted over its own (a Button's color: not Outlook's, which draws the button in VML; its padding, the
+ * export's inside it), and the design keeps them. A value that could end its attribute or rule stays in `style`, which
+ * leaves it out (see hatch): props are written as given.
+ */
+export function styleAsProps(names: readonly string[] | undefined, props: Record<string, any>, style: unknown): { props: Record<string, any>; style: unknown } {
+  if (!names || !style || typeof style !== "object") return { props, style };
+  let moved: Record<string, any> | undefined;
+  let rest: Record<PropertyKey, unknown> | undefined;
+  for (const name of names) {
+    const value = (style as Record<string, unknown>)[name];
+    const safe = typeof value === "number" ? Number.isFinite(value) : typeof value === "string" && value.trim() !== "" && !/["'<>\\;{}]/.test(value) && cssValueSafe(`${name.replace(/[A-Z]/g, "-$&").toLowerCase()}:${value}`);
+    if (props[name] !== undefined || !safe) continue;
+    (moved ??= { ...props })[name] = value;
+    delete (rest ??= { ...(style as Record<PropertyKey, unknown>) })[name];
+  }
+  return moved ? { props: moved, style: rest } : { props, style };
+}
+
 export function hatch(html: string, at: RegExp, style: unknown, className: unknown, given: Record<string, unknown>): string {
   const css = Object.entries(style ?? {})
     .filter(([key, value]) => value != null && value !== "" && given[key] === undefined)
@@ -314,8 +341,10 @@ export function createItemComponent<
     props: ItemComponentProps<TSemanticProps>
   ): React.ReactElement | null {
     // Base props, then internal props (from the Column), children, and the semantic props.
-    const { mode: modeProp, className, style, index = 0, _metaHtmlId, colIndex = 0, cells = [], bodyValues = {}, rowValues = {}, columnValues = {}, _config, _record: _r, children, ...restProps } =
+    const { mode: modeProp, className, style: styleGiven, index = 0, _metaHtmlId, colIndex = 0, cells = [], bodyValues = {}, rowValues = {}, columnValues = {}, _config, _record: _r, children, ...propsGiven } =
       props as ItemComponentProps<TSemanticProps> & { _record?: unknown };
+    // (Its `style`'s properties its props take, as those props: see styleAsProps.)
+    const { props: restProps, style } = styleAsProps(config.styleProps, propsGiven, styleGiven) as { props: typeof propsGiven; style: typeof styleGiven };
 
     // Resolve mode: explicit prop > _config > default
     const mode: RenderMode = modeProp ?? _config?.mode ?? "web";
@@ -403,6 +432,7 @@ export function createItemComponent<
     name: config.name,
     defaultValues: config.defaultValues,
     propMapper: config.propMapper,
+    styleProps: config.styleProps,
     contentType: config.contentType,
     slug: config.slug,
     metaName: config.metaName,

@@ -14,7 +14,7 @@ import { mergeValues } from "@unlayer-internal/shared-elements";
 import { ownValues } from "./own-values";
 import type { RenderMode, HeadConfig } from "@unlayer-internal/shared-elements";
 import { mapSemanticProps } from "./semantic-props";
-import { UNLAYER_CONFIG_KEY, cssUrl } from "./create-component";
+import { UNLAYER_CONFIG_KEY, cssUrl, styleAsProps } from "./create-component";
 import { BODY_DEFAULTS, ROW_DEFAULTS, COLUMN_DEFAULTS } from "./container-defaults";
 import { headTags, KEPT, normalizedRoot } from "../model";
 import { getDisplayName } from "./unwrap-root";
@@ -176,7 +176,8 @@ export function extractHeadFromTree(
         // remember), numbered as they are.
         const contentType = config.metaName ?? config.name.toLowerCase();
         const { _record, ...props } = block.props;
-        const merged = (!config.contentType && recall<Record<string, any>>(_record)) || (config.contentType ? ownValues(config.defaultValues, config.propMapper(props)) : mergeValues(config.defaultValues, config.propMapper(props)));
+        const asGiven = styleAsProps(config.styleProps, props, props.style).props;
+        const merged = (!config.contentType && recall<Record<string, any>>(_record)) || (config.contentType ? ownValues(config.defaultValues, config.propMapper(asGiven)) : mergeValues(config.defaultValues, config.propMapper(asGiven)));
         const values = ensureMeta(merged, contentType, nextCounter(counters, `u_content_${contentType}`) - 1);
         collectDeviceStyles(values, "contents", config.name, displayMode, deviceStyles);
         // The component's own head (custom tools) wins over the registry's.
