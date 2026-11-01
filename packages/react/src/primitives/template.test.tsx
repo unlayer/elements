@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import React, { createContext, forwardRef, Fragment, memo, useContext, useId, useState } from "react";
+import React, { createContext, forwardRef, Fragment, memo, Suspense, useContext, useId, useState } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { Button, Column, Divider, ElementsError, Email, Heading, Image, LineBreak, Link, List, ListItem, MergeTag, Page, Paragraph, render, Row, Section, Span, Table, TableCell, TableRow, Text, validate } from "./index";
 import { collectTemplate } from "./collect";
@@ -151,6 +151,126 @@ describe("validate()", () => {
     expect(validate(<Page><Text><b>bold</b></Text></Page>).diagnostics.map((d) => d.code)).toEqual(["jsx/markup"]);
     expect(validate(<div />).diagnostics.map((d) => d.code)).toEqual(["jsx/markup", "jsx/root"]);
     expect(validate(<><Page /><Page /></>).diagnostics.map((d) => d.code)).toEqual(["jsx/root"]);
+  });
+
+  it("says a component that's async or suspends can't be rendered yet, rather than writing its fallback", async () => {
+    // (React 18's types don't take an async component; React 19's do.) It rejects: it's never called, so nothing goes unhandled.
+    const Price = (async () => {
+      throw new Error("price service down");
+    }) as unknown as React.FC;
+    const Pending = React.lazy(() => new Promise<{ default: React.ComponentType }>(() => {}));
+    // One inside a component of the user's own is called by React, which fails on it.
+    const Later = (async () => <Text>later</Text>) as unknown as React.FC;
+    const Wrapper = () => <Later />;
+    const templates = [
+      <Email>
+        <Price />
+      </Email>,
+      <Email>
+        <Suspense fallback="Loading…">
+          <Pending />
+        </Suspense>
+      </Email>,
+      <Email>
+        <Pending />
+      </Email>,
+      <Email>
+        <Wrapper />
+      </Email>,
+    ];
+    for (const template of templates) {
+      // Only that: the fallback isn't read (as text in an Email, it would be an error of its own).
+      expect(validate(template).diagnostics.map((d) => d.code)).toEqual(["jsx/async"]);
+      await expect(render(template)).rejects.toThrow(/async or suspends/);
+    }
+    // A Suspense whose content is ready is its content.
+    const ready = await render(
+      <Email>
+        <Suspense fallback={<Text>loading</Text>}>
+          <Text>ready</Text>
+        </Suspense>
+      </Email>
+    );
+    expect(ready.text).toBe("ready");
+  });
+
+  it("says what a component inside <Suspense> threw, and what else is wrong beside a component that suspends", () => {
+    const Boom = (): React.ReactElement => {
+      throw new Error("price missing");
+    };
+    const thrown = validate(
+      <Email>
+        <Suspense fallback={<Text>loading</Text>}>
+          <Boom />
+        </Suspense>
+      </Email>
+    ).diagnostics;
+    expect(thrown).toMatchObject([{ code: "jsx/error", message: "A component inside <Suspense> threw: price missing" }]);
+    const Pending = React.lazy(() => new Promise<{ default: React.ComponentType }>(() => {}));
+    const twoRoots = (
+      <>
+        <Email>
+          <Suspense fallback={null}>
+            <Pending />
+          </Suspense>
+        </Email>
+        <Page />
+      </>
+    );
+    expect(validate(twoRoots).diagnostics.map((d) => d.code)).toEqual(["jsx/async", "jsx/root"]);
+    // A rejecting async component in React's own wrappers isn't called either; one called inside a component of
+    // the user's in a <Suspense> is said to be async, not to have thrown; several are said once; a root that
+    // suspended entirely isn't also said to be missing.
+    const Rejects = (async () => {
+      throw new Error("down");
+    }) as unknown as React.FC;
+    const Theme = createContext("light");
+    const Later = (async () => <Text>later</Text>) as unknown as React.FC;
+    const Wrapper = () => <Later />;
+    const asyncOnly = [
+      <Email>
+        <Suspense fallback={null}>
+          <Rejects />
+        </Suspense>
+      </Email>,
+      <Email>
+        <React.StrictMode>
+          <Theme.Provider value="dark">
+            <Rejects />
+          </Theme.Provider>
+        </React.StrictMode>
+      </Email>,
+      <Email>
+        <Suspense fallback={null}>
+          <Wrapper />
+        </Suspense>
+      </Email>,
+      <Email>
+        <Suspense fallback={null}>
+          <Pending />
+        </Suspense>
+        <Suspense fallback={null}>
+          <Pending />
+        </Suspense>
+      </Email>,
+      <Suspense fallback={null}>
+        <Email>
+          <Pending />
+        </Email>
+      </Suspense>,
+    ];
+    for (const template of asyncOnly) expect(validate(template).diagnostics.map((d) => d.code)).toEqual(["jsx/async"]);
+    // An error that isn't about async comes out as thrown.
+    const Missing = (): React.ReactElement => {
+      throw new Error("no product 42");
+    };
+    expect(() =>
+      validate(
+        <Email>
+          <Missing />
+        </Email>
+      )
+    ).toThrow("no product 42");
   });
 });
 

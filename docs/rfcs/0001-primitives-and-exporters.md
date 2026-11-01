@@ -419,6 +419,7 @@ what to do instead, and a path (`root.children[1].style.padding`). Errors make `
 |---|---|
 | `prop/required`, `prop/invalid`, `style/unknown`, `style/invalid`, `children/not-allowed`, `children/text-not-allowed`, `id/duplicate`, `id/dropped` | the check |
 | `jsx/markup`, `jsx/root` | collecting the JSX (an HTML element, or a root that isn't Email or Page) |
+| `jsx/async`, `jsx/error` | collecting the JSX: a component that's async or suspends (render() doesn't wait for it yet), or one that threw inside a `<Suspense>` |
 | `custom/render`, `custom/depth` | expanding custom components |
 | `custom/duplicate` | collecting the JSX: two different `component()` definitions with one type (each type is one `component()` call, at the top of a module) |
 | `target/unsupported`, `output/unavailable` | the output's checks |
