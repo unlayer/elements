@@ -273,8 +273,9 @@ row or block is left out of the HTML, the plain text and the design (the slower 
    the render by name (`src/engine/forged-markers.test.tsx`). Each is closed by its own end tag, whatever is still
    open in it ending with it, and every one React rendered in a part it kept is read: an end tag of a marker with none
    open (each forged `</unlayer-mark>` leaves one, React writing one per marker), a marker never ended and one never
-   read fail the render too, so what a lazy component renders (HTML given whole as written there) can't move or hide
-   a part of the template.
+   read fail the render too, and so does a copy of one of the render's markers or placeholders, or a marker end tag
+   more than were read (React writes each once: a copy is what HTML given whole made, standing in for one it hid), so
+   what a lazy component renders (HTML given whole as written there) can't move or hide a part of the template.
 3. **One model per render.** The HTML, the head, the plain text and the design are made from the same collected
    content, in one scope: they can't disagree, and a failed part is in none of them. (A root nested among another's
    rows, which renders on its own, is the one thing the design leaves out, said: the editor's design has one body.)
