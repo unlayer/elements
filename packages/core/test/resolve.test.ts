@@ -151,10 +151,14 @@ describe("text styles", () => {
 });
 
 describe("checkTarget", () => {
-  it("reports components a target doesn't render", () => {
+  it("reports a component a target doesn't render once, what's in it with it, and why where its definition says", () => {
     const document = parseDocument({ root: { type: "Email", children: [{ type: "Text", children: ["x"] }] } });
     expect(checkTarget(document, "email")).toEqual([]);
-    expect(checkTarget(document, "pdf").map((d) => d.path)).toEqual(["root", "root.children[0]"]);
+    expect(checkTarget(document, "pdf").map((d) => d.path)).toEqual(["root"]);
+    const drawing = parseDocument({ root: { type: "Email", children: [{ type: "Svg", props: { width: 40, height: 40 }, children: [{ type: "Circle", props: { r: 10 } }, { type: "Rect", props: { width: 4, height: 4 } }] }] } });
+    expect(checkTarget(drawing, "email").map((d) => [d.path, d.message])).toEqual([
+      ["root.children[0]", "A Svg can't be rendered to email: Gmail and classic Outlook don't show inline SVG; use an Image of it (a PNG) instead"],
+    ]);
   });
 });
 

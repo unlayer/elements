@@ -132,11 +132,11 @@ export function resolveExpanded(document: ElementsDocument, options?: Components
   const definition = registry.get(document.root.type)!;
   const context: Context = { d, registry, responsive: !!definition.responsive };
   const root = resolveNode(document.root, "root", { ...INITIAL_TEXT, lineHeightPx: 24 }, null, context);
-  // A Document's content is as wide as its page inside the margins.
+  // A Document's content is as wide as its page inside the margins; a Canvas's, as it inside its padding.
   const width = root.type === "Document" ? pageBox(root.props).contentWidth : toPx(root.props.width, null);
   root.width = width;
-  root.contentWidth = width;
-  root.children = resolveChildren(document.root, "root", root, width, "stack", context);
+  root.contentWidth = width === null ? null : width - horizontalFrame(root.style);
+  root.children = resolveChildren(document.root, "root", root, root.contentWidth, "stack", context);
   return { root, diagnostics: d.list };
 }
 
@@ -195,6 +195,11 @@ function clamp(width: number, style: Record<string, Json>, of: number | null): n
 
 /** The size a node has of its own: an image's, when its document gives it. */
 function intrinsicWidth(resolved: ResolvedNode, available: number | null): number | null {
+  // An Svg is as wide as it says, its padding and border included.
+  if (resolved.type === "Svg" && typeof resolved.props.width === "number") {
+    const own = resolved.props.width + horizontalFrame(resolved.style);
+    return clamp(available === null ? own : Math.min(own, available), resolved.style, available);
+  }
   if (resolved.type !== "Image" || resolved.props.src === undefined) return null;
   const own = assetParts(resolved.props.src as Asset).width ?? null;
   if (own === null) return null;
@@ -495,7 +500,10 @@ export function checkTargetExpanded(document: ElementsDocument, target: Target, 
   const visit = (node: Node, path: string) => {
     const definition = registry.get(node.type);
     if (definition && !definition.targets[target]) {
-      d.error("target/unsupported", `A ${node.type} can't be rendered to ${target}`, path, node.id);
+      const why = definition.unsupported?.[target];
+      d.error("target/unsupported", `A ${node.type} can't be rendered to ${target}${why ? `: ${why}` : ""}`, path, node.id);
+      // What's in it goes with it: one error.
+      return;
     }
     node.children?.forEach((child, index) => isNode(child) && visit(child, `${path}.children[${index}]`));
   };

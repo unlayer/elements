@@ -59,16 +59,20 @@ export class Stylesheet {
     return name;
   }
 
-  /** The rules, with the queries that say what a phone and a desktop are: by media, then by level, then in the order they were made. */
-  css(phone: string, desktop: string): string {
+  /**
+   * The rules, with the queries that say what a phone and a desktop are: by media, then by level, then in the order
+   * they were made. Without queries (`null`), what's of a fixed size (a Canvas, a Document) has no phone: its phone
+   * rules are left out, and its desktop rules always apply.
+   */
+  css(phone: string | null, desktop: string | null): string {
     const ordered = (media: Media) =>
       LEVELS.flatMap((level) => this.rules[media].filter((rule) => rule.level === level))
         .map((rule) => rule.text)
         .join("");
     return [
       ordered("all"),
-      ...(this.rules.desktop.length ? [`${desktop}{${ordered("desktop")}}`] : []),
-      ...(this.rules.phone.length ? [`${phone}{${ordered("phone")}}`] : []),
+      ...(this.rules.desktop.length ? [desktop === null ? ordered("desktop") : `${desktop}{${ordered("desktop")}}`] : []),
+      ...(this.rules.phone.length && phone !== null ? [`${phone}{${ordered("phone")}}`] : []),
     ].join("");
   }
 }

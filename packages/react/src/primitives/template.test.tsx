@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import React, { createContext, forwardRef, Fragment, memo, Suspense, useContext, useId, useState } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
-import { Button, Column, Divider, Document, ElementsError, PageBreak, PageFooter, PageHeader, PageNumber, Email, Grid, Heading, Image, LineBreak, Link, List, ListItem, MergeTag, Menu, Page, Paragraph, render, Row, Section, Social, Span, Table, TableCell, TableRow, Text, validate, Video } from "./index";
+import { Button, Canvas, Circle, Column, Divider, Document, ElementsError, Rect, Svg, PageBreak, PageFooter, PageHeader, PageNumber, Email, Grid, Heading, Image, LineBreak, Link, List, ListItem, MergeTag, Menu, Page, Paragraph, render, Row, Section, Social, Span, Table, TableCell, TableRow, Text, validate, Video } from "./index";
 import { collectTemplate } from "./collect";
 import { Email as LegacyEmail, Paragraph as LegacyParagraph, Row as LegacyRow, Column as LegacyColumn, renderToHtml } from "../index";
 
@@ -119,6 +119,21 @@ describe("render()", () => {
     expect(html).toContain("1 / 2");
     expect(html).toContain("2 / 2");
     expect(text).toBe("SUMMARY\n\nAppendix");
+  });
+
+  it("renders a Canvas in JSX as a box of its size, and an Svg's shapes as inline SVG", async () => {
+    const { html } = await render(
+      <Canvas width={600} height={315} style={{ backgroundColor: "#0f172a", padding: 40 }}>
+        <Svg width={120} height={60} title="Logo">
+          <Rect width={120} height={60} rx={8} style={{ fill: "#6366f1" }} />
+          <Circle cx={30} cy={30} r={20} style={{ fill: "transparent", stroke: "#ffffff", strokeWidth: 4 }} />
+        </Svg>
+      </Canvas>
+    );
+    expect(html).toContain('<main style="width:600px;height:315px;overflow:hidden;');
+    expect(html).toContain('<circle cx="30" cy="30" r="20" fill="none" stroke="#ffffff" stroke-width="4"></circle>');
+    // @ts-expect-error: a Circle's radius is a number
+    expect(validate(<Canvas><Svg width={10} height={10}><Circle r="big" /></Svg></Canvas>).valid).toBe(false);
   });
 
   it("takes JSX only", async () => {

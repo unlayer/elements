@@ -29,6 +29,14 @@ import {
   PageHeader as PageHeaderDefinition,
   PageFooter as PageFooterDefinition,
   PageNumber as PageNumberDefinition,
+  Canvas as CanvasDefinition,
+  Svg as SvgDefinition,
+  Rect as RectDefinition,
+  Circle as CircleDefinition,
+  Ellipse as EllipseDefinition,
+  Line as LineDefinition,
+  Polygon as PolygonDefinition,
+  Path as PathDefinition,
   Video as VideoDefinition,
   Span as SpanDefinition,
   Table as TableDefinition,
@@ -108,6 +116,14 @@ export const PageBreak = createPrimitive(PageBreakDefinition);
 export const PageHeader = createPrimitive(PageHeaderDefinition);
 export const PageFooter = createPrimitive(PageFooterDefinition);
 export const PageNumber = createPrimitive(PageNumberDefinition);
+export const Canvas = createPrimitive(CanvasDefinition);
+export const Svg = createPrimitive(SvgDefinition);
+export const Rect = createPrimitive(RectDefinition);
+export const Circle = createPrimitive(CircleDefinition);
+export const Ellipse = createPrimitive(EllipseDefinition);
+export const Line = createPrimitive(LineDefinition);
+export const Polygon = createPrimitive(PolygonDefinition);
+export const Path = createPrimitive(PathDefinition);
 export const Video = createPrimitive(VideoDefinition);
 
 export type EmailProps = PrimitiveProps<typeof EmailDefinition>;
@@ -140,4 +156,12 @@ export type PageBreakProps = PrimitiveProps<typeof PageBreakDefinition>;
 export type PageHeaderProps = PrimitiveProps<typeof PageHeaderDefinition>;
 export type PageFooterProps = PrimitiveProps<typeof PageFooterDefinition>;
 export type PageNumberProps = PrimitiveProps<typeof PageNumberDefinition>;
+export type CanvasProps = PrimitiveProps<typeof CanvasDefinition>;
+export type SvgProps = PrimitiveProps<typeof SvgDefinition>;
+export type RectProps = PrimitiveProps<typeof RectDefinition>;
+export type CircleProps = PrimitiveProps<typeof CircleDefinition>;
+export type EllipseProps = PrimitiveProps<typeof EllipseDefinition>;
+export type LineProps = PrimitiveProps<typeof LineDefinition>;
+export type PolygonProps = PrimitiveProps<typeof PolygonDefinition>;
+export type PathProps = PrimitiveProps<typeof PathDefinition>;
 export type VideoProps = PrimitiveProps<typeof VideoDefinition>;

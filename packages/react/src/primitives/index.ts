@@ -34,6 +34,14 @@ export {
   PageHeader,
   PageFooter,
   PageNumber,
+  Canvas,
+  Svg,
+  Rect,
+  Circle,
+  Ellipse,
+  Line,
+  Polygon,
+  Path,
   Video,
 } from "./components";
 export type {
@@ -68,6 +76,14 @@ export type {
   PageHeaderProps,
   PageFooterProps,
   PageNumberProps,
+  CanvasProps,
+  SvgProps,
+  RectProps,
+  CircleProps,
+  EllipseProps,
+  LineProps,
+  PolygonProps,
+  PathProps,
   VideoProps,
 } from "./components";
 export { component, prop, type ComponentSpec, type CustomComponent, type CustomProps } from "./custom";

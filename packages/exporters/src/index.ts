@@ -48,6 +48,8 @@ const OUTPUTS: Record<string, { target: Target; ready: boolean; later?: string }
   Page: { target: "web", ready: true },
   // Print HTML: a page writer's, each page a box of the paper's size.
   Document: { target: "web", ready: true },
+  // A Canvas as HTML, to look at (@unlayer/elements-image writes the image).
+  Canvas: { target: "web", ready: true },
   Email: { target: "email", ready: true },
 };
 

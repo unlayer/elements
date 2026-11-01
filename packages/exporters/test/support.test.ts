@@ -17,12 +17,15 @@ const OUTPUTS: Array<{ target: Target; root: string }> = [
   { target: "web", root: "Page" },
   // Print HTML: a page writer's output, with a Document's own components.
   { target: "web", root: "Document" },
+  // A Canvas's HTML (its image is @unlayer/elements-image's).
+  { target: "web", root: "Canvas" },
 ];
 
 /** What only a Document takes. */
 const DOCUMENT_ONLY = new Set(["DocumentPage", "PageBreak", "PageHeader", "PageFooter", "PageNumber"]);
 /** The components an output's samples take: a Document's own under a Document; the others under the other roots. */
-const sampled = (root: string, type: string) => (root === "Document" ? DOCUMENT_ONLY.has(type) || type === root : !DOCUMENT_ONLY.has(type));
+const sampled = (root: string, type: string) => (root === "Document" ? DOCUMENT_ONLY.has(type) || type === root : root === "Canvas" ? type === root : !DOCUMENT_ONLY.has(type));
+const SHAPES = new Set(["Rect", "Circle", "Ellipse", "Line", "Polygon", "Path"]);
 
 const ROOTS = new Set(Object.values(COMPONENTS).filter((d) => d.categories.includes("root")).map((d) => d.type));
 
@@ -44,6 +47,22 @@ function samples(key: string, kindName: string, schema: { enum?: Json[] }, fallb
     flex: [3],
     start: [3],
     colSpan: [2],
+    strokeWidth: [3],
+    opacity: [0.5],
+    x: [7],
+    y: [7],
+    cx: [17],
+    cy: [17],
+    r: [9],
+    rx: [4],
+    ry: [5],
+    x1: [3],
+    y1: [3],
+    x2: [33],
+    y2: [21],
+    points: ["1,1 29,1 15,19"],
+    d: ["M1 1 L29 1 L15 19 Z"],
+    viewBox: ["0 0 50 30"],
   };
   if (byKey[key]) return byKey[key];
   const byKind: Record<string, Json[]> = {
@@ -65,13 +84,14 @@ const text = (words = "words") => ({ type: "Text", children: [words] });
 
 /** A small template with the component in it, `node` its node: in a Row beside a Column for `flex`, else where it goes. */
 function host(root: string, type: string, node: Record<string, unknown>, key: string): Record<string, unknown> {
-  const width = root === "Document" ? {} : { width: 600 };
+  const width = root === "Document" ? {} : root === "Canvas" ? { width: 600, height: 300 } : { width: 600 };
   const doc = (children: unknown[], extra: Record<string, unknown> = {}) => ({ root: { type: root, props: width, ...extra, children } });
   if (type === root) {
     const children = [text("a"), { type: "Button", props: { href: "#" }, children: ["Go"] }, { type: "Row", children: [{ type: "Column", children: [text("b")] }, { type: "Column", children: [text("c")] }] }];
     return doc(children, { style: node.style, props: { ...width, ...(node.props as object) } });
   }
   if (key === "flex") return doc([{ type: "Row", children: [node, { type: "Column", children: [text("beside")] }] }]);
+  if (SHAPES.has(type)) return doc([{ type: "Svg", props: { width: 100, height: 60 }, children: [node] }]);
   switch (type) {
     case "Span":
     case "MergeTag":
@@ -102,6 +122,20 @@ function nodeOf(type: string, style: Record<string, Json>, props: Record<string,
       return node({ children: [text("a"), { type: "Button", props: { href: "#" }, children: ["Go"] }] });
     case "PageNumber":
       return node({});
+    case "Svg":
+      return node({ props: { width: 100, height: 60 }, children: [{ type: "Rect", props: { width: 40, height: 20 } }] });
+    case "Rect":
+      return node({ props: { width: 40, height: 20 } });
+    case "Circle":
+      return node({ props: { cx: 20, cy: 20, r: 10 } });
+    case "Ellipse":
+      return node({ props: { cx: 20, cy: 20, rx: 10, ry: 6 } });
+    case "Line":
+      return node({ props: { x2: 40, y2: 20 } });
+    case "Polygon":
+      return node({ props: { points: "0,0 20,0 10,15" } });
+    case "Path":
+      return node({ props: { d: "M0 0 L20 0 L10 15 Z" } });
     case "Row":
       return node({ children: [{ type: "Column", children: [text("a")] }, { type: "Column", children: [text("b")] }] });
     case "Layer":

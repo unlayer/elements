@@ -11,6 +11,7 @@ import { Menu, Social } from "./composites";
 import { Grid, Layer } from "./layouts";
 import { ROOT_DEFAULT_STYLE, ROOT_PROPS, ROOT_STYLE, TEXT_EDITOR } from "./roots";
 import { Document, DocumentPage, PageBreak, PageFooter, PageHeader, PageNumber } from "./document";
+import { Canvas, SHAPES, Svg } from "./canvas";
 
 /** A prop each output writes as given. */
 const WRITTEN: SupportByTarget = { email: { level: "full", source: "writer" }, web: { level: "full", source: "writer" } };
@@ -485,7 +486,7 @@ export const Video = defineComponent({
 
 export const COMPONENTS: Readonly<Record<string, ComponentDefinition>> = Object.freeze(
   Object.fromEntries(
-    [Email, Page, Document, DocumentPage, PageBreak, PageHeader, PageFooter, PageNumber, Section, Row, Column, Grid, Layer, Text, Paragraph, Heading, Span, Link, Button, Image, Divider, LineBreak, MergeTag, List, ListItem, Table, TableRow, TableCell, Video, Social, Menu].map((d) => [
+    [Email, Page, Document, DocumentPage, PageBreak, PageHeader, PageFooter, PageNumber, Canvas, Svg, ...SHAPES, Section, Row, Column, Grid, Layer, Text, Paragraph, Heading, Span, Link, Button, Image, Divider, LineBreak, MergeTag, List, ListItem, Table, TableRow, TableCell, Video, Social, Menu].map((d) => [
       d.type,
       d as unknown as ComponentDefinition,
     ])

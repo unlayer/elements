@@ -620,6 +620,10 @@ describe("email HTML", () => {
     });
   });
 
+  it("leaves an Svg out of an email, with an error: Gmail and Outlook don't show inline SVG", () => {
+    expect(() => render(email([{ type: "Svg", props: { width: 40, height: 40 }, children: [{ type: "Circle", props: { cx: 20, cy: 20, r: 10 } }] }]))).toThrow("A Svg can't be rendered to email: Gmail and classic Outlook don't show inline SVG; use an Image of it (a PNG) instead");
+  });
+
   it("warns before Gmail clips a message", () => {
     const many = Array.from({ length: 600 }, (_, i) => ({ type: "Paragraph", children: [`Paragraph ${i} with some words in it to take up room.`] }));
     expect(render(email(many)).diagnostics.map((d) => d.code)).toContain("email/size");

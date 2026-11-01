@@ -7,7 +7,7 @@ import type { EditorKind, InputOf, Kind, OutputOf } from "./kinds";
 import type { Json, Node } from "./model";
 
 /** What a component is, for the nesting rules: a component belongs to one or more. */
-export type Category = "root" | "section" | "layout" | "block" | "inline";
+export type Category = "root" | "section" | "layout" | "block" | "inline" | "shape";
 
 /** The outputs Elements renders. */
 export type Target = "email" | "web" | "print" | "pdf" | "image";
@@ -132,6 +132,8 @@ export interface ComponentDefinition<P extends PropSpecs = PropSpecs, S extends 
   arrange?: (node: Node) => Node;
   /** Where it renders; a target left out is a diagnostic. */
   targets: Partial<Record<Target, TargetSupport>>;
+  /** Why a target it doesn't render can't, and what to do instead (in the diagnostic). */
+  unsupported?: Partial<Record<Target, string>>;
   editor?: { groups: readonly EditorGroup[] };
 }
 

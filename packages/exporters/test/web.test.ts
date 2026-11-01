@@ -296,6 +296,35 @@ describe("web HTML", () => {
     expect(body).toMatch(/<a [^>]*style="grid-area:1 \/ 1;min-width:0;(?!justify-self)/);
   });
 
+  it("writes an Svg as inline SVG, its shapes as SVG's, transparent paint as none, its title read out", () => {
+    const { body, text } = web(
+      page([
+        {
+          type: "Svg",
+          props: { width: 120, height: 60, title: "Logo" },
+          children: [
+            { type: "Rect", props: { width: 120, height: 60, rx: 8 }, style: { fill: "#6366f1" } },
+            { type: "Circle", props: { cx: 30, cy: 30, r: 20 }, style: { fill: "transparent", stroke: "#ffffff", strokeWidth: 4, opacity: 0.5 } },
+            { type: "Path", props: { d: "M60 10 L100 10 L80 50 Z" } },
+          ],
+        },
+      ])
+    );
+    expect(body).toContain(
+      '<svg xmlns="http://www.w3.org/2000/svg" width="120" height="60" viewBox="0 0 120 60" role="img" aria-label="Logo" style="align-self:flex-start;display:block;flex:none">' +
+        '<rect x="0" y="0" width="120" height="60" rx="8" fill="#6366f1"></rect>' +
+        '<circle cx="30" cy="30" r="20" fill="none" stroke="#ffffff" stroke-width="4" opacity="0.5"></circle>' +
+        '<path d="M60 10 L100 10 L80 50 Z" fill="#000000"></path></svg>'
+    );
+    expect(text).toBe("[Logo]");
+  });
+
+  it("writes a Canvas as a box of its size, its content laid out in it, what's past it cut", () => {
+    const { body } = web({ root: { type: "Canvas", props: { width: 600, height: 315 }, style: { padding: 40, backgroundColor: "#0f172a" }, children: [{ type: "Text", children: ["Launch week"] }] } });
+    expect(body).toMatch(/^<main style="width:600px;height:315px;overflow:hidden;[^"]*padding:40px;background-color:#0f172a/);
+    expect(body).toContain(">Launch week<");
+  });
+
   describe("a Document, as print HTML", () => {
     const text = (...children: unknown[]) => ({ type: "Text", children });
     const doc = (children: unknown[], props: Record<string, unknown> = {}) => ({ root: { type: "Document", props, children } });

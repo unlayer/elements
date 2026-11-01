@@ -31,6 +31,8 @@ import { Row } from "./Row";
 import { Layer } from "./Layer";
 import { Document, documentCss } from "./Document";
 import { PageNumber } from "./PageNumber";
+import { Canvas } from "./Canvas";
+import { Svg } from "./Svg";
 import { Section } from "./Section";
 import { Span } from "./Span";
 import { Table } from "./Table";
@@ -68,6 +70,7 @@ const COMPONENTS: Record<string, Component> = {
   PageFooter: Column,
   DocumentPage: Column,
   PageNumber,
+  Svg,
   Text,
   Paragraph,
   Heading,
@@ -117,9 +120,12 @@ export function renderPage(resolved: ResolvedDocument, options: PageOptions = {}
   const sheet = new Stylesheet(options.classPrefix);
   const fonts = fontFaces(root, { swap: true });
   const document = root.type === "Document";
-  const body = withStylesheet(sheet, () => String((document ? Document : Page)(propsOf(root, root, [], options))));
+  const writer = document ? Document : root.type === "Canvas" ? Canvas : Page;
+  const body = withStylesheet(sheet, () => String(writer(propsOf(root, root, [], options))));
 
-  const stylesheet = [...fonts, sheet.css(PHONE, DESKTOP), document ? documentCss(root) : ""].join("");
+  // A Canvas and a Document are of a fixed size, whatever the window: no phone layout.
+  const fixed = !root.definition.responsive;
+  const stylesheet = [...fonts, sheet.css(fixed ? null : PHONE, fixed ? null : DESKTOP), document ? documentCss(root) : ""].join("");
   const head = [
     '<meta charset="utf-8">',
     '<meta name="viewport" content="width=device-width, initial-scale=1">',
