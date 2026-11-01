@@ -288,10 +288,10 @@ describe("HTML, video and modules kept as HTML", () => {
     expect(result.fallbacks).toEqual([]);
   });
 
-  it("video: a YouTube or Vimeo one is a Video with the template's thumbnail; another is its thumbnail as a linked image", () => {
+  it("video: a YouTube or Vimeo one is a Video with its URL and the template's thumbnail; another is its thumbnail as a linked image", () => {
     const youtube = convert(module("video", { video: { src: "https://www.youtube.com/watch?v=dQw4w9WgXcQ", thumbSrc: "https://img.youtube.com/vi/dQw4w9WgXcQ/maxresdefault.jpg", mode: "thumbnail" }, style: pad(10) })).block;
-    expect(youtube).toMatchObject({ type: "video", values: { video: { type: "youtube", videoId: "dQw4w9WgXcQ", thumbnail: "https://img.youtube.com/vi/dQw4w9WgXcQ/maxresdefault.jpg", loading: false } } });
-    expect(convert(module("video", { video: { src: "https://vimeo.com/76979871" }, style: {} })).block.values.video).toMatchObject({ type: "vimeo", videoId: "76979871" });
+    expect(youtube).toMatchObject({ type: "video", values: { video: { url: "https://www.youtube.com/watch?v=dQw4w9WgXcQ", type: "youtube", videoId: "dQw4w9WgXcQ", thumbnail: "https://img.youtube.com/vi/dQw4w9WgXcQ/maxresdefault.jpg", loading: false } } });
+    expect(convert(module("video", { video: { src: "https://vimeo.com/76979871" }, style: {} })).block.values.video).toMatchObject({ url: "https://vimeo.com/76979871", type: "vimeo", videoId: "76979871" });
     const other = convert(module("video", { video: { src: "https://example.com/v.mp4", thumbSrc: "https://example.com/t.jpg" }, style: {} }));
     expect(other.block).toMatchObject({ type: "image", values: { src: { url: "https://example.com/t.jpg" }, action: { values: { href: "https://example.com/v.mp4" } } } });
     expect(other.warnings.map((w) => w.reason)).toEqual(["video-unknown"]);

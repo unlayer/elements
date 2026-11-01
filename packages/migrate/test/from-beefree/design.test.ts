@@ -50,7 +50,7 @@ describe("the design's shape", () => {
       b.content("html", { html: "<b>x</b>" }),
       b.content("menu", { menu: { items: [{ key: "1", text: "A", link: { name: "web", values: { href: "https://example.com", target: "_blank" } } }] } }),
       b.content("social", { icons: { iconType: "circle", icons: [{ name: "Facebook", url: "https://facebook.com" }] } }),
-      b.content("video", { video: { type: "youtube", videoId: "dQw4w9WgXcQ", thumbnail: "https://img.youtube.com/vi/dQw4w9WgXcQ/0.jpg", loading: false } }),
+      b.content("video", { video: { url: "https://www.youtube.com/watch?v=dQw4w9WgXcQ", type: "youtube", videoId: "dQw4w9WgXcQ", thumbnail: "https://img.youtube.com/vi/dQw4w9WgXcQ/0.jpg", loading: false } }),
     ];
     const built = b.design([b.row([1], [b.column(contents, {})], {})], { contentWidth: "600px" });
     expect(built).toEqual(written);
