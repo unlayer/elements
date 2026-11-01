@@ -86,6 +86,28 @@ jobs:
           fi
           echo "✅ Bundle size within budget"
 
+      # The new engine's entry (/primitives) has its own budget: about 167KB
+      # unminified ESM, its core, writers and JSX API bundled, with no
+      # @unlayer/exporters in it. Raise it on purpose, with what grew.
+      - name: Check /primitives bundle size
+        run: |
+          BUNDLE="packages/react/dist/primitives.js"
+          # A bundle that wasn't built (or came out empty) fails here rather than passing the checks below.
+          test -s "$BUNDLE" && test -s "packages/react/dist/primitives.cjs" || { echo "::error::$BUNDLE wasn't built"; exit 1; }
+          SIZE=$(wc -c < "$BUNDLE" | tr -d ' ')
+          MAX_SIZE=172000
+          echo "Size: $SIZE bytes (budget: $MAX_SIZE bytes)"
+          if [ "$SIZE" -gt "$MAX_SIZE" ]; then
+            echo "::error::/primitives bundle size $SIZE exceeds budget of $MAX_SIZE bytes"
+            exit 1
+          fi
+          # An import of the package (a comment or a message naming it doesn't count); inlining it shows in the size.
+          if grep -qE "(from |import ?\(?|require\()[\"']@unlayer/exporters" "$BUNDLE" packages/react/dist/primitives.cjs; then
+            echo "::error::/primitives must not import @unlayer/exporters"
+            exit 1
+          fi
+          echo "✅ /primitives bundle within budget"
+
       - name: Run tests
         run: pnpm test
 
