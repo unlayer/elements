@@ -537,7 +537,7 @@ async function Receipt({ user, id }: { user: User; id: string }) {
 }
 ```
 
-A root inside the content (a whole template reused as a section of another: `<Email>…<OrderSummary /></Email>` where `OrderSummary` returns an `<Email>`) renders on its own, from no provider: a context provided around it, in the outer template or around the render, doesn't reach its components, which read the default. (The render's config does, the render function's options and the outer root's `config`, under its own: a `toSafeHtml` sanitizer applies to its HTML too.) Provide the context inside it, or reuse its Rows (a component that returns them) rather than the whole template.
+A root inside the content (a whole template reused as a section of another: `<Email>…<OrderSummary /></Email>` where `OrderSummary` returns an `<Email>`) renders on its own, from no provider: a context provided around it, in the outer template or around the render, doesn't reach its components, which read the default. (The render's config does, the render function's options and the outer root's `config`, under its own: a `toSafeHtml` sanitizer applies to its HTML too.) Provide the context inside it, or reuse its Rows (a component that returns them) rather than the whole template. The design leaves such a root out, and `renderToJson()` says so: the editor's design has one body, so only its Rows can be in it.
 
 The synchronous renderers read a context's default where the template doesn't provide it, except inside a component of an app's own `renderToString`, where they read the page's value, as 0.2 did, and after another build's `renderToString` in which a part inside a provider threw or suspended, a `<Suspense>` around it or not (above), till that build renders again (where there's a DOM, Elements asks it what it's doing first, which is such a render). No stream's provider values reach them, not even those of an async render of Elements' own that waits meanwhile: react-dom keeps its static render's context values apart from its streams'.
 
@@ -742,11 +742,12 @@ const monoFont = { label: "Monospace", value: "'SF Mono', 'Fira Code', 'Roboto M
 
 ```tsx
 <Row layout={ColumnLayouts.ThreeEqual} backgroundColor="#ffffff" padding="0px 40px">
-  <Column>
-    <Heading headingType="h2" fontSize="28px" fontWeight={700} color="#0f172a" textAlign="center">1.2M</Heading>
-    <Paragraph html="API Calls" fontSize="12px" color="#94a3b8" textAlign="center" />
-  </Column>
-  {/* Repeat for each metric */}
+  {[["1.2M", "API Calls"], ["99.9%", "Uptime"], ["48ms", "Median latency"]].map(([value, label]) => (
+    <Column key={label}>
+      <Heading headingType="h2" fontSize="28px" fontWeight={700} color="#0f172a" textAlign="center">{value}</Heading>
+      <Paragraph html={label} fontSize="12px" color="#94a3b8" textAlign="center" />
+    </Column>
+  ))}
 </Row>
 ```
 

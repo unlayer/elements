@@ -276,7 +276,8 @@ row or block is left out of the HTML, the plain text and the design (the slower 
    read fail the render too, so what a lazy component renders (HTML given whole as written there) can't move or hide
    a part of the template.
 3. **One model per render.** The HTML, the head, the plain text and the design are made from the same collected
-   content, in one scope: they can't disagree, and a failed part is in none of them.
+   content, in one scope: they can't disagree, and a failed part is in none of them. (A root nested among another's
+   rows, which renders on its own, is the one thing the design leaves out, said: the editor's design has one body.)
 4. **A render's output depends only on its arguments.** All per-render state lives in that render's scope: the module
    holds no facts keyed by the user's elements or by what a render gives (its errors), every render function makes a
    scope of its own, and the ambient scope is cleared before any of the user's code runs (`guest`), so a render's
