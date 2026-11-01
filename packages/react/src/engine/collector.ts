@@ -838,9 +838,10 @@ function LazyRendered({ element, c, ctx, lazy }: { element: React.ReactElement; 
   // (React's development build calls a component again, with no props, to say where a warning came from.)
   if (!c) return null;
   // In an async render, what's before it in tree order has rendered, or waits: a part that failed before it (one found
-  // before React rendered, an <img> with children) fails the render now, not after what it loads, which may never load;
-  // one that fails after it waits for it, as it may fail first.
-  if (c.async) waits(c, ctx.order ?? TOP);
+  // before React rendered, an <img> with children) fails the render now, not after what it loads, which may never load.
+  // It isn't waited for itself: React loads what's lazy, and its public API doesn't say when that's done, so one that
+  // loaded would be waited for forever, and a part that fails after it fails the render without waiting for it.
+  if (c.async) c.changed?.();
   if (!c.async) enterFrame(ctx.frame);
   const unkeyed = React.cloneElement(element, { key: c.async ? null : "lazy" } as object);
   const context = COLLECTING.context();

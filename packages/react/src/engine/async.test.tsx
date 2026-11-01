@@ -131,8 +131,10 @@ describe("the async collecting render", () => {
     const NeverLoads = React.lazy(() => new Promise<{ default: React.ComponentType }>(() => {}));
     const beforeLazy = <Email><Row><Column>{React.createElement("img", { src: "https://example.com/a.png" }, "a child")}<NeverLoads /></Column></Row></Email>;
     await expect(renderToHtml(beforeLazy)).rejects.toMatchObject({ name: "RenderError", component: "img", position: "Row 1 › Column 1 › img" });
-    // A lazy component and a promise given as a child (React 19) that fail after what's after them has failed: theirs,
-    // as they're before it in the tree (the render failed with what's after them, without waiting for them).
+    // A promise given as a child (React 19) that fails after what's after it has failed: its error, as it's before it in
+    // the tree (the render failed with what's after it, without waiting for it). A lazy component isn't waited for:
+    // React's public API doesn't say when what it loads is there, so one that loaded was waited for forever, where a
+    // part after it failed and one after that never settled.
     const FailsAfter = () => {
       throw new Error("after");
     };
@@ -140,7 +142,19 @@ describe("the async collecting render", () => {
       throw new Error("before");
     });
     const LazyFails = React.lazy(() => failsLater<{ default: React.ComponentType }>());
-    await expect(renderToHtml(<Email><Row><Column><LazyFails /><FailsAfter /></Column></Row></Email>)).rejects.toMatchObject({ message: expect.stringMatching(/^\[Unlayer\] before/) });
+    await expect(renderToHtml(<Email><Row><Column><LazyFails /><FailsAfter /></Column></Row></Email>)).rejects.toMatchObject({ message: expect.stringMatching(/^\[Unlayer\] after/) });
+    const Never3 = () => {
+      throw new Promise(() => {});
+    };
+    const NeverLoads2 = React.lazy(() => new Promise<{ default: React.ComponentType }>(() => {}));
+    const LoadsAtOnce = React.lazy(async () => ({ default: () => <Paragraph>Loaded</Paragraph> }));
+    for (const [what, children] of [
+      ["one that loaded, then a part that fails", <><LoadsAtOnce /><FailsAfter /><React.Suspense fallback={null}><Never3 /></React.Suspense></>],
+      ["one whose load failed, then one that never loads", <><React.Suspense fallback={null}><LazyFails /></React.Suspense><React.Suspense fallback={null}><NeverLoads2 /></React.Suspense></>],
+      ["one that loaded, then one whose load failed", <><LoadsAtOnce /><React.Suspense fallback={null}><LazyFails /></React.Suspense><React.Suspense fallback={null}><Never3 /></React.Suspense></>],
+    ] as const) {
+      await expect(renderToHtml(<Email><Row><Column>{children}</Column></Row></Email>), what).rejects.toThrow(/\[Unlayer\] (after|before)/);
+    }
     // One React handled itself in what a lazy component renders (in a <Suspense> there: what it loads failed), with a
     // <Suspense> after it that never settles: it fails the render, which waited for that one.
     const ChunkFails = React.lazy(() => failsLater<{ default: React.ComponentType }>());

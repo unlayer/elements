@@ -185,7 +185,10 @@ elsewhere), waited for whole: React waits for what suspends (`use()`, a thrown p
 once. An async component (which React's server renderer doesn't run) is called once by `Call`, which waits for its
 promise. The output is in tree order whatever settles first. A render that fails fails with the first error in the
 order react-dom first called the components in, once nothing before it can still fail, and stops react-dom's render:
-it doesn't wait for what comes after it. A `<Suspense>` around the root, or around a template's own content, renders
+it doesn't wait for what comes after it. A lazy component isn't waited for (React loads what's lazy itself, and its
+public API doesn't say when that's done: one that loaded would be waited for forever), so a part after one that fails
+fails the render whether or not what it loads fails too, and an error React handled in what one renders is put at the
+last lazy component's place. A `<Suspense>` around the root, or around a template's own content, renders
 what's in it. A template wrapper that waits is waited for as above (Unwrap).
 
 ### Ids
@@ -208,7 +211,8 @@ whose `component` is the one that failed, `position` where it is in the template
 Columns numbered among their parent's, other components by name, numbered from the second of a name), and `cause` the
 original error. The message reads `[Unlayer] <what it threw> (in <Hero> at Row 3 › Column 1 › Hero)`. A part that
 fails in an async render is the first in tree order whatever fails first (the order react-dom first called the
-components in); the render doesn't wait for what comes after it in the tree, and react-dom's render is stopped.
+components in), but for a lazy component, which isn't waited for (see above); the render doesn't wait for what comes
+after it in the tree, and react-dom's render is stopped.
 
 `onError` (render options, a root's `config`, an `<UnlayerProvider>`; `renderToJson(element, { onError })`) changes
 that:
@@ -320,7 +324,8 @@ row or block is left out of the HTML, the plain text and the design (the slower 
 5. **Tree order.** Output, records, ids and the error a render throws don't depend on when promises settle, but for
    the work a render's Markdown and code blocks share (their budgets: see 9), which each charges as it renders: in an
    async render, where it runs out, the parts whose data arrived first have it (a later block is shown without its
-   code's colors, or a Markdown table past the cells it leaves fails).
+   code's colors, or a Markdown table past the cells it leaves fails); and for a lazy component, which isn't waited
+   for: an error after one, and one in what it loads, is the render's in the order they come.
 6. **Components run as React runs them**: once, and again where React renders again (a component that sets its state
    while rendering, one that suspends once what it waits for settles); an async component's function once.
 7. **Nothing is left out silently.** A part that fails throws, or is left out where `onError` says, and said.
