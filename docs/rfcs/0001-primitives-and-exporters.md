@@ -453,6 +453,18 @@ the major after), ships the codemod and the migration guide, and drops `@unlayer
 Last, once the API and components are final. It converts templates to the Unlayer builder's design
 JSON for Email, Page and Document, and edited designs back.
 
+**Built so far:** `toDesign(element)` from `@unlayer/react-elements/builder`, for an Email or a Page. It
+goes through today's components (`raise`): each new component becomes the tool the builder edits it
+with, with the values that draw it as the new engine does, and today's `renderToJson` writes the
+design the builder has opened for years. A Row's gap and side padding become its columns' padding and
+widths (the builder's row padding is outside the content), a line along every column of a Row its
+columns' borders (the builder stretches columns to the row's height), an image its desktop width as a
+px pin and its phone width as an override. A Layer, an Svg or a box nested in a column is an HTML block
+of the new engine's own markup, and listed. Storybook's "Primitives/Builder" draws main's examples (as
+the codemod migrated them) both ways, and the comparison gate checks the builder's matches the new
+engine's at desktop and phone widths. A Document's pages, headers and footers, and the way back, are
+next.
+
 - **To the builder:** through the tree. A `Section` is a full-width row, a `Row` at the top or in a
   Section is a row with its `Column`s as columns, content directly under the root is a one-column row,
   and each component is the matching tool (`Heading` → heading, `Paragraph`/`Text`/`List` → text,
@@ -489,7 +501,7 @@ Each step ends with its tests in CI.
 | 8. `Grid`, `Layer`, and Rows kept side by side that keep their shares on phones in email too | done |
 | 9. `Document`, `Document.Page`, `PageBreak`, headers, footers and page numbers; print HTML; `@unlayer/elements-pdf` | done |
 | 10. `Canvas`, `Svg` and shapes; `@unlayer/elements-image` | done |
-| 11. Builder adapter | next |
+| 11. Builder adapter | to the builder done (`toDesign`, Email and Page); back from it next |
 
 ## Open questions
 
