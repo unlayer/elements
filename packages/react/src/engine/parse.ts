@@ -358,7 +358,8 @@ export function parse(html: string, c: Collection): Part[] {
   // (React ends every marker it writes.)
   if (stack.some((open) => open.mark)) throw forged();
   kept(c);
-  copies(html, c, endsRead, asGiven);
+  // (Only what a lazy component renders has HTML given whole in react-dom's output, as written: see the top.)
+  if (c.lazies.length) copies(html, c, endsRead, asGiven);
   return root;
 }
 
